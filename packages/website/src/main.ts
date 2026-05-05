@@ -1206,7 +1206,7 @@ const LoadExternal = Command.define(
 // VIEW
 
 export const view = (model: Model): Document => ({
-  title: routeTitle(model.route),
+  title: routeTitle(model.route, model.apiReference.apiData),
   body: M.value(model.route).pipe(
     M.tag('Home', () => landingView(model)),
     M.tag('Newsletter', () => newsletterView(model)),
@@ -1225,14 +1225,35 @@ export const view = (model: Model): Document => ({
 
 const SITE_NAME = 'Foldkit'
 
-const routeTitle = (route: AppRoute): string =>
+const resolveApiModuleName = (
+  apiData: typeof Page.ApiReference.ApiDataRemoteData.Union.Type,
+  moduleSlug: string,
+): string =>
+  M.value(apiData).pipe(
+    M.tag('Ok', ({ data }) =>
+      Option.match(
+        Page.ApiReference.resolveModule(data.parsedApi, moduleSlug),
+        {
+          onSome: ({ name }) => name,
+          onNone: () => Page.ApiReference.slugToModuleName(moduleSlug),
+        },
+      ),
+    ),
+    M.orElse(() => Page.ApiReference.slugToModuleName(moduleSlug)),
+  )
+
+const routeTitle = (
+  route: AppRoute,
+  apiData: typeof Page.ApiReference.ApiDataRemoteData.Union.Type,
+): string =>
   M.value(route).pipe(
     M.tag('Home', () => SITE_NAME),
     M.tag('Newsletter', () => `Newsletter — ${SITE_NAME}`),
     M.tag('NotFound', () => `Not Found — ${SITE_NAME}`),
     M.tag(
       'ApiModule',
-      ({ moduleSlug }) => `${moduleSlug} — API — ${SITE_NAME}`,
+      ({ moduleSlug }) =>
+        `${resolveApiModuleName(apiData, moduleSlug)} — API — ${SITE_NAME}`,
     ),
     M.tag('ExampleDetail', ({ exampleSlug }) =>
       pipe(

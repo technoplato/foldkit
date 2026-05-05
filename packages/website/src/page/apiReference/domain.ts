@@ -482,3 +482,6 @@ const pascalToKebab = (text: string): string =>
 
 export const moduleNameToSlug = (name: string): string =>
   pipe(name, String.replaceAll('/', '-'), pascalToKebab)
+
+export const slugToModuleName = (slug: string): string =>
+  pipe(slug, String.split('-'), Array.map(String.capitalize), Array.join(''))
