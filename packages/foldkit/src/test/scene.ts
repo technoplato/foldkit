@@ -19,8 +19,10 @@ import { Dispatch } from '../runtime/index.js'
 import type { VNode } from '../vdom.js'
 import type {
   AnyCommand,
+  AnyMount,
   BaseInternal,
   CommandMatcher,
+  MountMatcher,
   MountResolver,
   PendingMount,
   Resolver,
@@ -41,9 +43,12 @@ import {
   assertZeroMounts,
   formatCommand,
   formatMatcher,
+  formatMountList,
+  formatMountMatcher,
+  mountMatches,
   resolveAllInternal,
   resolveByMatcher,
-  resolveMountByName,
+  resolveMountByMatcher,
 } from './internal.js'
 import type { Locator, LocatorAll } from './query.js'
 import {
@@ -68,7 +73,14 @@ import {
   allTitle,
 } from './query.js'
 
-export type { AnyCommand, MountResolver, PendingMount, Resolver }
+export type {
+  AnyCommand,
+  AnyMount,
+  MountMatcher,
+  MountResolver,
+  PendingMount,
+  Resolver,
+}
 
 export {
   find,
@@ -223,7 +235,11 @@ const collectRenderedSlots = (vnode: VNode): ReadonlyArray<PendingMount> => {
     if (marker !== undefined) {
       const occurrence = counts.get(marker.name) ?? 0
       counts.set(marker.name, occurrence + 1)
-      slots.push({ name: marker.name, occurrence })
+      slots.push(
+        marker.args === undefined
+          ? { name: marker.name, occurrence }
+          : { name: marker.name, args: marker.args, occurrence },
+      )
     }
     for (const child of node.children ?? []) {
       if (typeof child !== 'string') {
@@ -716,19 +732,21 @@ const expectNoCommandsStep =
     return simulation
   }
 
-/** Resolves a specific pending Mount with the given result Message. The first
- *  pending mount with the matching name is resolved. Mirrors `resolve` for
+/** Resolves a specific pending Mount with the given result Message. Accepts
+ *  either a Mount Definition (matches by name) or a Mount instance produced
+ *  by calling a Definition (matches by name + structural-equal args). The
+ *  first pending mount that matches is resolved. Mirrors `resolve` for
  *  Commands; the optional `toParentMessage` lifter matches `Mount.mapMessage`
  *  when a child Submodel mount is observed in a parent's view. */
 const resolveMount: {
   <Name extends string, ResultMessage>(
-    definition: MountDefinition<Name, ResultMessage>,
+    matcher: MountDefinition<Name, ResultMessage> | AnyMount,
     resultMessage: ResultMessage,
   ): <Model, Message, OutMessage = undefined>(
     simulation: SceneSimulation<Model, Message, OutMessage>,
   ) => SceneSimulation<Model, Message, OutMessage>
   <Name extends string, ResultMessage, ParentMessage>(
-    definition: MountDefinition<Name, ResultMessage>,
+    matcher: MountDefinition<Name, ResultMessage> | AnyMount,
     resultMessage: ResultMessage,
     toParentMessage: (message: ResultMessage) => ParentMessage,
   ): <Model, Message, OutMessage = undefined>(
@@ -736,7 +754,7 @@ const resolveMount: {
   ) => SceneSimulation<Model, Message, OutMessage>
 } =
   <Name extends string, ResultMessage>(
-    definition: MountDefinition<Name, ResultMessage>,
+    matcher: MountDefinition<Name, ResultMessage> | AnyMount,
     resultMessage: ResultMessage,
     toParentMessage?: (message: ResultMessage) => unknown,
   ) =>
@@ -748,26 +766,18 @@ const resolveMount: {
     const messageForUpdate = (Predicate.isUndefined(toParentMessage)
       ? resultMessage
       : toParentMessage(resultMessage)) as unknown as Message
-    const next = resolveMountByName(
+    const next = resolveMountByMatcher(
       internal as BaseInternal<Model, Message, unknown>,
       internal.mounts,
-      definition.name,
+      matcher,
       messageForUpdate,
     )
 
     if (Predicate.isUndefined(next)) {
       throw new Error(
-        `I tried to resolve Mount "${definition.name}" but it wasn't in the pending Mounts.\n\n` +
-          `Pending Mounts:\n${
-            Array.isReadonlyArrayNonEmpty(internal.mounts)
-              ? pipe(
-                  internal.mounts,
-                  Array.map(({ name }) => `    ${name}`),
-                  Array.join('\n'),
-                )
-              : '    (none)'
-          }\n\n` +
-          'Make sure the rendered view contains an OnMount with this name.',
+        `I tried to resolve Mount ${formatMountMatcher(matcher)} but it wasn't in the pending Mounts.\n\n` +
+          `Pending Mounts:\n${formatMountList(internal.mounts)}\n\n` +
+          'Make sure the rendered view contains an OnMount with this name and (when matching by instance) matching args.',
       )
     }
 
@@ -783,7 +793,7 @@ const resolveMount: {
         const key = slotKey(state.slot)
         return resolvedKeys.has(key)
           ? state
-          : state.slot.name === definition.name
+          : state.slot.name === matcher.name
             ? { slot: state.slot, status: RESOLVED }
             : state
       },
@@ -808,35 +818,37 @@ const resolveAllMounts =
     simulation: SceneSimulation<Model, Message, OutMessage>,
   ): SceneSimulation<Model, Message, OutMessage> =>
     Array.reduce(resolvers, simulation, (current, resolver) => {
-      const [definition, resultMessage] = resolver
+      const [matcher, resultMessage] = resolver
       const lift =
         resolver.length === 3
           ? /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
             (resolver[2] as (message: unknown) => unknown)
           : undefined
       return Predicate.isUndefined(lift)
-        ? resolveMount(definition, resultMessage)(current)
-        : resolveMount(definition, resultMessage, lift)(current)
+        ? resolveMount(matcher, resultMessage)(current)
+        : resolveMount(matcher, resultMessage, lift)(current)
     })
 
-/** Asserts that every given Mount is among the pending Mounts. */
+/** Asserts that every given Mount is among the pending Mounts. Accepts Mount
+ *  Definitions (match by name) and Mount instances (match by name + args). */
 const expectHasMountsStep =
-  (...definitions: ReadonlyArray<MountDefinition<string, unknown>>) =>
+  (...matchers: ReadonlyArray<MountMatcher>) =>
   <Model, Message, OutMessage = undefined>(
     simulation: SceneSimulation<Model, Message, OutMessage>,
   ): SceneSimulation<Model, Message, OutMessage> => {
-    assertHasMounts(toInternal(simulation).mounts, definitions)
+    assertHasMounts(toInternal(simulation).mounts, matchers)
     return simulation
   }
 
-/** Asserts that the pending Mounts match the given definitions exactly
- *  (order-independent, by name). */
+/** Asserts that the pending Mounts match the given matchers exactly
+ *  (order-independent). Accepts Mount Definitions (match by name) and Mount
+ *  instances (match by name + args). */
 const expectExactMountsStep =
-  (...definitions: ReadonlyArray<MountDefinition<string, unknown>>) =>
+  (...matchers: ReadonlyArray<MountMatcher>) =>
   <Model, Message, OutMessage = undefined>(
     simulation: SceneSimulation<Model, Message, OutMessage>,
   ): SceneSimulation<Model, Message, OutMessage> => {
-    assertExactMounts(toInternal(simulation).mounts, definitions)
+    assertExactMounts(toInternal(simulation).mounts, matchers)
     return simulation
   }
 
@@ -853,35 +865,39 @@ const expectNoMountsStep =
 /** Acknowledges that the given Mounts disappeared from the rendered tree.
  *  Required for every Mount that fires and then unmounts during a scene,
  *  whether or not it was resolved first. Without this, the scene throws at
- *  the end of the test for any unacknowledged unmount. */
+ *  the end of the test for any unacknowledged unmount. Mount matchers may
+ *  be Definitions or instances; instances acknowledge a specific args shape. */
 const expectEndedMountsStep =
-  (...definitions: ReadonlyArray<MountDefinition<string, unknown>>) =>
+  (...matchers: ReadonlyArray<MountMatcher>) =>
   <Model, Message, OutMessage = undefined>(
     simulation: SceneSimulation<Model, Message, OutMessage>,
   ): SceneSimulation<Model, Message, OutMessage> => {
     /* eslint-disable @typescript-eslint/consistent-type-assertions */
     const internal = toInternal(simulation)
-    const remainingNames = Array.map(definitions, ({ name }) => name)
+    const remaining: Array<MountMatcher> = Array.fromIterable(matchers)
     const updatedSlots: Array<MountSlotState> = []
     for (const state of internal.mountSlots) {
-      if (
-        state.status._tag === 'Ended' &&
-        !state.status.acknowledged &&
-        remainingNames.includes(state.slot.name)
-      ) {
-        const index = remainingNames.indexOf(state.slot.name)
-        remainingNames.splice(index, 1)
-        updatedSlots.push({ slot: state.slot, status: ENDED_ACKNOWLEDGED })
-      } else {
-        updatedSlots.push(state)
-      }
+      const maybeMatchIndex = Array.findFirstIndex(
+        remaining,
+        matcher =>
+          state.status._tag === 'Ended' &&
+          !state.status.acknowledged &&
+          mountMatches(matcher, state.slot),
+      )
+      Option.match(maybeMatchIndex, {
+        onNone: () => updatedSlots.push(state),
+        onSome: matchIndex => {
+          remaining.splice(matchIndex, 1)
+          updatedSlots.push({ slot: state.slot, status: ENDED_ACKNOWLEDGED })
+        },
+      })
     }
-    if (Array.isReadonlyArrayNonEmpty(remainingNames)) {
+    if (Array.isReadonlyArrayNonEmpty(remaining)) {
       throw new Error(
         `I tried to acknowledge ended Mounts but some haven't unmounted:\n\n` +
           pipe(
-            remainingNames,
-            Array.map(name => `    ${name}`),
+            remaining,
+            Array.map(matcher => `    ${formatMountMatcher(matcher)}`),
             Array.join('\n'),
           ) +
           '\n\nUse Scene.Mount.expectEnded only after the Mount has disappeared from the rendered tree.',

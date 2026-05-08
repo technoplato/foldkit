@@ -13,8 +13,7 @@ import {
 import { m } from '../../message/index.js'
 import * as Mount from '../../mount/index.js'
 import { evo } from '../../struct/index.js'
-import { anchorSetup, portalToBody } from '../anchor.js'
-import type { AnchorConfig } from '../anchor.js'
+import { AnchorConfig, anchorSetup, portalToBody } from '../anchor.js'
 // NOTE: Animation imports are split across schema + update to avoid a circular
 // dependency: animation → html → runtime → devtools → popover → animation.
 // The barrel (../animation) imports from html, which starts the cycle.
@@ -388,7 +387,25 @@ export const update = (model: Model, message: Message): UpdateReturn => {
  *  to acknowledge the mount produced by the rendered panel. */
 export const AnchorPopover = Mount.define(
   'AnchorPopover',
+  {
+    buttonId: S.String,
+    anchor: AnchorConfig,
+    focusSelector: S.optional(S.String),
+  },
   CompletedAnchorPopover,
+)(
+  ({ buttonId, anchor, focusSelector }) =>
+    (element): Effect.Effect<MountResult<typeof CompletedAnchorPopover.Type>> =>
+      Effect.sync(() => {
+        const cleanup = anchorSetup({
+          buttonId,
+          anchor,
+          interceptTab: false,
+          focusAfterPosition: true,
+          ...(focusSelector !== undefined && { focusSelector }),
+        })(element)
+        return { message: CompletedAnchorPopover(), cleanup }
+      }),
 )
 
 /** The backdrop-portaling Mount this Popover renders. Exposed so Scene tests can
@@ -397,9 +414,7 @@ export const AnchorPopover = Mount.define(
 export const PortalPopoverBackdrop = Mount.define(
   'PortalPopoverBackdrop',
   CompletedPortalPopoverBackdrop,
-)
-
-const portalPopoverBackdrop = PortalPopoverBackdrop(
+)(
   (
     element,
   ): Effect.Effect<MountResult<typeof CompletedPortalPopoverBackdrop.Type>> =>
@@ -609,19 +624,11 @@ export const view = <ParentMessage>(
   ]
 
   const anchorPopover = Mount.mapMessage(
-    AnchorPopover(
-      (items): Effect.Effect<MountResult<typeof CompletedAnchorPopover.Type>> =>
-        Effect.sync(() => {
-          const cleanup = anchorSetup({
-            buttonId: `${id}-button`,
-            anchor,
-            interceptTab: false,
-            focusAfterPosition: true,
-            ...(focusSelector !== undefined && { focusSelector }),
-          })(items)
-          return { message: CompletedAnchorPopover(), cleanup }
-        }),
-    ),
+    AnchorPopover({
+      buttonId: `${id}-button`,
+      anchor,
+      ...(focusSelector !== undefined && { focusSelector }),
+    }),
     toParentMessage,
   )
 
@@ -648,7 +655,7 @@ export const view = <ParentMessage>(
   const backdrop = keyed('div')(
     `${id}-backdrop`,
     [
-      OnMount(Mount.mapMessage(portalPopoverBackdrop, toParentMessage)),
+      OnMount(Mount.mapMessage(PortalPopoverBackdrop(), toParentMessage)),
       ...(isLeaving ? [] : [OnClick(dispatchClosed())]),
       ...(backdropClassName ? [Class(backdropClassName)] : []),
       ...backdropAttributes,

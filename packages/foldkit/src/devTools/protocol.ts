@@ -12,14 +12,22 @@ export const SerializedCommand = S.Struct({
 /** A serialized Command suitable for transmission over the WS protocol. */
 export type SerializedCommand = typeof SerializedCommand.Type
 
-/** A serialized history entry as it appears on the wire. `submodelPath` lists `Got<Child>Message` wrapper tags from outer to inner when the entry came up through a Submodel chain; `maybeLeafTag` is `Some` with the innermost child Message tag when one exists. `mountStartNames` lists Mounts that fired during the render after this Message; `mountEndNames` lists Mounts whose elements were unmounted during that render. The Messages dispatched by mount Effects appear as their own entries elsewhere in history. */
+/** A serialized Mount lifecycle event (start or end). `args` is `Some` when the Mount's definition declared an args record, and carries the runtime values used to construct the MountAction instance. */
+export const SerializedMount = S.Struct({
+  name: S.String,
+  args: S.OptionFromNullOr(S.Record(S.String, S.Unknown)),
+})
+/** A serialized Mount lifecycle event suitable for transmission over the WS protocol. */
+export type SerializedMount = typeof SerializedMount.Type
+
+/** A serialized history entry as it appears on the wire. `submodelPath` lists `Got<Child>Message` wrapper tags from outer to inner when the entry came up through a Submodel chain; `maybeLeafTag` is `Some` with the innermost child Message tag when one exists. `mountStarts` lists Mounts that fired during the render after this Message; `mountEnds` lists Mounts whose elements were unmounted during that render. The Messages dispatched by mount Effects appear as their own entries elsewhere in history. */
 export const SerializedEntry = S.Struct({
   index: S.Number,
   tag: S.String,
   message: S.Unknown,
   commands: S.Array(SerializedCommand),
-  mountStartNames: S.Array(S.String),
-  mountEndNames: S.Array(S.String),
+  mountStarts: S.Array(SerializedMount),
+  mountEnds: S.Array(SerializedMount),
   timestamp: S.Number,
   isModelChanged: S.Boolean,
   changedPaths: S.Array(S.String),
@@ -157,11 +165,11 @@ export const ResponseRuntimes = ts('ResponseRuntimes', {
   runtimes: S.Array(RuntimeInfo),
 })
 
-/** Response carrying the recorded init data. `maybeModel` is `None` until the runtime has finished its first render and recorded init; once set it stays set for the rest of the runtime's life. `commands` lists the Commands returned from the application's `init` function in the order they were produced, with their args when declared. `mountStartNames` lists the Mounts that fired during the initial render. */
+/** Response carrying the recorded init data. `maybeModel` is `None` until the runtime has finished its first render and recorded init; once set it stays set for the rest of the runtime's life. `commands` lists the Commands returned from the application's `init` function in the order they were produced, with their args when declared. `mountStarts` lists the Mounts that fired during the initial render, with their args when declared. */
 export const ResponseInit = ts('ResponseInit', {
   maybeModel: S.OptionFromNullOr(S.Unknown),
   commands: S.Array(SerializedCommand),
-  mountStartNames: S.Array(S.String),
+  mountStarts: S.Array(SerializedMount),
 })
 
 /** Response carrying a snapshot of the runtime's DevTools state. `currentIndex` is the absolute index of the most recently recorded Message, or -1 when no Messages have been recorded yet. `startIndex` is the earliest absolute index still retained in the rolling buffer (older entries are evicted past `maxEntries`). `totalEntries` is the number of retained entries. `isPaused` is true while the runtime is paused at a replayed snapshot; `maybePausedAtIndex` is `Some(index)` then and `None` otherwise. `hasInitModel` is true once the runtime has finished initialising. */

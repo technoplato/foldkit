@@ -30,7 +30,7 @@ import {
   label,
   span,
 } from '../../view/html'
-import { focusRoomIdInput, focusUsernameInput } from './command'
+import { FocusRoomIdInput, FocusUsernameInput } from './command'
 import {
   BlurredRoomIdInput,
   BlurredUsernameInput,
@@ -115,7 +115,7 @@ const enterUsername =
                   OnInput(value => toParentMessage(ChangedUsername({ value }))),
                   OnBlur(toParentMessage(BlurredUsernameInput())),
                   OnMount(
-                    Mount.mapMessage(focusUsernameInput, toParentMessage),
+                    Mount.mapMessage(FocusUsernameInput(), toParentMessage),
                   ),
                   Autocapitalize('none'),
                   Spellcheck(false),
@@ -176,7 +176,9 @@ const enterRoomId =
                   Class('bg-transparent px-0 py-2 outline-none w-full'),
                   OnInput(value => toParentMessage(ChangedRoomId({ value }))),
                   OnBlur(toParentMessage(BlurredRoomIdInput())),
-                  OnMount(Mount.mapMessage(focusRoomIdInput, toParentMessage)),
+                  OnMount(
+                    Mount.mapMessage(FocusRoomIdInput(), toParentMessage),
+                  ),
                   Autocapitalize('none'),
                   Spellcheck(false),
                   Autocorrect('off'),

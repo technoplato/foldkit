@@ -12,7 +12,7 @@ import {
 } from 'effect'
 import { Command, Mount, Runtime, Subscription } from 'foldkit'
 import * as Dom from 'foldkit/dom'
-import type { Document, Html, MountResult } from 'foldkit/html'
+import type { Document, Html } from 'foldkit/html'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { ts } from 'foldkit/schema'
@@ -343,63 +343,55 @@ const init: Runtime.ProgramInit<Model, Message> = () => [
 
 export const MountMap = Mount.define(
   'MountMap',
+  { hostId: S.String },
   SucceededMountMap,
   FailedMountMap,
-)
+)(({ hostId }) => (element: Element) => {
+  if (!(element instanceof HTMLElement)) {
+    return Effect.succeed({
+      message: FailedMountMap({
+        reason: 'Map host is not an HTMLElement.',
+      }),
+      cleanup: Function.constVoid,
+    })
+  } else {
+    return Effect.gen(function* () {
+      const maplibre = yield* Effect.tryPromise(() => import('maplibre-gl'))
+      const map = new maplibre.Map({
+        container: element,
+        style: 'https://demotiles.maplibre.org/style.json',
+        center: [0, 20],
+        zoom: INITIAL_MAP_ZOOM,
+      })
 
-const mountMap = (hostId: string) =>
-  MountMap(
-    (
-      element: Element,
-    ): Effect.Effect<
-      MountResult<typeof SucceededMountMap.Type | typeof FailedMountMap.Type>
-    > => {
-      if (!(element instanceof HTMLElement)) {
-        return Effect.succeed({
+      Array.forEach(featuredLocations, ({ id, lng, lat }) => {
+        const markerElement = document.createElement('button')
+        markerElement.setAttribute('data-location-id', id)
+        markerElement.setAttribute('aria-label', `Marker: ${id}`)
+        markerElement.className = markerStyle
+        new maplibre.Marker({ element: markerElement })
+          .setLngLat([lng, lat])
+          .addTo(map)
+      })
+
+      setMap(hostId, map)
+
+      return {
+        message: SucceededMountMap({ hostId }),
+        cleanup: () => removeMap(hostId),
+      }
+    }).pipe(
+      Effect.catch(error =>
+        Effect.succeed({
           message: FailedMountMap({
-            reason: 'Map host is not an HTMLElement.',
+            reason: error instanceof Error ? error.message : `${error}`,
           }),
           cleanup: Function.constVoid,
-        })
-      } else {
-        return Effect.gen(function* () {
-          const maplibre = yield* Effect.tryPromise(() => import('maplibre-gl'))
-          const map = new maplibre.Map({
-            container: element,
-            style: 'https://demotiles.maplibre.org/style.json',
-            center: [0, 20],
-            zoom: INITIAL_MAP_ZOOM,
-          })
-
-          Array.forEach(featuredLocations, ({ id, lng, lat }) => {
-            const markerElement = document.createElement('button')
-            markerElement.setAttribute('data-location-id', id)
-            markerElement.setAttribute('aria-label', `Marker: ${id}`)
-            markerElement.className = markerStyle
-            new maplibre.Marker({ element: markerElement })
-              .setLngLat([lng, lat])
-              .addTo(map)
-          })
-
-          setMap(hostId, map)
-
-          return {
-            message: SucceededMountMap({ hostId }),
-            cleanup: () => removeMap(hostId),
-          }
-        }).pipe(
-          Effect.catch(error =>
-            Effect.succeed({
-              message: FailedMountMap({
-                reason: error instanceof Error ? error.message : `${error}`,
-              }),
-              cleanup: Function.constVoid,
-            }),
-          ),
-        )
-      }
-    },
-  )
+        }),
+      ),
+    )
+  }
+})
 
 // SUBSCRIPTIONS
 
@@ -666,7 +658,11 @@ const mapPaneView = (model: Model): Html =>
     [Class('flex-1 relative')],
     [
       div(
-        [Class('h-full w-full'), AriaLabel('Map'), OnMount(mountMap(HOST_ID))],
+        [
+          Class('h-full w-full'),
+          AriaLabel('Map'),
+          OnMount(MountMap({ hostId: HOST_ID })),
+        ],
         [],
       ),
       mapErrorBannerView(model.maybeMapError),

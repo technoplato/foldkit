@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Function, Predicate, Schema } from 'effect'
 
 /** Type-level brand for CommandDefinition values. */
 /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
@@ -112,10 +112,7 @@ export function define(name: string, ...rest: ReadonlyArray<unknown>): unknown {
   const [maybeArgs] = rest
 
   const isArgsRecord =
-    maybeArgs !== undefined &&
-    typeof maybeArgs === 'object' &&
-    maybeArgs !== null &&
-    !Schema.isSchema(maybeArgs)
+    Predicate.isObject(maybeArgs) && !Schema.isSchema(maybeArgs)
 
   if (isArgsRecord) {
     return (
@@ -188,11 +185,18 @@ export const mapEffect: {
     args?: Record<string, unknown>
     effect: Effect.Effect<B, E2, R2>
   }>
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-} = ((...args: ReadonlyArray<any>) =>
-  args.length === 1
-    ? (command: any) => ({
-        ...command,
-        effect: args[0](command.effect),
-      })
-    : { ...args[0], effect: args[1](args[0].effect) }) as any
+} = Function.dual(
+  2,
+  <A, E1, R1, B, E2, R2>(
+    command: Readonly<{
+      name: string
+      args?: Record<string, unknown>
+      effect: Effect.Effect<A, E1, R1>
+    }>,
+    f: (effect: Effect.Effect<A, E1, R1>) => Effect.Effect<B, E2, R2>,
+  ): Readonly<{
+    name: string
+    args?: Record<string, unknown>
+    effect: Effect.Effect<B, E2, R2>
+  }> => ({ ...command, effect: f(command.effect) }),
+)

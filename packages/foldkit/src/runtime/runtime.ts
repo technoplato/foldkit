@@ -28,6 +28,7 @@ import { createOverlay } from '../devTools/overlay.js'
 import {
   type CommandRecord,
   type DevToolsStore,
+  type MountRecord,
   createDevToolsStore,
 } from '../devTools/store.js'
 import { startWebSocketBridge } from '../devTools/webSocketBridge.js'
@@ -774,19 +775,21 @@ const makeRuntime = <
           })
         })
 
-        const mountStartBuffer: Array<string> = []
-        const mountEndBuffer: Array<string> = []
+        const mountStartBuffer: Array<MountRecord> = []
+        const mountEndBuffer: Array<MountRecord> = []
         const mountTracker: typeof MountTracker.Service = {
-          started: name => {
-            mountStartBuffer.push(name)
+          started: (name, args) => {
+            mountStartBuffer.push(
+              args === undefined ? { name } : { name, args },
+            )
           },
-          ended: name => {
-            mountEndBuffer.push(name)
+          ended: (name, args) => {
+            mountEndBuffer.push(args === undefined ? { name } : { name, args })
           },
         }
         const drainMountEvents = (): Readonly<{
-          starts: ReadonlyArray<string>
-          ends: ReadonlyArray<string>
+          starts: ReadonlyArray<MountRecord>
+          ends: ReadonlyArray<MountRecord>
         }> => {
           const starts = mountStartBuffer.slice()
           const ends = mountEndBuffer.slice()

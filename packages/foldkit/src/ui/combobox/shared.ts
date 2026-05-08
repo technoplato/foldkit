@@ -21,8 +21,7 @@ import {
 import { m } from '../../message/index.js'
 import * as Mount from '../../mount/index.js'
 import { makeConstrainedEvo } from '../../struct/index.js'
-import { anchorSetup, portalToBody } from '../anchor.js'
-import type { AnchorConfig } from '../anchor.js'
+import { AnchorConfig, anchorSetup, portalToBody } from '../anchor.js'
 // NOTE: Animation imports are split across schema + update to avoid a circular
 // dependency: animation → html → runtime → devtools → combobox → animation.
 // The barrel (../animation) imports from html, which starts the cycle.
@@ -617,8 +616,35 @@ export const makeUpdate = <Model extends BaseModel>(
  *  `Scene.Mount.resolve(AnchorCombobox, CompletedAnchorCombobox())`. */
 export const AnchorCombobox = Mount.define(
   'AnchorCombobox',
+  { buttonId: S.String, anchor: AnchorConfig },
   CompletedAnchorCombobox,
+)(
+  ({ buttonId, anchor }) =>
+    (
+      element,
+    ): Effect.Effect<MountResult<typeof CompletedAnchorCombobox.Type>> =>
+      Effect.sync(() => {
+        const preventBlur = (event: Event) => {
+          event.preventDefault()
+        }
+        element.addEventListener('pointerdown', preventBlur, { capture: true })
+        const teardownAnchor = anchorSetup({
+          buttonId,
+          anchor,
+          interceptTab: false,
+        })(element)
+        return {
+          message: CompletedAnchorCombobox(),
+          cleanup: () => {
+            element.removeEventListener('pointerdown', preventBlur, {
+              capture: true,
+            })
+            teardownAnchor()
+          },
+        }
+      }),
 )
+
 /** The Mount this Combobox renders to install a `pointerdown`-cancelling
  *  capture listener that prevents blur on item presses. Exposed so Scene
  *  tests can call
@@ -626,23 +652,7 @@ export const AnchorCombobox = Mount.define(
 export const AttachComboboxPreventBlur = Mount.define(
   'AttachComboboxPreventBlur',
   CompletedAttachComboboxPreventBlur,
-)
-/** The Mount this Combobox renders to install the input's select-on-focus
- *  behavior. Exposed so Scene tests can call
- *  `Scene.Mount.resolve(AttachComboboxSelectOnFocus, CompletedAttachComboboxSelectOnFocus())`. */
-export const AttachComboboxSelectOnFocus = Mount.define(
-  'AttachComboboxSelectOnFocus',
-  CompletedAttachComboboxSelectOnFocus,
-)
-/** The backdrop-portaling Mount this Combobox renders. Exposed so Scene tests can
- *  call `Scene.Mount.resolve(PortalComboboxBackdrop, CompletedPortalComboboxBackdrop())` to
- *  acknowledge the mount produced by the rendered backdrop. */
-export const PortalComboboxBackdrop = Mount.define(
-  'PortalComboboxBackdrop',
-  CompletedPortalComboboxBackdrop,
-)
-
-const attachComboboxPreventBlur = AttachComboboxPreventBlur(
+)(
   (
     element,
   ): Effect.Effect<
@@ -663,7 +673,13 @@ const attachComboboxPreventBlur = AttachComboboxPreventBlur(
     }),
 )
 
-const attachComboboxSelectOnFocus = AttachComboboxSelectOnFocus(
+/** The Mount this Combobox renders to install the input's select-on-focus
+ *  behavior. Exposed so Scene tests can call
+ *  `Scene.Mount.resolve(AttachComboboxSelectOnFocus, CompletedAttachComboboxSelectOnFocus())`. */
+export const AttachComboboxSelectOnFocus = Mount.define(
+  'AttachComboboxSelectOnFocus',
+  CompletedAttachComboboxSelectOnFocus,
+)(
   (
     element,
   ): Effect.Effect<
@@ -683,7 +699,13 @@ const attachComboboxSelectOnFocus = AttachComboboxSelectOnFocus(
     }),
 )
 
-const portalComboboxBackdrop = PortalComboboxBackdrop(
+/** The backdrop-portaling Mount this Combobox renders. Exposed so Scene tests can
+ *  call `Scene.Mount.resolve(PortalComboboxBackdrop, CompletedPortalComboboxBackdrop())` to
+ *  acknowledge the mount produced by the rendered backdrop. */
+export const PortalComboboxBackdrop = Mount.define(
+  'PortalComboboxBackdrop',
+  CompletedPortalComboboxBackdrop,
+)(
   (
     element,
   ): Effect.Effect<MountResult<typeof CompletedPortalComboboxBackdrop.Type>> =>
@@ -1061,7 +1083,7 @@ export const makeView =
       ...(config.model.selectInputOnFocus
         ? [
             OnMount(
-              Mount.mapMessage(attachComboboxSelectOnFocus, toParentMessage),
+              Mount.mapMessage(AttachComboboxSelectOnFocus(), toParentMessage),
             ),
           ]
         : []),
@@ -1074,40 +1096,19 @@ export const makeView =
           Style({ position: 'absolute', margin: '0', visibility: 'hidden' }),
           OnMount(
             Mount.mapMessage(
-              AnchorCombobox(
-                (
-                  items,
-                ): Effect.Effect<
-                  MountResult<typeof CompletedAnchorCombobox.Type>
-                > =>
-                  Effect.sync(() => {
-                    const preventBlur = (event: Event) => {
-                      event.preventDefault()
-                    }
-                    items.addEventListener('pointerdown', preventBlur, {
-                      capture: true,
-                    })
-                    const teardownAnchor = anchorSetup({
-                      buttonId: `${id}-input-wrapper`,
-                      anchor,
-                      interceptTab: false,
-                    })(items)
-                    return {
-                      message: CompletedAnchorCombobox(),
-                      cleanup: () => {
-                        items.removeEventListener('pointerdown', preventBlur, {
-                          capture: true,
-                        })
-                        teardownAnchor()
-                      },
-                    }
-                  }),
-              ),
+              AnchorCombobox({
+                buttonId: `${id}-input-wrapper`,
+                anchor,
+              }),
               toParentMessage,
             ),
           ),
         ]
-      : [OnMount(Mount.mapMessage(attachComboboxPreventBlur, toParentMessage))]
+      : [
+          OnMount(
+            Mount.mapMessage(AttachComboboxPreventBlur(), toParentMessage),
+          ),
+        ]
 
     const itemsContainerAttributes = [
       Id(`${id}-items`),
@@ -1252,7 +1253,7 @@ export const makeView =
     const backdrop = keyed('div')(
       `${id}-backdrop`,
       [
-        OnMount(Mount.mapMessage(portalComboboxBackdrop, toParentMessage)),
+        OnMount(Mount.mapMessage(PortalComboboxBackdrop(), toParentMessage)),
         ...(isLeaving ? [] : [OnClick(toParentMessage(Closed()))]),
         ...(backdropClassName ? [Class(backdropClassName)] : []),
         ...backdropAttributes,
@@ -1306,7 +1307,7 @@ export const makeView =
                 ? [AriaDisabled(true), DataAttribute('disabled', '')]
                 : [OnClick(toParentMessage(PressedToggleButton()))]),
               OnMount(
-                Mount.mapMessage(attachComboboxPreventBlur, toParentMessage),
+                Mount.mapMessage(AttachComboboxPreventBlur(), toParentMessage),
               ),
               ...(buttonClassName ? [Class(buttonClassName)] : []),
               ...buttonAttributes,

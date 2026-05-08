@@ -49,9 +49,7 @@ export const JoinRoom = Command.define(
 export const FocusUsernameInput = Mount.define(
   'FocusUsernameInput',
   CompletedFocusUsernameInput,
-)
-
-export const focusUsernameInput = FocusUsernameInput(element =>
+)(element =>
   Effect.sync(() => {
     if (element instanceof HTMLInputElement) {
       element.focus()
@@ -66,9 +64,7 @@ export const focusUsernameInput = FocusUsernameInput(element =>
 export const FocusRoomIdInput = Mount.define(
   'FocusRoomIdInput',
   CompletedFocusRoomIdInput,
-)
-
-export const focusRoomIdInput = FocusRoomIdInput(element =>
+)(element =>
   Effect.sync(() => {
     if (element instanceof HTMLInputElement) {
       element.focus()

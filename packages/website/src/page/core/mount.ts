@@ -40,6 +40,12 @@ const sideEffectsOnMountHeader: TableOfContentsEntry = {
   text: 'Side Effects on Mount',
 }
 
+const argsHeader: TableOfContentsEntry = {
+  level: 'h2',
+  id: 'args',
+  text: 'Per-Instance Args',
+}
+
 const thirdPartyLibrariesHeader: TableOfContentsEntry = {
   level: 'h2',
   id: 'third-party-libraries',
@@ -56,6 +62,7 @@ export const tableOfContents: ReadonlyArray<TableOfContentsEntry> = [
   overviewHeader,
   whenToReachForMountHeader,
   sideEffectsOnMountHeader,
+  argsHeader,
   thirdPartyLibrariesHeader,
   subscriptionsHeader,
 ]
@@ -174,14 +181,51 @@ export const view = (copiedSnippets: CopiedSnippets): Html =>
         inlineCode('OnMount'),
         ' fire their Effects again as their VNodes are inserted, and the cleanup runs as they are destroyed. The two rules above are what keep Mount work inherently replay-safe: DOM measurement is read-only, DOM manipulation on an element that exists in both live and time-travel views is idempotent, observer attachment paired with cleanup is self-balancing. Anything that mutates external state (network calls, storage writes, focus-on-transition, scroll lock for the page, library instantiation keyed on Model rather than element) is unsafe to re-run during replay and therefore not a Mount.',
       ),
+      tableOfContentsEntryToHeader(argsHeader),
+      para(
+        'Mount factories often need a value that varies per instance: an element id to anchor against, the data driving a chart render, the stable host id a Subscription will key on. Declare those values as ',
+        inlineCode('args'),
+        ' on ',
+        inlineCode('Mount.define'),
+        ' so the factory receives them as a typed record at view time. The shape mirrors ',
+        link(coreCommandsRouter(), 'Commands'),
+        ': ',
+        inlineCode(
+          'Mount.define(name, args, ...results)(({ ...args }) => element => Effect)',
+        ),
+        '. Calling the Definition with an args record at view time produces a MountAction the runtime feeds into ',
+        inlineCode('OnMount'),
+        '.',
+      ),
+      para(
+        'Args carry the inputs that vary per instance. Anything else the factory needs comes in through the Effect itself: module-level constants live in lexical scope, app-wide dependencies arrive through Foldkit ',
+        inlineCode('Resources'),
+        ', model-driven handles arrive through ',
+        inlineCode('ManagedResources'),
+        ', and any service tag on the Effect’s context channel is pulled with ',
+        inlineCode('yield*'),
+        '. Args don’t have to carry every value the factory uses; they carry the per-instance inputs.',
+      ),
+      infoCallout(
+        'Args surface in DevTools and tests',
+        'Mount args appear in DevTools alongside the Mount name, and Scene tests can match a specific instance by passing the same args record to ',
+        inlineCode('Scene.Mount.expectHas'),
+        ' or ',
+        inlineCode('Scene.Mount.resolve'),
+        '. See ',
+        link(testingSceneRouter(), 'Scene'),
+        ' for the Definition-vs-Instance matcher contract.',
+      ),
       tableOfContentsEntryToHeader(thirdPartyLibrariesHeader),
       para(
         inlineCode('OnMount'),
         ' really earns its keep when a library owns its own DOM. Charts, code editors, map renderers, force-directed graphs: each expects a real element to render into and a way to be torn down later.',
       ),
       para(
-        'It takes an ',
-        inlineCode('(element: Element) => Effect<MountResult<Message>>'),
+        'The factory takes the live ',
+        inlineCode('Element'),
+        ' (and its declared args, when any) and returns an ',
+        inlineCode('Effect<MountResult<Message>>'),
         '. The Effect resolves to a ',
         inlineCode('{ message, cleanup }'),
         ' record. The runtime dispatches the Message and stashes the cleanup. When Snabbdom later removes the node, ',

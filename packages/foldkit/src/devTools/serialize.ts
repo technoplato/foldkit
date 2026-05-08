@@ -7,8 +7,12 @@ import {
   Record,
 } from 'effect'
 
-import type { SerializedCommand, SerializedEntry } from './protocol.js'
-import type { CommandRecord, HistoryEntry } from './store.js'
+import type {
+  SerializedCommand,
+  SerializedEntry,
+  SerializedMount,
+} from './protocol.js'
+import type { CommandRecord, HistoryEntry, MountRecord } from './store.js'
 import { extractSubmodelInfo } from './submodelPath.js'
 
 const inspectableCache = new WeakMap<object, unknown>()
@@ -75,6 +79,16 @@ export const toSerializedCommand = (
 })
 
 /**
+ * Convert a runtime `MountRecord` to its wire shape. Args are wrapped in an
+ * `Option` so `None` cleanly distinguishes argless Mounts from Mounts that
+ * happen to have an empty args record.
+ */
+export const toSerializedMount = (mount: MountRecord): SerializedMount => ({
+  name: mount.name,
+  args: Option.fromNullishOr(mount.args),
+})
+
+/**
  * Convert a `HistoryEntry` plus its absolute index into the wire-friendly
  * `SerializedEntry` shape. Flattens the diff's `HashSet` path collections to
  * plain string arrays for JSON transmission and runs the message body through
@@ -94,8 +108,8 @@ export const toSerializedEntry = (
     tag: entry.tag,
     message: toInspectableValue(entry.message),
     commands: Array_.map(entry.commands, toSerializedCommand),
-    mountStartNames: entry.mountStartNames,
-    mountEndNames: entry.mountEndNames,
+    mountStarts: Array_.map(entry.mountStarts, toSerializedMount),
+    mountEnds: Array_.map(entry.mountEnds, toSerializedMount),
     timestamp: entry.timestamp,
     isModelChanged: entry.isModelChanged,
     changedPaths: Array_.fromIterable(entry.diff.changedPaths),

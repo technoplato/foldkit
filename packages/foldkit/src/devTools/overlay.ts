@@ -43,6 +43,7 @@ import {
   type CommandRecord,
   type DevToolsStore,
   INIT_INDEX,
+  type MountRecord,
   type StoreState,
 } from './store.js'
 import {
@@ -58,13 +59,18 @@ const DisplayCommand = S.Struct({
   args: S.Option(S.Record(S.String, S.Unknown)),
 })
 
+const DisplayMount = S.Struct({
+  name: S.String,
+  args: S.Option(S.Record(S.String, S.Unknown)),
+})
+
 const DisplayEntry = S.Struct({
   tag: S.String,
   submodelPath: S.Array(S.String),
   maybeLeafTag: S.Option(S.String),
   commands: S.Array(DisplayCommand),
-  mountStartNames: S.Array(S.String),
-  mountEndNames: S.Array(S.String),
+  mountStarts: S.Array(DisplayMount),
+  mountEnds: S.Array(DisplayMount),
   timestamp: S.Number,
   isModelChanged: S.Boolean,
 })
@@ -99,7 +105,7 @@ const Model = S.Struct({
   isMobile: S.Boolean,
   entries: S.Array(DisplayEntry),
   initCommands: S.Array(DisplayCommand),
-  initMountStartNames: S.Array(S.String),
+  initMountStarts: S.Array(DisplayMount),
   startIndex: S.Number,
   isPaused: S.Boolean,
   pausedAtIndex: S.Number,
@@ -121,7 +127,7 @@ const Flags = S.Struct({
   isMobile: S.Boolean,
   entries: S.Array(DisplayEntry),
   initCommands: S.Array(DisplayCommand),
-  initMountStartNames: S.Array(S.String),
+  initMountStarts: S.Array(DisplayMount),
   startIndex: S.Number,
   isPaused: S.Boolean,
   pausedAtIndex: S.Number,
@@ -156,7 +162,7 @@ const GotInspectorTabsMessage = m('GotInspectorTabsMessage', {
 const ReceivedStoreUpdate = m('ReceivedStoreUpdate', {
   entries: S.Array(DisplayEntry),
   initCommands: S.Array(DisplayCommand),
-  initMountStartNames: S.Array(S.String),
+  initMountStarts: S.Array(DisplayMount),
   startIndex: S.Number,
   isPaused: S.Boolean,
   pausedAtIndex: S.Number,
@@ -199,7 +205,7 @@ const TREE_INDENT_PX = 12
 const MAX_PREVIEW_KEYS = 3
 const ALL_MESSAGES_VALUE = ''
 const NO_COMMANDS: ReadonlyArray<typeof DisplayCommand.Type> = []
-const NO_MOUNTS: ReadonlyArray<string> = []
+const NO_MOUNTS: ReadonlyArray<typeof DisplayMount.Type> = []
 
 const formatTimeDelta = (deltaMs: number): string =>
   M.value(deltaMs).pipe(
@@ -227,6 +233,11 @@ const toDisplayCommand = (
   args: Option.fromNullishOr(command.args),
 })
 
+const toDisplayMount = (mount: MountRecord): typeof DisplayMount.Type => ({
+  name: mount.name,
+  args: Option.fromNullishOr(mount.args),
+})
+
 const toDisplayEntries = ({ entries }: StoreState) =>
   Array_.map(entries, entry => {
     const { submodelPath, maybeLeafTag } = extractSubmodelInfo(
@@ -238,8 +249,8 @@ const toDisplayEntries = ({ entries }: StoreState) =>
       submodelPath,
       maybeLeafTag,
       commands: Array_.map(entry.commands, toDisplayCommand),
-      mountStartNames: entry.mountStartNames,
-      mountEndNames: entry.mountEndNames,
+      mountStarts: Array_.map(entry.mountStarts, toDisplayMount),
+      mountEnds: Array_.map(entry.mountEnds, toDisplayMount),
       timestamp: entry.timestamp,
       isModelChanged: entry.isModelChanged,
     }
@@ -248,7 +259,7 @@ const toDisplayEntries = ({ entries }: StoreState) =>
 const toDisplayState = (state: StoreState) => ({
   entries: toDisplayEntries(state),
   initCommands: Array_.map(state.initCommands, toDisplayCommand),
-  initMountStartNames: state.initMountStartNames,
+  initMountStarts: Array_.map(state.initMountStarts, toDisplayMount),
   startIndex: state.startIndex,
   isPaused: state.isPaused,
   pausedAtIndex: state.pausedAtIndex,
@@ -531,7 +542,7 @@ const makeUpdate = (
         ReceivedStoreUpdate: ({
           entries,
           initCommands,
-          initMountStartNames,
+          initMountStarts,
           startIndex,
           isPaused,
           pausedAtIndex,
@@ -557,7 +568,7 @@ const makeUpdate = (
             evo(model, {
               entries: () => entries,
               initCommands: () => initCommands,
-              initMountStartNames: () => initMountStartNames,
+              initMountStarts: () => initMountStarts,
               startIndex: () => startIndex,
               isPaused: () => isPaused,
               pausedAtIndex: () => pausedAtIndex,
@@ -1242,15 +1253,15 @@ const makeView = (
     })
 
   type SelectedMountActivity = Readonly<{
-    starts: ReadonlyArray<string>
-    ends: ReadonlyArray<string>
+    starts: ReadonlyArray<typeof DisplayMount.Type>
+    ends: ReadonlyArray<typeof DisplayMount.Type>
   }>
 
   const selectedMountActivity = (model: Model): SelectedMountActivity => {
     const selectedIndex = selectedHistoryIndex(model)
 
     if (selectedIndex === INIT_INDEX) {
-      return { starts: model.initMountStartNames, ends: NO_MOUNTS }
+      return { starts: model.initMountStarts, ends: NO_MOUNTS }
     } else {
       return pipe(
         model.entries,
@@ -1258,17 +1269,45 @@ const makeView = (
         Option.match({
           onNone: () => ({ starts: NO_MOUNTS, ends: NO_MOUNTS }),
           onSome: entry => ({
-            starts: entry.mountStartNames,
-            ends: entry.mountEndNames,
+            starts: entry.mountStarts,
+            ends: entry.mountEnds,
           }),
         }),
       )
     }
   }
 
+  const flattenMount = (
+    mount: typeof DisplayMount.Type,
+    sectionLabel: string,
+    index: number,
+    expandedPaths: HashSet.HashSet<string>,
+  ): ReadonlyArray<FlatNode> => {
+    const taggedValue = Option.match(mount.args, {
+      onNone: () => ({ _tag: mount.name }),
+      onSome: argsValue => ({ ...argsValue, _tag: mount.name }),
+    })
+    const rootPath = `mount-${sectionLabel}-${index}`
+    const nodes: Array<FlatNode> = []
+    flattenTree({
+      value: toInspectableValue(taggedValue),
+      treePath: rootPath,
+      rootPath,
+      expandedPaths,
+      changedPaths: HashSet.empty(),
+      affectedPaths: HashSet.empty(),
+      depth: 0,
+      key: '',
+      accumulator: nodes,
+      indentRootChildren: false,
+    })
+    return nodes
+  }
+
   const mountListSection = (
     label: string,
-    names: ReadonlyArray<string>,
+    mounts: ReadonlyArray<typeof DisplayMount.Type>,
+    expandedPaths: HashSet.HashSet<string>,
   ): Html =>
     div(
       [Class('flex flex-col shrink-0')],
@@ -1281,16 +1320,18 @@ const makeView = (
           ],
           [label],
         ),
-        ...Array_.map(names, (name, index) =>
+        ...Array_.map(mounts, (mount, index) =>
           div(
-            [
-              Class(
-                'flex items-center px-2 py-1 text-base font-mono text-dt border-b gap-1.5',
-              ),
-            ],
+            [Class('flex items-start px-2 py-1 border-b gap-1.5')],
             [
               span([Class(indexClass)], [String(index + 1)]),
-              span([Class('json-tag')], [name]),
+              div(
+                [Class('flex flex-col flex-1 min-w-0')],
+                Array_.map(
+                  flattenMount(mount, label, index, expandedPaths),
+                  renderFlatNode,
+                ),
+              ),
             ],
           ),
         ),
@@ -1298,8 +1339,9 @@ const makeView = (
     )
 
   const mountsTabContent = (
-    starts: ReadonlyArray<string>,
-    ends: ReadonlyArray<string>,
+    starts: ReadonlyArray<typeof DisplayMount.Type>,
+    ends: ReadonlyArray<typeof DisplayMount.Type>,
+    expandedPaths: HashSet.HashSet<string>,
   ): Html => {
     const hasAny =
       Array_.isReadonlyArrayNonEmpty(starts) ||
@@ -1324,10 +1366,10 @@ const makeView = (
       ],
       [
         ...(Array_.isReadonlyArrayNonEmpty(starts)
-          ? [mountListSection('Started', starts)]
+          ? [mountListSection('Started', starts, expandedPaths)]
           : []),
         ...(Array_.isReadonlyArrayNonEmpty(ends)
-          ? [mountListSection('Ended', ends)]
+          ? [mountListSection('Ended', ends, expandedPaths)]
           : []),
       ],
     )
@@ -1363,7 +1405,11 @@ const makeView = (
       ),
       M.when('Mounts', () => {
         const { starts, ends } = selectedMountActivity(model)
-        return lazyTabContent('Mounts', mountsTabContent, [starts, ends])
+        return lazyTabContent('Mounts', mountsTabContent, [
+          starts,
+          ends,
+          model.expandedPaths,
+        ])
       }),
       M.exhaustive,
     )

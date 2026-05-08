@@ -42,7 +42,10 @@ import {
   MeasuredPanel,
   ClickedIncrement as MountClickedIncrement,
   ClickedToggle as MountClickedToggle,
+  ScrollList,
+  ScrolledTo,
   initialModel as mountInitialModel,
+  scrollListView as mountScrollListView,
   twoPanelView as mountTwoPanelView,
   update as mountUpdate,
   view as mountView,
@@ -2793,7 +2796,7 @@ describe('scene mounts', () => {
         Scene.with(mountInitialModel),
         Scene.Mount.resolve(MeasurePanel, MeasuredPanel({ width: 0 })),
       ),
-    ).toThrow(/I tried to resolve Mount "MeasurePanel"/)
+    ).toThrow(/I tried to resolve Mount MeasurePanel/)
   })
 
   test('resolveAllMounts resolves a batch in order', () => {
@@ -3053,5 +3056,61 @@ describe('scene mounts', () => {
       Scene.Mount.expectExact(MeasurePanel),
       Scene.Mount.resolve(MeasurePanel, MeasuredPanel({ width: 320 })),
     )
+  })
+
+  test('Mount Instance matcher resolves on name + structural-equal args', () => {
+    const offset = 240
+    Scene.scene(
+      {
+        update: mountUpdate,
+        view: () => mountScrollListView(offset),
+      },
+      Scene.with(mountInitialModel),
+      Scene.Mount.expectHas(ScrollList({ offset })),
+      Scene.Mount.resolve(ScrollList({ offset }), ScrolledTo({ offset })),
+    )
+  })
+
+  test('Mount Instance matcher with different args does not match', () => {
+    const offset = 240
+    expect(() =>
+      Scene.scene(
+        {
+          update: mountUpdate,
+          view: () => mountScrollListView(offset),
+        },
+        Scene.with(mountInitialModel),
+        Scene.Mount.expectHas(ScrollList({ offset: 999 })),
+      ),
+    ).toThrow(/Expected to find Mounts/)
+  })
+
+  test('Mount Definition matcher matches regardless of args', () => {
+    const offset = 12
+    Scene.scene(
+      {
+        update: mountUpdate,
+        view: () => mountScrollListView(offset),
+      },
+      Scene.with(mountInitialModel),
+      Scene.Mount.expectHas(ScrollList),
+      Scene.Mount.resolve(ScrollList, ScrolledTo({ offset })),
+    )
+  })
+
+  test('resolveMount failure message shows pending Mount args alongside the matcher', () => {
+    expect(() =>
+      Scene.scene(
+        {
+          update: mountUpdate,
+          view: () => mountScrollListView(240),
+        },
+        Scene.with(mountInitialModel),
+        Scene.Mount.resolve(
+          ScrollList({ offset: 999 }),
+          ScrolledTo({ offset: 999 }),
+        ),
+      ),
+    ).toThrow(/ScrollList \{"offset":240\}/)
   })
 })

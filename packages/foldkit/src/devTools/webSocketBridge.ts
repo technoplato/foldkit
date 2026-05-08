@@ -39,6 +39,7 @@ import {
   toInspectableValue,
   toSerializedCommand,
   toSerializedEntry,
+  toSerializedMount,
 } from './serialize.js'
 import { type DevToolsStore, INIT_INDEX } from './store.js'
 import {
@@ -372,7 +373,7 @@ const dispatchRequest = (
           return ResponseInit({
             maybeModel: Option.map(state.maybeInitModel, toInspectableValue),
             commands: Array.map(state.initCommands, toSerializedCommand),
-            mountStartNames: state.initMountStartNames,
+            mountStarts: Array.map(state.initMountStarts, toSerializedMount),
           })
         }),
 

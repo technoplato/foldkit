@@ -31,8 +31,60 @@ type PlaygroundEmbedMessage =
 
 const PlaygroundEmbed = Mount.define(
   'PlaygroundEmbed',
+  {
+    title: S.String,
+    description: S.String,
+    files: S.Record(S.String, S.String),
+  },
   SucceededPlaygroundEmbed,
   FailedPlaygroundEmbed,
+)(
+  ({ title, description, files }) =>
+    (element: Element): Effect.Effect<MountResult<PlaygroundEmbedMessage>> => {
+      if (!(element instanceof HTMLElement)) {
+        return Effect.succeed({
+          message: FailedPlaygroundEmbed({
+            reason: 'Playground requires an HTMLElement host.',
+          }),
+          cleanup: Function.constVoid,
+        })
+      }
+      return Effect.gen(function* () {
+        yield* Effect.tryPromise(() =>
+          import('@stackblitz/sdk').then(({ default: sdk }) =>
+            sdk.embedProject(
+              element,
+              {
+                title,
+                description,
+                template: 'node',
+                files,
+              },
+              {
+                height: '100%',
+                hideNavigation: true,
+                openFile: 'src/main.ts',
+                showSidebar: true,
+                view: 'default',
+              },
+            ),
+          ),
+        )
+        return {
+          message: SucceededPlaygroundEmbed(),
+          cleanup: Function.constVoid,
+        }
+      }).pipe(
+        Effect.catch(error =>
+          Effect.succeed({
+            message: FailedPlaygroundEmbed({
+              reason: error instanceof Error ? error.message : String(error),
+            }),
+            cleanup: Function.constVoid,
+          }),
+        ),
+      )
+    },
 )
 
 const backToExampleButton = (maybeMeta: Option.Option<ExampleMeta>): Html =>
@@ -84,57 +136,24 @@ const messageView = (
 // the iframe from the DOM on unmount; there is no additional cleanup hook the
 // SDK accepts. The resulting per-visit leak is a few KB of JS state — negligible
 // for a docs site, tracked as a follow-up to request a public teardown method.
-const embedView = (meta: ExampleMeta, files: Record<string, string>): Html => {
-  const embedPlayground = PlaygroundEmbed(
-    (element: Element): Effect.Effect<MountResult<PlaygroundEmbedMessage>> => {
-      if (!(element instanceof HTMLElement)) {
-        return Effect.succeed({
-          message: FailedPlaygroundEmbed({
-            reason: 'Playground requires an HTMLElement host.',
-          }),
-          cleanup: Function.constVoid,
-        })
-      }
-      return Effect.gen(function* () {
-        yield* Effect.tryPromise(() =>
-          import('@stackblitz/sdk').then(({ default: sdk }) =>
-            sdk.embedProject(
-              element,
-              {
-                title: meta.title,
-                description: meta.description,
-                template: 'node',
-                files,
-              },
-              {
-                height: '100%',
-                hideNavigation: true,
-                openFile: 'src/main.ts',
-                showSidebar: true,
-                view: 'default',
-              },
-            ),
-          ),
-        )
-        return {
-          message: SucceededPlaygroundEmbed(),
-          cleanup: Function.constVoid,
-        }
-      }).pipe(
-        Effect.catch(error =>
-          Effect.succeed({
-            message: FailedPlaygroundEmbed({
-              reason: error instanceof Error ? error.message : String(error),
+const embedView = (meta: ExampleMeta, files: Record<string, string>): Html =>
+  div(
+    [Class('flex-1 min-h-0')],
+    [
+      div(
+        [
+          OnMount(
+            PlaygroundEmbed({
+              title: meta.title,
+              description: meta.description,
+              files,
             }),
-            cleanup: Function.constVoid,
-          }),
-        ),
-      )
-    },
+          ),
+        ],
+        [],
+      ),
+    ],
   )
-
-  return div([Class('flex-1 min-h-0')], [div([OnMount(embedPlayground)], [])])
-}
 
 export const view = (
   slug: string,

@@ -6,16 +6,35 @@ import {
   shift,
   size,
 } from '@floating-ui/dom'
-import type { Placement } from '@floating-ui/dom'
+import { Function, Schema as S } from 'effect'
+
+/** Schema mirroring `@floating-ui/dom`'s `Placement` literal union: a side
+ *  (`top`/`right`/`bottom`/`left`) optionally suffixed with `-start` or `-end`. */
+export const Placement = S.Literals([
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'top-start',
+  'top-end',
+  'right-start',
+  'right-end',
+  'bottom-start',
+  'bottom-end',
+  'left-start',
+  'left-end',
+])
 
 /** Static configuration for anchor-based positioning of a floating element relative to a button. */
-export type AnchorConfig = Readonly<{
-  placement?: Placement
-  gap?: number
-  offset?: number
-  padding?: number
-  portal?: boolean
-}>
+export const AnchorConfig = S.Struct({
+  placement: S.optional(Placement),
+  gap: S.optional(S.Number),
+  offset: S.optional(S.Number),
+  padding: S.optional(S.Number),
+  portal: S.optional(S.Boolean),
+})
+
+export type AnchorConfig = typeof AnchorConfig.Type
 
 const PORTAL_ROOT_ID = 'foldkit-portal-root'
 
@@ -76,23 +95,23 @@ export const anchorSetup =
     focusAfterPosition?: boolean
     focusSelector?: string
   }) =>
-  (items: Element): (() => void) => {
+  (element: Element): (() => void) => {
     const button = document.getElementById(config.buttonId)
 
-    if (!(button instanceof HTMLElement) || !(items instanceof HTMLElement)) {
-      return () => {}
+    if (!(button instanceof HTMLElement) || !(element instanceof HTMLElement)) {
+      return Function.constVoid
     }
 
     const isPortal = config.anchor.portal ?? true
-    const portalCleanup = isPortal ? portalToBody(items) : undefined
+    const portalCleanup = isPortal ? portalToBody(element) : undefined
 
     const { placement, gap, offset: crossAxis, padding } = config.anchor
     const shouldInterceptTab = config.interceptTab ?? true
 
     let isFirstUpdate = true
 
-    const floatingCleanup = autoUpdate(button, items, () => {
-      computePosition(button, items, {
+    const floatingCleanup = autoUpdate(button, element, () => {
+      computePosition(button, element, {
         placement: placement ?? 'bottom-start',
         strategy: 'absolute',
         middleware: [
@@ -105,29 +124,29 @@ export const anchorSetup =
           size({
             padding: padding ?? 0,
             apply({ rects, availableHeight }) {
-              items.style.setProperty(
+              element.style.setProperty(
                 '--button-width',
                 `${rects.reference.width}px`,
               )
-              items.style.maxHeight = `${availableHeight}px`
-              items.style.overflowY = 'auto'
-              items.style.overscrollBehavior = 'none'
+              element.style.maxHeight = `${availableHeight}px`
+              element.style.overflowY = 'auto'
+              element.style.overscrollBehavior = 'none'
             },
           }),
         ],
       }).then(({ x, y }) => {
-        items.style.left = `${x}px`
-        items.style.top = `${y}px`
+        element.style.left = `${x}px`
+        element.style.top = `${y}px`
 
         if (isFirstUpdate) {
           isFirstUpdate = false
-          items.style.visibility = ''
+          element.style.visibility = ''
 
           if (config.focusAfterPosition ?? false) {
             requestAnimationFrame(() => {
               const target = config.focusSelector
                 ? document.querySelector(config.focusSelector)
-                : items
+                : element
               if (target instanceof HTMLElement) {
                 target.focus()
               }
@@ -144,11 +163,11 @@ export const anchorSetup =
         }
       }
 
-      items.addEventListener('keydown', handleTabKey)
+      element.addEventListener('keydown', handleTabKey)
 
       return () => {
         floatingCleanup()
-        items.removeEventListener('keydown', handleTabKey)
+        element.removeEventListener('keydown', handleTabKey)
         portalCleanup?.()
       }
     } else {

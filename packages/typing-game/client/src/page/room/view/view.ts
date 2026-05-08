@@ -36,7 +36,7 @@ import {
   span,
 } from '../../../view/html'
 import { Icon } from '../../../view/icon'
-import { focusRoomPageUsernameInput } from '../command'
+import { FocusRoomPageUsernameInput } from '../command'
 import {
   BlurredRoomPageUsernameInput,
   ChangedRoomPageUsername,
@@ -227,7 +227,10 @@ const joinForm = (
                 ),
                 OnBlur(toParentMessage(BlurredRoomPageUsernameInput())),
                 OnMount(
-                  Mount.mapMessage(focusRoomPageUsernameInput, toParentMessage),
+                  Mount.mapMessage(
+                    FocusRoomPageUsernameInput(),
+                    toParentMessage,
+                  ),
                 ),
                 Autocapitalize('none'),
                 Spellcheck(false),

@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { Mount } from 'foldkit'
-import type { Html, MountResult } from 'foldkit/html'
+import type { Html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 
 import { Class, OnMount, div } from '../html'
@@ -13,18 +13,18 @@ const CompletedPortalToBody = m('CompletedPortalToBody')
 // pure DOM manipulation on the element Mount provides, which means
 // it's idempotent and safe to re-run during DevTools time-travel.
 
-const PortalToBody = Mount.define('PortalToBody', CompletedPortalToBody)
-
-const portalToBody = PortalToBody(
-  (element): Effect.Effect<MountResult<typeof CompletedPortalToBody.Type>> =>
-    Effect.sync(() => {
-      document.body.appendChild(element)
-      return {
-        message: CompletedPortalToBody(),
-        cleanup: () => element.remove(),
-      }
-    }),
+const PortalToBody = Mount.define(
+  'PortalToBody',
+  CompletedPortalToBody,
+)(element =>
+  Effect.sync(() => {
+    document.body.appendChild(element)
+    return {
+      message: CompletedPortalToBody(),
+      cleanup: () => element.remove(),
+    }
+  }),
 )
 
 const overlayView = (): Html =>
-  div([Class('fixed inset-0 bg-black/50'), OnMount(portalToBody)])
+  div([Class('fixed inset-0 bg-black/50'), OnMount(PortalToBody())])

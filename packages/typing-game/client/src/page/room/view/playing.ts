@@ -20,7 +20,7 @@ import {
   span,
   textarea,
 } from '../../../view/html'
-import { focusUserGameTextInput } from '../command'
+import { FocusUserGameTextInput } from '../command'
 import { ChangedUserText } from '../message'
 import type { Message } from '../message'
 
@@ -39,7 +39,7 @@ const typing = (
           Value(userGameText),
           Class('absolute inset-0 opacity-0 z-10 resize-none'),
           OnInput(value => toParentMessage(ChangedUserText({ value }))),
-          OnMount(Mount.mapMessage(focusUserGameTextInput, toParentMessage)),
+          OnMount(Mount.mapMessage(FocusUserGameTextInput(), toParentMessage)),
           Spellcheck(false),
           Autocorrect('off'),
           Autocapitalize('none'),

@@ -607,10 +607,18 @@ describe('DevToolsStore', () => {
     it('attaches starts to init when no entries are recorded yet', () => {
       const { store } = makeStore()
 
-      run(store.attachRenderedMounts(['MountA', 'MountB'], []))
+      run(
+        store.attachRenderedMounts(
+          [{ name: 'MountA' }, { name: 'MountB' }],
+          [],
+        ),
+      )
 
       const state = getState(store)
-      expect(state.initMountStartNames).toEqual(['MountA', 'MountB'])
+      expect(state.initMountStarts).toEqual([
+        { name: 'MountA' },
+        { name: 'MountB' },
+      ])
       expect(state.entries.length).toBe(0)
     })
 
@@ -626,11 +634,13 @@ describe('DevToolsStore', () => {
           true,
         ),
       )
-      run(store.attachRenderedMounts(['MountA'], ['MountB']))
+      run(
+        store.attachRenderedMounts([{ name: 'MountA' }], [{ name: 'MountB' }]),
+      )
 
       const state = getState(store)
-      expect(state.entries[0]?.mountStartNames).toEqual(['MountA'])
-      expect(state.entries[0]?.mountEndNames).toEqual(['MountB'])
+      expect(state.entries[0]?.mountStarts).toEqual([{ name: 'MountA' }])
+      expect(state.entries[0]?.mountEnds).toEqual([{ name: 'MountB' }])
     })
 
     it('attaches to the most recent entry, not earlier ones', () => {
@@ -654,15 +664,15 @@ describe('DevToolsStore', () => {
           true,
         ),
       )
-      run(store.attachRenderedMounts(['MountA'], []))
+      run(store.attachRenderedMounts([{ name: 'MountA' }], []))
 
       const state = getState(store)
-      expect(state.entries[0]?.mountStartNames).toEqual([])
-      expect(state.entries[0]?.mountEndNames).toEqual([])
-      expect(state.entries[1]?.mountStartNames).toEqual(['MountA'])
+      expect(state.entries[0]?.mountStarts).toEqual([])
+      expect(state.entries[0]?.mountEnds).toEqual([])
+      expect(state.entries[1]?.mountStarts).toEqual([{ name: 'MountA' }])
     })
 
-    it('appends to existing names on repeat calls', () => {
+    it('appends to existing entries on repeat calls', () => {
       const { store } = makeStore()
 
       run(
@@ -674,12 +684,17 @@ describe('DevToolsStore', () => {
           true,
         ),
       )
-      run(store.attachRenderedMounts(['MountA'], []))
-      run(store.attachRenderedMounts(['MountB'], ['MountC']))
+      run(store.attachRenderedMounts([{ name: 'MountA' }], []))
+      run(
+        store.attachRenderedMounts([{ name: 'MountB' }], [{ name: 'MountC' }]),
+      )
 
       const state = getState(store)
-      expect(state.entries[0]?.mountStartNames).toEqual(['MountA', 'MountB'])
-      expect(state.entries[0]?.mountEndNames).toEqual(['MountC'])
+      expect(state.entries[0]?.mountStarts).toEqual([
+        { name: 'MountA' },
+        { name: 'MountB' },
+      ])
+      expect(state.entries[0]?.mountEnds).toEqual([{ name: 'MountC' }])
     })
 
     it('is a no-op when both arrays are empty', () => {
@@ -700,6 +715,46 @@ describe('DevToolsStore', () => {
 
       const stateAfter = getState(store)
       expect(stateAfter).toBe(stateBefore)
+    })
+
+    it('preserves args on mount records through both init and entry attachment', () => {
+      const { store } = makeStore()
+
+      run(
+        store.attachRenderedMounts(
+          [{ name: 'AnchorPopover', args: { buttonId: 'home' } }],
+          [],
+        ),
+      )
+
+      const initState = getState(store)
+      expect(initState.initMountStarts).toEqual([
+        { name: 'AnchorPopover', args: { buttonId: 'home' } },
+      ])
+
+      run(
+        store.recordMessage(
+          clickedIncrement,
+          initialModel,
+          { count: 1 },
+          [],
+          true,
+        ),
+      )
+      run(
+        store.attachRenderedMounts(
+          [{ name: 'AnchorPopover', args: { buttonId: 'cart' } }],
+          [{ name: 'AnchorPopover', args: { buttonId: 'home' } }],
+        ),
+      )
+
+      const entryState = getState(store)
+      expect(entryState.entries[0]?.mountStarts).toEqual([
+        { name: 'AnchorPopover', args: { buttonId: 'cart' } },
+      ])
+      expect(entryState.entries[0]?.mountEnds).toEqual([
+        { name: 'AnchorPopover', args: { buttonId: 'home' } },
+      ])
     })
   })
 })

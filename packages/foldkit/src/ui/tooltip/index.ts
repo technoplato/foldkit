@@ -20,8 +20,7 @@ import {
 import { m } from '../../message/index.js'
 import * as Mount from '../../mount/index.js'
 import { evo } from '../../struct/index.js'
-import { anchorSetup } from '../anchor.js'
-import type { AnchorConfig } from '../anchor.js'
+import { AnchorConfig, anchorSetup } from '../anchor.js'
 
 // MODEL
 
@@ -147,7 +146,19 @@ export const ShowAfterDelay = Command.define(
  *  to acknowledge the mount produced by the rendered panel. */
 export const AnchorTooltip = Mount.define(
   'AnchorTooltip',
+  { buttonId: S.String, anchor: AnchorConfig },
   CompletedAnchorTooltip,
+)(
+  ({ buttonId, anchor }) =>
+    (element): Effect.Effect<MountResult<typeof CompletedAnchorTooltip.Type>> =>
+      Effect.sync(() => {
+        const cleanup = anchorSetup({
+          buttonId,
+          anchor,
+          interceptTab: false,
+        })(element)
+        return { message: CompletedAnchorTooltip(), cleanup }
+      }),
 )
 
 /** Processes a tooltip message and returns the next model and commands. */
@@ -392,17 +403,7 @@ export const view = <ParentMessage>(
   ]
 
   const anchorTooltip = Mount.mapMessage(
-    AnchorTooltip(
-      (items): Effect.Effect<MountResult<typeof CompletedAnchorTooltip.Type>> =>
-        Effect.sync(() => {
-          const cleanup = anchorSetup({
-            buttonId: `${id}-trigger`,
-            anchor,
-            interceptTab: false,
-          })(items)
-          return { message: CompletedAnchorTooltip(), cleanup }
-        }),
-    ),
+    AnchorTooltip({ buttonId: `${id}-trigger`, anchor }),
     toParentMessage,
   )
 

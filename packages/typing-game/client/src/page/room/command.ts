@@ -199,9 +199,7 @@ export const ClearSession = Command.define(
 export const FocusRoomPageUsernameInput = Mount.define(
   'FocusRoomPageUsernameInput',
   CompletedFocusRoomPageUsernameInput,
-)
-
-export const focusRoomPageUsernameInput = FocusRoomPageUsernameInput(element =>
+)(element =>
   Effect.sync(() => {
     if (element instanceof HTMLInputElement) {
       element.focus()
@@ -216,9 +214,7 @@ export const focusRoomPageUsernameInput = FocusRoomPageUsernameInput(element =>
 export const FocusUserGameTextInput = Mount.define(
   'FocusUserGameTextInput',
   CompletedFocusUserGameTextInput,
-)
-
-export const focusUserGameTextInput = FocusUserGameTextInput(element =>
+)(element =>
   Effect.sync(() => {
     if (element instanceof HTMLTextAreaElement) {
       element.focus()

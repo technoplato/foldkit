@@ -22,8 +22,7 @@ import {
 import { m } from '../../message/index.js'
 import * as Mount from '../../mount/index.js'
 import { makeConstrainedEvo } from '../../struct/index.js'
-import { anchorSetup, portalToBody } from '../anchor.js'
-import type { AnchorConfig } from '../anchor.js'
+import { AnchorConfig, anchorSetup, portalToBody } from '../anchor.js'
 // NOTE: Animation imports are split across schema + update to avoid a circular
 // dependency: animation → html → runtime → devtools → listbox → animation.
 // The barrel (../animation) imports from html, which starts the cycle.
@@ -664,17 +663,24 @@ export const makeUpdate = <Model extends BaseModel>(
  *  `Scene.Mount.resolve(AnchorListbox, CompletedAnchorListbox())`. */
 export const AnchorListbox = Mount.define(
   'AnchorListbox',
+  { buttonId: S.String, anchor: AnchorConfig },
   CompletedAnchorListbox,
+)(
+  ({ buttonId, anchor }) =>
+    (element): Effect.Effect<MountResult<typeof CompletedAnchorListbox.Type>> =>
+      Effect.sync(() => {
+        const cleanup = anchorSetup({ buttonId, anchor })(element)
+        return { message: CompletedAnchorListbox(), cleanup }
+      }),
 )
+
 /** The backdrop-portaling Mount this Listbox renders. Exposed so Scene tests can
  *  call `Scene.Mount.resolve(PortalListboxBackdrop, CompletedPortalListboxBackdrop())` to
  *  acknowledge the mount produced by the rendered backdrop. */
 export const PortalListboxBackdrop = Mount.define(
   'PortalListboxBackdrop',
   CompletedPortalListboxBackdrop,
-)
-
-const portalListboxBackdrop = PortalListboxBackdrop(
+)(
   (
     element,
   ): Effect.Effect<MountResult<typeof CompletedPortalListboxBackdrop.Type>> =>
@@ -1085,20 +1091,7 @@ export const makeView =
           Style({ position: 'absolute', margin: '0', visibility: 'hidden' }),
           OnMount(
             Mount.mapMessage(
-              AnchorListbox(
-                (
-                  items,
-                ): Effect.Effect<
-                  MountResult<typeof CompletedAnchorListbox.Type>
-                > =>
-                  Effect.sync(() => {
-                    const cleanup = anchorSetup({
-                      buttonId: `${id}-button`,
-                      anchor,
-                    })(items)
-                    return { message: CompletedAnchorListbox(), cleanup }
-                  }),
-              ),
+              AnchorListbox({ buttonId: `${id}-button`, anchor }),
               toParentMessage,
             ),
           ),
@@ -1255,7 +1248,7 @@ export const makeView =
     const backdrop = keyed('div')(
       `${id}-backdrop`,
       [
-        OnMount(Mount.mapMessage(portalListboxBackdrop, toParentMessage)),
+        OnMount(Mount.mapMessage(PortalListboxBackdrop(), toParentMessage)),
         ...(isLeaving ? [] : [OnClick(toParentMessage(Closed()))]),
         ...(backdropClassName ? [Class(backdropClassName)] : []),
         ...backdropAttributes,

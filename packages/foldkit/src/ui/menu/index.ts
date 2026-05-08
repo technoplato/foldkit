@@ -23,8 +23,7 @@ import {
 import { m } from '../../message/index.js'
 import * as Mount from '../../mount/index.js'
 import { evo } from '../../struct/index.js'
-import { anchorSetup, portalToBody } from '../anchor.js'
-import type { AnchorConfig } from '../anchor.js'
+import { AnchorConfig, anchorSetup, portalToBody } from '../anchor.js'
 // NOTE: Animation imports are split across schema + update to avoid a circular
 // dependency: animation → html → runtime → devtools → menu → animation.
 // The barrel (../animation) imports from html, which starts the cycle.
@@ -679,16 +678,26 @@ export const update = (model: Model, message: Message): UpdateReturn => {
 /** The anchor-positioning Mount this Menu renders on its panel. Exposed so
  *  Scene tests can call `Scene.Mount.resolve(AnchorMenu, CompletedAnchorMenu())`
  *  to acknowledge the mount produced by the rendered panel. */
-export const AnchorMenu = Mount.define('AnchorMenu', CompletedAnchorMenu)
+export const AnchorMenu = Mount.define(
+  'AnchorMenu',
+  { buttonId: S.String, anchor: AnchorConfig },
+  CompletedAnchorMenu,
+)(
+  ({ buttonId, anchor }) =>
+    (element): Effect.Effect<MountResult<typeof CompletedAnchorMenu.Type>> =>
+      Effect.sync(() => {
+        const cleanup = anchorSetup({ buttonId, anchor })(element)
+        return { message: CompletedAnchorMenu(), cleanup }
+      }),
+)
+
 /** The backdrop-portaling Mount this Menu renders. Exposed so Scene tests can
  *  call `Scene.Mount.resolve(PortalMenuBackdrop, CompletedPortalMenuBackdrop())` to
  *  acknowledge the mount produced by the rendered backdrop. */
 export const PortalMenuBackdrop = Mount.define(
   'PortalMenuBackdrop',
   CompletedPortalMenuBackdrop,
-)
-
-const portalMenuBackdrop = PortalMenuBackdrop(
+)(
   (
     element,
   ): Effect.Effect<MountResult<typeof CompletedPortalMenuBackdrop.Type>> =>
@@ -1074,18 +1083,7 @@ export const view = <ParentMessage, Item extends string>(
         Style({ position: 'absolute', margin: '0', visibility: 'hidden' }),
         OnMount(
           Mount.mapMessage(
-            AnchorMenu(
-              (
-                items,
-              ): Effect.Effect<MountResult<typeof CompletedAnchorMenu.Type>> =>
-                Effect.sync(() => {
-                  const cleanup = anchorSetup({
-                    buttonId: `${id}-button`,
-                    anchor,
-                  })(items)
-                  return { message: CompletedAnchorMenu(), cleanup }
-                }),
-            ),
+            AnchorMenu({ buttonId: `${id}-button`, anchor }),
             toParentMessage,
           ),
         ),
@@ -1236,7 +1234,7 @@ export const view = <ParentMessage, Item extends string>(
   const backdrop = keyed('div')(
     `${id}-backdrop`,
     [
-      OnMount(Mount.mapMessage(portalMenuBackdrop, toParentMessage)),
+      OnMount(Mount.mapMessage(PortalMenuBackdrop(), toParentMessage)),
       ...(isLeaving ? [] : [OnClick(toParentMessage(Closed()))]),
       ...(backdropClassName ? [Class(backdropClassName)] : []),
       ...backdropAttributes,

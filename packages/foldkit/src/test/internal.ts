@@ -1,10 +1,10 @@
-import { Array, Equivalence, Option, Order, Predicate, pipe } from 'effect'
+import { Array, Equal, Option, Order, Predicate, pipe } from 'effect'
 
 import {
   type CommandDefinition,
   CommandDefinitionTypeId,
 } from '../command/index.js'
-import type { MountDefinition } from '../mount/index.js'
+import { type MountDefinition, MountDefinitionTypeId } from '../mount/index.js'
 
 /** A Command in a test simulation. Carries `name` and optionally the `args`
  *  the runtime captured at construction. Instance matchers (Command values
@@ -33,48 +33,6 @@ const isCommandDefinitionMatcher = (
 ): matcher is CommandDefinition<string, unknown> =>
   Predicate.hasProperty(matcher, CommandDefinitionTypeId)
 
-/** Structural deep-equal for Command args. Args are constrained to
- *  Schema-typed values (Record<string, unknown>), so primitives, arrays,
- *  nested records, and Date values are the value space. Date instances
- *  compare by timestamp because Schema's `S.Date` decodes ISO strings to
- *  Date objects with no enumerable keys, which would otherwise compare equal
- *  for any two distinct timestamps. */
-const argsEqual = (a: unknown, b: unknown): boolean => {
-  if (a === b) {
-    return true
-  }
-  if (!Predicate.isObjectOrArray(a) || !Predicate.isObjectOrArray(b)) {
-    return false
-  }
-  if (a instanceof Date) {
-    return b instanceof Date && a.getTime() === b.getTime()
-  }
-  if (b instanceof Date) {
-    return false
-  }
-  if (Array.isArray(a)) {
-    if (!Array.isArray(b) || a.length !== b.length) {
-      return false
-    }
-    return a.every((item, index) => argsEqual(item, b[index]))
-  }
-  if (Array.isArray(b)) {
-    return false
-  }
-  /* eslint-disable @typescript-eslint/consistent-type-assertions */
-  const aRecord = a as Record<string, unknown>
-  const bRecord = b as Record<string, unknown>
-  /* eslint-enable @typescript-eslint/consistent-type-assertions */
-  const aKeys = Object.keys(aRecord)
-  const bKeys = Object.keys(bRecord)
-  if (aKeys.length !== bKeys.length) {
-    return false
-  }
-  return aKeys.every(
-    key => key in bRecord && argsEqual(aRecord[key], bRecord[key]),
-  )
-}
-
 /** Whether a `matcher` matches a pending Command. Definition matchers match
  *  by name. Instance matchers (with declared args) match by name + structural
  *  args equality; instance matchers without args match by name. */
@@ -85,7 +43,7 @@ const commandMatches = (
   matcher.name === command.name &&
   (isCommandDefinitionMatcher(matcher) ||
     matcher.args === undefined ||
-    argsEqual(matcher.args, command.args))
+    Equal.equals(matcher.args, command.args))
 
 const formatArgs = (args: Record<string, unknown> | undefined): string =>
   args === undefined ? '' : ` ${JSON.stringify(args)}`
@@ -106,11 +64,52 @@ export const formatCommand = (command: AnyCommand): string =>
  *  `occurrence` index that disambiguates same-named mounts in the rendered
  *  tree (e.g. two open popovers each contributing an `AnchorPopover`). The
  *  occurrence is the 0-based position among same-named markers in
- *  tree-traversal order. */
+ *  tree-traversal order. `args` carries the runtime values used to construct
+ *  the MountAction when its definition declared an args record. */
 export type PendingMount = Readonly<{
   name: string
+  args?: Record<string, unknown>
   occurrence: number
 }>
+
+/** A Mount lifecycle event in a test simulation. Carries `name` and
+ *  optionally the `args` used to construct the MountAction. Mirrors
+ *  `AnyCommand` for Mount matchers. */
+export type AnyMount = Readonly<{
+  name: string
+  args?: Record<string, unknown>
+}>
+
+/** Pattern for matching a pending Mount in test assertions. A Definition
+ *  matches by name only ("a Mount with this identity is in the rendered
+ *  tree"); an Instance matches by name AND structural-equal args ("a Mount
+ *  with this identity AND these args"). Choose the form per assertion based
+ *  on whether the test cares about the args value.
+ *
+ *  Two modes only: name-only or name + full args. Partial-args matching is
+ *  intentionally unsupported, mirroring `CommandMatcher`. */
+export type MountMatcher = MountDefinition<string, unknown> | AnyMount
+
+const isMountDefinitionMatcher = (
+  matcher: MountMatcher,
+): matcher is MountDefinition<string, unknown> =>
+  Predicate.hasProperty(matcher, MountDefinitionTypeId)
+
+/** Whether a `matcher` matches a pending Mount. Definition matchers match by
+ *  name. Instance matchers (with declared args) match by name + structural
+ *  args equality; instance matchers without args match by name. */
+export const mountMatches = (matcher: MountMatcher, mount: AnyMount): boolean =>
+  matcher.name === mount.name &&
+  (isMountDefinitionMatcher(matcher) ||
+    matcher.args === undefined ||
+    Equal.equals(matcher.args, mount.args))
+
+/** Formats a Mount matcher for display in error messages. Definition
+ *  matchers render as just the name; Instance matchers append the args. */
+export const formatMountMatcher = (matcher: MountMatcher): string =>
+  isMountDefinitionMatcher(matcher)
+    ? matcher.name
+    : `${matcher.name}${formatArgs(matcher.args)}`
 
 type UpdateResult<Model, OutMessage> =
   | readonly [Model, ReadonlyArray<AnyCommand>]
@@ -128,16 +127,13 @@ export type Resolver<ResultMessage = unknown> =
       (message: ResultMessage) => unknown,
     ]
 
-/** A Mount definition with the result Message to resolve it with. Mirrors
- *  `Resolver` for Commands. The optional third element lifts a child Mount
- *  result into the parent's Message universe (mirrors `Mount.mapMessage`). */
+/** A Mount matcher (Definition or Instance) with the result Message to
+ *  resolve it with. Mirrors `Resolver` for Commands. The optional third
+ *  element lifts a child Mount result into the parent's Message universe
+ *  (mirrors `Mount.mapMessage`). */
 export type MountResolver<ResultMessage = unknown> =
-  | readonly [MountDefinition<string, ResultMessage>, ResultMessage]
-  | readonly [
-      MountDefinition<string, ResultMessage>,
-      ResultMessage,
-      (message: ResultMessage) => unknown,
-    ]
+  | readonly [MountMatcher, ResultMessage]
+  | readonly [MountMatcher, ResultMessage, (message: ResultMessage) => unknown]
 
 /** A resolver entry pairs a Command matcher with the Message that should be
  *  fed back through update when a pending Command matches. Stored as a list
@@ -333,19 +329,24 @@ export const assertExactCommands = (
   commands: ReadonlyArray<AnyCommand>,
   matchers: ReadonlyArray<CommandMatcher>,
 ): void => {
-  const remaining: Array<AnyCommand> = [...commands]
-  const unmatched: Array<CommandMatcher> = []
-
-  for (const matcher of matchers) {
-    const index = remaining.findIndex(command =>
-      commandMatches(matcher, command),
-    )
-    if (index === -1) {
-      unmatched.push(matcher)
-    } else {
-      remaining.splice(index, 1)
-    }
-  }
+  const consumed = new Set<number>()
+  const unmatched = Array.filter(matchers, matcher =>
+    pipe(
+      commands,
+      Array.findFirstIndex(
+        (command, index) =>
+          !consumed.has(index) && commandMatches(matcher, command),
+      ),
+      Option.match({
+        onNone: () => true,
+        onSome: index => {
+          consumed.add(index)
+          return false
+        },
+      }),
+    ),
+  )
+  const remaining = Array.filter(commands, (_, index) => !consumed.has(index))
 
   if (
     Array.isReadonlyArrayNonEmpty(unmatched) ||
@@ -414,26 +415,37 @@ export const assertAllCommandsResolved = (
   }
 }
 
-const formatMountList = (mounts: ReadonlyArray<PendingMount>): string =>
+const formatPendingMount = ({
+  name,
+  args,
+  occurrence,
+}: PendingMount): string => {
+  const occurrenceSuffix = occurrence === 0 ? '' : ` (#${occurrence + 1})`
+  return `${name}${formatArgs(args)}${occurrenceSuffix}`
+}
+
+/** Formats a list of pending Mounts (with args + occurrence suffix where
+ *  applicable) for display in error messages. Returns "    (none)" when
+ *  empty, mirroring the Command-side formatters. */
+export const formatMountList = (mounts: ReadonlyArray<PendingMount>): string =>
   Array.match(mounts, {
     onEmpty: () => '    (none)',
     onNonEmpty: nonEmpty =>
       pipe(
         nonEmpty,
-        Array.map(({ name, occurrence }) =>
-          occurrence === 0 ? `    ${name}` : `    ${name} (#${occurrence + 1})`,
-        ),
+        Array.map(mount => `    ${formatPendingMount(mount)}`),
         Array.join('\n'),
       ),
   })
 
-/** Resolves the first pending Mount with the given name by feeding `message`
- *  through update. Returns the updated internal simulation, or `undefined`
- *  when no pending mount with that name exists. */
-export const resolveMountByName = <Model, Message>(
+/** Resolves the first pending Mount that matches the given matcher and feeds
+ *  its result through update. Returns `undefined` when no pending Mount
+ *  matches. Definition matchers match by name; Instance matchers match by
+ *  name + args. */
+export const resolveMountByMatcher = <Model, Message>(
   internal: BaseInternal<Model, Message, unknown>,
   pendingMounts: ReadonlyArray<PendingMount>,
-  mountName: string,
+  matcher: MountMatcher,
   resolverMessage: Message,
 ):
   | Readonly<{
@@ -443,7 +455,7 @@ export const resolveMountByName = <Model, Message>(
   | undefined =>
   pipe(
     pendingMounts,
-    Array.findFirstIndex(({ name }) => name === mountName),
+    Array.findFirstIndex(mount => mountMatches(matcher, mount)),
     Option.match({
       onNone: () => undefined,
       onSome: index => {
@@ -470,52 +482,67 @@ export const resolveMountByName = <Model, Message>(
     }),
   )
 
-/** Throws if any of the given mount definitions are missing from the pending
- *  mount list. */
+/** Throws if any of the given matchers are missing from the pending mount
+ *  list. Definition matchers match by name; Instance matchers match by
+ *  name + structural-equal args. */
 export const assertHasMounts = (
   pendingMounts: ReadonlyArray<PendingMount>,
-  definitions: ReadonlyArray<MountDefinition<string, unknown>>,
+  matchers: ReadonlyArray<MountMatcher>,
 ): void => {
-  const pendingNames = Array.map(pendingMounts, ({ name }) => name)
   const missing = Array.filter(
-    definitions,
-    ({ name }) => !Array.contains(pendingNames, name),
+    matchers,
+    matcher => !pendingMounts.some(mount => mountMatches(matcher, mount)),
   )
 
   if (Array.isReadonlyArrayNonEmpty(missing)) {
-    const missingNames = pipe(
+    const missingFormatted = pipe(
       missing,
-      Array.map(({ name }) => `    ${name}`),
+      Array.map(matcher => `    ${formatMountMatcher(matcher)}`),
       Array.join('\n'),
     )
     throw new Error(
-      `Expected to find Mounts:\n\n${missingNames}\n\n` +
+      `Expected to find Mounts:\n\n${missingFormatted}\n\n` +
         `But the pending Mounts are:\n\n${formatMountList(pendingMounts)}`,
     )
   }
 }
 
-/** Throws if the pending Mounts don't match the given definitions exactly
- *  (order-independent, by name). */
+/** Throws if the pending Mounts don't match the given matchers exactly. Each
+ *  matcher must consume exactly one pending Mount. Order-independent.
+ *  Definition matchers match by name; Instance matchers match by
+ *  name + structural-equal args. */
 export const assertExactMounts = (
   pendingMounts: ReadonlyArray<PendingMount>,
-  definitions: ReadonlyArray<MountDefinition<string, unknown>>,
+  matchers: ReadonlyArray<MountMatcher>,
 ): void => {
-  const expectedNames = pipe(
-    definitions,
-    Array.map(({ name }) => name),
-    Array.sort(Order.String),
+  const consumed = new Set<number>()
+  const unmatched = Array.filter(matchers, matcher =>
+    pipe(
+      pendingMounts,
+      Array.findFirstIndex(
+        (mount, index) => !consumed.has(index) && mountMatches(matcher, mount),
+      ),
+      Option.match({
+        onNone: () => true,
+        onSome: index => {
+          consumed.add(index)
+          return false
+        },
+      }),
+    ),
   )
-  const actualNames = pipe(
+  const leftover = pipe(
     pendingMounts,
-    Array.map(({ name }) => name),
-    Array.sort(Order.String),
+    Array.filter((_, index) => !consumed.has(index)),
   )
 
-  if (!Array.makeEquivalence(Equivalence.String)(expectedNames, actualNames)) {
+  if (
+    Array.isReadonlyArrayNonEmpty(unmatched) ||
+    Array.isReadonlyArrayNonEmpty(leftover)
+  ) {
     const expected = pipe(
-      expectedNames,
-      Array.map(name => `    ${name}`),
+      matchers,
+      Array.map(matcher => `    ${formatMountMatcher(matcher)}`),
       Array.join('\n'),
     )
     throw new Error(
@@ -546,7 +573,7 @@ export const assertNoUnresolvedMounts = (
     throw new Error(
       `I found unresolved Mounts ${context}:\n\n${formatMountList(pendingMounts)}\n\n` +
         'Resolve all Mounts before sending the next Message.\n' +
-        'Use resolveMount(Definition, ResultMessage) for each one,\n' +
+        'Use resolveMount(Definition | instance, ResultMessage) for each one,\n' +
         'or resolveAllMounts(...resolvers) to resolve them all at once.',
     )
   }
@@ -575,7 +602,7 @@ export const assertAllMountsResolved = (
     throw new Error(
       `I found Mounts without resolvers:\n\n${formatMountList(pendingMounts)}\n\n` +
         'Every OnMount in the rendered view needs to be resolved.\n' +
-        'Use resolveMount(Definition, ResultMessage) for each one,\n' +
+        'Use resolveMount(Definition | instance, ResultMessage) for each one,\n' +
         'or resolveAllMounts(...resolvers) to resolve them all at once.',
     )
   }

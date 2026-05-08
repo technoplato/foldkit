@@ -328,7 +328,10 @@ export const FOLDKIT_MOUNT_KEY = 'foldkitMount' as const
 /** Marker stamped on `VNodeData[FOLDKIT_MOUNT_KEY]` for any element with an
  *  `OnMount` attribute. Carries the Mount Definition's name so test
  *  introspection can identify pending mounts. */
-export type FoldkitMountMarker = Readonly<{ name: string }>
+export type FoldkitMountMarker = Readonly<{
+  name: string
+  args?: Record<string, unknown>
+}>
 
 /** Union of all HTML, SVG, and MathML attributes a virtual DOM element can carry. */
 export type Attribute<Message> = Data.TaggedEnum<{
@@ -1516,12 +1519,15 @@ const buildVNodeData = <Message>(
               MountTracker,
             )
             const notifyStarted = Option.isSome(maybeTracker)
-              ? () => maybeTracker.value.started(action.name)
+              ? () => maybeTracker.value.started(action.name, action.args)
               : Function.constVoid
             const notifyEnded = Option.isSome(maybeTracker)
-              ? () => maybeTracker.value.ended(action.name)
+              ? () => maybeTracker.value.ended(action.name, action.args)
               : Function.constVoid
-            const marker: FoldkitMountMarker = { name: action.name }
+            const marker: FoldkitMountMarker =
+              action.args === undefined
+                ? { name: action.name }
+                : { name: action.name, args: action.args }
             return Ref.update(dataRef, data => ({
               ...data,
               [FOLDKIT_MOUNT_KEY]: marker,

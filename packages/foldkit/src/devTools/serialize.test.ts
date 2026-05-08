@@ -1,7 +1,11 @@
 import { HashSet, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { toInspectableValue, toSerializedEntry } from './serialize.js'
+import {
+  toInspectableValue,
+  toSerializedEntry,
+  toSerializedMount,
+} from './serialize.js'
 import type { HistoryEntry } from './store.js'
 
 describe('toInspectableValue', () => {
@@ -89,8 +93,8 @@ describe('toSerializedEntry', () => {
     tag: 'ClickedButton',
     message: { _tag: 'ClickedButton', label: 'Submit' },
     commands: [{ name: 'SubmitForm' }],
-    mountStartNames: [],
-    mountEndNames: [],
+    mountStarts: [],
+    mountEnds: [],
     timestamp: 1700000000000,
     isModelChanged: true,
     diff: {
@@ -122,6 +126,25 @@ describe('toSerializedEntry', () => {
     expect(result.commands).toEqual([
       { name: 'FetchWeather', args: Option.some({ zipCode: '90210' }) },
       { name: 'LockScroll', args: Option.none() },
+    ])
+  })
+
+  it('serializes Mount args alongside the name', () => {
+    const entryWithMounts: HistoryEntry = {
+      ...baseEntry,
+      mountStarts: [
+        { name: 'AnchorPopover', args: { buttonId: 'cart-button' } },
+        { name: 'PortalPopoverBackdrop' },
+      ],
+      mountEnds: [{ name: 'AnchorPopover', args: { buttonId: 'cart-button' } }],
+    }
+    const result = toSerializedEntry(entryWithMounts, 0)
+    expect(result.mountStarts).toEqual([
+      { name: 'AnchorPopover', args: Option.some({ buttonId: 'cart-button' }) },
+      { name: 'PortalPopoverBackdrop', args: Option.none() },
+    ])
+    expect(result.mountEnds).toEqual([
+      { name: 'AnchorPopover', args: Option.some({ buttonId: 'cart-button' }) },
     ])
   })
 
@@ -213,5 +236,36 @@ describe('toSerializedEntry', () => {
     const result = toSerializedEntry(entry, 0)
     expect(result.submodelPath).toEqual(['GotProductsMessage'])
     expect(result.maybeLeafTag).toEqual(Option.some('ClickedRow'))
+  })
+})
+
+describe('toSerializedMount', () => {
+  it('wraps absent args in Option.none', () => {
+    expect(toSerializedMount({ name: 'FocusInput' })).toEqual({
+      name: 'FocusInput',
+      args: Option.none(),
+    })
+  })
+
+  it('wraps a present args record in Option.some', () => {
+    expect(
+      toSerializedMount({
+        name: 'AnchorPopover',
+        args: { buttonId: 'cart-button', anchor: { placement: 'bottom' } },
+      }),
+    ).toEqual({
+      name: 'AnchorPopover',
+      args: Option.some({
+        buttonId: 'cart-button',
+        anchor: { placement: 'bottom' },
+      }),
+    })
+  })
+
+  it('treats an empty args record as Some({}), distinct from absent args', () => {
+    expect(toSerializedMount({ name: 'EmptyArgs', args: {} })).toEqual({
+      name: 'EmptyArgs',
+      args: Option.some({}),
+    })
   })
 })

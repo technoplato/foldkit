@@ -11,8 +11,9 @@ import {
 } from 'snabbdom'
 import { afterEach, beforeEach, expect, vi } from 'vitest'
 
+import type { MountResult } from '../html/index.js'
 import { m } from '../message/index.js'
-import * as Mount from '../mount/index.js'
+import type { MountAction } from '../mount/index.js'
 import { propsModule } from '../propsModule.js'
 import { noOpDispatch } from '../runtime/crashUI.js'
 import { Dispatch } from '../runtime/index.js'
@@ -29,7 +30,15 @@ const patch = init([
 ])
 
 const MountedRoot = m('MountedRoot')
-const Mounted = Mount.define('Mounted', MountedRoot)
+
+/** Test fixture that constructs a Mounted MountAction directly with a custom
+ *  factory. Each test wires up its own factory body, so the production
+ *  `Mount.define(...)(factory)` shape (which binds a single factory at
+ *  definition time) doesn't fit. The runtime only reads `name`, `args`,
+ *  and `f` from a MountAction. */
+const makeMounted = (
+  f: (element: Element) => Effect.Effect<MountResult<typeof MountedRoot.Type>>,
+): MountAction<typeof MountedRoot.Type> => ({ name: 'Mounted', f })
 
 const createCapturingDispatch = () => {
   const dispatched: Array<unknown> = []
@@ -76,7 +85,7 @@ describe('OnMount', () => {
         span(
           [
             OnMount(
-              Mounted(() =>
+              makeMounted(() =>
                 Effect.succeed({ message: MountedRoot(), cleanup: () => {} }),
               ),
             ),
@@ -104,7 +113,7 @@ describe('OnMount', () => {
         span(
           [
             OnMount(
-              Mounted(() => {
+              makeMounted(() => {
                 effectRan = true
                 return Effect.succeed({
                   message: MountedRoot(),
@@ -138,7 +147,7 @@ describe('OnMount', () => {
           [
             Id('mounted'),
             OnMount(
-              Mounted(element => {
+              makeMounted(element => {
                 seenIds.push(element.id)
                 return Effect.succeed({
                   message: MountedRoot(),
@@ -174,7 +183,7 @@ describe('OnMount', () => {
             [
               Key(key),
               OnMount(
-                Mounted(() =>
+                makeMounted(() =>
                   Effect.succeed({
                     message: MountedRoot(),
                     cleanup: () => {
@@ -214,7 +223,7 @@ describe('OnMount', () => {
         span(
           [
             OnMount(
-              Mounted(() =>
+              makeMounted(() =>
                 Effect.succeed({
                   message: MountedRoot(),
                   cleanup: () => {
@@ -250,7 +259,7 @@ describe('OnMount', () => {
 
     const view = div(
       [],
-      [span([OnMount(Mounted(() => Effect.fail(new Error('boom'))))], [])],
+      [span([OnMount(makeMounted(() => Effect.fail(new Error('boom'))))], [])],
     )
     const vnode = renderView(view, dispatch)
 
@@ -281,7 +290,7 @@ describe('OnMount', () => {
         span(
           [
             OnMount(
-              Mounted(() =>
+              makeMounted(() =>
                 Effect.tryPromise(() => mountGate).pipe(
                   Effect.map(() => ({
                     message: MountedRoot(),
@@ -326,7 +335,7 @@ describe('OnMount', () => {
           span(
             [
               OnMount(
-                Mounted(() => {
+                makeMounted(() => {
                   mountRunCount += 1
                   return Effect.succeed({
                     message: MountedRoot(),
@@ -374,7 +383,7 @@ describe('OnMount', () => {
           span(
             [
               OnMount(
-                Mounted(() =>
+                makeMounted(() =>
                   Effect.succeed({
                     message: MountedRoot(),
                     cleanup: () => {
