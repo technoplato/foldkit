@@ -1400,7 +1400,7 @@ export const blur =
     simulation: SceneSimulation<Model, Message, OutMessage>,
   ): SceneSimulation<Model, Message, OutMessage> =>
     invokeAndCapture(simulation, target, 'blur', handler => {
-      handler()
+      handler({ relatedTarget: null })
     })
 
 /** Simulates a change event on the element matching the target.

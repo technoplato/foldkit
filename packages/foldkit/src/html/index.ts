@@ -31,6 +31,15 @@ import {
 export { createKeyedLazy, createLazy } from './lazy.js'
 
 /**
+ * The `id` of the DOM element that hosts the Foldkit DevTools shadow root.
+ * Lives here (not in `devTools/`) because the `OnBlur` handler below uses it
+ * to suppress blur Messages whose `relatedTarget` is this host (i.e. when
+ * focus crosses into the DevTools UI). The DevTools overlay imports this
+ * constant when creating the host element, so the two stay in sync.
+ */
+export const DEVTOOLS_HOST_ID = 'foldkit-devtools'
+
+/**
  * Tag symbol attached to file-aware event handler functions so Scene test
  * helpers can distinguish `OnFileChange` from `OnChange` (both register on
  * the DOM `change` event) and `OnDropFiles` from `OnDrop` (both register on
@@ -1071,7 +1080,15 @@ const buildVNodeData = <Message>(
             }),
           OnBlur: ({ message }) =>
             updateDataOn({
-              blur: () => dispatchSync(message),
+              blur: (event: FocusEvent) => {
+                if (
+                  event.relatedTarget instanceof Element &&
+                  event.relatedTarget.id === DEVTOOLS_HOST_ID
+                ) {
+                  return
+                }
+                dispatchSync(message)
+              },
             }),
           OnInput: ({ f }) =>
             updateDataOn({

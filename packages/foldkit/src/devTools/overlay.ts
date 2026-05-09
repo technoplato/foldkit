@@ -24,6 +24,7 @@ import * as Command from '../command/index.js'
 import { lockScroll, unlockScroll } from '../dom/scrollLock.js'
 import { OptionExt } from '../effectExtensions/index.js'
 import {
+  DEVTOOLS_HOST_ID,
   type Document,
   type Html,
   createKeyedLazy,
@@ -1894,8 +1895,6 @@ const makeView = (
 
 // CREATE
 
-const DEVTOOLS_HOST_ID = 'foldkit-devtools'
-
 const createShadowContainer = (): Readonly<{
   container: HTMLElement
   shadow: ShadowRoot
@@ -1907,6 +1906,20 @@ const createShadowContainer = (): Readonly<{
 
   const host = document.createElement('div')
   host.id = DEVTOOLS_HOST_ID
+  host.addEventListener(
+    'pointerdown',
+    event => {
+      const activeElement = document.activeElement
+      if (
+        activeElement !== null &&
+        activeElement !== host &&
+        activeElement !== document.body
+      ) {
+        event.preventDefault()
+      }
+    },
+    { capture: true },
+  )
   document.body.appendChild(host)
 
   const shadow = host.attachShadow({ mode: 'open' })
