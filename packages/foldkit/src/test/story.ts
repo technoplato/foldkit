@@ -1,4 +1,4 @@
-import { Array, Effect, Option, Predicate, pipe } from 'effect'
+import { Array, Effect, Equal, Option, Predicate, pipe } from 'effect'
 
 import type { CommandDefinition } from '../command/index.js'
 import type {
@@ -297,7 +297,7 @@ export const expectOutMessage =
     if (
       !Option.isOption(outMessage) ||
       Option.isNone(outMessage) ||
-      JSON.stringify(outMessage.value) !== JSON.stringify(expected)
+      !Equal.equals(outMessage.value, expected)
     ) {
       throw new Error(
         `Expected OutMessage:\n\n    Some(${JSON.stringify(expected)})\n\nBut got:\n\n    ${JSON.stringify(outMessage)}`,
