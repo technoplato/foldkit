@@ -851,7 +851,7 @@ const makeRuntime = <
           })
 
         // NOTE: `dispatchService` defaults to the live dispatch but is
-        // overridable so the DevTools time-travel render path can pass
+        // overridable so the DevTools jumpTo render path can pass
         // `noOpDispatch`. Mount Effects forked during a replay render still
         // execute (so the rendered DOM looks correct: positioning,
         // observer attachment, library setup), but their result Messages
@@ -924,14 +924,14 @@ const makeRuntime = <
               const [updatedModel] = update(model as Model, message as Message)
               return maybeFreezeModel(updatedModel)
             },
-            // NOTE: clears the dirty bit on direct DevTools renders (jumpTo,
-            // resume) so the renderLoop's Stream.changes sees the next
-            // dispatch as a real false-to-true transition rather than a
-            // deduped no-op. Passes `noOpDispatch` so mount Effects forked
-            // during the replay render dispatch their result Messages into
-            // a no-op (instead of enqueueing them as new history entries).
-            // Also discards mount events fired during the render so they
-            // don't get attributed to the next user-initiated dispatch.
+            // NOTE: clears the dirty bit on the jumpTo render so the
+            // renderLoop's Stream.changes sees the next dispatch as a real
+            // false-to-true transition rather than a deduped no-op. Passes
+            // `noOpDispatch` so mount Effects forked during the replay
+            // render dispatch their result Messages into a no-op (instead
+            // of enqueueing them as new history entries). Also discards
+            // mount events fired during the render so they don't get
+            // attributed to the next user-initiated dispatch.
             render: model =>
               Effect.gen(function* () {
                 yield* SubscriptionRef.set(isRenderPendingRef, false)
@@ -939,7 +939,12 @@ const makeRuntime = <
                 yield* render(model as Model, Option.none(), noOpDispatch)
                 drainMountEvents()
               }),
-            getCurrentModel: Ref.get(modelRef),
+            // NOTE: `resume` calls this to wake the renderLoop after a
+            // jumpTo render attached DOM listeners to `noOpDispatch`. The
+            // false-to-true transition triggers one tick on the next
+            // animation frame, which renders the live model with live
+            // dispatch and rebinds listeners.
+            markRenderPending: SubscriptionRef.set(isRenderPendingRef, true),
           })
           yield* Ref.set(maybeDevToolsStoreRef, Option.some(devToolsStore))
           // The init render runs below; capture the events it produces. We

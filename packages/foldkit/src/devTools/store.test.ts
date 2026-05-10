@@ -121,7 +121,7 @@ const makeBridge = (
       Effect.sync(() => {
         rendered.push(model)
       }),
-    getCurrentModel: Effect.succeed(initialModel),
+    markRenderPending: Effect.void,
     ...overrides,
   }
 
@@ -424,10 +424,12 @@ describe('DevToolsStore', () => {
       expect(rendered[rendered.length - 1]).toEqual({ count: 2 })
     })
 
-    it('renders the live model when resuming', () => {
-      const currentModel = { count: 10 }
-      const { store, rendered } = makeStore({
-        getCurrentModel: Effect.succeed(currentModel),
+    it('exits paused state on resume and marks the render pending', () => {
+      let markedPendingCount = 0
+      const { store } = makeStore({
+        markRenderPending: Effect.sync(() => {
+          markedPendingCount += 1
+        }),
       })
 
       run(
@@ -441,10 +443,11 @@ describe('DevToolsStore', () => {
       )
 
       run(store.jumpTo(0))
-      run(store.resume)
+      expect(getState(store).isPaused).toBe(true)
 
+      run(store.resume)
       expect(getState(store).isPaused).toBe(false)
-      expect(rendered[rendered.length - 1]).toEqual(currentModel)
+      expect(markedPendingCount).toBe(1)
     })
   })
 

@@ -150,7 +150,7 @@ export type StoreState = Readonly<{
 export type Bridge = Readonly<{
   replay: (model: unknown, message: unknown) => unknown
   render: (model: unknown) => Effect.Effect<void>
-  getCurrentModel: Effect.Effect<unknown>
+  markRenderPending: Effect.Effect<void>
 }>
 
 const emptyState: StoreState = {
@@ -372,12 +372,11 @@ export const createDevToolsStore = (
       })
 
     const resume = Effect.gen(function* () {
-      const currentModel = yield* bridge.getCurrentModel
-      yield* bridge.render(currentModel)
       yield* SubscriptionRef.update(stateRef, state => ({
         ...state,
         isPaused: false,
       }))
+      yield* bridge.markRenderPending
     })
 
     const clear = SubscriptionRef.update(stateRef, state => ({
