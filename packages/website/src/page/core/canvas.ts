@@ -129,9 +129,9 @@ export const view = (copiedSnippets: CopiedSnippets): Html =>
         ),
         ': a helper that emits a Message every ',
         inlineCode('requestAnimationFrame'),
-        ' tick with the inter-frame delta in milliseconds. The Subscription advances the Model on the browser’s paint clock; ',
+        ' tick with the inter-frame delta in milliseconds. update advances the Model in response, and ',
         inlineCode('Canvas.view'),
-        ' re-renders the resulting shapes whenever the Model changes (Foldkit batches renders to one per frame).',
+        ' re-renders whenever the Model changes (Foldkit batches renders to one per frame).',
       ),
       para(
         'Pointer handlers are config args on ',
