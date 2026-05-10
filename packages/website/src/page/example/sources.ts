@@ -31,6 +31,7 @@ const loadersBySlug: Readonly<Record<string, SourceLoader | undefined>> = {
   'crash-view': () => import('virtual:example-sources/crash-view'),
   'websocket-chat': () => import('virtual:example-sources/websocket-chat'),
   map: () => import('virtual:example-sources/map'),
+  'canvas-art': () => import('virtual:example-sources/canvas-art'),
   'ui-showcase': () => import('virtual:example-sources/ui-showcase'),
 }
 

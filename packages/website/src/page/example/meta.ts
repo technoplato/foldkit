@@ -14,12 +14,12 @@ export const ExampleSlug = S.Literals([
   'query-sync',
   'snake',
   'auth',
-  'canvas-art',
   'shopping-cart',
   'pixel-art',
   'websocket-chat',
   'kanban',
   'map',
+  'canvas-art',
   'ui-showcase',
 ])
 export type ExampleSlug = typeof ExampleSlug.Type
@@ -116,15 +116,6 @@ export const examples: ReadonlyArray<ExampleMeta> = [
     hasRouting: false,
   },
   {
-    slug: 'canvas-art',
-    title: 'Canvas Art',
-    description:
-      'Click the canvas to spawn bouncing balls. Demonstrates declarative 2D rendering with Canvas.view, animation-frame Subscriptions, and pointer events translated to canvas-local coordinates.',
-    difficulty: 'Intermediate',
-    tags: ['Canvas', 'Animation', 'Subscriptions'],
-    hasRouting: false,
-  },
-  {
     slug: 'auth',
     title: 'Auth',
     description:
@@ -185,6 +176,15 @@ export const examples: ReadonlyArray<ExampleMeta> = [
       'Interactive MapLibre GL map with locations, search, and "find my location". Demonstrates OnMount integration with a third-party DOM library, plus a Subscription bridging map move and marker click events back to the Model.',
     difficulty: 'Advanced',
     tags: ['Mount', 'Subscriptions', 'Third-Party Library'],
+    hasRouting: false,
+  },
+  {
+    slug: 'canvas-art',
+    title: 'Canvas Art',
+    description:
+      'Click the canvas to spawn bouncing balls. Demonstrates declarative 2D rendering with Canvas.view, animation-frame Subscriptions, and pointer events translated to canvas-local coordinates.',
+    difficulty: 'Intermediate',
+    tags: ['Canvas', 'Animation', 'Subscriptions'],
     hasRouting: false,
   },
   {

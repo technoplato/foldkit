@@ -191,7 +191,7 @@ const subscriptions = Subscription.makeSubscriptions(SubscriptionDeps)<
 
 // VIEW
 
-const { div, h1, p, button, Class, OnClick } = html<Message>()
+const h = html<Message>()
 
 const backgroundShape = Canvas.Rect({
   x: 0,
@@ -215,27 +215,27 @@ const sceneShapes = (model: Model): ReadonlyArray<Canvas.Shape> => [
 ]
 
 const controlsView = (model: Model): Html =>
-  div(
-    [Class('flex gap-3 mt-4')],
+  h.div(
+    [h.Class('flex gap-3 mt-4')],
     [
-      button(
+      h.button(
         [
-          Class(
+          h.Class(
             'px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-500',
           ),
-          OnClick(ClickedTogglePlay()),
+          h.OnClick(ClickedTogglePlay()),
         ],
         [model.isRunning ? 'Pause' : 'Play'],
       ),
-      button(
+      h.button(
         [
-          Class('px-4 py-2 bg-zinc-700 text-white rounded hover:bg-zinc-600'),
-          OnClick(ClickedClear()),
+          h.Class('px-4 py-2 bg-zinc-700 text-white rounded hover:bg-zinc-600'),
+          h.OnClick(ClickedClear()),
         ],
         ['Clear'],
       ),
-      p(
-        [Class('px-4 py-2 text-zinc-400 text-sm self-center')],
+      h.p(
+        [h.Class('px-4 py-2 text-zinc-400 text-sm self-center')],
         [`${model.balls.length} balls`],
       ),
     ],
@@ -243,15 +243,18 @@ const controlsView = (model: Model): Html =>
 
 const view = (model: Model): Document => ({
   title: `Canvas Art (${model.balls.length} balls)`,
-  body: div(
+  body: h.div(
     [
-      Class(
+      h.Class(
         'flex flex-col items-center justify-center min-h-screen bg-black text-white p-8',
       ),
     ],
     [
-      h1([Class('text-4xl font-bold mb-2')], ['Canvas Art']),
-      p([Class('text-zinc-400 mb-6')], ['Click the canvas to spawn a ball.']),
+      h.h1([h.Class('text-4xl font-bold mb-2')], ['Canvas Art']),
+      h.p(
+        [h.Class('text-zinc-400 mb-6')],
+        ['Click the canvas to spawn a ball.'],
+      ),
       Canvas.view<Message>({
         width: CANVAS_WIDTH,
         height: CANVAS_HEIGHT,
