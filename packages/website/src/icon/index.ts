@@ -36,6 +36,7 @@ import { squareStack } from './squareStack'
 import { stop } from './stop'
 import { sun } from './sun'
 import { trash } from './trash'
+import { xSocial } from './xSocial'
 
 export const Icon = {
   archiveBox,
@@ -76,4 +77,5 @@ export const Icon = {
   squareStack,
   sun,
   trash,
+  xSocial,
 }

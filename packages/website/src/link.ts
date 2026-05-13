@@ -38,6 +38,7 @@ export const Link = {
   msw: 'https://mswjs.io',
   github: 'https://github.com/foldkit/foldkit',
   discord: 'https://discord.gg/AZRTEs2VX',
+  xSocial: 'https://x.com/devinjameson',
   foldkitSource:
     'https://github.com/foldkit/foldkit/tree/main/packages/foldkit',
   npm: 'https://www.npmjs.com/package/foldkit',

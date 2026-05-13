@@ -110,6 +110,11 @@ const docsHeaderView = (model: Model) =>
                 'Discord',
                 Icon.discord('w-5 h-5 md:w-6 md:h-6'),
               ),
+              iconLink(
+                Link.xSocial,
+                'X',
+                Icon.xSocial('w-5 h-5 md:w-6 md:h-6'),
+              ),
               iconLink(Link.npm, 'npm', Icon.npm('w-6 h-6 md:w-8 md:h-8')),
             ],
           ),
