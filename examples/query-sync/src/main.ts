@@ -5,7 +5,6 @@ import {
   Match as M,
   Option,
   Order,
-  Predicate,
   Schema as S,
   SchemaTransformation,
   String,
@@ -45,13 +44,14 @@ const SORT_PARAM_SEPARATOR = ':'
 const optionFromValidParam = <A extends string>(schema: S.Codec<A, A>) => {
   const decode = S.decodeUnknownOption(schema)
 
-  return S.UndefinedOr(S.String).pipe(
+  return S.OptionFromOptional(S.String).pipe(
     S.decodeTo(
       S.Option(schema),
       SchemaTransformation.transform({
-        decode: (value: string | undefined): Option.Option<A> => decode(value),
-        encode: (option: Option.Option<A>): string | undefined =>
-          Option.getOrUndefined(option),
+        decode: (maybeRaw: Option.Option<string>): Option.Option<A> =>
+          Option.flatMap(maybeRaw, decode),
+        encode: (maybeValue: Option.Option<A>): Option.Option<string> =>
+          maybeValue,
       }),
     ),
   )
@@ -63,45 +63,49 @@ const sortingFromParam = (() => {
   const decodeColumn = S.decodeUnknownOption(SortColumn)
   const decodeDirection = S.decodeUnknownOption(SortDirection)
 
-  return S.UndefinedOr(S.String).pipe(
+  return S.OptionFromOptional(S.String).pipe(
     S.decodeTo(
       Sorting,
       SchemaTransformation.transform({
-        decode: (value: string | undefined) => {
-          if (Predicate.isUndefined(value)) {
-            return Unsorted()
-          }
+        decode: (maybeRaw: Option.Option<string>): Sorting =>
+          Option.match(maybeRaw, {
+            onNone: () => Unsorted(),
+            onSome: value => {
+              const parts = String.split(value, SORT_PARAM_SEPARATOR)
 
-          const parts = String.split(value, SORT_PARAM_SEPARATOR)
-
-          return pipe(
-            Option.all({
-              column: pipe(parts, Array.get(0), Option.flatMap(decodeColumn)),
-              direction: pipe(
-                parts,
-                Array.get(1),
-                Option.flatMap(decodeDirection),
-              ),
-            }),
-            Option.map(({ column, direction }) =>
-              M.value(direction).pipe(
-                M.when('Ascending', () => Ascending({ column })),
-                M.when('Descending', () => Descending({ column })),
-                M.exhaustive,
-              ),
-            ),
-            Option.getOrElse(() => Unsorted()),
-          )
-        },
-        encode: sorting =>
+              return pipe(
+                Option.all({
+                  column: pipe(
+                    parts,
+                    Array.get(0),
+                    Option.flatMap(decodeColumn),
+                  ),
+                  direction: pipe(
+                    parts,
+                    Array.get(1),
+                    Option.flatMap(decodeDirection),
+                  ),
+                }),
+                Option.map(({ column, direction }) =>
+                  M.value(direction).pipe(
+                    M.when('Ascending', () => Ascending({ column })),
+                    M.when('Descending', () => Descending({ column })),
+                    M.exhaustive,
+                  ),
+                ),
+                Option.getOrElse(() => Unsorted()),
+              )
+            },
+          }),
+        encode: (sorting): Option.Option<string> =>
           M.value(sorting).pipe(
-            M.withReturnType<string | undefined>(),
+            M.withReturnType<Option.Option<string>>(),
             M.tagsExhaustive({
-              Unsorted: () => undefined,
+              Unsorted: () => Option.none(),
               Ascending: ({ column }) =>
-                `${column}${SORT_PARAM_SEPARATOR}Ascending`,
+                Option.some(`${column}${SORT_PARAM_SEPARATOR}Ascending`),
               Descending: ({ column }) =>
-                `${column}${SORT_PARAM_SEPARATOR}Descending`,
+                Option.some(`${column}${SORT_PARAM_SEPARATOR}Descending`),
             }),
           ),
       }),
