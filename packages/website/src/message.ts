@@ -1,7 +1,7 @@
 import { Schema as S } from 'effect'
 import { Ui } from 'foldkit'
 import { m } from 'foldkit/message'
-import { UrlRequest } from 'foldkit/runtime'
+import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
 
 import * as Page from './page'

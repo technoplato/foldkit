@@ -34,6 +34,7 @@ import {
 import { startWebSocketBridge } from '../devTools/webSocketBridge.js'
 import { Document } from '../html/index.js'
 import { MountTracker } from '../mount/index.js'
+import { UrlRequest } from '../navigation/urlRequest.js'
 import { Url, fromString as urlFromString } from '../url/index.js'
 import { VNode, patch, toVNode } from '../vdom.js'
 import {
@@ -55,7 +56,6 @@ import { type EnvelopedMessage, orderByPriority } from './messagePriority.js'
 import { makePreserveScheduler } from './preserveScheduler.js'
 import { makeRenderLoop } from './renderLoop.js'
 import type { Subscriptions } from './subscription.js'
-import { UrlRequest } from './urlRequest.js'
 
 type AnyCommand<T, E = never, R = never> = {
   readonly name: string

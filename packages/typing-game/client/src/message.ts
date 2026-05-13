@@ -1,6 +1,7 @@
 import { Schema as S } from 'effect'
-import { Runtime, Url } from 'foldkit'
+import { Url } from 'foldkit'
 import { m } from 'foldkit/message'
+import { UrlRequest } from 'foldkit/navigation'
 
 import { Home, Room } from './page'
 
@@ -11,7 +12,7 @@ export const CompletedSaveSession = m('CompletedSaveSession')
 export const CompletedClearSession = m('CompletedClearSession')
 export const IgnoredKeyPress = m('IgnoredKeyPress')
 export const ClickedLink = m('ClickedLink', {
-  request: Runtime.UrlRequest,
+  request: UrlRequest,
 })
 export const ChangedUrl = m('ChangedUrl', { url: Url.Url })
 export const GotHomeMessage = m('GotHomeMessage', {

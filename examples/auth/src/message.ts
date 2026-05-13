@@ -1,6 +1,6 @@
 import { Schema as S } from 'effect'
-import { Runtime } from 'foldkit'
 import { m } from 'foldkit/message'
+import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
 
 import { Session } from './domain/session'
@@ -9,7 +9,7 @@ import { LoggedIn, LoggedOut } from './page'
 export const CompletedNavigateInternal = m('CompletedNavigateInternal')
 export const CompletedLoadExternal = m('CompletedLoadExternal')
 export const CompletedLogError = m('CompletedLogError')
-export const ClickedLink = m('ClickedLink', { request: Runtime.UrlRequest })
+export const ClickedLink = m('ClickedLink', { request: UrlRequest })
 export const ChangedUrl = m('ChangedUrl', { url: Url })
 export const LoadedSession = m('LoadedSession', { session: S.Option(Session) })
 export const SucceededSaveSession = m('SucceededSaveSession')

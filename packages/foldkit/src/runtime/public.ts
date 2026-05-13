@@ -18,7 +18,3 @@ export type {
   DevToolsMode,
   DevToolsModeConfig,
 } from './runtime.js'
-
-export { UrlRequest } from './urlRequest.js'
-
-export type { Internal, External } from './urlRequest.js'

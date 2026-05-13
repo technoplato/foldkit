@@ -2,7 +2,7 @@ import { Effect, Match as M, Option, Schema as S, pipe } from 'effect'
 import { Command, Route, Runtime } from 'foldkit'
 import { Document, Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
-import { load, pushUrl } from 'foldkit/navigation'
+import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { literal, r } from 'foldkit/route'
 import { evo } from 'foldkit/struct'
 import { Url, toString as urlToString } from 'foldkit/url'
@@ -58,7 +58,7 @@ export type Model = typeof Model.Type
 const CompletedNavigateInternal = m('CompletedNavigateInternal')
 const CompletedLoadExternal = m('CompletedLoadExternal')
 export const ClickedLink = m('ClickedLink', {
-  request: Runtime.UrlRequest,
+  request: UrlRequest,
 })
 export const ChangedUrl = m('ChangedUrl', { url: Url })
 const GotProductsMessage = m('GotProductsMessage', {

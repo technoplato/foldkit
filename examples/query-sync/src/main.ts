@@ -15,7 +15,7 @@ import {
 import { Command, Route, Runtime, Ui } from 'foldkit'
 import { Document, Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
-import { load, pushUrl, replaceUrl } from 'foldkit/navigation'
+import { UrlRequest, load, pushUrl, replaceUrl } from 'foldkit/navigation'
 import { r } from 'foldkit/route'
 import { ts } from 'foldkit/schema'
 import { evo } from 'foldkit/struct'
@@ -151,7 +151,7 @@ export type Model = typeof Model.Type
 const CompletedNavigateInternal = m('CompletedNavigateInternal')
 const CompletedLoadExternal = m('CompletedLoadExternal')
 const CompletedReplaceUrl = m('CompletedReplaceUrl')
-export const ClickedLink = m('ClickedLink', { request: Runtime.UrlRequest })
+export const ClickedLink = m('ClickedLink', { request: UrlRequest })
 export const ChangedUrl = m('ChangedUrl', { url: Url })
 const ChangedSearchInput = m('ChangedSearchInput', { value: S.String })
 const ClickedColumnHeader = m('ClickedColumnHeader', { column: SortColumn })

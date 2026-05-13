@@ -1,9 +1,9 @@
 import { Option, String } from 'effect'
 
 import { OptionExt, StringExt } from '../effectExtensions/index.js'
+import { External, Internal } from '../navigation/urlRequest.js'
 import { Url } from '../url/index.js'
 import { RoutingConfig } from './runtime.js'
-import { External, Internal } from './urlRequest.js'
 
 export const addNavigationEventListeners = <Message>(
   dispatch: (message: Message) => void,

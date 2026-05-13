@@ -1,5 +1,5 @@
 import { Effect, Match as M, Schema as S, pipe } from 'effect'
-import { Command, Navigation, Route, Runtime, Url } from 'foldkit'
+import { Command, Navigation, Route, Url } from 'foldkit'
 import { m } from 'foldkit/message'
 import { int, literal, r, slash } from 'foldkit/route'
 import { evo } from 'foldkit/struct'
@@ -30,7 +30,7 @@ type Model = typeof Model.Type
 
 const CompletedNavigateInternal = m('CompletedNavigateInternal')
 const CompletedLoadExternal = m('CompletedLoadExternal')
-const ClickedLink = m('ClickedLink', { request: Runtime.UrlRequest })
+const ClickedLink = m('ClickedLink', { request: Navigation.UrlRequest })
 const ChangedUrl = m('ChangedUrl', { url: Url.Url })
 
 const Message = S.Union([
