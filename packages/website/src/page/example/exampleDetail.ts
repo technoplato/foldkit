@@ -39,7 +39,7 @@ export const ChangedExampleUrl = m('ChangedExampleUrl', { url: S.String })
 const GotLivePreviewDisclosureMessage = m('GotLivePreviewDisclosureMessage', {
   message: Ui.Disclosure.Message,
 })
-export const StartedLoadExampleSources = m('StartedLoadExampleSources', {
+export const RequestedExampleSources = m('RequestedExampleSources', {
   slug: S.String,
 })
 export const SucceededLoadExampleSources = m('SucceededLoadExampleSources', {
@@ -53,7 +53,7 @@ export const Message = S.Union([
   GotSourceFileTabsMessage,
   ChangedExampleUrl,
   GotLivePreviewDisclosureMessage,
-  StartedLoadExampleSources,
+  RequestedExampleSources,
   SucceededLoadExampleSources,
   FailedLoadExampleSources,
 ])
@@ -94,6 +94,22 @@ export const init = (): readonly [
   },
   [],
 ]
+
+export const boot = (
+  maybeInitialSlug: Option.Option<string>,
+): readonly [Model, ReadonlyArray<Command.Command<Message>>] => {
+  const [model, initCommands] = init()
+  return Option.match(maybeInitialSlug, {
+    onNone: () => [model, initCommands],
+    onSome: slug => {
+      const [bootedModel, bootCommands] = update(
+        model,
+        RequestedExampleSources({ slug }),
+      )
+      return [bootedModel, [...initCommands, ...bootCommands]]
+    },
+  })
+}
 
 // UPDATE
 
@@ -141,7 +157,7 @@ export const update = (
         ]
       },
 
-      StartedLoadExampleSources: ({ slug }) => [
+      RequestedExampleSources: ({ slug }) => [
         evo(model, {
           sourceFileTabs: () => Ui.Tabs.init({ id: 'source-file-tabs' }),
           maybeExampleUrl: () => Option.none(),

@@ -13,11 +13,11 @@ export {
   FailedLoadApiData,
   GotDisclosureMessage,
   Message,
-  StartedLoadApiData,
+  RequestedApiData,
   SucceededLoadApiData,
 } from './message'
 export { LoadApiData } from './command'
-export { init } from './init'
+export { boot, init } from './init'
 export { update } from './update'
 export { failureView, skeletonView, view } from './view'
 export type { TypeDocJson } from './typedoc'
