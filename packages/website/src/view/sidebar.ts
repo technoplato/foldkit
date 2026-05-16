@@ -248,10 +248,25 @@ const computeNavLinks = (
   )
 }
 
-const lazyNavLinks = createLazy()
+const lazyDesktopNavLinks = createLazy()
+const lazyMobileNavLinks = createLazy()
 
 export const sidebarView = (model: Model): Html => {
-  const navLinks = lazyNavLinks(computeNavLinks, [
+  const desktopNavLinks = lazyDesktopNavLinks(computeNavLinks, [
+    model.route,
+    model.getStartedGroup,
+    model.coreConceptsGroup,
+    model.forReactDevelopersGroup,
+    model.guidesGroup,
+    model.testingGroup,
+    model.bestPracticesGroup,
+    model.patternsGroup,
+    model.examplesGroup,
+    model.foldkitUiGroup,
+    model.aiGroup,
+    model.apiReferenceGroup,
+  ])
+  const mobileNavLinks = lazyMobileNavLinks(computeNavLinks, [
     model.route,
     model.getStartedGroup,
     model.coreConceptsGroup,
@@ -281,7 +296,7 @@ export const sidebarView = (model: Model): Html => {
           h.Class('flex-1 overflow-y-auto pb-4'),
           h.OnMount(RestoreSidebarScroll({ scroll: model.sidebarScroll })),
         ],
-        [navLinks],
+        [desktopNavLinks],
       ),
     ],
   )
@@ -332,7 +347,7 @@ export const sidebarView = (model: Model): Html => {
           h.Tabindex(-1),
           h.Autofocus(true),
         ],
-        [navLinks],
+        [mobileNavLinks],
       ),
       h.div(
         [h.Class('p-4 border-t border-gray-300 dark:border-gray-800 shrink-0')],
