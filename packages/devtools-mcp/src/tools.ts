@@ -112,9 +112,9 @@ const GetRuntimeStateInput = S.Struct({
 
 const DispatchMessageInput = S.Struct({
   runtime_id: RuntimeIdField,
-  message: S.Unknown.annotate({
+  message: S.Record(S.String, S.Unknown).annotate({
     description:
-      "A Foldkit Message object to dispatch into the runtime. Must match the runtime's Message Schema — read the application's source to see the exact shape. At minimum it has a `_tag` field naming the variant. The runtime decodes the payload and returns a clean error if it doesn't match.",
+      "A Foldkit Message object to dispatch into the runtime. Must match the runtime's Message Schema. Read the application's source to see the exact shape. At minimum it has a `_tag` field naming the variant. The runtime decodes the payload and returns a clean error if it doesn't match.",
   }),
 })
 
