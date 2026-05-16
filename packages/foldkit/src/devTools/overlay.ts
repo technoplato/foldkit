@@ -1134,17 +1134,7 @@ const makeView = (
   }
 
   const inspectedTimestamp = (model: Model): string => {
-    const lastIndex = Array_.isReadonlyArrayEmpty(model.entries)
-      ? INIT_INDEX
-      : model.startIndex + model.entries.length - 1
-
-    const selectedIndex = M.value(mode).pipe(
-      M.when('TimeTravel', () =>
-        model.isPaused ? model.pausedAtIndex : lastIndex,
-      ),
-      M.when('Inspect', () => model.selectedIndex),
-      M.exhaustive,
-    )
+    const selectedIndex = selectedHistoryIndex(model)
 
     if (selectedIndex === INIT_INDEX) {
       return '0ms'
@@ -1286,14 +1276,20 @@ const makeView = (
       },
     })
 
-  const selectedHistoryIndex = (model: Model): number =>
-    M.value(mode).pipe(
+  const selectedHistoryIndex = (model: Model): number => {
+    const lastIndex = Array_.match(model.entries, {
+      onEmpty: () => INIT_INDEX,
+      onNonEmpty: () => model.startIndex + model.entries.length - 1,
+    })
+
+    return M.value(mode).pipe(
       M.when('TimeTravel', () =>
-        model.isPaused ? model.pausedAtIndex : INIT_INDEX,
+        model.isPaused ? model.pausedAtIndex : lastIndex,
       ),
       M.when('Inspect', () => model.selectedIndex),
       M.exhaustive,
     )
+  }
 
   const selectedCommands = (
     model: Model,
@@ -1978,18 +1974,7 @@ const makeView = (
   }
 
   const messageListView = (model: Model): Html => {
-    const lastIndex = Array_.match(model.entries, {
-      onEmpty: () => INIT_INDEX,
-      onNonEmpty: () => model.startIndex + model.entries.length - 1,
-    })
-
-    const selectedIndex = M.value(mode).pipe(
-      M.when('TimeTravel', () =>
-        model.isPaused ? model.pausedAtIndex : lastIndex,
-      ),
-      M.when('Inspect', () => model.selectedIndex),
-      M.exhaustive,
-    )
+    const selectedIndex = selectedHistoryIndex(model)
 
     return lazyMessageList(messageListBody, [
       model.entries,
