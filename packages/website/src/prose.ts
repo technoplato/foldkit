@@ -155,7 +155,7 @@ export const warningCallout = (
   h.div(
     [
       h.Class(
-        'border border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 py-3.5 px-5 mb-6 rounded-lg',
+        'border border-amber-400 dark:border-amber-500/50 py-3.5 px-5 mb-6 rounded-lg',
       ),
     ],
     [
@@ -167,9 +167,6 @@ export const warningCallout = (
         ],
         [Icon.exclamationTriangle('w-5 h-5 shrink-0'), h.span([], [label])],
       ),
-      h.p(
-        [h.Class('text-amber-800 dark:text-amber-300/90 leading-7')],
-        content,
-      ),
+      h.p([h.Class('text-gray-700 dark:text-gray-300 leading-7')], content),
     ],
   )

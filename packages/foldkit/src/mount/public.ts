@@ -8,5 +8,6 @@ export {
   MountDefinitionTypeId,
   MountTracker,
   define,
+  defineStream,
   mapMessage,
 } from './index.js'

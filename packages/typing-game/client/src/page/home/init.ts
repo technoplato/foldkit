@@ -1,6 +1,7 @@
 import { Option } from 'effect'
 import { Command } from 'foldkit'
 
+import { FocusUsernameInput } from './command'
 import { Message } from './message'
 import { EnterUsername, Model } from './model'
 
@@ -11,5 +12,5 @@ export const init = (): InitReturn => [
     homeStep: EnterUsername({ username: '' }),
     formError: Option.none(),
   },
-  [],
+  [FocusUsernameInput()],
 ]

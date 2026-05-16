@@ -1,37 +1,17 @@
-import { Array, Effect, Match as M, Option, String as Str } from 'effect'
-import { Command, Dom } from 'foldkit'
+import { Array, Match as M, Option, String as Str } from 'effect'
+import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
 
-import { ROOM_ID_INPUT_ID, USERNAME_INPUT_ID } from '../../../constant'
 import { optionWhen } from '../../../optionWhen'
-import { CreateRoom, JoinRoom } from '../command'
 import {
-  CompletedFocusRoomIdInput,
-  CompletedFocusUsernameInput,
-  Message,
-  type OutMessage,
-} from '../message'
+  CreateRoom,
+  FocusRoomIdInput,
+  FocusUsernameInput,
+  JoinRoom,
+} from '../command'
+import { Message, type OutMessage } from '../message'
 import { EnterRoomId, EnterUsername, Model, SelectAction } from '../model'
 import { handleKeyPressed } from './handleKeyPressed'
-
-const RefocusUsernameInput = Command.define(
-  'RefocusUsernameInput',
-  CompletedFocusUsernameInput,
-)(
-  Dom.focus(`#${USERNAME_INPUT_ID}`).pipe(
-    Effect.ignore,
-    Effect.as(CompletedFocusUsernameInput()),
-  ),
-)
-const RefocusRoomIdInput = Command.define(
-  'RefocusRoomIdInput',
-  CompletedFocusRoomIdInput,
-)(
-  Dom.focus(`#${ROOM_ID_INPUT_ID}`).pipe(
-    Effect.ignore,
-    Effect.as(CompletedFocusRoomIdInput()),
-  ),
-)
 
 export type UpdateReturn = readonly [
   Model,
@@ -85,11 +65,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
 
       BlurredUsernameInput: () => [
         model,
-        [RefocusUsernameInput()],
+        [FocusUsernameInput()],
         Option.none(),
       ],
 
-      BlurredRoomIdInput: () => [model, [RefocusRoomIdInput()], Option.none()],
+      BlurredRoomIdInput: () => [model, [FocusRoomIdInput()], Option.none()],
 
       ChangedRoomId: ({ value }) =>
         M.value(model.homeStep).pipe(

@@ -3,7 +3,7 @@ import { Array, Data, Match as M, Option, String as Str } from 'effect'
 import { evo } from 'foldkit/struct'
 
 import { optionWhen } from '../../../optionWhen'
-import { TickExitCountdown } from '../command'
+import { FocusUserGameTextInput, TickExitCountdown } from '../command'
 import { Model, RoomRemoteData } from '../model'
 import type { UpdateReturn } from './update'
 
@@ -63,6 +63,9 @@ export const handleRoomUpdated =
     const maybeExitCountdown = optionWhen(gameJustFinished, () =>
       TickExitCountdown(),
     )
+    const maybeFocusUserGameText = optionWhen(gameJustStarted, () =>
+      FocusUserGameTextInput(),
+    )
 
     return [
       evo(model, {
@@ -74,7 +77,10 @@ export const handleRoomUpdated =
             ? EXIT_COUNTDOWN_SECONDS
             : model.exitCountdownSecondsLeft,
       }),
-      Array.fromOption(maybeExitCountdown),
+      Array.appendAll(
+        Array.fromOption(maybeExitCountdown),
+        Array.fromOption(maybeFocusUserGameText),
+      ),
     ]
   }
 

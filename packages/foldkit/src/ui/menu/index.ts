@@ -16,7 +16,6 @@ import { OptionExt } from '../../effectExtensions/index.js'
 import {
   type Attribute,
   type Html,
-  type MountResult,
   createLazy,
   html,
 } from '../../html/index.js'
@@ -684,10 +683,13 @@ export const AnchorMenu = Mount.define(
   CompletedAnchorMenu,
 )(
   ({ buttonId, anchor }) =>
-    (element): Effect.Effect<MountResult<typeof CompletedAnchorMenu.Type>> =>
-      Effect.sync(() => {
-        const cleanup = anchorSetup({ buttonId, anchor })(element)
-        return { message: CompletedAnchorMenu(), cleanup }
+    element =>
+      Effect.gen(function* () {
+        yield* Effect.acquireRelease(
+          Effect.sync(() => anchorSetup({ buttonId, anchor })(element)),
+          cleanup => Effect.sync(cleanup),
+        )
+        return CompletedAnchorMenu()
       }),
 )
 
@@ -697,14 +699,14 @@ export const AnchorMenu = Mount.define(
 export const PortalMenuBackdrop = Mount.define(
   'PortalMenuBackdrop',
   CompletedPortalMenuBackdrop,
-)(
-  (
-    element,
-  ): Effect.Effect<MountResult<typeof CompletedPortalMenuBackdrop.Type>> =>
-    Effect.sync(() => {
-      const cleanup = portalToBody(element)
-      return { message: CompletedPortalMenuBackdrop(), cleanup }
-    }),
+)(element =>
+  Effect.gen(function* () {
+    yield* Effect.acquireRelease(
+      Effect.sync(() => portalToBody(element)),
+      cleanup => Effect.sync(cleanup),
+    )
+    return CompletedPortalMenuBackdrop()
+  }),
 )
 
 /** Programmatically opens the menu, updating the model and returning

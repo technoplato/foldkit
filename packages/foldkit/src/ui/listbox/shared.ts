@@ -13,12 +13,7 @@ import {
 import * as Command from '../../command/index.js'
 import * as Dom from '../../dom/index.js'
 import { OptionExt } from '../../effectExtensions/index.js'
-import {
-  type Attribute,
-  type Html,
-  type MountResult,
-  html,
-} from '../../html/index.js'
+import { type Attribute, type Html, html } from '../../html/index.js'
 import { m } from '../../message/index.js'
 import * as Mount from '../../mount/index.js'
 import { makeConstrainedEvo } from '../../struct/index.js'
@@ -667,10 +662,13 @@ export const AnchorListbox = Mount.define(
   CompletedAnchorListbox,
 )(
   ({ buttonId, anchor }) =>
-    (element): Effect.Effect<MountResult<typeof CompletedAnchorListbox.Type>> =>
-      Effect.sync(() => {
-        const cleanup = anchorSetup({ buttonId, anchor })(element)
-        return { message: CompletedAnchorListbox(), cleanup }
+    element =>
+      Effect.gen(function* () {
+        yield* Effect.acquireRelease(
+          Effect.sync(() => anchorSetup({ buttonId, anchor })(element)),
+          cleanup => Effect.sync(cleanup),
+        )
+        return CompletedAnchorListbox()
       }),
 )
 
@@ -680,14 +678,14 @@ export const AnchorListbox = Mount.define(
 export const PortalListboxBackdrop = Mount.define(
   'PortalListboxBackdrop',
   CompletedPortalListboxBackdrop,
-)(
-  (
-    element,
-  ): Effect.Effect<MountResult<typeof CompletedPortalListboxBackdrop.Type>> =>
-    Effect.sync(() => {
-      const cleanup = portalToBody(element)
-      return { message: CompletedPortalListboxBackdrop(), cleanup }
-    }),
+)(element =>
+  Effect.gen(function* () {
+    yield* Effect.acquireRelease(
+      Effect.sync(() => portalToBody(element)),
+      cleanup => Effect.sync(cleanup),
+    )
+    return CompletedPortalListboxBackdrop()
+  }),
 )
 
 // VIEW TYPES

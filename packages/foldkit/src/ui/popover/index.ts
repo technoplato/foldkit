@@ -6,7 +6,6 @@ import { OptionExt } from '../../effectExtensions/index.js'
 import {
   type Attribute,
   type Html,
-  type MountResult,
   createLazy,
   html,
 } from '../../html/index.js'
@@ -395,16 +394,21 @@ export const AnchorPopover = Mount.define(
   CompletedAnchorPopover,
 )(
   ({ buttonId, anchor, focusSelector }) =>
-    (element): Effect.Effect<MountResult<typeof CompletedAnchorPopover.Type>> =>
-      Effect.sync(() => {
-        const cleanup = anchorSetup({
-          buttonId,
-          anchor,
-          interceptTab: false,
-          focusAfterPosition: true,
-          ...(focusSelector !== undefined && { focusSelector }),
-        })(element)
-        return { message: CompletedAnchorPopover(), cleanup }
+    element =>
+      Effect.gen(function* () {
+        yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            anchorSetup({
+              buttonId,
+              anchor,
+              interceptTab: false,
+              focusAfterPosition: true,
+              ...(focusSelector !== undefined && { focusSelector }),
+            })(element),
+          ),
+          cleanup => Effect.sync(cleanup),
+        )
+        return CompletedAnchorPopover()
       }),
 )
 
@@ -414,14 +418,14 @@ export const AnchorPopover = Mount.define(
 export const PortalPopoverBackdrop = Mount.define(
   'PortalPopoverBackdrop',
   CompletedPortalPopoverBackdrop,
-)(
-  (
-    element,
-  ): Effect.Effect<MountResult<typeof CompletedPortalPopoverBackdrop.Type>> =>
-    Effect.sync(() => {
-      const cleanup = portalToBody(element)
-      return { message: CompletedPortalPopoverBackdrop(), cleanup }
-    }),
+)(element =>
+  Effect.gen(function* () {
+    yield* Effect.acquireRelease(
+      Effect.sync(() => portalToBody(element)),
+      cleanup => Effect.sync(cleanup),
+    )
+    return CompletedPortalPopoverBackdrop()
+  }),
 )
 
 /** Programmatically opens the popover, updating the model and returning

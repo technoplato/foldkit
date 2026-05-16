@@ -346,52 +346,54 @@ export const MountMap = Mount.define(
   { hostId: S.String },
   SucceededMountMap,
   FailedMountMap,
-)(({ hostId }) => (element: Element) => {
-  if (!(element instanceof HTMLElement)) {
-    return Effect.succeed({
-      message: FailedMountMap({
-        reason: 'Map host is not an HTMLElement.',
+)(
+  ({ hostId }) =>
+    element =>
+      Effect.gen(function* () {
+        if (!(element instanceof HTMLElement)) {
+          return FailedMountMap({ reason: 'Map host is not an HTMLElement.' })
+        }
+        return yield* Effect.gen(function* () {
+          yield* Effect.acquireRelease(
+            Effect.gen(function* () {
+              const maplibre = yield* Effect.tryPromise(
+                () => import('maplibre-gl'),
+              )
+              const map = new maplibre.Map({
+                container: element,
+                style: 'https://demotiles.maplibre.org/style.json',
+                center: [0, 20],
+                zoom: INITIAL_MAP_ZOOM,
+              })
+
+              Array.forEach(featuredLocations, ({ id, lng, lat }) => {
+                const markerElement = document.createElement('button')
+                markerElement.setAttribute('data-location-id', id)
+                markerElement.setAttribute('aria-label', `Marker: ${id}`)
+                markerElement.className = markerStyle
+                new maplibre.Marker({ element: markerElement })
+                  .setLngLat([lng, lat])
+                  .addTo(map)
+              })
+
+              setMap(hostId, map)
+              return map
+            }),
+            () => Effect.sync(() => removeMap(hostId)),
+          )
+
+          return SucceededMountMap({ hostId })
+        }).pipe(
+          Effect.catch(error =>
+            Effect.succeed(
+              FailedMountMap({
+                reason: error instanceof Error ? error.message : `${error}`,
+              }),
+            ),
+          ),
+        )
       }),
-      cleanup: Function.constVoid,
-    })
-  } else {
-    return Effect.gen(function* () {
-      const maplibre = yield* Effect.tryPromise(() => import('maplibre-gl'))
-      const map = new maplibre.Map({
-        container: element,
-        style: 'https://demotiles.maplibre.org/style.json',
-        center: [0, 20],
-        zoom: INITIAL_MAP_ZOOM,
-      })
-
-      Array.forEach(featuredLocations, ({ id, lng, lat }) => {
-        const markerElement = document.createElement('button')
-        markerElement.setAttribute('data-location-id', id)
-        markerElement.setAttribute('aria-label', `Marker: ${id}`)
-        markerElement.className = markerStyle
-        new maplibre.Marker({ element: markerElement })
-          .setLngLat([lng, lat])
-          .addTo(map)
-      })
-
-      setMap(hostId, map)
-
-      return {
-        message: SucceededMountMap({ hostId }),
-        cleanup: () => removeMap(hostId),
-      }
-    }).pipe(
-      Effect.catch(error =>
-        Effect.succeed({
-          message: FailedMountMap({
-            reason: error instanceof Error ? error.message : `${error}`,
-          }),
-          cleanup: Function.constVoid,
-        }),
-      ),
-    )
-  }
-})
+)
 
 // SUBSCRIPTIONS
 

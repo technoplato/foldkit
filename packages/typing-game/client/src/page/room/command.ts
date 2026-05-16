@@ -1,9 +1,13 @@
 import { BrowserKeyValueStore } from '@effect/platform-browser'
-import { Effect, Function, Option, Schema as S } from 'effect'
+import { Effect, Option, Schema as S } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
-import { Command, Mount } from 'foldkit'
+import { Command, Dom } from 'foldkit'
 
-import { ROOM_PLAYER_SESSION_KEY } from '../../constant'
+import {
+  ROOM_PAGE_USERNAME_INPUT_ID,
+  ROOM_PLAYER_SESSION_KEY,
+  USER_GAME_TEXT_INPUT_ID,
+} from '../../constant'
 import { RoomsClient, RoomsClientLive } from '../../rpc.js'
 import {
   CompletedClearSession,
@@ -194,34 +198,22 @@ export const ClearSession = Command.define(
   ),
 )
 
-// MOUNT
-
-export const FocusRoomPageUsernameInput = Mount.define(
+export const FocusRoomPageUsernameInput = Command.define(
   'FocusRoomPageUsernameInput',
   CompletedFocusRoomPageUsernameInput,
-)(element =>
-  Effect.sync(() => {
-    if (element instanceof HTMLInputElement) {
-      element.focus()
-    }
-    return {
-      message: CompletedFocusRoomPageUsernameInput(),
-      cleanup: Function.constVoid,
-    }
-  }),
+)(
+  Dom.focus(`#${ROOM_PAGE_USERNAME_INPUT_ID}`).pipe(
+    Effect.ignore,
+    Effect.as(CompletedFocusRoomPageUsernameInput()),
+  ),
 )
 
-export const FocusUserGameTextInput = Mount.define(
+export const FocusUserGameTextInput = Command.define(
   'FocusUserGameTextInput',
   CompletedFocusUserGameTextInput,
-)(element =>
-  Effect.sync(() => {
-    if (element instanceof HTMLTextAreaElement) {
-      element.focus()
-    }
-    return {
-      message: CompletedFocusUserGameTextInput(),
-      cleanup: Function.constVoid,
-    }
-  }),
+)(
+  Dom.focus(`#${USER_GAME_TEXT_INPUT_ID}`).pipe(
+    Effect.ignore,
+    Effect.as(CompletedFocusUserGameTextInput()),
+  ),
 )

@@ -8,16 +8,16 @@ import {
   String as Str,
   pipe,
 } from 'effect'
-import { Command, Dom } from 'foldkit'
+import { Command } from 'foldkit'
 import { pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
 
-import { ROOM_PAGE_USERNAME_INPUT_ID } from '../../../constant'
 import { optionWhen } from '../../../optionWhen'
 import { homeRouter } from '../../../route'
 import {
   ClearSession,
   CopyRoomId,
+  FocusRoomPageUsernameInput,
   HideRoomIdCopiedIndicator,
   JoinRoom,
   SavePlayerSession,
@@ -25,24 +25,11 @@ import {
   TickExitCountdown,
   UpdatePlayerProgress,
 } from '../command'
-import {
-  CompletedFocusRoomPageUsernameInput,
-  CompletedNavigateHome,
-  Message,
-} from '../message'
+import { CompletedNavigateHome, Message } from '../message'
 import { Model, RoomRemoteData } from '../model'
 import { validateUserTextInput } from '../userGameText'
 import { handleRoomUpdated } from './handleRoomUpdates'
 
-const RefocusRoomUsernameInput = Command.define(
-  'RefocusRoomUsernameInput',
-  CompletedFocusRoomPageUsernameInput,
-)(
-  Dom.focus(`#${ROOM_PAGE_USERNAME_INPUT_ID}`).pipe(
-    Effect.ignore,
-    Effect.as(CompletedFocusRoomPageUsernameInput()),
-  ),
-)
 const NavigateHome = Command.define(
   'NavigateHome',
   CompletedNavigateHome,
@@ -104,7 +91,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
 
-      BlurredRoomPageUsernameInput: () => [model, [RefocusRoomUsernameInput()]],
+      BlurredRoomPageUsernameInput: () => [
+        model,
+        [FocusRoomPageUsernameInput()],
+      ],
 
       ChangedRoomPageUsername: ({ value }) => [
         evo(model, {
@@ -132,19 +122,30 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [StartGame({ roomId, playerId })],
       ],
 
-      LoadedSession: ({ maybeSession }) => [
-        evo(model, {
-          maybeSession: () => maybeSession,
-        }),
-        [],
-      ],
+      LoadedSession: ({ maybeSession }) => {
+        const maybeFocus = optionWhen(
+          Option.isNone(maybeSession) && model.roomRemoteData._tag === 'Ok',
+          () => FocusRoomPageUsernameInput(),
+        )
+        return [
+          evo(model, {
+            maybeSession: () => maybeSession,
+          }),
+          Array.fromOption(maybeFocus),
+        ]
+      },
 
-      SucceededFetchRoom: ({ room }) => [
-        evo(model, {
-          roomRemoteData: () => RoomRemoteData.Ok({ data: room }),
-        }),
-        [],
-      ],
+      SucceededFetchRoom: ({ room }) => {
+        const maybeFocus = optionWhen(Option.isNone(model.maybeSession), () =>
+          FocusRoomPageUsernameInput(),
+        )
+        return [
+          evo(model, {
+            roomRemoteData: () => RoomRemoteData.Ok({ data: room }),
+          }),
+          Array.fromOption(maybeFocus),
+        ]
+      },
 
       FailedFetchRoom: () => [
         evo(model, {

@@ -1,6 +1,7 @@
-import { Effect, Function, Schema as S } from 'effect'
-import { Command, Mount } from 'foldkit'
+import { Effect, Schema as S } from 'effect'
+import { Command, Dom } from 'foldkit'
 
+import { ROOM_ID_INPUT_ID, USERNAME_INPUT_ID } from '../../constant'
 import { RoomsClient, RoomsClientLive } from '../../rpc.js'
 import {
   CompletedFocusRoomIdInput,
@@ -46,32 +47,22 @@ export const JoinRoom = Command.define(
   ),
 )
 
-export const FocusUsernameInput = Mount.define(
+export const FocusUsernameInput = Command.define(
   'FocusUsernameInput',
   CompletedFocusUsernameInput,
-)(element =>
-  Effect.sync(() => {
-    if (element instanceof HTMLInputElement) {
-      element.focus()
-    }
-    return {
-      message: CompletedFocusUsernameInput(),
-      cleanup: Function.constVoid,
-    }
-  }),
+)(
+  Dom.focus(`#${USERNAME_INPUT_ID}`).pipe(
+    Effect.ignore,
+    Effect.as(CompletedFocusUsernameInput()),
+  ),
 )
 
-export const FocusRoomIdInput = Mount.define(
+export const FocusRoomIdInput = Command.define(
   'FocusRoomIdInput',
   CompletedFocusRoomIdInput,
-)(element =>
-  Effect.sync(() => {
-    if (element instanceof HTMLInputElement) {
-      element.focus()
-    }
-    return {
-      message: CompletedFocusRoomIdInput(),
-      cleanup: Function.constVoid,
-    }
-  }),
+)(
+  Dom.focus(`#${ROOM_ID_INPUT_ID}`).pipe(
+    Effect.ignore,
+    Effect.as(CompletedFocusRoomIdInput()),
+  ),
 )

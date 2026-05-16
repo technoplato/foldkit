@@ -1,9 +1,7 @@
 import { Array, Match as M, Option } from 'effect'
-import { Mount } from 'foldkit'
 import { Html, html } from 'foldkit/html'
 
 import { ROOM_ID_INPUT_ID, USERNAME_INPUT_ID } from '../../constant'
-import { FocusRoomIdInput, FocusUsernameInput } from './command'
 import {
   BlurredRoomIdInput,
   BlurredUsernameInput,
@@ -93,9 +91,6 @@ const enterUsername =
                     toParentMessage(ChangedUsername({ value })),
                   ),
                   h.OnBlur(toParentMessage(BlurredUsernameInput())),
-                  h.OnMount(
-                    Mount.mapMessage(FocusUsernameInput(), toParentMessage),
-                  ),
                   h.Autocapitalize('none'),
                   h.Spellcheck(false),
                   h.Autocorrect('off'),
@@ -166,9 +161,6 @@ const enterRoomId =
                   h.Class('bg-transparent px-0 py-2 outline-none w-full'),
                   h.OnInput(value => toParentMessage(ChangedRoomId({ value }))),
                   h.OnBlur(toParentMessage(BlurredRoomIdInput())),
-                  h.OnMount(
-                    Mount.mapMessage(FocusRoomIdInput(), toParentMessage),
-                  ),
                   h.Autocapitalize('none'),
                   h.Spellcheck(false),
                   h.Autocorrect('off'),

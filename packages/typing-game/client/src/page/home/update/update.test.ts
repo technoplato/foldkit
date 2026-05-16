@@ -2,10 +2,17 @@ import { Option } from 'effect'
 import { Story } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 
-import { CreateRoom, JoinRoom } from '../command'
+import {
+  CreateRoom,
+  FocusRoomIdInput,
+  FocusUsernameInput,
+  JoinRoom,
+} from '../command'
 import {
   ChangedRoomId,
   ChangedUsername,
+  CompletedFocusRoomIdInput,
+  CompletedFocusUsernameInput,
   FailedJoinRoom,
   PressedKey,
   SubmittedJoinRoomForm,
@@ -131,6 +138,7 @@ describe('selecting an action', () => {
       withSelectActionStep(),
       Story.message(PressedKey({ key: 'ArrowDown' })),
       Story.message(PressedKey({ key: 'Enter' })),
+      Story.Command.resolve(FocusRoomIdInput, CompletedFocusRoomIdInput()),
       Story.model(model => {
         expect(model.homeStep).toMatchObject({
           _tag: 'EnterRoomId',
@@ -148,6 +156,7 @@ describe('selecting an action', () => {
       Story.message(PressedKey({ key: 'ArrowDown' })),
       Story.message(PressedKey({ key: 'ArrowDown' })),
       Story.message(PressedKey({ key: 'Enter' })),
+      Story.Command.resolve(FocusUsernameInput, CompletedFocusUsernameInput()),
       Story.model(model => {
         expect(model.homeStep._tag).toBe('EnterUsername')
       }),

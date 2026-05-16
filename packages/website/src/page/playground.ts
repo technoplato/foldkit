@@ -1,6 +1,5 @@
-import { Effect, Function, Match as M, Option, Schema as S } from 'effect'
+import { Effect, Match as M, Option, Schema as S } from 'effect'
 import { Mount } from 'foldkit'
-import type { MountResult } from 'foldkit/html'
 import { Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import filesBySlug from 'virtual:playground-files'
@@ -17,10 +16,6 @@ export const FailedPlaygroundEmbed = m('FailedPlaygroundEmbed', {
   reason: S.String,
 })
 
-type PlaygroundEmbedMessage =
-  | typeof SucceededPlaygroundEmbed.Type
-  | typeof FailedPlaygroundEmbed.Type
-
 const PlaygroundEmbed = Mount.define(
   'PlaygroundEmbed',
   {
@@ -32,16 +27,13 @@ const PlaygroundEmbed = Mount.define(
   FailedPlaygroundEmbed,
 )(
   ({ title, description, files }) =>
-    (element: Element): Effect.Effect<MountResult<PlaygroundEmbedMessage>> => {
-      if (!(element instanceof HTMLElement)) {
-        return Effect.succeed({
-          message: FailedPlaygroundEmbed({
+    element =>
+      Effect.gen(function* () {
+        if (!(element instanceof HTMLElement)) {
+          return FailedPlaygroundEmbed({
             reason: 'Playground requires an HTMLElement host.',
-          }),
-          cleanup: Function.constVoid,
-        })
-      }
-      return Effect.gen(function* () {
+          })
+        }
         yield* Effect.tryPromise(() =>
           import('@stackblitz/sdk').then(({ default: sdk }) =>
             sdk.embedProject(
@@ -62,21 +54,16 @@ const PlaygroundEmbed = Mount.define(
             ),
           ),
         )
-        return {
-          message: SucceededPlaygroundEmbed(),
-          cleanup: Function.constVoid,
-        }
+        return SucceededPlaygroundEmbed()
       }).pipe(
         Effect.catch(error =>
-          Effect.succeed({
-            message: FailedPlaygroundEmbed({
+          Effect.succeed(
+            FailedPlaygroundEmbed({
               reason: error instanceof Error ? error.message : String(error),
             }),
-            cleanup: Function.constVoid,
-          }),
+          ),
         ),
-      )
-    },
+      ),
 )
 
 const backToExampleButton = (maybeMeta: Option.Option<ExampleMeta>): Html =>
@@ -125,12 +112,13 @@ const messageView = (
     ],
   )
 
-// NOTE: cleanup is constVoid here. The StackBlitz SDK maintains an internal
-// `connections` array that isn't exposed for cleanup — once an embed succeeds,
-// its Connection object lives for the page's lifetime. Snabbdom already removes
-// the iframe from the DOM on unmount; there is no additional cleanup hook the
-// SDK accepts. The resulting per-visit leak is a few KB of JS state — negligible
-// for a docs site, tracked as a follow-up to request a public teardown method.
+// NOTE: this Mount registers no acquireRelease finalizer. The StackBlitz
+// SDK maintains an internal `connections` array that isn't exposed for
+// cleanup. Once an embed succeeds, its Connection object lives for the
+// page's lifetime. Snabbdom already removes the iframe from the DOM on
+// unmount; there is no additional cleanup hook the SDK accepts. The
+// resulting per-visit leak is a few KB of JS state, negligible for a docs
+// site, tracked as a follow-up to request a public teardown method.
 const embedView = (meta: ExampleMeta, files: Record<string, string>): Html =>
   h.div(
     [h.Class('flex-1 min-h-0')],

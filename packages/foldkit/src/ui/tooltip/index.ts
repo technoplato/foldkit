@@ -13,7 +13,6 @@ import { OptionExt } from '../../effectExtensions/index.js'
 import {
   type Attribute,
   type Html,
-  type MountResult,
   createLazy,
   html,
 } from '../../html/index.js'
@@ -150,14 +149,19 @@ export const AnchorTooltip = Mount.define(
   CompletedAnchorTooltip,
 )(
   ({ buttonId, anchor }) =>
-    (element): Effect.Effect<MountResult<typeof CompletedAnchorTooltip.Type>> =>
-      Effect.sync(() => {
-        const cleanup = anchorSetup({
-          buttonId,
-          anchor,
-          interceptTab: false,
-        })(element)
-        return { message: CompletedAnchorTooltip(), cleanup }
+    element =>
+      Effect.gen(function* () {
+        yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            anchorSetup({
+              buttonId,
+              anchor,
+              interceptTab: false,
+            })(element),
+          ),
+          cleanup => Effect.sync(cleanup),
+        )
+        return CompletedAnchorTooltip()
       }),
 )
 

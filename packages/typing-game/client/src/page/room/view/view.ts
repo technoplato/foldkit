@@ -1,12 +1,10 @@
 import * as Shared from '@typing-game/shared'
 import { Match as M, Option } from 'effect'
-import { Mount } from 'foldkit'
 import { Html, html } from 'foldkit/html'
 
 import { ROOM_PAGE_USERNAME_INPUT_ID } from '../../../constant'
 import { RoomRoute } from '../../../route'
 import { Icon } from '../../../view/icon'
-import { FocusRoomPageUsernameInput } from '../command'
 import {
   BlurredRoomPageUsernameInput,
   ChangedRoomPageUsername,
@@ -219,12 +217,6 @@ const joinForm = <ParentMessage>(
                   toParentMessage(ChangedRoomPageUsername({ value })),
                 ),
                 h.OnBlur(toParentMessage(BlurredRoomPageUsernameInput())),
-                h.OnMount(
-                  Mount.mapMessage(
-                    FocusRoomPageUsernameInput(),
-                    toParentMessage,
-                  ),
-                ),
                 h.Autocapitalize('none'),
                 h.Spellcheck(false),
                 h.Autocorrect('off'),

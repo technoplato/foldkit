@@ -1,10 +1,8 @@
 import { clsx } from 'clsx'
 import { Array, Number, Option, Order, String as Str, pipe } from 'effect'
-import { Mount } from 'foldkit'
 import { Html, html } from 'foldkit/html'
 
 import { USER_GAME_TEXT_INPUT_ID } from '../../../constant'
-import { FocusUserGameTextInput } from '../command'
 import { ChangedUserText } from '../message'
 import type { Message } from '../message'
 
@@ -25,9 +23,6 @@ const typing = <ParentMessage>(
           h.Value(userGameText),
           h.Class('absolute inset-0 opacity-0 z-10 resize-none'),
           h.OnInput(value => toParentMessage(ChangedUserText({ value }))),
-          h.OnMount(
-            Mount.mapMessage(FocusUserGameTextInput(), toParentMessage),
-          ),
           h.Spellcheck(false),
           h.Autocorrect('off'),
           h.Autocapitalize('none'),

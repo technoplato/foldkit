@@ -1,4 +1,4 @@
-import { Effect, Function, Schema as S } from 'effect'
+import { Effect, Schema as S } from 'effect'
 import { Mount } from 'foldkit'
 import { type Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
@@ -10,9 +10,9 @@ const FailedMountChart = m('FailedMountChart', { reason: S.String })
 
 // Mount.define gives the action a name and constrains what Messages it can
 // produce, plus an args record so the chart's per-instance data flows through
-// declared values rather than a closure. The runtime invokes the bound
-// factory on insert, dispatches the Message, and stashes the cleanup. When
-// Snabbdom unmounts the element, OnMount calls the cleanup automatically.
+// declared values rather than a closure. The runtime invokes the bound factory
+// on insert, runs the Effect to produce one Message, dispatches it, and closes
+// the scope on destroy (firing any acquireRelease finalizers).
 
 const ChartData = S.Array(S.Number)
 type ChartData = typeof ChartData.Type
@@ -26,22 +26,20 @@ const MountChart = Mount.define(
   ({ data }) =>
     element =>
       Effect.gen(function* () {
-        const { Chart } = yield* Effect.tryPromise(
-          () => import('some-chart-library'),
+        yield* Effect.acquireRelease(
+          Effect.tryPromise(() => import('some-chart-library')).pipe(
+            Effect.map(({ Chart }) => new Chart(element, { data })),
+          ),
+          chart => Effect.sync(() => chart.destroy()),
         )
-        const chart = new Chart(element, { data })
-        return {
-          message: SucceededMountChart(),
-          cleanup: () => chart.destroy(),
-        }
+        return SucceededMountChart()
       }).pipe(
         Effect.catch(error =>
-          Effect.succeed({
-            message: FailedMountChart({
+          Effect.succeed(
+            FailedMountChart({
               reason: error instanceof Error ? error.message : String(error),
             }),
-            cleanup: Function.constVoid,
-          }),
+          ),
         ),
       ),
 )

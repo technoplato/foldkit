@@ -1,4 +1,4 @@
-import { Effect, Function, Match as M, Option, Schema as S } from 'effect'
+import { Effect, Match as M, Option, Schema as S } from 'effect'
 
 import { html } from '../../html/index.js'
 import type { Html } from '../../html/index.js'
@@ -46,22 +46,12 @@ export const MeasurePanel = Mount.define(
   'MeasurePanel',
   MeasuredPanel,
   FailedMountSidebar,
-)(() =>
-  Effect.succeed({
-    message: MeasuredPanel({ width: 320 }),
-    cleanup: Function.constVoid,
-  }),
-)
+)(() => Effect.succeed(MeasuredPanel({ width: 320 })))
 
 export const FocusButton = Mount.define(
   'FocusButton',
   CompletedFocusButton,
-)(() =>
-  Effect.succeed({
-    message: CompletedFocusButton(),
-    cleanup: Function.constVoid,
-  }),
-)
+)(() => Effect.succeed(CompletedFocusButton()))
 
 export const ScrollList = Mount.define(
   'ScrollList',
@@ -74,10 +64,7 @@ export const ScrollList = Mount.define(
         if (element instanceof HTMLElement) {
           element.scrollTop = offset
         }
-        return {
-          message: ScrolledTo({ offset }),
-          cleanup: Function.constVoid,
-        }
+        return ScrolledTo({ offset })
       }),
 )
 

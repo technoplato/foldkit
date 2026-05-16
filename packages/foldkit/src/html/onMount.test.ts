@@ -1,5 +1,5 @@
 import { describe, it } from '@effect/vitest'
-import { Effect } from 'effect'
+import { Effect, Function, Queue, Stream } from 'effect'
 import {
   attributesModule,
   classModule,
@@ -11,8 +11,8 @@ import {
 } from 'snabbdom'
 import { afterEach, beforeEach, expect, vi } from 'vitest'
 
-import type { MountResult } from '../html/index.js'
 import { m } from '../message/index.js'
+import * as Mount from '../mount/index.js'
 import type { MountAction } from '../mount/index.js'
 import { propsModule } from '../propsModule.js'
 import { noOpDispatch } from '../runtime/crashUI.js'
@@ -31,14 +31,34 @@ const patch = init([
 
 const MountedRoot = m('MountedRoot')
 
+const WAIT_FOR_INTERRUPT_PROPAGATION_MS = 50
+
 /** Test fixture that constructs a Mounted MountAction directly with a custom
- *  factory. Each test wires up its own factory body, so the production
+ *  Stream factory. Each test wires up its own factory body, so the production
  *  `Mount.define(...)(factory)` shape (which binds a single factory at
  *  definition time) doesn't fit. The runtime only reads `name`, `args`,
  *  and `f` from a MountAction. */
 const makeMounted = (
-  f: (element: Element) => Effect.Effect<MountResult<typeof MountedRoot.Type>>,
+  f: (element: Element) => Stream.Stream<typeof MountedRoot.Type>,
 ): MountAction<typeof MountedRoot.Type> => ({ name: 'Mounted', f })
+
+/** Helper that builds the canonical one-shot-with-cleanup Stream for a Mount
+ *  using `Stream.callback` + `Effect.acquireRelease`. Emits the Message once,
+ *  registers the cleanup, and keeps the stream's scope open until interrupted. */
+const oneShotStream = (
+  cleanup: () => void = () => {},
+): Stream.Stream<typeof MountedRoot.Type> =>
+  Stream.callback<typeof MountedRoot.Type>(queue =>
+    Effect.gen(function* () {
+      yield* Effect.acquireRelease(
+        Effect.sync(() => {
+          Queue.offerUnsafe(queue, MountedRoot())
+        }),
+        () => Effect.sync(cleanup),
+      )
+      return yield* Effect.never
+    }),
+  )
 
 const createCapturingDispatch = () => {
   const dispatched: Array<unknown> = []
@@ -75,24 +95,13 @@ describe('OnMount', () => {
     vi.restoreAllMocks()
   })
 
-  it('dispatches the returned Message when the element mounts', async () => {
+  it('dispatches the emitted Message when the element mounts', async () => {
     const h = html<typeof MountedRoot.Type>()
     const { dispatch, dispatched } = createCapturingDispatch()
 
     const view = h.div(
       [],
-      [
-        h.span(
-          [
-            h.OnMount(
-              makeMounted(() =>
-                Effect.succeed({ message: MountedRoot(), cleanup: () => {} }),
-              ),
-            ),
-          ],
-          [],
-        ),
-      ],
+      [h.span([h.OnMount(makeMounted(() => oneShotStream()))], [])],
     )
     const vnode = renderView(view, dispatch)
 
@@ -103,9 +112,9 @@ describe('OnMount', () => {
     })
   })
 
-  it('does not dispatch the result Message when rendered with a no-op dispatch', async () => {
+  it('does not dispatch the emitted Message when rendered with a no-op dispatch', async () => {
     const h = html<typeof MountedRoot.Type>()
-    let effectRan = false
+    let streamRan = false
 
     const view = h.div(
       [],
@@ -114,11 +123,8 @@ describe('OnMount', () => {
           [
             h.OnMount(
               makeMounted(() => {
-                effectRan = true
-                return Effect.succeed({
-                  message: MountedRoot(),
-                  cleanup: () => {},
-                })
+                streamRan = true
+                return oneShotStream()
               }),
             ),
           ],
@@ -131,11 +137,11 @@ describe('OnMount', () => {
     patch(toVNode(makeRootContainer()), vnode)
 
     await vi.waitFor(() => {
-      expect(effectRan).toBe(true)
+      expect(streamRan).toBe(true)
     })
   })
 
-  it('passes the inserted Element into the Effect factory', async () => {
+  it('passes the inserted Element into the Stream factory', async () => {
     const h = html<typeof MountedRoot.Type>()
     const { dispatch, dispatched } = createCapturingDispatch()
     const seenIds: Array<string> = []
@@ -149,10 +155,7 @@ describe('OnMount', () => {
             h.OnMount(
               makeMounted(element => {
                 seenIds.push(element.id)
-                return Effect.succeed({
-                  message: MountedRoot(),
-                  cleanup: () => {},
-                })
+                return oneShotStream()
               }),
             ),
           ],
@@ -170,6 +173,112 @@ describe('OnMount', () => {
     expect(seenIds).toStrictEqual(['mounted'])
   })
 
+  it('dispatches every Message a streaming Stream emits over the element lifetime', async () => {
+    const h = html<typeof MountedRoot.Type>()
+    const { dispatch, dispatched } = createCapturingDispatch()
+
+    const view = h.div(
+      [],
+      [
+        h.span(
+          [
+            h.OnMount(
+              makeMounted(() =>
+                Stream.fromIterable([
+                  MountedRoot(),
+                  MountedRoot(),
+                  MountedRoot(),
+                ]),
+              ),
+            ),
+          ],
+          [],
+        ),
+      ],
+    )
+    const vnode = renderView(view, dispatch)
+
+    patch(toVNode(makeRootContainer()), vnode)
+
+    await vi.waitFor(() => {
+      expect(dispatched).toStrictEqual([
+        MountedRoot(),
+        MountedRoot(),
+        MountedRoot(),
+      ])
+    })
+  })
+
+  it('dispatches async events from a listener attached inside acquireRelease and detaches on destroy', async () => {
+    const h = html<typeof MountedRoot.Type>()
+    const { dispatch, dispatched } = createCapturingDispatch()
+    let listenerAttached = false
+    let listenerDetached = false
+    let externalEmit: () => void = Function.constVoid
+
+    const withChild = h.div(
+      [],
+      [
+        h.span(
+          [
+            h.OnMount(
+              makeMounted(() =>
+                Stream.callback<typeof MountedRoot.Type>(queue =>
+                  Effect.gen(function* () {
+                    yield* Effect.acquireRelease(
+                      Effect.sync(() => {
+                        listenerAttached = true
+                        externalEmit = () =>
+                          Queue.offerUnsafe(queue, MountedRoot())
+                      }),
+                      () =>
+                        Effect.sync(() => {
+                          listenerDetached = true
+                          externalEmit = Function.constVoid
+                        }),
+                    )
+                    return yield* Effect.never
+                  }),
+                ),
+              ),
+            ),
+          ],
+          [],
+        ),
+      ],
+    )
+    const withoutChild = h.div([], [])
+
+    const mounted = patch(
+      toVNode(makeRootContainer()),
+      renderView(withChild, dispatch),
+    )
+
+    await vi.waitFor(() => {
+      expect(listenerAttached).toBe(true)
+    })
+
+    externalEmit()
+    externalEmit()
+    externalEmit()
+
+    await vi.waitFor(() => {
+      expect(dispatched).toHaveLength(3)
+    })
+
+    patch(mounted, renderView(withoutChild, dispatch))
+
+    await vi.waitFor(() => {
+      expect(listenerDetached).toBe(true)
+    })
+
+    externalEmit()
+    await new Promise(resolve =>
+      setTimeout(resolve, WAIT_FOR_INTERRUPT_PROPAGATION_MS),
+    )
+    expect(dispatched).toHaveLength(3)
+  })
+
   it('runs the cleanup when the element is removed by a key change', async () => {
     const h = html<typeof MountedRoot.Type>()
     const { dispatch, dispatched } = createCapturingDispatch()
@@ -184,11 +293,8 @@ describe('OnMount', () => {
               h.Key(key),
               h.OnMount(
                 makeMounted(() =>
-                  Effect.succeed({
-                    message: MountedRoot(),
-                    cleanup: () => {
-                      cleanupCalls += 1
-                    },
+                  oneShotStream(() => {
+                    cleanupCalls += 1
                   }),
                 ),
               ),
@@ -209,7 +315,9 @@ describe('OnMount', () => {
     const secondVNode = renderView(buildView('b'), dispatch)
     patch(mounted, secondVNode)
 
-    expect(cleanupCalls).toBe(1)
+    await vi.waitFor(() => {
+      expect(cleanupCalls).toBe(1)
+    })
   })
 
   it('runs the cleanup when the element is removed by a parent re-render', async () => {
@@ -224,11 +332,8 @@ describe('OnMount', () => {
           [
             h.OnMount(
               makeMounted(() =>
-                Effect.succeed({
-                  message: MountedRoot(),
-                  cleanup: () => {
-                    cleanupCalls += 1
-                  },
+                oneShotStream(() => {
+                  cleanupCalls += 1
                 }),
               ),
             ),
@@ -250,10 +355,12 @@ describe('OnMount', () => {
 
     patch(mounted, renderView(withoutChild, dispatch))
 
-    expect(cleanupCalls).toBe(1)
+    await vi.waitFor(() => {
+      expect(cleanupCalls).toBe(1)
+    })
   })
 
-  it('logs a failing Effect and dispatches nothing', async () => {
+  it('logs a failing Stream and dispatches nothing', async () => {
     const h = html<typeof MountedRoot.Type>()
     const { dispatch, dispatched } = createCapturingDispatch()
 
@@ -261,7 +368,13 @@ describe('OnMount', () => {
       [],
       [
         h.span(
-          [h.OnMount(makeMounted(() => Effect.fail(new Error('boom'))))],
+          [
+            h.OnMount(
+              makeMounted(() =>
+                Stream.fromEffect(Effect.fail(new Error('boom'))),
+              ),
+            ),
+          ],
           [],
         ),
       ],
@@ -279,58 +392,10 @@ describe('OnMount', () => {
     expect(dispatched).toStrictEqual([])
   })
 
-  it('runs cleanup immediately if the Effect resolves after the element is destroyed', async () => {
-    const h = html<typeof MountedRoot.Type>()
-    const { dispatch, dispatched } = createCapturingDispatch()
-    let cleanupCalls = 0
-
-    let resolveMount: (value: void) => void = () => {}
-    const mountGate = new Promise<void>(resolve => {
-      resolveMount = resolve
-    })
-
-    const withChild = h.div(
-      [],
-      [
-        h.span(
-          [
-            h.OnMount(
-              makeMounted(() =>
-                Effect.tryPromise(() => mountGate).pipe(
-                  Effect.map(() => ({
-                    message: MountedRoot(),
-                    cleanup: () => {
-                      cleanupCalls += 1
-                    },
-                  })),
-                ),
-              ),
-            ),
-          ],
-          [],
-        ),
-      ],
-    )
-    const withoutChild = h.div([], [])
-
-    const mounted = patch(
-      toVNode(makeRootContainer()),
-      renderView(withChild, dispatch),
-    )
-    patch(mounted, renderView(withoutChild, dispatch))
-
-    resolveMount()
-
-    await vi.waitFor(() => {
-      expect(cleanupCalls).toBe(1)
-    })
-    expect(dispatched).toStrictEqual([])
-  })
-
   it('runs exactly once across repeated patches of the same element', async () => {
     const h = html<typeof MountedRoot.Type>()
     const { dispatch, dispatched } = createCapturingDispatch()
-    let mountRunCount = 0
+    let streamRunCount = 0
     let cleanupRunCount = 0
 
     const buildView = () =>
@@ -341,12 +406,9 @@ describe('OnMount', () => {
             [
               h.OnMount(
                 makeMounted(() => {
-                  mountRunCount += 1
-                  return Effect.succeed({
-                    message: MountedRoot(),
-                    cleanup: () => {
-                      cleanupRunCount += 1
-                    },
+                  streamRunCount += 1
+                  return oneShotStream(() => {
+                    cleanupRunCount += 1
                   })
                 }),
               ),
@@ -370,10 +432,122 @@ describe('OnMount', () => {
     patch(afterSecond, thirdVNode)
 
     await vi.waitFor(() => {
-      expect(mountRunCount).toBe(1)
+      expect(streamRunCount).toBe(1)
     })
     expect(dispatched).toStrictEqual([MountedRoot()])
     expect(cleanupRunCount).toBe(0)
+  })
+
+  it('skips release and dispatches nothing when destroy interrupts an in-flight acquire', async () => {
+    // NOTE: Locks in the v4-beta Effect.acquireRelease contract: if acquire
+    // is interrupted before completing, release is NOT called (no resource
+    // was acquired, so nothing to release). This is the correct semantic
+    // for async Mount setup. For example, a Mount that dynamically imports
+    // a library before constructing a handle: if the element unmounts
+    // during the import, there is no handle to destroy.
+    const h = html<typeof MountedRoot.Type>()
+    const { dispatch, dispatched } = createCapturingDispatch()
+    let cleanupCalls = 0
+    let acquireCompleted = false
+
+    let resolveAcquire: (value: void) => void = Function.constVoid
+    const acquireGate = new Promise<void>(resolve => {
+      resolveAcquire = resolve
+    })
+
+    const withChild = h.div(
+      [],
+      [
+        h.span(
+          [
+            h.OnMount(
+              makeMounted(() =>
+                Stream.callback<typeof MountedRoot.Type>(queue =>
+                  Effect.gen(function* () {
+                    yield* Effect.acquireRelease(
+                      Effect.tryPromise(() => acquireGate).pipe(
+                        Effect.map(() => {
+                          acquireCompleted = true
+                          Queue.offerUnsafe(queue, MountedRoot())
+                        }),
+                      ),
+                      () =>
+                        Effect.sync(() => {
+                          cleanupCalls += 1
+                        }),
+                    )
+                    return yield* Effect.never
+                  }),
+                ),
+              ),
+            ),
+          ],
+          [],
+        ),
+      ],
+    )
+    const withoutChild = h.div([], [])
+
+    const mounted = patch(
+      toVNode(makeRootContainer()),
+      renderView(withChild, dispatch),
+    )
+    patch(mounted, renderView(withoutChild, dispatch))
+
+    resolveAcquire()
+
+    await new Promise(resolve =>
+      setTimeout(resolve, WAIT_FOR_INTERRUPT_PROPAGATION_MS),
+    )
+
+    expect(acquireCompleted).toBe(false)
+    expect(cleanupCalls).toBe(0)
+    expect(dispatched).toStrictEqual([])
+  })
+
+  it('Mount.define wraps an Effect: dispatches the result Message and holds the scope open until destroy for acquireRelease finalizers', async () => {
+    const h = html<typeof MountedRoot.Type>()
+    const { dispatch, dispatched } = createCapturingDispatch()
+    let acquired = false
+    let released = false
+
+    const WrappedEffect = Mount.define(
+      'WrappedEffect',
+      MountedRoot,
+    )(() =>
+      Effect.gen(function* () {
+        yield* Effect.acquireRelease(
+          Effect.sync(() => {
+            acquired = true
+          }),
+          () =>
+            Effect.sync(() => {
+              released = true
+            }),
+        )
+        return MountedRoot()
+      }),
+    )
+
+    const withChild = h.div([], [h.span([h.OnMount(WrappedEffect())], [])])
+    const withoutChild = h.div([], [])
+
+    const mounted = patch(
+      toVNode(makeRootContainer()),
+      renderView(withChild, dispatch),
+    )
+
+    await vi.waitFor(() => {
+      expect(dispatched).toStrictEqual([MountedRoot()])
+    })
+    expect(acquired).toBe(true)
+    expect(released).toBe(false)
+
+    patch(mounted, renderView(withoutChild, dispatch))
+
+    await vi.waitFor(() => {
+      expect(released).toBe(true)
+    })
   })
 
   it('runs cleanup on unmount even after multiple re-renders', async () => {
@@ -389,11 +563,8 @@ describe('OnMount', () => {
             [
               h.OnMount(
                 makeMounted(() =>
-                  Effect.succeed({
-                    message: MountedRoot(),
-                    cleanup: () => {
-                      cleanupRunCount += 1
-                    },
+                  oneShotStream(() => {
+                    cleanupRunCount += 1
                   }),
                 ),
               ),
@@ -418,6 +589,8 @@ describe('OnMount', () => {
 
     patch(afterThird, renderView(withoutChild, dispatch))
 
-    expect(cleanupRunCount).toBe(1)
+    await vi.waitFor(() => {
+      expect(cleanupRunCount).toBe(1)
+    })
   })
 })

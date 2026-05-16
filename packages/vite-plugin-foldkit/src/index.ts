@@ -84,6 +84,7 @@ const FORCE_INCLUDED_EFFECT_NAMESPACES: ReadonlyArray<string> = [
   'effect/Schema',
   'effect/SchemaIssue',
   'effect/SchemaTransformation',
+  'effect/Scope',
   'effect/Stream',
   'effect/String',
   'effect/Struct',

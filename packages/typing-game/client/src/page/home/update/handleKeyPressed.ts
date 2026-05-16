@@ -2,7 +2,7 @@ import { Array, Match as M, Number, Option, flow, pipe } from 'effect'
 import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
 
-import { CreateRoom } from '../command'
+import { CreateRoom, FocusRoomIdInput, FocusUsernameInput } from '../command'
 import { Message } from '../message'
 import {
   EnterRoomId,
@@ -90,13 +90,13 @@ const confirmSelection =
               roomId: '',
             }),
         }),
-        [],
+        [FocusRoomIdInput()],
       ]),
       M.when('ChangeUsername', () => [
         evo(model, {
           homeStep: () => EnterUsername({ username: '' }),
         }),
-        [],
+        [FocusUsernameInput()],
       ]),
       M.exhaustive,
     )

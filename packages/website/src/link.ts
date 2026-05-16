@@ -48,4 +48,6 @@ export const Link = {
     'https://github.com/foldkit/foldkit/blob/main/packages/website/scripts/prerender.ts',
   changelog:
     'https://github.com/foldkit/foldkit/blob/main/packages/foldkit/CHANGELOG.md',
+  dragAndDropDocumentStyles:
+    'https://github.com/foldkit/foldkit/blob/main/packages/foldkit/src/ui/dragAndDrop/index.ts#L679-L701',
 }

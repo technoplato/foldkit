@@ -69,6 +69,35 @@ Match the quality and thoughtfulness of these files. The principles below apply 
   )
   ```
 
+- **`Effect.acquireRelease` only guarantees atomicity of "acquire body completes → release is registered". Construct the resource INSIDE the acquire body, never before it.** If the construction happens earlier and the `acquire` body just returns the existing handle, interruption between the two statements leaks the resource. The smell: an `acquire` body that reads as `Effect.sync(() => alreadyExistingValue)`. Move the construction into the acquire Effect itself, typically via `Effect.tryPromise(...).pipe(Effect.map(({ Lib }) => new Lib(...)))` for async imports or `Effect.sync(() => new Thing(...))` for sync construction.
+
+  ```ts
+  // ❌ WRONG — chart constructed before acquireRelease registers its release.
+  // Interruption between the two yield*s leaks the chart.
+  Effect.gen(function* () {
+    const { Chart } = yield* Effect.tryPromise(() => import('chart-lib'))
+    const chart = new Chart(element, { data })
+    yield* Effect.acquireRelease(
+      Effect.sync(() => chart),
+      chart => Effect.sync(() => chart.destroy()),
+    )
+    return SucceededMountChart()
+  })
+
+  // ✅ RIGHT — construction lives in the acquire Effect, so registration is atomic.
+  Effect.gen(function* () {
+    yield* Effect.acquireRelease(
+      Effect.tryPromise(() => import('chart-lib')).pipe(
+        Effect.map(({ Chart }) => new Chart(element, { data })),
+      ),
+      chart => Effect.sync(() => chart.destroy()),
+    )
+    return SucceededMountChart()
+  })
+  ```
+
+  Applies anywhere `acquireRelease` is used: Mount factories, Subscription bodies, anywhere a release function depends on a value that was produced inside an Effect chain. The discipline: whatever the release function needs as input must be the success value of the acquire Effect.
+
   The test: if the `pipe` has only one argument after the data, you do not need `pipe`. Call the function directly. Wrapping a single call in `pipe()` adds zero value, costs a closure allocation, and obscures the code.
 
 - **When composing two or more data transformations, prefer `pipe` to nested calls.** `pipe(xs, Array.head, Option.exists(p))` reads top-to-bottom as "take xs, take the head, check if it exists and satisfies p" — the data flow is on the page. `Option.exists(Array.head(xs), p)` reads inside-out and hides the pipeline. Applies to any chain of 2+ transforms.
@@ -141,13 +170,19 @@ Command definitions live where they're produced — colocated with the update fu
 - **Shared Commands** — define in the module that owns the concept, import from there
 - **Never centralize** all Command definitions in a single file
 
-### Mount, Command, ManagedResource, CustomElement: pick by what causes the side effect
+### Mount, Command, Subscription, ManagedResource, CustomElement: pick by what causes the side effect
 
-Four lifecycle/binding primitives. Pick by **what causes the side effect**, not by what's most ergonomic.
+Five lifecycle/binding primitives. Pick by **what causes the side effect**, not by what's most ergonomic.
 
 - **Command.** A one-time side effect fired by `update`'s return. The cause is a Message that just dispatched. Examples: `FocusInput` after `OpenedDialog`, `FetchWeather` after `ClickedRefresh`, `SaveTodos` after `EditedTodo`. Navigation, network, storage, analytics, focus-on-state-change all belong here.
 
-- **Mount.** A per-instance lifecycle effect bound to a VNode existing in the rendered tree. The cause is the element's appearance, and the author needs the live `Element` handle. Examples: anchor positioning for floating panels, backdrop portaling, attaching observers to a specific element, third-party library instantiation that takes the element as a host.
+- **Mount.** A per-instance lifecycle binding tied to a VNode existing in the rendered tree. The cause is the element's appearance, and the author needs the live `Element` handle. Two constructors, picked by emission cardinality:
+  - `Mount.define(name, ...results)(element => Effect<Message>)` for one-shot Mounts that produce exactly one Message at acquire. The common case. Cleanup composes via `Effect.acquireRelease` inside the Effect, and the runtime keeps the scope open across the element's full lifetime so finalizers run on destroy, not on Effect completion. Examples: anchor positioning, backdrop portaling, third-party library instantiation.
+  - `Mount.defineStream(name, ...results)(element => Stream<Message>)` for Mounts that emit a continuum of events from observers or listeners attached to the element. Same cleanup model, same lifetime contract. Use only when the element genuinely produces a stream of events. Examples: scroll listeners, IntersectionObservers, MutationObservers.
+
+  Mirroring Command's contract: declared result Message schemas are type-enforced by `Mount.define`. The Effect's success type must be one of the declared results. `Mount.defineStream` is necessarily looser because Stream cardinality is unbounded.
+
+- **Subscription.** A reactive binding between a Model condition and a long-running external event source. The factory returns a `Stream<Message>` whose lifetime is gated by `modelToDependencies`: when dependencies are met the stream is active; when they change the stream tears down and re-creates. Emissions come from external sources (timers, document/window events, system theme changes, WebSocket message streams, library callbacks), not from Model state itself. Subscriptions look like `Mount.defineStream` in shape (both produce a Stream with acquireRelease cleanup) but the cause anchor differs: Mount = element existence, Subscription = Model condition. Subscriptions can also be purely side-effectful (no Messages emitted, just lifetime-scoped DOM state) for cases where the work must happen synchronously with the event (`preventDefault`) or holds state document-wide while a condition is true (`user-select: none` during a drag).
 
 - **ManagedResource.** A stateful runtime object (websocket connection, camera stream, audio context, third-party library instance) whose lifetime is tied to a Model condition AND whose handle is consumed by Commands via `yield*`. The condition determines lifetime; Commands do the work on the resource. Not a generic "lifecycle on a Model condition" rule. There must be a handle for Commands to use.
 
@@ -155,21 +190,39 @@ Four lifecycle/binding primitives. Pick by **what causes the side effect**, not 
 
 **Two practical rules for Mount.** Both must hold:
 
-1. **Use the element parameter.** Mount provides the live `Element` handle. If your Effect doesn't read or write the element, you're misusing Mount. The lifecycle binding alone is not enough.
+1. **Use the element parameter.** Mount provides the live `Element` handle. If your factory's setup doesn't read or write the element, you're misusing Mount. The lifecycle binding alone is not enough.
 2. **The work is DOM measurement or DOM manipulation on that element.** Read its geometry, mutate its CSS, attach observers/listeners to it, portal it, hand it to a third-party library. Anything else (network, storage, analytics, focus-on-transition, library instantiation keyed on Model rather than element) is a Command from update or a ManagedResource.
 
-**Replay safety.** Mount Effects re-run during DevTools time-travel renders. The two practical rules above keep Mount work inherently replay-safe: DOM measurement is read-only, DOM manipulation on an element that exists in both live and time-travel views is idempotent, observer attachment paired with cleanup is self-balancing. Anything that mutates external state (network calls, storage writes, focus-on-transition, scroll lock for the page, library instantiation) is unsafe to re-run during time-travel and therefore not a Mount.
+If you find yourself wanting a Mount that doesn't use its element, the cause is probably a Model condition (use a Subscription gated by `modelToDependencies`) or a Message dispatch (use a Command from `update`'s handler), not the element's existence. The "factory uses the element" rule is the fence around the cause-rule: violating rule 1 almost always means you've also misidentified the cause.
+
+**Pick `define` vs. `defineStream` by emission cardinality.** Both bind to the same element-lifetime cause-rule. The choice is structural, not semantic.
+
+- **`Mount.define` with `Effect<Message>`** for one-shot work that produces exactly one Message at acquire. The Effect's success type is type-enforced to be one of the declared result Messages. Cleanup composes via `Effect.acquireRelease` inside the Effect. The runtime keeps the scope open across the element's full lifetime, so finalizers run on destroy, not when the Effect completes. Use for setup-with-cleanup (portal-to-body, anchor positioning, library instantiation), and any acquire-once-and-hold-resources pattern.
+- **`Mount.defineStream` with `Stream<Message>`** for continuous-event work where the element produces a stream of events from listeners or observers registered inside acquire. Cleanup composes the same way via `Effect.acquireRelease`, terminated with `Effect.never` to keep the stream's scope open until destroy. Use for scroll listeners, IntersectionObservers, MutationObservers, anything that produces a continuum of element-scoped events.
+
+If you're tempted to write `Mount.defineStream(...)(element => Stream.fromEffect(Effect.sync(() => message)))`, you wanted `Mount.define`. The Effect form is the direct path for the one-shot case.
+
+**Mount lifecycle is tied to the DOM node, not the VNode.** VNodes are reconstructed on every render; DOM nodes persist across renders unless snabbdom's diff decides to replace them. If the diff reuses an existing DOM node (same tag, same key, same position), the Mount keeps running: `insert` doesn't re-fire and `destroy` doesn't fire. If the diff replaces the node (different tag, mismatched key, no key on a re-shuffled list), the old Mount's scope closes (running `acquireRelease` finalizers) and the new node gets a fresh Mount. The keying rules elsewhere in this doc are what keep snabbdom's diff from mis-matching elements across renders and accidentally transferring Mount state to the wrong element.
+
+**One Mount per element.** Snabbdom's hook system stores a single `insert`/`destroy` hook per VNode, so `OnMount` is one-per-element. Writing `[h.OnMount(A), h.OnMount(B)]` on the same element silently overwrites: the second `OnMount` replaces the first, and `A`'s factory never runs. If you need multiple lifetime-scoped behaviors on the same element (e.g. restore-scroll AND listen-for-scroll), bundle them into a single Mount that does both in its acquire and releases both in its release. `SyncSidebarScroll` in `packages/website/src/view/sidebar.ts` is the canonical example: one Mount, one acquireRelease, two paired side effects.
+
+**Args are captured at mount, not refreshed across renders.** The Mount factory runs once when the element enters the DOM. Each render constructs a fresh `MountAction` with current arg values, but only the _first_ invocation's args are ever used. `OnMount` binds to snabbdom's `insert` and `destroy` hooks; there is no `update` hook that re-runs the factory on attribute changes. Name args to reflect this contract: `initialScroll`, `initialFocus`, `seedValue` for values whose role is to set state at mount, not to track Model changes over time.
+
+If you need Model changes to drive ongoing DOM behavior post-mount, the proximate cause is the Message that updated the Model. Dispatch a Command from `update`'s handler for that Message. The Command can find the element and do the imperative work. Don't reach for a Subscription here. Subscriptions watch Model state via `modelToDependencies` to gate their lifetime, but their emissions come from external event sources (timers, document events, library callbacks), not from Model state itself. Translating Model changes into side effects is what `update` does on every Message, via the Commands it returns. (Subscriptions do legitimately touch the DOM in some contexts: calling `preventDefault` in an event handler where going through `update` would arrive too late, or maintaining DOM state for as long as a Model condition is true (like applying `user-select: none` to the document while a drag is in progress and undoing it when the drag ends). See `packages/foldkit/src/ui/dragAndDrop/index.ts:679` for the latter pattern in production.)
+
+**Replay safety.** Mount factories re-run during DevTools time-travel renders. The two practical rules above keep Mount work inherently replay-safe: DOM measurement is read-only, DOM manipulation on an element that exists in both live and time-travel views is idempotent, observer attachment paired with cleanup is self-balancing. Anything that mutates external state (network calls, storage writes, focus-on-transition, scroll lock for the page, library instantiation) is unsafe to re-run during time-travel and therefore not a Mount.
 
 **Decision rule when the rules above are ambiguous.** Ask _"what causes this side effect?"_
 
 - _"A Message just dispatched."_ → Command.
 - _"This element exists in the rendered tree, per-instance."_ → Mount.
+- _"An external event source produces a stream of events, gated by a Model condition."_ → Subscription.
 - _"A Model condition holds AND I need Commands to operate on a stateful handle."_ → ManagedResource.
 - _"I want to render a native web component into my view tree."_ → CustomElement. If you find yourself reaching for Mount to attach listeners to a web component's `CustomEvent`s, or for a Subscription to bridge them back as Messages, you're rebuilding what `CustomElement.define` provides for free.
 
 **Don't reach for Mount just because the work happens to coincide with an element appearing.** Check what causes the work. If a Message just dispatched (like `Opened`), the cause is the Message, not the element. Use a Command returned from `update`'s handler instead. Example: focusing a search input when its dialog opens. The cause is `Opened`, not the input's existence; return a `FocusInput` Command from the `Opened` handler.
 
-**Mount naming.** Verb-first imperatives, mirroring Command convention. `AnchorPopover`, `PortalPopoverBackdrop`, `AttachComboboxPreventBlur`, not `PopoverAnchor` or `ComboboxPreventBlurAttachment`. Mount Definitions are imperative instructions to the runtime ("when this element mounts, do X"), same as Commands. Result Messages follow Foldkit's existing Message convention (verb-first past-tense): `CompletedAnchorPopover` for the mount-completion fact.
+**Mount naming.** Verb-first imperatives, mirroring Command convention. `AnchorPopover`, `PortalPopoverBackdrop`, `AttachComboboxPreventBlur`, `ObserveHeroVisibility`, `SyncSidebarScroll`, not `PopoverAnchor` or `ComboboxPreventBlurAttachment`. Mount Definitions are imperative instructions to the runtime ("when this element mounts, do X for its lifetime"), same as Commands. Result Messages follow Foldkit's existing Message convention (verb-first past-tense): `CompletedAnchorPopover` for one-shot completion facts, `ChangedHeroVisibility` / `ScrolledSidebar` for ongoing event facts.
 
 ### General Preferences
 
