@@ -104,6 +104,16 @@ const wrapEffectAsStream =
  * finalizers run when the element unmounts. The Mount's scope stays open
  * across the element's full lifetime, even after the Effect completes.
  *
+ * At least one result Message schema is required. The Effect's success
+ * type is `Schema.Schema.Type<Results[number]>`; without a declared
+ * result, the factory would have to return `Effect.never`, leaving
+ * `update` with no record of the work and removing DevTools, Scene,
+ * and time-travel replay's reference point. Fire-and-forget Mounts
+ * follow the same convention as fire-and-forget Commands: declare a
+ * `Completed*` result Message that `update` no-ops on. The side
+ * effect stays observable; `update` simply has nothing meaningful to
+ * do with the acknowledgment.
+ *
  * Two forms, distinguished by whether the second argument is a Schema (a
  * result message) or a record of Schemas (the args declaration). Cleanup is
  * asynchronous with respect to snabbdom's `destroy` hook: the runtime forks
@@ -199,7 +209,7 @@ const wrapEffectAsStream =
  */
 export function define<
   const Name extends string,
-  Results extends ReadonlyArray<Schema.Top>,
+  Results extends readonly [Schema.Top, ...ReadonlyArray<Schema.Top>],
 >(
   name: Name,
   ...results: Results
@@ -212,7 +222,7 @@ export function define<
 export function define<
   const Name extends string,
   Fields extends Schema.Struct.Fields,
-  Results extends ReadonlyArray<Schema.Top>,
+  Results extends readonly [Schema.Top, ...ReadonlyArray<Schema.Top>],
 >(
   name: Name,
   args: Fields,
@@ -278,17 +288,25 @@ export function define(name: string, ...rest: ReadonlyArray<unknown>): unknown {
  * form when the Mount emits a continuum of events from observers or
  * listeners attached to the element.
  *
+ * At least one result Message schema is required. The Stream's emission
+ * type is `Schema.Schema.Type<Results[number]>`; without a declared
+ * result, the factory would have to return `Stream<never>`, leaving
+ * `update` with no record of the work and removing DevTools, Scene,
+ * and time-travel replay's reference point. Fire-and-forget Mounts
+ * follow the same convention as fire-and-forget Commands: declare a
+ * `Completed*` result Message that `update` no-ops on. The side
+ * effect stays observable; `update` simply has nothing meaningful to
+ * do with the acknowledgment. Re-check the cause.
+ *
  * Two forms, distinguished by whether the second argument is a Schema or a
  * record of Schemas (the args declaration). Cleanup timing relative to
  * snabbdom's `destroy` hook is the same as `Mount.define` (asynchronous via
  * `Fiber.interrupt`).
  *
  * For a Mount that produces exactly one Message at acquire and then holds
- * lifecycle-scoped resources, prefer `Mount.define` with `Effect<Message>`.
- * That form encodes "exactly one Message" in the type system and avoids the
- * `Stream.callback` + `Queue.offerUnsafe` + `Effect.never` ceremony required
- * here. Reserve `defineStream` for cases that genuinely emit a stream of
- * events.
+ * lifecycle-scoped resources, use `Mount.define` with `Effect<Message>`.
+ * That form encodes "exactly one Message" in the type system. Reserve
+ * `defineStream` for cases that genuinely emit a stream of events.
  *
  * @example Continuous scroll events from an element
  * ```ts
@@ -361,7 +379,7 @@ export function define(name: string, ...rest: ReadonlyArray<unknown>): unknown {
  */
 export function defineStream<
   const Name extends string,
-  Results extends ReadonlyArray<Schema.Top>,
+  Results extends readonly [Schema.Top, ...ReadonlyArray<Schema.Top>],
 >(
   name: Name,
   ...results: Results
@@ -374,7 +392,7 @@ export function defineStream<
 export function defineStream<
   const Name extends string,
   Fields extends Schema.Struct.Fields,
-  Results extends ReadonlyArray<Schema.Top>,
+  Results extends readonly [Schema.Top, ...ReadonlyArray<Schema.Top>],
 >(
   name: Name,
   args: Fields,

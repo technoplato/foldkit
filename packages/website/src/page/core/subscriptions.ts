@@ -90,11 +90,11 @@ export const view = (copiedSnippets: CopiedSnippets): Html =>
         ' for the DOM-state-only shape in production.',
       ),
       para(
-        'For events tied to a specific element’s existence (scroll listeners, IntersectionObservers, ResizeObservers on a particular element), prefer ',
+        'For events tied to a specific element’s existence (scroll listeners, IntersectionObservers, ResizeObservers on a particular element), use ',
         link(coreMountRouter(), 'Mount'),
         '. Mount provides the element handle directly and binds the scope to element lifetime. For stateful long-lived handles your Commands consume (the ',
         inlineCode('WebSocket'),
-        ' connection itself, a camera stream, a third-party library instance), prefer ',
+        ' connection itself, a camera stream, a third-party library instance), use ',
         link(coreManagedResourcesRouter(), 'ManagedResource'),
         '. ManagedResource is Subscription’s sibling: same Model-gated lifetime, both dispatch Messages. The discriminator is whether other parts of the program need a typed handle to the underlying resource. Subscription’s Messages flow from inside the body of work during the subscribed lifetime (timer ticks, document keydowns, ',
         inlineCode('WebSocket'),

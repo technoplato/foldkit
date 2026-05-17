@@ -92,7 +92,7 @@ Don't add inline or block comments to explain code. If code needs explanation, r
 Five primitives: Command, Mount, Subscription, ManagedResource, CustomElement. Pick by what causes the side effect. The `foldkit` skill and the docs at `packages/website/src/page/core/` cover this in depth. Read them when ambiguous. Quick rule:
 
 - A Message just dispatched? Command.
-- An element exists in the rendered tree, and the factory uses the element to do DOM work? Mount. Use `Mount.define` for one-shot acquire-with-cleanup, `Mount.defineStream` for continuous events from listeners or observers.
+- An element exists in the rendered tree, and the factory uses the element to do DOM work? Mount. Use `Mount.define` for one-shot acquire-with-cleanup, `Mount.defineStream` for continuous events from listeners or observers. Both require at least one declared result Message.
 - An external event source gated by a Model condition? Subscription.
 - Model condition plus Commands need a stateful handle? ManagedResource.
 - Rendering a native web component? CustomElement.

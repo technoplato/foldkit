@@ -92,7 +92,11 @@ export const view = (copiedSnippets: CopiedSnippets): Html =>
         inlineCode('Mount.define'),
         ' when the Mount produces a single Message at acquire: anchor positioning, portaling, third-party library instantiation, reading element geometry on mount. Use ',
         inlineCode('Mount.defineStream'),
-        ' only when the Mount’s job is to emit a continuous stream of Messages from listeners or observers attached to the element: scroll events, IntersectionObserver entries, MutationObserver records.',
+        ' only when the Mount’s job is to emit a continuous stream of Messages from listeners or observers attached to the element: scroll events, IntersectionObserver entries, MutationObserver records. Both forms require at least one declared result Message. Fire-and-forget Mounts follow the same convention as fire-and-forget Commands: declare a ',
+        inlineCode('Completed*'),
+        ' Message that ',
+        inlineCode('update'),
+        ' no-ops on, so DevTools, Scene tests, and replay still see the side effect.',
       ),
       infoCallout(
         'Functional core, imperative shell',
@@ -210,7 +214,7 @@ export const view = (copiedSnippets: CopiedSnippets): Html =>
       ),
       infoCallout(
         'Two practical rules for Mount',
-        'Both must hold. First, the factory uses the element parameter. Mount provides the live element handle, and that handle is what makes Mount distinct from the alternatives. If your factory doesn’t read or write the element, pick a different primitive. Second, the work is DOM measurement or DOM manipulation on that element: read its geometry, mutate its CSS, attach an observer to it, portal it, hand it to a third-party library. Anything else is a Command from update (network, storage, analytics, focus-on-transition, scroll lock for the page), a Subscription whose dependencies are derived from the Model (timers, document-level keyboard listeners, system theme observers), or a ManagedResource whose lifetime tracks a Model condition (a WebSocket connection, a camera stream). If you find yourself wanting a Mount that doesn’t use its element, the cause is probably a Model condition or a Message dispatch, not the element’s existence. Re-check the cause and pick the matching primitive.',
+        'Both must hold. First, the factory uses the element parameter. Mount provides the live element handle, and that handle is what makes Mount distinct from the alternatives. If your factory doesn’t read or write the element, pick a different primitive. Second, the work is DOM measurement or DOM manipulation on that element: read its geometry, mutate its CSS, attach an observer to it, portal it, hand it to a third-party library. Anything else is a Command from update (network, storage, analytics, focus-on-transition, scroll lock for the page), a Subscription whose dependencies are derived from the Model (timers, document-level keyboard listeners, system theme observers), or a ManagedResource whose lifetime tracks a Model condition (a WebSocket connection, a camera stream). If you find yourself wanting a Mount that doesn’t use its element, the cause is a Model condition or a Message dispatch, not the element’s existence. Re-check the cause and pick the matching primitive.',
       ),
       para(
         'Only one Mount can attach per element. Snabbdom’s hook system stores a single ',
