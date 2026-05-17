@@ -4,6 +4,7 @@ import {
   RequestDispatchMessage,
   RequestGetInit,
   RequestGetMessage,
+  RequestGetMessageSchema,
   RequestGetModel,
   RequestGetModelAt,
   RequestGetRuntimeState,
@@ -114,8 +115,20 @@ const DispatchMessageInput = S.Struct({
   runtime_id: RuntimeIdField,
   message: S.Record(S.String, S.Unknown).annotate({
     description:
-      "A Foldkit Message object to dispatch into the runtime. Must match the runtime's Message Schema. Read the application's source to see the exact shape. At minimum it has a `_tag` field naming the variant. The runtime decodes the payload and returns a clean error if it doesn't match.",
+      "A Foldkit Message object to dispatch into the runtime. Must match the runtime's Message Schema. Call `foldkit_get_message_schema` with no arguments to see the available variant tags, then `foldkit_get_message_schema { variant_tag: \"X\" }` to learn one variant's exact payload shape. At minimum it has a `_tag` field naming the variant. The runtime decodes the payload and returns a clean error if it doesn't match.",
   }),
+})
+
+const VariantTagField = S.optional(
+  S.String.annotate({
+    description:
+      'Optional dot-separated path of variant `_tag` values. When omitted, the tool returns a small variant index (tag names plus payload field names plus a tagged-union indicator) so agents can enumerate the top-level union cheaply. When provided, the tool walks the path through each variant\'s single tagged-union payload field, narrows the schema along the chain, and collapses any union deeper than the path to a `{ "_summary": "union", "variants": [...] }` placeholder. Extend the path to drill further. Examples: `"ScrolledSidebar"` (one top-level variant), `"GotMobileMenuDialogMessage.GotAnimationMessage"` (two levels of a Submodel chain).',
+  }),
+)
+
+const GetMessageSchemaInput = S.Struct({
+  runtime_id: RuntimeIdField,
+  variant_tag: VariantTagField,
 })
 
 /**
@@ -365,9 +378,23 @@ export const buildTools = (
     handle: runRuntimeTool(ResumeInput, () => RequestResume(), wsClient),
   },
   {
+    name: 'foldkit_get_message_schema',
+    description:
+      'Describe the Message Schema for a Foldkit runtime so agents can construct valid payloads for `foldkit_dispatch_message`. Call with no arguments to receive a small variant index (every top-level variant\'s `_tag`, its payload field names, and which payload fields are themselves tagged-union shapes). Then call with `variant_tag: "ChosenVariant"` to drill in. The argument is a dot-separated path of variant `_tag` values: each segment names a variant, and the walker steps through the variant\'s single tagged-union payload field to reach the next. So `"GotMobileMenuDialogMessage"` narrows one level; `"GotMobileMenuDialogMessage.GotAnimationMessage"` narrows two levels of a Submodel chain. Discriminated unions deeper than the supplied path collapse to `{ "_summary": "union", "variants": [...] }` placeholders so the response stays compact even for deeply-nested apps; extend the path to drill further. `S.Option` fields render as `anyOf: [{_tag: "Some", value}, {_tag: "None"}]`. The full document follows the JSON Schema draft-2020-12 shape from `Schema.toJsonSchemaDocument`: `{ dialect, schema, definitions }`. Returns `maybeResult: None` when the runtime hasn\'t configured `DevToolsConfig.Message` (dispatch is also unavailable). Fields with no JSON representation, notably `S.instanceOf(File)` for user-uploaded files, render as `{type: "null"}`; those variants can\'t be dispatched via MCP because their values live in browser memory.',
+    inputSchema: toInputSchema(GetMessageSchemaInput),
+    handle: runRuntimeTool(
+      GetMessageSchemaInput,
+      ({ variant_tag }) =>
+        RequestGetMessageSchema({
+          maybeVariantTag: Option.fromNullishOr(variant_tag),
+        }),
+      wsClient,
+    ),
+  },
+  {
     name: 'foldkit_dispatch_message',
     description:
-      "Dispatch a Message into a Foldkit runtime's message queue, as if the application itself produced it. Requires the runtime to have configured DevToolsConfig.Message; without it, dispatch is rejected. Read the application's Message Schema source to construct a valid Message object. The runtime decodes the payload and returns a clean error if it doesn't match.",
+      "Dispatch a Message into a Foldkit runtime's message queue, as if the application itself produced it. Requires the runtime to have configured DevToolsConfig.Message; without it, dispatch is rejected. Call `foldkit_get_message_schema` with no arguments to enumerate the variants, then with `variant_tag` to learn one variant's exact payload shape, before constructing the Message object. The runtime decodes the payload and returns a clean error if it doesn't match.",
     inputSchema: toInputSchema(DispatchMessageInput),
     handle: runRuntimeTool(
       DispatchMessageInput,

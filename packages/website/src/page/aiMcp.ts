@@ -180,6 +180,20 @@ const tools: ReadonlyArray<ToolRowSpec> = [
     description: ['Resumes normal execution after a replay.'],
   },
   {
+    name: 'foldkit_get_message_schema',
+    description: [
+      "Describes the runtime's Message Schema so agents can construct valid Messages without reading the application source. With no arguments, returns a small variant index. With ",
+      inlineCode('variant_tag', 'text-xs'),
+      ' set to a dot-separated path of variant tags (e.g. ',
+      inlineCode('GotChildMessage.Opened', 'text-xs'),
+      '), narrows the JSON Schema along the chain and collapses deeper unions to summary placeholders. Returns ',
+      inlineCode('None', 'text-xs'),
+      " when the runtime hasn't configured ",
+      inlineCode('DevToolsConfig.Message', 'text-xs'),
+      '.',
+    ],
+  },
+  {
     name: 'foldkit_dispatch_message',
     description: [
       'Enqueues a Message into the runtime as if your application produced it. The runtime decodes the payload against your Schema and returns a clean error if it does not match.',
@@ -342,9 +356,13 @@ export const view = (copiedSnippets: CopiedSnippets): Html =>
         'Multiple browser tabs can be connected at once and each is addressable by its connection id. When a tab closes (gracefully or not) the plugin prunes it from the live runtime list, so the agent’s default to most recently connected always points at a live tab.',
       ),
       para(
-        'Messages flow as Effect Schema values end to end. Foldkit defines the wire protocol and every layer validates at its boundary. To dispatch, agents read your application source to learn the ',
+        'Messages flow as Effect Schema values end to end. Foldkit defines the wire protocol and every layer validates at its boundary. To dispatch, agents call ',
+        inlineCode('foldkit_get_message_schema'),
+        ' to discover the runtime’s ',
         inlineCode('Message'),
-        ' Schema and construct a payload; the runtime decodes it and returns a clean error if the shape does not match.',
+        ' Schema (variant index first, then a dot-path through the Submodel chain for one variant’s payload shape), construct the matching payload, and pass it to ',
+        inlineCode('foldkit_dispatch_message'),
+        '; the runtime decodes it and returns a clean error if the shape does not match.',
       ),
       para(
         'When the dev server restarts, the MCP server’s WebSocket client reconnects automatically with exponential backoff. No agent restart required.',

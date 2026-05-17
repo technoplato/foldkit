@@ -19,6 +19,8 @@ import {
   EventDisconnected,
   EventFrame,
   KeyframeInfo,
+  MessageSchemaDocumentResult,
+  MessageSchemaIndexResult,
   type Request,
   RequestFrame,
   type Response,
@@ -28,6 +30,7 @@ import {
   ResponseInit,
   ResponseKeyframes,
   ResponseMessage,
+  ResponseMessageSchema,
   ResponseMessages,
   ResponseModel,
   ResponseReplayed,
@@ -35,6 +38,12 @@ import {
   ResponseRuntimeState,
   RuntimeInfo,
 } from './protocol.js'
+import {
+  diagnoseVariantPath,
+  indexMessageSchemaDocument,
+  narrowToVariant,
+  splitVariantPath,
+} from './schemaSummarize.js'
 import {
   toInspectableValue,
   toSerializedCommand,
@@ -63,6 +72,20 @@ const currentAbsoluteIndex = (
   startIndex: number,
 ): number => (entriesLength === 0 ? INIT_INDEX : startIndex + entriesLength - 1)
 
+const tryDeriveJsonSchemaDocument = (
+  schema: S.Codec<any, any>,
+): Option.Option<unknown> => {
+  try {
+    return Option.some(S.toJsonSchemaDocument(schema))
+  } catch (error) {
+    console.warn(
+      '[foldkit:devTools] Failed to derive JSON Schema from Message Schema; foldkit_get_message_schema will return None.',
+      error,
+    )
+    return Option.none()
+  }
+}
+
 /**
  * Start the browser-side WebSocket bridge that exposes a Foldkit runtime's
  * DevToolsStore to an external MCP server (via the Vite plugin relay).
@@ -82,6 +105,15 @@ const currentAbsoluteIndex = (
  * without author-side changes. When `maybeMessageSchema` is `None`, dispatch
  * requests are rejected with an informative error.
  *
+ * The bridge also derives a JSON Schema document from `maybeMessageSchema`
+ * once at boot (via `Schema.toJsonSchemaDocument`) to fulfill
+ * `RequestGetMessageSchema`, so MCP clients can discover the exact Message
+ * shapes the runtime accepts without reading the application source. A few
+ * AST nodes (symbol-keyed structs, symbol-indexed records, tuples with
+ * post-rest elements) cause `Schema.toJsonSchemaDocument` to throw; the
+ * derivation is guarded so a failure logs a warning and the schema-discovery
+ * tool returns `None` rather than crashing the bridge.
+ *
  * Production-safe: callers must check `import.meta.hot` is defined before
  * invoking this. The function assumes a live HMR connection.
  */
@@ -96,6 +128,10 @@ export const startWebSocketBridge = (
     const capturedContext = yield* Effect.context<never>()
 
     const maybeDispatchSchema = Option.map(maybeMessageSchema, S.toCodecJson)
+    const maybeJsonSchemaDocument = Option.flatMap(
+      maybeMessageSchema,
+      tryDeriveJsonSchemaDocument,
+    )
 
     const encodeEventFrame = S.encodeUnknownSync(EventFrame)
     const encodeResponseFrame = S.encodeUnknownSync(ResponseFrame)
@@ -130,6 +166,7 @@ export const startWebSocketBridge = (
           store,
           dispatch,
           maybeDispatchSchema,
+          maybeJsonSchemaDocument,
           request,
         )
         sendResponse(id, response)
@@ -213,10 +250,76 @@ const readModelResponse = (
     ),
   )
 
+const indexResponse = (document: unknown): Response =>
+  Option.match(indexMessageSchemaDocument(document), {
+    onNone: () =>
+      ResponseError({
+        reason:
+          "Could not index Message Schema: the top-level shape is not a discriminated union of '_tag'-keyed structs. Open an issue if you see this against an Effect Schema released after foldkit's last sync.",
+      }),
+    onSome: variants =>
+      ResponseMessageSchema({
+        maybeResult: Option.some(
+          MessageSchemaIndexResult({ index: { variants } }),
+        ),
+      }),
+  })
+
+const narrowResponse = (document: unknown, variantPath: string): Response =>
+  Option.match(narrowToVariant(document, variantPath), {
+    onNone: () => formatUnknownVariantError(document, variantPath),
+    onSome: narrowed =>
+      ResponseMessageSchema({
+        maybeResult: Option.some(
+          MessageSchemaDocumentResult({ document: narrowed }),
+        ),
+      }),
+  })
+
+const buildMessageSchemaResponse = (
+  maybeJsonSchemaDocument: Option.Option<unknown>,
+  maybeVariantTag: Option.Option<string>,
+): Response =>
+  Option.match(maybeJsonSchemaDocument, {
+    onNone: () => ResponseMessageSchema({ maybeResult: Option.none() }),
+    onSome: document =>
+      Option.match(maybeVariantTag, {
+        onNone: () => indexResponse(document),
+        onSome: variantTag => narrowResponse(document, variantTag),
+      }),
+  })
+
+const formatUnknownVariantError = (
+  document: unknown,
+  variantPath: string,
+): Response => {
+  const segments = splitVariantPath(variantPath)
+  return Option.match(diagnoseVariantPath(document, segments), {
+    onNone: () =>
+      ResponseError({
+        reason: `No Message variant at path '${variantPath}'. The runtime's Message Schema is not a discriminated union of '_tag'-keyed structs.`,
+      }),
+    onSome: ({ prefix, failingSegment, available }) => {
+      const prefixLabel = Array.isReadonlyArrayNonEmpty(prefix)
+        ? prefix.join('.')
+        : '<top level>'
+      const failingIsKnownTag = Option.exists(failingSegment, tag =>
+        available.includes(tag),
+      )
+      const failingTag = Option.getOrElse(failingSegment, () => '')
+      const reason = failingIsKnownTag
+        ? `No further structure to drill into at path '${variantPath}'. The variant '${failingTag}' at ${prefixLabel} does not carry exactly one tagged-union payload field, which is what the walker steps through. Idiomatic Foldkit Messages have at most one tagged-union field per variant (the 'message' field on Submodel wrappers, or a single value-type union); state surrounding a Submodel call belongs as an argument to the child's update/view, not as a sibling field on the parent Message.`
+        : `No Message variant at path '${variantPath}'. Available variants at ${prefixLabel}: ${available.join(', ')}.`
+      return ResponseError({ reason })
+    },
+  })
+}
+
 const dispatchRequest = (
   store: DevToolsStore,
   dispatch: (message: unknown) => Effect.Effect<void>,
   maybeDispatchSchema: Option.Option<S.Codec<any, any>>,
+  maybeJsonSchemaDocument: Option.Option<unknown>,
   request: Request,
 ): Effect.Effect<Response> =>
   Match.value(request).pipe(
@@ -364,6 +467,11 @@ const dispatchRequest = (
               ),
             ),
         }),
+
+      RequestGetMessageSchema: ({ maybeVariantTag }) =>
+        Effect.succeed(
+          buildMessageSchemaResponse(maybeJsonSchemaDocument, maybeVariantTag),
+        ),
 
       RequestListRuntimes: () =>
         Effect.succeed(

@@ -102,6 +102,11 @@ export const RequestDispatchMessage = ts('RequestDispatchMessage', {
   message: S.Unknown,
 })
 
+/** Request a description of the app's Message Schema. The runtime derives a JSON Schema document once at bridge boot from the configured `DevToolsConfig.Message`; the response is `None` when no Message Schema was configured. With `maybeVariantTag: None`, the response carries a small variant index (tag names plus payload field names and a tagged-union indicator) so MCP clients can enumerate the top-level variants without paying for the full schema. With `maybeVariantTag: Some(path)`, the value is interpreted as a dot-separated path of variant `_tag` values walked through each variant's single tagged-union payload field; the response carries the JSON Schema document narrowed along that chain, with any deeper unions collapsed to summary placeholders. Use the index to discover variants, then fetch one variant before calling `RequestDispatchMessage`. */
+export const RequestGetMessageSchema = ts('RequestGetMessageSchema', {
+  maybeVariantTag: S.OptionFromNullOr(S.String),
+})
+
 /** Request the list of currently connected browser runtimes. Handled by the Vite plugin, not forwarded to a runtime. */
 export const RequestListRuntimes = ts('RequestListRuntimes')
 
@@ -118,6 +123,7 @@ export const Request = S.Union([
   RequestListRuntimes,
   RequestGetInit,
   RequestGetRuntimeState,
+  RequestGetMessageSchema,
 ])
 /** A request from the MCP server. */
 export type Request = typeof Request.Type
@@ -160,6 +166,44 @@ export const ResponseDispatched = ts('ResponseDispatched', {
   acceptedAtIndex: S.Number,
 })
 
+/** One variant entry in a `MessageSchemaIndex`. `payloadFields` lists the variant's payload property names (excluding `_tag`); `unionFields` lists the subset of those properties whose schemas are themselves `_tag`-discriminated unions. A Submodel-wrapper variant always shows up with `unionFields: ['message']`, but the same flag also catches plain tagged-union value types like `UrlRequest = Internal | External`. Either way, the agent will need to pick a variant when filling these fields. */
+export const MessageSchemaIndexEntry = S.Struct({
+  tag: S.String,
+  payloadFields: S.Array(S.String),
+  unionFields: S.Array(S.String),
+})
+/** One variant entry in a `MessageSchemaIndex`. */
+export type MessageSchemaIndexEntry = typeof MessageSchemaIndexEntry.Type
+
+/** A flat directory of every top-level Message variant the runtime accepts, designed to fit in an agent context regardless of Message-union size. Use the tag names to make a follow-up `RequestGetMessageSchema` with `maybeVariantTag` set to fetch the full JSON Schema for one variant. */
+export const MessageSchemaIndex = S.Struct({
+  variants: S.Array(MessageSchemaIndexEntry),
+})
+/** A flat directory of every top-level Message variant. */
+export type MessageSchemaIndex = typeof MessageSchemaIndex.Type
+
+/** The result payload carried by `ResponseMessageSchema`. `MessageSchemaIndexResult` is returned when the request omitted `maybeVariantTag`; `MessageSchemaDocumentResult` carries a JSON Schema document narrowed to one variant when a tag was supplied. */
+export const MessageSchemaIndexResult = ts('MessageSchemaIndexResult', {
+  index: MessageSchemaIndex,
+})
+
+/** A JSON Schema document carrying a single variant of the runtime's Message union, plus the original `definitions` block so any `$ref`s the variant carries still resolve. */
+export const MessageSchemaDocumentResult = ts('MessageSchemaDocumentResult', {
+  document: S.Unknown,
+})
+
+const MessageSchemaResult = S.Union([
+  MessageSchemaIndexResult,
+  MessageSchemaDocumentResult,
+])
+/** The result payload carried by `ResponseMessageSchema`. */
+export type MessageSchemaResult = typeof MessageSchemaResult.Type
+
+/** Response describing the app's Message Schema. `maybeResult` is `Some(MessageSchemaIndexResult)` for index requests, `Some(MessageSchemaDocumentResult)` for variant-narrowed requests, and `None` when the runtime has not configured `DevToolsConfig.Message` or when JSON Schema derivation failed. Variant tags appear as `_tag` enums in the document, nested Submodel Messages recurse correctly, and `S.Option` fields render as `anyOf: [{_tag: 'Some', value}, {_tag: 'None'}]`. Apps using `S.OptionFromNullishOr(T)` (the Foldkit-canonical option codec for shapes that cross a JSON boundary) instead see the field as nullable `anyOf: [T, null]`; agents dispatching against that shape send either the bare value or `null`, not a tagged `Some`/`None` envelope. Fields with no JSON representation, such as `S.instanceOf(File)`, render as `{ type: 'null' }` rather than throwing; those variants cannot be dispatched via the bridge because their values live in browser memory. A few AST nodes (symbol-keyed structs, symbol-indexed records, tuples with post-rest elements) still cause the derivation to throw; the bridge guards the call and returns `None` in that case while logging a warning to the dev console. */
+export const ResponseMessageSchema = ts('ResponseMessageSchema', {
+  maybeResult: S.OptionFromNullOr(MessageSchemaResult),
+})
+
 /** Response carrying the list of connected runtimes. */
 export const ResponseRuntimes = ts('ResponseRuntimes', {
   runtimes: S.Array(RuntimeInfo),
@@ -199,6 +243,7 @@ export const Response = S.Union([
   ResponseRuntimes,
   ResponseInit,
   ResponseRuntimeState,
+  ResponseMessageSchema,
   ResponseError,
 ])
 /** A response replying to a Request. */
