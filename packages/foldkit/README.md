@@ -31,7 +31,7 @@ It's not incremental. There's no React interop, no escape hatch from Effect, no 
 
 ## Built on Effect
 
-Every Foldkit application is an [Effect](https://effect.website/) program. Your Model is a [Schema](https://effect.website/docs/schema/introduction/). Side effects are values you return, not callbacks you fire — the runtime handles when and how. If you already know Effect, Foldkit feels natural. If you're new to Effect, Foldkit is a great way to immerse yourself in it.
+Every Foldkit application is an [Effect](https://effect.website/) program. Your Model is a [Schema](https://effect.website/docs/schema/introduction/). Side effects are values you return as Commands to the runtime, not callbacks you fire. If you already know Effect, Foldkit feels natural. If you're new to Effect, Foldkit is a great way to immerse yourself in it.
 
 ## Coming from React?
 
