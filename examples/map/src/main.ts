@@ -20,7 +20,7 @@ import { evo } from 'foldkit/struct'
 import type { Map as MapInstance } from 'maplibre-gl'
 
 import { Location, featuredLocations } from './locations'
-import { getMap, nextHostId, removeMap, setMap } from './mapHost'
+import { getMap, removeMap, setMap } from './mapHost'
 
 // CONSTANT
 
@@ -477,7 +477,7 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
 
 // VIEW
 
-const HOST_ID = nextHostId()
+const HOST_ID = 'map-host-1'
 
 const filterLocations = (
   locations: ReadonlyArray<Location>,
