@@ -17,7 +17,7 @@ import {
   makeRules,
   validate,
   validateAll,
-} from './index.js'
+} from './fieldValidation.js'
 import {
   type Rule,
   email,
