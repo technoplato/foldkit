@@ -433,7 +433,7 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
         inlineCode('Calendar.CalendarDateFromIsoString'),
         ' codec that parses a date the string-shaped rules can’t check, or refine and brand it, like a ',
         inlineCode('Slug'),
-        ' you decode to and pass around. Either way the field reuses the one Schema as its rule, so the check can’t drift from the type you already maintain:',
+        '. Either way the field reuses the one Schema as its rule, so the check can’t drift from the type you already maintain:',
       ),
       highlightedCodeBlock(
         h.div(
