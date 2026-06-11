@@ -1,11 +1,13 @@
 import { Schema as S, pipe } from 'effect'
 import { Route } from 'foldkit'
-import { int, literal, r, slash } from 'foldkit/route'
+import { catchAll, int, literal, r, slash } from 'foldkit/route'
 
 export const HomeRoute = r('Home')
 export const NestedRoute = r('Nested')
 export const PeopleRoute = r('People', { searchText: S.Option(S.String) })
 export const PersonRoute = r('Person', { personId: S.Number })
+export const FilesIndexRoute = r('FilesIndex')
+export const FilesRoute = r('Files', { path: S.NonEmptyArray(S.String) })
 export const NotFoundRoute = r('NotFound', { path: S.String })
 
 export const AppRoute = S.Union([
@@ -13,6 +15,8 @@ export const AppRoute = S.Union([
   NestedRoute,
   PeopleRoute,
   PersonRoute,
+  FilesIndexRoute,
+  FilesRoute,
   NotFoundRoute,
 ])
 
@@ -20,6 +24,8 @@ export type HomeRoute = typeof HomeRoute.Type
 export type NestedRoute = typeof NestedRoute.Type
 export type PeopleRoute = typeof PeopleRoute.Type
 export type PersonRoute = typeof PersonRoute.Type
+export type FilesIndexRoute = typeof FilesIndexRoute.Type
+export type FilesRoute = typeof FilesRoute.Type
 export type NotFoundRoute = typeof NotFoundRoute.Type
 export type AppRoute = typeof AppRoute.Type
 
@@ -50,9 +56,22 @@ export const personRouter = pipe(
   Route.mapTo(PersonRoute),
 )
 
+export const filesIndexRouter = pipe(
+  literal('files'),
+  Route.mapTo(FilesIndexRoute),
+)
+
+export const filesRouter = pipe(
+  literal('files'),
+  slash(catchAll('path')),
+  Route.mapTo(FilesRoute),
+)
+
 const routeParser = Route.oneOf(
   personRouter,
   peopleRouter,
+  filesIndexRouter,
+  filesRouter,
   nestedRouter,
   homeRouter,
 )

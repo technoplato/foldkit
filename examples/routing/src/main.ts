@@ -1,4 +1,4 @@
-import { Effect, Match as M, Option, Schema as S } from 'effect'
+import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
 import { Command, Runtime } from 'foldkit'
 import { Document, Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
@@ -6,10 +6,19 @@ import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
 import { Url, toString as urlToString } from 'foldkit/url'
 
+import {
+  File,
+  FileTreeEntry,
+  fileTree,
+  findEntry,
+  formatFileSize,
+} from './fileTree'
 import { People } from './page'
 import {
   AppRoute,
   PeopleRoute,
+  filesIndexRouter,
+  filesRouter,
   homeRouter,
   nestedRouter,
   peopleRouter,
@@ -18,6 +27,8 @@ import {
 
 export {
   AppRoute,
+  FilesIndexRoute,
+  FilesRoute,
   HomeRoute,
   NestedRoute,
   NotFoundRoute,
@@ -200,6 +211,23 @@ const navigationView = (currentRoute: AppRoute): Html => {
             [
               h.a(
                 [
+                  h.Href(filesIndexRouter()),
+                  h.Class(
+                    navLinkClassName(
+                      currentRoute._tag === 'FilesIndex' ||
+                        currentRoute._tag === 'Files',
+                    ),
+                  ),
+                ],
+                ['Files'],
+              ),
+            ],
+          ),
+          h.li(
+            [],
+            [
+              h.a(
+                [
                   h.Href(nestedRouter()),
                   h.Class(navLinkClassName(currentRoute._tag === 'Nested')),
                 ],
@@ -351,6 +379,169 @@ const personView = (personId: number): Html => {
   })
 }
 
+const entryCountLabel = (count: number): string =>
+  count === 1 ? '1 item' : `${count} items`
+
+const entryListView = (
+  parentPath: ReadonlyArray<string>,
+  entries: ReadonlyArray<FileTreeEntry>,
+): Html => {
+  const h = html<Message>()
+
+  return h.ul(
+    [h.Class('divide-y divide-gray-200 border border-gray-200 rounded-lg')],
+    Array.map(entries, entry =>
+      h.keyed('li')(
+        entry.name,
+        [h.Class('flex items-center justify-between px-4 py-3')],
+        [
+          h.a(
+            [
+              h.Href(
+                filesRouter({ path: Array.append(parentPath, entry.name) }),
+              ),
+              h.Class('text-blue-500 hover:underline'),
+            ],
+            [entry.name],
+          ),
+          M.value(entry).pipe(
+            M.tagsExhaustive({
+              File: file =>
+                h.span(
+                  [h.Class('text-sm text-gray-500')],
+                  [formatFileSize(file.sizeInBytes)],
+                ),
+              Directory: directory =>
+                h.span(
+                  [h.Class('text-sm text-gray-500')],
+                  [entryCountLabel(directory.entries.length)],
+                ),
+            }),
+          ),
+        ],
+      ),
+    ),
+  )
+}
+
+const breadcrumbView = (path: Array.NonEmptyReadonlyArray<string>): Html => {
+  const h = html<Message>()
+
+  const lastSegmentIndex = path.length - 1
+
+  return h.nav(
+    [
+      h.AriaLabel('Breadcrumb'),
+      h.Class('flex flex-wrap items-center gap-2 mb-6 text-sm'),
+    ],
+    [
+      h.keyed('a')(
+        'files-root',
+        [h.Href(filesIndexRouter()), h.Class('text-blue-500 hover:underline')],
+        ['Files'],
+      ),
+      ...Array.map(path, (segment, index) => {
+        const crumbPath = Array.append(Array.take(path, index), segment)
+        const isCurrentSegment = index === lastSegmentIndex
+        const crumbRole = isCurrentSegment ? 'current' : 'link'
+
+        return h.keyed('span')(
+          `${Array.join(crumbPath, '/')}:${crumbRole}`,
+          [h.Class('flex items-center gap-2')],
+          [
+            h.span([h.Class('text-gray-400')], ['/']),
+            isCurrentSegment
+              ? h.span([h.Class('font-medium text-gray-800')], [segment])
+              : h.a(
+                  [
+                    h.Href(filesRouter({ path: crumbPath })),
+                    h.Class('text-blue-500 hover:underline'),
+                  ],
+                  [segment],
+                ),
+          ],
+        )
+      }),
+    ],
+  )
+}
+
+const fileDetailView = (file: File): Html => {
+  const h = html<Message>()
+
+  return h.div(
+    [h.Class('bg-gray-50 border border-gray-200 rounded-lg p-6')],
+    [
+      h.h2([h.Class('text-2xl font-bold text-gray-800 mb-2')], [file.name]),
+      h.p([h.Class('text-gray-600')], [formatFileSize(file.sizeInBytes)]),
+    ],
+  )
+}
+
+const missingEntryView = (path: Array.NonEmptyReadonlyArray<string>): Html => {
+  const h = html<Message>()
+
+  return h.div(
+    [],
+    [
+      h.h2([h.Class('text-4xl font-bold text-red-600 mb-6')], ['Nothing Here']),
+      h.p(
+        [h.Class('text-lg text-gray-600 mb-4')],
+        [`No file or directory at "${Array.join(path, '/')}".`],
+      ),
+      h.a(
+        [h.Href(filesIndexRouter()), h.Class('text-blue-500 hover:underline')],
+        ['← Back to Files'],
+      ),
+    ],
+  )
+}
+
+const filesIndexView = (): Html => {
+  const h = html<Message>()
+
+  return h.div(
+    [h.Class('max-w-4xl mx-auto px-4')],
+    [
+      h.h1([h.Class('text-4xl font-bold text-gray-800 mb-6')], ['Files']),
+      h.p(
+        [h.Class('text-lg text-gray-600 mb-6')],
+        [
+          'Every path under /files parses into a single catch-all route that captures the remaining segments.',
+        ],
+      ),
+      entryListView([], fileTree),
+    ],
+  )
+}
+
+const filesView = (path: Array.NonEmptyReadonlyArray<string>): Html => {
+  const h = html<Message>()
+
+  const maybeEntry = findEntry(path)
+
+  const contentKey = Option.match(maybeEntry, {
+    onNone: () => 'Missing',
+    onSome: entry => entry._tag,
+  })
+
+  const content = Option.match(maybeEntry, {
+    onNone: () => missingEntryView(path),
+    onSome: entry =>
+      M.value(entry).pipe(
+        M.tagsExhaustive({
+          File: fileDetailView,
+          Directory: directory => entryListView(path, directory.entries),
+        }),
+      ),
+  })
+
+  return h.div(
+    [h.Class('max-w-4xl mx-auto px-4')],
+    [breadcrumbView(path), h.keyed('div')(contentKey, [], [content])],
+  )
+}
+
 const notFoundView = (path: string): Html => {
   const h = html<Message>()
 
@@ -377,6 +568,11 @@ const routeTitle = (route: Model['route']): string =>
   M.value(route).pipe(
     M.tag('Home', () => 'Routing'),
     M.tag('Person', ({ personId }) => `Person ${personId} | Routing`),
+    M.tag('FilesIndex', () => 'Files | Routing'),
+    M.tag(
+      'Files',
+      ({ path }) => `${Array.lastNonEmpty(path)} | Files | Routing`,
+    ),
     M.orElse(({ _tag }) => `${_tag} | Routing`),
   )
 
@@ -395,6 +591,8 @@ export const view = (model: Model): Document => {
           toParentMessage: message => GotPeopleMessage({ message }),
         }),
       Person: ({ personId }) => personView(personId),
+      FilesIndex: filesIndexView,
+      Files: ({ path }) => filesView(path),
       NotFound: ({ path }) => notFoundView(path),
     }),
   )

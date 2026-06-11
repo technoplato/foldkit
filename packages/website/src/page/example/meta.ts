@@ -115,7 +115,7 @@ export const examples: ReadonlyArray<ExampleMeta> = [
     slug: 'routing',
     title: 'Routing',
     description:
-      'Client-side routing with URL parameters, nested routes, and navigation.',
+      'Client-side routing with URL parameters, nested routes, catch-all segments, and navigation.',
     difficulty: 'Intermediate',
     tags: ['Routing'],
     hasRouting: true,

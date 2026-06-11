@@ -3,6 +3,8 @@ import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
 
 import {
+  FilesIndexRoute,
+  FilesRoute,
   HomeRoute,
   Model,
   NestedRoute,
@@ -43,6 +45,15 @@ const nested = Model.make({
   route: NestedRoute(),
   peoplePage: initialPeoplePage,
 })
+const filesIndex = Model.make({
+  route: FilesIndexRoute(),
+  peoplePage: initialPeoplePage,
+})
+const files = (path: Array.NonEmptyReadonlyArray<string>) =>
+  Model.make({
+    route: FilesRoute({ path }),
+    peoplePage: initialPeoplePage,
+  })
 const notFound = (path: string) =>
   Model.make({
     route: NotFoundRoute({ path }),
@@ -56,6 +67,7 @@ describe('scene', () => {
       Scene.with(home),
       Scene.expect(Scene.role('link', { name: 'Home' })).toExist(),
       Scene.expect(Scene.role('link', { name: 'People' })).toExist(),
+      Scene.expect(Scene.role('link', { name: 'Files' })).toExist(),
       Scene.expect(Scene.role('link', { name: 'Nested' })).toExist(),
     )
   })
@@ -119,6 +131,44 @@ describe('scene', () => {
         Scene.role('heading', { name: 'Person Not Found' }),
       ).toExist(),
       Scene.expect(Scene.text('No person found with ID: 99')).toExist(),
+    )
+  })
+
+  test('the Files index lists the top-level entries', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(filesIndex),
+      Scene.expect(Scene.role('link', { name: 'documents' })).toExist(),
+      Scene.expect(Scene.role('link', { name: 'photos' })).toExist(),
+      Scene.expect(Scene.role('link', { name: 'notes.txt' })).toExist(),
+    )
+  })
+
+  test('a directory path renders breadcrumb links and its entries', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(files(['documents', 'taxes'])),
+      Scene.expect(Scene.role('link', { name: 'documents' })).toExist(),
+      Scene.expect(Scene.role('link', { name: '2024.pdf' })).toExist(),
+      Scene.expect(Scene.role('link', { name: '2025.pdf' })).toExist(),
+    )
+  })
+
+  test('a file path renders the file details', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(files(['documents', 'resume.pdf'])),
+      Scene.expect(Scene.role('heading', { name: 'resume.pdf' })).toExist(),
+      Scene.expect(Scene.text('47.1 KB')).toExist(),
+    )
+  })
+
+  test('an unknown path under files renders the missing panel', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(files(['documents', 'missing.txt'])),
+      Scene.expect(Scene.role('heading', { name: 'Nothing Here' })).toExist(),
+      Scene.expect(Scene.role('link', { name: '← Back to Files' })).toExist(),
     )
   })
 

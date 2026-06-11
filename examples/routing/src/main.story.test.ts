@@ -140,6 +140,38 @@ describe('update', () => {
       )
     })
 
+    test('navigating to /files parses to the FilesIndex route', () => {
+      Story.story(
+        update,
+        Story.with(home),
+        Story.message(
+          ChangedUrl({ url: urlOrThrow('http://localhost/files') }),
+        ),
+        Story.model(model => {
+          expect(model.route._tag).toBe('FilesIndex')
+        }),
+      )
+    })
+
+    test('navigating under /files captures the remaining segments', () => {
+      Story.story(
+        update,
+        Story.with(home),
+        Story.message(
+          ChangedUrl({
+            url: urlOrThrow('http://localhost/files/documents/taxes'),
+          }),
+        ),
+        Story.model(model => {
+          if (model.route._tag === 'Files') {
+            expect(model.route.path).toStrictEqual(['documents', 'taxes'])
+          } else {
+            throw new Error('Expected Files route')
+          }
+        }),
+      )
+    })
+
     test('a same-page URL change syncs the input, records history, and refetches', () => {
       Story.story(
         update,

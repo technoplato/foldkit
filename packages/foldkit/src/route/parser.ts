@@ -73,10 +73,20 @@ export type Router<A> = BuildFn<A> & {
 }
 
 /**
- * A `Biparser` that has been terminated (e.g. by `query`) and cannot
- * be extended with `slash`.
+ * A `Biparser` that has been terminated (e.g. by `query` or `catchAll`)
+ * and cannot be extended with `slash`.
  */
 export type TerminalParser<A> = Biparser<A> & { readonly __terminal: true }
+
+/**
+ * A `Biparser` that can still be extended with `slash`. Terminal parsers
+ * (`query`, `catchAll`) do not qualify, since nothing can follow them in
+ * the path.
+ */
+export type ExtendableBiparser<A> = Biparser<A> & {
+  readonly __terminal?: never
+  readonly 'Cannot use slash after a terminal parser - nothing can follow query or catchAll'?: never
+}
 
 const makeTerminalParser = <A>(parser: Biparser<A>): TerminalParser<A> =>
   /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
@@ -228,6 +238,57 @@ export const root: Biparser<{}> = {
 }
 
 /**
+ * Creates a parser that captures all remaining URL segments as a named
+ * non-empty array field.
+ *
+ * Requires at least one remaining segment. A bare prefix like `/files`
+ * does not match; give it its own route alongside the catch-all route.
+ *
+ * Nothing can follow a catch-all in the path, so the result is a
+ * `TerminalParser`. It can still be extended with `query`.
+ *
+ * @example
+ * ```ts
+ * pipe(literal('files'), slash(catchAll('path')))
+ * // parses /files/documents/taxes/2024.pdf
+ * // into { path: ['documents', 'taxes', '2024.pdf'] }
+ * ```
+ */
+export const catchAll = <K extends string>(
+  name: K,
+): TerminalParser<Record<K, Array.NonEmptyReadonlyArray<string>>> => {
+  const parser: Biparser<Record<K, Array.NonEmptyReadonlyArray<string>>> = {
+    parse: segments =>
+      Array.match(segments, {
+        onEmpty: () =>
+          Effect.fail(
+            new ParseError({
+              message: `Expected catch-all (${name})`,
+              expected: `catch-all (${name})`,
+              actual: 'end of path',
+              position: 0,
+            }),
+          ),
+        onNonEmpty: remainingSegments =>
+          Effect.succeed([
+            /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+            { [name]: remainingSegments } as Record<
+              K,
+              Array.NonEmptyReadonlyArray<string>
+            >,
+            [],
+          ]),
+      }),
+    print: (value, state) =>
+      Effect.succeed({
+        ...state,
+        segments: [...state.segments, ...value[name]],
+      }),
+  }
+  return makeTerminalParser(parser)
+}
+
+/**
  * A parse-only parser with no print/build capabilities.
  *
  * Returned by `oneOf`, which combines multiple parsers whose print
@@ -245,8 +306,28 @@ type ParserInput = Biparser<any> | Parser<any>
 type InferParsed<P> =
   P extends Biparser<infer A> ? A : P extends Parser<infer A> ? A : never
 
+const complete = <A>([value, remaining]: ParseResult<A>) =>
+  Array.match<string, Effect.Effect<ParseResult<A>, ParseError>>(remaining, {
+    onEmpty: () => Effect.succeed([value, remaining]),
+    onNonEmpty: () => {
+      const remainingSegments = Array.join(remaining, '/')
+
+      return Effect.fail(
+        new ParseError({
+          message: `Unexpected remaining segments: ${remainingSegments}`,
+          actual: remainingSegments,
+        }),
+      )
+    },
+  })
+
 /**
- * Combines multiple parsers, trying each in order until one succeeds.
+ * Combines multiple parsers, trying each in order until one matches the
+ * entire path.
+ *
+ * A parser only matches when it consumes every segment, so a route never
+ * shadows a longer route that shares its prefix. When several parsers
+ * fully match the same URL, the first one wins.
  *
  * Returns a `Parser` (parse-only) since the union of different route
  * shapes cannot provide a single unified print function.
@@ -264,7 +345,9 @@ export const oneOf = <Parsers extends ReadonlyArray<ParserInput>>(
         ),
       onNonEmpty: () =>
         Effect.firstSuccessOf(
-          Array.map(parsers, parser => parser.parse(segments, search)),
+          Array.map(parsers, parser =>
+            pipe(parser.parse(segments, search), Effect.flatMap(complete)),
+          ),
         ),
     }),
 })
@@ -312,24 +395,26 @@ export const mapTo: {
 /**
  * Composes two `Biparser`s sequentially, combining their parsed values.
  *
- * Cannot be used after `query` since query parameters are terminal.
+ * Cannot be used after a terminal parser (`query` or `catchAll`).
+ * Composing with a terminal second parser yields a `TerminalParser`,
+ * so terminality survives the composition.
  *
  * @example
  * ```ts
  * pipe(literal('users'), slash(int('id'))) // matches /users/42
  * ```
  */
-export const slash =
+export const slash: {
+  <A extends Record<string, unknown>, B extends Record<string, unknown>>(
+    parserB: TerminalParser<A>,
+  ): (parserA: ExtendableBiparser<B>) => TerminalParser<B & A>
   <A extends Record<string, unknown>, B extends Record<string, unknown>>(
     parserB: Biparser<A>,
-  ) =>
-  (
-    parserA: Biparser<B> & {
-      readonly __terminal?: never
-      readonly 'Cannot use slash after query - query parameters must be terminal'?: never
-    },
-  ): Biparser<B & A> => ({
-    parse: (segments, search) =>
+  ): (parserA: ExtendableBiparser<B>) => Biparser<B & A>
+} =
+  (parserB: Biparser<any>) =>
+  (parserA: Biparser<any>): any => ({
+    parse: (segments: ReadonlyArray<string>, search?: string) =>
       pipe(
         parserA.parse(segments, search),
         Effect.flatMap(([valueA, remainingA]) =>
@@ -342,7 +427,7 @@ export const slash =
           ),
         ),
       ),
-    print: (value, state) =>
+    print: (value: any, state: PrintState) =>
       pipe(
         parserA.print(value, state),
         Effect.flatMap(newState => parserB.print(value, newState)),
@@ -440,21 +525,6 @@ export const query =
 
 const pathToSegments = flow(String.split('/'), Array.filter(String.isNonEmpty))
 
-const complete = <A>([value, remaining]: ParseResult<A>) =>
-  Array.match<string, Effect.Effect<A, ParseError>>(remaining, {
-    onEmpty: () => Effect.succeed(value),
-    onNonEmpty: () => {
-      const remainingSegments = Array.join(remaining, '/')
-
-      return Effect.fail(
-        new ParseError({
-          message: `Unexpected remaining segments: ${remainingSegments}`,
-          actual: remainingSegments,
-        }),
-      )
-    },
-  })
-
 const parseUrl =
   <A>(parser: Biparser<A> | TerminalParser<A> | Parser<A>) =>
   (url: Url) =>
@@ -462,6 +532,7 @@ const parseUrl =
       pathToSegments(url.pathname),
       segments => parser.parse(segments, Option.getOrUndefined(url.search)),
       Effect.flatMap(complete),
+      Effect.map(([value]) => value),
     )
 
 /**

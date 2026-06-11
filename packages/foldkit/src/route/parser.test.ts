@@ -5,6 +5,7 @@ import { expect } from 'vitest'
 import { Url } from '../url/index.js'
 import { r } from './index.js'
 import {
+  catchAll,
   int,
   literal,
   mapTo,
@@ -146,6 +147,98 @@ describe('root', () => {
   )
 })
 
+describe('catchAll', () => {
+  const Files = r('Files', { path: S.NonEmptyArray(S.String) })
+
+  const filesRouter = pipe(
+    literal('files'),
+    slash(catchAll('path')),
+    mapTo(Files),
+  )
+
+  it.effect('captures all remaining segments as a named non-empty array', () =>
+    Effect.gen(function* () {
+      const [value, remaining] = yield* catchAll('path').parse(['a', 'b', 'c'])
+      expect(value).toStrictEqual({ path: ['a', 'b', 'c'] })
+      expect(remaining).toStrictEqual([])
+    }),
+  )
+
+  it.effect('fails on empty segments', () =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(catchAll('path').parse([]))
+      expect(error._tag).toBe('ParseError')
+      expect(error.actual).toBe('end of path')
+    }),
+  )
+
+  it.effect('prints all segments', () =>
+    Effect.gen(function* () {
+      const state = yield* catchAll('path').print(
+        { path: ['documents', 'taxes'] },
+        { segments: ['files'], queryParams: new URLSearchParams() },
+      )
+      expect(state.segments).toStrictEqual(['files', 'documents', 'taxes'])
+    }),
+  )
+
+  it.effect('composes after literals', () =>
+    Effect.gen(function* () {
+      const parser = pipe(literal('files'), slash(catchAll('path')))
+      const [value, remaining] = yield* parser.parse(['files', 'docs', '2024'])
+      expect(value).toStrictEqual({ path: ['docs', '2024'] })
+      expect(remaining).toStrictEqual([])
+    }),
+  )
+
+  it.effect('combines with query parameters', () =>
+    Effect.gen(function* () {
+      const parser = pipe(
+        literal('files'),
+        slash(catchAll('path')),
+        query(S.Struct({ sort: S.String })),
+      )
+      const [value] = yield* parser.parse(['files', 'a'], 'sort=name')
+      expect(value).toStrictEqual({ path: ['a'], sort: 'name' })
+    }),
+  )
+
+  it('cannot be extended with slash', () => {
+    // @ts-expect-error slash cannot follow a terminal parser
+    const invalidParser = pipe(catchAll('path'), slash(literal('x')))
+    expect(invalidParser).toBeDefined()
+  })
+
+  it('cannot be extended with slash after composition', () => {
+    const composedParser = pipe(literal('files'), slash(catchAll('path')))
+    // @ts-expect-error slash cannot follow a terminal parser
+    const invalidParser = slash(literal('extra'))(composedParser)
+    expect(invalidParser).toBeDefined()
+  })
+
+  it('cannot be extended with slash when the catch-all is nested in the second parser', () => {
+    const nestedParser = pipe(
+      literal('files'),
+      slash(pipe(literal('shared'), slash(catchAll('path')))),
+    )
+    // @ts-expect-error slash cannot follow a terminal parser
+    const invalidParser = slash(literal('extra'))(nestedParser)
+    expect(invalidParser).toBeDefined()
+  })
+
+  it('builds a URL from catch-all route data', () => {
+    const url = filesRouter({ path: ['documents', 'taxes'] })
+    expect(url).toBe('/files/documents/taxes')
+  })
+
+  it.effect('parse then build round-trips', () =>
+    Effect.gen(function* () {
+      const [parsed] = yield* filesRouter.parse(['files', 'documents', 'taxes'])
+      expect(filesRouter({ path: parsed.path })).toBe('/files/documents/taxes')
+    }),
+  )
+})
+
 describe('slash', () => {
   it.effect('composes two parsers sequentially', () =>
     Effect.gen(function* () {
@@ -243,6 +336,53 @@ describe('oneOf', () => {
       const parser = oneOf(literal('users'), literal('posts'))
       const error = yield* Effect.flip(parser.parse(['comments']))
       expect(error._tag).toBe('ParseError')
+    }),
+  )
+
+  it.effect('does not match a parser that leaves segments unconsumed', () =>
+    Effect.gen(function* () {
+      const parser = oneOf(literal('files'))
+      const error = yield* Effect.flip(parser.parse(['files', 'extra']))
+      expect(error._tag).toBe('ParseError')
+    }),
+  )
+
+  it.effect('falls through to a longer parser sharing a prefix', () =>
+    Effect.gen(function* () {
+      const parser = oneOf(
+        literal('files'),
+        pipe(literal('files'), slash(string('name'))),
+      )
+      const [value] = yield* parser.parse(['files', 'readme'])
+      expect(value).toStrictEqual({ name: 'readme' })
+    }),
+  )
+
+  it.effect('a query route listed first does not shadow a longer route', () =>
+    Effect.gen(function* () {
+      const parser = oneOf(
+        pipe(literal('people'), query(S.Struct({}))),
+        pipe(literal('people'), slash(int('id'))),
+      )
+      const [value] = yield* parser.parse(['people', '42'])
+      expect(value).toStrictEqual({ id: 42 })
+    }),
+  )
+
+  it.effect('a prefix route listed first does not shadow a catch-all', () =>
+    Effect.gen(function* () {
+      const FilesIndex = r('FilesIndex')
+      const Files = r('Files', { path: S.NonEmptyArray(S.String) })
+      const parser = oneOf(
+        pipe(literal('files'), mapTo(FilesIndex)),
+        pipe(literal('files'), slash(catchAll('path')), mapTo(Files)),
+      )
+
+      const [filesValue] = yield* parser.parse(['files', 'a', 'b'])
+      expect(filesValue).toStrictEqual({ _tag: 'Files', path: ['a', 'b'] })
+
+      const [indexValue] = yield* parser.parse(['files'])
+      expect(indexValue).toStrictEqual({ _tag: 'FilesIndex' })
     }),
   )
 })

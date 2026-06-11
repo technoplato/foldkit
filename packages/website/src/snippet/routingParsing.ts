@@ -2,9 +2,9 @@ import { Route, Runtime } from 'foldkit'
 import { evo } from 'foldkit/struct'
 import { Url } from 'foldkit/url'
 
-// Combine routers - order matters! More specific routes first.
+// Combine routers. A route matches only when it consumes the whole URL.
 const routeParser = Route.oneOf(
-  personRouter, // /people/:id - try first (more specific)
+  personRouter, // /people/:id
   peopleRouter, // /people?search=...
   homeRouter, // /
 )

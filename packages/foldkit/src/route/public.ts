@@ -5,6 +5,7 @@ export {
   string,
   int,
   root,
+  catchAll,
   oneOf,
   mapTo,
   slash,
@@ -18,5 +19,6 @@ export type {
   Biparser,
   Router,
   TerminalParser,
+  ExtendableBiparser,
   Parser,
 } from './index.js'

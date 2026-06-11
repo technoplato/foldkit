@@ -51,6 +51,12 @@ const queryParametersHeader: TableOfContentsEntry = {
   text: 'Query Parameters',
 }
 
+const catchAllSegmentsHeader: TableOfContentsEntry = {
+  level: 'h2',
+  id: 'catch-all-segments',
+  text: 'Catch-All Segments',
+}
+
 const keyingRouteViewsHeader: TableOfContentsEntry = {
   level: 'h2',
   id: 'keying-route-views',
@@ -70,6 +76,7 @@ export const tableOfContents: ReadonlyArray<TableOfContentsEntry> = [
   parsingUrlsHeader,
   buildingUrlsHeader,
   queryParametersHeader,
+  catchAllSegmentsHeader,
   keyingRouteViewsHeader,
   navigationHeader,
 ]
@@ -205,6 +212,13 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
           ),
           h.li(
             [],
+            [
+              inlineCode("catchAll('path')"),
+              ': captures all remaining segments',
+            ],
+          ),
+          h.li(
+            [],
             [inlineCode('slash(...)'), ': chains path segments together'],
           ),
           h.li(
@@ -240,13 +254,11 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
         'mb-8',
       ),
       para(
-        'Order matters in ',
-        inlineCode('oneOf'),
-        '. Put more specific routes first. ',
-        inlineCode('/people/:id'),
-        ' should come before ',
+        'A router only matches when it consumes the entire URL, so routes that share a prefix do not conflict. ',
         inlineCode('/people'),
-        ' so the parameter route gets a chance to match.',
+        ' and ',
+        inlineCode('/people/:id'),
+        ' can appear in any order. When several routes fully match the same URL, the first one wins.',
       ),
       tableOfContentsEntryToHeader(buildingUrlsHeader),
       para(
@@ -311,6 +323,52 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
           'Query Sync example',
         ),
         '.',
+      ),
+      tableOfContentsEntryToHeader(catchAllSegmentsHeader),
+      para(
+        'Some routes carry a whole path as data: a file tree, a documentation page, a breadcrumb trail. ',
+        inlineCode('catchAll'),
+        ' captures every remaining segment as a named field. The parsed value is a non-empty array of strings, so the route schema declares the field with ',
+        inlineCode('S.NonEmptyArray(S.String)'),
+        '.',
+      ),
+      highlightedCodeBlock(
+        h.div(
+          [
+            h.Class('text-sm'),
+            h.InnerHTML(Snippets.routingCatchAllHighlighted),
+          ],
+          [],
+        ),
+        Snippets.routingCatchAllRaw,
+        'Copy catch-all example to clipboard',
+        copiedSnippets,
+        'mb-8',
+      ),
+      para(
+        inlineCode('catchAll'),
+        ' requires at least one segment, so the bare prefix ',
+        inlineCode('/files'),
+        ' does not match the catch-all route. Give the prefix its own route, like ',
+        inlineCode('FilesIndexRoute'),
+        ' above. The two never overlap: one matches exactly ',
+        inlineCode('/files'),
+        ', the other matches anything beneath it.',
+      ),
+      para(
+        'Nothing can follow a catch-all in the path, so ',
+        inlineCode('slash'),
+        ' cannot extend it. TypeScript rejects the composition. ',
+        inlineCode('query'),
+        ' can still follow, since query parameters live after the path.',
+      ),
+      para(
+        'The ',
+        link(
+          exampleDetailRouter({ exampleSlug: 'routing' }),
+          'Routing example',
+        ),
+        ' uses a catch-all route to drive a small file browser, building breadcrumb and directory links from the captured segments.',
       ),
       tableOfContentsEntryToHeader(keyingRouteViewsHeader),
       warningCallout(
