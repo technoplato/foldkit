@@ -47,6 +47,7 @@ import {
   INIT_INDEX,
   type MountRecord,
   type StoreState,
+  latestEntryIndex,
 } from './store.js'
 import {
   GOT_MESSAGE_PATTERN,
@@ -398,10 +399,7 @@ export const InspectLatest = Command.define(
   Effect.gen(function* () {
     const store = yield* StoreService
     const state = yield* SubscriptionRef.get(store.stateRef)
-    const latestIndex = Array_.isReadonlyArrayEmpty(state.entries)
-      ? INIT_INDEX
-      : state.startIndex + state.entries.length - 1
-    return yield* buildInspectionEffect(latestIndex)
+    return yield* buildInspectionEffect(latestEntryIndex(state))
   }),
 )
 

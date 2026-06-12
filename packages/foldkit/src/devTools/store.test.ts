@@ -85,6 +85,39 @@ describe('computeDiff', () => {
     expect(hasPath(changedPaths, 'root.value.value')).toBe(true)
     expect(hasPath(affectedPaths, 'root.value')).toBe(true)
   })
+
+  it('detects removed fields', () => {
+    const { changedPaths, affectedPaths } = computeDiff(
+      { a: 1, b: 2 },
+      { a: 1 },
+    )
+
+    expect(hasPath(changedPaths, 'root.b')).toBe(true)
+    expect(hasPath(changedPaths, 'root.a')).toBe(false)
+    expect(hasPath(affectedPaths, 'root')).toBe(true)
+  })
+
+  it('detects removed record keys in nested records', () => {
+    const { changedPaths } = computeDiff(
+      { todos: { '1': 'buy milk', '2': 'walk dog' } },
+      { todos: { '1': 'buy milk' } },
+    )
+
+    expect(hasPath(changedPaths, 'root.todos.2')).toBe(true)
+    expect(hasPath(changedPaths, 'root.todos.1')).toBe(false)
+  })
+
+  it('detects removed array elements', () => {
+    const { changedPaths, affectedPaths } = computeDiff(
+      { items: [1, 2, 3] },
+      { items: [1] },
+    )
+
+    expect(hasPath(changedPaths, 'root.items.1')).toBe(true)
+    expect(hasPath(changedPaths, 'root.items.2')).toBe(true)
+    expect(hasPath(changedPaths, 'root.items.0')).toBe(false)
+    expect(hasPath(affectedPaths, 'root.items')).toBe(true)
+  })
 })
 
 const initialModel = { count: 0 }

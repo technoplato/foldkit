@@ -108,7 +108,7 @@ const tools: ReadonlyArray<ToolRowSpec> = [
       inlineCode('expand', 'text-xs'),
       ' semantics as ',
       inlineCode('foldkit_get_model', 'text-xs'),
-      '. For the initial Model, use ',
+      '. Indices outside the readable range are rejected with the valid bounds. For the initial Model, use ',
       inlineCode('foldkit_get_init', 'text-xs'),
       '.',
     ],
@@ -136,9 +136,37 @@ const tools: ReadonlyArray<ToolRowSpec> = [
   {
     name: 'foldkit_list_messages',
     description: [
-      'Lists recent Message history entries with pagination. Each entry carries the Message body, Command names triggered, timestamp, an ',
+      'Lists Message history entries. Each entry carries the Message body, Command names triggered, timestamp, an ',
       inlineCode('isModelChanged', 'text-xs'),
-      ' flag, the diff path lists, and any extracted Submodel chain.',
+      ' flag, the diff path lists, and any extracted Submodel chain. Filter server-side with ',
+      inlineCode('changed_paths_match', 'text-xs'),
+      ' (dot-string patterns against each entry’s changed Model paths, ',
+      inlineCode('*', 'text-xs'),
+      ' matches one segment), read the latest entries with ',
+      inlineCode('from_end', 'text-xs'),
+      ', and paginate forward with ',
+      inlineCode('since_index', 'text-xs'),
+      '.',
+    ],
+  },
+  {
+    name: 'foldkit_count_messages_by_tag',
+    description: [
+      'Counts retained history entries by Message tag, without payloads, sorted by count descending. A cheap reconnaissance call before paging through history: it surfaces the high-frequency Messages worth filtering out, and with ',
+      inlineCode('changed_paths_match', 'text-xs'),
+      ' it answers which Message tags touch a Model subtree.',
+    ],
+  },
+  {
+    name: 'foldkit_diff_models',
+    description: [
+      'Diffs the Models at two history indices server-side, returning path-level changes with summarized before and after values. Each side is ',
+      inlineCode('Present', 'text-xs'),
+      ' with the value, or ',
+      inlineCode('Absent', 'text-xs'),
+      ' when the path does not exist on that side. Pass ',
+      inlineCode('changed_paths_match', 'text-xs'),
+      ' to narrow the diff to a subtree.',
     ],
   },
   {

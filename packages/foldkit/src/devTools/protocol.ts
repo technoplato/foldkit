@@ -1,4 +1,4 @@
-import { Schema as S } from 'effect'
+import { Effect, Schema as S } from 'effect'
 
 import { ts } from '../schema/index.js'
 
@@ -69,10 +69,27 @@ export const RequestGetModelAt = ts('RequestGetModelAt', {
   expand: S.Boolean,
 })
 
-/** Request recent history entries, optionally starting from a given index. */
+/** Request recent history entries. `maybeSinceIndex` starts the page at an absolute index; `fromEnd` returns the final entries instead (the two are mutually exclusive). `maybeChangedPathsMatch` filters entries server-side to those whose `changedPaths` match at least one dot-string pattern: segments compare pairwise for the length of the shorter list and `*` matches any single segment, so `root.grid` matches changes anywhere inside the grid subtree and `root.grid.5.3` also matches a wholesale replacement recorded at `root.grid`. The two newer fields decode with defaults when absent, so requests from an older MCP server keep working against a newer runtime. */
 export const RequestListMessages = ts('RequestListMessages', {
   limit: S.Number,
   maybeSinceIndex: S.OptionFromNullOr(S.Number),
+  maybeChangedPathsMatch: S.OptionFromNullOr(S.Array(S.String)).pipe(
+    S.withDecodingDefault(Effect.succeed(null)),
+  ),
+  fromEnd: S.Boolean.pipe(S.withDecodingDefault(Effect.succeed(false))),
+})
+
+/** Request a histogram of retained history entries by Message tag. Accepts the same `maybeSinceIndex` / `maybeChangedPathsMatch` filters as `RequestListMessages` but returns only counts, so the response stays small regardless of history size. */
+export const RequestCountMessagesByTag = ts('RequestCountMessagesByTag', {
+  maybeSinceIndex: S.OptionFromNullOr(S.Number),
+  maybeChangedPathsMatch: S.OptionFromNullOr(S.Array(S.String)),
+})
+
+/** Request a path-level diff between the Models at two absolute history indices. Each index follows `RequestGetModelAt` semantics (the Model right after that entry was applied; -1 is the initial Model). `maybeChangedPathsMatch` narrows the reported changes with the same pattern semantics as `RequestListMessages`. */
+export const RequestDiffModels = ts('RequestDiffModels', {
+  fromIndex: S.Number,
+  toIndex: S.Number,
+  maybeChangedPathsMatch: S.OptionFromNullOr(S.Array(S.String)),
 })
 
 /** Request a single history entry by index. To inspect the Model around the entry, call `RequestGetModelAt` with `index - 1` (before) and `index` (after). */
@@ -115,6 +132,8 @@ export const Request = S.Union([
   RequestGetModel,
   RequestGetModelAt,
   RequestListMessages,
+  RequestCountMessagesByTag,
+  RequestDiffModels,
   RequestGetMessage,
   RequestListKeyframes,
   RequestReplayToKeyframe,
@@ -137,7 +156,7 @@ export const ResponseModel = ts('ResponseModel', {
   summarized: S.Boolean,
 })
 
-/** Response carrying a page of history entries. `maybeNextIndex` is `Some` when more entries are available beyond this page (pass it as `RequestListMessages.maybeSinceIndex` to fetch the next page) and `None` when this page reaches the current end of history. */
+/** Response carrying a page of history entries. For forward reads, `maybeNextIndex` is `Some` of the absolute index of the next entry matching the request's filters (pass it as `RequestListMessages.maybeSinceIndex` to fetch the next page) and `None` when the page reaches the end of matching history. Tail reads (`fromEnd`) always carry `None`. */
 export const ResponseMessages = ts('ResponseMessages', {
   entries: S.Array(SerializedEntry),
   maybeNextIndex: S.OptionFromNullOr(S.Number),
@@ -146,6 +165,47 @@ export const ResponseMessages = ts('ResponseMessages', {
 /** Response carrying a single history entry. Model snapshots are not included; use `RequestGetModelAt` with `index - 1` and `index` to inspect Model state around the entry. */
 export const ResponseMessage = ts('ResponseMessage', {
   entry: SerializedEntry,
+})
+
+/** One row of a Message-tag histogram. */
+export const MessageTagCount = S.Struct({
+  tag: S.String,
+  count: S.Number,
+})
+/** One row of a Message-tag histogram. */
+export type MessageTagCount = typeof MessageTagCount.Type
+
+/** Response carrying a Message-tag histogram, sorted by count descending then tag ascending. `totalCount` is the number of entries counted after filters. `scannedFromIndex` / `scannedToIndex` bound the absolute index range scanned (`scannedToIndex` is -1 when no entries are retained), so callers learn the live history bounds without a separate runtime-state call. */
+export const ResponseMessageCounts = ts('ResponseMessageCounts', {
+  counts: S.Array(MessageTagCount),
+  totalCount: S.Number,
+  scannedFromIndex: S.Number,
+  scannedToIndex: S.Number,
+})
+
+/** The value on one side of a Model diff path: `Present` carries the summarized value; `Absent` means the path does not exist on that side (an added or removed key or element). The tagged shape is deliberate: a nullable encoding could not distinguish an absent path from a path whose value is literally `null`. `undefined`, which JSON cannot represent, is reported as `null`. */
+export const DiffValueAbsent = ts('Absent')
+/** The value on one side of a Model diff path. See `DiffValue`. */
+export const DiffValuePresent = ts('Present', { value: S.Unknown })
+/** The value on one side of a Model diff path. */
+export const DiffValue = S.Union([DiffValueAbsent, DiffValuePresent])
+/** The value on one side of a Model diff path. */
+export type DiffValue = typeof DiffValue.Type
+
+/** One changed path in a Model diff. `before` is the value at `fromIndex`, `after` the value at `toIndex`. */
+export const ModelDiffChange = S.Struct({
+  path: S.String,
+  before: DiffValue,
+  after: DiffValue,
+})
+/** One changed path in a Model diff. */
+export type ModelDiffChange = typeof ModelDiffChange.Type
+
+/** Response carrying a path-level Model diff between two history indices. Changes list the leaf paths where the Models differ, sorted by path with numeric segments in numeric order; values are summarized with the same rules `ResponseModel` applies when `expand` is false. */
+export const ResponseModelDiff = ts('ResponseModelDiff', {
+  fromIndex: S.Number,
+  toIndex: S.Number,
+  changes: S.Array(ModelDiffChange),
 })
 
 /** Response carrying the list of available keyframes. */
@@ -236,6 +296,8 @@ export const Response = S.Union([
   ResponseModel,
   ResponseMessages,
   ResponseMessage,
+  ResponseMessageCounts,
+  ResponseModelDiff,
   ResponseKeyframes,
   ResponseReplayed,
   ResponseResumed,

@@ -74,6 +74,15 @@ export const computeDiff = (
         }
       }),
     )
+    pipe(
+      prev,
+      Record.keys,
+      Array.forEach(key => {
+        if (!Record.has(curr, key)) {
+          changed.add(`${path}.${key}`)
+        }
+      }),
+    )
   }
 
   const walkArray = (
@@ -89,6 +98,12 @@ export const computeDiff = (
         changed.add(childPath)
       }
     })
+    if (prev.length > curr.length) {
+      pipe(
+        Array.range(curr.length, prev.length - 1),
+        Array.forEach(index => changed.add(`${path}.${index}`)),
+      )
+    }
   }
 
   walk(previous, current, 'root')
@@ -166,6 +181,16 @@ const emptyState: StoreState = {
   pausedAtIndex: 0,
   maybeLatestModel: Option.none(),
 }
+
+/**
+ * The absolute index of the most recently recorded entry, or `INIT_INDEX`
+ * when no Messages have been recorded yet.
+ */
+export const latestEntryIndex = (state: StoreState): number =>
+  Array.match(state.entries, {
+    onEmpty: () => INIT_INDEX,
+    onNonEmpty: entries => state.startIndex + entries.length - 1,
+  })
 
 /**
  * Options for `createDevToolsStore`.
@@ -337,12 +362,6 @@ export const createDevToolsStore = (
                 ),
             }),
         })
-      })
-
-    const latestEntryIndex = (state: StoreState): number =>
-      Array.match(state.entries, {
-        onEmpty: () => INIT_INDEX,
-        onNonEmpty: entries => state.startIndex + entries.length - 1,
       })
 
     // NOTE: maybeLatestModel must be stamped atomically with the entries

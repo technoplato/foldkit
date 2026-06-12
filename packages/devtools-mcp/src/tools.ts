@@ -1,6 +1,8 @@
 import { Array, Effect, Match, Option, Schema as S } from 'effect'
 import {
   type Request,
+  RequestCountMessagesByTag,
+  RequestDiffModels,
   RequestDispatchMessage,
   RequestGetInit,
   RequestGetMessage,
@@ -36,6 +38,37 @@ const ListLimit = S.Int.check(
 const SinceIndex = S.Int.annotate({
   description:
     'Absolute history index to start from. Use the maybeNextIndex returned by a prior call to paginate.',
+})
+
+const ChangedPathsMatchField = S.optional(
+  S.Array(S.String).annotate({
+    description:
+      "Dot-string path patterns matched against each entry's changedPaths, in the same 'root'-anchored alphabet foldkit_get_model uses. An entry matches when any pattern matches any changed path. Patterns compare segment-by-segment for the length of the shorter side, so 'root.grid' matches every change inside the grid subtree, and 'root.grid.5.3' also matches a wholesale replacement recorded at 'root.grid'. '*' matches exactly one segment: 'root.cards.*.title'. Entries that did not change the Model never match. An empty list applies no filter. Patterns not starting with 'root' or '*' are rejected.",
+  }),
+)
+
+const DiffChangedPathsMatchField = S.optional(
+  S.Array(S.String).annotate({
+    description:
+      "Dot-string path patterns narrowing the reported changes, in the same 'root'-anchored alphabet as changedPaths. A changed path is kept when any pattern matches it: patterns compare segment-by-segment for the length of the shorter side ('root.grid' keeps everything under the grid subtree) and '*' matches exactly one segment. An empty list applies no filter. Patterns not starting with 'root' or '*' are rejected.",
+  }),
+)
+
+const FromEndField = S.optional(
+  S.Boolean.annotate({
+    description:
+      "When true, return the final `limit` matching entries (the most recent) instead of the first, still in chronological order. The natural first call when live-debugging: 'what just happened'. Cannot be combined with since_index.",
+  }),
+)
+
+const DiffFromIndex = S.Int.annotate({
+  description:
+    'Absolute history index of the diff baseline: the Model state right after this entry was applied. Use -1 for the initial Model.',
+})
+
+const DiffToIndex = S.Int.annotate({
+  description:
+    'Absolute history index of the diff target: the Model state right after this entry was applied. -1 addresses the initial Model.',
 })
 
 const MessageIndex = S.Int.annotate({
@@ -83,6 +116,21 @@ const ListMessagesInput = S.Struct({
   runtime_id: RuntimeIdField,
   limit: S.optional(ListLimit),
   since_index: S.optional(SinceIndex),
+  changed_paths_match: ChangedPathsMatchField,
+  from_end: FromEndField,
+})
+
+const CountMessagesByTagInput = S.Struct({
+  runtime_id: RuntimeIdField,
+  since_index: S.optional(SinceIndex),
+  changed_paths_match: ChangedPathsMatchField,
+})
+
+const DiffModelsInput = S.Struct({
+  runtime_id: RuntimeIdField,
+  from_index: DiffFromIndex,
+  to_index: DiffToIndex,
+  changed_paths_match: DiffChangedPathsMatchField,
 })
 
 const GetMessageInput = S.Struct({
@@ -170,6 +218,14 @@ const formatError = (reason: string): ToolResult => ({
 })
 
 /**
+ * Read a display string from a caught error. Effect's `TimeoutError` carries no
+ * `message`, so `error.message` is `undefined` on a relay timeout; fall back to
+ * the error's string form (its tag) rather than surfacing `Error: undefined`.
+ */
+const errorReason = (error: Error): string =>
+  error.message ? error.message : String(error)
+
+/**
  * Decode a tool's raw input against its Effect Schema. Failure surfaces as an
  * `Error` for the outer handler's `catchAll` to convert into a `ToolResult`.
  */
@@ -241,7 +297,9 @@ const callRuntimeRequest = (
       Option.some(runtimeId),
     )
     return responseToToolResult(response)
-  }).pipe(Effect.catch(error => Effect.succeed(formatError(error.message))))
+  }).pipe(
+    Effect.catch(error => Effect.succeed(formatError(errorReason(error)))),
+  )
 
 type RuntimeToolInput = Readonly<{ runtime_id?: string | undefined }>
 
@@ -262,7 +320,9 @@ const runRuntimeTool =
       return yield* callRuntimeRequest(wsClient, input.runtime_id, () =>
         buildRequest(input),
       )
-    }).pipe(Effect.catch(error => Effect.succeed(formatError(error.message))))
+    }).pipe(
+      Effect.catch(error => Effect.succeed(formatError(errorReason(error)))),
+    )
 
 /**
  * Build the read-only Foldkit DevTools tool definitions. Each tool decodes its
@@ -290,7 +350,7 @@ export const buildTools = (
   {
     name: 'foldkit_get_model_at',
     description:
-      "Snapshot a historical Model after a given history entry was applied. Pass `index: N - 1` to read the Model just before message N. Same `path`/`expand` semantics as foldkit_get_model. For the initial Model (and the names of Commands returned from the application's `init`), use foldkit_get_init.",
+      "Snapshot a historical Model after a given history entry was applied. Pass `index: N - 1` to read the Model just before message N. Same `path`/`expand` semantics as foldkit_get_model. Indices outside the retained history range (older entries are evicted past the rolling buffer) are rejected with the readable range. For the initial Model (and the names of Commands returned from the application's `init`), use foldkit_get_init.",
     inputSchema: toInputSchema(GetModelAtInput),
     handle: runRuntimeTool(
       GetModelAtInput,
@@ -306,14 +366,47 @@ export const buildTools = (
   {
     name: 'foldkit_list_messages',
     description:
-      'List recent Message history entries from a Foldkit runtime, with optional pagination via since_index.',
+      'List Message history entries from a Foldkit runtime. Filter server-side with `changed_paths_match` to ask in Model terms (which Messages touched this subtree), read the most recent entries with `from_end: true`, and paginate forward via `since_index` using the returned `maybeNextIndex` (the absolute index of the next matching entry). On busy histories (drag, scroll, keystroke flows), call foldkit_count_messages_by_tag first to learn what is worth filtering.',
     inputSchema: toInputSchema(ListMessagesInput),
     handle: runRuntimeTool(
       ListMessagesInput,
-      ({ limit, since_index }) =>
+      ({ limit, since_index, changed_paths_match, from_end }) =>
         RequestListMessages({
           limit: limit ?? DEFAULT_LIST_MESSAGES_LIMIT,
           maybeSinceIndex: Option.fromNullishOr(since_index),
+          maybeChangedPathsMatch: Option.fromNullishOr(changed_paths_match),
+          fromEnd: from_end ?? false,
+        }),
+      wsClient,
+    ),
+  },
+  {
+    name: 'foldkit_count_messages_by_tag',
+    description:
+      'Count retained Message history entries by tag, without payloads. Returns `{ counts: [{ tag, count }], totalCount, scannedFromIndex, scannedToIndex }` sorted by count descending. A cheap reconnaissance call before paging through history: it surfaces the high-frequency Messages worth filtering out, and with `changed_paths_match` it answers which Message tags touch a Model subtree. Accepts the same `since_index`/`changed_paths_match` filters as foldkit_list_messages.',
+    inputSchema: toInputSchema(CountMessagesByTagInput),
+    handle: runRuntimeTool(
+      CountMessagesByTagInput,
+      ({ since_index, changed_paths_match }) =>
+        RequestCountMessagesByTag({
+          maybeSinceIndex: Option.fromNullishOr(since_index),
+          maybeChangedPathsMatch: Option.fromNullishOr(changed_paths_match),
+        }),
+      wsClient,
+    ),
+  },
+  {
+    name: 'foldkit_diff_models',
+    description:
+      "Diff the Models at two history indices server-side. Returns path-level changes `{ path, before, after }` sorted by path (numeric segments in numeric order), with values summarized. Each side is `{ _tag: 'Present', value }`, or `{ _tag: 'Absent' }` when the path does not exist on that side (a key or element that was added or removed). `from_index`/`to_index` follow foldkit_get_model_at semantics: the Model right after that entry was applied, with -1 for the initial Model. Pass `changed_paths_match` to narrow the diff to a Model subtree. Far cheaper than fetching two snapshots and diffing client-side; follow up with foldkit_get_model_at plus `path`/`expand: true` to read a changed subtree at full fidelity.",
+    inputSchema: toInputSchema(DiffModelsInput),
+    handle: runRuntimeTool(
+      DiffModelsInput,
+      ({ from_index, to_index, changed_paths_match }) =>
+        RequestDiffModels({
+          fromIndex: from_index,
+          toIndex: to_index,
+          maybeChangedPathsMatch: Option.fromNullishOr(changed_paths_match),
         }),
       wsClient,
     ),
@@ -415,7 +508,7 @@ export const buildTools = (
         )
         return responseToToolResult(response)
       }).pipe(
-        Effect.catch(error => Effect.succeed(formatError(error.message))),
+        Effect.catch(error => Effect.succeed(formatError(errorReason(error)))),
       ),
   },
 ]

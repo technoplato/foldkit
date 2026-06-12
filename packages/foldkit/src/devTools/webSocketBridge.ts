@@ -15,6 +15,20 @@ import {
 
 import { OptionExt } from '../effectExtensions/index.js'
 import {
+  collectMatchingEntries,
+  countEntriesByTag,
+  findUnanchoredPattern,
+  formatIndexNotReadable,
+  isIndexReadable,
+  matchesAnyPathPattern,
+  pageMatchingEntries,
+  pathOrder,
+  readSummarizedValueAt,
+} from './historyQuery.js'
+import {
+  type DiffValue,
+  DiffValueAbsent,
+  DiffValuePresent,
   type Event,
   EventConnected,
   EventDisconnected,
@@ -31,9 +45,11 @@ import {
   ResponseInit,
   ResponseKeyframes,
   ResponseMessage,
+  ResponseMessageCounts,
   ResponseMessageSchema,
   ResponseMessages,
   ResponseModel,
+  ResponseModelDiff,
   ResponseReplayed,
   ResponseResumed,
   ResponseRuntimeState,
@@ -51,7 +67,12 @@ import {
   toSerializedEntry,
   toSerializedMount,
 } from './serialize.js'
-import { type DevToolsStore, INIT_INDEX } from './store.js'
+import {
+  type DevToolsStore,
+  INIT_INDEX,
+  computeDiff,
+  latestEntryIndex,
+} from './store.js'
 import {
   type PathResolution,
   formatPathNotFound,
@@ -67,11 +88,6 @@ const EVENT_CHANNEL = 'foldkit:devTools:event'
 
 const generateConnectionId = (): string =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-
-const currentAbsoluteIndex = (
-  entriesLength: number,
-  startIndex: number,
-): number => (entriesLength === 0 ? INIT_INDEX : startIndex + entriesLength - 1)
 
 const tryDeriveJsonSchemaDocument = (
   schema: S.Codec<any, any>,
@@ -263,6 +279,25 @@ const readModelResponse = (
     ),
   )
 
+const maybePatternError = (
+  maybeChangedPathsMatch: Option.Option<ReadonlyArray<string>>,
+): Option.Option<Response> =>
+  pipe(
+    maybeChangedPathsMatch,
+    Option.flatMap(findUnanchoredPattern),
+    Option.map(pattern =>
+      ResponseError({
+        reason: `Invalid changed_paths_match pattern '${pattern}': patterns must start with 'root' or '*', matching the changedPaths alphabet (e.g. 'root.grid', 'root.cards.*.title').`,
+      }),
+    ),
+  )
+
+const toDiffValue = (maybeValue: Option.Option<unknown>): DiffValue =>
+  Option.match(maybeValue, {
+    onNone: () => DiffValueAbsent(),
+    onSome: value => DiffValuePresent({ value: value ?? null }),
+  })
+
 const indexResponse = (document: unknown): Response =>
   Option.match(indexMessageSchemaDocument(document), {
     onNone: () =>
@@ -340,46 +375,146 @@ const dispatchRequest = (
       RequestGetModel: ({ maybePath, expand }) =>
         Effect.gen(function* () {
           const state = yield* SubscriptionRef.get(store.stateRef)
-          const index = currentAbsoluteIndex(
-            state.entries.length,
-            state.startIndex,
-          )
+          const index = latestEntryIndex(state)
           return yield* readModelResponse(store, index, maybePath, expand)
         }),
 
       RequestGetModelAt: ({ index, maybePath, expand }) =>
-        readModelResponse(store, index, maybePath, expand),
-
-      RequestListMessages: ({ limit, maybeSinceIndex }) =>
         Effect.gen(function* () {
           const state = yield* SubscriptionRef.get(store.stateRef)
-          const startAbsolute = Option.getOrElse(
-            maybeSinceIndex,
-            () => state.startIndex,
-          )
-          const startRelative = Math.max(0, startAbsolute - state.startIndex)
-
-          const sliced = pipe(
-            state.entries,
-            Array.drop(startRelative),
-            Array.take(limit),
-            Array.map((entry, sliceIndex) =>
-              toSerializedEntry(
-                entry,
-                state.startIndex + startRelative + sliceIndex,
-              ),
-            ),
-          )
-
-          const totalCount = state.startIndex + state.entries.length
-          const nextIndex = state.startIndex + startRelative + sliced.length
-          const maybeNextIndex = OptionExt.when(
-            nextIndex < totalCount,
-            nextIndex,
-          )
-
-          return ResponseMessages({ entries: sliced, maybeNextIndex })
+          if (!isIndexReadable(state, index)) {
+            return ResponseError({
+              reason: formatIndexNotReadable(state, index),
+            })
+          }
+          return yield* readModelResponse(store, index, maybePath, expand)
         }),
+
+      RequestListMessages: ({
+        limit,
+        maybeSinceIndex,
+        maybeChangedPathsMatch,
+        fromEnd,
+      }) =>
+        Effect.gen(function* () {
+          if (fromEnd && Option.isSome(maybeSinceIndex)) {
+            return ResponseError({
+              reason:
+                'from_end cannot be combined with since_index. Use from_end alone to read the latest entries, or since_index to page forward.',
+            })
+          }
+          const maybeInvalidPattern = maybePatternError(maybeChangedPathsMatch)
+          if (Option.isSome(maybeInvalidPattern)) {
+            return maybeInvalidPattern.value
+          }
+
+          const state = yield* SubscriptionRef.get(store.stateRef)
+          const candidates = collectMatchingEntries(
+            state,
+            maybeSinceIndex,
+            maybeChangedPathsMatch,
+          )
+          const { page, maybeNextIndex } = pageMatchingEntries(
+            candidates,
+            limit,
+            fromEnd,
+          )
+          const entries = Array.map(page, ({ entry, index }) =>
+            toSerializedEntry(entry, index),
+          )
+
+          return ResponseMessages({ entries, maybeNextIndex })
+        }),
+
+      RequestCountMessagesByTag: ({
+        maybeSinceIndex,
+        maybeChangedPathsMatch,
+      }) =>
+        Effect.gen(function* () {
+          const maybeInvalidPattern = maybePatternError(maybeChangedPathsMatch)
+          if (Option.isSome(maybeInvalidPattern)) {
+            return maybeInvalidPattern.value
+          }
+
+          const state = yield* SubscriptionRef.get(store.stateRef)
+          const candidates = collectMatchingEntries(
+            state,
+            maybeSinceIndex,
+            maybeChangedPathsMatch,
+          )
+          const scannedFromIndex = Math.max(
+            Option.getOrElse(maybeSinceIndex, () => state.startIndex),
+            state.startIndex,
+          )
+          return ResponseMessageCounts({
+            counts: countEntriesByTag(candidates),
+            totalCount: candidates.length,
+            scannedFromIndex,
+            scannedToIndex: latestEntryIndex(state),
+          })
+        }),
+
+      RequestDiffModels: ({ fromIndex, toIndex, maybeChangedPathsMatch }) =>
+        Effect.gen(function* () {
+          const maybeInvalidPattern = maybePatternError(maybeChangedPathsMatch)
+          if (Option.isSome(maybeInvalidPattern)) {
+            return maybeInvalidPattern.value
+          }
+
+          const state = yield* SubscriptionRef.get(store.stateRef)
+          const maybeUnreadableIndex = Array.findFirst(
+            [fromIndex, toIndex],
+            index => !isIndexReadable(state, index),
+          )
+          if (Option.isSome(maybeUnreadableIndex)) {
+            return ResponseError({
+              reason: formatIndexNotReadable(state, maybeUnreadableIndex.value),
+            })
+          }
+
+          const beforeModel = yield* store.getModelAtIndex(fromIndex)
+          const afterModel = yield* store.getModelAtIndex(toIndex)
+          // NOTE: the diff must walk the same trees the paths are resolved
+          // against. toInspectableValue converts Date/File/Blob/URL instances
+          // to plain data, so diffing the transformed trees keeps every
+          // emitted path resolvable and lets instance-typed fields (whose raw
+          // forms have no enumerable keys) surface as value changes.
+          const diff = computeDiff(
+            toInspectableValue(beforeModel),
+            toInspectableValue(afterModel),
+          )
+          const maybePatterns = Option.filter(
+            maybeChangedPathsMatch,
+            Array.isReadonlyArrayNonEmpty,
+          )
+
+          const changes = pipe(
+            diff.changedPaths,
+            Array.fromIterable,
+            Array.filter(path =>
+              Option.match(maybePatterns, {
+                onNone: () => true,
+                onSome: patterns => matchesAnyPathPattern(path, patterns),
+              }),
+            ),
+            Array.sort(pathOrder),
+            Array.map(path => ({
+              path,
+              before: toDiffValue(readSummarizedValueAt(beforeModel, path)),
+              after: toDiffValue(readSummarizedValueAt(afterModel, path)),
+            })),
+          )
+
+          return ResponseModelDiff({ fromIndex, toIndex, changes })
+        }).pipe(
+          Effect.catchCause(cause =>
+            Effect.succeed(
+              ResponseError({
+                reason: `Failed to diff Models between ${fromIndex} and ${toIndex}: ${Cause.pretty(cause)}`,
+              }),
+            ),
+          ),
+        ),
 
       RequestGetMessage: ({ index }) =>
         Effect.gen(function* () {
@@ -425,6 +560,12 @@ const dispatchRequest = (
       RequestReplayToKeyframe: ({ keyframeIndex }) =>
         pipe(
           Effect.gen(function* () {
+            const state = yield* SubscriptionRef.get(store.stateRef)
+            if (!isIndexReadable(state, keyframeIndex)) {
+              return ResponseError({
+                reason: formatIndexNotReadable(state, keyframeIndex),
+              })
+            }
             yield* store.jumpTo(keyframeIndex)
             const model = yield* store.getModelAtIndex(keyframeIndex)
             return ResponseReplayed({ model: toInspectableValue(model) })
@@ -507,10 +648,7 @@ const dispatchRequest = (
       RequestGetRuntimeState: () =>
         Effect.gen(function* () {
           const state = yield* SubscriptionRef.get(store.stateRef)
-          const currentIndex = currentAbsoluteIndex(
-            state.entries.length,
-            state.startIndex,
-          )
+          const currentIndex = latestEntryIndex(state)
           return ResponseRuntimeState({
             currentIndex,
             startIndex: state.startIndex,
