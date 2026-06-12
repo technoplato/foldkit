@@ -2,12 +2,13 @@ const useKeyboardShortcuts = (dispatch: React.Dispatch<Action>): void => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isModifier = event.metaKey || event.ctrlKey
-      if (isModifier && event.shiftKey && event.key === 'z') {
+      const key = event.key.toLowerCase()
+      if (isModifier && event.shiftKey && key === 'z') {
         event.preventDefault()
         dispatch({ type: 'ClickedRedo' })
         return
       }
-      if (isModifier && event.key === 'z') {
+      if (isModifier && key === 'z') {
         event.preventDefault()
         dispatch({ type: 'ClickedUndo' })
         return

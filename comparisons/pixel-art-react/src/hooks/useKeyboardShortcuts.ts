@@ -8,20 +8,21 @@ export const useKeyboardShortcuts = (
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isModifier = event.metaKey || event.ctrlKey
+      const key = event.key.toLowerCase()
 
-      if (isModifier && event.shiftKey && event.key === 'z') {
+      if (isModifier && event.shiftKey && key === 'z') {
         event.preventDefault()
         dispatch({ type: 'ClickedRedo' })
         return
       }
 
-      if (isModifier && event.key === 'z') {
+      if (isModifier && key === 'z') {
         event.preventDefault()
         dispatch({ type: 'ClickedUndo' })
         return
       }
 
-      if (isModifier && event.key === 'y') {
+      if (isModifier && key === 'y') {
         event.preventDefault()
         dispatch({ type: 'ClickedRedo' })
         return
@@ -31,7 +32,7 @@ export const useKeyboardShortcuts = (
         return
       }
 
-      switch (event.key.toLowerCase()) {
+      switch (key) {
         case 'b':
           dispatch({ type: 'SelectedTool', tool: 'Brush' })
           break

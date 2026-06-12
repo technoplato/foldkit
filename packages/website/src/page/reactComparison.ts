@@ -399,7 +399,7 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
       para(
         'In Foldkit, you read the ',
         link(coreMessagesRouter(), 'Message'),
-        ' union alongside the update function. 30 Message declarations, each handled by a case in update. The Model is the only place state lives, and the Message union is the only way to change the Model. So together they form a complete index of every way the app can change state, and exactly what changes for each event.',
+        ' union alongside the update function. 29 Message declarations, each handled by a case in update. The Model is the only place state lives, and the Message union is the only way to change the Model. So together they form a complete index of every way the app can change state, and exactly what changes for each event.',
       ),
       highlightedCodeBlock(
         h.div(
