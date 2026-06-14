@@ -32,9 +32,7 @@ const handleSearchInputKeyDown = (
     M.when('Escape', () =>
       String.isNonEmpty(model.query)
         ? Option.some(ClearedSearchQuery())
-        : Option.some(
-            GotSearchDialogMessage({ message: Ui.Dialog.RequestedClose() }),
-          ),
+        : Option.none(),
     ),
     M.when('Enter', () =>
       model.activeResultIndex >= 0

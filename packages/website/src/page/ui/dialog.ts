@@ -2,9 +2,19 @@ import { Ui } from 'foldkit'
 import { html } from 'foldkit/html'
 
 import type { TableOfContentsEntry } from '../../main'
+import { CityCombobox, comboboxViewInputs } from './combobox'
 import {
+  ClickedDeleteProject,
+  ClickedEditFilters,
+  ClickedOpenAnimatedDialog,
+  ClickedOpenDialog,
+  ClickedOpenProjectSettings,
   GotDialogAnimatedDemoMessage,
   GotDialogDemoMessage,
+  GotNestedDialogChildDemoMessage,
+  GotNestedDialogParentDemoMessage,
+  GotOverlayComboboxDemoMessage,
+  GotOverlayDialogDemoMessage,
   type Message,
 } from './message'
 
@@ -28,6 +38,18 @@ export const animatedHeader: TableOfContentsEntry = {
   text: 'Animated',
 }
 
+export const overlayHeader: TableOfContentsEntry = {
+  level: 'h3',
+  id: 'dialog-field',
+  text: 'Field',
+}
+
+export const nestedHeader: TableOfContentsEntry = {
+  level: 'h3',
+  id: 'dialog-stacked',
+  text: 'Stacked',
+}
+
 // DEMO CONTENT
 
 const triggerClassName =
@@ -44,10 +66,16 @@ const panelClassName =
 const animatedPanelClassName =
   'bg-cream dark:bg-gray-800 rounded-lg p-6 max-w-md mx-auto relative shadow-xl transition duration-150 ease-out data-[closed]:opacity-0 data-[closed]:scale-95'
 
+const settingsPanelClassName =
+  'bg-cream dark:bg-gray-800 rounded-lg p-6 max-w-lg mx-auto relative shadow-xl'
+
+const confirmPanelClassName =
+  'bg-cream dark:bg-gray-800 rounded-lg p-6 max-w-sm mx-auto relative shadow-xl'
+
 const titleClassName = 'text-lg font-normal text-gray-900 dark:text-white mb-2'
 
 const dialogClassName =
-  'backdrop:bg-transparent bg-transparent p-0 open:flex items-center justify-center'
+  'bg-transparent p-0 open:flex items-center justify-center'
 
 const cancelButtonClassName =
   'px-4 py-2 text-base font-normal cursor-pointer transition rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -55,23 +83,27 @@ const cancelButtonClassName =
 const confirmButtonClassName =
   'px-4 py-2 text-base font-normal cursor-pointer transition rounded-lg bg-accent-600 dark:bg-accent-500 text-white dark:text-accent-900 hover:bg-accent-700'
 
+const dangerButtonClassName =
+  'px-4 py-2 text-base font-normal cursor-pointer transition rounded-lg bg-red-600 text-white hover:bg-red-700'
+
+const OVERLAY_COMBOBOX_ANCHOR = {
+  placement: 'bottom-start' as const,
+  gap: 8,
+  padding: 8,
+  portal: false,
+}
+
 // VIEW
 
 export const dialogDemo = (dialogModel: Ui.Dialog.Model) => {
   const h = html<Message>()
-
-  const dialogToParentMessage = (message: Ui.Dialog.Message): Message =>
-    GotDialogDemoMessage({ message })
 
   return [
     h.div(
       [h.Class('flex gap-3')],
       [
         h.button(
-          [
-            h.Class(triggerClassName),
-            h.OnClick(dialogToParentMessage(Ui.Dialog.RequestedOpen())),
-          ],
+          [h.Class(triggerClassName), h.OnClick(ClickedOpenDialog())],
           ['Open Dialog'],
         ),
       ],
@@ -81,7 +113,7 @@ export const dialogDemo = (dialogModel: Ui.Dialog.Model) => {
       model: dialogModel,
       view: Ui.Dialog.view,
       viewInputs: {
-        toView: ({ dialog, backdrop, panel, isVisible }) =>
+        toView: ({ dialog, backdrop, panel, closeButton, isVisible }) =>
           h.dialog(
             [...dialog, h.Class(dialogClassName)],
             isVisible
@@ -111,23 +143,15 @@ export const dialogDemo = (dialogModel: Ui.Dialog.Model) => {
                             [
                               h.button(
                                 [
+                                  ...closeButton,
                                   h.Class(cancelButtonClassName),
-                                  h.OnClick(
-                                    dialogToParentMessage(
-                                      Ui.Dialog.RequestedClose(),
-                                    ),
-                                  ),
                                 ],
                                 ['Cancel'],
                               ),
                               h.button(
                                 [
+                                  ...closeButton,
                                   h.Class(confirmButtonClassName),
-                                  h.OnClick(
-                                    dialogToParentMessage(
-                                      Ui.Dialog.RequestedClose(),
-                                    ),
-                                  ),
                                 ],
                                 ['Confirm'],
                               ),
@@ -141,27 +165,24 @@ export const dialogDemo = (dialogModel: Ui.Dialog.Model) => {
               : [],
           ),
       },
-      toParentMessage: message => dialogToParentMessage(message),
+      toParentMessage: message => GotDialogDemoMessage({ message }),
     }),
   ]
 }
 
-export const dialogAnimatedDemo = (dialogModel: Ui.Dialog.Model) => {
+export const overlayDialogDemo = (
+  dialogModel: Ui.Dialog.Model,
+  comboboxModel: Ui.Combobox.Model,
+) => {
   const h = html<Message>()
-
-  const dialogToParentMessage = (message: Ui.Dialog.Message): Message =>
-    GotDialogAnimatedDemoMessage({ message })
 
   return [
     h.div(
       [h.Class('flex gap-3')],
       [
         h.button(
-          [
-            h.Class(triggerClassName),
-            h.OnClick(dialogToParentMessage(Ui.Dialog.RequestedOpen())),
-          ],
-          ['Open Animated Dialog'],
+          [h.Class(triggerClassName), h.OnClick(ClickedEditFilters())],
+          ['Edit filters'],
         ),
       ],
     ),
@@ -171,6 +192,211 @@ export const dialogAnimatedDemo = (dialogModel: Ui.Dialog.Model) => {
       view: Ui.Dialog.view,
       viewInputs: {
         toView: ({ dialog, backdrop, panel, isVisible }) =>
+          h.dialog(
+            [...dialog, h.Class(dialogClassName)],
+            isVisible
+              ? [
+                  h.div([...backdrop, h.Class(backdropClassName)], []),
+                  h.div(
+                    [...panel, h.Class(panelClassName)],
+                    [
+                      h.div(
+                        [],
+                        [
+                          h.h2(
+                            [
+                              h.Class(titleClassName),
+                              h.Id(Ui.Dialog.titleId(dialogModel)),
+                            ],
+                            ['Edit filters'],
+                          ),
+                          h.p(
+                            [h.Class('text-gray-600 dark:text-gray-300 mb-4')],
+                            [
+                              'With portal: false, the combobox panel stays inside the dialog instead of rendering behind it.',
+                            ],
+                          ),
+                          h.submodel({
+                            slotId: comboboxModel.id,
+                            model: comboboxModel,
+                            view: CityCombobox.view,
+                            viewInputs: comboboxViewInputs(
+                              comboboxModel.inputValue,
+                              OVERLAY_COMBOBOX_ANCHOR,
+                              'relative w-full',
+                            ),
+                            toParentMessage: message =>
+                              GotOverlayComboboxDemoMessage({ message }),
+                          }),
+                        ],
+                      ),
+                    ],
+                  ),
+                ]
+              : [],
+          ),
+      },
+      toParentMessage: message => GotOverlayDialogDemoMessage({ message }),
+    }),
+  ]
+}
+
+export const nestedDialogDemo = (
+  parentDialogModel: Ui.Dialog.Model,
+  childDialogModel: Ui.Dialog.Model,
+) => {
+  const h = html<Message>()
+
+  return [
+    h.div(
+      [h.Class('flex gap-3')],
+      [
+        h.button(
+          [h.Class(triggerClassName), h.OnClick(ClickedOpenProjectSettings())],
+          ['Open project settings'],
+        ),
+      ],
+    ),
+    h.submodel({
+      slotId: parentDialogModel.id,
+      model: parentDialogModel,
+      view: Ui.Dialog.view,
+      viewInputs: {
+        toView: ({ dialog, backdrop, panel, closeButton, isVisible }) =>
+          h.dialog(
+            [...dialog, h.Class(dialogClassName)],
+            isVisible
+              ? [
+                  h.div([...backdrop, h.Class(backdropClassName)], []),
+                  h.div(
+                    [...panel, h.Class(settingsPanelClassName)],
+                    [
+                      h.div(
+                        [],
+                        [
+                          h.h2(
+                            [
+                              h.Class(titleClassName),
+                              h.Id(Ui.Dialog.titleId(parentDialogModel)),
+                            ],
+                            ['Project settings'],
+                          ),
+                          h.p(
+                            [h.Class('text-gray-600 dark:text-gray-300 mb-4')],
+                            [
+                              'Deleting the project removes all of its data. The confirmation opens as a second dialog stacked on top of this one.',
+                            ],
+                          ),
+                          h.div(
+                            [h.Class('flex gap-2 justify-end')],
+                            [
+                              h.button(
+                                [
+                                  ...closeButton,
+                                  h.Class(cancelButtonClassName),
+                                ],
+                                ['Close'],
+                              ),
+                              h.button(
+                                [
+                                  h.Class(dangerButtonClassName),
+                                  h.OnClick(ClickedDeleteProject()),
+                                ],
+                                ['Delete project'],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ]
+              : [],
+          ),
+      },
+      toParentMessage: message => GotNestedDialogParentDemoMessage({ message }),
+    }),
+    h.submodel({
+      slotId: childDialogModel.id,
+      model: childDialogModel,
+      view: Ui.Dialog.view,
+      viewInputs: {
+        toView: ({ dialog, backdrop, panel, closeButton, isVisible }) =>
+          h.dialog(
+            [...dialog, h.Class(dialogClassName)],
+            isVisible
+              ? [
+                  h.div([...backdrop, h.Class(backdropClassName)], []),
+                  h.div(
+                    [...panel, h.Class(confirmPanelClassName)],
+                    [
+                      h.div(
+                        [],
+                        [
+                          h.h2(
+                            [
+                              h.Class(titleClassName),
+                              h.Id(Ui.Dialog.titleId(childDialogModel)),
+                            ],
+                            ['Delete project?'],
+                          ),
+                          h.p(
+                            [h.Class('text-gray-600 dark:text-gray-300 mb-4')],
+                            [
+                              'This permanently deletes the project and cannot be undone. Escape closes this confirmation first, then the settings dialog.',
+                            ],
+                          ),
+                          h.div(
+                            [h.Class('flex gap-2 justify-end')],
+                            [
+                              h.button(
+                                [
+                                  ...closeButton,
+                                  h.Class(cancelButtonClassName),
+                                ],
+                                ['Cancel'],
+                              ),
+                              h.button(
+                                [
+                                  ...closeButton,
+                                  h.Class(dangerButtonClassName),
+                                ],
+                                ['Delete'],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ]
+              : [],
+          ),
+      },
+      toParentMessage: message => GotNestedDialogChildDemoMessage({ message }),
+    }),
+  ]
+}
+
+export const dialogAnimatedDemo = (dialogModel: Ui.Dialog.Model) => {
+  const h = html<Message>()
+
+  return [
+    h.div(
+      [h.Class('flex gap-3')],
+      [
+        h.button(
+          [h.Class(triggerClassName), h.OnClick(ClickedOpenAnimatedDialog())],
+          ['Open Animated Dialog'],
+        ),
+      ],
+    ),
+    h.submodel({
+      slotId: dialogModel.id,
+      model: dialogModel,
+      view: Ui.Dialog.view,
+      viewInputs: {
+        toView: ({ dialog, backdrop, panel, closeButton, isVisible }) =>
           h.dialog(
             [...dialog, h.Class(dialogClassName)],
             isVisible
@@ -200,23 +426,15 @@ export const dialogAnimatedDemo = (dialogModel: Ui.Dialog.Model) => {
                             [
                               h.button(
                                 [
+                                  ...closeButton,
                                   h.Class(cancelButtonClassName),
-                                  h.OnClick(
-                                    dialogToParentMessage(
-                                      Ui.Dialog.RequestedClose(),
-                                    ),
-                                  ),
                                 ],
                                 ['Cancel'],
                               ),
                               h.button(
                                 [
+                                  ...closeButton,
                                   h.Class(confirmButtonClassName),
-                                  h.OnClick(
-                                    dialogToParentMessage(
-                                      Ui.Dialog.RequestedClose(),
-                                    ),
-                                  ),
                                 ],
                                 ['Confirm'],
                               ),
@@ -230,7 +448,7 @@ export const dialogAnimatedDemo = (dialogModel: Ui.Dialog.Model) => {
               : [],
           ),
       },
-      toParentMessage: message => dialogToParentMessage(message),
+      toParentMessage: message => GotDialogAnimatedDemoMessage({ message }),
     }),
   ]
 }

@@ -318,30 +318,35 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
 
-      DismissedErrorDialog: () => {
-        const [nextDialog, dialogCommands] = Ui.Dialog.close(model.errorDialog)
-        return [
-          evo(model, {
-            errorDialog: () => nextDialog,
-            maybeExportError: () => Option.none(),
-          }),
-          Command.mapMessages(dialogCommands, dialogMessage =>
-            GotErrorDialogMessage({ message: dialogMessage }),
-          ),
-        ]
-      },
-
       GotErrorDialogMessage: ({ message }) => {
-        const [nextErrorDialog, errorDialogCommands] = Ui.Dialog.update(
-          model.errorDialog,
-          message,
+        const [nextErrorDialog, errorDialogCommands, maybeOutMessage] =
+          Ui.Dialog.update(model.errorDialog, message)
+        const mappedCommands = Command.mapMessages(
+          errorDialogCommands,
+          dialogMessage => GotErrorDialogMessage({ message: dialogMessage }),
         )
-        return [
-          evo(model, { errorDialog: () => nextErrorDialog }),
-          Command.mapMessages(errorDialogCommands, dialogMessage =>
-            GotErrorDialogMessage({ message: dialogMessage }),
+        return Option.match(maybeOutMessage, {
+          onNone: () => [
+            evo(model, { errorDialog: () => nextErrorDialog }),
+            mappedCommands,
+          ],
+          onSome: M.type<Ui.Dialog.OutMessage>().pipe(
+            M.withReturnType<UpdateReturn>(),
+            M.tagsExhaustive({
+              Opened: () => [
+                evo(model, { errorDialog: () => nextErrorDialog }),
+                mappedCommands,
+              ],
+              Closed: () => [
+                evo(model, {
+                  errorDialog: () => nextErrorDialog,
+                  maybeExportError: () => Option.none(),
+                }),
+                mappedCommands,
+              ],
+            }),
           ),
-        ]
+        })
       },
 
       GotToolRadioGroupMessage: ({ message }) => {
@@ -560,24 +565,6 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             return [nextModel, [...mappedDialogCommands, saveCanvas(nextModel)]]
           },
         }),
-
-      DismissedGridSizeConfirmDialog: () => {
-        const [nextDialog, dialogCommands] = Ui.Dialog.close(
-          model.gridSizeConfirmDialog,
-        )
-        return [
-          evo(model, {
-            gridSizeConfirmDialog: () => nextDialog,
-            maybePendingGridSize: () => Option.none(),
-            gridSizeRadioGroup: GridSizeRadioGroup.reflectSelectedValue(
-              Option.some(model.gridSize.toString()),
-            ),
-          }),
-          Command.mapMessages(dialogCommands, dialogMessage =>
-            GotGridSizeConfirmDialogMessage({ message: dialogMessage }),
-          ),
-        ]
-      },
 
       GotGridSizeConfirmDialogMessage: ({ message }) => {
         const [nextDialog, dialogCommands, maybeOutMessage] = Ui.Dialog.update(

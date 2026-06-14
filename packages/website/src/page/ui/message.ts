@@ -74,6 +74,32 @@ export const GotDialogDemoMessage = m('GotDialogDemoMessage', {
 export const GotDialogAnimatedDemoMessage = m('GotDialogAnimatedDemoMessage', {
   message: Ui.Dialog.Message,
 })
+export const GotOverlayDialogDemoMessage = m('GotOverlayDialogDemoMessage', {
+  message: Ui.Dialog.Message,
+})
+export const GotOverlayComboboxDemoMessage = m(
+  'GotOverlayComboboxDemoMessage',
+  {
+    message: Ui.Combobox.Message,
+  },
+)
+export const GotNestedDialogParentDemoMessage = m(
+  'GotNestedDialogParentDemoMessage',
+  {
+    message: Ui.Dialog.Message,
+  },
+)
+export const GotNestedDialogChildDemoMessage = m(
+  'GotNestedDialogChildDemoMessage',
+  {
+    message: Ui.Dialog.Message,
+  },
+)
+export const ClickedDeleteProject = m('ClickedDeleteProject')
+export const ClickedOpenDialog = m('ClickedOpenDialog')
+export const ClickedOpenAnimatedDialog = m('ClickedOpenAnimatedDialog')
+export const ClickedEditFilters = m('ClickedEditFilters')
+export const ClickedOpenProjectSettings = m('ClickedOpenProjectSettings')
 export const GotDisclosureDemoMessage = m('GotDisclosureDemoMessage', {
   message: Ui.Disclosure.Message,
 })
@@ -204,6 +230,15 @@ export const Message = S.Union([
   GotComboboxSelectOnFocusDemoMessage,
   GotDialogDemoMessage,
   GotDialogAnimatedDemoMessage,
+  GotOverlayDialogDemoMessage,
+  GotOverlayComboboxDemoMessage,
+  GotNestedDialogParentDemoMessage,
+  GotNestedDialogChildDemoMessage,
+  ClickedDeleteProject,
+  ClickedOpenDialog,
+  ClickedOpenAnimatedDialog,
+  ClickedEditFilters,
+  ClickedOpenProjectSettings,
   GotDisclosureDemoMessage,
   GotListboxDemoMessage,
   GotListboxMultiDemoMessage,

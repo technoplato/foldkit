@@ -349,7 +349,7 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
       ),
       tableOfContentsEntryToHeader(foldkitMessageHeader),
       para(
-        'The Foldkit Message union has 29. Same naming convention, same facts, same role as the total input domain of the update function:',
+        'The Foldkit Message union has 27. Same naming convention, same facts, same role as the total input domain of the update function:',
       ),
       highlightedCodeBlock(
         h.div(
@@ -365,7 +365,7 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
         'mb-4',
       ),
       para(
-        'Why 29 against 21? The difference is structural, not stylistic. Foldkit Commands report back: ',
+        'Why 27 against 21? The difference is structural, not stylistic. Foldkit Commands report back: ',
         inlineCode('CompletedSaveCanvas'),
         ' and ',
         inlineCode('SucceededExportPng'),
@@ -373,13 +373,19 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
         inlineCode('Got*Message'),
         ' variants delegating to ',
         link(uiOverviewRouter(), 'Foldkit UI'),
-        ' Submodels (Dialog, RadioGroup, Switch, Listbox). The Elm version hand-rolls those components, so their events collapse into the app’s own Msg variants, including two Msgs Foldkit doesn’t need: ',
+        ' Submodels (Dialog, RadioGroup, Switch, Listbox). The Elm version hand-rolls those components, so their events collapse into the app’s own Msg variants, including four Msgs Foldkit doesn’t need: ',
         inlineCode('ToggledThemePicker'),
         ' and ',
         inlineCode('SelectedPaletteTheme'),
         ', because the shipped Listbox tracks its own open state and reports selection through its ',
         inlineCode('Got*Message'),
-        '.',
+        '; plus ',
+        inlineCode('DismissedErrorDialog'),
+        ' and ',
+        inlineCode('DismissedGridSizeDialog'),
+        ', because the shipped Dialog closes itself through its ',
+        inlineCode('close'),
+        ' bundle.',
       ),
       para(
         'One real difference hides in the type definitions. Elm Msgs are constructors of a custom type: they exist at runtime as opaque tagged values. Foldkit Messages are Schema values: serializable, validatable, printable. That’s what lets ',

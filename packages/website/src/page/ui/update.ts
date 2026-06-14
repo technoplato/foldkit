@@ -29,6 +29,10 @@ import {
   GotListboxMultiDemoMessage,
   GotMenuAnimatedDemoMessage,
   GotMenuBasicDemoMessage,
+  GotNestedDialogChildDemoMessage,
+  GotNestedDialogParentDemoMessage,
+  GotOverlayComboboxDemoMessage,
+  GotOverlayDialogDemoMessage,
   GotPopoverAnimatedDemoMessage,
   GotPopoverBasicDemoMessage,
   GotPopoverNestedChildDemoMessage,
@@ -364,6 +368,131 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           }),
           Command.mapMessages(dialogAnimatedCommands, message =>
             GotDialogAnimatedDemoMessage({ message }),
+          ),
+        ]
+      },
+
+      GotOverlayDialogDemoMessage: ({ message }) => {
+        const [nextOverlayDialogDemo, overlayDialogCommands] = Ui.Dialog.update(
+          model.overlayDialogDemo,
+          message,
+        )
+
+        return [
+          evo(model, {
+            overlayDialogDemo: () => nextOverlayDialogDemo,
+          }),
+          Command.mapMessages(overlayDialogCommands, message =>
+            GotOverlayDialogDemoMessage({ message }),
+          ),
+        ]
+      },
+
+      GotOverlayComboboxDemoMessage: ({ message }) => {
+        const [nextOverlayComboboxDemo, overlayComboboxCommands] =
+          CityCombobox.update(model.overlayComboboxDemo, message)
+
+        return [
+          evo(model, {
+            overlayComboboxDemo: () => nextOverlayComboboxDemo,
+          }),
+          Command.mapMessages(overlayComboboxCommands, message =>
+            GotOverlayComboboxDemoMessage({ message }),
+          ),
+        ]
+      },
+
+      GotNestedDialogParentDemoMessage: ({ message }) => {
+        const [nextNestedDialogParentDemo, nestedDialogParentCommands] =
+          Ui.Dialog.update(model.nestedDialogParentDemo, message)
+
+        return [
+          evo(model, {
+            nestedDialogParentDemo: () => nextNestedDialogParentDemo,
+          }),
+          Command.mapMessages(nestedDialogParentCommands, message =>
+            GotNestedDialogParentDemoMessage({ message }),
+          ),
+        ]
+      },
+
+      GotNestedDialogChildDemoMessage: ({ message }) => {
+        const [nextNestedDialogChildDemo, nestedDialogChildCommands] =
+          Ui.Dialog.update(model.nestedDialogChildDemo, message)
+
+        return [
+          evo(model, {
+            nestedDialogChildDemo: () => nextNestedDialogChildDemo,
+          }),
+          Command.mapMessages(nestedDialogChildCommands, message =>
+            GotNestedDialogChildDemoMessage({ message }),
+          ),
+        ]
+      },
+
+      ClickedDeleteProject: () => {
+        const [nextNestedDialogChildDemo, nestedDialogChildCommands] =
+          Ui.Dialog.open(model.nestedDialogChildDemo)
+
+        return [
+          evo(model, {
+            nestedDialogChildDemo: () => nextNestedDialogChildDemo,
+          }),
+          Command.mapMessages(nestedDialogChildCommands, message =>
+            GotNestedDialogChildDemoMessage({ message }),
+          ),
+        ]
+      },
+
+      ClickedOpenDialog: () => {
+        const [nextDialogDemo, dialogCommands] = Ui.Dialog.open(
+          model.dialogDemo,
+        )
+
+        return [
+          evo(model, { dialogDemo: () => nextDialogDemo }),
+          Command.mapMessages(dialogCommands, message =>
+            GotDialogDemoMessage({ message }),
+          ),
+        ]
+      },
+
+      ClickedOpenAnimatedDialog: () => {
+        const [nextDialogAnimatedDemo, dialogAnimatedCommands] = Ui.Dialog.open(
+          model.dialogAnimatedDemo,
+        )
+
+        return [
+          evo(model, { dialogAnimatedDemo: () => nextDialogAnimatedDemo }),
+          Command.mapMessages(dialogAnimatedCommands, message =>
+            GotDialogAnimatedDemoMessage({ message }),
+          ),
+        ]
+      },
+
+      ClickedEditFilters: () => {
+        const [nextOverlayDialogDemo, overlayDialogCommands] = Ui.Dialog.open(
+          model.overlayDialogDemo,
+        )
+
+        return [
+          evo(model, { overlayDialogDemo: () => nextOverlayDialogDemo }),
+          Command.mapMessages(overlayDialogCommands, message =>
+            GotOverlayDialogDemoMessage({ message }),
+          ),
+        ]
+      },
+
+      ClickedOpenProjectSettings: () => {
+        const [nextNestedDialogParentDemo, nestedDialogParentCommands] =
+          Ui.Dialog.open(model.nestedDialogParentDemo)
+
+        return [
+          evo(model, {
+            nestedDialogParentDemo: () => nextNestedDialogParentDemo,
+          }),
+          Command.mapMessages(nestedDialogParentCommands, message =>
+            GotNestedDialogParentDemoMessage({ message }),
           ),
         ]
       },

@@ -53,6 +53,12 @@ export const uiInit = (
       id: 'dialog-animated-demo',
       isAnimated: true,
     }),
+    overlayDialogDemo: Ui.Dialog.init({ id: 'overlay-dialog-demo' }),
+    overlayComboboxDemo: Ui.Combobox.init({ id: 'overlay-combobox-demo' }),
+    nestedDialogParentDemo: Ui.Dialog.init({
+      id: 'nested-dialog-parent-demo',
+    }),
+    nestedDialogChildDemo: Ui.Dialog.init({ id: 'nested-dialog-child-demo' }),
     disclosureDemo: Ui.Disclosure.init({ id: 'disclosure-demo' }),
     dragAndDropDemo: Ui.DragAndDrop.init({ id: 'drag-and-drop-demo' }),
     dragAndDropDemoColumns: [
@@ -92,6 +98,13 @@ export const uiInit = (
     popoverAnimatedDemo: Ui.Popover.init({
       id: 'popover-animated-demo',
       isAnimated: true,
+    }),
+    popoverNestedParentDemo: Ui.Popover.init({
+      id: 'popover-nested-parent-demo',
+      contentFocus: true,
+    }),
+    popoverNestedChildDemo: Ui.Popover.init({
+      id: 'popover-nested-child-demo',
     }),
     verticalRadioGroupDemo: Ui.RadioGroup.init({
       id: 'vertical-radio-group-demo',

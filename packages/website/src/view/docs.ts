@@ -1,6 +1,5 @@
 import { clsx } from 'clsx'
 import { Match as M, Option, String as S } from 'effect'
-import { Ui } from 'foldkit'
 import type { Field } from 'foldkit/fieldValidation'
 import { Html, createLazy, html } from 'foldkit/html'
 
@@ -13,10 +12,10 @@ import {
   type TableOfContentsEntry,
 } from '../main'
 import {
+  ClickedOpenMobileMenu,
   GotApiReferenceMessage,
   GotComingFromReactMessage,
   GotExampleDetailMessage,
-  GotMobileMenuDialogMessage,
   GotSearchMessage,
   GotUiPageMessage,
   type Message,
@@ -37,9 +36,7 @@ const PagefindIgnore = html<Message>().DataAttribute('pagefind-ignore', '')
 const LlmIgnore = html<Message>().DataAttribute('llm-ignore', '')
 
 const openSearchDialog: Message = GotSearchMessage({
-  message: Search.GotSearchDialogMessage({
-    message: Ui.Dialog.RequestedOpen(),
-  }),
+  message: Search.ClickedOpenSearch(),
 })
 
 const searchKeyboardWarmupSelector = `#${Search.KEYBOARD_WARMUP_INPUT_ID}`
@@ -138,11 +135,7 @@ const docsHeaderView = (model: Model) => {
               ),
               h.AriaExpanded(model.mobileMenuDialog.isOpen),
               h.AriaLabel('Toggle menu'),
-              h.OnClick(
-                GotMobileMenuDialogMessage({
-                  message: Ui.Dialog.RequestedOpen(),
-                }),
-              ),
+              h.OnClick(ClickedOpenMobileMenu()),
             ],
             [Icon.menu('w-6 h-6')],
           ),

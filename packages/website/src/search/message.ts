@@ -23,6 +23,8 @@ export const SelectedSearchResult = m('SelectedSearchResult', {
 export const GotSearchDialogMessage = m('GotSearchDialogMessage', {
   message: Ui.Dialog.Message,
 })
+export const ClickedOpenSearch = m('ClickedOpenSearch')
+export const PressedSearchShortcut = m('PressedSearchShortcut')
 export const ClearedSearchQuery = m('ClearedSearchQuery')
 export const CompletedNavigateToResult = m('CompletedNavigateToResult')
 export const CompletedScrollToResult = m('CompletedScrollToResult')
@@ -36,6 +38,8 @@ export const Message = S.Union([
   ReceivedSearchResults,
   SelectedSearchResult,
   GotSearchDialogMessage,
+  ClickedOpenSearch,
+  PressedSearchShortcut,
   ClearedSearchQuery,
   CompletedNavigateToResult,
   CompletedScrollToResult,

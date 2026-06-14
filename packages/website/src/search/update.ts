@@ -23,6 +23,21 @@ export type UpdateReturn = readonly [
 ]
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
 
+const openSearchDialog = (model: Model): UpdateReturn => {
+  const [nextDialog, dialogCommands] = Ui.Dialog.open(model.dialog)
+
+  return [
+    evo(model, { dialog: () => nextDialog }),
+    [
+      ...Command.mapMessages(
+        dialogCommands,
+        (message): Message => GotSearchDialogMessage({ message }),
+      ),
+      FocusSearchInput(),
+    ],
+  ]
+}
+
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     withUpdateReturn,
@@ -78,6 +93,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [NavigateToResult({ url })],
       ],
 
+      ClickedOpenSearch: () => openSearchDialog(model),
+
+      PressedSearchShortcut: () => openSearchDialog(model),
+
       GotSearchDialogMessage: ({ message }) => {
         const [nextDialog, dialogCommands] = Ui.Dialog.update(
           model.dialog,
@@ -93,9 +112,6 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               }
             : {}
 
-        const focusOnOpen =
-          message._tag === 'RequestedOpen' ? [FocusSearchInput()] : []
-
         const mappedDialogCommands = Command.mapMessages(
           dialogCommands,
           (message): Message => GotSearchDialogMessage({ message }),
@@ -103,7 +119,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
 
         return [
           evo(model, { dialog: () => nextDialog, ...resetOnClose }),
-          [...mappedDialogCommands, ...focusOnOpen],
+          mappedDialogCommands,
         ]
       },
 

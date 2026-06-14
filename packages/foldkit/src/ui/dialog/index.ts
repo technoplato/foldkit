@@ -42,7 +42,7 @@ export type Model = typeof Model.Type
 
 // MESSAGE
 
-/** Sent when the dialog should open. Triggers the showModal command. */
+/** Sent when the dialog should open. Triggers the ShowDialog command. */
 export const RequestedOpen = m('RequestedOpen')
 /** Sent when the dialog should close (Escape key, backdrop click, or programmatic). */
 export const RequestedClose = m('RequestedClose')
@@ -133,7 +133,7 @@ type UpdateReturn = readonly [
 ]
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
 
-/** Locks page scroll and calls `showModal()` on the native dialog element. */
+/** Locks page scroll and opens the native dialog element with `show()`. */
 export const ShowDialog = Command.define(
   'ShowDialog',
   { id: S.String, maybeFocusSelector: S.Option(S.String) },
@@ -307,14 +307,18 @@ export const descriptionId = (model: Model): string => `${model.id}-description`
  *  - `dialog`: attributes for the native `<dialog>` element. Carries
  *    the id, ARIA labelling, `open` prop, positioning style, and the
  *    `OnCancel` handler that wires Escape to `RequestedClose`. The
- *    consumer MUST render an `h.dialog(...)` element so the framework's
- *    `showModal`/`close()` commands can target it.
+ *    consumer MUST render an `h.dialog(...)` element so the framework can
+ *    open and close it.
  *  - `backdrop`: attributes for the backdrop element. Includes the
  *    Animation data attributes and the `OnClick` handler that closes
  *    the dialog on outside-click (suppressed while a leave animation
  *    is in progress).
  *  - `panel`: attributes for the panel element. Includes the panel id
  *    (`${model.id}-panel`) and the Animation data attributes.
+ *  - `closeButton`: attributes for an in-panel close control such as a Cancel
+ *    or dismiss button. Carries the `OnClick` handler that closes the
+ *    dialog (suppressed while a leave animation is in progress). Spread
+ *    onto your own button so a plain close needs no parent message.
  *  - `isVisible`: derived from `isOpen` and the Animation
  *    `transitionState`. The consumer renders backdrop + panel only
  *    while this is true. */
@@ -322,6 +326,7 @@ export type RenderInfo = Readonly<{
   dialog: ReadonlyArray<ChildAttribute>
   backdrop: ReadonlyArray<ChildAttribute>
   panel: ReadonlyArray<ChildAttribute>
+  closeButton: ReadonlyArray<ChildAttribute>
   isVisible: boolean
 }>
 
@@ -331,7 +336,7 @@ export type ViewInputs = Readonly<{
 }>
 
 /** Renders a headless dialog component backed by the native `<dialog>`
- *  element with `showModal()`. */
+ *  element opened with `show()`. */
 export const view = defineView<Model, Message, ViewInputs>(
   (model, viewInputs): Html => {
     const h = html<Message>()
@@ -398,10 +403,13 @@ export const view = defineView<Model, Message, ViewInputs>(
 
     const panelAttributes = [h.Id(`${id}-panel`), ...animationAttributes]
 
+    const closeButtonAttributes = isLeaving ? [] : [h.OnClick(RequestedClose())]
+
     return toView({
       dialog: childAttributes(dialogAttributes),
       backdrop: childAttributes(backdropAttributes),
       panel: childAttributes(panelAttributes),
+      closeButton: childAttributes(closeButtonAttributes),
       isVisible,
     })
   },

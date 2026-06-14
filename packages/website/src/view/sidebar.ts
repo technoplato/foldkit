@@ -340,77 +340,80 @@ export const sidebarView = (model: Model): Html => {
     ],
   )
 
-  const mobileMenuContent = h.div(
-    [h.Class('flex flex-col h-full')],
-    [
-      h.div(
-        [
-          h.Class(
-            'flex justify-between items-center h-[var(--header-height)] pt-[env(safe-area-inset-top,0px)] px-3 border-b border-gray-300 dark:border-gray-800 shrink-0',
-          ),
-        ],
-        [
-          h.a(
-            [h.Href(homeRouter()), h.Class('flex items-center gap-2')],
-            [
-              h.img([
-                h.Src('/logo.svg'),
-                h.Alt('Foldkit'),
-                h.Width('801'),
-                h.Height('200'),
-                h.Class('h-6 w-auto dark:invert'),
-              ]),
-              betaTag,
-            ],
-          ),
-          h.button(
-            [
-              h.Class(
-                'p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300 cursor-pointer',
-              ),
-              h.AriaLabel('Close menu'),
-              h.OnClick(
-                GotMobileMenuDialogMessage({
-                  message: Ui.Dialog.RequestedClose(),
-                }),
-              ),
-            ],
-            [Icon.close('w-6 h-6')],
-          ),
-        ],
-      ),
-      h.nav(
-        [
-          h.AriaLabel('Documentation'),
-          h.Class('flex-1 overflow-y-auto'),
-          h.Tabindex(-1),
-          h.Autofocus(true),
-        ],
-        [mobileNavLinks],
-      ),
-      h.div(
-        [h.Class('p-4 border-t border-gray-300 dark:border-gray-800 shrink-0')],
-        [
-          h.div(
-            [h.Class('flex items-center justify-center gap-8')],
-            [
-              iconLink(Link.github, 'GitHub', Icon.github('w-6 h-6')),
-              iconLink(Link.discord, 'Discord', Icon.discord('w-6 h-6')),
-              iconLink(Link.xSocial, 'X', Icon.xSocial('w-6 h-6')),
-              iconLink(Link.npm, 'npm', Icon.npm('w-8 h-8')),
-            ],
-          ),
-        ],
-      ),
-    ],
-  )
+  const mobileMenuContent = (
+    closeButton: Ui.Dialog.RenderInfo['closeButton'],
+  ): Html =>
+    h.div(
+      [h.Class('flex flex-col h-full')],
+      [
+        h.div(
+          [
+            h.Class(
+              'flex justify-between items-center h-[var(--header-height)] pt-[env(safe-area-inset-top,0px)] px-3 border-b border-gray-300 dark:border-gray-800 shrink-0',
+            ),
+          ],
+          [
+            h.a(
+              [h.Href(homeRouter()), h.Class('flex items-center gap-2')],
+              [
+                h.img([
+                  h.Src('/logo.svg'),
+                  h.Alt('Foldkit'),
+                  h.Width('801'),
+                  h.Height('200'),
+                  h.Class('h-6 w-auto dark:invert'),
+                ]),
+                betaTag,
+              ],
+            ),
+            h.button(
+              [
+                ...closeButton,
+                h.Class(
+                  'p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300 cursor-pointer',
+                ),
+                h.AriaLabel('Close menu'),
+              ],
+              [Icon.close('w-6 h-6')],
+            ),
+          ],
+        ),
+        h.nav(
+          [
+            h.AriaLabel('Documentation'),
+            h.Class('flex-1 overflow-y-auto'),
+            h.Tabindex(-1),
+            h.Autofocus(true),
+          ],
+          [mobileNavLinks],
+        ),
+        h.div(
+          [
+            h.Class(
+              'p-4 border-t border-gray-300 dark:border-gray-800 shrink-0',
+            ),
+          ],
+          [
+            h.div(
+              [h.Class('flex items-center justify-center gap-8')],
+              [
+                iconLink(Link.github, 'GitHub', Icon.github('w-6 h-6')),
+                iconLink(Link.discord, 'Discord', Icon.discord('w-6 h-6')),
+                iconLink(Link.xSocial, 'X', Icon.xSocial('w-6 h-6')),
+                iconLink(Link.npm, 'npm', Icon.npm('w-8 h-8')),
+              ],
+            ),
+          ],
+        ),
+      ],
+    )
 
   const mobileMenu = h.submodel({
     slotId: model.mobileMenuDialog.id,
     model: model.mobileMenuDialog,
     view: Ui.Dialog.view,
     viewInputs: {
-      toView: ({ dialog, backdrop, panel, isVisible }) =>
+      toView: ({ dialog, backdrop, panel, closeButton, isVisible }) =>
         h.dialog(
           [...dialog, h.Class('md:hidden')],
           isVisible
@@ -423,7 +426,7 @@ export const sidebarView = (model: Model): Html => {
                       'fixed inset-0 z-[60] bg-cream dark:bg-gray-900 flex flex-col',
                     ),
                   ],
-                  [mobileMenuContent],
+                  [mobileMenuContent(closeButton)],
                 ),
               ]
             : [],

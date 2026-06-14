@@ -4,12 +4,14 @@ import { expect, vi } from 'vitest'
 
 import {
   ElementNotFound,
+  closeModal,
   focus,
   inertOthers,
   lockScroll,
   restoreInert,
   scrollIntoView,
   scrollIntoViewAfterPaint,
+  showModal,
   unlockScroll,
 } from './index.js'
 
@@ -347,5 +349,165 @@ describe('restoreInert', () => {
     Effect.gen(function* () {
       yield* restoreInert('nonexistent')
     }),
+  )
+})
+
+describe('showModal', () => {
+  const makeDialog = (id: string): HTMLDialogElement => {
+    const dialog = document.createElement('dialog')
+    dialog.id = id
+    const button = document.createElement('button')
+    button.textContent = 'ok'
+    dialog.appendChild(button)
+    document.body.appendChild(dialog)
+    return dialog
+  }
+
+  const pressEscape = (): void => {
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+  }
+
+  const pressTab = (): KeyboardEvent => {
+    const event = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      bubbles: true,
+      cancelable: true,
+    })
+    document.dispatchEvent(event)
+    return event
+  }
+
+  it.effect('routes Escape to a single open dialog', () =>
+    Effect.gen(function* () {
+      makeDialog('solo')
+      const cancelled: Array<string> = []
+      document
+        .querySelector('#solo')
+        ?.addEventListener('cancel', () => cancelled.push('solo'))
+
+      yield* showModal('#solo')
+      pressEscape()
+
+      expect(cancelled).toEqual(['solo'])
+
+      yield* closeModal('#solo')
+      document.body.innerHTML = ''
+    }),
+  )
+
+  it.effect(
+    'routes Escape to the topmost dialog when dialogs are stacked',
+    () =>
+      Effect.gen(function* () {
+        makeDialog('parent')
+        makeDialog('child')
+        const cancelled: Array<string> = []
+        document
+          .querySelector('#parent')
+          ?.addEventListener('cancel', () => cancelled.push('parent'))
+        document
+          .querySelector('#child')
+          ?.addEventListener('cancel', () => cancelled.push('child'))
+
+        yield* showModal('#parent')
+        yield* showModal('#child')
+
+        pressEscape()
+        expect(cancelled).toEqual(['child'])
+
+        yield* closeModal('#child')
+        pressEscape()
+        expect(cancelled).toEqual(['child', 'parent'])
+
+        yield* closeModal('#parent')
+        document.body.innerHTML = ''
+      }),
+  )
+
+  it.effect('does not close when the Escape was already prevented', () =>
+    Effect.gen(function* () {
+      makeDialog('solo')
+      const cancelled: Array<string> = []
+      document
+        .querySelector('#solo')
+        ?.addEventListener('cancel', () => cancelled.push('solo'))
+
+      yield* showModal('#solo')
+
+      const event = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      })
+      event.preventDefault()
+      document.dispatchEvent(event)
+
+      expect(cancelled).toEqual([])
+
+      yield* closeModal('#solo')
+      document.body.innerHTML = ''
+    }),
+  )
+
+  it.effect('traps Tab within the topmost dialog only', () =>
+    Effect.gen(function* () {
+      const parent = makeDialog('parent')
+      const child = makeDialog('child')
+
+      yield* showModal('#parent')
+      yield* showModal('#child')
+
+      child.querySelector<HTMLButtonElement>('button')?.focus()
+      expect(pressTab().defaultPrevented).toBe(true)
+
+      parent.querySelector<HTMLButtonElement>('button')?.focus()
+      expect(pressTab().defaultPrevented).toBe(false)
+
+      yield* closeModal('#child')
+      yield* closeModal('#parent')
+      document.body.innerHTML = ''
+    }),
+  )
+
+  it.effect('restores focus to the trigger when a dialog closes', () =>
+    Effect.gen(function* () {
+      const trigger = document.createElement('button')
+      trigger.id = 'trigger'
+      document.body.appendChild(trigger)
+      makeDialog('solo')
+
+      trigger.focus()
+      yield* showModal('#solo')
+      yield* closeModal('#solo')
+
+      expect(document.activeElement).toBe(trigger)
+      document.body.innerHTML = ''
+    }),
+  )
+
+  it.effect(
+    'restores focus to the dialog beneath when a stacked dialog closes',
+    () =>
+      Effect.gen(function* () {
+        const parent = makeDialog('parent')
+        makeDialog('child')
+        const parentButton = parent.querySelector<HTMLButtonElement>('button')
+
+        yield* showModal('#parent')
+        parentButton?.focus()
+        yield* showModal('#child')
+        yield* closeModal('#child')
+
+        expect(document.activeElement).toBe(parentButton)
+
+        yield* closeModal('#parent')
+        document.body.innerHTML = ''
+      }),
   )
 })

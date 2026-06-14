@@ -100,8 +100,10 @@ const filterCities = (inputValue: string): ReadonlyArray<City> =>
         city.toLowerCase().includes(inputValue.toLowerCase()),
       )
 
-const comboboxViewInputs = (
+export const comboboxViewInputs = (
   inputValue: string,
+  anchor: AnchorConfig = COMBOBOX_ANCHOR,
+  wrapperClass: string = wrapperClassName,
 ): Ui.Combobox.ViewInputs<City> => {
   const h = html<Message>()
   const filteredCities = filterCities(inputValue)
@@ -131,11 +133,11 @@ const comboboxViewInputs = (
     ]),
     itemsAttributes: childAttributes([h.Class(itemsClassName)]),
     backdropAttributes: childAttributes([h.Class(backdropClassName)]),
-    attributes: childAttributes([h.Class(wrapperClassName)]),
+    attributes: childAttributes([h.Class(wrapperClass)]),
     inputWrapperAttributes: childAttributes([h.Class('relative')]),
     buttonContent: Icon.chevronDown('w-4 h-4'),
     buttonAttributes: childAttributes([h.Class(buttonClassName)]),
-    anchor: COMBOBOX_ANCHOR,
+    anchor,
   }
 }
 

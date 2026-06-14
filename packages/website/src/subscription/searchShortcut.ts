@@ -1,9 +1,9 @@
 import { Effect, Queue, Schema as S, Stream } from 'effect'
-import { Subscription, Ui } from 'foldkit'
+import { Subscription } from 'foldkit'
 
 import type { Model } from '../main'
 import { GotSearchMessage, type Message } from '../message'
-import { GotSearchDialogMessage } from '../search'
+import { PressedSearchShortcut } from '../search'
 
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
   searchShortcut: entry(
@@ -24,9 +24,7 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
                     Queue.offerUnsafe(
                       queue,
                       GotSearchMessage({
-                        message: GotSearchDialogMessage({
-                          message: Ui.Dialog.RequestedOpen(),
-                        }),
+                        message: PressedSearchShortcut(),
                       }),
                     )
                   }

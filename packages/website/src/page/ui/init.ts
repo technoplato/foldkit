@@ -53,6 +53,12 @@ export const init = (today: Calendar.CalendarDate): InitReturn => [
       id: 'dialog-animated-demo',
       isAnimated: true,
     }),
+    overlayDialogDemo: Ui.Dialog.init({ id: 'overlay-dialog-demo' }),
+    overlayComboboxDemo: Ui.Combobox.init({ id: 'overlay-combobox-demo' }),
+    nestedDialogParentDemo: Ui.Dialog.init({
+      id: 'nested-dialog-parent-demo',
+    }),
+    nestedDialogChildDemo: Ui.Dialog.init({ id: 'nested-dialog-child-demo' }),
     disclosureDemo: Ui.Disclosure.init({ id: 'disclosure-demo' }),
     listboxDemo: Ui.Listbox.init({ id: 'listbox-demo' }),
     listboxMultiDemo: Ui.Listbox.Multi.init({

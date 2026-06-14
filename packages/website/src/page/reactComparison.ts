@@ -399,7 +399,7 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
       para(
         'In Foldkit, you read the ',
         link(coreMessagesRouter(), 'Message'),
-        ' union alongside the update function. 29 Message declarations, each handled by a case in update. The Model is the only place state lives, and the Message union is the only way to change the Model. So together they form a complete index of every way the app can change state, and exactly what changes for each event.',
+        ' union alongside the update function. 27 Message declarations, each handled by a case in update. The Model is the only place state lives, and the Message union is the only way to change the Model. So together they form a complete index of every way the app can change state, and exactly what changes for each event.',
       ),
       highlightedCodeBlock(
         h.div(
@@ -451,7 +451,7 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
       para(
         'The React ',
         inlineCode('Action'),
-        ' type has 19 entries. That’s 11 fewer than Foldkit’s Message union. Those 11 aren’t missing because the React developer forgot them. They’re missing because React locates the same concepts in a different part of the app.',
+        ' type has 19 entries to Foldkit’s 27. That gap isn’t the React developer forgetting things. The two locate the same state changes in different parts of the app.',
       ),
       para(
         inlineCode('ClickedExport'),
@@ -463,7 +463,13 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
         inlineCode('CompletedSaveCanvas'),
         ' are missing: Foldkit Commands return Messages to the update function when they resolve, so the runtime needs a Message for every outcome. React has no equivalent: imperative effects fire and either dispatch on failure or quietly return. And 8 ',
         inlineCode('Got*Message'),
-        ' variants are missing because the React version delegates those components (Dialog, RadioGroup, Switch, Listbox) to Headless UI, which keeps their internal state inside its own hooks rather than surfacing deltas as values.',
+        ' variants are missing because the React version delegates those components (Dialog, RadioGroup, Switch, Listbox) to Headless UI, which keeps their internal state inside its own hooks rather than surfacing deltas as values. The reverse runs for dialog dismissal: React spells out ',
+        inlineCode('DismissedErrorDialog'),
+        ' and ',
+        inlineCode('DismissedGridSizeDialog'),
+        ', while Foldkit’s shipped Dialog closes itself through its ',
+        inlineCode('close'),
+        ' bundle, so dismissal never becomes an app Message.',
       ),
       para(
         'Stating the difference plainly: Foldkit pulls side effect results and UI component state changes into the Message union as first-class facts. React leaves them distributed: effect outcomes inside ',
@@ -953,7 +959,7 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
         'Scene finds the Dismiss button by ',
         inlineCode("Scene.role('button', { name: 'Dismiss' })"),
         ', the same accessible name a screen reader would announce. The click dispatches ',
-        inlineCode('DismissedErrorDialog'),
+        inlineCode('GotErrorDialogMessage'),
         ' through update, which returns a ',
         inlineCode('CloseDialog'),
         ' Command. Resolve it, and the dialog is gone. Every step is visible, every side effect is accounted for, and the test reads as a chronological user story.',

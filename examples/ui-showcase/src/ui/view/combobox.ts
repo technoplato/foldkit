@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { Array } from 'effect'
 import { Submodel, Ui } from 'foldkit'
 import { Html, childAttributes, html } from 'foldkit/html'
+import type { AnchorConfig } from 'foldkit/ui/combobox'
 
 import * as Icon from '../../icon'
 import {
@@ -69,7 +70,11 @@ const filterCities = (inputValue: string): ReadonlyArray<City> =>
         city.toLowerCase().includes(inputValue.toLowerCase()),
       )
 
-const comboboxInputs = (inputValue: string): Ui.Combobox.ViewInputs<City> => {
+export const comboboxInputs = (
+  inputValue: string,
+  anchor: AnchorConfig = COMBOBOX_ANCHOR,
+  wrapperClass: string = wrapperClassName,
+): Ui.Combobox.ViewInputs<City> => {
   const h = html<UiMessage>()
   const filteredCities = filterCities(inputValue)
 
@@ -98,11 +103,11 @@ const comboboxInputs = (inputValue: string): Ui.Combobox.ViewInputs<City> => {
     ]),
     itemsAttributes: childAttributes([h.Class(itemsClassName)]),
     backdropAttributes: childAttributes([h.Class(backdropClassName)]),
-    attributes: childAttributes([h.Class(wrapperClassName)]),
+    attributes: childAttributes([h.Class(wrapperClass)]),
     inputWrapperAttributes: childAttributes([h.Class('relative')]),
     buttonContent: Icon.chevronDown('w-4 h-4'),
     buttonAttributes: childAttributes([h.Class(buttonClassName)]),
-    anchor: COMBOBOX_ANCHOR,
+    anchor,
   }
 }
 

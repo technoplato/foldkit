@@ -11,7 +11,6 @@ import {
   ClickedUndo,
   CompletedSaveCanvas,
   ConfirmedGridSizeChange,
-  DismissedErrorDialog,
   EnteredCell,
   FailedExportPng,
   GotErrorDialogMessage,
@@ -544,7 +543,9 @@ describe('export failure', () => {
         Ui.Dialog.CompletedShowDialog(),
         dialogMessage => GotErrorDialogMessage({ message: dialogMessage }),
       ),
-      Story.message(DismissedErrorDialog()),
+      Story.message(
+        GotErrorDialogMessage({ message: Ui.Dialog.RequestedClose() }),
+      ),
       Story.Command.resolve(
         Ui.Dialog.CloseDialog,
         Ui.Dialog.CompletedCloseDialog(),

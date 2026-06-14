@@ -790,6 +790,21 @@ export const update = (
         [],
       ],
 
+      ClickedOpenMobileMenu: () => {
+        const [nextMobileMenuDialog, mobileMenuDialogCommands] = Ui.Dialog.open(
+          model.mobileMenuDialog,
+        )
+
+        return [
+          evo(model, {
+            mobileMenuDialog: () => nextMobileMenuDialog,
+          }),
+          Command.mapMessages(mobileMenuDialogCommands, message =>
+            GotMobileMenuDialogMessage({ message }),
+          ),
+        ]
+      },
+
       GotMobileMenuDialogMessage: ({ message }) => {
         const [nextMobileMenuDialog, mobileMenuDialogCommands] =
           Ui.Dialog.update(model.mobileMenuDialog, message)

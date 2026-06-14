@@ -18,7 +18,11 @@ import { Url, toString as urlToString } from 'foldkit/url'
 
 import * as Icon from './icon'
 import { uiInit } from './ui/init'
-import { GotMobileMenuDialogMessage, UiMessage } from './ui/message'
+import {
+  ClickedOpenMobileMenu,
+  GotMobileMenuDialogMessage,
+  UiMessage,
+} from './ui/message'
 import { UiModel } from './ui/model'
 import * as UiSubscriptions from './ui/subscriptions'
 import { uiUpdate } from './ui/update'
@@ -402,7 +406,10 @@ const sidebarView = (currentRoute: AppRoute): Html => {
   )
 }
 
-const mobileMenuContent = (currentRoute: AppRoute): Html => {
+const mobileMenuContent = (
+  currentRoute: AppRoute,
+  closeButton: Ui.Dialog.RenderInfo['closeButton'],
+): Html => {
   const h = html<Message>()
 
   return h.div(
@@ -435,11 +442,11 @@ const mobileMenuContent = (currentRoute: AppRoute): Html => {
           ),
           h.button(
             [
+              ...closeButton,
               h.Class(
                 'p-2 rounded-md hover:bg-gray-200 transition text-gray-700 cursor-pointer',
               ),
               h.AriaLabel('Close menu'),
-              h.OnClick(toMobileMenuDialogMessage(Ui.Dialog.RequestedClose())),
             ],
             [Icon.xMark('w-6 h-6')],
           ),
@@ -514,7 +521,7 @@ const mobileHeaderView = (model: Model): Html => {
           ),
           h.AriaExpanded(model.uiModel.mobileMenuDialog.isOpen),
           h.AriaLabel('Toggle menu'),
-          h.OnClick(toMobileMenuDialogMessage(Ui.Dialog.RequestedOpen())),
+          h.OnClick(toUiMessage(ClickedOpenMobileMenu())),
         ],
         [Icon.menu('w-6 h-6')],
       ),
@@ -530,7 +537,7 @@ const mobileMenuView = (model: Model): Html => {
     model: model.uiModel.mobileMenuDialog,
     view: Ui.Dialog.view,
     viewInputs: {
-      toView: ({ dialog, backdrop, panel, isVisible }) =>
+      toView: ({ dialog, backdrop, panel, closeButton, isVisible }) =>
         h.dialog(
           [...dialog, h.Class('md:hidden')],
           isVisible
@@ -541,7 +548,7 @@ const mobileMenuView = (model: Model): Html => {
                     ...panel,
                     h.Class('fixed inset-0 z-[60] bg-white flex flex-col'),
                   ],
-                  [mobileMenuContent(model.route)],
+                  [mobileMenuContent(model.route, closeButton)],
                 ),
               ]
             : [],

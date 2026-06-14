@@ -95,6 +95,8 @@ export const tableOfContents: ReadonlyArray<TableOfContentsEntry> = [
   examplesHeader,
   Dialog.basicHeader,
   Dialog.animatedHeader,
+  Dialog.overlayHeader,
+  Dialog.nestedHeader,
   stylingHeader,
   keyboardInteractionHeader,
   accessibilityHeader,
@@ -149,7 +151,7 @@ const viewConfigProps: ReadonlyArray<PropEntry> = [
     name: 'toView',
     type: '(render: RenderInfo) => Html',
     description:
-      'Callback that receives the dialog, backdrop, and panel attribute bundles plus a derived `isVisible` flag, and returns the composed layout. The consumer MUST render an `h.dialog(...)` element so the framework can target it with `showModal()` / `close()`.',
+      'Callback that receives the dialog, backdrop, panel, and closeButton attribute bundles plus a derived `isVisible` flag, and returns the composed layout. The consumer MUST render an `h.dialog(...)` element so the framework can open and close it.',
   },
 ]
 
@@ -171,6 +173,12 @@ const renderInfoProps: ReadonlyArray<PropEntry> = [
     type: 'ReadonlyArray<ChildAttribute>',
     description:
       'Spread onto the panel element. Includes the panel id (`${id}-panel`) and the Animation data attributes.',
+  },
+  {
+    name: 'closeButton',
+    type: 'ReadonlyArray<ChildAttribute>',
+    description:
+      'Spread onto an in-panel close control such as a Cancel button. Carries the click handler that closes the dialog, so a plain dismiss needs no parent message.',
   },
   {
     name: 'isVisible',
@@ -225,8 +233,7 @@ const keyboardEntries: ReadonlyArray<KeyboardEntry> = [
   },
   {
     key: 'Tab',
-    description:
-      'Cycles focus within the dialog (focus trapping via showModal).',
+    description: 'Cycles focus within the dialog.',
   },
 ]
 
@@ -246,9 +253,9 @@ export const view = Submodel.defineView<Model, Message, ViewInputs>(
         para(
           'A modal dialog backed by the native ',
           inlineCode('<dialog>'),
-          ' element. Uses ',
-          inlineCode('showModal()'),
-          ' for focus trapping, backdrop rendering, and scroll locking. No JavaScript focus trap needed. For non-modal floating content, use Popover instead.',
+          ' element, opened with ',
+          inlineCode('show()'),
+          ' and a high z-index. The framework manages focus trapping, Escape handling, scroll locking, and backdrop rendering. For non-modal floating content, use Popover instead.',
         ),
         infoCallout(
           'See it in an app',
@@ -263,17 +270,15 @@ export const view = Submodel.defineView<Model, Message, ViewInputs>(
           Dialog.basicHeader.text,
         ),
         para(
-          'Open the dialog by dispatching ',
-          inlineCode('Dialog.RequestedOpen()'),
-          ' and close it with ',
-          inlineCode('Dialog.RequestedClose()'),
-          '. For programmatic control in update functions, use ',
+          'Open the dialog from a trigger by dispatching your own Message and calling ',
           inlineCode('Dialog.open(model)'),
-          ' and ',
+          ' in your update. Spread the ',
+          inlineCode('closeButton'),
+          ' bundle onto a Cancel button to dismiss it, or call ',
           inlineCode('Dialog.close(model)'),
-          ' which return ',
+          ' directly. Both return ',
           inlineCode('[Model, Commands, Option<OutMessage>]'),
-          ' directly. Use ',
+          '. Use ',
           inlineCode('Dialog.titleId(model)'),
           ' on a heading element so the dialog is labeled for screen readers.',
         ),
@@ -316,17 +321,69 @@ export const view = Submodel.defineView<Model, Message, ViewInputs>(
           copiedSnippets,
           'mb-8',
         ),
+        heading(
+          Dialog.overlayHeader.level,
+          Dialog.overlayHeader.id,
+          Dialog.overlayHeader.text,
+        ),
+        para(
+          'A field inside a dialog can open its own overlay, like a Combobox or DatePicker. By default that overlay portals its panel to the document body, where the dialog renders on top of it. Pass ',
+          inlineCode('anchor: { portal: false }'),
+          ' so the panel stays inside the dialog and remains visible.',
+        ),
+        demoContainer(
+          ...Dialog.overlayDialogDemo(
+            model.overlayDialogDemo,
+            model.overlayComboboxDemo,
+          ),
+        ),
+        highlightedCodeBlock(
+          h.div(
+            [
+              h.Class('text-sm'),
+              h.InnerHTML(Snippet.uiDialogOverlayHighlighted),
+            ],
+            [],
+          ),
+          Snippet.uiDialogOverlayRaw,
+          'Copy field dialog example to clipboard',
+          copiedSnippets,
+          'mb-8',
+        ),
+        heading(
+          Dialog.nestedHeader.level,
+          Dialog.nestedHeader.id,
+          Dialog.nestedHeader.text,
+        ),
+        para(
+          'Use a separate Dialog Model for each level and open the second from a button in the first. The framework stacks them by z-index, traps focus in the topmost, and closes them one at a time: Escape closes the top dialog before the one beneath it.',
+        ),
+        demoContainer(
+          ...Dialog.nestedDialogDemo(
+            model.nestedDialogParentDemo,
+            model.nestedDialogChildDemo,
+          ),
+        ),
+        highlightedCodeBlock(
+          h.div(
+            [
+              h.Class('text-sm'),
+              h.InnerHTML(Snippet.uiDialogNestedHighlighted),
+            ],
+            [],
+          ),
+          Snippet.uiDialogNestedRaw,
+          'Copy stacked dialogs example to clipboard',
+          copiedSnippets,
+          'mb-8',
+        ),
         heading(stylingHeader.level, stylingHeader.id, stylingHeader.text),
         para(
           'Dialog is headless. The ',
           inlineCode('toView'),
-          ' callback receives attribute bundles for the dialog, backdrop, and panel, and the consumer composes the markup. The native ',
-          inlineCode('<dialog>'),
-          ' element handles the top layer, so style its ',
-          inlineCode('::backdrop'),
-          ' as ',
-          inlineCode('backdrop:bg-transparent'),
-          ' and render your own custom backdrop for full control.',
+          ' callback receives attribute bundles for the dialog, backdrop, panel, and closeButton, and the consumer composes the markup. Dialog renders no backdrop of its own, so build your own from the ',
+          inlineCode('backdrop'),
+          ' bundle for full control over its appearance.',
         ),
         para(
           'When ',
@@ -356,9 +413,7 @@ export const view = Submodel.defineView<Model, Message, ViewInputs>(
           inlineCode('aria-describedby'),
           ' pointing to a description element (use ',
           inlineCode('Dialog.descriptionId(model)'),
-          '). Focus trapping is handled natively by ',
-          inlineCode('showModal()'),
-          '.',
+          '). Focus trapping is handled by the framework.',
         ),
         heading(
           apiReferenceHeader.level,

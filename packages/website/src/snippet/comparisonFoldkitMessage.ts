@@ -15,12 +15,10 @@ const ClickedClear = m('ClickedClear')
 const ClickedExport = m('ClickedExport')
 const SucceededExportPng = m('SucceededExportPng')
 const FailedExportPng = m('FailedExportPng', { error: S.String })
-const DismissedErrorDialog = m('DismissedErrorDialog')
 const GotErrorDialogMessage = m('GotErrorDialogMessage', {
   message: Ui.Dialog.Message,
 })
 const ConfirmedGridSizeChange = m('ConfirmedGridSizeChange')
-const DismissedGridSizeConfirmDialog = m('DismissedGridSizeConfirmDialog')
 const GotGridSizeConfirmDialogMessage = m('GotGridSizeConfirmDialogMessage', {
   message: Ui.Dialog.Message,
 })
@@ -62,10 +60,8 @@ const Message = S.Union([
   ClickedExport,
   SucceededExportPng,
   FailedExportPng,
-  DismissedErrorDialog,
   GotErrorDialogMessage,
   ConfirmedGridSizeChange,
-  DismissedGridSizeConfirmDialog,
   GotGridSizeConfirmDialogMessage,
   GotToolRadioGroupMessage,
   GotGridSizeRadioGroupMessage,

@@ -63,6 +63,7 @@ export const FailedFetchGitHubStars = m('FailedFetchGitHubStars', {
 export const GotMobileMenuDialogMessage = m('GotMobileMenuDialogMessage', {
   message: Ui.Dialog.Message,
 })
+export const ClickedOpenMobileMenu = m('ClickedOpenMobileMenu')
 export const ToggledMobileTableOfContents = m('ToggledMobileTableOfContents', {
   isOpen: S.Boolean,
 })
@@ -192,6 +193,7 @@ export const Message = S.Union([
   SucceededFetchGitHubStars,
   FailedFetchGitHubStars,
   GotMobileMenuDialogMessage,
+  ClickedOpenMobileMenu,
   ToggledMobileTableOfContents,
   ClickedMobileTableOfContentsLink,
   ChangedActiveSection,

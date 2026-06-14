@@ -1,7 +1,6 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit them into your own Model, init, Message,
 // update, and view definitions.
-import { Match as M, Option } from 'effect'
 import { Command, Ui } from 'foldkit'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
@@ -22,73 +21,52 @@ const init = () => [
   [],
 ]
 
-// Embed the Dialog Message in your parent Message:
+// A fact for the trigger, plus the Dialog Message embedded in your parent
+// Message for the submodel delegation:
+const ClickedOpenDialog = m('ClickedOpenDialog')
 const GotDialogMessage = m('GotDialogMessage', {
   message: Ui.Dialog.Message,
 })
 
-// Inside your update function's M.tagsExhaustive({...}), delegate to
-// Ui.Dialog.update. The OutMessages `Opened` and `Closed` mark the
-// transition moments. Fire analytics, reset embedded form state, or
-// kick off side effects from the parent.
-GotDialogMessage: ({ message }) => {
-  const [nextDialog, commands, maybeOutMessage] = Ui.Dialog.update(
-    model.dialog,
-    message,
-  )
-  const mappedCommands = Command.mapMessages(commands, message =>
-    GotDialogMessage({ message }),
-  )
-
-  return Option.match(maybeOutMessage, {
-    onNone: () => [evo(model, { dialog: () => nextDialog }), mappedCommands],
-    onSome: M.type<Ui.Dialog.OutMessage>().pipe(
-      M.tagsExhaustive({
-        Opened: () => [
-          // The child has emitted `Opened`. The body commits the
-          // child's next state as usual. In this arm the parent can
-          // also update its own state or dispatch its own Commands,
-          // for example log analytics, manage focus, or fetch
-          // initial data.
-          evo(model, { dialog: () => nextDialog }),
-          mappedCommands,
-        ],
-        Closed: () => [
-          // The child has emitted `Closed`. The body commits the
-          // child's next state as usual. In this arm the parent can
-          // also update its own state or dispatch its own Commands,
-          // for example clear ephemeral state or resolve a pending
-          // domain action.
-          evo(model, { dialog: () => nextDialog }),
-          mappedCommands,
-        ],
-      }),
+// Open the dialog from your update with Ui.Dialog.open. Escape, the backdrop,
+// and the closeButton bundle all flow back through GotDialogMessage, where you
+// delegate to Ui.Dialog.update. (Both return an Option<OutMessage> as the
+// third element; match Opened/Closed there to react to the transitions.)
+ClickedOpenDialog: () => {
+  const [nextDialog, dialogCommands] = Ui.Dialog.open(model.dialog)
+  return [
+    evo(model, { dialog: () => nextDialog }),
+    Command.mapMessages(dialogCommands, message =>
+      GotDialogMessage({ message }),
     ),
-  })
+  ]
 }
 
-// Helper to convert Dialog Messages to your parent Message:
-const dialogToParentMessage = (message: Ui.Dialog.Message): Message =>
-  GotDialogMessage({ message })
+GotDialogMessage: ({ message }) => {
+  const [nextDialog, dialogCommands] = Ui.Dialog.update(model.dialog, message)
+  return [
+    evo(model, { dialog: () => nextDialog }),
+    Command.mapMessages(dialogCommands, message =>
+      GotDialogMessage({ message }),
+    ),
+  ]
+}
 
-// Inside your view function, open the dialog by dispatching Ui.Dialog.RequestedOpen()
-// and render the dialog, backed by native <dialog> with showModal():
+// In your view, open from a trigger with the fact, and dismiss from a Cancel
+// button by spreading the `closeButton` bundle, no parent message needed:
 const view = () => {
   const h = html<Message>()
 
   return h.div(
     [],
     [
-      h.button(
-        [h.OnClick(dialogToParentMessage(Ui.Dialog.RequestedOpen()))],
-        ['Open Dialog'],
-      ),
+      h.button([h.OnClick(ClickedOpenDialog())], ['Open Dialog']),
       h.submodel({
         slotId: model.dialog.id,
         model: model.dialog,
         view: Ui.Dialog.view,
         viewInputs: {
-          toView: ({ dialog, backdrop, panel, isVisible }) =>
+          toView: ({ dialog, backdrop, panel, closeButton, isVisible }) =>
             h.dialog(
               [...dialog],
               isVisible
@@ -110,12 +88,10 @@ const view = () => {
                         h.p([], ['Are you sure you want to proceed?']),
                         h.button(
                           [
-                            h.OnClick(
-                              dialogToParentMessage(Ui.Dialog.RequestedClose()),
-                            ),
+                            ...closeButton,
                             h.Class('px-4 py-2 rounded-lg border'),
                           ],
-                          ['Close'],
+                          ['Cancel'],
                         ),
                       ],
                     ),
@@ -123,7 +99,7 @@ const view = () => {
                 : [],
             ),
         },
-        toParentMessage: message => dialogToParentMessage(message),
+        toParentMessage: message => GotDialogMessage({ message }),
       }),
     ],
   )

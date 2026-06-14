@@ -16,6 +16,10 @@ let openDialogCount = 0
 
 const dialogCleanups = new WeakMap<HTMLDialogElement, () => void>()
 
+const dialogReturnFocus = new WeakMap<HTMLDialogElement, HTMLElement>()
+
+let openDialogStack: ReadonlyArray<HTMLDialogElement> = []
+
 const FOCUSABLE_SELECTOR = Array.join(
   [
     'a[href]:not([tabindex="-1"])',
@@ -95,6 +99,9 @@ export const focus = (
  *
  * Pass `focusSelector` to focus an element inside the dialog when it opens.
  *
+ * Records the element that had focus when the dialog opened so `closeModal`
+ * can return focus there, the way `showModal()` would natively.
+ *
  * @example
  * ```typescript
  * Dom.showModal('#my-dialog')
@@ -118,10 +125,32 @@ export const showModal = (
     element.style.inset = '0'
     openDialogCount++
     element.style.zIndex = String(BASE_DIALOG_Z_INDEX + openDialogCount)
+
+    const previouslyFocused = document.activeElement
+    if (
+      previouslyFocused instanceof HTMLElement &&
+      previouslyFocused !== document.body
+    ) {
+      dialogReturnFocus.set(element, previouslyFocused)
+    }
+
     element.show()
+
+    openDialogStack = Array.append(
+      Array.filter(openDialogStack, dialog => dialog !== element),
+      element,
+    )
 
     const handleKeydown = (event: KeyboardEvent): void => {
       if (!element.open) {
+        return
+      }
+
+      const isTopmost = Option.exists(
+        Array.last(openDialogStack),
+        topmost => topmost === element,
+      )
+      if (!isTopmost) {
         return
       }
 
@@ -177,7 +206,9 @@ const trapFocusWithinDialog = (
 
 /**
  * Closes a dialog element using `.close()`.
- * Cleans up the keyboard handlers installed by `showModal`.
+ * Cleans up the keyboard handlers installed by `showModal` and restores focus to
+ * the element that was focused before the dialog opened (the trigger, or the
+ * dialog beneath it when closing a stacked dialog).
  * Fails with `ElementNotFound` if the selector does not match an `HTMLDialogElement`.
  *
  * @example
@@ -192,12 +223,23 @@ export const closeModal = (
     const element = document.querySelector(selector)
     if (element instanceof HTMLDialogElement) {
       element.close()
+      openDialogStack = Array.filter(
+        openDialogStack,
+        dialog => dialog !== element,
+      )
       openDialogCount = Math.max(0, openDialogCount - 1)
       const cleanup = dialogCleanups.get(element)
       if (cleanup) {
         cleanup()
         dialogCleanups.delete(element)
       }
+
+      const returnFocus = dialogReturnFocus.get(element)
+      dialogReturnFocus.delete(element)
+      if (returnFocus !== undefined && document.contains(returnFocus)) {
+        returnFocus.focus()
+      }
+
       return Effect.void
     }
     return Effect.fail(new ElementNotFound({ selector }))

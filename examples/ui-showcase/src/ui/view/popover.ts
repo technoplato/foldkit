@@ -4,6 +4,8 @@ import { Html, html } from 'foldkit/html'
 import {
   GotPopoverAnimatedDemoMessage,
   GotPopoverBasicDemoMessage,
+  GotPopoverNestedChildDemoMessage,
+  GotPopoverNestedParentDemoMessage,
   type UiMessage,
 } from '../message'
 import type { UiModel } from '../model'
@@ -80,6 +82,114 @@ const popoverDemo = (
   })
 }
 
+const NESTED_POPOVER_ANCHOR = {
+  placement: 'right-start' as const,
+  gap: 8,
+  padding: 8,
+}
+
+const nestedChildButtonSelector = '#popover-nested-child-demo-button'
+
+const nestedChildPopover = (childPopoverModel: Ui.Popover.Model): Html => {
+  const h = html<UiMessage>()
+
+  return h.submodel({
+    slotId: childPopoverModel.id,
+    model: childPopoverModel,
+    view: Ui.Popover.view,
+    viewInputs: {
+      anchor: NESTED_POPOVER_ANCHOR,
+      toView: ({ button, panel, backdrop, isVisible }) =>
+        h.div(
+          [h.Class(wrapperClassName)],
+          [
+            h.button(
+              [...button, h.Class(triggerClassName)],
+              [h.span([], ['Advanced settings'])],
+            ),
+            ...(isVisible
+              ? [
+                  h.div([...backdrop, h.Class(backdropClassName)], []),
+                  h.div(
+                    [...panel, h.Class(basicPanelClassName)],
+                    [
+                      h.p(
+                        [h.Class('text-sm font-semibold text-gray-900 mb-2')],
+                        ['Permissions'],
+                      ),
+                      h.p(
+                        [h.Class('text-sm text-gray-600')],
+                        [
+                          'Review who can change billing, members, and integrations.',
+                        ],
+                      ),
+                    ],
+                  ),
+                ]
+              : []),
+          ],
+        ),
+    },
+    toParentMessage: message => GotPopoverNestedChildDemoMessage({ message }),
+  })
+}
+
+const nestedDemo = (
+  parentPopoverModel: Ui.Popover.Model,
+  childPopoverModel: Ui.Popover.Model,
+): Html => {
+  const h = html<UiMessage>()
+
+  return h.div(
+    [h.Class('relative')],
+    [
+      h.submodel({
+        slotId: parentPopoverModel.id,
+        model: parentPopoverModel,
+        view: Ui.Popover.view,
+        viewInputs: {
+          anchor: POPOVER_ANCHOR,
+          focusSelector: nestedChildButtonSelector,
+          toView: ({ button, panel, backdrop, isVisible }) =>
+            h.div(
+              [h.Class(wrapperClassName)],
+              [
+                h.button(
+                  [...button, h.Class(triggerClassName)],
+                  [h.span([], ['Account'])],
+                ),
+                ...(isVisible
+                  ? [
+                      h.div([...backdrop, h.Class(backdropClassName)], []),
+                      h.div(
+                        [...panel, h.Class(basicPanelClassName)],
+                        [
+                          h.div(
+                            [h.Class('flex flex-col gap-4')],
+                            [
+                              h.p(
+                                [h.Class('text-sm text-gray-600')],
+                                [
+                                  'Manage account settings without leaving this panel.',
+                                ],
+                              ),
+                              nestedChildPopover(childPopoverModel),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ]
+                  : []),
+              ],
+            ),
+        },
+        toParentMessage: message =>
+          GotPopoverNestedParentDemoMessage({ message }),
+      }),
+    ],
+  )
+}
+
 export const view = Submodel.defineView<UiModel, UiMessage>((model): Html => {
   const h = html<UiMessage>()
 
@@ -119,6 +229,12 @@ export const view = Submodel.defineView<UiModel, UiMessage>((model): Html => {
           ),
         ],
       ),
+
+      h.h3(
+        [h.Class('text-lg font-semibold text-gray-900 mt-8 mb-4')],
+        ['Nested'],
+      ),
+      nestedDemo(model.popoverNestedParentDemo, model.popoverNestedChildDemo),
     ],
   )
 })

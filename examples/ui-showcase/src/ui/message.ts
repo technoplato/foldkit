@@ -12,6 +12,7 @@ export const ToggledAnimationDemo = m('ToggledAnimationDemo')
 export const GotMobileMenuDialogMessage = m('GotMobileMenuDialogMessage', {
   message: Ui.Dialog.Message,
 })
+export const ClickedOpenMobileMenu = m('ClickedOpenMobileMenu')
 export const ClickedButtonDemo = m('ClickedButtonDemo')
 export const UpdatedInputDemoValue = m('UpdatedInputDemoValue', {
   value: S.String,
@@ -73,6 +74,32 @@ export const GotDialogDemoMessage = m('GotDialogDemoMessage', {
 export const GotDialogAnimatedDemoMessage = m('GotDialogAnimatedDemoMessage', {
   message: Ui.Dialog.Message,
 })
+export const GotOverlayDialogDemoMessage = m('GotOverlayDialogDemoMessage', {
+  message: Ui.Dialog.Message,
+})
+export const GotOverlayComboboxDemoMessage = m(
+  'GotOverlayComboboxDemoMessage',
+  {
+    message: Ui.Combobox.Message,
+  },
+)
+export const GotNestedDialogParentDemoMessage = m(
+  'GotNestedDialogParentDemoMessage',
+  {
+    message: Ui.Dialog.Message,
+  },
+)
+export const GotNestedDialogChildDemoMessage = m(
+  'GotNestedDialogChildDemoMessage',
+  {
+    message: Ui.Dialog.Message,
+  },
+)
+export const ClickedDeleteProject = m('ClickedDeleteProject')
+export const ClickedOpenDialog = m('ClickedOpenDialog')
+export const ClickedOpenAnimatedDialog = m('ClickedOpenAnimatedDialog')
+export const ClickedEditFilters = m('ClickedEditFilters')
+export const ClickedOpenProjectSettings = m('ClickedOpenProjectSettings')
 export const GotDisclosureDemoMessage = m('GotDisclosureDemoMessage', {
   message: Ui.Disclosure.Message,
 })
@@ -115,6 +142,18 @@ export const GotPopoverBasicDemoMessage = m('GotPopoverBasicDemoMessage', {
 })
 export const GotPopoverAnimatedDemoMessage = m(
   'GotPopoverAnimatedDemoMessage',
+  {
+    message: Ui.Popover.Message,
+  },
+)
+export const GotPopoverNestedParentDemoMessage = m(
+  'GotPopoverNestedParentDemoMessage',
+  {
+    message: Ui.Popover.Message,
+  },
+)
+export const GotPopoverNestedChildDemoMessage = m(
+  'GotPopoverNestedChildDemoMessage',
   {
     message: Ui.Popover.Message,
   },
@@ -184,6 +223,7 @@ export const ClickedVirtualListVariableScrollToMiddle = m(
 
 export const UiMessage = S.Union([
   GotMobileMenuDialogMessage,
+  ClickedOpenMobileMenu,
   ClickedButtonDemo,
   GotAnimationDemoMessage,
   ToggledAnimationDemo,
@@ -202,6 +242,15 @@ export const UiMessage = S.Union([
   GotComboboxSelectOnFocusDemoMessage,
   GotDialogDemoMessage,
   GotDialogAnimatedDemoMessage,
+  GotOverlayDialogDemoMessage,
+  GotOverlayComboboxDemoMessage,
+  GotNestedDialogParentDemoMessage,
+  GotNestedDialogChildDemoMessage,
+  ClickedDeleteProject,
+  ClickedOpenDialog,
+  ClickedOpenAnimatedDialog,
+  ClickedEditFilters,
+  ClickedOpenProjectSettings,
   GotDisclosureDemoMessage,
   GotCalendarBasicDemoMessage,
   GotDatePickerBasicDemoMessage,
@@ -215,6 +264,8 @@ export const UiMessage = S.Union([
   GotMenuAnimatedDemoMessage,
   GotPopoverBasicDemoMessage,
   GotPopoverAnimatedDemoMessage,
+  GotPopoverNestedParentDemoMessage,
+  GotPopoverNestedChildDemoMessage,
   GotVerticalRadioGroupDemoMessage,
   GotHorizontalRadioGroupDemoMessage,
   UpdatedSelectDemoValue,
