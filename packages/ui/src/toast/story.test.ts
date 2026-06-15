@@ -1,7 +1,8 @@
-import { describe, it } from '@effect/vitest'
 import { Duration, Option, Schema as S } from 'effect'
 import * as Story from 'foldkit/story'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import * as Animation from '../animation/index.js'
 import {

@@ -1,4 +1,3 @@
-import { Input, Textarea } from '@foldkit/ui'
 import clsx from 'clsx'
 import {
   Array,
@@ -25,6 +24,8 @@ import { type Attribute, Document, Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { ts } from 'foldkit/schema'
 import { evo } from 'foldkit/struct'
+
+import { Input, Textarea } from '@foldkit/ui'
 
 const nameRules = makeRules({
   rules: [Rule.minLength(2, 'Name must be at least 2 characters')],

@@ -1,6 +1,7 @@
-import { Tabs } from '@foldkit/ui'
 import { Match as M } from 'effect'
 import { html } from 'foldkit/html'
+
+import { Tabs } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import {

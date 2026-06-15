@@ -1,8 +1,9 @@
-import { DragAndDrop } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Array, Option, pipe } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { DragAndDrop } from '@foldkit/ui'
 
 import { GotDragAndDropDemoMessage, type UiMessage } from '../message'
 import type { DemoCard, DemoColumn, UiModel } from '../model'

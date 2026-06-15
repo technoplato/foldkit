@@ -1,9 +1,10 @@
 // Pseudocode walkthrough using the same Model, init, Message, and update
 // as the basic tabs; only the view config changes to set orientation and
 // use flex + flex-col for layout.
-import { Tabs } from '@foldkit/ui'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
+
+import { Tabs } from '@foldkit/ui'
 
 const GotTabsMessage = m('GotTabsMessage', {
   message: Tabs.Message,

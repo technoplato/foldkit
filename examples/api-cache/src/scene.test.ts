@@ -1,6 +1,7 @@
-import { Tabs } from '@foldkit/ui'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
+
+import { Tabs } from '@foldkit/ui'
 
 import {
   FailedFetchPostDetail,

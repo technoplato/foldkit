@@ -1,4 +1,3 @@
-import * as Shared from '@typing-game/shared'
 import {
   Array,
   Effect,
@@ -9,6 +8,8 @@ import {
   SubscriptionRef,
   pipe,
 } from 'effect'
+
+import * as Shared from '@typing-game/shared'
 
 import { CHARS_PER_WORD, PLAYING_SECONDS } from './game.js'
 

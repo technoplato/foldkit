@@ -1,5 +1,3 @@
-import { Input } from '@foldkit/ui'
-import '@shoelace-style/shoelace/dist/components/qr-code/qr-code.js'
 import { clsx } from 'clsx'
 import { Match as M, Schema as S } from 'effect'
 import { Command, CustomElement, Runtime } from 'foldkit'
@@ -7,6 +5,9 @@ import { Document, Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 import 'vanilla-colorful/hex-color-picker.js'
+
+import { Input } from '@foldkit/ui'
+import '@shoelace-style/shoelace/dist/components/qr-code/qr-code.js'
 
 // MODEL
 

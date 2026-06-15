@@ -1,6 +1,7 @@
-import { Dialog } from '@foldkit/ui'
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
+
+import { Dialog } from '@foldkit/ui'
 
 export const SearchResult = S.Struct({
   url: S.String,

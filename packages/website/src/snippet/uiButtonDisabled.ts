@@ -1,7 +1,8 @@
 // Pseudocode — Button is view-only. A disabled button still needs an
 // onClick Message for the view config; it just won't fire.
-import { Button } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Button } from '@foldkit/ui'
 
 const view = () => {
   const h = html<Message>()

@@ -2,8 +2,9 @@
 // example: same Model, init, Message, update, subscription wiring. The
 // difference is in the view and in how `scrollToIndex` is called. Fit the
 // excerpts into your own definitions.
-import { VirtualList } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { VirtualList } from '@foldkit/ui'
 
 // Model and init are unchanged from the basic example. Pass any
 // `rowHeightPx` to `init`; it remains the uniform default for the

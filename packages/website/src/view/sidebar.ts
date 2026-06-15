@@ -1,8 +1,9 @@
-import { Dialog, Disclosure } from '@foldkit/ui'
 import { clsx } from 'clsx'
 import { Array, Equal, Option, pipe } from 'effect'
 import { Html, createLazy, html } from 'foldkit/html'
 import apiModuleIndex from 'virtual:api-module-index'
+
+import { Dialog, Disclosure } from '@foldkit/ui'
 
 import {
   DOCS_SIDEBAR_NAV_ID,

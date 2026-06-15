@@ -1,4 +1,3 @@
-import { NodeRuntime, NodeServices } from '@effect/platform-node'
 import {
   Array,
   Console,
@@ -17,6 +16,8 @@ import { ChildProcess } from 'effect/unstable/process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type Browser, chromium } from 'playwright'
+
+import { NodeRuntime, NodeServices } from '@effect/platform-node'
 
 import {
   moduleNameToSlug,

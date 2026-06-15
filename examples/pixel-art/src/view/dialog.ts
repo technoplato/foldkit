@@ -1,6 +1,7 @@
-import { Button, Dialog } from '@foldkit/ui'
 import { Option } from 'effect'
 import { type Html, html } from 'foldkit/html'
+
+import { Button, Dialog } from '@foldkit/ui'
 
 import {
   ConfirmedGridSizeChange,

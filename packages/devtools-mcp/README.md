@@ -41,8 +41,9 @@ Then make two edits to your project.
 In `vite.config.ts`, pass `devToolsMcpPort` to the Foldkit plugin so it opens the relay:
 
 ```typescript
-import { foldkit } from '@foldkit/vite-plugin'
 import { defineConfig } from 'vite'
+
+import { foldkit } from '@foldkit/vite-plugin'
 
 export default defineConfig({
   plugins: [foldkit({ devToolsMcpPort: 9988 })],

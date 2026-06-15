@@ -1,5 +1,6 @@
-import { overlay } from '@foldkit/devtools'
 import { Runtime } from 'foldkit'
+
+import { overlay } from '@foldkit/devtools'
 
 import { Flags, Message, Model, flags, init, update, view } from './main'
 

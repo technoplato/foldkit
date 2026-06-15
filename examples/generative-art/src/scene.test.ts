@@ -1,7 +1,8 @@
-import { Slider } from '@foldkit/ui'
 import { Option } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
+
+import { Slider } from '@foldkit/ui'
 
 import {
   FLOW_STRENGTH_MAX,

@@ -1,5 +1,6 @@
-import { describe, it } from '@effect/vitest'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import {
   ROOT_BOUNDARY,

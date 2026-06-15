@@ -1,5 +1,6 @@
-import * as Shared from '@typing-game/shared'
 import { Effect, HashMap, Struct, SubscriptionRef } from 'effect'
+
+import * as Shared from '@typing-game/shared'
 
 export const getById = (roomById: Shared.RoomById, id: string) =>
   Effect.fromOption(HashMap.get(roomById, id)).pipe(

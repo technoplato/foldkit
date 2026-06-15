@@ -1,7 +1,8 @@
-import { Listbox } from '@foldkit/ui'
-import type { AnchorConfig } from '@foldkit/ui/listbox'
 import { Array, Option } from 'effect'
 import { childAttributes, html } from 'foldkit/html'
+
+import { Listbox } from '@foldkit/ui'
+import type { AnchorConfig } from '@foldkit/ui/listbox'
 
 import { Icon } from '../../icon'
 import type { TableOfContentsEntry } from '../../main'

@@ -1,5 +1,6 @@
-import { Disclosure } from '@foldkit/ui'
 import { Html, html } from 'foldkit/html'
+
+import { Disclosure } from '@foldkit/ui'
 
 import { Icon } from '../../icon'
 import { Message, type TableOfContentsEntry } from '../../main'

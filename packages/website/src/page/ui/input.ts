@@ -1,5 +1,6 @@
-import { Input } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Input } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import { type Message, UpdatedInputDemoValue } from './message'

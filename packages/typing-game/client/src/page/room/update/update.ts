@@ -1,4 +1,3 @@
-import * as Shared from '@typing-game/shared'
 import {
   Array,
   Effect,
@@ -11,6 +10,8 @@ import {
 import { Command } from 'foldkit'
 import { pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
+
+import * as Shared from '@typing-game/shared'
 
 import { optionWhen } from '../../../optionWhen'
 import { homeRouter } from '../../../route'

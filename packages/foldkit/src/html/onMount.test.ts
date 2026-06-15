@@ -1,4 +1,3 @@
-import { describe, it } from '@effect/vitest'
 import { Context, Effect, Function, Queue, Stream } from 'effect'
 import {
   attributesModule,
@@ -10,6 +9,8 @@ import {
   toVNode,
 } from 'snabbdom'
 import { afterEach, beforeEach, expect, vi } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { m } from '../message/index.js'
 import * as Mount from '../mount/index.js'

@@ -1,7 +1,8 @@
-import * as Shared from '@typing-game/shared'
 import { Clock, Effect, HashMap, Option, SubscriptionRef } from 'effect'
 import { Rpc } from 'effect/unstable/rpc'
 import { randomUUID } from 'node:crypto'
+
+import * as Shared from '@typing-game/shared'
 
 import { ROOM_ID_WORDS } from '../constants.js'
 import * as Room from '../room.js'

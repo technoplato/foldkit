@@ -1,7 +1,8 @@
 // Pseudocode — Select is view-only. Disabled selects display a fixed value
 // and ignore onChange events.
-import { Select } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Select } from '@foldkit/ui'
 
 const view = () => {
   const h = html<Message>()

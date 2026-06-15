@@ -1,5 +1,6 @@
-import { Dialog } from '@foldkit/ui'
 import { Command } from 'foldkit'
+
+import { Dialog } from '@foldkit/ui'
 
 import type { Message } from './message'
 import type { Model } from './model'

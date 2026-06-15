@@ -1,4 +1,3 @@
-import { RoomRpcs } from '@typing-game/shared'
 import { Context, Effect, Layer } from 'effect'
 import { FetchHttpClient } from 'effect/unstable/http'
 import {
@@ -6,6 +5,8 @@ import {
   RpcClientError,
   RpcSerialization,
 } from 'effect/unstable/rpc'
+
+import { RoomRpcs } from '@typing-game/shared'
 
 import { ViteEnvConfig, ViteEnvConfigLive } from './config.js'
 

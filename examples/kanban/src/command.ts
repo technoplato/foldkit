@@ -1,7 +1,8 @@
-import { BrowserCrypto, BrowserKeyValueStore } from '@effect/platform-browser'
 import { Crypto, Effect, Schema as S } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
 import { Command, Dom } from 'foldkit'
+
+import { BrowserCrypto, BrowserKeyValueStore } from '@effect/platform-browser'
 
 import { ADD_CARD_INPUT_ID, STORAGE_KEY } from './constant'
 import { Column } from './domain'

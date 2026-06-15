@@ -1,7 +1,8 @@
-import { describe, it } from '@effect/vitest'
 import { Duration, Option, Schema as S } from 'effect'
 import { type Html, html } from 'foldkit/html'
 import * as Scene from 'foldkit/scene'
+
+import { describe, it } from '@effect/vitest'
 
 import * as Animation from '../animation/index.js'
 import { type EntryHandlers, type Variant, make } from './index.js'

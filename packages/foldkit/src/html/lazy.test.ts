@@ -1,7 +1,8 @@
-import { describe, it } from '@effect/vitest'
 import { Context } from 'effect'
 import { h } from 'snabbdom'
 import { afterEach, beforeEach, expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { MountTracker } from '../mount/index.js'
 import { Dispatch } from '../runtime/index.js'

@@ -1,3 +1,6 @@
+import { Option } from 'effect'
+import { Calendar, Command } from 'foldkit'
+
 import {
   Animation,
   Checkbox,
@@ -18,8 +21,6 @@ import {
   Calendar as UiCalendar,
   VirtualList,
 } from '@foldkit/ui'
-import { Option } from 'effect'
-import { Calendar, Command } from 'foldkit'
 
 import type { Message } from './message'
 import type { Model } from './model'

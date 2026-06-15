@@ -1,7 +1,8 @@
-import { Listbox } from '@foldkit/ui'
 import { Option } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
+
+import { Listbox } from '@foldkit/ui'
 
 import {
   BrowseRoute,

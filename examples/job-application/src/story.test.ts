@@ -1,8 +1,9 @@
-import { FileDrop, Menu } from '@foldkit/ui'
 import { Array, Option, pipe } from 'effect'
 import { Calendar, Story } from 'foldkit'
 import { Valid, Validating } from 'foldkit/fieldValidation'
 import { describe, expect, test } from 'vitest'
+
+import { FileDrop, Menu } from '@foldkit/ui'
 
 import { SubmitApplication } from './command'
 import {

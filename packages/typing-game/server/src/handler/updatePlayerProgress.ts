@@ -1,6 +1,7 @@
-import * as Shared from '@typing-game/shared'
 import { Clock, Effect, HashMap, SubscriptionRef } from 'effect'
 import { Rpc } from 'effect/unstable/rpc'
+
+import * as Shared from '@typing-game/shared'
 
 type ProgressByGamePlayer = HashMap.HashMap<
   Shared.GamePlayer,

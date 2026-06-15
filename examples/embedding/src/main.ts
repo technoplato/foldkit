@@ -1,9 +1,10 @@
-import { overlay } from '@foldkit/devtools'
 import { Duration, Effect, Match as M, Schema as S, Stream } from 'effect'
 import { Command, Port, Runtime, Subscription } from 'foldkit'
 import { Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { overlay } from '@foldkit/devtools'
 
 // MODEL
 

@@ -1,7 +1,8 @@
-import { Menu } from '@foldkit/ui'
-import type { AnchorConfig } from '@foldkit/ui/menu'
 import { Match as M } from 'effect'
 import { Html, childAttributes, html } from 'foldkit/html'
+
+import { Menu } from '@foldkit/ui'
+import type { AnchorConfig } from '@foldkit/ui/menu'
 
 import { Icon } from '../../icon'
 import type { TableOfContentsEntry } from '../../main'

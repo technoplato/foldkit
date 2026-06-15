@@ -1,7 +1,8 @@
-import * as Shared from '@typing-game/shared'
 import { Array, Effect, HashMap, Number, Struct, SubscriptionRef } from 'effect'
 import { Rpc } from 'effect/unstable/rpc'
 import { randomUUID } from 'node:crypto'
+
+import * as Shared from '@typing-game/shared'
 
 import * as Rooms from '../roomById.js'
 

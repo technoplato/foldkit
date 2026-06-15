@@ -1,7 +1,8 @@
-import { Disclosure } from '@foldkit/ui'
 import { Option, Record } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Disclosure } from '@foldkit/ui'
 
 import { Icon } from '../../icon'
 import { Link } from '../../link'

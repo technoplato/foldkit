@@ -1,6 +1,7 @@
-import { Menu } from '@foldkit/ui'
 import { Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
+
+import { Menu } from '@foldkit/ui'
 
 import { Step } from './domain'
 import {

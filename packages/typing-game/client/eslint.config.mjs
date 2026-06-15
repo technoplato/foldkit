@@ -1,7 +1,8 @@
+import unusedImports from 'eslint-plugin-unused-imports'
+
 import js from '@eslint/js'
 import tsPlugin from '@typescript-eslint/eslint-plugin'
 import tsParser from '@typescript-eslint/parser'
-import unusedImports from 'eslint-plugin-unused-imports'
 
 export default [
   {

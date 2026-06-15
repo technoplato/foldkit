@@ -1,6 +1,7 @@
-import { Checkbox, DatePicker } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { type Html, html } from 'foldkit/html'
+
+import { Checkbox, DatePicker } from '@foldkit/ui'
 
 import { WorkHistory } from '../step'
 import {

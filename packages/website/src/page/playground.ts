@@ -1,5 +1,3 @@
-import { Tabs } from '@foldkit/ui'
-import type { FileSystemTree, WebContainer } from '@webcontainer/api'
 import { clsx } from 'clsx'
 import {
   Array,
@@ -23,6 +21,9 @@ import { ts } from 'foldkit/schema'
 import { evo } from 'foldkit/struct'
 import filesBySlug from 'virtual:playground-files'
 import playgroundTypes from 'virtual:playground-types'
+
+import { Tabs } from '@foldkit/ui'
+import type { FileSystemTree, WebContainer } from '@webcontainer/api'
 
 import { Icon } from '../icon'
 import { exampleDetailRouter, examplesRouter } from '../route'

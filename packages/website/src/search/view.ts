@@ -1,8 +1,9 @@
-import { Dialog } from '@foldkit/ui'
 import { clsx } from 'clsx'
 import { Array, Match as M, Option, String, pipe } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Dialog } from '@foldkit/ui'
 
 import { Icon } from '../icon'
 import { KEYBOARD_WARMUP_INPUT_ID, SEARCH_INPUT_ID } from './command'

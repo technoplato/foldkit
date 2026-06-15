@@ -1,4 +1,3 @@
-import * as Shared from '@typing-game/shared'
 import {
   Array,
   Duration,
@@ -13,6 +12,8 @@ import {
   pipe,
 } from 'effect'
 import { Rpc } from 'effect/unstable/rpc'
+
+import * as Shared from '@typing-game/shared'
 
 import { ROOM_UPDATE_THROTTLE_MS } from '../game.js'
 import { getPlayerProgress } from '../scoring.js'

@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import * as Story from 'foldkit/story'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import {
   AdvancedAnimationFrame,

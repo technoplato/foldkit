@@ -1,8 +1,9 @@
-import { Dialog } from '@foldkit/ui'
 import { Option } from 'effect'
 import { Calendar, Story } from 'foldkit'
 import { fromString } from 'foldkit/url'
 import { describe, expect, test } from 'vitest'
+
+import { Dialog } from '@foldkit/ui'
 
 import { ChangedUrl, GotUiMessage, HomeRoute, type Model, update } from './main'
 import { uiInit } from './ui/init'

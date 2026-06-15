@@ -1,7 +1,8 @@
-import { Slider } from '@foldkit/ui'
 import { Array, Match as M, Number, Option, Result } from 'effect'
 import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
+
+import { Slider } from '@foldkit/ui'
 
 import { SpawnAmbientParticle, SpawnBurstParticle } from './command'
 import {

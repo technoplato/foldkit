@@ -1,4 +1,3 @@
-import { Button, Input } from '@foldkit/ui'
 import { clsx } from 'clsx'
 import {
   Array,
@@ -14,6 +13,8 @@ import { Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 import demoCodeHtml from 'virtual:counter-demo-code'
+
+import { Button, Input } from '@foldkit/ui'
 
 import * as DemoView from './demoView'
 

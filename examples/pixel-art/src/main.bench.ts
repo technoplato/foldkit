@@ -1,6 +1,7 @@
-import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 import { Option } from 'effect'
 import { bench, describe } from 'vitest'
+
+import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 
 import { createEmptyGrid } from './grid'
 import {

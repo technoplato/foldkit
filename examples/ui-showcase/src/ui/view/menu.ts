@@ -1,7 +1,8 @@
-import { Menu } from '@foldkit/ui'
 import { Match as M } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, childAttributes, html } from 'foldkit/html'
+
+import { Menu } from '@foldkit/ui'
 
 import * as Icon from '../../icon'
 import {

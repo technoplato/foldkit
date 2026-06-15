@@ -1,5 +1,6 @@
-import { Tabs } from '@foldkit/ui'
 import { HashMap, Option } from 'effect'
+
+import { Tabs } from '@foldkit/ui'
 
 import type { Post, PostDetail, Stats } from './data'
 import type { Model } from './main'

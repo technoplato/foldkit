@@ -1,6 +1,7 @@
-import { Popover } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Popover } from '@foldkit/ui'
 
 import {
   GotPopoverAnimatedDemoMessage,

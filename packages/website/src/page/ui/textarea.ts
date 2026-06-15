@@ -1,5 +1,6 @@
-import { Textarea } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Textarea } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import { type Message, UpdatedTextareaDemoValue } from './message'

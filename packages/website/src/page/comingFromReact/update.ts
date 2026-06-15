@@ -1,6 +1,7 @@
-import { Disclosure } from '@foldkit/ui'
 import { Match as M, Option, Record } from 'effect'
 import { Command } from 'foldkit'
+
+import { Disclosure } from '@foldkit/ui'
 
 import { GotFaqDisclosureMessage, type Message } from './message'
 import type { Model } from './model'

@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import { Option } from 'effect'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { Url, fromString, toString } from './index.js'
 

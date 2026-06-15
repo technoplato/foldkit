@@ -1,7 +1,8 @@
-import { Menu, Tabs } from '@foldkit/ui'
 import { clsx } from 'clsx'
 import { Match as M, Option } from 'effect'
 import { Html, childAttributes, createLazy, html } from 'foldkit/html'
+
+import { Menu, Tabs } from '@foldkit/ui'
 
 import { maybeStarCount } from '../githubStars'
 import { Icon } from '../icon'

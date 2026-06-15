@@ -1,5 +1,6 @@
-import { describe, it } from '@effect/vitest'
 import { afterEach, beforeAll, beforeEach, expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { type UrlRequest } from '../navigation/urlRequest.js'
 import { type Url } from '../url/index.js'

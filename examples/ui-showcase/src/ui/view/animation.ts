@@ -1,6 +1,7 @@
-import { Animation } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Animation } from '@foldkit/ui'
 
 import {
   GotAnimationDemoMessage,

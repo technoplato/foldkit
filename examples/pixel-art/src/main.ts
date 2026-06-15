@@ -1,8 +1,9 @@
-import { BrowserKeyValueStore } from '@effect/platform-browser'
-import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 import { Effect, Option, Schema as S } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
 import { Runtime } from 'foldkit'
+
+import { BrowserKeyValueStore } from '@effect/platform-browser'
+import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 
 import {
   DEFAULT_COLOR_INDEX,

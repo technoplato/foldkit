@@ -1,12 +1,13 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit them into your own Model, init, Message,
 // update, and view definitions.
-import { DatePicker } from '@foldkit/ui'
 import { Effect, Match as M, Option } from 'effect'
 import { Calendar, Command } from 'foldkit'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { DatePicker } from '@foldkit/ui'
 
 // Add a field to your Model for the DatePicker Submodel:
 const Model = S.Struct({

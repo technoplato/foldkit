@@ -17,8 +17,9 @@ yarn add -D @foldkit/vite-plugin
 Add the plugin to your `vite.config.ts`:
 
 ```typescript
-import { foldkit } from '@foldkit/vite-plugin'
 import { defineConfig } from 'vite'
+
+import { foldkit } from '@foldkit/vite-plugin'
 
 export default defineConfig({
   plugins: [foldkit()],

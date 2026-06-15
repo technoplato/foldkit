@@ -1,4 +1,3 @@
-import { DatePicker, Listbox } from '@foldkit/ui'
 import {
   Array,
   Duration,
@@ -23,6 +22,8 @@ import {
 } from 'foldkit/fieldValidation'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { DatePicker, Listbox } from '@foldkit/ui'
 
 // MODEL
 

@@ -1,5 +1,6 @@
-import { Select } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Select } from '@foldkit/ui'
 
 import { Icon } from '../../icon'
 import type { TableOfContentsEntry } from '../../main'

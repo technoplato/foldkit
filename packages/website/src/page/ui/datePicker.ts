@@ -1,7 +1,8 @@
-import { DatePicker } from '@foldkit/ui'
-import type { AnchorConfig } from '@foldkit/ui/popover'
 import { Match as M, Option } from 'effect'
 import { html } from 'foldkit/html'
+
+import { DatePicker } from '@foldkit/ui'
+import type { AnchorConfig } from '@foldkit/ui/popover'
 
 import { Icon } from '../../icon'
 import { GotDatePickerBasicDemoMessage, type Message } from './message'

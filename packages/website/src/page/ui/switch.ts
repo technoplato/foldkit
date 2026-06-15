@@ -1,5 +1,6 @@
-import { Switch } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Switch } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import { GotSwitchDemoMessage, type Message } from './message'

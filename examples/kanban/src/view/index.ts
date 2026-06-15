@@ -1,6 +1,7 @@
-import { DragAndDrop } from '@foldkit/ui'
 import { Array, Option, pipe } from 'effect'
 import { type Document, html } from 'foldkit/html'
+
+import { DragAndDrop } from '@foldkit/ui'
 
 import { Message } from '../message'
 import type { Model } from '../model'

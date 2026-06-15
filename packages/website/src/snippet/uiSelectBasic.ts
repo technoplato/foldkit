@@ -1,8 +1,9 @@
 // Pseudocode — Select is view-only. The selected value lives in your own
 // Model as a string. Replace model.country and UpdatedCountry with your
 // own field and Message.
-import { Select } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Select } from '@foldkit/ui'
 
 const view = () => {
   const h = html<Message>()

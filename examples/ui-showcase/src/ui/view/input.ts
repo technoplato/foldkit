@@ -1,6 +1,7 @@
-import { Input } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Input } from '@foldkit/ui'
 
 import { type UiMessage, UpdatedInputDemoValue } from '../message'
 import type { UiModel } from '../model'

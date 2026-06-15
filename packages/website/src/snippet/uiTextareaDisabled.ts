@@ -1,7 +1,8 @@
 // Pseudocode — Textarea is view-only. Disabled textareas display a fixed
 // value and ignore onInput events.
-import { Textarea } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Textarea } from '@foldkit/ui'
 
 const view = () => {
   const h = html<Message>()

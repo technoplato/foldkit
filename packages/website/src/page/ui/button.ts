@@ -1,5 +1,6 @@
-import { Button } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Button } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import { ClickedButtonDemo, type Message } from './message'

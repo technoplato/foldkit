@@ -1,4 +1,3 @@
-import * as Shared from '@typing-game/shared'
 import {
   Array,
   Effect,
@@ -11,6 +10,8 @@ import {
 } from 'effect'
 import { Rpc } from 'effect/unstable/rpc'
 import { randomUUID } from 'node:crypto'
+
+import * as Shared from '@typing-game/shared'
 
 import { gameSequence } from '../game.js'
 import { GAME_TEXTS, generateGameText } from '../gameText.js'

@@ -1,7 +1,8 @@
-import { Disclosure } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Disclosure } from '@foldkit/ui'
 
 import * as Icon from '../../icon'
 import { GotDisclosureDemoMessage, type UiMessage } from '../message'

@@ -1,7 +1,8 @@
-import { Tabs } from '@foldkit/ui'
 import { Array, Match as M } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Tabs } from '@foldkit/ui'
 
 import {
   GotHorizontalTabsDemoMessage,

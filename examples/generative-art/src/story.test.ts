@@ -1,7 +1,8 @@
-import { Slider } from '@foldkit/ui'
 import { Array, Option } from 'effect'
 import { Story } from 'foldkit'
 import { describe, expect, test } from 'vitest'
+
+import { Slider } from '@foldkit/ui'
 
 import { SpawnAmbientParticle } from './command'
 import {

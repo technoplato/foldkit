@@ -1,3 +1,5 @@
+import { memo, useCallback } from 'react'
+
 import {
   Listbox,
   ListboxButton,
@@ -7,7 +9,6 @@ import {
   RadioGroup,
   Switch,
 } from '@headlessui/react'
-import { memo, useCallback } from 'react'
 
 import { EMPTY_COLOR, GRID_SIZES } from '../constants'
 import { isGridEmpty } from '../grid'

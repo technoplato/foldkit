@@ -1,7 +1,8 @@
-import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 import { Array, Match as M, Option, Schema as S } from 'effect'
 import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
+
+import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 
 import { ExportPng, saveCanvas } from './command'
 import { DEFAULT_COLOR_INDEX, GRID_SIZE_STRINGS } from './constant'

@@ -1,7 +1,8 @@
-import { DragAndDrop } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Option, String } from 'effect'
 import { Html, html } from 'foldkit/html'
+
+import { DragAndDrop } from '@foldkit/ui'
 
 import { Card } from '../domain'
 import type { Message } from '../message'

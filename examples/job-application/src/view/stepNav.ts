@@ -1,7 +1,8 @@
-import { Menu } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Equal, HashSet, Match, Number, flow } from 'effect'
 import { type Html, html } from 'foldkit/html'
+
+import { Menu } from '@foldkit/ui'
 
 import { Step } from '../domain'
 import type { Message } from '../message'

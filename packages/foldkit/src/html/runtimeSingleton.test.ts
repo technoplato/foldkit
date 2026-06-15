@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import { Context } from 'effect'
 import { afterEach, expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { MountTracker } from '../mount/index.js'
 import { Dispatch } from '../runtime/index.js'

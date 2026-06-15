@@ -1,5 +1,6 @@
-import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 import { Schema as S } from 'effect'
+
+import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 
 // CONSTANT
 

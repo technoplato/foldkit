@@ -1,5 +1,6 @@
-import { RadioGroup } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { RadioGroup } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import {

@@ -1,5 +1,6 @@
-import { Animation } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Animation } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import { GotAnimationDemoMessage, type Message } from './message'

@@ -1,4 +1,3 @@
-import { Disclosure, Tabs } from '@foldkit/ui'
 import {
   Array,
   Effect,
@@ -12,6 +11,8 @@ import { Command, Mount, Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { Disclosure, Tabs } from '@foldkit/ui'
 
 import { Icon } from '../../icon'
 import { exampleSourceHref } from '../../link'

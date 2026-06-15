@@ -1,7 +1,8 @@
-import { VirtualList } from '@foldkit/ui'
 import { Array, Match as M, Option, pipe } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { VirtualList } from '@foldkit/ui'
 
 import {
   ClickedVirtualListScrollToMiddle,

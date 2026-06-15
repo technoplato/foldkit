@@ -1,7 +1,8 @@
-import { Button } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Array, Option } from 'effect'
 import { type Html, html } from 'foldkit/html'
+
+import { Button } from '@foldkit/ui'
 
 import { THUMBNAIL_CELL_SIZE, VISIBLE_HISTORY_COUNT } from '../constant'
 import {

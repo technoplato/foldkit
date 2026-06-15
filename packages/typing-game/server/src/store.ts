@@ -1,5 +1,6 @@
-import * as Shared from '@typing-game/shared'
 import { Context, HashMap, HashSet, Layer, Ref, SubscriptionRef } from 'effect'
+
+import * as Shared from '@typing-game/shared'
 
 type RoomId = string
 type RoomById = HashMap.HashMap<RoomId, Shared.Room>

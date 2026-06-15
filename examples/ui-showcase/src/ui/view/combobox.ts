@@ -1,9 +1,10 @@
-import { Combobox } from '@foldkit/ui'
-import type { AnchorConfig } from '@foldkit/ui/combobox'
 import clsx from 'clsx'
 import { Array } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, childAttributes, html } from 'foldkit/html'
+
+import { Combobox } from '@foldkit/ui'
+import type { AnchorConfig } from '@foldkit/ui/combobox'
 
 import * as Icon from '../../icon'
 import {

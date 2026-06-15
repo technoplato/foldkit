@@ -1,6 +1,7 @@
+import { html } from 'foldkit/html'
+
 import { Tooltip } from '@foldkit/ui'
 import type { AnchorConfig } from '@foldkit/ui/tooltip'
-import { html } from 'foldkit/html'
 
 import { GotTooltipDemoMessage, type Message } from './message'
 

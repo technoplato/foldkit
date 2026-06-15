@@ -1,3 +1,7 @@
+import { Array, Match as M, Number, Option, pipe } from 'effect'
+import { Command } from 'foldkit'
+import { evo } from 'foldkit/struct'
+
 import {
   Animation,
   Calendar,
@@ -14,9 +18,6 @@ import {
   Tooltip,
   VirtualList,
 } from '@foldkit/ui'
-import { Array, Match as M, Number, Option, pipe } from 'effect'
-import { Command } from 'foldkit'
-import { evo } from 'foldkit/struct'
 
 import {
   GotAnimationDemoMessage,

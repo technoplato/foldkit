@@ -1,3 +1,5 @@
+import { Function, Schema as S } from 'effect'
+
 import {
   autoUpdate,
   computePosition,
@@ -6,7 +8,6 @@ import {
   shift,
   size,
 } from '@floating-ui/dom'
-import { Function, Schema as S } from 'effect'
 
 /** Schema mirroring `@floating-ui/dom`'s `Placement` literal union: a side
  *  (`top`/`right`/`bottom`/`left`) optionally suffixed with `-start` or `-end`. */

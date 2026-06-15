@@ -1,5 +1,6 @@
-import { DragAndDrop, Slider, VirtualList } from '@foldkit/ui'
 import { Subscription } from 'foldkit'
+
+import { DragAndDrop, Slider, VirtualList } from '@foldkit/ui'
 
 import {
   GotDragAndDropDemoMessage,

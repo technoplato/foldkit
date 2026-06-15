@@ -1,8 +1,9 @@
-import { Disclosure } from '@foldkit/ui'
 import { clsx } from 'clsx'
 import { Array, Option, Record, Result, pipe } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, createKeyedLazy, html } from 'foldkit/html'
+
+import { Disclosure } from '@foldkit/ui'
 
 import { Icon } from '../../icon'
 import { heading, headingLinkButton, pageTitle } from '../../prose'

@@ -1,6 +1,7 @@
-import * as Shared from '@typing-game/shared'
 import { Array, Data, Match as M, Option, String as Str } from 'effect'
 import { evo } from 'foldkit/struct'
+
+import * as Shared from '@typing-game/shared'
 
 import { optionWhen } from '../../../optionWhen'
 import { FocusUserGameTextInput, TickExitCountdown } from '../command'

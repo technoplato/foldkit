@@ -1,5 +1,6 @@
-import { DragAndDrop } from '@foldkit/ui'
 import { Subscription } from 'foldkit'
+
+import { DragAndDrop } from '@foldkit/ui'
 
 import { GotDragAndDropMessage } from './message'
 import type { Message } from './message'

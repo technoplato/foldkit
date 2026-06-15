@@ -1,8 +1,9 @@
-import { FileDrop } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Array, Match as M, Number, Option } from 'effect'
 import { File, Submodel } from 'foldkit'
 import { type Html, html } from 'foldkit/html'
+
+import { FileDrop } from '@foldkit/ui'
 
 import { Attachments } from '../step'
 

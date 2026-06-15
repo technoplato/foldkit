@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { Console, Effect, HashMap, Option } from 'effect'
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { Console, Effect, HashMap, Option } from 'effect'
 
 import { runInit } from './install.js'
 import { buildTools } from './tools.js'

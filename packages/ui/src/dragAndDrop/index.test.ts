@@ -1,7 +1,8 @@
-import { describe, it } from '@effect/vitest'
 import { Option } from 'effect'
 import * as Story from 'foldkit/story'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import {
   ActivatedKeyboardDrag,

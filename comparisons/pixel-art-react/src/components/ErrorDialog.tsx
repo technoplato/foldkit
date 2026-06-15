@@ -1,10 +1,11 @@
+import { memo, useCallback } from 'react'
+
 import {
   Description,
   Dialog,
   DialogPanel,
   DialogTitle,
 } from '@headlessui/react'
-import { memo, useCallback } from 'react'
 
 import type { Action } from '../reducer'
 

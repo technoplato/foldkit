@@ -1,8 +1,9 @@
-import * as Shared from '@typing-game/shared'
 import { Effect, Match as M, Option, Schema as S } from 'effect'
 import { Command, Url } from 'foldkit'
 import { load, pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
+
+import * as Shared from '@typing-game/shared'
 
 import { NavigateToRoom } from './command'
 import {

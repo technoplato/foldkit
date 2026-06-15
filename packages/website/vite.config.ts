@@ -1,10 +1,11 @@
-import { foldkit } from '@foldkit/vite-plugin'
-import tailwindcss from '@tailwindcss/vite'
 import { Array, Match as M, Option, Schema as S, pipe } from 'effect'
 import { readFile, readdir } from 'node:fs/promises'
 import { basename, extname, join, relative, resolve } from 'node:path'
 import { codeToHtml } from 'shiki'
 import { type Plugin, defineConfig } from 'vite'
+
+import { foldkit } from '@foldkit/vite-plugin'
+import tailwindcss from '@tailwindcss/vite'
 
 import { monacoWorkersPlugin } from './scripts/monacoWorkersPlugin'
 import { playgroundFilesPlugin } from './scripts/playgroundFilesPlugin'

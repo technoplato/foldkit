@@ -1,4 +1,3 @@
-import { BrowserRuntime } from '@effect/platform-browser'
 import {
   Array,
   Cause,
@@ -24,6 +23,8 @@ import {
   pipe,
 } from 'effect'
 import { h } from 'snabbdom'
+
+import { BrowserRuntime } from '@effect/platform-browser'
 
 import type { Command } from '../command/index.js'
 import {

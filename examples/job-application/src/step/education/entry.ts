@@ -1,4 +1,3 @@
-import { Checkbox, Listbox } from '@foldkit/ui'
 import { Match as M, Option, Schema as S } from 'effect'
 import { Command } from 'foldkit'
 import {
@@ -11,6 +10,8 @@ import {
 } from 'foldkit/fieldValidation'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { Checkbox, Listbox } from '@foldkit/ui'
 
 // FIELD VALIDATION
 

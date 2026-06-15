@@ -1,6 +1,7 @@
-import { Disclosure } from '@foldkit/ui'
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
+
+import { Disclosure } from '@foldkit/ui'
 
 import { ApiData } from './model'
 

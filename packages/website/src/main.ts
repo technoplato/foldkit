@@ -1,7 +1,3 @@
-import { BrowserKeyValueStore } from '@effect/platform-browser'
-import { Dialog, Disclosure, Menu, Tabs } from '@foldkit/ui'
-import { inject } from '@vercel/analytics'
-import * as SpeedInsights from '@vercel/speed-insights'
 import {
   Array,
   DateTime,
@@ -34,6 +30,11 @@ import { type Document, html } from 'foldkit/html'
 import { load, pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
 import { Url, toString as urlToString } from 'foldkit/url'
+
+import { BrowserKeyValueStore } from '@effect/platform-browser'
+import { Dialog, Disclosure, Menu, Tabs } from '@foldkit/ui'
+import { inject } from '@vercel/analytics'
+import * as SpeedInsights from '@vercel/speed-insights'
 
 import { DOCS_SIDEBAR_NAV_ID, allPages, findActiveSectionKey } from './docsNav'
 import { GitHubStarsRemoteData } from './githubStars'

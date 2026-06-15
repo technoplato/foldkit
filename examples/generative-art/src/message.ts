@@ -1,6 +1,7 @@
-import { Slider } from '@foldkit/ui'
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
+
+import { Slider } from '@foldkit/ui'
 
 const spawnedParticleFields = {
   x: S.Number,

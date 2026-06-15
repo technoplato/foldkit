@@ -1,7 +1,8 @@
 // Pseudocode — Input is view-only. Disabled inputs display a fixed value
 // and ignore onInput events.
-import { Input } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Input } from '@foldkit/ui'
 
 const view = () => {
   const h = html<Message>()

@@ -1,12 +1,13 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit them into your own Model, init, Message,
 // update, and view definitions.
-import { Listbox } from '@foldkit/ui'
 import { Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { Listbox } from '@foldkit/ui'
 
 type Plan = 'Free' | 'Pro' | 'Enterprise'
 

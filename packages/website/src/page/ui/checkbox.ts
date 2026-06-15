@@ -1,5 +1,6 @@
-import { Checkbox } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Checkbox } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import {

@@ -1,5 +1,6 @@
-import { Slider } from '@foldkit/ui'
 import { Subscription } from 'foldkit'
+
+import { Slider } from '@foldkit/ui'
 
 import {
   GotFlowStrengthSliderMessage,

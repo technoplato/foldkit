@@ -3,9 +3,10 @@
  *
  * Run: pnpm --filter pixel-art-example exec vitest run src/comparison.bench.ts
  */
-import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 import { Option } from 'effect'
 import { test } from 'vitest'
+
+import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 
 import { createEmptyGrid as createReactGrid } from '../../../comparisons/pixel-art-react/src/grid'
 import { reducer } from '../../../comparisons/pixel-art-react/src/reducer'

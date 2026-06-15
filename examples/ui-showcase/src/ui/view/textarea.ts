@@ -1,6 +1,7 @@
-import { Textarea } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Textarea } from '@foldkit/ui'
 
 import { type UiMessage, UpdatedTextareaDemoValue } from '../message'
 import type { UiModel } from '../model'

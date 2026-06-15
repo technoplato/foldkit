@@ -1,6 +1,7 @@
-import { Slider } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Slider } from '@foldkit/ui'
 
 import {
   GotSliderRatingDemoMessage,

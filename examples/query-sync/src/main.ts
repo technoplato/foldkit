@@ -1,5 +1,3 @@
-import { Listbox } from '@foldkit/ui'
-import { AnchorConfig } from '@foldkit/ui/listbox'
 import { clsx } from 'clsx'
 import {
   Array,
@@ -21,6 +19,9 @@ import { r } from 'foldkit/route'
 import { ts } from 'foldkit/schema'
 import { evo } from 'foldkit/struct'
 import { Url, toString as urlToString } from 'foldkit/url'
+
+import { Listbox } from '@foldkit/ui'
+import { AnchorConfig } from '@foldkit/ui/listbox'
 
 import { type Dinosaur, dinosaurs } from './data'
 

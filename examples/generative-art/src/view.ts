@@ -1,7 +1,8 @@
-import { Button, Slider } from '@foldkit/ui'
 import { Array, Option, pipe } from 'effect'
 import { Canvas } from 'foldkit'
 import { Document, Html, html } from 'foldkit/html'
+
+import { Button, Slider } from '@foldkit/ui'
 
 import {
   BACKGROUND_COLOR_TOP,

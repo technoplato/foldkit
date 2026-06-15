@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import { Effect } from 'effect'
 import { expect, vi } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import {
   ElementNotFound,

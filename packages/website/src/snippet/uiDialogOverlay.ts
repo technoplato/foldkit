@@ -1,9 +1,10 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit them into your own Model, init, Message,
 // update, and view definitions.
-import { Combobox, Dialog } from '@foldkit/ui'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
+
+import { Combobox, Dialog } from '@foldkit/ui'
 
 // One Model field for the dialog, one for the overlay it contains:
 const Model = S.Struct({

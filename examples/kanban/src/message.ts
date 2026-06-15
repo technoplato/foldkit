@@ -1,6 +1,7 @@
-import { DragAndDrop } from '@foldkit/ui'
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
+
+import { DragAndDrop } from '@foldkit/ui'
 
 export const GotDragAndDropMessage = m('GotDragAndDropMessage', {
   message: DragAndDrop.Message,

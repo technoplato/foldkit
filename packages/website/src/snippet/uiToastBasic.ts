@@ -1,12 +1,13 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit them into your own Model, init, Message,
 // update, and view definitions.
-import { Toast as UiToast } from '@foldkit/ui'
 import { Match as M, Option, Schema as S } from 'effect'
 import { Command } from 'foldkit'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { Toast as UiToast } from '@foldkit/ui'
 
 // Define the payload shape for your toast. The Toast component owns only
 // lifecycle + a11y fields (id, variant, transition, dismiss timer, hover

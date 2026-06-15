@@ -1,9 +1,10 @@
-import { Checkbox, Listbox } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Array } from 'effect'
 import { Submodel } from 'foldkit'
 import { type CalendarDate } from 'foldkit/calendar'
 import { type Html, html } from 'foldkit/html'
+
+import { Checkbox, Listbox } from '@foldkit/ui'
 
 import { Education } from '../step'
 import { inputField } from './field'

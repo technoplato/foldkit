@@ -1,4 +1,3 @@
-import { BrowserCrypto } from '@effect/platform-browser'
 import {
   Array,
   Crypto,
@@ -11,6 +10,8 @@ import {
 import { Command } from 'foldkit'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { BrowserCrypto } from '@effect/platform-browser'
 
 import * as Entry from './entry'
 

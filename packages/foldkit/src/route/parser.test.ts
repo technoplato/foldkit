@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import { Effect, Option, Schema as S, pipe } from 'effect'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { Url } from '../url/index.js'
 import { r } from './index.js'

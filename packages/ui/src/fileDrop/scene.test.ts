@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import { html } from 'foldkit/html'
 import * as Scene from 'foldkit/scene'
+
+import { describe, it } from '@effect/vitest'
 
 import type { Message, Model, ViewInputs } from './index.js'
 import { EnteredDragZone, init, update, view } from './index.js'

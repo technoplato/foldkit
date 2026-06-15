@@ -1,5 +1,6 @@
-import * as Shared from '@typing-game/shared'
 import { Array, Duration, Schedule, Stream, pipe } from 'effect'
+
+import * as Shared from '@typing-game/shared'
 
 export const COUNTDOWN_SECONDS = 3
 export const PLAYING_SECONDS = 30

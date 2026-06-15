@@ -1,8 +1,9 @@
 // Pseudocode — Fieldset is view-only. Setting isDisabled on the fieldset
 // propagates to all child form elements via the native <fieldset disabled>
 // attribute.
-import { Fieldset } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Fieldset } from '@foldkit/ui'
 
 const view = () => {
   const h = html<Message>()

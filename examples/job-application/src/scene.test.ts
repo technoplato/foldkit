@@ -1,6 +1,7 @@
-import { Menu } from '@foldkit/ui'
 import { Calendar, Scene } from 'foldkit'
 import { describe, test } from 'vitest'
+
+import { Menu } from '@foldkit/ui'
 
 import {
   type Model,

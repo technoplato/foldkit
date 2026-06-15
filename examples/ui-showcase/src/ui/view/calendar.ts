@@ -1,7 +1,8 @@
-import { Calendar } from '@foldkit/ui'
 import { Match as M } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Calendar } from '@foldkit/ui'
 
 import * as Icon from '../../icon'
 import { GotCalendarBasicDemoMessage, type UiMessage } from '../message'

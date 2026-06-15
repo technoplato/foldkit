@@ -1,6 +1,7 @@
-import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
+
+import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 
 import { PaletteIndex, Tool } from './model'
 

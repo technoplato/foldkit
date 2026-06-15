@@ -1,7 +1,8 @@
-import { Dialog } from '@foldkit/ui'
 import { Match as M, Number, String } from 'effect'
 import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
+
+import { Dialog } from '@foldkit/ui'
 
 import {
   FetchSearchResults,

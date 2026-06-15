@@ -1,6 +1,7 @@
-import { Combobox, Dialog } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Combobox, Dialog } from '@foldkit/ui'
 
 import {
   ClickedDeleteProject,

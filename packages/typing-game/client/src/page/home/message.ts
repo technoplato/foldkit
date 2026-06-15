@@ -1,6 +1,7 @@
-import * as Shared from '@typing-game/shared'
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
+
+import * as Shared from '@typing-game/shared'
 
 export const CompletedFocusUsernameInput = m('CompletedFocusUsernameInput')
 export const CompletedFocusRoomIdInput = m('CompletedFocusRoomIdInput')

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { NodeRuntime, NodeServices, NodeStdio } from '@effect/platform-node'
 import { Effect, Layer, Option, Schema } from 'effect'
 import { Command, Flag } from 'effect/unstable/cli'
 import { FetchHttpClient } from 'effect/unstable/http'
 import { createRequire } from 'node:module'
+
+import { NodeRuntime, NodeServices, NodeStdio } from '@effect/platform-node'
 
 import { create as create_ } from './commands/create.js'
 import { EXAMPLE_VALUES } from './examples.js'

@@ -1,9 +1,10 @@
 // Pseudocode walkthrough using the same Model, Messages, and update as
 // the basic menu; only init and view change. Each labeled block below is
 // an excerpt.
-import { Menu } from '@foldkit/ui'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
+
+import { Menu } from '@foldkit/ui'
 
 // Only init and view differ from the basic menu: init adds isAnimated, the
 // view uses data-[closed] selectors for enter/leave transitions.

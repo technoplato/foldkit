@@ -21,8 +21,9 @@ yarn add @foldkit/ui
 Import a component by name. Each import is a namespace that groups the component's `view` and, for stateful components, its `Model`, `Message`, `init`, and `update`.
 
 ```typescript
-import { Button } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Button } from '@foldkit/ui'
 
 const view = () => {
   const h = html<Message>()

@@ -1,7 +1,8 @@
 // Pseudocode — Button is view-only. Replace ClickedSave() with your own
 // Message constructor.
-import { Button } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Button } from '@foldkit/ui'
 
 const view = () => {
   const h = html<Message>()

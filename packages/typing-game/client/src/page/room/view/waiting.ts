@@ -1,6 +1,7 @@
-import * as Shared from '@typing-game/shared'
 import { Array, Match, Option, flow, pipe } from 'effect'
 import { Html, html } from 'foldkit/html'
+
+import * as Shared from '@typing-game/shared'
 
 import type { Message } from '../message'
 import { RoomPlayerSession } from '../model'

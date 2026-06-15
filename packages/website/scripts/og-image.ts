@@ -1,9 +1,10 @@
-import { Resvg } from '@resvg/resvg-js'
 import { FileSystem } from 'effect'
 import { Array, Console, Effect, pipe } from 'effect'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import satori, { type Font } from 'satori'
+
+import { Resvg } from '@resvg/resvg-js'
 
 import { type AppRoute } from '../src/route'
 import { type PageMetadata, routeToMetadata } from './metadata'

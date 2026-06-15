@@ -1,7 +1,8 @@
-import { Tabs } from '@foldkit/ui'
 import { HashMap, Option } from 'effect'
 import { Story } from 'foldkit'
 import { expect, test } from 'vitest'
+
+import { Tabs } from '@foldkit/ui'
 
 import {
   ClickedBackToPosts,

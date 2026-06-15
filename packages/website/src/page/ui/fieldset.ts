@@ -1,5 +1,6 @@
-import { Checkbox, Fieldset, Input, Textarea } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Checkbox, Fieldset, Input, Textarea } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import {

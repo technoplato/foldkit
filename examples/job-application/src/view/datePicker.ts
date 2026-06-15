@@ -1,7 +1,8 @@
-import { Calendar } from '@foldkit/ui'
 import { Match as M, Option } from 'effect'
 import { type CalendarDate } from 'foldkit/calendar'
 import { type Html, html } from 'foldkit/html'
+
+import { Calendar } from '@foldkit/ui'
 
 import { fullDate } from './format'
 import { chevronDown } from './icon'

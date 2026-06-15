@@ -1,8 +1,9 @@
-import { FileDrop } from '@foldkit/ui'
 import { Array, Match as M, Option, Schema as S, pipe } from 'effect'
 import { Command, File } from 'foldkit'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { FileDrop } from '@foldkit/ui'
 
 // MODEL
 

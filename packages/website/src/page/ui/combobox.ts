@@ -1,8 +1,9 @@
-import { Combobox } from '@foldkit/ui'
-import type { AnchorConfig } from '@foldkit/ui/combobox'
 import { clsx } from 'clsx'
 import { Array } from 'effect'
 import { childAttributes, html } from 'foldkit/html'
+
+import { Combobox } from '@foldkit/ui'
+import type { AnchorConfig } from '@foldkit/ui/combobox'
 
 import { Icon } from '../../icon'
 import type { TableOfContentsEntry } from '../../main'

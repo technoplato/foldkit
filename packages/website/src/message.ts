@@ -1,8 +1,9 @@
-import { Dialog, Disclosure, Menu, Tabs } from '@foldkit/ui'
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
+
+import { Dialog, Disclosure, Menu, Tabs } from '@foldkit/ui'
 
 import * as Page from './page'
 import * as Search from './search'

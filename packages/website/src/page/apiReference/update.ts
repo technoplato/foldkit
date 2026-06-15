@@ -1,7 +1,8 @@
-import { Disclosure } from '@foldkit/ui'
 import { Array, Match as M, Option, Record, pipe } from 'effect'
 import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
+
+import { Disclosure } from '@foldkit/ui'
 
 import { LoadApiData } from './command'
 import {

@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import { Option, pipe } from 'effect'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { fromString, when } from './optionExtensions.js'
 

@@ -1,6 +1,7 @@
-import { Select } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Select } from '@foldkit/ui'
 
 import * as Icon from '../../icon'
 import { type UiMessage, UpdatedSelectDemoValue } from '../message'

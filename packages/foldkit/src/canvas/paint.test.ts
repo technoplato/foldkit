@@ -1,5 +1,6 @@
-import { describe, it } from '@effect/vitest'
 import { expect, vi } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { paintScene } from './paint.js'
 import {

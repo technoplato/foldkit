@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import { Exit, Schema as S } from 'effect'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { PreserveModelMessage, RestoreModelMessage } from './hmrProtocol.js'
 

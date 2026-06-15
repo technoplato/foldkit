@@ -1,4 +1,3 @@
-import { Button, Input } from '@foldkit/ui'
 import {
   Array,
   Duration,
@@ -15,6 +14,8 @@ import { m } from 'foldkit/message'
 import { pushUrl } from 'foldkit/navigation'
 import { ts } from 'foldkit/schema'
 import { evo } from 'foldkit/struct'
+
+import { Button, Input } from '@foldkit/ui'
 
 import { PeopleRoute, peopleRouter, personRouter } from '../route'
 

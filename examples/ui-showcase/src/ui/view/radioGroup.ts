@@ -1,6 +1,7 @@
-import { RadioGroup } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { RadioGroup } from '@foldkit/ui'
 
 import {
   GotHorizontalRadioGroupDemoMessage,

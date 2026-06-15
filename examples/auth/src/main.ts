@@ -1,9 +1,10 @@
-import { BrowserKeyValueStore } from '@effect/platform-browser'
 import { Effect, Match as M, Option, Schema as S } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
 import { Command, Runtime } from 'foldkit'
 import { replaceUrl } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
+
+import { BrowserKeyValueStore } from '@effect/platform-browser'
 
 import { SESSION_STORAGE_KEY } from './constant'
 import { Session } from './domain/session'

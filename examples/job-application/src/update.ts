@@ -1,7 +1,8 @@
-import { Menu } from '@foldkit/ui'
 import { Array, Match as M, Option, pipe } from 'effect'
 import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
+
+import { Menu } from '@foldkit/ui'
 
 import { SubmitApplication } from './command'
 import { Step } from './domain'

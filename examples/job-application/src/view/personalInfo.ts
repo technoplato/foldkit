@@ -1,8 +1,9 @@
-import { DatePicker, Listbox } from '@foldkit/ui'
 import { Equal, Option } from 'effect'
 import { Submodel } from 'foldkit'
 import { Valid } from 'foldkit/fieldValidation'
 import { type Html, childAttributes, html } from 'foldkit/html'
+
+import { DatePicker, Listbox } from '@foldkit/ui'
 
 import { PronounOption } from '../domain'
 import { PersonalInfo } from '../step'

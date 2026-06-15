@@ -1,6 +1,7 @@
-import { Menu } from '@foldkit/ui'
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
+
+import { Menu } from '@foldkit/ui'
 
 import { Step } from './domain'
 import * as Attachments from './step/attachments'

@@ -1,8 +1,9 @@
-import { describe, it } from '@effect/vitest'
 import { Match as M, Option } from 'effect'
 import * as Calendar from 'foldkit/calendar'
 import { html } from 'foldkit/html'
 import * as Scene from 'foldkit/scene'
+
+import { describe, it } from '@effect/vitest'
 
 import * as UiCalendar from '../calendar/index.js'
 import * as Popover from '../popover/public.js'

@@ -1,6 +1,7 @@
-import { VirtualList } from '@foldkit/ui'
 import { Array, Match as M, Option, pipe } from 'effect'
 import { html } from 'foldkit/html'
+
+import { VirtualList } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import {

@@ -1,7 +1,8 @@
-import { DragAndDrop } from '@foldkit/ui'
 import { Option } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
+
+import { DragAndDrop } from '@foldkit/ui'
 
 import { FocusAddCardInput, GenerateCardId, SaveBoard } from './command'
 import type { Card } from './domain/card'

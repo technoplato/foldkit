@@ -1,7 +1,8 @@
-import { BrowserCrypto } from '@effect/platform-browser'
-import { Menu } from '@foldkit/ui'
 import { Crypto, Effect, Schema as S } from 'effect'
 import { Calendar, Runtime } from 'foldkit'
+
+import { BrowserCrypto } from '@effect/platform-browser'
+import { Menu } from '@foldkit/ui'
 
 import { Message } from './message'
 import { Model, NotSubmitted } from './model'

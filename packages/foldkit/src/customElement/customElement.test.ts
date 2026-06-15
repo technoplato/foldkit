@@ -1,4 +1,3 @@
-import { describe, it } from '@effect/vitest'
 import { Context, Effect, Schema as S } from 'effect'
 import {
   attributesModule,
@@ -10,6 +9,8 @@ import {
   toVNode,
 } from 'snabbdom'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import {
   __clearRuntime as clearHtmlRuntime,

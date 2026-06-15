@@ -1,7 +1,8 @@
-import * as Shared from '@typing-game/shared'
 import { Match as M, Option } from 'effect'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import * as Shared from '@typing-game/shared'
 
 import { ROOM_PAGE_USERNAME_INPUT_ID } from '../../../constant'
 import { Icon } from '../../../view/icon'

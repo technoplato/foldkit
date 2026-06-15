@@ -1,7 +1,8 @@
-import { Textarea } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Submodel } from 'foldkit'
 import { type Html, html } from 'foldkit/html'
+
+import { Textarea } from '@foldkit/ui'
 
 import { CoverLetter } from '../step'
 

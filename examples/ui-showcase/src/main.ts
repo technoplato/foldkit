@@ -1,4 +1,3 @@
-import { Dialog } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Effect, Match as M, Schema as S, pipe } from 'effect'
 import {
@@ -15,6 +14,8 @@ import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { literal, r } from 'foldkit/route'
 import { evo } from 'foldkit/struct'
 import { Url, toString as urlToString } from 'foldkit/url'
+
+import { Dialog } from '@foldkit/ui'
 
 import * as Icon from './icon'
 import { uiInit } from './ui/init'

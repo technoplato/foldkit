@@ -1,5 +1,6 @@
-import { Listbox, Popover } from '@foldkit/ui'
 import { Scene } from 'foldkit'
+
+import { Listbox, Popover } from '@foldkit/ui'
 
 // Single Mount. Open a popover, acknowledge its anchor mount.
 Scene.click(Scene.role('button', { name: 'Open' }))

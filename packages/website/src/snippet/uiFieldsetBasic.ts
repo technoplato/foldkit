@@ -1,7 +1,8 @@
 // Pseudocode — Fieldset is view-only. Nest other Foldkit UI components
 // inside the fieldset body in your own view function.
-import { Fieldset } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Fieldset } from '@foldkit/ui'
 
 const view = () => {
   const h = html<Message>()

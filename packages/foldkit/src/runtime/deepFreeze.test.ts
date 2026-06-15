@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import { Equal, Hash, Option } from 'effect'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { deepFreeze } from './deepFreeze.js'
 

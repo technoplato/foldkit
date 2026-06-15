@@ -1,6 +1,7 @@
-import { overlay } from '@foldkit/devtools'
 import { Layer } from 'effect'
 import { Runtime } from 'foldkit'
+
+import { overlay } from '@foldkit/devtools'
 
 import {
   type AppManagedResources,

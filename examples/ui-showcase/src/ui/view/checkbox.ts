@@ -1,6 +1,7 @@
-import { Checkbox } from '@foldkit/ui'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Checkbox } from '@foldkit/ui'
 
 import {
   GotCheckboxAllDemoMessage,

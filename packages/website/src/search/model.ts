@@ -1,6 +1,7 @@
-import { Dialog } from '@foldkit/ui'
 import { Match as M, Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
+
+import { Dialog } from '@foldkit/ui'
 
 import { SearchResult } from './message'
 

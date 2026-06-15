@@ -1,6 +1,7 @@
+import { type Html, html } from 'foldkit/html'
+
 import { Popover } from '@foldkit/ui'
 import type { AnchorConfig } from '@foldkit/ui/popover'
-import { type Html, html } from 'foldkit/html'
 
 import type { TableOfContentsEntry } from '../../main'
 import {

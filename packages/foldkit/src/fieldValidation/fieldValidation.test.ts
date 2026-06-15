@@ -1,6 +1,7 @@
-import { describe, it } from '@effect/vitest'
 import { Option, Schema as S } from 'effect'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import { CalendarDateFromIsoString } from '../calendar/public.js'
 import {

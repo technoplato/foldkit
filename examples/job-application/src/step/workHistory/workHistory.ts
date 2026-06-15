@@ -1,4 +1,3 @@
-import { BrowserCrypto } from '@effect/platform-browser'
 import {
   Array,
   Crypto,
@@ -12,6 +11,8 @@ import { Calendar, Command } from 'foldkit'
 import { type CalendarDate } from 'foldkit/calendar'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { BrowserCrypto } from '@effect/platform-browser'
 
 import * as Entry from './entry'
 

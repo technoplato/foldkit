@@ -1,11 +1,12 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit them into your own Model, init, Message,
 // update, and view definitions.
-import { Dialog } from '@foldkit/ui'
 import { Command } from 'foldkit'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { Dialog } from '@foldkit/ui'
 
 // Add a field to your Model for the Dialog Submodel:
 const Model = S.Struct({

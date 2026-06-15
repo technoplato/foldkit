@@ -1,7 +1,8 @@
-import { RadioGroup } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Submodel } from 'foldkit'
 import { type Html, html } from 'foldkit/html'
+
+import { RadioGroup } from '@foldkit/ui'
 
 import { ProficiencyLevel } from '../domain'
 import { Skills } from '../step'

@@ -1,4 +1,3 @@
-import { Button, Input, RadioGroup } from '@foldkit/ui'
 import { clsx } from 'clsx'
 import {
   Array,
@@ -20,6 +19,8 @@ import { m } from 'foldkit/message'
 import { ts } from 'foldkit/schema'
 import { evo } from 'foldkit/struct'
 import notePlayerDemoCodeHtml from 'virtual:note-player-demo-code'
+
+import { Button, Input, RadioGroup } from '@foldkit/ui'
 
 import { Icon } from '../icon'
 import * as DemoView from './demoView'

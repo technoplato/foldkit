@@ -1,8 +1,9 @@
-import { Listbox } from '@foldkit/ui'
 import { Option } from 'effect'
 import { Story } from 'foldkit'
 import { fromString } from 'foldkit/url'
 import { describe, expect, test } from 'vitest'
+
+import { Listbox } from '@foldkit/ui'
 
 import {
   Ascending,

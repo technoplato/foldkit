@@ -1,6 +1,3 @@
-import * as Listbox from '@foldkit/ui/listbox'
-import * as Slider from '@foldkit/ui/slider'
-import * as Tabs from '@foldkit/ui/tabs'
 import { clsx } from 'clsx'
 import {
   Array as Array_,
@@ -49,6 +46,10 @@ import { makeElement } from 'foldkit/runtime'
 import type { DevToolsMode, DevToolsPosition } from 'foldkit/runtime'
 import { evo } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
+
+import * as Listbox from '@foldkit/ui/listbox'
+import * as Slider from '@foldkit/ui/slider'
+import * as Tabs from '@foldkit/ui/tabs'
 
 import * as OptionExt from './internal/optionExtensions.js'
 import { overlayStyles } from './overlay-styles.js'

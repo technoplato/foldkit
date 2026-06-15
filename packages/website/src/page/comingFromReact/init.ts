@@ -1,6 +1,7 @@
-import { Disclosure } from '@foldkit/ui'
 import { Array, Record, pipe } from 'effect'
 import { Command } from 'foldkit'
+
+import { Disclosure } from '@foldkit/ui'
 
 import { FAQ_IDS } from './faq'
 import type { Message } from './message'

@@ -1,7 +1,8 @@
-import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 import { Option } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
+
+import { Dialog, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 
 import { ExportPng, SaveCanvas } from './command'
 import { createEmptyGrid } from './grid'

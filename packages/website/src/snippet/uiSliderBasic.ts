@@ -1,12 +1,13 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit each into your own Model, init, Message,
 // update, view, and subscription definitions.
-import { Slider } from '@foldkit/ui'
 import { Match as M, Option, Schema as S } from 'effect'
 import { Command, Subscription } from 'foldkit'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { Slider } from '@foldkit/ui'
 
 // Add a field to your Model for the Slider Submodel:
 const Model = S.Struct({

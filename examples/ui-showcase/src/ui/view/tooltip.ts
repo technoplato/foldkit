@@ -1,7 +1,8 @@
-import { Tooltip } from '@foldkit/ui'
-import type { AnchorConfig } from '@foldkit/ui/tooltip'
 import { Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { Tooltip } from '@foldkit/ui'
+import type { AnchorConfig } from '@foldkit/ui/tooltip'
 
 import {
   GotTooltipBasicDemoMessage,

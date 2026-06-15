@@ -1,12 +1,13 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit them into your own Model, init, Message,
 // update, and view definitions.
-import { Combobox } from '@foldkit/ui'
 import { Array, Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 import { childAttributes, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { Combobox } from '@foldkit/ui'
 
 type City = 'Johannesburg' | 'Kyiv' | 'Oxford' | 'Wellington'
 

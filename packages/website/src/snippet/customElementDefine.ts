@@ -1,9 +1,10 @@
-import '@shoelace-style/shoelace/dist/components/qr-code/qr-code.js'
 import { Schema as S } from 'effect'
 import { CustomElement } from 'foldkit'
 import { type Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import 'vanilla-colorful/hex-color-picker.js'
+
+import '@shoelace-style/shoelace/dist/components/qr-code/qr-code.js'
 
 // The two side-effect imports above register each custom element with
 // the browser. Foldkit does not call customElements.define for you;

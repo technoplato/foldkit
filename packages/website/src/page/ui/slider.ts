@@ -1,5 +1,6 @@
-import { Slider } from '@foldkit/ui'
 import { html } from 'foldkit/html'
+
+import { Slider } from '@foldkit/ui'
 
 import type { TableOfContentsEntry } from '../../main'
 import {

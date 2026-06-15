@@ -1,5 +1,6 @@
-import { overlay } from '@foldkit/devtools'
 import { Runtime } from 'foldkit'
+
+import { overlay } from '@foldkit/devtools'
 
 import { Flags, flags, init } from './main'
 import { ChangedUrl, ClickedLink, Message } from './message'

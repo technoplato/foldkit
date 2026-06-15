@@ -1,11 +1,12 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit them into your own Model, init, Message,
 // update, and view definitions.
-import { Checkbox } from '@foldkit/ui'
 import { Array } from 'effect'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { Checkbox } from '@foldkit/ui'
 
 // Add multiple Checkbox Submodels to your Model for the parent and children:
 const Model = S.Struct({

@@ -21,8 +21,9 @@ yarn add @foldkit/devtools
 The overlay is opt-in. Pass its `overlay` factory as `devTools.overlay` when you create the application:
 
 ```typescript
-import { overlay } from '@foldkit/devtools'
 import { Runtime } from 'foldkit'
+
+import { overlay } from '@foldkit/devtools'
 
 const application = Runtime.makeApplication({
   // ...

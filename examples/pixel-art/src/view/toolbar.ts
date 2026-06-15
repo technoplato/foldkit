@@ -1,7 +1,8 @@
-import { Button, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 import clsx from 'clsx'
 import { Array } from 'effect'
 import { type Html, childAttributes, html } from 'foldkit/html'
+
+import { Button, Listbox, RadioGroup, Switch } from '@foldkit/ui'
 
 import { EMPTY_COLOR, GRID_SIZE_STRINGS } from '../constant'
 import {

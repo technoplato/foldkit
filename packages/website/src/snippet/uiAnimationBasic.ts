@@ -1,12 +1,13 @@
 // Pseudocode walkthrough of the Foldkit integration points. Each labeled
 // block below is an excerpt. Fit them into your own Model, init, Message,
 // update, and view definitions.
-import { Animation } from '@foldkit/ui'
 import { Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
+
+import { Animation } from '@foldkit/ui'
 
 // Add a field to your Model for the Animation Submodel. Animation tracks
 // its own visibility and lifecycle state. No need for a separate flag:

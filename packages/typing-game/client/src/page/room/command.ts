@@ -1,7 +1,8 @@
-import { BrowserKeyValueStore } from '@effect/platform-browser'
 import { Effect, Option, Schema as S } from 'effect'
 import { KeyValueStore } from 'effect/unstable/persistence'
 import { Command, Dom } from 'foldkit'
+
+import { BrowserKeyValueStore } from '@effect/platform-browser'
 
 import {
   ROOM_PAGE_USERNAME_INPUT_ID,

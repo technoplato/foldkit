@@ -1,7 +1,8 @@
-import { FileDrop } from '@foldkit/ui'
 import { Array } from 'effect'
 import { File } from 'foldkit'
 import { Html, html } from 'foldkit/html'
+
+import { FileDrop } from '@foldkit/ui'
 
 import {
   ClickedRemoveFileDropDemoFile,

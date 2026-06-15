@@ -1,4 +1,3 @@
-import { BrowserKeyValueStore } from '@effect/platform-browser'
 import {
   Array,
   Clock,
@@ -15,6 +14,8 @@ import { Document, Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { ts } from 'foldkit/schema'
 import { evo } from 'foldkit/struct'
+
+import { BrowserKeyValueStore } from '@effect/platform-browser'
 
 // CONSTANT
 

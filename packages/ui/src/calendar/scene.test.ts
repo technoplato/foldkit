@@ -1,8 +1,9 @@
-import { describe, it } from '@effect/vitest'
 import { Match as M } from 'effect'
 import * as Calendar from 'foldkit/calendar'
 import { html } from 'foldkit/html'
 import * as Scene from 'foldkit/scene'
+
+import { describe, it } from '@effect/vitest'
 
 import type { CalendarAttributes, Message, Model, ViewInputs } from './index.js'
 import { CompletedFocusGrid, FocusGrid, init, update, view } from './index.js'

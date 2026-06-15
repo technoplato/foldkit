@@ -1,8 +1,9 @@
-import { describe, it } from '@effect/vitest'
 import { Option, flow } from 'effect'
 import * as Calendar from 'foldkit/calendar'
 import * as Story from 'foldkit/story'
 import { expect } from 'vitest'
+
+import { describe, it } from '@effect/vitest'
 
 import * as UiCalendar from '../calendar/index.js'
 import * as Popover from '../popover/index.js'
