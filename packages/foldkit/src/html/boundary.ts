@@ -245,7 +245,9 @@ const dispatchAcrossBoundary = (
           `invoked from a deferred context (setTimeout, Promise.then, a ` +
           `stored callback) after the parent Submodel unmounted. Slot ` +
           `callbacks must be invoked synchronously inside the render that ` +
-          `created them.`,
+          `created them. It can also mean foldkit was loaded as more than ` +
+          `one instance (a bundler split foldkit and @foldkit/ui), so the ` +
+          `wrap was registered in one copy and read from another.`,
       )
     }
     wrapped = descriptor.toParentMessage(wrapped)

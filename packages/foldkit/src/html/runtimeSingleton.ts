@@ -18,31 +18,7 @@ export type Frame = Readonly<{
   boundaryId: BoundaryId
 }>
 
-// NOTE: the dispatch stack is keyed on a `Symbol.for` global rather than a
-// plain module-level array. A bundler can instantiate foldkit's internal
-// modules more than once in a single page (e.g. `foldkit` and `@foldkit/ui`
-// optimized in separate Vite passes, or `@foldkit/ui` externalized while
-// `foldkit` is inlined under Vitest). Each copy would otherwise get its own
-// empty stack, so the runtime pushes a render frame onto one instance's stack
-// while a UI component's element constructors read another instance's empty
-// stack and throw. Resolving the array from `globalThis` once at load time
-// collapses every duplicate onto a single shared stack, which also carries the
-// boundary registry across instances via the frame it holds.
-const RUNTIME_STACK_KEY = Symbol.for('foldkit/html/runtimeStack')
-
-const getOrCreateGlobalStack = (): Array<Frame> => {
-  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-  const globalRecord = globalThis as Record<symbol, Array<Frame> | undefined>
-  const existing = globalRecord[RUNTIME_STACK_KEY]
-  if (existing !== undefined) {
-    return existing
-  }
-  const created: Array<Frame> = []
-  globalRecord[RUNTIME_STACK_KEY] = created
-  return created
-}
-
-const stack: Array<Frame> = getOrCreateGlobalStack()
+const stack: Array<Frame> = []
 
 /** Pushes a new dispatch and runtime context onto the singleton stack. The
  *  runtime calls this before invoking a user `view`, and any test or
@@ -131,7 +107,10 @@ export const requireDispatch = (): DispatchSync => {
   const frame = stack[stack.length - 1]
   if (frame === undefined) {
     throw new Error(
-      'Foldkit: html element constructors must be called inside a runtime-driven render',
+      'Foldkit: html element constructors must be called inside a runtime-driven ' +
+        'render. The element was built outside a view, or foldkit was loaded as ' +
+        'more than one instance (a bundler split foldkit and @foldkit/ui into ' +
+        'separate copies).',
     )
   }
   return getOrCreateBoundaryDispatch(
@@ -147,7 +126,10 @@ export const requireRuntimeContext = (): Context.Context<never> => {
   const frame = stack[stack.length - 1]
   if (frame === undefined) {
     throw new Error(
-      'Foldkit: html element constructors must be called inside a runtime-driven render',
+      'Foldkit: html element constructors must be called inside a runtime-driven ' +
+        'render. The element was built outside a view, or foldkit was loaded as ' +
+        'more than one instance (a bundler split foldkit and @foldkit/ui into ' +
+        'separate copies).',
     )
   }
   return frame.runtimeContext
