@@ -26,6 +26,7 @@ import {
   defaultLeaveCommand as animationDefaultLeaveCommand,
   update as animationUpdate,
 } from '../animation/update.js'
+import { idSelector } from '../internal/selectors.js'
 
 // MODEL
 
@@ -124,7 +125,7 @@ export const init = (config: InitConfig): Model => ({
 
 // UPDATE
 
-const dialogSelector = (id: string): string => `#${id}`
+const dialogSelector = (id: string): string => idSelector(id)
 
 type UpdateReturn = readonly [
   Model,

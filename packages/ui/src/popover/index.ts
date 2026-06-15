@@ -27,6 +27,7 @@ import {
 } from '../animation/schema.js'
 import { update as animationUpdate } from '../animation/update.js'
 import * as OptionExt from '../internal/optionExtensions.js'
+import { idSelector } from '../internal/selectors.js'
 
 // MODEL
 
@@ -174,8 +175,8 @@ const closedModel = (model: Model): Model =>
     maybeLastButtonPointerType: () => Option.none(),
   })
 
-const buttonSelector = (id: string): string => `#${id}-button`
-const panelSelector = (id: string): string => `#${id}-panel`
+const buttonSelector = (id: string): string => idSelector(`${id}-button`)
+const panelSelector = (id: string): string => idSelector(`${id}-panel`)
 
 type UpdateReturn = readonly [
   Model,

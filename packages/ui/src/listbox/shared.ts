@@ -33,6 +33,7 @@ import {
 import { update as animationUpdate } from '../animation/update.js'
 import { groupContiguous } from '../group.js'
 import * as OptionExt from '../internal/optionExtensions.js'
+import { idSelector } from '../internal/selectors.js'
 import {
   findFirstEnabledIndex,
   isPrintableKey,
@@ -268,10 +269,10 @@ export const LEFT_MOUSE_BUTTON = 0
 
 // SELECTORS
 
-export const buttonSelector = (id: string): string => `#${id}-button`
-export const itemsSelector = (id: string): string => `#${id}-items`
+export const buttonSelector = (id: string): string => idSelector(`${id}-button`)
+export const itemsSelector = (id: string): string => idSelector(`${id}-items`)
 export const itemSelector = (id: string, index: number): string =>
-  `#${id}-item-${index}`
+  idSelector(`${id}-item-${index}`)
 export const itemId = (id: string, index: number): string =>
   `${id}-item-${index}`
 

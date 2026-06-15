@@ -9,6 +9,7 @@ import { type Reflect, defineView } from 'foldkit/submodel'
 
 import type { AnchorConfig } from '../anchor.js'
 import * as UiCalendar from '../calendar/index.js'
+import { idSelector } from '../internal/selectors.js'
 import * as Popover from '../popover/index.js'
 
 // MODEL
@@ -468,7 +469,7 @@ export const view = defineView<Model, Message, ViewInputs>(
       viewInputs: {
         anchor,
         ...(isDisabled !== undefined && { isDisabled }),
-        focusSelector: `#${model.calendar.id}-grid`,
+        focusSelector: idSelector(`${model.calendar.id}-grid`),
         toView: ({ button, panel, backdrop, isVisible }) =>
           h.div(
             [],

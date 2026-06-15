@@ -24,6 +24,7 @@ import {
   defineView,
 } from 'foldkit/submodel'
 
+import { idSelector } from '../internal/selectors.js'
 import { keyToIndex } from '../keyboard.js'
 
 export { wrapIndex, findFirstEnabledIndex, keyToIndex } from '../keyboard.js'
@@ -125,7 +126,7 @@ export const FocusTab = Command.define(
   { id: S.String, index: S.Number },
   CompletedFocusTab,
 )(({ id, index }) =>
-  Dom.focus(`#${tabId(id, index)}`).pipe(
+  Dom.focus(idSelector(tabId(id, index))).pipe(
     Effect.ignore,
     Effect.as(CompletedFocusTab()),
   ),

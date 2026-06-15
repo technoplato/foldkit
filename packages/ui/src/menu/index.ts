@@ -33,6 +33,7 @@ import {
 import { update as animationUpdate } from '../animation/update.js'
 import { groupContiguous } from '../group.js'
 import * as OptionExt from '../internal/optionExtensions.js'
+import { idSelector } from '../internal/selectors.js'
 import {
   findFirstEnabledIndex,
   isPrintableKey,
@@ -293,10 +294,10 @@ const closedModel = (model: Model): Model =>
     maybePointerOrigin: () => Option.none(),
   })
 
-const buttonSelector = (id: string): string => `#${id}-button`
-const itemsSelector = (id: string): string => `#${id}-items`
+const buttonSelector = (id: string): string => idSelector(`${id}-button`)
+const itemsSelector = (id: string): string => idSelector(`${id}-items`)
 const itemSelector = (id: string, index: number): string =>
-  `#${id}-item-${index}`
+  idSelector(`${id}-item-${index}`)
 
 type UpdateReturn = readonly [
   Model,

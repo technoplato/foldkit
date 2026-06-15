@@ -11,6 +11,8 @@ import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 import { type Reflect, defineView } from 'foldkit/submodel'
 
+import { idSelector } from '../internal/selectors.js'
+
 // MODEL
 
 /** Schema for the disclosure component's state, tracking its unique ID and open/closed status. */
@@ -69,7 +71,7 @@ export const init = (config: InitConfig): Model => ({
 
 const buttonId = (id: string): string => `${id}-button`
 
-const buttonSelector = (id: string): string => `#${CSS.escape(buttonId(id))}`
+const buttonSelector = (id: string): string => idSelector(buttonId(id))
 
 const panelId = (id: string): string => `${id}-panel`
 

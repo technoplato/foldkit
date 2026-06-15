@@ -4,6 +4,7 @@ import * as Dom from 'foldkit/dom'
 import * as Render from 'foldkit/render'
 import { evo } from 'foldkit/struct'
 
+import { idSelector } from '../internal/selectors.js'
 import {
   AdvancedAnimationFrame,
   EndedAnimation,
@@ -16,7 +17,7 @@ import {
 
 // UPDATE
 
-const elementSelector = (id: string): string => `#${id}`
+const elementSelector = (id: string): string => idSelector(id)
 
 type UpdateReturn = readonly [
   Model,

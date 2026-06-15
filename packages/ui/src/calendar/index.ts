@@ -23,6 +23,7 @@ import { evo } from 'foldkit/struct'
 import { type Reflect, defineView } from 'foldkit/submodel'
 
 import * as OptionExt from '../internal/optionExtensions.js'
+import { idSelector } from '../internal/selectors.js'
 
 // MODEL
 
@@ -194,7 +195,7 @@ type UpdateReturn = readonly [
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
 
 const gridId = (modelId: string): string => `${modelId}-grid`
-const gridSelector = (modelId: string): string => `#${gridId(modelId)}`
+const gridSelector = (modelId: string): string => idSelector(gridId(modelId))
 
 /** Focuses the calendar grid container. Parent components like DatePicker
  * dispatch this after opening to hand focus to the grid's keyboard layer. */

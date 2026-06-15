@@ -32,6 +32,7 @@ import {
 import { update as animationUpdate } from '../animation/update.js'
 import { groupContiguous } from '../group.js'
 import * as OptionExt from '../internal/optionExtensions.js'
+import { idSelector } from '../internal/selectors.js'
 import { findFirstEnabledIndex, keyToIndex } from '../keyboard.js'
 
 export { groupContiguous }
@@ -257,12 +258,12 @@ export type OutMessage<Value extends string = string> = Selected<Value>
 
 // SELECTORS
 
-export const inputSelector = (id: string): string => `#${id}-input`
+export const inputSelector = (id: string): string => idSelector(`${id}-input`)
 export const inputWrapperSelector = (id: string): string =>
-  `#${id}-input-wrapper`
-export const itemsSelector = (id: string): string => `#${id}-items`
+  idSelector(`${id}-input-wrapper`)
+export const itemsSelector = (id: string): string => idSelector(`${id}-items`)
 export const itemSelector = (id: string, index: number): string =>
-  `#${id}-item-${index}`
+  idSelector(`${id}-item-${index}`)
 export const itemId = (id: string, index: number): string =>
   `${id}-item-${index}`
 

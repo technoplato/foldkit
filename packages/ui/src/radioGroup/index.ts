@@ -25,6 +25,7 @@ import {
   defineView,
 } from 'foldkit/submodel'
 
+import { idSelector } from '../internal/selectors.js'
 import { keyToIndex } from '../keyboard.js'
 
 // MODEL
@@ -115,7 +116,7 @@ export const FocusOption = Command.define(
   { id: S.String, index: S.Number },
   CompletedFocusOption,
 )(({ id, index }) =>
-  Dom.focus(`#${optionId(id, index)}`).pipe(
+  Dom.focus(idSelector(optionId(id, index))).pipe(
     Effect.ignore,
     Effect.as(CompletedFocusOption()),
   ),
