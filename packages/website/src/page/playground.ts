@@ -238,14 +238,8 @@ export const managedResources = ManagedResource.make<Model, Message>()(
           yield* Effect.tryPromise(() =>
             container.mount(fileSystemTreeFromFiles(fileEntry.files)),
           )
-          // NOTE: --force, not --legacy-peer-deps. The playground pins vite 7
-          // (vite 8's rolldown wasm binding crashes in the WebContainer), which
-          // conflicts with @foldkit/vite-plugin's `vite: ^8` peer. --force
-          // overrides that while still auto-installing peers; --legacy-peer-deps
-          // would skip peer install and drop @foldkit/ui, which the overlay
-          // imports.
           const install = yield* Effect.tryPromise(() =>
-            container.spawn('npm', ['install', '--force']),
+            container.spawn('npm', ['install']),
           )
           let installOutput = ''
           void install.output.pipeTo(
