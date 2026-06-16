@@ -121,7 +121,6 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@effect/platform-browser": "4.0.0-beta.83",
     "effect": "4.0.0-beta.83",
     "foldkit": "workspace:^0"
   },
@@ -129,7 +128,6 @@
     "@floating-ui/dom": "^1.7.6"
   },
   "devDependencies": {
-    "@effect/platform-browser": "4.0.0-beta.83",
     "@effect/vitest": "4.0.0-beta.83",
     "effect": "4.0.0-beta.83",
     "foldkit": "workspace:*",

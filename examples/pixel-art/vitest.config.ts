@@ -7,7 +7,7 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, '**/*.bench.test.ts'],
     server: {
       deps: {
-        inline: ['foldkit'],
+        inline: ['foldkit', '@foldkit/ui', '@foldkit/devtools'],
       },
     },
   },

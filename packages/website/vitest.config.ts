@@ -6,7 +6,7 @@ export default defineConfig({
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     server: {
       deps: {
-        inline: ['foldkit'],
+        inline: ['foldkit', '@foldkit/ui', '@foldkit/devtools'],
       },
     },
   },

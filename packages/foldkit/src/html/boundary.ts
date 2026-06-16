@@ -60,9 +60,11 @@ const splitBoundary = (boundaryId: BoundaryId): ReadonlyArray<string> =>
  *  `beginRender`. Boundaries behind a `createLazy`/`createKeyedLazy`
  *  cache hit are replayed into this map via {@link markSeenForLazyHit}
  *  so the duplicate-slotId guard catches collisions against memoized
- *  siblings, not just against siblings that re-ran this frame. It is
- *  NOT used for pruning; pruning is driven by VNode destroy hooks
- *  instead.
+ *  siblings, not just against siblings that re-ran this frame. It does
+ *  not drive pruning (VNode destroy hooks do), but the Submodel destroy
+ *  hook reads it during the patch phase to tell a same-cycle remount (a
+ *  keyed root whose key changed) from a true unmount, skipping
+ *  deregistration in the remount case. See {@link beginRender}.
  *
  *  `lazyTrackingStack` is a stack of sets used by `createLazy` and
  *  `createKeyedLazy` to capture which boundary ids were marked alive

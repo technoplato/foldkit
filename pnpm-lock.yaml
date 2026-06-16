@@ -1512,9 +1512,6 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
     devDependencies:
-      '@effect/platform-browser':
-        specifier: 4.0.0-beta.83
-        version: 4.0.0-beta.83(effect@4.0.0-beta.83)
       '@foldkit/ui':
         specifier: workspace:*
         version: link:../ui
@@ -1743,9 +1740,6 @@ importers:
         specifier: ^1.7.6
         version: 1.7.6
     devDependencies:
-      '@effect/platform-browser':
-        specifier: 4.0.0-beta.83
-        version: 4.0.0-beta.83(effect@4.0.0-beta.83)
       '@effect/vitest':
         specifier: 4.0.0-beta.83
         version: 4.0.0-beta.83(effect@4.0.0-beta.83)(vitest@4.1.9(@types/node@25.9.3)(happy-dom@20.10.4)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)))
