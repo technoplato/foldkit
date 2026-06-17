@@ -254,6 +254,8 @@ export { default as devtoolsExcludeFromHistoryRaw } from './devtoolsExcludeFromH
 export { default as devtoolsExcludeFromHistoryHighlighted } from './devtoolsExcludeFromHistory.ts?highlighted'
 export { default as devtoolsMaxEntriesRaw } from './devtoolsMaxEntries.ts?raw'
 export { default as devtoolsMaxEntriesHighlighted } from './devtoolsMaxEntries.ts?highlighted'
+export { default as devtoolsKeyframeIntervalRaw } from './devtoolsKeyframeInterval.ts?raw'
+export { default as devtoolsKeyframeIntervalHighlighted } from './devtoolsKeyframeInterval.ts?highlighted'
 export { default as aiMcpViteConfigRaw } from './aiMcpViteConfig.ts?raw'
 export { default as aiMcpViteConfigHighlighted } from './aiMcpViteConfig.ts?highlighted'
 export { default as aiMcpApplicationConfigRaw } from './aiMcpApplicationConfig.ts?raw'

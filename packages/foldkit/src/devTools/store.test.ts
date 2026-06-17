@@ -516,6 +516,27 @@ describe('DevToolsStore', () => {
       expect(rendered[rendered.length - 1]).toEqual({ count: 2 })
     })
 
+    it('returns the resolved model so callers skip a second resolution', () => {
+      const { bridge, store, rendered } = makeStore()
+      const replaySpy = vi.spyOn(bridge, 'replay')
+
+      recordIncrements(store, 35)
+      replaySpy.mockClear()
+
+      const midSegmentIndex = 5
+      const returnedModel = run(store.jumpTo(midSegmentIndex))
+
+      expect(returnedModel).toEqual({ count: 6 })
+      expect(returnedModel).toEqual(rendered[rendered.length - 1])
+
+      const replaysForOneResolution = replaySpy.mock.calls.length
+      expect(replaysForOneResolution).toBeGreaterThan(0)
+
+      replaySpy.mockClear()
+      expect(run(store.getModelAtIndex(midSegmentIndex))).toEqual(returnedModel)
+      expect(replaySpy).toHaveBeenCalledTimes(replaysForOneResolution)
+    })
+
     it('exits paused state on resume and marks the render pending', () => {
       let markedPendingCount = 0
       const { store } = makeStore({

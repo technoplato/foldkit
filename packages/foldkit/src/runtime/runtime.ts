@@ -143,6 +143,7 @@ export type DevToolsOverlay = (
  * - `overlay`: The in-browser overlay factory from `@foldkit/devtools`. Without it, DevTools still records history and serves the WebSocket bridge (so the DevTools MCP server works), but no visual overlay is mounted. Pass `DevTools.overlay` to show the panel.
  * - `excludeFromHistory`: Message `_tag` values whose dispatches should not be recorded in DevTools history. The Messages still drive `update` and the runtime as usual; they just don't appear in the history panel and don't pay the per-Message diff cost. Use for high-frequency Messages (animation frames, pointer moves, scroll events) that would flood history without adding insight.
  * - `maxEntries`: Maximum number of recorded Messages retained in history before the oldest is evicted. Defaults to 100. Clamped to the range 20-500: smaller values keep the panel snappy under high message rates, larger values give you more scroll-back. Each retained entry stores a full Model snapshot, so memory cost scales linearly with both `maxEntries` and your Model size.
+ * - `keyframeInterval`: Number of recorded Messages between full Model snapshots. Defaults to 31. Time-travel to an index replays `update` forward from the nearest earlier keyframe, so this is a memory/time tradeoff: smaller values store more snapshots (more memory) but make each jump cheaper, down to `1` where every jump is a constant-time snapshot lookup with no replay. Reach for a denser interval when the app has a heavy `update` and time-travel jumps feel sluggish. Clamped to a minimum of 1. Forced to 1 automatically when `excludeFromHistory` is active, since excluded Messages are never replayed.
  */
 export type DevToolsConfig =
   | false
@@ -154,6 +155,7 @@ export type DevToolsConfig =
       overlay?: DevToolsOverlay
       excludeFromHistory?: ReadonlyArray<string>
       maxEntries?: number
+      keyframeInterval?: number
       /**
        * The application's `Message` Schema. When provided and the running app
        * is connected to the Foldkit DevTools MCP server, AI agents can dispatch
@@ -179,6 +181,7 @@ const resolveDevToolsMode = (config: DevToolsModeConfig): DevToolsMode => {
 }
 const DEV_TOOLS_MAX_ENTRIES_MIN = 20
 const DEV_TOOLS_MAX_ENTRIES_MAX = 500
+const DEV_TOOLS_KEYFRAME_INTERVAL_MIN = 1
 
 /** Context provided to the slow view callback when a view exceeds the time budget. */
 export type SlowViewContext<Model, Message> = Readonly<{
@@ -982,13 +985,25 @@ const makeRuntime = <
     devTools ?? {},
     Option.liftPredicate(config => config !== false),
     Option.flatMapNullishOr(config => config.maxEntries),
-    Option.map(value =>
-      Math.max(
-        DEV_TOOLS_MAX_ENTRIES_MIN,
-        Math.min(DEV_TOOLS_MAX_ENTRIES_MAX, value),
-      ),
-    ),
-    Option.getOrUndefined,
+    Option.match({
+      onNone: () => undefined,
+      onSome: value =>
+        Math.max(
+          DEV_TOOLS_MAX_ENTRIES_MIN,
+          Math.min(DEV_TOOLS_MAX_ENTRIES_MAX, value),
+        ),
+    }),
+  )
+
+  const devToolsKeyframeInterval: number | undefined = pipe(
+    devTools ?? {},
+    Option.liftPredicate(config => config !== false),
+    Option.flatMapNullishOr(config => config.keyframeInterval),
+    Option.match({
+      onNone: () => undefined,
+      onSome: value =>
+        Math.max(DEV_TOOLS_KEYFRAME_INTERVAL_MIN, Math.floor(value)),
+    }),
   )
 
   const maybeFreezeModel = (model: Model): Model =>
@@ -1665,10 +1680,17 @@ const makeRuntime = <
               markRenderPending: SubscriptionRef.set(isRenderPendingRef, true),
             },
             {
-              ...(isExcludingMessages && { keyframeInterval: 1 }),
+              ...(devToolsKeyframeInterval !== undefined && {
+                keyframeInterval: devToolsKeyframeInterval,
+              }),
               ...(devToolsMaxEntries !== undefined && {
                 maxEntries: devToolsMaxEntries,
               }),
+              // NOTE: exclusion forces keyframeInterval to 1 regardless of any
+              // configured value, since excluded Messages are never replayed
+              // and a denser interval would leave gaps in the replayed model.
+              // Spread last so it wins over `keyframeInterval` above.
+              ...(isExcludingMessages && { keyframeInterval: 1 }),
             },
           )
           maybeDevToolsStore = Option.some(devToolsStore)

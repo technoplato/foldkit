@@ -401,7 +401,8 @@ export const createDevToolsStore = (
     const jumpTo = (index: number) =>
       Effect.gen(function* () {
         const state = yield* SubscriptionRef.get(stateRef)
-        yield* bridge.render(resolveModel(state, index))
+        const model = resolveModel(state, index)
+        yield* bridge.render(model)
         yield* SubscriptionRef.set(
           stateRef,
           evo(state, {
@@ -409,6 +410,7 @@ export const createDevToolsStore = (
             pausedAtIndex: () => index,
           }),
         )
+        return model
       })
 
     const resume = Effect.gen(function* () {
@@ -501,7 +503,7 @@ export type DevToolsStore = Readonly<{
   getModelAtIndex: (index: number) => Effect.Effect<unknown>
   getMessageAtIndex: (index: number) => Effect.Effect<Option.Option<unknown>>
   getDiffAtIndex: (index: number) => Effect.Effect<DiffResult>
-  jumpTo: (index: number) => Effect.Effect<void>
+  jumpTo: (index: number) => Effect.Effect<unknown>
   resume: Effect.Effect<void>
   clear: Effect.Effect<void>
   stateRef: SubscriptionRef.SubscriptionRef<StoreState>

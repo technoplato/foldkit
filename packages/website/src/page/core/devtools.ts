@@ -67,6 +67,12 @@ const maxEntriesHeader: TableOfContentsEntry = {
   text: 'maxEntries',
 }
 
+const keyframeIntervalHeader: TableOfContentsEntry = {
+  level: 'h3',
+  id: 'keyframe-interval',
+  text: 'keyframeInterval',
+}
+
 export const tableOfContents: ReadonlyArray<TableOfContentsEntry> = [
   overviewHeader,
   configurationHeader,
@@ -77,6 +83,7 @@ export const tableOfContents: ReadonlyArray<TableOfContentsEntry> = [
   messageHeader,
   excludeFromHistoryHeader,
   maxEntriesHeader,
+  keyframeIntervalHeader,
 ]
 
 export const view = (copiedSnippets: CopiedSnippets): Html => {
@@ -256,6 +263,37 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
         ),
         Snippet.devtoolsMaxEntriesRaw,
         'Raising the DevTools history cap',
+        copiedSnippets,
+        'mb-8',
+      ),
+      tableOfContentsEntryToHeader(keyframeIntervalHeader),
+      para(
+        'Number of recorded Messages between full Model snapshots. Defaults to ',
+        inlineCode('31'),
+        '. Time-travel to an index replays ',
+        inlineCode('update'),
+        ' forward from the nearest earlier keyframe, so this is a memory and time tradeoff: smaller values store more snapshots and shorten the replay each jump walks, down to ',
+        inlineCode('1'),
+        ' where every jump is a constant-time snapshot lookup with no replay. Reach for a denser interval when your app has a heavy ',
+        inlineCode('update'),
+        ' and time-travel jumps feel sluggish. Clamped to a minimum of ',
+        inlineCode('1'),
+        ', and forced to ',
+        inlineCode('1'),
+        ' automatically when ',
+        inlineCode('excludeFromHistory'),
+        ' is active, since excluded Messages are never replayed.',
+      ),
+      highlightedCodeBlock(
+        h.div(
+          [
+            h.Class('text-sm'),
+            h.InnerHTML(Snippet.devtoolsKeyframeIntervalHighlighted),
+          ],
+          [],
+        ),
+        Snippet.devtoolsKeyframeIntervalRaw,
+        'Snapshotting every entry for constant-time jumps',
         copiedSnippets,
         'mb-8',
       ),

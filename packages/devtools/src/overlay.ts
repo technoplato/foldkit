@@ -134,6 +134,7 @@ const Model = S.Struct({
   expandedPaths: S.HashSet(S.String),
   changedPaths: S.HashSet(S.String),
   affectedPaths: S.HashSet(S.String),
+  maybePendingScrubIndex: S.Option(S.Number),
   inspectorTabs: InspectorTabsModel,
   // NOTE: empirically, inlining `Slider.Model` here throws
   // "Cannot read properties of undefined (reading 'ast')" when running slider
@@ -163,7 +164,6 @@ const ClickedToggle = m('ClickedToggle')
 const ClickedRow = m('ClickedRow', { index: S.Number })
 const ClickedResume = m('ClickedResume')
 const ClickedClear = m('ClickedClear')
-const CompletedJump = m('CompletedJump')
 const CompletedResume = m('CompletedResume')
 const ClickedFollowLatest = m('ClickedFollowLatest')
 const ClickedScrollToTopPill = m('ClickedScrollToTopPill')
@@ -182,6 +182,7 @@ const ReceivedInspectedState = m('ReceivedInspectedState', {
   affectedPaths: S.HashSet(S.String),
 })
 const ToggledTreeNode = m('ToggledTreeNode', { path: S.String })
+const TickedScrubFrame = m('TickedScrubFrame')
 const GotInspectorTabsMessage = m('GotInspectorTabsMessage', {
   message: S.Unknown,
 })
@@ -209,7 +210,6 @@ const Message = S.Union([
   ClickedFollowLatest,
   ClickedScrollToTopPill,
   ScrolledMessageList,
-  CompletedJump,
   CompletedResume,
   CompletedClear,
   LockedScroll,
@@ -218,6 +218,7 @@ const Message = S.Union([
   CrossedMobileBreakpoint,
   ReceivedInspectedState,
   ToggledTreeNode,
+  TickedScrubFrame,
   GotInspectorTabsMessage,
   ReceivedStoreUpdate,
   GotSubmodelFilterMessage,
@@ -364,24 +365,36 @@ export const UnlockScroll = Command.define(
   UnlockedScroll,
 )(unlockScroll.pipe(Effect.as(UnlockedScroll())))
 
-const buildInspectionEffect = (index: number) =>
+const buildInspectionFromModel = (index: number, model: unknown) =>
   Effect.gen(function* () {
     const store = yield* StoreService
-    const model = yield* store.getModelAtIndex(index)
     const maybeMessage = yield* store.getMessageAtIndex(index)
     const diff = yield* store.getDiffAtIndex(index)
     return ReceivedInspectedState({ model, maybeMessage, ...diff })
   })
 
-export const JumpTo = Command.define(
-  'JumpTo',
+const buildInspectionEffect = (index: number) =>
+  Effect.gen(function* () {
+    const store = yield* StoreService
+    const model = yield* store.getModelAtIndex(index)
+    return yield* buildInspectionFromModel(index, model)
+  })
+
+// NOTE: jump and inspect both need the model at `index`. Resolving it twice
+// (once to render the host, once to feed the inspector) replays the segment
+// from the nearest keyframe twice for a mid-segment jump. `store.jumpTo`
+// returns the model it resolved so the inspector reuses that single
+// resolution. Inspect-only navigation (no host pause) still uses
+// `InspectState`, which resolves once on its own.
+export const JumpToAndInspect = Command.define(
+  'JumpToAndInspect',
   { index: S.Number },
-  CompletedJump,
+  ReceivedInspectedState,
 )(({ index }) =>
   Effect.gen(function* () {
     const store = yield* StoreService
-    yield* store.jumpTo(index)
-    return CompletedJump()
+    const model = yield* store.jumpTo(index)
+    return yield* buildInspectionFromModel(index, model)
   }),
 )
 
@@ -456,8 +469,8 @@ const makeUpdate = (
   const clear = Command.mapEffect(Clear(), provideContext)
   const scrollToTop = Command.mapEffect(ScrollToTop(), provideContext)
 
-  const jumpTo = (index: number) =>
-    Command.mapEffect(JumpTo({ index }), provideContext)
+  const jumpToAndInspect = (index: number) =>
+    Command.mapEffect(JumpToAndInspect({ index }), provideContext)
   const inspectState = (index: number) =>
     Command.mapEffect(InspectState({ index }), provideContext)
 
@@ -488,10 +501,7 @@ const makeUpdate = (
             M.withReturnType<
               [Model, ReadonlyArray<Command.Command<Message>>]
             >(),
-            M.when('TimeTravel', () => [
-              model,
-              [jumpTo(index), inspectState(index)],
-            ]),
+            M.when('TimeTravel', () => [model, [jumpToAndInspect(index)]]),
             M.when('Inspect', () => [
               evo(model, {
                 selectedIndex: () => index,
@@ -700,30 +710,43 @@ const makeUpdate = (
             innerMessage => GotScrubberSliderMessage({ message: innerMessage }),
           )
 
-          const additionalCommands = Option.match(maybeOutMessage, {
-            onNone: () => [],
+          // NOTE: the thumb tracks every pointermove (cheap, model-only via
+          // `nextSlider`), but the heavy jump-plus-inspect is coalesced to one
+          // navigation per animation frame. Each `ChangedValue` overwrites the
+          // pending host index; the `TickedScrubFrame` subscription flushes the
+          // latest on the next frame, so a fast drag can't enqueue jumps faster
+          // than they complete.
+          const nextMaybePendingScrubIndex = Option.match(maybeOutMessage, {
+            onNone: () => model.maybePendingScrubIndex,
             onSome: outMessage =>
               M.value(outMessage).pipe(
                 M.tagsExhaustive({
-                  ChangedValue: ({ value }) => {
-                    const hostIndex = sliderValueToHostIndex(
-                      value,
-                      model.startIndex,
-                    )
-                    return [jumpTo(hostIndex), inspectState(hostIndex)]
-                  },
+                  ChangedValue: ({ value }) =>
+                    Option.some(
+                      sliderValueToHostIndex(value, model.startIndex),
+                    ),
                 }),
               ),
           })
 
           return [
-            evo(model, { scrubberSlider: () => nextSlider }),
-            [...mappedSliderCommands, ...additionalCommands],
+            evo(model, {
+              scrubberSlider: () => nextSlider,
+              maybePendingScrubIndex: () => nextMaybePendingScrubIndex,
+            }),
+            mappedSliderCommands,
           ]
         },
+        TickedScrubFrame: () =>
+          Option.match(model.maybePendingScrubIndex, {
+            onNone: (): UpdateReturn => [model, []],
+            onSome: (hostIndex): UpdateReturn => [
+              evo(model, { maybePendingScrubIndex: () => Option.none() }),
+              [jumpToAndInspect(hostIndex)],
+            ],
+          }),
       }),
       M.tag(
-        'CompletedJump',
         'CompletedResume',
         'CompletedClear',
         'LockedScroll',
@@ -749,6 +772,10 @@ const makeOverlaySubscriptions = (store: DevToolsStore, shadow: ShadowRoot) => {
   })
 
   const ownSubscriptions = Subscription.make<Model, Message>()(_entry => ({
+    scrubFrame: Subscription.animationFrame<Model, Message>({
+      isActive: model => Option.isSome(model.maybePendingScrubIndex),
+      toMessage: () => TickedScrubFrame(),
+    }),
     storeUpdates: Subscription.persistent(
       Stream.concat(
         Stream.fromEffect(
@@ -1143,14 +1170,15 @@ const makeView = (
       ['Click a message to inspect'],
     )
 
-  const noMessageView: Html = h.div(
-    [
-      h.Class(
-        'flex-1 flex items-center justify-center text-dt-muted text-2xs font-mono min-w-0',
-      ),
-    ],
-    ['init: no Message'],
-  )
+  const noMessageView = (): Html =>
+    h.div(
+      [
+        h.Class(
+          'flex-1 flex items-center justify-center text-dt-muted text-2xs font-mono min-w-0',
+        ),
+      ],
+      ['init: no Message'],
+    )
 
   const modelTabContent = (
     inspectedModel: unknown,
@@ -1204,7 +1232,7 @@ const makeView = (
     timestamp: string,
   ): Html =>
     Option.match(maybeInspectedMessage, {
-      onNone: () => noMessageView,
+      onNone: noMessageView,
       onSome: rawMessage => {
         const message = unwrapIfFiltered(rawMessage, maybeSubmodelFilter)
 
@@ -1626,10 +1654,11 @@ const makeView = (
 
   const statusClass = 'text-base font-mono'
 
-  const clearHistoryButton: Html = h.button(
-    [h.Class(headerButtonClass), h.OnClick(ClickedClear())],
-    ['Clear history'],
-  )
+  const clearHistoryButton = (): Html =>
+    h.button(
+      [h.Class(headerButtonClass), h.OnClick(ClickedClear())],
+      ['Clear history'],
+    )
 
   const submodelLabel = (tag: string): string =>
     pipe(tag, String_.replace(/^Got/, ''), String_.replace(/Message$/, ''))
@@ -1683,17 +1712,18 @@ const makeView = (
       ],
     )
 
-  const scrollToTopPillView: Html = h.button(
-    [
-      h.Key('scroll-pill'),
-      h.Class('dt-scroll-pill'),
-      h.OnClick(ClickedScrollToTopPill()),
-    ],
-    [
-      arrowUpIconView(),
-      h.span([h.Class('dt-scroll-pill-text')], ['Jump to top']),
-    ],
-  )
+  const scrollToTopPillView = (): Html =>
+    h.button(
+      [
+        h.Key('scroll-pill'),
+        h.Class('dt-scroll-pill'),
+        h.OnClick(ClickedScrollToTopPill()),
+      ],
+      [
+        arrowUpIconView(),
+        h.span([h.Class('dt-scroll-pill-text')], ['Jump to top']),
+      ],
+    )
 
   const submodelFilterView = (model: Model): Html => {
     const buttonLabel = Option.match(model.maybeSubmodelFilter, {
@@ -1804,7 +1834,7 @@ const makeView = (
 
     const maybeClearHistoryButton = OptionExt.when(
       !model.isPaused,
-      clearHistoryButton,
+      clearHistoryButton(),
     )
 
     return h.header(
@@ -2101,7 +2131,7 @@ const makeView = (
                 }),
                 ...OptionExt.when(
                   !model.isFollowingTop,
-                  scrollToTopPillView,
+                  scrollToTopPillView(),
                 ).pipe(Option.toArray),
                 messageListView(model),
               ],
@@ -2115,7 +2145,8 @@ const makeView = (
       ],
     )
 
-  const interactionBlocker = h.div([h.Class('dt-interaction-blocker')], [])
+  const interactionBlocker = (): Html =>
+    h.div([h.Class('dt-interaction-blocker')], [])
 
   return (model: Model): Html =>
     h.div(
@@ -2123,7 +2154,7 @@ const makeView = (
       [
         ...OptionExt.when(
           model.isPaused && mode === 'TimeTravel',
-          interactionBlocker,
+          interactionBlocker(),
         ).pipe(Option.toArray),
         ...OptionExt.when(model.isOpen, panelView(model)).pipe(Option.toArray),
         badgeView(model),
@@ -2220,6 +2251,7 @@ export const createOverlay = (
           expandedPaths: HashSet.empty(),
           changedPaths: HashSet.empty(),
           affectedPaths: HashSet.empty(),
+          maybePendingScrubIndex: Option.none(),
           inspectorTabs: Tabs.init({ id: INSPECTOR_TABS_ID }),
           scrubberSlider: Slider.init({
             id: SCRUBBER_SLIDER_ID,
