@@ -225,8 +225,8 @@ git clone https://github.com/foldkit/foldkit.git
 cd foldkit
 pnpm install
 
-# Build Foldkit in watch mode
-pnpm dev:core
+# Build the Foldkit libraries in watch mode
+pnpm dev:libs
 
 # Run an example (in a separate terminal)
 pnpm dev:example:counter
