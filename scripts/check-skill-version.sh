@@ -3,7 +3,10 @@ set -euo pipefail
 
 BASE=$(git merge-base origin/main HEAD)
 
-SKILL_CHANGES=$(git diff --name-only "$BASE" HEAD -- skills/ .claude/commands/)
+SKILL_CHANGES=$(git diff --name-only "$BASE" HEAD -- \
+  skills/foldkit/ \
+  skills/generate-program/ \
+  skills/audit-program/)
 VERSION_CHANGED=$(git diff --name-only "$BASE" HEAD -- .claude-plugin/plugin.json)
 
 if [ -z "$SKILL_CHANGES" ]; then

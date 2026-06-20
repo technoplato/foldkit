@@ -39,12 +39,17 @@ For breaking changes, include a brief migration note in the changeset descriptio
 8. Create one Conventional Commit with `git commit`.
 9. Verify the final commit message with `git log -1 --format=%B`. If any
    body line is longer than 80 characters, amend the commit before stopping.
+   Re-check the subject, scope, author, and branch shape after every amend.
 
 ## Commit Message Rules
 
-- Use a valid scope from `AGENTS.md`.
+- Use a valid scope from `AGENTS.md` when one scope describes the commit's
+  primary intent. If no valid scope cleanly describes the whole change set,
+  omit the scope.
 - Inspect the full staged diff before choosing the subject: run `git diff --cached --stat` and `git diff --cached --name-status`. If amending an existing commit message, inspect `git show --stat --name-status HEAD`.
 - Make the subject describe the whole change set, not just one file, one subtask, or the latest edit.
+- Choose the scope from the whole change set's primary intent, not from the
+  last file edited, a helper file, or any single path in the diff.
 - Use only literal valid scopes from `AGENTS.md`. Do not invent broad scopes such as `tooling` or `infrastructure`.
 - Use an imperative title.
 - Keep the subject concise.
@@ -56,6 +61,14 @@ For breaking changes, include a brief migration note in the changeset descriptio
 - Add `!` after the scope for breaking changes.
 - Do not add co-author lines.
 - Do not mention Codex, Claude, or any AI assistant.
+
+Before stopping after a commit or amend, verify:
+
+- The subject describes the whole final diff.
+- The scope is valid, or intentionally omitted for a cross-scope change.
+- Body lines are wrapped at 80 characters.
+- Author and committer are correct.
+- The branch has the intended number of commits.
 
 ## Boundaries
 
