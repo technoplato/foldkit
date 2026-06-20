@@ -61,6 +61,12 @@ grep -rn "\.length > 0\|\.length === 0\|\.length !== 0" src/
 # Raw spread inside evo: use nested evo instead
 grep -rn "evo(.*, {" src/ -A 3 | grep "\.\.\."
 
+# Stuttery evo setters: when a setter only transforms that same field, pass
+# the transformer directly. Look for `field: () => f(model.field)`,
+# `field: () => Array.map(model.field, f)`, or
+# `field: () => Reflect.helper(model.field, ...)`.
+# Prefer `field: f`, `field: Array.map(f)`, or `field: Reflect.helper(...)`.
+
 # as casts on constructor returns: constructors already return the right type
 grep -rn " as [A-Z][a-zA-Z]*State\b\| as [A-Z][a-zA-Z]*Message\b" src/
 
@@ -303,6 +309,7 @@ Items without a tier marker apply universally (even to a 50-line counter). When 
 - [ ] `Option.liftPredicate(value, predicate)` instead of `condition ? Option.some(value) : Option.none()`. The predicate may be a constant `() => condition` when the check doesn't use the value.
 - [ ] `pipe(...)` is multi-step only. Never `pipe(x, singleOp(...))`; call `singleOp(x, ...)` directly. (Exception: `.pipe(Effect.catch(...))` as a tail suffix is fine.)
 - [ ] When piping, data leads on its own line: `pipe(\n  data,\n  Array.map(f),\n  ...\n)`, not `pipe(data, Array.map(f), ...)`.
+- [ ] `evo` setters are point-free when they only transform that same field: `entries: Array.map(f)` not `entries: () => Array.map(model.entries, f)`, `count: Number.increment` not `count: () => Number.increment(model.count)`. Keep `() => value` for replacement values from Messages, child updates, Commands, or other Model fields.
 - [ ] Callback destructuring when accessing a single field: `({ id }) => id === cardId` not `card => card.id === cardId`.
 
 ## Domain organization [T5+]

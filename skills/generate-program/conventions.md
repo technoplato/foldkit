@@ -248,6 +248,25 @@ evo(model, {
 })
 ```
 
+When an `evo` setter only transforms the current value of that same field, pass
+the transformer directly:
+
+```ts
+// WRONG: re-reads the same field from the surrounding Model
+evo(model, { entries: () => Array.map(model.entries, Entry.revealErrors) })
+evo(model, { currentStep: () => toNextStep(model.currentStep) })
+
+// RIGHT: evo supplies the current field value to the setter
+evo(model, { entries: Array.map(Entry.revealErrors) })
+evo(model, { currentStep: toNextStep })
+
+// RIGHT: replacement values still use thunks
+evo(model, { email: () => value })
+evo(model, { child: () => nextChild })
+```
+
+This applies to curried component reflect helpers too. If `Tabs.reflectSelectedTab(value, options)` returns a setter for the existing `Tabs.Model`, use it directly in the `stepTabs` field instead of closing over `model.stepTabs`.
+
 Never mutate the model directly. **Never use spread syntax for updates.** `evo` is the canonical pattern. This applies to nested updates too: `evo(model, { newLinkForm: () => ({ ...model.newLinkForm, title: value }) })` is wrong. Use a nested `evo`: `evo(model, { newLinkForm: () => evo(model.newLinkForm, { title: () => value }) })`. The spread-inside-evo pattern is a common mistake. You're using `evo` at the outer level but bypassing it inside, which loses the invariant that all updates go through one codepath.
 
 ## Schema Constructors
