@@ -1,6 +1,8 @@
 import { Option } from 'effect'
 import { Runtime } from 'foldkit'
 
+import * as Sentry from '@sentry/browser'
+
 const application = Runtime.makeApplication({
   Model,
   init,

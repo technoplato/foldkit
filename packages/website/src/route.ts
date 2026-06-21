@@ -65,7 +65,7 @@ export const CoreResourcesRoute = r('CoreResources')
 export const CoreManagedResourcesRoute = r('CoreManagedResources')
 export const CoreDevToolsRoute = r('CoreDevTools')
 export const CoreCrashViewRoute = r('CoreCrashView')
-export const CoreSlowViewRoute = r('CoreSlowView')
+export const CoreSlowWarningsRoute = r('CoreSlowWarnings')
 export const CoreFreezeModelRoute = r('CoreFreezeModel')
 export const CoreViewMemoizationRoute = r('CoreViewMemoization')
 export const CoreEmbeddingRoute = r('CoreEmbedding')
@@ -157,7 +157,7 @@ export const DocsRoute = S.Union([
   CoreManagedResourcesRoute,
   CoreDevToolsRoute,
   CoreCrashViewRoute,
-  CoreSlowViewRoute,
+  CoreSlowWarningsRoute,
   CoreFreezeModelRoute,
   CoreViewMemoizationRoute,
   CoreEmbeddingRoute,
@@ -362,7 +362,10 @@ export const coreManagedResourcesRouter = core(
 )
 export const coreDevToolsRouter = core('devtools', CoreDevToolsRoute)
 export const coreCrashViewRouter = core('crash-view', CoreCrashViewRoute)
-export const coreSlowViewRouter = core('slow-view', CoreSlowViewRoute)
+export const coreSlowWarningsRouter = core(
+  'slow-warnings',
+  CoreSlowWarningsRoute,
+)
 export const coreFreezeModelRouter = core('freeze-model', CoreFreezeModelRoute)
 export const coreViewMemoizationRouter = core(
   'view-memoization',
@@ -461,7 +464,7 @@ const coreParser = oneOf(
   coreManagedResourcesRouter,
   coreDevToolsRouter,
   coreCrashViewRouter,
-  coreSlowViewRouter,
+  coreSlowWarningsRouter,
   coreFreezeModelRouter,
   coreViewMemoizationRouter,
   coreEmbeddingRouter,

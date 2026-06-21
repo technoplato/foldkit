@@ -1,4 +1,11 @@
-export { embed, makeApplication, makeElement, run } from './runtime.js'
+export {
+  SlowPhase,
+  defaultSlowCallback,
+  embed,
+  makeApplication,
+  makeElement,
+  run,
+} from './runtime.js'
 
 export type {
   RoutingConfig,
@@ -22,8 +29,13 @@ export type {
   PortHandles,
   MakeRuntimeReturn,
   Visibility,
+  SlowConfig,
+  SlowContext,
+  SlowPatchContext,
+  SlowSubscriptionDependenciesContext,
+  SlowThresholdOverrides,
+  SlowUpdateContext,
   SlowViewContext,
-  SlowViewConfig,
   DevToolsConfig,
   DevToolsMode,
   DevToolsModeConfig,

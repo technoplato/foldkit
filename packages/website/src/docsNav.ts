@@ -30,7 +30,7 @@ import {
   coreRenderRouter,
   coreResourcesRouter,
   coreRuntimeRouter,
-  coreSlowViewRouter,
+  coreSlowWarningsRouter,
   coreSubmodelRouter,
   coreSubscriptionsRouter,
   coreUpdateRouter,
@@ -281,9 +281,9 @@ export const docsSections: ReadonlyArray<DocsSection> = [
           label: 'Crash View',
         },
         {
-          _tag: 'CoreSlowView',
-          href: coreSlowViewRouter(),
-          label: 'Slow View',
+          _tag: 'CoreSlowWarnings',
+          href: coreSlowWarningsRouter(),
+          label: 'Slow Warnings',
         },
         {
           _tag: 'CoreFreezeModel',
