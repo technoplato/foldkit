@@ -45,6 +45,7 @@
     "dev:example:shopping-cart": "pnpm --filter shopping-cart-example dev",
     "dev:example:snake": "pnpm --filter snake-example dev",
     "dev:example:websocket-chat": "pnpm --filter websocket-chat-example dev",
+    "dev:example:managed-resource-layer": "pnpm --filter managed-resource-layer-example dev",
     "dev:example:auth": "pnpm --filter auth-example dev",
     "dev:example:crash-view": "pnpm --filter crash-view-example dev",
     "dev:example:slow-warnings": "pnpm --filter slow-warnings-example dev",

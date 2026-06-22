@@ -195,29 +195,32 @@ This is what makes Foldkit unusually AI-friendly. The same property that makes t
 
 ## Examples
 
-- **[Counter](https://foldkit.dev/example-apps/counter)** — Increment/decrement with reset
-- **[Counters](https://foldkit.dev/example-apps/counters)** — A dynamic list of Counter Submodels with per-instance routing
-- **[Todo](https://foldkit.dev/example-apps/todo)** — CRUD operations with localStorage persistence
-- **[Stopwatch](https://foldkit.dev/example-apps/stopwatch)** — Timer with start/stop/reset
-- **[Crash View](https://foldkit.dev/example-apps/crash-view)** — Custom crash fallback UI with crash reporting
-- **[Slow Warnings](https://foldkit.dev/example-apps/slow-warnings)** — Trigger slow update, view, patch, and Subscription dependency warnings with a visible warning log
-- **[Form](https://foldkit.dev/example-apps/form)** — Form validation with async email checking
-- **[Job Application](https://foldkit.dev/example-apps/job-application)** — Multi-step form with cross-field validation, file uploads, and per-step error indicators
-- **[Weather](https://foldkit.dev/example-apps/weather)** — HTTP requests with async state handling
-- **[Routing](https://foldkit.dev/example-apps/routing)** — URL routing with parser combinators
-- **[Query Sync](https://foldkit.dev/example-apps/query-sync)** — URL query parameter sync with filtering and sorting
-- **[Snake](https://foldkit.dev/example-apps/snake)** — Classic game built with Subscriptions
-- **[Map](https://foldkit.dev/example-apps/map)** — Interactive MapLibre GL map demonstrating Mount with a third-party DOM library
-- **[Auth](https://foldkit.dev/example-apps/auth)** — Authentication flow with Submodels and OutMessage
-- **[Shopping Cart](https://foldkit.dev/example-apps/shopping-cart)** — Nested models and complex state
-- **[WebSocket Chat](https://foldkit.dev/example-apps/websocket-chat)** — Managed Resources with WebSocket integration
-- **[Kanban](https://foldkit.dev/example-apps/kanban)** — Drag-and-drop kanban board with cross-column reordering and keyboard navigation
-- **[Pixel Art](https://foldkit.dev/example-apps/pixel-art)** — Grid-based pixel editor with painting, erasing, and palette selection
-- **[Canvas Art](https://foldkit.dev/example-apps/canvas-art)** — Declarative 2D canvas with shapes, animation-frame Subscriptions, and pointer events
-- **[Generative Art](https://foldkit.dev/example-apps/generative-art)** — Prismatic flow-field particles steered by Perlin noise; move to stir, click to bloom
-- **[Embedding](https://foldkit.dev/example-apps/embedding)** — A Foldkit widget embedded in a plain TypeScript host page via `Runtime.embed`, with typed Ports in both directions and `dispose` on unmount
-- **[UI Showcase](https://foldkit.dev/example-apps/ui-showcase)** — Interactive showcase of every Foldkit UI component
-- **[Typing Game](packages/typing-game)** — Multiplayer typing game with Effect RPC backend ([play it live](https://typingterminal.com))
+- **[Counter](https://foldkit.dev/example-apps/counter)**: Increment/decrement with reset
+- **[Counters](https://foldkit.dev/example-apps/counters)**: A dynamic list of Counter Submodels with per-instance routing
+- **[Todo](https://foldkit.dev/example-apps/todo)**: CRUD operations with localStorage persistence
+- **[Stopwatch](https://foldkit.dev/example-apps/stopwatch)**: Timer with start/stop/reset
+- **[Crash View](https://foldkit.dev/example-apps/crash-view)**: Custom crash fallback UI with crash reporting
+- **[Slow Warnings](https://foldkit.dev/example-apps/slow-warnings)**: Trigger slow update, view, patch, and Subscription dependency warnings with a visible warning log
+- **[Form](https://foldkit.dev/example-apps/form)**: Form validation with async email checking
+- **[Job Application](https://foldkit.dev/example-apps/job-application)**: Multi-step form with cross-field validation, file uploads, and per-step error indicators
+- **[Weather](https://foldkit.dev/example-apps/weather)**: HTTP requests with async state handling
+- **[API Cache](https://foldkit.dev/example-apps/api-cache)**: Query caching with stale-while-revalidate, request deduplication, and interval refetching
+- **[Routing](https://foldkit.dev/example-apps/routing)**: URL routing with parser combinators
+- **[Query Sync](https://foldkit.dev/example-apps/query-sync)**: URL query parameter sync with filtering and sorting
+- **[Snake](https://foldkit.dev/example-apps/snake)**: Classic game built with Subscriptions
+- **[Map](https://foldkit.dev/example-apps/map)**: Interactive MapLibre GL map demonstrating Mount with a third-party DOM library
+- **[Auth](https://foldkit.dev/example-apps/auth)**: Authentication flow with Submodels and OutMessage
+- **[Shopping Cart](https://foldkit.dev/example-apps/shopping-cart)**: Nested models and complex state
+- **[WebSocket Chat](https://foldkit.dev/example-apps/websocket-chat)**: Managed Resources with WebSocket integration
+- **[Managed Resource Layer](https://foldkit.dev/example-apps/managed-resource-layer)**: Effect Layer-backed ManagedResource lifecycle with scoped acquire and release
+- **[Kanban](https://foldkit.dev/example-apps/kanban)**: Drag-and-drop kanban board with cross-column reordering and keyboard navigation
+- **[Pixel Art](https://foldkit.dev/example-apps/pixel-art)**: Grid-based pixel editor with painting, erasing, and palette selection
+- **[Canvas Art](https://foldkit.dev/example-apps/canvas-art)**: Declarative 2D canvas with shapes, animation-frame Subscriptions, and pointer events
+- **[Generative Art](https://foldkit.dev/example-apps/generative-art)**: Prismatic flow-field particles steered by Perlin noise; move to stir, click to bloom
+- **[Web Components](https://foldkit.dev/example-apps/web-components)**: QR code designer using typed CustomElement integration with third-party web components
+- **[Embedding](https://foldkit.dev/example-apps/embedding)**: A Foldkit widget embedded in a plain TypeScript host page via `Runtime.embed`, with typed Ports in both directions and `dispose` on unmount
+- **[UI Showcase](https://foldkit.dev/example-apps/ui-showcase)**: Interactive showcase of every Foldkit UI component
+- **[Typing Game](packages/typing-game)**: Multiplayer typing game with Effect RPC backend ([play it live](https://typingterminal.com))
 
 ## Development
 

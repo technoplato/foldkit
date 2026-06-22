@@ -18,22 +18,33 @@ The CLI prompts you for a project name, starter example, and package manager. Pa
 
 ## Examples
 
-| Example          | Description                                                                         |
-| ---------------- | ----------------------------------------------------------------------------------- |
-| `counter`        | Simple increment/decrement with reset                                               |
-| `counters`       | A dynamic list of Counter Submodels with per-instance routing via a wrapper Message |
-| `stopwatch`      | Timer with start/stop/reset                                                         |
-| `weather`        | HTTP requests with async state handling                                             |
-| `todo`           | CRUD operations with localStorage persistence                                       |
-| `form`           | Form validation with async email checking                                           |
-| `snake`          | Classic game built with Subscriptions                                               |
-| `routing`        | URL routing with parser combinators and route parameters                            |
-| `query-sync`     | URL-driven filtering, sorting, and search                                           |
-| `shopping-cart`  | Complex state management with nested Models                                         |
-| `websocket-chat` | Managed resources with WebSocket                                                    |
-| `auth`           | Authentication with Submodels, OutMessage, and protected routes                     |
-| `embedding`      | A Foldkit widget embedded in a plain TypeScript host page with Ports and dispose    |
-| `ui-showcase`    | Every Foldkit UI component with routing                                             |
+| Example                  | Description                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `counter`                | Simple increment/decrement with reset                                                                  |
+| `counters`               | A dynamic list of Counter Submodels with per-instance routing via a wrapper Message                    |
+| `todo`                   | CRUD operations with localStorage persistence                                                          |
+| `stopwatch`              | Timer with start/stop/reset                                                                            |
+| `crash-view`             | Custom crash fallback UI with crash.view and crash.report                                              |
+| `slow-warnings`          | Interactive lab for slow update, view, patch, and Subscription dependency warnings                     |
+| `form`                   | Form validation with async email checking                                                              |
+| `job-application`        | Multi-step form with async validation, file uploads, and per-step error indicators                     |
+| `weather`                | HTTP requests with async state handling                                                                |
+| `api-cache`              | Query caching in the Model with stale-while-revalidate, request deduplication, and interval refetching |
+| `routing`                | URL routing with parser combinators and route parameters                                               |
+| `query-sync`             | URL-driven filtering, sorting, and search with query parameters                                        |
+| `snake`                  | Classic game built with Subscriptions                                                                  |
+| `canvas-art`             | Declarative 2D canvas with shapes, animation-frame Subscriptions, and pointer events                   |
+| `generative-art`         | Perlin-noise flow field with evolving particle trails, mouse vortex, and high-frequency Messages       |
+| `auth`                   | Authentication with Submodels, OutMessage, and protected routes                                        |
+| `shopping-cart`          | Complex state management with nested Models and routing                                                |
+| `pixel-art`              | Pixel editor with undo/redo, UI components, and localStorage persistence                               |
+| `websocket-chat`         | Managed resources with WebSocket integration                                                           |
+| `managed-resource-layer` | Layer-backed ManagedResource lifecycle with an Effect service                                          |
+| `kanban`                 | Drag-and-drop board with fractional indexing, keyboard navigation, and screen reader announcements     |
+| `map`                    | Interactive MapLibre GL map with Mount and Subscriptions                                               |
+| `web-components`         | QR code designer wiring third-party web components into Foldkit with CustomElement.define              |
+| `embedding`              | A Foldkit widget embedded in a plain TypeScript host page with Ports and dispose                       |
+| `ui-showcase`            | Every Foldkit UI component with routing and Submodels                                                  |
 
 ## License
 

@@ -4,6 +4,7 @@ export const EXAMPLE_VALUES = [
   'todo',
   'stopwatch',
   'crash-view',
+  'slow-warnings',
   'form',
   'job-application',
   'weather',
@@ -17,7 +18,9 @@ export const EXAMPLE_VALUES = [
   'shopping-cart',
   'pixel-art',
   'websocket-chat',
+  'managed-resource-layer',
   'kanban',
+  'map',
   'web-components',
   'embedding',
   'ui-showcase',
@@ -55,6 +58,12 @@ export const examples: ReadonlyArray<{
     value: 'crash-view',
     title: 'crash-view',
     description: 'Custom crash fallback UI with crash.view and crash.report',
+  },
+  {
+    value: 'slow-warnings',
+    title: 'slow-warnings',
+    description:
+      'Interactive lab for slow update, view, patch, and Subscription dependency warnings',
   },
   {
     value: 'form',
@@ -129,10 +138,21 @@ export const examples: ReadonlyArray<{
     description: 'Managed resources with WebSocket integration',
   },
   {
+    value: 'managed-resource-layer',
+    title: 'managed-resource-layer',
+    description:
+      'Layer-backed ManagedResource lifecycle with an Effect service',
+  },
+  {
     value: 'kanban',
     title: 'kanban',
     description:
       'Drag-and-drop board with fractional indexing, keyboard navigation, and screen reader announcements',
+  },
+  {
+    value: 'map',
+    title: 'map',
+    description: 'Interactive MapLibre GL map with Mount and Subscriptions',
   },
   {
     value: 'web-components',

@@ -20,6 +20,7 @@ export const ExampleSlug = S.Literals([
   'shopping-cart',
   'pixel-art',
   'websocket-chat',
+  'managed-resource-layer',
   'kanban',
   'map',
   'canvas-art',
@@ -191,6 +192,15 @@ export const examples: ReadonlyArray<ExampleMeta> = [
       'Managed resources with WebSocket integration. Connection lifecycle, reconnection, and message streaming.',
     difficulty: 'Advanced',
     tags: ['Managed Resources', 'WebSocket'],
+    hasRouting: false,
+  },
+  {
+    slug: 'managed-resource-layer',
+    title: 'Managed Resource Layer',
+    description:
+      'Layer-backed ManagedResource that starts a ComputeEngine service from an Effect Layer, exposes it to Commands, and runs Layer finalizers when the Model turns it off.',
+    difficulty: 'Advanced',
+    tags: ['Managed Resources', 'Effect Layer', 'Commands'],
     hasRouting: false,
   },
   {

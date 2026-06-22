@@ -33,6 +33,8 @@ const loadersBySlug: Readonly<Record<string, SourceLoader | undefined>> = {
   'crash-view': () => import('virtual:example-sources/crash-view'),
   'slow-warnings': () => import('virtual:example-sources/slow-warnings'),
   'websocket-chat': () => import('virtual:example-sources/websocket-chat'),
+  'managed-resource-layer': () =>
+    import('virtual:example-sources/managed-resource-layer'),
   map: () => import('virtual:example-sources/map'),
   'canvas-art': () => import('virtual:example-sources/canvas-art'),
   'generative-art': () => import('virtual:example-sources/generative-art'),
