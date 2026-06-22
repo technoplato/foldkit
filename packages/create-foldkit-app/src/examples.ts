@@ -9,6 +9,7 @@ export const EXAMPLE_VALUES = [
   'job-application',
   'weather',
   'api-cache',
+  'adoption-observatory',
   'routing',
   'query-sync',
   'snake',
@@ -86,6 +87,12 @@ export const examples: ReadonlyArray<{
     title: 'api-cache',
     description:
       'Query caching in the Model with stale-while-revalidate, request deduplication, invalidation, and interval refetching',
+  },
+  {
+    value: 'adoption-observatory',
+    title: 'adoption-observatory',
+    description:
+      'Live GitHub and npm telemetry rendered through an ECharts Mount adapter with chart events flowing back as Messages',
   },
   {
     value: 'routing',

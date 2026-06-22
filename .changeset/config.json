@@ -43,6 +43,7 @@
     "pixel-art-react-comparison",
     "@foldkit/performance-harness",
     "@foldkit/examples-e2e",
-    "@foldkit/lustre-benchmark"
+    "@foldkit/lustre-benchmark",
+    "adoption-observatory-example"
   ]
 }

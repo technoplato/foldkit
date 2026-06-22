@@ -42,6 +42,14 @@
         "tailwindcss"
       ]
     },
+    "examples/adoption-observatory": {
+      "entry": [],
+      "ignoreDependencies": [
+        "@trivago/prettier-plugin-sort-imports",
+        "prettier",
+        "tailwindcss"
+      ]
+    },
     "comparisons/*": {
       "ignoreDependencies": ["tailwindcss"]
     },

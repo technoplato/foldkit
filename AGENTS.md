@@ -49,6 +49,7 @@ Calibrate to the right context: library design when inside `packages/foldkit/src
 - Use Effect module functions over native methods in pipes. Native methods are fine when calling directly on a named variable.
 - Import Effect modules by their PascalCase name. Alias with a trailing underscore only when shadowing a needed native global.
 - Never use sentinel values to signal absence. Use `Option`-returning helpers such as `String.indexOf`, `Array.findFirst`, and `Option.fromNullishOr`.
+- When adding or editing `Option` handling, do not use `Option.match` with `onNone: Function.constVoid`; use `Option.isSome` with an explicit `if`.
 - Never use `T[]` syntax. Use `Array<T>` or `ReadonlyArray<T>`.
 - Never use bracket array indexing. Use `Array.get`, `Array.head`, `Array.last`, or non-empty variants.
 - Use `Array.isEmptyArray` / `Array.isNonEmptyArray`, not `.length === 0` / `.length > 0`. Prefer `Array.match` when handling both cases.

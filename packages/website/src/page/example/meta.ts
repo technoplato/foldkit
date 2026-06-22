@@ -13,6 +13,7 @@ export const ExampleSlug = S.Literals([
   'job-application',
   'weather',
   'api-cache',
+  'adoption-observatory',
   'routing',
   'query-sync',
   'snake',
@@ -120,6 +121,15 @@ export const examples: ReadonlyArray<ExampleMeta> = [
       'Query caching without a query client. Demonstrates stale-while-revalidate, request deduplication, invalidation, and interval refetching.',
     difficulty: 'Intermediate',
     tags: ['Caching', 'Subscriptions', 'UI Components'],
+    hasRouting: false,
+  },
+  {
+    slug: 'adoption-observatory',
+    title: 'Adoption Observatory',
+    description:
+      'Live dashboard for public Foldkit telemetry from GitHub and npm. Demonstrates HTTP Commands, async state, an ECharts Mount adapter, and a Subscription that turns chart clicks back into Messages.',
+    difficulty: 'Advanced',
+    tags: ['Charts', 'HTTP', 'Mount', 'Subscriptions', 'Third-Party Library'],
     hasRouting: false,
   },
   {
