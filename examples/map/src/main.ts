@@ -410,6 +410,50 @@ const boundsFromMap = (map: MapInstance): Bounds => {
   }
 }
 
+const streamMapEvents = (hostId: string) =>
+  Stream.callback<Message>(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        Option.map(getMap(hostId), map => {
+          const onMoveEnd = () => {
+            Queue.offerUnsafe(queue, MovedMap({ bounds: boundsFromMap(map) }))
+          }
+
+          const onContainerClick = (event: MouseEvent) => {
+            const target = event.target
+            if (!(target instanceof Element)) {
+              return
+            }
+            const marker = target.closest('[data-location-id]')
+            if (!(marker instanceof HTMLElement)) {
+              return
+            }
+            const locationId = marker.dataset['locationId']
+            if (locationId !== undefined) {
+              Queue.offerUnsafe(queue, ClickedMarker({ locationId }))
+            }
+          }
+
+          map.on('moveend', onMoveEnd)
+          map.getContainer().addEventListener('click', onContainerClick)
+          Queue.offerUnsafe(queue, MovedMap({ bounds: boundsFromMap(map) }))
+
+          return { map, onMoveEnd, onContainerClick }
+        }),
+      ),
+      maybeHandle =>
+        Effect.sync(() =>
+          Option.match(maybeHandle, {
+            onNone: Function.constVoid,
+            onSome: ({ map, onMoveEnd, onContainerClick }) => {
+              map.off('moveend', onMoveEnd)
+              map.getContainer().removeEventListener('click', onContainerClick)
+            },
+          }),
+        ),
+    ).pipe(Effect.flatMap(() => Effect.never)),
+  )
+
 export const subscriptions = Subscription.make<Model, Message>()(entry => ({
   mapEvents: entry(
     { maybeMapHostId: S.Option(S.String) },
@@ -420,59 +464,7 @@ export const subscriptions = Subscription.make<Model, Message>()(entry => ({
       dependenciesToStream: ({ maybeMapHostId }) =>
         Option.match(maybeMapHostId, {
           onNone: () => Stream.empty,
-          onSome: hostId =>
-            Stream.callback<Message>(queue =>
-              Effect.acquireRelease(
-                Effect.sync(() =>
-                  Option.map(getMap(hostId), map => {
-                    const onMoveEnd = () => {
-                      Queue.offerUnsafe(
-                        queue,
-                        MovedMap({ bounds: boundsFromMap(map) }),
-                      )
-                    }
-
-                    const onContainerClick = (event: MouseEvent) => {
-                      const target = event.target
-                      if (!(target instanceof Element)) {
-                        return
-                      }
-                      const marker = target.closest('[data-location-id]')
-                      if (!(marker instanceof HTMLElement)) {
-                        return
-                      }
-                      const locationId = marker.dataset['locationId']
-                      if (locationId !== undefined) {
-                        Queue.offerUnsafe(queue, ClickedMarker({ locationId }))
-                      }
-                    }
-
-                    map.on('moveend', onMoveEnd)
-                    map
-                      .getContainer()
-                      .addEventListener('click', onContainerClick)
-                    Queue.offerUnsafe(
-                      queue,
-                      MovedMap({ bounds: boundsFromMap(map) }),
-                    )
-
-                    return { map, onMoveEnd, onContainerClick }
-                  }),
-                ),
-                maybeHandle =>
-                  Effect.sync(() =>
-                    Option.match(maybeHandle, {
-                      onNone: Function.constVoid,
-                      onSome: ({ map, onMoveEnd, onContainerClick }) => {
-                        map.off('moveend', onMoveEnd)
-                        map
-                          .getContainer()
-                          .removeEventListener('click', onContainerClick)
-                      },
-                    }),
-                  ),
-              ).pipe(Effect.flatMap(() => Effect.never)),
-            ),
+          onSome: streamMapEvents,
         }),
     },
   ),
