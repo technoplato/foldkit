@@ -1,4 +1,11 @@
 /**
+ * Describes an Effect HTTP API as groups of endpoints.
+ *
+ * An `HttpApi` value is data: it has an identifier, annotations, and groups of
+ * endpoints that describe request inputs, responses, middleware, and route
+ * metadata. The same description can be used by server builders, generated
+ * clients, URL builders, OpenAPI generation, and reflection tools.
+ *
  * @since 4.0.0
  */
 import type { NonEmptyReadonlyArray } from "../../Array.ts"
@@ -7,7 +14,7 @@ import { type Pipeable, pipeArguments } from "../../Pipeable.ts"
 import * as Predicate from "../../Predicate.ts"
 import * as Record from "../../Record.ts"
 import type * as Schema from "../../Schema.ts"
-import type * as AST from "../../SchemaAST.ts"
+import type * as SchemaAST from "../../SchemaAST.ts"
 import type { Mutable } from "../../Types.ts"
 import type { PathInput } from "../http/HttpRouter.ts"
 import * as HttpApiEndpoint from "./HttpApiEndpoint.ts"
@@ -18,19 +25,24 @@ import * as HttpApiSchema from "./HttpApiSchema.ts"
 const TypeId = "~effect/httpapi/HttpApi"
 
 /**
- * @since 4.0.0
+ * Returns `true` when a value is an `HttpApi`.
+ *
  * @category guards
+ * @since 4.0.0
  */
 export const isHttpApi = (u: unknown): u is Any => Predicate.hasProperty(u, TypeId)
 
 /**
- * An `HttpApi` is a collection of `HttpApiEndpoint`s. You can use an `HttpApi` to
- * represent a portion of your domain.
+ * An `HttpApi` is a collection of HTTP API groups and endpoints that represents a
+ * portion of your domain.
  *
- * The endpoints can be implemented later using the `HttpApiBuilder.make` api.
+ * **When to use**
  *
- * @since 4.0.0
+ * Use when endpoint implementations can be provided with `HttpApiBuilder.group`, and the
+ * completed API can be registered with `HttpApiBuilder.layer`.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface HttpApi<
   out Id extends string,
@@ -45,7 +57,7 @@ export interface HttpApi<
   /**
    * Add a `HttpApiGroup` to the `HttpApi`.
    */
-  add<A extends NonEmptyReadonlyArray<HttpApiGroup.Any>>(...groups: A): HttpApi<Id, Groups | A[number]>
+  add<const A extends NonEmptyReadonlyArray<HttpApiGroup.Any>>(...groups: A): HttpApi<Id, Groups | A[number]>
 
   /**
    * Add another `HttpApi` to the `HttpApi`.
@@ -60,11 +72,11 @@ export interface HttpApi<
   prefix<const Prefix extends PathInput>(prefix: Prefix): HttpApi<Id, HttpApiGroup.AddPrefix<Groups, Prefix>>
 
   /**
-   * Add a middleware to a `HttpApi`. It will be applied to all endpoints in the
-   * `HttpApi`.
+   * Adds a middleware to every endpoint currently in the `HttpApi`.
    *
-   * Note that this will only add the middleware to the endpoints **before** this
-   * api is called.
+   * **Gotchas**
+   *
+   * Endpoints added after this method is called do not receive the middleware.
    */
   middleware<I extends HttpApiMiddleware.AnyId, S>(
     middleware: Context.Key<I, S>
@@ -82,16 +94,21 @@ export interface HttpApi<
 }
 
 /**
- * @since 4.0.0
+ * An `HttpApi` value with its identifier and group types erased.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface Any {
   readonly [TypeId]: typeof TypeId
 }
 
 /**
- * @since 4.0.0
+ * An `HttpApi` with broad identifier and group types while retaining the concrete
+ * runtime properties used by implementation helpers.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type AnyWithProps = HttpApi<string, HttpApiGroup.AnyWithProps>
 
@@ -175,14 +192,16 @@ const makeProto = <Id extends string, Groups extends HttpApiGroup.Any>(
 }
 
 /**
- * An `HttpApi` is a collection of `HttpApiEndpoint`s. You can use an `HttpApi` to
- * represent a portion of your domain.
+ * Creates an empty `HttpApi` with the supplied identifier.
  *
- * You can then use `HttpApiBuilder.layer(api)` to implement the endpoints of the
- * `HttpApi`.
+ * **When to use**
  *
- * @since 4.0.0
+ * Use when you need to start defining an HTTP API, add groups with `add` or
+ * `addHttpApi`, provide endpoint implementations with `HttpApiBuilder.group`,
+ * and register the API with `HttpApiBuilder.layer`.
+ *
  * @category constructors
+ * @since 4.0.0
  */
 export const make = <const Id extends string>(identifier: Id): HttpApi<Id, never> =>
   makeProto({
@@ -192,8 +211,15 @@ export const make = <const Id extends string>(identifier: Id): HttpApi<Id, never
   })
 
 /**
+ * Describes the groups and endpoints in an `HttpApi`.
+ *
+ * **Details**
+ *
+ * The callbacks receive each group or endpoint with merged annotations, endpoint
+ * middleware, and response schemas grouped by HTTP status.
+ *
+ * @category reflection
  * @since 4.0.0
- * @category Reflection
  */
 export const reflect = <Id extends string, Groups extends HttpApiGroup.Any>(
   self: HttpApi<Id, Groups>,
@@ -256,7 +282,7 @@ export const reflect = <Id extends string, Groups extends HttpApiGroup.Any>(
 
 const extractResponseContent = (
   schemas: Array<Schema.Top>,
-  getStatus: (ast: AST.AST) => number
+  getStatus: (ast: SchemaAST.AST) => number
 ): ReadonlyMap<number, [Schema.Top, ...Array<Schema.Top>]> => {
   const map = new Map<number, [Schema.Top, ...Array<Schema.Top>]>()
 
@@ -265,6 +291,7 @@ const extractResponseContent = (
   return map
 
   function add(schema: Schema.Top) {
+    if (HttpApiSchema.isStreamSchema(schema)) return
     const ast = schema.ast
     const status = getStatus(ast)
     const schemas = map.get(status)
@@ -280,10 +307,10 @@ const extractResponseContent = (
  * Adds additional schemas to components/schemas.
  * The provided schemas must have a `identifier` annotation.
  *
+ * @category services
  * @since 4.0.0
- * @category tags
  */
 export class AdditionalSchemas extends Context.Service<
   AdditionalSchemas,
-  ReadonlyArray<Schema.Top>
+  ReadonlyArray<Schema.Constraint>
 >()("effect/httpapi/HttpApi/AdditionalSchemas") {}

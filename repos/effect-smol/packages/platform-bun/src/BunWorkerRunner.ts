@@ -1,5 +1,13 @@
 /**
- * @since 1.0.0
+ * Worker-entrypoint support for Bun worker runners.
+ *
+ * This module exports a `layer` that provides `WorkerRunnerPlatform` for code
+ * already running inside a Bun `Worker`. The platform receives request messages
+ * from the parent-side `BunWorker` platform, runs the registered handler, sends
+ * responses through the worker `postMessage` channel, and closes when the
+ * parent sends the close message.
+ *
+ * @since 4.0.0
  */
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
@@ -15,8 +23,12 @@ import * as WorkerRunner from "effect/unstable/workers/WorkerRunner"
 declare const self: MessagePort
 
 /**
- * @since 1.0.0
+ * Provides the `WorkerRunnerPlatform` for code running inside a Bun worker,
+ * routing parent messages to the registered handler and sending responses back
+ * through the worker port.
+ *
  * @category layers
+ * @since 4.0.0
  */
 export const layer: Layer.Layer<WorkerRunner.WorkerRunnerPlatform> = Layer.succeed(WorkerRunner.WorkerRunnerPlatform)({
   start: Effect.fnUntraced(function*<O = unknown, I = unknown>() {
@@ -62,7 +74,7 @@ export const layer: Layer.Layer<WorkerRunner.WorkerRunnerPlatform> = Layer.succe
                 message: "received messageerror event",
                 cause: error.data
               })
-            }).asEffect()
+            })
           )
         }
         function onError(error: MessageEvent) {
@@ -73,7 +85,7 @@ export const layer: Layer.Layer<WorkerRunner.WorkerRunnerPlatform> = Layer.succe
                 message: "received error event",
                 cause: error.data
               })
-            }).asEffect()
+            })
           )
         }
         yield* Scope.addFinalizer(

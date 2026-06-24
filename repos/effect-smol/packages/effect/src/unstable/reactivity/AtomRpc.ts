@@ -1,4 +1,12 @@
 /**
+ * Connects typed RPC clients to atoms.
+ *
+ * The service created here exposes a flattened RPC client plus atom-based query
+ * and mutation helpers. Query atoms call RPCs and track asynchronous or
+ * streaming results, while mutations run RPC calls that can invalidate
+ * reactivity keys after success. Query atoms can also use request headers,
+ * time-to-live settings, and serialization keys for hydration.
+ *
  * @since 4.0.0
  */
 import * as Context from "../../Context.ts"
@@ -22,8 +30,15 @@ import * as Atom from "./Atom.ts"
 import * as Reactivity from "./Reactivity.ts"
 
 /**
+ * A `Context.Service` for a flattened RPC client integrated with atom reactivity.
+ *
+ * **Details**
+ *
+ * It exposes the RPC client, an atom runtime, mutation helpers that return `AtomResultFn`s, and query helpers that
+ * return atoms or pull atoms for RPC results.
+ *
+ * @category models
  * @since 4.0.0
- * @category Models
  */
 export interface AtomRpcClient<Self, Id extends string, Rpcs extends Rpc.Any> extends
   Context.Service<
@@ -103,8 +118,15 @@ declare global {
 }
 
 /**
+ * Creates a `Context.Service` class for an RPC client backed by an atom runtime.
+ *
+ * **Details**
+ *
+ * The options provide the RPC group, protocol layer, tracing options, request id generation, optional custom client
+ * effect, and runtime factory used by the query and mutation helpers.
+ *
+ * @category constructors
  * @since 4.0.0
- * @category Constructors
  */
 export const Service = <Self>() =>
 <

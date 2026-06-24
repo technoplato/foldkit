@@ -1,4 +1,12 @@
 /**
+ * Stores runner registration and shard-lock state for cluster sharding.
+ *
+ * `RunnerStorage` records which runners are registered, whether they are
+ * healthy, which machine id a runner receives, and which shard locks are held
+ * by each runner. This module includes the typed storage service, a
+ * string-encoded backend interface, an adapter from encoded storage to the typed
+ * service, and an in-memory implementation for tests and local use.
+ *
  * @since 4.0.0
  */
 import { isArrayNonEmpty, type NonEmptyArray } from "../../Array.ts"
@@ -16,8 +24,8 @@ import * as ShardId from "./ShardId.ts"
  * Represents a generic interface to the persistent storage required by the
  * cluster.
  *
- * @since 4.0.0
  * @category models
+ * @since 4.0.0
  */
 export class RunnerStorage extends Context.Service<RunnerStorage, {
   /**
@@ -73,8 +81,11 @@ export class RunnerStorage extends Context.Service<RunnerStorage, {
 }>()("effect/cluster/RunnerStorage") {}
 
 /**
- * @since 4.0.0
+ * String-encoded runner storage interface used by adapters that persist runner
+ * addresses, runners, machine ids, and shard ids outside the in-memory model.
+ *
  * @category Encoded
+ * @since 4.0.0
  */
 export interface Encoded {
   /**
@@ -130,8 +141,12 @@ export interface Encoded {
 }
 
 /**
- * @since 4.0.0
+ * Adapts an encoded runner storage implementation into `RunnerStorage`, converting
+ * runner addresses, runners, machine ids, and shard ids between typed values and
+ * their string or numeric storage forms.
+ *
  * @category layers
+ * @since 4.0.0
  */
 export const makeEncoded = (encoded: Encoded) =>
   RunnerStorage.of({
@@ -176,8 +191,15 @@ export const makeEncoded = (encoded: Encoded) =>
   })
 
 /**
- * @since 4.0.0
+ * Creates an in-memory `RunnerStorage` implementation for tests and local use.
+ *
+ * **Details**
+ *
+ * Registered runners are treated as healthy and shard acquisition is kept only in
+ * process memory.
+ *
  * @category constructors
+ * @since 4.0.0
  */
 export const makeMemory = Effect.gen(function*() {
   const runners = MutableHashMap.empty<RunnerAddress, Runner>()
@@ -207,8 +229,10 @@ export const makeMemory = Effect.gen(function*() {
 })
 
 /**
- * @since 4.0.0
+ * Layer that provides the in-memory `RunnerStorage` implementation.
+ *
  * @category layers
+ * @since 4.0.0
  */
 export const layerMemory: Layer.Layer<RunnerStorage> = Layer.effect(RunnerStorage)(makeMemory)
 

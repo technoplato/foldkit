@@ -1,4 +1,13 @@
 /**
+ * Serves encrypted event-log replication.
+ *
+ * Encrypted `EventLogRemote` clients use this module when they need a remote
+ * synchronization endpoint that never sees plaintext events. The server stores
+ * encrypted entries and replication metadata keyed by client public key and
+ * store id, then streams encrypted changes back to clients for local
+ * decryption. This module defines the RPC handlers, server layer, storage
+ * contract, and in-memory storage layer for that encrypted server path.
+ *
  * @since 4.0.0
  */
 import * as Uuid from "uuid"
@@ -19,8 +28,16 @@ import { ChangesRpc, EventLogProtocolError, EventLogRemoteRpcs, type StoreId, Wr
 import * as EventLogServer from "./EventLogServer.ts"
 
 /**
+ * Provides RPC handlers for the encrypted event-log server.
+ *
+ * **Details**
+ *
+ * Incoming encrypted write payloads are decoded and persisted through `Storage`;
+ * change streams read encrypted entries from storage and encode them for the
+ * remote protocol.
+ *
+ * @category layers
  * @since 4.0.0
- * @category Layers
  */
 export const layerRpcHandlers = Layer.unwrap(Effect.gen(function*() {
   const storage = yield* Storage
@@ -70,16 +87,37 @@ export const layerRpcHandlers = Layer.unwrap(Effect.gen(function*() {
 }))
 
 /**
+ * Provides an encrypted event-log RPC server using `EventLogRemoteRpcs` and the
+ * encrypted server RPC handlers.
+ *
+ * **When to use**
+ *
+ * Use when you need an encrypted event-log RPC server for encrypted
+ * `EventLogRemote` replication over an existing `RpcServer.Protocol`.
+ *
+ * **Details**
+ *
+ * This layer installs `EventLogRemoteRpcs` on the provided RPC server protocol
+ * and wires those RPCs to `layerRpcHandlers`. Encrypted entries, session
+ * authentication bindings, remote ids, and change streams are delegated to
+ * `Storage`.
+ *
+ * @see {@link layerRpcHandlers} for the encrypted handler layer without installing an RPC server protocol
+ * @see {@link Storage} for the storage service required by this layer
+ * @see {@link layerStorageMemory} for the process-local in-memory storage layer
+ *
+ * @category layers
  * @since 4.0.0
- * @category Layers
  */
 export const layer: Layer.Layer<never, never, RpcServer.Protocol | Storage> = RpcServer.layer(EventLogRemoteRpcs).pipe(
   Layer.provide(layerRpcHandlers)
 )
 
 /**
- * @since 4.0.0
+ * Schema for encrypted entries persisted by the encrypted event-log server.
+ *
  * @category storage
+ * @since 4.0.0
  */
 export class PersistedEntry extends Schema.Class<PersistedEntry>(
   "effect/eventlog/EventLogServerEncrypted/PersistedEntry"
@@ -89,6 +127,8 @@ export class PersistedEntry extends Schema.Class<PersistedEntry>(
   encryptedEntry: Transferable.Uint8Array
 }) {
   /**
+   * String representation of the encrypted entry id.
+   *
    * @since 4.0.0
    */
   get entryIdString(): string {
@@ -97,8 +137,21 @@ export class PersistedEntry extends Schema.Class<PersistedEntry>(
 }
 
 /**
- * @since 4.0.0
+ * Defines the backing store service used by the encrypted event-log server.
+ *
+ * **When to use**
+ *
+ * Use to provide durable encrypted event-log persistence for an encrypted
+ * event-log server layer.
+ *
+ * **Details**
+ *
+ * It provides the server remote id, stores session authentication bindings,
+ * persists encrypted entries, and streams encrypted changes for a public key and
+ * store id.
+ *
  * @category storage
+ * @since 4.0.0
  */
 export class Storage extends Context.Service<Storage, {
   readonly getId: Effect.Effect<RemoteId>
@@ -119,8 +172,15 @@ export class Storage extends Context.Service<Storage, {
 }>()("effect/eventlog/EventLogServer/Storage") {}
 
 /**
- * @since 4.0.0
+ * Creates an in-memory encrypted server `Storage`.
+ *
+ * **Details**
+ *
+ * Data, session authentication bindings, and streams are process-local and are
+ * released with the surrounding scope.
+ *
  * @category storage
+ * @since 4.0.0
  */
 export const makeStorageMemory: Effect.Effect<Storage["Service"], never, Scope.Scope> = Effect.gen(function*() {
   const knownIds = new Map<string, Map<string, number>>()
@@ -193,8 +253,10 @@ export const makeStorageMemory: Effect.Effect<Storage["Service"], never, Scope.S
 })
 
 /**
- * @since 4.0.0
+ * Provides encrypted server `Storage` using the in-memory implementation.
+ *
  * @category storage
+ * @since 4.0.0
  */
 export const layerStorageMemory: Layer.Layer<Storage> = Layer.effect(Storage)(makeStorageMemory)
 

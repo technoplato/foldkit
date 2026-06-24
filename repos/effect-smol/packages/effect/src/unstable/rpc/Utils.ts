@@ -1,4 +1,11 @@
 /**
+ * Helps RPC protocol services buffer messages until their receive loop starts.
+ *
+ * Client and server protocol constructors use these helpers to expose a stable
+ * service before the active receiver is installed. Writes made before `run`
+ * starts are buffered with their current `Context`, then replayed once the
+ * receiver is ready.
+ *
  * @since 4.0.0
  */
 import type * as Context from "../../Context.ts"
@@ -8,6 +15,11 @@ import type { Protocol } from "./RpcClient.ts"
 import type { FromServerEncoded } from "./RpcMessage.ts"
 
 /**
+ * Builds a service with a `run` method that buffers writes until `run` installs
+ * a writer, replays buffered writes with their original contexts, and restores
+ * the previous writer when the run ends.
+ *
+ * @category services
  * @since 4.0.0
  */
 export const withRun = <
@@ -46,6 +58,11 @@ export const withRun = <
   })
 
 /**
+ * Builds an RPC client protocol service that tracks active client IDs and
+ * buffers server responses per client until that client's `run` handler is
+ * installed.
+ *
+ * @category services
  * @since 4.0.0
  */
 export const withRunClient = <EX, RX>(

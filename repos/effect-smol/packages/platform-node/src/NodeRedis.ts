@@ -1,5 +1,13 @@
 /**
- * @since 1.0.0
+ * Node.js Redis integration backed by `ioredis`.
+ *
+ * This module creates a scoped `ioredis` client and exposes it in two forms:
+ * the generic `Redis` service and the {@link NodeRedis} service for direct
+ * access to the underlying client. `layer` accepts ioredis options directly,
+ * while `layerConfig` reads them from Effect config. Both layers close the
+ * client when the layer scope ends.
+ *
+ * @since 4.0.0
  */
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
@@ -11,8 +19,12 @@ import * as Redis from "effect/unstable/persistence/Redis"
 import * as IoRedis from "ioredis"
 
 /**
- * @since 1.0.0
- * @category Service
+ * Service tag for the Node Redis integration, exposing the underlying
+ * `ioredis` client and a `use` helper that maps client failures to
+ * `RedisError`.
+ *
+ * @category services
+ * @since 4.0.0
  */
 export class NodeRedis extends Context.Service<NodeRedis, {
   readonly client: IoRedis.Redis
@@ -51,16 +63,22 @@ const make = Effect.fnUntraced(function*(
 })
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Provides `Redis` and `NodeRedis` services backed by an `ioredis` client
+ * created with the supplied options and closed when the layer scope ends.
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layer = (
   options?: IoRedis.RedisOptions | undefined
 ): Layer.Layer<Redis.Redis | NodeRedis> => Layer.effectContext(make(options))
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Provides `Redis` and `NodeRedis` services from `Config`-backed ioredis
+ * options, closing the client when the layer scope ends.
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layerConfig: (
   options: Config.Wrap<IoRedis.RedisOptions>
@@ -68,7 +86,7 @@ export const layerConfig: (
   options: Config.Wrap<IoRedis.RedisOptions>
 ): Layer.Layer<Redis.Redis | NodeRedis, Config.ConfigError> =>
   Layer.effectContext(
-    Config.unwrap(options).asEffect().pipe(
+    Config.unwrap(options).pipe(
       Effect.flatMap(make)
     )
   )

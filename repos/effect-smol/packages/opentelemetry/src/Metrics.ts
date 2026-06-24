@@ -1,5 +1,13 @@
 /**
- * @since 1.0.0
+ * OpenTelemetry support for Effect metrics.
+ *
+ * This module exposes Effect metrics as an OpenTelemetry `MetricProducer`.
+ * `makeProducer` creates the producer, `registerProducer` attaches it to one
+ * or more SDK `MetricReader`s, and `layer` manages that setup in a scoped
+ * layer. The `TemporalityPreference` type lets callers choose cumulative or
+ * delta metric values.
+ *
+ * @since 4.0.0
  */
 import type { MetricProducer, MetricReader } from "@opentelemetry/sdk-metrics"
 import type * as Arr from "effect/Array"
@@ -15,22 +23,37 @@ import { Resource } from "./Resource.ts"
  * Determines how metric values relate to the time interval over which they
  * are aggregated.
  *
- * - `cumulative`: Reports total since a fixed start time. Each data point
- *   depends on all previous measurements. This is the default behavior.
+ * **Details**
  *
- * - `delta`: Reports changes since the last export. Each interval is
- *   independent with no dependency on previous measurements.
+ * `cumulative` reports total since a fixed start time. Each data point depends
+ * on all previous measurements. This is the default behavior. `delta` reports
+ * changes since the last export. Each interval is independent with no
+ * dependency on previous measurements.
  *
- * @since 1.0.0
- * @category Models
+ * @category models
+ * @since 4.0.0
  */
 export type TemporalityPreference = "cumulative" | "delta"
 
 /**
  * Creates an OpenTelemetry metric producer from Effect metrics.
  *
- * @since 1.0.0
- * @category Constructors
+ * **When to use**
+ *
+ * Use when you need a `MetricProducer` for manually wiring Effect metrics into
+ * OpenTelemetry instead of using the scoped `layer` helper.
+ *
+ * **Details**
+ *
+ * Requires the current OpenTelemetry `Resource`, captures the current Effect
+ * context, and uses cumulative temporality by default. Pass `"delta"` for
+ * interval-based values.
+ *
+ * @see {@link registerProducer} for attaching a producer to metric readers
+ * @see {@link layer} for creating and registering a producer in a scoped layer
+ *
+ * @category constructors
+ * @since 4.0.0
  */
 export const makeProducer = (temporality?: TemporalityPreference): Effect.Effect<MetricProducer, never, Resource> =>
   Effect.gen(function*() {
@@ -42,8 +65,8 @@ export const makeProducer = (temporality?: TemporalityPreference): Effect.Effect
 /**
  * Registers a metric producer with one or more metric readers.
  *
- * @since 1.0.0
- * @category Constructors
+ * @category constructors
+ * @since 4.0.0
  */
 export const registerProducer = (
   self: MetricProducer,
@@ -74,7 +97,8 @@ export const registerProducer = (
 /**
  * Creates a Layer that registers a metric producer with metric readers.
  *
- * @example
+ * **Example** (Creating a metrics layer with temporality)
+ *
  * ```ts
  * import { Metrics } from "@effect/opentelemetry"
  * import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
@@ -98,8 +122,8 @@ export const registerProducer = (
  * )
  * ```
  *
- * @since 1.0.0
- * @category Layers
+ * @category layers
+ * @since 4.0.0
  */
 export const layer = (
   evaluate: LazyArg<MetricReader | Arr.NonEmptyReadonlyArray<MetricReader>>,

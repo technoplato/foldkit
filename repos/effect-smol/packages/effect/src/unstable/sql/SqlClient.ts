@@ -1,4 +1,11 @@
 /**
+ * Main SQL client service for tagged-template queries.
+ *
+ * `SqlClient` combines the tagged-template statement constructor with
+ * connection acquisition, dialect compilation, transactions, row transforms,
+ * tracing, and reactive query helpers. Driver integrations build this service
+ * from their connection and compiler pieces.
+ *
  * @since 4.0.0
  */
 import { Clock } from "../../Clock.ts"
@@ -21,6 +28,9 @@ import * as Statement from "./Statement.ts"
 const TypeId = "~effect/sql/SqlClient"
 
 /**
+ * SQL client service interface, combining the statement constructor API with
+ * connection reservation, transaction handling, and reactive query helpers.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -71,18 +81,30 @@ export interface SqlClient extends Constructor {
 }
 
 /**
- * @category models
+ * Service tag for the active SQL client service.
+ *
+ * **When to use**
+ *
+ * Use to access or provide the SQL client used to build statements, stream
+ * rows, reserve connections, and run transactions.
+ *
+ * @category services
  * @since 4.0.0
  */
 export const SqlClient = Context.Service<SqlClient>("effect/sql/SqlClient")
 
 /**
- * @category models
+ * Namespace containing types associated with the `SqlClient` service.
+ *
  * @since 4.0.0
  */
-export namespace SqlClient {
+export declare namespace SqlClient {
   /**
-   * @category models
+   * Options used to construct a `SqlClient`, including connection acquirers,
+   * the SQL compiler, transaction SQL, row transformation, tracing attributes,
+   * and optional reactive query integration.
+   *
+   * @category options
    * @since 4.0.0
    */
   export interface MakeOptions {
@@ -107,6 +129,10 @@ export namespace SqlClient {
 let clientIdCounter = 0
 
 /**
+ * Constructs a `SqlClient` from connection acquirers, a compiler, transaction
+ * commands, tracing attributes, optional row transforms, and reactive query
+ * integration.
+ *
  * @category constructors
  * @since 4.0.0
  */
@@ -186,8 +212,12 @@ export const make = Effect.fnUntraced(function*(options: SqlClient.MakeOptions) 
 })
 
 /**
- * @since 4.0.0
+ * Builds a transaction wrapper that begins top-level transactions, uses
+ * savepoints for nested transactions, commits on success, and rolls back on
+ * failure or interruption.
+ *
  * @category transactions
+ * @since 4.0.0
  */
 export const makeWithTransaction = <I, S>(options: {
   readonly transactionService: Context.Key<I, readonly [conn: S, counter: number]>
@@ -262,6 +292,10 @@ export const makeWithTransaction = <I, S>(options: {
 }
 
 /**
+ * Phantom identifier for the scoped transaction connection service associated
+ * with a SQL client.
+ *
+ * @category models
  * @since 4.0.0
  */
 export interface TransactionConnection {
@@ -269,16 +303,26 @@ export interface TransactionConnection {
 }
 
 /**
+ * Namespace containing types associated with transaction connection services.
+ *
  * @since 4.0.0
  */
 export declare namespace TransactionConnection {
   /**
+   * Service payload stored during a transaction, containing the active
+   * connection and nested transaction depth.
+   *
+   * @category services
    * @since 4.0.0
    */
   export type Service = readonly [conn: Connection.Connection, depth: number]
 }
 
 /**
+ * Creates a unique context service tag for the active transaction connection of
+ * a specific SQL client.
+ *
+ * @category services
  * @since 4.0.0
  */
 export const TransactionConnection = (
@@ -287,6 +331,10 @@ export const TransactionConnection = (
   Context.Service(`effect/sql/SqlClient/TransactionConnection/${clientId}`)
 
 /**
+ * Context reference used by SQL integrations to opt in to safe integer
+ * handling; defaults to `false`.
+ *
+ * @category references
  * @since 4.0.0
  */
 export const SafeIntegers = Context.Reference<boolean>("effect/sql/SqlClient/SafeIntegers", {

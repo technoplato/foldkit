@@ -1,5 +1,13 @@
 /**
- * @since 1.0.0
+ * Connects Effect SQL to SQLite on Node.js using `better-sqlite3`.
+ *
+ * This module opens a SQLite database and exposes it as both `SqliteClient` and
+ * the generic Effect SQL client. It serializes access through one connection,
+ * caches prepared statements, enables WAL mode unless disabled, and supports
+ * database export, backup, and extension loading. Streaming queries and
+ * `updateValues` are not supported by this driver.
+ *
+ * @since 4.0.0
  */
 import Sqlite from "better-sqlite3"
 import * as Cache from "effect/Cache"
@@ -25,20 +33,26 @@ const classifyError = (cause: unknown, message: string, operation: string) =>
   classifySqliteError(cause, { message, operation })
 
 /**
- * @category type ids
- * @since 1.0.0
+ * Runtime type identifier used to mark Node `SqliteClient` values.
+ *
+ * @category type IDs
+ * @since 4.0.0
  */
 export const TypeId: TypeId = "~@effect/sql-sqlite-node/SqliteClient"
 
 /**
- * @category type ids
- * @since 1.0.0
+ * Type-level identifier used to mark Node `SqliteClient` values.
+ *
+ * @category type IDs
+ * @since 4.0.0
  */
 export type TypeId = "~@effect/sql-sqlite-node/SqliteClient"
 
 /**
+ * Node SQLite client service, extending `SqlClient` with database export, backup, and extension loading helpers. `updateValues` is not supported.
+ *
  * @category models
- * @since 1.0.0
+ * @since 4.0.0
  */
 export interface SqliteClient extends Client.SqlClient {
   readonly [TypeId]: TypeId
@@ -52,8 +66,10 @@ export interface SqliteClient extends Client.SqlClient {
 }
 
 /**
+ * Metadata returned from a Node SQLite backup operation, reporting total and remaining page counts.
+ *
  * @category models
- * @since 1.0.0
+ * @since 4.0.0
  */
 export interface BackupMetadata {
   readonly totalPages: number
@@ -61,14 +77,18 @@ export interface BackupMetadata {
 }
 
 /**
- * @category tags
- * @since 1.0.0
+ * Service tag for the node SQLite client implementation.
+ *
+ * @category services
+ * @since 4.0.0
  */
 export const SqliteClient = Context.Service<SqliteClient>("@effect/sql-sqlite-node/SqliteClient")
 
 /**
+ * Configuration for a node SQLite client backed by `better-sqlite3`, including the database filename, read-only mode, statement cache settings, WAL behavior, span attributes, and query/result name transforms.
+ *
  * @category models
- * @since 1.0.0
+ * @since 4.0.0
  */
 export interface SqliteClientConfig {
   readonly filename: string
@@ -89,8 +109,10 @@ interface SqliteConnection extends Connection {
 }
 
 /**
- * @category constructor
- * @since 1.0.0
+ * Creates a scoped node SQLite client from the supplied configuration, using a single serialized connection with WAL enabled by default and exposing SQLite-specific `export`, `backup`, and `loadExtension` operations.
+ *
+ * @category constructors
+ * @since 4.0.0
  */
 export const make = (
   options: SqliteClientConfig
@@ -177,6 +199,25 @@ export const make = (
           (statement) => Effect.sync(() => statement.reader && statement.raw(false))
         )
 
+      const runValuesUnprepared = (
+        sql: string,
+        params: ReadonlyArray<unknown>
+      ) =>
+        Effect.try({
+          try: () => {
+            const statement = db.prepare(sql)
+            if (statement.reader) {
+              statement.raw(true)
+              return statement.all(...params) as ReadonlyArray<
+                ReadonlyArray<unknown>
+              >
+            }
+            statement.run(...params)
+            return []
+          },
+          catch: (cause) => new SqlError({ reason: classifyError(cause, "Failed to execute statement", "execute") })
+        })
+
       return identity<SqliteConnection>({
         execute(sql, params, transformRows) {
           return transformRows
@@ -188,6 +229,9 @@ export const make = (
         },
         executeValues(sql, params) {
           return runValues(sql, params)
+        },
+        executeValuesUnprepared(sql, params) {
+          return runValuesUnprepared(sql, params)
         },
         executeUnprepared(sql, params, transformRows) {
           const effect = runStatement(db.prepare(sql), params ?? [], false)
@@ -254,14 +298,16 @@ export const make = (
   })
 
 /**
+ * Builds a layer from an Effect `Config` value, providing both the node `SqliteClient` service and the generic `SqlClient` service.
+ *
  * @category layers
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const layerConfig = (
   config: Config.Wrap<SqliteClientConfig>
 ): Layer.Layer<SqliteClient | Client.SqlClient, Config.ConfigError> =>
   Layer.effectContext(
-    Config.unwrap(config).asEffect().pipe(
+    Config.unwrap(config).pipe(
       Effect.flatMap(make),
       Effect.map((client) =>
         Context.make(SqliteClient, client).pipe(
@@ -272,8 +318,10 @@ export const layerConfig = (
   ).pipe(Layer.provide(Reactivity.layer))
 
 /**
+ * Builds a layer from a node SQLite client configuration, providing both `SqliteClient` and the generic `SqlClient` service.
+ *
  * @category layers
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const layer = (
   config: SqliteClientConfig

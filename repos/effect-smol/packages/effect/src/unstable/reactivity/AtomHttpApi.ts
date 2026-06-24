@@ -1,4 +1,12 @@
 /**
+ * Connects typed `HttpApi` clients to atoms.
+ *
+ * The service created here exposes the generated HTTP API client plus
+ * atom-based query and mutation helpers. Query atoms call endpoints and track
+ * their asynchronous result, while mutations run endpoint calls that can
+ * invalidate reactivity keys after a successful request. Query atoms can also be
+ * cached, serialized for hydration, and kept alive with a time-to-live.
+ *
  * @since 4.0.0
  */
 import * as Context from "../../Context.ts"
@@ -22,8 +30,15 @@ import * as Atom from "./Atom.ts"
 import * as Reactivity from "./Reactivity.ts"
 
 /**
+ * A `Context.Service` for an HTTP API client integrated with atom reactivity.
+ *
+ * **Details**
+ *
+ * It exposes the generated HTTP API client, an atom runtime, mutation helpers that
+ * return `AtomResultFn`s, and query helpers that return atoms of endpoint results.
+ *
+ * @category models
  * @since 4.0.0
- * @category Models
  */
 export interface AtomHttpApiClient<Self, Id extends string, Groups extends HttpApiGroup.Any>
   extends Context.Service<Self, HttpApiClient.Client<Groups, never, never>>
@@ -67,7 +82,7 @@ export interface AtomHttpApiClient<Self, Id extends string, Groups extends HttpA
           readonly reactivityKeys?: ReadonlyArray<unknown> | ReadonlyRecord<string, ReadonlyArray<unknown>> | undefined
         }
       >,
-      ResponseByMode<_Success["Type"], ResponseMode>,
+      ResponseByMode<Extract<_Success, Schema.Top>["Type"], ResponseMode>,
       ErrorByMode<_Error, _Middleware, ResponseMode>
     >
     : never
@@ -125,7 +140,7 @@ export interface AtomHttpApiClient<Self, Id extends string, Groups extends HttpA
     >
   ] ? Atom.Atom<
       AsyncResult.AsyncResult<
-        ResponseByMode<_Success["Type"], ResponseMode>,
+        ResponseByMode<Extract<_Success, Schema.Top>["Type"], ResponseMode>,
         ErrorByMode<_Error, _Middleware, ResponseMode>
       >
     >
@@ -139,8 +154,17 @@ declare global {
 }
 
 /**
+ * Creates a `Context.Service` class for an HTTP API client backed by an atom
+ * runtime.
+ *
+ * **Details**
+ *
+ * The options provide the API definition, HTTP client layer, optional client and
+ * response transforms, base URL, and runtime factory used by the query and
+ * mutation helpers.
+ *
+ * @category constructors
  * @since 4.0.0
- * @category Constructors
  */
 export const Service = <Self>() =>
 <const Id extends string, ApiId extends string, Groups extends HttpApiGroup.Any>(
@@ -319,7 +343,7 @@ type ResponseByMode<Success, ResponseMode extends HttpApiEndpoint.ClientResponse
   : Success
 
 type ErrorByMode<
-  Error extends Schema.Top,
+  Error extends Schema.Constraint,
   Middleware,
   ResponseMode extends HttpApiEndpoint.ClientResponseMode
 > =

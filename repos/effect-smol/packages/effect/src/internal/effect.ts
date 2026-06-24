@@ -96,7 +96,8 @@ import {
   TracerSpanLinks,
   TracerTimingEnabled
 } from "./references.ts"
-import { addSpanStackTrace, type ErrorWithStackTraceLimit, makeStackCleaner } from "./tracer.ts"
+import { getStackTraceLimit, setStackTraceLimit } from "./stackTraceLimit.ts"
+import { addSpanStackTrace, makeStackCleaner } from "./tracer.ts"
 import { version } from "./version.ts"
 
 // ----------------------------------------------------------------------------
@@ -314,9 +315,8 @@ export const causePrettyErrors = <E>(self: Cause.Cause<E>): Array<Error> => {
   const interrupts: Array<Cause.Interrupt> = []
   if (self.reasons.length === 0) return errors
 
-  const prevStackLimit = (Error as ErrorWithStackTraceLimit).stackTraceLimit
-  ;(Error as ErrorWithStackTraceLimit)
-    .stackTraceLimit = 1
+  const prevStackLimit = getStackTraceLimit()
+  setStackTraceLimit(1)
 
   for (const failure of self.reasons) {
     if (failure._tag === "Interrupt") {
@@ -340,7 +340,7 @@ export const causePrettyErrors = <E>(self: Cause.Cause<E>): Array<Error> => {
     errors.push(causePrettyError(error, interrupts[0].annotations))
   }
 
-  ;(Error as ErrorWithStackTraceLimit).stackTraceLimit = prevStackLimit
+  setStackTraceLimit(prevStackLimit)
   return errors
 }
 
@@ -511,6 +511,7 @@ export class FiberImpl<A = any, E = any> implements Fiber.Fiber<A, E> {
     this._children = undefined
     this._interruptedCause = undefined
     this._yielded = undefined
+    this.runtimeMetrics?.recordFiberStart(this.context)
   }
 
   readonly [FiberTypeId]: Fiber.Fiber.Variance<A, E>
@@ -582,7 +583,6 @@ export class FiberImpl<A = any, E = any> implements Fiber.Fiber<A, E> {
     return this._exit
   }
   evaluate(effect: Primitive): void {
-    this.runtimeMetrics?.recordFiberStart(this.context)
     if (this._exit) {
       return
     } else if (this._yielded !== undefined) {
@@ -892,15 +892,16 @@ export const suspend: <A, E, R>(
 })
 
 /** @internal */
-export const fromYieldable = <Self extends Effect.Yieldable.Any, A, E, R>(
-  yieldable: Effect.Yieldable<Self, A, E, R>
-): Effect.Effect<A, E, R> => yieldable.asEffect()
+export const fromOption: <A>(option: Option.Option<A>) => Effect.Effect<A, Cause.NoSuchElementError> = Option.match({
+  onNone: () => fail(new NoSuchElementError("Effect.fromOption: Option.none")),
+  onSome: succeed
+})
 
 /** @internal */
-export const fromOption: <A>(option: Option.Option<A>) => Effect.Effect<A, Cause.NoSuchElementError> = fromYieldable
-
-/** @internal */
-export const fromResult: <A, E>(result: Result.Result<A, E>) => Effect.Effect<A, E> = fromYieldable
+export const fromResult: <A, E>(result: Result.Result<A, E>) => Effect.Effect<A, E> = Result.match({
+  onFailure: fail,
+  onSuccess: succeed
+})
 
 /** @internal */
 export const fromNullishOr = <A>(value: A): Effect.Effect<NonNullable<A>, Cause.NoSuchElementError> =>
@@ -933,6 +934,11 @@ export const succeedNone: Effect.Effect<Option.Option<never>> = succeed(
 )
 
 /** @internal */
+export const transposeOption = <A = never, E = never, R = never>(
+  self: Option.Option<Effect.Effect<A, E, R>>
+): Effect.Effect<Option.Option<A>, E, R> => Option.isNone(self) ? succeedNone : map(self.value, Option.some)
+
+/** @internal */
 export const failCauseSync = <E>(
   evaluate: LazyArg<Cause.Cause<E>>
 ): Effect.Effect<never, E> => suspend(() => failCause(internalCall(evaluate)))
@@ -949,17 +955,24 @@ const void_: Effect.Effect<void> = succeed(void 0)
 export { void_ as void }
 
 /** @internal */
-const try_ = <A, E>(options: {
-  try: LazyArg<A>
-  catch: (error: unknown) => E
-}): Effect.Effect<A, E> =>
-  suspend(() => {
+const try_ = <A, E = Cause.UnknownError>(
+  options: {
+    readonly try: LazyArg<A>
+    readonly catch: (error: unknown) => E
+  } | LazyArg<A>
+): Effect.Effect<A, E> => {
+  const evaluate = typeof options === "function" ? options : options.try
+  const catcher = typeof options === "function"
+    ? ((cause: unknown) => new UnknownError(cause, "An error occurred in Effect.try"))
+    : options.catch
+  return suspend(() => {
     try {
-      return succeed(internalCall(options.try))
+      return succeed(internalCall(evaluate))
     } catch (err) {
-      return fail(internalCall(() => options.catch(err)))
+      return fail(internalCall(() => catcher(err)) as E)
     }
   })
+}
 /** @internal */
 export { try_ as try }
 
@@ -986,15 +999,22 @@ export const tryPromise = <A, E = Cause.UnknownError>(
     ? ((cause: unknown) => new UnknownError(cause, "An error occurred in Effect.tryPromise"))
     : options.catch
   return callbackOptions<A, E>(function(resume, signal) {
+    const failWithCatch = (cause: unknown) => {
+      try {
+        resume(fail(internalCall(() => catcher(cause)) as E))
+      } catch (err) {
+        resume(die(err))
+      }
+    }
     try {
       internalCall(() => f(signal!)).then(
         (a) => resume(succeed(a)),
-        (e) => resume(fail(internalCall(() => catcher(e)) as E))
+        failWithCatch
       )
     } catch (err) {
-      resume(fail(internalCall(() => catcher(err)) as E))
+      failWithCatch(err)
     }
-  }, eval.length !== 0)
+  }, f.length !== 0)
 }
 
 /** @internal */
@@ -1083,7 +1103,7 @@ export const never: Effect.Effect<never> = callback<never>(constVoid)
 /** @internal */
 export const gen = <
   Self,
-  Eff extends Effect.Yieldable<any, any, any, any>,
+  Eff extends Effect.Effect<any, any, any>,
   AEff
 >(
   ...args:
@@ -1092,10 +1112,10 @@ export const gen = <
 ): Effect.Effect<
   AEff,
   [Eff] extends [never] ? never
-    : [Eff] extends [Effect.Yieldable<infer _A, infer E, infer _R>] ? E
+    : [Eff] extends [Effect.Effect<infer _A, infer E, infer _R>] ? E
     : never,
   [Eff] extends [never] ? never
-    : [Eff] extends [Effect.Yieldable<infer _A, infer _E, infer R>] ? R
+    : [Eff] extends [Effect.Effect<infer _A, infer _E, infer R>] ? R
     : never
 > =>
   suspend(() =>
@@ -1137,10 +1157,10 @@ export const fn: typeof Effect.fn = function() {
   const name = nameFirst ? arguments[0] : "Effect.fn"
   const spanOptions = nameFirst ? arguments[1] : undefined
 
-  const prevLimit = globalThis.Error.stackTraceLimit
-  globalThis.Error.stackTraceLimit = 2
+  const prevLimit = getStackTraceLimit()
+  setStackTraceLimit(2)
   const defError = new globalThis.Error()
-  globalThis.Error.stackTraceLimit = prevLimit
+  setStackTraceLimit(prevLimit)
 
   if (nameFirst) {
     return (body: Function | { readonly self: any }, ...pipeables: Array<Function>) =>
@@ -1180,10 +1200,10 @@ const makeFn = (
     if (!isEffect(result)) {
       return result
     }
-    const prevLimit = globalThis.Error.stackTraceLimit
-    globalThis.Error.stackTraceLimit = 2
+    const prevLimit = getStackTraceLimit()
+    setStackTraceLimit(2)
     const callError = new globalThis.Error()
-    globalThis.Error.stackTraceLimit = prevLimit
+    setStackTraceLimit(prevLimit)
     return updateService(
       addSpan ?
         useSpan(name, spanOptions!, (span) => provideParentSpan(result, span)) :
@@ -1223,7 +1243,7 @@ export const fnUntracedEager: Effect.fn.Untraced = (
   )
 
 const fromIteratorEagerUnsafe = (
-  evaluate: () => Iterator<Effect.Yieldable<any, any, any, any>>
+  evaluate: () => Iterator<Effect.Effect<any, any, any>>
 ): Effect.Effect<any, any, any> => {
   try {
     const iterator = evaluate()
@@ -1237,22 +1257,20 @@ const fromIteratorEagerUnsafe = (
         return succeed(state.value)
       }
 
-      const yieldable = state.value
-      const effect = yieldable.asEffect()
-      const primitive = effect as any
+      const primitive = state.value as any
 
       if (primitive && primitive._tag === "Success") {
         value = primitive.value
         continue
       } else if (primitive && primitive._tag === "Failure") {
-        return effect
+        return state.value
       } else {
         let isFirstExecution = true
 
         return suspend(() => {
           if (isFirstExecution) {
             isFirstExecution = false
-            return flatMap(effect, (value) => fromIteratorUnsafe(iterator, value))
+            return flatMap(state.value, (value) => fromIteratorUnsafe(iterator, value))
           } else {
             return suspend(() => fromIteratorUnsafe(evaluate()))
           }
@@ -1265,7 +1283,7 @@ const fromIteratorEagerUnsafe = (
 }
 
 const fromIteratorUnsafe: (
-  iterator: Iterator<Effect.Yieldable<any, any, any, any>>,
+  iterator: Iterator<Effect.Effect<any, any, any>>,
   initial?: undefined
 ) => Effect.Effect<any, any, any> = makePrimitive({
   op: "Iterator",
@@ -1275,14 +1293,13 @@ const fromIteratorUnsafe: (
     while (true) {
       const state = iter.next(value)
       if (state.done) return succeed(state.value)
-      const eff = state.value.asEffect()
-      if (!effectIsExit(eff)) {
+      if (!effectIsExit(state.value)) {
         fiber._stack.push(this)
-        return eff
-      } else if (eff._tag === "Failure") {
-        return eff
+        return state.value
+      } else if (state.value._tag === "Failure") {
+        return state.value
       }
-      value = eff.value
+      value = state.value.value
     }
   },
   [evaluate](this: any, fiber: FiberImpl) {
@@ -1968,9 +1985,7 @@ export const exitFindErrorOption = <A, E>(self: Exit.Exit<A, E>): Option.Option<
 // ----------------------------------------------------------------------------
 
 /** @internal */
-export const service: {
-  <I, S>(service: Context.Key<I, S>): Effect.Effect<S, never, I>
-} = fromYieldable as any
+export const service = <I, S>(service: Context.Key<I, S>): Effect.Effect<S, never, I> => service
 
 /** @internal */
 export const serviceOption = <I, S>(
@@ -2647,28 +2662,40 @@ export const tapDefect: {
 
 /** @internal */
 export const catchIf: {
-  <E, EB extends E, A2, E2, R2, A3 = never, E3 = Exclude<E, EB>, R3 = never>(
+  <E, EB extends E, A2, E2, R2, A3 = unassigned, E3 = never, R3 = never>(
     refinement: Predicate.Refinement<NoInfer<E>, EB>,
     f: (e: EB) => Effect.Effect<A2, E2, R2>,
     orElse?: ((e: Exclude<E, EB>) => Effect.Effect<A3, E3, R3>) | undefined
-  ): <A, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-  <E, A2, E2, R2, A3 = never, E3 = E, R3 = never>(
+  ): <A, R>(
+    self: Effect.Effect<A, E, R>
+  ) => Effect.Effect<
+    A | A2 | Exclude<A3, unassigned>,
+    E2 | E3 | (A3 extends unassigned ? Exclude<E, EB> : never),
+    R | R2 | R3
+  >
+  <E, A2, E2, R2, A3 = unassigned, E3 = never, R3 = never>(
     predicate: Predicate.Predicate<NoInfer<E>>,
     f: (e: NoInfer<E>) => Effect.Effect<A2, E2, R2>,
     orElse?: ((e: NoInfer<E>) => Effect.Effect<A3, E3, R3>) | undefined
-  ): <A, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-  <A, E, R, EB extends E, A2, E2, R2, A3 = never, E3 = Exclude<E, EB>, R3 = never>(
+  ): <A, R>(
+    self: Effect.Effect<A, E, R>
+  ) => Effect.Effect<A | A2 | Exclude<A3, unassigned>, E2 | E3 | (A3 extends unassigned ? E : never), R | R2 | R3>
+  <A, E, R, EB extends E, A2, E2, R2, A3 = unassigned, E3 = never, R3 = never>(
     self: Effect.Effect<A, E, R>,
     refinement: Predicate.Refinement<E, EB>,
     f: (e: EB) => Effect.Effect<A2, E2, R2>,
     orElse?: ((e: Exclude<E, EB>) => Effect.Effect<A3, E3, R3>) | undefined
-  ): Effect.Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-  <A, E, R, A2, E2, R2, A3 = never, E3 = E, R3 = never>(
+  ): Effect.Effect<
+    A | A2 | Exclude<A3, unassigned>,
+    E2 | E3 | (A3 extends unassigned ? Exclude<E, EB> : never),
+    R | R2 | R3
+  >
+  <A, E, R, A2, E2, R2, A3 = unassigned, E3 = never, R3 = never>(
     self: Effect.Effect<A, E, R>,
     predicate: Predicate.Predicate<E>,
     f: (e: E) => Effect.Effect<A2, E2, R2>,
     orElse?: ((e: E) => Effect.Effect<A3, E3, R3>) | undefined
-  ): Effect.Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
+  ): Effect.Effect<A | A2 | Exclude<A3, unassigned>, E2 | E3 | (A3 extends unassigned ? E : never), R | R2 | R3>
 } = dual(
   (args) => isEffect(args[0]),
   <A, E, R, A2, E2, R2, A3 = never, E3 = E, R3 = never>(
@@ -2689,17 +2716,19 @@ export const catchIf: {
 
 /** @internal */
 export const catchFilter: {
-  <E, EB, A2, E2, R2, X, A3 = never, E3 = X, R3 = never>(
+  <E, EB, A2, E2, R2, X, A3 = unassigned, E3 = never, R3 = never>(
     filter: Filter.Filter<NoInfer<E>, EB, X>,
     f: (e: EB) => Effect.Effect<A2, E2, R2>,
     orElse?: ((e: X) => Effect.Effect<A3, E3, R3>) | undefined
-  ): <A, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
-  <A, E, R, EB, A2, E2, R2, X, A3 = never, E3 = X, R3 = never>(
+  ): <A, R>(
+    self: Effect.Effect<A, E, R>
+  ) => Effect.Effect<A | A2 | Exclude<A3, unassigned>, E2 | E3 | (A3 extends unassigned ? X : never), R | R2 | R3>
+  <A, E, R, EB, A2, E2, R2, X, A3 = unassigned, E3 = never, R3 = never>(
     self: Effect.Effect<A, E, R>,
     filter: Filter.Filter<NoInfer<E>, EB, X>,
     f: (e: EB) => Effect.Effect<A2, E2, R2>,
     orElse?: ((e: X) => Effect.Effect<A3, E3, R3>) | undefined
-  ): Effect.Effect<A | A2 | A3, E2 | E3, R | R2 | R3>
+  ): Effect.Effect<A | A2 | Exclude<A3, unassigned>, E2 | E3 | (A3 extends unassigned ? X : never), R | R2 | R3>
 } = dual(
   (args) => isEffect(args[0]),
   <A, E, R, EB, A2, E2, R2, X, A3 = never, E3 = X, R3 = never>(
@@ -2727,8 +2756,8 @@ export const catchTag: {
     A1,
     E1,
     R1,
-    A2 = never,
-    E2 = ExcludeTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>,
+    A2 = unassigned,
+    E2 = never,
     R2 = never
   >(
     k: K,
@@ -2740,7 +2769,13 @@ export const catchTag: {
       | undefined
   ): <A, R>(
     self: Effect.Effect<A, E, R>
-  ) => Effect.Effect<A | A1 | A2, E1 | E2, R | R1 | R2>
+  ) => Effect.Effect<
+    A | A1 | Exclude<A2, unassigned>,
+    | E1
+    | E2
+    | (A2 extends unassigned ? ExcludeTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K> : never),
+    R | R1 | R2
+  >
   <
     A,
     E,
@@ -2749,8 +2784,8 @@ export const catchTag: {
     R1,
     E1,
     A1,
-    A2 = never,
-    E2 = ExcludeTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>,
+    A2 = unassigned,
+    E2 = never,
     R2 = never
   >(
     self: Effect.Effect<A, E, R>,
@@ -2759,7 +2794,13 @@ export const catchTag: {
     orElse?:
       | ((e: ExcludeTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>) => Effect.Effect<A2, E2, R2>)
       | undefined
-  ): Effect.Effect<A | A1 | A2, E1 | E2, R | R1 | R2>
+  ): Effect.Effect<
+    A | A1 | Exclude<A2, unassigned>,
+    | E1
+    | E2
+    | (A2 extends unassigned ? ExcludeTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K> : never),
+    R | R1 | R2
+  >
 } = dual(
   (args) => isEffect(args[0]),
   <
@@ -2796,19 +2837,20 @@ export const catchTags: {
         [K in E["_tag"]]+?: (error: Extract<E, { _tag: K }>) => Effect.Effect<any, any, any>
       } :
       {}),
-    A2 = never,
-    E2 = Exclude<E, { _tag: keyof Cases }>,
+    A2 = unassigned,
+    E2 = never,
     R2 = never
   >(
     cases: Cases,
     orElse?: ((e: Exclude<E, { _tag: keyof Cases }>) => Effect.Effect<A2, E2, R2>) | undefined
   ): <A, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<
     | A
-    | A2
+    | Exclude<A2, unassigned>
     | {
       [K in keyof Cases]: Cases[K] extends ((...args: Array<any>) => Effect.Effect<infer A, any, any>) ? A : never
     }[keyof Cases],
     | E2
+    | (A2 extends unassigned ? Exclude<E, { _tag: keyof Cases }> : never)
     | {
       [K in keyof Cases]: Cases[K] extends ((...args: Array<any>) => Effect.Effect<any, infer E, any>) ? E : never
     }[keyof Cases],
@@ -2826,8 +2868,8 @@ export const catchTags: {
         [K in E["_tag"]]+?: (error: Extract<E, { _tag: K }>) => Effect.Effect<any, any, any>
       } :
       {}),
-    A2 = never,
-    E2 = Exclude<E, { _tag: keyof Cases }>,
+    A2 = unassigned,
+    E2 = never,
     R2 = never
   >(
     self: Effect.Effect<A, E, R>,
@@ -2835,11 +2877,12 @@ export const catchTags: {
     orElse?: ((e: Exclude<E, { _tag: keyof Cases }>) => Effect.Effect<A2, E2, R2>) | undefined
   ): Effect.Effect<
     | A
-    | A2
+    | Exclude<A2, unassigned>
     | {
       [K in keyof Cases]: Cases[K] extends ((...args: Array<any>) => Effect.Effect<infer A, any, any>) ? A : never
     }[keyof Cases],
     | E2
+    | (A2 extends unassigned ? Exclude<E, { _tag: keyof Cases }> : never)
     | {
       [K in keyof Cases]: Cases[K] extends ((...args: Array<any>) => Effect.Effect<any, infer E, any>) ? E : never
     }[keyof Cases],
@@ -2893,7 +2936,7 @@ export const catchReason: {
     self: Effect.Effect<A, E, R>
   ) => Effect.Effect<
     A | A2 | Exclude<A3, unassigned>,
-    (A3 extends unassigned ? E : ExcludeTag<E, K>) | E2 | E3,
+    ExcludeTag<E, K> | E2 | E3 | (A3 extends unassigned ? ExtractTag<E, K> : never),
     R | R2 | R3
   >
   <
@@ -2924,7 +2967,7 @@ export const catchReason: {
       | undefined
   ): Effect.Effect<
     A | A2 | Exclude<A3, unassigned>,
-    (A3 extends unassigned ? E : ExcludeTag<E, K>) | E2 | E3,
+    ExcludeTag<E, K> | E2 | E3 | (A3 extends unassigned ? ExtractTag<E, K> : never),
     R | R2 | R3
   >
 } = dual(
@@ -2954,7 +2997,7 @@ export const catchReason: {
       | undefined
   ): Effect.Effect<
     A | A2 | Exclude<A3, unassigned>,
-    (A3 extends unassigned ? E : ExcludeTag<E, K>) | E2 | E3,
+    ExcludeTag<E, K> | E2 | E3 | (A3 extends unassigned ? ExtractTag<E, K> : never),
     R | R2 | R3
   > =>
     catchIf(
@@ -2997,8 +3040,9 @@ export const catchReasons: {
     | { [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect.Effect<infer A, any, any> ? A : never }[
       keyof Cases
     ],
-    | (A2 extends unassigned ? E : ExcludeTag<E, K>)
+    | ExcludeTag<E, K>
     | E2
+    | (A2 extends unassigned ? ExtractTag<E, K> : never)
     | { [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect.Effect<any, infer E, any> ? E : never }[
       keyof Cases
     ],
@@ -3038,8 +3082,9 @@ export const catchReasons: {
     | { [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect.Effect<infer A, any, any> ? A : never }[
       keyof Cases
     ],
-    | (A2 extends unassigned ? E : ExcludeTag<E, K>)
+    | ExcludeTag<E, K>
     | E2
+    | (A2 extends unassigned ? ExtractTag<E, K> : never)
     | { [RK in keyof Cases]: Cases[RK] extends (...args: Array<any>) => Effect.Effect<any, infer E, any> ? E : never }[
       keyof Cases
     ],
@@ -3110,23 +3155,6 @@ export const unwrapReason: {
 )
 
 /** @internal */
-export const mapErrorCause: {
-  <E, E2>(
-    f: (e: Cause.Cause<E>) => Cause.Cause<E2>
-  ): <A, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, E2, R>
-  <A, E, R, E2>(
-    self: Effect.Effect<A, E, R>,
-    f: (e: Cause.Cause<E>) => Cause.Cause<E2>
-  ): Effect.Effect<A, E2, R>
-} = dual(
-  2,
-  <A, E, R, E2>(
-    self: Effect.Effect<A, E, R>,
-    f: (e: Cause.Cause<E>) => Cause.Cause<E2>
-  ): Effect.Effect<A, E2, R> => catchCause(self, (cause) => failCauseSync(() => f(cause)))
-)
-
-/** @internal */
 export const mapError: {
   <E, E2>(
     f: (e: E) => E2
@@ -3182,6 +3210,24 @@ export const orElseSucceed: {
     f: LazyArg<B>
   ): Effect.Effect<A | B, never, R> => catch_(self, (_) => sync(f))
 )
+
+/** @internal */
+export const firstSuccessOf = <Eff extends Effect.Effect<any, any, any>>(
+  effects: Iterable<Eff>
+): Effect.Effect<Effect.Success<Eff>, Effect.Error<Eff>, Effect.Services<Eff>> =>
+  suspend(() => {
+    const iterator = effects[Symbol.iterator]()
+    let state = iterator.next()
+    if (state.done) {
+      return die(new Error("Received an empty collection of effects"))
+    }
+    function loop(current: IteratorYieldResult<Eff>): Eff {
+      const next = iterator.next()
+      if (next.done) return current.value
+      return catch_(current.value, (_) => loop(next)) as any
+    }
+    return loop(state)
+  })
 
 /** @internal */
 export const eventually = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, never, R> =>
@@ -3749,7 +3795,7 @@ export const scopeMake = (finalizerStrategy?: "sequential" | "parallel"): Effect
   sync(() => scopeMakeUnsafe(finalizerStrategy))
 
 /** @internal */
-export const scope: Effect.Effect<Scope.Scope, never, Scope.Scope> = scopeTag.asEffect()
+export const scope: Effect.Effect<Scope.Scope, never, Scope.Scope> = scopeTag
 
 /** @internal */
 export const provideScope: {
@@ -4034,6 +4080,15 @@ export const acquireUseRelease = <Resource, E, R, A, E2, R2, E3, R3>(
         true
       ))
   )
+
+/** @internal */
+export const acquireDisposable = <A extends AsyncDisposable | Disposable, E, R>(
+  acquire: Effect.Effect<A, E, R>
+): Effect.Effect<A, E, R | Scope.Scope> =>
+  acquireRelease(acquire, (resource) =>
+    hasProperty(resource, Symbol.asyncDispose)
+      ? promise(() => resource[Symbol.asyncDispose]())
+      : sync(() => resource[Symbol.dispose]()))
 
 // ----------------------------------------------------------------------------
 // Caching
@@ -5288,10 +5343,10 @@ const succeedFalse = succeed(false)
 class Latch implements _Latch.Latch {
   waiters: Array<(_: Effect.Effect<void>) => void> = []
   scheduled = false
-  private isOpen: boolean
+  private _isOpen: boolean
 
   constructor(isOpen: boolean) {
-    this.isOpen = isOpen
+    this._isOpen = isOpen
   }
 
   private scheduleUnsafe(fiber: Fiber.Fiber<unknown, unknown>) {
@@ -5312,19 +5367,19 @@ class Latch implements _Latch.Latch {
   }
 
   open = withFiber<boolean>((fiber) => {
-    if (this.isOpen) return succeedFalse
-    this.isOpen = true
+    if (this._isOpen) return succeedFalse
+    this._isOpen = true
     return this.scheduleUnsafe(fiber)
   })
-  release = withFiber<boolean>((fiber) => this.isOpen ? succeedFalse : this.scheduleUnsafe(fiber))
+  release = withFiber<boolean>((fiber) => this._isOpen ? succeedFalse : this.scheduleUnsafe(fiber))
   openUnsafe() {
-    if (this.isOpen) return false
-    this.isOpen = true
+    if (this._isOpen) return false
+    this._isOpen = true
     this.flushWaiters()
     return true
   }
   await = callback<void>((resume) => {
-    if (this.isOpen) {
+    if (this._isOpen) {
       return resume(void_)
     }
     this.waiters.push(resume)
@@ -5336,12 +5391,15 @@ class Latch implements _Latch.Latch {
     })
   })
   closeUnsafe() {
-    if (!this.isOpen) return false
-    this.isOpen = false
+    if (!this._isOpen) return false
+    this._isOpen = false
     return true
   }
   close = sync(() => this.closeUnsafe())
   whenOpen = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> => flatMap(this.await, () => self)
+  isOpen() {
+    return this._isOpen
+  }
 }
 
 /** @internal */
@@ -5543,10 +5601,10 @@ const provideSpanStackFrame = (name: string, stack: (() => string | undefined) |
 }
 
 /** @internal */
-export const spanAnnotations: Effect.Effect<Readonly<Record<string, unknown>>> = TracerSpanAnnotations.asEffect()
+export const spanAnnotations: Effect.Effect<Readonly<Record<string, unknown>>> = TracerSpanAnnotations
 
 /** @internal */
-export const spanLinks: Effect.Effect<ReadonlyArray<Tracer.SpanLink>> = TracerSpanLinks.asEffect()
+export const spanLinks: Effect.Effect<ReadonlyArray<Tracer.SpanLink>> = TracerSpanLinks
 
 /** @internal */
 export const linkSpans: {
@@ -5755,11 +5813,12 @@ const performanceNowNanos = (function() {
   const bigint1e6 = BigInt(1_000_000)
   if (typeof performance === "undefined" || typeof performance.now === "undefined") {
     return () => BigInt(Date.now()) * bigint1e6
-  } else if (typeof performance.timeOrigin === "number" && performance.timeOrigin === 0) {
-    return () => BigInt(Math.round(performance.now() * 1_000_000))
   }
-  const origin = (BigInt(Date.now()) * bigint1e6) - BigInt(Math.round(performance.now() * 1_000_000))
-  return () => origin + BigInt(Math.round(performance.now() * 1_000_000))
+  let origin: bigint
+  return () => {
+    origin ??= (BigInt(Date.now()) * bigint1e6) - BigInt(Math.round(performance.now() * 1_000_000))
+    return origin + BigInt(Math.round(performance.now() * 1_000_000))
+  }
 })()
 const processOrPerformanceNow = (function() {
   const processHrtime =
@@ -5769,7 +5828,7 @@ const processOrPerformanceNow = (function() {
   if (!processHrtime) {
     return performanceNowNanos
   }
-  const origin = performanceNowNanos() - processHrtime.bigint()
+  const origin = (BigInt(Date.now()) * BigInt(1e6)) - processHrtime.bigint()
   return () => origin + processHrtime.bigint()
 })()
 
@@ -6115,20 +6174,21 @@ const defaultDateFormat = (date: Date): string =>
     date.getSeconds().toString().padStart(2, "0")
   }.${date.getMilliseconds().toString().padStart(3, "0")}`
 
-const hasProcessStdout = typeof process === "object" &&
-  process !== null &&
-  typeof process.stdout === "object" &&
-  process.stdout !== null
-const processStdoutIsTTY = hasProcessStdout &&
-  process.stdout.isTTY === true
-const hasProcessStdoutOrDeno = hasProcessStdout || "Deno" in globalThis
-
 /** @internal */
 export const consolePretty = (options?: {
   readonly colors?: "auto" | boolean | undefined
   readonly formatDate?: ((date: Date) => string) | undefined
   readonly mode?: "browser" | "tty" | "auto" | undefined
 }) => {
+  // evaluated lazily so the module-level bundle stays free of `process`
+  // property accesses, which bundlers must retain as possible side effects
+  const hasProcessStdout = typeof process === "object" &&
+    process !== null &&
+    typeof process.stdout === "object" &&
+    process.stdout !== null
+  const processStdoutIsTTY = hasProcessStdout &&
+    process.stdout.isTTY === true
+  const hasProcessStdoutOrDeno = hasProcessStdout || "Deno" in globalThis
   const mode_ = options?.mode ?? "auto"
   const mode = mode_ === "auto" ? (hasProcessStdoutOrDeno ? "tty" : "browser") : mode_
   const isBrowser = mode === "browser"

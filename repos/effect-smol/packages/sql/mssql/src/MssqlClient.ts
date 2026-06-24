@@ -1,5 +1,16 @@
 /**
- * @since 1.0.0
+ * Microsoft SQL Server client implementation for Effect SQL, backed by the
+ * `tedious` driver.
+ *
+ * This module provides the `MssqlClient` service, constructors, layers, and SQL
+ * Server statement compiler. `make` creates a pooled Tedious client, checks the
+ * connection with `SELECT 1`, maps SQL Server failures to `SqlError`, and
+ * supports transactions with savepoints. The SQL Server-specific service adds
+ * typed Tedious parameters with `param`, stored procedure calls with `call`,
+ * direct or config-backed layers, and default parameter type mappings.
+ * Streaming queries are not implemented by this driver.
+ *
+ * @since 4.0.0
  */
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
@@ -24,6 +35,7 @@ import {
   SerializationError,
   SqlError,
   SqlSyntaxError,
+  UniqueViolation,
   UnknownError
 } from "effect/unstable/sql/SqlError"
 import * as Statement from "effect/unstable/sql/Statement"
@@ -51,7 +63,42 @@ const mssqlConnectionErrorCodes = new Set([233, 10054])
 const mssqlAuthenticationErrorCodes = new Set([4060, 18452, 18456])
 const mssqlAuthorizationErrorCodes = new Set([229, 230, 262, 297, 300])
 const mssqlSyntaxErrorCodes = new Set([102, 207, 208, 2714])
-const mssqlConstraintErrorCodes = new Set([515, 547, 2601, 2627])
+const mssqlConstraintErrorCodes = new Set([515, 547])
+
+const UNKNOWN_CONSTRAINT = "unknown"
+
+const normalizeConstraintIdentifier = (identifier: unknown): string => {
+  if (typeof identifier !== "string") {
+    return UNKNOWN_CONSTRAINT
+  }
+  const trimmed = identifier.trim()
+  return trimmed.length === 0 ? UNKNOWN_CONSTRAINT : trimmed
+}
+
+const mssqlCauseProperty = (cause: unknown, property: "constraint" | "message"): unknown => {
+  if (typeof cause !== "object" || cause === null || !(property in cause)) {
+    return undefined
+  }
+  return (cause as Record<string, unknown>)[property]
+}
+
+const mssqlUniqueViolationConstraintFromMessage = (number: 2601 | 2627, message: unknown): string => {
+  if (typeof message !== "string") {
+    return UNKNOWN_CONSTRAINT
+  }
+  const match = number === 2627 ?
+    /\bconstraint\s+'([^']*)'/i.exec(message) :
+    /\bunique index\s+'([^']*)'/i.exec(message)
+  return match === null ? UNKNOWN_CONSTRAINT : normalizeConstraintIdentifier(match[1])
+}
+
+const mssqlUniqueViolationConstraintFromCause = (number: 2601 | 2627, cause: unknown): string => {
+  const constraint = normalizeConstraintIdentifier(mssqlCauseProperty(cause, "constraint"))
+  if (constraint !== UNKNOWN_CONSTRAINT) {
+    return constraint
+  }
+  return mssqlUniqueViolationConstraintFromMessage(number, mssqlCauseProperty(cause, "message"))
+}
 
 const classifyError = (
   cause: unknown,
@@ -74,6 +121,9 @@ const classifyError = (
     if (mssqlSyntaxErrorCodes.has(number)) {
       return new SqlSyntaxError(props)
     }
+    if (number === 2601 || number === 2627) {
+      return new UniqueViolation({ ...props, constraint: mssqlUniqueViolationConstraintFromCause(number, cause) })
+    }
     if (mssqlConstraintErrorCodes.has(number)) {
       return new ConstraintError(props)
     }
@@ -91,20 +141,26 @@ const classifyError = (
 }
 
 /**
- * @category type ids
- * @since 1.0.0
+ * Runtime type identifier used to mark `MssqlClient` values.
+ *
+ * @category type IDs
+ * @since 4.0.0
  */
 export const TypeId: unique symbol = Symbol.for("@effect/sql-mssql/MssqlClient")
 
 /**
- * @category type ids
- * @since 1.0.0
+ * Type-level identifier used to mark `MssqlClient` values.
+ *
+ * @category type IDs
+ * @since 4.0.0
  */
 export type TypeId = typeof TypeId
 
 /**
+ * Microsoft SQL Server client service, extending `SqlClient` with typed parameter fragments and stored procedure calls.
+ *
  * @category models
- * @since 1.0.0
+ * @since 4.0.0
  */
 export interface MssqlClient extends Client.SqlClient {
   readonly [TypeId]: TypeId
@@ -127,14 +183,23 @@ export interface MssqlClient extends Client.SqlClient {
 }
 
 /**
- * @category tags
- * @since 1.0.0
+ * Service tag for the Microsoft SQL Server client service.
+ *
+ * **When to use**
+ *
+ * Use to access or provide a Microsoft SQL Server client through the Effect
+ * context.
+ *
+ * @category services
+ * @since 4.0.0
  */
 export const MssqlClient = Context.Service<MssqlClient>("@effect/sql-mssql/MssqlClient")
 
 /**
+ * Configuration for a Microsoft SQL Server client, including connection, authentication, pool, parameter type, span attribute, and query/result name transform options.
+ *
  * @category models
- * @since 1.0.0
+ * @since 4.0.0
  */
 export interface MssqlClientConfig {
   readonly domain?: string | undefined
@@ -148,6 +213,10 @@ export interface MssqlClientConfig {
   readonly username?: string | undefined
   readonly password?: Redacted.Redacted | undefined
   readonly connectTimeout?: Duration.Input | undefined
+  readonly cancelTimeout?: Duration.Input | undefined
+  readonly connectionRetryInterval?: Duration.Input | undefined
+  readonly multiSubnetFailover?: boolean | undefined
+  readonly maxRetriesOnTransientErrors?: number | undefined
 
   readonly minConnections?: number | undefined
   readonly maxConnections?: number | undefined
@@ -181,8 +250,10 @@ const TransactionConnection = Client.TransactionConnection as unknown as (client
 let clientIdCounter = 0
 
 /**
+ * Creates a scoped Microsoft SQL Server client backed by a connection pool, with transaction and stored procedure support. Streaming queries are not implemented.
+ *
  * @category constructors
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const make = (
   options: MssqlClientConfig
@@ -213,13 +284,21 @@ export const make = (
           port: options.port,
           database: options.database,
           trustServerCertificate: options.trustServer ?? true,
+          multiSubnetFailover: options.multiSubnetFailover,
           connectTimeout: options.connectTimeout
             ? Duration.toMillis(Duration.fromInputUnsafe(options.connectTimeout))
             : undefined,
           rowCollectionOnRequestCompletion: true,
           useColumnNames: false,
           instanceName: options.instanceName,
-          encrypt: options.encrypt ?? false
+          encrypt: options.encrypt ?? false,
+          cancelTimeout: options.cancelTimeout
+            ? Duration.toMillis(Duration.fromInputUnsafe(options.cancelTimeout))
+            : undefined,
+          connectionRetryInterval: options.connectionRetryInterval
+            ? Duration.toMillis(Duration.fromInputUnsafe(options.connectionRetryInterval))
+            : undefined,
+          maxRetriesOnTransientErrors: options.maxRetriesOnTransientErrors
         } as ConnectionOptions,
         server: options.server,
         authentication: {
@@ -347,6 +426,9 @@ export const make = (
           return run(sql, params)
         },
         executeValues(sql, params) {
+          return run(sql, params, true)
+        },
+        executeValuesUnprepared(sql, params) {
           return run(sql, params, true)
         },
         executeUnprepared(sql, params, transformRows) {
@@ -526,8 +608,10 @@ export const make = (
   })
 
 /**
+ * Creates a layer from a `Config`-wrapped SQL Server client configuration, providing both `MssqlClient` and `SqlClient`.
+ *
  * @category layers
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const layerConfig: (
   config: Config.Wrap<MssqlClientConfig>
@@ -535,7 +619,7 @@ export const layerConfig: (
   config: Config.Wrap<MssqlClientConfig>
 ): Layer.Layer<Client.SqlClient | MssqlClient, Config.ConfigError | SqlError> =>
   Layer.effectContext(
-    Config.unwrap(config).asEffect().pipe(
+    Config.unwrap(config).pipe(
       Effect.flatMap(make),
       Effect.map((client) =>
         Context.make(MssqlClient, client).pipe(
@@ -546,8 +630,10 @@ export const layerConfig: (
   ).pipe(Layer.provide(Reactivity.layer))
 
 /**
+ * Creates a layer from a concrete SQL Server client configuration, providing both `MssqlClient` and `SqlClient`.
+ *
  * @category layers
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const layer = (
   config: MssqlClientConfig
@@ -560,8 +646,10 @@ export const layer = (
   ).pipe(Layer.provide(Reactivity.layer))
 
 /**
+ * Creates the SQL Server statement compiler, using `@1`-style placeholders, bracket-escaped identifiers, and SQL Server `OUTPUT INSERTED` returning clauses.
+ *
  * @category compiler
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const makeCompiler = (transform?: (_: string) => string) =>
   Statement.makeCompiler<MssqlCustom>({
@@ -610,7 +698,10 @@ function numberToParamName(n: number) {
 }
 
 /**
- * @since 1.0.0
+ * Default mapping from Effect SQL primitive value kinds to Tedious SQL Server parameter data types.
+ *
+ * @category configuration
+ * @since 4.0.0
  */
 export const defaultParameterTypes: Record<Statement.PrimitiveKind, DataType> = {
   string: Tedious.TYPES.VarChar,

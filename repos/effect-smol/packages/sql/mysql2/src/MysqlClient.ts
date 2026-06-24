@@ -1,5 +1,14 @@
 /**
- * @since 1.0.0
+ * MySQL adapter for Effect SQL, backed by the `mysql2` driver.
+ *
+ * This module provides constructors and layers for a {@link MysqlClient} and
+ * the generic Effect SQL client service. `make` creates a managed mysql2 pool,
+ * checks the connection with `SELECT 1`, maps mysql2 failures to `SqlError`,
+ * supports transaction connections, and exposes streaming queries through
+ * mysql2 query streams. It also provides direct and config-backed layers plus a
+ * MySQL statement compiler.
+ *
+ * @since 4.0.0
  */
 import * as Config from "effect/Config"
 import * as Context from "effect/Context"
@@ -22,6 +31,7 @@ import {
   SqlError,
   SqlSyntaxError,
   StatementTimeoutError,
+  UniqueViolation,
   UnknownError
 } from "effect/unstable/sql/SqlError"
 import { asyncPauseResume } from "effect/unstable/sql/SqlStream"
@@ -44,7 +54,46 @@ const mysqlErrnoFromCause = (cause: unknown): number | undefined => {
 const mysqlConnectionErrorCodes = new Set([1040, 1042, 1043, 1129, 1130, 1203])
 const mysqlAuthorizationErrorCodes = new Set([1044, 1142, 1143, 1227])
 const mysqlSyntaxErrorCodes = new Set([1054, 1064, 1146])
-const mysqlConstraintErrorCodes = new Set([1022, 1048, 1062, 1169, 1216, 1217, 1451, 1452, 1557])
+const mysqlConstraintErrorCodes = new Set([1022, 1048, 1169, 1216, 1217, 1451, 1452, 1557])
+
+const UNKNOWN_CONSTRAINT = "unknown"
+
+const normalizeConstraintIdentifier = (identifier: unknown): string => {
+  if (typeof identifier !== "string") {
+    return UNKNOWN_CONSTRAINT
+  }
+  const trimmed = identifier.trim()
+  return trimmed.length === 0 ? UNKNOWN_CONSTRAINT : trimmed
+}
+
+const mysqlCauseProperty = (cause: unknown, property: "constraint" | "message" | "sqlMessage"): unknown => {
+  if (typeof cause !== "object" || cause === null || !(property in cause)) {
+    return undefined
+  }
+  return (cause as Record<string, unknown>)[property]
+}
+
+const mysqlDuplicateEntryConstraintFromMessage = (message: unknown): string => {
+  if (typeof message !== "string") {
+    return UNKNOWN_CONSTRAINT
+  }
+  const match = /\bfor key\s+(?:'([^']*)'|\x60([^\x60]*)\x60|([^\s'\x60]+))/i.exec(message)
+  return match === null ?
+    UNKNOWN_CONSTRAINT :
+    normalizeConstraintIdentifier(match[1] ?? match[2] ?? match[3])
+}
+
+const mysqlDuplicateEntryConstraintFromCause = (cause: unknown): string => {
+  const constraint = normalizeConstraintIdentifier(mysqlCauseProperty(cause, "constraint"))
+  if (constraint !== UNKNOWN_CONSTRAINT) {
+    return constraint
+  }
+  const sqlMessageConstraint = mysqlDuplicateEntryConstraintFromMessage(mysqlCauseProperty(cause, "sqlMessage"))
+  if (sqlMessageConstraint !== UNKNOWN_CONSTRAINT) {
+    return sqlMessageConstraint
+  }
+  return mysqlDuplicateEntryConstraintFromMessage(mysqlCauseProperty(cause, "message"))
+}
 
 const classifyError = (
   cause: unknown,
@@ -66,6 +115,9 @@ const classifyError = (
     if (mysqlSyntaxErrorCodes.has(errno)) {
       return new SqlSyntaxError(props)
     }
+    if (errno === 1062) {
+      return new UniqueViolation({ ...props, constraint: mysqlDuplicateEntryConstraintFromCause(cause) })
+    }
     if (mysqlConstraintErrorCodes.has(errno)) {
       return new ConstraintError(props)
     }
@@ -83,20 +135,26 @@ const classifyError = (
 }
 
 /**
- * @category type ids
- * @since 1.0.0
+ * Runtime type identifier used to mark `MysqlClient` values.
+ *
+ * @category type IDs
+ * @since 4.0.0
  */
 export const TypeId: TypeId = "~@effect/sql-mysql2/MysqlClient"
 
 /**
- * @category type ids
- * @since 1.0.0
+ * Type-level identifier used to mark `MysqlClient` values.
+ *
+ * @category type IDs
+ * @since 4.0.0
  */
 export type TypeId = "~@effect/sql-mysql2/MysqlClient"
 
 /**
+ * mysql2-backed SQL client service, extending `SqlClient` with its runtime type marker and client configuration.
+ *
  * @category models
- * @since 1.0.0
+ * @since 4.0.0
  */
 export interface MysqlClient extends Client.SqlClient {
   readonly [TypeId]: TypeId
@@ -104,14 +162,22 @@ export interface MysqlClient extends Client.SqlClient {
 }
 
 /**
- * @category tags
- * @since 1.0.0
+ * Service tag for the mysql2 SQL client service.
+ *
+ * **When to use**
+ *
+ * Use to access or provide a mysql2 client through the Effect context.
+ *
+ * @category services
+ * @since 4.0.0
  */
 export const MysqlClient = Context.Service<MysqlClient>("@effect/sql-mysql2/MysqlClient")
 
 /**
+ * Configuration for a mysql2 client, including connection URI or connection fields, pool options, span attributes, and query/result name transforms.
+ *
  * @category models
- * @since 1.0.0
+ * @since 4.0.0
  */
 export interface MysqlClientConfig {
   /**
@@ -137,8 +203,10 @@ export interface MysqlClientConfig {
 }
 
 /**
+ * Creates a scoped MySQL client backed by a managed mysql2 pool, verifying connectivity and supporting streaming queries through mysql2 query streams.
+ *
  * @category constructors
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const make = (
   options: MysqlClientConfig
@@ -206,6 +274,9 @@ export const make = (
       }
       executeValues(sql: string, params: ReadonlyArray<unknown>) {
         return this.run(sql, params, true)
+      }
+      executeValuesUnprepared(sql: string, params: ReadonlyArray<unknown>) {
+        return this.run(sql, params, true, "query")
       }
       executeUnprepared(
         sql: string,
@@ -339,14 +410,16 @@ export const make = (
   })
 
 /**
+ * Creates a layer from a `Config`-wrapped MySQL client configuration, providing both `MysqlClient` and `SqlClient`.
+ *
  * @category layers
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const layerConfig = (
   config: Config.Wrap<MysqlClientConfig>
 ): Layer.Layer<MysqlClient | Client.SqlClient, Config.ConfigError | SqlError> =>
   Layer.effectContext(
-    Config.unwrap(config).asEffect().pipe(
+    Config.unwrap(config).pipe(
       Effect.flatMap(make),
       Effect.map((client) =>
         Context.make(MysqlClient, client).pipe(
@@ -357,8 +430,10 @@ export const layerConfig = (
   ).pipe(Layer.provide(Reactivity.layer))
 
 /**
+ * Creates a layer from a concrete MySQL client configuration, providing both `MysqlClient` and `SqlClient`.
+ *
  * @category layers
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const layer = (
   config: MysqlClientConfig
@@ -371,8 +446,10 @@ export const layer = (
   ).pipe(Layer.provide(Reactivity.layer))
 
 /**
+ * Creates the MySQL statement compiler, using `?` placeholders and backtick-escaped identifiers.
+ *
  * @category compiler
- * @since 1.0.0
+ * @since 4.0.0
  */
 export const makeCompiler = (transform?: (_: string) => string) =>
   Statement.makeCompiler({

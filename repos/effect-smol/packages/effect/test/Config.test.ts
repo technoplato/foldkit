@@ -24,7 +24,7 @@ describe("Config", () => {
   it("a config is an Effect and can be yielded", () => {
     const provider = ConfigProvider.fromEnv({ env: { STRING: "value" } })
     const result = Effect.runSync(Effect.provide(
-      Config.schema(Schema.Struct({ STRING: Schema.String })).asEffect(),
+      Config.schema(Schema.Struct({ STRING: Schema.String })),
       ConfigProvider.layer(provider)
     ))
     deepStrictEqual(result, { STRING: "value" })
@@ -128,6 +128,28 @@ describe("Config", () => {
         provider,
         `Expected "-", got "L"
   at ["a"]`
+      )
+    })
+
+    it("literals", async () => {
+      const provider = ConfigProvider.fromUnknown({ a: "production", b: "staging" })
+      await assertSuccess(Config.literals(["development", "production"], "a"), provider, "production")
+      await assertFailure(
+        Config.literals(["development", "production"], "b"),
+        provider,
+        `Expected "development" | "production", got "staging"
+  at ["b"]`
+      )
+    })
+
+    it("literals (numbers)", async () => {
+      const provider = ConfigProvider.fromUnknown({ a: "1", b: "3" })
+      await assertSuccess(Config.literals([1, 2], "a"), provider, 1)
+      await assertFailure(
+        Config.literals([1, 2], "b"),
+        provider,
+        `Expected "1" | "2", got "3"
+  at ["b"]`
       )
     })
 
@@ -321,6 +343,39 @@ describe("Config", () => {
   at ["b"]`
         )
       })
+
+      it("does not recover from invalid union values", async () => {
+        const config = Config.logLevel("LOG_LEVEL").pipe(Config.withDefault("Info"))
+
+        await assertSuccess(config, ConfigProvider.fromUnknown({}), "Info")
+        await assertFailure(
+          config,
+          ConfigProvider.fromUnknown({ LOG_LEVEL: "debug" }),
+          `Expected "All" | "Fatal" | "Error" | "Warn" | "Info" | "Debug" | "Trace" | "None", got "debug"
+  at ["LOG_LEVEL"]`
+        )
+      })
+
+      it("does not recover from filter failures", async () => {
+        const schema = Schema.String.check(
+          Schema.makeFilter((s) =>
+            s === "a" ? undefined : new SchemaIssue.InvalidValue(Option.none(), { message: `must be "a"` })
+          )
+        )
+        const config = Config.schema(schema, "a").pipe(Config.withDefault("fallback"))
+
+        // missing key -> default
+        await assertSuccess(config, ConfigProvider.fromUnknown({}), "fallback")
+        // valid present value -> parsed
+        await assertSuccess(config, ConfigProvider.fromUnknown({ a: "a" }), "a")
+        // present value that fails the refinement must fail, not use the default
+        await assertFailure(
+          config,
+          ConfigProvider.fromUnknown({ a: "b" }),
+          `must be "a"
+  at ["a"]`
+        )
+      })
     })
 
     describe("option", () => {
@@ -492,6 +547,37 @@ describe("Config", () => {
   at ["database"]["host"]`
           )
         })
+
+        it("config nested and provider nested compose lookup but not error paths", async () => {
+          const config = Config.string("host").pipe(Config.nested("database"))
+          const provider = ConfigProvider.fromEnv({
+            env: { app_database_host: "localhost" }
+          }).pipe(ConfigProvider.nested("app"))
+
+          await assertSuccess(config, provider, "localhost")
+          await assertFailure(
+            config,
+            ConfigProvider.fromEnv({ env: {} }).pipe(ConfigProvider.nested("app")),
+            `Expected string, got undefined
+  at ["database"]["host"]`
+          )
+        })
+
+        it("provider nested over orElse keeps the logical error path", async () => {
+          const provider = ConfigProvider.fromEnv({ env: { app_port: "abc" } }).pipe(
+            ConfigProvider.orElse(ConfigProvider.fromEnv({ env: {} })),
+            ConfigProvider.nested("app")
+          )
+
+          await assertFailure(
+            Config.number("port"),
+            provider,
+            `Expected a string representing a finite number, got "abc"
+  at ["port"]
+Expected "Infinity" | "-Infinity" | "NaN", got "abc"
+  at ["port"]`
+          )
+        })
       })
     })
 
@@ -558,15 +644,19 @@ describe("Config", () => {
       const provider = ConfigProvider.fromUnknown({
         a: "1000 millis",
         b: "1 second",
+        c: "Infinity",
+        d: "-Infinity",
         failure: "value"
       })
 
       await assertSuccess(Config.duration("a"), provider, Duration.millis(1000))
       await assertSuccess(Config.duration("b"), provider, Duration.seconds(1))
+      await assertSuccess(Config.duration("c"), provider, Duration.infinity)
+      await assertSuccess(Config.duration("d"), provider, Duration.negativeInfinity)
       await assertFailure(
         Config.duration("failure"),
         provider,
-        `Invalid data "value"
+        `Invalid Duration string: value
   at ["failure"]`
       )
     })
@@ -897,7 +987,7 @@ describe("Config", () => {
       const config = Config.schema(schema)
 
       // ensure array
-      await assertSuccess(config, ConfigProvider.fromEnv({ env: { a: "1" } }), { a: [1] })
+      await assertSuccess(config, ConfigProvider.fromEnv({ env: { a: "1,2,3" } }), { a: [1, 2, 3] })
       await assertSuccess(config, ConfigProvider.fromEnv({ env: { a_0: "1", a_1: "2" } }), { a: [1, 2] })
       await assertFailure(
         config,

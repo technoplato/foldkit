@@ -1,4 +1,12 @@
 /**
+ * Serializes RPC protocol messages for transports.
+ *
+ * `RpcSerialization` is the boundary between `RpcMessage` envelopes and the
+ * bytes or strings carried by a transport. This module provides built-in
+ * serializers for JSON, newline-delimited JSON, JSON-RPC 2.0, and MessagePack,
+ * including framed formats that can decode multiple messages from streaming
+ * chunks.
+ *
  * @since 4.0.0
  */
 import * as Msgpackr from "msgpackr"
@@ -9,8 +17,17 @@ import { hasProperty } from "../../Predicate.ts"
 import type * as RpcMessage from "./RpcMessage.ts"
 
 /**
- * @since 4.0.0
+ * Service that describes how RPC protocol messages are encoded and decoded,
+ * including the content type and whether the serialization format provides
+ * message framing.
+ *
+ * **When to use**
+ *
+ * Use to provide the serialization boundary shared by RPC clients and servers
+ * for a chosen wire format.
+ *
  * @category serialization
+ * @since 4.0.0
  */
 export class RpcSerialization extends Context.Service<RpcSerialization, {
   makeUnsafe(): Parser
@@ -19,8 +36,11 @@ export class RpcSerialization extends Context.Service<RpcSerialization, {
 }>()("effect/rpc/RpcSerialization") {}
 
 /**
- * @since 4.0.0
+ * A stateful parser for an RPC serialization format, able to decode input
+ * chunks into protocol messages and encode messages for transport.
+ *
  * @category serialization
+ * @since 4.0.0
  */
 export interface Parser {
   readonly decode: (data: Uint8Array | string) => ReadonlyArray<unknown>
@@ -28,8 +48,12 @@ export interface Parser {
 }
 
 /**
- * @since 4.0.0
+ * JSON RPC serialization for whole message payloads. It does not include
+ * message framing, so it is intended for transports that frame responses
+ * themselves.
+ *
  * @category serialization
+ * @since 4.0.0
  */
 export const json: RpcSerialization["Service"] = RpcSerialization.of({
   contentType: "application/json",
@@ -47,8 +71,11 @@ export const json: RpcSerialization["Service"] = RpcSerialization.of({
 })
 
 /**
- * @since 4.0.0
+ * Serializes RPC protocol messages as newline-delimited JSON, framing each message
+ * with a trailing newline.
+ *
  * @category serialization
+ * @since 4.0.0
  */
 export const ndjson: RpcSerialization["Service"] = RpcSerialization.of({
   contentType: "application/ndjson",
@@ -87,8 +114,11 @@ export const ndjson: RpcSerialization["Service"] = RpcSerialization.of({
 })
 
 /**
- * @since 4.0.0
+ * Creates a JSON-RPC 2.0 serialization for RPC protocol messages without
+ * additional message framing.
+ *
  * @category serialization
+ * @since 4.0.0
  */
 export const jsonRpc = (options?: {
   readonly contentType?: string | undefined
@@ -118,8 +148,11 @@ export const jsonRpc = (options?: {
   })
 
 /**
- * @since 4.0.0
+ * Creates a newline-delimited JSON-RPC 2.0 serialization for RPC protocol
+ * messages.
+ *
  * @category serialization
+ * @since 4.0.0
  */
 export const ndJsonRpc = (options?: {
   readonly contentType?: string | undefined
@@ -402,8 +435,8 @@ type JsonRpcMessage = JsonRpcRequest | JsonRpcResponse
 /**
  * Create a MessagePack serialization with custom msgpackr options.
  *
- * @since 4.0.0
  * @category serialization
+ * @since 4.0.0
  */
 export const makeMsgPack = (options?: Msgpackr.Options | undefined): RpcSerialization["Service"] =>
   RpcSerialization.of({
@@ -442,61 +475,72 @@ export const makeMsgPack = (options?: Msgpackr.Options | undefined): RpcSerializ
   })
 
 /**
- * @since 4.0.0
+ * Default MessagePack RPC serialization using record support and built-in
+ * message framing.
+ *
  * @category serialization
+ * @since 4.0.0
  */
 export const msgPack: RpcSerialization["Service"] = makeMsgPack({ useRecords: true })
 
 /**
- * A rpc serialization layer that uses JSON for serialization.
+ * RPC serialization layer that uses JSON for serialization.
  *
- * Use this if your protocol supports framing for messages, otherwise use
- * {@link layerNdjson}.
+ * **When to use**
  *
- * @since 4.0.0
+ * Use when you have a transport protocol that already provides message framing.
+ *
+ * @see {@link layerNdjson} for transports that need newline-delimited framing
+ *
  * @category serialization
+ * @since 4.0.0
  */
 export const layerJson: Layer.Layer<RpcSerialization> = Layer.succeed(RpcSerialization)(json)
 
 /**
- * A rpc serialization layer that uses NDJSON for serialization.
+ * RPC serialization layer that uses NDJSON for serialization.
  *
- * Use this if your protocol does not support framing for messages, otherwise
- * use {@link layerJson}.
+ * **When to use**
  *
- * @since 4.0.0
+ * Use when you have a transport protocol that does not provide message framing.
+ *
+ * @see {@link layerJson} for transports that already provide message framing
+ *
  * @category serialization
+ * @since 4.0.0
  */
 export const layerNdjson: Layer.Layer<RpcSerialization> = Layer.succeed(RpcSerialization)(ndjson)
 
 /**
- * A rpc serialization layer that uses JSON-RPC for serialization.
+ * RPC serialization layer that uses JSON-RPC for serialization.
  *
- * @since 4.0.0
  * @category serialization
+ * @since 4.0.0
  */
 export const layerJsonRpc = (options?: {
   readonly contentType?: string | undefined
 }): Layer.Layer<RpcSerialization> => Layer.succeed(RpcSerialization)(jsonRpc(options))
 
 /**
- * A rpc serialization layer that uses JSON-RPC for serialization seperated by
- * new lines.
+ * RPC serialization layer that uses newline-delimited JSON-RPC for
+ * serialization.
  *
- * @since 4.0.0
  * @category serialization
+ * @since 4.0.0
  */
 export const layerNdJsonRpc = (options?: {
   readonly contentType?: string | undefined
 }): Layer.Layer<RpcSerialization> => Layer.succeed(RpcSerialization)(ndJsonRpc(options))
 
 /**
- * A rpc serialization layer that uses MessagePack for serialization.
+ * RPC serialization layer that uses MessagePack for serialization.
+ *
+ * **Details**
  *
  * MessagePack has a more compact binary format compared to JSON and NDJSON. It
  * also has better support for binary data.
  *
- * @since 4.0.0
  * @category serialization
+ * @since 4.0.0
  */
 export const layerMsgPack: Layer.Layer<RpcSerialization> = Layer.succeed(RpcSerialization)(msgPack)

@@ -1,4 +1,11 @@
 /**
+ * Collects typed RPC definitions and server handlers.
+ *
+ * An `RpcGroup` stores RPC definitions by tag and keeps annotations shared by
+ * the group. This module provides helpers for composing groups, applying
+ * middleware or annotations, deriving handler types, and turning handler objects
+ * into `Context` or `Layer` values used by RPC servers.
+ *
  * @since 4.0.0
  */
 import type * as Cause from "../../Cause.ts"
@@ -19,8 +26,11 @@ import type * as RpcMiddleware from "./RpcMiddleware.ts"
 const TypeId = "~effect/rpc/RpcGroup"
 
 /**
- * @since 4.0.0
+ * A collection of RPC definitions that can be composed, annotated, and
+ * converted into server handlers or layers.
+ *
  * @category groups
+ * @since 4.0.0
  */
 export interface RpcGroup<in out R extends Rpc.Any> extends Pipeable {
   new(_: never): {}
@@ -157,39 +167,54 @@ export interface RpcGroup<in out R extends Rpc.Any> extends Pipeable {
 }
 
 /**
- * @since 4.0.0
+ * An erased `RpcGroup` type for APIs that only need to know that a value is an
+ * RPC group.
+ *
  * @category groups
+ * @since 4.0.0
  */
 export interface Any {
   readonly [TypeId]: typeof TypeId
 }
 
 /**
- * @since 4.0.0
+ * Builds the object type of server handler functions required to implement each
+ * RPC in a union.
+ *
  * @category groups
+ * @since 4.0.0
  */
 export type HandlersFrom<Rpc extends Rpc.Any> = {
   readonly [Current in Rpc as Current["_tag"]]: Rpc.ToHandlerFn<Current>
 }
 
 /**
- * @since 4.0.0
+ * Extracts the server handler function type for a specific RPC tag from an RPC
+ * union.
+ *
  * @category groups
+ * @since 4.0.0
  */
 export type HandlerFrom<Rpc extends Rpc.Any, Tag extends Rpc["_tag"]> = Extract<Rpc, { readonly _tag: Tag }> extends
   infer Current ? Current extends Rpc.Any ? Rpc.ToHandlerFn<Current> : never : never
 
 /**
- * @since 4.0.0
+ * Computes the services required by all handlers in a handler object for an RPC
+ * union.
+ *
  * @category groups
+ * @since 4.0.0
  */
 export type HandlersServices<Rpcs extends Rpc.Any, Handlers> = keyof Handlers extends infer K ?
   K extends keyof Handlers & string ? HandlerServices<Rpcs, K, Handlers[K]> : never :
   never
 
 /**
- * @since 4.0.0
+ * Computes the services required by a single RPC handler, excluding services
+ * provided by middleware and `Scope` where the server supplies it.
+ *
  * @category groups
+ * @since 4.0.0
  */
 export type HandlerServices<Rpcs extends Rpc.Any, K extends Rpcs["_tag"], Handler> = true extends
   Rpc.IsStream<Rpcs, K> ? Handler extends (...args: any) =>
@@ -215,8 +240,10 @@ export type HandlerServices<Rpcs extends Rpc.Any, K extends Rpcs["_tag"], Handle
   : never
 
 /**
- * @since 4.0.0
+ * Extracts the union of RPC definitions from an `RpcGroup`.
+ *
  * @category groups
+ * @since 4.0.0
  */
 export type Rpcs<Group> = Group extends RpcGroup<infer R> ? string extends R["_tag"] ? never : R : never
 
@@ -276,14 +303,13 @@ const RpcGroupProto = {
       const services = yield* Effect.context<never>()
       const handlers = Effect.isEffect(build) ? yield* build : build
       const contextMap = new Map<string, unknown>()
-      for (const [tag, handler] of Object.entries(handlers)) {
-        const rpc = self.requests.get(tag)!
+      self.requests.forEach((rpc, tag) => {
         contextMap.set(rpc.key, {
           tag: rpc._tag,
-          handler,
+          handler: handlers[tag],
           context: services
         })
-      }
+      })
       return Context.makeUnsafe(contextMap)
     })
   },
@@ -368,8 +394,10 @@ const makeProto = <Rpcs extends Rpc.Any>(options: {
   }) as any
 
 /**
- * @since 4.0.0
+ * Creates an `RpcGroup` from one or more RPC definitions.
+ *
  * @category groups
+ * @since 4.0.0
  */
 export const make = <const Rpcs extends ReadonlyArray<Rpc.Any>>(
   ...rpcs: Rpcs

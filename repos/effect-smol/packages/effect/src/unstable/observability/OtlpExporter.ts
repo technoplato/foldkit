@@ -1,4 +1,11 @@
 /**
+ * Shared batch exporter for OTLP/HTTP observability modules.
+ *
+ * Signal modules use this exporter to buffer already-encoded telemetry and post
+ * it to a configured OTLP endpoint. It owns the scoped transport loop, batching,
+ * retry behavior, temporary disabling after repeated failures, and final flush
+ * during shutdown.
+ *
  * @since 4.0.0
  */
 import { Clock } from "../../Clock.ts"
@@ -35,8 +42,17 @@ const policy = Schedule.forever.pipe(
 )
 
 /**
+ * Creates a scoped OTLP batch exporter.
+ *
+ * **Details**
+ *
+ * The exporter buffers pushed data, periodically posts encoded batches to the
+ * configured URL, retries transient failures, temporarily disables exporting
+ * after unhandled failures, and flushes during scope finalization up to
+ * `shutdownTimeout`.
+ *
+ * @category constructors
  * @since 4.0.0
- * @category Constructors
  */
 export const make: (
   options: {

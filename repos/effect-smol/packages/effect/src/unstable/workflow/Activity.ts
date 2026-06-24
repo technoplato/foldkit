@@ -1,4 +1,11 @@
 /**
+ * Defines named effects whose results can be stored by a workflow engine.
+ *
+ * An `Activity` is an `Effect` with a stable name and schemas for its success
+ * and error values. `make` wraps an effect so the `WorkflowEngine` can execute
+ * it, store its result, or replay that result during a workflow run. This module
+ * also includes helpers for retry attempts, idempotency keys, and durable races.
+ *
  * @since 4.0.0
  */
 import type { NonEmptyReadonlyArray } from "../../Array.ts"
@@ -19,12 +26,16 @@ import type { WorkflowEngine, WorkflowInstance } from "./WorkflowEngine.ts"
 const TypeId = "~effect/workflow/Activity"
 
 /**
+ * Durable workflow activity that behaves as an `Effect` and records its name,
+ * result schemas, annotations, and encoded execution form for the workflow
+ * engine.
+ *
+ * @category models
  * @since 4.0.0
- * @category Models
  */
 export interface Activity<
-  Success extends Schema.Top = Schema.Void,
-  Error extends Schema.Top = Schema.Never,
+  Success extends Schema.Constraint = Schema.Void,
+  Error extends Schema.Constraint = Schema.Never,
   R = never
 > extends
   Effect.Effect<
@@ -38,6 +49,7 @@ export interface Activity<
   readonly successSchema: Success
   readonly errorSchema: Error
   readonly exitSchema: Schema.Exit<Success, Error, Schema.Defect>
+  readonly exitSchemaPartial: Schema.Exit<Success, Error, Schema.Unknown>
   readonly annotations: Context.Context<never>
   annotate<I, S>(
     key: Context.Key<I, S>,
@@ -73,8 +85,11 @@ export interface Activity<
 }
 
 /**
+ * Type-erased activity shape for APIs that only need the activity identity,
+ * name, annotations, and encoded execution.
+ *
+ * @category models
  * @since 4.0.0
- * @category Models
  */
 export interface Any {
   readonly [TypeId]: typeof TypeId
@@ -84,8 +99,11 @@ export interface Any {
 }
 
 /**
+ * Type-erased activity shape that also exposes success and error schemas for
+ * derived workflow APIs.
+ *
+ * @category models
  * @since 4.0.0
- * @category Models
  */
 export interface AnyWithProps {
   readonly [TypeId]: typeof TypeId
@@ -96,13 +114,16 @@ export interface AnyWithProps {
 }
 
 /**
+ * Creates a workflow activity from an effect, using the provided schemas to
+ * encode successes and failures for durable execution.
+ *
+ * @category constructors
  * @since 4.0.0
- * @category Constructors
  */
 export const make = <
   R,
-  Success extends Schema.Top = Schema.Void,
-  Error extends Schema.Top = Schema.Never
+  Success extends Schema.Constraint = Schema.Void,
+  Error extends Schema.Constraint = Schema.Never
 >(options: {
   readonly name: string
   readonly success?: Success | undefined
@@ -132,7 +153,8 @@ export const make = <
     name: options.name,
     successSchema,
     errorSchema,
-    exitSchema: Schema.Exit(successSchemaJson, errorSchemaJson, Schema.Defect),
+    exitSchema: Schema.Exit(successSchemaJson, errorSchemaJson, Schema.Defect()),
+    exitSchemaPartial: Schema.Exit(successSchemaJson, errorSchemaJson, Schema.Unknown),
     annotations: options.annotations ?? Context.empty(),
     annotate(tag: Context.Key<any, any>, value: any) {
       return make({
@@ -178,8 +200,11 @@ const retryOnInterrupt = (
   )
 
 /**
+ * Retries an effect with `Effect.retry` while updating `CurrentAttempt` for
+ * each attempt.
+ *
+ * @category error handling
  * @since 4.0.0
- * @category Error handling
  */
 export const retry: {
   <E, O extends Types.NoExcessProperties<Omit<Effect.Retry.Options<E>, "schedule">, O>>(
@@ -199,8 +224,11 @@ export const retry: {
 )
 
 /**
- * @since 4.0.0
+ * Context reference containing the current activity retry attempt, defaulting
+ * to `1`.
+ *
  * @category Attempts
+ * @since 4.0.0
  */
 export const CurrentAttempt = Context.Reference<number>(
   "effect/workflow/Activity/CurrentAttempt",
@@ -208,8 +236,11 @@ export const CurrentAttempt = Context.Reference<number>(
 )
 
 /**
- * @since 4.0.0
+ * Computes a deterministic activity idempotency key from the current workflow
+ * execution ID, the supplied name, and optionally the current attempt.
+ *
  * @category Idempotency
+ * @since 4.0.0
  */
 export const idempotencyKey: (
   name: string,
@@ -230,8 +261,11 @@ export const idempotencyKey: (
 })
 
 /**
+ * Runs a non-empty collection of activities as a durable race and returns the
+ * first completed success or failure using unioned success and error schemas.
+ *
+ * @category racing
  * @since 4.0.0
- * @category Racing
  */
 export const raceAll = <const Activities extends NonEmptyReadonlyArray<Any>>(
   name: string,
@@ -253,7 +287,7 @@ export const raceAll = <const Activities extends NonEmptyReadonlyArray<Any>>(
     error: Schema.Union(
       activities.map((activity) => (activity as any).errorSchema)
     ),
-    effects: activities.map((activity) => (activity as any).asEffect()) as any
+    effects: activities.map((activity) => (activity as any)) as any
   }) as any
 
 // -----------------------------------------------------------------------------
@@ -269,8 +303,8 @@ const InstanceTag = Context.Service<WorkflowInstance, WorkflowInstance["Service"
 
 const makeExecute = Effect.fnUntraced(function*<
   R,
-  Success extends Schema.Top = typeof Schema.Void,
-  Error extends Schema.Top = typeof Schema.Never
+  Success extends Schema.Constraint = typeof Schema.Void,
+  Error extends Schema.Constraint = typeof Schema.Never
 >(activity: Activity<Success, Error, R>) {
   const engine = yield* EngineTag
   const instance = yield* InstanceTag

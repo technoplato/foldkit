@@ -1,5 +1,13 @@
 /**
- * @since 1.0.0
+ * Bun stream interoperability for Effect streams.
+ *
+ * This module is the Bun entry point for adapting runtime streams into Effect's
+ * streaming model. It re-exports the shared Node stream adapters for Bun's
+ * Node-compatible stream APIs and adds {@link fromReadableStream}, a Web
+ * `ReadableStream` adapter that uses Bun's `readMany` reader method to pull
+ * batches of values into an Effect `Stream`.
+ *
+ * @since 4.0.0
  */
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
@@ -11,15 +19,16 @@ import * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
 
 /**
- * @since 1.0.0
+ * @since 4.0.0
  */
 export * from "@effect/platform-node-shared/NodeStream"
 
 /**
- * An optimized version of `Stream.fromReadableStream` that uses the Bun
- * .readMany API to read multiple values at once from a `ReadableStream`.
+ * Creates a stream from a `ReadableStream` using Bun's optimized `.readMany`
+ * API.
  *
- * @since 1.0.0
+ * @category constructors
+ * @since 4.0.0
  */
 export const fromReadableStream = <A, E>(
   options: {

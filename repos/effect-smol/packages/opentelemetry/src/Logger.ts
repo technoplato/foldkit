@@ -1,6 +1,15 @@
 /**
- * @since 1.0.0
+ * Connects Effect logging to the OpenTelemetry Logs SDK.
+ *
+ * This module turns Effect log events into OpenTelemetry log records. It maps
+ * Effect log levels to OpenTelemetry severity numbers, provides the
+ * `OtelLoggerProvider` service, creates an Effect `Logger` with `make`, and
+ * offers layers for installing that logger or creating a scoped SDK
+ * `LoggerProvider` from one or more `LogRecordProcessor`s.
+ *
+ * @since 4.0.0
  */
+import { SeverityNumber } from "@opentelemetry/api-logs"
 import * as Otel from "@opentelemetry/sdk-logs"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Arr from "effect/Array"
@@ -10,7 +19,7 @@ import type * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Logger from "effect/Logger"
-import * as LogLevel from "effect/LogLevel"
+import type * as LogLevel from "effect/LogLevel"
 import * as Predicate from "effect/Predicate"
 import * as References from "effect/References"
 import * as Tracer from "effect/Tracer"
@@ -18,8 +27,10 @@ import { nanosToHrTime, unknownToAttributeValue } from "./internal/attributes.ts
 import { Resource } from "./Resource.ts"
 
 /**
- * @since 1.0.0
- * @category Services
+ * Context service containing the OpenTelemetry `LoggerProvider` used to emit Effect log records.
+ *
+ * @category services
+ * @since 4.0.0
  */
 export class OtelLoggerProvider extends Context.Service<
   OtelLoggerProvider,
@@ -27,8 +38,43 @@ export class OtelLoggerProvider extends Context.Service<
 >()("@effect/opentelemetry/Logger/OtelLoggerProvider") {}
 
 /**
- * @since 1.0.0
- * @category Constructors
+ * Maps an Effect `LogLevel` to the corresponding OpenTelemetry `SeverityNumber`.
+ *
+ * **Details**
+ *
+ * OpenTelemetry log severity numbers are in the range `1` through `24`. This
+ * function maps from Effect's log levels instead of using
+ * `LogLevel.getOrdinal`, whose internal sort ordinals, such as the `Info`
+ * ordinal `20000`, fall outside the OpenTelemetry logs data model and can be
+ * treated as `UNSPECIFIED` by validating backends.
+ *
+ * @category converting
+ * @since 4.0.0
+ */
+export const logLevelToSeverityNumber = (level: LogLevel.LogLevel): SeverityNumber => {
+  switch (level) {
+    case "Trace":
+      return SeverityNumber.TRACE
+    case "Debug":
+      return SeverityNumber.DEBUG
+    case "Info":
+      return SeverityNumber.INFO
+    case "Warn":
+      return SeverityNumber.WARN
+    case "Error":
+      return SeverityNumber.ERROR
+    case "Fatal":
+      return SeverityNumber.FATAL
+    default:
+      return SeverityNumber.UNSPECIFIED
+  }
+}
+
+/**
+ * Creates an Effect logger that emits log records through the configured OpenTelemetry logger provider.
+ *
+ * @category constructors
+ * @since 4.0.0
  */
 export const make: Effect.Effect<
   Logger.Logger<unknown, void>,
@@ -64,7 +110,7 @@ export const make: Effect.Effect<
     otelLogger.emit({
       body: message.length === 1 ? message[0] : message,
       severityText: options.logLevel,
-      severityNumber: LogLevel.getOrdinal(options.logLevel),
+      severityNumber: logLevelToSeverityNumber(options.logLevel),
       timestamp: hrTime,
       observedTimestamp: hrTime,
       attributes
@@ -73,11 +119,31 @@ export const make: Effect.Effect<
 })
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Creates a layer that installs the OpenTelemetry-backed Effect logger, merging with existing loggers by default.
+ *
+ * **When to use**
+ *
+ * Use to install the OpenTelemetry-backed Effect logger in an application that
+ * has an `OtelLoggerProvider`, so standard Effect logging emits OpenTelemetry
+ * log records.
+ *
+ * **Details**
+ *
+ * The layer installs the logger created by `make`. `mergeWithExisting` defaults
+ * to `true`; set it to `false` to replace the current logger set.
+ *
+ * @see {@link make} for constructing the logger directly
+ * @see {@link layerLoggerProvider} for creating the required logger provider
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layer = (options: {
   /**
+   * Whether to merge the OpenTelemetry logger with existing loggers.
+   *
+   * **Details**
+   *
    * If set to `true`, the OpenTelemetry logger will be merged with existing
    * loggers in the application.
    *
@@ -93,8 +159,10 @@ export const layer = (options: {
   })
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Creates a scoped OpenTelemetry logger provider from one or more log record processors, using the current `Resource` and flushing and shutting down the provider when the layer is released.
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layerLoggerProvider = (
   processor: Otel.LogRecordProcessor | NonEmptyReadonlyArray<Otel.LogRecordProcessor>,

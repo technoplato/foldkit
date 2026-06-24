@@ -1,4 +1,12 @@
 /**
+ * Common model for incoming HTTP messages.
+ *
+ * `HttpIncomingMessage` is used by server requests and client responses to
+ * expose headers, an optional remote address, and body accessors. This module
+ * provides decoders for JSON bodies, URL-encoded bodies, and headers, plus the
+ * shared body-size setting and inspection helper used by request and response
+ * implementations.
+ *
  * @since 4.0.0
  */
 import * as Context from "../../Context.ts"
@@ -15,20 +23,26 @@ import type * as Headers from "./Headers.ts"
 import * as UrlParams from "./UrlParams.ts"
 
 /**
+ * Type identifier for `HttpIncomingMessage` values.
+ *
+ * @category type IDs
  * @since 4.0.0
- * @category Type IDs
  */
 export const TypeId = "~effect/http/HttpIncomingMessage"
 
 /**
+ * Returns `true` when a value is an `HttpIncomingMessage`.
+ *
+ * @category guards
  * @since 4.0.0
- * @category Guards
  */
 export const isHttpIncomingMessage = (u: unknown): u is HttpIncomingMessage => hasProperty(u, TypeId)
 
 /**
- * @since 4.0.0
+ * Common model for incoming HTTP messages, with headers, remote address, and effectful body accessors.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface HttpIncomingMessage<E = unknown> extends Inspectable.Inspectable {
   readonly [TypeId]: typeof TypeId
@@ -42,10 +56,12 @@ export interface HttpIncomingMessage<E = unknown> extends Inspectable.Inspectabl
 }
 
 /**
+ * Creates a decoder that reads an incoming message's JSON body and decodes it with the supplied schema.
+ *
+ * @category schemas
  * @since 4.0.0
- * @category schema
  */
-export const schemaBodyJson = <S extends Schema.Top>(schema: S, options?: ParseOptions | undefined) => {
+export const schemaBodyJson = <S extends Schema.Constraint>(schema: S, options?: ParseOptions | undefined) => {
   const decode = Schema.decodeEffect(Schema.toCodecJson(schema))
   return <E>(
     self: HttpIncomingMessage<E>
@@ -54,8 +70,10 @@ export const schemaBodyJson = <S extends Schema.Top>(schema: S, options?: ParseO
 }
 
 /**
+ * Creates a decoder that reads an incoming message's URL-encoded body parameters and decodes them with the supplied schema.
+ *
+ * @category schemas
  * @since 4.0.0
- * @category schema
  */
 export const schemaBodyUrlParams = <
   A,
@@ -75,8 +93,10 @@ export const schemaBodyUrlParams = <
 }
 
 /**
+ * Creates a decoder that validates and decodes an incoming message's headers with the supplied schema.
+ *
+ * @category schemas
  * @since 4.0.0
- * @category schema
  */
 export const schemaHeaders = <A, I extends Readonly<Record<string, string | undefined>>, RD, RE>(
   schema: Schema.Codec<A, I, RD, RE>,
@@ -87,8 +107,10 @@ export const schemaHeaders = <A, I extends Readonly<Record<string, string | unde
 }
 
 /**
+ * Context reference for the optional maximum size allowed when reading an incoming message body.
+ *
+ * @category references
  * @since 4.0.0
- * @category References
  */
 export const MaxBodySize = Context.Reference<FileSystem.Size | undefined>(
   "effect/http/HttpIncomingMessage/MaxBodySize",
@@ -96,6 +118,9 @@ export const MaxBodySize = Context.Reference<FileSystem.Size | undefined>(
 )
 
 /**
+ * Builds an inspectable object for an incoming message, redacting headers and including a synchronously readable JSON or text body when available.
+ *
+ * @category converting
  * @since 4.0.0
  */
 export const inspect = <E>(self: HttpIncomingMessage<E>, that: object): object => {

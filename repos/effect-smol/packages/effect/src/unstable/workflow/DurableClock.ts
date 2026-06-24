@@ -1,4 +1,11 @@
 /**
+ * Durable timers for workflow sleeps.
+ *
+ * `make` creates a `DurableClock` with a name, duration, and deferred wake-up
+ * signal. `sleep` ignores zero durations, runs short sleeps through an
+ * in-memory activity, and schedules longer sleeps through the `WorkflowEngine`
+ * before awaiting the durable deferred tied to the clock.
+ *
  * @since 4.0.0
  */
 import * as Context from "../../Context.ts"
@@ -12,8 +19,11 @@ import type { WorkflowEngine, WorkflowInstance } from "./WorkflowEngine.ts"
 const TypeId = "~effect/workflow/DurableClock"
 
 /**
+ * Represents a durable workflow timer with a name, duration, and deferred
+ * completed when the timer wakes.
+ *
+ * @category models
  * @since 4.0.0
- * @category Models
  */
 export interface DurableClock {
   readonly [TypeId]: typeof TypeId
@@ -23,8 +33,11 @@ export interface DurableClock {
 }
 
 /**
+ * Creates a durable clock definition and its associated deferred wake-up
+ * signal.
+ *
+ * @category constructors
  * @since 4.0.0
- * @category Constructors
  */
 export const make = (options: {
   readonly name: string
@@ -48,8 +61,11 @@ const InstanceTag = Context.Service<
 )
 
 /**
- * @since 1.0.0
- * @category Sleeping
+ * Waits inside a workflow, using an in-memory activity for durations at or
+ * below the threshold and scheduling a durable clock for longer durations.
+ *
+ * @category sleeping
+ * @since 4.0.0
  */
 export const sleep: (
   options: {
@@ -59,7 +75,7 @@ export const sleep: (
      * If the duration is less than or equal to this threshold, the clock will
      * be executed in memory.
      *
-     * Defaults to 60 seconds.
+     * @default 60 seconds
      */
     readonly inMemoryThreshold?: Duration.Input | undefined
   }

@@ -1,5 +1,15 @@
 /**
- * @since 1.0.0
+ * Bun implementation of the Effect `HttpServer`.
+ *
+ * `make` creates a scoped HTTP server from `Bun.serve`, converting Bun
+ * `Request` values into `HttpServerRequest` values and Effect
+ * `HttpServerResponse` values back into Web `Response` values. The server
+ * supports streaming bodies, multipart requests, file responses through
+ * `BunHttpPlatform`, and WebSocket upgrades. This module also provides layers
+ * for the server alone, the Bun HTTP support services, the combined server,
+ * configurable server options, and a test server with an HTTP client.
+ *
+ * @since 4.0.0
  */
 import type { Server as BunServer, ServerWebSocket } from "bun"
 import * as Config from "effect/Config"
@@ -44,8 +54,10 @@ import * as BunServices from "./BunServices.ts"
 import * as BunStream from "./BunStream.ts"
 
 /**
- * @since 1.0.0
- * @category Options
+ * Bun serve options accepted by the HTTP server, extended with typed route definitions.
+ *
+ * @category options
+ * @since 4.0.0
  */
 export type ServeOptions<R extends string> =
   & (
@@ -55,8 +67,10 @@ export type ServeOptions<R extends string> =
   & { readonly routes?: Bun.Serve.Routes<WebSocketContext, R> }
 
 /**
- * @since 1.0.0
- * @category Constructors
+ * Creates a scoped Bun `HttpServer` from `Bun.serve` options, stopping the server on scope finalization with optional graceful shutdown settings.
+ *
+ * @category constructors
+ * @since 4.0.0
  */
 export const make = Effect.fnUntraced(
   function*<R extends string>(
@@ -210,8 +224,10 @@ const makeResponse = (
 }
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Layer that provides only `HttpServer` by constructing a scoped Bun server from the supplied serve options.
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layerServer: <R extends string>(
   options: ServeOptions<R> & {
@@ -221,8 +237,10 @@ export const layerServer: <R extends string>(
 ) => Layer.Layer<Server.HttpServer> = flow(make, Layer.effect(Server.HttpServer)) as any
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Layer that provides Bun HTTP support services: `HttpPlatform`, weak ETag generation, and `BunServices`.
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layerHttpServices: Layer.Layer<
   | HttpPlatform
@@ -235,8 +253,10 @@ export const layerHttpServices: Layer.Layer<
 )
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Layer that provides a Bun `HttpServer` together with the Bun HTTP platform, ETag generator, and Bun services.
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layer = <R extends string>(
   options: ServeOptions<R> & {
@@ -251,8 +271,10 @@ export const layer = <R extends string>(
 > => Layer.mergeAll(layerServer(options), layerHttpServices)
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Layer that starts a Bun HTTP server on an ephemeral port for tests.
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layerTest: Layer.Layer<
   Server.HttpServer | HttpPlatform | FileSystem.FileSystem | Etag.Generator | Path.Path | HttpClient
@@ -264,8 +286,10 @@ export const layerTest: Layer.Layer<
 )
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Creates the Bun HTTP server and support-services layer from configurable serve options.
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layerConfig = <R extends string>(
   options: Config.Wrap<
@@ -279,7 +303,7 @@ export const layerConfig = <R extends string>(
   ConfigError
 > =>
   Layer.mergeAll(
-    Layer.effect(Server.HttpServer)(Effect.flatMap(Config.unwrap(options).asEffect(), make)),
+    Layer.effect(Server.HttpServer)(Effect.flatMap(Config.unwrap(options), make)),
     layerHttpServices
   )
 

@@ -1,4 +1,11 @@
 /**
+ * Combines in-memory caching with durable storage for `Persistable` requests.
+ *
+ * A `PersistedCache` checks a process-local `Cache`, then a named `Persistence`
+ * store, before running the supplied lookup. It stores the lookup `Exit`, so
+ * expensive or idempotent results can be reused across fibers, process restarts,
+ * or workers that share the same backing store.
+ *
  * @since 4.0.0
  */
 import * as Cache from "../../Cache.ts"
@@ -14,8 +21,10 @@ import * as Persistence from "./Persistence.ts"
 const TypeId = "~effect/persistence/PersistedCache" as const
 
 /**
+ * Cache that combines an in-memory `Cache` with a persisted backing store.
+ *
+ * @category models
  * @since 4.0.0
- * @category Models
  */
 export interface PersistedCache<K extends Persistable.Any, out R = never> {
   readonly [TypeId]: typeof TypeId
@@ -34,8 +43,16 @@ export interface PersistedCache<K extends Persistable.Any, out R = never> {
 }
 
 /**
+ * Creates a persisted cache for `Persistable` request keys.
+ *
+ * **Details**
+ *
+ * The cache reads persisted exits before running the lookup, stores lookup
+ * exits with the configured persistent TTL, and also keeps a scoped in-memory
+ * cache with its own capacity and TTL.
+ *
+ * @category constructors
  * @since 4.0.0
- * @category Constructors
  */
 export const make: <
   K extends Persistable.Any,

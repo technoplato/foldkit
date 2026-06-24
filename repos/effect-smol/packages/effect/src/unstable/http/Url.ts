@@ -1,4 +1,11 @@
 /**
+ * Parses and edits platform `URL` values.
+ *
+ * The HTTP modules use the standard `URL` object as their URL representation.
+ * This module adds safe parsing and helpers that return updated copies when
+ * changing credentials, host, path, protocol, query, or hash parts. Query
+ * strings can also be read or updated through `UrlParams`.
+ *
  * @since 4.0.0
  */
 import * as Cause from "../../Cause.ts"
@@ -8,7 +15,7 @@ import * as Result from "../../Result.ts"
 import * as UrlParams from "./UrlParams.ts"
 
 /**
- * Parses a URL string into a `URL` object, returning an `Result` type for safe
+ * Parses a URL string safely into a `URL` object, returning a `Result` type for
  * error handling.
  *
  * **Details**
@@ -24,11 +31,11 @@ import * as UrlParams from "./UrlParams.ts"
  * `base`. This is especially useful when dealing with URLs that might not be
  * fully qualified.
  *
- * **Example**
+ * **Example** (Parsing absolute and relative URLs)
  *
  * ```ts
- * import { Url } from "effect/unstable/http"
  * import { Result } from "effect"
+ * import { Url } from "effect/unstable/http"
  *
  * // Parse an absolute URL
  * //
@@ -54,8 +61,8 @@ import * as UrlParams from "./UrlParams.ts"
  * // Output: Parsed relative URL: https://example.com/relative-path
  * ```
  *
+ * @category constructors
  * @since 4.0.0
- * @category Constructors
  */
 export const fromString: {
   (url: string, base?: string | URL | undefined): Result.Result<URL, Cause.IllegalArgumentError>
@@ -67,10 +74,9 @@ export const fromString: {
   })
 
 /**
- * This function clones the original `URL` object and applies a callback to the
- * clone, allowing multiple updates at once.
+ * Updates a cloned `URL` with a callback, allowing multiple changes at once.
  *
- * **Example**
+ * **Example** (Mutating URL credentials)
  *
  * ```ts
  * import { Url } from "effect/unstable/http"
@@ -86,8 +92,8 @@ export const fromString: {
  * // Output: Mutated: https://user:pass@example.com/
  * ```
  *
+ * @category modifiers
  * @since 4.0.0
- * @category Modifiers
  */
 export const mutate: {
   (f: (url: URL) => void): (self: URL) => URL
@@ -111,8 +117,8 @@ const immutableURLSetter = <P extends keyof URL, A = never>(property: P): {
 /**
  * Updates the hash fragment of the URL.
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setHash: {
   (hash: string): (url: URL) => URL
@@ -122,8 +128,8 @@ export const setHash: {
 /**
  * Updates the host (domain and port) of the URL.
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setHost: {
   (host: string): (url: URL) => URL
@@ -133,8 +139,8 @@ export const setHost: {
 /**
  * Updates the domain of the URL without modifying the port.
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setHostname: {
   (hostname: string): (url: URL) => URL
@@ -144,8 +150,8 @@ export const setHostname: {
 /**
  * Replaces the entire URL string.
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setHref: {
   (href: string): (url: URL) => URL
@@ -155,8 +161,8 @@ export const setHref: {
 /**
  * Updates the password used for authentication.
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setPassword: {
   (password: string | Redacted.Redacted): (url: URL) => URL
@@ -171,8 +177,8 @@ export const setPassword: {
 /**
  * Updates the path of the URL.
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setPathname: {
   (pathname: string): (url: URL) => URL
@@ -182,8 +188,8 @@ export const setPathname: {
 /**
  * Updates the port of the URL.
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setPort: {
   (port: string | number): (url: URL) => URL
@@ -193,8 +199,8 @@ export const setPort: {
 /**
  * Updates the protocol (e.g., `http`, `https`).
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setProtocol: {
   (protocol: string): (url: URL) => URL
@@ -204,8 +210,8 @@ export const setProtocol: {
 /**
  * Updates the query string of the URL.
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setSearch: {
   (search: string): (url: URL) => URL
@@ -215,8 +221,8 @@ export const setSearch: {
 /**
  * Updates the username used for authentication.
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setUsername: {
   (username: string): (url: URL) => URL
@@ -232,7 +238,7 @@ export const setUsername: {
  * object using the provided `UrlParams`. It creates a new `URL` object with the
  * updated parameters, leaving the original object unchanged.
  *
- * **Example**
+ * **Example** (Replacing query parameters)
  *
  * ```ts
  * import { Url, UrlParams } from "effect/unstable/http"
@@ -249,8 +255,8 @@ export const setUsername: {
  * // Output: https://example.com/?key=value
  * ```
  *
+ * @category setters
  * @since 4.0.0
- * @category Setters
  */
 export const setUrlParams: {
   (urlParams: UrlParams.UrlParams): (url: URL) => URL
@@ -269,7 +275,7 @@ export const setUrlParams: {
  * them as `UrlParams`. The resulting structure can be easily manipulated or
  * inspected.
  *
- * **Example**
+ * **Example** (Reading query parameters)
  *
  * ```ts
  * import { Url } from "effect/unstable/http"
@@ -283,13 +289,13 @@ export const setUrlParams: {
  * // Output: [ [ 'foo', 'bar' ] ]
  * ```
  *
+ * @category getters
  * @since 4.0.0
- * @category Getters
  */
 export const urlParams = (url: URL): UrlParams.UrlParams => UrlParams.fromInput(url.searchParams)
 
 /**
- * Reads, modifies, and updates the query parameters of a URL.
+ * Reads the query parameters of a URL, modifies them, and updates the URL.
  *
  * **Details**
  *
@@ -298,7 +304,7 @@ export const urlParams = (url: URL): UrlParams.UrlParams => UrlParams.fromInput(
  * writing the updated parameters back to the URL. It returns a new `URL` object
  * with the modified parameters, ensuring immutability.
  *
- * **Example**
+ * **Example** (Modifying query parameters)
  *
  * ```ts
  * import { Url, UrlParams } from "effect/unstable/http"
@@ -311,8 +317,8 @@ export const urlParams = (url: URL): UrlParams.UrlParams => UrlParams.fromInput(
  * // Output: https://example.com/?foo=bar&key=value
  * ```
  *
+ * @category modifiers
  * @since 4.0.0
- * @category Modifiers
  */
 export const modifyUrlParams: {
   (f: (urlParams: UrlParams.UrlParams) => UrlParams.UrlParams): (url: URL) => URL

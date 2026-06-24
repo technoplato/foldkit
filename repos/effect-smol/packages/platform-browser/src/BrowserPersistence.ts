@@ -1,5 +1,13 @@
 /**
- * @since 1.0.0
+ * IndexedDB-backed persistence layers for browser Effect programs.
+ *
+ * This module provides a low-level `BackingPersistence` layer and a higher-level
+ * `Persistence` layer that store object values in IndexedDB. Values are stored
+ * by persistence store id and key, and reads check TTL expiration before
+ * returning stored data. The database name can be customized and defaults to
+ * `"effect_persistence"`.
+ *
+ * @since 4.0.0
  */
 import type * as Arr from "effect/Array"
 import * as Clock from "effect/Clock"
@@ -9,8 +17,29 @@ import * as Layer from "effect/Layer"
 import * as Persistence from "effect/unstable/persistence/Persistence"
 
 /**
- * @since 1.0.0
+ * Creates a `BackingPersistence` layer backed by IndexedDB, optionally using the provided database name.
+ *
+ * **When to use**
+ *
+ * Use when composing persistence manually and the lower-level
+ * `BackingPersistence` service should be backed by browser IndexedDB.
+ *
+ * **Details**
+ *
+ * The database name defaults to `"effect_persistence"`. Entries are stored by
+ * persistence store id and key in a shared object store, and TTL expiration is
+ * checked when values are read.
+ *
+ * **Gotchas**
+ *
+ * Opening the database is defected during layer acquisition if IndexedDB is
+ * unavailable or cannot be opened. Store operations report `PersistenceError`
+ * for IndexedDB request, transaction, quota, and structured-clone failures.
+ *
+ * @see {@link layerIndexedDb} for providing the higher-level `Persistence` service
+ *
  * @category layers
+ * @since 4.0.0
  */
 export const layerBackingIndexedDb = (options?: {
   readonly database?: string | undefined
@@ -42,8 +71,10 @@ const entriesStoreName = "entries"
 const storeIdIndexName = "storeId"
 
 /**
- * @since 1.0.0
+ * Creates a `Persistence` layer backed by IndexedDB, optionally using the provided database name.
+ *
  * @category layers
+ * @since 4.0.0
  */
 export const layerIndexedDb = (options?: {
   readonly database?: string | undefined

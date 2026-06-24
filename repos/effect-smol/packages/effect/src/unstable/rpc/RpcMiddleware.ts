@@ -1,8 +1,17 @@
 /**
+ * Middleware services for the unstable RPC runtime.
+ *
+ * A middleware service wraps server handler execution and can also install a
+ * client-side wrapper for generated clients. Its metadata records the services
+ * provided to downstream handlers, the services required by the middleware
+ * implementation, the schema for server-visible failures, the client-only error
+ * type, and whether generated clients must require the matching client layer.
+ *
  * @since 4.0.0
  */
 import * as Context from "../../Context.ts"
 import * as Effect from "../../Effect.ts"
+import { getStackTraceLimit, setStackTraceLimit } from "../../internal/stackTraceLimit.ts"
 import * as Layer from "../../Layer.ts"
 import * as Schema from "../../Schema.ts"
 import { Scope } from "../../Scope.ts"
@@ -12,20 +21,28 @@ import type * as Rpc from "./Rpc.ts"
 import type { Request, RequestId } from "./RpcMessage.ts"
 
 /**
+ * The literal type id used to identify RPC middleware service classes.
+ *
+ * @category type IDs
  * @since 4.0.0
- * @category Type IDs
  */
 export type TypeId = "~effect/rpc/RpcMiddleware"
 
 /**
+ * The runtime type id used to attach and inspect RPC middleware metadata.
+ *
+ * @category type IDs
  * @since 4.0.0
- * @category Type IDs
  */
 export const TypeId: TypeId = "~effect/rpc/RpcMiddleware"
 
 /**
- * @since 4.0.0
+ * The server-side RPC middleware function shape, wrapping a handler effect with
+ * access to request metadata and translating provided services into required
+ * services.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface RpcMiddleware<Provides, E, Requires> {
   (
@@ -41,16 +58,22 @@ export interface RpcMiddleware<Provides, E, Requires> {
 }
 
 /**
- * @since 4.0.0
+ * Marker success type used by RPC middleware to represent successful completion
+ * without exposing the handler's concrete success value.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface SuccessValue {
   readonly _: unique symbol
 }
 
 /**
- * @since 4.0.0
+ * The client-side RPC middleware function shape, allowing outgoing requests to
+ * be inspected or modified before calling `next`.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface RpcMiddlewareClient<E, CE, R> {
   (options: {
@@ -61,8 +84,11 @@ export interface RpcMiddlewareClient<E, CE, R> {
 }
 
 /**
- * @since 4.0.0
+ * Marker service requirement indicating that a middleware has a client-side
+ * implementation available for an RPC client.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface ForClient<Id> {
   readonly _: unique symbol
@@ -70,8 +96,11 @@ export interface ForClient<Id> {
 }
 
 /**
- * @since 4.0.0
+ * An erased server-side RPC middleware function, useful when the concrete
+ * provided services, errors, and requirements are not needed.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface Any {
   (
@@ -87,8 +116,11 @@ export interface Any {
 }
 
 /**
- * @since 4.0.0
+ * A type-level carrier for RPC middleware metadata, including provided
+ * services, required services, error schema, and client error type.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface AnyId {
   readonly [TypeId]: {
@@ -100,14 +132,17 @@ export interface AnyId {
 }
 
 /**
- * @since 4.0.0
+ * The `Context.Service` class shape created for an RPC middleware, including
+ * its error schema, service metadata, and client-side requirement marker.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface ServiceClass<
   Self,
   Name extends string,
   Provides,
-  E extends Schema.Top,
+  E extends Schema.Constraint,
   ClientError,
   Requires,
   RequiredForClient extends boolean
@@ -127,52 +162,69 @@ export interface ServiceClass<
 }
 
 /**
- * @since 4.0.0
+ * Extracts the services provided by an RPC middleware.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type Provides<A> = A extends { readonly [TypeId]: { readonly provides: infer P } } ? P : never
 
 /**
- * @since 4.0.0
+ * Extracts the services required by an RPC middleware.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type Requires<A> = A extends { readonly [TypeId]: { readonly requires: infer R } } ? R : never
 
 /**
- * @since 4.0.0
+ * Applies a middleware's service transformation to an RPC environment by
+ * removing services the middleware provides and adding services it requires.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type ApplyServices<A, R> = Exclude<R, Provides<A>> | Requires<A>
 
 /**
- * @since 4.0.0
+ * Extracts the error schema associated with an RPC middleware.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type ErrorSchema<A> = A extends { readonly [TypeId]: { readonly error: infer E } }
-  ? E extends Schema.Top ? E : never
+  ? E extends Schema.Constraint ? E : never
   : never
 
 /**
- * @since 4.0.0
+ * Extracts the decoded error type produced by an RPC middleware.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type Error<A> = ErrorSchema<A>["Type"]
 
 /**
- * @since 4.0.0
+ * Extracts the encoding services required by a middleware's error schema.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type ErrorServicesEncode<A> = ErrorSchema<A>["EncodingServices"]
 
 /**
- * @since 4.0.0
+ * Extracts the decoding services required by a middleware's error schema.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type ErrorServicesDecode<A> = ErrorSchema<A>["DecodingServices"]
 
 /**
- * @since 4.0.0
+ * An erased RPC middleware context key carrying middleware metadata.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface AnyService extends Context.Key<any, any> {
   readonly [TypeId]: typeof TypeId
@@ -182,8 +234,11 @@ export interface AnyService extends Context.Key<any, any> {
 }
 
 /**
- * @since 4.0.0
+ * An erased RPC middleware context key whose service value is a server-side
+ * middleware function.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface AnyServiceWithProps extends Context.Key<any, RpcMiddleware<any, any, any>> {
   readonly [TypeId]: typeof TypeId
@@ -193,8 +248,12 @@ export interface AnyServiceWithProps extends Context.Key<any, RpcMiddleware<any,
 }
 
 /**
+ * Creates a typed RPC middleware service class, with optional service
+ * requirements, provided services, error schema, and client-side requirement
+ * metadata.
+ *
+ * @category constructors
  * @since 4.0.0
- * @category tags
  */
 export const Service = <
   Self,
@@ -234,10 +293,10 @@ export const Service = <
   }
 ) => {
   const Err = globalThis.Error as any
-  const limit = Err.stackTraceLimit
-  Err.stackTraceLimit = 2
+  const limit = getStackTraceLimit()
+  setStackTraceLimit(2)
   const creationError = new Err()
-  Err.stackTraceLimit = limit
+  setStackTraceLimit(limit)
 
   function ServiceClass() {}
   const ServiceClass_ = ServiceClass as any as Mutable<AnyService>
@@ -255,8 +314,12 @@ export const Service = <
 }
 
 /**
- * @since 4.0.0
+ * Provides the client-side implementation for an RPC middleware service,
+ * capturing the layer's environment and merging it into each middleware
+ * invocation.
+ *
  * @category client
+ * @since 4.0.0
  */
 export const layerClient = <Id extends AnyId, S, R, EX = never, RX = never>(
   tag: Context.Key<Id, S>,

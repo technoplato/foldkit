@@ -1,5 +1,14 @@
 /**
- * @since 1.0.0
+ * Browser implementations of the Effect `HttpClient`.
+ *
+ * This module exposes HTTP client layers for code that runs in a browser. It
+ * re-exports the fetch-based `Fetch`, `RequestInit`, and `layerFetch` APIs for
+ * the common case where requests use the platform `fetch` implementation. It
+ * also provides an `XMLHttpRequest`-backed client, including controls for the
+ * XHR response type, an overridable `XMLHttpRequest` constructor service, and
+ * the `layerXMLHttpRequest` layer.
+ *
+ * @since 4.0.0
  */
 import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
@@ -28,18 +37,29 @@ import * as HeaderParser from "multipasta/HeadersParser"
 
 export {
   /**
-   * @since 1.0.0
-   * @category Fetch
+   * Context reference for the `fetch` implementation used by the fetch-based HTTP client.
+   *
+   * @category fetch
+   * @since 4.0.0
    */
   Fetch,
   /**
-   * @since 1.0.0
-   * @category Fetch
+   * Layer that provides an `HttpClient` implementation backed by the configured `Fetch` function.
+   *
+   * @category fetch
+   * @since 4.0.0
    */
   layer as layerFetch,
   /**
-   * @since 1.0.0
-   * @category Fetch
+   * Service that contains default fetch options for the browser fetch client.
+   *
+   * **When to use**
+   *
+   * Use to provide default credentials, cache, redirect, integrity, or other
+   * fetch options for browser HTTP requests.
+   *
+   * @category fetch
+   * @since 4.0.0
    */
   RequestInit
 } from "effect/unstable/http/FetchHttpClient"
@@ -49,14 +69,26 @@ export {
 // =============================================================================
 
 /**
- * @since 1.0.0
- * @category Models
+ * Allowed response body modes for the browser XHR HTTP client.
+ *
+ * @category models
+ * @since 4.0.0
  */
 export type XHRResponseType = "arraybuffer" | "text"
 
 /**
- * @since 1.0.0
- * @category References
+ * Context reference for the `XMLHttpRequest.responseType` used by the browser XHR HTTP client, defaulting to `"text"`.
+ *
+ * **When to use**
+ *
+ * Use when you need XHR-backed HTTP requests to receive response bodies as text
+ * or raw `ArrayBuffer` values.
+ *
+ * @see {@link XHRResponseType} for the allowed response body modes
+ * @see {@link withXHRArrayBuffer} for scoping XHR response handling to `ArrayBuffer`
+ *
+ * @category references
+ * @since 4.0.0
  */
 export const CurrentXHRResponseType: Context.Reference<XHRResponseType> = Context.Reference(
   "@effect/platform-browser/BrowserHttpClient/CurrentXHRResponseType",
@@ -64,8 +96,10 @@ export const CurrentXHRResponseType: Context.Reference<XHRResponseType> = Contex
 )
 
 /**
- * @since 1.0.0
- * @category References
+ * Runs an effect with `CurrentXHRResponseType` set to `"arraybuffer"` so the XHR HTTP client receives response bodies as `ArrayBuffer` values.
+ *
+ * @category references
+ * @since 4.0.0
  */
 export const withXHRArrayBuffer = <A, E, R>(
   self: Effect.Effect<A, E, R>
@@ -77,8 +111,10 @@ export const withXHRArrayBuffer = <A, E, R>(
   )
 
 /**
- * @since 1.0.0
- * @category Services
+ * Service tag for the `XMLHttpRequest` constructor used by the browser XHR HTTP client.
+ *
+ * @category services
+ * @since 4.0.0
  */
 export class XMLHttpRequest extends Context.Service<
   XMLHttpRequest,
@@ -384,8 +420,10 @@ class ClientResponseImpl extends IncomingMessageImpl<HttpClientError.HttpClientE
 }
 
 /**
- * @since 1.0.0
- * @category Layers
+ * Layer that provides an `HttpClient` implementation backed by the browser `XMLHttpRequest` API.
+ *
+ * @category layers
+ * @since 4.0.0
  */
 export const layerXMLHttpRequest: Layer.Layer<HttpClient.HttpClient> = HttpClient.layerMergedContext(
   Effect.succeed(makeXmlHttpRequest)

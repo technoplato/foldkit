@@ -1,4 +1,10 @@
 /**
+ * Serializes OTLP payloads into HTTP request bodies.
+ *
+ * Signal exporters build trace, metric, and log data structures in memory. This
+ * module provides the service that turns those structures into JSON or protobuf
+ * HTTP bodies before they are posted to an OTLP collector.
+ *
  * @since 4.0.0
  */
 import * as Context from "../../Context.ts"
@@ -10,8 +16,11 @@ import type { MetricsData } from "./OtlpMetrics.ts"
 import type { TraceData } from "./OtlpTracer.ts"
 
 /**
+ * Service for serializing OTLP traces, metrics, and logs into HTTP request
+ * bodies.
+ *
+ * @category services
  * @since 4.0.0
- * @category Services
  */
 export class OtlpSerialization extends Context.Service<OtlpSerialization, {
   readonly traces: (data: TraceData) => HttpBody.HttpBody
@@ -20,8 +29,10 @@ export class OtlpSerialization extends Context.Service<OtlpSerialization, {
 }>()("effect/observability/OtlpSerialization") {}
 
 /**
+ * Provides `OtlpSerialization` using OTLP/HTTP JSON bodies.
+ *
+ * @category layers
  * @since 4.0.0
- * @category Layers
  */
 export const layerJson = Layer.succeed(OtlpSerialization, {
   traces: (spans) => HttpBody.jsonUnsafe(spans),
@@ -30,8 +41,11 @@ export const layerJson = Layer.succeed(OtlpSerialization, {
 })
 
 /**
+ * Provides `OtlpSerialization` using protobuf-encoded OTLP bodies with the
+ * `application/x-protobuf` content type.
+ *
+ * @category layers
  * @since 4.0.0
- * @category Layers
  */
 export const layerProtobuf = Layer.succeed(OtlpSerialization, {
   traces: (spans) =>

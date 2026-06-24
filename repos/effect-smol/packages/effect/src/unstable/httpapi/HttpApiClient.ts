@@ -1,4 +1,13 @@
 /**
+ * Builds HTTP clients from `HttpApi` declarations.
+ *
+ * The client methods are derived from the groups and endpoints in an `HttpApi`
+ * and run through an `HttpClient`. They use the same schema-driven contract as
+ * the server: request parts are encoded from endpoint schemas, client
+ * middleware is applied, the HTTP request is executed, and declared success or
+ * error responses are decoded. This module also includes helpers for building a
+ * client for only one group, one endpoint, or only the encoded URL.
+ *
  * @since 4.0.0
  */
 import * as Arr from "../../Array.ts"
@@ -9,11 +18,13 @@ import { identity } from "../../Function.ts"
 import * as Option from "../../Option.ts"
 import * as Predicate from "../../Predicate.ts"
 import * as Schema from "../../Schema.ts"
-import * as AST from "../../SchemaAST.ts"
-import * as Issue from "../../SchemaIssue.ts"
-import * as Transformation from "../../SchemaTransformation.ts"
+import * as SchemaAST from "../../SchemaAST.ts"
+import * as SchemaIssue from "../../SchemaIssue.ts"
+import * as SchemaTransformation from "../../SchemaTransformation.ts"
+import * as Stream from "../../Stream.ts"
 import type { Simplify } from "../../Types.ts"
 import * as UndefinedOr from "../../UndefinedOr.ts"
+import * as Sse from "../encoding/Sse.ts"
 import * as HttpBody from "../http/HttpBody.ts"
 import * as HttpClient from "../http/HttpClient.ts"
 import * as HttpClientError from "../http/HttpClientError.ts"
@@ -28,8 +39,11 @@ import type * as HttpApiMiddleware from "./HttpApiMiddleware.ts"
 import * as HttpApiSchema from "./HttpApiSchema.ts"
 
 /**
- * @since 4.0.0
+ * The type-safe client shape generated from HTTP API groups, with non-top-level
+ * groups exposed as nested objects and top-level endpoints exposed as methods.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type Client<Groups extends HttpApiGroup.Any, E = never, R = never> = Simplify<
   & {
@@ -46,27 +60,62 @@ export type Client<Groups extends HttpApiGroup.Any, E = never, R = never> = Simp
 >
 
 /**
- * @since 4.0.0
+ * Derives the typed client interface for an `HttpApi`, preserving any additional
+ * client error and service requirements supplied by the caller.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type ForApi<Api extends HttpApi.Any, E = never, R = never> = Api extends
   HttpApi.HttpApi<infer _Id, infer Groups> ? Client<Groups, E, R> :
   never
 
+type SuccessType<S> = S extends HttpApiSchema.StreamSse<
+  infer _Events,
+  infer _Error,
+  infer _Value
+> ? Stream.Stream<
+    _Value,
+    _Error["Type"] | HttpClientError.HttpClientError | Schema.SchemaError | Sse.Retry,
+    never
+  >
+  : S extends HttpApiSchema.StreamUint8Array ? Stream.Stream<Uint8Array, HttpClientError.HttpClientError, never>
+  : S extends Schema.Constraint ? S["Type"]
+  : never
+
+type SuccessDecodingServices<S> = S extends HttpApiSchema.StreamSse<
+  infer _Events,
+  infer _Error,
+  infer _Value
+> ?
+    | _Events["DecodingServices"]
+    | _Error["DecodingServices"]
+  : S extends HttpApiSchema.StreamUint8Array ? never
+  : S extends Schema.Constraint ? S["DecodingServices"]
+  : never
+
 /**
+ * Helper types used to describe generated HTTP API clients, including endpoint
+ * methods, response modes, and grouped client shapes.
+ *
  * @since 4.0.0
- * @category models
  */
 export declare namespace Client {
   /**
-   * @since 4.0.0
+   * The response mode accepted by generated client methods, controlling whether a
+   * call returns the decoded success value, the raw response, or both.
+   *
    * @category models
+   * @since 4.0.0
    */
   export type ResponseMode = HttpApiEndpoint.ClientResponseMode
 
   /**
-   * @since 4.0.0
+   * Computes the value returned by a client method for a success type and response
+   * mode.
+   *
    * @category models
+   * @since 4.0.0
    */
   export type Response<Success, Mode extends ResponseMode> = [Mode] extends ["decoded-and-response"]
     ? [Success, HttpClientResponse.HttpClientResponse]
@@ -74,8 +123,11 @@ export declare namespace Client {
     : Success
 
   /**
-   * @since 4.0.0
+   * The client object for one API group, mapping each endpoint name in that group to
+   * its typed client method.
+   *
    * @category models
+   * @since 4.0.0
    */
   export type Group<Groups extends HttpApiGroup.Any, GroupName extends Groups["identifier"], E, R> =
     [HttpApiGroup.WithName<Groups, GroupName>] extends [HttpApiGroup.HttpApiGroup<infer _GroupName, infer _Endpoints>] ?
@@ -85,8 +137,12 @@ export declare namespace Client {
       never
 
   /**
-   * @since 4.0.0
+   * The typed function generated for an endpoint, accepting the endpoint request
+   * shape and returning an effect whose success, error, and service channels reflect
+   * the endpoint schemas, middleware, and selected response mode.
+   *
    * @category models
+   * @since 4.0.0
    */
   export type Method<Endpoint, E, R> = [Endpoint] extends [
     HttpApiEndpoint.HttpApiEndpoint<
@@ -105,7 +161,7 @@ export declare namespace Client {
   ] ? <Mode extends ResponseMode = ResponseMode>(
       request: Simplify<HttpApiEndpoint.ClientRequest<_Params, _Query, _Payload, _Headers, Mode>>
     ) => Effect.Effect<
-      Response<_Success["Type"], Mode>,
+      Response<SuccessType<_Success>, Mode>,
       | HttpApiMiddleware.Error<_Middleware>
       | HttpApiMiddleware.ClientError<_Middleware>
       | E
@@ -116,13 +172,19 @@ export declare namespace Client {
       | _Query["EncodingServices"]
       | _Payload["EncodingServices"]
       | _Headers["EncodingServices"]
-      | ([Mode] extends ["response-only"] ? never : _Success["DecodingServices"] | _Error["DecodingServices"])
+      | ([Mode] extends ["response-only"] ? never
+        :
+          | SuccessDecodingServices<_Success>
+          | _Error["DecodingServices"])
     > :
     never
 
   /**
-   * @since 4.0.0
+   * Extracts client methods for endpoints in top-level groups so they can be exposed
+   * directly on the generated client object.
+   *
    * @category models
+   * @since 4.0.0
    */
   export type TopLevelMethods<Groups extends HttpApiGroup.Any, E, R> =
     Extract<Groups, { readonly topLevel: true }> extends
@@ -145,8 +207,11 @@ type UrlBuilderArgs<Endpoint extends HttpApiEndpoint.Any> = [UrlBuilderRequest<E
   : [request: UrlBuilderRequest<Endpoint>]
 
 /**
- * @since 4.0.0
+ * The type-safe URL builder shape for an HTTP API, mirroring the generated client
+ * layout while returning URL strings instead of executing requests.
+ *
  * @category models
+ * @since 4.0.0
  */
 export type UrlBuilder<Api extends HttpApi.Any> = Api extends HttpApi.HttpApi<infer _ApiId, infer Groups> ? Simplify<
     & {
@@ -175,7 +240,8 @@ type UrlBuilderTopLevelMethods<Groups extends HttpApiGroup.Any> = Extract<Groups
   : never :
   never
 
-const makeClient = <ApiId extends string, Groups extends HttpApiGroup.Any, E, R>(
+/** @internal */
+export const makeClient = <ApiId extends string, Groups extends HttpApiGroup.Any, E, R>(
   api: HttpApi.HttpApi<ApiId, Groups>,
   options: {
     readonly httpClient: HttpClient.HttpClient.With<E, R>
@@ -201,9 +267,9 @@ const makeClient = <ApiId extends string, Groups extends HttpApiGroup.Any, E, R>
       | undefined
     readonly baseUrl?: URL | string | undefined
   }
-): Effect.Effect<void, unknown, unknown> =>
+): Effect.Effect<void> =>
   Effect.gen(function*() {
-    const services = yield* Effect.context<any>()
+    const services = yield* Effect.context()
 
     const httpClient = options.httpClient.pipe(
       options?.baseUrl === undefined
@@ -275,9 +341,25 @@ const makeClient = <ApiId extends string, Groups extends HttpApiGroup.Any, E, R>
               Effect.fail
             )
         })
-        successes.forEach((schemas, status) => {
-          decodeMap[status] = schemasToResponse(schemas)
-        })
+
+        const successAlternatives = new Map<number, Array<ResponseAlternative>>()
+        for (const [status, schemas] of successes.entries()) {
+          const grouped = groupSchemasByContentType(schemas)
+          for (const [contentType, schemas] of grouped.entries()) {
+            addResponseAlternative(successAlternatives, status, contentType, schemasToResponse(schemas))
+          }
+        }
+        for (const streamSuccess of getStreamSuccessSchemas(endpoint)) {
+          addResponseAlternative(
+            successAlternatives,
+            HttpApiSchema.getStatusStream(streamSuccess),
+            streamSuccess.contentType,
+            streamToResponse(streamSuccess)
+          )
+        }
+        for (const [status, alternatives] of successAlternatives.entries()) {
+          decodeMap[status] = makeResponseDecoder(alternatives)
+        }
 
         // encoders
         const encodeParams = UndefinedOr.map(endpoint.params, Schema.encodeUnknownEffect)
@@ -368,8 +450,11 @@ const makeClient = <ApiId extends string, Groups extends HttpApiGroup.Any, E, R>
   })
 
 /**
- * @since 4.0.0
+ * Constructs a type-safe client for an HTTP API using the `HttpClient` service,
+ * endpoint schemas, middleware, and optional client or response transformations.
+ *
  * @category constructors
+ * @since 4.0.0
  */
 export const make = <ApiId extends string, Groups extends HttpApiGroup.Any>(
   api: HttpApi.HttpApi<ApiId, Groups>,
@@ -385,15 +470,19 @@ export const make = <ApiId extends string, Groups extends HttpApiGroup.Any>(
   never,
   HttpClient.HttpClient | HttpApiGroup.MiddlewareClient<Groups>
 > =>
-  Effect.flatMap(HttpClient.HttpClient.asEffect(), (httpClient) =>
+  Effect.flatMap(HttpClient.HttpClient, (httpClient) =>
     makeWith(api, {
       ...options,
       httpClient: options?.transformClient ? options.transformClient(httpClient) : httpClient
     }))
 
 /**
- * @since 4.0.0
+ * Constructs a type-safe client for an HTTP API from the supplied `HttpClient`,
+ * using the API metadata to encode requests, execute middleware, and decode
+ * responses.
+ *
  * @category constructors
+ * @since 4.0.0
  */
 export const makeWith = <ApiId extends string, Groups extends HttpApiGroup.Any, E, R>(
   api: HttpApi.HttpApi<ApiId, Groups>,
@@ -419,8 +508,11 @@ export const makeWith = <ApiId extends string, Groups extends HttpApiGroup.Any, 
 }
 
 /**
- * @since 4.0.0
+ * Builds a typed client object for a single API group from the supplied
+ * `HttpClient`, filtering the API to that group.
+ *
  * @category constructors
+ * @since 4.0.0
  */
 export const group = <
   ApiId extends string,
@@ -454,8 +546,11 @@ export const group = <
 }
 
 /**
- * @since 4.0.0
+ * Builds the typed client method for one endpoint in one API group, using the
+ * supplied `HttpClient` and endpoint metadata.
+ *
  * @category constructors
+ * @since 4.0.0
  */
 export const endpoint = <
   ApiId extends string,
@@ -500,7 +595,8 @@ export const endpoint = <
 /**
  * Creates a type-safe URL builder that mirrors `HttpApiClient.make`.
  *
- * @example
+ * **Example** (Building typed URLs)
+ *
  * ```ts
  * import { Schema } from "effect"
  * import { HttpApi, HttpApiClient, HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi"
@@ -522,8 +618,9 @@ export const endpoint = <
  * })
  * //=> "https://api.example.com/users/123"
  * ```
- * @since 4.0.0
+ *
  * @category constructors
+ * @since 4.0.0
  */
 export const urlBuilder = <Api extends HttpApi.Any>(api: Api, options?: {
   readonly baseUrl?: URL | string | undefined
@@ -539,10 +636,10 @@ export const urlBuilder = <Api extends HttpApi.Any>(api: Api, options?: {
       const makeUrl = compilePath(endpoint.path)
       const encodeParams = endpoint.params === undefined
         ? undefined
-        : Schema.encodeSync(endpoint.params as Schema.Encoder<unknown>)
+        : Schema.encodeSync(endpoint.params as Schema.Codec<unknown, unknown>)
       const encodeQuery = endpoint.query === undefined
         ? undefined
-        : Schema.encodeSync(endpoint.query as Schema.Encoder<unknown>)
+        : Schema.encodeSync(endpoint.query as Schema.Codec<unknown, unknown>)
 
       const endpointBuilder = (request?: {
         readonly params?: unknown
@@ -568,31 +665,178 @@ export const urlBuilder = <Api extends HttpApi.Any>(api: Api, options?: {
 
 // ----------------------------------------------------------------------------
 
-const paramsRegExp = /:(\w+)\??/g
+const paramsRegExp = /(\/?):(\w+)(\?)?/g
 
 const compilePath = (path: string) => {
-  const segments = path.split(paramsRegExp)
-  const len = segments.length
-  if (len === 1) {
+  if (!paramsRegExp.test(path)) {
     return (_: any) => path
   }
+  paramsRegExp.lastIndex = 0
   return (params: Record<string, string | undefined>) => {
-    let url = segments[0]
-    for (let i = 1; i < len; i++) {
-      if (i % 2 === 0) {
-        url += segments[i]
-      } else {
-        url += params[segments[i]]
+    paramsRegExp.lastIndex = 0
+    return path.replace(paramsRegExp, (_, slash: string, key: string, optional: string | undefined) => {
+      const value = params[key]
+      if (value === undefined) {
+        if (optional !== undefined) {
+          return ""
+        }
+        throw new Error(`Missing path parameter: ${key}`)
       }
-    }
-    return url
+      return `${slash}${encodeURIComponent(value)}`
+    })
   }
 }
 
-function schemasToResponse(schemas: readonly [Schema.Top, ...Array<Schema.Top>]) {
+function schemasToResponse(schemas: readonly [Schema.Constraint, ...Array<Schema.Constraint>]) {
   const codec = toCodecArrayBuffer(schemas)
   const decode = Schema.decodeEffect(codec)
   return (response: HttpClientResponse.HttpClientResponse) => Effect.flatMap(response.arrayBuffer, decode)
+}
+
+type ResponseDecoder = (response: HttpClientResponse.HttpClientResponse) => Effect.Effect<unknown, unknown, unknown>
+
+interface ResponseAlternative {
+  readonly contentType: string
+  readonly decode: ResponseDecoder
+}
+
+function addResponseAlternative(
+  map: Map<number, Array<ResponseAlternative>>,
+  status: number,
+  contentType: string,
+  decode: ResponseDecoder
+) {
+  const normalizedContentType = normalizeContentType(contentType)
+  const alternatives = map.get(status)
+  if (alternatives === undefined) {
+    map.set(status, [{ contentType: normalizedContentType, decode }])
+  } else {
+    alternatives.push({ contentType: normalizedContentType, decode })
+  }
+}
+
+function makeResponseDecoder(alternatives: ReadonlyArray<ResponseAlternative>): ResponseDecoder {
+  const first = alternatives[0]
+  if (alternatives.length === 1 && first !== undefined) {
+    return first.decode
+  }
+  return (response) => {
+    const contentType = normalizeContentType(response.headers["content-type"] ?? "")
+    const alternative = alternatives.find((alternative) => alternative.contentType === contentType)
+    return alternative === undefined
+      ? failUnsupportedContentType(response, contentType, alternatives)
+      : alternative.decode(response)
+  }
+}
+
+function groupSchemasByContentType(
+  schemas: Arr.NonEmptyReadonlyArray<Schema.Top>
+): Map<string, Arr.NonEmptyReadonlyArray<Schema.Top>> {
+  const grouped = new Map<string, [Schema.Top, ...Array<Schema.Top>]>()
+  for (const schema of schemas) {
+    const contentType = HttpApiSchema.getResponseEncoding(schema.ast).contentType
+    const existing = grouped.get(contentType)
+    if (existing === undefined) {
+      grouped.set(contentType, [schema])
+    } else {
+      existing.push(schema)
+    }
+  }
+  return grouped
+}
+
+function normalizeContentType(contentType: string): string {
+  const normalized = contentType.toLowerCase().trim()
+  const index = normalized.indexOf(";")
+  return index === -1 ? normalized : normalized.slice(0, index).trim()
+}
+
+function failUnsupportedContentType(
+  response: HttpClientResponse.HttpClientResponse,
+  contentType: string,
+  alternatives: ReadonlyArray<ResponseAlternative>
+) {
+  const expected = Array.from(new Set(alternatives.map((alternative) => alternative.contentType))).join(", ")
+  return Effect.fail(
+    new HttpClientError.HttpClientError({
+      reason: new HttpClientError.DecodeError({
+        request: response.request,
+        response,
+        description: `Unsupported response content-type for status ${response.status}: ${
+          contentType || "<missing>"
+        }. Expected one of: ${expected}`
+      })
+    })
+  )
+}
+
+const reservedStreamFailureEvent = "effect/httpapi/stream/failure"
+
+function getStreamSuccessSchemas(endpoint: HttpApiEndpoint.AnyWithProps): Array<HttpApiSchema.StreamSchema> {
+  const schemas: Array<HttpApiSchema.StreamSchema> = []
+  for (const schema of endpoint.success) {
+    if (HttpApiSchema.isStreamSchema(schema)) {
+      schemas.push(schema)
+    }
+  }
+  return schemas
+}
+
+function streamToResponse(streamSchema: HttpApiSchema.StreamSchema) {
+  return (response: HttpClientResponse.HttpClientResponse) =>
+    Effect.map(Effect.context<never>(), (context) =>
+      Stream.provideContext(
+        HttpApiSchema.isStreamUint8Array(streamSchema) ?
+          response.stream :
+          decodeSseStream(response.stream, streamSchema),
+        context as Context.Context<unknown>
+      ))
+}
+
+function decodeSseStream(
+  stream: Stream.Stream<Uint8Array, HttpClientError.HttpClientError>,
+  declaration: HttpApiSchema.StreamSse<Sse.EventCodec, Schema.Constraint, unknown>
+): Stream.Stream<unknown, unknown, unknown> {
+  const Event = Schema.Union([
+    declaration.events,
+    Schema.Struct({
+      event: Schema.Literal(reservedStreamFailureEvent),
+      data: Schema.fromJsonString(Schema.toCodecJson(Schema.Cause(declaration.error, Schema.Defect())))
+    })
+  ])
+  const events = Stream.transformPull(
+    stream.pipe(
+      Stream.decodeText,
+      Stream.pipeThroughChannel(Sse.decodeSchema(Event))
+    ),
+    (pull) =>
+      Effect.sync(() => {
+        let failureCause: Cause.Cause<unknown> | undefined = undefined
+        return Effect.suspend(() => {
+          if (failureCause) {
+            return Effect.failCause(failureCause)
+          }
+          return Effect.flatMap(pull, (events) => {
+            for (let i = 0; i < events.length; i++) {
+              const event = events[i]
+              if (event.event === reservedStreamFailureEvent) {
+                if (i === 0) {
+                  return Effect.failCause(event.data)
+                }
+                failureCause = event.data
+                events = events.slice(0, i) as any
+                break
+              }
+            }
+            return Effect.succeed(events)
+          })
+        })
+      })
+  )
+  if (declaration.sseMode === "data") {
+    return Stream.map(events, (event) => event.data)
+  }
+  return events
 }
 
 const ArrayBuffer = Schema.instanceOf(globalThis.ArrayBuffer, {
@@ -603,7 +847,7 @@ const ArrayBuffer = Schema.instanceOf(globalThis.ArrayBuffer, {
 const Uint8ArrayFromArrayBuffer = ArrayBuffer.pipe(
   Schema.decodeTo(
     Schema.Uint8Array as Schema.instanceOf<Uint8Array<ArrayBuffer>>,
-    Transformation.transform({
+    SchemaTransformation.transform({
       decode(fromA) {
         return new Uint8Array(fromA)
       },
@@ -620,7 +864,7 @@ const Uint8ArrayFromArrayBuffer = ArrayBuffer.pipe(
 const StringFromArrayBuffer = ArrayBuffer.pipe(
   Schema.decodeTo(
     Schema.String,
-    Transformation.transform({
+    SchemaTransformation.transform({
       decode(fromA) {
         return new TextDecoder().decode(fromA)
       },
@@ -640,7 +884,7 @@ const UnknownFromArrayBuffer = StringFromArrayBuffer.pipe(Schema.decodeTo(
     // Handle No Content
     Schema.Literal("").pipe(Schema.decodeTo(
       Schema.Undefined,
-      Transformation.transform({
+      SchemaTransformation.transform({
         decode: () => undefined,
         encode: () => ""
       })
@@ -649,19 +893,19 @@ const UnknownFromArrayBuffer = StringFromArrayBuffer.pipe(Schema.decodeTo(
   ])
 ))
 
-function toCodecArrayBuffer(schemas: readonly [Schema.Top, ...Array<Schema.Top>]): Schema.Top {
+function toCodecArrayBuffer(schemas: readonly [Schema.Constraint, ...Array<Schema.Constraint>]): Schema.Top {
   return Schema.Union(schemas.map(onSchema))
 
-  function onSchema(schema: Schema.Top) {
+  function onSchema(schema: Schema.Constraint) {
     const encoding = HttpApiSchema.getResponseEncoding(schema.ast)
     switch (encoding._tag) {
       case "Json": {
         // handle json codecs that transform void schemas to null
-        const encodedIsNull = AST.isNull(AST.toEncoded(schema.ast))
+        const encodedIsNull = SchemaAST.isNull(SchemaAST.toEncoded(schema.ast))
         return UnknownFromArrayBuffer.pipe(Schema.decodeTo(
           schema,
           encodedIsNull ?
-            Transformation.transform({
+            SchemaTransformation.transform({
               decode: (a) => a === undefined ? null : a,
               encode: (a) => a === null ? undefined : a
             }) as any :
@@ -694,16 +938,16 @@ const statusOrElse = (response: HttpClientResponse.HttpClientResponse) =>
 const $HttpBody = Schema.declare(HttpBody.isHttpBody)
 
 function getEncodePayloadSchema(
-  schemas: readonly [Schema.Top, ...Array<Schema.Top>],
+  schemas: readonly [Schema.Constraint, ...Array<Schema.Constraint>],
   method: HttpMethod.HttpMethod
 ): Schema.Top {
   return Schema.Union(schemas.map((s) => getEncodePayloadSchemaFromBody(s, method)))
 }
 
-const bodyFromPayloadCache = new WeakMap<AST.AST, Schema.Top>()
+const bodyFromPayloadCache = new WeakMap<SchemaAST.AST, Schema.Top>()
 
 function getEncodePayloadSchemaFromBody(
-  schema: Schema.Top,
+  schema: Schema.Constraint,
   method: HttpMethod.HttpMethod
 ): Schema.Top {
   const ast = schema.ast
@@ -714,40 +958,40 @@ function getEncodePayloadSchemaFromBody(
   const encoding = HttpApiSchema.getPayloadEncoding(ast, method)
   const out = $HttpBody.pipe(Schema.decodeTo(
     schema,
-    Transformation.transformOrFail<unknown, HttpBody.HttpBody>({
+    SchemaTransformation.transformOrFail<unknown, HttpBody.HttpBody>({
       decode(httpBody) {
-        return Effect.fail(new Issue.Forbidden(Option.some(httpBody), { message: "Encode only schema" }))
+        return Effect.fail(new SchemaIssue.Forbidden(Option.some(httpBody), { message: "Encode only schema" }))
       },
       encode(t) {
         switch (encoding._tag) {
           case "Multipart":
-            return Effect.fail(new Issue.Forbidden(Option.some(t), { message: "Payload must be a FormData" }))
+            return Effect.fail(new SchemaIssue.Forbidden(Option.some(t), { message: "Payload must be a FormData" }))
           case "Json": {
             try {
               const body = JSON.stringify(t)
               return Effect.succeed(HttpBody.text(body, encoding.contentType))
             } catch (error) {
-              return Effect.fail(new Issue.InvalidValue(Option.some(t), { message: globalThis.String(error) }))
+              return Effect.fail(new SchemaIssue.InvalidValue(Option.some(t), { message: globalThis.String(error) }))
             }
           }
           case "Text": {
             if (typeof t !== "string") {
               return Effect.fail(
-                new Issue.InvalidValue(Option.some(t), { message: "Expected a string" })
+                new SchemaIssue.InvalidValue(Option.some(t), { message: "Expected a string" })
               )
             }
             return Effect.succeed(HttpBody.text(t, encoding.contentType))
           }
           case "FormUrlEncoded": {
             if (!Predicate.isObject(t)) {
-              return Effect.fail(new Issue.InvalidValue(Option.some(t), { message: "Expected a record" }))
+              return Effect.fail(new SchemaIssue.InvalidValue(Option.some(t), { message: "Expected a record" }))
             }
             return Effect.succeed(HttpBody.urlParams(UrlParams.fromInput(t as any)))
           }
           case "Uint8Array": {
             if (!(t instanceof Uint8Array)) {
               return Effect.fail(
-                new Issue.InvalidValue(Option.some(t), { message: "Expected a Uint8Array" })
+                new SchemaIssue.InvalidValue(Option.some(t), { message: "Expected a Uint8Array" })
               )
             }
             return Effect.succeed(HttpBody.uint8Array(t, encoding.contentType))

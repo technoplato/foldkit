@@ -1,4 +1,12 @@
 /**
+ * Server-side layers for workflow proxy APIs.
+ *
+ * `layerHttpApi` connects the HTTP API group created by `WorkflowProxy` to the
+ * supplied workflows. `layerRpcHandlers` does the same for the generated RPC
+ * definitions. Both layers route execute, discard, and resume requests to the
+ * matching workflow operation, while the `WorkflowEngine` and workflow handler
+ * services stay on the server side.
+ *
  * @since 4.0.0
  */
 import type { NonEmptyReadonlyArray } from "../../Array.ts"
@@ -13,8 +21,11 @@ import type * as Workflow from "./Workflow.ts"
 import type { WorkflowEngine } from "./WorkflowEngine.ts"
 
 /**
+ * Creates handlers for a workflow HTTP API group, wiring execute, discard, and
+ * resume endpoints to the supplied workflows.
+ *
+ * @category layers
  * @since 4.0.0
- * @category Layers
  */
 export const layerHttpApi = <
   ApiId extends string,
@@ -39,35 +50,35 @@ export const layerHttpApi = <
         const workflow = workflow_ as Workflow.AnyWithProps
         handlers = handlers
           .handle(
-            workflow.name as any,
+            workflow._tag as any,
             ({ payload }: { payload: any }) =>
               workflow.execute(payload).pipe(
                 Effect.tapDefect(Effect.logError),
                 Effect.annotateLogs({
                   module: "WorkflowProxyServer",
-                  method: workflow.name
+                  method: workflow._tag
                 })
               )
           )
           .handle(
-            workflow.name + "Discard" as any,
+            workflow._tag + "Discard" as any,
             ({ payload }: { payload: any }) =>
               workflow.execute(payload, { discard: true } as any).pipe(
                 Effect.tapDefect(Effect.logError),
                 Effect.annotateLogs({
                   module: "WorkflowProxyServer",
-                  method: workflow.name + "Discard"
+                  method: workflow._tag + "Discard"
                 })
               )
           )
           .handle(
-            workflow.name + "Resume" as any,
+            workflow._tag + "Resume" as any,
             ({ payload }: { payload: any }) =>
               workflow.resume(payload.executionId).pipe(
                 Effect.tapDefect(Effect.logError),
                 Effect.annotateLogs({
                   module: "WorkflowProxyServer",
-                  method: workflow.name + "Resume"
+                  method: workflow._tag + "Resume"
                 })
               )
           )
@@ -77,8 +88,11 @@ export const layerHttpApi = <
   )
 
 /**
+ * Creates RPC handlers for the supplied workflows, wiring execute, discard,
+ * and resume RPCs to workflow operations.
+ *
+ * @category layers
  * @since 4.0.0
- * @category Layers
  */
 export const layerRpcHandlers = <
   const Workflows extends NonEmptyReadonlyArray<Workflow.Any>,
@@ -91,29 +105,29 @@ export const layerRpcHandlers = <
   WorkflowEngine | Workflow.RequirementsHandler<Workflows[number]>
 > =>
   Layer.effectContext(Effect.gen(function*() {
-    const services = yield* Effect.context<never>()
+    const context = yield* Effect.context<never>()
     const prefix = options?.prefix ?? ""
     const handlers = new Map<string, Rpc.Handler<string>>()
     for (const workflow_ of workflows) {
       const workflow = workflow_ as Workflow.AnyWithProps
-      const tag = `${prefix}${workflow.name}`
+      const tag = `${prefix}${workflow._tag}`
       const tagDiscard = `${tag}Discard`
       const tagResume = `${tag}Resume`
       const key = `effect/rpc/Rpc/${tag}`
       const keyDiscard = `${key}Discard`
       const keyResume = `${key}Resume`
       handlers.set(key, {
-        services,
+        context,
         tag,
         handler: (payload: any) => workflow.execute(payload) as any
       } as any)
       handlers.set(keyDiscard, {
-        services,
+        context,
         tag: tagDiscard,
         handler: (payload: any) => workflow.execute(payload, { discard: true } as any) as any
       } as any)
       handlers.set(keyResume, {
-        services,
+        context,
         tag: tagResume,
         handler: (payload: any) => workflow.resume(payload.executionId) as any
       } as any)
@@ -122,6 +136,10 @@ export const layerRpcHandlers = <
   }))
 
 /**
+ * Union of RPC handler services required to serve the generated workflow
+ * execute, discard, and resume RPCs.
+ *
+ * @category services
  * @since 4.0.0
  */
 export type RpcHandlers<Workflows extends Workflow.Any, Prefix extends string> = Workflows extends Workflow.Workflow<

@@ -1,4 +1,11 @@
 /**
+ * Cryptographic service for encrypted event-log replication.
+ *
+ * `EventLogEncryption` turns local journal entries into encrypted remote
+ * payloads and decrypts encrypted changes received from a server. It also
+ * hashes byte data and creates event-log identities, so remote replication can
+ * use storage or transport that should not see plaintext event data.
+ *
  * @since 4.0.0
  */
 import * as Context from "../../Context.ts"
@@ -12,8 +19,11 @@ import type { Identity } from "./EventLog.ts"
 import { makeGetIdentityRootSecretMaterial } from "./internal/identityRootSecretDerivation.ts"
 
 /**
- * @since 4.0.0
+ * Schema for an encrypted journal entry paired with the id of the original
+ * entry.
+ *
  * @category models
+ * @since 4.0.0
  */
 export const EncryptedEntry = Schema.Struct({
   entryId: EntryId,
@@ -21,14 +31,19 @@ export const EncryptedEntry = Schema.Struct({
 })
 
 /**
- * @since 4.0.0
+ * Type of an encrypted remote entry, including its remote sequence number,
+ * initialization vector, entry id, and encrypted entry bytes.
+ *
  * @category models
+ * @since 4.0.0
  */
 export interface EncryptedRemoteEntry extends Schema.Schema.Type<typeof EncryptedRemoteEntry> {}
 
 /**
- * @since 4.0.0
+ * Schema for encrypted entries exchanged with a remote event-log server.
+ *
  * @category models
+ * @since 4.0.0
  */
 export const EncryptedRemoteEntry = Schema.Struct({
   sequence: Schema.Number,
@@ -46,8 +61,16 @@ const toArrayBuffer = (data: Uint8Array): ArrayBuffer => {
 const toBufferSource = (data: Uint8Array): ArrayBufferView<ArrayBuffer> => new Uint8Array(toArrayBuffer(data))
 
 /**
- * @since 4.0.0
+ * Service that provides identity generation, entry
+ * encryption and decryption, and SHA-256 hashing for event-log replication.
+ *
+ * **When to use**
+ *
+ * Use to provide cryptographic operations required by encrypted event-log
+ * replication.
+ *
  * @category services
+ * @since 4.0.0
  */
 export class EventLogEncryption extends Context.Service<EventLogEncryption, {
   readonly encrypt: (
@@ -67,8 +90,11 @@ export class EventLogEncryption extends Context.Service<EventLogEncryption, {
 }>()("effect/eventlog/EventLogEncryption") {}
 
 /**
- * @since 4.0.0
+ * Creates an `EventLogEncryption` service backed by the Web Crypto `SubtleCrypto`
+ * APIs from the supplied `Crypto` implementation.
+ *
  * @category encryption
+ * @since 4.0.0
  */
 export const makeEncryptionSubtle = (crypto: Crypto): Effect.Effect<EventLogEncryption["Service"]> =>
   Effect.sync(() => {
@@ -132,8 +158,10 @@ export const makeEncryptionSubtle = (crypto: Crypto): Effect.Effect<EventLogEncr
   })
 
 /**
- * @since 4.0.0
+ * Provides `EventLogEncryption` using `globalThis.crypto`.
+ *
  * @category encryption
+ * @since 4.0.0
  */
 export const layerSubtle: Layer.Layer<EventLogEncryption> = Layer.effect(
   EventLogEncryption,
