@@ -15,6 +15,7 @@
     "clean": "rimraf dist *.tsbuildinfo",
     "build": "pnpm run clean && tsc -b",
     "format": "prettier -w .",
+    "test": "vitest run",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
@@ -26,7 +27,9 @@
     "typescript": "^6.0.3"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3"
+    "@effect/vitest": "4.0.0-beta.88",
+    "@types/node": "^25.9.3",
+    "vitest": "^4.1.9"
   },
   "keywords": [
     "create-foldkit-app",
