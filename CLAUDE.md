@@ -77,6 +77,7 @@ Don't add inline or block comments to explain code. If code needs explanation, r
 ## View Architecture
 
 - Key every branching view. Whenever a DOM position renders different content based on a value (route tag, top-level model variant, sub-model, any tagged union), wrap it in a single `keyed` element with a discriminating key. Same rule applies to `Match`, `if/else`, and ternaries.
+- One key per branch, never shared. If two branches would share a key, restructure them into a single branch whose internal differences are keyed conditional inserts. Sharing a key across branches encodes an identity claim the branch structure contradicts, and it rots into cross-branch patching.
 - Key mapped list items by a stable model identifier, never by array position.
 - Key conditional inserts between stable siblings.
 

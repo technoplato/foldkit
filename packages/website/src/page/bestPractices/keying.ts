@@ -12,6 +12,7 @@ import {
   tableOfContentsEntryToHeader,
   warningCallout,
 } from '../../prose'
+import { asyncDataRouter } from '../../route'
 import * as Snippet from '../../snippet'
 import { type CopiedSnippets, highlightedCodeBlock } from '../../view/codeBlock'
 
@@ -25,6 +26,12 @@ const branchingViewsHeader: TableOfContentsEntry = {
   level: 'h3',
   id: 'branching-views',
   text: 'Branching Views',
+}
+
+const oneKeyPerBranchHeader: TableOfContentsEntry = {
+  level: 'h3',
+  id: 'one-key-per-branch',
+  text: 'One Key per Branch',
 }
 
 const mappedListItemsHeader: TableOfContentsEntry = {
@@ -42,6 +49,7 @@ const conditionalInsertsHeader: TableOfContentsEntry = {
 export const tableOfContents: ReadonlyArray<TableOfContentsEntry> = [
   keyingHeader,
   branchingViewsHeader,
+  oneKeyPerBranchHeader,
   mappedListItemsHeader,
   conditionalInsertsHeader,
 ]
@@ -104,6 +112,51 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
         ', ',
         inlineCode('if/else'),
         ', and ternaries.',
+      ),
+      tableOfContentsEntryToHeader(oneKeyPerBranchHeader),
+      para(
+        'Every branch gets its own key, and a key is never shared across branches. The temptation to share shows up with async data: ',
+        inlineCode('Success'),
+        ', ',
+        inlineCode('Refreshing'),
+        ', and ',
+        inlineCode('Stale'),
+        ' all render the same list, and giving them one key keeps the DOM (scroll position, focus, transitions) alive through a background refresh instead of rebuilding it on every revalidation.',
+      ),
+      para(
+        'Sharing the key is the wrong fix. It splits one identity claim across two places that must now agree forever: the match arms say the states are different things, the key says they are the same thing, and nothing checks that the branches sharing a key keep rendering compatible trees. When they drift apart, Snabbdom patches one branch into another, which is the exact corruption keying exists to prevent.',
+      ),
+      para(
+        'Restructure the view instead, so the branch structure itself carries the identity: collapse the states that render the same scaffold into one branch, and express their differences as keyed conditional inserts inside it. With ',
+        link(asyncDataRouter(), 'AsyncData'),
+        ' that is ',
+        inlineCode('matchDataSplit'),
+        ': four branches, four keys, and the ',
+        inlineCode('Refreshing'),
+        ' badge and ',
+        inlineCode('Stale'),
+        ' banner become inserts driven by ',
+        inlineCode('isRefreshing'),
+        ' and ',
+        inlineCode('getError'),
+        '.',
+      ),
+      highlightedCodeBlock(
+        h.div(
+          [
+            h.Class('text-sm'),
+            h.InnerHTML(Snippet.keyingOneKeyPerBranchHighlighted),
+          ],
+          [],
+        ),
+        Snippet.keyingOneKeyPerBranchRaw,
+        'Copy one key per branch example to clipboard',
+        copiedSnippets,
+        'mb-8',
+      ),
+      warningCallout(
+        'One key per branch',
+        'If two branches want to share a key, they want to be one branch. Restructure the view rather than aliasing keys.',
       ),
       tableOfContentsEntryToHeader(mappedListItemsHeader),
       para(
