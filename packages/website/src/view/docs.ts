@@ -684,6 +684,11 @@ export const docsView = (model: Model, docsRoute: DocsRoute) => {
           ]),
           Page.Core.Submodel.tableOfContents,
         ),
+      AsyncData: () =>
+        withTableOfContents(
+          lazyDocsContent(Page.AsyncData.view, [model.copiedSnippets]),
+          Page.AsyncData.tableOfContents,
+        ),
       PatternsInformingSubmodels: () =>
         withTableOfContents(
           lazyDocsContent(Page.Patterns.InformingSubmodels.view, [

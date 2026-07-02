@@ -70,12 +70,12 @@ export const CoreFreezeModelRoute = r('CoreFreezeModel')
 export const CoreViewMemoizationRoute = r('CoreViewMemoization')
 export const CoreEmbeddingRoute = r('CoreEmbedding')
 export const CoreSubmodelRoute = r('CoreSubmodel')
+export const AsyncDataRoute = r('AsyncData')
 
 export const PatternsInformingSubmodelsRoute = r('PatternsInformingSubmodels')
 export const PatternsSubscriptionOrganizationRoute = r(
   'PatternsSubscriptionOrganization',
 )
-
 export const UiOverviewRoute = r('UiOverview')
 export const UiSelectionSubmodelsRoute = r('UiSelectionSubmodels')
 export const UiButtonRoute = r('UiButton')
@@ -162,6 +162,7 @@ export const DocsRoute = S.Union([
   CoreViewMemoizationRoute,
   CoreEmbeddingRoute,
   CoreSubmodelRoute,
+  AsyncDataRoute,
   PatternsInformingSubmodelsRoute,
   PatternsSubscriptionOrganizationRoute,
   UiOverviewRoute,
@@ -373,6 +374,7 @@ export const coreViewMemoizationRouter = core(
 )
 export const coreEmbeddingRouter = core('embedding', CoreEmbeddingRoute)
 export const coreSubmodelRouter = core('submodel', CoreSubmodelRoute)
+export const asyncDataRouter = core('async-data', AsyncDataRoute)
 
 export const patternsInformingSubmodelsRouter = patterns(
   'informing-submodels',
@@ -382,7 +384,6 @@ export const patternsSubscriptionOrganizationRouter = patterns(
   'subscription-organization',
   PatternsSubscriptionOrganizationRoute,
 )
-
 export const uiOverviewRouter = ui('overview', UiOverviewRoute)
 export const uiSelectionSubmodelsRouter = ui(
   'selection-submodels',
@@ -471,6 +472,7 @@ const coreParser = oneOf(
   coreSubmodelRouter,
   routingAndNavigationRouter,
   fieldValidationRouter,
+  asyncDataRouter,
 )
 
 const patternsParser = oneOf(

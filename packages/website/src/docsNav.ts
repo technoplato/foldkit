@@ -5,6 +5,7 @@ import {
   aiMcpRouter,
   aiOverviewRouter,
   aiSkillsRouter,
+  asyncDataRouter,
   bestPracticesImmutabilityRouter,
   bestPracticesKeyingRouter,
   bestPracticesMessagesRouter,
@@ -260,6 +261,11 @@ export const docsSections: ReadonlyArray<DocsSection> = [
           _tag: 'FieldValidation',
           href: fieldValidationRouter(),
           label: 'Field Validation',
+        },
+        {
+          _tag: 'AsyncData',
+          href: asyncDataRouter(),
+          label: 'Async Data',
         },
       ],
       [
