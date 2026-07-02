@@ -1,4 +1,4 @@
-import { HashMap, Option } from 'effect'
+import { HashMap, Option, Result } from 'effect'
 import { Story } from 'foldkit'
 import { expect, test } from 'vitest'
 
@@ -11,7 +11,6 @@ import {
   ClickedRefreshStats,
   ClickedRetryPostDetail,
   ClickedRetryPosts,
-  FailedFetchPostDetail,
   FetchPostDetail,
   FetchPosts,
   FetchStats,
@@ -19,10 +18,10 @@ import {
   type Model,
   PostDetailData,
   PostsData,
+  SettledFetchPostDetail,
+  SettledFetchPosts,
+  SettledFetchStats,
   StatsData,
-  SucceededFetchPostDetail,
-  SucceededFetchPosts,
-  SucceededFetchStats,
   TickedRevalidateStats,
   update,
 } from './main'
@@ -67,10 +66,12 @@ test('first visit to the Stats tab fetches stats', () => {
     resolveFocusTab,
     Story.Command.resolve(
       FetchStats,
-      SucceededFetchStats({ stats: fixtureStats, fetchedAt: FETCHED_AT }),
+      SettledFetchStats({
+        result: Result.succeed({ stats: fixtureStats, fetchedAt: FETCHED_AT }),
+      }),
     ),
     Story.model(model => {
-      expect(model.stats._tag).toBe('Ok')
+      expect(model.stats._tag).toBe('Success')
     }),
   )
 })
@@ -86,7 +87,7 @@ test('returning to a tab with cached data does not refetch', () => {
     resolveFocusTab,
     Story.Command.expectNone(),
     Story.model(model => {
-      expect(model.stats._tag).toBe('Ok')
+      expect(model.stats._tag).toBe('Success')
     }),
   )
 })
@@ -99,20 +100,41 @@ test('a revalidation tick keeps stale stats on screen while refetching', () => {
     Story.model(model => {
       expect(model.stats._tag).toBe('Refreshing')
       if (model.stats._tag === 'Refreshing') {
-        expect(model.stats.data).toEqual(fixtureStats)
+        expect(model.stats.data.stats).toEqual(fixtureStats)
       }
     }),
     Story.Command.resolve(
       FetchStats,
-      SucceededFetchStats({
-        stats: { ...fixtureStats, activeUsers: 99 },
-        fetchedAt: FETCHED_AT + 5000,
+      SettledFetchStats({
+        result: Result.succeed({
+          stats: { ...fixtureStats, activeUsers: 99 },
+          fetchedAt: FETCHED_AT + 5000,
+        }),
       }),
     ),
     Story.model(model => {
-      expect(model.stats._tag).toBe('Ok')
-      if (model.stats._tag === 'Ok') {
-        expect(model.stats.data.activeUsers).toBe(99)
+      expect(model.stats._tag).toBe('Success')
+      if (model.stats._tag === 'Success') {
+        expect(model.stats.data.stats.activeUsers).toBe(99)
+      }
+    }),
+  )
+})
+
+test('a failed refresh keeps the stale stats on screen with the error', () => {
+  Story.story(
+    update,
+    Story.with(loadedStatsModel),
+    Story.message(TickedRevalidateStats()),
+    Story.Command.resolve(
+      FetchStats,
+      SettledFetchStats({ result: Result.fail('The server is down.') }),
+    ),
+    Story.model(model => {
+      expect(model.stats._tag).toBe('Stale')
+      if (model.stats._tag === 'Stale') {
+        expect(model.stats.data.stats).toEqual(fixtureStats)
+        expect(model.stats.error).toBe('The server is down.')
       }
     }),
   )
@@ -133,8 +155,7 @@ test('a revalidation tick during a refresh is deduplicated', () => {
     Story.with({
       ...loadedStatsModel,
       stats: StatsData.Refreshing({
-        data: fixtureStats,
-        fetchedAt: FETCHED_AT,
+        data: { stats: fixtureStats, fetchedAt: FETCHED_AT },
       }),
     }),
     Story.message(TickedRevalidateStats()),
@@ -150,18 +171,20 @@ test('invalidating posts refetches while keeping the current list', () => {
     Story.model(model => {
       expect(model.posts._tag).toBe('Refreshing')
       if (model.posts._tag === 'Refreshing') {
-        expect(model.posts.data).toEqual(fixturePosts)
+        expect(model.posts.data.posts).toEqual(fixturePosts)
       }
     }),
     Story.Command.resolve(
       FetchPosts,
-      SucceededFetchPosts({
-        posts: fixturePosts,
-        fetchedAt: FETCHED_AT + 1000,
+      SettledFetchPosts({
+        result: Result.succeed({
+          posts: fixturePosts,
+          fetchedAt: FETCHED_AT + 1000,
+        }),
       }),
     ),
     Story.model(model => {
-      expect(model.posts._tag).toBe('Ok')
+      expect(model.posts._tag).toBe('Success')
     }),
   )
 })
@@ -179,10 +202,12 @@ test('retrying failed posts shows the loading state and refetches', () => {
     }),
     Story.Command.resolve(
       FetchPosts,
-      SucceededFetchPosts({ posts: fixturePosts, fetchedAt: FETCHED_AT }),
+      SettledFetchPosts({
+        result: Result.succeed({ posts: fixturePosts, fetchedAt: FETCHED_AT }),
+      }),
     ),
     Story.model(model => {
-      expect(model.posts._tag).toBe('Ok')
+      expect(model.posts._tag).toBe('Success')
     }),
   )
 })
@@ -197,17 +222,19 @@ test('opening a post fetches it once and serves revisits from the Model', () => 
     }),
     Story.Command.resolve(
       FetchPostDetail,
-      SucceededFetchPostDetail({
+      SettledFetchPostDetail({
         postId: 'first-post',
-        detail: firstPostDetail,
-        fetchedAt: FETCHED_AT,
+        result: Result.succeed({
+          detail: firstPostDetail,
+          fetchedAt: FETCHED_AT,
+        }),
       }),
     ),
     Story.message(ClickedBackToPosts()),
     Story.message(ClickedPost({ postId: 'first-post' })),
     Story.Command.expectNone(),
     Story.model(model => {
-      expect(postDetailTag(model, 'first-post')).toBe('Ok')
+      expect(postDetailTag(model, 'first-post')).toBe('Success')
       expect(model.maybeSelectedPostId).toEqual(Option.some('first-post'))
     }),
   )
@@ -220,9 +247,9 @@ test('a failed post detail fetch lands in Failure and retry refetches', () => {
     Story.message(ClickedPost({ postId: 'first-post' })),
     Story.Command.resolve(
       FetchPostDetail,
-      FailedFetchPostDetail({
+      SettledFetchPostDetail({
         postId: 'first-post',
-        error: 'The connection dropped.',
+        result: Result.fail('The connection dropped.'),
       }),
     ),
     Story.model(model => {
@@ -234,14 +261,16 @@ test('a failed post detail fetch lands in Failure and retry refetches', () => {
     }),
     Story.Command.resolve(
       FetchPostDetail,
-      SucceededFetchPostDetail({
+      SettledFetchPostDetail({
         postId: 'first-post',
-        detail: firstPostDetail,
-        fetchedAt: FETCHED_AT,
+        result: Result.succeed({
+          detail: firstPostDetail,
+          fetchedAt: FETCHED_AT,
+        }),
       }),
     ),
     Story.model(model => {
-      expect(postDetailTag(model, 'first-post')).toBe('Ok')
+      expect(postDetailTag(model, 'first-post')).toBe('Success')
     }),
   )
 })

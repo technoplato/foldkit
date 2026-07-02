@@ -80,7 +80,7 @@ const postDetails = Array.map(articles, ({ id, title, author, body }) =>
   PostDetail.make({ id, title, author, body }),
 )
 
-export const fetchPostsFromServer = Effect.gen(function* () {
+export const fetchPosts = Effect.gen(function* () {
   yield* Effect.sleep(SERVER_LATENCY)
 
   return posts
@@ -90,7 +90,7 @@ export const fetchPostsFromServer = Effect.gen(function* () {
 // retry path is reachable from the UI. The Foldkit app itself never mutates.
 let flakyAttemptCount = 0
 
-export const fetchPostDetailFromServer = (
+export const fetchPostDetail = (
   postId: string,
 ): Effect.Effect<PostDetail, string> =>
   Effect.gen(function* () {
@@ -115,7 +115,7 @@ export const fetchPostDetailFromServer = (
     )
   })
 
-export const fetchStatsFromServer = Effect.gen(function* () {
+export const fetchStats = Effect.gen(function* () {
   yield* Effect.sleep(SERVER_LATENCY)
 
   const activeUsers = yield* Random.nextIntBetween(80, 140)

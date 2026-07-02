@@ -1,15 +1,15 @@
+import { Result } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
 
 import { Tabs } from '@foldkit/ui'
 
 import {
-  FailedFetchPostDetail,
   FetchPostDetail,
   FetchStats,
   GotTabsMessage,
-  SucceededFetchPostDetail,
-  SucceededFetchStats,
+  SettledFetchPostDetail,
+  SettledFetchStats,
   update,
   view,
 } from './main'
@@ -49,10 +49,12 @@ describe('view', () => {
       Scene.Command.expectExact(FetchPostDetail({ postId: 'first-post' })),
       Scene.Command.resolve(
         FetchPostDetail,
-        SucceededFetchPostDetail({
+        SettledFetchPostDetail({
           postId: 'first-post',
-          detail: firstPostDetail,
-          fetchedAt: FETCHED_AT,
+          result: Result.succeed({
+            detail: firstPostDetail,
+            fetchedAt: FETCHED_AT,
+          }),
         }),
       ),
       Scene.inside(
@@ -84,9 +86,9 @@ describe('view', () => {
       Scene.click(Scene.role('button', { name: /First Post/ })),
       Scene.Command.resolve(
         FetchPostDetail,
-        FailedFetchPostDetail({
+        SettledFetchPostDetail({
           postId: 'first-post',
-          error: 'The connection dropped.',
+          result: Result.fail('The connection dropped.'),
         }),
       ),
       Scene.expect(Scene.text('The connection dropped.')).toExist(),
@@ -104,7 +106,12 @@ describe('view', () => {
       Scene.Command.expectExact(FetchStats()),
       Scene.Command.resolve(
         FetchStats,
-        SucceededFetchStats({ stats: fixtureStats, fetchedAt: FETCHED_AT }),
+        SettledFetchStats({
+          result: Result.succeed({
+            stats: fixtureStats,
+            fetchedAt: FETCHED_AT,
+          }),
+        }),
       ),
       Scene.expect(Scene.text('Active users')).toExist(),
       Scene.expect(Scene.text('97%')).toExist(),

@@ -40,12 +40,14 @@ export const loadingPostsModel: Model = {
   posts: PostsData.Loading(),
   postDetailById: HashMap.empty(),
   maybeSelectedPostId: Option.none(),
-  stats: StatsData.NotAsked(),
+  stats: StatsData.Idle(),
 }
 
 export const loadedPostsModel: Model = {
   ...loadingPostsModel,
-  posts: PostsData.Ok({ data: fixturePosts, fetchedAt: FETCHED_AT }),
+  posts: PostsData.Success({
+    data: { posts: fixturePosts, fetchedAt: FETCHED_AT },
+  }),
 }
 
 export const cachedFirstPostModel: Model = {
@@ -53,7 +55,9 @@ export const cachedFirstPostModel: Model = {
   postDetailById: HashMap.set(
     HashMap.empty(),
     'first-post',
-    PostDetailData.Ok({ data: firstPostDetail, fetchedAt: FETCHED_AT }),
+    PostDetailData.Success({
+      data: { detail: firstPostDetail, fetchedAt: FETCHED_AT },
+    }),
   ),
 }
 
@@ -61,5 +65,7 @@ export const loadedStatsModel: Model = {
   ...loadedPostsModel,
   tabs: Tabs.init({ id: TABS_ID, activeIndex: 1 }),
   activeTab: 'Stats',
-  stats: StatsData.Ok({ data: fixtureStats, fetchedAt: FETCHED_AT }),
+  stats: StatsData.Success({
+    data: { stats: fixtureStats, fetchedAt: FETCHED_AT },
+  }),
 }
