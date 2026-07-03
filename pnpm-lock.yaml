@@ -1426,6 +1426,9 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
     devDependencies:
+      '@effect/platform-browser':
+        specifier: 4.0.0-beta.88
+        version: 4.0.0-beta.88(effect@4.0.0-beta.88)
       '@foldkit/ui':
         specifier: workspace:*
         version: link:../ui

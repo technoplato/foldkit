@@ -24,6 +24,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
+    "@effect/platform-browser": "4.0.0-beta.88",
     "@foldkit/ui": "workspace:^0",
     "effect": "4.0.0-beta.88",
     "foldkit": "workspace:^0"
@@ -32,6 +33,7 @@
     "clsx": "^2.1.1"
   },
   "devDependencies": {
+    "@effect/platform-browser": "4.0.0-beta.88",
     "@foldkit/ui": "workspace:*",
     "effect": "4.0.0-beta.88",
     "foldkit": "workspace:*",

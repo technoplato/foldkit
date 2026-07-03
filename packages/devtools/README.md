@@ -14,7 +14,7 @@ npm install @foldkit/devtools
 yarn add @foldkit/devtools
 ```
 
-`@foldkit/devtools` lists `foldkit`, `@foldkit/ui`, and `effect` as peer dependencies, so install those alongside it.
+`@foldkit/devtools` lists `foldkit`, `@foldkit/ui`, `effect`, and `@effect/platform-browser` as peer dependencies, so install those alongside it.
 
 ## Usage
 

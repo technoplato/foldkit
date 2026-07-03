@@ -3,7 +3,6 @@ import {
   Array as Array_,
   Context,
   Effect,
-  Equal,
   Function,
   HashSet,
   Match as M,
@@ -19,6 +18,7 @@ import {
   SubscriptionRef,
   pipe,
 } from 'effect'
+import { KeyValueStore } from 'effect/unstable/persistence'
 import * as Command from 'foldkit/command'
 import {
   type CommandRecord,
@@ -47,8 +47,10 @@ import type { DevToolsMode, DevToolsPosition } from 'foldkit/runtime'
 import { evo } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
 
+import { BrowserKeyValueStore } from '@effect/platform-browser'
 import * as Listbox from '@foldkit/ui/listbox'
 import * as Slider from '@foldkit/ui/slider'
+import * as Switch from '@foldkit/ui/switch'
 import * as Tabs from '@foldkit/ui/tabs'
 
 import * as OptionExt from './internal/optionExtensions.js'
@@ -81,6 +83,7 @@ const DisplayEntry = S.Struct({
 
 const INSPECTOR_TABS_ID = 'dt-inspector'
 const SUBMODEL_FILTER_ID = 'dt-submodel-filter'
+const FLATTEN_SWITCH_ID = 'dt-flatten-switch'
 const SCRUBBER_SLIDER_ID = 'dt-scrubber'
 
 const InspectorTabsModel = S.Struct({
@@ -114,9 +117,13 @@ const UnknownByReference = S.Unknown.pipe(
   S.overrideToEquivalence(() => (a, b) => a === b),
 )
 
+const Screen = S.Literals(['Messages', 'Settings'])
+type Screen = typeof Screen.Type
+
 const Model = S.Struct({
   isOpen: S.Boolean,
   isMobile: S.Boolean,
+  screen: Screen,
   entries: S.Array(DisplayEntry),
   initCommands: S.Array(DisplayCommand),
   initMountStarts: S.Array(DisplayMount),
@@ -130,6 +137,7 @@ const Model = S.Struct({
   maybeInspectedMessage: S.Option(UnknownByReference),
   submodelTags: S.Array(S.String),
   maybeSubmodelFilter: S.Option(S.String),
+  flattenSwitch: Switch.Model,
   submodelFilterListbox: Listbox.Model,
   expandedPaths: S.HashSet(S.String),
   changedPaths: S.HashSet(S.String),
@@ -150,6 +158,7 @@ type Model = typeof Model.Type
 
 const Flags = S.Struct({
   isMobile: S.Boolean,
+  isFlattened: S.Boolean,
   entries: S.Array(DisplayEntry),
   initCommands: S.Array(DisplayCommand),
   initMountStarts: S.Array(DisplayMount),
@@ -161,6 +170,11 @@ const Flags = S.Struct({
 // MESSAGE
 
 const ClickedToggle = m('ClickedToggle')
+const ClickedSettingsToggle = m('ClickedSettingsToggle')
+const GotFlattenSwitchMessage = m('GotFlattenSwitchMessage', {
+  message: Switch.Message,
+})
+const CompletedPersistFlatten = m('CompletedPersistFlatten')
 const ClickedRow = m('ClickedRow', { index: S.Number })
 const ClickedResume = m('ClickedResume')
 const ClickedClear = m('ClickedClear')
@@ -184,7 +198,7 @@ const ReceivedInspectedState = m('ReceivedInspectedState', {
 const ToggledTreeNode = m('ToggledTreeNode', { path: S.String })
 const TickedScrubFrame = m('TickedScrubFrame')
 const GotInspectorTabsMessage = m('GotInspectorTabsMessage', {
-  message: S.Unknown,
+  message: Tabs.Message,
 })
 const ReceivedStoreUpdate = m('ReceivedStoreUpdate', {
   entries: S.Array(DisplayEntry),
@@ -204,6 +218,9 @@ const GotScrubberSliderMessage = m('GotScrubberSliderMessage', {
 
 const Message = S.Union([
   ClickedToggle,
+  ClickedSettingsToggle,
+  GotFlattenSwitchMessage,
+  CompletedPersistFlatten,
   ClickedRow,
   ClickedResume,
   ClickedClear,
@@ -234,6 +251,8 @@ const MOBILE_BREAKPOINT_QUERY = `(max-width: ${MOBILE_BREAKPOINT}px)`
 const TREE_INDENT_PX = 12
 const MAX_PREVIEW_KEYS = 3
 const ALL_MESSAGES_VALUE = ''
+const FLATTEN_STORAGE_KEY = 'foldkit-devtools-flatten'
+const BooleanJsonString = S.fromJsonString(S.Boolean)
 const NO_COMMANDS: ReadonlyArray<typeof DisplayCommand.Type> = []
 const NO_MOUNTS: ReadonlyArray<typeof DisplayMount.Type> = []
 
@@ -365,6 +384,33 @@ export const UnlockScroll = Command.define(
   UnlockedScroll,
 )(unlockScroll.pipe(Effect.as(UnlockedScroll())))
 
+const readPersistedFlatten: Effect.Effect<boolean> = Effect.gen(function* () {
+  const store = yield* KeyValueStore.KeyValueStore
+  const json = yield* Effect.fromOption(
+    Option.fromNullishOr(yield* store.get(FLATTEN_STORAGE_KEY)),
+  )
+  return yield* S.decodeEffect(BooleanJsonString)(json)
+}).pipe(
+  Effect.catch(() => Effect.succeed(false)),
+  Effect.provide(BrowserKeyValueStore.layerLocalStorage),
+)
+
+export const PersistFlatten = Command.define(
+  'PersistFlatten',
+  { isFlattened: S.Boolean },
+  CompletedPersistFlatten,
+)(({ isFlattened }) =>
+  Effect.gen(function* () {
+    const store = yield* KeyValueStore.KeyValueStore
+    const json = yield* S.encodeEffect(BooleanJsonString)(isFlattened)
+    yield* store.set(FLATTEN_STORAGE_KEY, json)
+    return CompletedPersistFlatten()
+  }).pipe(
+    Effect.catch(() => Effect.succeed(CompletedPersistFlatten())),
+    Effect.provide(BrowserKeyValueStore.layerLocalStorage),
+  ),
+)
+
 const buildInspectionFromModel = (index: number, model: unknown) =>
   Effect.gen(function* () {
     const store = yield* StoreService
@@ -490,6 +536,45 @@ const makeUpdate = (
             ),
           ]
         },
+        ClickedSettingsToggle: () => [
+          evo(model, {
+            screen: currentScreen =>
+              M.value(currentScreen).pipe(
+                M.withReturnType<Screen>(),
+                M.when('Messages', () => 'Settings'),
+                M.when('Settings', () => 'Messages'),
+                M.exhaustive,
+              ),
+          }),
+          [],
+        ],
+        GotFlattenSwitchMessage: ({ message: switchMessage }) => {
+          const [nextFlattenSwitch, switchCommands, maybeOutMessage] =
+            Switch.update(model.flattenSwitch, switchMessage)
+
+          const mappedCommands = Command.mapMessages(switchCommands, message =>
+            GotFlattenSwitchMessage({ message }),
+          )
+
+          return Option.match(maybeOutMessage, {
+            onNone: () => [
+              evo(model, { flattenSwitch: () => nextFlattenSwitch }),
+              mappedCommands,
+            ],
+            onSome: M.type<Switch.OutMessage>().pipe(
+              M.withReturnType<UpdateReturn>(),
+              M.tagsExhaustive({
+                ToggledChecked: ({ isChecked }) => [
+                  evo(model, { flattenSwitch: () => nextFlattenSwitch }),
+                  [
+                    ...mappedCommands,
+                    PersistFlatten({ isFlattened: isChecked }),
+                  ],
+                ],
+              }),
+            ),
+          })
+        },
         CrossedMobileBreakpoint: ({ isMobile }) => [
           evo(model, { isMobile: () => isMobile }),
           OptionExt.when(model.isOpen, toggleScrollLock(isMobile)).pipe(
@@ -579,16 +664,15 @@ const makeUpdate = (
         GotInspectorTabsMessage: ({ message: tabsMessage }) => {
           const [nextTabsModel, tabsCommands] = InspectorTabs.update(
             model.inspectorTabs,
-            /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-            tabsMessage as Tabs.Message,
+            tabsMessage,
           )
 
           return [
             evo(model, {
               inspectorTabs: () => nextTabsModel,
             }),
-            Command.mapMessages(tabsCommands, innerMessage =>
-              GotInspectorTabsMessage({ message: innerMessage }),
+            Command.mapMessages(tabsCommands, message =>
+              GotInspectorTabsMessage({ message }),
             ),
           ]
         },
@@ -674,9 +758,8 @@ const makeUpdate = (
               model.submodelFilterListbox,
               listboxMessage,
             )
-          const mappedCommands = Command.mapMessages(
-            listboxCommands,
-            innerMessage => GotSubmodelFilterMessage({ message: innerMessage }),
+          const mappedCommands = Command.mapMessages(listboxCommands, message =>
+            GotSubmodelFilterMessage({ message }),
           )
 
           return Option.match(maybeOutMessage, {
@@ -707,7 +790,7 @@ const makeUpdate = (
 
           const mappedSliderCommands = Command.mapMessages(
             sliderCommands,
-            innerMessage => GotScrubberSliderMessage({ message: innerMessage }),
+            message => GotScrubberSliderMessage({ message }),
           )
 
           // NOTE: the thumb tracks every pointermove (cheap, model-only via
@@ -749,6 +832,7 @@ const makeUpdate = (
       M.tag(
         'CompletedResume',
         'CompletedClear',
+        'CompletedPersistFlatten',
         'LockedScroll',
         'UnlockedScroll',
         'ScrolledToTop',
@@ -1194,6 +1278,19 @@ const makeView = (
       true,
     )
 
+  const unwrapToLeaf = (message: unknown): unknown => {
+    if (
+      isTagged(message) &&
+      GOT_MESSAGE_PATTERN.test(message._tag) &&
+      Predicate.hasProperty(message, 'message') &&
+      Predicate.isNotUndefined(message.message)
+    ) {
+      return unwrapToLeaf(message.message)
+    } else {
+      return message
+    }
+  }
+
   const unwrapIfFiltered = (
     message: unknown,
     maybeSubmodelFilter: Option.Option<string>,
@@ -1226,13 +1323,16 @@ const makeView = (
   const messageTabContent = (
     maybeInspectedMessage: Option.Option<unknown>,
     maybeSubmodelFilter: Option.Option<string>,
+    isFlattened: boolean,
     expandedPaths: HashSet.HashSet<string>,
     timestamp: string,
   ): Html =>
     Option.match(maybeInspectedMessage, {
       onNone: noMessageView,
       onSome: rawMessage => {
-        const message = unwrapIfFiltered(rawMessage, maybeSubmodelFilter)
+        const message = isFlattened
+          ? unwrapToLeaf(rawMessage)
+          : unwrapIfFiltered(rawMessage, maybeSubmodelFilter)
 
         return h.div(
           [h.Class('flex flex-col flex-1 min-h-0 min-w-0')],
@@ -1502,6 +1602,7 @@ const makeView = (
         lazyTabContent('Message', messageTabContent, [
           model.maybeInspectedMessage,
           model.maybeSubmodelFilter,
+          model.flattenSwitch.isChecked,
           model.expandedPaths,
           inspectedTimestamp(model),
         ]),
@@ -1773,6 +1874,59 @@ const makeView = (
     })
   }
 
+  // SETTINGS
+
+  const flattenSwitchView = (model: Model): Html =>
+    h.submodel({
+      slotId: 'flatten-switch',
+      model: model.flattenSwitch,
+      view: Switch.view,
+      viewInputs: {
+        toView: attributes =>
+          h.div(
+            [h.Class('dt-settings-row')],
+            [
+              h.div(
+                [...attributes.button, h.Class('dt-switch')],
+                [h.span([h.Class('dt-switch-thumb')], [])],
+              ),
+              h.div(
+                [h.Class('dt-settings-row-text')],
+                [
+                  h.label(
+                    [...attributes.label, h.Class('dt-settings-row-label')],
+                    ['Flatten to leaf Message'],
+                  ),
+                  h.span(
+                    [
+                      ...attributes.description,
+                      h.Class('dt-settings-row-description'),
+                    ],
+                    ['Label each row with its innermost Message'],
+                  ),
+                ],
+              ),
+            ],
+          ),
+      },
+      toParentMessage: message => GotFlattenSwitchMessage({ message }),
+    })
+
+  const settingsScreenView = (model: Model): Html =>
+    h.keyed('div')(
+      'Settings',
+      [h.Class('flex flex-col flex-1 min-h-0 overflow-y-auto overscroll-none')],
+      [
+        h.div(
+          [h.Class('flex flex-col')],
+          [
+            h.span([h.Class('dt-settings-section-title')], ['Message List']),
+            flattenSwitchView(model),
+          ],
+        ),
+      ],
+    )
+
   const headerView = (model: Model): Html => {
     const { status, maybeAction } = M.value(mode).pipe(
       M.withReturnType<
@@ -1928,6 +2082,7 @@ const makeView = (
     isPaused: boolean,
     pausedAtIndex: number,
     maybeFilterTag: Option.Option<string>,
+    isFlattened: boolean,
   ): Html => {
     const baseTimestamp = pipe(
       entries,
@@ -1940,6 +2095,29 @@ const makeView = (
 
     const isInitSelected = selectedIndex === INIT_INDEX
     const isFiltered = Option.isSome(maybeFilterTag)
+
+    const leafOrTag = (entry: typeof DisplayEntry.Type): string =>
+      Option.getOrElse(entry.maybeLeafTag, () => entry.tag)
+
+    const displayTagFor = (entry: typeof DisplayEntry.Type): string => {
+      if (isFlattened) {
+        return leafOrTag(entry)
+      } else {
+        return Option.match(maybeFilterTag, {
+          onNone: () => entry.tag,
+          onSome: filterTag =>
+            pipe(
+              entry.submodelPath,
+              Array_.findFirstIndex(pathTag => pathTag === filterTag),
+              Option.flatMap(filterIndex =>
+                Array_.get(entry.submodelPath, Number_.increment(filterIndex)),
+              ),
+              Option.orElse(() => entry.maybeLeafTag),
+              Option.getOrElse(() => entry.tag),
+            ),
+        })
+      }
+    }
 
     const indexedEntries: ReadonlyArray<
       Readonly<{
@@ -1964,17 +2142,7 @@ const makeView = (
       Array_.map(({ entry, absoluteIndex }) => {
         const isSelected = selectedIndex === absoluteIndex
         const isPausedHere = isPaused && pausedAtIndex === absoluteIndex
-        const displayTag = isFiltered
-          ? pipe(
-              entry.submodelPath,
-              Array_.findFirstIndex(Equal.equals(maybeFilterTag.value)),
-              Option.flatMap(filterIndex =>
-                Array_.get(entry.submodelPath, Number_.increment(filterIndex)),
-              ),
-              Option.orElse(() => entry.maybeLeafTag),
-              Option.getOrElse(() => entry.tag),
-            )
-          : entry.tag
+        const displayTag = displayTagFor(entry)
 
         return lazyMessageRow(String(absoluteIndex), messageRowView, [
           displayTag,
@@ -2016,6 +2184,7 @@ const makeView = (
       model.isPaused,
       model.pausedAtIndex,
       model.maybeSubmodelFilter,
+      model.flattenSwitch.isChecked,
     ])
   }
 
@@ -2039,11 +2208,7 @@ const makeView = (
           value === 0 ? 'init' : `Message ${String(value)}`,
         toView: attributes =>
           h.div(
-            [
-              h.Class(
-                'dt-scrubber-row flex items-center gap-3 px-3 py-2 border-t shrink-0',
-              ),
-            ],
+            [h.Class('flex items-center gap-3 flex-1 min-w-0')],
             [
               h.div(
                 [
@@ -2083,9 +2248,127 @@ const makeView = (
       toParentMessage: message => GotScrubberSliderMessage({ message }),
     })
 
-  // PANEL
+  // FOOTER
 
   const isScrubberVisible = mode === 'TimeTravel'
+
+  const GEAR_OUTER =
+    'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z'
+  const GEAR_INNER = 'M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z'
+
+  const X_MARK = 'M6 18L18 6M6 6l12 12'
+
+  const gearIconView: Html = h.svg(
+    [
+      h.Key('gear-icon'),
+      h.AriaHidden(true),
+      h.Class('dt-settings-icon shrink-0'),
+      h.Xmlns('http://www.w3.org/2000/svg'),
+      h.Fill('none'),
+      h.ViewBox('0 0 24 24'),
+      h.StrokeWidth('1.5'),
+      h.Stroke('currentColor'),
+    ],
+    [
+      h.path(
+        [h.D(GEAR_OUTER), h.StrokeLinecap('round'), h.StrokeLinejoin('round')],
+        [],
+      ),
+      h.path(
+        [h.D(GEAR_INNER), h.StrokeLinecap('round'), h.StrokeLinejoin('round')],
+        [],
+      ),
+    ],
+  )
+
+  const closeSettingsIconView: Html = h.svg(
+    [
+      h.Key('close-icon'),
+      h.AriaHidden(true),
+      h.Class('dt-settings-icon shrink-0'),
+      h.Xmlns('http://www.w3.org/2000/svg'),
+      h.Fill('none'),
+      h.ViewBox('0 0 24 24'),
+      h.StrokeWidth('2'),
+      h.Stroke('currentColor'),
+    ],
+    [
+      h.path(
+        [h.D(X_MARK), h.StrokeLinecap('round'), h.StrokeLinejoin('round')],
+        [],
+      ),
+    ],
+  )
+
+  const settingsToggleView = (screen: Screen): Html => {
+    const isSettingsOpen = screen === 'Settings'
+
+    return h.button(
+      [
+        h.Class(
+          clsx('dt-settings-button', {
+            'dt-settings-button-active': isSettingsOpen,
+          }),
+        ),
+        h.AriaLabel(isSettingsOpen ? 'Close settings' : 'Settings'),
+        h.AriaPressed(String(isSettingsOpen)),
+        h.OnClick(ClickedSettingsToggle()),
+      ],
+      [isSettingsOpen ? closeSettingsIconView : gearIconView],
+    )
+  }
+
+  const footerView = (model: Model): Html =>
+    h.div(
+      [
+        h.Class(
+          'dt-footer flex items-center gap-3 px-3 py-2 border-t shrink-0',
+        ),
+      ],
+      [
+        settingsToggleView(model.screen),
+        ...OptionExt.when(isScrubberVisible, scrubberView(model)).pipe(
+          Option.toArray,
+        ),
+      ],
+    )
+
+  // PANEL
+
+  const messagesScreenView = (model: Model): Html => {
+    const maybeSubmodelFilterView = OptionExt.when(
+      Array_.isReadonlyArrayNonEmpty(model.submodelTags),
+      submodelFilterView(model),
+    )
+    const maybeScrollToTopPillView = OptionExt.when(
+      !model.isFollowingTop,
+      scrollToTopPillView(),
+    )
+
+    return h.keyed('div')(
+      'Messages',
+      [h.Class('flex flex-1 min-h-0 dt-content')],
+      [
+        h.div(
+          [h.Class('flex flex-col min-h-0 dt-message-pane')],
+          [
+            ...Option.toArray(maybeSubmodelFilterView),
+            ...Option.toArray(maybeScrollToTopPillView),
+            messageListView(model),
+          ],
+        ),
+        inspectorPaneView(model),
+      ],
+    )
+  }
+
+  const contentView = (model: Model): Html =>
+    M.value(model.screen).pipe(
+      M.withReturnType<Html>(),
+      M.when('Messages', () => messagesScreenView(model)),
+      M.when('Settings', () => settingsScreenView(model)),
+      M.exhaustive,
+    )
 
   const panelView = (model: Model): Html =>
     h.keyed('div')(
@@ -2110,29 +2393,8 @@ const makeView = (
           ),
         ).pipe(Option.toArray),
         headerView(model),
-        h.div(
-          [h.Class('flex flex-1 min-h-0 dt-content')],
-          [
-            h.div(
-              [h.Class('flex flex-col min-h-0 dt-message-pane')],
-              [
-                ...Array_.match(model.submodelTags, {
-                  onEmpty: () => [],
-                  onNonEmpty: () => [submodelFilterView(model)],
-                }),
-                ...OptionExt.when(
-                  !model.isFollowingTop,
-                  scrollToTopPillView(),
-                ).pipe(Option.toArray),
-                messageListView(model),
-              ],
-            ),
-            inspectorPaneView(model),
-          ],
-        ),
-        ...OptionExt.when(isScrubberVisible, scrubberView(model)).pipe(
-          Option.toArray,
-        ),
+        contentView(model),
+        footerView(model),
       ],
     )
 
@@ -2212,13 +2474,16 @@ export const createOverlay = (
 
     const flags: Effect.Effect<typeof Flags.Type> = Effect.gen(function* () {
       const storeState = yield* SubscriptionRef.get(store.stateRef)
+      const isFlattened = yield* readPersistedFlatten
       return {
         isMobile: window.matchMedia(MOBILE_BREAKPOINT_QUERY).matches,
+        isFlattened,
         ...toDisplayState(storeState),
       }
     })
 
     const init = (flags: typeof Flags.Type): UpdateReturn => {
+      const { isFlattened, ...displayFlags } = flags
       const sliderMax = flags.entries.length
       const initialSliderValue = flags.isPaused
         ? hostIndexToSliderValue(flags.pausedAtIndex, flags.startIndex)
@@ -2227,7 +2492,12 @@ export const createOverlay = (
       return [
         {
           isOpen: false,
-          ...flags,
+          screen: 'Messages',
+          ...displayFlags,
+          flattenSwitch: Switch.init({
+            id: FLATTEN_SWITCH_ID,
+            isChecked: isFlattened,
+          }),
           selectedIndex: INIT_INDEX,
           isFollowingLatest: true,
           isFollowingTop: true,

@@ -346,6 +346,105 @@ ul {
   inset: 0;
   pointer-events: none;
 }
+.dt-settings-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  margin: -8px 0 -8px -12px;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--dt-border);
+  color: var(--dt-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.dt-settings-button:hover {
+  color: var(--dt-text);
+  background-color: var(--dt-tree-hover);
+}
+.dt-settings-button:focus-visible {
+  outline: 1px solid var(--dt-accent);
+  outline-offset: -1px;
+}
+.dt-settings-button-active {
+  color: var(--dt-accent);
+  background-color: var(--dt-surface-selected);
+}
+.dt-settings-button-active:hover {
+  background-color: var(--dt-tree-hover);
+}
+.dt-settings-icon {
+  width: 14px;
+  height: 14px;
+}
+.dt-settings-section-title {
+  padding: 10px 12px 4px;
+  color: var(--dt-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.dt-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 12px;
+}
+.dt-settings-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dt-settings-row-label {
+  color: var(--dt-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.dt-settings-row-description {
+  color: var(--dt-text-muted);
+  font-size: 10px;
+}
+.dt-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 9999px;
+  background-color: var(--dt-border);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background-color 100ms ease,
+    filter 100ms ease;
+}
+.dt-switch:hover {
+  filter: brightness(1.2);
+}
+.dt-switch:focus-visible {
+  outline: 1px solid var(--dt-accent);
+  outline-offset: 2px;
+}
+.dt-switch[data-checked] {
+  background-color: var(--dt-accent);
+}
+.dt-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background-color: var(--dt-text-muted);
+  transition:
+    transform 100ms ease,
+    background-color 100ms ease;
+}
+.dt-switch[data-checked] .dt-switch-thumb {
+  transform: translateX(16px);
+  background-color: var(--dt-bg);
+}
 .dt-tab-button {
   position: relative;
   background: transparent;
@@ -608,10 +707,13 @@ ul {
   cursor: not-allowed;
 }
 
-/* Scrubber */
-.dt-scrubber-row {
+/* Footer */
+.dt-footer {
   background-color: var(--dt-bg);
+  height: 33px;
 }
+
+/* Scrubber */
 .dt-scrubber-control {
   position: relative;
   height: 16px;
