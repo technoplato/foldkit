@@ -2,8 +2,9 @@ import { clsx } from 'clsx'
 import { Match as M, Option } from 'effect'
 import { Html, childAttributes, createLazy, html } from 'foldkit/html'
 
-import { Menu, Tabs } from '@foldkit/ui'
+import { Menu } from '@foldkit/ui'
 
+import * as DemoTab from '../demoTab'
 import { maybeStarCount } from '../githubStars'
 import { Icon } from '../icon'
 import { Link } from '../link'
@@ -118,12 +119,6 @@ const landingFooter = (currentYear: number): Html => {
 
 // DEMO TABS
 
-type DemoTab = 'Architecture' | 'Note Player'
-
-const demoTabs: ReadonlyArray<DemoTab> = ['Architecture', 'Note Player']
-
-export const DemoTabs = Tabs.create<DemoTab>()
-
 const demoTabButtonClassName =
   'px-3 py-2 text-sm font-normal cursor-pointer transition border border-gray-300 dark:border-gray-800 bg-cream dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-t-lg lg:rounded-t-none lg:rounded-l-lg lg:border-r-0 mb-[-1px] lg:mb-0 lg:mr-[-1px] data-[selected]:relative data-[selected]:z-10 data-[selected]:bg-cream data-[selected]:dark:bg-gray-900 data-[selected]:text-gray-900 data-[selected]:dark:text-white data-[selected]:border-b-0 lg:data-[selected]:border-b lg:data-[selected]:border-r-0'
 
@@ -139,26 +134,34 @@ const toNotePlayerDemoMessage = (
 ): Message => GotNotePlayerDemoMessage({ message })
 
 const renderAsyncCounterDemo = (
-  asyncCounterDemo: Page.AsyncCounterDemo.Model,
+  maybeAsyncCounterDemo: Option.Option<Page.AsyncCounterDemo.Model>,
 ): Html => {
   const h = html<Message>()
-  return h.submodel({
-    slotId: 'async-counter-demo',
-    model: asyncCounterDemo,
-    view: Page.AsyncCounterDemo.view,
-    toParentMessage: toAsyncCounterDemoMessage,
+  return Option.match(maybeAsyncCounterDemo, {
+    onNone: () => h.empty,
+    onSome: asyncCounterDemo =>
+      h.submodel({
+        slotId: 'async-counter-demo',
+        model: asyncCounterDemo,
+        view: Page.AsyncCounterDemo.view,
+        toParentMessage: toAsyncCounterDemoMessage,
+      }),
   })
 }
 
 const renderNotePlayerDemo = (
-  notePlayerDemo: Page.NotePlayerDemo.Model,
+  maybeNotePlayerDemo: Option.Option<Page.NotePlayerDemo.Model>,
 ): Html => {
   const h = html<Message>()
-  return h.submodel({
-    slotId: 'note-player-demo',
-    model: notePlayerDemo,
-    view: Page.NotePlayerDemo.view,
-    toParentMessage: toNotePlayerDemoMessage,
+  return Option.match(maybeNotePlayerDemo, {
+    onNone: () => h.empty,
+    onSome: notePlayerDemo =>
+      h.submodel({
+        slotId: 'note-player-demo',
+        model: notePlayerDemo,
+        view: Page.NotePlayerDemo.view,
+        toParentMessage: toNotePlayerDemoMessage,
+      }),
   })
 }
 
@@ -303,14 +306,14 @@ export const landingView = (model: Model) => {
     model.isChromium,
   )
 
-  const buttonLabelFor = (tab: DemoTab): string =>
+  const buttonLabelFor = (tab: DemoTab.Tab): string =>
     M.value(tab).pipe(
       M.when('Architecture', () => 'Async Counter'),
       M.when('Note Player', () => 'Note Player'),
       M.exhaustive,
     )
 
-  const panelFor = (tab: DemoTab) =>
+  const panelFor = (tab: DemoTab.Tab) =>
     M.value(tab).pipe(
       M.when('Architecture', () => asyncCounterDemoView),
       M.when('Note Player', () => notePlayerDemoView),
@@ -320,9 +323,9 @@ export const landingView = (model: Model) => {
   const demoTabsView = h.submodel({
     slotId: model.demoTabs.id,
     model: model.demoTabs,
-    view: DemoTabs.view,
+    view: DemoTab.DemoTabs.view,
     viewInputs: {
-      tabs: demoTabs,
+      tabs: DemoTab.all,
       ariaLabel: 'Demo tabs',
       orientation: model.isNarrowViewport ? 'Horizontal' : 'Vertical',
       toView: ({ tablist, tabs, activeIndex }) =>

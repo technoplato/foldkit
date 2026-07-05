@@ -1,10 +1,8 @@
 import { clsx } from 'clsx'
 import {
   Array,
-  Context,
   Duration,
   Effect,
-  Layer,
   Match as M,
   Number,
   Option,
@@ -13,7 +11,7 @@ import {
   String as Str,
   pipe,
 } from 'effect'
-import { Command, FieldValidation, Submodel } from 'foldkit'
+import { Command, FieldValidation, ManagedResource, Submodel } from 'foldkit'
 import { Html, html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { ts } from 'foldkit/schema'
@@ -98,6 +96,12 @@ const NoteHighlightPhase = S.Literals([
 ])
 type NoteHighlightPhase = typeof NoteHighlightPhase.Type
 
+const AudioAcquiring = ts('AudioAcquiring')
+const AudioReady = ts('AudioReady')
+const AudioUnavailable = ts('AudioUnavailable')
+const AudioState = S.Union([AudioAcquiring, AudioReady, AudioUnavailable])
+type AudioState = typeof AudioState.Type
+
 export const Model = S.Struct({
   noteInput: FieldValidation.Field(S.String),
   noteDuration: NoteDuration,
@@ -106,6 +110,7 @@ export const Model = S.Struct({
   highlightPhase: NoteHighlightPhase,
   generation: S.Number,
   messageLog: S.Array(S.String),
+  audio: AudioState,
 })
 
 export type Model = typeof Model.Type
@@ -123,6 +128,9 @@ const CompletedPlayNote = m('CompletedPlayNote', { noteIndex: S.Number })
 const ProgressedNotePhase = m('ProgressedNotePhase', {
   generation: S.Number,
 })
+const SucceededAcquireAudioContext = m('SucceededAcquireAudioContext')
+const FailedAcquireAudioContext = m('FailedAcquireAudioContext')
+const ReleasedAudioContext = m('ReleasedAudioContext')
 
 export const Message = S.Union([
   ChangedNoteInput,
@@ -132,6 +140,9 @@ export const Message = S.Union([
   ClickedStop,
   CompletedPlayNote,
   ProgressedNotePhase,
+  SucceededAcquireAudioContext,
+  FailedAcquireAudioContext,
+  ReleasedAudioContext,
 ])
 export type Message = typeof Message.Type
 
@@ -171,6 +182,7 @@ export const init = (): readonly [
     highlightPhase: 'Idle',
     generation: 0,
     messageLog: [],
+    audio: AudioAcquiring(),
   },
   [],
 ]
@@ -452,17 +464,49 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           M.exhaustive,
         )
       },
+
+      SucceededAcquireAudioContext: () => [
+        evo(model, { audio: () => AudioReady() }),
+        [],
+      ],
+
+      FailedAcquireAudioContext: () => [
+        evo(model, { audio: () => AudioUnavailable() }),
+        [],
+      ],
+
+      ReleasedAudioContext: () => [model, []],
     }),
   )
 
-// COMMAND
+// MANAGED RESOURCE
 
-export class AudioContextService extends Context.Service<
-  AudioContextService,
-  AudioContext
->()('AudioContextService') {
-  static readonly Default = Layer.sync(this, () => new AudioContext())
-}
+const AudioContextResource = ManagedResource.tag<AudioContext>()('AudioContext')
+type AudioContextService = ManagedResource.ServiceOf<
+  typeof AudioContextResource
+>
+
+export const managedResources = ManagedResource.make<Model, Message>()(
+  entry => ({
+    audioContext: entry(S.Option(S.Null), {
+      resource: AudioContextResource,
+      modelToMaybeRequirements: () => Option.some(null),
+      acquire: () =>
+        Effect.try({
+          try: () => new AudioContext(),
+          catch: () =>
+            new Error('The Web Audio API is unavailable in this browser.'),
+        }),
+      release: audioContext =>
+        Effect.promise(() => audioContext.close().catch(() => undefined)),
+      onAcquired: () => SucceededAcquireAudioContext(),
+      onReleased: () => ReleasedAudioContext(),
+      onAcquireError: () => FailedAcquireAudioContext(),
+    }),
+  }),
+)
+
+// COMMAND
 
 const PlayNote = Command.define(
   'PlayNote',
@@ -470,9 +514,15 @@ const PlayNote = Command.define(
   CompletedPlayNote,
 )(({ note, duration, noteIndex }) =>
   Effect.gen(function* () {
-    const audioContext = yield* AudioContextService
+    const audioContext = yield* AudioContextResource.get
+    yield* Effect.promise(() => audioContext.resume().catch(() => undefined))
 
     return yield* Effect.callback<typeof CompletedPlayNote.Type>(resume => {
+      if (audioContext.state === 'closed') {
+        resume(Effect.succeed(CompletedPlayNote({ noteIndex })))
+        return
+      }
+
       const oscillator = audioContext.createOscillator()
       const gainNode = audioContext.createGain()
       const durationSeconds = DURATION_MILLISECONDS[duration] / 1000
@@ -504,7 +554,13 @@ const PlayNote = Command.define(
         resume(Effect.succeed(CompletedPlayNote({ noteIndex })))
       }
     })
-  }),
+  }).pipe(
+    Effect.catchTag('ResourceNotAvailable', () =>
+      Effect.sleep(Duration.millis(DURATION_MILLISECONDS[duration])).pipe(
+        Effect.map(() => CompletedPlayNote({ noteIndex })),
+      ),
+    ),
+  ),
 )
 
 // VIEW
@@ -708,70 +764,92 @@ const playbackControlView = (model: Model, canPlay: boolean): Html => {
   const isActive = isPlaying || model.playbackState._tag === 'Paused'
 
   return h.div(
-    [h.Class('flex gap-2')],
+    [h.Class('flex flex-col gap-2')],
     [
-      isPlaying
-        ? Button.view<Message>({
-            onClick: ClickedPause(),
-            toView: attributes =>
-              h.button(
-                [
-                  ...attributes.button,
-                  h.Class(
-                    'flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-normal transition bg-accent-600 dark:bg-accent-500 text-white dark:text-accent-900 hover:bg-accent-700 dark:hover:bg-accent-600 active:bg-accent-800 dark:active:bg-accent-700 cursor-pointer',
+      h.div(
+        [h.Class('flex gap-2')],
+        [
+          isPlaying
+            ? Button.view<Message>({
+                onClick: ClickedPause(),
+                toView: attributes =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(
+                        'flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-normal transition bg-accent-600 dark:bg-accent-500 text-white dark:text-accent-900 hover:bg-accent-700 dark:hover:bg-accent-600 active:bg-accent-800 dark:active:bg-accent-700 cursor-pointer',
+                      ),
+                      h.AriaLabel('Pause'),
+                    ],
+                    [Icon.pause('w-4 h-4'), 'Pause'],
                   ),
-                  h.AriaLabel('Pause'),
-                ],
-                [Icon.pause('w-4 h-4'), 'Pause'],
-              ),
-          })
-        : Button.view<Message>({
-            onClick: ClickedPlay(),
-            isDisabled: !canPlay,
+              })
+            : Button.view<Message>({
+                onClick: ClickedPlay(),
+                isDisabled: !canPlay,
+                toView: attributes =>
+                  h.button(
+                    [
+                      ...attributes.button,
+                      h.Class(
+                        clsx(
+                          'flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-normal transition',
+                          {
+                            'bg-accent-600 dark:bg-accent-500 text-white dark:text-accent-900 hover:bg-accent-700 dark:hover:bg-accent-600 active:bg-accent-800 dark:active:bg-accent-700 cursor-pointer':
+                              canPlay,
+                            'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed':
+                              !canPlay,
+                          },
+                        ),
+                      ),
+                      h.AriaLabel('Play'),
+                    ],
+                    [Icon.play('w-4 h-4'), 'Play'],
+                  ),
+              }),
+          Button.view<Message>({
+            onClick: ClickedStop(),
+            isDisabled: !isActive,
             toView: attributes =>
               h.button(
                 [
                   ...attributes.button,
                   h.Class(
                     clsx(
-                      'flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-normal transition',
+                      'flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-normal transition',
                       {
-                        'bg-accent-600 dark:bg-accent-500 text-white dark:text-accent-900 hover:bg-accent-700 dark:hover:bg-accent-600 active:bg-accent-800 dark:active:bg-accent-700 cursor-pointer':
-                          canPlay,
+                        'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer':
+                          isActive,
                         'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed':
-                          !canPlay,
+                          !isActive,
                       },
                     ),
                   ),
-                  h.AriaLabel('Play'),
+                  h.AriaLabel('Stop'),
                 ],
-                [Icon.play('w-4 h-4'), 'Play'],
+                [Icon.stop('w-4 h-4'), 'Stop'],
               ),
           }),
-      Button.view<Message>({
-        onClick: ClickedStop(),
-        isDisabled: !isActive,
-        toView: attributes =>
-          h.button(
-            [
-              ...attributes.button,
-              h.Class(
-                clsx(
-                  'flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-normal transition',
-                  {
-                    'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer':
-                      isActive,
-                    'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed':
-                      !isActive,
-                  },
-                ),
-              ),
-              h.AriaLabel('Stop'),
-            ],
-            [Icon.stop('w-4 h-4'), 'Stop'],
-          ),
-      }),
+        ],
+      ),
+      ...audioUnavailableNoticeView(model.audio),
     ],
+  )
+}
+
+const audioUnavailableNoticeView = (audio: AudioState): ReadonlyArray<Html> => {
+  const h = html<Message>()
+
+  return M.value(audio).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tag('AudioUnavailable', () => [
+      h.keyed('p')(
+        'note-demo-audio-unavailable',
+        [h.Class('text-xs text-amber-600 dark:text-amber-500')],
+        ['No audio output in this browser, so playback stays silent.'],
+      ),
+    ]),
+    M.orElse(() => []),
   )
 }
 

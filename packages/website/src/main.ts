@@ -36,6 +36,7 @@ import { Dialog, Disclosure, Menu, Tabs } from '@foldkit/ui'
 import { inject } from '@vercel/analytics'
 import * as SpeedInsights from '@vercel/speed-insights'
 
+import * as DemoTab from './demoTab'
 import {
   DOCS_SIDEBAR_NAV_ID,
   MOBILE_MENU_NAV_ID,
@@ -110,9 +111,15 @@ import {
   SidebarStateJsonString,
 } from './sidebarStorage'
 import * as Subscriptions from './subscription'
-import { DemoTabs, docsView, landingView, newsletterView } from './view'
+import { docsView, landingView, newsletterView } from './view'
 
 export type { Message } from './message'
+
+export type AppResources = Search.PagefindService
+
+export type AppManagedResources = ManagedResource.ServicesOf<
+  typeof managedResources
+>
 
 export type TableOfContentsEntry = {
   id: string
@@ -273,8 +280,8 @@ export const Model = S.Struct({
   resolvedTheme: ResolvedTheme,
   demoTabs: Tabs.Model,
   playgroundMenu: Menu.Model,
-  asyncCounterDemo: Page.AsyncCounterDemo.Model,
-  notePlayerDemo: Page.NotePlayerDemo.Model,
+  asyncCounterDemo: S.Option(Page.AsyncCounterDemo.Model),
+  notePlayerDemo: S.Option(Page.NotePlayerDemo.Model),
   uiPages: Page.UiPages.Model,
   comingFromReact: Page.ComingFromReact.Model,
   apiReference: Page.ApiReference.Model,
@@ -288,14 +295,6 @@ const PlaygroundMenu = Menu.create<ExampleSlug>()
 
 // INIT
 
-export type AppResources =
-  | Page.NotePlayerDemo.AudioContextService
-  | Search.PagefindService
-
-export type AppManagedResources = ManagedResource.ServicesOf<
-  typeof managedResources
->
-
 const isGroupOpenOnBoot = (
   maybeSidebarState: Option.Option<SidebarState>,
   maybeActiveSectionKey: Option.Option<GroupKey>,
@@ -303,7 +302,7 @@ const isGroupOpenOnBoot = (
 ): boolean => {
   const isActiveSection = Option.exists(
     maybeActiveSectionKey,
-    Equal.equals(key),
+    activeSectionKey => activeSectionKey === key,
   )
   if (isActiveSection) {
     return true
@@ -312,6 +311,45 @@ const isGroupOpenOnBoot = (
     onNone: () => Array.contains(DEFAULT_OPEN_GROUPS, key),
     onSome: ({ open }) => open[key] ?? false,
   })
+}
+
+const isAsyncCounterDemoVisible = (
+  route: AppRoute,
+  demoTabs: Tabs.Model,
+): boolean =>
+  route._tag === 'Home' && DemoTab.isActive('Architecture')(demoTabs)
+
+const reflectAsyncCounterDemoPresence = (
+  maybeAsyncCounterDemo: Option.Option<Page.AsyncCounterDemo.Model>,
+  isPresent: boolean,
+): Option.Option<Page.AsyncCounterDemo.Model> => {
+  if (isPresent) {
+    return Option.orElse(maybeAsyncCounterDemo, () => {
+      const [asyncCounterDemo] = Page.AsyncCounterDemo.init()
+      return Option.some(asyncCounterDemo)
+    })
+  } else {
+    return Option.none()
+  }
+}
+
+const isNotePlayerDemoVisible = (
+  route: AppRoute,
+  demoTabs: Tabs.Model,
+): boolean => route._tag === 'Home' && DemoTab.isActive('Note Player')(demoTabs)
+
+const reflectNotePlayerDemoPresence = (
+  maybeNotePlayerDemo: Option.Option<Page.NotePlayerDemo.Model>,
+  isPresent: boolean,
+): Option.Option<Page.NotePlayerDemo.Model> => {
+  if (isPresent) {
+    return Option.orElse(maybeNotePlayerDemo, () => {
+      const [notePlayerDemo] = Page.NotePlayerDemo.init()
+      return Option.some(notePlayerDemo)
+    })
+  } else {
+    return Option.none()
+  }
 }
 
 export const init: Runtime.RoutingApplicationInit<
@@ -337,12 +375,19 @@ export const init: Runtime.RoutingApplicationInit<
     isAnimated: true,
   })
 
-  const [asyncCounterDemo, asyncCounterDemoCommands] =
-    Page.AsyncCounterDemo.init()
-  const [notePlayerDemo, notePlayerDemoCommands] = Page.NotePlayerDemo.init()
   const [uiPages, uiPagesCommands] = Page.UiPages.init(flags.today)
   const [comingFromReact, comingFromReactCommands] = Page.ComingFromReact.init()
   const initialRoute = urlToAppRoute(url)
+
+  const asyncCounterDemo = reflectAsyncCounterDemoPresence(
+    Option.none(),
+    isAsyncCounterDemoVisible(initialRoute, demoTabs),
+  )
+
+  const notePlayerDemo = reflectNotePlayerDemoPresence(
+    Option.none(),
+    isNotePlayerDemoVisible(initialRoute, demoTabs),
+  )
 
   const [apiReference, apiReferenceCommands] = Page.ApiReference.boot()
 
@@ -357,16 +402,6 @@ export const init: Runtime.RoutingApplicationInit<
   const maybeInitialActiveSectionKey = findActiveSectionKey(
     initialRoute._tag,
     maybeInitialExampleSlug,
-  )
-
-  const mappedAsyncCounterDemoCommands = Command.mapMessages(
-    asyncCounterDemoCommands,
-    message => GotAsyncCounterDemoMessage({ message }),
-  )
-
-  const mappedNotePlayerDemoCommands = Command.mapMessages(
-    notePlayerDemoCommands,
-    message => GotNotePlayerDemoMessage({ message }),
   )
 
   const mappedUiPagesCommands = Command.mapMessages(uiPagesCommands, message =>
@@ -527,8 +562,6 @@ export const init: Runtime.RoutingApplicationInit<
       InjectSpeedInsights(),
       ApplyTheme({ theme: resolvedTheme }),
       FetchGitHubStars(),
-      ...mappedAsyncCounterDemoCommands,
-      ...mappedNotePlayerDemoCommands,
       ...mappedUiPagesCommands,
       ...mappedComingFromReactCommands,
       ...mappedApiReferenceCommands,
@@ -623,27 +656,33 @@ export const update = (
 
       ChangedUrl: ({ url }) => {
         const nextRoute = urlToAppRoute(url)
+
         const maybeNextExampleSlug = pipe(
           nextRoute,
           Option.liftPredicate(route => route._tag === 'ExampleDetail'),
           Option.map(({ exampleSlug }) => exampleSlug),
         )
+
         const maybeNextActiveSectionKey = findActiveSectionKey(
           nextRoute._tag,
           maybeNextExampleSlug,
         )
+
         const expandIfActive =
           (key: GroupKey) =>
           (group: Disclosure.Model): Disclosure.Model =>
             Option.exists(maybeNextActiveSectionKey, Equal.equals(key))
               ? Disclosure.reflectOpenState(group, true)
               : group
+
         const [closedMobileMenu, closeMobileMenuCommands] = Dialog.close(
           model.mobileMenuDialog,
         )
+
         const [nextSearch, searchResetCommands] = Search.informRouteChanged(
           model.search,
         )
+
         const [nextApiReference, apiReferenceLoadCommands] = M.value(
           nextRoute,
         ).pipe(
@@ -653,6 +692,7 @@ export const update = (
           ),
           M.orElse(() => [model.apiReference, []]),
         )
+
         const [nextExampleDetail, exampleDetailLoadCommands] = M.value(
           nextRoute,
         ).pipe(
@@ -667,26 +707,38 @@ export const update = (
           ),
           M.orElse(() => [model.exampleDetail, []]),
         )
+
         const maybeScrollSidebar = Option.liftPredicate(
           ScrollSidebarActiveLinkIntoView(),
           () => !isPathnameEqual(model.url, url),
+        )
+
+        const nextAsyncCounterDemo = reflectAsyncCounterDemoPresence(
+          model.asyncCounterDemo,
+          isAsyncCounterDemoVisible(nextRoute, model.demoTabs),
+        )
+
+        const nextNotePlayerDemo = reflectNotePlayerDemoPresence(
+          model.notePlayerDemo,
+          isNotePlayerDemoVisible(nextRoute, model.demoTabs),
+        )
+
+        const nextPlaygroundRoute = pipe(
+          nextRoute,
+          Option.liftPredicate(isPlaygroundRoute),
+          Option.map(({ exampleSlug }) => Page.Playground.init(exampleSlug)),
         )
 
         return [
           evo(model, {
             route: () => nextRoute,
             url: () => url,
+            asyncCounterDemo: () => nextAsyncCounterDemo,
+            notePlayerDemo: () => nextNotePlayerDemo,
             mobileMenuDialog: () => closedMobileMenu,
             apiReference: () => nextApiReference,
             exampleDetail: () => nextExampleDetail,
-            playground: () =>
-              pipe(
-                nextRoute,
-                Option.liftPredicate(isPlaygroundRoute),
-                Option.map(({ exampleSlug }) =>
-                  Page.Playground.init(exampleSlug),
-                ),
-              ),
+            playground: () => nextPlaygroundRoute,
             search: () => nextSearch,
             isLandingHeaderVisible: () =>
               isLandingHeaderAlwaysVisible(nextRoute),
@@ -891,13 +943,27 @@ export const update = (
       },
 
       GotDemoTabsMessage: ({ message }) => {
-        const [nextDemoTabs, demoTabsCommands] = DemoTabs.update(
+        const [nextDemoTabs, demoTabsCommands] = DemoTab.DemoTabs.update(
           model.demoTabs,
           message,
         )
 
+        const nextAsyncCounterDemo = reflectAsyncCounterDemoPresence(
+          model.asyncCounterDemo,
+          isAsyncCounterDemoVisible(model.route, nextDemoTabs),
+        )
+
+        const nextNotePlayerDemo = reflectNotePlayerDemoPresence(
+          model.notePlayerDemo,
+          isNotePlayerDemoVisible(model.route, nextDemoTabs),
+        )
+
         return [
-          evo(model, { demoTabs: () => nextDemoTabs }),
+          evo(model, {
+            demoTabs: () => nextDemoTabs,
+            asyncCounterDemo: () => nextAsyncCounterDemo,
+            notePlayerDemo: () => nextNotePlayerDemo,
+          }),
           Command.mapMessages(demoTabsCommands, message =>
             GotDemoTabsMessage({ message }),
           ),
@@ -945,33 +1011,41 @@ export const update = (
         })
       },
 
-      GotAsyncCounterDemoMessage: ({ message }) => {
-        const [nextAsyncCounterDemo, asyncCounterDemoCommands] =
-          Page.AsyncCounterDemo.update(model.asyncCounterDemo, message)
+      GotAsyncCounterDemoMessage: ({ message }) =>
+        Option.match(model.asyncCounterDemo, {
+          onNone: () => [model, []],
+          onSome: asyncCounterDemo => {
+            const [nextAsyncCounterDemo, asyncCounterDemoCommands] =
+              Page.AsyncCounterDemo.update(asyncCounterDemo, message)
 
-        return [
-          evo(model, {
-            asyncCounterDemo: () => nextAsyncCounterDemo,
-          }),
-          Command.mapMessages(asyncCounterDemoCommands, message =>
-            GotAsyncCounterDemoMessage({ message }),
-          ),
-        ]
-      },
+            return [
+              evo(model, {
+                asyncCounterDemo: () => Option.some(nextAsyncCounterDemo),
+              }),
+              Command.mapMessages(asyncCounterDemoCommands, message =>
+                GotAsyncCounterDemoMessage({ message }),
+              ),
+            ]
+          },
+        }),
 
-      GotNotePlayerDemoMessage: ({ message }) => {
-        const [nextNotePlayerDemo, notePlayerDemoCommands] =
-          Page.NotePlayerDemo.update(model.notePlayerDemo, message)
+      GotNotePlayerDemoMessage: ({ message }) =>
+        Option.match(model.notePlayerDemo, {
+          onNone: () => [model, []],
+          onSome: notePlayerDemo => {
+            const [nextNotePlayerDemo, notePlayerDemoCommands] =
+              Page.NotePlayerDemo.update(notePlayerDemo, message)
 
-        return [
-          evo(model, {
-            notePlayerDemo: () => nextNotePlayerDemo,
-          }),
-          Command.mapMessages(notePlayerDemoCommands, message =>
-            GotNotePlayerDemoMessage({ message }),
-          ),
-        ]
-      },
+            return [
+              evo(model, {
+                notePlayerDemo: () => Option.some(nextNotePlayerDemo),
+              }),
+              Command.mapMessages(notePlayerDemoCommands, message =>
+                GotNotePlayerDemoMessage({ message }),
+              ),
+            ]
+          },
+        }),
 
       ChangedSystemTheme: ({ theme }) => {
         const resolvedTheme = resolveTheme(model.themePreference, theme)
@@ -1562,12 +1636,24 @@ export const subscriptions = Subscription.aggregate<Model, Message>()(
 
 // MANAGED RESOURCES
 
-export const managedResources = ManagedResource.lift(
+const playgroundManagedResources = ManagedResource.lift(
   Page.Playground.managedResources,
 )<Model, Message>({
   toChildModel: model => model.playground,
   toParentMessage: message => GotPlaygroundMessage({ message }),
 })
+
+const notePlayerDemoManagedResources = ManagedResource.lift(
+  Page.NotePlayerDemo.managedResources,
+)<Model, Message>({
+  toChildModel: model => model.notePlayerDemo,
+  toParentMessage: message => GotNotePlayerDemoMessage({ message }),
+})
+
+export const managedResources = ManagedResource.aggregate<Model, Message>()(
+  playgroundManagedResources,
+  notePlayerDemoManagedResources,
+)
 
 // TRACER
 // NOTE: Custom dev tracer disabled pending Effect v4 beta Tracer/Layer API rewrite.

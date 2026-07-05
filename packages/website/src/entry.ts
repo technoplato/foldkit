@@ -17,7 +17,6 @@ import {
   view,
 } from './main'
 import { ChangedUrl, ClickedLink, Message } from './message'
-import * as Page from './page'
 import * as Search from './search'
 
 // NOTE: TS can't infer `Resources`/`ManagedResourceServices` from the
@@ -45,11 +44,7 @@ const application = Runtime.makeApplication<
     onUrlRequest: request => ClickedLink({ request }),
     onUrlChange: url => ChangedUrl({ url }),
   },
-  resources: Layer.mergeAll(
-    Page.NotePlayerDemo.AudioContextService.Default,
-    Search.PagefindService.Default,
-    devTracerLayer,
-  ),
+  resources: Layer.mergeAll(Search.PagefindService.Default, devTracerLayer),
   devTools: {
     overlay,
     show: 'Always',

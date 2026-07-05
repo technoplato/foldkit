@@ -158,7 +158,7 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
             [],
             [
               link(coreResourcesRouter(), 'Resources'),
-              ': an Effect Layer that provides long-lived services to your Commands. One-time setup like creating an AudioContext or opening a database connection.',
+              ': an Effect Layer that provides long-lived services to your Commands. One-time setup like assembling an RPC client or opening a database connection.',
             ],
           ),
           h.li(

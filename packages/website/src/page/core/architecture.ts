@@ -169,13 +169,9 @@ export const view = (): Html => {
         '. Five sources: Commands, the Browser, Mount, Subscriptions, and ManagedResources. One loop.',
       ),
       para(
-        'Sitting beneath the loop are Resources: app-lifetime singletons like ',
-        inlineCode('AudioContext'),
-        ', ',
-        inlineCode('RTCPeerConnection'),
-        ', or ',
-        inlineCode('CanvasRenderingContext2D'),
-        ' that Commands draw on. Resources don’t produce Messages themselves. They’re the ambient dependencies the Message-producing parts need to do their work.',
+        'Sitting beneath the loop are Resources: app-lifetime singletons like an ',
+        inlineCode('RpcClient'),
+        ', an analytics client, or a background compute worker that Commands draw on. Resources don’t produce Messages themselves. They’re the ambient dependencies the Message-producing parts need to do their work.',
       ),
       tableOfContentsEntryToHeader(definitionsHeader),
       para('Each concept in one place, in plain terms:'),
@@ -227,7 +223,7 @@ export const view = (): Html => {
           [
             ['Resource'],
             [
-              'An app-lifetime singleton (an AudioContext, an RTCPeerConnection, a CanvasRenderingContext2D) that Commands can draw on. A dependency, not a Message source.',
+              'An app-lifetime singleton (an RPC client, an analytics client, a compute worker) that Commands can draw on. A dependency, not a Message source.',
             ],
           ],
           [
