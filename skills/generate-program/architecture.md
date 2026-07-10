@@ -274,6 +274,19 @@ keyed('div')(model.route._tag, [...], [...])
 
 Without keying, the virtual DOM tries to patch one layout into another, causing stale DOM, mismatched event handlers, and rendering bugs.
 
+Keys carry identity, never data. A key answers which branch or item occupies a position, not what it currently shows. Never derive a key from displayed data to force a refresh when content changes:
+
+```ts
+// Wrong: the key restates displayed data, so every toggle tears the
+// panel down, discarding focus, scroll, and any open details element
+keyed('div')(`${model.isCardSelected}:${model.isTermsAccepted}`, [...], [...])
+
+// Right: same thing on every render, no key; changed content patches in place
+div([...], [...])
+```
+
+If a key can change while the same conceptual thing stays on screen, the key is doing change detection, and patching already does that.
+
 ## DOM and Effect Helpers
 
 Commands that interact with the DOM use Foldkit's `Dom` module. Time, randomness, and delays use Effect's built-in services. Both are pure Effect wrappers, so they compose naturally in Commands.

@@ -159,6 +159,8 @@ These are the failure modes that pass typecheck and tests but fall short of the 
 
 21. **View functions named after the namespace they're imported under.** A counter feature exporting `counter(model)` reads as `Counter.counter(model)` at call sites, which is awkward and asks the reader to parse "namespace.same-word". The convention from the typing-game and website exemplars: name the primary view function `view`, so call sites read `Counter.view(model)`, `Home.view(model)`, `Room.view(model)`. The namespace already disambiguates; the function name carries the role.
 
+22. **Data-derived keys.** A `keyed(...)` call whose key is built from displayed data (a key concatenating toggled booleans, a key set to a formatted summary string, a key that restates a field the subtree renders) is keying used as change detection. The key changes while the same conceptual thing stays on screen, so every content change tears the subtree down and rebuilds it, discarding focus, scroll position, and any open `details` element. Keys carry identity: a branch tag, a route tag, a stable id. If removing the key would leave the same structure rendering at that position, remove it and let patching handle the changed content.
+
 ### Final exemplar comparison
 
 Pick one audited file at random and read it next to the equivalent file in the tier-matching exemplar. Ask:

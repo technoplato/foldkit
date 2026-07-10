@@ -35,6 +35,14 @@
       "types": "./dist/dom/public.d.ts",
       "import": "./dist/dom/public.js"
     },
+    "./experimental": {
+      "types": "./dist/experimental/public.d.ts",
+      "import": "./dist/experimental/public.js"
+    },
+    "./experimental/statechart": {
+      "types": "./dist/experimental/statechart/public.d.ts",
+      "import": "./dist/experimental/statechart/public.js"
+    },
     "./html": {
       "types": "./dist/html/public.d.ts",
       "import": "./dist/html/public.js"

@@ -28,6 +28,8 @@ const loadersBySlug: Readonly<Record<string, SourceLoader | undefined>> = {
   routing: () => import('virtual:example-sources/routing'),
   'query-sync': () => import('virtual:example-sources/query-sync'),
   'shopping-cart': () => import('virtual:example-sources/shopping-cart'),
+  'statechart-checkout': () =>
+    import('virtual:example-sources/statechart-checkout'),
   auth: () => import('virtual:example-sources/auth'),
   'pixel-art': () => import('virtual:example-sources/pixel-art'),
   snake: () => import('virtual:example-sources/snake'),

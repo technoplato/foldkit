@@ -17,6 +17,7 @@ export const EXAMPLE_VALUES = [
   'generative-art',
   'auth',
   'shopping-cart',
+  'statechart-checkout',
   'pixel-art',
   'websocket-chat',
   'managed-resource-layer',
@@ -132,6 +133,12 @@ export const examples: ReadonlyArray<{
     value: 'shopping-cart',
     title: 'shopping-cart',
     description: 'Complex state management with nested models and routing',
+  },
+  {
+    value: 'statechart-checkout',
+    title: 'statechart-checkout',
+    description:
+      'Checkout workflow powered by the experimental statechart module with guarded branches and edge Commands',
   },
   {
     value: 'pixel-art',

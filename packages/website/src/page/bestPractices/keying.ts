@@ -34,6 +34,12 @@ const oneKeyPerBranchHeader: TableOfContentsEntry = {
   text: 'One Key per Branch',
 }
 
+const identityNotDataHeader: TableOfContentsEntry = {
+  level: 'h3',
+  id: 'keys-carry-identity-not-data',
+  text: 'Keys Carry Identity, Not Data',
+}
+
 const mappedListItemsHeader: TableOfContentsEntry = {
   level: 'h3',
   id: 'mapped-list-items',
@@ -50,6 +56,7 @@ export const tableOfContents: ReadonlyArray<TableOfContentsEntry> = [
   keyingHeader,
   branchingViewsHeader,
   oneKeyPerBranchHeader,
+  identityNotDataHeader,
   mappedListItemsHeader,
   conditionalInsertsHeader,
 ]
@@ -157,6 +164,32 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
       warningCallout(
         'One key per branch',
         'If two branches want to share a key, they want to be one branch. Restructure the view rather than aliasing keys.',
+      ),
+      tableOfContentsEntryToHeader(identityNotDataHeader),
+      para(
+        'Every key above names an identity: which branch occupies a position, which row an element belongs to. The inverse mistake is deriving a key from the data a view displays, so that the key changes whenever the content changes. A key answers which thing occupies this position, never what that thing currently shows.',
+      ),
+      highlightedCodeBlock(
+        h.div(
+          [
+            h.Class('text-sm'),
+            h.InnerHTML(Snippet.keyingIdentityNotDataHighlighted),
+          ],
+          [],
+        ),
+        Snippet.keyingIdentityNotDataRaw,
+        'Copy identity keying example to clipboard',
+        copiedSnippets,
+        'mb-8',
+      ),
+      para(
+        'When only data changed, the element should stay and patch: that is the diff working as intended. A data-derived key turns every content change into a teardown, which discards DOM state the next render cannot recreate: focus, scroll position, text selection, an open ',
+        inlineCode('details'),
+        ' element.',
+      ),
+      warningCallout(
+        'Keys are not change detection',
+        'Key by what a thing is (a branch tag, a stable id), never by what it shows. If a key can change while the same conceptual thing stays on screen, the key is wrong.',
       ),
       tableOfContentsEntryToHeader(mappedListItemsHeader),
       para(

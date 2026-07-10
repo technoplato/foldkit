@@ -19,6 +19,7 @@ export const ExampleSlug = S.Literals([
   'snake',
   'auth',
   'shopping-cart',
+  'statechart-checkout',
   'pixel-art',
   'websocket-chat',
   'managed-resource-layer',
@@ -176,6 +177,15 @@ export const examples: ReadonlyArray<ExampleMeta> = [
     difficulty: 'Advanced',
     tags: ['Routing'],
     hasRouting: true,
+  },
+  {
+    slug: 'statechart-checkout',
+    title: 'Statechart Checkout',
+    description:
+      'Checkout workflow powered by the experimental statechart module. Guards skip Shipping for digital orders, gate Place order behind a complete review, and parse promo codes into applied discounts.',
+    difficulty: 'Advanced',
+    tags: ['Statecharts', 'Commands', 'Experimental'],
+    hasRouting: false,
   },
   {
     slug: 'pixel-art',
