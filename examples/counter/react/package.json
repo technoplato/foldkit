@@ -6,9 +6,13 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "dev": "vite",
+    "prebuild": "pnpm --filter counter-react-bindings-example build",
+    "predev": "pnpm --filter counter-react-bindings-example build",
+    "pretypecheck": "pnpm --filter counter-react-bindings-example build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "counter-react-bindings-example": "workspace:*",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

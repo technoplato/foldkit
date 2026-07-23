@@ -162,7 +162,7 @@ const application = Runtime.makeApplication({
 Runtime.run(application)
 ```
 
-Source: [shared core](https://github.com/foldkit/foldkit/tree/main/examples/counter/core/src), [Foldkit client](https://github.com/foldkit/foldkit/tree/main/examples/counter/foldkit/src), [CLI client](https://github.com/foldkit/foldkit/tree/main/examples/counter/cli/src), [TUI client](https://github.com/foldkit/foldkit/tree/main/examples/counter/tui/src)
+Source: [shared core](https://github.com/foldkit/foldkit/tree/main/examples/counter/core/src), [Foldkit client](https://github.com/foldkit/foldkit/tree/main/examples/counter/foldkit/src), [CLI client](https://github.com/foldkit/foldkit/tree/main/examples/counter/cli/src), [TUI client](https://github.com/foldkit/foldkit/tree/main/examples/counter/tui/src), [React bindings](https://github.com/foldkit/foldkit/tree/main/examples/counter/react-bindings/src), [React client](https://github.com/foldkit/foldkit/tree/main/examples/counter/react/src), [React Native client](https://github.com/foldkit/foldkit/tree/main/examples/counter/react-native/src)
 
 ## What Ships With Foldkit
 

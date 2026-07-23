@@ -6,10 +6,15 @@
   "scripts": {
     "android": "expo start --android",
     "ios": "expo start --ios",
+    "preandroid": "pnpm --filter counter-react-bindings-example build",
+    "preios": "pnpm --filter counter-react-bindings-example build",
+    "prestart": "pnpm --filter counter-react-bindings-example build",
+    "pretypecheck": "pnpm --filter counter-react-bindings-example build",
     "start": "expo start",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "counter-react-bindings-example": "workspace:*",
     "expo": "^57.0.8",
     "react": "^19.2.7",
     "react-native": "0.86.0"

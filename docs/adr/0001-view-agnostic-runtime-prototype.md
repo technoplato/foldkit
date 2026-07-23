@@ -180,6 +180,35 @@ observation, portable URI state, and foreground client launching remain isolated
 workspace, website source viewer, playground bundler, example builder, and
 `create-foldkit-app` scaffolder now understand the grouped Counter layout.
 
+### React and React Native proof | 2026-07-23 18:19:00 EDT
+
+The Counter example now includes a React-specific binding package plus React and
+React Native clients:
+
+```text
+examples/counter/
+  react-bindings/
+  react/
+  react-native/
+```
+
+`react-bindings` depends on React, Effect, Foldkit, and `counter-core-example`.
+It does not depend on `react-dom`, browser APIs, Expo, or React Native rendering
+primitives. It exposes `CounterProvider`, `useCounterModel`, and
+`useCounterActions`, so consuming components do not receive a Foldkit runtime and
+do not import Effect.
+
+The web React client owns its DOM rendering through Vite and `react-dom`. The
+React Native client owns its native rendering through Expo and `react-native`.
+Both import the same hook package and therefore send the same `ClickedIncrement`,
+`ClickedDecrement`, and `ClickedReset` Messages into the same Counter Program.
+
+The current hook package is intentionally Counter-local. It proves the shape
+without canonizing a public adapter API. The future generic adapter still needs to
+model asynchronous init Commands, resource Layers, platform dependency selection,
+DevTools transport, and generic host-action manifests before moving into a
+published package.
+
 ## Open Questions
 
 ### 2026-07-23 16:58:52 EDT
