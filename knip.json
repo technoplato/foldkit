@@ -68,6 +68,10 @@
     "examples/counter/react": {
       "ignoreDependencies": ["prettier", "tailwindcss"]
     },
+    "examples/counter/react-native": {
+      "entry": ["App.tsx"],
+      "ignoreDependencies": ["expo-system-ui", "expo-updates", "prettier"]
+    },
     "examples/counter/cli": {
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]

@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Counter React Native",
+    "slug": "counter-react-native",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true
+  }
+}
