@@ -27,6 +27,9 @@ importers:
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
       knip:
         specifier: ^6.12.2
         version: 6.17.1
@@ -340,33 +343,114 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  examples/counter:
+  examples/counter-with-shared-state:
     dependencies:
-      '@effect/platform-browser':
+      '@effect/platform-node':
         specifier: 4.0.0-beta.97
-        version: 4.0.0-beta.97(effect@4.0.0-beta.97)
-      '@foldkit/devtools':
-        specifier: workspace:*
-        version: link:../../packages/devtools
-      '@foldkit/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      '@tailwindcss/vite':
-        specifier: ^4.3.1
-        version: 4.3.1(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.0.0-beta.97(effect@4.0.0-beta.97)(ioredis@5.10.1)
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
       foldkit:
         specifier: workspace:*
         version: link:../../packages/foldkit
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/counter/cli:
+    dependencies:
+      '@effect/platform-node':
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97(effect@4.0.0-beta.97)(ioredis@5.10.1)
+      counter-core-example:
+        specifier: workspace:*
+        version: link:../core
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/counter/core:
+    dependencies:
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+    devDependencies:
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/counter/foldkit:
+    dependencies:
+      '@effect/platform-browser':
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97(effect@4.0.0-beta.97)
+      '@foldkit/devtools':
+        specifier: workspace:*
+        version: link:../../../packages/devtools
+      '@foldkit/ui':
+        specifier: workspace:*
+        version: link:../../../packages/ui
+      '@tailwindcss/vite':
+        specifier: ^4.3.1
+        version: 4.3.1(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      counter-core-example:
+        specifier: workspace:*
+        version: link:../core
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
       tailwindcss:
         specifier: ^4.3.1
         version: 4.3.1
     devDependencies:
       '@foldkit/vite-plugin':
         specifier: workspace:*
-        version: link:../../packages/vite-plugin-foldkit
+        version: link:../../../packages/vite-plugin-foldkit
       '@trivago/prettier-plugin-sort-imports':
         specifier: ^6.0.2
         version: 6.0.2(@vue/compiler-sfc@3.5.38)(prettier@3.8.4)
@@ -386,17 +470,20 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  examples/counter-with-shared-state:
+  examples/counter/tui:
     dependencies:
       '@effect/platform-node':
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97(effect@4.0.0-beta.97)(ioredis@5.10.1)
+      counter-core-example:
+        specifier: workspace:*
+        version: link:../core
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
       foldkit:
         specifier: workspace:*
-        version: link:../../packages/foldkit
+        version: link:../../../packages/foldkit
     devDependencies:
       '@types/node':
         specifier: ^25.9.3
@@ -404,6 +491,9 @@ importers:
       prettier:
         specifier: ^3.8.4
         version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

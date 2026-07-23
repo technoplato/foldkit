@@ -69,7 +69,8 @@ Then read the tier-specific example files that match the app's complexity. **Alw
 ### Complexity tiers
 
 **Tier 1: Single page, no async, minimal state:**
-Read `${CLAUDE_SKILL_DIR}/../../examples/counter/src/main.ts`
+Read `${CLAUDE_SKILL_DIR}/../../examples/counter/core/src/` for the Program and
+`${CLAUDE_SKILL_DIR}/../../examples/counter/foldkit/src/view.ts` for its Foldkit view.
 
 **Tier 2: Timers, subscriptions, simple stateful apps:**
 Read `${CLAUDE_SKILL_DIR}/../../examples/stopwatch/src/main.ts` (timer via subscription, `Duration` field pattern) and `${CLAUDE_SKILL_DIR}/../../examples/todo/src/main.ts` (CRUD with localStorage via flags)

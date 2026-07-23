@@ -1,9 +1,10 @@
+import { type Model, initialCount, update } from 'counter-core-example'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
 
-import { type Model, update, view } from './main'
+import { view } from './index.js'
 
-const initialModel: Model = { count: 0 }
+const initialModel: Model = { count: initialCount }
 
 describe('view', () => {
   test('renders the initial count and three buttons', () => {

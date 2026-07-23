@@ -23,6 +23,8 @@ import { type PackageManager, devCommand, installCommand } from './packages.js'
 
 const GITHUB_API_BASE_URL =
   'https://api.github.com/repos/foldkit/foldkit/contents/examples'
+const COUNTER_EXAMPLE = 'counter'
+const COUNTER_CORE_PACKAGE_NAME = 'counter-core-example'
 
 type FilePath = string
 type FileContent = string
@@ -217,6 +219,43 @@ const GitHubFileEntry = Schema.Struct({
 
 type GitHubFileEntry = typeof GitHubFileEntry.Type
 
+type ExampleSourceFile = Readonly<{
+  entry: GitHubFileEntry
+  maybeTargetDirectory: Option.Option<string>
+  maybeBundledPackage: Option.Option<string>
+}>
+
+type ExampleSourceDefinition = Readonly<{
+  url: string
+  maybeTargetDirectory: Option.Option<string>
+  maybeBundledPackage: Option.Option<string>
+}>
+
+/** Resolves the source roots that are flattened into a scaffolded example. */
+export const exampleSourceDefinitions = (
+  example: string,
+): ReadonlyArray<ExampleSourceDefinition> =>
+  example === COUNTER_EXAMPLE
+    ? [
+        {
+          url: `${GITHUB_API_BASE_URL}/${example}/foldkit/src`,
+          maybeTargetDirectory: Option.none<string>(),
+          maybeBundledPackage: Option.some(COUNTER_CORE_PACKAGE_NAME),
+        },
+        {
+          url: `${GITHUB_API_BASE_URL}/${example}/core/src`,
+          maybeTargetDirectory: Option.some('core'),
+          maybeBundledPackage: Option.none<string>(),
+        },
+      ]
+    : [
+        {
+          url: `${GITHUB_API_BASE_URL}/${example}/src`,
+          maybeTargetDirectory: Option.none<string>(),
+          maybeBundledPackage: Option.none<string>(),
+        },
+      ]
+
 const createExampleFiles = (projectPath: string, example: string) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
@@ -238,7 +277,7 @@ const createExampleFiles = (projectPath: string, example: string) =>
 const fetchExampleFileList = (
   example: string,
 ): Effect.Effect<
-  ReadonlyArray<GitHubFileEntry>,
+  ReadonlyArray<ExampleSourceFile>,
   HttpClientError.HttpClientError | Schema.SchemaError,
   HttpClient.HttpClient
 > =>
@@ -270,12 +309,47 @@ const fetchExampleFileList = (
         return Array.flatten(results)
       })
 
-    const githubApiUrl = `${GITHUB_API_BASE_URL}/${example}/src`
-    return yield* fetchFilesRecursively(githubApiUrl)
+    const sourceDefinitions = exampleSourceDefinitions(example)
+
+    const fileGroups = yield* Effect.forEach(
+      sourceDefinitions,
+      ({ url, maybeTargetDirectory, maybeBundledPackage }) =>
+        Effect.map(fetchFilesRecursively(url), entries =>
+          Array.map(entries, entry => ({
+            entry,
+            maybeTargetDirectory,
+            maybeBundledPackage,
+          })),
+        ),
+      { concurrency: 'unbounded' },
+    )
+
+    return Array.flatten(fileGroups)
   })
 
-const downloadExampleFile = (file: GitHubFileEntry, projectPath: string) =>
+const moduleSpecifier = (
+  path: Path.Path,
+  fromFile: string,
+  toFile: string,
+): string => {
+  const relativePath = path.relative(path.dirname(fromFile), toFile)
+  if (relativePath.startsWith('.')) {
+    return relativePath
+  } else {
+    return `./${relativePath}`
+  }
+}
+
+const downloadExampleFile = (
+  sourceFile: ExampleSourceFile,
+  projectPath: string,
+) =>
   Effect.gen(function* () {
+    const {
+      entry: file,
+      maybeTargetDirectory,
+      maybeBundledPackage,
+    } = sourceFile
     if (!file.download_url) {
       return yield* Effect.fail(`File ${file.name} has no download URL`)
     }
@@ -286,7 +360,7 @@ const downloadExampleFile = (file: GitHubFileEntry, projectPath: string) =>
 
     const request = HttpClientRequest.get(file.download_url)
     const response = yield* client.execute(request)
-    const content = yield* response.text
+    const downloadedContent = yield* response.text
 
     const pathParts = String.split(file.path, '/')
     const srcIndex = Array.findFirstIndex(pathParts, part => part === 'src')
@@ -298,7 +372,16 @@ const downloadExampleFile = (file: GitHubFileEntry, projectPath: string) =>
           pipe(pathParts, Array.drop(index + 1), Array.join('/')),
       }),
     )
-    const targetPath = path.join(projectPath, 'src', relativePath)
+    const targetRelativePath = Option.isSome(maybeTargetDirectory)
+      ? path.join(maybeTargetDirectory.value, relativePath)
+      : relativePath
+    const content = Option.isSome(maybeBundledPackage)
+      ? downloadedContent.replaceAll(
+          `'${maybeBundledPackage.value}'`,
+          `'${moduleSpecifier(path, targetRelativePath, 'core/index.js')}'`,
+        )
+      : downloadedContent
+    const targetPath = path.join(projectPath, 'src', targetRelativePath)
 
     const dirPath = path.dirname(targetPath)
     yield* fs.makeDirectory(dirPath, { recursive: true })

@@ -1,8 +1,9 @@
+import { Message, Model, init, update } from 'counter-core-example'
 import { Runtime } from 'foldkit'
 
 import { overlay } from '@foldkit/devtools'
 
-import { Message, Model, init, update, view } from './main'
+import { view } from './index.js'
 
 const application = Runtime.makeApplication({
   Model,

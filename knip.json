@@ -53,6 +53,35 @@
         "tailwindcss"
       ]
     },
+    "examples/counter/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/counter/foldkit": {
+      "entry": ["src/**/*.test.ts"],
+      "ignoreDependencies": [
+        "@trivago/prettier-plugin-sort-imports",
+        "prettier",
+        "tailwindcss"
+      ]
+    },
+    "examples/counter/cli": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/counter/tui": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/counter-with-shared-state": {
+      "entry": [
+        "src/foldkitCounter.ts",
+        "src/foldkitCounterTui.ts",
+        "src/index.ts",
+        "src/**/*.test.ts"
+      ],
+      "ignoreDependencies": ["prettier"]
+    },
     "examples/charting": {
       "entry": [],
       "ignoreDependencies": [

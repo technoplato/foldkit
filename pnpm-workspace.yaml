@@ -2,6 +2,7 @@ packages:
   - 'packages/*'
   - 'packages/typing-game/*'
   - 'examples/*'
+  - 'examples/counter/*'
   - 'comparisons/*'
   - 'internal/*'
 

@@ -133,6 +133,12 @@ will consume the exact same simple Model, Messages, init, and update. This keeps
 next experiment focused on host reuse rather than mixing the host seam with persistence
 design.
 
+`examples/counter/core` will own the only definitions of that Model, Message union,
+init, and update. The sibling `foldkit`, `cli`, and `tui` packages will import those
+exact definitions. They will not copy them or maintain equivalent client-specific
+unions. `platform-node` will contain only genuinely Node-specific composition. A
+Counter-specific file-storage implementation will not move into the canonical example.
+
 The saved-state behavior remains in the advanced
 `examples/counter-with-shared-state` proof until a generic Sharing API is designed.
 That design should draw on Swift Sharing's strategy and key model and TanStack Query's
@@ -142,3 +148,104 @@ protocol.
 The next investigation will determine whether `makeApplication` should accept a shared
 Program definition plus a Foldkit view adapter, or whether a lower-level shared engine
 should sit beneath both `makeApplication` and `makeHostRuntime`.
+
+### Canonical Counter extraction | 2026-07-23 17:27:16 EDT
+
+The canonical Counter is now a group of four workspace packages:
+
+```text
+examples/counter/
+  core/
+  foldkit/
+  cli/
+  tui/
+```
+
+`core` is the only owner of `initialCount`, `Model`, `Message`, `init`, and `update`.
+The graphical Foldkit client, one-shot CLI, and interactive terminal client import
+those exact definitions from `counter-core-example`. They do not copy the Program or
+introduce client-specific Message unions. The CLI and TUI run the shared Program
+through `makeHostRuntime`, while the graphical client runs it through the canonical
+`makeApplication` path.
+
+The extraction deliberately does not add a `platform-node` package. Node-specific
+terminal and process composition currently belongs only to its respective client, so
+there is no genuine shared platform implementation to name or maintain. A sibling
+platform package should be introduced only when at least two clients share a reusable
+Effect service or Layer.
+
+The canonical Counter remains stateless across process launches. Persistence,
+observation, portable URI state, and foreground client launching remain isolated in
+`examples/counter-with-shared-state` until the generic Sharing API is designed. The
+workspace, website source viewer, playground bundler, example builder, and
+`create-foldkit-app` scaffolder now understand the grouped Counter layout.
+
+## Open Questions
+
+### 2026-07-23 16:58:52 EDT
+
+#### How should Messages describe interactions across media?
+
+The current simple Counter names its input Messages `ClickedIncrement`,
+`ClickedDecrement`, and `ClickedReset`. Those are accurate facts when a person clicks a
+button, but they are inaccurate when a CLI user enters a command, a terminal user
+presses a key, or an agentic actor requests a domain operation.
+
+The extraction will preserve one Message union, but its final vocabulary remains open.
+We need to decide whether core Messages should describe medium-neutral domain facts,
+such as `RequestedIncrement`, while each host exposes medium-appropriate actions that
+map to those Messages. We also need to support one domain request carrying its complete
+input, such as an adjustment amount, rather than forcing an agent or calculator to
+simulate several button clicks by sending repeated Messages.
+
+##### Current extraction decision | 2026-07-23 17:08:18 EDT
+
+Preserve `ClickedIncrement`, `ClickedDecrement`, and `ClickedReset` unchanged for the
+first package extraction. The Foldkit view, CLI, and TUI will import those exact
+constructors from core. CLI and TUI inputs will temporarily map to the `Clicked*`
+Messages rather than introducing parallel medium-specific Message unions. This keeps
+the current slice focused on proving single-source Program reuse while the vocabulary
+and host-action mapping question remains open.
+
+Messages must remain past-tense facts, and update remains the only place that changes
+the Model. This question concerns the factual boundary between host interaction and
+domain request. It does not authorize Commands to mutate the Model or introduce another
+source of truth.
+
+#### What is the generic Sharing key API?
+
+The preferred domain name is `CounterKey`, not `CounterValue`. It should be constructed
+through a generic API such as `Sharing.key` and associate a Schema with a default or
+initial value. The canonical initial count will be defined independently in core and
+reused by both init and `CounterKey`. The remaining open question is the exact
+`Sharing.key` API and how a host selects its persistence and observation strategy.
+
+The Sharing facility must own reusable load, save, and observation strategy mechanics.
+The Counter must not maintain a bespoke storage protocol or duplicate its Schema and
+initial value across strategies.
+
+#### Does the React adapter require generated code?
+
+Generation remains an open implementation choice. A generic adapter may be able to
+accept the typed Program boundary and an explicit host-action manifest and infer
+domain-shaped `useModel` and `useActions` hooks without emitting source files. Any
+approach must make invalid action names and payloads TypeScript build errors and expose
+only host-sendable Messages.
+
+The first implementation will attempt this generic, inference-based factory. Generated
+source files are a fallback only if TypeScript cannot provide the domain-shaped API or
+useful build-time diagnostics through inference.
+
+The React boundary must keep its store instance, snapshots, subscriptions, and action
+functions referentially stable. The design should draw on TanStack Query's stable
+observer lifetime, `useSyncExternalStore` bridge, stable mutation callback, shallow
+notification check, and structural-sharing tests. Relevant source is pinned to TanStack
+Query commit `86bb8a6fb2c7f15c74ff50afba053d778e6edc23`:
+
+- [`useBaseQuery`](https://github.com/TanStack/query/blob/86bb8a6fb2c7f15c74ff50afba053d778e6edc23/packages/react-query/src/useBaseQuery.ts#L95-L124)
+- [`useMutation`](https://github.com/TanStack/query/blob/86bb8a6fb2c7f15c74ff50afba053d778e6edc23/packages/react-query/src/useMutation.ts#L30-L68)
+- [`QueryObserver.updateResult`](https://github.com/TanStack/query/blob/86bb8a6fb2c7f15c74ff50afba053d778e6edc23/packages/query-core/src/queryObserver.ts#L645-L664)
+- [`replaceEqualDeep`](https://github.com/TanStack/query/blob/86bb8a6fb2c7f15c74ff50afba053d778e6edc23/packages/query-core/src/utils.ts#L282-L334)
+
+These references inform the future React adapter. They do not require deep structural
+sharing in the core runtime, CLI, or TUI.

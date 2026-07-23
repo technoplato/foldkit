@@ -6,6 +6,7 @@ import {
   buildUnresolvedDeps,
   buildUnresolvedDevDeps,
   devCommand,
+  examplePackagePath,
   installCommand,
 } from './packages.js'
 
@@ -69,5 +70,12 @@ describe('devCommand', () => {
     expect(devCommand('npm')).toBe('npm run dev')
     expect(devCommand('yarn')).toBe('yarn dev')
     expect(devCommand('bun')).toBe('bun dev')
+  })
+})
+
+describe('examplePackagePath', () => {
+  it('uses the graphical Counter client manifest', () => {
+    expect(examplePackagePath('counter')).toBe('counter/foldkit')
+    expect(examplePackagePath('stopwatch')).toBe('stopwatch')
   })
 })

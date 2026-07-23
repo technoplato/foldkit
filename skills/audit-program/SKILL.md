@@ -63,7 +63,7 @@ Before deep review, build a model of the audited code:
    - **Tier 7**: real-time, WebSocket, ManagedResources
 3. **Foldkit modules used**. Grep imports for `Calendar`, `File`, `FieldValidation`, `Ui.*`, `Subscription`, `Command`, `Mount`, `ManagedResource`, `CustomElement`, `Dom`, `HttpClient`, etc. Tells you which checklist sections apply.
 4. **Tier-matching exemplar**. Pick at least one to read alongside the audited code:
-   - Tier 1-2 → `${CLAUDE_SKILL_DIR}/../../examples/counter/src/main.ts`, `${CLAUDE_SKILL_DIR}/../../examples/stopwatch/src/main.ts`
+   - Tier 1-2 → `${CLAUDE_SKILL_DIR}/../../examples/counter/core/src/`, `${CLAUDE_SKILL_DIR}/../../examples/counter/foldkit/src/view.ts`, `${CLAUDE_SKILL_DIR}/../../examples/stopwatch/src/main.ts`
    - Tier 3 → `${CLAUDE_SKILL_DIR}/../../examples/weather/src/main.ts`, `${CLAUDE_SKILL_DIR}/../../examples/form/src/main.ts`
    - Tier 4 → `${CLAUDE_SKILL_DIR}/../../examples/routing/src/main.ts`
    - Tier 5 → `${CLAUDE_SKILL_DIR}/../../examples/kanban/src/`
