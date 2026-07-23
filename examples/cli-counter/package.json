@@ -1,0 +1,29 @@
+{
+  "name": "cli-counter-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "foldkit-counter": "./dist/foldkitCounter.js",
+    "foldkit-counter-tui": "./dist/foldkitCounterTui.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "counter": "node dist/foldkitCounter.js",
+    "counter-tui": "node dist/foldkitCounterTui.js",
+    "counter:tui": "node dist/foldkitCounterTui.js",
+    "test": "pnpm run build && vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.97",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
