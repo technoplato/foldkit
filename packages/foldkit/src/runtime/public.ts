@@ -7,6 +7,8 @@ export {
   run,
 } from './runtime.js'
 
+export { makeHostRuntime } from './hostRuntime.js'
+
 export type {
   RoutingConfig,
   CrashConfig,
@@ -42,3 +44,5 @@ export type {
   DevToolsOverlay,
   DevToolsPosition,
 } from './runtime.js'
+
+export type { HostRuntime, HostRuntimeConfig } from './hostRuntime.js'
