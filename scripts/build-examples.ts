@@ -22,11 +22,39 @@ const OUTPUT_DIR = resolve(
 const BRIDGE_SCRIPT_PATH = resolve(REPO_ROOT, 'scripts/example-bridge.js')
 const BRIDGE_SCRIPT_TAG = '<script src="bridge.js"></script></head>'
 
+const resolveExampleAppDirectory = (exampleDirectory: string): string => {
+  const foldkitDirectory = resolve(exampleDirectory, 'foldkit')
+  if (existsSync(resolve(foldkitDirectory, 'package.json'))) {
+    return foldkitDirectory
+  } else {
+    return exampleDirectory
+  }
+}
+
+const buildExampleCore = (exampleDirectory: string): void => {
+  const coreDirectory = resolve(exampleDirectory, 'core')
+  if (!existsSync(resolve(coreDirectory, 'package.json'))) {
+    return
+  }
+
+  const result = spawnSync('pnpm', ['run', 'build'], {
+    cwd: coreDirectory,
+    stdio: 'inherit',
+  })
+
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1)
+  }
+}
+
 const buildExample = (slug: string): void => {
   console.log(`Building example: ${slug}`)
 
   const exampleDir = resolve(EXAMPLES_DIR, slug)
+  const exampleAppDir = resolveExampleAppDirectory(exampleDir)
   const outputDir = resolve(OUTPUT_DIR, slug)
+
+  buildExampleCore(exampleDir)
 
   const result = spawnSync(
     'npx',
@@ -38,7 +66,7 @@ const buildExample = (slug: string): void => {
       '--outDir',
       outputDir,
     ],
-    { cwd: exampleDir, stdio: 'inherit' },
+    { cwd: exampleAppDir, stdio: 'inherit' },
   )
 
   if (result.status !== 0) {

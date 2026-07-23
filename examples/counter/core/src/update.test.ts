@@ -5,13 +5,22 @@ import {
   ClickedDecrement,
   ClickedIncrement,
   ClickedReset,
-  type Model,
+  Model,
+  init,
+  initialCount,
   update,
-} from './main'
+} from './index.js'
 
-const initialModel: Model = { count: 0 }
+const initialModel: Model = { count: initialCount }
 
 describe('update', () => {
+  test('init uses the canonical initial count and produces no Commands', () => {
+    const [model, commands] = init()
+
+    expect(model).toEqual(Model.make({ count: initialCount }))
+    expect(commands).toEqual([])
+  })
+
   test('ClickedIncrement adds one to the count', () => {
     Story.story(
       update,
@@ -29,6 +38,7 @@ describe('update', () => {
       update,
       Story.with({ count: 5 }),
       Story.message(ClickedDecrement()),
+      Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(4)
       }),
@@ -40,6 +50,7 @@ describe('update', () => {
       update,
       Story.with(initialModel),
       Story.message(ClickedDecrement()),
+      Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(-1)
       }),
@@ -51,6 +62,7 @@ describe('update', () => {
       update,
       Story.with({ count: 99 }),
       Story.message(ClickedReset()),
+      Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(0)
       }),
@@ -62,13 +74,18 @@ describe('update', () => {
       update,
       Story.with(initialModel),
       Story.message(ClickedIncrement()),
+      Story.Command.expectNone(),
       Story.message(ClickedIncrement()),
+      Story.Command.expectNone(),
       Story.message(ClickedIncrement()),
+      Story.Command.expectNone(),
       Story.message(ClickedDecrement()),
+      Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(2)
       }),
       Story.message(ClickedReset()),
+      Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(0)
       }),

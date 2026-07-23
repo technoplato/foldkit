@@ -1,54 +1,17 @@
-import { Match as M, Schema as S } from 'effect'
-import { Command, Runtime } from 'foldkit'
-import { Document, html } from 'foldkit/html'
-import { m } from 'foldkit/message'
-
-import { Button } from '@foldkit/ui'
-
-// MODEL
-
-export const Model = S.Struct({ count: S.Number })
-export type Model = typeof Model.Type
-
-// MESSAGE
-
-export const ClickedDecrement = m('ClickedDecrement')
-export const ClickedIncrement = m('ClickedIncrement')
-export const ClickedReset = m('ClickedReset')
-
-export const Message = S.Union([
+import {
   ClickedDecrement,
   ClickedIncrement,
   ClickedReset,
-])
-export type Message = typeof Message.Type
+  type Message,
+  type Model,
+} from 'counter-core-example'
+import { Document, html } from 'foldkit/html'
 
-// UPDATE
-
-export const update = (
-  model: Model,
-  message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] =>
-  M.value(message).pipe(
-    M.withReturnType<
-      readonly [Model, ReadonlyArray<Command.Command<Message>>]
-    >(),
-    M.tagsExhaustive({
-      ClickedDecrement: () => [{ count: model.count - 1 }, []],
-      ClickedIncrement: () => [{ count: model.count + 1 }, []],
-      ClickedReset: () => [{ count: 0 }, []],
-    }),
-  )
-
-// INIT
-
-export const init: Runtime.ApplicationInit<Model, Message> = () => [
-  { count: 0 },
-  [],
-]
+import { Button } from '@foldkit/ui'
 
 // VIEW
 
+/** Renders the Counter with Foldkit HTML. */
 export const view = (model: Model): Document => {
   const h = html<Message>()
 

@@ -812,6 +812,19 @@ const collectSourceFiles = async (
     .map(entry => join(entry.parentPath, entry.name))
 }
 
+const exampleSourceDirectories = (
+  slug: string,
+  exampleDirectory: string,
+): ReadonlyArray<string> => {
+  if (slug === 'counter') {
+    return ['core', 'foldkit', 'cli', 'tui'].map(client =>
+      join(exampleDirectory, client, 'src'),
+    )
+  } else {
+    return [join(exampleDirectory, 'src')]
+  }
+}
+
 const sortExampleFiles = (
   files: ReadonlyArray<string>,
   baseDirectory: string,
@@ -888,8 +901,11 @@ const highlightExampleSourcesPlugin = (): Plugin => ({
     }
 
     const exampleDirectory = resolve(__dirname, `../../examples/${slug}`)
-    const sourceDirectory = join(exampleDirectory, 'src')
-    const allFiles = await collectSourceFiles(sourceDirectory)
+    const sourceDirectories = exampleSourceDirectories(slug, exampleDirectory)
+    const sourceFileGroups = await Promise.all(
+      sourceDirectories.map(collectSourceFiles),
+    )
+    const allFiles = sourceFileGroups.flat()
     const sortedFiles = sortExampleFiles(allFiles, exampleDirectory)
 
     const files = await Promise.all(

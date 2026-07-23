@@ -80,6 +80,8 @@ const PLAYGROUND_VITE_CONFIG_FILENAME = 'vite.config.playground.ts'
 
 const ROOT_LOADING_MARKUP = `<div id="root"><div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,-apple-system,sans-serif;font-size:14px;color:#9ca3af">Loading\u2026</div></div>`
 
+const COUNTER_CORE_PACKAGE_NAME = 'counter-core-example'
+
 type DependencySpec = Readonly<Record<string, string>>
 
 type PackageJson = Readonly<{
@@ -143,12 +145,21 @@ const pinWebContainerVite = (
 const transformPackageJson = (
   raw: string,
   versions: Readonly<Record<string, string>>,
+  bundledDependencies: ReadonlySet<string>,
 ): string => {
   const packageJson: PackageJson = JSON.parse(raw)
   const rewrite = rewriteWorkspaceSpec(versions)
+  const dependencies = rewriteDependencyMap(packageJson.dependencies, rewrite)
   const transformed = {
     ...packageJson,
-    dependencies: rewriteDependencyMap(packageJson.dependencies, rewrite),
+    dependencies:
+      dependencies === undefined
+        ? undefined
+        : Object.fromEntries(
+            Object.entries(dependencies).filter(
+              ([name]) => !bundledDependencies.has(name),
+            ),
+          ),
     devDependencies: pinWebContainerVite(
       rewriteDependencyMap(
         filterToRuntimeDevDependencies(packageJson.devDependencies),
@@ -229,6 +240,54 @@ const collectFiles = async (
   return results
 }
 
+const moduleSpecifier = (fromFile: string, toFile: string): string => {
+  const relativePath = relative(dirname(fromFile), toFile).split(sep).join('/')
+  if (relativePath.startsWith('.')) {
+    return relativePath
+  } else {
+    return `./${relativePath}`
+  }
+}
+
+const collectCounterFiles = async (
+  exampleDirectory: string,
+): Promise<ReadonlyArray<readonly [string, string]>> => {
+  const foldkitDirectory = join(exampleDirectory, 'foldkit')
+  const coreSourceDirectory = join(exampleDirectory, 'core', 'src')
+  const [foldkitFiles, coreFiles] = await Promise.all([
+    collectFiles(foldkitDirectory, foldkitDirectory),
+    collectFiles(coreSourceDirectory, coreSourceDirectory),
+  ])
+
+  const mergedCoreFiles = coreFiles.map(
+    ([path, contents]) => [`src/core/${path}`, contents] as const,
+  )
+  const rewrittenFoldkitFiles = foldkitFiles.map(([path, contents]) => {
+    const coreIndexPath = 'src/core/index.js'
+    const coreSpecifier = moduleSpecifier(path, coreIndexPath)
+    return [
+      path,
+      contents.replaceAll(
+        `'${COUNTER_CORE_PACKAGE_NAME}'`,
+        `'${coreSpecifier}'`,
+      ),
+    ] as const
+  })
+
+  return [...rewrittenFoldkitFiles, ...mergedCoreFiles]
+}
+
+const collectExampleFiles = (
+  slug: string,
+  exampleDirectory: string,
+): Promise<ReadonlyArray<readonly [string, string]>> => {
+  if (slug === 'counter') {
+    return collectCounterFiles(exampleDirectory)
+  } else {
+    return collectFiles(exampleDirectory, exampleDirectory)
+  }
+}
+
 const buildExampleFileMap = async (
   slug: string,
   versions: Readonly<Record<string, string>>,
@@ -236,7 +295,11 @@ const buildExampleFileMap = async (
   baseExclude: ReadonlyArray<string>,
 ): Promise<Record<string, string>> => {
   const exampleDirectory = resolve(EXAMPLES_DIRECTORY, slug)
-  const rawFiles = await collectFiles(exampleDirectory, exampleDirectory)
+  const rawFiles = await collectExampleFiles(slug, exampleDirectory)
+  const bundledDependencies = new Set<string>()
+  if (slug === 'counter') {
+    bundledDependencies.add(COUNTER_CORE_PACKAGE_NAME)
+  }
 
   const standaloneViteConfig = Option.getOrElse(
     Option.map(
@@ -260,7 +323,10 @@ const buildExampleFileMap = async (
     )
     .map(([path, contents]) => {
       if (path === 'package.json') {
-        return [path, transformPackageJson(contents, versions)] as const
+        return [
+          path,
+          transformPackageJson(contents, versions, bundledDependencies),
+        ] as const
       }
       if (path === 'tsconfig.json') {
         return [

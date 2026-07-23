@@ -34,8 +34,13 @@ const GITHUB_RAW_BASE_URL =
 const NPM_REGISTRY_BASE_URL = 'https://registry.npmjs.org'
 
 const FOLDKIT_SCOPE_PREFIX = '@foldkit/'
+const COUNTER_EXAMPLE = 'counter'
 
 const isWindows = process.platform === 'win32'
+
+/** Resolves the package manifest used when scaffolding an example. */
+export const examplePackagePath = (example: string): string =>
+  example === COUNTER_EXAMPLE ? `${example}/foldkit` : example
 
 const StringRecord = Schema.Record(Schema.String, Schema.String)
 
@@ -174,7 +179,8 @@ const sortDependencies = (
 const fetchExamplePackageJson = (example: string) =>
   Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient
-    const url = `${GITHUB_RAW_BASE_URL}/${example}/package.json`
+    const packagePath = examplePackagePath(example)
+    const url = `${GITHUB_RAW_BASE_URL}/${packagePath}/package.json`
     const response = yield* client.execute(HttpClientRequest.get(url))
     const json = yield* response.json
     return yield* Schema.decodeUnknownEffect(PackageJson)(json)
