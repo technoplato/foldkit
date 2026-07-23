@@ -20,4 +20,4 @@ export class ClientLauncher extends Context.Service<
       uri: string,
     ) => Effect.Effect<void, ClientLauncherError>
   }>
->()('cli-counter/ClientLauncher') {}
+>()('counter-with-shared-state/ClientLauncher') {}

@@ -1,5 +1,5 @@
 {
-  "name": "cli-counter-example",
+  "name": "counter-with-shared-state-example",
   "private": true,
   "version": "0.0.0",
   "type": "module",
