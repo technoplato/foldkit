@@ -817,9 +817,15 @@ const exampleSourceDirectories = (
   exampleDirectory: string,
 ): ReadonlyArray<string> => {
   if (slug === 'counter') {
-    return ['core', 'foldkit', 'cli', 'tui'].map(client =>
-      join(exampleDirectory, client, 'src'),
-    )
+    return [
+      'core',
+      'foldkit',
+      'cli',
+      'tui',
+      'react-bindings',
+      'react',
+      'react-native',
+    ].map(client => join(exampleDirectory, client, 'src'))
   } else {
     return [join(exampleDirectory, 'src')]
   }
