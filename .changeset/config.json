@@ -28,6 +28,7 @@
     "counter-cli-example",
     "counter-core-example",
     "counter-foldkit-example",
+    "counter-react-example",
     "counter-tui-example",
     "counters-example",
     "websocket-chat-example",
