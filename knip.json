@@ -65,6 +65,9 @@
         "tailwindcss"
       ]
     },
+    "examples/counter/react": {
+      "ignoreDependencies": ["prettier", "tailwindcss"]
+    },
     "examples/counter/cli": {
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]
