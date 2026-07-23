@@ -41,7 +41,8 @@ Every runtime configuration supplies a resources Layer. A Program with no resour
 requirements supplies `Layer.empty`. This keeps missing dependencies visible as
 TypeScript build errors and gives Commands and Subscriptions one shared scoped Layer.
 
-The first proof is a Counter with three Model cases:
+The first proof lives in `examples/counter-with-shared-state`. It is an advanced
+exploration of a Counter with three Model cases:
 
 ```text
 Loading
@@ -56,7 +57,7 @@ Ready(count)
   -> Ready(nextCount)
 ```
 
-Counter persistence is represented by a backend-neutral service:
+Counter persistence is temporarily represented by a backend-neutral service:
 
 ```text
 CounterStorage
@@ -68,8 +69,14 @@ CounterStorage
 The file-backed implementation watches the containing directory and filters for the
 state filename, so observation works before the state file exists. An outside value
 re-enters update through `ObservedStoredCounter` and produces no persistence Command,
-preventing a write-back loop. Another backend can implement the same service without
-changing the Counter Program.
+preventing a write-back loop.
+
+`CounterStorage` and its file implementation are prototype scaffolding, not the
+intended application-facing persistence abstraction. Foldkit should provide a generic,
+type-safe Sharing facility with pluggable load, save, and observation strategies. The
+facility should preserve the Model as the single source of truth by returning external
+changes to update as Messages rather than introducing a separately mutable state
+container.
 
 Portable Counter state is encoded as a relative path and query. Loading, Ready, and
 Saving are all printable states. Parsing enters the Program through init rather than
@@ -120,10 +127,17 @@ and concurrency policy remain deferred.
 
 ## Follow-up Direction
 
-The canonical `examples/counter` must become the single Counter business-logic source.
-The current CLI Counter duplication will be removed. The example should be reorganized
-around shared core logic with separate host folders for the Foldkit view, one-shot CLI,
-interactive terminal client, and future adapters.
+The canonical `examples/counter` remains the preferred starting point. Before merging
+persistence into it, the Foldkit view, one-shot CLI, and interactive terminal client
+will consume the exact same simple Model, Messages, init, and update. This keeps the
+next experiment focused on host reuse rather than mixing the host seam with persistence
+design.
+
+The saved-state behavior remains in the advanced
+`examples/counter-with-shared-state` proof until a generic Sharing API is designed.
+That design should draw on Swift Sharing's strategy and key model and TanStack Query's
+referential-identity guarantees without making the Counter maintain its own storage
+protocol.
 
 The next investigation will determine whether `makeApplication` should accept a shared
 Program definition plus a Foldkit view adapter, or whether a lower-level shared engine

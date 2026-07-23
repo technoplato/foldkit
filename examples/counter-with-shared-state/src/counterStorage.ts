@@ -19,4 +19,4 @@ export class CounterStorage extends Context.Service<
     save: (counter: StoredCounter) => Effect.Effect<void, CounterStorageError>
     changes: Stream.Stream<StoredCounter, CounterStorageError>
   }>
->()('cli-counter/CounterStorage') {}
+>()('counter-with-shared-state/CounterStorage') {}
