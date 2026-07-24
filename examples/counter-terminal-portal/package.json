@@ -5,11 +5,13 @@
   "type": "module",
   "bin": {
     "foldkit-counter-portal": "./dist/foldkitCounter.js",
-    "foldkit-counter-portal-portal-tui": "./dist/foldkitCounterTui.js"
+    "foldkit-counter-portal-tui": "./dist/foldkitCounterTui.js",
+    "foldkit-counter-terminal-portal": "./dist/foldkitCounterPortal.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "counter": "node dist/foldkitCounter.js",
+    "portal": "node dist/foldkitCounterPortal.js",
     "counter-tui": "node dist/foldkitCounterTui.js",
     "counter:tui": "node dist/foldkitCounterTui.js",
     "test": "pnpm run build && vitest run",
