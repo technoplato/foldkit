@@ -37,6 +37,7 @@
     "dev:typing-game:server": "pnpm --filter @typing-game/server dev",
     "build:typing-game": "pnpm --filter '@typing-game/*' build",
     "dev:example:counter": "pnpm --filter counter-core-example build && pnpm --filter counter-foldkit-example dev",
+    "dev:example:counter:terminal-portal": "pnpm --filter counter-terminal-portal-example build && pnpm --filter counter-terminal-portal-example portal",
     "dev:example:counter:react": "pnpm --filter counter-react-example dev",
     "dev:example:counter:native": "pnpm --filter counter-react-native-example start",
     "dev:example:counters": "pnpm --filter counters-example dev",

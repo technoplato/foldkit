@@ -93,6 +93,16 @@
       ],
       "ignoreDependencies": ["prettier"]
     },
+    "examples/counter-terminal-portal": {
+      "entry": [
+        "src/foldkitCounter.ts",
+        "src/foldkitCounterPortal.ts",
+        "src/foldkitCounterTui.ts",
+        "src/index.ts",
+        "src/**/*.test.ts"
+      ],
+      "ignoreDependencies": ["prettier"]
+    },
     "examples/charting": {
       "entry": [],
       "ignoreDependencies": [
