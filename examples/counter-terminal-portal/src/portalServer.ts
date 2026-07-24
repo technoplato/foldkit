@@ -75,6 +75,10 @@ type PortalCommandResponse = Readonly<{
   snapshot: PortalSnapshot
 }>
 
+type CommandGate = {
+  isRunning: boolean
+}
+
 const decodePortalCommandRequest = S.decodeUnknownSync(PortalCommandRequest)
 
 const messageForCommand = (command: PortalCommand): Option.Option<Message> =>
@@ -335,7 +339,7 @@ const html = `<!doctype html>
       }
       .terminal {
         display: grid;
-        grid-template-rows: auto 1fr auto;
+        grid-template-rows: auto auto 1fr auto;
         min-height: 24rem;
         overflow: hidden;
       }
@@ -350,6 +354,14 @@ const html = `<!doctype html>
       .terminal p {
         margin: 0.25rem 0 0;
         color: #a1a1aa;
+      }
+      .terminal-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding: 1rem;
+        border-bottom: 1px solid rgba(250, 250, 250, 0.1);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       }
       .log {
         min-height: 14rem;
@@ -385,12 +397,10 @@ const html = `<!doctype html>
         cursor: pointer;
         padding: 0.75rem 1rem;
       }
-      .buttons {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        justify-content: center;
-        margin-top: 1rem;
+      button:disabled,
+      input:disabled {
+        cursor: wait;
+        opacity: 0.55;
       }
       @media (max-width: 48rem) {
         main {
@@ -406,11 +416,6 @@ const html = `<!doctype html>
           <p class="label">Shared Counter Model</p>
           <p id="count" class="count">loading</p>
           <p id="mode" class="mode">Loading /?mode=Loading</p>
-          <div class="buttons">
-            <button data-command="decrement">decrement</button>
-            <button data-command="reset">reset</button>
-            <button data-command="increment">increment</button>
-          </div>
         </div>
       </section>
       <section class="terminal">
@@ -418,10 +423,15 @@ const html = `<!doctype html>
           <h1>Terminal portal</h1>
           <p>Commands are decoded into Counter Messages and run through the same host runtime.</p>
         </header>
+        <div class="terminal-actions" aria-label="Terminal command buttons">
+          <button data-command="decrement">[-] decrement</button>
+          <button data-command="reset">[R] reset</button>
+          <button data-command="increment">[+] increment</button>
+        </div>
         <pre id="log" class="log"></pre>
         <form id="form">
           <input id="command" name="command" autocomplete="off" placeholder="show | increment | decrement | reset" />
-          <button type="submit">send</button>
+          <button id="send" type="submit">send</button>
         </form>
       </section>
     </main>
@@ -431,6 +441,8 @@ const html = `<!doctype html>
       const log = document.querySelector('#log')
       const form = document.querySelector('#form')
       const command = document.querySelector('#command')
+      const controls = Array.from(document.querySelectorAll('[data-command], #command, #send'))
+      let isCommandPending = false
 
       const append = value => {
         log.textContent += value + "\\n"
@@ -442,19 +454,40 @@ const html = `<!doctype html>
         mode.textContent = snapshot.mode + ' ' + snapshot.uri
       }
 
-      const send = async input => {
-        append('$ ' + input)
-        const response = await fetch('/commands', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ input }),
+      const setPending = isPending => {
+        isCommandPending = isPending
+        controls.forEach(control => {
+          control.disabled = isPending
         })
-        const payload = await response.json()
-        if (response.ok) {
-          render(payload.snapshot)
-          append(payload.output)
-        } else {
-          append('error: ' + payload.reason)
+      }
+
+      const send = async input => {
+        if (isCommandPending) {
+          append('busy: waiting for current command to settle')
+          return
+        }
+
+        const commandText = input.trim()
+        setPending(true)
+        append('$ ' + commandText)
+        try {
+          const response = await fetch('/commands', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ input: commandText }),
+          })
+          const payload = await response.json()
+          if (response.ok) {
+            render(payload.snapshot)
+            append(payload.output)
+          } else {
+            append('error: ' + payload.reason)
+          }
+        } catch (error) {
+          append('error: ' + String(error))
+        } finally {
+          setPending(false)
+          command.focus()
         }
       }
 
@@ -471,7 +504,7 @@ const html = `<!doctype html>
 
       document.querySelectorAll('[data-command]').forEach(button => {
         button.addEventListener('click', () => {
-          send(button.dataset.command)
+          send(button.dataset.command ?? '')
         })
       })
 
@@ -503,28 +536,42 @@ const serveCommand = (
   request: IncomingMessage,
   response: ServerResponse,
   runtime: Runtime.HostRuntime<Model, Message>,
+  commandGate: CommandGate,
 ): void => {
+  if (commandGate.isRunning) {
+    writeJson(response, 409, {
+      reason: 'Terminal is busy. Wait for the current command to settle.',
+    })
+    return
+  }
+
+  commandGate.isRunning = true
   Effect.runPromise(
     Effect.gen(function* () {
       const body = yield* readRequestBody(request)
       const input = yield* parseCommandRequest(body)
       return yield* runPortalCommand(runtime, input)
     }),
-  ).then(
-    result => writeJson(response, 200, result),
-    error =>
-      writeJson(response, 400, {
-        reason:
-          error instanceof CounterPortalServerError
-            ? error.reason
-            : globalThis.String(error),
-      }),
   )
+    .then(
+      result => writeJson(response, 200, result),
+      error =>
+        writeJson(response, 400, {
+          reason:
+            error instanceof CounterPortalServerError
+              ? error.reason
+              : globalThis.String(error),
+        }),
+    )
+    .finally(() => {
+      commandGate.isRunning = false
+    })
 }
 
 const makeRequestHandler = (
   runtime: Runtime.HostRuntime<Model, Message>,
   clients: Set<ServerResponse>,
+  commandGate: CommandGate,
 ) => {
   return (request: IncomingMessage, response: ServerResponse): void => {
     const url = new URL(request.url ?? '/', 'http://foldkit.local')
@@ -540,7 +587,7 @@ const makeRequestHandler = (
     } else if (request.method === 'GET' && url.pathname === '/model') {
       writeJson(response, 200, snapshotForModel(runtime.readModel()))
     } else if (request.method === 'POST' && url.pathname === '/commands') {
-      serveCommand(request, response, runtime)
+      serveCommand(request, response, runtime, commandGate)
     } else if (request.method === 'GET' && url.pathname === '/healthz') {
       writeText(response, 200, 'ok\n')
     } else {
@@ -640,11 +687,14 @@ export const makeCounterPortalServer = (
     yield* runtime.initialization
 
     const clients = new Set<ServerResponse>()
+    const commandGate: CommandGate = { isRunning: false }
     const unsubscribe = runtime.observeModel(model => {
       const snapshot = snapshotForModel(model)
       clients.forEach(response => writeSnapshotEvent(response, snapshot))
     })
-    const server = createServer(makeRequestHandler(runtime, clients))
+    const server = createServer(
+      makeRequestHandler(runtime, clients, commandGate),
+    )
     const host = options.host ?? DEFAULT_HOST
     const [port, localUrl] = yield* listen(
       server,
