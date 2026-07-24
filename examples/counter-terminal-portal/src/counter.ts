@@ -20,6 +20,7 @@ export const LoadedCounter = m('LoadedCounter', {
   maybeCounter: S.Option(StoredCounter),
 })
 export const FailedLoadCounter = m('FailedLoadCounter', { reason: S.String })
+export const RequestedOpenCounter = m('RequestedOpenCounter', { model: Model })
 export const RequestedIncrement = m('RequestedIncrement')
 export const RequestedDecrement = m('RequestedDecrement')
 export const RequestedReset = m('RequestedReset')
@@ -39,6 +40,7 @@ export const FailedObserveStoredCounter = m('FailedObserveStoredCounter', {
 export const Message = S.Union([
   LoadedCounter,
   FailedLoadCounter,
+  RequestedOpenCounter,
   RequestedIncrement,
   RequestedDecrement,
   RequestedReset,
@@ -158,6 +160,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       FailedLoadCounter: () => [model, []],
+      RequestedOpenCounter: ({ model: nextModel }) => [
+        nextModel,
+        commandsForModel(nextModel),
+      ],
       RequestedIncrement: () => updateCount(model, Number.increment),
       RequestedDecrement: () => updateCount(model, Number.decrement),
       RequestedReset: () => updateCount(model, () => 0),

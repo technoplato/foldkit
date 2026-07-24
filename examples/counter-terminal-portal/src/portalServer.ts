@@ -17,10 +17,11 @@ import {
   Model,
   RequestedDecrement,
   RequestedIncrement,
+  RequestedOpenCounter,
   RequestedReset,
   makeCounterProgram,
 } from './counter.js'
-import { printCounterUri } from './counterUri.js'
+import { parseCounterUri, printCounterUri } from './counterUri.js'
 import { counterStorageLayer } from './nodeHost.js'
 
 const DEFAULT_HOST = '127.0.0.1'
@@ -39,6 +40,14 @@ export const PortalCommand = S.Literals([
   'Help',
 ])
 export type PortalCommand = typeof PortalCommand.Type
+
+export const ViewMedium = S.Literals([
+  'Terminal',
+  'Foldkit',
+  'React',
+  'ReactNativeWeb',
+])
+export type ViewMedium = typeof ViewMedium.Type
 
 const PortalCommandRequest = S.Struct({ input: S.String })
 
@@ -64,9 +73,12 @@ export class CounterPortalServerError extends Data.TaggedError(
 
 type PortalSnapshot = Readonly<{
   count: string
+  carrierUri: string
   model: Model
   mode: string
+  portableUri: string
   uri: string
+  viewMedium: ViewMedium
 }>
 
 type PortalCommandResponse = Readonly<{
@@ -79,7 +91,52 @@ type CommandGate = {
   isRunning: boolean
 }
 
+type PortalClient = Readonly<{
+  medium: ViewMedium
+  response: ServerResponse
+}>
+
 const decodePortalCommandRequest = S.decodeUnknownSync(PortalCommandRequest)
+
+const pathForMedium = (medium: ViewMedium): string =>
+  M.value(medium).pipe(
+    M.withReturnType<string>(),
+    M.when('Terminal', () => '/counter.terminal'),
+    M.when('Foldkit', () => '/counter.foldkit'),
+    M.when('React', () => '/counter.react'),
+    M.when('ReactNativeWeb', () => '/counter.react-native-web'),
+    M.exhaustive,
+  )
+
+const mediumForPath = (pathname: string): Option.Option<ViewMedium> =>
+  M.value(pathname).pipe(
+    M.withReturnType<Option.Option<ViewMedium>>(),
+    M.when('/', () => Option.some('Terminal')),
+    M.when('/counter.terminal', () => Option.some('Terminal')),
+    M.when('/counter.foldkit', () => Option.some('Foldkit')),
+    M.when('/counter.react', () => Option.some('React')),
+    M.when('/counter.react-native-web', () => Option.some('ReactNativeWeb')),
+    M.orElse(() => Option.none()),
+  )
+
+const mediumQueryValue = (medium: ViewMedium): string =>
+  M.value(medium).pipe(
+    M.withReturnType<string>(),
+    M.when('Terminal', () => 'Terminal'),
+    M.when('Foldkit', () => 'Foldkit'),
+    M.when('React', () => 'React'),
+    M.when('ReactNativeWeb', () => 'ReactNativeWeb'),
+    M.exhaustive,
+  )
+
+const mediumForQuery = (value: string | null): ViewMedium =>
+  M.value(value).pipe(
+    M.withReturnType<ViewMedium>(),
+    M.when('Foldkit', () => 'Foldkit'),
+    M.when('React', () => 'React'),
+    M.when('ReactNativeWeb', () => 'ReactNativeWeb'),
+    M.orElse(() => 'Terminal'),
+  )
 
 const messageForCommand = (command: PortalCommand): Option.Option<Message> =>
   M.value(command).pipe(
@@ -112,7 +169,13 @@ const parseCommand = (input: string): Option.Option<PortalCommand> => {
   )
 }
 
-const snapshotForModel = (model: Model): PortalSnapshot => {
+const carrierUriForModel = (medium: ViewMedium, model: Model): string => {
+  const portableUri = printCounterUri(model)
+  const query = portableUri.startsWith('/?') ? portableUri.substring(1) : ''
+  return `${pathForMedium(medium)}${query}`
+}
+
+const snapshotForModel = (model: Model, medium: ViewMedium): PortalSnapshot => {
   const count = M.value(model).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
@@ -122,11 +185,17 @@ const snapshotForModel = (model: Model): PortalSnapshot => {
     }),
   )
 
+  const portableUri = printCounterUri(model)
+  const carrierUri = carrierUriForModel(medium, model)
+
   return {
+    carrierUri,
     count,
     model,
     mode: model._tag,
-    uri: printCounterUri(model),
+    portableUri,
+    uri: carrierUri,
+    viewMedium: medium,
   }
 }
 
@@ -149,6 +218,57 @@ const outputForCommand = (
     M.when('Reset', () => formatSnapshot(snapshot)),
     M.exhaustive,
   )
+
+const portableUriForUrl = (url: URL): string => {
+  const searchParams = new URLSearchParams(url.searchParams)
+  searchParams.delete('command')
+  return `/?${searchParams.toString()}`
+}
+
+const maybeModelForUrl = (
+  url: URL,
+): Effect.Effect<Option.Option<Model>, CounterPortalServerError> => {
+  if (!url.searchParams.has('mode')) {
+    return Effect.succeed(Option.none())
+  } else {
+    return parseCounterUri(portableUriForUrl(url)).pipe(
+      Effect.map(model => Option.some(model)),
+      Effect.mapError(
+        error => new CounterPortalServerError({ reason: error.reason }),
+      ),
+    )
+  }
+}
+
+const maybeCommandInputForUrl = (url: URL): Option.Option<string> =>
+  Option.fromNullishOr(url.searchParams.get('command'))
+
+const urlHasLaunchWork = (url: URL): boolean =>
+  url.searchParams.has('mode') || url.searchParams.has('command')
+
+const applyUrlRequest = (
+  runtime: Runtime.HostRuntime<Model, Message>,
+  url: URL,
+  medium: ViewMedium,
+): Effect.Effect<PortalSnapshot, CounterPortalServerError> =>
+  Effect.gen(function* () {
+    const maybeModel = yield* maybeModelForUrl(url)
+    const model = Option.isSome(maybeModel)
+      ? yield* runtime.run(RequestedOpenCounter({ model: maybeModel.value }))
+      : runtime.readModel()
+
+    const maybeCommandInput = maybeCommandInputForUrl(url)
+    if (Option.isSome(maybeCommandInput)) {
+      const response = yield* runPortalCommand(
+        runtime,
+        maybeCommandInput.value,
+        medium,
+      )
+      return response.snapshot
+    } else {
+      return snapshotForModel(model, medium)
+    }
+  })
 
 const parseCommandRequest = (
   body: string,
@@ -216,6 +336,7 @@ const readRequestBody = (
 const runPortalCommand = (
   runtime: Runtime.HostRuntime<Model, Message>,
   input: string,
+  medium: ViewMedium,
 ): Effect.Effect<PortalCommandResponse, CounterPortalServerError> =>
   Effect.gen(function* () {
     const maybeCommand = parseCommand(input)
@@ -232,7 +353,7 @@ const runPortalCommand = (
     const model = Option.isSome(maybeMessage)
       ? yield* runtime.run(maybeMessage.value)
       : runtime.readModel()
-    const snapshot = snapshotForModel(model)
+    const snapshot = snapshotForModel(model, medium)
 
     return {
       command,
@@ -272,12 +393,39 @@ const writeSnapshotEvent = (
   response.write(`data: ${JSON.stringify(snapshot)}\n\n`)
 }
 
-const html = `<!doctype html>
+const labelForMedium = (medium: ViewMedium): string =>
+  M.value(medium).pipe(
+    M.withReturnType<string>(),
+    M.when('Terminal', () => 'Terminal'),
+    M.when('Foldkit', () => 'Foldkit'),
+    M.when('React', () => 'React'),
+    M.when('ReactNativeWeb', () => 'React Native Web'),
+    M.exhaustive,
+  )
+
+const mediumLink = (medium: ViewMedium, model: Model): string =>
+  `<a href="${carrierUriForModel(medium, model)}">${labelForMedium(medium)}</a>`
+
+const htmlForMedium = (
+  medium: ViewMedium,
+  initialSnapshot: PortalSnapshot,
+): string => {
+  const initialSnapshotJson = JSON.stringify(initialSnapshot)
+  const mediumLabel = labelForMedium(medium)
+  const mediumQuery = mediumQueryValue(medium)
+  const mediumLinks = [
+    mediumLink('Terminal', initialSnapshot.model),
+    mediumLink('Foldkit', initialSnapshot.model),
+    mediumLink('React', initialSnapshot.model),
+    mediumLink('ReactNativeWeb', initialSnapshot.model),
+  ].join('')
+
+  return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Foldkit Counter Terminal Portal</title>
+    <title>Foldkit Counter ${mediumLabel}</title>
     <style>
       :root {
         color-scheme: dark;
@@ -336,6 +484,20 @@ const html = `<!doctype html>
         background: rgba(63, 63, 70, 0.7);
         color: #d4d4d8;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .medium-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+        margin-top: 1rem;
+      }
+      .medium-links a {
+        border: 1px solid rgba(250, 250, 250, 0.14);
+        border-radius: 999px;
+        color: #d4d4d8;
+        padding: 0.45rem 0.7rem;
+        text-decoration: none;
       }
       .terminal {
         display: grid;
@@ -416,12 +578,15 @@ const html = `<!doctype html>
           <p class="label">Shared Counter Model</p>
           <p id="count" class="count">loading</p>
           <p id="mode" class="mode">Loading /?mode=Loading</p>
+          <nav class="medium-links" aria-label="View medium links">
+            ${mediumLinks}
+          </nav>
         </div>
       </section>
       <section class="terminal">
         <header>
-          <h1>Terminal portal</h1>
-          <p>Commands are decoded into Counter Messages and run through the same host runtime.</p>
+          <h1>${mediumLabel} medium</h1>
+          <p>The URL carries portable Counter state plus the view medium suffix. Commands are decoded into Counter Messages and run through the same host runtime.</p>
         </header>
         <div class="terminal-actions" aria-label="Terminal command buttons">
           <button data-command="decrement">[-] decrement</button>
@@ -442,6 +607,8 @@ const html = `<!doctype html>
       const form = document.querySelector('#form')
       const command = document.querySelector('#command')
       const controls = Array.from(document.querySelectorAll('[data-command], #command, #send'))
+      const initialSnapshot = ${initialSnapshotJson}
+      const viewMedium = '${mediumQuery}'
       let isCommandPending = false
 
       const append = value => {
@@ -473,7 +640,10 @@ const html = `<!doctype html>
         try {
           const response = await fetch('/commands', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: {
+              'content-type': 'application/json',
+              'x-foldkit-view-medium': viewMedium,
+            },
             body: JSON.stringify({ input: commandText }),
           })
           const payload = await response.json()
@@ -491,7 +661,7 @@ const html = `<!doctype html>
         }
       }
 
-      new EventSource('/events').addEventListener('message', event => {
+      new EventSource('/events?medium=' + encodeURIComponent(viewMedium)).addEventListener('message', event => {
         render(JSON.parse(event.data))
       })
 
@@ -508,27 +678,31 @@ const html = `<!doctype html>
         })
       })
 
-      send('show')
+      render(initialSnapshot)
+      append('opened ' + initialSnapshot.uri)
       command.focus()
     </script>
   </body>
 </html>
 `
+}
 
 const serveEvents = (
   response: ServerResponse,
   runtime: Runtime.HostRuntime<Model, Message>,
-  clients: Set<ServerResponse>,
+  clients: Set<PortalClient>,
+  medium: ViewMedium,
 ): void => {
   response.writeHead(200, {
     'content-type': 'text/event-stream; charset=utf-8',
     'cache-control': 'no-store',
     connection: 'keep-alive',
   })
-  clients.add(response)
-  writeSnapshotEvent(response, snapshotForModel(runtime.readModel()))
+  const client = { medium, response }
+  clients.add(client)
+  writeSnapshotEvent(response, snapshotForModel(runtime.readModel(), medium))
   response.on('close', () => {
-    clients.delete(response)
+    clients.delete(client)
   })
 }
 
@@ -537,6 +711,7 @@ const serveCommand = (
   response: ServerResponse,
   runtime: Runtime.HostRuntime<Model, Message>,
   commandGate: CommandGate,
+  medium: ViewMedium,
 ): void => {
   if (commandGate.isRunning) {
     writeJson(response, 409, {
@@ -550,7 +725,7 @@ const serveCommand = (
     Effect.gen(function* () {
       const body = yield* readRequestBody(request)
       const input = yield* parseCommandRequest(body)
-      return yield* runPortalCommand(runtime, input)
+      return yield* runPortalCommand(runtime, input, medium)
     }),
   )
     .then(
@@ -568,26 +743,85 @@ const serveCommand = (
     })
 }
 
+const servePage = (
+  response: ServerResponse,
+  runtime: Runtime.HostRuntime<Model, Message>,
+  commandGate: CommandGate,
+  url: URL,
+  medium: ViewMedium,
+): void => {
+  if (urlHasLaunchWork(url) && commandGate.isRunning) {
+    writeJson(response, 409, {
+      reason: 'Terminal is busy. Wait for the current command to settle.',
+    })
+    return
+  }
+
+  if (urlHasLaunchWork(url)) {
+    commandGate.isRunning = true
+  }
+
+  Effect.runPromise(applyUrlRequest(runtime, url, medium))
+    .then(
+      snapshot => {
+        response.writeHead(200, {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+        })
+        response.end(htmlForMedium(medium, snapshot))
+      },
+      error =>
+        writeJson(response, 400, {
+          reason:
+            error instanceof CounterPortalServerError
+              ? error.reason
+              : globalThis.String(error),
+        }),
+    )
+    .finally(() => {
+      if (urlHasLaunchWork(url)) {
+        commandGate.isRunning = false
+      }
+    })
+}
+
 const makeRequestHandler = (
   runtime: Runtime.HostRuntime<Model, Message>,
-  clients: Set<ServerResponse>,
+  clients: Set<PortalClient>,
   commandGate: CommandGate,
 ) => {
   return (request: IncomingMessage, response: ServerResponse): void => {
     const url = new URL(request.url ?? '/', 'http://foldkit.local')
+    const maybeMedium = mediumForPath(url.pathname)
 
-    if (request.method === 'GET' && url.pathname === '/') {
-      response.writeHead(200, {
-        'content-type': 'text/html; charset=utf-8',
-        'cache-control': 'no-store',
-      })
-      response.end(html)
+    if (request.method === 'GET' && Option.isSome(maybeMedium)) {
+      servePage(response, runtime, commandGate, url, maybeMedium.value)
     } else if (request.method === 'GET' && url.pathname === '/events') {
-      serveEvents(response, runtime, clients)
+      serveEvents(
+        response,
+        runtime,
+        clients,
+        mediumForQuery(url.searchParams.get('medium')),
+      )
     } else if (request.method === 'GET' && url.pathname === '/model') {
-      writeJson(response, 200, snapshotForModel(runtime.readModel()))
+      writeJson(
+        response,
+        200,
+        snapshotForModel(
+          runtime.readModel(),
+          mediumForQuery(url.searchParams.get('medium')),
+        ),
+      )
     } else if (request.method === 'POST' && url.pathname === '/commands') {
-      serveCommand(request, response, runtime, commandGate)
+      serveCommand(
+        request,
+        response,
+        runtime,
+        commandGate,
+        mediumForQuery(
+          request.headers['x-foldkit-view-medium']?.toString() ?? null,
+        ),
+      )
     } else if (request.method === 'GET' && url.pathname === '/healthz') {
       writeText(response, 200, 'ok\n')
     } else {
@@ -686,11 +920,15 @@ export const makeCounterPortalServer = (
     )
     yield* runtime.initialization
 
-    const clients = new Set<ServerResponse>()
+    const clients = new Set<PortalClient>()
     const commandGate: CommandGate = { isRunning: false }
     const unsubscribe = runtime.observeModel(model => {
-      const snapshot = snapshotForModel(model)
-      clients.forEach(response => writeSnapshotEvent(response, snapshot))
+      clients.forEach(client =>
+        writeSnapshotEvent(
+          client.response,
+          snapshotForModel(model, client.medium),
+        ),
+      )
     })
     const server = createServer(
       makeRequestHandler(runtime, clients, commandGate),
@@ -707,7 +945,7 @@ export const makeCounterPortalServer = (
       port,
       shutdown: Effect.gen(function* () {
         unsubscribe()
-        clients.forEach(response => response.end())
+        clients.forEach(client => client.response.end())
         clients.clear()
         yield* closeServer(server)
         yield* runtime.shutdown

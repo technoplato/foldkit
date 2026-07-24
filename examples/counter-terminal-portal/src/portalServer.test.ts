@@ -76,7 +76,8 @@ describe('Counter terminal portal', () => {
       expect(initialModel).toMatchObject({
         count: '0',
         mode: 'Ready',
-        uri: '/?mode=Ready&count=0',
+        portableUri: '/?mode=Ready&count=0',
+        uri: '/counter.terminal?mode=Ready&count=0',
       })
 
       const incremented = await postCommand(server.localUrl, 'increment')
@@ -85,7 +86,8 @@ describe('Counter terminal portal', () => {
         snapshot: {
           count: '1',
           mode: 'Ready',
-          uri: '/?mode=Ready&count=1',
+          portableUri: '/?mode=Ready&count=1',
+          uri: '/counter.terminal?mode=Ready&count=1',
         },
       })
 
@@ -95,7 +97,8 @@ describe('Counter terminal portal', () => {
         snapshot: {
           count: '0',
           mode: 'Ready',
-          uri: '/?mode=Ready&count=0',
+          portableUri: '/?mode=Ready&count=0',
+          uri: '/counter.terminal?mode=Ready&count=0',
         },
       })
 
@@ -133,6 +136,69 @@ describe('Counter terminal portal', () => {
       )
     } finally {
       pendingRequest.destroy()
+      await Effect.runPromise(server.shutdown)
+      if (previousStateFilePath === undefined) {
+        delete process.env[STATE_FILE_ENVIRONMENT_VARIABLE]
+      } else {
+        process.env[STATE_FILE_ENVIRONMENT_VARIABLE] = previousStateFilePath
+      }
+    }
+  })
+
+  it('runs a command from a carrier GET request against restored state', async () => {
+    const previousStateFilePath = process.env[STATE_FILE_ENVIRONMENT_VARIABLE]
+    const stateFilePath = makeStateFilePath()
+    process.env[STATE_FILE_ENVIRONMENT_VARIABLE] = stateFilePath
+
+    const server = await Effect.runPromise(makeCounterPortalServer({ port: 0 }))
+
+    try {
+      await postCommand(server.localUrl, 'reset')
+      const response = await fetch(
+        `${server.localUrl}/counter.foldkit?command=increment`,
+      )
+      expect(response.ok).toBe(true)
+
+      const model = await readJson(`${server.localUrl}/model?medium=Foldkit`)
+      expect(model).toMatchObject({
+        count: '1',
+        mode: 'Ready',
+        portableUri: '/?mode=Ready&count=1',
+        uri: '/counter.foldkit?mode=Ready&count=1',
+        viewMedium: 'Foldkit',
+      })
+    } finally {
+      await Effect.runPromise(server.shutdown)
+      if (previousStateFilePath === undefined) {
+        delete process.env[STATE_FILE_ENVIRONMENT_VARIABLE]
+      } else {
+        process.env[STATE_FILE_ENVIRONMENT_VARIABLE] = previousStateFilePath
+      }
+    }
+  })
+
+  it('settles URL state before running the carrier GET command', async () => {
+    const previousStateFilePath = process.env[STATE_FILE_ENVIRONMENT_VARIABLE]
+    const stateFilePath = makeStateFilePath()
+    process.env[STATE_FILE_ENVIRONMENT_VARIABLE] = stateFilePath
+
+    const server = await Effect.runPromise(makeCounterPortalServer({ port: 0 }))
+
+    try {
+      const response = await fetch(
+        `${server.localUrl}/counter.terminal?mode=Saving&count=3&command=increment`,
+      )
+      expect(response.ok).toBe(true)
+
+      const model = await readJson(`${server.localUrl}/model`)
+      expect(model).toMatchObject({
+        count: '4',
+        mode: 'Ready',
+        portableUri: '/?mode=Ready&count=4',
+        uri: '/counter.terminal?mode=Ready&count=4',
+        viewMedium: 'Terminal',
+      })
+    } finally {
       await Effect.runPromise(server.shutdown)
       if (previousStateFilePath === undefined) {
         delete process.env[STATE_FILE_ENVIRONMENT_VARIABLE]
