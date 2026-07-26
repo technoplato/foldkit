@@ -1,6 +1,7 @@
-import { HashSet, Option } from 'effect'
+import { HashSet, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { SerializedEntry } from './protocol.js'
 import {
   toInspectableValue,
   toSerializedEntry,
@@ -92,6 +93,7 @@ describe('toSerializedEntry', () => {
   const baseEntry: HistoryEntry = {
     tag: 'ClickedButton',
     message: { _tag: 'ClickedButton', label: 'Submit' },
+    maybeSource: Option.some({ _tag: 'Host', actionName: 'submit' }),
     commands: [{ name: 'SubmitForm' }],
     mountStarts: [],
     mountEnds: [],
@@ -107,6 +109,9 @@ describe('toSerializedEntry', () => {
     const result = toSerializedEntry(baseEntry, 7)
     expect(result.index).toBe(7)
     expect(result.tag).toBe('ClickedButton')
+    expect(result.maybeSource).toStrictEqual(
+      Option.some({ _tag: 'Host', actionName: 'submit' }),
+    )
     expect(result.commands).toEqual([
       { name: 'SubmitForm', args: Option.none() },
     ])
@@ -237,6 +242,25 @@ describe('toSerializedEntry', () => {
     expect(result.submodelPath).toEqual(['GotProductsMessage'])
     expect(result.maybeLeafTag).toEqual(Option.some('ClickedRow'))
   })
+})
+
+it('decodes legacy serialized entries without provenance', () => {
+  const entry = S.decodeUnknownSync(SerializedEntry)({
+    index: 0,
+    tag: 'ClickedButton',
+    message: { _tag: 'ClickedButton' },
+    commands: [],
+    mountStarts: [],
+    mountEnds: [],
+    timestamp: 0,
+    isModelChanged: false,
+    changedPaths: [],
+    affectedPaths: [],
+    submodelPath: [],
+    maybeLeafTag: null,
+  })
+
+  expect(entry.maybeSource).toStrictEqual(Option.none())
 })
 
 describe('toSerializedMount', () => {

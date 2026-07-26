@@ -32,6 +32,7 @@ const application = Runtime.makeApplication<
   AppManagedResources
 >({
   Model,
+  Message,
   Flags,
   flags,
   init,

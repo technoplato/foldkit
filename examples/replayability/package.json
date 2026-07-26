@@ -1,0 +1,33 @@
+{
+  "name": "replayability-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite",
+    "prebuild": "pnpm --filter fact-http-client-example build && pnpm --filter replayability-core-example build && pnpm --filter replayability-react-bindings-example build",
+    "predev": "pnpm --filter fact-http-client-example build && pnpm --filter replayability-core-example build && pnpm --filter replayability-react-bindings-example build",
+    "pretypecheck": "pnpm --filter fact-http-client-example build && pnpm --filter replayability-core-example build && pnpm --filter replayability-react-bindings-example build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@tailwindcss/vite": "^4.3.1",
+    "@vitejs/plugin-react": "^6.0.2",
+    "effect": "4.0.0-beta.97",
+    "fact-http-client-example": "workspace:*",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "replayability-core-example": "workspace:*",
+    "replayability-react-bindings-example": "workspace:*",
+    "tailwindcss": "^4.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}

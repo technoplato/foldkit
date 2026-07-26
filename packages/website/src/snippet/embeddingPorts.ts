@@ -13,6 +13,7 @@ export const ports = {
 export const makeElement = (container: HTMLElement, flags: Flags) =>
   Runtime.makeElement({
     Model,
+    Message,
     Flags,
     flags: Effect.succeed(flags),
     init,

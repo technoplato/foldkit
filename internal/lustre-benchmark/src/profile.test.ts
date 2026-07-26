@@ -9,6 +9,7 @@ import { __requireDispatch } from '../../../packages/foldkit/src/html/index.js'
 import {
   AddedTodo,
   DeletedTodo,
+  Message,
   Model,
   ToggledTodo,
   UpdatedNewTodo,
@@ -127,6 +128,7 @@ const runProfile = async (
 
   const application = makeApplication({
     Model,
+    Message,
     init,
     update: wrappedUpdate.fn,
     view: captureView,

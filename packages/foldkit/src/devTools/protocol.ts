@@ -1,5 +1,10 @@
 import { Effect, Schema as S } from 'effect'
 
+import { TransitionSource } from '../runtime/programJournal.js'
+import {
+  RuntimeDiagnostic,
+  RuntimeFailureSource,
+} from '../runtime/runtimeDiagnostic.js'
 import { ts } from '../schema/index.js'
 
 // SHARED
@@ -20,11 +25,14 @@ export const SerializedMount = S.Struct({
 /** A serialized Mount lifecycle event suitable for transmission over the WS protocol. */
 export type SerializedMount = typeof SerializedMount.Type
 
-/** A serialized history entry as it appears on the wire. `submodelPath` lists `Got<Child>Message` wrapper tags from outer to inner when the entry came up through a Submodel chain; `maybeLeafTag` is `Some` with the innermost child Message tag when one exists. `mountStarts` lists Mounts that fired during the render after this Message; `mountEnds` lists Mounts whose elements were unmounted during that render. The Messages dispatched by mount Effects appear as their own entries elsewhere in history. */
+/** A serialized history entry as it appears on the wire. `maybeSource` identifies the engine source that produced the Message when the entry came from the shared Program runtime. It is `None` for the legacy compatibility runtime. `submodelPath` lists `Got<Child>Message` wrapper tags from outer to inner when the entry came up through a Submodel chain; `maybeLeafTag` is `Some` with the innermost child Message tag when one exists. `mountStarts` lists Mounts that fired during the render after this Message; `mountEnds` lists Mounts whose elements were unmounted during that render. The Messages dispatched by Mount Effects appear as their own entries with Mount provenance. */
 export const SerializedEntry = S.Struct({
   index: S.Number,
   tag: S.String,
   message: S.Unknown,
+  maybeSource: S.OptionFromNullOr(TransitionSource).pipe(
+    S.withDecodingDefault(Effect.succeed(null)),
+  ),
   commands: S.Array(SerializedCommand),
   mountStarts: S.Array(SerializedMount),
   mountEnds: S.Array(SerializedMount),
@@ -114,6 +122,9 @@ export const RequestGetInit = ts('RequestGetInit')
 /** Request a snapshot of the runtime's DevTools state: history bounds, current paused/live status, and whether init is recorded. */
 export const RequestGetRuntimeState = ts('RequestGetRuntimeState')
 
+/** Request Subscription and ManagedResource lifecycle facts and terminal failures observed by the shared Program runtime. */
+export const RequestGetRuntimeDiagnostics = ts('RequestGetRuntimeDiagnostics')
+
 /** Request the runtime dispatch a Message at the current state. The payload is opaque to the protocol; the runtime validates against the app's Message Schema. */
 export const RequestDispatchMessage = ts('RequestDispatchMessage', {
   message: S.Unknown,
@@ -142,6 +153,7 @@ export const Request = S.Union([
   RequestListRuntimes,
   RequestGetInit,
   RequestGetRuntimeState,
+  RequestGetRuntimeDiagnostics,
   RequestGetMessageSchema,
 ])
 /** A request from the MCP server. */
@@ -286,6 +298,20 @@ export const ResponseRuntimeState = ts('ResponseRuntimeState', {
   hasInitModel: S.Boolean,
 })
 
+/** Response carrying Subscription and ManagedResource lifecycle facts plus terminal failures from the shared Program runtime. */
+export const ResponseRuntimeDiagnostics = ts('ResponseRuntimeDiagnostics', {
+  diagnostics: S.Array(RuntimeDiagnostic),
+  failures: S.Array(
+    S.Struct({
+      programId: S.String,
+      source: RuntimeFailureSource,
+      maybeMessage: S.OptionFromNullOr(S.Unknown),
+      cause: S.String,
+      timestamp: S.Number,
+    }),
+  ),
+})
+
 /** Response carrying an error reason for a failed Request. */
 export const ResponseError = ts('ResponseError', {
   reason: S.String,
@@ -305,6 +331,7 @@ export const Response = S.Union([
   ResponseRuntimes,
   ResponseInit,
   ResponseRuntimeState,
+  ResponseRuntimeDiagnostics,
   ResponseMessageSchema,
   ResponseError,
 ])

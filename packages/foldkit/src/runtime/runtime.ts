@@ -11,33 +11,20 @@ import {
   Match,
   Option,
   Predicate,
-  PubSub,
   Record,
-  Ref,
   Scheduler,
   Schema,
   Scope,
-  Stream,
   SubscriptionRef,
   pipe,
 } from 'effect'
 
 import { BrowserRuntime } from '@effect/platform-browser'
 
-import type { Command } from '../command/index.js'
-import {
-  __CurrentRegistry as __CurrentInterruptRegistry,
-  __makeRegistry as __makeInterruptRegistry,
-} from '../command/interruptible/index.js'
-import {
-  type CommandRecord,
-  type DevToolsStore,
-  type MountRecord,
-  createDevToolsStore,
-} from '../devTools/store.js'
+import { createProgramDevToolsStore } from '../devTools/programStore.js'
+import { type DevToolsStore, type MountRecord } from '../devTools/store.js'
 import { startWebSocketBridge } from '../devTools/webSocketBridge.js'
 import {
-  type BoundaryRegistry,
   Document,
   Html,
   __beginRender as beginHtmlRender,
@@ -47,21 +34,20 @@ import {
   __endReplayRender as endReplayHtmlRender,
   __setRuntime as setHtmlRuntime,
 } from '../html/index.js'
-import type {
-  ManagedResourceConfig,
-  ManagedResources,
-} from '../managedResource/index.js'
+import type { ManagedResources } from '../managedResource/index.js'
 import { MountTracker } from '../mount/index.js'
 import { UrlRequest } from '../navigation/urlRequest.js'
 import {
-  type Inbound,
-  type Outbound,
+  type PortHandleBinding,
+  type PortHandles,
   type Ports,
-  __CurrentPortChannels,
-  type __InboundChannel,
-  type __PortChannels,
-  __makeInboundChannel,
+  makePortHandleBridge,
 } from '../port/index.js'
+import {
+  type Program,
+  type ProgramCommand,
+  make as makeProgram,
+} from '../program/program.js'
 import type { Subscriptions } from '../subscription/subscription.js'
 import { Url, fromString as urlFromString } from '../url/index.js'
 import { VNode, __patchVNode } from '../vdom.js'
@@ -81,19 +67,22 @@ import {
   restorePreservedScrollPosition,
 } from './hmrScroll.js'
 import { makePreserveScheduler } from './preserveScheduler.js'
+import type { TransitionSource } from './programJournal.js'
+import {
+  type ProgramRuntimeJournalConfig,
+  type ProgramRuntimeScheduling,
+  type ProgramStart,
+  fromModel,
+  makeProgramRuntime,
+} from './programRuntime.js'
 
-type AnyCommand<T, E = never, R = never> = {
-  readonly name: string
-  readonly args?: Record<string, unknown>
-  readonly effect: Effect.Effect<T, E, R>
-}
-
-const toCommandRecord = (
-  command: Readonly<{ name: string; args?: Record<string, unknown> }>,
-): CommandRecord =>
-  command.args !== undefined
-    ? { name: command.name, args: command.args }
-    : { name: command.name }
+export type {
+  InboundPortHandle,
+  InboundPortHandles,
+  OutboundPortHandle,
+  OutboundPortHandles,
+  PortHandles,
+} from '../port/runtime.js'
 
 /** Position of the DevTools badge and panel on screen. */
 export type DevToolsPosition =
@@ -147,9 +136,8 @@ export type DevToolsOverlay = (
  * - `mode`: `'TimeTravel'` (default) enables full time-travel debugging. `'Inspect'` allows browsing state snapshots without pausing the app. Pass `{ development, production }` to use different modes per environment. Useful when DevTools is shown in production (`show: 'Always'`) and you want `'TimeTravel'` only in local development.
  * - `banner`: Optional text shown as a banner at the top of the panel.
  * - `overlay`: The in-browser overlay factory from `@foldkit/devtools`. Without it, DevTools still records history and serves the WebSocket bridge (so the DevTools MCP server works), but no visual overlay is mounted. Pass `DevTools.overlay` to show the panel.
- * - `excludeFromHistory`: Message `_tag` values whose dispatches should not be recorded in DevTools history. The Messages still drive `update` and the runtime as usual; they just don't appear in the history panel and don't pay the per-Message diff cost. Use for high-frequency Messages (animation frames, pointer moves, scroll events) that would flood history without adding insight.
- * - `maxEntries`: Maximum number of recorded Messages retained in history before the oldest is evicted. Defaults to 100. Clamped to the range 20-500: smaller values keep the panel snappy under high message rates, larger values give you more scroll-back. Each retained entry stores a full Model snapshot, so memory cost scales linearly with both `maxEntries` and your Model size.
- * - `keyframeInterval`: Number of recorded Messages between full Model snapshots. Defaults to 31. Time-travel to an index replays `update` forward from the nearest earlier keyframe, so this is a memory/time tradeoff: smaller values store more snapshots (more memory) but make each jump cheaper, down to `1` where every jump is a constant-time snapshot lookup with no replay. Reach for a denser interval when the app has a heavy `update` and time-travel jumps feel sluggish. Clamped to a minimum of 1. Forced to 1 automatically when `excludeFromHistory` is active, since excluded Messages are never replayed.
+ * - `excludeFromHistory`: Message `_tag` values hidden from the DevTools presentation. The authoritative Program journal and exported replay tape still include them. Use this for high-frequency Messages that would flood the panel without adding useful inspection points.
+ * - `maxEntries`: Maximum number of Program transitions presented in DevTools before the oldest visible row is evicted. Defaults to 100 and is clamped to 20-500. This bounds the overlay and transport window without creating a second reconstruction journal.
  */
 export type DevToolsConfig =
   | false
@@ -161,7 +149,6 @@ export type DevToolsConfig =
       overlay?: DevToolsOverlay
       excludeFromHistory?: ReadonlyArray<string>
       maxEntries?: number
-      keyframeInterval?: number
       /**
        * The application's `Message` Schema. When provided and the running app
        * is connected to the Foldkit DevTools MCP server, AI agents can dispatch
@@ -187,7 +174,6 @@ const resolveDevToolsMode = (config: DevToolsModeConfig): DevToolsMode => {
 }
 const DEV_TOOLS_MAX_ENTRIES_MIN = 20
 const DEV_TOOLS_MAX_ENTRIES_MAX = 500
-const DEV_TOOLS_KEYFRAME_INTERVAL_MIN = 1
 
 /** Context provided when view construction exceeds its configured time budget. */
 export type SlowViewContext<Model, Message> = Readonly<{
@@ -547,7 +533,7 @@ export class Dispatch extends Context.Service<
   Dispatch,
   {
     readonly dispatchAsync: (message: unknown) => Effect.Effect<void>
-    readonly dispatchSync: (message: unknown) => void
+    readonly dispatchSync: (message: unknown, source?: TransitionSource) => void
   }
 >()('@foldkit/Dispatch') {}
 
@@ -576,118 +562,6 @@ export type CrashConfig<Model, Message> = Readonly<{
 }>
 
 /** Full runtime configuration including model schema, flags, init, update, view, and optional routing/stream config. */
-type RuntimeConfig<
-  Model,
-  Message,
-  Flags,
-  Resources = never,
-  ManagedResourceServices = never,
-  P extends Ports | undefined = undefined,
-> = Readonly<{
-  ports: P
-  Model: Schema.Codec<Model, any, unknown, unknown>
-  Flags: Schema.Codec<Flags, any, unknown, unknown>
-  flags: Effect.Effect<Flags>
-  init: (
-    flags: Flags,
-    url?: Url,
-  ) => readonly [
-    Model,
-    ReadonlyArray<Command<Message, never, Resources | ManagedResourceServices>>,
-  ]
-  update: (
-    model: Model,
-    message: Message,
-  ) => readonly [
-    Model,
-    ReadonlyArray<Command<Message, never, Resources | ManagedResourceServices>>,
-  ]
-  view: (model: Model) => Document
-  /**
-   * Whether the runtime owns document-level state. When `true`, each render
-   * applies the view's `title`, `canonical`, and `og:url` to the document
-   * `<head>`. When `false`, the runtime is scoped to its container and never
-   * touches the `<head>`, so an app can be embedded at a node without
-   * clobbering the host page's metadata. `makeApplication` sets this to `true`;
-   * `makeElement` sets it to `false`.
-   */
-  manageDocument: boolean
-  subscriptions?: Subscriptions<
-    Model,
-    Message,
-    Resources | ManagedResourceServices
-  >
-  container: HTMLElement
-  routing?: RoutingConfig<Message>
-  crash?: CrashConfig<Model, Message>
-  slow?: SlowConfig<Model, Message>
-  /**
-   * Deep-freezes the Model after `init` and after every `update`, so accidental
-   * mutations (e.g. `model.items.push(...)`) throw a `TypeError` at the exact
-   * write site with a stack trace, rather than silently corrupting state or
-   * breaking reference-equality change detection.
-   *
-   * Defaults to `true`. Activates only when Vite HMR is available, so production
-   * builds pay nothing. Pass `false` to disable.
-   *
-   * Scope: only the Model is frozen. Messages are short-lived and are not
-   * frozen.
-   */
-  freezeModel?: boolean
-  /**
-   * Restores the window scroll position across Vite HMR reloads. Every edit
-   * triggers a full page reload, which resets scroll to the top; this captures
-   * `window.scrollX`/`scrollY` just before the reload and reapplies it once the
-   * restored view has rendered, so editing a page you've scrolled deep into
-   * doesn't bounce you back to the top on every save.
-   *
-   * Defaults to `true`. Activates only when Vite HMR is available and the
-   * runtime owns the document, so production builds and embedded `makeElement`
-   * apps (which do not own the page's scroll) pay nothing. Pass `false` to
-   * disable, for an app that drives its own scroll restoration.
-   *
-   * Scope: only the window scroll offset is preserved. Scroll positions of
-   * nested `overflow` containers are not.
-   */
-  preserveScroll?: boolean
-  /**
-   * An Effect Layer providing services shared by every Command and
-   * Subscription. The runtime builds the Layer once, the first time it is
-   * needed: at startup in an app that declares Subscriptions (their
-   * pipelines run for the application's lifetime), otherwise when the first
-   * Command runs. The built services are reused for the application's
-   * lifetime and released at runtime teardown.
-   *
-   * Put a service here when it is a genuine app-wide singleton: when
-   * construction is expensive relative to how often Commands need it (an
-   * RPC client rebuilt on every invocation), or when every Command must
-   * share one instance (an AudioContext whose oscillators feed one audio
-   * graph, an RTCPeerConnection). A Layer that fails to build crashes the
-   * app with the crash view: the runtime provides this Layer to every
-   * Command, so a service that cannot be constructed leaves no Command
-   * safe to run.
-   *
-   * Provide a service inside the Command's Effect instead when
-   * construction is cheap and stateless (an HTTP client via `foldkit/http`
-   * is a thin `fetch` wrapper), when different Commands want different
-   * implementations of the same tag (`KeyValueStore` over localStorage in
-   * one Command and sessionStorage in another), or when a service that can
-   * fail to construct should only take down the Commands that use it. An
-   * HTTP client can graduate here once many Commands share one configured
-   * client, but it starts per-Command.
-   */
-  resources?: Layer.Layer<Resources>
-  /**
-   * Model-driven resources with acquire/release lifecycle. Unlike `resources`
-   * which persist for the application's lifetime, Managed Resources are
-   * acquired and released based on the current model state. Create with
-   * `ManagedResource.make`, compose child Submodels with `ManagedResource.lift`,
-   * and combine records with `ManagedResource.aggregate`.
-   */
-  managedResources?: ManagedResources<Model, Message, ManagedResourceServices>
-  devTools?: DevToolsConfig
-}>
-
 type BaseApplicationConfig<
   Model,
   Message,
@@ -695,13 +569,14 @@ type BaseApplicationConfig<
   ManagedResourceServices = never,
   P extends Ports | undefined = undefined,
 > = Readonly<{
-  Model: Schema.Codec<Model, any, unknown, unknown>
+  Model: Schema.Codec<Model, unknown, never, never>
+  Message: Schema.Codec<Message, unknown, never, never>
   update: (
     model: Model,
     message: Message,
   ) => readonly [
     Model,
-    ReadonlyArray<Command<Message, never, Resources | ManagedResourceServices>>,
+    ReadonlyArray<ProgramCommand<Message, Resources | ManagedResourceServices>>,
   ]
   view: (model: Model) => Document
   subscriptions?: Subscriptions<
@@ -717,6 +592,7 @@ type BaseApplicationConfig<
   preserveScroll?: boolean
   resources?: Layer.Layer<Resources>
   managedResources?: ManagedResources<Model, Message, ManagedResourceServices>
+  journal?: ProgramRuntimeJournalConfig<Model, Message>
   devTools?: DevToolsConfig
 }>
 
@@ -745,7 +621,7 @@ export type RoutingApplicationConfigWithFlags<
     ) => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
   }>
@@ -771,7 +647,7 @@ export type RoutingApplicationConfig<
     ) => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
   }>
@@ -799,7 +675,7 @@ export type ApplicationConfigWithFlags<
     ) => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
   }>
@@ -822,7 +698,7 @@ export type ApplicationConfig<
     init: () => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
   }>
@@ -842,13 +718,14 @@ type BaseElementConfig<
   ManagedResourceServices = never,
   P extends Ports | undefined = undefined,
 > = Readonly<{
-  Model: Schema.Codec<Model, any, unknown, unknown>
+  Model: Schema.Codec<Model, unknown, never, never>
+  Message: Schema.Codec<Message, unknown, never, never>
   update: (
     model: Model,
     message: Message,
   ) => readonly [
     Model,
-    ReadonlyArray<Command<Message, never, Resources | ManagedResourceServices>>,
+    ReadonlyArray<ProgramCommand<Message, Resources | ManagedResourceServices>>,
   ]
   view: (model: Model) => Html
   subscriptions?: Subscriptions<
@@ -863,6 +740,7 @@ type BaseElementConfig<
   freezeModel?: boolean
   resources?: Layer.Layer<Resources>
   managedResources?: ManagedResources<Model, Message, ManagedResourceServices>
+  journal?: ProgramRuntimeJournalConfig<Model, Message>
   devTools?: DevToolsConfig
 }>
 
@@ -883,7 +761,7 @@ export type ElementConfigWithFlags<
     ) => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
   }>
@@ -900,7 +778,7 @@ export type ElementConfig<
     init: () => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
   }>
@@ -916,7 +794,7 @@ export type ApplicationInit<
   ? () => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
   : (
@@ -924,7 +802,7 @@ export type ApplicationInit<
     ) => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
 
@@ -941,7 +819,7 @@ export type RoutingApplicationInit<
     ) => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
   : (
@@ -950,7 +828,7 @@ export type RoutingApplicationInit<
     ) => readonly [
       Model,
       ReadonlyArray<
-        Command<Message, never, Resources | ManagedResourceServices>
+        ProgramCommand<Message, Resources | ManagedResourceServices>
       >,
     ]
 
@@ -977,57 +855,6 @@ export type MakeRuntimeReturn<P extends Ports | undefined = undefined> =
     ports: P
   }>
 
-/** Host-side handle for one inbound Port. `send` validates the value by
- *  decoding it against the Port's Schema: on success the decoded value enters
- *  the app through the Port's Subscription; on failure nothing reaches the
- *  app, the failure is logged, and the returned `Exit` carries the
- *  `SchemaError`. Sends after `dispose` are no-ops. */
-export type InboundPortHandle<Encoded> = Readonly<{
-  send: (value: Encoded) => Exit.Exit<void, Schema.SchemaError>
-}>
-
-/** Host-side handle for one outbound Port. `subscribe` registers a listener
- *  for the encoded values the app emits with `Port.emit` and returns an
- *  unsubscribe function. Multiple listeners receive each value in
- *  registration order. */
-export type OutboundPortHandle<Encoded> = Readonly<{
-  subscribe: (listener: (value: Encoded) => void) => () => void
-}>
-
-/** The inbound half of `PortHandles`: one `InboundPortHandle` per declared
- *  inbound Port, keyed by Port name. */
-export type InboundPortHandles<InboundPorts> =
-  InboundPorts extends Readonly<Record<string, Inbound<any, any>>>
-    ? {
-        readonly [Name in keyof InboundPorts]: InboundPorts[Name] extends Inbound<
-          any,
-          infer Encoded
-        >
-          ? InboundPortHandle<Encoded>
-          : never
-      }
-    : unknown
-
-/** The outbound half of `PortHandles`: one `OutboundPortHandle` per declared
- *  outbound Port, keyed by Port name. */
-export type OutboundPortHandles<OutboundPorts> =
-  OutboundPorts extends Readonly<Record<string, Outbound<any, any>>>
-    ? {
-        readonly [Name in keyof OutboundPorts]: OutboundPorts[Name] extends Outbound<
-          any,
-          infer Encoded
-        >
-          ? OutboundPortHandle<Encoded>
-          : never
-      }
-    : unknown
-
-/** The `ports` field of an `EmbedHandle`: one `InboundPortHandle` or
- *  `OutboundPortHandle` per declared Port, keyed by Port name. */
-export type PortHandles<P extends Ports | undefined> = P extends Ports
-  ? InboundPortHandles<P['inbound']> & OutboundPortHandles<P['outbound']>
-  : unknown
-
 /**
  * The handle returned by `embed`. The host talks to the embedded app only
  * through it: `ports.<name>.send` pushes values in, `ports.<name>.subscribe`
@@ -1043,1671 +870,20 @@ export type EmbedHandle<P extends Ports | undefined = undefined> = Readonly<{
   dispose: () => void
 }>
 
-type HostConnector = Readonly<{
-  sendInbound: (
-    portName: string,
-    port: Inbound<any, any>,
-    value: unknown,
-  ) => Exit.Exit<void, Schema.SchemaError>
-  addListener: (
-    port: Outbound<any, any>,
-    listener: (encodedValue: unknown) => void,
-  ) => () => void
-  deliverOutbound: (port: Outbound<any, any>, encodedValue: unknown) => void
-  bind: (
-    deliverInbound: (port: Inbound<any, any>, value: unknown) => void,
-  ) => void
-  unbind: () => void
-  dispose: () => void
-}>
-
-const makeHostConnector = (): HostConnector => {
-  let isDisposed = false
-  let maybeDeliverInbound: Option.Option<
-    (port: Inbound<any, any>, value: unknown) => void
-  > = Option.none()
-  const pendingInboundSends: Array<{
-    port: Inbound<any, any>
-    value: unknown
-  }> = []
-  const listenersByPort = new Map<
-    Outbound<any, any>,
-    Set<(encodedValue: unknown) => void>
-  >()
-
-  const sendInbound = (
-    portName: string,
-    port: Inbound<any, any>,
-    value: unknown,
-  ): Exit.Exit<void, Schema.SchemaError> => {
-    if (isDisposed) {
-      return Exit.void
-    }
-    const decodeExit = Schema.decodeUnknownExit(port.schema)(value)
-    Exit.match(decodeExit, {
-      onFailure: cause => {
-        console.error(
-          `[foldkit] Inbound port "${portName}" rejected a value:`,
-          Cause.squash(cause),
-        )
-      },
-      onSuccess: decodedValue => {
-        Option.match(maybeDeliverInbound, {
-          onNone: () => {
-            pendingInboundSends.push({ port, value: decodedValue })
-          },
-          onSome: deliverInbound => deliverInbound(port, decodedValue),
-        })
-      },
-    })
-    return Exit.asVoid(decodeExit)
-  }
-
-  const addListener = (
-    port: Outbound<any, any>,
-    listener: (encodedValue: unknown) => void,
-  ): (() => void) => {
-    if (isDisposed) {
-      return Function.constVoid
-    }
-    const listeners = listenersByPort.get(port) ?? new Set()
-    listenersByPort.set(port, listeners)
-    listeners.add(listener)
-    return () => {
-      listeners.delete(listener)
-    }
-  }
-
-  // NOTE: delivery is deferred to a microtask so a host listener never runs
-  // inside the runtime's Command fiber (a listener that synchronously calls
-  // send or dispose must not re-enter the runtime), and so a host that
-  // subscribes synchronously right after embed() returns still receives
-  // emissions from init Commands.
-  const deliverOutbound = (
-    port: Outbound<any, any>,
-    encodedValue: unknown,
-  ): void => {
-    if (isDisposed) {
-      return
-    }
-    queueMicrotask(() => {
-      if (isDisposed) {
-        return
-      }
-      const listeners = listenersByPort.get(port) ?? new Set()
-      listeners.forEach(listener => {
-        try {
-          listener(encodedValue)
-        } catch (listenerError) {
-          console.error(
-            '[foldkit] An outbound port listener threw:',
-            listenerError,
-          )
-        }
-      })
-    })
-  }
-
-  const bind = (
-    deliverInbound: (port: Inbound<any, any>, value: unknown) => void,
-  ): void => {
-    maybeDeliverInbound = Option.some(deliverInbound)
-    const flushedSends = pendingInboundSends.splice(0)
-    flushedSends.forEach(({ port, value }) => deliverInbound(port, value))
-  }
-
-  const unbind = (): void => {
-    maybeDeliverInbound = Option.none()
-  }
-
-  const dispose = (): void => {
-    isDisposed = true
-    pendingInboundSends.length = 0
-    listenersByPort.forEach(listeners => listeners.clear())
-    listenersByPort.clear()
-  }
-
-  return { sendInbound, addListener, deliverOutbound, bind, unbind, dispose }
-}
-
-type PortChannelsBundle = Readonly<{
-  channels: __PortChannels
-  deliverInbound: (port: Inbound<any, any>, value: unknown) => void
-}>
-
-const makePortChannels = (
-  ports: Ports,
-  maybeConnector: Option.Option<HostConnector>,
-): PortChannelsBundle => {
-  const inboundChannelsByPort = new Map<Inbound<any, any>, __InboundChannel>()
-  Object.values(ports.inbound ?? {}).forEach(port => {
-    inboundChannelsByPort.set(port, __makeInboundChannel())
-  })
-
-  const outboundPorts = new Set(Object.values(ports.outbound ?? {}))
-
-  const channels: __PortChannels = {
-    isConfigured: true,
-    lookupInbound: port =>
-      Option.fromNullishOr(inboundChannelsByPort.get(port)),
-    lookupOutbound: port =>
-      outboundPorts.has(port)
-        ? Option.some(encodedValue =>
-            Option.match(maybeConnector, {
-              onNone: Function.constVoid,
-              onSome: connector =>
-                connector.deliverOutbound(port, encodedValue),
-            }),
-          )
-        : Option.none(),
-  }
-
-  const deliverInbound = (port: Inbound<any, any>, value: unknown): void => {
-    Option.match(Option.fromNullishOr(inboundChannelsByPort.get(port)), {
-      onNone: Function.constVoid,
-      onSome: channel => channel.deliver(value),
-    })
-  }
-
-  return { channels, deliverInbound }
-}
-
-const validatePorts = (ports: Ports): void => {
-  const inboundEntries = Object.entries(ports.inbound ?? {})
-  const outboundEntries = Object.entries(ports.outbound ?? {})
-
-  const inboundNames = new Set(inboundEntries.map(([name]) => name))
-  outboundEntries.forEach(([name]) => {
-    if (inboundNames.has(name)) {
-      throw new Error(
-        `[foldkit] Port name "${name}" appears in both inbound and outbound. ` +
-          'Port names share one namespace on the EmbedHandle, so each name ' +
-          'must be unique across both records.',
-      )
-    }
-  })
-
-  const seenPorts = new Set<unknown>()
-  const allEntries = [...inboundEntries, ...outboundEntries]
-  allEntries.forEach(([name, port]) => {
-    if (seenPorts.has(port)) {
-      throw new Error(
-        `[foldkit] The Port registered as "${name}" is also registered under ` +
-          'another name. Each entry in the ports record needs its own ' +
-          'Port.inbound or Port.outbound value.',
-      )
-    }
-    seenPorts.add(port)
-  })
-}
-
-type RuntimeInternals = {
+type ProgramRendererInternals = {
   startWith: (
-    maybeConnector: Option.Option<HostConnector>,
-    hmrModel?: unknown,
+    maybePortHandleBridge: Option.Option<PortHandleBinding>,
+    hmrModel: unknown,
+    isEmbedded: boolean,
   ) => Effect.Effect<void>
   isEmbedActive: boolean
   maybeActiveFiber: Option.Option<Fiber.Fiber<void>>
 }
 
-const runtimeInternals = new WeakMap<MakeRuntimeReturn<any>, RuntimeInternals>()
-
-const makeRuntime = <
-  Model,
-  Message,
-  Flags,
-  Resources,
-  ManagedResourceServices,
-  P extends Ports | undefined,
->({
-  ports,
-  Model,
-  flags: resolveFlags,
-  init,
-  update,
-  view,
-  manageDocument,
-  subscriptions,
-  container,
-  routing: routingConfig,
-  crash,
-  slow,
-  freezeModel,
-  preserveScroll,
-  resources,
-  managedResources,
-  devTools,
-}: RuntimeConfig<
-  Model,
-  Message,
-  Flags,
-  Resources,
-  ManagedResourceServices,
-  P
->): MakeRuntimeReturn<P> => {
-  const isSlowVisible = (show: Visibility): boolean =>
-    Match.value(show).pipe(
-      Match.when('Always', () => true),
-      Match.when('Development', () => !!import.meta.hot),
-      Match.exhaustive,
-    )
-
-  const resolvedSlow = __resolveSlowConfig(slow, isSlowVisible)
-
-  const resolvedSlowView = Option.flatMap(resolvedSlow, ({ view }) => view)
-  const resolvedSlowUpdate = Option.flatMap(
-    resolvedSlow,
-    ({ update }) => update,
-  )
-  const resolvedSlowPatch = Option.flatMap(resolvedSlow, ({ patch }) => patch)
-  const resolvedSlowSubscriptionDependencies = Option.flatMap(
-    resolvedSlow,
-    ({ subscriptionDependencies }) => subscriptionDependencies,
-  )
-
-  const isFreezeModelActive = freezeModel !== false && !!import.meta.hot
-
-  const isPreserveScrollActive =
-    preserveScroll !== false && manageDocument && !!import.meta.hot
-
-  const duplicateIdScanner = import.meta.hot
-    ? createDuplicateIdScanner()
-    : undefined
-
-  const excludeFromHistoryTags: ReadonlySet<string> = pipe(
-    devTools ?? {},
-    Option.liftPredicate(config => config !== false),
-    Option.flatMapNullishOr(config => config.excludeFromHistory),
-    Option.match({
-      onNone: () => new Set<string>(),
-      onSome: tags => new Set(tags),
-    }),
-  )
-
-  const devToolsMaxEntries: number | undefined = pipe(
-    devTools ?? {},
-    Option.liftPredicate(config => config !== false),
-    Option.flatMapNullishOr(config => config.maxEntries),
-    Option.match({
-      onNone: () => undefined,
-      onSome: value =>
-        Math.max(
-          DEV_TOOLS_MAX_ENTRIES_MIN,
-          Math.min(DEV_TOOLS_MAX_ENTRIES_MAX, value),
-        ),
-    }),
-  )
-
-  const devToolsKeyframeInterval: number | undefined = pipe(
-    devTools ?? {},
-    Option.liftPredicate(config => config !== false),
-    Option.flatMapNullishOr(config => config.keyframeInterval),
-    Option.match({
-      onNone: () => undefined,
-      onSome: value =>
-        Math.max(DEV_TOOLS_KEYFRAME_INTERVAL_MIN, Math.floor(value)),
-    }),
-  )
-
-  const maybeFreezeModel = (model: Model): Model =>
-    isFreezeModelActive ? deepFreeze(model) : model
-
-  if (Predicate.isNotUndefined(ports)) {
-    validatePorts(ports)
-  }
-
-  const runtimeId = container?.id ?? ''
-
-  const startWith = (
-    maybeConnector: Option.Option<HostConnector>,
-    hmrModel?: unknown,
-  ): Effect.Effect<void> =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        if (runtimeId === '') {
-          return yield* Effect.die(
-            new Error(
-              '[foldkit] Runtime container must have an `id` for HMR model preservation. ' +
-                'Set `container.id = "app"` (or any unique string) before passing it to makeApplication or makeElement.',
-            ),
-          )
-        }
-
-        // NOTE: every perpetual fiber (for example, Subscription streams
-        // and ManagedResource lifecycles) and every Command fiber forks
-        // into the runtime scope, so interrupting the runtime fiber (what
-        // dispose does) interrupts them all and runs their finalizers. A
-        // detached fork would outlive the runtime.
-        const runtimeScope = yield* Effect.scope
-
-        // NOTE: `Effect.provide(effect, layer)` builds the Layer into a
-        // scope that closes when the provided effect ends, so providing the
-        // Layer per Command would construct and tear down every resource on
-        // each invocation. Building once into `runtimeScope` through a
-        // cached Effect is what makes `resources` long-lived: the first
-        // Command or Subscription that runs triggers construction, every
-        // later one shares the same built services, and release happens at
-        // runtime teardown. The build is uninterruptible because
-        // `Effect.cached` caches whatever Exit the first run produces:
-        // dispose racing an in-flight build would otherwise cache an
-        // interrupt, which every waiter would then surface as a crash.
-        const maybeAcquireResourceContext: Option.Option<
-          Effect.Effect<Context.Context<Resources>>
-        > = yield* Option.match(Option.fromNullishOr(resources), {
-          onNone: () => Effect.succeed(Option.none()),
-          onSome: resourceLayer =>
-            Effect.map(
-              Effect.cached(
-                Effect.uninterruptible(
-                  Layer.buildWithScope(resourceLayer, runtimeScope),
-                ),
-              ),
-              Option.some,
-            ),
-        })
-
-        const maybePortChannels: Option.Option<PortChannelsBundle> = pipe(
-          Option.fromNullishOr(ports),
-          Option.map(portsConfig =>
-            makePortChannels(portsConfig, maybeConnector),
-          ),
-        )
-
-        yield* Option.match(
-          Option.all({
-            connector: maybeConnector,
-            portChannels: maybePortChannels,
-          }),
-          {
-            onNone: () => Effect.void,
-            onSome: ({ connector, portChannels }) =>
-              Effect.acquireRelease(
-                Effect.sync(() => connector.bind(portChannels.deliverInbound)),
-                () => Effect.sync(() => connector.unbind()),
-              ),
-          },
-        )
-
-        // NOTE: One boundary registry per runtime instance, shared
-        // across renders so Submodel wrap descriptors registered by
-        // h.submodel persist between renders. The render function calls
-        // `beginHtmlRender` at the start of each pass; wraps for
-        // unmounted Submodels (e.g. an entry removed from a list) are
-        // dropped from the registry via snabbdom destroy hooks attached
-        // by `h.submodel` to each child vnode.
-        const boundaryRegistry: BoundaryRegistry = createHtmlBoundaryRegistry()
-
-        const managedResourceEntries: ReadonlyArray<
-          [string, ManagedResourceConfig<Model, Message>]
-        > = managedResources
-          ? /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-            (Record.toEntries(managedResources) as ReadonlyArray<
-              [string, ManagedResourceConfig<Model, Message>]
-            >)
-          : []
-
-        const managedResourceRefs = yield* Effect.forEach(
-          managedResourceEntries,
-          ([_key, config]) =>
-            Ref.make<Option.Option<unknown>>(Option.none()).pipe(
-              Effect.map(ref => ({ config, ref })),
-            ),
-        )
-
-        const mergeResourceIntoLayer = (
-          layer: Layer.Layer<any>,
-          { config, ref }: ManagedResourceRef,
-        ) =>
-          Layer.merge(
-            layer,
-            Layer.succeed(
-              /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-              config.resource._tag as Context.Service<any, any>,
-              ref,
-            ),
-          )
-
-        const maybeManagedResourceLayer = Array.match(managedResourceRefs, {
-          onEmpty: () => Option.none(),
-          onNonEmpty: refs =>
-            Option.some(
-              Array.reduce(
-                refs,
-                /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-                Layer.empty as Layer.Layer<any>,
-                mergeResourceIntoLayer,
-              ),
-            ),
-        })
-
-        const interruptRegistry = __makeInterruptRegistry()
-
-        const provideAllResources = <A>(
-          effect: Effect.Effect<A, never, Resources | ManagedResourceServices>,
-        ): Effect.Effect<A> => {
-          const withResources = Option.match(maybeAcquireResourceContext, {
-            onNone: () => effect,
-            onSome: acquireResourceContext =>
-              Effect.flatMap(acquireResourceContext, resourceContext =>
-                Effect.provideContext(effect, resourceContext),
-              ),
-          })
-
-          const withManagedResources = Option.match(maybeManagedResourceLayer, {
-            /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-            onNone: () => withResources as Effect.Effect<A>,
-            onSome: managedLayer =>
-              /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-              Effect.provide(withResources, managedLayer) as Effect.Effect<A>,
-          })
-
-          const withPortChannels = Option.match(maybePortChannels, {
-            onNone: () => withManagedResources,
-            onSome: portChannels =>
-              Effect.provideService(
-                withManagedResources,
-                __CurrentPortChannels,
-                portChannels.channels,
-              ),
-          })
-
-          return Effect.provideService(
-            withPortChannels,
-            __CurrentInterruptRegistry,
-            interruptRegistry,
-          )
-        }
-
-        const flags = yield* resolveFlags
-
-        const ModelJsonCodec = Schema.toCodecJson(
-          /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-          Model as Schema.Codec<Model>,
-        )
-        const decodeHmrModel = Schema.decodeUnknownExit(ModelJsonCodec)
-        const encodeHmrModel = Schema.encodeUnknownSync(ModelJsonCodec)
-
-        // NOTE: keep `encodeHmrModel` off the dispatch hot path. It walks
-        // the entire Model graph (O(modelSize) per call) and blocks input
-        // on large Models. The scheduler defers encoding to a quiet window
-        // and the `vite:beforeFullReload` flush covers the HMR boundary.
-        const PRESERVE_DEBOUNCE = Duration.millis(200)
-        const preserveScheduler = yield* makePreserveScheduler<Model>(
-          {
-            onDebounce: model =>
-              Effect.sync(() =>
-                preserveModel(runtimeId, encodeHmrModel(model), false),
-              ),
-            onFlush: model =>
-              Effect.sync(() =>
-                preserveModel(runtimeId, encodeHmrModel(model), true),
-              ),
-          },
-          PRESERVE_DEBOUNCE,
-        )
-
-        const hot = import.meta.hot
-        if (hot) {
-          yield* Effect.acquireRelease(
-            Effect.sync(() => {
-              // NOTE: Effect.runSync requires `flush` to have no async
-              // suspensions. The scheduler is built to satisfy that: flush
-              // clears pending atomically and runs `onFlush` without
-              // interrupting the in-flight timer fiber, which keeps the
-              // whole effect synchronous. If a future change adds an async
-              // step (interrupt-await, sleep, fork) on this path, Vite may
-              // race ahead to location.reload() before the encoded model
-              // reaches the plugin.
-              const handler = (): void => {
-                Effect.runSync(preserveScheduler.flush)
-              }
-              hot.on('vite:beforeFullReload', handler)
-              return handler
-            }),
-            handler =>
-              Effect.sync(() => hot.off('vite:beforeFullReload', handler)),
-          )
-          yield* Effect.addFinalizer(() => preserveScheduler.cancel)
-        }
-
-        if (hot && isPreserveScrollActive) {
-          yield* Effect.acquireRelease(
-            Effect.sync(() => {
-              const handler = (): void => preserveScrollPosition(runtimeId)
-              hot.on('vite:beforeFullReload', handler)
-              return handler
-            }),
-            handler =>
-              Effect.sync(() => hot.off('vite:beforeFullReload', handler)),
-          )
-        }
-
-        const schedulePreserveModel = (model: Model): Effect.Effect<void> =>
-          hot ? preserveScheduler.schedule(model) : Effect.void
-
-        // NOTE: the dispatch hot path is plain JavaScript. A dispatched
-        // Message is pushed onto a plain array and drained synchronously on
-        // the spot, so update runs on the dispatching stack (for example, a
-        // DOM event handler, a Command fiber completing, or a Subscription
-        // emit) with no fiber hop in between. The drain guards against
-        // re-entrancy: a Message dispatched mid-drain (for example, by an
-        // update triggered from a synchronous Command) is queued and picked
-        // up by the outer drain loop in arrival order, and a Message
-        // dispatched while a render frame's patch is on the stack is
-        // buffered until the frame completes.
-        let pendingMessages: Array<Message> = []
-        let isProcessingMessages = false
-        let isRenderFrameScheduled = false
-        // NOTE: mirrors the old queue's boot behavior: a Message arriving
-        // before boot completes (for example, a navigation event during an
-        // async dev-mode boot step, or a boot-forked fiber emitting early)
-        // is buffered, not processed. Processing against a partially
-        // initialized runtime would race the init render, DevTools
-        // recording, and Subscription attachment. The flag flips as the
-        // last act of boot, which then drains the buffer. enqueueMessage
-        // checks it directly, not just the drain: dispatch sources go live
-        // mid-boot, before `drainPendingMessages` is initialized, and
-        // calling it from a pre-boot dispatch would hit the temporal dead
-        // zone.
-        let isBootComplete = false
-        // NOTE: mirrors the old queue's post-interrupt behavior: a Message
-        // dispatched after the runtime scope closed (for example, an
-        // OnUnmount fired by the dispose teardown patch, or a stale DOM
-        // handler) is dropped
-        // instead of updating a disposed runtime. Set by a finalizer
-        // registered at the end of boot, so it runs before
-        // earlier-registered teardown (finalizers are LIFO).
-        let isRuntimeDisposed = false
-        // NOTE: the differ fires destroy and insert hooks while `patch` is
-        // on the stack, and both can dispatch synchronously (for example,
-        // an OnUnmount dispatch, or a Mount stream's synchronous first
-        // emission). Draining
-        // inline would run update, and on a defect the crash renderer,
-        // against a DOM the outer patch is still mutating. The frame
-        // buffers such dispatches and drains them after it completes.
-        let isRenderingFrame = false
-        // NOTE: a crash is terminal. The old runtime's drain fiber died on
-        // the first defect, so nothing was processed after a crash; this
-        // flag preserves that: the drain stops and later dispatches are
-        // dropped, so update, Command forks, and DevTools recording all
-        // stop with the crash view on screen.
-        let isCrashed = false
-
-        const enqueueMessage = (message: Message): void => {
-          if (isRuntimeDisposed || isCrashed) {
-            return
-          }
-          pendingMessages.push(message)
-          if (!isBootComplete || isRenderingFrame) {
-            return
-          }
-          drainPendingMessages()
-        }
-
-        const enqueueMessageEffect = (message: Message) =>
-          Effect.sync(() => enqueueMessage(message))
-
-        const currentUrl: Option.Option<Url> = Option.fromNullishOr(
-          routingConfig,
-        ).pipe(Option.flatMap(() => urlFromString(window.location.href)))
-
-        const [initModelRaw, initCommands] = Predicate.isNotUndefined(hmrModel)
-          ? Exit.match(decodeHmrModel(hmrModel), {
-              onFailure: () => init(flags, Option.getOrUndefined(currentUrl)),
-              onSuccess: (
-                restoredModel: Model,
-              ): readonly [
-                Model,
-                ReadonlyArray<
-                  AnyCommand<
-                    Message,
-                    never,
-                    Resources | ManagedResourceServices
-                  >
-                >,
-              ] => [restoredModel, []],
-            })
-          : init(flags, Option.getOrUndefined(currentUrl))
-
-        const initModel = maybeFreezeModel(initModelRaw)
-
-        const modelPubSub = yield* PubSub.unbounded<Model>()
-
-        if (import.meta.hot) {
-          yield* Effect.addFinalizer(() =>
-            Effect.sync(() => duplicateIdScanner?.cancel()),
-          )
-        }
-
-        if (routingConfig) {
-          yield* Effect.acquireRelease(
-            Effect.sync(() =>
-              addNavigationEventListeners(enqueueMessage, routingConfig),
-            ),
-            removeNavigationEventListeners =>
-              Effect.sync(() => removeNavigationEventListeners()),
-          )
-        }
-
-        // NOTE: the model and the current vnode are plain closure state.
-        // The hot path reads and writes them directly; the cold paths that
-        // run inside Effects (crash rendering, the dispose finalizer, the
-        // replay render) read the same variables synchronously, so no Ref
-        // is needed.
-        let liveModel: Model = initModel
-
-        const vnodeSlot: VNodeSlot = { maybeCurrentVNode: Option.none() }
-
-        // NOTE: registered before any perpetual fiber is forked so it runs
-        // after they are interrupted (scope finalizers are LIFO). Patching to
-        // an empty tree fires snabbdom destroy hooks, which is what releases
-        // Mounts; swapping the placeholder for the original container leaves
-        // the host DOM as it was before the first render, ready for a fresh
-        // embed of the same container. Gated on interruption: that is the
-        // dispose path. A runtime that stops because it crashed completes
-        // normally after rendering the crash view, and the crash view must
-        // stay visible.
-        yield* Effect.addFinalizer(exit =>
-          Effect.gen(function* () {
-            if (!Exit.hasInterrupts(exit)) {
-              return
-            }
-            const maybeCurrentVNode = vnodeSlot.maybeCurrentVNode
-            yield* Option.match(maybeCurrentVNode, {
-              onNone: () => Effect.void,
-              onSome: currentVNode =>
-                Effect.sync(() => {
-                  const placeholderNode = __patchVNode(
-                    Option.some(currentVNode),
-                    null,
-                    container,
-                  ).elm
-                  if (placeholderNode && placeholderNode.parentNode) {
-                    placeholderNode.parentNode.replaceChild(
-                      container,
-                      placeholderNode,
-                    )
-                    container.replaceChildren()
-                  }
-                }),
-            })
-          }),
-        )
-
-        // NOTE: shared by every crash path: the init render, the plain
-        // message drain and render frame (which reach it through
-        // `Effect.runFork` from their catch blocks), and the Command and
-        // Subscription fibers (a Command's Effect and a Subscription's
-        // Stream are typed with a `never` error channel, so a cause
-        // escaping one can only be a `resources` Layer build failure or an
-        // escaped defect, both unrecoverable). Each path catches its own
-        // cause so a failure surfaces as the crash view instead of dying
-        // silently and leaving the DOM frozen at the last successful
-        // render. The first crash wins: concurrent Command fibers can fail
-        // on the same broken Layer, and only one should report and render.
-        const crashWith = (
-          cause: Cause.Cause<never>,
-          maybeMessage: Option.Option<Message>,
-        ): Effect.Effect<void> =>
-          Effect.sync(() => {
-            if (isCrashed) {
-              return
-            }
-            isCrashed = true
-            const model = liveModel
-            const squashed = Cause.squash(cause)
-            const error =
-              squashed instanceof Error ? squashed : new Error(String(squashed))
-            renderCrashView(
-              { error, model, message: maybeMessage },
-              crash,
-              container,
-              vnodeSlot,
-              manageDocument,
-            )
-          })
-
-        // NOTE: drain-local state. Kept as plain closure variables instead
-        // of `Ref`s because nothing else reads or writes them concurrently,
-        // and JS's single-threaded model already orders writes against
-        // subsequent reads. `currentMessage` is read by the crash handler.
-        let currentMessage = Option.none<Message>()
-        let maybeLastDirtyMessage = Option.none<Message>()
-
-        // NOTE: the DevTools store is installed at most once during boot and
-        // never replaced. Caching it in a closure variable avoids a
-        // `Ref.get` on every message and on every render frame (the
-        // store powers the pause check). Plain `null` rather than `Option`:
-        // the hot path only ever presence-checks it, and the check should
-        // stay a bare comparison.
-        let devToolsStore: DevToolsStore | null = null
-
-        const dispatchSync = (message: unknown): void => {
-          /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-          enqueueMessage(message as Message)
-        }
-
-        const dispatchAsync = (message: unknown): Effect.Effect<void> =>
-          /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-          enqueueMessageEffect(message as Message)
-
-        const dispatch = { dispatchAsync, dispatchSync }
-
-        const isPausedNow = (): boolean =>
-          devToolsStore !== null &&
-          SubscriptionRef.getUnsafe(devToolsStore.stateRef).isPaused
-
-        // NOTE: recording is gated on the DevTools store because the store
-        // is the only consumer. Without the gate every Mount start and end
-        // in a production frame would allocate a record just to be sliced
-        // and dropped.
-        const mountStartBuffer: Array<MountRecord> = []
-        const mountEndBuffer: Array<MountRecord> = []
-        const mountTracker: typeof MountTracker.Service = {
-          started: (name, args) => {
-            if (devToolsStore === null) {
-              return
-            }
-            mountStartBuffer.push(
-              args === undefined ? { name } : { name, args },
-            )
-          },
-          ended: (name, args) => {
-            if (devToolsStore === null) {
-              return
-            }
-            mountEndBuffer.push(args === undefined ? { name } : { name, args })
-          },
-        }
-        const drainMountEvents = (): Readonly<{
-          starts: ReadonlyArray<MountRecord>
-          ends: ReadonlyArray<MountRecord>
-        }> => {
-          const starts = mountStartBuffer.slice()
-          const ends = mountEndBuffer.slice()
-          mountStartBuffer.length = 0
-          mountEndBuffer.length = 0
-          return { starts, ends }
-        }
-
-        // NOTE: the fork is deferred one microtask so a Command's Effect
-        // never begins on the dispatching stack. Commands are facts from
-        // outside the update loop; their results always arrive
-        // asynchronously, exactly as under the old queue. The fork runs
-        // through `Effect.runForkWith` (which starts its fiber
-        // synchronously, so the child is registered in `runtimeScope`
-        // before this callback returns), not `Effect.runSyncWith`:
-        // `runSyncWith` injects a temporary synchronous scheduler into the
-        // fiber context, the child would inherit it, and every later yield
-        // in the Command (for example, an op-budget suspension, or a
-        // Stream step) would
-        // reschedule through clamped `setTimeout` instead of the browser
-        // microtask scheduler carried by `runtimeContextForCommands`.
-        const forkCommand = (
-          command: AnyCommand<
-            Message,
-            never,
-            Resources | ManagedResourceServices
-          >,
-          message: Option.Option<Message>,
-        ): void => {
-          queueMicrotask(() => {
-            // NOTE: `isCrashed` as well as `isRuntimeDisposed`. A crash is
-            // terminal but does not dispose the runtime, and a Command forked
-            // by a Message processed just before the crashing Message sits in
-            // this microtask when the crash view paints. Without the crash
-            // check its effect would run behind the crash view, contradicting
-            // the crash-terminality contract. `crashWith` sets `isCrashed`
-            // synchronously, so it is already set by the time this runs.
-            if (isRuntimeDisposed || isCrashed) {
-              return
-            }
-            Effect.runForkWith(runtimeContextForCommands)(
-              Effect.forkIn(runtimeScope)(
-                command.effect.pipe(
-                  Effect.withSpan(command.name, {
-                    attributes: command.args ?? {},
-                  }),
-                  provideAllResources,
-                  Effect.flatMap(enqueueMessageEffect),
-                  Effect.catchCause(cause => crashWith(cause, message)),
-                ),
-              ),
-            )
-          })
-        }
-
-        const processMessagePlain = (message: Message): void => {
-          const currentModel = liveModel
-
-          const [[nextModelRaw, commands], maybeUpdateDuration] =
-            measureSlowPhase(resolvedSlowUpdate, () =>
-              update(currentModel, message),
-            )
-          const nextModel = maybeFreezeModel(nextModelRaw)
-
-          reportSlowPhase<SlowUpdateContext<Model, Message>>(
-            resolvedSlowUpdate,
-            maybeUpdateDuration,
-            (durationMs, thresholdMs) => ({
-              _tag: 'Update',
-              previousModel: currentModel,
-              nextModel,
-              message,
-              durationMs,
-              thresholdMs,
-            }),
-          )
-
-          if (currentModel !== nextModel) {
-            liveModel = nextModel
-            maybeLastDirtyMessage = Option.some(message)
-            PubSub.publishUnsafe(modelPubSub, nextModel)
-            if (import.meta.hot) {
-              Effect.runSync(schedulePreserveModel(nextModel))
-            }
-            scheduleRenderFrame()
-          }
-
-          if (!Array.isReadonlyArrayEmpty(commands)) {
-            for (const command of commands) {
-              forkCommand(
-                /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-                command as AnyCommand<
-                  Message,
-                  never,
-                  Resources | ManagedResourceServices
-                >,
-                Option.some(message),
-              )
-            }
-          }
-
-          // NOTE: store writes go through `Effect.runFork`, not
-          // `Effect.runSync`. Both complete inline when the store's state
-          // Ref is uncontended (the always case on this path), but a
-          // DevTools fiber holding the Ref's permit across a yield would
-          // make `runSync` throw and crash the app; `runFork` parks and
-          // finishes the write when the permit frees, and the Ref's FIFO
-          // permit queue preserves write order.
-          if (devToolsStore !== null) {
-            const store = devToolsStore
-            /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-            const tag = (message as { _tag: string })._tag
-            const isModelChanged = currentModel !== nextModel
-            if (!excludeFromHistoryTags.has(tag)) {
-              Effect.runFork(
-                store.recordMessage(
-                  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-                  message as Message & { _tag: string },
-                  currentModel,
-                  nextModel,
-                  Array.map(
-                    /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-                    commands as ReadonlyArray<AnyCommand<Message>>,
-                    toCommandRecord,
-                  ),
-                  isModelChanged,
-                ),
-              )
-            } else if (isModelChanged) {
-              Effect.runFork(store.updateLatestModel(nextModel))
-            }
-          }
-        }
-
-        // NOTE: escape hatch for synchronous bursts, so the page keeps
-        // painting under pathological load (for example, a fiber
-        // dispatching thousands of Messages in one task, or a fully
-        // synchronous Command chain). Bursts
-        // arrive as many single-Message drains within one browser task, so
-        // the budget is cumulative across drains: it accumulates processing
-        // time and resets when the browser demonstrably got control back (a
-        // render frame ran, or the gap since the last drain exceeds the
-        // budget). Once over budget, processing defers to a MessageChannel
-        // tick, which starts a new task so a pending frame can paint.
-        // setTimeout(0) would be clamped to 4ms+; MessageChannel delivers in
-        // ~0.5ms. The normal path pays two clock reads per drain.
-        let syncWorkMsSinceYield = 0
-        let lastDrainEndedAt = 0
-        let isDrainDeferredToNextTask = false
-        let maybeDeferredDrainChannel: MessageChannel | null = null
-
-        const scheduleDeferredDrain = (): void => {
-          if (maybeDeferredDrainChannel === null) {
-            maybeDeferredDrainChannel = new MessageChannel()
-            maybeDeferredDrainChannel.port2.onmessage = () => {
-              isDrainDeferredToNextTask = false
-              syncWorkMsSinceYield = 0
-              drainPendingMessages()
-            }
-          }
-          isDrainDeferredToNextTask = true
-          maybeDeferredDrainChannel.port1.postMessage(null)
-        }
-
-        yield* Effect.addFinalizer(() =>
-          Effect.sync(() => {
-            if (maybeDeferredDrainChannel !== null) {
-              maybeDeferredDrainChannel.port1.close()
-              maybeDeferredDrainChannel.port2.close()
-              maybeDeferredDrainChannel = null
-            }
-          }),
-        )
-
-        const drainPendingMessages = (): void => {
-          if (
-            !isBootComplete ||
-            isProcessingMessages ||
-            isRenderingFrame ||
-            isDrainDeferredToNextTask ||
-            isRuntimeDisposed ||
-            isCrashed
-          ) {
-            return
-          }
-          const drainStartedAt = performance.now()
-          if (drainStartedAt - lastDrainEndedAt > DRAIN_BUDGET_MS) {
-            syncWorkMsSinceYield = 0
-          }
-          if (syncWorkMsSinceYield > DRAIN_BUDGET_MS) {
-            scheduleDeferredDrain()
-            return
-          }
-          isProcessingMessages = true
-          try {
-            while (pendingMessages.length > 0) {
-              const batch = pendingMessages
-              pendingMessages = []
-              for (let index = 0; index < batch.length; index++) {
-                const message = batch[index]!
-                currentMessage = Option.some(message)
-                processMessagePlain(message)
-
-                const hasRemainingWork =
-                  index + 1 < batch.length || pendingMessages.length > 0
-                if (
-                  hasRemainingWork &&
-                  syncWorkMsSinceYield + (performance.now() - drainStartedAt) >
-                    DRAIN_BUDGET_MS
-                ) {
-                  // NOTE: unprocessed batch Messages arrived before
-                  // anything in pendingMessages, so they go back to the
-                  // front to keep arrival order.
-                  pendingMessages = batch
-                    .slice(index + 1)
-                    .concat(pendingMessages)
-                  scheduleDeferredDrain()
-                  return
-                }
-              }
-            }
-          } catch (error) {
-            Effect.runFork(crashWith(Cause.die(error), currentMessage))
-          } finally {
-            const drainEndedAt = performance.now()
-            syncWorkMsSinceYield += drainEndedAt - drainStartedAt
-            lastDrainEndedAt = drainEndedAt
-            isProcessingMessages = false
-          }
-        }
-
-        // NOTE: `dispatchService` defaults to the live dispatch but is
-        // overridable so the DevTools jumpTo render path can pass
-        // `noOpDispatch`. Mount Effects forked during a replay render still
-        // execute (so the rendered DOM looks correct: positioning,
-        // observer attachment, library setup), but their result Messages
-        // reach a no-op dispatchSync and are never processed.
-        // This prevents mount-derived Messages from polluting history when
-        // the user is just inspecting past state.
-        const render = (
-          model: Model,
-          message: Option.Option<Message>,
-          dispatchService: typeof Dispatch.Service = dispatch,
-          renderMode: 'Live' | 'Replay' = 'Live',
-        ) =>
-          Effect.gen(function* () {
-            isRenderingFrame = true
-            const runtimeContext = yield* Effect.context<never>()
-            const maybeLiveRender = Option.liftPredicate(
-              renderMode,
-              mode => mode === 'Live',
-            )
-            if (renderMode === 'Replay') {
-              beginReplayHtmlRender()
-            }
-            const maybeLiveSlowView = Option.flatMap(
-              maybeLiveRender,
-              () => resolvedSlowView,
-            )
-            const maybeLiveSlowPatch = Option.flatMap(
-              maybeLiveRender,
-              () => resolvedSlowPatch,
-            )
-            const [nextDocument, maybeViewDuration] = measureSlowPhase(
-              maybeLiveSlowView,
-              () => {
-                beginHtmlRender(boundaryRegistry)
-                setHtmlRuntime(
-                  dispatchService.dispatchSync,
-                  runtimeContext,
-                  boundaryRegistry,
-                )
-
-                try {
-                  return view(model)
-                } finally {
-                  clearHtmlRuntime()
-                }
-              },
-            )
-            const nextVNode = nextDocument.body
-
-            reportSlowPhase<SlowViewContext<Model, Message>>(
-              maybeLiveSlowView,
-              maybeViewDuration,
-              (durationMs, thresholdMs) => ({
-                _tag: 'View',
-                model,
-                message,
-                durationMs,
-                thresholdMs,
-              }),
-            )
-
-            const maybeCurrentVNode = vnodeSlot.maybeCurrentVNode
-
-            const [patchedVNode, maybePatchDuration] = yield* Effect.sync(() =>
-              measureSlowPhase(maybeLiveSlowPatch, () =>
-                __patchVNode(
-                  maybeCurrentVNode,
-                  nextVNode,
-                  container,
-                  boundaryRegistry.dedupeSeen,
-                ),
-              ),
-            )
-            vnodeSlot.maybeCurrentVNode = Option.some(patchedVNode)
-
-            reportSlowPhase<SlowPatchContext<Model, Message>>(
-              maybeLiveSlowPatch,
-              maybePatchDuration,
-              (durationMs, thresholdMs) => ({
-                _tag: 'Patch',
-                model,
-                message,
-                durationMs,
-                thresholdMs,
-              }),
-            )
-
-            if (manageDocument) {
-              yield* Effect.sync(() =>
-                applyDocumentMetadata(nextDocument, patchedVNode.elm),
-              )
-            }
-
-            if (import.meta.hot) {
-              yield* Effect.sync(() =>
-                duplicateIdScanner?.schedule(patchedVNode.elm),
-              )
-            }
-          }).pipe(
-            Effect.ensuring(
-              Effect.sync(() => {
-                isRenderingFrame = false
-                endReplayHtmlRender()
-                drainPendingMessages()
-              }),
-            ),
-            Effect.provideService(Dispatch, dispatchService),
-            Effect.provideService(MountTracker, mountTracker),
-          )
-
-        const isInIframe = window.self !== window.top
-        const resolvedDevTools = pipe(
-          devTools ?? {},
-          Option.liftPredicate(config => config !== false),
-          Option.filter(config =>
-            Match.value(config.show ?? DEFAULT_DEV_TOOLS_SHOW).pipe(
-              Match.when('Always', () => true),
-              Match.when('Development', () => !!import.meta.hot && !isInIframe),
-              Match.exhaustive,
-            ),
-          ),
-          Option.map(config => ({
-            position: config.position ?? DEFAULT_DEV_TOOLS_POSITION,
-            mode: resolveDevToolsMode(config.mode ?? DEFAULT_DEV_TOOLS_MODE),
-            maybeBanner: Option.fromNullishOr(config.banner),
-            maybeOverlay: Option.fromNullishOr(config.overlay),
-          })),
-        )
-
-        if (Option.isSome(resolvedDevTools)) {
-          const { position, mode, maybeBanner, maybeOverlay } =
-            resolvedDevTools.value
-          // NOTE: when excludeFromHistory is active, the runtime drops
-          // excluded Messages from the recorded history. Replay walks the
-          // recorded entries forward from the nearest keyframe. With
-          // exclusion, the dropped Messages aren't in that walk, so any
-          // cumulative state they would have produced is missing from the
-          // replayed model. Setting keyframeInterval to 1 stores a full
-          // snapshot on every recorded entry, so time-travel becomes a
-          // direct lookup that reflects the real live state at the moment
-          // the entry was recorded.
-          const isExcludingMessages = excludeFromHistoryTags.size > 0
-          const store = yield* createDevToolsStore(
-            {
-              /* eslint-disable @typescript-eslint/consistent-type-assertions */
-              replay: (model, message) => {
-                const [updatedModel] = update(
-                  model as Model,
-                  message as Message,
-                )
-                return maybeFreezeModel(updatedModel)
-              },
-              /* eslint-enable @typescript-eslint/consistent-type-assertions */
-              // NOTE: passes `noOpDispatch` so mount Effects forked during
-              // the replay render dispatch their result Messages into a
-              // no-op (instead of enqueueing them as new history entries).
-              // Also discards mount events fired during the render so they
-              // don't get attributed to the next user-initiated dispatch.
-              render: model =>
-                Effect.gen(function* () {
-                  yield* render(
-                    /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-                    model as Model,
-                    Option.none(),
-                    noOpDispatch,
-                    'Replay',
-                  )
-                  drainMountEvents()
-                }),
-              // NOTE: `resume` calls this after a jumpTo render attached DOM
-              // listeners to `noOpDispatch`. Scheduling a frame renders the
-              // live model with live dispatch and rebinds listeners.
-              markRenderPending: Effect.sync(() => scheduleRenderFrame()),
-            },
-            {
-              ...(devToolsKeyframeInterval !== undefined && {
-                keyframeInterval: devToolsKeyframeInterval,
-              }),
-              ...(devToolsMaxEntries !== undefined && {
-                maxEntries: devToolsMaxEntries,
-              }),
-              // NOTE: exclusion forces keyframeInterval to 1 regardless of any
-              // configured value, since excluded Messages are never replayed
-              // and a denser interval would leave gaps in the replayed model.
-              // Spread last so it wins over `keyframeInterval` above.
-              ...(isExcludingMessages && { keyframeInterval: 1 }),
-            },
-          )
-          devToolsStore = store
-          // NOTE: init is recorded after the init render below, so the
-          // mount buffer reflects the Mounts that fired on the first paint.
-          yield* Option.match(maybeOverlay, {
-            onNone: () => Effect.void,
-            onSome: overlay => overlay(store, position, mode, maybeBanner),
-          })
-
-          if (import.meta.hot) {
-            const maybeMessageSchema =
-              devTools !== undefined && devTools !== false
-                ? Option.fromNullishOr(devTools.Message)
-                : Option.none<Schema.Codec<any, any, unknown, unknown>>()
-            yield* startWebSocketBridge(
-              store,
-              import.meta.hot,
-              /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-              message => enqueueMessageEffect(message as Message),
-              /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-              maybeMessageSchema as Option.Option<Schema.Codec<any, any>>,
-            )
-          }
-        }
-
-        const initRenderExit = yield* Effect.exit(
-          render(initModel, Option.none()),
-        )
-        if (Exit.isFailure(initRenderExit)) {
-          yield* crashWith(initRenderExit.cause, Option.none())
-          // NOTE: suspend instead of returning. Completing would close the
-          // runtime scope and tear down the crash view; the scope must stay
-          // open until the runtime is interrupted (dispose, or page unload).
-          return yield* Effect.never
-        }
-
-        if (isPreserveScrollActive) {
-          yield* restorePreservedScrollPosition(runtimeId)
-        }
-
-        const initMountEvents = drainMountEvents()
-        if (devToolsStore !== null) {
-          yield* devToolsStore.recordInit(
-            initModel,
-            Array.map(initCommands, toCommandRecord),
-            initMountEvents.starts,
-          )
-        }
-
-        // NOTE: maybeLastDirtyMessage holds the most recent dirtying
-        // Message, so slow render-phase callbacks during high-rate bursts attribute
-        // to the last Message in the frame batch, not the specific one that
-        // pushed the view past threshold. Acceptable for a debug callback;
-        // full attribution would require correlating each message with its
-        // render contribution, which isn't worth the complexity.
-
-        // NOTE: render frames run as plain JavaScript inside the
-        // requestAnimationFrame callback. Messages arriving between frames
-        // mark at most one pending frame; the callback renders once with the
-        // latest model. The runtime context for OnMount forking and Command
-        // forking is captured once here; it is constant for the lifetime of
-        // the runtime.
-        const runtimeContextForCommands = yield* Effect.context<never>()
-        const liveRenderContext = Context.add(
-          Context.add(runtimeContextForCommands, Dispatch, dispatch),
-          MountTracker,
-          mountTracker,
-        )
-
-        const renderFramePlain = (): void => {
-          isRenderFrameScheduled = false
-          // NOTE: a frame scheduled before disposal fires after it; a
-          // disposed runtime must not repaint the released container.
-          if (isRuntimeDisposed) {
-            return
-          }
-          // NOTE: a frame is running, so the browser got control back; the
-          // drain budget starts fresh.
-          syncWorkMsSinceYield = 0
-          // NOTE: a Message that dirtied the model can also be the one
-          // whose Command crashed the runtime. Without this guard the
-          // next animation frame would render the live view over the
-          // crash view.
-          if (isCrashed) {
-            return
-          }
-          if (isPausedNow()) {
-            return
-          }
-          isRenderingFrame = true
-          try {
-            renderSyncPlain(liveModel, maybeLastDirtyMessage)
-            if (devToolsStore !== null) {
-              const mountEvents = drainMountEvents()
-              Effect.runFork(
-                devToolsStore.attachRenderedMounts(
-                  mountEvents.starts,
-                  mountEvents.ends,
-                ),
-              )
-            }
-          } catch (error) {
-            Effect.runFork(crashWith(Cause.die(error), maybeLastDirtyMessage))
-          } finally {
-            isRenderingFrame = false
-          }
-          // NOTE: Messages dispatched by patch-time hooks (for example,
-          // OnUnmount destroys, or Mount emissions) were buffered while the
-          // frame held the stack; they process now, after the patch has
-          // committed and the frame's Mount events are attributed.
-          drainPendingMessages()
-        }
-
-        const renderSyncPlain = (
-          model: Model,
-          maybeMessage: Option.Option<Message>,
-        ): void => {
-          const [nextDocument, maybeViewDuration] = measureSlowPhase(
-            resolvedSlowView,
-            () => {
-              beginHtmlRender(boundaryRegistry)
-              setHtmlRuntime(
-                dispatch.dispatchSync,
-                liveRenderContext,
-                boundaryRegistry,
-              )
-              try {
-                return view(model)
-              } finally {
-                clearHtmlRuntime()
-              }
-            },
-          )
-          reportSlowPhase<SlowViewContext<Model, Message>>(
-            resolvedSlowView,
-            maybeViewDuration,
-            (durationMs, thresholdMs) => ({
-              _tag: 'View',
-              model,
-              message: maybeMessage,
-              durationMs,
-              thresholdMs,
-            }),
-          )
-
-          const maybeCurrentVNode = vnodeSlot.maybeCurrentVNode
-          const [patchedVNode, maybePatchDuration] = measureSlowPhase(
-            resolvedSlowPatch,
-            () =>
-              __patchVNode(
-                maybeCurrentVNode,
-                nextDocument.body,
-                container,
-                boundaryRegistry.dedupeSeen,
-              ),
-          )
-          vnodeSlot.maybeCurrentVNode = Option.some(patchedVNode)
-          reportSlowPhase<SlowPatchContext<Model, Message>>(
-            resolvedSlowPatch,
-            maybePatchDuration,
-            (durationMs, thresholdMs) => ({
-              _tag: 'Patch',
-              model,
-              message: maybeMessage,
-              durationMs,
-              thresholdMs,
-            }),
-          )
-
-          if (manageDocument) {
-            applyDocumentMetadata(nextDocument, patchedVNode.elm)
-          }
-
-          if (import.meta.hot) {
-            duplicateIdScanner?.schedule(patchedVNode.elm)
-          }
-        }
-
-        const scheduleRenderFrame = (): void => {
-          if (isRenderFrameScheduled) {
-            return
-          }
-          isRenderFrameScheduled = true
-          requestAnimationFrame(renderFramePlain)
-        }
-
-        // NOTE: reloading on bfcache restore is a page-level decision, so
-        // only a page-owning runtime that manages the document installs the
-        // listener. An app started through `embed` carries a host connector
-        // and must never force the host page to reload, so it is excluded
-        // even when it manages the document.
-        //
-        // The listener is installed for the page's whole lifetime and is
-        // deliberately not torn down with the runtime scope.
-        // `BrowserRuntime.runMain` interrupts the runtime on `beforeunload`,
-        // which is exactly when the browser freezes the page into the
-        // back/forward cache. A scope-bound listener would be removed by that
-        // interrupt before the freeze, so the `pageshow` restore would have
-        // nothing left to reload and the page would come back blank: the
-        // interrupt finalizer empties the container. A full document
-        // navigation (the only way into and out of a cross-origin-isolated
-        // page) is what exercises this path. Registration is idempotent, so an
-        // HMR re-run does not stack listeners.
-        if (manageDocument && Option.isNone(maybeConnector)) {
-          yield* Effect.sync(() => addBfcacheRestoreListener())
-        }
-
-        if (subscriptions) {
-          yield* pipe(
-            subscriptions,
-            Record.toEntries,
-            Effect.forEach(
-              ([
-                key,
-                {
-                  dependenciesSchema,
-                  modelToDependencies,
-                  keepAliveEquivalence,
-                  dependenciesToStream,
-                },
-              ]) =>
-                Effect.gen(function* () {
-                  const equivalence =
-                    keepAliveEquivalence ??
-                    Schema.toEquivalence(dependenciesSchema)
-
-                  const [initDependencies, maybeInitDependenciesDuration] =
-                    measureSlowPhase(resolvedSlowSubscriptionDependencies, () =>
-                      modelToDependencies(initModel),
-                    )
-                  reportSlowPhase<SlowSubscriptionDependenciesContext<Model>>(
-                    resolvedSlowSubscriptionDependencies,
-                    maybeInitDependenciesDuration,
-                    (durationMs, thresholdMs) => ({
-                      _tag: 'SubscriptionDependencies',
-                      subscriptionKey: key,
-                      model: initModel,
-                      durationMs,
-                      thresholdMs,
-                    }),
-                  )
-
-                  const latestDependenciesRef =
-                    yield* Ref.make(initDependencies)
-
-                  const modelChangesStream = Stream.fromPubSub(
-                    modelPubSub,
-                  ).pipe(
-                    // NOTE: Ref.set runs upstream of Stream.changesWith on
-                    // every model change, so readDependencies() returns
-                    // current values even when the equivalence filter
-                    // doesn't emit. Moving this into a tap after
-                    // changesWith would silently break subscribers whose
-                    // dependencies are equivalence-stable across model
-                    // changes.
-                    Stream.mapEffect(model =>
-                      Effect.gen(function* () {
-                        const [dependencies, maybeDependenciesDuration] =
-                          measureSlowPhase(
-                            resolvedSlowSubscriptionDependencies,
-                            () => modelToDependencies(model),
-                          )
-
-                        reportSlowPhase<
-                          SlowSubscriptionDependenciesContext<Model>
-                        >(
-                          resolvedSlowSubscriptionDependencies,
-                          maybeDependenciesDuration,
-                          (durationMs, thresholdMs) => ({
-                            _tag: 'SubscriptionDependencies',
-                            subscriptionKey: key,
-                            model,
-                            durationMs,
-                            thresholdMs,
-                          }),
-                        )
-
-                        yield* Ref.set(latestDependenciesRef, dependencies)
-                        return dependencies
-                      }),
-                    ),
-                  )
-
-                  yield* Effect.forkIn(runtimeScope)(
-                    Stream.concat(
-                      Stream.make(initDependencies),
-                      modelChangesStream,
-                    ).pipe(
-                      Stream.changesWith(equivalence),
-                      Stream.switchMap(dependencies =>
-                        dependenciesToStream(dependencies, () =>
-                          Ref.getUnsafe(latestDependenciesRef),
-                        ),
-                      ),
-                      Stream.runForEach(message =>
-                        /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-                        enqueueMessageEffect(message as Message),
-                      ),
-                      provideAllResources,
-                      Effect.catchCause(cause =>
-                        crashWith(cause, Option.none()),
-                      ),
-                    ),
-                  )
-                }),
-              {
-                concurrency: 'unbounded',
-                discard: true,
-              },
-            ),
-          )
-        }
-
-        const maybeRequirementsToLifecycle =
-          (
-            config: ManagedResourceConfig<Model, Message>,
-            resourceRef: Ref.Ref<Option.Option<unknown>>,
-          ) =>
-          (
-            maybeRequirements: unknown,
-          ): Stream.Stream<Effect.Effect<Message>> => {
-            if (
-              Option.isOption(maybeRequirements) &&
-              Option.isNone(maybeRequirements)
-            ) {
-              return Stream.empty
-            }
-
-            const requirements = Option.isOption(maybeRequirements)
-              ? Option.getOrThrow(maybeRequirements)
-              : maybeRequirements
-
-            const acquire = Effect.gen(function* () {
-              const value = yield* config.acquire(requirements)
-              yield* Ref.set(resourceRef, Option.some(value))
-              return value
-            })
-
-            const release = (value: unknown) =>
-              Effect.gen(function* () {
-                yield* config.release(value)
-                yield* Ref.set(resourceRef, Option.none())
-                yield* enqueueMessageEffect(config.onReleased())
-              }).pipe(Effect.catchCause(() => Effect.void))
-
-            return pipe(
-              Stream.scoped(
-                Stream.fromEffect(Effect.acquireRelease(acquire, release)),
-              ),
-              Stream.flatMap(value =>
-                Stream.concat(
-                  Stream.make(config.onAcquired(value)),
-                  Stream.never,
-                ),
-              ),
-              Stream.map(Effect.succeed),
-              Stream.catch(error =>
-                Stream.make(Effect.succeed(config.onAcquireError(error))),
-              ),
-            )
-          }
-
-        type ManagedResourceRef = (typeof managedResourceRefs)[number]
-
-        const forkManagedResourceLifecycle = ({
-          config,
-          ref: resourceRef,
-        }: ManagedResourceRef) =>
-          Effect.gen(function* () {
-            const modelStream = Stream.concat(
-              Stream.make(initModel),
-              Stream.fromPubSub(modelPubSub),
-            )
-
-            const equivalence = Schema.toEquivalence(config.schema)
-
-            yield* Effect.forkIn(runtimeScope)(
-              modelStream.pipe(
-                Stream.map(config.modelToMaybeRequirements),
-                Stream.changesWith(equivalence),
-                Stream.switchMap(
-                  maybeRequirementsToLifecycle(config, resourceRef),
-                ),
-                Stream.runForEach(Effect.flatMap(enqueueMessageEffect)),
-                // NOTE: mirrors the Subscription fork so a defect in
-                // `modelToMaybeRequirements` or the equivalence surfaces as
-                // the crash view instead of dying silently in this detached
-                // fiber. `provideAllResources` is not needed: `acquire` only
-                // requires `Scope`, which `Stream.scoped` supplies, and
-                // `release` requires nothing.
-                Effect.catchCause(cause => crashWith(cause, Option.none())),
-              ),
-            )
-          })
-
-        yield* Effect.forEach(
-          managedResourceRefs,
-          forkManagedResourceLifecycle,
-          {
-            concurrency: 'unbounded',
-            discard: true,
-          },
-        )
-
-        // NOTE: registered before the boot buffer drains, so an interrupt
-        // landing anywhere after this yield tears down with the flag set
-        // (finalizers are LIFO; this one runs before every
-        // earlier-registered teardown, including the container-restoring
-        // patch whose OnUnmount dispatches must be dropped). An interrupt
-        // landing before this yield tears down with isBootComplete still
-        // false, so every dispatch buffers and dies with the closure.
-        // Either way no Message is processed against a closing runtime.
-        yield* Effect.addFinalizer(() =>
-          Effect.sync(() => {
-            isRuntimeDisposed = true
-          }),
-        )
-
-        // NOTE: init Commands fork as the last act of boot, exactly where
-        // the old queue's drain loop used to start. Together with the
-        // isBootComplete barrier this guarantees no Command result (or any
-        // other Message) is processed until the init render has painted
-        // initModel and every boot subsystem (DevTools store, Subscriptions,
-        // ManagedResources, ports) is attached. forkCommand also defers each
-        // start by a microtask, so a fully synchronous init Command still
-        // delivers its result asynchronously.
-        for (const command of initCommands) {
-          forkCommand(
-            /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-            command as AnyCommand<
-              Message,
-              never,
-              Resources | ManagedResourceServices
-            >,
-            Option.none(),
-          )
-        }
-
-        isBootComplete = true
-        drainPendingMessages()
-
-        // NOTE: suspend forever. Messages are processed synchronously on
-        // the dispatching stack and render frames run as plain rAF
-        // callbacks, so this fiber's only remaining job is keeping the
-        // runtime scope open until interruption (dispose, or page unload).
-        yield* Effect.never
-      }),
-    )
-
-  const start = (hmrModel?: unknown): Effect.Effect<void> =>
-    startWith(Option.none(), hmrModel)
-
-  const program: MakeRuntimeReturn<P> = { runtimeId, start, ports }
-  runtimeInternals.set(program, {
-    startWith,
-    isEmbedActive: false,
-    maybeActiveFiber: Option.none(),
-  })
-  return program
-}
-
-// NOTE: how long one synchronous drain may hold the stack before the
-// remaining Messages defer to a new task so the browser can paint. Only
-// multi-Message bursts ever reach the check; the single-Message path never
-// reads the clock beyond the drain start.
-const DRAIN_BUDGET_MS = 5
+const programRendererInternals = new WeakMap<
+  MakeRuntimeReturn<any>,
+  ProgramRendererInternals
+>()
 
 /** Mutable holder for the vnode tree currently mounted in the container.
  *  The render frame writes it after every patch; the dispose finalizer, the
@@ -2979,133 +1155,891 @@ export function makeApplication<
 
   const hasRouting = 'routing' in config
   const hasFlags = 'Flags' in config
-
-  const currentUrl: Url | undefined = hasRouting
-    ? Option.getOrThrow(urlFromString(window.location.href))
-    : undefined
-
-  const baseConfig = {
-    Model: config.Model,
-    update: config.update,
-    view: config.view,
-    manageDocument: true,
-    ports: config.ports,
-    ...(config.subscriptions && { subscriptions: config.subscriptions }),
-    container,
-    ...(hasRouting && { routing: config.routing }),
-    ...(config.crash && { crash: config.crash }),
-    ...(Predicate.isNotUndefined(config.slow) && {
-      slow: config.slow,
-    }),
-    ...(Predicate.isNotUndefined(config.freezeModel) && {
-      freezeModel: config.freezeModel,
-    }),
-    ...(Predicate.isNotUndefined(config.preserveScroll) && {
-      preserveScroll: config.preserveScroll,
-    }),
-    ...(config.resources && { resources: config.resources }),
-    ...(config.managedResources && {
-      managedResources: config.managedResources,
-    }),
-    ...(Predicate.isNotUndefined(config.devTools) && {
-      devTools: config.devTools,
-    }),
-  }
+  const runtimeId = container.id
+  const currentUrl = (): Url =>
+    Option.getOrThrow(urlFromString(window.location.href))
+  type ApplicationProgram = Program<
+    Model,
+    Message,
+    Resources,
+    ManagedResourceServices,
+    P
+  >
+  const buildProgram = (init: ApplicationProgram['init']): ApplicationProgram =>
+    makeProgram({
+      id: runtimeId,
+      version: 1,
+      Model: config.Model,
+      Message: config.Message,
+      init,
+      update: config.update,
+      ...(config.subscriptions === undefined
+        ? {}
+        : { subscriptions: config.subscriptions }),
+      ...(config.managedResources === undefined
+        ? {}
+        : { managedResources: config.managedResources }),
+      ...(config.ports === undefined ? {} : { ports: config.ports }),
+    })
 
   /* eslint-disable @typescript-eslint/consistent-type-assertions */
-  if (hasFlags && hasRouting) {
-    return makeRuntime({
-      ...baseConfig,
-      Flags: config.Flags,
-      flags: config.flags,
-      init: (flags: unknown, url) =>
-        (
-          config as RoutingApplicationConfigWithFlags<
+  const programEffect: Effect.Effect<ApplicationProgram> = hasFlags
+    ? Effect.map(config.flags, flags => {
+        if (hasRouting) {
+          const routingConfig = config as RoutingApplicationConfigWithFlags<
             Model,
             Message,
             Flags,
             Resources,
-            ManagedResourceServices
+            ManagedResourceServices,
+            P
           >
-        ).init(flags as Flags, url ?? currentUrl!),
-    } as RuntimeConfig<
-      Model,
-      Message,
-      Flags,
-      Resources,
-      ManagedResourceServices,
-      P
-    >)
-  } else if (hasRouting) {
-    return makeRuntime({
-      ...baseConfig,
-      Flags: Schema.Void,
-      flags: Effect.succeed(undefined),
-      init: (_flags, url) =>
-        (
-          config as RoutingApplicationConfig<
+          return buildProgram(() => routingConfig.init(flags, currentUrl()))
+        }
+        const flagsConfig = config as ApplicationConfigWithFlags<
+          Model,
+          Message,
+          Flags,
+          Resources,
+          ManagedResourceServices,
+          P
+        >
+        return buildProgram(() => flagsConfig.init(flags))
+      })
+    : Effect.sync(() => {
+        if (hasRouting) {
+          const routingConfig = config as RoutingApplicationConfig<
             Model,
             Message,
             Resources,
-            ManagedResourceServices
+            ManagedResourceServices,
+            P
           >
-        ).init(url ?? currentUrl!),
-    } as RuntimeConfig<
-      Model,
-      Message,
-      void,
-      Resources,
-      ManagedResourceServices,
-      P
-    >)
-  } else if (hasFlags) {
-    return makeRuntime({
-      ...baseConfig,
-      Flags: config.Flags,
-      flags: config.flags,
-      init: (flags: unknown) =>
-        (
-          config as ApplicationConfigWithFlags<
-            Model,
-            Message,
-            Flags,
-            Resources,
-            ManagedResourceServices
-          >
-        ).init(flags as Flags),
-    } as RuntimeConfig<
-      Model,
-      Message,
-      Flags,
-      Resources,
-      ManagedResourceServices,
-      P
-    >)
-  } else {
-    return makeRuntime({
-      ...baseConfig,
-      Flags: Schema.Void,
-      flags: Effect.succeed(undefined),
-      init: () =>
-        (
-          config as ApplicationConfig<
-            Model,
-            Message,
-            Resources,
-            ManagedResourceServices
-          >
-        ).init(),
-    } as RuntimeConfig<
-      Model,
-      Message,
-      void,
-      Resources,
-      ManagedResourceServices,
-      P
-    >)
-  }
+          return buildProgram(() => routingConfig.init(currentUrl()))
+        }
+        const applicationConfig = config as ApplicationConfig<
+          Model,
+          Message,
+          Resources,
+          ManagedResourceServices,
+          P
+        >
+        return buildProgram(applicationConfig.init)
+      })
   /* eslint-enable @typescript-eslint/consistent-type-assertions */
+
+  const startWith = (
+    maybePortHandleBridge: Option.Option<PortHandleBinding>,
+    hmrModel: unknown,
+    isEmbedded: boolean,
+  ): Effect.Effect<void> =>
+    Effect.flatMap(programEffect, program => {
+      const application = makeFoldkitApplication<
+        Model,
+        Message,
+        Resources,
+        ManagedResourceServices,
+        P
+      >({
+        program,
+        resources: resolveResources(config.resources),
+        container,
+        view: config.view,
+        ...(hasRouting ? { routing: config.routing } : {}),
+        ...(config.crash === undefined ? {} : { crash: config.crash }),
+        ...(config.devTools === undefined ? {} : { devTools: config.devTools }),
+        ...(config.journal === undefined ? {} : { journal: config.journal }),
+        ...(config.slow === undefined ? {} : { slow: config.slow }),
+        ...(config.freezeModel === undefined
+          ? {}
+          : { freezeModel: config.freezeModel }),
+        ...(config.preserveScroll === undefined
+          ? {}
+          : { preserveScroll: config.preserveScroll }),
+      })
+      const maybeInternals = Option.fromNullishOr(
+        programRendererInternals.get(application),
+      )
+      return Option.match(maybeInternals, {
+        onNone: () =>
+          Effect.die(
+            new Error(
+              '[foldkit] The Foldkit renderer did not register its runtime internals.',
+            ),
+          ),
+        onSome: internals =>
+          internals.startWith(maybePortHandleBridge, hmrModel, isEmbedded),
+      })
+    })
+
+  const start = (hmrModel?: unknown): Effect.Effect<void> =>
+    startWith(Option.none(), hmrModel, false)
+  const application: MakeRuntimeReturn<P> = {
+    runtimeId,
+    start,
+    /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+    ports: config.ports as P,
+  }
+  programRendererInternals.set(application, {
+    startWith,
+    isEmbedActive: false,
+    maybeActiveFiber: Option.none(),
+  })
+  return application
 }
+
+const instrumentProgram = <
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources,
+  ManagedResourceServices,
+  P extends Ports | undefined,
+>(
+  program: Program<Model, Message, Resources, ManagedResourceServices, P>,
+  maybeFreezeModel: (model: Model) => Model,
+  maybeSlowUpdate: Option.Option<
+    ResolvedSlowPhaseConfig<SlowUpdateContext<Model, Message>>
+  >,
+  maybeSlowSubscriptionDependencies: Option.Option<
+    ResolvedSlowPhaseConfig<SlowSubscriptionDependenciesContext<Model>>
+  >,
+): Program<Model, Message, Resources, ManagedResourceServices, P> => {
+  const subscriptions =
+    program.subscriptions === undefined
+      ? undefined
+      : Record.map(program.subscriptions, (subscription, subscriptionKey) => ({
+          ...subscription,
+          modelToDependencies: (model: Model) => {
+            const [dependencies, maybeDuration] = measureSlowPhase(
+              maybeSlowSubscriptionDependencies,
+              () => subscription.modelToDependencies(model),
+            )
+            reportSlowPhase<SlowSubscriptionDependenciesContext<Model>>(
+              maybeSlowSubscriptionDependencies,
+              maybeDuration,
+              (durationMs, thresholdMs) => ({
+                _tag: 'SubscriptionDependencies',
+                subscriptionKey,
+                model,
+                durationMs,
+                thresholdMs,
+              }),
+            )
+            return dependencies
+          },
+        }))
+
+  return {
+    ...program,
+    init: () => {
+      const [model, commands] = program.init()
+      return [maybeFreezeModel(model), commands]
+    },
+    restore: model => {
+      const [nextModel, commands] = program.restore?.(model) ?? [model, []]
+      return [maybeFreezeModel(nextModel), commands]
+    },
+    update: (model, message) => {
+      const [[nextModelRaw, commands], maybeDuration] = measureSlowPhase(
+        maybeSlowUpdate,
+        () => program.update(model, message),
+      )
+      const nextModel = maybeFreezeModel(nextModelRaw)
+      reportSlowPhase<SlowUpdateContext<Model, Message>>(
+        maybeSlowUpdate,
+        maybeDuration,
+        (durationMs, thresholdMs) => ({
+          _tag: 'Update',
+          previousModel: model,
+          nextModel,
+          message,
+          durationMs,
+          thresholdMs,
+        }),
+      )
+      return [nextModel, commands]
+    },
+    ...(subscriptions === undefined ? {} : { subscriptions }),
+  }
+}
+
+const browserProgramRuntimeScheduling: ProgramRuntimeScheduling = {
+  now: () => performance.now(),
+  defer: resume => {
+    const channel = new MessageChannel()
+    let isActive = true
+    const close = (): void => {
+      isActive = false
+      channel.port1.close()
+      channel.port2.close()
+    }
+    channel.port2.onmessage = () => {
+      if (!isActive) {
+        return
+      }
+      close()
+      resume()
+    }
+    channel.port1.postMessage(null)
+    return close
+  },
+}
+
+/** Configuration for a Foldkit renderer attached to one shared Program. */
+export type FoldkitApplicationConfig<
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+> = Readonly<{
+  program: Program<Model, Message, Resources, ManagedResourceServices, P>
+  resources: Layer.Layer<Resources>
+  start?: ProgramStart<Model, Message>
+  journal?: ProgramRuntimeJournalConfig<Model, Message>
+  routing?: RoutingConfig<Message>
+  view: (model: Model) => Document
+  container: HTMLElement | null
+  crash?: CrashConfig<Model, Message>
+  devTools?: DevToolsConfig
+  slow?: SlowConfig<Model, Message>
+  freezeModel?: boolean
+  preserveScroll?: boolean
+  /** Receives the initial Model and each changed Model for host-level synchronization. */
+  onModel?: (model: Model) => void
+}>
+
+type ProgramRendererConfig<
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources,
+  ManagedResourceServices,
+  P extends Ports | undefined,
+> = FoldkitApplicationConfig<
+  Model,
+  Message,
+  Resources,
+  ManagedResourceServices,
+  P
+> &
+  Readonly<{
+    manageDocument: boolean
+  }>
+
+const resolveResources = <Resources>(
+  resources: Layer.Layer<Resources> | undefined,
+): Layer.Layer<Resources> =>
+  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+  (resources ?? Layer.empty) as Layer.Layer<Resources>
+
+/**
+ * Creates a Foldkit-rendered client over the shared Program runtime.
+ *
+ * The Program runtime owns Message ordering, update, Commands, Subscriptions,
+ * Resources, history, replay tapes, and portable URI parsing. This adapter
+ * only observes Models and schedules Foldkit view commits.
+ */
+const makeProgramRenderer = <
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+>(
+  config: ProgramRendererConfig<
+    Model,
+    Message,
+    Resources,
+    ManagedResourceServices,
+    P
+  >,
+): MakeRuntimeReturn<P> => {
+  const { container } = config
+  if (container === null) {
+    throw new Error(
+      '[foldkit] Container is null. Make sure the element exists in the DOM ' +
+        'before calling makeFoldkitApplication.',
+    )
+  }
+
+  const runtimeId = container.id
+  if (runtimeId === '') {
+    throw new Error(
+      '[foldkit] Runtime container must have an `id` for HMR model preservation.',
+    )
+  }
+
+  const isSlowVisible = (show: Visibility): boolean =>
+    Match.value(show).pipe(
+      Match.when('Always', () => true),
+      Match.when('Development', () => !!import.meta.hot),
+      Match.exhaustive,
+    )
+  const resolvedSlow = __resolveSlowConfig(config.slow, isSlowVisible)
+  const resolvedSlowView = Option.flatMap(resolvedSlow, ({ view }) => view)
+  const resolvedSlowUpdate = Option.flatMap(
+    resolvedSlow,
+    ({ update }) => update,
+  )
+  const resolvedSlowPatch = Option.flatMap(resolvedSlow, ({ patch }) => patch)
+  const resolvedSlowSubscriptionDependencies = Option.flatMap(
+    resolvedSlow,
+    ({ subscriptionDependencies }) => subscriptionDependencies,
+  )
+  const isFreezeModelActive = config.freezeModel !== false && !!import.meta.hot
+  const isPreserveScrollActive =
+    config.manageDocument &&
+    config.preserveScroll !== false &&
+    !!import.meta.hot
+  const duplicateIdScanner = import.meta.hot
+    ? createDuplicateIdScanner()
+    : undefined
+  const maybeFreezeModel = (model: Model): Model =>
+    isFreezeModelActive ? deepFreeze(model) : model
+  const program = instrumentProgram(
+    config.program,
+    maybeFreezeModel,
+    resolvedSlowUpdate,
+    resolvedSlowSubscriptionDependencies,
+  )
+
+  const startWith = (
+    maybePortHandleBridge: Option.Option<PortHandleBinding>,
+    hmrModel: unknown,
+    isEmbedded: boolean,
+  ): Effect.Effect<void> =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const ModelJsonCodec = Schema.toCodecJson(program.Model)
+        const decodedHmrModel = Predicate.isNotUndefined(hmrModel)
+          ? Schema.decodeUnknownOption(ModelJsonCodec)(hmrModel)
+          : Option.none<Model>()
+        const activeProgram: Program<
+          Model,
+          Message,
+          Resources,
+          ManagedResourceServices,
+          P
+        > = Option.isSome(decodedHmrModel)
+          ? {
+              ...program,
+              restore: model => [maybeFreezeModel(model), []],
+            }
+          : program
+        const programStart = Option.match(decodedHmrModel, {
+          onNone: () => config.start,
+          onSome: fromModel,
+        })
+        const runtime = yield* makeProgramRuntime({
+          program: activeProgram,
+          resources: config.resources,
+          scheduling: browserProgramRuntimeScheduling,
+          ...(programStart === undefined ? {} : { start: programStart }),
+          ...(config.journal === undefined ? {} : { journal: config.journal }),
+        }).pipe(Effect.orDie)
+        yield* Option.match(maybePortHandleBridge, {
+          onNone: () => Effect.void,
+          onSome: bridge =>
+            Effect.acquireRelease(
+              Effect.sync(() => bridge.bind(runtime.ports)),
+              () => Effect.sync(bridge.unbind),
+            ),
+        })
+        const decodeModel = Schema.decodeUnknownSync(program.Model)
+        const decodeMessage = Schema.decodeUnknownSync(program.Message)
+        const encodeHmrModel = Schema.encodeUnknownSync(ModelJsonCodec)
+        const preserveScheduler = yield* makePreserveScheduler<Model>(
+          {
+            onDebounce: model =>
+              Effect.sync(() =>
+                preserveModel(runtimeId, encodeHmrModel(model), false),
+              ),
+            onFlush: model =>
+              Effect.sync(() =>
+                preserveModel(runtimeId, encodeHmrModel(model), true),
+              ),
+          },
+          Duration.millis(200),
+        )
+        const hot = import.meta.hot
+        if (hot) {
+          yield* Effect.acquireRelease(
+            Effect.sync(() => {
+              const handler = (): void => {
+                Effect.runSync(preserveScheduler.flush)
+              }
+              hot.on('vite:beforeFullReload', handler)
+              return handler
+            }),
+            handler =>
+              Effect.sync(() => hot.off('vite:beforeFullReload', handler)),
+          )
+          yield* Effect.addFinalizer(() => preserveScheduler.cancel)
+        }
+        if (hot && isPreserveScrollActive) {
+          yield* Effect.acquireRelease(
+            Effect.sync(() => {
+              const handler = (): void => preserveScrollPosition(runtimeId)
+              hot.on('vite:beforeFullReload', handler)
+              return handler
+            }),
+            handler =>
+              Effect.sync(() => hot.off('vite:beforeFullReload', handler)),
+          )
+        }
+        if (hot) {
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => duplicateIdScanner?.cancel()),
+          )
+        }
+        const runtimeContext = yield* Effect.context<never>()
+        const boundaryRegistry = createHtmlBoundaryRegistry()
+        const vnodeSlot: VNodeSlot = { maybeCurrentVNode: Option.none() }
+        yield* Effect.addFinalizer(exit => {
+          if (!Exit.hasInterrupts(exit)) {
+            return Effect.void
+          }
+          return Option.match(vnodeSlot.maybeCurrentVNode, {
+            onNone: () => Effect.void,
+            onSome: currentVNode =>
+              Effect.sync(() => {
+                const placeholderNode = __patchVNode(
+                  Option.some(currentVNode),
+                  null,
+                  container,
+                ).elm
+                if (placeholderNode?.parentNode) {
+                  placeholderNode.parentNode.replaceChild(
+                    container,
+                    placeholderNode,
+                  )
+                }
+                container.replaceChildren()
+              }),
+          })
+        })
+        const mountStartBuffer: Array<MountRecord> = []
+        const mountEndBuffer: Array<MountRecord> = []
+        let devToolsStore: DevToolsStore | null = null
+        let maybeLastMessage = Option.none<Message>()
+        let isRenderScheduled = false
+        let isDisposed = false
+        let isCrashed = false
+        let isRenderingFrame = false
+        let pendingRenderMessages: Array<
+          Readonly<{
+            message: Message
+            maybeSource: Option.Option<TransitionSource>
+          }>
+        > = []
+        const isInIframe = window.self !== window.top
+        const resolvedDevTools = pipe(
+          config.devTools ?? {},
+          Option.liftPredicate(devToolsConfig => devToolsConfig !== false),
+          Option.filter(devToolsConfig =>
+            Match.value(devToolsConfig.show ?? DEFAULT_DEV_TOOLS_SHOW).pipe(
+              Match.when('Always', () => true),
+              Match.when('Development', () => !!import.meta.hot && !isInIframe),
+              Match.exhaustive,
+            ),
+          ),
+        )
+        const isDevToolsEnabled = Option.isSome(resolvedDevTools)
+
+        const mountTracker: typeof MountTracker.Service = {
+          started: (name, args) => {
+            if (isDevToolsEnabled) {
+              mountStartBuffer.push(
+                args === undefined ? { name } : { name, args },
+              )
+            }
+          },
+          ended: (name, args) => {
+            if (isDevToolsEnabled) {
+              mountEndBuffer.push(
+                args === undefined ? { name } : { name, args },
+              )
+            }
+          },
+        }
+        const drainMountEvents = (): Readonly<{
+          starts: ReadonlyArray<MountRecord>
+          ends: ReadonlyArray<MountRecord>
+        }> => {
+          const starts = mountStartBuffer.slice()
+          const ends = mountEndBuffer.slice()
+          mountStartBuffer.length = 0
+          mountEndBuffer.length = 0
+          return { starts, ends }
+        }
+        const sendToRuntime = (
+          message: Message,
+          source?: TransitionSource,
+        ): void => {
+          if (isDisposed || isCrashed) {
+            return
+          }
+          if (isRenderingFrame) {
+            pendingRenderMessages.push({
+              message,
+              maybeSource: Option.fromNullishOr(source),
+            })
+            return
+          }
+          runtime.send(message, source === undefined ? {} : { source })
+        }
+        const drainRenderMessages = (): void => {
+          if (isRenderingFrame || isDisposed || isCrashed) {
+            return
+          }
+          while (Array.isReadonlyArrayNonEmpty(pendingRenderMessages)) {
+            const messages = pendingRenderMessages
+            pendingRenderMessages = []
+            Array.forEach(messages, ({ message, maybeSource }) =>
+              runtime.send(
+                message,
+                Option.match(maybeSource, {
+                  onNone: () => ({}),
+                  onSome: source => ({ source }),
+                }),
+              ),
+            )
+          }
+        }
+        const dispatch: typeof Dispatch.Service = {
+          dispatchAsync: message =>
+            Effect.sync(() => sendToRuntime(decodeMessage(message))),
+          dispatchSync: (message, source) =>
+            sendToRuntime(decodeMessage(message), source),
+        }
+        const routing = config.routing
+        if (routing !== undefined) {
+          yield* Effect.acquireRelease(
+            Effect.sync(() =>
+              addNavigationEventListeners(
+                (message, source) =>
+                  sendToRuntime(decodeMessage(message), source),
+                routing,
+              ),
+            ),
+            removeNavigationEventListeners =>
+              Effect.sync(removeNavigationEventListeners),
+          )
+        }
+        const liveRenderContext = Context.add(
+          Context.add(runtimeContext, Dispatch, dispatch),
+          MountTracker,
+          mountTracker,
+        )
+        const inspectingRenderContext = Context.add(
+          Context.add(runtimeContext, Dispatch, noOpDispatch),
+          MountTracker,
+          mountTracker,
+        )
+
+        const crashWith = (
+          cause: Cause.Cause<never>,
+          maybeMessage: Option.Option<Message>,
+        ): Effect.Effect<void> =>
+          Effect.sync(() => {
+            if (isDisposed || isCrashed) {
+              return
+            }
+            isCrashed = true
+            pendingRenderMessages = []
+            const squashed = Cause.squash(cause)
+            renderCrashView(
+              {
+                error:
+                  squashed instanceof Error
+                    ? squashed
+                    : new Error(String(squashed)),
+                model: runtime.readModel(),
+                message: maybeMessage,
+              },
+              config.crash,
+              container,
+              vnodeSlot,
+              config.manageDocument,
+            )
+          })
+
+        const render = (
+          model: Model,
+          mode: 'Live' | 'Inspecting',
+        ): Effect.Effect<void> =>
+          Effect.sync(() => {
+            if (isDisposed || isCrashed) {
+              return
+            }
+            const isInspecting = mode === 'Inspecting'
+            const maybeLiveSlowView = isInspecting
+              ? Option.none<
+                  ResolvedSlowPhaseConfig<SlowViewContext<Model, Message>>
+                >()
+              : resolvedSlowView
+            const maybeLiveSlowPatch = isInspecting
+              ? Option.none<
+                  ResolvedSlowPhaseConfig<SlowPatchContext<Model, Message>>
+                >()
+              : resolvedSlowPatch
+            isRenderingFrame = true
+            if (isInspecting) {
+              beginReplayHtmlRender()
+            }
+            try {
+              const [nextDocument, maybeViewDuration] = measureSlowPhase(
+                maybeLiveSlowView,
+                () => {
+                  beginHtmlRender(boundaryRegistry)
+                  setHtmlRuntime(
+                    isInspecting
+                      ? noOpDispatch.dispatchSync
+                      : dispatch.dispatchSync,
+                    isInspecting ? inspectingRenderContext : liveRenderContext,
+                    boundaryRegistry,
+                  )
+                  try {
+                    return config.view(model)
+                  } finally {
+                    clearHtmlRuntime()
+                  }
+                },
+              )
+              reportSlowPhase<SlowViewContext<Model, Message>>(
+                maybeLiveSlowView,
+                maybeViewDuration,
+                (durationMs, thresholdMs) => ({
+                  _tag: 'View',
+                  model,
+                  message: maybeLastMessage,
+                  durationMs,
+                  thresholdMs,
+                }),
+              )
+              const [patchedVNode, maybePatchDuration] = measureSlowPhase(
+                maybeLiveSlowPatch,
+                () =>
+                  __patchVNode(
+                    vnodeSlot.maybeCurrentVNode,
+                    nextDocument.body,
+                    container,
+                    boundaryRegistry.dedupeSeen,
+                  ),
+              )
+              vnodeSlot.maybeCurrentVNode = Option.some(patchedVNode)
+              reportSlowPhase<SlowPatchContext<Model, Message>>(
+                maybeLiveSlowPatch,
+                maybePatchDuration,
+                (durationMs, thresholdMs) => ({
+                  _tag: 'Patch',
+                  model,
+                  message: maybeLastMessage,
+                  durationMs,
+                  thresholdMs,
+                }),
+              )
+              if (config.manageDocument) {
+                applyDocumentMetadata(nextDocument, patchedVNode.elm)
+              }
+              if (hot) {
+                duplicateIdScanner?.schedule(patchedVNode.elm)
+              }
+            } finally {
+              isRenderingFrame = false
+              if (isInspecting) {
+                endReplayHtmlRender()
+              }
+            }
+          })
+
+        const renderLive = (): Effect.Effect<void> =>
+          render(runtime.readModel(), 'Live')
+
+        const renderFrame = (): void => {
+          isRenderScheduled = false
+          if (
+            isDisposed ||
+            isCrashed ||
+            (devToolsStore !== null &&
+              SubscriptionRef.getUnsafe(devToolsStore.stateRef).isPaused)
+          ) {
+            return
+          }
+          Effect.runForkWith(runtimeContext)(
+            renderLive().pipe(
+              Effect.tap(() => {
+                if (devToolsStore === null) {
+                  return Effect.void
+                }
+                const mounts = drainMountEvents()
+                return devToolsStore.attachRenderedMounts(
+                  mounts.starts,
+                  mounts.ends,
+                )
+              }),
+              Effect.tap(() => Effect.sync(drainRenderMessages)),
+              Effect.catchCause(cause => crashWith(cause, maybeLastMessage)),
+            ),
+          )
+        }
+
+        const scheduleRender = (): void => {
+          if (!isRenderScheduled && !isDisposed && !isCrashed) {
+            isRenderScheduled = true
+            requestAnimationFrame(renderFrame)
+          }
+        }
+
+        const notifyHostModel = (model: Model): void => {
+          if (config.onModel === undefined) {
+            return
+          }
+          try {
+            config.onModel(model)
+          } catch (error) {
+            console.error(
+              '[foldkit] A Foldkit host Model observer threw:',
+              error,
+            )
+          }
+        }
+        const stopObservingModel = runtime.observeModel(model => {
+          notifyHostModel(model)
+          if (hot) {
+            Effect.runSync(preserveScheduler.schedule(model))
+          }
+          scheduleRender()
+        })
+        const stopObservingJournalForMessage = runtime.journal.observe(
+          transition => {
+            maybeLastMessage = Option.some(transition.message)
+          },
+        )
+        const stopObservingFailures = runtime.observeFailures(failure => {
+          Effect.runSync(crashWith(failure.cause, failure.message))
+        })
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            isDisposed = true
+            pendingRenderMessages = []
+            stopObservingModel()
+            stopObservingJournalForMessage()
+            stopObservingFailures()
+          }),
+        )
+
+        notifyHostModel(runtime.readModel())
+        const initialRenderExit = yield* Effect.exit(renderLive())
+        if (Exit.isFailure(initialRenderExit)) {
+          yield* crashWith(initialRenderExit.cause, Option.none())
+          yield* runtime.shutdown
+          return yield* Effect.never
+        }
+        if (Option.isSome(resolvedDevTools)) {
+          const devToolsConfig = resolvedDevTools.value
+          const initialMounts = drainMountEvents()
+          const store = yield* createProgramDevToolsStore({
+            runtime,
+            bridge: {
+              render: model => render(decodeModel(model), 'Inspecting'),
+              markRenderPending: Effect.sync(scheduleRender),
+            },
+            excludeFromHistory: devToolsConfig.excludeFromHistory ?? [],
+            ...(devToolsConfig.maxEntries === undefined
+              ? {}
+              : {
+                  maxEntries: Math.max(
+                    DEV_TOOLS_MAX_ENTRIES_MIN,
+                    Math.min(
+                      DEV_TOOLS_MAX_ENTRIES_MAX,
+                      devToolsConfig.maxEntries,
+                    ),
+                  ),
+                }),
+            initialMountStarts: initialMounts.starts,
+          })
+          devToolsStore = store
+
+          const maybeOverlay = Option.fromNullishOr(devToolsConfig.overlay)
+          yield* Option.match(maybeOverlay, {
+            onNone: () => Effect.void,
+            onSome: overlay =>
+              overlay(
+                store,
+                devToolsConfig.position ?? DEFAULT_DEV_TOOLS_POSITION,
+                resolveDevToolsMode(
+                  devToolsConfig.mode ?? DEFAULT_DEV_TOOLS_MODE,
+                ),
+                Option.fromNullishOr(devToolsConfig.banner),
+              ),
+          })
+          if (import.meta.hot) {
+            yield* startWebSocketBridge(
+              store,
+              import.meta.hot,
+              message =>
+                Effect.sync(() =>
+                  sendToRuntime(decodeMessage(message), {
+                    _tag: 'DevTools',
+                  }),
+                ),
+              Option.some(program.Message),
+            )
+          }
+        }
+
+        if (isPreserveScrollActive) {
+          yield* restorePreservedScrollPosition(runtimeId)
+        }
+        yield* Effect.sync(drainRenderMessages)
+        if (config.manageDocument && !isEmbedded) {
+          yield* Effect.sync(() => addBfcacheRestoreListener())
+        }
+
+        const initializationExit = yield* Effect.exit(runtime.initialization)
+        if (Exit.isFailure(initializationExit)) {
+          yield* crashWith(initializationExit.cause, Option.none())
+        }
+        return yield* Effect.never
+      }),
+    )
+
+  const start = (hmrModel?: unknown): Effect.Effect<void> =>
+    startWith(Option.none(), hmrModel, false)
+  const renderer: MakeRuntimeReturn<P> = {
+    runtimeId,
+    start,
+    /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+    ports: config.program.ports as P,
+  }
+  programRendererInternals.set(renderer, {
+    startWith,
+    isEmbedActive: false,
+    maybeActiveFiber: Option.none(),
+  })
+  return renderer
+}
+
+/**
+ * Creates a Foldkit-rendered client over one shared Program runtime.
+ */
+export const makeFoldkitApplication = <
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+>(
+  config: FoldkitApplicationConfig<
+    Model,
+    Message,
+    Resources,
+    ManagedResourceServices,
+    P
+  >,
+): MakeRuntimeReturn<P> =>
+  makeProgramRenderer({ ...config, manageDocument: true })
 
 const toCrashConfig = <Model, Message>(
   crash: ElementCrashConfig<Model, Message> | undefined,
@@ -3207,79 +2141,112 @@ export function makeElement<
   })
 
   const crash = toCrashConfig(config.crash)
+  const runtimeId = container.id
+  type ElementProgram = Program<
+    Model,
+    Message,
+    Resources,
+    ManagedResourceServices,
+    P
+  >
+  const buildProgram = (init: ElementProgram['init']): ElementProgram =>
+    makeProgram({
+      id: runtimeId,
+      version: 1,
+      Model: config.Model,
+      Message: config.Message,
+      init,
+      update: config.update,
+      ...(config.subscriptions === undefined
+        ? {}
+        : { subscriptions: config.subscriptions }),
+      ...(config.managedResources === undefined
+        ? {}
+        : { managedResources: config.managedResources }),
+      ...(config.ports === undefined ? {} : { ports: config.ports }),
+    })
 
-  const baseConfig = {
-    Model: config.Model,
-    update: config.update,
-    view,
-    manageDocument: false,
-    ports: config.ports,
-    ...(config.subscriptions && { subscriptions: config.subscriptions }),
-    container,
-    ...(Predicate.isNotUndefined(crash) && { crash }),
-    ...(Predicate.isNotUndefined(config.slow) && {
-      slow: config.slow,
-    }),
-    ...(Predicate.isNotUndefined(config.freezeModel) && {
-      freezeModel: config.freezeModel,
-    }),
-    ...(config.resources && { resources: config.resources }),
-    ...(config.managedResources && {
-      managedResources: config.managedResources,
-    }),
-    ...(Predicate.isNotUndefined(config.devTools) && {
-      devTools: config.devTools,
-    }),
-  }
-
+  let programEffect: Effect.Effect<ElementProgram>
   /* eslint-disable @typescript-eslint/consistent-type-assertions */
   if (hasFlags) {
-    return makeRuntime({
-      ...baseConfig,
-      Flags: config.Flags,
-      flags: config.flags,
-      init: (flags: unknown) =>
-        (
-          config as ElementConfigWithFlags<
-            Model,
-            Message,
-            Flags,
-            Resources,
-            ManagedResourceServices
-          >
-        ).init(flags as Flags),
-    } as RuntimeConfig<
+    const flagsConfig = config as ElementConfigWithFlags<
       Model,
       Message,
       Flags,
       Resources,
       ManagedResourceServices,
       P
-    >)
+    >
+    programEffect = Effect.map(flagsConfig.flags, flags =>
+      buildProgram(() => flagsConfig.init(flags)),
+    )
   } else {
-    return makeRuntime({
-      ...baseConfig,
-      Flags: Schema.Void,
-      flags: Effect.succeed(undefined),
-      init: () =>
-        (
-          config as ElementConfig<
-            Model,
-            Message,
-            Resources,
-            ManagedResourceServices
-          >
-        ).init(),
-    } as RuntimeConfig<
+    const elementConfig = config as ElementConfig<
       Model,
       Message,
-      void,
       Resources,
       ManagedResourceServices,
       P
-    >)
+    >
+    programEffect = Effect.sync(() => buildProgram(elementConfig.init))
   }
   /* eslint-enable @typescript-eslint/consistent-type-assertions */
+
+  const startWith = (
+    maybePortHandleBridge: Option.Option<PortHandleBinding>,
+    hmrModel: unknown,
+    isEmbedded: boolean,
+  ): Effect.Effect<void> =>
+    Effect.flatMap(programEffect, program => {
+      const renderer = makeProgramRenderer<
+        Model,
+        Message,
+        Resources,
+        ManagedResourceServices,
+        P
+      >({
+        program,
+        resources: resolveResources(config.resources),
+        container,
+        view,
+        manageDocument: false,
+        ...(crash === undefined ? {} : { crash }),
+        ...(config.devTools === undefined ? {} : { devTools: config.devTools }),
+        ...(config.journal === undefined ? {} : { journal: config.journal }),
+        ...(config.slow === undefined ? {} : { slow: config.slow }),
+        ...(config.freezeModel === undefined
+          ? {}
+          : { freezeModel: config.freezeModel }),
+      })
+      const maybeInternals = Option.fromNullishOr(
+        programRendererInternals.get(renderer),
+      )
+      return Option.match(maybeInternals, {
+        onNone: () =>
+          Effect.die(
+            new Error(
+              '[foldkit] The Foldkit renderer did not register its runtime internals.',
+            ),
+          ),
+        onSome: internals =>
+          internals.startWith(maybePortHandleBridge, hmrModel, isEmbedded),
+      })
+    })
+
+  const start = (hmrModel?: unknown): Effect.Effect<void> =>
+    startWith(Option.none(), hmrModel, false)
+  const element: MakeRuntimeReturn<P> = {
+    runtimeId,
+    start,
+    /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+    ports: config.ports as P,
+  }
+  programRendererInternals.set(element, {
+    startWith,
+    isEmbedActive: false,
+    maybeActiveFiber: Option.none(),
+  })
+  return element
 }
 
 const encodePreserveModelMessage =
@@ -3387,30 +2354,6 @@ export const run = (program: MakeRuntimeReturn<Ports | undefined>): void => {
   )
 }
 
-const buildPortHandles = <P extends Ports | undefined>(
-  ports: P,
-  connector: HostConnector,
-): PortHandles<P> => {
-  const handles: Record<string, unknown> = {}
-
-  if (Predicate.isNotUndefined(ports)) {
-    Object.entries(ports.inbound ?? {}).forEach(([portName, port]) => {
-      handles[portName] = {
-        send: (value: unknown) => connector.sendInbound(portName, port, value),
-      }
-    })
-    Object.entries(ports.outbound ?? {}).forEach(([portName, port]) => {
-      handles[portName] = {
-        subscribe: (listener: (encodedValue: unknown) => void) =>
-          connector.addListener(port, listener),
-      }
-    })
-  }
-
-  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-  return handles as PortHandles<P>
-}
-
 /**
  * Starts a Foldkit runtime under a host-controlled lifecycle and returns an
  * `EmbedHandle`. This is the entry point for embedding a Foldkit app inside
@@ -3439,42 +2382,35 @@ const buildPortHandles = <P extends Ports | undefined>(
 export const embed = <P extends Ports | undefined = undefined>(
   program: MakeRuntimeReturn<P>,
 ): EmbedHandle<P> => {
-  const internals = runtimeInternals.get(program)
-  if (Predicate.isUndefined(internals)) {
+  const rendererInternals = programRendererInternals.get(program)
+  if (Predicate.isUndefined(rendererInternals)) {
     throw new Error(
       '[foldkit] embed expects a program created by makeApplication or makeElement.',
     )
   }
 
-  if (internals.isEmbedActive) {
+  if (rendererInternals.isEmbedActive) {
     throw new Error(
       '[foldkit] This program is already embedded. Dispose the existing ' +
         'handle first, or create a separate program: each program owns one ' +
         'container.',
     )
   }
-  internals.isEmbedActive = true
-
-  const connector = makeHostConnector()
-
-  // NOTE: a dispose immediately followed by a fresh embed (React strict mode
-  // runs effects exactly that way) must not start the new runtime while the
-  // old one is still tearing down: the teardown finalizer is what puts the
-  // container element back in the DOM. Awaiting the previous fiber's exit
-  // sequences the two.
+  rendererInternals.isEmbedActive = true
+  const bridge = makePortHandleBridge(program.ports)
   const startEffect = pipe(
-    Option.match(internals.maybeActiveFiber, {
+    Option.match(rendererInternals.maybeActiveFiber, {
       onNone: () => Effect.void,
       onSome: previousFiber => Effect.asVoid(Fiber.await(previousFiber)),
     }),
     Effect.andThen(resolveHmrModel(program.runtimeId)),
     Effect.flatMap(hmrModel =>
-      internals.startWith(Option.some(connector), hmrModel),
+      rendererInternals.startWith(Option.some(bridge), hmrModel, true),
     ),
   )
 
   const fiber = Effect.runFork(provideBrowserScheduler(startEffect))
-  internals.maybeActiveFiber = Option.some(fiber)
+  rendererInternals.maybeActiveFiber = Option.some(fiber)
 
   let isHandleDisposed = false
   const dispose = (): void => {
@@ -3482,12 +2418,10 @@ export const embed = <P extends Ports | undefined = undefined>(
       return
     }
     isHandleDisposed = true
-    connector.dispose()
-    internals.isEmbedActive = false
+    bridge.dispose()
+    rendererInternals.isEmbedActive = false
     Effect.runFork(Fiber.interrupt(fiber))
   }
 
-  const ports = buildPortHandles(program.ports, connector)
-
-  return { ports, dispose }
+  return { ports: bridge.handles, dispose }
 }

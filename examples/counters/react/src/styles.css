@@ -1,0 +1,66 @@
+@import 'tailwindcss';
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:focus-visible {
+  outline: 2px solid #fbbf24;
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.counter-button {
+  border: 1px solid #57534e;
+  border-radius: 9999px;
+  min-height: 2.5rem;
+  min-width: 2.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.counter-button:hover,
+.secondary-button:hover {
+  border-color: #a8a29e;
+}
+
+.primary-button,
+.secondary-button,
+.destructive-button {
+  border-radius: 9999px;
+  padding: 0.5rem 1rem;
+}
+
+.primary-button {
+  background: #fbbf24;
+  color: #1c1917;
+  font-weight: 600;
+}
+
+.primary-button:hover {
+  background: #fcd34d;
+}
+
+.secondary-button {
+  background: #1c1917;
+  border: 1px solid #57534e;
+  color: #e7e5e4;
+}
+
+.destructive-button {
+  background: rgb(69 10 10 / 0.7);
+  border: 1px solid #b91c1c;
+  color: #fee2e2;
+}
+
+.destructive-button:hover {
+  background: #7f1d1d;
+}
+
+dialog[open] {
+  display: block;
+}

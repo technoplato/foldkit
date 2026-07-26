@@ -1,5 +1,6 @@
 import type { Context } from 'effect'
 
+import type { TransitionSource } from '../runtime/programJournal.js'
 import {
   type BoundaryId,
   type BoundaryRegistry,
@@ -11,7 +12,7 @@ import {
 } from './boundary.js'
 
 /** Synchronous message dispatcher provided to view-time element constructors. */
-export type DispatchSync = (message: unknown) => void
+export type DispatchSync = (message: unknown, source?: TransitionSource) => void
 
 export type Frame = Readonly<{
   outerDispatch: DispatchSync

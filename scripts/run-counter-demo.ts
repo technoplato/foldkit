@@ -1,5 +1,6 @@
 import { Array, Match as M, Option, Schema as S, pipe } from 'effect'
 import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
 const DemoClient = S.Literals(['counter', 'counter-tui'])
 type DemoClient = typeof DemoClient.Type
@@ -27,6 +28,20 @@ const packageName = M.value<DemoClient>(client).pipe(
   M.exhaustive,
 )
 
+const entryPath = M.value<DemoClient>(client).pipe(
+  M.when('counter', () =>
+    fileURLToPath(
+      new URL('../examples/counter/cli/dist/entry.js', import.meta.url),
+    ),
+  ),
+  M.when('counter-tui', () =>
+    fileURLToPath(
+      new URL('../examples/counter/tui/dist/entry.js', import.meta.url),
+    ),
+  ),
+  M.exhaustive,
+)
+
 const buildResult = spawnSync('pnpm', ['--filter', packageName, 'build'], {
   encoding: 'utf8',
 })
@@ -36,11 +51,9 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1)
 }
 
-const runResult = spawnSync(
-  'pnpm',
-  ['--silent', '--filter', packageName, client, ...clientArgs],
-  { stdio: 'inherit' },
-)
+const runResult = spawnSync(process.execPath, [entryPath, ...clientArgs], {
+  stdio: 'inherit',
+})
 if (runResult.status !== 0) {
   process.exit(runResult.status ?? 1)
 }

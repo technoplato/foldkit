@@ -2,10 +2,9 @@ import {
   ClickedDecrement,
   ClickedIncrement,
   ClickedReset,
-  Message,
-  Model,
-  init,
-  update,
+  CounterProgram,
+  type Message,
+  type Model,
 } from 'counter-core-example'
 import { Console, Effect, Layer, Match as M, Option, Schema as S } from 'effect'
 import { Runtime } from 'foldkit'
@@ -38,7 +37,7 @@ const messageForOperation = (operation: CliOperation): Option.Option<Message> =>
   )
 
 const runMessage = (
-  runtime: Runtime.HostRuntime<Model, Message>,
+  runtime: Runtime.ProgramRuntime<Model, Message>,
   initialModel: Model,
   maybeMessage: Option.Option<Message>,
 ): Effect.Effect<Model> => {
@@ -55,12 +54,12 @@ export const executeCliOperation = (
 ): Effect.Effect<CliOperationExecution> =>
   Effect.scoped(
     Effect.gen(function* () {
-      const runtime = yield* Runtime.makeHostRuntime<Model, Message>({
-        Model,
-        init,
-        update,
-        resources: Layer.empty,
-      })
+      const runtime = yield* Effect.orDie(
+        Runtime.makeProgramRuntime({
+          program: CounterProgram,
+          resources: Layer.empty,
+        }),
+      )
       const initialModel = yield* runtime.initialization
       const maybeMessage = messageForOperation(operation)
       const finalModel = yield* runMessage(runtime, initialModel, maybeMessage)

@@ -23,6 +23,7 @@ export const init: Runtime.ApplicationInit<Model, Message, Flags> = flags => [
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   Flags,
   flags,
   init,

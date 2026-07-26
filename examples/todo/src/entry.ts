@@ -6,6 +6,7 @@ import { Flags, Message, Model, flags, init, update, view } from './main'
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   Flags,
   flags,
   init,

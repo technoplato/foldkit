@@ -12,6 +12,7 @@ import {
 } from 'effect'
 
 import { Url } from '../url/index.js'
+import * as QueryParams from './queryParams.js'
 
 /**
  * Error type for route parsing failures.
@@ -33,7 +34,7 @@ export type ParseResult<A> = [A, ReadonlyArray<string>]
 
 type PrintState = {
   segments: ReadonlyArray<string>
-  queryParams: URLSearchParams
+  queryParams: QueryParams.QueryParams
 }
 
 /**
@@ -47,6 +48,18 @@ export type Biparser<A> = {
   ) => Effect.Effect<ParseResult<A>, ParseError>
   print: (value: A, state: PrintState) => Effect.Effect<PrintState, ParseError>
 }
+
+/** An embed/extract pair that focuses one case of a route union. */
+export type CasePath<Root, Value> = Readonly<{
+  embed: (value: Value) => Root
+  extract: (root: Root) => Option.Option<Value>
+}>
+
+/** One bidirectional parser branch focused on a route union case. */
+export type RouteCase<Root, Value> = Readonly<{
+  parser: Biparser<Value>
+  casePath: CasePath<Root, Value>
+}>
 
 type BuildFn<A> = A extends { _tag: string }
   ? keyof Omit<A, '_tag'> extends never
@@ -532,6 +545,72 @@ export const oneOf = <Parsers extends ReadonlyArray<ParserInput>>(
 })
 
 /**
+ * Combines bidirectional route branches using case paths.
+ *
+ * Parsing tries each branch and embeds the successful payload into the route
+ * union. Printing extracts the matching payload from the route union and uses
+ * that branch's printer. Use {@link oneOf} when parsing is intentionally
+ * one-way.
+ */
+export const oneOfCases = <Root>(
+  ...routeCases: ReadonlyArray<RouteCase<Root, any>>
+): Biparser<Root> => ({
+  parse: (segments, search) =>
+    Array.matchLeft(routeCases, {
+      onEmpty: () =>
+        Effect.fail(
+          new ParseError({
+            message: `No route cases provided for path: /${Array.join(segments, '/')}`,
+          }),
+        ),
+      onNonEmpty: () =>
+        Effect.firstSuccessOf(
+          Array.map(routeCases, routeCase =>
+            pipe(
+              routeCase.parser.parse(segments, search),
+              Effect.flatMap(complete),
+              Effect.map(
+                ([value, remaining]): ParseResult<Root> => [
+                  routeCase.casePath.embed(value),
+                  remaining,
+                ],
+              ),
+            ),
+          ),
+        ),
+    }),
+  print: (value, state) =>
+    pipe(
+      routeCases,
+      Array.reduce(
+        Option.none<Effect.Effect<PrintState, ParseError>>(),
+        (maybePrinted, routeCase) => {
+          if (Option.isSome(maybePrinted)) {
+            return maybePrinted
+          }
+          return pipe(
+            routeCase.casePath.extract(value),
+            Option.map(caseValue => routeCase.parser.print(caseValue, state)),
+          )
+        },
+      ),
+      Option.getOrElse(() =>
+        Effect.fail(
+          new ParseError({
+            message: 'No route case could print the supplied value',
+          }),
+        ),
+      ),
+    ),
+})
+
+/** Creates one branch for {@link oneOfCases}. */
+export const caseOf = <Root, Value>(
+  parser: Biparser<Value>,
+  casePath: CasePath<Root, Value>,
+): RouteCase<Root, Value> => ({ parser, casePath })
+
+/**
  * Converts a `Biparser` into a `Router` by mapping parsed values to a
  * tagged type constructor.
  *
@@ -642,19 +721,30 @@ export const query =
         pipe(
           parser.parse(segments, search),
           Effect.flatMap(([pathValue, remainingSegments]) => {
-            const searchParams = new URLSearchParams(search ?? '')
-            const queryRecord = Record.fromEntries(searchParams.entries())
-
             return pipe(
-              queryRecord,
-              Schema.decodeUnknownEffect(schema),
+              QueryParams.parse(search ?? ''),
               Effect.mapError(
                 error =>
                   new ParseError({
-                    message: `Query parameter validation failed: ${error.message}`,
+                    message: `Query parameters could not be decoded: ${globalThis.String(error.cause)}`,
                     expected: 'valid query parameters',
                     actual: search || 'empty',
                   }),
+              ),
+              Effect.map(QueryParams.toRecord),
+              Effect.flatMap(queryParams =>
+                pipe(
+                  queryParams,
+                  Schema.decodeUnknownEffect(schema),
+                  Effect.mapError(
+                    error =>
+                      new ParseError({
+                        message: `Query parameter validation failed: ${error.message}`,
+                        expected: 'valid query parameters',
+                        actual: search || 'empty',
+                      }),
+                  ),
+                ),
               ),
               Effect.map(
                 queryValue =>
@@ -674,19 +764,23 @@ export const query =
             pipe(
               Schema.encodeEffect(schema)(value),
               Effect.map(queryValue => {
-                const newQueryParams = new URLSearchParams(newState.queryParams)
-                pipe(
+                const nextQueryParams = pipe(
                   queryValue,
                   Record.toEntries,
-                  Array.forEach(([key, val]) => {
-                    if (Predicate.isNotNullish(val)) {
-                      newQueryParams.set(key, val.toString())
-                    }
-                  }),
+                  Array.reduce(
+                    newState.queryParams,
+                    (queryParams, [key, val]) => {
+                      if (Predicate.isNotNullish(val)) {
+                        return QueryParams.set(queryParams, key, val.toString())
+                      } else {
+                        return queryParams
+                      }
+                    },
+                  ),
                 )
                 return {
                   ...newState,
-                  queryParams: newQueryParams,
+                  queryParams: nextQueryParams,
                 }
               }),
               Effect.mapError(
@@ -740,14 +834,14 @@ const buildUrl =
   (data: A): string => {
     const initialState: PrintState = {
       segments: [],
-      queryParams: new URLSearchParams(),
+      queryParams: QueryParams.empty,
     }
 
     return pipe(
       parser.print(data, initialState),
       Effect.map(state => {
         const path = '/' + Array.join(state.segments, '/')
-        const query = state.queryParams.toString()
+        const query = QueryParams.toString(state.queryParams)
         return query ? `${path}?${query}` : path
       }),
       Effect.runSync,

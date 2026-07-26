@@ -37,6 +37,7 @@ const managedResources = ManagedResource.make<Model, Message>()(entry => ({
 // 3. Pass to makeApplication
 const application = Runtime.makeApplication({
   Model,
+  Message,
   init,
   update,
   view,

@@ -69,6 +69,7 @@ describe('run + back/forward cache restore', () => {
     run(
       makeApplication({
         Model,
+        Message,
         init: () => [{ count: 0 }, []],
         update,
         view,

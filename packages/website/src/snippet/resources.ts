@@ -21,6 +21,7 @@ const LoadUser = Command.define(
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   init,
   update,
   view,

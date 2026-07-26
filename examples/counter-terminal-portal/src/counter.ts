@@ -202,6 +202,7 @@ export const subscriptions = Subscription.make<
 /** Builds the renderer-free Counter Program from a portable starting Model. */
 export const makeCounterProgram = (model: Model) => ({
   Model,
+  Message,
   init: initFromModel(model),
   update,
   subscriptions,

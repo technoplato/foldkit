@@ -74,6 +74,7 @@ describe('command message mappers', () => {
   it('dispatches a mapped Command result in the parent Message space', async () => {
     const element = makeElement({
       Model,
+      Message,
       init: () => [
         { label: 'start' },
         Command.mapMessages([DoChildWork()], childMessage =>

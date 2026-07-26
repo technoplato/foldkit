@@ -1,18 +1,20 @@
+import {
+  MultipleCountersProgram,
+  StaticCounterFactClient,
+} from 'counters-core-example'
 import { Runtime } from 'foldkit'
 
 import { overlay } from '@foldkit/devtools'
 
-import { Message, Model, init, update, view } from './main'
+import { view } from './main'
 
-const application = Runtime.makeApplication({
-  Model,
-  init,
-  update,
+const application = Runtime.makeFoldkitApplication({
+  program: MultipleCountersProgram,
+  resources: StaticCounterFactClient,
   view,
   container: document.getElementById('root'),
   devTools: {
     overlay,
-    Message,
   },
 })
 

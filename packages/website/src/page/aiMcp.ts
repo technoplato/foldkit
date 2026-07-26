@@ -134,6 +134,12 @@ const tools: ReadonlyArray<ToolRowSpec> = [
     ],
   },
   {
+    name: 'foldkit_get_runtime_diagnostics',
+    description: [
+      'Lists Subscription and ManagedResource lifecycle facts plus terminal Update, Command, Subscription, and ManagedResource failures from the shared Program runtime.',
+    ],
+  },
+  {
     name: 'foldkit_list_messages',
     description: [
       'Lists Message history entries. Each entry carries the Message body, Command names triggered, timestamp, an ',

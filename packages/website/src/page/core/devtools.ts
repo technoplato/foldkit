@@ -67,12 +67,6 @@ const maxEntriesHeader: TableOfContentsEntry = {
   text: 'maxEntries',
 }
 
-const keyframeIntervalHeader: TableOfContentsEntry = {
-  level: 'h3',
-  id: 'keyframe-interval',
-  text: 'keyframeInterval',
-}
-
 export const tableOfContents: ReadonlyArray<TableOfContentsEntry> = [
   overviewHeader,
   configurationHeader,
@@ -83,7 +77,6 @@ export const tableOfContents: ReadonlyArray<TableOfContentsEntry> = [
   messageHeader,
   excludeFromHistoryHeader,
   maxEntriesHeader,
-  keyframeIntervalHeader,
 ]
 
 export const view = (copiedSnippets: CopiedSnippets): Html => {
@@ -217,14 +210,14 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
       para(
         'A list of Message ',
         inlineCode('_tag'),
-        ' values whose dispatches should not be recorded in DevTools history. The Messages still drive ',
+        ' values hidden from the DevTools presentation. The Messages still drive ',
         inlineCode('update'),
-        ' and the runtime as usual; they just don’t appear in the history panel and don’t pay the per-Message diff cost. Reach for this when an animation-frame Subscription, pointer-move handler, scroll listener, or other high-frequency dispatcher would otherwise flood history with entries that all look the same.',
+        ' and remain in the authoritative Program journal and exported replay tape. They simply do not appear in the overlay or remote DevTools history window. Reach for this when an animation-frame Subscription, pointer-move handler, scroll listener, or other high-frequency dispatcher would otherwise flood the presentation with entries that all look the same.',
       ),
       para(
-        'When ',
+        'Because ',
         inlineCode('excludeFromHistory'),
-        ' is set, DevTools also switches to a per-entry snapshot strategy so time-travel jumps to recorded entries reflect the real live state at the moment they were recorded. Without this, replay would walk only the kept Messages and miss any cumulative state the excluded ones would have produced. The "Live" model view stays in sync as well: excluded Messages still update the latest-model snapshot, they just don’t append a history entry or compute a diff.',
+        ' only filters the presentation, each visible row points directly at its resulting Program Model. Time travel therefore includes the cumulative effect of hidden Messages without replaying an incomplete subset of history.',
       ),
       highlightedCodeBlock(
         h.div(
@@ -241,17 +234,13 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
       ),
       tableOfContentsEntryToHeader(maxEntriesHeader),
       para(
-        'Maximum number of recorded Messages retained in history before the oldest is evicted. Defaults to ',
+        'Maximum number of Program transitions retained in the DevTools presentation before the oldest row is evicted. Defaults to ',
         inlineCode('100'),
         '. Clamped to the range ',
         inlineCode('20'),
         ' to ',
         inlineCode('500'),
-        ': smaller values keep the panel snappy under high message rates, larger values give you more scroll-back. Each retained entry is one append + diff in the regular case, or one append + full Model snapshot when ',
-        inlineCode('excludeFromHistory'),
-        ' is active, so memory cost scales with both ',
-        inlineCode('maxEntries'),
-        ' and your Model size.',
+        ': smaller values keep the panel and remote DevTools transport snappy under high Message rates, while larger values provide more visible scroll-back. This limits the presentation window. The authoritative Program journal remains the source of replay and Model snapshots.',
       ),
       highlightedCodeBlock(
         h.div(
@@ -263,37 +252,6 @@ export const view = (copiedSnippets: CopiedSnippets): Html => {
         ),
         Snippet.devtoolsMaxEntriesRaw,
         'Raising the DevTools history cap',
-        copiedSnippets,
-        'mb-8',
-      ),
-      tableOfContentsEntryToHeader(keyframeIntervalHeader),
-      para(
-        'Number of recorded Messages between full Model snapshots. Defaults to ',
-        inlineCode('31'),
-        '. Time-travel to an index replays ',
-        inlineCode('update'),
-        ' forward from the nearest earlier keyframe, so this is a memory and time tradeoff: smaller values store more snapshots and shorten the replay each jump walks, down to ',
-        inlineCode('1'),
-        ' where every jump is a constant-time snapshot lookup with no replay. Reach for a denser interval when your app has a heavy ',
-        inlineCode('update'),
-        ' and time-travel jumps feel sluggish. Clamped to a minimum of ',
-        inlineCode('1'),
-        ', and forced to ',
-        inlineCode('1'),
-        ' automatically when ',
-        inlineCode('excludeFromHistory'),
-        ' is active, since excluded Messages are never replayed.',
-      ),
-      highlightedCodeBlock(
-        h.div(
-          [
-            h.Class('text-sm'),
-            h.InnerHTML(Snippet.devtoolsKeyframeIntervalHighlighted),
-          ],
-          [],
-        ),
-        Snippet.devtoolsKeyframeIntervalRaw,
-        'Snapshotting every entry for constant-time jumps',
         copiedSnippets,
         'mb-8',
       ),

@@ -3,10 +3,8 @@ import {
   Cause,
   Effect,
   Exit,
-  HashMap,
   Match,
   Option,
-  Order,
   Schema as S,
   Scope,
   SubscriptionRef,
@@ -52,6 +50,7 @@ import {
   ResponseModelDiff,
   ResponseReplayed,
   ResponseResumed,
+  ResponseRuntimeDiagnostics,
   ResponseRuntimeState,
   RuntimeInfo,
 } from './protocol.js'
@@ -67,12 +66,7 @@ import {
   toSerializedEntry,
   toSerializedMount,
 } from './serialize.js'
-import {
-  type DevToolsStore,
-  INIT_INDEX,
-  computeDiff,
-  latestEntryIndex,
-} from './store.js'
+import { type DevToolsStore, computeDiff, latestEntryIndex } from './store.js'
 import {
   type PathResolution,
   formatPathNotFound,
@@ -102,6 +96,115 @@ const tryDeriveJsonSchemaDocument = (
     return Option.none()
   }
 }
+
+/** Platform metadata presented for one connected DevTools runtime. */
+export type DevToolsRuntimeMetadata = Readonly<{
+  title: string
+  url: string
+}>
+
+/** An injected transport for the renderer-independent DevTools bridge. */
+export type DevToolsTransport = Readonly<{
+  runtime: DevToolsRuntimeMetadata
+  sendEvent: (frame: typeof EventFrame.Type) => void
+  sendResponse: (frame: typeof ResponseFrame.Type) => void
+  subscribeRequests: (listener: (frame: unknown) => void) => () => void
+  subscribeClose: (listener: () => void) => () => void
+}>
+
+/**
+ * Connects a DevTools store to an injected transport.
+ *
+ * Request handling, Message Schema decoding, history inspection, time travel,
+ * and dispatch are independent of Vite, a renderer, and platform globals.
+ */
+export const startDevToolsBridge = (
+  store: DevToolsStore,
+  transport: DevToolsTransport,
+  dispatch: (message: unknown) => Effect.Effect<void>,
+  maybeMessageSchema: Option.Option<S.Codec<any, any>>,
+): Effect.Effect<void, never, Scope.Scope> =>
+  Effect.gen(function* () {
+    const connectionId = generateConnectionId()
+    const capturedContext = yield* Effect.context<never>()
+    const maybeDispatchSchema = Option.map(maybeMessageSchema, S.toCodecJson)
+    const maybeJsonSchemaDocument = Option.flatMap(
+      maybeMessageSchema,
+      tryDeriveJsonSchemaDocument,
+    )
+
+    const sendEvent = (event: Event): void => {
+      transport.sendEvent(
+        EventFrame.make({
+          maybeConnectionId: Option.some(connectionId),
+          event,
+        }),
+      )
+    }
+    const sendResponse = (id: string, response: Response): void => {
+      transport.sendResponse(ResponseFrame.make({ id, response }))
+    }
+
+    sendEvent(
+      EventConnected({
+        runtime: RuntimeInfo.make({
+          connectionId,
+          url: transport.runtime.url,
+          title: transport.runtime.title,
+        }),
+      }),
+    )
+
+    const handleRequest = (id: string, request: Request) =>
+      Effect.gen(function* () {
+        const response = yield* dispatchRequest(
+          store,
+          dispatch,
+          maybeDispatchSchema,
+          maybeJsonSchemaDocument,
+          request,
+        )
+        sendResponse(id, response)
+      })
+
+    const handleRequestFrame = (frame: unknown): void => {
+      const decoded = S.decodeUnknownExit(RequestFrame)(frame)
+      Exit.match(decoded, {
+        onFailure: error => {
+          console.warn('[foldkit:devTools] malformed request frame', error)
+        },
+        onSuccess: ({ id, maybeConnectionId, request }) => {
+          const isForUs = Option.exists(
+            maybeConnectionId,
+            targetId => targetId === connectionId,
+          )
+          if (!isForUs) {
+            return
+          }
+          Effect.runForkWith(capturedContext)(handleRequest(id, request))
+        },
+      })
+    }
+
+    const stopRequests = transport.subscribeRequests(handleRequestFrame)
+    let isClosed = false
+    const close = (): void => {
+      if (isClosed) {
+        return
+      }
+      isClosed = true
+      stopRequests()
+      sendEvent(EventDisconnected({ connectionId }))
+    }
+    const stopClose = transport.subscribeClose(close)
+
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        close()
+        stopClose()
+      }),
+    )
+  })
 
 /**
  * Start the browser-side WebSocket bridge that exposes a Foldkit runtime's
@@ -140,102 +243,31 @@ export const startWebSocketBridge = (
   dispatch: (message: unknown) => Effect.Effect<void>,
   maybeMessageSchema: Option.Option<S.Codec<any, any>>,
 ): Effect.Effect<void, never, Scope.Scope> =>
-  Effect.gen(function* () {
-    const connectionId = generateConnectionId()
-    const capturedContext = yield* Effect.context<never>()
-
-    const maybeDispatchSchema = Option.map(maybeMessageSchema, S.toCodecJson)
-    const maybeJsonSchemaDocument = Option.flatMap(
-      maybeMessageSchema,
-      tryDeriveJsonSchemaDocument,
-    )
-
+  Effect.suspend(() => {
     const encodeEventFrame = S.encodeUnknownSync(EventFrame)
     const encodeResponseFrame = S.encodeUnknownSync(ResponseFrame)
-
-    const sendEvent = (event: Event): void => {
-      hot.send(
-        EVENT_CHANNEL,
-        encodeEventFrame({
-          maybeConnectionId: Option.some(connectionId),
-          event,
-        }),
-      )
-    }
-
-    const sendResponse = (id: string, response: Response): void => {
-      hot.send(RESPONSE_CHANNEL, encodeResponseFrame({ id, response }))
-    }
-
-    sendEvent(
-      EventConnected({
-        runtime: RuntimeInfo.make({
-          connectionId,
+    return startDevToolsBridge(
+      store,
+      {
+        runtime: {
           url: window.location.href,
           title: document.title,
-        }),
-      }),
-    )
-
-    const handleRequest = (id: string, request: Request) =>
-      Effect.gen(function* () {
-        const response = yield* dispatchRequest(
-          store,
-          dispatch,
-          maybeDispatchSchema,
-          maybeJsonSchemaDocument,
-          request,
-        )
-        sendResponse(id, response)
-      })
-
-    const handleRequestFrame = (frame: unknown): void => {
-      const decoded = S.decodeUnknownExit(RequestFrame)(frame)
-      Exit.match(decoded, {
-        onFailure: error => {
-          console.warn('[foldkit:devTools] malformed request frame', error)
         },
-        onSuccess: ({ id, maybeConnectionId, request }) => {
-          const isForUs = Option.exists(
-            maybeConnectionId,
-            targetId => targetId === connectionId,
-          )
-          if (!isForUs) {
-            return
-          }
-          Effect.runForkWith(capturedContext)(handleRequest(id, request))
+        sendEvent: frame => hot.send(EVENT_CHANNEL, encodeEventFrame(frame)),
+        sendResponse: frame =>
+          hot.send(RESPONSE_CHANNEL, encodeResponseFrame(frame)),
+        subscribeRequests: listener => {
+          hot.on(REQUEST_CHANNEL, listener)
+          return () => hot.off(REQUEST_CHANNEL, listener)
         },
-      })
-    }
-
-    hot.on(REQUEST_CHANNEL, handleRequestFrame)
-
-    let hasEmittedDisconnect = false
-    const emitDisconnect = (): void => {
-      if (hasEmittedDisconnect) {
-        return
-      }
-      hasEmittedDisconnect = true
-      sendEvent(EventDisconnected({ connectionId }))
-    }
-
-    hot.dispose(() => {
-      emitDisconnect()
-      hot.off(REQUEST_CHANNEL, handleRequestFrame)
-    })
-
-    window.addEventListener('beforeunload', emitDisconnect, { once: true })
-
-    // NOTE: a disposed runtime must disconnect from the MCP relay and stop
-    // answering requests. Without this finalizer, every embed/dispose cycle
-    // would leave a ghost connection that keeps responding with the dead
-    // runtime's state.
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        emitDisconnect()
-        hot.off(REQUEST_CHANNEL, handleRequestFrame)
-        window.removeEventListener('beforeunload', emitDisconnect)
-      }),
+        subscribeClose: listener => {
+          hot.dispose(listener)
+          window.addEventListener('beforeunload', listener, { once: true })
+          return () => window.removeEventListener('beforeunload', listener)
+        },
+      },
+      dispatch,
+      maybeMessageSchema,
     )
   })
 
@@ -540,18 +572,8 @@ const dispatchRequest = (
 
       RequestListKeyframes: () =>
         Effect.gen(function* () {
-          const state = yield* SubscriptionRef.get(store.stateRef)
-          const sortedKeyframeIndices = pipe(
-            state.keyframes,
-            HashMap.keys,
-            Array.fromIterable,
-            Array.sort(Order.Number),
-          )
-          const indicesWithInit = Option.match(state.maybeInitModel, {
-            onNone: () => sortedKeyframeIndices,
-            onSome: () => [INIT_INDEX, ...sortedKeyframeIndices],
-          })
-          const keyframes = indicesWithInit.map(index =>
+          const replayIndices = yield* store.getReplayIndices
+          const keyframes = Array.map(replayIndices, index =>
             KeyframeInfo.make({ index }),
           )
           return ResponseKeyframes({ keyframes })
@@ -659,6 +681,22 @@ const dispatchRequest = (
               state.pausedAtIndex,
             ),
             hasInitModel: Option.isSome(state.maybeInitModel),
+          })
+        }),
+
+      RequestGetRuntimeDiagnostics: () =>
+        Effect.gen(function* () {
+          const diagnostics = yield* store.getRuntimeDiagnostics
+          const failures = yield* store.getRuntimeFailures
+          return ResponseRuntimeDiagnostics({
+            diagnostics,
+            failures: Array.map(failures, failure => ({
+              programId: failure.programId,
+              source: failure.source,
+              maybeMessage: failure.message,
+              cause: Cause.pretty(failure.cause),
+              timestamp: failure.timestamp,
+            })),
           })
         }),
     }),

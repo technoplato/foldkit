@@ -107,6 +107,7 @@ export const toSerializedEntry = (
     index,
     tag: entry.tag,
     message: toInspectableValue(entry.message),
+    maybeSource: entry.maybeSource,
     commands: Array_.map(entry.commands, toSerializedCommand),
     mountStarts: Array_.map(entry.mountStarts, toSerializedMount),
     mountEnds: Array_.map(entry.mountEnds, toSerializedMount),

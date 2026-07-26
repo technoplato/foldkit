@@ -1,10 +1,11 @@
 import { Runtime } from 'foldkit'
 
-import { Model, init, update } from './main'
+import { Message, Model, init, update } from './main'
 import { view } from './main.optimised'
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   init,
   update,
   view,

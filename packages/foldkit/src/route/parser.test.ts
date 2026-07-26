@@ -7,10 +7,12 @@ import { Url } from '../url/index.js'
 import { r } from './index.js'
 import {
   __isSingleSegment,
+  caseOf,
   int,
   literal,
   mapTo,
   oneOf,
+  oneOfCases,
   parseUrlWithFallback,
   query,
   rest,
@@ -20,6 +22,7 @@ import {
   slash,
   string,
 } from './parser.js'
+import * as QueryParams from './queryParams.js'
 
 const makeUrl = (path: string, search?: string): Url => ({
   protocol: 'https:',
@@ -59,7 +62,7 @@ describe('literal', () => {
     Effect.gen(function* () {
       const state = yield* literal('users').print(
         {},
-        { segments: [], queryParams: new URLSearchParams() },
+        { segments: [], queryParams: QueryParams.empty },
       )
       expect(state.segments).toStrictEqual(['users'])
     }),
@@ -86,7 +89,7 @@ describe('string', () => {
     Effect.gen(function* () {
       const state = yield* string('id').print(
         { id: 'abc' },
-        { segments: ['users'], queryParams: new URLSearchParams() },
+        { segments: ['users'], queryParams: QueryParams.empty },
       )
       expect(state.segments).toStrictEqual(['users', 'abc'])
     }),
@@ -127,7 +130,7 @@ describe('int', () => {
     Effect.gen(function* () {
       const state = yield* int('id').print(
         { id: 42 },
-        { segments: [], queryParams: new URLSearchParams() },
+        { segments: [], queryParams: QueryParams.empty },
       )
       expect(state.segments).toStrictEqual(['42'])
     }),
@@ -186,7 +189,7 @@ describe('schemaSegment', () => {
         const [value] = yield* schemaSegment('postId', PostId).parse(['42'])
         const state = yield* schemaSegment('postId', PostId).print(value, {
           segments: ['posts'],
-          queryParams: new URLSearchParams(),
+          queryParams: QueryParams.empty,
         })
         expect(state.segments).toStrictEqual(['posts', '42'])
       }),
@@ -263,7 +266,7 @@ describe('rest', () => {
     Effect.gen(function* () {
       const state = yield* rest('path').print(
         { path: ['documents', 'taxes'] },
-        { segments: ['files'], queryParams: new URLSearchParams() },
+        { segments: ['files'], queryParams: QueryParams.empty },
       )
       expect(state.segments).toStrictEqual(['files', 'documents', 'taxes'])
     }),
@@ -367,7 +370,7 @@ describe('restString', () => {
     Effect.gen(function* () {
       const state = yield* restString('path').print(
         { path: 'documents/taxes/2024.pdf' },
-        { segments: ['vault'], queryParams: new URLSearchParams() },
+        { segments: ['vault'], queryParams: QueryParams.empty },
       )
       expect(state.segments).toStrictEqual([
         'vault',
@@ -381,7 +384,7 @@ describe('restString', () => {
       const error = yield* Effect.flip(
         restString('path').print(
           { path: '' },
-          { segments: ['vault'], queryParams: new URLSearchParams() },
+          { segments: ['vault'], queryParams: QueryParams.empty },
         ),
       )
       expect(error._tag).toBe('ParseError')
@@ -395,7 +398,7 @@ describe('restString', () => {
         Effect.flip(
           restString('path').print(
             { path },
-            { segments: ['vault'], queryParams: new URLSearchParams() },
+            { segments: ['vault'], queryParams: QueryParams.empty },
           ),
         )
 
@@ -662,6 +665,68 @@ describe('mapTo', () => {
     const url = router({ id: 'abc' })
     expect(url).toBe('/users/abc')
   })
+})
+
+describe('oneOfCases', () => {
+  type AppRoute =
+    | Readonly<{ _tag: 'Home' }>
+    | Readonly<{ _tag: 'User'; id: string }>
+
+  const parser = oneOfCases<AppRoute>(
+    caseOf<AppRoute, {}>(root, {
+      embed: () => ({ _tag: 'Home' }),
+      extract: route =>
+        route._tag === 'Home' ? Option.some({}) : Option.none(),
+    }),
+    caseOf<AppRoute, Readonly<{ id: string }>>(
+      pipe(literal('users'), slash(string('id'))),
+      {
+        embed: ({ id }) => ({ _tag: 'User', id }),
+        extract: route =>
+          route._tag === 'User' ? Option.some({ id: route.id }) : Option.none(),
+      },
+    ),
+  )
+
+  it.effect('embeds the branch that parses the complete path', () =>
+    Effect.gen(function* () {
+      const [route] = yield* parser.parse(['users', 'blob'])
+      expect(route).toStrictEqual({ _tag: 'User', id: 'blob' })
+    }),
+  )
+
+  it.effect('extracts the matching branch when printing', () =>
+    Effect.gen(function* () {
+      const state = yield* parser.print(
+        { _tag: 'User', id: 'blob' },
+        { segments: [], queryParams: QueryParams.empty },
+      )
+      expect(state.segments).toStrictEqual(['users', 'blob'])
+    }),
+  )
+
+  it.effect('round-trips every route case', () =>
+    Effect.gen(function* () {
+      const routes: ReadonlyArray<AppRoute> = [
+        { _tag: 'Home' },
+        { _tag: 'User', id: 'blob' },
+      ]
+
+      yield* Effect.forEach(routes, route =>
+        Effect.gen(function* () {
+          const printed = yield* parser.print(route, {
+            segments: [],
+            queryParams: QueryParams.empty,
+          })
+          const [parsed] = yield* parser.parse(
+            printed.segments,
+            QueryParams.toString(printed.queryParams),
+          )
+          expect(parsed).toStrictEqual(route)
+        }),
+      )
+    }),
+  )
 })
 
 describe('parseUrlWithFallback', () => {

@@ -15,6 +15,7 @@ import {
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   Flags,
   flags,
   init,

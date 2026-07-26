@@ -9,3 +9,10 @@ export {
 } from './index.js'
 
 export type { Inbound, Outbound, Ports } from './index.js'
+export type {
+  InboundPortHandle,
+  InboundPortHandles,
+  OutboundPortHandle,
+  OutboundPortHandles,
+  PortHandles,
+} from './runtime.js'

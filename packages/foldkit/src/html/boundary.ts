@@ -237,6 +237,7 @@ const dispatchAcrossBoundary = (
   outerDispatch: DispatchSync,
   boundaryId: BoundaryId,
   message: unknown,
+  source?: Parameters<DispatchSync>[1],
 ): void => {
   let wrapped = message
   const parts = splitBoundary(boundaryId)
@@ -259,7 +260,7 @@ const dispatchAcrossBoundary = (
     }
     wrapped = descriptor.toParentMessage(wrapped)
   }
-  outerDispatch(wrapped)
+  outerDispatch(wrapped, source)
 }
 
 /** Resolves a message through `boundaryId`'s wrapping chain immediately,
@@ -350,8 +351,8 @@ export const getOrCreateBoundaryDispatch = (
   if (existing !== undefined) {
     return existing
   }
-  const dispatch: DispatchSync = message => {
-    dispatchAcrossBoundary(registry, outerDispatch, boundaryId, message)
+  const dispatch: DispatchSync = (message, source) => {
+    dispatchAcrossBoundary(registry, outerDispatch, boundaryId, message, source)
   }
   perOuterDispatch.set(boundaryId, dispatch)
   return dispatch

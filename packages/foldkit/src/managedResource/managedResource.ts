@@ -92,11 +92,12 @@ export type ManagedResourceConfig<Model, Message> = {
 }
 
 /** A record of named Managed Resource configurations, keyed by resource name. */
+declare const ManagedResourceServicesTypeId: unique symbol
 export type ManagedResources<Model, Message, Services = never> = Record<
   string,
   ManagedResourceConfig<Model, Message>
 > & {
-  readonly __managedResourceServices?: Services
+  readonly [ManagedResourceServicesTypeId]?: Services
 }
 
 type EntryBrand = {

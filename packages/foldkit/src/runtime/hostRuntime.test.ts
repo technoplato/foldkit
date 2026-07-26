@@ -32,6 +32,7 @@ describe('makeHostRuntime', () => {
       Effect.gen(function* () {
         const runtime = yield* makeHostRuntime<BasicModel, BasicMessage>({
           Model: BasicModel,
+          Message: BasicMessage,
           init: () => [{ count: 0 }, []],
           update: (model, message) =>
             M.value(message).pipe(
@@ -104,6 +105,7 @@ describe('makeHostRuntime', () => {
 
           const runtime = yield* makeHostRuntime<Model, Message>({
             Model,
+            Message,
             init: () => [{ stage: 'Ready' }, []],
             update: (model, message) =>
               M.value(message).pipe(
@@ -154,6 +156,7 @@ describe('makeHostRuntime', () => {
           typeof CompletedRestore.Type
         >({
           Model,
+          Message: CompletedRestore,
           init: () => [{ mode: 'Loading' }, [Restore()]],
           update: (_model, _message) => [{ mode: 'Ready' }, []],
           resources: Layer.empty,
@@ -189,6 +192,7 @@ describe('makeHostRuntime', () => {
 
         const runtime = yield* makeHostRuntime<Model, Message>({
           Model,
+          Message,
           init: () => [{ mode: 'Ready' }, []],
           update: (model, message) =>
             M.value(message).pipe(
@@ -305,6 +309,7 @@ describe('makeHostRuntime', () => {
             ResourceService
           >({
             Model,
+            Message,
             init: () => [{ count: 0 }, []],
             update: (model, message) =>
               M.value(message).pipe(

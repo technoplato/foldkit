@@ -1,132 +1,52 @@
+import * as Counter from 'counter-core-example'
+import {
+  ClickedDeleteCounter,
+  ClickedShowCounterFact,
+  CounterList,
+  GotCounterMessage,
+  SelectedCounter,
+  modelForNavigation,
+  update,
+} from 'counters-core-example'
+import { Array } from 'effect'
 import { Story } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 
-import { ClickedDecrement, ClickedIncrement } from './counter'
-import {
-  ClickedAddRow,
-  ClickedRemoveRow,
-  GotCounterMessage,
-  type Model,
-  update,
-} from './main'
-
-const initialModel: Model = {
-  rows: [
-    { id: 'counter-0', counter: { count: 0 } },
-    { id: 'counter-1', counter: { count: 0 } },
-  ],
-  nextRowId: 2,
-}
-
-describe('update', () => {
-  test('ClickedAddRow appends a fresh Counter row with the next id', () => {
+describe('Multiple Counters update', () => {
+  test('routes child Messages by stable counter identity', () => {
     Story.story(
       update,
-      Story.with(initialModel),
-      Story.message(ClickedAddRow()),
+      Story.with(modelForNavigation(CounterList.make({}))),
+      Story.message(
+        GotCounterMessage({
+          counterId: 'counter-2',
+          message: Counter.ClickedIncrement(),
+        }),
+      ),
       Story.model(model => {
-        expect(model.rows).toHaveLength(3)
-        expect(model.rows[2]?.id).toBe('counter-2')
-        expect(model.rows[2]?.counter.count).toBe(0)
-        expect(model.nextRowId).toBe(3)
+        expect(Array.map(model.rows, row => row.counter.count)).toStrictEqual([
+          0, 1,
+        ])
       }),
     )
   })
 
-  test('ClickedRemoveRow drops only the targeted row', () => {
+  test('cannot open a fact alert over delete confirmation', () => {
     Story.story(
       update,
-      Story.with(initialModel),
-      Story.message(ClickedRemoveRow({ id: 'counter-0' })),
+      Story.with(modelForNavigation(CounterList.make({}))),
+      Story.message(SelectedCounter({ counterId: 'counter-1' })),
+      Story.message(ClickedDeleteCounter()),
+      Story.message(ClickedShowCounterFact()),
       Story.model(model => {
-        expect(model.rows).toHaveLength(1)
-        expect(model.rows[0]?.id).toBe('counter-1')
-      }),
-    )
-  })
-
-  test('GotCounterMessage routes ClickedIncrement to the matching row only', () => {
-    Story.story(
-      update,
-      Story.with(initialModel),
-      Story.message(
-        GotCounterMessage({
-          id: 'counter-1',
-          message: ClickedIncrement(),
-        }),
-      ),
-      Story.model(model => {
-        expect(model.rows[0]?.counter.count).toBe(0)
-        expect(model.rows[1]?.counter.count).toBe(1)
-      }),
-    )
-  })
-
-  test('GotCounterMessage routes ClickedDecrement to the matching row only', () => {
-    Story.story(
-      update,
-      Story.with({
-        rows: [
-          { id: 'counter-0', counter: { count: 5 } },
-          { id: 'counter-1', counter: { count: 5 } },
-        ],
-        nextRowId: 2,
-      }),
-      Story.message(
-        GotCounterMessage({
-          id: 'counter-0',
-          message: ClickedDecrement(),
-        }),
-      ),
-      Story.model(model => {
-        expect(model.rows[0]?.counter.count).toBe(4)
-        expect(model.rows[1]?.counter.count).toBe(5)
-      }),
-    )
-  })
-
-  test('GotCounterMessage for a missing id leaves the model unchanged', () => {
-    Story.story(
-      update,
-      Story.with(initialModel),
-      Story.message(
-        GotCounterMessage({
-          id: 'counter-99',
-          message: ClickedIncrement(),
-        }),
-      ),
-      Story.model(model => {
-        expect(model.rows[0]?.counter.count).toBe(0)
-        expect(model.rows[1]?.counter.count).toBe(0)
-      }),
-    )
-  })
-
-  test('successive Messages accumulate per row independently', () => {
-    Story.story(
-      update,
-      Story.with(initialModel),
-      Story.message(
-        GotCounterMessage({
-          id: 'counter-0',
-          message: ClickedIncrement(),
-        }),
-      ),
-      Story.message(
-        GotCounterMessage({
-          id: 'counter-0',
-          message: ClickedIncrement(),
-        }),
-      ),
-      Story.message(
-        GotCounterMessage({
-          id: 'counter-1',
-          message: ClickedDecrement(),
-        }),
-      ),
-      Story.model(model => {
-        expect(model.rows[0]?.counter.count).toBe(2)
-        expect(model.rows[1]?.counter.count).toBe(-1)
+        expect(model.navigation).toMatchObject({
+          _tag: 'CounterDetail',
+          counterId: 'counter-1',
+          maybeMode: {
+            _tag: 'Some',
+            value: { _tag: 'DeleteCounterConfirmation' },
+          },
+        })
       }),
     )
   })

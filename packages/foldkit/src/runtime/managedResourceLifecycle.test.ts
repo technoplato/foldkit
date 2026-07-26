@@ -176,6 +176,7 @@ afterEach(() => {
 const startEngineApp = (initialId: string) =>
   makeElement({
     Model,
+    Message,
     init: () => [
       { requested: Option.some(initialId), status: 'idle', readValue: 'none' },
       [],

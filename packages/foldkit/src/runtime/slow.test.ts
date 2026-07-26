@@ -170,6 +170,7 @@ describe('slow warnings', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ count: 0 }, []],
       update,
       view,
@@ -230,6 +231,7 @@ describe('slow warnings', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ count: 0 }, []],
       update,
       view,
@@ -268,6 +270,7 @@ describe('slow warnings', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ count: 0 }, []],
       update,
       view: sameModelReferenceView,

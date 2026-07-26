@@ -119,6 +119,7 @@ describe('message processing', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ log: [] }, []],
       update,
       view: model => {
@@ -178,6 +179,7 @@ describe('message processing', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ log: [] }, []],
       update,
       view: model => {
@@ -237,6 +239,7 @@ describe('message processing', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ log: [] }, []],
       update,
       view: model => {
@@ -297,6 +300,7 @@ describe('message processing', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ log: [] }, [initCommand]],
       update,
       view: model => {
@@ -360,6 +364,7 @@ describe('message processing', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ log: [] }, []],
       update,
       view: model => {
@@ -422,6 +427,7 @@ describe('message processing', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ log: [] }, []],
       update,
       view: model => {
@@ -474,6 +480,7 @@ describe('message processing', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ log: [] }, []],
       update,
       view: model => {
