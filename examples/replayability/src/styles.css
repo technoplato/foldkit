@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+
+button,
+a,
+input[type='range'] {
+  touch-action: manipulation;
+}

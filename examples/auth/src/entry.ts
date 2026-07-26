@@ -10,6 +10,7 @@ import { view } from './view'
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   Flags,
   flags,
   init,

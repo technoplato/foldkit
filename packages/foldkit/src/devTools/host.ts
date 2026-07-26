@@ -1,6 +1,7 @@
 export { DEVTOOLS_HOST_ID } from '../html/index.js'
 
 export { INIT_INDEX, latestEntryIndex } from './store.js'
+export { startDevToolsBridge } from './webSocketBridge.js'
 
 export type {
   CommandRecord,
@@ -8,6 +9,11 @@ export type {
   MountRecord,
   StoreState,
 } from './store.js'
+
+export type {
+  DevToolsRuntimeMetadata,
+  DevToolsTransport,
+} from './webSocketBridge.js'
 
 export { toInspectableValue } from './serialize.js'
 

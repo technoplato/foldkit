@@ -2,10 +2,9 @@ import {
   ClickedDecrement,
   ClickedIncrement,
   ClickedReset,
-  Message,
-  Model,
-  init,
-  update,
+  CounterProgram,
+  type Message,
+  type Model,
 } from 'counter-core-example'
 import {
   Cause,
@@ -66,7 +65,7 @@ export const messageForInput = (input: string): Option.Option<Message> => {
 
 const runInputLoop = (
   inputQueue: Queue.Dequeue<Terminal.UserInput, Cause.Done>,
-  runtime: Runtime.HostRuntime<Model, Message>,
+  runtime: Runtime.ProgramRuntime<Model, Message>,
   terminal: Terminal.Terminal,
 ): Effect.Effect<void, Cause.Done | PlatformError.PlatformError> =>
   Queue.take(inputQueue).pipe(
@@ -100,12 +99,12 @@ export const runCounterTui = (): Effect.Effect<
   Effect.scoped(
     Effect.gen(function* () {
       const terminal = yield* Terminal.Terminal
-      const runtime = yield* Runtime.makeHostRuntime<Model, Message>({
-        Model,
-        init,
-        update,
-        resources: Layer.empty,
-      })
+      const runtime = yield* Effect.orDie(
+        Runtime.makeProgramRuntime({
+          program: CounterProgram,
+          resources: Layer.empty,
+        }),
+      )
 
       yield* runtime.initialization
       yield* terminal.display(renderCounterScreen(runtime.readModel()))

@@ -1,187 +1,227 @@
-import { Array, Match as M, Option, Schema as S } from 'effect'
-import { Command, Runtime } from 'foldkit'
+import {
+  type CounterDetailMode,
+  type CounterFactStatus,
+  type Destination,
+  type Interaction,
+  type Message,
+  type Model,
+  destinationForModel,
+  interactionsForModel,
+} from 'counters-core-example'
+import { Array, Match as M, Option } from 'effect'
 import { Document, Html, html } from 'foldkit/html'
-import { m } from 'foldkit/message'
-import { evo } from 'foldkit/struct'
 
-import { Button } from '@foldkit/ui'
-
-import * as Counter from './counter'
-
-// MODEL
-
-const Row = S.Struct({
-  id: S.String,
-  counter: Counter.Model,
-})
-type Row = typeof Row.Type
-
-export const Model = S.Struct({
-  rows: S.Array(Row),
-  nextRowId: S.Number,
-})
-export type Model = typeof Model.Type
-
-// MESSAGE
-
-export const ClickedAddRow = m('ClickedAddRow')
-export const ClickedRemoveRow = m('ClickedRemoveRow', { id: S.String })
-
-export const GotCounterMessage = m('GotCounterMessage', {
-  id: S.String,
-  message: Counter.Message,
-})
-
-export const Message = S.Union([
-  ClickedAddRow,
-  ClickedRemoveRow,
+export {
+  ClickedAddCounter,
+  ClickedDeleteCounter,
+  ClickedShowCounterFact,
+  ConfirmedDeleteCounter,
+  CounterList,
+  DismissedCounterDetail,
   GotCounterMessage,
-])
-export type Message = typeof Message.Type
-
-// UPDATE
-
-export const update = (
-  model: Model,
-  message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] =>
-  M.value(message).pipe(
-    M.withReturnType<
-      readonly [Model, ReadonlyArray<Command.Command<Message>>]
-    >(),
-    M.tagsExhaustive({
-      ClickedAddRow: () => [
-        evo(model, {
-          rows: Array.append({
-            id: `counter-${model.nextRowId}`,
-            counter: Counter.init,
-          }),
-          nextRowId: nextRowId => nextRowId + 1,
-        }),
-        [],
-      ],
-      ClickedRemoveRow: ({ id }) => [
-        evo(model, {
-          rows: Array.filter(row => row.id !== id),
-        }),
-        [],
-      ],
-      GotCounterMessage: ({ id, message }) =>
-        Option.match(
-          Array.findFirst(model.rows, row => row.id === id),
-          {
-            onNone: () => [model, []],
-            onSome: row => {
-              const [nextCounter, commands] = Counter.update(
-                row.counter,
-                message,
-              )
-              return [
-                evo(model, {
-                  rows: Array.map(existingRow =>
-                    existingRow.id === id
-                      ? evo(existingRow, { counter: () => nextCounter })
-                      : existingRow,
-                  ),
-                }),
-                Command.mapMessages(commands, childMessage =>
-                  GotCounterMessage({ id, message: childMessage }),
-                ),
-              ]
-            },
-          },
-        ),
-    }),
-  )
-
-// INIT
-
-export const init: Runtime.ApplicationInit<Model, Message> = () => [
-  {
-    rows: [
-      { id: 'counter-0', counter: Counter.init },
-      { id: 'counter-1', counter: Counter.init },
-      { id: 'counter-2', counter: Counter.init },
-    ],
-    nextRowId: 3,
-  },
-  [],
-]
+  Message,
+  Model,
+  MultipleCountersProgram,
+  SelectedCounter,
+  init,
+  modelForNavigation,
+  update,
+} from 'counters-core-example'
 
 // VIEW
 
-const rowView = (row: Row): Html => {
+const factStatusView = (status: CounterFactStatus): Html => {
   const h = html<Message>()
+  return M.value(status).pipe(
+    M.withReturnType<Html>(),
+    M.tagsExhaustive({
+      LoadingCounterFact: () =>
+        h.p([h.Class('text-sky-200')], ['Loading counter fact…']),
+      LoadedCounterFact: ({ fact }) =>
+        h.div(
+          [h.Class('space-y-1')],
+          [
+            h.h2(
+              [h.Class('text-lg font-semibold text-sky-100')],
+              [`Counter fact for ${fact.number.toString()}`],
+            ),
+            h.p([h.Class('text-sky-200/75')], [fact.text]),
+          ],
+        ),
+      FailedCounterFact: ({ reason }) =>
+        h.div(
+          [h.Class('space-y-1')],
+          [
+            h.h2(
+              [h.Class('text-lg font-semibold text-sky-100')],
+              ['Counter fact unavailable'],
+            ),
+            h.p([h.Class('text-sky-200/75')], [reason]),
+          ],
+        ),
+    }),
+  )
+}
 
-  return h.keyed('div')(
-    row.id,
-    [h.Class('flex items-center gap-2')],
+const detailModeView = (counterId: string, mode: CounterDetailMode): Html => {
+  const h = html<Message>()
+  return M.value(mode).pipe(
+    M.withReturnType<Html>(),
+    M.tagsExhaustive({
+      CounterFactAlert: ({ status }) =>
+        h.aside(
+          [
+            h.AriaLabel('Counter fact'),
+            h.Class(
+              'mt-7 rounded-2xl border border-sky-700/60 bg-sky-950/50 p-5',
+            ),
+          ],
+          [factStatusView(status)],
+        ),
+      DeleteCounterConfirmation: () =>
+        h.aside(
+          [
+            h.AriaLabel('Delete counter confirmation'),
+            h.Class(
+              'mt-7 rounded-2xl border border-red-700/60 bg-red-950/40 p-5',
+            ),
+          ],
+          [
+            h.h2([h.Class('text-lg font-semibold')], [`Delete ${counterId}?`]),
+            h.p(
+              [h.Class('mt-1 text-sm text-red-200/70')],
+              ['This cannot be undone.'],
+            ),
+          ],
+        ),
+    }),
+  )
+}
+
+const destinationView = (destination: Destination): Html => {
+  const h = html<Message>()
+  return M.value(destination).pipe(
+    M.withReturnType<Html>(),
+    M.tagsExhaustive({
+      CounterListDestination: ({ counters }) =>
+        h.section(
+          [h.AriaLabel('Counters'), h.Class('grid gap-3')],
+          Array.map(counters, counter =>
+            h.keyed('article')(
+              counter.id,
+              [
+                h.Class(
+                  'flex items-center justify-between rounded-2xl border border-stone-800 bg-stone-900 p-5',
+                ),
+              ],
+              [
+                h.div(
+                  [],
+                  [
+                    h.p(
+                      [h.Class('font-mono text-sm text-stone-400')],
+                      [counter.id],
+                    ),
+                    h.p(
+                      [h.Class('mt-1 text-sm text-stone-500')],
+                      ['Independently addressed Submodel'],
+                    ),
+                  ],
+                ),
+                h.strong(
+                  [h.Class('text-4xl tabular-nums')],
+                  [counter.counter.count.toString()],
+                ),
+              ],
+            ),
+          ),
+        ),
+      CounterDetailDestination: ({ counter, maybeMode }) =>
+        h.section(
+          [h.Class('rounded-3xl border border-stone-800 bg-stone-900 p-7')],
+          [
+            h.p([h.Class('font-mono text-sm text-amber-400')], [counter.id]),
+            h.p(
+              [h.Class('mt-4 text-7xl font-semibold tabular-nums')],
+              [counter.counter.count.toString()],
+            ),
+            ...(Option.isSome(maybeMode)
+              ? [detailModeView(counter.id, maybeMode.value)]
+              : []),
+          ],
+        ),
+    }),
+  )
+}
+
+const interactionClassName = (interaction: Interaction): string => {
+  if (interaction.role === 'Destructive') {
+    return 'rounded-full border border-red-700 bg-red-950/50 px-4 py-2 text-sm text-red-100'
+  }
+  if (interaction.role === 'Primary') {
+    return 'rounded-full bg-amber-400 px-4 py-2 text-sm font-medium text-stone-950'
+  } else {
+    return 'rounded-full border border-stone-700 bg-stone-900 px-4 py-2 text-sm text-stone-200'
+  }
+}
+
+const interactionsView = (interactions: ReadonlyArray<Interaction>): Html => {
+  const h = html<Message>()
+  return h.section(
+    [h.AriaLabel('Available actions'), h.Class('space-y-3')],
     [
-      h.div(
-        [h.Class('flex-1')],
-        [
-          h.submodel({
-            slotId: row.id,
-            model: row.counter,
-            view: Counter.view,
-            toParentMessage: message =>
-              GotCounterMessage({ id: row.id, message }),
-          }),
-        ],
+      h.h2(
+        [h.Class('text-sm font-medium text-stone-300')],
+        ['Available actions'],
       ),
-      Button.view<Message>({
-        onClick: ClickedRemoveRow({ id: row.id }),
-        toView: attributes =>
+      h.div(
+        [h.Class('flex flex-wrap gap-2')],
+        Array.map(interactions, interaction =>
           h.button(
             [
-              ...attributes.button,
-              h.Class(
-                'rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:border-red-300 hover:text-red-600 transition cursor-pointer',
-              ),
+              h.Class(interactionClassName(interaction)),
+              h.OnClick(interaction.message),
             ],
-            ['Remove'],
+            [interaction.label],
           ),
-      }),
+        ),
+      ),
     ],
   )
 }
 
+/** Renders the shared Multiple Counters Program with Foldkit HTML. */
 export const view = (model: Model): Document => {
   const h = html<Message>()
-
   return {
-    title: `Counters (${model.rows.length})`,
-    body: h.div(
+    title: 'Foldkit | Multiple Counters',
+    body: h.main(
+      [h.Class('min-h-screen bg-stone-950 px-5 py-12 text-stone-100')],
       [
-        h.Class(
-          'min-h-screen bg-white flex flex-col items-center py-12 px-6 gap-6',
-        ),
-      ],
-      [
-        h.h1([h.Class('text-2xl font-semibold text-gray-900')], ['Counters']),
-        h.p(
-          [h.Class('text-sm text-gray-500 max-w-md text-center')],
-          [
-            'Each row is a Counter Submodel. The parent has no awareness of Counter internals; it just embeds the Submodel via h.submodel and routes dispatched messages back to the right row via the GotCounterMessage wrapper.',
-          ],
-        ),
         h.div(
-          [h.Class('flex flex-col gap-3 w-full max-w-md')],
-          model.rows.map(rowView),
-        ),
-        Button.view<Message>({
-          onClick: ClickedAddRow(),
-          toView: attributes =>
-            h.button(
+          [h.Class('mx-auto grid w-full max-w-3xl gap-8')],
+          [
+            h.header(
+              [h.Class('space-y-2')],
               [
-                ...attributes.button,
-                h.Class(
-                  'rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition cursor-pointer',
+                h.p(
+                  [
+                    h.Class(
+                      'font-mono text-xs uppercase tracking-[0.24em] text-amber-400',
+                    ),
+                  ],
+                  ['Foldkit Program'],
+                ),
+                h.h1(
+                  [h.Class('text-4xl font-semibold tracking-tight')],
+                  ['Multiple counters'],
                 ),
               ],
-              ['+ Add Counter'],
             ),
-        }),
+            destinationView(destinationForModel(model)),
+            interactionsView(interactionsForModel(model)),
+          ],
+        ),
       ],
     ),
   }

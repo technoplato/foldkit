@@ -84,6 +84,85 @@
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]
     },
+    "examples/counters/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/counters/cli": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/counters/react-bindings": {
+      "entry": ["src/index.ts"],
+      "ignoreDependencies": ["@types/react", "prettier", "react"]
+    },
+    "examples/counters/react": {
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/calculator/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/calculator/foldkit": {
+      "entry": ["src/**/*.test.ts"],
+      "ignoreDependencies": [
+        "@trivago/prettier-plugin-sort-imports",
+        "prettier",
+        "tailwindcss"
+      ]
+    },
+    "examples/calculator/react-bindings": {
+      "entry": ["src/index.ts", "src/**/*.test.tsx"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/calculator/react": {
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/calculator/cli": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/calculator/tui": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/fact/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/fact/http-client": {
+      "entry": ["src/index.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/replayability": {
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/replayability/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/replayability/react-bindings": {
+      "entry": ["src/index.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/replayability/foldkit": {
+      "entry": ["src/**/*.test.ts"],
+      "ignoreDependencies": [
+        "@trivago/prettier-plugin-sort-imports",
+        "prettier"
+      ]
+    },
+    "examples/replayability/cli": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/replayability/tui": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/shared/react-bindings": {
+      "entry": ["src/index.ts", "src/**/*.test.tsx"]
+    },
     "examples/counter-with-shared-state": {
       "entry": [
         "src/foldkitCounter.ts",

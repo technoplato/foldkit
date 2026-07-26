@@ -13,6 +13,7 @@ const boot = (): void => {
 
   const application = makeApplication<App.Model, App.Message>({
     Model: App.Model,
+    Message: App.Message,
     init: () => [App.initialModel, []],
     update: App.update,
     view: App.view,

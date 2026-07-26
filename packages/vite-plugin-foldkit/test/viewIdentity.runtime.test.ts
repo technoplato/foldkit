@@ -13,7 +13,8 @@ const Model = S.Struct({ mode: S.Literals(['Viewing', 'Editing']) })
 type Model = typeof Model.Type
 
 const ClickedToggle = m('ClickedToggle')
-type Message = typeof ClickedToggle.Type
+const Message = S.Union([ClickedToggle])
+type Message = typeof Message.Type
 
 const init = (): readonly [Model, ReadonlyArray<Command<Message>>] => [
   { mode: 'Viewing' },
@@ -178,6 +179,7 @@ const withRunningApp = async (
 ): Promise<void> => {
   const element = makeElement({
     Model,
+    Message,
     init,
     update,
     view,

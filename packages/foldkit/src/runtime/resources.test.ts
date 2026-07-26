@@ -104,6 +104,7 @@ describe('resources', () => {
   it('renders the crash view when the Layer fails to build for an init Command', async () => {
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ label: 'ready' }, [ReadValue()]],
       update,
       view,
@@ -124,6 +125,7 @@ describe('resources', () => {
   it('keeps the crash view visible when the crashing Message also dirtied the model', async () => {
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ label: 'ready' }, []],
       update,
       view,
@@ -158,6 +160,7 @@ describe('resources', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ label: 'ready' }, [ReadValue(), ReadValue()]],
       update,
       view,
@@ -194,6 +197,7 @@ describe('resources', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ label: 'ready' }, []],
       update,
       view,
@@ -232,6 +236,7 @@ describe('resources', () => {
 
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ label: 'start' }, [ReadValue()]],
       update,
       view,

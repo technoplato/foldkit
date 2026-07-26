@@ -1,4 +1,5 @@
 import {
+  Array as Array_,
   Data,
   Effect,
   Exit,
@@ -6,6 +7,7 @@ import {
   Option,
   Schema as S,
   Scope,
+  String as String_,
 } from 'effect'
 import { Runtime } from 'foldkit'
 import { createServer } from 'node:http'
@@ -21,14 +23,25 @@ import {
   RequestedReset,
   makeCounterProgram,
 } from './counter.js'
+import { renderCounterShareCardPng } from './counterShareCard.js'
+import {
+  CounterTapeEntry,
+  fetchCounterTapeXml,
+  messageForCounterTapeEntry,
+  parseCounterTapeEntries,
+  parseCounterTapeXml,
+  sampleIncrementTapeXml,
+} from './counterTape.js'
 import { parseCounterUri, printCounterUri } from './counterUri.js'
 import { counterStorageLayer } from './nodeHost.js'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 8765
 const MAX_BODY_BYTES = 4096
+const TAPE_REPLAY_STEP_DELAY_MILLISECONDS = 150
 const HOST_ENVIRONMENT_VARIABLE = 'FOLDKIT_COUNTER_PORTAL_HOST'
 const PORT_ENVIRONMENT_VARIABLE = 'PORT'
+const DEFAULT_TAPE_PATH = '/counter.tape.xml'
 
 // MODEL
 
@@ -86,6 +99,55 @@ type PortalCommandResponse = Readonly<{
   output: string
   snapshot: PortalSnapshot
 }>
+
+type PortalShareMetadata = Readonly<{
+  decrementUrl: string
+  description: string
+  imageUrl: string
+  incrementUrl: string
+  stateUrl: string
+  title: string
+}>
+
+type TapeReplayOptions = Readonly<{
+  tapeUrl: URL
+}>
+
+type TapeReplayStepStatus = 'Passed' | 'Failed' | 'Observed' | 'Processed'
+
+type TapeReplayEvent = Readonly<
+  | {
+      _tag: 'TapeReplayStarted'
+      snapshot: PortalSnapshot
+      tapeUrl: string
+      total: number
+    }
+  | {
+      _tag: 'TapeReplayStepStarted'
+      entry: CounterTapeEntry
+      index: number
+      total: number
+    }
+  | {
+      _tag: 'TapeReplayStepCompleted'
+      entry: CounterTapeEntry
+      index: number
+      snapshot: PortalSnapshot
+      status: TapeReplayStepStatus
+      total: number
+    }
+  | {
+      _tag: 'TapeReplayCompleted'
+      snapshot: PortalSnapshot
+      tapeUrl: string
+      total: number
+    }
+  | {
+      _tag: 'TapeReplayFailed'
+      reason: string
+      snapshot: PortalSnapshot
+    }
+>
 
 type CommandGate = {
   isRunning: boolean
@@ -199,6 +261,44 @@ const snapshotForModel = (model: Model, medium: ViewMedium): PortalSnapshot => {
   }
 }
 
+const maybeCountForModel = (model: Model): Option.Option<number> =>
+  M.value(model).pipe(
+    M.withReturnType<Option.Option<number>>(),
+    M.tagsExhaustive({
+      Loading: () => Option.none(),
+      Ready: ({ count }) => Option.some(count),
+      Saving: ({ count }) => Option.some(count),
+    }),
+  )
+
+const statusForTapeEntry = (
+  entry: CounterTapeEntry,
+  model: Model,
+): TapeReplayStepStatus =>
+  M.value(entry).pipe(
+    M.withReturnType<TapeReplayStepStatus>(),
+    M.tagsExhaustive({
+      Action: () => 'Processed',
+      Expect: ({ count }) => {
+        const maybeCount = maybeCountForModel(model)
+        if (Option.isSome(maybeCount) && maybeCount.value === count) {
+          return 'Passed'
+        } else {
+          return 'Failed'
+        }
+      },
+      Final: ({ count }) => {
+        const maybeCount = maybeCountForModel(model)
+        if (Option.isSome(maybeCount) && maybeCount.value === count) {
+          return 'Passed'
+        } else {
+          return 'Failed'
+        }
+      },
+      Snapshot: () => 'Observed',
+    }),
+  )
+
 const formatSnapshot = (snapshot: PortalSnapshot): string =>
   `${snapshot.mode} ${snapshot.count} ${snapshot.uri}`
 
@@ -222,6 +322,9 @@ const outputForCommand = (
 const portableUriForUrl = (url: URL): string => {
   const searchParams = new URLSearchParams(url.searchParams)
   searchParams.delete('command')
+  tapeQueryParameterNames.forEach(name => {
+    searchParams.delete(name)
+  })
   return `/?${searchParams.toString()}`
 }
 
@@ -244,18 +347,49 @@ const maybeCommandInputForUrl = (url: URL): Option.Option<string> =>
   Option.fromNullishOr(url.searchParams.get('command'))
 
 const urlHasLaunchWork = (url: URL): boolean =>
-  url.searchParams.has('mode') || url.searchParams.has('command')
+  url.searchParams.has('mode') ||
+  url.searchParams.has('command') ||
+  hasTapeQuery(url)
+
+const runCounterTape = (
+  runtime: Runtime.HostRuntime<Model, Message>,
+  tapeUrl: URL,
+): Effect.Effect<Model, CounterPortalServerError> =>
+  Effect.gen(function* () {
+    const xml = yield* fetchCounterTapeXml(tapeUrl).pipe(
+      Effect.mapError(
+        error => new CounterPortalServerError({ reason: error.reason }),
+      ),
+    )
+    const messages = yield* parseCounterTapeXml(xml).pipe(
+      Effect.mapError(
+        error => new CounterPortalServerError({ reason: error.reason }),
+      ),
+    )
+
+    let nextModel = runtime.readModel()
+    for (const message of messages) {
+      nextModel = yield* runtime.run(message)
+    }
+    return nextModel
+  })
 
 const applyUrlRequest = (
   runtime: Runtime.HostRuntime<Model, Message>,
   url: URL,
   medium: ViewMedium,
+  origin: string,
 ): Effect.Effect<PortalSnapshot, CounterPortalServerError> =>
   Effect.gen(function* () {
     const maybeModel = yield* maybeModelForUrl(url)
-    const model = Option.isSome(maybeModel)
+    let model = Option.isSome(maybeModel)
       ? yield* runtime.run(RequestedOpenCounter({ model: maybeModel.value }))
       : runtime.readModel()
+
+    const maybeTapeUrl = yield* maybeTapeUrlForUrl(url, origin)
+    if (Option.isSome(maybeTapeUrl)) {
+      model = yield* runCounterTape(runtime, maybeTapeUrl.value)
+    }
 
     const maybeCommandInput = maybeCommandInputForUrl(url)
     if (Option.isSome(maybeCommandInput)) {
@@ -386,12 +520,40 @@ const writeText = (
   response.end(value)
 }
 
+const writeXml = (
+  response: ServerResponse,
+  statusCode: number,
+  value: string,
+): void => {
+  response.writeHead(statusCode, {
+    'content-type': 'application/xml; charset=utf-8',
+    'cache-control': 'no-store',
+  })
+  response.end(value)
+}
+
 const writeSnapshotEvent = (
   response: ServerResponse,
   snapshot: PortalSnapshot,
 ): void => {
   response.write(`data: ${JSON.stringify(snapshot)}\n\n`)
 }
+
+const writeTapeReplayEvent = (
+  response: ServerResponse,
+  event: TapeReplayEvent,
+): void => {
+  if (!response.destroyed && !response.writableEnded) {
+    response.write(`data: ${JSON.stringify(event)}\n\n`)
+  }
+}
+
+const pauseTapeReplay = Effect.promise<void>(
+  () =>
+    new Promise(resolve => {
+      setTimeout(resolve, TAPE_REPLAY_STEP_DELAY_MILLISECONDS)
+    }),
+)
 
 const labelForMedium = (medium: ViewMedium): string =>
   M.value(medium).pipe(
@@ -403,16 +565,264 @@ const labelForMedium = (medium: ViewMedium): string =>
     M.exhaustive,
   )
 
+const htmlEscape = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+
+const firstHeaderPart = (value: string): string => {
+  const maybeFirstPart = Array_.head(value.split(','))
+  if (Option.isSome(maybeFirstPart)) {
+    return maybeFirstPart.value.trim()
+  } else {
+    return value.trim()
+  }
+}
+
+const originForRequest = (request: IncomingMessage): string => {
+  const protocolHeader = request.headers['x-forwarded-proto']?.toString()
+  const hostHeader = request.headers.host?.toString()
+  const protocol =
+    protocolHeader === undefined ? 'http' : firstHeaderPart(protocolHeader)
+  const host =
+    hostHeader === undefined ? `${DEFAULT_HOST}:${DEFAULT_PORT}` : hostHeader
+
+  return `${protocol}://${host}`
+}
+
+const absoluteUrl = (origin: string, pathname: string): string =>
+  new URL(pathname, origin).toString()
+
+const commandUrlForSnapshot = (
+  snapshot: PortalSnapshot,
+  origin: string,
+  command: string,
+): string => {
+  const commandUrl = new URL(snapshot.carrierUri, origin)
+  commandUrl.searchParams.set('command', command)
+  return commandUrl.toString()
+}
+
+const shareImageUrlForSnapshot = (
+  snapshot: PortalSnapshot,
+  origin: string,
+): string => {
+  const imageUrl = new URL('/counter-card.png', origin)
+  const portableUrl = new URL(snapshot.portableUri, origin)
+  portableUrl.searchParams.forEach((value, key) => {
+    imageUrl.searchParams.set(key, value)
+  })
+  imageUrl.searchParams.set('medium', mediumQueryValue(snapshot.viewMedium))
+  return imageUrl.toString()
+}
+
+const shareMetadataForSnapshot = (
+  snapshot: PortalSnapshot,
+  origin: string,
+): PortalShareMetadata => {
+  const incrementUrl = commandUrlForSnapshot(snapshot, origin, 'increment')
+  const decrementUrl = commandUrlForSnapshot(snapshot, origin, 'decrement')
+  const stateUrl = absoluteUrl(origin, snapshot.carrierUri)
+
+  return {
+    decrementUrl,
+    description: `Count ${snapshot.count}. Increment: ${incrementUrl}. Decrement: ${decrementUrl}.`,
+    imageUrl: shareImageUrlForSnapshot(snapshot, origin),
+    incrementUrl,
+    stateUrl,
+    title: `Foldkit Counter: ${snapshot.count}`,
+  }
+}
+
+const tapeQueryParameterNames = [
+  'replayTapeUrl',
+  'tapeDomain',
+  'tapePath',
+  'tapeUrl',
+]
+
+const hasTapeQuery = (url: URL): boolean =>
+  tapeQueryParameterNames.some(name => url.searchParams.has(name))
+
+const isLoopbackOrPrivateHostname = (hostname: string): boolean => {
+  const normalizedHostname = hostname.toLowerCase()
+
+  if (normalizedHostname === 'localhost') {
+    return true
+  } else if (normalizedHostname.includes(':')) {
+    return true
+  } else if (/^0\./u.test(normalizedHostname)) {
+    return true
+  } else if (/^127\./u.test(normalizedHostname)) {
+    return true
+  } else if (/^10\./u.test(normalizedHostname)) {
+    return true
+  } else if (/^169\.254\./u.test(normalizedHostname)) {
+    return true
+  } else if (/^192\.168\./u.test(normalizedHostname)) {
+    return true
+  } else if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./u.test(normalizedHostname)) {
+    return true
+  } else {
+    return false
+  }
+}
+
+const isAllowedRemoteTapeHostname = (hostname: string): boolean => {
+  const normalizedHostname = hostname.toLowerCase()
+  return (
+    normalizedHostname === 'knophy.com' ||
+    normalizedHostname.endsWith('.knophy.com')
+  )
+}
+
+const validateTapeUrl = (
+  tapeUrl: URL,
+  origin: string,
+): Effect.Effect<URL, CounterPortalServerError> => {
+  const originUrl = new URL(origin)
+
+  if (tapeUrl.protocol !== 'http:' && tapeUrl.protocol !== 'https:') {
+    return Effect.fail(
+      new CounterPortalServerError({
+        reason: 'Counter tape URL must use http or https',
+      }),
+    )
+  } else if (
+    String_.isNonEmpty(tapeUrl.username) ||
+    String_.isNonEmpty(tapeUrl.password)
+  ) {
+    return Effect.fail(
+      new CounterPortalServerError({
+        reason: 'Counter tape URL must not contain credentials',
+      }),
+    )
+  } else if (
+    tapeUrl.host !== originUrl.host &&
+    isLoopbackOrPrivateHostname(tapeUrl.hostname)
+  ) {
+    return Effect.fail(
+      new CounterPortalServerError({
+        reason: 'Counter tape URL must not target a private host',
+      }),
+    )
+  } else if (
+    tapeUrl.host !== originUrl.host &&
+    !isAllowedRemoteTapeHostname(tapeUrl.hostname)
+  ) {
+    return Effect.fail(
+      new CounterPortalServerError({
+        reason:
+          'Counter tape URL must target the current host or a Knophy domain',
+      }),
+    )
+  } else {
+    return Effect.succeed(tapeUrl)
+  }
+}
+
+const tapeUrlForDomain = (
+  origin: string,
+  domain: string,
+  path: string,
+): Effect.Effect<URL, CounterPortalServerError> =>
+  Effect.try({
+    try: () => {
+      const originUrl = new URL(origin)
+      const domainUrl = domain.includes('://')
+        ? new URL(domain)
+        : new URL(`${originUrl.protocol}//${domain}`)
+      if (!path.startsWith('/')) {
+        throw new Error('Counter tape path must start with /')
+      }
+
+      return new URL(path, `${originUrl.protocol}//${domainUrl.host}`)
+    },
+    catch: error =>
+      new CounterPortalServerError({
+        reason: globalThis.String(error),
+      }),
+  })
+
+const maybeTapeUrlForUrl = (
+  url: URL,
+  origin: string,
+): Effect.Effect<Option.Option<URL>, CounterPortalServerError> => {
+  const maybeTapeUrl = Option.fromNullishOr(url.searchParams.get('tapeUrl'))
+  if (Option.isSome(maybeTapeUrl)) {
+    return Effect.try({
+      try: () => new URL(maybeTapeUrl.value),
+      catch: error =>
+        new CounterPortalServerError({
+          reason: globalThis.String(error),
+        }),
+    }).pipe(
+      Effect.flatMap(tapeUrl => validateTapeUrl(tapeUrl, origin)),
+      Effect.map(tapeUrl => Option.some(tapeUrl)),
+    )
+  }
+
+  const maybeTapeDomain = Option.fromNullishOr(
+    url.searchParams.get('tapeDomain'),
+  )
+  if (Option.isSome(maybeTapeDomain)) {
+    const tapePath = url.searchParams.get('tapePath') ?? DEFAULT_TAPE_PATH
+    return tapeUrlForDomain(origin, maybeTapeDomain.value, tapePath).pipe(
+      Effect.flatMap(tapeUrl => validateTapeUrl(tapeUrl, origin)),
+      Effect.map(tapeUrl => Option.some(tapeUrl)),
+    )
+  } else {
+    return Effect.succeed(Option.none())
+  }
+}
+
+const maybeReplayTapeUrlForUrl = (
+  url: URL,
+  origin: string,
+): Effect.Effect<
+  Option.Option<TapeReplayOptions>,
+  CounterPortalServerError
+> => {
+  const maybeReplayTapeUrl = Option.fromNullishOr(
+    url.searchParams.get('replayTapeUrl'),
+  )
+  if (Option.isNone(maybeReplayTapeUrl)) {
+    return Effect.succeed(Option.none())
+  }
+
+  return Effect.try({
+    try: () => new URL(maybeReplayTapeUrl.value),
+    catch: error =>
+      new CounterPortalServerError({
+        reason: globalThis.String(error),
+      }),
+  }).pipe(
+    Effect.flatMap(tapeUrl => validateTapeUrl(tapeUrl, origin)),
+    Effect.map(tapeUrl => Option.some({ tapeUrl })),
+  )
+}
+
 const mediumLink = (medium: ViewMedium, model: Model): string =>
   `<a href="${carrierUriForModel(medium, model)}">${labelForMedium(medium)}</a>`
 
 const htmlForMedium = (
   medium: ViewMedium,
   initialSnapshot: PortalSnapshot,
+  origin: string,
+  maybeTapeReplay: Option.Option<TapeReplayOptions>,
 ): string => {
   const initialSnapshotJson = JSON.stringify(initialSnapshot)
+  const tapeReplayJson = Option.isSome(maybeTapeReplay)
+    ? JSON.stringify({
+        tapeUrl: maybeTapeReplay.value.tapeUrl.toString(),
+      })
+    : 'null'
   const mediumLabel = labelForMedium(medium)
   const mediumQuery = mediumQueryValue(medium)
+  const shareMetadata = shareMetadataForSnapshot(initialSnapshot, origin)
   const mediumLinks = [
     mediumLink('Terminal', initialSnapshot.model),
     mediumLink('Foldkit', initialSnapshot.model),
@@ -425,7 +835,19 @@ const htmlForMedium = (
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Foldkit Counter ${mediumLabel}</title>
+    <title>${htmlEscape(shareMetadata.title)}</title>
+    <meta name="description" content="${htmlEscape(shareMetadata.description)}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${htmlEscape(shareMetadata.title)}" />
+    <meta property="og:description" content="${htmlEscape(shareMetadata.description)}" />
+    <meta property="og:url" content="${htmlEscape(shareMetadata.stateUrl)}" />
+    <meta property="og:image" content="${htmlEscape(shareMetadata.imageUrl)}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${htmlEscape(shareMetadata.title)}" />
+    <meta name="twitter:description" content="${htmlEscape(shareMetadata.description)}" />
+    <meta name="twitter:image" content="${htmlEscape(shareMetadata.imageUrl)}" />
     <style>
       :root {
         color-scheme: dark;
@@ -517,6 +939,134 @@ const htmlForMedium = (
         margin: 0.25rem 0 0;
         color: #a1a1aa;
       }
+      .tape-replay {
+        display: grid;
+        gap: 0.75rem;
+        padding: 1rem;
+        border-bottom: 1px solid rgba(250, 250, 250, 0.1);
+        background: rgba(20, 83, 45, 0.18);
+      }
+      .tape-replay[hidden] {
+        display: none;
+      }
+      .tape-replay h2 {
+        margin: 0;
+        font-size: 0.95rem;
+      }
+      .tape-replay p {
+        margin: 0;
+        color: #bbf7d0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+        overflow-wrap: anywhere;
+      }
+      .tape-steps {
+        display: grid;
+        gap: 0.4rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        color: #d4d4d8;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+      }
+      .tape-steps li {
+        margin: 0;
+      }
+      .tape-steps button {
+        width: 100%;
+        padding: 0.5rem 0.65rem;
+        border-radius: 0.6rem;
+        text-align: left;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+      }
+      .tape-steps button:hover {
+        border-color: rgba(187, 247, 208, 0.45);
+      }
+      .tape-steps li[data-status="Passed"],
+      .tape-steps li[data-status="Processed"] {
+        color: #bbf7d0;
+      }
+      .tape-steps li[data-status="Observed"] {
+        color: #bfdbfe;
+      }
+      .tape-steps li[data-status="Failed"] {
+        color: #fecaca;
+      }
+      .tape-steps li[data-occurrence="Future"] {
+        opacity: 0.38;
+      }
+      .tape-steps li[data-occurrence="Future"] button {
+        border-color: rgba(250, 250, 250, 0.08);
+        color: #71717a;
+      }
+      .tape-steps li[data-selected="true"] button {
+        border-color: #22c55e;
+        background: rgba(34, 197, 94, 0.18);
+      }
+      .tape-scrubber {
+        display: grid;
+        gap: 0.4rem;
+      }
+      .tape-scrubber[hidden] {
+        display: none;
+      }
+      .tape-scrubber label {
+        color: #d4d4d8;
+        font-size: 0.85rem;
+      }
+      .tape-scrubber input {
+        width: 100%;
+        min-width: 0;
+        padding: 0;
+        accent-color: #22c55e;
+      }
+      .tape-scrubber-controls {
+        display: flex;
+        gap: 0.5rem;
+      }
+      .tape-scrubber-controls button {
+        flex: 1;
+        padding: 0.55rem 0.75rem;
+      }
+      .tape-scrubber p {
+        margin: 0;
+        color: #a1a1aa;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+      }
+      .tape-save {
+        display: grid;
+        gap: 0.5rem;
+      }
+      .tape-save[hidden] {
+        display: none;
+      }
+      .tape-save-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .tape-save-actions button,
+      .tape-save-actions a {
+        border: 1px solid rgba(250, 250, 250, 0.16);
+        border-radius: 0.75rem;
+        background: rgba(39, 39, 42, 0.9);
+        color: #fafafa;
+        padding: 0.55rem 0.75rem;
+        text-decoration: none;
+      }
+      .tape-save-actions a {
+        color: #bbf7d0;
+      }
+      .saved-tape-run[hidden] {
+        display: none;
+      }
+      .saved-tape-run {
+        color: #93c5fd;
+        overflow-wrap: anywhere;
+      }
       .terminal-actions {
         display: flex;
         flex-wrap: wrap;
@@ -588,6 +1138,29 @@ const htmlForMedium = (
           <h1>${mediumLabel} medium</h1>
           <p>The URL carries portable Counter state plus the view medium suffix. Commands are decoded into Counter Messages and run through the same host runtime.</p>
         </header>
+        <div id="tape-replay" class="tape-replay" hidden>
+          <h2>Tape replay</h2>
+          <p id="tape-status">waiting</p>
+          <ol id="tape-steps" class="tape-steps"></ol>
+          <div id="tape-scrubber" class="tape-scrubber" hidden>
+            <label for="tape-position">Replay position</label>
+            <input id="tape-position" type="range" min="0" max="0" value="0" />
+            <div class="tape-scrubber-controls" aria-label="Replay step controls">
+              <button id="tape-step-back" type="button">← back</button>
+              <button id="tape-step-forward" type="button">forward →</button>
+            </div>
+            <p id="tape-position-label">Live</p>
+          </div>
+          <div id="tape-save" class="tape-save" hidden>
+            <div class="tape-save-actions">
+              <button id="save-tape" type="button">save tape</button>
+              <button id="share-tape" type="button" disabled>copy share URL</button>
+              <a href="https://tapes.knophy.com/#saved">view saved tapes</a>
+            </div>
+            <a id="saved-tape-run" class="saved-tape-run" hidden></a>
+            <p id="save-tape-status">Replay first, then save.</p>
+          </div>
+        </div>
         <div class="terminal-actions" aria-label="Terminal command buttons">
           <button data-command="decrement">[-] decrement</button>
           <button data-command="reset">[R] reset</button>
@@ -604,12 +1177,33 @@ const htmlForMedium = (
       const count = document.querySelector('#count')
       const mode = document.querySelector('#mode')
       const log = document.querySelector('#log')
+      const tapeReplayPanel = document.querySelector('#tape-replay')
+      const tapeStatus = document.querySelector('#tape-status')
+      const tapeSteps = document.querySelector('#tape-steps')
+      const tapeScrubber = document.querySelector('#tape-scrubber')
+      const tapePosition = document.querySelector('#tape-position')
+      const tapeStepBack = document.querySelector('#tape-step-back')
+      const tapeStepForward = document.querySelector('#tape-step-forward')
+      const tapePositionLabel = document.querySelector('#tape-position-label')
+      const tapeSave = document.querySelector('#tape-save')
+      const saveTape = document.querySelector('#save-tape')
+      const shareTape = document.querySelector('#share-tape')
+      const savedTapeRun = document.querySelector('#saved-tape-run')
+      const saveTapeStatus = document.querySelector('#save-tape-status')
       const form = document.querySelector('#form')
       const command = document.querySelector('#command')
       const controls = Array.from(document.querySelectorAll('[data-command], #command, #send'))
       const initialSnapshot = ${initialSnapshotJson}
+      const tapeReplay = ${tapeReplayJson}
       const viewMedium = '${mediumQuery}'
+      const tapeStepItems = new Map()
+      const tapeHistory = []
+      const recordedActions = []
+      const savedTapeApi = 'https://tapes.knophy.com/saved-tapes'
+      let savedTapeRunUrl = null
       let isCommandPending = false
+      let isReplayComplete = tapeReplay === null
+      let isViewingHistory = false
 
       const append = value => {
         log.textContent += value + "\\n"
@@ -623,14 +1217,312 @@ const htmlForMedium = (
 
       const setPending = isPending => {
         isCommandPending = isPending
+        updateControls()
+      }
+
+      const updateControls = () => {
+        const isDisabled = isCommandPending || isViewingHistory
         controls.forEach(control => {
-          control.disabled = isPending
+          control.disabled = isDisabled
+        })
+        updateSaveControls()
+      }
+
+      const updateSaveControls = () => {
+        const canSave =
+          isReplayComplete &&
+          !isCommandPending &&
+          !isViewingHistory &&
+          recordedActions.length > 0
+        saveTape.disabled = !canSave
+        shareTape.disabled = savedTapeRunUrl === null
+      }
+
+      const resetSavedTapeLink = () => {
+        savedTapeRunUrl = null
+        savedTapeRun.hidden = true
+        savedTapeRun.removeAttribute('href')
+        savedTapeRun.textContent = ''
+      }
+
+      const setSaveStatus = value => {
+        saveTapeStatus.textContent = value
+      }
+
+      const actionForTapeStep = step => {
+        if (step === 'Increment') {
+          return 'increment'
+        } else if (step === 'Decrement') {
+          return 'decrement'
+        } else {
+          return 'reset'
+        }
+      }
+
+      const actionForCommandName = commandName => {
+        if (commandName === 'Increment') {
+          return 'increment'
+        } else if (commandName === 'Decrement') {
+          return 'decrement'
+        } else if (commandName === 'Reset') {
+          return 'reset'
+        } else {
+          return null
+        }
+      }
+
+      const recordAction = action => {
+        recordedActions.push(action)
+        resetSavedTapeLink()
+        if (isReplayComplete) {
+          setSaveStatus(recordedActions.length + ' actions ready to save.')
+        }
+        updateSaveControls()
+      }
+
+      const saveRecordedTape = async () => {
+        if (recordedActions.length === 0 || isViewingHistory) {
+          return
+        }
+
+        saveTape.disabled = true
+        setSaveStatus('saving tape...')
+        try {
+          const response = await fetch(savedTapeApi, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({ actions: recordedActions }),
+          })
+          const payload = await response.json()
+          if (response.ok) {
+            savedTapeRunUrl = payload.run
+            savedTapeRun.href = payload.run
+            savedTapeRun.textContent = payload.run
+            savedTapeRun.hidden = false
+            setSaveStatus('saved ' + payload.name)
+          } else {
+            setSaveStatus('save failed: ' + payload.reason)
+          }
+        } catch (error) {
+          setSaveStatus('save failed: ' + String(error))
+        } finally {
+          updateSaveControls()
+        }
+      }
+
+      const copySavedTapeUrl = async () => {
+        if (savedTapeRunUrl === null) {
+          return
+        }
+
+        try {
+          await navigator.clipboard.writeText(savedTapeRunUrl)
+          setSaveStatus('copied share URL')
+        } catch (error) {
+          setSaveStatus('share URL: ' + savedTapeRunUrl)
+        }
+      }
+
+      const liveHistoryIndex = () => Math.max(tapeHistory.length - 1, 0)
+
+      const tapeHistoryEntryAt = index => tapeHistory.at(index)
+
+      const updateTapeStepSelection = index => {
+        tapeStepItems.forEach((item, stepIndex) => {
+          item.dataset.occurrence = stepIndex <= index ? 'Occurred' : 'Future'
+          item.dataset.selected = stepIndex === index ? 'true' : 'false'
+          const button = item.querySelector('button')
+          if (button !== null) {
+            button.setAttribute(
+              'aria-current',
+              stepIndex === index ? 'step' : 'false',
+            )
+          }
+        })
+      }
+
+      const updateScrubberStepControls = index => {
+        tapeStepBack.disabled = index <= 0
+        tapeStepForward.disabled = index >= liveHistoryIndex()
+      }
+
+      const updateScrubberLabel = index => {
+        const entry = tapeHistoryEntryAt(index)
+        if (entry === undefined) {
+          tapePositionLabel.textContent = 'Live'
+        } else if (index === liveHistoryIndex()) {
+          tapePositionLabel.textContent = entry.label + ' · live'
+        } else {
+          tapePositionLabel.textContent = entry.label + ' · history preview'
+        }
+        updateTapeStepSelection(index)
+        updateScrubberStepControls(index)
+      }
+
+      const showScrubberAtLive = () => {
+        if (tapeHistory.length === 0) {
+          return
+        }
+
+        const liveIndex = liveHistoryIndex()
+        tapeScrubber.hidden = false
+        tapePosition.max = String(liveIndex)
+        tapePosition.value = String(liveIndex)
+        isViewingHistory = false
+        updateScrubberLabel(liveIndex)
+        updateControls()
+      }
+
+      const recordTapeHistory = (label, snapshot) => {
+        tapeHistory.push({ label, snapshot })
+        if (!tapeScrubber.hidden) {
+          showScrubberAtLive()
+        }
+      }
+
+      const previewTapeHistory = index => {
+        const entry = tapeHistoryEntryAt(index)
+        if (entry === undefined) {
+          return
+        }
+
+        tapePosition.value = String(index)
+        render(entry.snapshot)
+        isViewingHistory = index !== liveHistoryIndex()
+        updateScrubberLabel(index)
+        updateControls()
+      }
+
+      const stepTapeHistory = offset => {
+        const currentIndex = Number.parseInt(tapePosition.value, 10)
+        const nextIndex = Math.max(0, Math.min(liveHistoryIndex(), currentIndex + offset))
+        previewTapeHistory(nextIndex)
+      }
+
+      const createTapeStepItem = payload => {
+        const item = document.createElement('li')
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.textContent = payload.index + '/' + payload.total + ' ' + payload.entry.label + ' running'
+        button.addEventListener('click', () => {
+          previewTapeHistory(payload.index)
+        })
+        item.append(button)
+        item.dataset.status = 'Running'
+        item.dataset.occurrence = 'Future'
+        item.dataset.selected = 'false'
+        tapeStepItems.set(payload.index, item)
+        tapeSteps.append(item)
+        updateTapeStepSelection(Number.parseInt(tapePosition.value, 10))
+        return item
+      }
+
+      const updateTapeStepItem = payload => {
+        const item = tapeStepItems.get(payload.index) ?? createTapeStepItem(payload)
+        const button = item.querySelector('button')
+        if (button !== null) {
+          button.textContent =
+          payload.index +
+          '/' +
+          payload.total +
+          ' ' +
+          payload.entry.label +
+          ' ' +
+          payload.status +
+          ' count ' +
+          payload.snapshot.count
+        }
+        item.dataset.status = payload.status
+        updateTapeStepSelection(Number.parseInt(tapePosition.value, 10))
+      }
+
+      const startTapeReplay = () => {
+        if (tapeReplay === null) {
+          return
+        }
+
+        tapeHistory.splice(0)
+        recordedActions.splice(0)
+        resetSavedTapeLink()
+        tapeReplayPanel.hidden = false
+        tapeScrubber.hidden = true
+        tapeSave.hidden = true
+        tapeStatus.textContent = 'loading ' + tapeReplay.tapeUrl
+        setSaveStatus('Replay first, then save.')
+        isViewingHistory = false
+        setPending(true)
+        append('replay ' + tapeReplay.tapeUrl)
+
+        const replayUrl = new URL('/tape-run-events', window.location.origin)
+        replayUrl.searchParams.set('medium', viewMedium)
+        replayUrl.searchParams.set('replayTapeUrl', tapeReplay.tapeUrl)
+        const source = new EventSource(replayUrl.toString())
+
+        source.addEventListener('message', event => {
+          const payload = JSON.parse(event.data)
+          if (payload._tag === 'TapeReplayStarted') {
+            render(payload.snapshot)
+            recordTapeHistory('start count ' + payload.snapshot.count, payload.snapshot)
+            tapeStatus.textContent = 'processing ' + payload.total + ' tape entries'
+          } else if (payload._tag === 'TapeReplayStepStarted') {
+            createTapeStepItem(payload)
+          } else if (payload._tag === 'TapeReplayStepCompleted') {
+            render(payload.snapshot)
+            updateTapeStepItem(payload)
+            if (payload.entry._tag === 'Action') {
+              recordAction(actionForTapeStep(payload.entry.step))
+            }
+            recordTapeHistory(
+              payload.index +
+                '/' +
+                payload.total +
+                ' ' +
+                payload.entry.label +
+                ' ' +
+                payload.status,
+              payload.snapshot,
+            )
+          } else if (payload._tag === 'TapeReplayCompleted') {
+            render(payload.snapshot)
+            tapeStatus.textContent = 'complete ' + payload.snapshot.uri
+            append('replay complete ' + payload.snapshot.uri)
+            isReplayComplete = true
+            showScrubberAtLive()
+            tapeSave.hidden = false
+            setSaveStatus(recordedActions.length + ' actions ready to save.')
+            setPending(false)
+            command.focus()
+            source.close()
+          } else if (payload._tag === 'TapeReplayFailed') {
+            render(payload.snapshot)
+            tapeStatus.textContent = 'failed ' + payload.reason
+            append('replay failed: ' + payload.reason)
+            isReplayComplete = true
+            setPending(false)
+            source.close()
+          }
+        })
+
+        source.addEventListener('error', () => {
+          if (!isReplayComplete) {
+            tapeStatus.textContent = 'lost replay stream'
+            append('replay stream lost')
+            isReplayComplete = true
+            setPending(false)
+          }
+          source.close()
         })
       }
 
       const send = async input => {
         if (isCommandPending) {
           append('busy: waiting for current command to settle')
+          return
+        }
+        if (isViewingHistory) {
+          append('history: move replay position to live before sending commands')
           return
         }
 
@@ -649,6 +1541,13 @@ const htmlForMedium = (
           const payload = await response.json()
           if (response.ok) {
             render(payload.snapshot)
+            const maybeAction = actionForCommandName(payload.command)
+            if (maybeAction !== null) {
+              recordAction(maybeAction)
+            }
+            if (isReplayComplete && tapeReplay !== null) {
+              recordTapeHistory('$ ' + commandText, payload.snapshot)
+            }
             append(payload.output)
           } else {
             append('error: ' + payload.reason)
@@ -662,7 +1561,29 @@ const htmlForMedium = (
       }
 
       new EventSource('/events?medium=' + encodeURIComponent(viewMedium)).addEventListener('message', event => {
-        render(JSON.parse(event.data))
+        if (!isViewingHistory) {
+          render(JSON.parse(event.data))
+        }
+      })
+
+      tapePosition.addEventListener('input', () => {
+        previewTapeHistory(Number.parseInt(tapePosition.value, 10))
+      })
+
+      tapeStepBack.addEventListener('click', () => {
+        stepTapeHistory(-1)
+      })
+
+      tapeStepForward.addEventListener('click', () => {
+        stepTapeHistory(1)
+      })
+
+      saveTape.addEventListener('click', () => {
+        saveRecordedTape()
+      })
+
+      shareTape.addEventListener('click', () => {
+        copySavedTapeUrl()
       })
 
       form.addEventListener('submit', event => {
@@ -680,6 +1601,7 @@ const htmlForMedium = (
 
       render(initialSnapshot)
       append('opened ' + initialSnapshot.uri)
+      startTapeReplay()
       command.focus()
     </script>
   </body>
@@ -704,6 +1626,159 @@ const serveEvents = (
   response.on('close', () => {
     clients.delete(client)
   })
+}
+
+const loadCounterTapeEntries = (
+  tapeUrl: URL,
+): Effect.Effect<ReadonlyArray<CounterTapeEntry>, CounterPortalServerError> =>
+  Effect.gen(function* () {
+    const xml = yield* fetchCounterTapeXml(tapeUrl).pipe(
+      Effect.mapError(
+        error => new CounterPortalServerError({ reason: error.reason }),
+      ),
+    )
+    return yield* parseCounterTapeEntries(xml).pipe(
+      Effect.mapError(
+        error => new CounterPortalServerError({ reason: error.reason }),
+      ),
+    )
+  })
+
+const runTapeReplayEntry = (
+  runtime: Runtime.HostRuntime<Model, Message>,
+  entry: CounterTapeEntry,
+): Effect.Effect<Model, CounterPortalServerError> => {
+  const maybeMessage = messageForCounterTapeEntry(entry)
+  if (Option.isSome(maybeMessage)) {
+    return runtime.run(maybeMessage.value)
+  } else {
+    return Effect.succeed(runtime.readModel())
+  }
+}
+
+const runTapeReplay = (
+  response: ServerResponse,
+  runtime: Runtime.HostRuntime<Model, Message>,
+  tapeUrl: URL,
+  medium: ViewMedium,
+  isClosed: () => boolean,
+): Effect.Effect<void, CounterPortalServerError> =>
+  Effect.gen(function* () {
+    const entries = yield* loadCounterTapeEntries(tapeUrl)
+    const total = entries.length
+    writeTapeReplayEvent(response, {
+      _tag: 'TapeReplayStarted',
+      snapshot: snapshotForModel(runtime.readModel(), medium),
+      tapeUrl: tapeUrl.toString(),
+      total,
+    })
+
+    let index = 0
+    for (const entry of entries) {
+      if (isClosed()) {
+        return
+      }
+
+      index += 1
+      writeTapeReplayEvent(response, {
+        _tag: 'TapeReplayStepStarted',
+        entry,
+        index,
+        total,
+      })
+
+      const model = yield* runTapeReplayEntry(runtime, entry)
+      const snapshot = snapshotForModel(model, medium)
+      writeTapeReplayEvent(response, {
+        _tag: 'TapeReplayStepCompleted',
+        entry,
+        index,
+        snapshot,
+        status: statusForTapeEntry(entry, model),
+        total,
+      })
+      yield* pauseTapeReplay
+    }
+
+    writeTapeReplayEvent(response, {
+      _tag: 'TapeReplayCompleted',
+      snapshot: snapshotForModel(runtime.readModel(), medium),
+      tapeUrl: tapeUrl.toString(),
+      total,
+    })
+  })
+
+const serveTapeReplayEvents = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  runtime: Runtime.HostRuntime<Model, Message>,
+  commandGate: CommandGate,
+  url: URL,
+): void => {
+  response.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-store',
+    connection: 'keep-alive',
+  })
+
+  const medium = mediumForQuery(url.searchParams.get('medium'))
+  const origin = originForRequest(request)
+  let isClosed = false
+  response.on('close', () => {
+    isClosed = true
+  })
+
+  if (commandGate.isRunning) {
+    writeTapeReplayEvent(response, {
+      _tag: 'TapeReplayFailed',
+      reason: 'Terminal is busy. Wait for the current command to settle.',
+      snapshot: snapshotForModel(runtime.readModel(), medium),
+    })
+    response.end()
+    return
+  }
+
+  commandGate.isRunning = true
+  Effect.runPromise(
+    maybeReplayTapeUrlForUrl(url, origin).pipe(
+      Effect.flatMap(maybeTapeReplay => {
+        if (Option.isSome(maybeTapeReplay)) {
+          return runTapeReplay(
+            response,
+            runtime,
+            maybeTapeReplay.value.tapeUrl,
+            medium,
+            () => isClosed,
+          )
+        } else {
+          return Effect.fail(
+            new CounterPortalServerError({
+              reason: 'Tape replay needs replayTapeUrl',
+            }),
+          )
+        }
+      }),
+    ),
+  )
+    .then(
+      () => undefined,
+      error => {
+        writeTapeReplayEvent(response, {
+          _tag: 'TapeReplayFailed',
+          reason:
+            error instanceof CounterPortalServerError
+              ? error.reason
+              : globalThis.String(error),
+          snapshot: snapshotForModel(runtime.readModel(), medium),
+        })
+      },
+    )
+    .finally(() => {
+      commandGate.isRunning = false
+      if (!response.destroyed && !response.writableEnded) {
+        response.end()
+      }
+    })
 }
 
 const serveCommand = (
@@ -744,6 +1819,7 @@ const serveCommand = (
 }
 
 const servePage = (
+  request: IncomingMessage,
   response: ServerResponse,
   runtime: Runtime.HostRuntime<Model, Message>,
   commandGate: CommandGate,
@@ -761,14 +1837,21 @@ const servePage = (
     commandGate.isRunning = true
   }
 
-  Effect.runPromise(applyUrlRequest(runtime, url, medium))
+  const origin = originForRequest(request)
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const snapshot = yield* applyUrlRequest(runtime, url, medium, origin)
+      const maybeTapeReplay = yield* maybeReplayTapeUrlForUrl(url, origin)
+      return { maybeTapeReplay, snapshot }
+    }),
+  )
     .then(
-      snapshot => {
+      ({ maybeTapeReplay, snapshot }) => {
         response.writeHead(200, {
           'content-type': 'text/html; charset=utf-8',
           'cache-control': 'no-store',
         })
-        response.end(htmlForMedium(medium, snapshot))
+        response.end(htmlForMedium(medium, snapshot, origin, maybeTapeReplay))
       },
       error =>
         writeJson(response, 400, {
@@ -785,6 +1868,56 @@ const servePage = (
     })
 }
 
+const modelForCardUrl = (
+  runtime: Runtime.HostRuntime<Model, Message>,
+  url: URL,
+): Effect.Effect<Model, CounterPortalServerError> =>
+  Effect.gen(function* () {
+    const maybeModel = yield* maybeModelForUrl(url)
+    if (Option.isSome(maybeModel)) {
+      return maybeModel.value
+    } else {
+      return runtime.readModel()
+    }
+  })
+
+const serveCardImage = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  runtime: Runtime.HostRuntime<Model, Message>,
+  url: URL,
+): void => {
+  const medium = mediumForQuery(url.searchParams.get('medium'))
+  Effect.runPromise(modelForCardUrl(runtime, url)).then(
+    model => {
+      const snapshot = snapshotForModel(model, medium)
+      const origin = originForRequest(request)
+      const shareMetadata = shareMetadataForSnapshot(snapshot, origin)
+      const image = renderCounterShareCardPng({
+        count: snapshot.count,
+        decrementUrl: shareMetadata.decrementUrl,
+        incrementUrl: shareMetadata.incrementUrl,
+        mediumLabel: labelForMedium(medium),
+        stateUrl: shareMetadata.stateUrl,
+      })
+
+      response.writeHead(200, {
+        'content-type': 'image/png',
+        'cache-control': 'no-store',
+        'content-length': image.byteLength,
+      })
+      response.end(image)
+    },
+    error =>
+      writeJson(response, 400, {
+        reason:
+          error instanceof CounterPortalServerError
+            ? error.reason
+            : globalThis.String(error),
+      }),
+  )
+}
+
 const makeRequestHandler = (
   runtime: Runtime.HostRuntime<Model, Message>,
   clients: Set<PortalClient>,
@@ -795,7 +1928,19 @@ const makeRequestHandler = (
     const maybeMedium = mediumForPath(url.pathname)
 
     if (request.method === 'GET' && Option.isSome(maybeMedium)) {
-      servePage(response, runtime, commandGate, url, maybeMedium.value)
+      servePage(request, response, runtime, commandGate, url, maybeMedium.value)
+    } else if (
+      request.method === 'GET' &&
+      url.pathname === '/counter-card.png'
+    ) {
+      serveCardImage(request, response, runtime, url)
+    } else if (request.method === 'GET' && url.pathname === DEFAULT_TAPE_PATH) {
+      writeXml(response, 200, sampleIncrementTapeXml)
+    } else if (
+      request.method === 'GET' &&
+      url.pathname === '/tape-run-events'
+    ) {
+      serveTapeReplayEvents(request, response, runtime, commandGate, url)
     } else if (request.method === 'GET' && url.pathname === '/events') {
       serveEvents(
         response,

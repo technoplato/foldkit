@@ -2068,7 +2068,12 @@ const attributeHandlers: AttributeHandlers = {
           notifyStarted()
           const fiber = Effect.runForkWith(capturedContext)(
             Stream.runForEach(action.f(element), message =>
-              Effect.sync(() => ctx.dispatch(message)),
+              Effect.sync(() =>
+                ctx.dispatch(message, {
+                  _tag: 'Mount',
+                  name: action.name,
+                }),
+              ),
             ).pipe(
               Effect.catchCause(cause =>
                 Effect.sync(() => {

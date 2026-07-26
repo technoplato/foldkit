@@ -126,6 +126,7 @@ const makeWidget = (
 ) =>
   makeElement({
     Model,
+    Message,
     init: () => [{ count: 0, step: 1 }, initCommands],
     update,
     view,
@@ -291,6 +292,7 @@ describe('embed', () => {
     const handle = embed(
       makeElement({
         Model,
+        Message,
         Flags,
         flags: Effect.succeed({ initialCount: 41 }),
         init: flags => [{ count: flags.initialCount, step: 1 }, []],
@@ -378,6 +380,7 @@ describe('embed', () => {
     const handle = embed(
       makeApplication({
         Model,
+        Message,
         init: () => [{ count: 0, step: 1 }, []],
         update,
         view: model => ({ title: 'Widget', body: view(model) }),

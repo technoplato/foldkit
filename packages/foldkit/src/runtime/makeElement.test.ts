@@ -70,6 +70,7 @@ describe('makeElement', () => {
   it('renders into its container without touching the document head', async () => {
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ label: 'hello' }, []],
       update,
       view: model => h.div([], [model.label]),
@@ -89,6 +90,7 @@ describe('makeElement', () => {
   it('leaves the document head untouched across re-renders', async () => {
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ label: 'hello' }, []],
       update,
       view: model =>
@@ -120,6 +122,7 @@ describe('makeElement', () => {
 
     const element = makeElement({
       Model,
+      Message,
       Flags,
       flags: Effect.succeed({ initialLabel: 'from-flags' }),
       init: flags => [{ label: flags.initialLabel }, []],
@@ -141,6 +144,7 @@ describe('makeElement', () => {
   it('renders a scoped crash view without touching the document head', async () => {
     const element = makeElement({
       Model,
+      Message,
       init: () => [{ label: 'hello' }, []],
       update,
       view: () => {
@@ -167,6 +171,7 @@ describe('makeApplication', () => {
   it('owns the document head, applying title and canonical metadata', async () => {
     const application = makeApplication({
       Model,
+      Message,
       init: () => [{ label: 'hello' }, []],
       update,
       view: model => ({ title: model.label, body: h.div([], [model.label]) }),
@@ -194,6 +199,7 @@ describe('makeApplication', () => {
     const canonicalUrl = 'https://example.com/todos'
     const application = makeApplication({
       Model,
+      Message,
       init: () => [{ label: 'hello' }, []],
       update,
       view: model => ({

@@ -7,7 +7,9 @@ import { type Url } from '../url/index.js'
 import {
   addBfcacheRestoreListener,
   addLinkClickListener,
+  addNavigationEventListeners,
 } from './browserListeners.js'
+import type { TransitionSource } from './programJournal.js'
 import { type RoutingConfig } from './runtime.js'
 
 declare global {
@@ -21,9 +23,11 @@ declare global {
 }
 
 const dispatched: Array<UrlRequest> = []
+const sources: Array<TransitionSource> = []
 
-const dispatch = (request: UrlRequest) => {
+const dispatch = (request: UrlRequest, source: TransitionSource) => {
   dispatched.push(request)
+  sources.push(source)
 }
 
 const onUrlChange = (_url: Url): UrlRequest => {
@@ -79,6 +83,7 @@ describe('addLinkClickListener', () => {
 
   beforeEach(() => {
     dispatched.length = 0
+    sources.length = 0
   })
 
   afterEach(() => {
@@ -91,6 +96,7 @@ describe('addLinkClickListener', () => {
 
     expect(event.defaultPrevented).toBe(true)
     expect(dispatched).toMatchObject([{ _tag: 'Internal' }])
+    expect(sources).toStrictEqual([{ _tag: 'Navigation' }])
   })
 
   it('preventDefaults and dispatches External for a plain left-click on a cross-origin link', () => {
@@ -101,6 +107,7 @@ describe('addLinkClickListener', () => {
     expect(dispatched).toMatchObject([
       { _tag: 'External', href: 'https://example.com/news' },
     ])
+    expect(sources).toStrictEqual([{ _tag: 'Navigation' }])
   })
 
   it('captures a click on an element nested inside the link', () => {
@@ -275,5 +282,44 @@ describe('addBfcacheRestoreListener', () => {
     dispatchPageShow(true)
 
     expect(reloadSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('addNavigationEventListeners', () => {
+  const navigationMessages: Array<Url | UrlRequest> = []
+  const navigationSources: Array<TransitionSource> = []
+  let removeListeners: () => void
+
+  beforeEach(() => {
+    navigationMessages.length = 0
+    navigationSources.length = 0
+    removeListeners = addNavigationEventListeners<Url | UrlRequest>(
+      (message, source) => {
+        navigationMessages.push(message)
+        navigationSources.push(source)
+      },
+      {
+        onUrlRequest: request => request,
+        onUrlChange: url => url,
+      },
+    )
+  })
+
+  afterEach(() => {
+    removeListeners()
+  })
+
+  it('marks browser history changes with Navigation provenance', () => {
+    window.dispatchEvent(new PopStateEvent('popstate'))
+
+    expect(navigationMessages).toHaveLength(1)
+    expect(navigationSources).toStrictEqual([{ _tag: 'Navigation' }])
+  })
+
+  it('marks programmatic URL changes with Navigation provenance', () => {
+    window.dispatchEvent(new Event('foldkit:urlchange'))
+
+    expect(navigationMessages).toHaveLength(1)
+    expect(navigationSources).toStrictEqual([{ _tag: 'Navigation' }])
   })
 })

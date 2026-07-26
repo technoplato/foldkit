@@ -16,7 +16,9 @@ export type File = globalThis.File
  * attachedResume: S.Option(File.File)
  * ```
  */
-export const File: S.Schema<File> = S.instanceOf(globalThis.File)
+export const File: S.Codec<File, File, never, never> = S.instanceOf(
+  globalThis.File,
+)
 
 /** The file's name including extension, as reported by the browser. */
 export const name = (file: File): string => file.name

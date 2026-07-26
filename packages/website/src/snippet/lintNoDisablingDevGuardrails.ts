@@ -5,6 +5,7 @@ import { Runtime } from 'foldkit'
 // mutation it caught.
 const badApp = Runtime.makeApplication({
   Model,
+  Message,
   init,
   update,
   view,
@@ -13,4 +14,4 @@ const badApp = Runtime.makeApplication({
 
 // ✅ Good
 // Leave the guardrail on and fix the in-place mutation it flags.
-const goodApp = Runtime.makeApplication({ Model, init, update, view })
+const goodApp = Runtime.makeApplication({ Model, Message, init, update, view })

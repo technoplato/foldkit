@@ -6,6 +6,7 @@ import { Message, Model, init, managedResources, update, view } from './main'
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   init,
   update,
   view,

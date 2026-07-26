@@ -4,6 +4,7 @@ import { overlay } from '@foldkit/devtools'
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   init,
   update,
   view,

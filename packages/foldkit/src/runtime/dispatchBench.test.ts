@@ -1,8 +1,10 @@
-import { Effect, Match as M, Predicate, Schema as S } from 'effect'
+import { Effect, Layer, Match as M, Predicate, Schema as S } from 'effect'
 import { describe, it } from 'vitest'
 
 import { Document, __requireDispatch, html } from '../html/index.js'
 import { m } from '../message/index.js'
+import { make } from '../program/program.js'
+import { makeProgramRuntime } from './programRuntime.js'
 import { makeApplication } from './runtime.js'
 
 /**
@@ -58,6 +60,22 @@ const view = (model: Model): Document => {
 
 const init = (): readonly [Model, ReadonlyArray<never>] => [{ count: 0 }, []]
 
+const BenchmarkProgram = make({
+  id: 'runtime-benchmark',
+  version: 1,
+  Model,
+  Message,
+  init,
+  update: (model, message) =>
+    M.value(message).pipe(
+      M.withReturnType<readonly [Model, ReadonlyArray<never>]>(),
+      M.tagsExhaustive({
+        Increment: () => [Model.make({ count: model.count + 1 }), []],
+        Done: () => [model, []],
+      }),
+    ),
+})
+
 const runOnce = async (messageCount: number): Promise<number> => {
   const container = document.createElement('div')
   container.id = `bench-${Math.random().toString(36).slice(2)}`
@@ -90,6 +108,7 @@ const runOnce = async (messageCount: number): Promise<number> => {
 
   const application = makeApplication<Model, Message>({
     Model,
+    Message,
     init,
     update,
     view,
@@ -123,6 +142,33 @@ const runOnce = async (messageCount: number): Promise<number> => {
 
   return elapsed
 }
+
+const runProgramOnce = (messageCount: number): Promise<number> =>
+  Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const runtime = yield* makeProgramRuntime({
+          program: BenchmarkProgram,
+          resources: Layer.empty,
+        })
+        yield* runtime.initialization
+
+        const start = performance.now()
+        for (let index = 0; index < messageCount; index++) {
+          runtime.send(Increment())
+        }
+        runtime.send(Done())
+        const elapsed = performance.now() - start
+
+        if (runtime.readModel().count !== messageCount) {
+          throw new Error(
+            'Program runtime benchmark did not process every Message',
+          )
+        }
+        return elapsed
+      }),
+    ),
+  )
 
 const summarize = (
   label: string,
@@ -165,6 +211,27 @@ describe.skipIf(!isBenchEnabled)('dispatch throughput', () => {
       }
 
       summarize('external burst', COUNT, samples)
+    },
+  )
+
+  it(
+    'measures renderer-independent Program engine throughput',
+    { timeout: 120_000 },
+    async () => {
+      const WARMUP_RUNS = 2
+      const MEASURED_RUNS = 8
+      const COUNT = 5_000
+
+      for (let index = 0; index < WARMUP_RUNS; index++) {
+        await runProgramOnce(COUNT)
+      }
+
+      const samples: Array<number> = []
+      for (let index = 0; index < MEASURED_RUNS; index++) {
+        samples.push(await runProgramOnce(COUNT))
+      }
+
+      summarize('Program engine burst', COUNT, samples)
     },
   )
 })

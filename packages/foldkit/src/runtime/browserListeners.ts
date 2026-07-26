@@ -3,10 +3,11 @@ import { Option, String } from 'effect'
 import { OptionExt, StringExt } from '../effectExtensions/index.js'
 import { External, Internal } from '../navigation/urlRequest.js'
 import { Url } from '../url/index.js'
+import { type TransitionSource, fromNavigation } from './programJournal.js'
 import { RoutingConfig } from './runtime.js'
 
 export const addNavigationEventListeners = <Message>(
-  dispatch: (message: Message) => void,
+  dispatch: (message: Message, source: TransitionSource) => void,
   routingConfig: RoutingConfig<Message>,
 ): (() => void) => {
   const removePopStateListener = addPopStateListener(dispatch, routingConfig)
@@ -22,11 +23,11 @@ export const addNavigationEventListeners = <Message>(
 }
 
 const addPopStateListener = <Message>(
-  dispatch: (message: Message) => void,
+  dispatch: (message: Message, source: TransitionSource) => void,
   routingConfig: RoutingConfig<Message>,
 ): (() => void) => {
   const onPopState = () => {
-    dispatch(routingConfig.onUrlChange(locationToUrl()))
+    dispatch(routingConfig.onUrlChange(locationToUrl()), fromNavigation())
   }
 
   window.addEventListener('popstate', onPopState)
@@ -36,7 +37,7 @@ const addPopStateListener = <Message>(
 }
 
 export const addLinkClickListener = <Message>(
-  dispatch: (message: Message) => void,
+  dispatch: (message: Message, source: TransitionSource) => void,
   routingConfig: RoutingConfig<Message>,
 ): (() => void) => {
   const onLinkClick = (event: MouseEvent) => {
@@ -79,12 +80,13 @@ export const addLinkClickListener = <Message>(
     const currentUrl = new URL(window.location.href)
 
     if (linkUrl.origin !== currentUrl.origin) {
-      dispatch(routingConfig.onUrlRequest(External({ href })))
+      dispatch(routingConfig.onUrlRequest(External({ href })), fromNavigation())
       return
     }
 
     dispatch(
       routingConfig.onUrlRequest(Internal({ url: urlToFoldkitUrl(linkUrl) })),
+      fromNavigation(),
     )
   }
 
@@ -95,11 +97,11 @@ export const addLinkClickListener = <Message>(
 }
 
 const addProgrammaticNavigationListener = <Message>(
-  dispatch: (message: Message) => void,
+  dispatch: (message: Message, source: TransitionSource) => void,
   routingConfig: RoutingConfig<Message>,
 ): (() => void) => {
   const onProgrammaticNavigation = () => {
-    dispatch(routingConfig.onUrlChange(locationToUrl()))
+    dispatch(routingConfig.onUrlChange(locationToUrl()), fromNavigation())
   }
 
   window.addEventListener('foldkit:urlchange', onProgrammaticNavigation)

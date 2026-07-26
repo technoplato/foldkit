@@ -3,6 +3,7 @@ import { Runtime } from 'foldkit'
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   init,
   update,
   view,

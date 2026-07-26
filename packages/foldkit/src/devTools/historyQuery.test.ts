@@ -1,4 +1,4 @@
-import { Array, HashMap, HashSet, Option } from 'effect'
+import { Array, HashSet, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -26,6 +26,7 @@ const makeEntry = (
 ): HistoryEntry => ({
   tag,
   message: { _tag: tag },
+  maybeSource: Option.none(),
   commands: [],
   mountStarts: [],
   mountEnds: [],
@@ -43,7 +44,6 @@ const makeState = (
   maybeInitModel: Option.Option<unknown> = Option.some({}),
 ): StoreState => ({
   entries,
-  keyframes: HashMap.empty(),
   maybeInitModel,
   initCommands: [],
   initMountStarts: [],

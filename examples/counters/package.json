@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "predev": "pnpm --filter counters-core-example build",
+    "pretest": "pnpm --filter counters-core-example build",
+    "pretypecheck": "pnpm --filter counters-core-example build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -13,6 +16,8 @@
     "@foldkit/devtools": "workspace:*",
     "@foldkit/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.1",
+    "counter-core-example": "workspace:*",
+    "counters-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
     "tailwindcss": "^4.3.1"

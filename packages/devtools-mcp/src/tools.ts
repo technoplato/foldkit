@@ -9,6 +9,7 @@ import {
   RequestGetMessageSchema,
   RequestGetModel,
   RequestGetModelAt,
+  RequestGetRuntimeDiagnostics,
   RequestGetRuntimeState,
   RequestListKeyframes,
   RequestListMessages,
@@ -156,6 +157,10 @@ const GetInitInput = S.Struct({
 })
 
 const GetRuntimeStateInput = S.Struct({
+  runtime_id: RuntimeIdField,
+})
+
+const GetRuntimeDiagnosticsInput = S.Struct({
   runtime_id: RuntimeIdField,
 })
 
@@ -437,6 +442,17 @@ export const buildTools = (
     handle: runRuntimeTool(
       GetRuntimeStateInput,
       () => RequestGetRuntimeState(),
+      wsClient,
+    ),
+  },
+  {
+    name: 'foldkit_get_runtime_diagnostics',
+    description:
+      'List Subscription and ManagedResource lifecycle facts plus terminal runtime failures emitted by the shared Program runtime. Each lifecycle diagnostic identifies the Program, definition name, runtime instance, timestamp, and transition. Each failure identifies its Update, Command, Subscription, or ManagedResource source and includes the rendered Effect Cause. Use this to inspect long-running work without putting fibers or resource handles in the Model.',
+    inputSchema: toInputSchema(GetRuntimeDiagnosticsInput),
+    handle: runRuntimeTool(
+      GetRuntimeDiagnosticsInput,
+      () => RequestGetRuntimeDiagnostics(),
       wsClient,
     ),
   },

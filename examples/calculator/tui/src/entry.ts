@@ -1,0 +1,8 @@
+#!/usr/bin/env node
+import { Effect } from 'effect'
+
+import { NodeRuntime, NodeServices } from '@effect/platform-node'
+
+import { runCalculatorTui } from './host.js'
+
+runCalculatorTui().pipe(Effect.provide(NodeServices.layer), NodeRuntime.runMain)

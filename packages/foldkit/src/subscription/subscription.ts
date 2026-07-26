@@ -8,6 +8,16 @@ type DependenciesSchema<Dependencies> = Schema.Schema<Dependencies> & {
   readonly fields: Schema.Struct.Fields
 }
 
+/** Runtime provenance carried by a Subscription helper. */
+export type SubscriptionSource = Readonly<{
+  _tag: 'Port'
+  port: unknown
+}>
+
+type EntrySource = Readonly<{
+  source?: SubscriptionSource
+}>
+
 /**
  * The entry shape produced by helpers like `Subscription.persistent` and
  * `Port.subscription` before branding. Pass values of this shape into
@@ -20,7 +30,7 @@ export type EntryWithoutKeepAlive<Model, Message, Dependencies, Services> = {
   readonly dependenciesToStream: (
     dependencies: Dependencies,
   ) => Stream.Stream<Message, never, Services>
-}
+} & EntrySource
 
 type EntryWithKeepAlive<Model, Message, Dependencies, Services> = {
   readonly dependenciesSchema: DependenciesSchema<Dependencies>
@@ -30,7 +40,7 @@ type EntryWithKeepAlive<Model, Message, Dependencies, Services> = {
     dependencies: Dependencies,
     readDependencies: () => Dependencies,
   ) => Stream.Stream<Message, never, Services>
-}
+} & EntrySource
 
 type Entry<Model, Message, Dependencies, Services = never> =
   | EntryWithoutKeepAlive<Model, Message, Dependencies, Services>
@@ -311,6 +321,9 @@ export const lift =
             wrapStream(
               subscription.dependenciesToStream(dependencies, readDependencies),
             ),
+          ...(subscription.source === undefined
+            ? {}
+            : { source: subscription.source }),
         }
       }
 
@@ -319,6 +332,9 @@ export const lift =
         modelToDependencies,
         dependenciesToStream: (dependencies: any) =>
           wrapStream(subscription.dependenciesToStream(dependencies)),
+        ...(subscription.source === undefined
+          ? {}
+          : { source: subscription.source }),
       }
     }) as any
 /* eslint-enable @typescript-eslint/consistent-type-assertions */

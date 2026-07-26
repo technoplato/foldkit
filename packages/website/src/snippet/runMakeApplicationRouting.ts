@@ -4,6 +4,7 @@ import { ChangedUrl, ClickedLink, Model, init, update, view } from './main'
 
 const application = Runtime.makeApplication({
   Model,
+  Message,
   init,
   update,
   view,

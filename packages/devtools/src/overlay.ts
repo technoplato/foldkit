@@ -2555,6 +2555,7 @@ export const createOverlay = (
 
     const overlayRuntime = makeElement({
       Model,
+      Message,
       Flags,
       flags,
       init,
