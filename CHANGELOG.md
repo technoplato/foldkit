@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 2:46:07 p.m. EDT — `410b78fa7f7d` feat(react-native-showcase): expose counter detail deletion
+
+- **Implementation commit:** `410b78fa7f7dffd20562ad73af84027b899e8523`
+- **Change:** Expose canonical Multiple Counters navigation and deletion in Expo
+- **Details:**
+  - Render list, counter detail, counter fact, and delete-confirmation destinations from the shared Program projection without client-owned domain state.
+  - Project canonical child paths through browser history and native Linking, including Expo Go carrier normalization.
+  - Keep Showcase and Multiple Counters tapes portable and distinct while labeling each replay scope explicitly.
+- **Files:**
+  - `examples/react-native-showcase/src/App.tsx` — Render canonical child destinations, forward typed actions, and reconcile portable paths across web and Expo native carriers.
+  - `examples/react-native-showcase/README.md` — Document child navigation, deletion, deep-link normalization, and replay scope behavior.
+  - `docs/adr/0003-navigation-as-state.md` — Record the adapter omission, corrected navigation seam, and open linked-replay design question.
+- **User context (verbatim):**
+  > I want to be able to navigate the choose a shared program, and then I want to be able to click into a counter and then delete that counter.
+  > Also, why is replay navigation replay different?
+- **SpecStory:** unavailable — This task ran in the Codex desktop app, for which SpecStory does not document session capture.
+
 ## July 27th, 2026 at 2:00:49 p.m. EDT — `ad0e785a2316` feat(react-native-showcase): model scene navigation
 
 - **Implementation commit:** `ad0e785a231638535dae9a03179e4d619ad2f3cf`
@@ -107,4 +124,3 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 - **User context (verbatim):**
   > Making sure you're committing all these things as well.
 - **SpecStory:** unavailable — This task ran in the Codex desktop app, for which SpecStory does not document session capture.
-
