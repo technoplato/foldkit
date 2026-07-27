@@ -24,6 +24,11 @@ export const TappedCalculatorButton: CallableTaggedStruct<
 /** Records that the Fact button was tapped. */
 export const TappedFactButton: CallableTaggedStruct<'TappedFactButton', {}> =
   m('TappedFactButton')
+/** Records that the Wallet button was tapped. */
+export const TappedWalletButton: CallableTaggedStruct<
+  'TappedWalletButton',
+  {}
+> = m('TappedWalletButton')
 /** Records that the back button was tapped. */
 export const TappedBackButton: CallableTaggedStruct<'TappedBackButton', {}> =
   m('TappedBackButton')
@@ -39,6 +44,7 @@ export const Message = S.Union([
   TappedMultipleCountersButton,
   TappedCalculatorButton,
   TappedFactButton,
+  TappedWalletButton,
   TappedBackButton,
   OpenedNavigation,
 ])

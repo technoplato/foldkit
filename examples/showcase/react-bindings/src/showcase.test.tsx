@@ -48,6 +48,11 @@ describe('showcase React bindings', () => {
     })
     expect(result.current.model.navigation._tag).toBe('CalculatorScene')
     expect(result.current.replay.mode).toBe('Live')
+
+    act(() => {
+      result.current.actions.tappedWalletButton()
+    })
+    expect(result.current.model.navigation._tag).toBe('WalletScene')
   })
 
   it('starts from a portable Program route supplied by the host', () => {

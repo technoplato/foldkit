@@ -1,9 +1,9 @@
 # React Native Showcase
 
 This Expo application runs a showcase navigation Program plus the canonical Counter,
-Multiple Counters, Calculator, and Fact Programs through shared React bindings. The
-same source runs on Expo Web, iOS, and Android. No Program imports React Native,
-browser APIs, or Expo.
+Multiple Counters, Calculator, Fact, and Wallet Programs through shared React
+bindings. The same source runs on Expo Web, iOS, and Android. No Program imports
+React Native, browser APIs, or Expo.
 
 ## Run
 
@@ -63,11 +63,14 @@ The navigation Program has its own replay tape. Inspecting frame zero after tapp
 Counter returns to the landing scene without executing host effects. Sending another
 scene action while inspecting branches navigation live from that frame.
 
-`/showcase`, `/showcase/counter`, `/showcase/counters`, `/showcase/calculator`, and
-`/showcase/fact` are canonical relative scene paths. Expo Web projects Model changes
-to browser history. Expo native observes incoming Linking URLs. Both carriers parse
-opened destinations and send `OpenedNavigation` back through update. Child Program
-state and replay paths remain valid and select their containing scene after parsing.
+`/showcase`, `/showcase/counter`, `/showcase/counters`, `/showcase/calculator`,
+`/showcase/fact`, and `/showcase/wallet` are canonical relative scene paths. Expo Web
+projects Model changes to browser history. Expo native observes incoming Linking
+URLs. Both carriers parse opened destinations and send `OpenedNavigation` back
+through update. Child Program state and replay paths remain valid and select their
+containing scene after parsing. Wallet state and replay links use the exact exported
+`WalletProgram` router, then initialize the shared Wallet provider with that resolved
+route so its portable `restore` behavior restarts represented finite work.
 
 Multiple Counters also projects its canonical child destinations as `/counters`,
 `/counters/:counterId`, `/counters/:counterId/fact`, and
@@ -90,6 +93,12 @@ The panels have explicit scopes. `Showcase replay` contains scene-selection Mess
 `Multiple Counters replay` contains only the child Program's portable Messages. The
 separate tapes allow a Multiple Counters recording to run in React, Expo, CLI, or TUI
 without requiring the Showcase Program.
+
+The Wallet screen is one React Native presenter used unchanged on Expo Web, iOS, and
+Android. Its hooks come from `wallet-react-bindings-example`, whose default client
+uses deterministic simulated Wallet Layers. Platform wallet implementations remain
+outside the presenter and can replace that composition seam without adding platform
+or DOM branches to the component.
 
 `Share state` prints the current Model as the Program's canonical relative state path.
 `Share replay` prints the current typed tape and selected frame. The carrier adds the

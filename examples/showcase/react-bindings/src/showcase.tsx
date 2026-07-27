@@ -13,6 +13,7 @@ import {
   TappedCounterButton,
   TappedFactButton,
   TappedMultipleCountersButton,
+  TappedWalletButton,
   initialModel,
 } from 'showcase-core-example'
 
@@ -23,6 +24,7 @@ export type ShowcaseActions = Readonly<{
   tappedCounterButton: () => void
   tappedFactButton: () => void
   tappedMultipleCountersButton: () => void
+  tappedWalletButton: () => void
   openedNavigation: (navigation: Navigation) => void
 }>
 
@@ -47,6 +49,7 @@ export const ShowcaseClient = createReplayableReactProgramClient<
     tappedFactButton: () => enqueueMessage(TappedFactButton()),
     tappedMultipleCountersButton: () =>
       enqueueMessage(TappedMultipleCountersButton()),
+    tappedWalletButton: () => enqueueMessage(TappedWalletButton()),
     openedNavigation: navigation =>
       enqueueMessage(OpenedNavigation({ navigation })),
   }),

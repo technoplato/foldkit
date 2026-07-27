@@ -43,6 +43,10 @@ import {
   useShowcaseModel,
   useShowcaseReplay,
 } from 'showcase-react-bindings-example'
+import {
+  type WalletInitialRoute,
+  initialWalletRoute,
+} from 'wallet-react-bindings-example'
 
 import { NativeNavigationComparison } from './nativeNavigationComparison'
 import {
@@ -51,12 +55,14 @@ import {
   ShowcaseFactClient,
 } from './platform'
 import { ReplayControls } from './replayControls'
+import { WalletExample, WalletProgram } from './wallet'
 
 const counterRouter = Program.makeRouter(Counter.CounterProgram)
 const countersRouter = Program.makeRouter(Counters.MultipleCountersProgram)
 const calculatorRouter = Program.makeRouter(Calculator.CalculatorProgram)
 const factRouter = Program.makeRouter(FactProgram)
 const showcaseRouter = Program.makeRouter(Showcase.ShowcaseProgram)
+const walletRouter = Program.makeRouter(WalletProgram)
 
 const dependencyLabel = <ImplementationName extends string>(
   lifecycle: DependencyLifecycle<ImplementationName>,
@@ -216,6 +222,8 @@ const ShowcaseScreen = ({
   )
   const [calculatorRoute, setCalculatorRoute] = useState(initialCalculatorRoute)
   const [factRoute, setFactRoute] = useState(initialFactRoute)
+  const [walletRoute, setWalletRoute] =
+    useState<WalletInitialRoute>(initialWalletRoute)
   const [routeRevision, setRouteRevision] = useState(0)
   const [isCarrierReady, setCarrierReady] = useState(false)
   const hasOpenedInitialCarrier = useRef(false)
@@ -302,6 +310,12 @@ const ShowcaseScreen = ({
           Showcase.FactScene.make({}),
           resolveInlineRoute(factRouter.parse(path)),
           setFactRoute,
+        )
+      } else if (path.startsWith('/wallet/')) {
+        return selectRoute(
+          Showcase.WalletScene.make({}),
+          resolveInlineRoute(walletRouter.parse(path)),
+          setWalletRoute,
         )
       }
       return Promise.resolve()
@@ -391,6 +405,9 @@ const ShowcaseScreen = ({
         <CalculatorExample key={routeRevision} route={calculatorRoute} />
       ),
       FactScene: () => <FactExample key={routeRevision} route={factRoute} />,
+      WalletScene: () => (
+        <WalletExample key={routeRevision} route={walletRoute} />
+      ),
     }),
   )
 
@@ -524,6 +541,11 @@ const ShowcaseHome = () => {
         onPress={actions.tappedFactButton}
         title="Fact"
       />
+      <ShowcaseCard
+        description="Public accounts, simulated signing, subscriptions, and replay."
+        onPress={actions.tappedWalletButton}
+        title="Wallet"
+      />
     </View>
   )
 }
@@ -575,6 +597,11 @@ const ShowcaseTabs = ({
         isSelected={navigation._tag === 'FactScene'}
         label="Fact"
         onPress={actions.tappedFactButton}
+      />
+      <SceneTab
+        isSelected={navigation._tag === 'WalletScene'}
+        label="Wallet"
+        onPress={actions.tappedWalletButton}
       />
     </View>
   )

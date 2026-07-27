@@ -10,6 +10,7 @@ import {
   HomeScene,
   MultipleCountersScene,
   type Navigation,
+  WalletScene,
 } from './model.js'
 
 const HomeRoute = r('HomeRoute')
@@ -17,6 +18,7 @@ const CounterRoute = r('CounterRoute')
 const MultipleCountersRoute = r('MultipleCountersRoute')
 const CalculatorRoute = r('CalculatorRoute')
 const FactRoute = r('FactRoute')
+const WalletRoute = r('WalletRoute')
 const NotFoundRoute = r('NotFoundRoute', { path: S.String })
 
 const homeRouter = pipe(literal('showcase'), Route.mapTo(HomeRoute))
@@ -40,12 +42,18 @@ const factRouter = pipe(
   slash(literal('fact')),
   Route.mapTo(FactRoute),
 )
+const walletRouter = pipe(
+  literal('showcase'),
+  slash(literal('wallet')),
+  Route.mapTo(WalletRoute),
+)
 
 const routeParser = Route.oneOf(
   counterRouter,
   multipleCountersRouter,
   calculatorRouter,
   factRouter,
+  walletRouter,
   homeRouter,
 )
 
@@ -61,6 +69,7 @@ export const urlToNavigation = (url: Url): Navigation =>
       MultipleCountersRoute: () => MultipleCountersScene.make({}),
       CalculatorRoute: () => CalculatorScene.make({}),
       FactRoute: () => FactScene.make({}),
+      WalletRoute: () => WalletScene.make({}),
       NotFoundRoute: () => HomeScene.make({}),
     }),
   )
@@ -75,5 +84,6 @@ export const navigationToPath = (navigation: Navigation): string =>
       MultipleCountersScene: () => multipleCountersRouter(),
       CalculatorScene: () => calculatorRouter(),
       FactScene: () => factRouter(),
+      WalletScene: () => walletRouter(),
     }),
   )

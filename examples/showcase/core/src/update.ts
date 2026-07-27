@@ -10,6 +10,7 @@ import {
   type Model,
   MultipleCountersScene,
   type Navigation,
+  WalletScene,
 } from './model.js'
 
 // UPDATE
@@ -31,6 +32,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         navigate(model, MultipleCountersScene.make({})),
       TappedCalculatorButton: () => navigate(model, CalculatorScene.make({})),
       TappedFactButton: () => navigate(model, FactScene.make({})),
+      TappedWalletButton: () => navigate(model, WalletScene.make({})),
       TappedBackButton: () => navigate(model, HomeScene.make({})),
       OpenedNavigation: ({ navigation }) => navigate(model, navigation),
     }),
