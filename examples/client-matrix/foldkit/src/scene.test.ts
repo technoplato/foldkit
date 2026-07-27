@@ -89,4 +89,28 @@ describe('Client Matrix Foldkit view', () => {
       ).not.toExist(),
     )
   })
+
+  test('renders Wallet Program identity, route carriers, and explicit gaps', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(initialModel()),
+      Scene.expect(Scene.text('wallet@1')).toExist(),
+      Scene.expect(
+        Scene.text('/wallet/state?model=<encoded Wallet Model>'),
+      ).toExist(),
+      Scene.expect(
+        Scene.text(
+          '/wallet/replay?tape=<encoded wallet@1 ReplayTape>&frame=<frame>',
+        ),
+      ).toExist(),
+      Scene.expect(
+        Scene.text(
+          "pnpm --filter wallet-cli-example wallet show --uri '<portable-wallet-route>' --verbose",
+        ),
+      ).toExist(),
+      Scene.expect(Scene.text('Live branch only')).toExist(),
+      Scene.expect(Scene.text('No route carrier is wired.')).toExist(),
+      Scene.expect(Scene.text('No host evidence')).toExist(),
+    )
+  })
 })

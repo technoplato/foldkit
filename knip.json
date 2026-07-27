@@ -164,6 +164,10 @@
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]
     },
+    "examples/message-versioning": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
     "examples/shared/react-bindings": {
       "entry": ["src/index.ts", "src/**/*.test.tsx"]
     },
@@ -185,6 +189,41 @@
         "@trivago/prettier-plugin-sort-imports",
         "prettier"
       ]
+    },
+    "examples/wallet/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/wallet/simulated-client": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/wallet/testnet-node": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/wallet/react-bindings": {
+      "entry": ["src/index.ts", "src/**/*.test.tsx"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/wallet/react": {
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/wallet/foldkit": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/wallet/cli": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/wallet/terminal": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/wallet/tui": {
+      "entry": ["src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
     },
     "examples/counter-with-shared-state": {
       "entry": [

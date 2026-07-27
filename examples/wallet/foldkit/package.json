@@ -1,0 +1,34 @@
+{
+  "name": "wallet-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "predev": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "pretest": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "@tailwindcss/vite": "^4.3.1",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1",
+    "wallet-core-example": "workspace:*",
+    "wallet-simulated-client-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "happy-dom": "^20.10.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}

@@ -12,6 +12,8 @@ export const MultipleCountersScene = S.TaggedStruct('MultipleCountersScene', {})
 export const CalculatorScene = S.TaggedStruct('CalculatorScene', {})
 /** The Fact scene is visible. */
 export const FactScene = S.TaggedStruct('FactScene', {})
+/** The Wallet scene is visible. */
+export const WalletScene = S.TaggedStruct('WalletScene', {})
 
 /** Every scene the universal showcase can present. */
 export const Navigation = S.Union([
@@ -20,6 +22,7 @@ export const Navigation = S.Union([
   MultipleCountersScene,
   CalculatorScene,
   FactScene,
+  WalletScene,
 ])
 /** A universal showcase navigation value. */
 export type Navigation = typeof Navigation.Type

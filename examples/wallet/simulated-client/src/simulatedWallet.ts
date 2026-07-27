@@ -182,8 +182,7 @@ const feeForPreview = (
       EthereumSepolia: () =>
         currencyValue(ethereumCurrency, '1000000000000000', 18),
       SolanaDevnet: () => currencyValue(solanaCurrency, '5000', 9),
-      SolanaTestnet: network =>
-        currencyValue(Sol.make({ network }), '5000', 9),
+      SolanaTestnet: network => currencyValue(Sol.make({ network }), '5000', 9),
     }),
   )
 
@@ -200,9 +199,7 @@ const balanceForDraft = (
   if (Option.isNone(maybeBalance)) {
     return currencyValue(
       preview.draft.value.currency,
-      S.decodeUnknownSync(AtomicUnits)(
-        `-${preview.draft.value.atomicUnits}`,
-      ),
+      S.decodeUnknownSync(AtomicUnits)(`-${preview.draft.value.atomicUnits}`),
       preview.draft.value.decimalPlaces,
     )
   }

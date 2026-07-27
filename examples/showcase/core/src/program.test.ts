@@ -3,7 +3,11 @@ import { fromString } from 'foldkit/url'
 import { describe, expect, it } from 'vitest'
 
 import { init } from './init.js'
-import { TappedBackButton, TappedCounterButton } from './message.js'
+import {
+  TappedBackButton,
+  TappedCounterButton,
+  TappedWalletButton,
+} from './message.js'
 import {
   CalculatorScene,
   CounterScene,
@@ -11,6 +15,7 @@ import {
   HomeScene,
   MultipleCountersScene,
   type Navigation,
+  WalletScene,
 } from './model.js'
 import { navigationToPath, urlToNavigation } from './route.js'
 import { update } from './update.js'
@@ -28,10 +33,12 @@ describe('Showcase Program', () => {
     const [homeModel] = init()
     const [counterModel] = update(homeModel, TappedCounterButton())
     const [returnedModel] = update(counterModel, TappedBackButton())
+    const [walletModel] = update(returnedModel, TappedWalletButton())
 
     expect(homeModel.navigation).toStrictEqual(HomeScene.make({}))
     expect(counterModel.navigation).toStrictEqual(CounterScene.make({}))
     expect(returnedModel.navigation).toStrictEqual(HomeScene.make({}))
+    expect(walletModel.navigation).toStrictEqual(WalletScene.make({}))
   })
 
   it('round-trips every printable navigation scene', () => {
@@ -41,6 +48,7 @@ describe('Showcase Program', () => {
       MultipleCountersScene.make({}),
       CalculatorScene.make({}),
       FactScene.make({}),
+      WalletScene.make({}),
     ]
 
     for (const navigation of navigationValues) {

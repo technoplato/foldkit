@@ -11,6 +11,12 @@ import {
   type ScreenModeDefinition,
   SelectedMatrixOrientation,
   SelectedScreenMode,
+  type WalletClientDefinition,
+  type WalletEvidenceLevel,
+  type WalletRouteCapability,
+  type WalletRouteDefinition,
+  type WalletRouteSupport,
+  capabilityForWalletRoute,
   clients,
   definitionForScreenMode,
   destinationForScreenMode,
@@ -18,6 +24,9 @@ import {
   portableUriForScreenMode,
   screenModes,
   stateForScreenMode,
+  walletClients,
+  walletProgramIdentity,
+  walletRoutes,
 } from 'client-matrix-core-example'
 import { Array, Match as M, Option } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
@@ -575,6 +584,420 @@ const inspectorValue = (label: string, value: unknown): Html => {
   )
 }
 
+const walletSupportLabel = (support: WalletRouteSupport): string =>
+  M.value(support).pipe(
+    M.withReturnType<string>(),
+    M.when('Implemented', () => 'Implemented'),
+    M.when('LiveBranchOnly', () => 'Live branch only'),
+    M.when('AdapterReady', () => 'Adapter ready'),
+    M.when('ProgramOnly', () => 'Program only'),
+    M.when('Planned', () => 'Planned'),
+    M.exhaustive,
+  )
+
+const walletSupportClass = (support: WalletRouteSupport): string =>
+  M.value(support).pipe(
+    M.withReturnType<string>(),
+    M.when(
+      'Implemented',
+      () =>
+        'inline-flex rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-emerald-200',
+    ),
+    M.when(
+      'LiveBranchOnly',
+      () =>
+        'inline-flex rounded-full border border-sky-400/40 bg-sky-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-sky-200',
+    ),
+    M.when(
+      'AdapterReady',
+      () =>
+        'inline-flex rounded-full border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-cyan-200',
+    ),
+    M.when(
+      'ProgramOnly',
+      () =>
+        'inline-flex rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber-200',
+    ),
+    M.when(
+      'Planned',
+      () =>
+        'inline-flex rounded-full border border-stone-600 bg-stone-800 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-stone-400',
+    ),
+    M.exhaustive,
+  )
+
+const walletEvidenceLabel = (level: WalletEvidenceLevel): string =>
+  M.value(level).pipe(
+    M.withReturnType<string>(),
+    M.when('FocusedTest', () => 'Focused test'),
+    M.when('SourceInspection', () => 'Source inspection'),
+    M.when('NoHost', () => 'No host evidence'),
+    M.exhaustive,
+  )
+
+const walletRouteCard = (route: WalletRouteDefinition): Html => {
+  const h = html<Message>()
+  return h.article(
+    [
+      h.Key(route.mode),
+      h.Class('rounded-2xl border border-cyan-400/30 bg-cyan-400/5 p-5'),
+    ],
+    [
+      h.p(
+        [
+          h.Class(
+            'text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300',
+          ),
+        ],
+        [route.title],
+      ),
+      h.code(
+        [h.Class('mt-3 block break-all text-sm text-cyan-100')],
+        [route.routeFamily],
+      ),
+      h.p(
+        [h.Class('mt-3 text-sm leading-6 text-stone-300')],
+        [route.representativeState],
+      ),
+      h.p(
+        [h.Class('mt-2 text-xs leading-5 text-stone-500')],
+        [route.semantics],
+      ),
+      h.details(
+        [h.Class('mt-4 rounded-xl border border-stone-800 bg-stone-950 p-3')],
+        [
+          h.summary(
+            [
+              h.Class(
+                'cursor-pointer text-xs font-semibold text-cyan-300 marker:text-stone-600',
+              ),
+            ],
+            ['Exact router-generated route'],
+          ),
+          h.code(
+            [
+              h.Class(
+                'mt-3 block max-h-32 overflow-auto whitespace-pre-wrap break-all text-[0.68rem] leading-5 text-stone-400',
+              ),
+            ],
+            [route.portableRoute],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+const walletClientCarrier = (client: WalletClientDefinition): Html => {
+  const h = html<Message>()
+  const launch = (): ReadonlyArray<Html> => {
+    if (Option.isSome(client.maybeLaunchCommand)) {
+      return [
+        h.div(
+          [h.Class('space-y-1')],
+          [
+            h.p(
+              [
+                h.Class(
+                  'text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-stone-500',
+                ),
+              ],
+              ['Launch'],
+            ),
+            h.code(
+              [
+                h.Class(
+                  'block break-all text-[0.68rem] leading-5 text-stone-300',
+                ),
+              ],
+              [client.maybeLaunchCommand.value],
+            ),
+          ],
+        ),
+      ]
+    } else {
+      return []
+    }
+  }
+  const routeCarrier = (): Html => {
+    if (Option.isSome(client.maybeRouteCarrier)) {
+      return h.div(
+        [h.Class('space-y-1')],
+        [
+          h.p(
+            [
+              h.Class(
+                'text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-stone-500',
+              ),
+            ],
+            ['Route carrier'],
+          ),
+          h.code(
+            [h.Class('block break-all text-[0.68rem] leading-5 text-cyan-200')],
+            [client.maybeRouteCarrier.value],
+          ),
+        ],
+      )
+    } else {
+      return h.p(
+        [h.Class('text-xs leading-5 text-amber-200')],
+        ['No route carrier is wired.'],
+      )
+    }
+  }
+  return h.div([h.Class('grid min-w-72 gap-3')], [...launch(), routeCarrier()])
+}
+
+const walletCapabilityView = (capability: WalletRouteCapability): Html => {
+  const h = html<Message>()
+  const evidence = Array.isReadonlyArrayEmpty(capability.evidence)
+    ? [
+        h.p(
+          [h.Class('text-xs leading-5 text-stone-600')],
+          ['No checked-in host evidence.'],
+        ),
+      ]
+    : Array.map(capability.evidence, source =>
+        h.code(
+          [
+            h.Key(source),
+            h.Class('block break-all text-[0.65rem] leading-5 text-stone-500'),
+          ],
+          [source],
+        ),
+      )
+  return h.div(
+    [h.Class('grid min-w-72 gap-3')],
+    [
+      h.div(
+        [h.Class('flex flex-wrap items-center gap-2')],
+        [
+          h.span(
+            [h.Class(walletSupportClass(capability.support))],
+            [walletSupportLabel(capability.support)],
+          ),
+          h.span(
+            [h.Class('text-[0.68rem] font-medium text-stone-500')],
+            [walletEvidenceLabel(capability.evidenceLevel)],
+          ),
+        ],
+      ),
+      h.p(
+        [h.Class('text-xs leading-5 text-stone-300')],
+        [capability.limitation],
+      ),
+      h.div([h.Class('space-y-1')], evidence),
+    ],
+  )
+}
+
+const walletCapabilityCell = (
+  client: WalletClientDefinition,
+  route: WalletRouteDefinition,
+): Html => {
+  const h = html<Message>()
+  const maybeCapability = capabilityForWalletRoute(client, route.mode)
+  if (Option.isSome(maybeCapability)) {
+    return walletCapabilityView(maybeCapability.value)
+  }
+  return h.p(
+    [h.Class('text-xs font-semibold text-red-300')],
+    ['Missing typed capability evidence.'],
+  )
+}
+
+const walletClientHeading = (client: WalletClientDefinition): Html => {
+  const h = html<Message>()
+  return h.div(
+    [h.Class('min-w-52 space-y-1')],
+    [
+      h.strong([h.Class('block text-sm text-stone-100')], [client.title]),
+      h.p(
+        [h.Class('text-xs font-normal leading-5 text-stone-500')],
+        [client.description],
+      ),
+    ],
+  )
+}
+
+const walletMatrix = (): Html => {
+  const h = html<Message>()
+  return h.table(
+    [h.Class('min-w-[100rem] border-separate border-spacing-0')],
+    [
+      h.thead(
+        [h.Class('sticky top-0 z-10 bg-stone-950/95 backdrop-blur')],
+        [
+          h.tr(
+            [],
+            [
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 p-4 text-left align-bottom',
+                  ),
+                ],
+                ['Wallet client'],
+              ),
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 p-4 text-left align-bottom',
+                  ),
+                ],
+                ['Carrier'],
+              ),
+              ...Array.map(walletRoutes, route =>
+                h.th(
+                  [
+                    h.Key(route.mode),
+                    h.Class(
+                      'border-b border-r border-stone-800 p-4 text-left align-bottom',
+                    ),
+                  ],
+                  [
+                    h.strong(
+                      [h.Class('block text-sm text-cyan-100')],
+                      [route.title],
+                    ),
+                    h.code(
+                      [
+                        h.Class(
+                          'mt-2 block break-all text-[0.68rem] font-normal leading-5 text-stone-500',
+                        ),
+                      ],
+                      [route.routeFamily],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.tbody(
+        [],
+        Array.map(walletClients, client =>
+          h.tr(
+            [h.Key(client.medium), h.Class('align-top')],
+            [
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 bg-stone-950 p-4 text-left',
+                  ),
+                ],
+                [walletClientHeading(client)],
+              ),
+              h.td(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 bg-stone-900/50 p-4',
+                  ),
+                ],
+                [walletClientCarrier(client)],
+              ),
+              ...Array.map(walletRoutes, route =>
+                h.td(
+                  [
+                    h.Key(route.mode),
+                    h.Class(
+                      'border-b border-r border-stone-800 bg-stone-900/50 p-4',
+                    ),
+                  ],
+                  [walletCapabilityCell(client, route)],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  )
+}
+
+const walletAudit = (): Html => {
+  const h = html<Message>()
+  return h.section(
+    [h.AriaLabel('Wallet Program portability audit')],
+    [
+      h.div(
+        [h.Class('border-y border-stone-800 bg-stone-950 px-5 py-10')],
+        [
+          h.div(
+            [h.Class('mx-auto grid max-w-[116rem] gap-6')],
+            [
+              h.div(
+                [h.Class('grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto]')],
+                [
+                  h.div(
+                    [h.Class('space-y-3')],
+                    [
+                      h.p(
+                        [
+                          h.Class(
+                            'text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300',
+                          ),
+                        ],
+                        ['Wallet Program | Route evidence'],
+                      ),
+                      h.h2(
+                        [h.Class('text-3xl font-semibold sm:text-5xl')],
+                        ['State and replay portability'],
+                      ),
+                      h.p(
+                        [h.Class('max-w-3xl text-sm leading-6 text-stone-400')],
+                        [
+                          'Exact public state and replay paths, their host carriers, and the strongest checked-in evidence for every requested client. Missing browser and server links remain explicit gaps.',
+                        ],
+                      ),
+                    ],
+                  ),
+                  h.div(
+                    [
+                      h.Class(
+                        'rounded-2xl border border-cyan-400/30 bg-cyan-400/5 p-5',
+                      ),
+                    ],
+                    [
+                      h.p(
+                        [
+                          h.Class(
+                            'text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300',
+                          ),
+                        ],
+                        ['Program identity'],
+                      ),
+                      h.code(
+                        [h.Class('mt-2 block text-lg text-cyan-100')],
+                        [
+                          `${walletProgramIdentity.id}@${walletProgramIdentity.version.toString()}`,
+                        ],
+                      ),
+                      h.code(
+                        [h.Class('mt-2 block text-xs text-stone-500')],
+                        [walletProgramIdentity.source],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              h.div(
+                [h.Class('grid gap-4 xl:grid-cols-2')],
+                Array.map(walletRoutes, walletRouteCard),
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('overflow-x-auto overscroll-x-contain')],
+        [walletMatrix()],
+      ),
+    ],
+  )
+}
+
 /** Renders the live cross-client URI and screen comparison matrix. */
 export const view = (model: Model): Document => {
   const h = html<Message>()
@@ -605,7 +1028,7 @@ export const view = (model: Model): Document => {
                               'text-xs font-semibold uppercase tracking-[0.28em] text-amber-300',
                             ),
                           ],
-                          ['One Program | Eight clients'],
+                          ['Multiple Counters | Eight captured clients'],
                         ),
                         h.h1(
                           [
@@ -654,6 +1077,7 @@ export const view = (model: Model): Document => {
           ],
           [matrixView(model)],
         ),
+        walletAudit(),
       ],
     ),
   }
