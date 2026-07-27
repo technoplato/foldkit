@@ -8,8 +8,14 @@ import { describe, expect, it } from 'vitest'
 
 import { act, renderHook, waitFor } from '@testing-library/react'
 
-import { defineDependencyChoice } from './dependencyChoice.js'
-import { createReactProgramClientWithDependency } from './reactProgram.js'
+import {
+  defineDependencyChoice,
+  defineDependencySet,
+} from './dependencyChoice.js'
+import {
+  createReactProgramClientWithDependencies,
+  createReactProgramClientWithDependency,
+} from './reactProgram.js'
 
 type FactClientService = Readonly<{
   fetch: Effect.Effect<string>
@@ -17,6 +23,12 @@ type FactClientService = Readonly<{
 
 class FactClient extends Context.Service<FactClient, FactClientService>()(
   'ReactDependencyChoiceTest/FactClient',
+) {}
+
+type FactPrefixService = Readonly<{ value: string }>
+
+class FactPrefix extends Context.Service<FactPrefix, FactPrefixService>()(
+  'ReactDependencyChoiceTest/FactPrefix',
 ) {}
 
 const Idle = S.TaggedStruct('Idle', {})
@@ -55,6 +67,41 @@ const FactProgram = Program.make({
       >(),
       M.tagsExhaustive({
         ClickedLoadFact: () => [Loading.make({}), [FetchFact()]],
+        SucceededLoadFact: ({ fact }) => [Loaded.make({ fact }), []],
+      }),
+    ),
+})
+
+const FetchPrefixedFact = Command.define(
+  'FetchPrefixedFact',
+  SucceededLoadFact,
+)(
+  Effect.gen(function* () {
+    const client = yield* FactClient
+    const prefix = yield* FactPrefix
+    const fact = yield* client.fetch
+    return SucceededLoadFact({ fact: `${prefix.value}${fact}` })
+  }),
+)
+
+const PrefixedFactProgram = Program.make({
+  id: 'react-multiple-dependency-choice-test',
+  version: 1,
+  Model,
+  Message,
+  init: () => [Idle.make({}), []],
+  update: (_model, message) =>
+    M.value(message).pipe(
+      M.withReturnType<
+        readonly [
+          Model,
+          ReadonlyArray<
+            Command.Command<Message, never, FactClient | FactPrefix>
+          >,
+        ]
+      >(),
+      M.tagsExhaustive({
+        ClickedLoadFact: () => [Loading.make({}), [FetchPrefixedFact()]],
         SucceededLoadFact: ({ fact }) => [Loaded.make({ fact }), []],
       }),
     ),
@@ -285,5 +332,93 @@ describe('React dependency choices', () => {
     await waitFor(() => {
       expect(releasedCount).toBe(1)
     })
+  })
+
+  it('switches two typed dependency choices independently', async () => {
+    const factDependency = makeFactDependency(
+      makeFactClient('Mock fact'),
+      makeFactClient('Live fact'),
+    )
+    const prefixDependency = defineDependencyChoice({
+      service: FactPrefix,
+      initial: 'Short',
+      implementations: {
+        Short: Layer.succeed(FactPrefix, { value: 'S: ' }),
+        Long: Layer.succeed(FactPrefix, { value: 'Long: ' }),
+      },
+    })
+    const client = createReactProgramClientWithDependencies({
+      createActions: enqueueMessage => ({
+        clickedLoadFact: () => enqueueMessage(ClickedLoadFact()),
+      }),
+      dependencies: defineDependencySet(factDependency, prefixDependency),
+      name: 'PrefixedFactTestProgram',
+      program: PrefixedFactProgram,
+      resources: Layer.empty,
+      start: (_initialRoute: void) => Runtime.fresh(),
+    })
+    const wrapper = ({ children }: Readonly<{ children: ReactNode }>) => (
+      <client.Provider initialRoute={undefined}>{children}</client.Provider>
+    )
+    const { result } = renderHook(
+      () => ({
+        actions: client.useActions(),
+        fact: client.useDependency({ dependencyKey: factDependency }),
+        model: client.useModel(),
+        prefix: client.useDependency({ dependencyKey: prefixDependency }),
+      }),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(result.current.fact.current).toEqual({
+        _tag: 'Ready',
+        current: 'Mock',
+      })
+      expect(result.current.prefix.current).toEqual({
+        _tag: 'Ready',
+        current: 'Short',
+      })
+    })
+
+    act(() => {
+      result.current.fact.switchTo('Live')
+    })
+    await waitFor(() => {
+      expect(result.current.fact.current).toEqual({
+        _tag: 'Ready',
+        current: 'Live',
+      })
+      expect(result.current.prefix.current).toEqual({
+        _tag: 'Ready',
+        current: 'Short',
+      })
+    })
+
+    act(() => {
+      result.current.prefix.switchTo('Long')
+    })
+    await waitFor(() => {
+      expect(result.current.prefix.current).toEqual({
+        _tag: 'Ready',
+        current: 'Long',
+      })
+    })
+    act(() => {
+      result.current.actions.clickedLoadFact()
+    })
+    await waitFor(() => {
+      expect(result.current.model).toEqual({
+        _tag: 'Loaded',
+        fact: 'Long: Live fact',
+      })
+    })
+
+    if (globalThis.Boolean(false)) {
+      // @ts-expect-error FactClient only declares Mock and Live.
+      result.current.fact.switchTo('Short')
+      // @ts-expect-error FactPrefix only declares Short and Long.
+      result.current.prefix.switchTo('Mock')
+    }
   })
 })

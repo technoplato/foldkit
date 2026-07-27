@@ -1,4 +1,13 @@
-import { Data, Effect, Function, Layer, Scope, pipe } from 'effect'
+import {
+  Data,
+  Effect,
+  Exit,
+  Function,
+  Layer,
+  Option,
+  Scope,
+  pipe,
+} from 'effect'
 
 import type { Ports } from '../port/port.js'
 import type { Program } from '../program/program.js'
@@ -13,6 +22,7 @@ import {
   type ProgramRuntime,
   type ProgramRuntimeJournalConfig,
   ProgramRuntimeStartError,
+  type ProgramRuntimeTimeline,
   type ProgramStart,
   type SendOptions,
   fromModel,
@@ -57,6 +67,7 @@ type LiveState<
 > = Readonly<{
   _tag: 'Live'
   runtime: ProgramRuntime<Model, Message, P>
+  scope: Scope.Closeable
   stopObserving: () => void
 }>
 
@@ -65,7 +76,7 @@ type ControllerState<Model, Message, P extends Ports | undefined = undefined> =
   | LiveState<Model, Message, P>
 
 /** A renderer-free replay controller that can inspect history and branch live. */
-export type ReplayController<Model, Message> = Readonly<{
+export type ReplayController<Model, Message, ResourceError = never> = Readonly<{
   /** Returns the current inspection or live snapshot synchronously. */
   read: () => ReplayControllerSnapshot<Model>
   /** Selects one historical frame without executing its Commands. */
@@ -93,7 +104,7 @@ export type ReplayController<Model, Message> = Readonly<{
     options?: SendOptions,
   ) => Effect.Effect<
     Model,
-    ProgramRuntimeStartError | UnsettledReplayFrameError
+    ProgramRuntimeStartError | UnsettledReplayFrameError | ResourceError
   >
   /** Observes controller snapshots and returns an unsubscribe function. */
   observe: (
@@ -105,6 +116,8 @@ export type ReplayController<Model, Message> = Readonly<{
   replayRoute: () => ReplayRoute<Model, Message>
   /** Returns the source or extended typed replay tape. */
   readReplayTape: () => ReplayTape<Model, Message>
+  /** Returns the live runtime timeline, or None during inert inspection. */
+  readTimeline: () => Option.Option<ProgramRuntimeTimeline>
   /** Completes after restore-time Commands finish when the controller is live. */
   initialization: Effect.Effect<Model>
   /** Stops the live runtime when one has been created. */
@@ -118,9 +131,10 @@ export type ReplayControllerConfig<
   Resources = never,
   ManagedResourceServices = never,
   P extends Ports | undefined = undefined,
+  ResourceError = never,
 > = Readonly<{
   program: Program<Model, Message, Resources, ManagedResourceServices, P>
-  resources: Layer.Layer<Resources>
+  resources: Layer.Layer<Resources, ResourceError>
   route: ResolvedProgramRoute<Model, Message>
   journal?: ProgramRuntimeJournalConfig<Model, Message>
 }>
@@ -132,21 +146,22 @@ export const makeReplayController = <
   Resources = never,
   ManagedResourceServices = never,
   P extends Ports | undefined = undefined,
+  ResourceError = never,
 >(
   config: ReplayControllerConfig<
     Model,
     Message,
     Resources,
     ManagedResourceServices,
-    P
+    P,
+    ResourceError
   >,
 ): Effect.Effect<
-  ReplayController<Model, Message>,
-  ReplayFrameError | ProgramRuntimeStartError,
+  ReplayController<Model, Message, ResourceError>,
+  ReplayFrameError | ProgramRuntimeStartError | ResourceError,
   Scope.Scope
 > =>
   Effect.gen(function* () {
-    const scope = yield* Effect.scope
     const listeners = new Set<
       (snapshot: ReplayControllerSnapshot<Model>) => void
     >()
@@ -180,35 +195,49 @@ export const makeReplayController = <
     }
 
     const makeLiveRuntime = (start: ProgramStart<Model, Message>) =>
-      Effect.provideService(
-        makeProgramRuntime({
-          program: config.program,
-          resources: config.resources,
-          start,
-          ...(config.journal === undefined ? {} : { journal: config.journal }),
-        }),
-        Scope.Scope,
-        scope,
-      )
+      Effect.gen(function* () {
+        const liveScope = yield* Scope.make()
+        return yield* Effect.provideService(
+          makeProgramRuntime({
+            program: config.program,
+            resources: config.resources,
+            start,
+            ...(config.journal === undefined
+              ? {}
+              : { journal: config.journal }),
+          }),
+          Scope.Scope,
+          liveScope,
+        ).pipe(
+          Effect.map(runtime => ({ runtime, scope: liveScope })),
+          Effect.onExit(exit =>
+            Exit.isFailure(exit) ? Scope.close(liveScope, exit) : Effect.void,
+          ),
+        )
+      })
 
     const activateLiveRuntime = (
-      runtime: ProgramRuntime<Model, Message, P>,
+      live: Readonly<{
+        runtime: ProgramRuntime<Model, Message, P>
+        scope: Scope.Closeable
+      }>,
     ): ProgramRuntime<Model, Message, P> => {
       if (controllerState._tag === 'Live') {
         controllerState.stopObserving()
       }
-      const stopObserving = runtime.journal.observe(notify)
-      const stopObservingRuntimeEvents = runtime.timeline.observe(notify)
+      const stopObserving = live.runtime.journal.observe(notify)
+      const stopObservingRuntimeEvents = live.runtime.timeline.observe(notify)
       controllerState = {
         _tag: 'Live',
-        runtime,
+        runtime: live.runtime,
+        scope: live.scope,
         stopObserving: () => {
           stopObserving()
           stopObservingRuntimeEvents()
         },
       }
       notify()
-      return runtime
+      return live.runtime
     }
 
     const activateInspection = (
@@ -221,13 +250,14 @@ export const makeReplayController = <
     }
 
     if (config.route._tag === 'State') {
-      const runtime = yield* makeLiveRuntime(fromModel(config.route.model))
+      const live = yield* makeLiveRuntime(fromModel(config.route.model))
       controllerState = {
         _tag: 'Live',
-        runtime,
+        runtime: live.runtime,
+        scope: live.scope,
         stopObserving: Function.constVoid,
       }
-      activateLiveRuntime(runtime)
+      activateLiveRuntime(live)
     } else {
       const tape = config.route.tape
       yield* pipe(
@@ -282,10 +312,12 @@ export const makeReplayController = <
             return yield* controllerState.session.seek(frame)
           }
         }
-        const runtime = controllerState.runtime
-        const session = yield* runtime.replay.makeSession(frame)
-        controllerState.stopObserving()
-        yield* runtime.shutdown
+        const live = controllerState
+        const session = yield* live.runtime.replay.makeSession(frame)
+        live.stopObserving()
+        yield* live.runtime.shutdown.pipe(
+          Effect.ensuring(Scope.close(live.scope, Exit.void)),
+        )
         activateInspection(session)
         return session.readModel()
       })
@@ -295,14 +327,14 @@ export const makeReplayController = <
       options?: SendOptions,
     ): Effect.Effect<
       Model,
-      ProgramRuntimeStartError | UnsettledReplayFrameError
+      ProgramRuntimeStartError | UnsettledReplayFrameError | ResourceError
     > =>
       Effect.gen(function* () {
         let liveRuntime: ProgramRuntime<Model, Message, P>
         if (controllerState._tag === 'Inspecting') {
           const tape = yield* controllerState.session.branch()
-          const runtime = yield* makeLiveRuntime(fromReplay(tape))
-          liveRuntime = activateLiveRuntime(runtime)
+          const live = yield* makeLiveRuntime(fromReplay(tape))
+          liveRuntime = activateLiveRuntime(live)
         } else {
           liveRuntime = controllerState.runtime
         }
@@ -324,6 +356,12 @@ export const makeReplayController = <
       }
       return controllerState.runtime.replay.readTape()
     }
+    const readTimeline = (): Option.Option<ProgramRuntimeTimeline> => {
+      if (controllerState._tag === 'Inspecting') {
+        return Option.none()
+      }
+      return Option.some(controllerState.runtime.timeline)
+    }
     const stateRoute = (): StateRoute<Model> => makeStateRoute(read().model)
     const replayRoute = (): ReplayRoute<Model, Message> =>
       makeReplayRoute(readReplayTape(), read().frame)
@@ -333,13 +371,23 @@ export const makeReplayController = <
       }
       return controllerState.runtime.initialization
     })
+    let isShutdown = false
     const shutdown = Effect.suspend(() => {
+      if (isShutdown) {
+        return Effect.void
+      }
+      isShutdown = true
       if (controllerState._tag === 'Inspecting') {
         return Effect.void
       }
-      controllerState.stopObserving()
-      return controllerState.runtime.shutdown
+      const live = controllerState
+      live.stopObserving()
+      return live.runtime.shutdown.pipe(
+        Effect.ensuring(Scope.close(live.scope, Exit.void)),
+      )
     })
+
+    yield* Effect.addFinalizer(() => shutdown)
 
     return {
       read,
@@ -352,6 +400,7 @@ export const makeReplayController = <
       stateRoute,
       replayRoute,
       readReplayTape,
+      readTimeline,
       initialization,
       shutdown,
     }

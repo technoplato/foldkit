@@ -1,4 +1,4 @@
-import { Effect, Layer, Match as M, Option, Schema as S } from 'effect'
+import { Context, Effect, Layer, Match as M, Option, Schema as S } from 'effect'
 import * as Command from 'foldkit/command'
 import { m } from 'foldkit/message'
 import * as Program from 'foldkit/program'
@@ -8,7 +8,14 @@ import { describe, expect, it } from 'vitest'
 
 import { act, renderHook, waitFor } from '@testing-library/react'
 
-import { createReplayableReactProgramBindingsWithFlags } from './replayableReactProgram.js'
+import {
+  defineDependencyChoice,
+  defineSingleDependencySet,
+} from './dependencyChoice.js'
+import {
+  createReplayableReactProgramBindingsWithFlags,
+  createReplayableReactProgramClientWithDependencies,
+} from './replayableReactProgram.js'
 
 const Model = S.Struct({ count: S.Number })
 type Model = typeof Model.Type
@@ -39,6 +46,12 @@ const TestProgram = Program.make({
       }),
     ),
 })
+
+type RuntimeModeService = Readonly<{ name: string }>
+
+class RuntimeMode extends Context.Service<RuntimeMode, RuntimeModeService>()(
+  'ReplayableReactBindingsTest/RuntimeMode',
+) {}
 
 describe('replayable React Program bindings', () => {
   it('drives product actions and replay inspection through one controller', async () => {
@@ -84,7 +97,7 @@ describe('replayable React Program bindings', () => {
     })
 
     act(() => {
-      result.current.replay.changedFrame(0)
+      result.current.replay.seek(0)
     })
     await waitFor(() => {
       expect(result.current.model.count).toBe(4)
@@ -140,7 +153,7 @@ describe('replayable React Program bindings', () => {
       expect(result.current.replay.frame).toBe(1)
     })
     act(() => {
-      result.current.replay.clickedInspect()
+      result.current.replay.inspect()
     })
     await waitFor(() => {
       expect(result.current.replay.mode).toBe('Inspecting')
@@ -151,7 +164,7 @@ describe('replayable React Program bindings', () => {
     })
     await waitFor(() => {
       expect(result.current.model.count).toBe(4)
-      expect(Option.isSome(result.current.replay.maybeBranchError)).toBe(true)
+      expect(Option.isSome(result.current.replay.maybeError)).toBe(true)
     })
   })
 
@@ -199,7 +212,109 @@ describe('replayable React Program bindings', () => {
     })
     await waitFor(() => {
       expect(result.current.model.count).toBe(4)
-      expect(Option.isSome(result.current.replay.maybeBranchError)).toBe(true)
+      expect(Option.isSome(result.current.replay.maybeError)).toBe(true)
     })
+  })
+
+  it('records dependency selections and restores them when branching', async () => {
+    const dependency = defineDependencyChoice({
+      service: RuntimeMode,
+      initial: 'Mock',
+      implementations: {
+        Mock: Layer.succeed(RuntimeMode, { name: 'Mock' }),
+        Live: Layer.succeed(RuntimeMode, { name: 'Live' }),
+      },
+    })
+    const client = createReplayableReactProgramClientWithDependencies({
+      createActions: enqueueMessage => ({
+        clickedIncrement: () => enqueueMessage(ClickedIncrement()),
+      }),
+      dependencies: defineSingleDependencySet(dependency),
+      name: 'DependencyReplayableTestProgram',
+      program: TestProgram,
+      resources: Layer.empty,
+      route: (count: number) => Program.state(Model.make({ count })),
+    })
+    const wrapper = ({ children }: Readonly<{ children: ReactNode }>) => (
+      <client.Provider initialRoute={4}>{children}</client.Provider>
+    )
+    const { result } = renderHook(
+      () => ({
+        actions: client.useActions(),
+        dependency: client.useDependency({ dependencyKey: dependency }),
+        model: client.useModel(),
+        replay: client.useReplay(),
+      }),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(result.current.dependency.current).toEqual({
+        _tag: 'Ready',
+        current: 'Mock',
+      })
+      expect(result.current.replay.runtimeEvents).toHaveLength(1)
+    })
+
+    act(() => {
+      result.current.actions.clickedIncrement()
+    })
+    await waitFor(() => {
+      expect(result.current.replay.frame).toBe(1)
+    })
+    act(() => {
+      result.current.dependency.switchTo('Live')
+    })
+    await waitFor(() => {
+      expect(result.current.dependency.current).toEqual({
+        _tag: 'Ready',
+        current: 'Live',
+      })
+      expect(result.current.replay.runtimeEvents).toHaveLength(2)
+    })
+    expect(result.current.replay.runtimeEvents).toMatchObject([
+      {
+        name: 'SelectedDependencyImplementation',
+        afterFrame: 0,
+        attributes: {
+          dependency: 'ReplayableReactBindingsTest/RuntimeMode',
+          implementation: 'Mock',
+        },
+      },
+      {
+        name: 'SelectedDependencyImplementation',
+        afterFrame: 1,
+        attributes: {
+          dependency: 'ReplayableReactBindingsTest/RuntimeMode',
+          implementation: 'Live',
+        },
+      },
+    ])
+
+    act(() => {
+      result.current.replay.seek(0)
+    })
+    await waitFor(() => {
+      expect(result.current.replay.mode).toBe('Inspecting')
+      expect(result.current.replay.occurredRuntimeEvents).toHaveLength(1)
+    })
+    act(() => {
+      result.current.replay.seek(1)
+    })
+    await waitFor(() => {
+      expect(result.current.replay.occurredRuntimeEvents).toHaveLength(2)
+    })
+    act(() => {
+      result.current.actions.clickedIncrement()
+    })
+    await waitFor(() => {
+      expect(result.current.model.count).toBe(6)
+      expect(result.current.replay.mode).toBe('Live')
+      expect(result.current.dependency.current).toEqual({
+        _tag: 'Ready',
+        current: 'Live',
+      })
+    })
+    expect(result.current.replay.runtimeEvents).toHaveLength(2)
   })
 })
