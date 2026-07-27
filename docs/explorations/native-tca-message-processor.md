@@ -9,14 +9,20 @@ Status: Exploration
 Build a native Swift processor around the existing Foldkit wire protocol, but do
 not model an arbitrary Foldkit Program as a dictionary-backed TCA Reducer.
 
+Treat a public v0 Message as one stable wire interface, not as a promise that all
+future domain meaning fits in v0. The native processor can ubiquitously decode the
+same encoded Messages only for registered Program versions whose generated codecs
+and hand-authored semantics are present. It cannot infer update behavior from JSON
+or an Effect Schema.
+
 The smallest credible design has three layers:
 
 1. A runtime-driven envelope layer decodes replay headers and metadata, selects a
    Program adapter, orchestrates migrations, tracks causal operations, reconstructs
    frames, and suppresses historical Commands.
 2. A generated wire layer supplies versioned Swift Model and Message types, exact
-   `Codable` implementations for the Effect Schema JSON representation, and generated
-   CasePaths.
+   `Codable` implementations for the Effect Schema JSON representation, and CasePaths
+   only for enums that an adapter must project or scope.
 3. A native semantic layer implements the Program's pure update function and maps its
    named Commands to dependency clients. Schema describes values, not update behavior,
    so this layer cannot be derived from the current `Program` definition.
@@ -38,6 +44,53 @@ parity:
 
 A replay-only JSON inspector can avoid code generation. A native TCA application that
 reconstructs Models, presents typed navigation, and continues a live branch cannot.
+
+## Requirements Audit
+
+The requested properties are compatible when their boundaries are stated precisely:
+
+| Requirement                        | Supported contract                                                                                                                        | Limit                                                                                                                            |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Public v0 wire Messages            | Publish a durable `(eventId, version, payload)` grammar and never couple its identity to a TypeScript constructor or host gesture.        | v0 is one historical grammar. It is not automatically a lossless representation of every future Message.                         |
+| Stable identities                  | Keep Program identity, event-family identity, domain entity identity, and replay-occurrence identity separate and stable in their scopes. | Reusing one identifier for all four concepts makes migrations and causal history ambiguous.                                      |
+| Deterministic upgrades             | Validate the source version, then run pure adjacent transforms with no clock, randomness, dependency, host, or ambient state.             | A supplied default is a semantic decision. Determinism alone does not prove that the default preserves the intended meaning.     |
+| Target older Message versions      | Register an explicit fallible encoder for each supported historical grammar or compose adjacent downgrade steps.                          | Forward migrations cannot be inverted mechanically. The requested target can be unsupported or unrepresentable for one value.    |
+| Target older Program versions      | Use a complete target-version adapter for Model, Messages, update semantics, initialization, Commands, and tape metadata.                 | Rewriting `programVersion` or downgrading transition Messages alone does not produce a valid tape for an older Program.          |
+| Preserve meaning                   | Require semantic round-trip laws on the subset representable by the target grammar and fail outside that subset.                          | Arbitrary total lossless downgrade is impossible when the current domain contains more distinctions than the target.             |
+| Native Swift consumes the Messages | Generate exact Swift codecs for the same JSON value grammar and register a native pure Program definition for each executable version.    | The shared artifact is the encoded protocol and conformance corpus, not a shared in-memory TypeScript/Swift value or executable. |
+
+There are four identities in the portable system:
+
+- `programId` identifies the Program family.
+- `programVersion` identifies one complete Model, Message, update, and lifecycle
+  protocol.
+- `eventId` identifies a stable public Message family across its payload versions.
+- a domain entity ID identifies the entity named inside a Message. A replay occurrence
+  is identified within its tape by its sequence and causal metadata, not by `eventId`.
+
+The event payload version must not substitute for `programVersion`. A Program release
+can change its Model or update semantics while reusing existing event grammars, and one
+Program version can accept several event families with independent version histories.
+
+### Why arbitrary lossless downgrade is impossible
+
+Let `upgrade: V0 -> Current` be the deterministic upgrade and
+`downgrade: Current -> V0` be a claimed total lossless downgrade. Losslessness for all
+current values requires:
+
+```text
+upgrade(downgrade(current)) = current
+```
+
+That law makes `downgrade` injective. If two current values differ only in information
+that v0 cannot represent, both must map to the same v0 value, so `downgrade` is not
+injective and the law cannot hold. For example, the prototype's `User` and `Automation`
+origins collapse when v0 carries only `delta`.
+
+The valid API is therefore partial. It returns the requested historical value or a
+typed `UnrepresentableAtTargetVersion` failure. A separately named lossy projection may
+be useful for compatibility, but it must not be presented as a downgrade that preserves
+meaning.
 
 ## Existing Portable Contract
 
@@ -120,7 +173,9 @@ Program's unidirectional data flow. Native Commands should use `store.send` to r
 generated Message, just as the 1.x adapter uses `.run` to send an Action containing a
 Message.
 
-The generated module should therefore import Foundation and CasePaths at most. The
+The generated module should therefore import Foundation and optionally CasePaths. A
+payload struct or an enum handled only by an exhaustive `switch` does not need
+CasePaths. Navigation unions and nested Message cases that the adapter scopes do. The
 TCA-specific adapter can live in a separate target:
 
 ```text
@@ -194,6 +249,37 @@ The runtime Action wrapper is not a second domain protocol. It carries provenanc
 Foldkit currently carries in `QueuedMessage`, while the nested generated Message is the
 only value passed to update and written into a tape.
 
+The canonical Composable Architecture 1.x adapter is deliberately small:
+
+```text
+Generated Program definition
+  pure initialize, restore, and update
+  generated Model and Message codecs
+  hand-authored typed Command values
+
+Portable runtime Reducer State
+  generated Model
+  journal and operation bookkeeping
+  replay mode and selected frame
+
+Portable runtime Reducer Action
+  Received(Message, source, operationId)
+  CompletedCommandTask(CommandID)
+  ReplayControl
+```
+
+`Reduce` calls the pure update helper only for `Received`. A program-specific
+`@Dependency` Command client executes typed Commands and always returns a generated
+success or failure Message. The generic shell maps those results back to `Received`
+with Command provenance. `CompletedCommandTask` only releases causal bookkeeping and
+is never encoded as a portable Message.
+
+The Composable Architecture 2.0 adapter preserves the same boundary. `Update` calls
+the pure helper, and `store.addTask` executes the injected Command client and sends the
+generated result Message. It never uses `store.modify` for domain Model or navigation
+changes. The two adapters differ in effect plumbing, not in wire types, update
+semantics, replay laws, or navigation ownership.
+
 For a live Message, the adapter performs these steps in one serialized transaction:
 
 1. Call the pure native update implementation.
@@ -255,9 +341,11 @@ The minimum generated surface is:
 1. A namespace or module for each supported Program version, such as
    `MultipleCountersV1`.
 2. Codable, Equatable, and Sendable Model value types for the encoded Schema shape.
-3. A generated `@CasePathable` Message enum with associated payload structs.
+3. A generated Message enum with associated payload structs. Add `@CasePathable` only
+   when an adapter scopes or generically projects its cases.
 4. Exact custom Message encoding and decoding using the portable `_tag` discriminator.
 5. Generated tagged enums for Model unions, including navigation and request states.
+   Add CasePaths to navigation unions used by SwiftUI or TCA presentation bindings.
 6. A small descriptor containing Program ID, version, and supported migration entry
    points.
 7. Cross-language codec fixtures produced by the TypeScript Program build.
@@ -271,8 +359,8 @@ encode like its Effect Schema value:
 ```
 
 It must not encode using Swift's default nested enum representation. The Swift case can
-be lower camel case, but its codec and generated CasePath must retain the exact portable
-tag.
+be lower camel case, but its codec and any generated CasePath must retain the exact
+portable tag.
 
 The generator should consume an explicit Foldkit portable Schema IR for the encoded
 side of each codec. It should not treat general JSON Schema as a lossless intermediate.
@@ -402,6 +490,99 @@ the resulting Message remains in the tape.
 During replay, navigation is derived from the reconstructed frame Model. The processor
 does not replay pushes, pops, or presentations as side effects.
 
+## Targeting Historical Versions
+
+Targeting one historical Message grammar and targeting a historical Program are
+different operations.
+
+A Message encoder should accept an explicit stable `eventId` and target payload
+version. It then either returns a value validated by that exact historical Schema or a
+typed failure:
+
+```text
+encode(message, target: EventVersion(0))
+  -> EncodedHistoricalMessage
+  -> UnsupportedTargetVersion
+  -> UnrepresentableAtTargetVersion
+```
+
+The encoder must not silently choose a newer version, drop a current field, or change
+the event identity. Adjacent downgrade functions are useful only when every step is
+fallible and every intermediate result is validated. Deterministic target selection is
+part of the contract. It is not enough for the resulting JSON to happen to decode.
+
+An older Program target is a larger artifact. It needs the target version's Model and
+Message codecs, pure update implementation, initialization and restore behavior,
+Command mapping, lifecycle declarations, and whole-tape exporter. Downgrading only the
+transition Messages can leave `initialModel`, Command descriptors, navigation state,
+or update meaning incompatible with the older processor. A current processor may
+export an older tape only through an explicitly registered target-version Program
+adapter and cross-version fixtures.
+
+This also constrains native execution. A Swift binary can inspect an unknown older
+tape's envelope and preserve its bytes, but it can reconstruct or continue the tape
+only when the corresponding generated types and native Program semantics are compiled
+and registered.
+
+## Opaque Original Envelopes
+
+An opaque original envelope can make transit reversible, but it does not make an old
+processor understand new meaning.
+
+The safe design is a transport wrapper outside the public v0 Message grammar:
+
+```json
+{
+  "projection": {
+    "eventId": "Foldkit.Example.CounterAdjusted",
+    "version": 0,
+    "payload": { "delta": 3 }
+  },
+  "original": {
+    "mediaType": "application/vnd.foldkit.message+json",
+    "programId": "message-versioning",
+    "programVersion": 2,
+    "encodedMessage": {
+      "_tag": "AdjustedCounter",
+      "eventId": "Foldkit.Example.CounterAdjusted",
+      "version": 2,
+      "amount": 3,
+      "origin": "Automation"
+    }
+  }
+}
+```
+
+A compatibility gateway gives an old processor only `projection` and retains
+`original` as an opaque sidecar. A new processor that receives the untouched wrapper
+can validate and decode `original`, recovering the exact current Message value. The old
+processor still sees only the v0 meaning. If it changes the projected event or emits a
+new event, the gateway must not reattach the stale original as if it described the new
+value.
+
+The illustrated `encodedMessage` preserves the JSON value, not the original byte
+serialization. If content-address identity or signatures cover the original bytes, the
+wrapper must instead retain the exact UTF-8 string or a binary encoding plus its digest.
+Parsing and re-encoding the object is not byte-preserving.
+
+Putting an optional extension field directly into v0 works only if v0 reserved that
+field from the beginning and every old intermediary is required to preserve unknown
+extensions byte-for-byte. The current prototype's v0 Schema has no such field. Adding
+one now would not be backward compatible with strict decoders, and decode-then-encode
+old clients can discard it even when they accept the input.
+
+Opaque carriage therefore supports two distinct claims:
+
+- `projection` is a compatibility view that an old processor may understand. It can be
+  explicitly lossy.
+- `original` is lossless storage or transit for a newer processor. Its exact bytes or a
+  canonical value plus digest must be retained and bound to the wrapper.
+
+It cannot support the claim that the old processor applied the newer event's complete
+meaning. Any product using the wrapper must decide which representation is
+authoritative, how integrity is verified, whether old processors may transform the
+projection, and when the original sidecar must be invalidated.
+
 ## Version Migration
 
 Current Foldkit migrations are selected by `fromVersion` and transform the entire
@@ -474,31 +655,41 @@ content-addressed identity for the same logical replay.
 
 ## Proposed First Proof
 
-Use `multiple-counters` version 1 because it exercises nested Messages, Option-encoded
+Use two fixtures. `message-versioning` establishes the public v0, stable event identity,
+deterministic upgrade, explicit older-version target, and unrepresentable downgrade
+laws. `multiple-counters` version 1 then exercises nested Messages, Option-encoded
 presentation state, identified child routing, Command success and failure, and
-state-driven navigation.
+state-driven navigation in a complete native processor.
 
 The proof should add no generic dynamic reducer. It should proceed in this order:
 
-1. Export a portable Schema IR and fixture corpus for `MultipleCountersProgram`.
-2. Generate `MultipleCountersV1.Model`, `Message`, Model unions, custom codecs, and
-   CasePaths.
-3. Implement the pure native update function and Command enum by following the shared
+1. Export v0, v1, and current `message-versioning` fixtures, including successful and
+   rejected explicit target-version encodes.
+2. Export a portable Schema IR and fixture corpus for `MultipleCountersProgram`.
+3. Generate `MultipleCountersV1.Model`, `Message`, Model unions, custom codecs, and
+   only the CasePaths used by the adapter.
+4. Implement the pure native update function and Command enum by following the shared
    Program source.
-4. Build a generic replay-envelope decoder, frame reconstructor, and settled-branch
+5. Build a generic replay-envelope decoder, frame reconstructor, and settled-branch
    validator.
-5. Wrap the definition in a Composable Architecture 1.x Reducer whose Effects call
+6. Wrap the definition in a Composable Architecture 1.x Reducer whose Effects call
    dependency clients and send generated result Messages.
-6. Render `Navigation` directly from generated State and convert native gestures into
+7. Render `Navigation` directly from generated State and convert native gestures into
    existing portable Messages.
-7. Add one version-1-to-version-2 fixture migration in TypeScript and Swift.
-8. Only after the 1.x proof passes, build a separate 2.0 beta adapter over the same
-   generated and pure semantic modules.
+8. Add one version-1-to-version-2 fixture migration in TypeScript and Swift.
+9. Test an opaque transport wrapper separately from the Message codec. Prove exact
+   original recovery and label the v0 projection as potentially lossy.
+10. Only after the 1.x proof passes, build a separate 2.0 beta adapter over the same
+    generated and pure semantic modules.
 
 The first proof is complete only when it demonstrates all of the following:
 
 - TypeScript-encoded current tapes decode in Swift.
 - Swift-generated current Messages decode through the TypeScript Message Schema.
+- Both runtimes encode an explicitly selected historical Message version or return the
+  same typed unrepresentable result. Neither silently falls back to a different target.
+- An untouched opaque wrapper recovers its original current Message exactly, while its
+  v0 projection is never described as full semantic understanding by an old processor.
 - Every replay frame produces equivalent encoded Model JSON under an agreed JSON-value
   comparator.
 - Historical replay executes zero native dependency calls.
@@ -527,20 +718,31 @@ execute TCA Effects.
 | Generated wire types plus portable transition IR |                  Yes |               Yes |       Yes from one behavior definition |                      Yes | Strong long-term direction, larger Foldkit change |
 | Embedded JavaScript Program behind a Swift shell |                  Yes | Native shell only |           Yes through original runtime |     Yes through bridging | Separate architecture, not native TCA semantics   |
 
-## Source Basis
+## Sources Inspected
 
 Foldkit contract and replay behavior:
 
+- `docs/explorations/message-versioning.md`
+- `examples/message-versioning/src/message.ts`
+- `examples/message-versioning/src/messageVersioning.test.ts`
+- `examples/message-versioning/src/program.ts`
 - `packages/foldkit/src/program/program.ts`
 - `packages/foldkit/src/runtime/replayTape.ts`
+- `packages/foldkit/src/runtime/replayTape.test.ts`
 - `packages/foldkit/src/runtime/programRuntime.ts`
 - `packages/foldkit/src/runtime/programJournal.ts`
 - `packages/foldkit/src/runtime/replayTapeStore.ts`
+- `packages/foldkit/src/runtime/replaySession.ts`
+- `packages/foldkit/src/runtime/replaySession.test.ts`
+- `packages/foldkit/src/runtime/runtime.ts`
+- `packages/foldkit/src/route/parser.ts`
 - `packages/foldkit/src/schema/index.ts`
 - `packages/foldkit/CHANGELOG.md`
 - `examples/counters/core/src/model.ts`
 - `examples/counters/core/src/message.ts`
+- `examples/counters/core/src/program.ts`
 - `examples/counters/core/src/route.ts`
+- `examples/counters/core/src/update.ts`
 - `examples/react-native-showcase/src/nativeNavigationComparison/navigationReconciliation.ts`
 
 Local Composable Architecture 1.25.2 source:
@@ -559,6 +761,7 @@ Local Composable Architecture 2.0 beta source:
 - `/Users/laptop/Sync/tca/TCA26-main/Sources/ComposableArchitecture2/Features/Update.swift`
 - `/Users/laptop/Sync/tca/TCA26-main/Sources/ComposableArchitecture2/Features/Spawn.swift`
 - `/Users/laptop/Sync/tca/TCA26-main/Sources/ComposableArchitecture2/Traits/SwiftNavigation.swift`
+- `/Users/laptop/Sync/tca/TCA26-main/Sources/ComposableArchitecture2Macros/FeatureMacro.swift`
 - `/Users/laptop/Sync/tca/TCA26-main/Examples/SwiftUICaseStudies/SpawnedStores/SpawnNavigation.swift`
 - `/Users/laptop/Sync/tca/TCA26-main/Examples/SwiftUICaseStudies/Asynchrony/AsynchronyBasics.swift`
 - `/Users/laptop/Sync/tca/TCA26-main/Examples/SwiftUICaseStudies/Asynchrony/AsynchronyCancellation.swift`

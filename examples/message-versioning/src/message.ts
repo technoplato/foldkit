@@ -1,6 +1,7 @@
 import {
   Data,
   Effect,
+  Match as M,
   Option,
   Schema as S,
   SchemaIssue,
@@ -33,6 +34,16 @@ export const WireMessageV1 = S.Struct({
 })
 /** An intermediate v1 Counter adjustment event. */
 export type WireMessageV1 = typeof WireMessageV1.Type
+
+/** Every historical wire version supported as an explicit encode target. */
+export const HistoricalMessageVersion = S.Literals([0, 1])
+/** A supported historical wire version. */
+export type HistoricalMessageVersion = typeof HistoricalMessageVersion.Type
+
+/** Every historical Counter adjustment wire representation. */
+export const HistoricalWireMessage = S.Union([WireMessageV0, WireMessageV1])
+/** A historical Counter adjustment wire representation. */
+export type HistoricalWireMessage = typeof HistoricalWireMessage.Type
 
 /** The provenance retained by the current domain Message. */
 export const AdjustmentOrigin = S.Literals(['Legacy', 'User', 'Automation'])
@@ -109,6 +120,41 @@ export const downgradeCurrentToV0 = (
     }),
   )
 }
+
+/** Downgrades a current Message only when v1 can represent it exactly. */
+export const downgradeCurrentToV1 = (
+  message: Message,
+): Effect.Effect<WireMessageV1, MessageDowngradeError> => {
+  if (message.origin !== 'Legacy') {
+    return Effect.fail(
+      new MessageDowngradeError({
+        eventId: message.eventId,
+        reason: `v1 cannot represent the ${message.origin} origin`,
+      }),
+    )
+  }
+  return Effect.succeed(
+    WireMessageV1.make({
+      eventId: message.eventId,
+      version: 1,
+      payload: { amount: message.amount },
+    }),
+  )
+}
+
+/** Encodes the exact requested historical version or rejects the downgrade. */
+export const downgradeCurrentToVersion = (
+  message: Message,
+  targetVersion: HistoricalMessageVersion,
+): Effect.Effect<HistoricalWireMessage, MessageDowngradeError> =>
+  M.value(targetVersion).pipe(
+    M.withReturnType<
+      Effect.Effect<HistoricalWireMessage, MessageDowngradeError>
+    >(),
+    M.when(0, () => downgradeCurrentToV0(message)),
+    M.when(1, () => downgradeCurrentToV1(message)),
+    M.exhaustive,
+  )
 
 /** A bidirectional Schema codec whose encoding direction rejects lossy v0 downgrades. */
 export const CurrentMessageFromV0: S.Codec<
