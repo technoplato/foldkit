@@ -4,6 +4,29 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 1:13:46 p.m. EDT — `608679bbe8b0` feat: integrate replayable universal clients
+
+- **Implementation commit:** `608679bbe8b0e6beaa126e0d2fe6a5ebdfcd8be7`
+- **Change:** Expose canonical replay paths across React clients and add one cross-platform Expo showcase.
+- **Details:**
+  - React consumers now receive stable inspection, seeking, stepping, branching, runtime-event, and canonical relative path capabilities from one domain-shaped replay hook.
+  - Counter, Multiple Counters, Calculator, and Fact reuse their canonical Programs and React bindings in ordinary React applications and one Expo Web, iOS, and Android showcase.
+  - Successful dependency selections are recorded at replay frames and restored before Effect Layers are acquired for a live branch.
+  - The Expo build preserves Effect runtime getters through a spec-compliant object-spread transform; the ADR assigns that compatibility requirement to future Foldkit Expo integration.
+- **Files:**
+  - `packages/foldkit/src/runtime/replayController.ts` — Expose the engine-owned Program parser-printer from each replay controller.
+  - `examples/shared/react-bindings/src/replayableReactProgram.tsx` — Expose domain-shaped replay hooks and canonical relative path promises.
+  - `examples/react-native-showcase/src/App.tsx` — Run Counter, Multiple Counters, Calculator, and Fact through one Expo host.
+  - `examples/react-native-showcase/src/platform.ts` — Compose two typed switchable dependency choices for Fact.
+  - `examples/react-native-showcase/babel.config.js` — Preserve Effect runtime getters under Metro.
+  - `docs/adr/0002-universal-program-replay.md` — Record React, dependency, and Expo integration decisions.
+- **User context (verbatim):**
+  > The React Native app is gonna be a showcase, because we're not gonna have one app for example.
+  > And let's show it working with Expo Web and Expo on iOS and Android.
+  > Let's add multiple switchable dependencies per client.
+  > Making sure you're committing all these things as well.
+- **SpecStory:** unavailable — This task ran in the Codex desktop app, for which SpecStory does not document session capture.
+
 ## July 27th, 2026 at 12:37:14 p.m. EDT — `e7c0dc63062a` feat: canonicalize replayable Program clients
 
 - **Implementation commit:** `e7c0dc63062a478acc23b661624f0775ab51faf5`
