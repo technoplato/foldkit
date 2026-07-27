@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 6:31:59 p.m. EDT — `e298d836ef8c` feat(message-versioning): target historical Messages
+
+- **Implementation commit:** `e298d836ef8c4e3f1a6c2773cd666314596b34a5`
+- **Change:** Make historical Message targets explicit and audit native TCA processing
+- **Details:**
+  - Added deterministic v0 and v1 Message encoders that preserve the stable event identity and reject values whose meaning the requested historical grammar cannot represent.
+  - Recorded the smallest native Program processor shared by TCA 1.25 and TCA26, including generated wire types, pure semantics, dependency-backed Commands, navigation ownership, and replay laws.
+  - Separated old Message encoding, complete old Program export, and opaque transit so compatibility claims remain precise.
+- **Files:**
+  - `examples/message-versioning/src/message.ts` — define validated historical targets and typed unrepresentable failures
+  - `examples/message-versioning/src/messageVersioning.test.ts` — prove exact target selection and rejection without fallback
+  - `docs/explorations/native-tca-message-processor.md` — document the local TCA source audit and cross-runtime contract
+- **User context (verbatim):**
+  > We need a versioning system for our messages and a conversion layer.
+- **SpecStory:** unavailable — No SpecStory URI is available because this implementation occurred in Codex desktop GUI, whose capture is not proven by SpecStory sync evidence.
+
 ## July 27th, 2026 at 6:23:12 p.m. EDT — `5567c92826e5` fix(wallet): restore represented finite work
 
 - **Implementation commit:** `5567c92826e5f2128981b06f6d386e55768959c6`
