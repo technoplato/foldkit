@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 6:23:12 p.m. EDT — `5567c92826e5` fix(wallet): restore represented finite work
+
+- **Implementation commit:** `5567c92826e5f2128981b06f6d386e55768959c6`
+- **Change:** Restore finite Wallet work from represented state
+- **Details:**
+  - Added the Wallet Program restore boundary so reconstructed Models restart portfolio loading, transaction preview or submission, and challenge signing without a host dispatching synthetic Messages.
+  - Verified the wallet core build and all 27 focused tests, including exhaustive restoration and inert stable-state coverage.
+- **Files:**
+  - `examples/wallet/core/src/program.ts` — attach the domain restore function to the exact Wallet Program
+  - `examples/wallet/core/src/update.ts` — derive finite restoration Commands exclusively from represented Model states
+  - `examples/wallet/core/src/update.test.ts` — prove each in-flight state restarts and stable states remain inert
+- **User context (verbatim):**
+  > we want to track that in the replayability tape
+- **SpecStory:** unavailable — No SpecStory URI is available because this implementation occurred in Codex desktop GUI, whose capture is not proven by SpecStory sync evidence.
+
 ## July 27th, 2026 at 6:19:53 p.m. EDT — `5feb8028372d` feat(staked-access): model signed stake adjudication
 
 - **Implementation commit:** `5feb8028372dfca72fd34275018ee687e3488aeb`
