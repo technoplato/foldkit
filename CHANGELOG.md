@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 7:27:48 p.m. EDT — `4dcab5b083f3` test(wallet): prove push-observed Devnet transfers
+
+- **Implementation commit:** `4dcab5b083f38b03272194510316b6110cba7b3a`
+- **Change:** Prove live push-observed Solana Devnet transfers
+- **Details:**
+  - Added an explicit opt-in integration test that uses the production Solana transport and custody Layers to preview, prepare, digest, sign, and submit a disposable Devnet SOL transfer.
+  - Required the receiver to emit the matching incoming transaction through logsSubscribe, with no balance, signature-status, or transaction-history polling loop.
+  - Recorded two successful live runs, the public transaction evidence, the safety gate, and the provider-specific boundary for future authenticated webhook Layers.
+- **Files:**
+  - `examples/wallet/testnet-node/src/live.transfer.test.ts` — Exercise the real sender and receiver Layers while keeping normal tests inert.
+  - `examples/wallet/testnet-node/package.json` — Expose the explicitly named live transfer command.
+  - `examples/wallet/README.md` — Distinguish simulated, read-only smoke, and transfer validation.
+  - `docs/explorations/wallet-testnet-layers.md` — Document WebSocket evidence, secrets, and webhook responsibilities.
+- **User context (verbatim):**
+  > go work on validating that yourself
+  > We want web hooks and web sockets for notifications when transactions arrive, please.
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 27th, 2026 at 7:09:48 p.m. EDT — `7fedb5ecd319` fix: keep Wallet clients alive during demos
 
 - **Implementation commit:** `7fedb5ecd3198537561a373a30fcad7fed3830af`
