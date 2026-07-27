@@ -1815,6 +1815,12 @@ importers:
       shared-react-bindings-example:
         specifier: workspace:*
         version: link:../shared/react-bindings
+      showcase-core-example:
+        specifier: workspace:*
+        version: link:../showcase/core
+      showcase-react-bindings-example:
+        specifier: workspace:*
+        version: link:../showcase/react-bindings
     devDependencies:
       '@babel/plugin-transform-object-rest-spread':
         specifier: ^7.29.7
@@ -2243,6 +2249,74 @@ importers:
       vite:
         specifier: ^8.0.16
         version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/showcase/core:
+    dependencies:
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+    devDependencies:
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  examples/showcase/react-bindings:
+    dependencies:
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../../packages/foldkit
+      shared-react-bindings-example:
+        specifier: workspace:*
+        version: link:../../shared/react-bindings
+      showcase-core-example:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      jsdom:
+        specifier: ^29.1.1
+        version: 29.1.1
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
