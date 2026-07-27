@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 12:37:14 p.m. EDT — `e7c0dc63062a` feat: canonicalize replayable Program clients
+
+- **Implementation commit:** `e7c0dc63062a478acc23b661624f0775ab51faf5`
+- **Change:** Canonicalize replay inspection, branching, and typed React dependency selection.
+- **Details:**
+  - Scoped each live replay branch independently so inert inspection releases resources and a later branch acquires a fresh Layer.
+  - Exposed an asynchronous React replay interface with typed routes, frame navigation, runtime events, and automatic branching from settled historical frames.
+  - Added arbitrary typed dependency sets whose selections are recorded as frame-anchored runtime events and restored before replay branches acquire services.
+- **Files:**
+  - `packages/foldkit/src/runtime/replayController.ts` — Own branch lifecycle, inspection, and replay timeline semantics.
+  - `examples/shared/react-bindings/src/replayableReactProgram.tsx` — Expose the canonical renderer-neutral React replay hook surface.
+  - `examples/shared/react-bindings/src/dependencyChoice.ts` — Compose typed switchable dependency Layers and record causal selection events.
+  - `docs/adr/0002-universal-program-replay.md` — Record the replay and dependency-selection decisions.
+  - `.changeset/add-view-agnostic-runtime-prototype.md` — Describe the published Foldkit API changes.
+- **User context (verbatim):**
+  > We need to think about the semantics for how you actually engage in a replay, what it should look like, what the most ergonomic solution would be.
+  > Let's add multiple switchable dependencies per client.
+  > I think we want to track that in the replayability tape.
+- **SpecStory:** unavailable — This task ran in the Codex desktop app, for which SpecStory does not document session capture.
+
 ## July 27th, 2026 at 12:04:03 p.m. EDT — `b4f1fdf67246` feat(foldkit): record replay runtime events
 
 - **Implementation commit:** `b4f1fdf6724660bfa7fdf8ad455d6f8799c5b36d`
