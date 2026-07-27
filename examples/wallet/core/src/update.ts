@@ -202,6 +202,71 @@ type UpdateReturn = readonly [
   ReadonlyArray<Command.Command<Message, never, WalletResources>>,
 ]
 
+const portfolioCommandsForRestore = (
+  model: Model,
+): ReadonlyArray<Command.Command<Message, never, WalletResources>> => {
+  if (model.portfolio._tag === 'LoadingPortfolio') {
+    return [LoadWallet()]
+  } else {
+    return []
+  }
+}
+
+const transactionCommandsForRestore = (
+  model: Model,
+): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
+  M.value(model.transaction).pipe(
+    M.withReturnType<
+      ReadonlyArray<Command.Command<Message, never, WalletResources>>
+    >(),
+    M.tagsExhaustive({
+      IdleTransaction: () => [],
+      PreviewingTransaction: ({
+        draft,
+        recipientFamiliarity,
+        recipientHistory,
+      }) => [
+        PreviewTransaction({
+          draft,
+          recipientFamiliarity,
+          recipientHistory,
+        }),
+      ],
+      PreviewedTransaction: () => [],
+      SubmittingTransaction: ({ preview }) => [
+        SignAndSubmitTransaction({ preview }),
+      ],
+      SubmittedTransaction: () => [],
+      FailedTransactionPreview: () => [],
+      FailedTransactionSubmission: () => [],
+    }),
+  )
+
+const signatureCommandsForRestore = (
+  model: Model,
+): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
+  M.value(model.signature).pipe(
+    M.withReturnType<
+      ReadonlyArray<Command.Command<Message, never, WalletResources>>
+    >(),
+    M.tagsExhaustive({
+      IdleSignature: () => [],
+      SigningChallengeState: ({ challenge }) => [SignChallenge({ challenge })],
+      SignedChallenge: () => [],
+      FailedChallengeSignature: () => [],
+    }),
+  )
+
+/** Restarts finite work represented by a restored Wallet Model. */
+export const restore = (model: Model): UpdateReturn => [
+  model,
+  [
+    ...portfolioCommandsForRestore(model),
+    ...transactionCommandsForRestore(model),
+    ...signatureCommandsForRestore(model),
+  ],
+]
+
 const replaceAddressBookEntry = (
   model: Model,
   message: Readonly<{ entry: AddressBookEntry }>,
