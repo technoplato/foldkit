@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 6:19:53 p.m. EDT — `5feb8028372d` feat(staked-access): model signed stake adjudication
+
+- **Implementation commit:** `5feb8028372dfca72fd34275018ee687e3488aeb`
+- **Change:** Model signed skin-in-the-game access as a portable Foldkit Program.
+- **Details:**
+  - Bound opaque identity, a deterministic UUID tape address, ordered Message ids, derived state, capabilities, nonce, expiry, and positive exact stake terms, then modeled escrow, adjudication, refund, and forfeiture as injected Effects with inert historical replay.
+- **Files:**
+  - `.changeset/config.json` — Keep the protocol example outside release accounting.
+  - `docs/explorations/staked-access-protocol.md` — Record privacy, replay, escrow, and trust boundaries.
+  - `examples/staked-access/core/src/claim.ts` — Define the complete public claim commitment.
+  - `examples/staked-access/core/src/model.ts` — Make contradictory settlement states unrepresentable.
+  - `examples/staked-access/core/src/update.ts` — Sequence signing, locking, verification, and settlement Commands.
+  - `examples/staked-access/core/src/protocolClient.ts` — Inject canonicalization, escrow, and adjudication services.
+  - `examples/staked-access/core/src/simulated.ts` — Provide deterministic grant and rejection Layers.
+  - `examples/staked-access/core/src/program.test.ts` — Prove refund, forfeiture, inert replay, and secrecy.
+  - `pnpm-lock.yaml` — Lock the staked-access workspace importer.
+- **User context (verbatim):**
+  > We want to make the stake very robust, but as simple as possible, too.
+  > If we get that wrong, then we lose our stake, and the stake goes to the treasury of the open source.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this work was performed in Codex desktop, not a captured Codex CLI session.
+
 ## July 27th, 2026 at 6:16:39 p.m. EDT — `bcb42fc3016f` feat(wallet): add portable wallet Program
 
 - **Implementation commit:** `bcb42fc3016f75555d0cfe6078cecab34bff7960`
