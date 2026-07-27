@@ -2,7 +2,10 @@ import { Effect, Layer } from 'effect'
 import { Fact, FactClient } from 'fact-core-example'
 import { factEndpoint, makeFactHttpClient } from 'fact-http-client-example'
 import { makeFactReactClient } from 'fact-react-bindings-example'
-import { defineDependencyChoice } from 'shared-react-bindings-example'
+import {
+  defineDependencyChoice,
+  defineSingleDependencySet,
+} from 'shared-react-bindings-example'
 
 import { BrowserHttpClient } from '@effect/platform-browser'
 
@@ -32,5 +35,5 @@ export const FactClientDependency = defineDependencyChoice({
 
 /** The React client assembled from the canonical Fact Program and platform Layers. */
 export const FactReactClient = makeFactReactClient({
-  dependency: FactClientDependency,
+  dependencies: defineSingleDependencySet(FactClientDependency),
 })

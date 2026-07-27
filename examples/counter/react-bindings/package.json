@@ -24,6 +24,7 @@
   "dependencies": {
     "counter-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
     "shared-react-bindings-example": "workspace:*"
   },
   "peerDependencies": {

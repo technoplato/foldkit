@@ -6,6 +6,7 @@ import { FactClientDependency, FactReactClient } from './factReactClient.js'
 export const App = () => {
   const model = FactReactClient.useFactModel()
   const actions = FactReactClient.useFactActions()
+  const replay = FactReactClient.useFactReplay()
   const dependency = FactReactClient.useDependency({
     dependencyKey: FactClientDependency,
   })
@@ -82,6 +83,57 @@ export const App = () => {
         >
           {isLoading ? 'Loading fact…' : 'Load fact'}
         </button>
+
+        <section className="mt-6 space-y-3 rounded-2xl border border-white/10 bg-black/30 p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-zinc-200">{replay.mode}</span>
+            <span className="tabular-nums text-zinc-500">
+              Frame {replay.frame} of {replay.finalFrame}
+            </span>
+          </div>
+          <input
+            aria-label="Replay frame"
+            className="w-full accent-emerald-400"
+            max={replay.finalFrame}
+            min={0}
+            onChange={event => replay.seek(Number(event.currentTarget.value))}
+            type="range"
+            value={replay.frame}
+          />
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              className={replayButtonClassName}
+              disabled={replay.frame === 0}
+              onClick={replay.stepBackward}
+              type="button"
+            >
+              Back
+            </button>
+            <button
+              className={replayButtonClassName}
+              disabled={replay.mode === 'Inspecting'}
+              onClick={() => replay.inspect()}
+              type="button"
+            >
+              Inspect
+            </button>
+            <button
+              className={replayButtonClassName}
+              disabled={
+                replay.mode === 'Live' || replay.frame === replay.finalFrame
+              }
+              onClick={replay.stepForward}
+              type="button"
+            >
+              Next
+            </button>
+          </div>
+          <p className="text-xs text-zinc-500">
+            {replay.occurredRuntimeEvents.length} of{' '}
+            {replay.runtimeEvents.length} dependency events occurred by this
+            frame.
+          </p>
+        </section>
       </section>
     </main>
   )
@@ -89,3 +141,5 @@ export const App = () => {
 
 const choiceButtonClassName =
   'min-h-11 rounded-xl border border-white/15 bg-zinc-800 px-4 text-sm font-medium transition hover:bg-zinc-700 disabled:cursor-wait disabled:opacity-50'
+const replayButtonClassName =
+  'h-10 rounded-xl bg-zinc-800 px-3 text-sm font-medium text-zinc-100 transition enabled:hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40'

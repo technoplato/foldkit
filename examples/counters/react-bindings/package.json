@@ -24,7 +24,7 @@
     "counters-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
-    "react": "^19.2.7",
+    "react": "19.2.3",
     "shared-react-bindings-example": "workspace:*"
   },
   "devDependencies": {

@@ -187,6 +187,12 @@ describe('makeReplayController', () => {
           expect(controller.stateRoute()).toStrictEqual(
             state({ count: 8, status: 'Ready' }),
           )
+          const statePath = yield* controller.router.print(
+            controller.stateRoute(),
+          )
+          expect(yield* controller.router.parse(statePath)).toStrictEqual(
+            state({ count: 8, status: 'Ready' }),
+          )
         }),
       ),
   )

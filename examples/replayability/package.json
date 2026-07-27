@@ -17,8 +17,8 @@
     "@vitejs/plugin-react": "^6.0.2",
     "effect": "4.0.0-beta.97",
     "fact-http-client-example": "workspace:*",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
     "replayability-core-example": "workspace:*",
     "replayability-react-bindings-example": "workspace:*",
     "tailwindcss": "^4.3.1"

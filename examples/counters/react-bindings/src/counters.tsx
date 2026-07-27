@@ -5,6 +5,7 @@ import {
   ClickedDeleteCounter,
   ClickedShowCounterFact,
   ConfirmedDeleteCounter,
+  CounterList,
   DismissedCounterDetail,
   DismissedCounterFactAlert,
   GotCounterMessage,
@@ -19,7 +20,8 @@ import {
   modelForNavigation,
 } from 'counters-core-example'
 import { Program } from 'foldkit'
-import { createReplayableReactProgramBindingsWithFlags } from 'shared-react-bindings-example'
+import type { ReactNode } from 'react'
+import { createReplayableReactProgramClient } from 'shared-react-bindings-example'
 
 /** Actions exposed to React consumers of the Multiple Counters Program. */
 export type MultipleCountersActions = Readonly<{
@@ -38,11 +40,22 @@ export type MultipleCountersActions = Readonly<{
   selectedCounter: (counterId: string) => void
 }>
 
-const bindings = createReplayableReactProgramBindingsWithFlags<
+/** One portable state or replay route accepted by the Multiple Counters client. */
+export type MultipleCountersInitialRoute = Program.ResolvedProgramRoute<
+  Model,
+  Message
+>
+
+/** The canonical fresh Multiple Counters route shared by host carriers. */
+export const initialMultipleCountersRoute: MultipleCountersInitialRoute =
+  Program.state(modelForNavigation(CounterList.make({})))
+
+/** The canonical React and React Native client for Multiple Counters. */
+export const MultipleCountersClient = createReplayableReactProgramClient<
   Model,
   Message,
   MultipleCountersActions,
-  Navigation,
+  MultipleCountersInitialRoute,
   import('counters-core-example').CounterFactClient
 >({
   createActions: enqueueMessage => ({
@@ -81,17 +94,32 @@ const bindings = createReplayableReactProgramBindingsWithFlags<
   name: 'MultipleCounters',
   program: MultipleCountersProgram,
   resources: StaticCounterFactClient,
-  route: navigation => Program.state(modelForNavigation(navigation)),
+  route: initialRoute => initialRoute,
 })
 
-/** Provides one Multiple Counters runtime to React children. */
-export const MultipleCountersProvider = bindings.Provider
+/** Provides one URL-initialized Multiple Counters runtime to React children. */
+export const MultipleCountersProvider = ({
+  children,
+  fallback,
+  flags,
+}: Readonly<{
+  children: ReactNode
+  fallback?: ReactNode
+  flags: Navigation
+}>) => (
+  <MultipleCountersClient.Provider
+    initialRoute={Program.state(modelForNavigation(flags))}
+    fallback={fallback}
+  >
+    {children}
+  </MultipleCountersClient.Provider>
+)
 
 /** Reads the current immutable Multiple Counters Model. */
-export const useMultipleCountersModel = bindings.useModel
+export const useMultipleCountersModel = MultipleCountersClient.useModel
 
 /** Returns stable host-callable Multiple Counters actions. */
-export const useMultipleCountersActions = bindings.useActions
+export const useMultipleCountersActions = MultipleCountersClient.useActions
 
 /** Returns controls for inspecting and branching the same Multiple Counters tape. */
-export const useMultipleCountersReplay = bindings.useReplay
+export const useMultipleCountersReplay = MultipleCountersClient.useReplay

@@ -1,0 +1,52 @@
+{
+  "name": "react-native-showcase-example",
+  "private": true,
+  "version": "0.0.0",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "android": "expo start --android",
+    "export:android": "expo export --platform android --output-dir dist-android",
+    "export:ios": "expo export --platform ios --output-dir dist-ios",
+    "export:web": "expo export --platform web",
+    "ios": "expo start --ios",
+    "preandroid": "pnpm run prepare-examples",
+    "preexport:android": "pnpm run prepare-examples",
+    "preexport:ios": "pnpm run prepare-examples",
+    "preexport:web": "pnpm run prepare-examples",
+    "preios": "pnpm run prepare-examples",
+    "prestart": "pnpm run prepare-examples",
+    "pretypecheck": "pnpm run prepare-examples",
+    "prepare-examples": "pnpm --filter counter-react-bindings-example build && pnpm --filter calculator-react-bindings-example build && pnpm --filter counters-react-bindings-example build && pnpm --filter fact-http-client-example build && pnpm --filter fact-react-bindings-example build",
+    "start": "expo start",
+    "typecheck": "tsc --noEmit",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.7",
+    "calculator-core-example": "workspace:*",
+    "calculator-react-bindings-example": "workspace:*",
+    "counter-core-example": "workspace:*",
+    "counter-react-bindings-example": "workspace:*",
+    "counters-core-example": "workspace:*",
+    "counters-react-bindings-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "expo": "^57.0.8",
+    "expo-status-bar": "~57.0.1",
+    "fact-core-example": "workspace:*",
+    "fact-http-client-example": "workspace:*",
+    "fact-react-bindings-example": "workspace:*",
+    "foldkit": "workspace:*",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-web": "~0.21.0",
+    "shared-react-bindings-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@babel/plugin-transform-object-rest-spread": "^7.29.7",
+    "@types/react": "^19.2.17",
+    "babel-preset-expo": "~57.0.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3"
+  }
+}

@@ -210,7 +210,7 @@ export const FactStatusView = ({ status }: { status: CounterFactStatus }) =>
 export const ReplayControls = () => {
   const replay = useMultipleCountersReplay()
   const changedFrame = (event: ChangeEvent<HTMLInputElement>) => {
-    replay.changedFrame(Number.parseInt(event.currentTarget.value, 10))
+    replay.seek(Number.parseInt(event.currentTarget.value, 10))
   }
   return (
     <aside
@@ -229,7 +229,7 @@ export const ReplayControls = () => {
         <button
           className="secondary-button text-xs"
           disabled={replay.mode === 'Inspecting'}
-          onClick={replay.clickedInspect}
+          onClick={() => replay.inspect()}
           type="button"
         >
           Inspect current
@@ -248,7 +248,7 @@ export const ReplayControls = () => {
         <button
           className="secondary-button flex-1"
           disabled={replay.frame === 0}
-          onClick={replay.clickedStepBackward}
+          onClick={replay.stepBackward}
           type="button"
         >
           Previous
@@ -258,7 +258,7 @@ export const ReplayControls = () => {
           disabled={
             replay.mode === 'Live' || replay.frame === replay.finalFrame
           }
-          onClick={replay.clickedStepForward}
+          onClick={replay.stepForward}
           type="button"
         >
           Next
@@ -269,9 +269,9 @@ export const ReplayControls = () => {
           ? 'While inspecting, any app action branches live from this settled frame.'
           : 'This frame is still waiting for a Command result and is inspection-only.'}
       </p>
-      {Option.isSome(replay.maybeBranchError) ? (
+      {Option.isSome(replay.maybeError) ? (
         <p className="mt-2 text-xs text-red-300" role="alert">
-          {replay.maybeBranchError.value}
+          {replay.maybeError.value}
         </p>
       ) : null}
     </aside>
