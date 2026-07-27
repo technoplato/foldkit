@@ -4,6 +4,31 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 5:49:51 p.m. EDT — `6a2e76364659` feat: exercise portable navigation across clients
+
+- **Implementation commit:** `6a2e7636465991af6053aa91e3ecbde0059205b5`
+- **Change:** Exercise portable navigation across clients
+- **Details:**
+  - Added a typed client matrix with canonical Multiple Counters state, portable URI carriers, live Foldkit and React cells, and checked-in evidence for eight client surfaces.
+  - Added an Effect Terminal client and restored URI state consistently across CLI, OpenTUI, Foldkit, Expo, and terminal hosts.
+  - Compared strict Program-first and optimistic native Back policies with attempt-scoped timing, duplicate suppression, rollback metrics, and container-level reconciliation verified on iOS and Android simulators.
+- **Files:**
+  - `.lavish/portable-program-bombshells.html` — Preserve the architectural compression model and measured native navigation result.
+  - `docs/adr/0003-navigation-as-state.md` — Record the client matrix and framework boundary decisions.
+  - `examples/client-matrix/core/src/program.ts` — Define the renderer-independent matrix Program.
+  - `examples/client-matrix/foldkit/src/view.ts` — Render state, routes, captures, and live client cells.
+  - `examples/client-matrix/foldkit/public/captures/list/expo-ios.webp` — Preserve representative native client evidence.
+  - `examples/counters/core/src/route.ts` — Parse the same portable navigation path from relative and host carriers.
+  - `examples/counters/terminal/src/host.ts` — Run the shared Program through an interactive Effect Terminal client.
+  - `examples/react-native-showcase/src/nativeNavigationComparison/nativeNavigationComparison.tsx` — Run and measure strict and optimistic native Back policies.
+  - `examples/react-native-showcase/src/nativeNavigationComparison/navigationReconciliation.ts` — Keep native stack state aligned with the portable Program Model.
+  - `knip.json` — Register new executable and test entry points for dead-code analysis.
+  - `package.json` — Expose the client matrix development command.
+  - `pnpm-lock.yaml` — Lock the native navigation and Expo-compatible dependencies.
+- **User context (verbatim):**
+  > Prototype the interaction, not only the architecture.
+- **SpecStory:** unavailable — Codex desktop task; no verified durable SpecStory capture URI is available.
+
 ## July 27th, 2026 at 2:46:07 p.m. EDT — `410b78fa7f7d` feat(react-native-showcase): expose counter detail deletion
 
 - **Implementation commit:** `410b78fa7f7dffd20562ad73af84027b899e8523`
