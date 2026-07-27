@@ -79,6 +79,8 @@
     "managed-resource-layer-example",
     "message-versioning-example",
     "pixel-art-react-comparison",
+    "wallet-core-example",
+    "wallet-simulated-client-example",
     "@foldkit/performance-harness",
     "@foldkit/examples-e2e",
     "@foldkit/lustre-benchmark",
