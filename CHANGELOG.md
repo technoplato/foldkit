@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 12:04:03 p.m. EDT — `b4f1fdf67246` feat(foldkit): record replay runtime events
+
+- **Implementation commit:** `b4f1fdf6724660bfa7fdf8ad455d6f8799c5b36d`
+- **Change:** Add an engine-owned runtime-event timeline for replayable host facts that are not domain Messages.
+- **Details:**
+  - Runtime events are anchored to frames, encoded in portable tapes, surfaced by replay controllers, and observed without changing the Model.
+  - Historical inspection remains inert, and branching retains only events that had occurred at the selected settled frame.
+  - Dependency adapters can now record environment selections without adding platform concerns to update.
+- **Files:**
+  - `packages/foldkit/src/runtime/programRuntime.ts` — Expose the live runtime-event timeline and include its events in replay tapes.
+  - `packages/foldkit/src/runtime/replayTape.ts` — Encode, decode, and branch frame-anchored runtime events with backward-compatible defaults.
+  - `packages/foldkit/src/runtime/replayController.ts` — Publish runtime events in both live and inspecting controller snapshots.
+  - `packages/foldkit/src/runtime/programRuntime.test.ts` — Prove runtime events do not become transitions and make asynchronous failure assertions deterministic.
+  - `packages/foldkit/src/runtime/replayTape.test.ts` — Prove branch truncation keeps only events that occurred by the selected frame.
+  - `docs/adr/0002-universal-program-replay.md` — Record why dependency selection is a runtime event rather than a Message.
+- **User context (verbatim):**
+  > but I think we want to track that in the replayability tape.
+- **SpecStory:** unavailable — This task ran in the Codex desktop app, for which SpecStory does not document session capture.
+
 ## July 27th, 2026 at 11:53:07 a.m. EDT — `f2b7fd5719dc` feat: harden universal Program clients
 
 - **Implementation commit:** `f2b7fd5719dcaf46ffe13d8879206a2f161b391d`
