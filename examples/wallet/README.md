@@ -48,9 +48,12 @@ observation, state routes, replay routes, and historical inspection.
 SOL, and Circle USDC values use exact atomic-unit strings. Provider URLs and
 local keys are loaded as `Redacted` configuration.
 
-The normal suite uses fake transports. The opt-in live smoke tests only load
-public balances. They do not construct, sign, submit, observe, fund, mint, or
-request an airdrop. See
+The normal suite uses fake transports. Read-only live smoke tests load public
+balances. A separately named opt-in Solana transfer test previews, signs,
+submits, and observes a small Devnet SOL transfer between explicitly configured
+test accounts. It receives the transaction through `logsSubscribe`; it does not
+poll balances or signature status. No test requests an airdrop or mints tokens.
+See
 [`docs/explorations/wallet-testnet-layers.md`](../../docs/explorations/wallet-testnet-layers.md)
 for configuration and capability details.
 
