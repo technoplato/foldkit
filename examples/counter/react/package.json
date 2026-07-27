@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "counter-react-bindings-example": "workspace:*",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.1",

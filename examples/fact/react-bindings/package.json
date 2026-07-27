@@ -1,5 +1,5 @@
 {
-  "name": "shared-react-bindings-example",
+  "name": "fact-react-bindings-example",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -15,25 +15,23 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "test": "vitest run",
+    "prebuild": "pnpm --filter fact-core-example build && pnpm --filter shared-react-bindings-example build",
+    "pretypecheck": "pnpm --filter fact-core-example build && pnpm --filter shared-react-bindings-example build",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "effect": "4.0.0-beta.97",
-    "foldkit": "workspace:*"
+    "fact-core-example": "workspace:*",
+    "foldkit": "workspace:*",
+    "shared-react-bindings-example": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=19.2.3 <20"
   },
   "devDependencies": {
-    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "jsdom": "^29.1.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3",
     "rimraf": "^6.1.3",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "typescript": "^6.0.3"
   }
 }

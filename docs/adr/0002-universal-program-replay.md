@@ -114,6 +114,56 @@ a tape remains an explicit adapter action rather than an automatic runtime side 
 The result is 18/18 and passes the stricter 3/3 gate because every dimension scores 3.
 No average or compensating score is used.
 
+## Client Boundary Assessment | 2026-07-26 15:53:12 EDT
+
+The cross-client proof separates three responsibilities.
+
+Foldkit owns the behavior that must remain identical in every client:
+
+- Program execution, observation, causal operation completion, and scoped shutdown.
+- Transition journaling, typed replay tapes, inert frame reconstruction, and settled
+  live branching.
+- Schema-backed parsing and printing of canonical relative state, embedded replay, and
+  saved replay routes.
+- Replay identity, version, causal-boundary, and content-address validation.
+
+Application core owns the behavior that cannot be inferred from a Message Schema:
+
+- Which Messages are valid host inputs rather than Command-result facts.
+- Which actions are valid for the current Model.
+- Domain action identifiers and the typed construction of payload-bearing Messages.
+- Labels, roles, and other presentation facts shared intentionally across clients.
+- Selection among several Programs in one application and any application-specific
+  replay storage protocol.
+
+A client adapter owns only its medium and platform concerns:
+
+- Rendering and observation through the client's native scheduling contract.
+- Mapping clicks, keys, terminal input, agent requests, or native gestures to the
+  application's explicit host-sendable actions.
+- Adding a scheme and authority around the canonical relative route and integrating
+  platform launch behavior.
+- Providing concrete Layers for capabilities whose implementations differ on that
+  platform.
+
+React and React Native can consume the same external-store binding because it depends
+only on React lifecycle, context, and observation APIs. A public React adapter must not
+depend on React DOM or native rendering packages. It also must not expose the current
+prototype's synchronous Layer acquisition or fire-and-forget shutdown. Publication is
+deferred until scoped Effect acquisition, cancellation, teardown ordering, startup
+failure policy, Strict Mode, server fallback, and React Native behavior are tested.
+
+Portable consumers must import Program and renderer-independent Runtime APIs from
+dedicated Foldkit subpaths. Successful tree shaking of the root barrel is not proof of
+platform independence because that barrel also exports the Foldkit view runtime and
+browser integrations.
+
+Replay presentation, typed action manifests, the multi-Program Workbench, absolute URL
+carriers, and the example HTTP tape store remain application or platform code. A future
+Program composition helper may remove repetitive exhaustive selection, but it must not
+be required to make one Program replayable and must not attempt to derive host actions
+from the Message Schema.
+
 The verification commands were:
 
 ```text
@@ -133,3 +183,58 @@ pnpm check:dead-code
 pnpm exec prettier --check <changed files>
 git diff --check
 ```
+
+## React Lifecycle Prototype | 2026-07-27 11:14:49 EDT
+
+The shared React binding now proves the lifecycle boundary that was previously
+deferred. `makeProgramRuntime` acquires the complete Resources Layer during startup and
+preserves the Layer's typed error channel. A React Provider can therefore report a
+stable `Idle`, `Starting`, `Ready`, `Failed`, `Stopping`, or `Stopped` snapshot without
+guessing whether its dependencies exist.
+
+The Provider owns asynchronous startup through a cancellable Effect fiber. A real
+unmount interrupts pending acquisition. React Strict Mode's immediate cleanup and
+second setup share one Provider controller, so the development probe does not create a
+second Program or a second resource owner. Shutdown calls `runtime.shutdown` before
+closing the Provider scope. The runtime scope interrupts finite Commands and persistent
+Subscriptions before the earlier Resources Layer finalizers run. Server rendering
+reads an `Idle` fallback snapshot and starts no Effects.
+
+`initialRoute` is the typed startup instruction accepted by the new client builder. It
+resolves to `Fresh`, `Model`, or settled `Replay` startup before the Provider begins. It
+is not live navigation, a Resources Layer selection, or a prop that replaces the Model
+after startup.
+
+The Fact proof adds one typed dependency choice at the platform composition boundary.
+The declaration names `Mock` and `Live` ordinary Effect Layers. React reads only the
+choice lifecycle and a stable `switchTo` function. The Fact screen still sends
+`ClickedLoadFact`, update still returns `FetchFact`, and the Command still requests the
+abstract `FactClient` service. A switch waits for the current causal `runtime.run`
+operation, acquires the replacement in a new scope, releases the preceding scope, and
+keeps the same Model and journal. Failed acquisition retains the preceding
+implementation when it remains usable.
+
+The following behavior belongs in a future public Foldkit React adapter rather than in
+application implementations:
+
+- Cancellable scoped Provider startup and ordered shutdown.
+- Stable lifecycle snapshots, callbacks, fallback rendering, and server snapshots.
+- Strict Mode ownership and stable domain action identity.
+- Causal-operation tracking before dependency replacement.
+- Typed implementation names, acquisition failures, scope replacement, and dependency
+  lifecycle observation.
+- Replay rules that keep historical Commands inert when a live dependency exists.
+
+Application and platform composition roots remain responsible for:
+
+- Declaring the finite implementation names and their concrete Effect Layers.
+- Providing platform services required by those Layers.
+- Choosing the initial implementation and rendering lifecycle information.
+- Mapping native interaction to the explicit host-sendable domain actions.
+
+The current dependency-choice proof intentionally supports one switchable service per
+client. It should not be published as a parallel dependency container. Before a public
+package, it must generalize to a typed tuple of choices, migrate the replay-controller
+binding off synchronous acquisition, prove React Native lifecycle parity, and decide
+whether the generic service forwarding implementation should remain internal or be
+replaced by a more direct Effect service indirection primitive.

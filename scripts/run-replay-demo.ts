@@ -46,6 +46,22 @@ const entryPath = M.value<ReplayClient>(client).pipe(
   M.exhaustive,
 )
 
+const clientLabel = M.value<ReplayClient>(client).pipe(
+  M.when('cli', () => 'replay CLI'),
+  M.when('tui', () => 'replay TUI'),
+  M.exhaustive,
+)
+
+console.error(`Preparing ${clientLabel}…`)
+const foldkitBuildResult = spawnSync(
+  'pnpm',
+  ['--filter', 'foldkit', 'exec', 'tsc', '-b', 'tsconfig.build.json'],
+  { stdio: 'inherit' },
+)
+if (foldkitBuildResult.status !== 0) {
+  process.exit(foldkitBuildResult.status ?? 1)
+}
+
 const buildResult = spawnSync(
   'pnpm',
   [
@@ -67,6 +83,7 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1)
 }
 
+console.error(`Starting ${clientLabel}…`)
 const runResult = spawnSync(process.execPath, [entryPath, ...clientArgs], {
   stdio: 'inherit',
 })

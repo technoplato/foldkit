@@ -1,4 +1,4 @@
-import { Data, Effect, Function, Layer, Scope } from 'effect'
+import { Data, Effect, Function, Layer, Scope, pipe } from 'effect'
 
 import type { Ports } from '../port/port.js'
 import type { Program } from '../program/program.js'
@@ -12,7 +12,7 @@ import {
 import {
   type ProgramRuntime,
   type ProgramRuntimeJournalConfig,
-  type ProgramRuntimeStartError,
+  ProgramRuntimeStartError,
   type ProgramStart,
   type SendOptions,
   fromModel,
@@ -24,7 +24,11 @@ import {
   type UnsettledReplayFrameError,
   makeReplaySession,
 } from './replaySession.js'
-import type { ReplayFrameError, ReplayTape } from './replayTape.js'
+import {
+  type ReplayFrameError,
+  type ReplayTape,
+  validateReplayTapeProgram,
+} from './replayTape.js'
 
 /** A renderer-independent snapshot of an inspectable or live Program. */
 export type ReplayControllerSnapshot<Model> = Readonly<{
@@ -213,9 +217,19 @@ export const makeReplayController = <
       }
       activateLiveRuntime(runtime)
     } else {
+      const tape = config.route.tape
+      yield* pipe(
+        validateReplayTapeProgram(config.program, tape),
+        Effect.mapError(
+          () =>
+            new ProgramRuntimeStartError({
+              message: `Replay tape ${tape.programId}@${tape.programVersion} does not match ${config.program.id}@${config.program.version}`,
+            }),
+        ),
+      )
       const session = yield* makeReplaySession(
         config.program,
-        config.route.tape,
+        tape,
         config.route.frame,
       )
       controllerState = { _tag: 'Inspecting', session }

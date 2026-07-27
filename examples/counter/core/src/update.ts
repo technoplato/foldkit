@@ -1,5 +1,5 @@
 import { Match as M } from 'effect'
-import { Command } from 'foldkit'
+import type * as Command from 'foldkit/command'
 
 import { type Message } from './message.js'
 import { type Model, initialCount } from './model.js'

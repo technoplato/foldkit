@@ -1,5 +1,12 @@
 import { Array, Effect, Exit, Layer, Match as M, Option, Scope } from 'effect'
-import { Program, Runtime } from 'foldkit'
+import type * as Program from 'foldkit/program'
+import {
+  type ProgramRuntime,
+  type ProgramRuntimeJournalConfig,
+  type ReplayController,
+  type ReplayControllerSnapshot,
+  makeReplayController,
+} from 'foldkit/program-runtime'
 import {
   type ReactElement,
   type ReactNode,
@@ -14,7 +21,7 @@ import type { ReactProgramActions } from './reactProgram.js'
 
 /** Replay controls exposed beside a React Program's domain hooks. */
 export type ReactReplayControls = Readonly<{
-  mode: Runtime.ReplayControllerSnapshot<unknown>['mode']
+  mode: ReplayControllerSnapshot<unknown>['mode']
   frame: number
   finalFrame: number
   isBranchable: boolean
@@ -53,14 +60,12 @@ export type ReplayableReactProgramConfigWithFlags<
   Flags,
   Resources = never,
 > = Readonly<{
-  createActions: (
-    send: Runtime.ProgramRuntime<Model, Message>['send'],
-  ) => Actions
+  createActions: (send: ProgramRuntime<Model, Message>['send']) => Actions
   name: string
   program: Program.Program<Model, Message, Resources>
   resources: Layer.Layer<Resources>
   route: (flags: Flags) => Program.ResolvedProgramRoute<Model, Message>
-  journal?: Runtime.ProgramRuntimeJournalConfig<Model, Message>
+  journal?: ProgramRuntimeJournalConfig<Model, Message>
 }>
 
 type ReplayableReactProgramStore<
@@ -74,7 +79,7 @@ type ReplayableReactProgramStore<
 }>
 
 type RunningReplayController<Model, Message> = Readonly<{
-  controller: Runtime.ReplayController<Model, Message>
+  controller: ReplayController<Model, Message>
   scope: Scope.Closeable
 }>
 
@@ -98,7 +103,7 @@ const startReplayController = <
     Effect.gen(function* () {
       const scope = yield* Scope.make()
       const controller = yield* Effect.provideService(
-        Runtime.makeReplayController({
+        makeReplayController({
           program: config.program,
           resources: config.resources,
           route: config.route(flags),
@@ -133,10 +138,8 @@ const makeReplayableProgramStore = <
   Message extends Readonly<{ _tag: string }>,
   Actions extends ReactProgramActions,
 >(
-  controller: Runtime.ReplayController<Model, Message>,
-  createActions: (
-    send: Runtime.ProgramRuntime<Model, Message>['send'],
-  ) => Actions,
+  controller: ReplayController<Model, Message>,
+  createActions: (send: ProgramRuntime<Model, Message>['send']) => Actions,
 ): ReplayableReactProgramStore<Model, Actions> => {
   let snapshot = controller.read()
   let maybeBranchError: Option.Option<string> = Option.none()
@@ -162,7 +165,7 @@ const makeReplayableProgramStore = <
   }
 
   const isBranchable = (
-    nextSnapshot: Runtime.ReplayControllerSnapshot<Model>,
+    nextSnapshot: ReplayControllerSnapshot<Model>,
   ): boolean => {
     if (nextSnapshot.mode === 'Live') {
       return true
@@ -216,7 +219,7 @@ const makeReplayableProgramStore = <
   }
 
   const replayForSnapshot = (
-    nextSnapshot: Runtime.ReplayControllerSnapshot<Model>,
+    nextSnapshot: ReplayControllerSnapshot<Model>,
   ): ReactReplayControls => ({
     mode: nextSnapshot.mode,
     frame: nextSnapshot.frame,
@@ -237,10 +240,7 @@ const makeReplayableProgramStore = <
     notify()
   })
 
-  const send: Runtime.ProgramRuntime<Model, Message>['send'] = (
-    message,
-    options,
-  ) => {
+  const send: ProgramRuntime<Model, Message>['send'] = (message, options) => {
     if (isBranchable(snapshot)) {
       maybeBranchError = Option.none()
       runControllerEffect(controller.run(message, options), error => {

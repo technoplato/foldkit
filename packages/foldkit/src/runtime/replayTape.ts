@@ -152,6 +152,13 @@ export class ReplayFrameError extends Data.TaggedError('ReplayFrameError')<{
   readonly maximumFrame: number
 }> {}
 
+/** A replay frame cannot become the beginning of a live branch. */
+export class UnsettledReplayFrameError extends Data.TaggedError(
+  'UnsettledReplayFrameError',
+)<{
+  readonly frame: number
+}> {}
+
 /** All typed failures that can occur while importing a replay tape. */
 export type ReplayTapeDecodeError =
   | ReplayTapeImportError
@@ -239,6 +246,65 @@ export const fromJournal = <
   initialCommands: journal.initialCommands,
   transitions: Array.map(journal.transitions, toReplayTransition),
 })
+
+/** Validates that a typed tape belongs to the supplied Program version. */
+export const validateReplayTapeProgram = <
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+>(
+  program: Program<Model, Message, Resources, ManagedResourceServices, P>,
+  tape: ReplayTape<Model, Message>,
+): Effect.Effect<
+  void,
+  IncompatibleProgramError | IncompatibleProgramVersionError
+> => {
+  if (tape.programId !== program.id) {
+    return Effect.fail(
+      new IncompatibleProgramError({
+        expectedProgramId: program.id,
+        actualProgramId: tape.programId,
+      }),
+    )
+  }
+  if (tape.programVersion !== program.version) {
+    return Effect.fail(
+      new IncompatibleProgramVersionError({
+        programId: program.id,
+        expectedVersion: program.version,
+        actualVersion: tape.programVersion,
+      }),
+    )
+  }
+  return Effect.void
+}
+
+/** Truncates a tape at a settled causal boundary for live continuation. */
+export const branchReplayTape = <Model, Message>(
+  tape: ReplayTape<Model, Message>,
+  frame: number,
+): Effect.Effect<ReplayTape<Model, Message>, UnsettledReplayFrameError> => {
+  if (frame === 0) {
+    if (!Array.isReadonlyArrayEmpty(tape.initialCommands)) {
+      return Effect.fail(new UnsettledReplayFrameError({ frame }))
+    }
+    return Effect.succeed({ ...tape, transitions: [] })
+  }
+
+  const maybeTransition = pipe(tape.transitions, Array.get(frame - 1))
+  if (
+    Option.isNone(maybeTransition) ||
+    !maybeTransition.value.isOperationSettled
+  ) {
+    return Effect.fail(new UnsettledReplayFrameError({ frame }))
+  }
+  return Effect.succeed({
+    ...tape,
+    transitions: Array.take(tape.transitions, frame),
+  })
+}
 
 /** Encodes a typed replay tape as portable JSON. */
 export const encodeReplayTape = <
