@@ -55,7 +55,7 @@ import {
   WalletAccount,
   initialModel,
 } from './model.js'
-import { update } from './update.js'
+import { restore, update } from './update.js'
 
 const observedAt = 1_722_000_000_000
 const ethereum = EthereumSepolia.make({})
@@ -407,5 +407,43 @@ describe('Wallet transaction observation update', () => {
       ObservingTransactions.make({ accountIds: [account.accountId] }),
     )
     expect(unchangedModel).toBe(initialModel)
+  })
+})
+
+describe('Wallet restoration', () => {
+  it('restarts every finite operation represented by the Model', () => {
+    const pendingModel: Model = {
+      ...loadedModel,
+      portfolio: LoadingPortfolio.make({}),
+      transaction: PreviewingTransaction.make({
+        draft,
+        recipientFamiliarity: FamiliarAddress.make({ entry: addressBookEntry }),
+        recipientHistory: history,
+      }),
+      signature: SigningChallengeState.make({ challenge }),
+    }
+    const [restoredModel, commands] = restore(pendingModel)
+
+    expect(restoredModel).toBe(pendingModel)
+    expect(commandNames(commands)).toStrictEqual([
+      'LoadWallet',
+      'PreviewTransaction',
+      'SignChallenge',
+    ])
+  })
+
+  it('restarts submission but leaves stable states inert', () => {
+    const submittingModel: Model = {
+      ...loadedModel,
+      transaction: SubmittingTransaction.make({ preview }),
+    }
+    const [, submittingCommands] = restore(submittingModel)
+    const [restoredModel, stableCommands] = restore(loadedModel)
+
+    expect(commandNames(submittingCommands)).toStrictEqual([
+      'SignAndSubmitTransaction',
+    ])
+    expect(restoredModel).toBe(loadedModel)
+    expect(stableCommands).toStrictEqual([])
   })
 })

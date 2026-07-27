@@ -4,7 +4,7 @@ import { init } from './init.js'
 import { Message } from './message.js'
 import { Model } from './model.js'
 import { subscriptions } from './subscription.js'
-import { update } from './update.js'
+import { restore, update } from './update.js'
 
 /** The renderer- and platform-agnostic Wallet Program. */
 export const WalletProgram = Program.make({
@@ -13,6 +13,7 @@ export const WalletProgram = Program.make({
   Model,
   Message,
   init,
+  restore,
   update,
   subscriptions,
 })
