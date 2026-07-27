@@ -35,6 +35,15 @@ to browser history. Expo native observes incoming Linking URLs. Both carriers pa
 opened destinations and send `OpenedNavigation` back through update. Child Program
 state and replay paths remain valid and select their containing scene after parsing.
 
+Multiple Counters also projects its canonical child destinations as `/counters`,
+`/counters/:counterId`, `/counters/:counterId/fact`, and
+`/counters/:counterId/delete`. The Expo client renders the same exhaustive
+destination projection as the other clients. Opening a row enters the counter detail,
+and confirming deletion removes that identified Counter Submodel through the shared
+update function. The native carrier removes Expo Go's `/--/` launch delimiter before
+passing the relative path to the Program parser. `/showcase/counters` is accepted as a
+scene alias and normalized to the current canonical `/counters` child destination.
+
 ## Replay
 
 Each screen reads its Model and actions from domain-shaped hooks. Its replay panel
@@ -42,6 +51,11 @@ comes from the same client-specific `useReplay` hook. The showcase shell uses th
 same contract for navigation. Inspecting or stepping through history is inert.
 Sending a domain action while inspecting a settled frame branches live from that
 frame.
+
+The panels have explicit scopes. `Showcase replay` contains scene-selection Messages.
+`Multiple Counters replay` contains only the child Program's portable Messages. The
+separate tapes allow a Multiple Counters recording to run in React, Expo, CLI, or TUI
+without requiring the Showcase Program.
 
 `Share state` prints the current Model as the Program's canonical relative state path.
 `Share replay` prints the current typed tape and selected frame. The carrier adds the
