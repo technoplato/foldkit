@@ -263,3 +263,34 @@ Runtime events obey these rules:
 This is the framework seam needed for dependency selection, scheduler configuration,
 feature-flag provenance, and similar host facts. Individual Programs should not invent
 parallel tape metadata or add environment Messages solely for replay bookkeeping.
+
+## React Replay and Dependency Sets | 2026-07-27 12:31:59 EDT
+
+The earlier one-dependency and synchronous replay prototypes are superseded. A React
+Provider now owns one asynchronously acquired `ReplayController` and exposes four
+domain-shaped hooks: Model, actions, lifecycle, and replay. `useReplay` returns stable
+engine semantics named `inspect`, `seek`, `stepBackward`, and `stepForward`. Sending a
+domain action while inspecting branches from the selected settled frame. It also
+returns the typed state and replay routes so a platform can print the canonical
+relative path and add only its scheme and authority.
+
+Historical inspection closes the live branch's child Scope. This releases its Effect
+Layers as well as stopping Commands and Subscriptions. A new branch creates a new
+child Scope. Closing the controller is idempotent and closes the current child before
+the Provider's parent Scope.
+
+A dependency set composes any number of independently typed choices with `add`. One
+Provider owns their merged Layer, selection stores, and shared causal-operation gate.
+The React hook accepts a dependency key and infers only that key's implementation
+names. No generated binding files or runtime casts are required.
+
+Dependency choices synchronize from runtime events during inert inspection. Before a
+new live branch acquires its Layers, each choice restores the last implementation that
+had occurred by the selected frame. Reacquiring a restored implementation does not
+append a duplicate selection event. A user-requested replacement appends an event only
+after the replacement has acquired successfully.
+
+Programs do not inspect React, Expo, web, iOS, or Android globals. A platform
+composition root chooses the concrete Layers. A platform capability may be injected
+when domain behavior truly depends on it, but platform detection is not a default
+Program responsibility.

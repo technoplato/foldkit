@@ -21,7 +21,9 @@ import {
   type DependencyChoice,
   type DependencyLifecycle,
   type DependencySelection,
+  type DependencySet,
   DependencyStartupError,
+  defineSingleDependencySet,
 } from './dependencyChoice.js'
 
 /** Actions exposed by one React host binding. */
@@ -122,6 +124,27 @@ export type ReactProgramClientWithDependency<
     }) => DependencySelection<ImplementationName>
   }>
 
+/** A React client with a typed set of host-switchable Effect dependencies. */
+export type ReactProgramClientWithDependencies<
+  Model,
+  Actions extends ReactProgramActions,
+  InitialRoute,
+  DependencyChoices,
+  StartupError = ProgramRuntimeStartError,
+> = ReactProgramClient<Model, Actions, InitialRoute, StartupError> &
+  Readonly<{
+    useDependency: <
+      ImplementationName extends string,
+      ServiceIdentifier,
+    >(config: {
+      readonly dependencyKey: DependencyChoice<
+        ImplementationName,
+        ServiceIdentifier
+      > &
+        DependencyChoices
+    }) => DependencySelection<ImplementationName>
+  }>
+
 type ReactProgramStore<Model, Actions extends ReactProgramActions> = Readonly<{
   actions: Actions
   readModel: () => Model
@@ -200,6 +223,31 @@ export type ReactProgramClientWithDependencyConfig<
     >,
   ) => void
   program: Program.Program<Model, Message, Resources | ServiceIdentifier>
+  resources: Layer.Layer<Resources, ResourceError>
+  start: (initialRoute: InitialRoute) => ProgramStart<Model, Message>
+  journal?: ProgramRuntimeJournalConfig<Model, Message>
+}>
+
+/** Configuration for a React client with multiple switchable dependencies. */
+export type ReactProgramClientWithDependenciesConfig<
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Actions extends ReactProgramActions,
+  InitialRoute,
+  DependencyServices,
+  DependencyChoices,
+  Resources = never,
+  ResourceError = never,
+> = Readonly<{
+  createActions: (send: ProgramRuntime<Model, Message>['send']) => Actions
+  dependencies: DependencySet<DependencyServices, DependencyChoices>
+  name: string
+  onLifecycleChanged?: (
+    lifecycle: ReactProgramLifecycle<
+      ProgramRuntimeStartError | ResourceError | DependencyStartupError
+    >,
+  ) => void
+  program: Program.Program<Model, Message, Resources | DependencyServices>
   resources: Layer.Layer<Resources, ResourceError>
   start: (initialRoute: InitialRoute) => ProgramStart<Model, Message>
   journal?: ProgramRuntimeJournalConfig<Model, Message>
@@ -329,6 +377,7 @@ type ReactProgramBindingDefinition<
   DependencyValue,
 > = ReactProgramDefinition<Model, Message, Resources, ResourceError> &
   Readonly<{
+    dependencyOwner?: object
     dependencyStore?: ReactProgramDependencyStore<DependencyValue>
     operationTracker?: ProgramOperationTracker
   }>
@@ -569,6 +618,7 @@ const createBindings = <
     ProgramRuntimeStartError | ResourceError
   >
   useDependencyValue: () => DependencyValue
+  useDependencyOwner: () => object
   useModel: () => Model
 }> => {
   type StartupError = ProgramRuntimeStartError | ResourceError
@@ -580,6 +630,7 @@ const createBindings = <
     createContext<ReactProgramLifecycle<StartupError> | null>(null)
   const DependencyContext =
     createContext<ReactProgramDependencyStore<DependencyValue> | null>(null)
+  const DependencyOwnerContext = createContext<object | null>(null)
 
   const useProgramStore = (): ReactProgramStore<Model, Actions> => {
     const store = useContext(ProgramContext)
@@ -614,11 +665,15 @@ const createBindings = <
       )
 
     return (
-      <DependencyContext.Provider value={definition.dependencyStore ?? null}>
-        <LifecycleContext.Provider value={providerSnapshot.lifecycle}>
-          {content}
-        </LifecycleContext.Provider>
-      </DependencyContext.Provider>
+      <DependencyOwnerContext.Provider
+        value={definition.dependencyOwner ?? null}
+      >
+        <DependencyContext.Provider value={definition.dependencyStore ?? null}>
+          <LifecycleContext.Provider value={providerSnapshot.lifecycle}>
+            {content}
+          </LifecycleContext.Provider>
+        </DependencyContext.Provider>
+      </DependencyOwnerContext.Provider>
     )
   }
 
@@ -658,9 +713,18 @@ const createBindings = <
     )
   }
 
+  const useDependencyOwner = (): object => {
+    const owner = useContext(DependencyOwnerContext)
+    if (owner === null) {
+      throw new Error(`${config.name} does not declare switchable dependencies`)
+    }
+    return owner
+  }
+
   return {
     Provider,
     useActions,
+    useDependencyOwner,
     useDependencyValue,
     useLifecycle,
     useModel,
@@ -770,14 +834,16 @@ export const createReactProgramClientWithDependency = <
         : { onLifecycleChanged: config.onLifecycleChanged }),
     },
     ({ initialRoute }) => {
-      const dependencyRuntime = config.dependency.makeRuntime(
+      const dependencyRuntime = defineSingleDependencySet(
+        config.dependency,
         config.onDependencyLifecycleChanged,
-      )
+      ).makeRuntime()
       return {
         program: config.program,
         resources: Layer.merge(config.resources, dependencyRuntime.layer),
         start: config.start(initialRoute),
-        dependencyStore: dependencyRuntime,
+        dependencyOwner: dependencyRuntime.owner,
+        dependencyStore: config.dependency.storeFor(dependencyRuntime.owner),
         operationTracker: dependencyRuntime,
         ...(config.journal === undefined ? {} : { journal: config.journal }),
       }
@@ -799,6 +865,103 @@ export const createReactProgramClientWithDependency = <
       )
     }
     return selection
+  }
+
+  return {
+    Provider: bindings.Provider,
+    useActions: bindings.useActions,
+    useDependency,
+    useLifecycle: bindings.useLifecycle,
+    useModel: bindings.useModel,
+  }
+}
+
+/** Creates React hooks for a Program with multiple host-switchable Layers. */
+export const createReactProgramClientWithDependencies = <
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Actions extends ReactProgramActions,
+  InitialRoute,
+  DependencyServices,
+  DependencyChoices,
+  Resources = never,
+  ResourceError = never,
+>(
+  config: ReactProgramClientWithDependenciesConfig<
+    Model,
+    Message,
+    Actions,
+    InitialRoute,
+    DependencyServices,
+    DependencyChoices,
+    Resources,
+    ResourceError
+  >,
+): ReactProgramClientWithDependencies<
+  Model,
+  Actions,
+  InitialRoute,
+  DependencyChoices,
+  ProgramRuntimeStartError | ResourceError | DependencyStartupError
+> => {
+  type StartupError =
+    | ProgramRuntimeStartError
+    | ResourceError
+    | DependencyStartupError
+  type ProviderProps = ProgramProviderProps<StartupError> &
+    Readonly<{ initialRoute: InitialRoute }>
+
+  const bindings = createBindings<
+    Model,
+    Message,
+    Actions,
+    Resources | DependencyServices,
+    ResourceError | DependencyStartupError,
+    never,
+    ProviderProps
+  >(
+    {
+      createActions: config.createActions,
+      name: config.name,
+      ...(config.onLifecycleChanged === undefined
+        ? {}
+        : { onLifecycleChanged: config.onLifecycleChanged }),
+    },
+    ({ initialRoute }) => {
+      const dependencyRuntime = config.dependencies.makeRuntime()
+      return {
+        program: config.program,
+        resources: Layer.merge(config.resources, dependencyRuntime.layer),
+        start: config.start(initialRoute),
+        dependencyOwner: dependencyRuntime.owner,
+        operationTracker: dependencyRuntime,
+        ...(config.journal === undefined ? {} : { journal: config.journal }),
+      }
+    },
+  )
+
+  const useDependencySelection = <
+    ImplementationName extends string,
+    ServiceIdentifier,
+  >(
+    dependencyKey: DependencyChoice<ImplementationName, ServiceIdentifier>,
+    owner: object,
+  ): DependencySelection<ImplementationName> => {
+    const store = dependencyKey.storeFor(owner)
+    return useSyncExternalStore(store.subscribe, store.read, store.read)
+  }
+
+  const useDependency = <ImplementationName extends string, ServiceIdentifier>({
+    dependencyKey,
+  }: {
+    readonly dependencyKey: DependencyChoice<
+      ImplementationName,
+      ServiceIdentifier
+    > &
+      DependencyChoices
+  }): DependencySelection<ImplementationName> => {
+    const owner = bindings.useDependencyOwner()
+    return useDependencySelection(dependencyKey, owner)
   }
 
   return {

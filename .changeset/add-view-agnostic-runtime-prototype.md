@@ -14,6 +14,10 @@ Add engine-owned state and replay URI parser-printers. Programs derive one canon
 
 Record renderer-independent runtime events beside Program transitions. Runtime events are anchored to replay frames, survive tape encoding and live branching, and remain inert during historical inspection. Hosts can preserve dependency selections and similar environment facts without fabricating domain Messages.
 
+Scope each live replay branch independently so entering inert inspection releases its Effect Layers before a later branch reacquires them. Expose the current live timeline to adapters without exposing runtime resource handles.
+
+Prove an asynchronous React replay client with typed state and replay routes, inert seek and step controls, live branching through domain actions, and composable dependency sets. Dependency selection is restored from frame-anchored runtime events before a branch acquires its Layers.
+
 Expose the renderer-neutral Program engine, journal, replay, tape store, and diagnostics APIs through `foldkit/program-runtime` so non-DOM hosts do not import the browser application runtime. The browser platform peer is optional for consumers that use only renderer-neutral subpaths.
 
 Add an injected replay tape store and canonical UUID-backed replay routes for short, durable links. Saved routes load and decode the typed tape through the selected Program, validate the requested frame, and remain portable across rendered, CLI, and terminal clients.

@@ -1,4 +1,4 @@
-import { Effect, Layer, Match as M, Schema as S } from 'effect'
+import { Effect, Layer, Match as M, Option, Schema as S } from 'effect'
 import { expect } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
@@ -232,6 +232,59 @@ describe('makeReplayController', () => {
           expect(versionError.message).toBe(
             'Replay tape controller-counter@2 does not match controller-counter@1',
           )
+        }),
+      ),
+  )
+
+  it.effect(
+    'scopes live Layers to one branch and releases them during inert inspection',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          let acquiredCount = 0
+          let releasedCount = 0
+          const Program = make({
+            id: 'scoped-replay-controller',
+            version: 1,
+            Model,
+            Message,
+            init: () => [Model.make({ count: 0, status: 'Ready' }), []],
+            update: model => [model, []],
+          })
+          const resources = Layer.effectDiscard(
+            Effect.acquireRelease(
+              Effect.sync(() => {
+                acquiredCount += 1
+              }),
+              () =>
+                Effect.sync(() => {
+                  releasedCount += 1
+                }),
+            ),
+          )
+          const controller = yield* makeReplayController({
+            program: Program,
+            resources,
+            route: state(Model.make({ count: 0, status: 'Ready' })),
+          })
+
+          expect(acquiredCount).toBe(1)
+          expect(releasedCount).toBe(0)
+          expect(Option.isSome(controller.readTimeline())).toBe(true)
+
+          yield* controller.inspect()
+
+          expect(releasedCount).toBe(1)
+          expect(Option.isNone(controller.readTimeline())).toBe(true)
+
+          yield* controller.run(RequestedSave())
+
+          expect(acquiredCount).toBe(2)
+          expect(releasedCount).toBe(1)
+
+          yield* controller.shutdown
+
+          expect(releasedCount).toBe(2)
         }),
       ),
   )
