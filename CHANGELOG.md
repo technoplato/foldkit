@@ -4,6 +4,34 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 6:58:45 p.m. EDT — `4e5d33c31a1d` feat(wallet): run portable Program across clients
+
+- **Implementation commit:** `4e5d33c31a1d2af04111168696ffd743be8dd129`
+- **Change:** Run one Wallet Program across every implemented client
+- **Details:**
+  - Added Sepolia and Solana Devnet Effect Layers behind unified wallet contracts, with exact atomic units, Redacted configuration, live transaction subscriptions, and read-only opt-in smoke tests.
+  - Added React, Foldkit, raw CLI, Effect Terminal, OpenTUI, and Expo presenters that all consume the exact portable Wallet Program and its state and replay routes.
+  - Extended the client matrix with typed evidence and documented which replay, resource injection, storage, diagnostics, and cross-language responsibilities belong in Foldkit rather than domain adapters.
+- **Files:**
+  - `examples/wallet/testnet-node/src/live.ts` — compose the real Sepolia and Solana Devnet wallet services
+  - `examples/wallet/react-bindings/src/wallet.tsx` — expose domain-shaped React hooks over the exact Wallet Program
+  - `examples/wallet/foldkit/src/application.ts` — run State starts through the canonical Foldkit renderer
+  - `examples/wallet/cli/src/host.ts` — provide one-shot state and replay operations
+  - `examples/wallet/terminal/src/host.ts` — provide an interactive Effect Terminal host
+  - `examples/wallet/tui/src/host.tsx` — provide an interactive OpenTUI host
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — render the same Wallet presenter on Expo Web, iOS, and Android
+  - `examples/client-matrix/core/src/wallet.ts` — record typed support and evidence for every medium
+  - `docs/explorations/client-agnostic-runtime-audit.md` — separate engine, domain, host, and presenter ownership
+  - `docs/explorations/wallet-testnet-layers.md` — document network capabilities, configuration, and safety limits
+  - `package.json` — add direct demo and development commands
+  - `pnpm-lock.yaml` — lock every private example workspace importer and SDK
+  - `pnpm-workspace.yaml` — allow the pinned viem release through dependency-age policy
+  - `knip.json` — include every new package in dead-code analysis
+  - `.changeset/config.json` — keep private examples outside release accounting
+- **User context (verbatim):**
+  > those layers and everything are set up to work ubiquitously in a TUI, in a command line, in a web app for React, a fold kit, and expo for iOS and React Native.
+- **SpecStory:** unavailable — No SpecStory URI is available because this implementation occurred in Codex desktop GUI, whose capture is not proven by SpecStory sync evidence.
+
 ## July 27th, 2026 at 6:31:59 p.m. EDT — `e298d836ef8c` feat(message-versioning): target historical Messages
 
 - **Implementation commit:** `e298d836ef8c4e3f1a6c2773cd666314596b34a5`
