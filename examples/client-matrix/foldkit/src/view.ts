@@ -1,8 +1,8 @@
 import {
   type ClientDefinition,
-  type ClientMedium,
+  type ClientId,
   ClosedLiveClient,
-  type LiveClientMedium,
+  type LiveClientId,
   type MatrixOrientation,
   type Message,
   type Model,
@@ -13,6 +13,8 @@ import {
   SelectedScreenMode,
   type WalletClientDefinition,
   type WalletEvidenceLevel,
+  type WalletIntentCarrier,
+  type WalletIntentDefinition,
   type WalletRouteCapability,
   type WalletRouteDefinition,
   type WalletRouteSupport,
@@ -25,6 +27,8 @@ import {
   screenModes,
   stateForScreenMode,
   walletClients,
+  walletIntentCarriers,
+  walletIntentDefinitions,
   walletProgramIdentity,
   walletRoutes,
 } from 'client-matrix-core-example'
@@ -84,12 +88,34 @@ const modeButton = (selectedMode: ScreenMode, mode: ScreenMode): Html => {
 const clientHeading = (client: ClientDefinition): Html => {
   const h = html<Message>()
   return h.div(
-    [h.Class('min-w-64 space-y-1')],
+    [h.Class('min-w-64 space-y-2')],
     [
       h.strong([h.Class('block text-sm text-stone-100')], [client.title]),
       h.p(
         [h.Class('text-xs font-normal leading-5 text-stone-500')],
         [client.description],
+      ),
+      h.div(
+        [h.Class('flex flex-wrap gap-1')],
+        Array.map(
+          [
+            client.surface,
+            client.renderer,
+            client.platform,
+            client.host,
+            client.carrier,
+          ],
+          label =>
+            h.span(
+              [
+                h.Key(label),
+                h.Class(
+                  'rounded-full border border-stone-700 bg-stone-900 px-2 py-0.5 text-[0.6rem] font-medium text-stone-400',
+                ),
+              ],
+              [label],
+            ),
+        ),
       ),
     ],
   )
@@ -116,7 +142,7 @@ const modeHeading = (
   )
 }
 
-const carrierView = (medium: ClientMedium, carrier: string): Html => {
+const carrierView = (clientId: ClientId, carrier: string): Html => {
   const h = html<Message>()
   const content = h.code(
     [
@@ -145,7 +171,7 @@ const carrierView = (medium: ClientMedium, carrier: string): Html => {
       [content],
     )
 
-  return M.value(medium).pipe(
+  return M.value(clientId).pipe(
     M.withReturnType<Html>(),
     M.whenOr('ReactWeb', 'FoldkitView', 'ExpoWeb', () => linkedCarrier(true)),
     M.whenOr('ExpoIos', 'ExpoAndroid', () => linkedCarrier(false)),
@@ -160,7 +186,7 @@ const captureImage = (
 ): Html => {
   const h = html<Message>()
   return h.img([
-    h.Src(capturePath(definition.mode, client.medium)),
+    h.Src(capturePath(definition.mode, client.clientId)),
     h.Alt(`${client.title} showing ${definition.title}`),
     h.Loading('lazy'),
     h.Width('640'),
@@ -174,14 +200,14 @@ const captureImage = (
 const liveCaptureButton = (
   definition: ScreenModeDefinition,
   client: ClientDefinition,
-  medium: LiveClientMedium,
+  clientId: LiveClientId,
 ): Html => {
   const h = html<Message>()
   return h.button(
     [
       h.Type('button'),
       h.AriaLabel(`Open ${client.title} live client from ${definition.title}`),
-      h.OnClick(OpenedLiveClient({ medium, mode: definition.mode })),
+      h.OnClick(OpenedLiveClient({ clientId, mode: definition.mode })),
       h.Class(
         'group block w-full rounded-xl text-left outline-none ring-amber-300 focus-visible:ring-2',
       ),
@@ -263,7 +289,7 @@ const captureView = (
   client: ClientDefinition,
   carrier: string,
 ): Html =>
-  M.value(client.medium).pipe(
+  M.value(client.clientId).pipe(
     M.withReturnType<Html>(),
     M.when('ReactWeb', () => liveCaptureButton(definition, client, 'ReactWeb')),
     M.when('FoldkitView', () =>
@@ -361,13 +387,13 @@ const matrixCell = (
 ): Html => {
   const h = html<Message>()
   const portableUri = portableUriForScreenMode(definition.mode)
-  const carrier = carrierForClient(client.medium, portableUri)
+  const carrier = carrierForClient(client.clientId, portableUri)
   const content = M.value(model.liveClientState).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
       ShowingCaptures: () => captureView(definition, client, carrier),
-      ShowingLiveClient: ({ medium, mode }) => {
-        if (medium === client.medium && mode === definition.mode) {
+      ShowingLiveClient: ({ clientId, mode }) => {
+        if (clientId === client.clientId && mode === definition.mode) {
           return liveClientView(definition, client, portableUri, carrier)
         } else {
           return captureView(definition, client, carrier)
@@ -377,7 +403,7 @@ const matrixCell = (
   )
   return h.div(
     [h.Class('grid min-w-72 gap-3')],
-    [content, carrierView(client.medium, carrier)],
+    [content, carrierView(client.clientId, carrier)],
   )
 }
 
@@ -403,7 +429,7 @@ const modesAsRows = (model: Model): Html => {
               ...Array.map(clients, client =>
                 h.th(
                   [
-                    h.Key(client.medium),
+                    h.Key(client.clientId),
                     h.Class(
                       'border-b border-r border-stone-800 p-4 text-left align-bottom',
                     ),
@@ -432,7 +458,7 @@ const modesAsRows = (model: Model): Html => {
               ...Array.map(clients, client =>
                 h.td(
                   [
-                    h.Key(client.medium),
+                    h.Key(client.clientId),
                     h.Class(
                       'border-b border-r border-stone-800 bg-stone-900/50 p-4',
                     ),
@@ -486,7 +512,7 @@ const clientsAsRows = (model: Model): Html => {
         [],
         Array.map(clients, client =>
           h.tr(
-            [h.Key(client.medium), h.Class('align-top')],
+            [h.Key(client.clientId), h.Class('align-top')],
             [
               h.th(
                 [
@@ -879,7 +905,7 @@ const walletMatrix = (): Html => {
         [],
         Array.map(walletClients, client =>
           h.tr(
-            [h.Key(client.medium), h.Class('align-top')],
+            [h.Key(client.clientId), h.Class('align-top')],
             [
               h.th(
                 [
@@ -911,6 +937,215 @@ const walletMatrix = (): Html => {
             ],
           ),
         ),
+      ),
+    ],
+  )
+}
+
+const walletIntentCapabilityClass = (
+  definition: WalletIntentDefinition,
+): string =>
+  definition.capability.support === 'Implemented'
+    ? 'inline-flex rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-emerald-200'
+    : 'inline-flex rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber-200'
+
+const walletIntentCard = (definition: WalletIntentDefinition): Html => {
+  const h = html<Message>()
+  return h.article(
+    [
+      h.Key(definition.id),
+      h.Class(
+        'min-w-0 rounded-2xl border border-violet-400/30 bg-violet-400/5 p-5',
+      ),
+    ],
+    [
+      h.div(
+        [h.Class('flex flex-wrap items-center justify-between gap-3')],
+        [
+          h.h3(
+            [h.Class('text-lg font-semibold text-violet-100')],
+            [definition.title],
+          ),
+          h.span(
+            [h.Class(walletIntentCapabilityClass(definition))],
+            [definition.capability.support],
+          ),
+        ],
+      ),
+      h.p(
+        [h.Class('mt-3 text-sm leading-6 text-stone-300')],
+        [definition.description],
+      ),
+      h.code(
+        [
+          h.Class(
+            'mt-4 block max-h-32 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-stone-800 bg-stone-950 p-3 text-[0.68rem] leading-5 text-violet-200',
+          ),
+        ],
+        [definition.portableRoute],
+      ),
+      h.p(
+        [h.Class('mt-3 text-xs leading-5 text-stone-500')],
+        [`${definition.capability.network}. ${definition.capability.reason}`],
+      ),
+    ],
+  )
+}
+
+const walletIntentCarrierRow = (carrier: WalletIntentCarrier): Html => {
+  const h = html<Message>()
+  const maybeClient = Array.findFirst(
+    walletClients,
+    client => client.clientId === carrier.clientId,
+  )
+  const title = Option.isSome(maybeClient)
+    ? maybeClient.value.title
+    : carrier.clientId
+  return h.tr(
+    [h.Key(carrier.clientId), h.Class('align-top')],
+    [
+      h.th(
+        [
+          h.Class(
+            'border-b border-r border-stone-800 bg-stone-950 p-4 text-left text-sm text-stone-100',
+          ),
+        ],
+        [title],
+      ),
+      h.td(
+        [h.Class('border-b border-r border-stone-800 bg-stone-900/50 p-4')],
+        [
+          h.code(
+            [
+              h.Class(
+                'block max-w-4xl break-all text-xs leading-5 text-violet-200',
+              ),
+            ],
+            [carrier.carrier],
+          ),
+        ],
+      ),
+      h.td(
+        [h.Class('border-b border-stone-800 bg-stone-900/50 p-4')],
+        [
+          h.span(
+            [
+              h.Class(
+                'inline-flex rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber-200',
+              ),
+            ],
+            [carrier.support],
+          ),
+          h.p(
+            [h.Class('mt-3 max-w-xl text-xs leading-5 text-stone-400')],
+            [carrier.limitation],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+const walletIntentCarrierMatrix = (): Html => {
+  const h = html<Message>()
+  const maybeRepresentative = Array.findFirst(
+    walletIntentDefinitions,
+    definition => definition.id === 'eth-testnet',
+  )
+  if (Option.isNone(maybeRepresentative)) {
+    return h.p(
+      [h.Class('text-sm text-red-300')],
+      ['The representative ETH Testnet intent is missing.'],
+    )
+  }
+  const carriers = walletIntentCarriers(maybeRepresentative.value)
+  return h.table(
+    [h.Class('min-w-[90rem] border-separate border-spacing-0')],
+    [
+      h.thead(
+        [h.Class('bg-stone-950/95')],
+        [
+          h.tr(
+            [],
+            [
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 p-4 text-left text-sm text-stone-200',
+                  ),
+                ],
+                ['Client'],
+              ),
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 p-4 text-left text-sm text-stone-200',
+                  ),
+                ],
+                ['Exact ETH Testnet carrier'],
+              ),
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-stone-800 p-4 text-left text-sm text-stone-200',
+                  ),
+                ],
+                ['Host intake'],
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.tbody([], Array.map(carriers, walletIntentCarrierRow)),
+    ],
+  )
+}
+
+const walletIntentAudit = (): Html => {
+  const h = html<Message>()
+  return h.section(
+    [h.AriaLabel('Wallet intent portability audit')],
+    [
+      h.div(
+        [h.Class('border-y border-stone-800 bg-stone-950 px-5 py-10')],
+        [
+          h.div(
+            [h.Class('mx-auto grid max-w-[116rem] gap-6')],
+            [
+              h.div(
+                [h.Class('space-y-3')],
+                [
+                  h.p(
+                    [
+                      h.Class(
+                        'text-xs font-semibold uppercase tracking-[0.24em] text-violet-300',
+                      ),
+                    ],
+                    ['Wallet Program | Portable interaction intent'],
+                  ),
+                  h.h2(
+                    [h.Class('text-3xl font-semibold sm:text-5xl')],
+                    ['Send money from any client'],
+                  ),
+                  h.p(
+                    [h.Class('max-w-4xl text-sm leading-6 text-stone-400')],
+                    [
+                      'The Wallet core owns one parser-printer for the global relative path. Each client owns only its origin, custom scheme, or command-line wrapper. USD means USDC settlement here, not a bank-dollar transfer. Parsing an intent never performs a side effect. It must enter the Program as startup input or a Message, and update must decide the resulting Commands.',
+                    ],
+                  ),
+                ],
+              ),
+              h.div(
+                [h.Class('grid gap-4 md:grid-cols-2 xl:grid-cols-3')],
+                Array.map(walletIntentDefinitions, walletIntentCard),
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('overflow-x-auto overscroll-x-contain')],
+        [walletIntentCarrierMatrix()],
       ),
     ],
   )
@@ -1078,6 +1313,7 @@ export const view = (model: Model): Document => {
           [matrixView(model)],
         ),
         walletAudit(),
+        walletIntentAudit(),
       ],
     ),
   }

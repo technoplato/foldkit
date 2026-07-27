@@ -5,6 +5,21 @@ public Model, Messages, update function, finite Commands, persistent
 transaction Subscription, restoration rules, and injected Effect services live
 in `core`. Every client imports that exact `WalletProgram` object.
 
+The core also defines the renderer-neutral `walletIntentRouter`. Its canonical
+send paths have this shape:
+
+```text
+/wallet/intent/send/eth?mode=testnet&amount=1000000000000000&to=0x...
+/wallet/intent/send/sol?mode=devnet&amount=1000000&to=...
+/wallet/intent/send/usd?mode=testnet&amount=1000000&to=0x...&rail=ethereum
+```
+
+`amount` is expressed in atomic units. `usd` means USDC settlement, not a fiat
+bank transfer. Parsing is side-effect free. Clients must feed an intent into
+the Program as startup input or a factual Message so update remains the only
+place that produces preview or submission Commands. Live routes remain typed
+unsupported until a mainnet Layer is configured.
+
 ```text
 wallet/
   core/              portable Model, Message, Program, and service contracts

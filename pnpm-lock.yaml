@@ -573,6 +573,9 @@ importers:
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      wallet-core-example:
+        specifier: workspace:*
+        version: link:../../wallet/core
     devDependencies:
       prettier:
         specifier: ^3.8.4

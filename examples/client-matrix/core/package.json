@@ -15,14 +15,15 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "pretypecheck": "pnpm --filter counters-core-example build",
+    "pretypecheck": "pnpm --filter counters-core-example build && pnpm --filter wallet-core-example build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "counters-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
-    "foldkit": "workspace:*"
+    "foldkit": "workspace:*",
+    "wallet-core-example": "workspace:*"
   },
   "devDependencies": {
     "prettier": "^3.8.4",

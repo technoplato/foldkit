@@ -1,6 +1,6 @@
 # Client Matrix
 
-The Client Matrix is a Foldkit Program with two complementary comparisons:
+The Client Matrix is a Foldkit Program with three complementary comparisons:
 
 - Multiple Counters derives four screen modes from the shared Navigation union
   and route parser-printer. It compares those modes across eight real client
@@ -10,6 +10,20 @@ The Client Matrix is a Foldkit Program with two complementary comparisons:
   settled replay route, and the carrier and evidence boundary for React,
   Foldkit, raw CLI, Effect Terminal, OpenTUI, Expo Web, Expo iOS, Expo Android,
   and a future server host.
+- Wallet intents cover ETH, SOL, and USD over Devnet, Testnet, and Live modes.
+  The Wallet core prints one global relative path for each intent. The matrix
+  shows its exact carrier across the same clients and a future server.
+
+The complete runnable adapter is called a **Client**. The matrix does not use
+`medium` as an umbrella term. It records five independent axes for every
+captured client:
+
+- **Interaction surface:** graphical, terminal UI, line terminal, or one-shot
+  CLI.
+- **Renderer:** React, Foldkit view, React Native, OpenTUI React, or text.
+- **Platform:** web, Node, iOS, or Android.
+- **Host:** Vite, Expo, or Effect Platform.
+- **URI carrier:** HTTPS URL, custom-scheme URL, or command-line argument.
 
 The React and Foldkit captures open their public browser clients in an
 interactive iframe inside the selected cell. The live client starts from that
@@ -50,6 +64,20 @@ carrier strings use `<portable-wallet-route>` and `<expo-web-origin>` as explici
 substitution points. They are not deployment claims. Source inspection and
 focused-test evidence are labeled independently, and no physical iOS or Android
 behavior is implied.
+
+Wallet intent paths are exact outputs of
+`examples/wallet/core/src/intent.ts`. The parser-printer covers all nine
+asset/mode combinations. `usd` means USDC settlement through either the
+Ethereum or Solana rail. It does not mean a fiat bank transfer. The current
+Sepolia and Solana Devnet Layers are labeled independently from typed but
+unsupported combinations. Live never falls back to a test Layer.
+
+Intent parsing is implemented in the shared core. Host intake is deliberately
+labeled `HostIntakePending`: parsing a URL cannot submit a transaction. A host
+must provide the intent as startup input or a factual Message, after which
+update can compose a draft and produce the preview and submission Commands.
+The displayed carrier paths therefore define the portable contract without
+pretending the current clients execute it.
 
 Run it with:
 

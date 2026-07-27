@@ -6,7 +6,7 @@ export const WalletRouteMode = S.Literals(['StateRoute', 'ReplayRoute'])
 export type WalletRouteMode = typeof WalletRouteMode.Type
 
 /** One client surface expected to carry the Wallet Program. */
-export const WalletClientMedium = S.Literals([
+export const WalletClientId = S.Literals([
   'ReactWeb',
   'FoldkitView',
   'RawCli',
@@ -18,7 +18,7 @@ export const WalletClientMedium = S.Literals([
   'FutureServer',
 ])
 /** One client surface expected to carry the Wallet Program. */
-export type WalletClientMedium = typeof WalletClientMedium.Type
+export type WalletClientId = typeof WalletClientId.Type
 
 /** The implementation boundary reached by one Wallet route mode. */
 export const WalletRouteSupport = S.Literals([
@@ -74,7 +74,7 @@ export type WalletRouteCapability = typeof WalletRouteCapability.Type
 
 /** Route-carrier metadata for one Wallet client surface. */
 export const WalletClientDefinition = S.Struct({
-  medium: WalletClientMedium,
+  clientId: WalletClientId,
   title: S.String,
   description: S.String,
   maybeLaunchCommand: S.Option(S.String),
@@ -148,7 +148,7 @@ const implemented = (
 /** The Wallet client surfaces and their independently audited route support. */
 export const walletClients: ReadonlyArray<WalletClientDefinition> = [
   WalletClientDefinition.make({
-    medium: 'ReactWeb',
+    clientId: 'ReactWeb',
     title: 'React',
     description:
       'Shared React bindings and the standalone React web presenter.',
@@ -180,7 +180,7 @@ export const walletClients: ReadonlyArray<WalletClientDefinition> = [
     ],
   }),
   WalletClientDefinition.make({
-    medium: 'FoldkitView',
+    clientId: 'FoldkitView',
     title: 'Foldkit',
     description: 'The canonical Foldkit view renderer over WalletProgram.',
     maybeLaunchCommand: Option.some('pnpm --filter wallet-foldkit-example dev'),
@@ -212,7 +212,7 @@ export const walletClients: ReadonlyArray<WalletClientDefinition> = [
     ],
   }),
   WalletClientDefinition.make({
-    medium: 'RawCli',
+    clientId: 'RawCli',
     title: 'Raw CLI',
     description: 'A one-shot stdout host with explicit portable route input.',
     maybeLaunchCommand: Option.none(),
@@ -238,7 +238,7 @@ export const walletClients: ReadonlyArray<WalletClientDefinition> = [
     ],
   }),
   WalletClientDefinition.make({
-    medium: 'EffectTerminal',
+    clientId: 'EffectTerminal',
     title: 'Effect Terminal',
     description: 'An interactive line-oriented Effect Terminal host.',
     maybeLaunchCommand: Option.none(),
@@ -262,7 +262,7 @@ export const walletClients: ReadonlyArray<WalletClientDefinition> = [
     ],
   }),
   WalletClientDefinition.make({
-    medium: 'OpenTui',
+    clientId: 'OpenTui',
     title: 'OpenTUI',
     description: 'The OpenTUI React terminal reconciler.',
     maybeLaunchCommand: Option.none(),
@@ -288,7 +288,7 @@ export const walletClients: ReadonlyArray<WalletClientDefinition> = [
     ],
   }),
   WalletClientDefinition.make({
-    medium: 'ExpoWeb',
+    clientId: 'ExpoWeb',
     title: 'Expo Web',
     description: 'The universal Expo Showcase running in a browser.',
     maybeLaunchCommand: Option.some(
@@ -314,7 +314,7 @@ export const walletClients: ReadonlyArray<WalletClientDefinition> = [
     ],
   }),
   WalletClientDefinition.make({
-    medium: 'ExpoIos',
+    clientId: 'ExpoIos',
     title: 'Expo iOS',
     description: 'The universal Expo Showcase on iOS.',
     maybeLaunchCommand: Option.some(
@@ -337,7 +337,7 @@ export const walletClients: ReadonlyArray<WalletClientDefinition> = [
     ],
   }),
   WalletClientDefinition.make({
-    medium: 'ExpoAndroid',
+    clientId: 'ExpoAndroid',
     title: 'Expo Android',
     description: 'The universal Expo Showcase on Android.',
     maybeLaunchCommand: Option.some(
@@ -360,7 +360,7 @@ export const walletClients: ReadonlyArray<WalletClientDefinition> = [
     ],
   }),
   WalletClientDefinition.make({
-    medium: 'FutureServer',
+    clientId: 'FutureServer',
     title: 'Future server',
     description: 'A future non-visual host over the portable Program runtime.',
     maybeLaunchCommand: Option.none(),
