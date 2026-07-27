@@ -163,6 +163,14 @@
     "examples/shared/react-bindings": {
       "entry": ["src/index.ts", "src/**/*.test.tsx"]
     },
+    "examples/showcase/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/showcase/react-bindings": {
+      "entry": ["src/index.ts", "src/**/*.test.tsx"],
+      "ignoreDependencies": ["prettier"]
+    },
     "examples/counter-with-shared-state": {
       "entry": [
         "src/foldkitCounter.ts",

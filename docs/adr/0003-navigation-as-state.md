@@ -177,3 +177,31 @@ list without adding history entries.
 The result is 21/21 and passes the stricter gate because every dimension scores 3.
 The ADR remains Proposed until the broader navigation vocabulary and follow-up adapter
 order receive the planned detailed review.
+
+## Expo Showcase Follow-Up | 2026-07-27 13:45:11 EDT
+
+The Expo showcase validates this decision at an application scene boundary. A
+renderer-free Showcase Program owns a `Navigation` union covering Home, Counter,
+Multiple Counters, Calculator, and Fact. `TappedCounterButton` and the other factual
+tap Messages select scenes through update. `OpenedNavigation` lets an external path
+enter the same update function. Scene selection does not produce a Command because
+the selected scene is application state, not a side effect.
+
+The React and React Native host renders the current navigation case. Expo Web
+projects the Model to browser history and converts browser Back into
+`OpenedNavigation`. Expo native accepts incoming Linking paths through the same
+portable parser-printer. Each child Program keeps its own Model, replay tape, state
+path, and replay path. The Showcase Program has a separate tape that can inspect and
+branch scene-selection history without replaying child domain Messages.
+
+The validated portable scene paths are `/showcase`, `/showcase/counter`,
+`/showcase/counters`, `/showcase/calculator`, and `/showcase/fact`. Scheme,
+authority, browser history, native Linking, and rendering remain platform adapter
+concerns.
+
+The remaining framework question is the smallest renderer-neutral navigation carrier.
+The current evidence supports an injected Effect capability that reads the initial
+relative path, observes externally opened paths, and pushes or replaces a printed
+path. It does not support an imperative global router or a second navigation store.
+The carrier remains example-local until another non-Expo host validates the same
+surface.

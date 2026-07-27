@@ -313,3 +313,40 @@ Expo Web was then verified in a real browser from a production export. Counter,
 Multiple Counters, Calculator, and Fact all mounted. Counter inspection and live
 branching changed the visible Model as expected. Fact acquired two dependency choices,
 switched the platform Layer, and appended the corresponding runtime event.
+
+## Portable Scene Navigation | 2026-07-27 13:42:45 EDT
+
+This proof applies the navigation ownership established in ADR 0003 to the
+replayable Expo showcase.
+
+The Expo showcase navigation is now a renderer-free Program instead of React host
+state. Its Model contains a Schema-backed `Navigation` union with Home, Counter,
+Multiple Counters, Calculator, and Fact scenes. Taps and opened carrier destinations
+enter update as factual Messages. In particular, `TappedCounterButton` selects
+`CounterScene`, and `OpenedNavigation` reconciles a URI or deep link with the same
+Model.
+
+Selecting a scene does not produce a Command. The scene change is application state,
+so update synchronously returns the next Model. A host renders that Model and projects
+its canonical path through its platform carrier. Browser history, native Linking, and
+rendering primitives remain outside the Program. If navigation itself required
+external work, that work would still be represented by a Command and a result Message.
+
+The showcase navigation has an independent replay tape. Historical inspection swaps
+the rendered scene without invoking a carrier. A host replaces its visible URI while
+inspecting rather than adding a history entry. Sending a scene action from a settled
+historical frame branches navigation live. Each child Program retains its own Model,
+Message protocol, URI, and replay tape.
+
+The portable scene paths are `/showcase`, `/showcase/counter`,
+`/showcase/counters`, `/showcase/calculator`, and `/showcase/fact`. Expo Web projects
+them to browser history. Expo native accepts them through a platform scheme. Existing
+child state and replay routes also select their containing scene after the child route
+is parsed.
+
+The remaining framework promotion seam is a renderer-neutral navigation carrier with
+operations to read the initial relative path, observe opened paths, and push or replace
+a printed path. That carrier should be an injected Effect capability rather than a
+React hook or browser API. The Program continues to own the navigation Schema,
+parser-printer, and Message mapping. This proof keeps the carrier in the Expo host until
+a second non-Expo client validates the exact generic surface.

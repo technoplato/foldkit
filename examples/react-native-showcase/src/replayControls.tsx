@@ -12,6 +12,7 @@ type ReplayControlsProps<
   Model,
   Message extends Readonly<{ _tag: string }>,
 > = Readonly<{
+  label?: string
   replay: ReactReplay<Model, Message>
 }>
 
@@ -27,6 +28,7 @@ export const ReplayControls = <
   Model,
   Message extends Readonly<{ _tag: string }>,
 >({
+  label = 'Replay',
   replay,
 }: ReplayControlsProps<Model, Message>) => {
   const sharePath = (makePath: () => Promise<string>): void => {
@@ -38,7 +40,7 @@ export const ReplayControls = <
   return (
     <View style={styles.container}>
       <View style={styles.summary}>
-        <Text style={styles.label}>Replay</Text>
+        <Text style={styles.label}>{label}</Text>
         <Text style={styles.value}>
           {replay.mode} · {replay.frame}/{replay.finalFrame}
         </Text>

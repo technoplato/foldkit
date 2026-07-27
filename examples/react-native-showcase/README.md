@@ -1,8 +1,9 @@
 # React Native Showcase
 
-This Expo application runs the canonical Counter, Multiple Counters, Calculator, and
-Fact Programs through their shared React bindings. The same source runs on Expo Web,
-iOS, and Android. No Program imports React Native, browser APIs, or Expo.
+This Expo application runs a showcase navigation Program plus the canonical Counter,
+Multiple Counters, Calculator, and Fact Programs through shared React bindings. The
+same source runs on Expo Web, iOS, and Android. No Program imports React Native,
+browser APIs, or Expo.
 
 ## Run
 
@@ -18,12 +19,29 @@ pnpm dev:example:showcase:native
 The `native` command opens Expo's client selector. The other commands request a
 specific platform.
 
+## Navigation
+
+The initial Model presents `HomeScene`. Tapping an example sends a factual Message,
+such as `TappedCounterButton`, through the showcase update loop. Update selects the
+next navigation union case, and the host renders the corresponding child Program.
+
+The navigation Program has its own replay tape. Inspecting frame zero after tapping
+Counter returns to the landing scene without executing host effects. Sending another
+scene action while inspecting branches navigation live from that frame.
+
+`/showcase`, `/showcase/counter`, `/showcase/counters`, `/showcase/calculator`, and
+`/showcase/fact` are canonical relative scene paths. Expo Web projects Model changes
+to browser history. Expo native observes incoming Linking URLs. Both carriers parse
+opened destinations and send `OpenedNavigation` back through update. Child Program
+state and replay paths remain valid and select their containing scene after parsing.
+
 ## Replay
 
 Each screen reads its Model and actions from domain-shaped hooks. Its replay panel
-comes from the same client-specific `useReplay` hook. Inspecting or stepping through
-history is inert. Sending a domain action while inspecting a settled frame branches
-live from that frame.
+comes from the same client-specific `useReplay` hook. The showcase shell uses the
+same contract for navigation. Inspecting or stepping through history is inert.
+Sending a domain action while inspecting a settled frame branches live from that
+frame.
 
 `Share state` prints the current Model as the Program's canonical relative state path.
 `Share replay` prints the current typed tape and selected frame. The carrier adds the

@@ -57,6 +57,8 @@
     "replayability-tui-example",
     "react-native-showcase-example",
     "shared-react-bindings-example",
+    "showcase-core-example",
+    "showcase-react-bindings-example",
     "websocket-chat-example",
     "snake-example",
     "crash-view-example",
