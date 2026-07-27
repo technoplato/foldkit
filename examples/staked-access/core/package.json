@@ -1,0 +1,37 @@
+{
+  "name": "staked-access-core-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "pretest": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "wallet-core-example": "workspace:*",
+    "wallet-simulated-client-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.0-beta.97",
+    "prettier": "^3.8.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
