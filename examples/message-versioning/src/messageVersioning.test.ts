@@ -9,6 +9,7 @@ import {
   WireMessageV0,
   counterAdjustedEventId,
   downgradeCurrentToV0,
+  downgradeCurrentToVersion,
   replayTapeV0,
   upgradeV0ToCurrent,
 } from './index.js'
@@ -77,6 +78,46 @@ describe('versioned Messages', () => {
           'v0 cannot represent the Automation origin',
         )
         expect(Exit.isFailure(schemaExit)).toBe(true)
+      }),
+    ))
+
+  it('encodes the exact requested historical version', async () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const current = AdjustedCounter({
+          eventId: counterAdjustedEventId,
+          version: 2,
+          amount: 5,
+          origin: 'Legacy',
+        })
+        const v0 = yield* downgradeCurrentToVersion(current, 0)
+        const v1 = yield* downgradeCurrentToVersion(current, 1)
+
+        expect(v0).toStrictEqual({
+          eventId: counterAdjustedEventId,
+          version: 0,
+          payload: { delta: 5 },
+        })
+        expect(v1).toStrictEqual({
+          eventId: counterAdjustedEventId,
+          version: 1,
+          payload: { amount: 5 },
+        })
+      }),
+    ))
+
+  it('rejects the requested historical target instead of falling back', async () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const current = AdjustedCounter({
+          eventId: counterAdjustedEventId,
+          version: 2,
+          amount: 5,
+          origin: 'User',
+        })
+        const error = yield* Effect.flip(downgradeCurrentToVersion(current, 1))
+
+        expect(error.reason).toBe('v1 cannot represent the User origin')
       }),
     ))
 
