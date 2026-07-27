@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 7:09:48 p.m. EDT — `7fedb5ecd319` fix: keep Wallet clients alive during demos
+
+- **Implementation commit:** `7fedb5ecd3198537561a373a30fcad7fed3830af`
+- **Change:** Keep concurrent Wallet demos from deleting shared build output
+- **Details:**
+  - Replaced clean-before-run Wallet demo chains with one launcher that compiles dependency artifacts in place, preserving files already watched by Metro and Vite.
+  - Preserved direct argument forwarding and interactive stdin for the raw CLI, Effect Terminal, and OpenTUI clients.
+  - Verified the CLI while Expo Web, iOS, Android, React, and Foldkit remained live, then verified interactive Terminal and TUI startup and clean q exits.
+- **Files:**
+  - `scripts/run-wallet-demo.ts` — prepare client dependency graphs without deleting shared dist trees and preserve interactive stdio
+  - `package.json` — route all Wallet demo commands through the concurrency-safe launcher
+- **User context (verbatim):**
+  > the tui's don't accept any input
+  > there's some kind of looping going on here
+- **SpecStory:** unavailable — No SpecStory URI is available because this implementation occurred in Codex desktop GUI, whose capture is not proven by SpecStory sync evidence.
+
 ## July 27th, 2026 at 6:58:45 p.m. EDT — `4e5d33c31a1d` feat(wallet): run portable Program across clients
 
 - **Implementation commit:** `4e5d33c31a1d2af04111168696ffd743be8dd129`
