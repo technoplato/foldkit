@@ -44,6 +44,7 @@
     "dev:example:counter:native": "pnpm --filter counter-react-native-example start",
     "dev:example:calculator": "pnpm --filter calculator-core-example build && pnpm --filter calculator-foldkit-example dev",
     "dev:example:calculator:react": "pnpm --filter calculator-react-example dev",
+    "dev:example:fact:react": "pnpm --filter fact-react-example dev",
     "dev:example:replayability": "pnpm --filter replayability-example dev",
     "dev:example:replayability:react": "pnpm --filter replayability-example dev",
     "dev:example:replayability:foldkit": "pnpm --filter replayability-foldkit-example dev",

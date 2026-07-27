@@ -83,6 +83,43 @@ describe('shared replay workbench Program', () => {
     expect(presentation.nextModel).toContain('"count":1')
   })
 
+  it('appends consecutive live actions to one active controller', async () => {
+    const model = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const destination = yield* defaultReplayDestination('Counters')
+          const { program, resources } = makeReplayWorkbench(
+            destination,
+            makeReplayabilityTapeStore(globalThis.fetch),
+            NodeCrypto.layer,
+            factResources,
+          )
+          const runtime = yield* Runtime.makeProgramRuntime({
+            program,
+            resources,
+          })
+          yield* runtime.initialization
+          yield* runtime.run(
+            PressedReplayAction({ actionId: 'increment:counter-1' }),
+          )
+          const nextModel = yield* runtime.run(
+            PressedReplayAction({ actionId: 'add' }),
+          )
+          yield* runtime.shutdown
+          return nextModel
+        }),
+      ),
+    )
+
+    if (model._tag !== 'Counters') {
+      throw new Error(`Expected Counters, received ${model._tag}`)
+    }
+    expect(displayForModel(model)).toBe('1 · 0 · 0')
+    expect(
+      Array.map(model.tape.transitions, transition => transition.message._tag),
+    ).toStrictEqual(['GotCounterMessage', 'ClickedAddCounter'])
+  })
+
   it('models URI restoration as loading until its initialization Command completes', async () => {
     const destination = await Effect.runPromise(
       defaultReplayDestination('Counter'),

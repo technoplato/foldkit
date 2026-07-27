@@ -188,4 +188,49 @@ describe('makeReplayController', () => {
         }),
       ),
   )
+
+  it.effect(
+    'revalidates Program identity and version for manually constructed replay routes',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Program = make({
+            id: 'controller-counter',
+            version: 1,
+            Model,
+            Message,
+            init: () => [Model.make({ count: 0, status: 'Ready' }), []],
+            update: model => [model, []],
+          })
+          const tape = fromJournal(Program, {
+            retainedFromSequence: 0,
+            initialModel: Model.make({ count: 0, status: 'Ready' }),
+            initialCommands: [],
+            transitions: [],
+            latestModel: Model.make({ count: 0, status: 'Ready' }),
+          })
+          const identityError = yield* Effect.flip(
+            makeReplayController({
+              program: Program,
+              resources: Layer.empty,
+              route: replay({ ...tape, programId: 'another-counter' }),
+            }),
+          )
+          const versionError = yield* Effect.flip(
+            makeReplayController({
+              program: Program,
+              resources: Layer.empty,
+              route: replay({ ...tape, programVersion: 2 }),
+            }),
+          )
+
+          expect(identityError.message).toBe(
+            'Replay tape another-counter@1 does not match controller-counter@1',
+          )
+          expect(versionError.message).toBe(
+            'Replay tape controller-counter@2 does not match controller-counter@1',
+          )
+        }),
+      ),
+  )
 })

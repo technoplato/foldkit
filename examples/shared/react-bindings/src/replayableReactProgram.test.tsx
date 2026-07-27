@@ -1,6 +1,8 @@
 import { Effect, Layer, Match as M, Option, Schema as S } from 'effect'
-import { Command, Program, Runtime } from 'foldkit'
+import * as Command from 'foldkit/command'
 import { m } from 'foldkit/message'
+import * as Program from 'foldkit/program'
+import * as Runtime from 'foldkit/program-runtime'
 import { type ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 

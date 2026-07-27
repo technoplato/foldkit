@@ -1,19 +1,16 @@
-import { Array, Data, Effect, Option, pipe } from 'effect'
+import { Effect, pipe } from 'effect'
 
 import type { Ports } from '../port/port.js'
 import type { Program } from '../program/program.js'
 import {
   type ReplayFrameError,
   type ReplayTape,
+  type UnsettledReplayFrameError,
+  branchReplayTape,
   replayToFrame,
 } from './replayTape.js'
 
-/** A replay frame cannot become the beginning of a live branch. */
-export class UnsettledReplayFrameError extends Data.TaggedError(
-  'UnsettledReplayFrameError',
-)<{
-  readonly frame: number
-}> {}
+export { UnsettledReplayFrameError } from './replayTape.js'
 
 /** A renderer-free, side-effect-free replay inspection session. */
 export type ReplaySession<Model, Message> = Readonly<{
@@ -93,26 +90,8 @@ export const makeReplaySession = <
 
     const branch = (
       frame = currentFrame,
-    ): Effect.Effect<ReplayTape<Model, Message>, UnsettledReplayFrameError> => {
-      if (frame === 0) {
-        if (!Array.isReadonlyArrayEmpty(tape.initialCommands)) {
-          return Effect.fail(new UnsettledReplayFrameError({ frame }))
-        }
-        return Effect.succeed({ ...tape, transitions: [] })
-      }
-
-      const maybeTransition = pipe(tape.transitions, Array.get(frame - 1))
-      if (
-        Option.isNone(maybeTransition) ||
-        !maybeTransition.value.isOperationSettled
-      ) {
-        return Effect.fail(new UnsettledReplayFrameError({ frame }))
-      }
-      return Effect.succeed({
-        ...tape,
-        transitions: Array.take(tape.transitions, frame),
-      })
-    }
+    ): Effect.Effect<ReplayTape<Model, Message>, UnsettledReplayFrameError> =>
+      branchReplayTape(tape, frame)
 
     return {
       mode: 'Inspecting',

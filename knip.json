@@ -94,7 +94,7 @@
     },
     "examples/counters/react-bindings": {
       "entry": ["src/index.ts"],
-      "ignoreDependencies": ["@types/react", "prettier", "react"]
+      "ignoreDependencies": ["prettier"]
     },
     "examples/counters/react": {
       "ignoreDependencies": ["prettier"]

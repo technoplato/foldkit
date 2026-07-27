@@ -93,6 +93,57 @@ describe('makeProgramRuntime', () => {
     ),
   )
 
+  it.effect('acquires Resources eagerly and preserves acquisition errors', () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        class ResourceStartupError extends S.TaggedErrorClass<ResourceStartupError>()(
+          'ResourceStartupError',
+          { message: S.String },
+        ) {}
+        class StartupResource extends Context.Service<
+          StartupResource,
+          Readonly<{ value: number }>
+        >()('ProgramRuntimeTest/StartupResource') {}
+
+        const CompletedStartup = m('CompletedStartup')
+        const StartupMessage = S.Union([CompletedStartup])
+        type StartupMessage = typeof StartupMessage.Type
+        const StartResource = Command.define(
+          'StartResource',
+          CompletedStartup,
+        )(Effect.map(StartupResource, () => CompletedStartup()))
+        const Program = make({
+          id: 'resource-startup-error',
+          version: 1,
+          Model: BasicModel,
+          Message: StartupMessage,
+          init: () => [BasicModel.make({ count: 0 }), [StartResource()]],
+          update: model => [model, []],
+        })
+        const startupError = new ResourceStartupError({
+          message: 'Resource unavailable',
+        })
+        let acquisitionCount = 0
+        const Resources = Layer.effect(
+          StartupResource,
+          Effect.andThen(
+            Effect.sync(() => {
+              acquisitionCount += 1
+            }),
+            Effect.fail(startupError),
+          ),
+        )
+
+        const error = yield* Effect.flip(
+          makeProgramRuntime({ program: Program, resources: Resources }),
+        )
+
+        expect(error).toBe(startupError)
+        expect(acquisitionCount).toBe(1)
+      }),
+    ),
+  )
+
   it.effect(
     'completes and exports the full recursive Command result chain',
     () =>
@@ -1063,5 +1114,73 @@ describe('makeProgramRuntime', () => {
         expect(runtime.journal.read().transitions).toHaveLength(1)
       }),
     ),
+  )
+
+  it.effect(
+    'rejects a zero-transition replay while its initial Commands are unsettled',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const tape = {
+            ...fromJournal(BasicProgram, {
+              retainedFromSequence: 0,
+              initialModel: BasicModel.make({ count: 0 }),
+              initialCommands: [],
+              transitions: [],
+              latestModel: BasicModel.make({ count: 0 }),
+            }),
+            initialCommands: [{ name: 'LoadCounter' }],
+          }
+          const error = yield* Effect.flip(
+            makeProgramRuntime({
+              program: BasicProgram,
+              resources: Layer.empty,
+              start: fromReplay(tape),
+            }),
+          )
+
+          expect(error._tag).toBe('ProgramRuntimeStartError')
+          expect(error.message).toBe(
+            'A live Program can resume only from a settled replay frame',
+          )
+        }),
+      ),
+  )
+
+  it.effect(
+    'revalidates Program identity and version for manually constructed replay starts',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const tape = fromJournal(BasicProgram, {
+            retainedFromSequence: 0,
+            initialModel: BasicModel.make({ count: 0 }),
+            initialCommands: [],
+            transitions: [],
+            latestModel: BasicModel.make({ count: 0 }),
+          })
+          const identityError = yield* Effect.flip(
+            makeProgramRuntime({
+              program: BasicProgram,
+              resources: Layer.empty,
+              start: fromReplay({ ...tape, programId: 'another-counter' }),
+            }),
+          )
+          const versionError = yield* Effect.flip(
+            makeProgramRuntime({
+              program: BasicProgram,
+              resources: Layer.empty,
+              start: fromReplay({ ...tape, programVersion: 2 }),
+            }),
+          )
+
+          expect(identityError.message).toBe(
+            'Replay tape another-counter@1 does not match basic-counter@1',
+          )
+          expect(versionError.message).toBe(
+            'Replay tape basic-counter@2 does not match basic-counter@1',
+          )
+        }),
+      ),
   )
 })

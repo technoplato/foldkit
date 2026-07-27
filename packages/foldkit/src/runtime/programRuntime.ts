@@ -1,7 +1,6 @@
 import {
   Array,
   Cause,
-  Context,
   Data,
   Deferred,
   Effect,
@@ -53,9 +52,11 @@ import {
   ReplayFrameError,
   type ReplayTape,
   type ReplayTapeExportError,
+  branchReplayTape,
   encodeReplayTape,
   fromJournal,
   replayToFrame,
+  validateReplayTapeProgram,
 } from './replayTape.js'
 import {
   type RuntimeDiagnostic,
@@ -136,9 +137,10 @@ export type ProgramRuntimeConfig<
   Resources = never,
   ManagedResourceServices = never,
   P extends Ports | undefined = undefined,
+  ResourceError = never,
 > = Readonly<{
   program: Program<Model, Message, Resources, ManagedResourceServices, P>
-  resources: Layer.Layer<Resources>
+  resources: Layer.Layer<Resources, ResourceError>
   start?: ProgramStart<Model, Message>
   journal?: ProgramRuntimeJournalConfig<Model, Message>
   scheduling?: ProgramRuntimeScheduling
@@ -282,42 +284,40 @@ const resolveStart = <
     })
   }
 
-  if (
-    start.tape.programId !== program.id ||
-    start.tape.programVersion !== program.version
-  ) {
-    return Effect.fail(
-      new ProgramRuntimeStartError({
-        message: `Replay tape ${start.tape.programId}@${start.tape.programVersion} does not match ${program.id}@${program.version}`,
-      }),
+  return Effect.gen(function* () {
+    yield* pipe(
+      validateReplayTapeProgram(program, start.tape),
+      Effect.mapError(
+        () =>
+          new ProgramRuntimeStartError({
+            message: `Replay tape ${start.tape.programId}@${start.tape.programVersion} does not match ${program.id}@${program.version}`,
+          }),
+      ),
     )
-  }
-
-  const maybeLastTransition = Array.last(start.tape.transitions)
-  if (
-    Option.isSome(maybeLastTransition) &&
-    !maybeLastTransition.value.isOperationSettled
-  ) {
-    return Effect.fail(
-      new ProgramRuntimeStartError({
-        message: 'A live Program can resume only from a settled replay frame',
-      }),
+    const tape = yield* pipe(
+      branchReplayTape(start.tape, start.tape.transitions.length),
+      Effect.mapError(
+        () =>
+          new ProgramRuntimeStartError({
+            message:
+              'A live Program can resume only from a settled replay frame',
+          }),
+      ),
     )
-  }
-
-  return pipe(
-    replayToFrame(program, start.tape, start.tape.transitions.length),
-    Effect.mapError(
-      error => new ProgramRuntimeStartError({ message: error.message }),
-    ),
-    Effect.map(model => ({
+    const model = yield* pipe(
+      replayToFrame(program, tape, tape.transitions.length),
+      Effect.mapError(
+        error => new ProgramRuntimeStartError({ message: error.message }),
+      ),
+    )
+    return {
       model,
       commands: [],
-      journalInitialModel: start.tape.initialModel,
-      journalInitialCommands: start.tape.initialCommands,
-      maybeReplayTape: Option.some(start.tape),
-    })),
-  )
+      journalInitialModel: tape.initialModel,
+      journalInitialCommands: tape.initialCommands,
+      maybeReplayTape: Option.some(tape),
+    }
+  })
 }
 
 const makeOperation = (
@@ -379,17 +379,19 @@ export const makeProgramRuntime = <
   Resources = never,
   ManagedResourceServices = never,
   P extends Ports | undefined = undefined,
+  ResourceError = never,
 >(
   config: ProgramRuntimeConfig<
     Model,
     Message,
     Resources,
     ManagedResourceServices,
-    P
+    P,
+    ResourceError
   >,
 ): Effect.Effect<
   ProgramRuntime<Model, Message, P>,
-  ProgramRuntimeStartError,
+  ProgramRuntimeStartError | ResourceError,
   Scope.Scope
 > =>
   Effect.gen(function* () {
@@ -476,32 +478,28 @@ export const makeProgramRuntime = <
       (layer, { managedResource, ref }) =>
         Layer.merge(layer, Layer.succeed(managedResource.resource._tag, ref)),
     ) as Layer.Layer<ManagedResourceServices>
-    const acquireResourceContext: Effect.Effect<Context.Context<Resources>> =
-      yield* Effect.cached(
-        Effect.uninterruptible(
-          Layer.buildWithScope(config.resources, runtimeScope),
-        ),
-      )
+    const resourceContext = yield* Layer.buildWithScope(
+      config.resources,
+      runtimeScope,
+    )
 
     const provideResources = <A>(
       effect: Effect.Effect<A, never, Resources | ManagedResourceServices>,
     ): Effect.Effect<A> =>
-      Effect.flatMap(acquireResourceContext, resourceContext =>
-        Effect.provide(
-          Effect.provideContext(
+      Effect.provide(
+        Effect.provideContext(
+          Effect.provideService(
             Effect.provideService(
-              Effect.provideService(
-                effect,
-                __CurrentInterruptRegistry,
-                interruptRegistry,
-              ),
-              __CurrentPortChannels,
-              portRuntime.channels,
+              effect,
+              __CurrentInterruptRegistry,
+              interruptRegistry,
             ),
-            resourceContext,
+            __CurrentPortChannels,
+            portRuntime.channels,
           ),
-          managedResourceLayer,
+          resourceContext,
         ),
+        managedResourceLayer,
       )
 
     let liveModel = start.model
