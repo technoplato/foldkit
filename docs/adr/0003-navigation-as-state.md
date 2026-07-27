@@ -246,3 +246,40 @@ implemented by copying child Messages into the Showcase tape. Candidate designs 
 a composed parent Program that owns child Programs or an engine-level linked replay
 session that presents nested tapes as one timeline while preserving each Program's
 portable tape identity.
+
+## Client Matrix Follow-Up | 2026-07-27 15:20:06 EDT
+
+The Client Matrix turns cross-client parity into an executable Foldkit application.
+Its axes are the four canonical Multiple Counters Navigation states and eight concrete
+clients: React Web, Foldkit View, Expo Web GUI, Effect Terminal, OpenTUI, raw CLI,
+Expo iOS, and Expo Android. The user can transpose those axes and select any state to
+inspect the Navigation value, complete application Model, presentation destination,
+and portable URI together.
+
+The screen modes are not host-local fixtures. Each is constructed as a case of the
+shared `Navigation` union, passed through `modelForNavigation`, projected through
+`destinationForModel`, and printed through `navigationToPath`. Exhaustive matches
+define the finite comparison set. Adding a new Navigation case without updating the
+matrix is therefore a build error rather than an omitted screenshot.
+
+The portable relative URI belongs to the Program parser-printer. Each client owns
+only the carrier that delivers it. Browser clients add an origin, Expo native uses a
+custom scheme, and command-line clients pass the same relative URI as an argument.
+The core now accepts either a portable path or a complete carrier and reduces both to
+the same Navigation value before update runs.
+
+Opening the fact URI demonstrates the Command boundary. The parsed state contains a
+loading fact presentation. Program restoration starts `FetchCounterFact`, and each
+client capture records the resulting loaded presentation. The host does not special
+case the side effect and replay does not require an inert update function.
+
+The 32 checked-in WebP captures are validation evidence, not a rendering API. They
+were produced by the running clients for four modes across eight surfaces. The capture
+pass found and fixed an OpenTUI runtime failure caused by two React versions, which
+had passed static type checking. This supports keeping executable client evidence next
+to the typed route and state table.
+
+The matrix's client list is deliberately an example-owned evidence registry. Foldkit
+core should own Program routes, parser-printer laws, restoration, replay, and runtime
+observation. It should not own localhost ports, shell commands, Expo Go delimiters,
+simulator identities, screenshots, or a global registry of every application client.

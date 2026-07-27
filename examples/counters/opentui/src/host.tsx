@@ -51,8 +51,8 @@ const MultipleCountersTerminal = ({
     description: `${interaction.token} | ${interaction.message._tag}`,
   }))
   const replayInstruction = (): string => {
-    if (Option.isSome(replay.maybeBranchError)) {
-      return replay.maybeBranchError.value
+    if (Option.isSome(replay.maybeError)) {
+      return replay.maybeError.value
     }
     if (!replay.isBranchable) {
       return 'This frame is inspection-only until its Command result arrives.'
@@ -64,11 +64,11 @@ const MultipleCountersTerminal = ({
     if (key.name === 'q') {
       renderer.destroy()
     } else if (key.name === 'left') {
-      replay.clickedStepBackward()
+      replay.stepBackward()
     } else if (key.name === 'right') {
-      replay.clickedStepForward()
+      replay.stepForward()
     } else if (key.name === 'i') {
-      replay.clickedInspect()
+      replay.inspect()
     }
   })
 

@@ -1,15 +1,18 @@
 import {
   type CounterDetailMode,
   type CounterFactStatus,
+  CounterList,
   type Destination,
   type Interaction,
   type Message,
   type Model,
   MultipleCountersProgram,
+  type Navigation,
   StaticCounterFactClient,
   destinationForModel,
   interactionsForModel,
   messageForInteractionToken,
+  modelForNavigation,
 } from 'counters-core-example'
 import { Array, Console, Data, Effect, Match as M, Option } from 'effect'
 import { Runtime } from 'foldkit'
@@ -64,6 +67,7 @@ const runTokens = (
 /** Runs CLI actions through the renderer-free runtime without printing. */
 export const executeCounters = (
   tokens: ReadonlyArray<string>,
+  maybeInitialNavigation = Option.none<Navigation>(),
 ): Effect.Effect<CountersCliExecution, CountersCliError> =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -71,6 +75,13 @@ export const executeCounters = (
         Runtime.makeProgramRuntime({
           program: MultipleCountersProgram,
           resources: StaticCounterFactClient,
+          start: Runtime.fromModel(
+            modelForNavigation(
+              Option.getOrElse(maybeInitialNavigation, () =>
+                CounterList.make({}),
+              ),
+            ),
+          ),
         }),
       )
       const initialModel = yield* runtime.initialization
@@ -146,9 +157,10 @@ const formatInteractions = (
 export const runCounters = (
   tokens: ReadonlyArray<string>,
   isVerbose: boolean,
+  maybeInitialNavigation = Option.none<Navigation>(),
 ): Effect.Effect<void, CountersCliError> =>
   Effect.gen(function* () {
-    const execution = yield* executeCounters(tokens)
+    const execution = yield* executeCounters(tokens, maybeInitialNavigation)
     const screenLines = formatDestination(
       destinationForModel(execution.finalModel),
     )

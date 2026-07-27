@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Foldkit | Native navigation bridge</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --stone-950: #0c0a09;
+        --stone-900: #1c1917;
+        --stone-800: #292524;
+        --stone-700: #44403c;
+        --stone-500: #78716c;
+        --stone-400: #a8a29e;
+        --stone-200: #e7e5e4;
+        --amber-300: #fcd34d;
+        --amber-400: #fbbf24;
+        --sky-300: #7dd3fc;
+        --emerald-300: #6ee7b7;
+        --red-300: #fca5a5;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--stone-950);
+        color: var(--stone-200);
+      }
+
+      body {
+        background:
+          radial-gradient(
+            circle at 12% 0%,
+            rgba(251, 191, 36, 0.12),
+            transparent 33rem
+          ),
+          radial-gradient(
+            circle at 88% 18%,
+            rgba(125, 211, 252, 0.08),
+            transparent 30rem
+          ),
+          var(--stone-950);
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .deck {
+        width: 100%;
+        height: 100%;
+      }
+
+      .slide {
+        display: none;
+        width: 100%;
+        height: 100%;
+        padding: 56px 104px 70px;
+        overflow: hidden;
+      }
+
+      .slide[data-active='true'] {
+        display: grid;
+        animation: enter 180ms ease-out;
+      }
+
+      @keyframes enter {
+        from {
+          opacity: 0;
+          transform: translateX(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      .slide-content {
+        width: min(100%, 1240px);
+        min-width: 0;
+        height: 100%;
+        margin: 0 auto;
+      }
+
+      .centered {
+        display: grid;
+        place-content: center;
+        text-align: center;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: var(--amber-400);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 1020px;
+        margin-bottom: 28px;
+        font-size: clamp(42px, 5.4vw, 76px);
+        line-height: 1.12;
+        letter-spacing: -0.03em;
+      }
+
+      h2 {
+        max-width: 1050px;
+        margin-bottom: 28px;
+        font-size: clamp(38px, 5vw, 70px);
+        line-height: 1;
+        letter-spacing: -0.045em;
+      }
+
+      h3 {
+        margin-bottom: 9px;
+        font-size: 22px;
+      }
+
+      .lede {
+        max-width: 880px;
+        color: var(--stone-400);
+        font-size: clamp(18px, 2vw, 25px);
+        line-height: 1.5;
+      }
+
+      .centered .lede {
+        margin-right: auto;
+        margin-left: auto;
+      }
+
+      .grid-two,
+      .grid-three {
+        display: grid;
+        min-width: 0;
+        gap: 18px;
+      }
+
+      .grid-two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .card {
+        min-width: 0;
+        border: 1px solid var(--stone-700);
+        border-radius: 24px;
+        background: rgba(28, 25, 23, 0.82);
+        padding: 24px;
+        box-shadow: 0 28px 70px rgba(0, 0, 0, 0.22);
+      }
+
+      .card p,
+      .card li {
+        color: var(--stone-400);
+        font-size: 17px;
+        line-height: 1.5;
+      }
+
+      .card strong {
+        color: var(--stone-200);
+      }
+
+      .good {
+        border-color: rgba(110, 231, 183, 0.42);
+      }
+
+      .good h3 {
+        color: var(--emerald-300);
+      }
+
+      .question {
+        border-color: rgba(252, 211, 77, 0.48);
+      }
+
+      .question h3 {
+        color: var(--amber-300);
+      }
+
+      .pushback {
+        border-color: rgba(252, 165, 165, 0.42);
+      }
+
+      .pushback h3 {
+        color: var(--red-300);
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 22px;
+      }
+
+      li + li {
+        margin-top: 10px;
+      }
+
+      code,
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      .route-tree {
+        display: grid;
+        gap: 10px;
+        margin-top: 18px;
+        border: 1px solid var(--stone-700);
+        border-radius: 24px;
+        background: rgba(12, 10, 9, 0.72);
+        padding: 26px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: clamp(16px, 1.7vw, 22px);
+        line-height: 1.55;
+      }
+
+      .route-tree .path {
+        color: var(--sky-300);
+      }
+
+      .code-shell {
+        min-width: 0;
+        max-height: calc(100vh - 235px);
+        overflow: auto;
+        border: 1px solid var(--stone-700);
+        border-radius: 22px;
+        background: var(--stone-900);
+      }
+
+      .diagram-shell {
+        display: grid;
+        place-items: center;
+        min-height: 58vh;
+        border: 1px solid var(--stone-700);
+        border-radius: 28px;
+        background: rgba(12, 10, 9, 0.7);
+        padding: 24px;
+      }
+
+      .mermaid {
+        width: 100%;
+      }
+
+      .nav-button {
+        position: fixed;
+        z-index: 10;
+        top: 0;
+        bottom: 0;
+        display: grid;
+        width: 62px;
+        place-items: center;
+        border: 0;
+        background: rgba(231, 229, 228, 0.07);
+        color: rgba(231, 229, 228, 0.58);
+        font-size: 44px;
+        cursor: pointer;
+        transition:
+          background 140ms ease,
+          color 140ms ease;
+      }
+
+      .nav-button:hover,
+      .nav-button:focus-visible {
+        background: rgba(231, 229, 228, 0.16);
+        color: var(--stone-200);
+        outline: none;
+      }
+
+      .nav-button:disabled {
+        cursor: default;
+        opacity: 0.18;
+      }
+
+      .previous {
+        left: 0;
+        border-right: 1px solid rgba(231, 229, 228, 0.1);
+      }
+
+      .next {
+        right: 0;
+        border-left: 1px solid rgba(231, 229, 228, 0.1);
+      }
+
+      .counter {
+        position: fixed;
+        z-index: 11;
+        right: 82px;
+        bottom: 20px;
+        border: 1px solid var(--stone-700);
+        border-radius: 999px;
+        background: rgba(12, 10, 9, 0.82);
+        padding: 8px 12px;
+        color: var(--stone-400);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+      }
+
+      .key-hint {
+        position: fixed;
+        z-index: 11;
+        bottom: 22px;
+        left: 82px;
+        color: var(--stone-500);
+        font-size: 12px;
+      }
+
+      .statement {
+        color: var(--amber-300);
+      }
+
+      .compact h2 {
+        margin-bottom: 20px;
+      }
+
+      .compact .card {
+        padding: 20px;
+      }
+
+      @media (max-width: 900px) {
+        .slide {
+          padding: 40px 78px 62px;
+        }
+
+        .grid-two,
+        .grid-three {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .card p,
+        .card li {
+          font-size: 15px;
+        }
+
+        .nav-button {
+          width: 52px;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .slide {
+          padding: 28px 58px 56px;
+          overflow-y: auto;
+        }
+
+        h1 {
+          margin-bottom: 16px;
+          font-size: clamp(30px, 9vw, 42px);
+          line-height: 1.08;
+        }
+
+        h2 {
+          font-size: clamp(30px, 9vw, 42px);
+        }
+
+        .lede {
+          font-size: 16px;
+        }
+
+        .nav-button {
+          width: 42px;
+          font-size: 34px;
+        }
+
+        .key-hint {
+          display: none;
+        }
+
+        .counter {
+          right: 54px;
+          bottom: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="deck" aria-live="polite">
+      <section class="slide" data-active="true" data-slide="1">
+        <div class="slide-content centered">
+          <p class="eyebrow">Foldkit invariant</p>
+          <h1 class="statement">
+            I understand that we want everything to be platform agnostic and
+            especially framework agnostic.
+          </h1>
+          <p class="lede">
+            Native stacks, browser history, terminals, and any future host are
+            adapters around one portable Program.
+          </p>
+        </div>
+      </section>
+
+      <section class="slide compact" data-slide="2">
+        <div class="slide-content">
+          <p class="eyebrow">Your strongest points</p>
+          <h2>The navigation bridge needs causality.</h2>
+          <div class="grid-two">
+            <article class="card good">
+              <h3>1. Expo cannot silently own Back</h3>
+              <p>
+                We must distinguish a transition requested by the Program from
+                one caused by a swipe, hardware Back, deep link, or another host
+                event.
+              </p>
+            </article>
+            <article class="card good">
+              <h3>2. The app is a typed graph</h3>
+              <p>
+                Routes are nodes. Allowed transitions are edges. A Back action
+                is valid only when the graph connects the current and proposed
+                destinations.
+              </p>
+            </article>
+            <article class="card good">
+              <h3>3. Presentation is portable</h3>
+              <p>
+                A button, notification, text edit, audio-level change, or other
+                interactor can be described as a cause that sends a typed
+                Message.
+              </p>
+            </article>
+            <article class="card good">
+              <h3>4. Deep links may carry intent</h3>
+              <p>
+                A route can reconstruct visible state and carry a typed set of
+                pending Messages. Those Messages still enter through update.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-slide="3">
+        <div class="slide-content">
+          <p class="eyebrow">The bug you identified</p>
+          <h2>Two observers can fight each other.</h2>
+          <div class="diagram-shell">
+            <pre class="mermaid">
+flowchart TD
+  A["Foldkit Model: Counter detail"] --> B["Expo route: /counters/counter-1"]
+  B -->|"hardware Back or swipe"| C["Expo route: /counters"]
+  C --> D["route listener sends NavigationChanged"]
+  A --> E["stale Model observer still prints detail"]
+  E -->|"pushes old destination again"| B
+  D --> F["update eventually catches up"]
+
+  classDef warning fill:#3b1d18,stroke:#fca5a5,color:#e7e5e4;
+  class E,B warning;
+            </pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-slide="4">
+        <div class="slide-content">
+          <p class="eyebrow">Proposed correction</p>
+          <h2>One transition protocol, with origin and acknowledgement.</h2>
+          <div class="diagram-shell">
+            <pre class="mermaid">
+sequenceDiagram
+  participant Input as Button, swipe, Back, deep link
+  participant Adapter as Host adapter
+  participant Program as Foldkit update
+  participant Expo as Expo Router
+
+  Input->>Adapter: attempted transition from A to B
+  Adapter->>Program: AttemptedNavigation(from, to, cause)
+  Program->>Program: validate graph edge
+  Program-->>Adapter: Model selects B, revision 7
+  Adapter->>Expo: apply B for revision 7
+  Expo-->>Adapter: route state changed to B
+  Adapter->>Adapter: acknowledge revision 7, send no duplicate Message
+            </pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-slide="5">
+        <div class="slide-content">
+          <p class="eyebrow">Ten-foot code | proposed</p>
+          <h2>The host reports an attempted transition.</h2>
+          <div class="code-shell" id="code-transition"></div>
+        </div>
+      </section>
+
+      <section class="slide" data-slide="6">
+        <div class="slide-content">
+          <p class="eyebrow">Generated Expo adapter | proposed</p>
+          <h2>The adapter prevents feedback loops.</h2>
+          <div class="code-shell" id="code-bridge"></div>
+        </div>
+      </section>
+
+      <section class="slide compact" data-slide="7">
+        <div class="slide-content">
+          <p class="eyebrow">Static app graph</p>
+          <h2>One source generates routes and validates edges.</h2>
+          <div class="grid-two">
+            <div class="route-tree">
+              <div>Showcase <span class="path">/showcase</span></div>
+              <div>└─ Counter list <span class="path">/counters</span></div>
+              <div>
+                &nbsp;&nbsp;└─ Counter detail
+                <span class="path">/counters/:counterId</span>
+              </div>
+              <div>
+                &nbsp;&nbsp;&nbsp;&nbsp;├─ Fact modal
+                <span class="path">…/fact</span>
+              </div>
+              <div>
+                &nbsp;&nbsp;&nbsp;&nbsp;└─ Delete modal
+                <span class="path">…/delete</span>
+              </div>
+            </div>
+            <div class="card question">
+              <h3>Generated from this graph</h3>
+              <ul>
+                <li>portable parser-printer branches;</li>
+                <li>Expo Router files and modal options;</li>
+                <li>typed route links;</li>
+                <li>valid forward and backward edges;</li>
+                <li>test cases for every reachable node.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide compact" data-slide="8">
+        <div class="slide-content">
+          <p class="eyebrow">Important vocabulary</p>
+          <h2>Anchor and pending Messages are different things.</h2>
+          <div class="grid-two">
+            <article class="card good">
+              <h3>Expo anchor</h3>
+              <p>
+                The background route that Expo reconstructs beneath a
+                deep-linked modal. It gives the native modal somewhere to
+                dismiss back to.
+              </p>
+            </article>
+            <article class="card good">
+              <h3>Foldkit route intent</h3>
+              <p>
+                Portable state plus typed pending Messages. Parsing produces an
+                initialization value. update decides which Commands follow.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide compact" data-slide="9">
+        <div class="slide-content">
+          <p class="eyebrow">Where I align and push back</p>
+          <h2>A portable presenter is useful. It cannot become mandatory.</h2>
+          <div class="grid-two">
+            <article class="card good">
+              <h3>Strong agreement</h3>
+              <p>
+                Ordered presentation choices can provide defaults. Causes map
+                platform interactions to typed Messages. This is a portable
+                presentation description, not HTML.
+              </p>
+            </article>
+            <article class="card pushback">
+              <h3>My pushback</h3>
+              <p>
+                If every Program must describe UI through this vocabulary, we
+                have built another required view framework. The domain Program
+                must remain consumable without it by React, native, CLI, TUI,
+                Foldkit view, or a future host.
+              </p>
+            </article>
+            <article class="card pushback">
+              <h3>Graph detail</h3>
+              <p>
+                An adjacency matrix says which nodes connect. Each edge still
+                needs a typed cause, target, guard policy, and whether the host
+                should push, replace, pop, present, dismiss, or focus.
+              </p>
+            </article>
+            <article class="card pushback">
+              <h3>Security detail</h3>
+              <p>
+                Compression and hashes prove identity or integrity. They do not
+                hide private state or authorize an operation. Encryption and
+                signatures remain separate capabilities.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide compact" data-slide="10">
+        <div class="slide-content">
+          <p class="eyebrow">Human immune system</p>
+          <h2>Do not optimize important communication for virality.</h2>
+          <div class="grid-two">
+            <article class="card good">
+              <h3>Human review finds the edge</h3>
+              <p>
+                Types and generators prove structural rules. People notice when
+                the resulting behavior is technically valid but experientially
+                wrong.
+              </p>
+            </article>
+            <article class="card question">
+              <h3>Friction can be protective</h3>
+              <p>
+                If something spreads widely, it should be important. Low-value
+                material should not be made artificially irresistible or easier
+                to amplify than its value warrants.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-slide="11">
+        <div class="slide-content centered">
+          <p class="eyebrow">Decision 2</p>
+          <h2>Should native Back be intercepted before Expo commits it?</h2>
+          <p class="lede">
+            Recommended: yes. Send an attempted-navigation Message, validate the
+            graph edge in the Program, then let the adapter commit the native
+            transition and acknowledge it.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <button
+      class="nav-button previous"
+      type="button"
+      aria-label="Previous slide"
+    >
+      ‹
+    </button>
+    <button class="nav-button next" type="button" aria-label="Next slide">
+      ›
+    </button>
+    <div class="key-hint">Use ← and →</div>
+    <div class="counter"><span id="current-slide">1</span> / 11</div>
+
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
+      import { File } from 'https://esm.sh/@pierre/diffs@1.2.10?bundle'
+
+      const slides = Array.from(document.querySelectorAll('.slide'))
+      const previousButton = document.querySelector('.previous')
+      const nextButton = document.querySelector('.next')
+      const currentSlide = document.querySelector('#current-slide')
+      let index = 0
+
+      const show = nextIndex => {
+        index = Math.max(0, Math.min(slides.length - 1, nextIndex))
+        slides.forEach((slide, slideIndex) => {
+          slide.dataset.active = String(slideIndex === index)
+        })
+        previousButton.disabled = index === 0
+        nextButton.disabled = index === slides.length - 1
+        currentSlide.textContent = String(index + 1)
+        history.replaceState({}, '', `#slide-${index + 1}`)
+      }
+
+      previousButton.addEventListener('click', () => show(index - 1))
+      nextButton.addEventListener('click', () => show(index + 1))
+      addEventListener('keydown', event => {
+        if (event.key === 'ArrowLeft') {
+          show(index - 1)
+        }
+        if (event.key === 'ArrowRight' || event.key === ' ') {
+          show(index + 1)
+        }
+      })
+
+      const transitionSource = `import { Schema as S } from "effect"
+
+export const NavigationCause = S.Literals([
+  "Program",
+  "HardwareBack",
+  "SwipeBack",
+  "DeepLink",
+])
+
+export const AttemptedNavigation = S.TaggedStruct(
+  "AttemptedNavigation",
+  {
+    from: PortableRoute,
+    to: PortableRoute,
+    cause: NavigationCause,
+  },
+)
+
+// update validates the edge before changing Navigation.
+`
+
+      const bridgeSource = `const onHostTransition = (transition: HostTransition) => {
+  if (matchesPendingProgramTransition(transition)) {
+    acknowledgeProgramTransition(transition)
+  } else {
+    send(AttemptedNavigation(transition))
+  }
+}
+
+const onModelNavigation = (navigation: Navigation) => {
+  const transition = graph.transitionTo(navigation)
+
+  if (!hostAlreadyShows(transition.to)) {
+    rememberPendingProgramTransition(transition)
+    expoRouter.apply(transition)
+  }
+}
+`
+
+      const codeOptions = {
+        theme: { light: 'github-light', dark: 'github-dark' },
+        themeType: 'dark',
+        overflow: 'wrap',
+      }
+
+      new File(codeOptions).render({
+        containerWrapper: document.querySelector('#code-transition'),
+        file: {
+          name: 'generated/navigationMessage.ts',
+          contents: transitionSource,
+        },
+      })
+
+      new File(codeOptions).render({
+        containerWrapper: document.querySelector('#code-bridge'),
+        file: {
+          name: 'generated/expoNavigationBridge.ts',
+          contents: bridgeSource,
+        },
+      })
+
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        securityLevel: 'strict',
+        flowchart: { curve: 'basis' },
+        themeVariables: {
+          background: '#0c0a09',
+          primaryColor: '#292524',
+          primaryTextColor: '#e7e5e4',
+          primaryBorderColor: '#78716c',
+          lineColor: '#a8a29e',
+          secondaryColor: '#1c1917',
+          tertiaryColor: '#082f49',
+          fontFamily: 'Inter, ui-sans-serif, system-ui',
+        },
+      })
+      await mermaid.run({ querySelector: '.mermaid' })
+
+      const requestedSlide = Number(location.hash.replace('#slide-', ''))
+      show(
+        Number.isFinite(requestedSlide) && requestedSlide > 0
+          ? requestedSlide - 1
+          : 0,
+      )
+    </script>
+  </body>
+</html>

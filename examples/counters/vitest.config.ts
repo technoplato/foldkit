@@ -9,6 +9,7 @@ export default defineConfig({
       'core/**',
       'react/**',
       'react-bindings/**',
+      'terminal/**',
     ],
     setupFiles: ['./src/vitest-setup.ts'],
     server: {

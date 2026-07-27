@@ -15,7 +15,7 @@ import {
 } from './message.js'
 import { interactionsForModel } from './presentation.js'
 import { MultipleCountersProgram } from './program.js'
-import { navigationToPath, urlToNavigation } from './route.js'
+import { navigationToPath, pathToNavigation, urlToNavigation } from './route.js'
 import { update } from './update.js'
 
 describe('Multiple Counters Program', () => {
@@ -104,5 +104,19 @@ describe('Multiple Counters Program', () => {
     expect(navigationToPath(navigation)).toBe('/counters/counter-2/fact')
     expect(navigationToPath(navigation)).not.toContain('Clicked')
     expect(navigationToPath(navigation)).not.toContain('tape')
+  })
+
+  it('parses the same portable route through relative and host carriers', () => {
+    const relativeNavigation = pathToNavigation('/counters/counter-2/delete')
+    const nativeNavigation = pathToNavigation(
+      'foldkit://showcase/counters/counter-2/delete',
+    )
+
+    expect(navigationToPath(relativeNavigation)).toBe(
+      '/counters/counter-2/delete',
+    )
+    expect(navigationToPath(nativeNavigation)).toBe(
+      '/counters/counter-2/delete',
+    )
   })
 })

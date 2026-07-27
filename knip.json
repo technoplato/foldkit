@@ -92,6 +92,10 @@
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]
     },
+    "examples/counters/terminal": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
     "examples/counters/react-bindings": {
       "entry": ["src/index.ts"],
       "ignoreDependencies": ["prettier"]
@@ -170,6 +174,17 @@
     "examples/showcase/react-bindings": {
       "entry": ["src/index.ts", "src/**/*.test.tsx"],
       "ignoreDependencies": ["prettier"]
+    },
+    "examples/client-matrix/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/client-matrix/foldkit": {
+      "entry": ["src/**/*.test.ts"],
+      "ignoreDependencies": [
+        "@trivago/prettier-plugin-sort-imports",
+        "prettier"
+      ]
     },
     "examples/counter-with-shared-state": {
       "entry": [

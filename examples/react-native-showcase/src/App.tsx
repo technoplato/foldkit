@@ -44,6 +44,7 @@ import {
   useShowcaseReplay,
 } from 'showcase-react-bindings-example'
 
+import { NativeNavigationComparison } from './nativeNavigationComparison'
 import {
   ClientPlatformDependency,
   FactClientDependency,
@@ -220,6 +221,8 @@ const ShowcaseScreen = ({
   const hasOpenedInitialCarrier = useRef(false)
   const hasProjectedInitialNavigation = useRef(false)
   const isReconcilingCarrier = useRef(initialCarrierPath === undefined)
+  const lastSceneContent = useRef<ReactNode | undefined>(undefined)
+  const lastSceneNavigation = useRef<Showcase.Navigation | undefined>(undefined)
 
   useEffect(() => {
     let isActive = true
@@ -393,6 +396,42 @@ const ShowcaseScreen = ({
 
   const isHome = model.navigation._tag === 'HomeScene'
 
+  if (!isHome) {
+    lastSceneContent.current = content
+    lastSceneNavigation.current = model.navigation
+  }
+
+  if (Platform.OS !== 'web') {
+    const preservedSceneContent = lastSceneContent.current
+    const preservedSceneNavigation = lastSceneNavigation.current
+    const scene =
+      preservedSceneContent === undefined ||
+      preservedSceneNavigation === undefined ? (
+        <StartingShowcase />
+      ) : (
+        <NativeShowcaseScreen
+          content={preservedSceneContent}
+          maybeNavigation={Option.some(preservedSceneNavigation)}
+          replay={replay}
+        />
+      )
+
+    return (
+      <NativeNavigationComparison
+        home={
+          <NativeShowcaseScreen
+            content={<ShowcaseHome />}
+            maybeNavigation={Option.none()}
+            replay={replay}
+          />
+        }
+        isProgramHome={isHome}
+        onAcceptedBack={actions.tappedBackButton}
+        scene={scene}
+      />
+    )
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
@@ -427,6 +466,31 @@ const ShowcaseScreen = ({
     </SafeAreaView>
   )
 }
+
+const NativeShowcaseScreen = ({
+  content,
+  maybeNavigation,
+  replay,
+}: Readonly<{
+  content: ReactNode
+  maybeNavigation: Option.Option<Showcase.Navigation>
+  replay: ReturnType<typeof useShowcaseReplay>
+}>) => (
+  <SafeAreaView style={styles.safeArea}>
+    <StatusBar style="light" />
+    <View style={styles.shell}>
+      {Option.isSome(maybeNavigation) ? (
+        <ShowcaseTabs navigation={maybeNavigation.value} />
+      ) : null}
+      <ScrollView contentContainerStyle={styles.content}>
+        {content}
+        <View style={styles.navigationReplay}>
+          <ReplayControls label="Showcase replay" replay={replay} />
+        </View>
+      </ScrollView>
+    </View>
+  </SafeAreaView>
+)
 
 const ShowcaseHome = () => {
   const actions = useShowcaseActions()
