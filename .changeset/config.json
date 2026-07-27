@@ -79,6 +79,7 @@
     "managed-resource-layer-example",
     "message-versioning-example",
     "pixel-art-react-comparison",
+    "staked-access-core-example",
     "wallet-core-example",
     "wallet-simulated-client-example",
     "@foldkit/performance-harness",
