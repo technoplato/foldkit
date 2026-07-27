@@ -16,7 +16,7 @@ import {
   type MultipleCountersInitialRoute,
   initialMultipleCountersRoute,
 } from 'counters-react-bindings-example'
-import { Effect, Exit, Match as M, Option } from 'effect'
+import { Array, Effect, Exit, Match as M, Option } from 'effect'
 import { StatusBar } from 'expo-status-bar'
 import { FactProgram, detailForModel, displayForModel } from 'fact-core-example'
 import { initialFactRoute } from 'fact-react-bindings-example'
@@ -78,6 +78,12 @@ const dependencyLabel = <ImplementationName extends string>(
 
 const portablePath = (url: string): string => {
   const parsed = new URL(url)
+  if (parsed.pathname === '/--') {
+    return `/${parsed.search}`
+  }
+  if (parsed.pathname.startsWith('/--/')) {
+    return `${parsed.pathname.slice(3)}${parsed.search}`
+  }
   return `${parsed.pathname}${parsed.search}`
 }
 
@@ -253,6 +259,23 @@ const ShowcaseScreen = ({
         return Promise.resolve()
       }
 
+      if (path === '/counters' || path.startsWith('/counters/')) {
+        const maybeUrl = fromString(`https://showcase.invalid${path}`)
+        if (
+          Option.isSome(maybeUrl) &&
+          (isInitial || model.navigation._tag !== 'MultipleCountersScene')
+        ) {
+          const navigation = Counters.urlToNavigation(maybeUrl.value)
+          isReconcilingCarrier.current = true
+          setCountersRoute(
+            Program.state(Counters.modelForNavigation(navigation)),
+          )
+          actions.openedNavigation(Showcase.MultipleCountersScene.make({}))
+          setRouteRevision(revision => revision + 1)
+        }
+        return Promise.resolve()
+      }
+
       if (path.startsWith('/counter/')) {
         return selectRoute(
           Showcase.CounterScene.make({}),
@@ -317,10 +340,18 @@ const ShowcaseScreen = ({
         globalThis.removeEventListener('popstate', openedCarrierPath)
       }
     }
-  }, [actions, initialCarrierPath, openShowcaseProgramRoute])
+  }, [
+    actions,
+    initialCarrierPath,
+    model.navigation._tag,
+    openShowcaseProgramRoute,
+  ])
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !isCarrierReady) {
+      return
+    }
+    if (model.navigation._tag === 'MultipleCountersScene') {
       return
     }
     if (isReconcilingCarrier.current) {
@@ -389,7 +420,7 @@ const ShowcaseScreen = ({
         <ScrollView contentContainerStyle={styles.content}>
           {content}
           <View style={styles.navigationReplay}>
-            <ReplayControls label="Navigation replay" replay={replay} />
+            <ReplayControls label="Showcase replay" replay={replay} />
           </View>
         </ScrollView>
       </View>
@@ -526,7 +557,7 @@ const CounterScreen = () => {
         <ActionButton label="Reset" onPress={actions.clickedReset} />
         <ActionButton label="+" onPress={actions.clickedIncrement} />
       </View>
-      <ReplayControls replay={replay} />
+      <ReplayControls label="Counter replay" replay={replay} />
     </View>
   )
 }
@@ -541,34 +572,261 @@ const CountersExample = ({
 
 const CountersScreen = () => {
   const model = MultipleCountersClient.useModel()
-  const actions = MultipleCountersClient.useActions()
   const replay = MultipleCountersClient.useReplay()
+  useCountersNavigationCarrier(model.navigation, replay.mode)
+  const destination = Counters.destinationForModel(model)
+  return (
+    <View style={styles.example}>
+      {M.value(destination).pipe(
+        M.withReturnType<ReactNode>(),
+        M.tagsExhaustive({
+          CounterListDestination: ({ counters }) => (
+            <CountersList counters={counters} />
+          ),
+          CounterDetailDestination: ({ counter, maybeMode }) => (
+            <CounterDetail counter={counter} maybeMode={maybeMode} />
+          ),
+        }),
+      )}
+      <ReplayControls label="Multiple Counters replay" replay={replay} />
+    </View>
+  )
+}
+
+const useCountersNavigationCarrier = (
+  navigation: Counters.Navigation,
+  replayMode: 'Inspecting' | 'Live',
+): void => {
+  const actions = MultipleCountersClient.useActions()
+  const isReconcilingCarrier = useRef(
+    Platform.OS === 'web' &&
+      globalThis.location.pathname === '/showcase/counters',
+  )
+  const isOpeningProgramRoute = useRef(
+    Platform.OS === 'web' &&
+      globalThis.location.pathname.startsWith('/multiple-counters/'),
+  )
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return
+    }
+    if (isOpeningProgramRoute.current) {
+      isOpeningProgramRoute.current = false
+      return
+    }
+
+    const nextPath = Counters.navigationToPath(navigation)
+    if (globalThis.location.pathname !== nextPath) {
+      if (isReconcilingCarrier.current || replayMode === 'Inspecting') {
+        globalThis.history.replaceState({}, '', nextPath)
+      } else {
+        globalThis.history.pushState({}, '', nextPath)
+      }
+    }
+    isReconcilingCarrier.current = false
+  }, [navigation, replayMode])
+
+  useEffect(() => {
+    const openPortablePath = (path: string): void => {
+      if (path !== '/counters' && !path.startsWith('/counters/')) {
+        return
+      }
+      const maybeUrl = fromString(`https://showcase.invalid${path}`)
+      if (Option.isSome(maybeUrl)) {
+        const nextNavigation = Counters.urlToNavigation(maybeUrl.value)
+        if (
+          Counters.navigationToPath(nextNavigation) !==
+          Counters.navigationToPath(navigation)
+        ) {
+          isReconcilingCarrier.current = true
+          actions.openedNavigation(nextNavigation)
+        }
+      }
+    }
+    const openUrl = ({ url }: Readonly<{ url: string }>): void => {
+      openPortablePath(portablePath(url))
+    }
+    const openBrowserPath = (): void => {
+      openPortablePath(
+        `${globalThis.location.pathname}${globalThis.location.search}`,
+      )
+    }
+
+    const subscription = Linking.addEventListener('url', openUrl)
+    if (Platform.OS === 'web') {
+      globalThis.addEventListener('popstate', openBrowserPath)
+    }
+    return () => {
+      subscription.remove()
+      if (Platform.OS === 'web') {
+        globalThis.removeEventListener('popstate', openBrowserPath)
+      }
+    }
+  }, [actions, navigation])
+}
+
+const CountersList = ({
+  counters,
+}: Readonly<{ counters: ReadonlyArray<Counters.CounterRow> }>) => {
+  const actions = MultipleCountersClient.useActions()
   return (
     <View style={styles.example}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Multiple counters</Text>
+        <View style={styles.sectionHeadingCopy}>
+          <Text style={styles.sectionTitle}>Multiple counters</Text>
+          <Text style={styles.sectionDescription}>
+            Open a counter to navigate to its shared detail Model.
+          </Text>
+        </View>
         <ActionButton label="Add" onPress={actions.clickedAddCounter} primary />
       </View>
-      {model.rows.map(row => (
-        <View key={row.id} style={styles.counterCard}>
-          <View>
-            <Text style={styles.counterId}>{row.id}</Text>
-            <Text style={styles.counterValue}>{row.counter.count}</Text>
-          </View>
+      {Array.map(counters, counter => (
+        <View key={counter.id} style={styles.counterCard}>
+          <Pressable
+            accessibilityLabel={`Open ${counter.id}`}
+            accessibilityRole="button"
+            onPress={() => actions.selectedCounter(counter.id)}
+            style={styles.counterSummary}
+          >
+            <Text style={styles.counterId}>{counter.id}</Text>
+            <Text style={styles.counterValue}>{counter.counter.count}</Text>
+            <Text style={styles.counterOpenHint}>Open details ›</Text>
+          </Pressable>
           <View style={styles.buttonRow}>
             <ActionButton
               label="−"
-              onPress={() => actions.clickedDecrementCounter(row.id)}
+              onPress={() => actions.clickedDecrementCounter(counter.id)}
             />
             <ActionButton
               label="+"
-              onPress={() => actions.clickedIncrementCounter(row.id)}
+              onPress={() => actions.clickedIncrementCounter(counter.id)}
             />
           </View>
         </View>
       ))}
-      <ReplayControls replay={replay} />
     </View>
+  )
+}
+
+const CounterDetail = ({
+  counter,
+  maybeMode,
+}: Readonly<{
+  counter: Counters.CounterRow
+  maybeMode: Option.Option<Counters.CounterDetailMode>
+}>) => {
+  const actions = MultipleCountersClient.useActions()
+  return (
+    <View style={styles.example}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={actions.dismissedCounterDetail}
+        style={styles.inlineBackButton}
+      >
+        <Text style={styles.inlineBackButtonText}>← Back to counters</Text>
+      </Pressable>
+      <View style={styles.counterDetailCard}>
+        <Text style={styles.counterId}>{counter.id}</Text>
+        <Text style={styles.counterDetailValue}>{counter.counter.count}</Text>
+        <View style={styles.buttonRow}>
+          <ActionButton
+            label="−"
+            onPress={() => actions.clickedDecrementCounter(counter.id)}
+          />
+          <ActionButton
+            label="+"
+            onPress={() => actions.clickedIncrementCounter(counter.id)}
+          />
+          <ActionButton
+            label="Reset"
+            onPress={() => actions.clickedResetCounter(counter.id)}
+          />
+          <ActionButton
+            label="Show fact"
+            onPress={actions.clickedShowCounterFact}
+            primary
+          />
+          <DestructiveActionButton
+            label="Delete counter"
+            onPress={actions.clickedDeleteCounter}
+          />
+        </View>
+      </View>
+      {Option.isSome(maybeMode) ? (
+        <CounterDetailPresentation
+          counterId={counter.id}
+          mode={maybeMode.value}
+        />
+      ) : null}
+    </View>
+  )
+}
+
+const CounterDetailPresentation = ({
+  counterId,
+  mode,
+}: Readonly<{
+  counterId: string
+  mode: Counters.CounterDetailMode
+}>) => {
+  const actions = MultipleCountersClient.useActions()
+  return M.value(mode).pipe(
+    M.withReturnType<ReactNode>(),
+    M.tagsExhaustive({
+      CounterFactAlert: ({ status }) => (
+        <View style={styles.presentationCard}>
+          {M.value(status).pipe(
+            M.withReturnType<ReactNode>(),
+            M.tagsExhaustive({
+              LoadingCounterFact: () => (
+                <Text style={styles.presentationBody}>Loading fact…</Text>
+              ),
+              LoadedCounterFact: ({ fact }) => (
+                <View style={styles.presentationCopy}>
+                  <Text style={styles.presentationTitle}>
+                    Counter fact for {fact.number}
+                  </Text>
+                  <Text style={styles.presentationBody}>{fact.text}</Text>
+                </View>
+              ),
+              FailedCounterFact: ({ reason }) => (
+                <View style={styles.presentationCopy}>
+                  <Text style={styles.presentationTitle}>
+                    Counter fact unavailable
+                  </Text>
+                  <Text style={styles.presentationBody}>{reason}</Text>
+                </View>
+              ),
+            }),
+          )}
+          <ActionButton
+            label="Dismiss"
+            onPress={actions.dismissedCounterFactAlert}
+          />
+        </View>
+      ),
+      DeleteCounterConfirmation: () => (
+        <View style={styles.deleteConfirmation}>
+          <Text style={styles.deleteConfirmationTitle}>
+            Delete {counterId}?
+          </Text>
+          <Text style={styles.presentationBody}>
+            This removes the selected Counter Submodel from the shared Program.
+          </Text>
+          <View style={styles.buttonRow}>
+            <ActionButton
+              label="Cancel"
+              onPress={actions.cancelledDeleteCounter}
+            />
+            <DestructiveActionButton
+              label="Delete"
+              onPress={actions.confirmedDeleteCounter}
+            />
+          </View>
+        </View>
+      ),
+    }),
   )
 }
 
@@ -651,7 +909,7 @@ const CalculatorScreen = () => {
           </Pressable>
         ))}
       </View>
-      <ReplayControls replay={replay} />
+      <ReplayControls label="Calculator replay" replay={replay} />
     </View>
   )
 }
@@ -710,7 +968,7 @@ const FactScreen = () => {
           onPress={() => platform.switchTo('Android')}
         />
       </View>
-      <ReplayControls replay={replay} />
+      <ReplayControls label="Fact replay" replay={replay} />
     </View>
   )
 }
@@ -728,6 +986,19 @@ const ActionButton = ({
     <Text style={primary ? styles.primaryButtonText : styles.actionButtonText}>
       {label}
     </Text>
+  </Pressable>
+)
+
+const DestructiveActionButton = ({
+  label,
+  onPress,
+}: Readonly<{ label: string; onPress: () => void }>) => (
+  <Pressable
+    accessibilityRole="button"
+    onPress={onPress}
+    style={styles.destructiveButton}
+  >
+    <Text style={styles.destructiveButtonText}>{label}</Text>
   </Pressable>
 )
 
@@ -837,9 +1108,12 @@ const styles = StyleSheet.create({
   sectionHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: 16,
     justifyContent: 'space-between',
   },
+  sectionHeadingCopy: { flex: 1, gap: 5, minWidth: 0 },
   sectionTitle: { color: '#fafafa', fontSize: 24, fontWeight: '700' },
+  sectionDescription: { color: '#a1a1aa', fontSize: 13, lineHeight: 18 },
   counterCard: {
     alignItems: 'center',
     backgroundColor: '#18181b',
@@ -850,6 +1124,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 18,
   },
+  counterSummary: { flex: 1, minWidth: 0 },
   counterId: { color: '#a1a1aa', fontSize: 12 },
   counterValue: {
     color: '#fafafa',
@@ -857,6 +1132,52 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     fontWeight: '600',
     marginTop: 4,
+  },
+  counterOpenHint: {
+    color: '#a3e635',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  inlineBackButton: { alignSelf: 'flex-start', paddingVertical: 8 },
+  inlineBackButtonText: { color: '#a3e635', fontSize: 14, fontWeight: '700' },
+  counterDetailCard: {
+    backgroundColor: '#18181b',
+    borderColor: '#3f3f46',
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 18,
+    padding: 22,
+  },
+  counterDetailValue: {
+    color: '#fafafa',
+    fontSize: 72,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '500',
+  },
+  presentationCard: {
+    backgroundColor: '#172554',
+    borderColor: '#38bdf8',
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 14,
+    padding: 18,
+  },
+  presentationCopy: { gap: 8 },
+  presentationTitle: { color: '#e0f2fe', fontSize: 18, fontWeight: '700' },
+  presentationBody: { color: '#d4d4d8', fontSize: 14, lineHeight: 21 },
+  deleteConfirmation: {
+    backgroundColor: '#450a0a',
+    borderColor: '#f87171',
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 14,
+    padding: 18,
+  },
+  deleteConfirmationTitle: {
+    color: '#fecaca',
+    fontSize: 20,
+    fontWeight: '800',
   },
   display: {
     color: '#fafafa',
@@ -888,6 +1209,19 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#1a2e05',
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  destructiveButton: {
+    backgroundColor: '#dc2626',
+    borderRadius: 12,
+    minWidth: 108,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  destructiveButtonText: {
+    color: '#fff1f2',
     fontSize: 15,
     fontWeight: '800',
     textAlign: 'center',

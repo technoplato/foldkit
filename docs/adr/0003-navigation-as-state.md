@@ -205,3 +205,44 @@ relative path, observes externally opened paths, and pushes or replaces a printe
 path. It does not support an imperative global router or a second navigation store.
 The carrier remains example-local until another non-Expo host validates the same
 surface.
+
+## Expo Child Destination Follow-Up | 2026-07-27 14:38:31 EDT
+
+The first Expo Multiple Counters screen flattened the child Program into a list of
+values and increment or decrement buttons. It observed the canonical Model, but it did
+not exhaustively render the child Program's destination projection. A user therefore
+could not enter `CounterDetail`, request `DeleteCounterConfirmation`, or send
+`ConfirmedDeleteCounter` from Expo even though every transition already existed in
+the shared Program.
+
+The Expo host now renders `destinationForModel(model)` exhaustively. A counter row
+sends `SelectedCounter`, the detail screen sends the existing typed counter actions,
+and deletion remains a two-step `ClickedDeleteCounter` then
+`ConfirmedDeleteCounter` flow. Confirmation removes the selected Counter Submodel in
+core update and returns navigation to `CounterList`. Expo owns no duplicate selection,
+confirmation, or deletion state.
+
+The child parser-printer remains global to the Multiple Counters Program. Expo Web
+projects `/counters`, `/counters/:counterId`, and
+`/counters/:counterId/delete` through browser history. Expo native accepts those same
+relative paths through Linking. Opening an external path sends `OpenedNavigation`
+back through update rather than replacing the Model directly. Scheme, authority,
+history, and native launch behavior remain carrier concerns. Expo Go's `/--/` launch
+delimiter is removed by the carrier before the portable path reaches the Program
+parser. `/showcase/counters` remains an accepted scene alias, but the mounted child
+Program replaces it with the more precise canonical child destination instead of
+creating two history entries for one user action.
+
+The Showcase and Multiple Counters replay tapes remain separate on purpose. The
+Showcase tape records application-scene facts such as choosing Multiple Counters. The
+child tape records portable domain facts such as selecting and deleting `counter-1`.
+This lets the exact child tape run in React, Expo, CLI, TUI, or another host without a
+Showcase-only prelude. The UI labels the two panels `Showcase replay` and
+`Multiple Counters replay` so the boundary is visible rather than appearing as two
+unexplained generic replay controls.
+
+One visually unified timeline remains an open framework question. It should not be
+implemented by copying child Messages into the Showcase tape. Candidate designs are
+a composed parent Program that owns child Programs or an engine-level linked replay
+session that presents nested tapes as one timeline while preserving each Program's
+portable tape identity.
