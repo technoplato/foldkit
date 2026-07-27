@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 2:00:49 p.m. EDT — `ad0e785a2316` feat(react-native-showcase): model scene navigation
+
+- **Implementation commit:** `ad0e785a231638535dae9a03179e4d619ad2f3cf`
+- **Change:** Model showcase scene navigation as a portable replayable Program.
+- **Details:**
+  - Added a Schema-backed navigation Model and factual tap and opened-path Messages shared by every renderer.
+  - Added React and React Native bindings that expose domain-shaped Model, action, and replay hooks without renderer or Effect vocabulary in consuming screens.
+  - Projected canonical relative scene, state, and replay paths through Expo Web history and native Linking while preserving independent child Program tapes.
+  - Verified the landing-to-Counter transition, browser history, portable state and replay deep links, an iOS simulator interaction, and Web, iOS, and Android production exports.
+- **Files:**
+  - `examples/showcase/core/src/model.ts` — Own the renderer-neutral scene union.
+  - `examples/showcase/core/src/message.ts` — Define factual scene and opened-path Messages.
+  - `examples/showcase/core/src/route.ts` — Parse and print canonical relative scene paths.
+  - `examples/showcase/react-bindings/src/showcase.tsx` — Expose renderer-neutral React bindings and replay controls.
+  - `examples/react-native-showcase/src/App.tsx` — Adapt browser history and native Linking to the shared navigation Program.
+  - `docs/adr/0003-navigation-as-state.md` — Record the Expo proof and remaining navigation-carrier seam.
+- **User context (verbatim):**
+  > we need to model that in our domain as uh counter button tapped and then navigate
+  > that's a scene we need to figure out in our adapters
+- **SpecStory:** unavailable — This task ran in the Codex desktop app, for which SpecStory does not document session capture.
+
 ## July 27th, 2026 at 1:13:46 p.m. EDT — `608679bbe8b0` feat: integrate replayable universal clients
 
 - **Implementation commit:** `608679bbe8b0e6beaa126e0d2fe6a5ebdfcd8be7`
