@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 6:13:12 p.m. EDT — `ad3f9d30b910` feat(message-versioning): prototype portable Message upgrades
+
+- **Implementation commit:** `ad3f9d30b9107c224293c08ed113ed0f95a7857d`
+- **Change:** Prototype versioned portable Messages and a native Swift/TCA processor boundary.
+- **Details:**
+  - Defined deterministic adjacent upgrades, fallible exact downgrades, and replay migrations, then documented generated Swift wire types, pure native update parity, dependency mapping, and canonical JSON prerequisites.
+- **Files:**
+  - `.changeset/config.json` — Keep new example packages outside release accounting.
+  - `docs/explorations/message-versioning.md` — Record versioning laws and the information-loss boundary.
+  - `docs/explorations/native-tca-message-processor.md` — Record generated wire and native semantic seams.
+  - `examples/message-versioning/package.json` — Register the executable proof package.
+  - `examples/message-versioning/src/message.ts` — Define stable event identities and adjacent conversions.
+  - `examples/message-versioning/src/messageVersioning.test.ts` — Prove upgrade, downgrade, and replay laws.
+  - `examples/message-versioning/src/program.ts` — Demonstrate Program tape migrations.
+  - `pnpm-lock.yaml` — Lock the workspace importer.
+- **User context (verbatim):**
+  > We need a versioning system for our messages and a conversion layer.
+  > We need to plan for and design a native processor that can ubiquitously consume these messages.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this work was performed in Codex desktop, not a captured Codex CLI session.
+
 ## July 27th, 2026 at 5:49:51 p.m. EDT — `6a2e76364659` feat: exercise portable navigation across clients
 
 - **Implementation commit:** `6a2e7636465991af6053aa91e3ecbde0059205b5`
