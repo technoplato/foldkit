@@ -50,6 +50,8 @@ export type ReactReplay<Model, Message> = Readonly<{
   stepForward: () => void
   stateRoute: () => Program.StateRoute<Model>
   replayRoute: () => Program.ReplayRoute<Model, Message>
+  statePath: () => Promise<string>
+  replayPath: () => Promise<string>
 }>
 
 /** A React replay client initialized from one typed route input. */
@@ -412,6 +414,10 @@ const makeReplayableProgramStore = <
     stepForward,
     stateRoute: controller.stateRoute,
     replayRoute: controller.replayRoute,
+    statePath: () =>
+      Effect.runPromise(controller.router.print(controller.stateRoute())),
+    replayPath: () =>
+      Effect.runPromise(controller.router.print(controller.replayRoute())),
   })
 
   replay = replayForSnapshot(snapshot)

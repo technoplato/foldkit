@@ -12,9 +12,12 @@ import {
   PressedOperation,
   PressedPercent,
   PressedSign,
+  initialModel,
 } from 'calculator-core-example'
 import { Layer } from 'effect'
-import { createReactProgramBindings } from 'shared-react-bindings-example'
+import { Program } from 'foldkit'
+import type { ReactNode } from 'react'
+import { createReplayableReactProgramClient } from 'shared-react-bindings-example'
 
 /** Actions exposed to React consumers of the Calculator Program. */
 export type CalculatorActions = Readonly<{
@@ -28,10 +31,22 @@ export type CalculatorActions = Readonly<{
   pressedSign: () => void
 }>
 
-const calculatorBindings = createReactProgramBindings<
+/** One portable state or replay route accepted by the Calculator client. */
+export type CalculatorInitialRoute = Program.ResolvedProgramRoute<
+  Model,
+  Message
+>
+
+/** The canonical fresh Calculator route shared by host carriers. */
+export const initialCalculatorRoute: CalculatorInitialRoute =
+  Program.state(initialModel)
+
+/** The canonical React client for the Calculator Program. */
+export const CalculatorClient = createReplayableReactProgramClient<
   Model,
   Message,
-  CalculatorActions
+  CalculatorActions,
+  CalculatorInitialRoute
 >({
   createActions: enqueueMessage => ({
     pressedBackspace: () => enqueueMessage(PressedBackspace()),
@@ -47,13 +62,27 @@ const calculatorBindings = createReactProgramBindings<
   name: 'Calculator',
   program: CalculatorProgram,
   resources: Layer.empty,
+  route: initialRoute => initialRoute,
 })
 
 /** Provides one Calculator runtime to React children. */
-export const CalculatorProvider = calculatorBindings.Provider
+export const CalculatorProvider = ({
+  children,
+  fallback,
+}: Readonly<{ children: ReactNode; fallback?: ReactNode }>) => (
+  <CalculatorClient.Provider
+    initialRoute={initialCalculatorRoute}
+    fallback={fallback}
+  >
+    {children}
+  </CalculatorClient.Provider>
+)
 
 /** Reads the current immutable Calculator Model and re-renders on Model changes. */
-export const useCalculatorModel = calculatorBindings.useModel
+export const useCalculatorModel = CalculatorClient.useModel
 
 /** Returns stable, host-callable Calculator actions. */
-export const useCalculatorActions = calculatorBindings.useActions
+export const useCalculatorActions = CalculatorClient.useActions
+
+/** Returns inert inspection and live branching controls for the Calculator tape. */
+export const useCalculatorReplay = CalculatorClient.useReplay

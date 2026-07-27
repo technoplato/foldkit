@@ -271,8 +271,9 @@ Provider now owns one asynchronously acquired `ReplayController` and exposes fou
 domain-shaped hooks: Model, actions, lifecycle, and replay. `useReplay` returns stable
 engine semantics named `inspect`, `seek`, `stepBackward`, and `stepForward`. Sending a
 domain action while inspecting branches from the selected settled frame. It also
-returns the typed state and replay routes so a platform can print the canonical
-relative path and add only its scheme and authority.
+returns the typed state and replay routes so a platform can add only its scheme and
+authority. `statePath` and `replayPath` print those canonical relative values without
+exposing Effect or the Program router to a React component.
 
 Historical inspection closes the live branch's child Scope. This releases its Effect
 Layers as well as stopping Commands and Subscriptions. A new branch creates a new
@@ -294,3 +295,21 @@ Programs do not inspect React, Expo, web, iOS, or Android globals. A platform
 composition root chooses the concrete Layers. A platform capability may be injected
 when domain behavior truly depends on it, but platform detection is not a default
 Program responsibility.
+
+## Expo and Metro Compatibility | 2026-07-27 13:06:51 EDT
+
+Expo's default loose object-spread transform rewrites a computed getter in Effect's
+runtime prototype through `Object.assign`. That eagerly evaluates the getter before an
+Effect `Exit` owns its value and produces malformed `Exit` objects in Metro bundles.
+Type checking and successful bundling do not detect the failure.
+
+The Expo showcase therefore configures Babel's spec-compliant object-rest-spread
+transform. This preserves property descriptors and the computed getter. A public
+Foldkit Expo integration or project generator should own this compatibility setting so
+application implementers do not need to diagnose Effect's compiled runtime. The
+setting is build integration, not a Program dependency or platform-detection API.
+
+Expo Web was then verified in a real browser from a production export. Counter,
+Multiple Counters, Calculator, and Fact all mounted. Counter inspection and live
+branching changed the visible Model as expected. Fact acquired two dependency choices,
+switched the platform Layer, and appended the corresponding runtime event.

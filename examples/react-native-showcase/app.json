@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Foldkit Showcase",
+    "slug": "foldkit-showcase",
+    "scheme": "foldkit",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

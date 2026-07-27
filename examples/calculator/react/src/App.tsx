@@ -8,6 +8,7 @@ import {
   CalculatorProvider,
   useCalculatorActions,
   useCalculatorModel,
+  useCalculatorReplay,
 } from 'calculator-react-bindings-example'
 
 type CalculatorButton = Readonly<{
@@ -25,6 +26,7 @@ export const App = () => (
 const CalculatorScreen = () => {
   const model = useCalculatorModel()
   const actions = useCalculatorActions()
+  const replay = useCalculatorReplay()
 
   const digitButton = (label: string, digit: Digit): CalculatorButton => ({
     label,
@@ -111,6 +113,51 @@ const CalculatorScreen = () => {
             </button>
           ))}
         </div>
+        <section className="mt-8 space-y-3 rounded-2xl border border-zinc-800 p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-zinc-200">{replay.mode}</span>
+            <span className="tabular-nums text-zinc-500">
+              Frame {replay.frame} of {replay.finalFrame}
+            </span>
+          </div>
+          <input
+            aria-label="Replay frame"
+            className="w-full accent-orange-500"
+            max={replay.finalFrame}
+            min={0}
+            onChange={event => replay.seek(Number(event.currentTarget.value))}
+            type="range"
+            value={replay.frame}
+          />
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              className={replayButtonClassName}
+              disabled={replay.frame === 0}
+              onClick={replay.stepBackward}
+              type="button"
+            >
+              Back
+            </button>
+            <button
+              className={replayButtonClassName}
+              disabled={replay.mode === 'Inspecting'}
+              onClick={() => replay.inspect()}
+              type="button"
+            >
+              Inspect
+            </button>
+            <button
+              className={replayButtonClassName}
+              disabled={
+                replay.mode === 'Live' || replay.frame === replay.finalFrame
+              }
+              onClick={replay.stepForward}
+              type="button"
+            >
+              Next
+            </button>
+          </div>
+        </section>
       </section>
     </main>
   )
@@ -121,3 +168,5 @@ const baseButtonClassName =
 const numberButtonClassName = `${baseButtonClassName} bg-zinc-800 text-white hover:bg-zinc-700`
 const operationButtonClassName = `${baseButtonClassName} bg-orange-500 text-white hover:bg-orange-400`
 const utilityButtonClassName = `${baseButtonClassName} bg-zinc-500 text-white hover:bg-zinc-400`
+const replayButtonClassName =
+  'h-10 rounded-xl bg-zinc-800 px-3 text-sm font-medium text-zinc-100 transition enabled:hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40'

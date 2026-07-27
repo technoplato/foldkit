@@ -17,7 +17,6 @@
     "fact-core-example": "workspace:*",
     "fact-http-client-example": "workspace:*",
     "fact-react-bindings-example": "workspace:*",
-    "foldkit": "workspace:*",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "shared-react-bindings-example": "workspace:*"

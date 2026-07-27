@@ -16,7 +16,7 @@ Record renderer-independent runtime events beside Program transitions. Runtime e
 
 Scope each live replay branch independently so entering inert inspection releases its Effect Layers before a later branch reacquires them. Expose the current live timeline to adapters without exposing runtime resource handles.
 
-Prove an asynchronous React replay client with typed state and replay routes, inert seek and step controls, live branching through domain actions, and composable dependency sets. Dependency selection is restored from frame-anchored runtime events before a branch acquires its Layers.
+Prove an asynchronous React replay client with typed state and replay routes, canonical relative state and replay path promises, inert seek and step controls, live branching through domain actions, and composable dependency sets. Dependency selection is restored from frame-anchored runtime events before a branch acquires its Layers.
 
 Expose the renderer-neutral Program engine, journal, replay, tape store, and diagnostics APIs through `foldkit/program-runtime` so non-DOM hosts do not import the browser application runtime. The browser platform peer is optional for consumers that use only renderer-neutral subpaths.
 

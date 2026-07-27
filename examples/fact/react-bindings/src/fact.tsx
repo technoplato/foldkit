@@ -5,57 +5,56 @@ import {
   FactProgram,
   type Message,
   type Model,
+  initialModel,
 } from 'fact-core-example'
+import { Program } from 'foldkit'
 import type {
   ProgramRuntimeStartError,
-  ProgramStart,
+  ReplayFrameError,
 } from 'foldkit/program-runtime'
 import {
-  type DependencyChoice,
-  type DependencyLifecycle,
+  type DependencySet,
   type DependencyStartupError,
   type ReactProgramLifecycle,
-  createReactProgramClientWithDependency,
+  createReplayableReactProgramClientWithDependencies,
 } from 'shared-react-bindings-example'
 
 /** The named FactClient implementations exposed by the React composition root. */
 export type FactClientImplementation = 'Mock' | 'Live'
 
 /** One portable startup instruction accepted by the Fact React Provider. */
-export type FactInitialRoute = ProgramStart<Model, Message>
+export type FactInitialRoute = Program.ResolvedProgramRoute<Model, Message>
 
 /** Platform composition accepted by the Fact React client. */
-export type FactReactClientConfig = Readonly<{
-  dependency: DependencyChoice<FactClientImplementation, FactClient>
-  onDependencyLifecycleChanged?: (
-    lifecycle: DependencyLifecycle<FactClientImplementation>,
-  ) => void
-  onLifecycleChanged?: (
-    lifecycle: ReactProgramLifecycle<
-      ProgramRuntimeStartError | DependencyStartupError
-    >,
-  ) => void
-}>
+export type FactReactClientConfig<DependencyServices, DependencyChoices> =
+  Readonly<{
+    dependencies: DependencySet<
+      FactClient | DependencyServices,
+      DependencyChoices
+    >
+    onLifecycleChanged?: (
+      lifecycle: ReactProgramLifecycle<
+        ProgramRuntimeStartError | ReplayFrameError | DependencyStartupError
+      >,
+    ) => void
+  }>
 
 /** Creates domain-shaped React hooks over the canonical Fact Program. */
-export const makeFactReactClient = (config: FactReactClientConfig) => {
-  const client = createReactProgramClientWithDependency({
+export const makeFactReactClient = <DependencyServices, DependencyChoices>(
+  config: FactReactClientConfig<DependencyServices, DependencyChoices>,
+) => {
+  const client = createReplayableReactProgramClientWithDependencies({
     createActions: enqueueMessage => ({
       clickedLoadFact: () => enqueueMessage(ClickedLoadFact()),
     }),
-    dependency: config.dependency,
+    dependencies: config.dependencies,
     name: 'Fact',
-    ...(config.onDependencyLifecycleChanged === undefined
-      ? {}
-      : {
-          onDependencyLifecycleChanged: config.onDependencyLifecycleChanged,
-        }),
     ...(config.onLifecycleChanged === undefined
       ? {}
       : { onLifecycleChanged: config.onLifecycleChanged }),
     program: FactProgram,
     resources: Layer.empty,
-    start: (initialRoute: FactInitialRoute) => initialRoute,
+    route: (initialRoute: FactInitialRoute) => initialRoute,
   })
 
   return {
@@ -64,5 +63,9 @@ export const makeFactReactClient = (config: FactReactClientConfig) => {
     useFactActions: client.useActions,
     useFactLifecycle: client.useLifecycle,
     useFactModel: client.useModel,
+    useFactReplay: client.useReplay,
   }
 }
+
+/** The canonical fresh Fact route for React and React Native clients. */
+export const initialFactRoute: FactInitialRoute = Program.state(initialModel)

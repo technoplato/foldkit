@@ -95,6 +95,12 @@ describe('replayable React Program bindings', () => {
       expect(result.current.replay.frame).toBe(2)
       expect(result.current.replay.mode).toBe('Live')
     })
+    await expect(result.current.replay.statePath()).resolves.toContain(
+      '/state?',
+    )
+    await expect(result.current.replay.replayPath()).resolves.toContain(
+      '/replay?',
+    )
 
     act(() => {
       result.current.replay.seek(0)

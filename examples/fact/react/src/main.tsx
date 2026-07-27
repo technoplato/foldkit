@@ -1,4 +1,4 @@
-import * as Runtime from 'foldkit/program-runtime'
+import { initialFactRoute } from 'fact-react-bindings-example'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
@@ -14,7 +14,7 @@ if (rootElement === null) {
 createRoot(rootElement).render(
   <StrictMode>
     <FactReactClient.Provider
-      initialRoute={Runtime.fresh()}
+      initialRoute={initialFactRoute}
       fallback={lifecycle => (
         <main className="grid min-h-screen place-items-center bg-zinc-950 text-zinc-400">
           Fact Program · {lifecycle._tag}

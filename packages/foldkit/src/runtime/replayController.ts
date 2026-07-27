@@ -12,10 +12,12 @@ import {
 import type { Ports } from '../port/port.js'
 import type { Program } from '../program/program.js'
 import {
+  type ProgramRouter,
   type ReplayRoute,
   type ResolvedProgramRoute,
   type StateRoute,
   replay as makeReplayRoute,
+  makeRouter,
   state as makeStateRoute,
 } from '../program/route.js'
 import {
@@ -116,6 +118,8 @@ export type ReplayController<Model, Message, ResourceError = never> = Readonly<{
   replayRoute: () => ReplayRoute<Model, Message>
   /** Returns the source or extended typed replay tape. */
   readReplayTape: () => ReplayTape<Model, Message>
+  /** Shared parser-printer for canonical relative state and replay URIs. */
+  router: ProgramRouter<Model, Message>
   /** Returns the live runtime timeline, or None during inert inspection. */
   readTimeline: () => Option.Option<ProgramRuntimeTimeline>
   /** Completes after restore-time Commands finish when the controller is live. */
@@ -401,6 +405,7 @@ export const makeReplayController = <
       replayRoute,
       readReplayTape,
       readTimeline,
+      router: makeRouter(config.program),
       initialization,
       shutdown,
     }
