@@ -4,6 +4,29 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 7:50:47 p.m. EDT — `1a4f066dd9b9` feat: add portable wallet intent client matrix
+
+- **Implementation commit:** `1a4f066dd9b93c4baef6ac3b0dbd0ae963cda63f`
+- **Change:** Add a portable Wallet intent parser-printer and cross-client interaction matrix
+- **Details:**
+  - Separated Client identity from interaction surface, renderer, platform, host, and URI carrier so React, Foldkit, Expo, terminal, TUI, CLI, iOS, and Android are described without overloading medium.
+  - Added canonical ETH, SOL, and USD intent paths for Devnet, Testnet, and Live, with explicit Layer support and no silent mainnet-to-testnet fallback.
+  - Kept intent parsing side-effect free and labeled every host intake as pending until startup intent or Message semantics are implemented.
+  - Added and validated a reusable generate-client-matrix skill with route laws, imagery requirements, and evidence boundaries.
+- **Files:**
+  - `examples/wallet/core/src/intent.ts` — Own the typed Wallet intent parser-printer and Layer capability mapping.
+  - `examples/wallet/core/src/intent.test.ts` — Prove route round trips, canonicalization, rejection, and capability behavior.
+  - `examples/client-matrix/core/src/model.ts` — Separate the Client taxonomy into surface, renderer, platform, host, and carrier.
+  - `examples/client-matrix/core/src/walletIntent.ts` — Define all asset and mode examples plus exact host carrier templates.
+  - `examples/client-matrix/foldkit/src/view.ts` — Render client taxonomy, canonical intent URIs, verified images, and explicit gaps.
+  - `skills/generate-client-matrix/SKILL.md` — Ship the reusable Foldkit client-matrix workflow.
+  - `pnpm-lock.yaml` — Link the matrix core to the canonical Wallet core workspace package.
+- **User context (verbatim):**
+  > what's a test address i can send faucet eth sepolia to?
+  > also do the matrix for the full medium interaction. with imagery and deeplinks and also with intents embedded in deeplinks
+  > also create a skill for this framework for generating these matrices
+- **SpecStory:** unavailable — Codex desktop GUI task; no verified SpecStory capture or durable public URI is available.
+
 ## July 27th, 2026 at 7:27:48 p.m. EDT — `4dcab5b083f3` test(wallet): prove push-observed Devnet transfers
 
 - **Implementation commit:** `4dcab5b083f38b03272194510316b6110cba7b3a`
