@@ -18,6 +18,7 @@ export {
   encodeReplayTape,
   fromJournal,
   makeReplayTapeSchema,
+  ProgramRuntimeEvent,
   replayToFrame,
   IncompatibleProgramError,
   IncompatibleProgramVersionError,
@@ -61,6 +62,7 @@ export type {
   ProgramRuntimeConfig,
   ProgramRuntimeJournal,
   ProgramRuntimeJournalConfig,
+  ProgramRuntimeTimeline,
   ProgramRuntimeReplay,
   ProgramRuntimeScheduling,
   ProgramStart,
@@ -77,6 +79,7 @@ export type {
   ReplayTape,
   ReplayTapeDecodeError,
   ReplayTransition,
+  ProgramRuntimeEventInput,
 } from '../runtime/replayTape.js'
 export type {
   ReplayTapeStoreService,

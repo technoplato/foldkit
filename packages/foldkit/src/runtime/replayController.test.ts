@@ -91,6 +91,7 @@ describe('makeReplayController', () => {
             model: { count: 1, status: 'Ready' },
             frame: 2,
             finalFrame: 2,
+            runtimeEvents: [],
           })
           expect(saveCount).toBe(0)
           expect(yield* controller.seek(0)).toStrictEqual({
@@ -179,6 +180,7 @@ describe('makeReplayController', () => {
             model: { count: 8, status: 'Ready' },
             frame: 1,
             finalFrame: 1,
+            runtimeEvents: [],
           })
           expect(restoredModel).toStrictEqual({ count: 8, status: 'Ready' })
           expect(restoreCount).toBe(1)
