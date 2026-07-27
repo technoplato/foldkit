@@ -25,6 +25,7 @@ import {
   makeReplaySession,
 } from './replaySession.js'
 import {
+  type ProgramRuntimeEvent,
   type ReplayFrameError,
   type ReplayTape,
   validateReplayTapeProgram,
@@ -36,6 +37,7 @@ export type ReplayControllerSnapshot<Model> = Readonly<{
   model: Model
   frame: number
   finalFrame: number
+  runtimeEvents: ReadonlyArray<ProgramRuntimeEvent>
 }>
 
 /** A replay operation is unavailable after a controller has entered Live mode. */
@@ -159,6 +161,7 @@ export const makeReplayController = <
           model: state.session.readModel(),
           frame: state.session.readFrame(),
           finalFrame: state.session.readTape().transitions.length,
+          runtimeEvents: state.session.readTape().runtimeEvents,
         }
       }
       const tape = state.runtime.replay.readTape()
@@ -167,6 +170,7 @@ export const makeReplayController = <
         model: state.runtime.readModel(),
         frame: tape.transitions.length,
         finalFrame: tape.transitions.length,
+        runtimeEvents: tape.runtimeEvents,
       }
     }
 
@@ -194,7 +198,15 @@ export const makeReplayController = <
         controllerState.stopObserving()
       }
       const stopObserving = runtime.journal.observe(notify)
-      controllerState = { _tag: 'Live', runtime, stopObserving }
+      const stopObservingRuntimeEvents = runtime.timeline.observe(notify)
+      controllerState = {
+        _tag: 'Live',
+        runtime,
+        stopObserving: () => {
+          stopObserving()
+          stopObservingRuntimeEvents()
+        },
+      }
       notify()
       return runtime
     }

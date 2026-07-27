@@ -24,7 +24,11 @@ import { make } from '../program/program.js'
 import { makeRouter, state } from '../program/route.js'
 import * as Subscription from '../subscription/subscription.js'
 import { fromModel, fromReplay, makeProgramRuntime } from './programRuntime.js'
-import { decodeReplayTape, fromJournal } from './replayTape.js'
+import {
+  type ProgramRuntimeEvent,
+  decodeReplayTape,
+  fromJournal,
+} from './replayTape.js'
 
 const Incremented = m('Incremented')
 const KeptModel = m('KeptModel')
@@ -91,6 +95,70 @@ describe('makeProgramRuntime', () => {
         stopObservingHistory()
       }),
     ),
+  )
+
+  it.effect(
+    'records host runtime events beside Messages without turning them into transitions',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* makeProgramRuntime({
+            program: BasicProgram,
+            resources: Layer.empty,
+            journal: { now: () => 40 },
+          })
+          const observedEvents: Array<ProgramRuntimeEvent> = []
+          const stopObserving = runtime.timeline.observe(event => {
+            observedEvents.push(event)
+          })
+
+          runtime.timeline.record({
+            name: 'SelectedDependencyImplementation',
+            attributes: {
+              dependency: 'FactClient',
+              implementation: 'Mock',
+            },
+          })
+          yield* runtime.run(Incremented())
+          runtime.timeline.record({
+            name: 'SelectedDependencyImplementation',
+            attributes: {
+              dependency: 'FactClient',
+              implementation: 'Live',
+            },
+          })
+
+          expect(runtime.journal.read().transitions).toHaveLength(1)
+          expect(runtime.timeline.read()).toStrictEqual([
+            {
+              name: 'SelectedDependencyImplementation',
+              attributes: {
+                dependency: 'FactClient',
+                implementation: 'Mock',
+              },
+              afterFrame: 0,
+              timestamp: 40,
+            },
+            {
+              name: 'SelectedDependencyImplementation',
+              attributes: {
+                dependency: 'FactClient',
+                implementation: 'Live',
+              },
+              afterFrame: 1,
+              timestamp: 40,
+            },
+          ])
+          expect(observedEvents).toStrictEqual(runtime.timeline.read())
+
+          const json = yield* runtime.replay.exportTape
+          const tape = yield* decodeReplayTape(BasicProgram, json)
+          expect(tape.runtimeEvents).toStrictEqual(runtime.timeline.read())
+
+          stopObserving()
+          yield* runtime.shutdown
+        }),
+      ),
   )
 
   it.effect('acquires Resources eagerly and preserves acquisition errors', () =>
@@ -805,9 +873,9 @@ describe('makeProgramRuntime', () => {
               expect(
                 runtime.readDiagnostics().map(diagnostic => diagnostic._tag),
               ).toContain('FailedAcquiringManagedResource')
+              expect(runtime.readModel().status).toContain('acquire exploded')
             }),
           )
-          expect(runtime.readModel().status).toContain('acquire exploded')
           runtime.send(RequestedEngine({ id: 'good' }))
           yield* Effect.promise(() =>
             vi.waitFor(() => {

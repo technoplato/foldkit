@@ -49,6 +49,8 @@ import {
 } from './programJournal.js'
 import { type ReplaySession, makeReplaySession } from './replaySession.js'
 import {
+  ProgramRuntimeEvent,
+  type ProgramRuntimeEventInput,
   ReplayFrameError,
   type ReplayTape,
   type ReplayTapeExportError,
@@ -87,6 +89,13 @@ type QueuedMessage<Message> = Readonly<{
   message: Message
   source: TransitionSource
   maybeOperation: Option.Option<Operation>
+}>
+
+type RecordedProgramRuntimeEvent = Readonly<{
+  name: string
+  attributes?: Record<string, Schema.Json>
+  afterSequence: number
+  timestamp: number
 }>
 
 /** Starts a Program from its normal init function. */
@@ -164,6 +173,18 @@ export type ProgramRuntimeJournal<Model, Message> = Readonly<{
   transitions: Stream.Stream<Transition<Model, Message>>
 }>
 
+/** Renderer-independent host events recorded beside Program transitions. */
+export type ProgramRuntimeTimeline = Readonly<{
+  /** Returns all retained runtime events in replay-frame coordinates. */
+  read: () => ReadonlyArray<ProgramRuntimeEvent>
+  /** Records a host event after the current Program transition frame. */
+  record: (event: ProgramRuntimeEventInput) => void
+  /** Observes future runtime events and returns an unsubscribe function. */
+  observe: (listener: (event: ProgramRuntimeEvent) => void) => () => void
+  /** Streams future runtime events for Effect-based adapters. */
+  events: Stream.Stream<ProgramRuntimeEvent>
+}>
+
 /** The universal replay capability derived from a Program and its journal. */
 export type ProgramRuntimeReplay<Model, Message> = Readonly<{
   /** Returns the replay tape represented by the current retained journal. */
@@ -201,6 +222,8 @@ export type ProgramRuntime<
   journal: ProgramRuntimeJournal<Model, Message>
   /** Universal inert inspection, tape, and route semantics. */
   replay: ProgramRuntimeReplay<Model, Message>
+  /** Host events that annotate replay without becoming domain Messages. */
+  timeline: ProgramRuntimeTimeline
   /** Sends one Message without waiting for its finite Command chain. */
   send: (message: Message, options?: SendOptions) => void
   /** Sends one Message and completes after its finite causal work completes. */
@@ -401,10 +424,14 @@ export const makeProgramRuntime = <
     const runtimeContext = yield* Effect.context<never>()
     const modelPubSub = yield* PubSub.unbounded<Model>({ replay: 1 })
     const journalPubSub = yield* PubSub.unbounded<Transition<Model, Message>>()
+    const runtimeEventPubSub = yield* PubSub.unbounded<ProgramRuntimeEvent>()
     const diagnosticsPubSub = yield* PubSub.unbounded<RuntimeDiagnostic>()
     const failuresPubSub = yield* PubSub.unbounded<RuntimeFailure<Message>>()
     const activeOperations = new Set<Operation>()
     const modelListeners = new Set<(model: Model) => void>()
+    const runtimeEventListeners = new Set<
+      (event: ProgramRuntimeEvent) => void
+    >()
     const diagnosticListeners = new Set<
       (diagnostic: RuntimeDiagnostic) => void
     >()
@@ -434,6 +461,19 @@ export const makeProgramRuntime = <
     const stopPublishingJournal = journal.observe(transition => {
       PubSub.publishUnsafe(journalPubSub, transition)
     })
+    let recordedRuntimeEvents: ReadonlyArray<RecordedProgramRuntimeEvent> =
+      Option.match(start.maybeReplayTape, {
+        onNone: () => [],
+        onSome: tape =>
+          Array.map(tape.runtimeEvents, event => ({
+            name: event.name,
+            ...(event.attributes === undefined
+              ? {}
+              : { attributes: event.attributes }),
+            afterSequence: event.afterFrame,
+            timestamp: event.timestamp,
+          })),
+      })
 
     let restoredModel = start.journalInitialModel
     if (Option.isSome(start.maybeReplayTape)) {
@@ -516,6 +556,73 @@ export const makeProgramRuntime = <
     let maybeCancelDeferredDrain = Option.none<() => void>()
 
     const readModel = (): Model => liveModel
+
+    const readRuntimeEvents = (): ReadonlyArray<ProgramRuntimeEvent> => {
+      const snapshot = journal.read()
+      return Array.map(recordedRuntimeEvents, event => ({
+        name: event.name,
+        ...(event.attributes === undefined
+          ? {}
+          : { attributes: event.attributes }),
+        afterFrame: Math.max(
+          0,
+          event.afterSequence - snapshot.retainedFromSequence,
+        ),
+        timestamp: event.timestamp,
+      }))
+    }
+
+    const recordRuntimeEvent = (input: ProgramRuntimeEventInput): void => {
+      if (isRuntimeDisposed) {
+        return
+      }
+      const snapshot = journal.read()
+      const maybeLatestTransition = Array.last(snapshot.transitions)
+      const afterSequence = Option.match(maybeLatestTransition, {
+        onNone: () => snapshot.retainedFromSequence,
+        onSome: transition => transition.sequence,
+      })
+      const recordedEvent: RecordedProgramRuntimeEvent = {
+        name: input.name,
+        ...(input.attributes === undefined
+          ? {}
+          : { attributes: input.attributes }),
+        afterSequence,
+        timestamp: input.timestamp ?? now(),
+      }
+      recordedRuntimeEvents = Array.append(recordedRuntimeEvents, recordedEvent)
+      const event = ProgramRuntimeEvent.make({
+        name: recordedEvent.name,
+        ...(recordedEvent.attributes === undefined
+          ? {}
+          : { attributes: recordedEvent.attributes }),
+        afterFrame: Math.max(
+          0,
+          recordedEvent.afterSequence - snapshot.retainedFromSequence,
+        ),
+        timestamp: recordedEvent.timestamp,
+      })
+      PubSub.publishUnsafe(runtimeEventPubSub, event)
+      runtimeEventListeners.forEach(listener => {
+        try {
+          listener(event)
+        } catch (error) {
+          console.error('[foldkit] A runtime event observer threw:', error)
+        }
+      })
+    }
+
+    const observeRuntimeEvents = (
+      listener: (event: ProgramRuntimeEvent) => void,
+    ): (() => void) => {
+      if (isRuntimeDisposed) {
+        return Function.constVoid
+      }
+      runtimeEventListeners.add(listener)
+      return () => {
+        runtimeEventListeners.delete(listener)
+      }
+    }
 
     const notifyModelListeners = (model: Model): void => {
       modelListeners.forEach(listener => {
@@ -1157,10 +1264,12 @@ export const makeProgramRuntime = <
           Effect.gen(function* () {
             yield* PubSub.shutdown(modelPubSub)
             yield* PubSub.shutdown(journalPubSub)
+            yield* PubSub.shutdown(runtimeEventPubSub)
             yield* PubSub.shutdown(diagnosticsPubSub)
             yield* PubSub.shutdown(failuresPubSub)
             diagnosticListeners.clear()
             failureListeners.clear()
+            runtimeEventListeners.clear()
             stopPublishingJournal()
             journal.shutdown()
           }),
@@ -1170,6 +1279,9 @@ export const makeProgramRuntime = <
 
     yield* Effect.addFinalizer(() => shutdown)
 
+    const readReplayTape = (): ReplayTape<Model, Message> =>
+      fromJournal(config.program, journal.read(), readRuntimeEvents())
+
     return {
       mode: 'Live',
       readModel,
@@ -1178,11 +1290,16 @@ export const makeProgramRuntime = <
         observe: journal.observe,
         transitions: Stream.fromPubSub(journalPubSub),
       },
+      timeline: {
+        read: readRuntimeEvents,
+        record: recordRuntimeEvent,
+        observe: observeRuntimeEvents,
+        events: Stream.fromPubSub(runtimeEventPubSub),
+      },
       replay: {
-        readTape: () => fromJournal(config.program, journal.read()),
+        readTape: readReplayTape,
         exportTape: pipe(
-          Effect.sync(journal.read),
-          Effect.map(snapshot => fromJournal(config.program, snapshot)),
+          Effect.sync(readReplayTape),
           Effect.flatMap(tape => encodeReplayTape(config.program, tape)),
         ),
         inspect: frame =>
@@ -1200,7 +1317,7 @@ export const makeProgramRuntime = <
             }),
           ),
         makeSession: frame => {
-          const tape = fromJournal(config.program, journal.read())
+          const tape = readReplayTape()
           return makeReplaySession(
             config.program,
             tape,
@@ -1209,7 +1326,7 @@ export const makeProgramRuntime = <
         },
         stateRoute: () => makeStateRoute(readModel()),
         replayRoute: (frame, isPlaying = false) => {
-          const tape = fromJournal(config.program, journal.read())
+          const tape = readReplayTape()
           return makeReplayRoute(
             tape,
             frame ?? tape.transitions.length,

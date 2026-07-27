@@ -13,6 +13,7 @@ import {
   retainAllTransitions,
 } from './programJournal.js'
 import {
+  branchReplayTape,
   decodeReplayTape,
   encodeReplayTape,
   fromJournal,
@@ -150,6 +151,71 @@ describe('typed Program history and replay tapes', () => {
       const decoded = yield* decodeReplayTape(Program, json)
 
       expect(decoded).toStrictEqual(tape)
+    }),
+  )
+
+  it.effect('keeps only runtime events that occurred by a branch frame', () =>
+    Effect.gen(function* () {
+      const Program = make({
+        id: 'runtime-event-branch',
+        version: 1,
+        Model,
+        Message,
+        init: () => [{ stage: 'Ready' }, []],
+        update: (model, _message) => [model, []],
+      })
+      const journal = makeProgramJournal({
+        program: Program,
+        initialModel: Model.make({ stage: 'Ready' }),
+      })
+      journal.record({
+        message: RequestedSave(),
+        source: fromHost('save'),
+        isOperationSettled: true,
+        commands: [],
+        model: Model.make({ stage: 'Saving' }),
+      })
+      journal.record({
+        message: CompletedAudit(),
+        source: fromCommand('Audit'),
+        isOperationSettled: true,
+        commands: [],
+        model: Model.make({ stage: 'Saved' }),
+      })
+      const tape = fromJournal(Program, journal.read(), [
+        {
+          name: 'SelectedDependencyImplementation',
+          attributes: { implementation: 'Mock' },
+          afterFrame: 0,
+          timestamp: 1,
+        },
+        {
+          name: 'SelectedDependencyImplementation',
+          attributes: { implementation: 'Preview' },
+          afterFrame: 1,
+          timestamp: 2,
+        },
+        {
+          name: 'SelectedDependencyImplementation',
+          attributes: { implementation: 'Live' },
+          afterFrame: 2,
+          timestamp: 3,
+        },
+      ])
+
+      const branch = yield* branchReplayTape(tape, 1)
+
+      expect(branch.transitions).toHaveLength(1)
+      expect(branch.runtimeEvents).toStrictEqual([
+        expect.objectContaining({
+          attributes: { implementation: 'Mock' },
+          afterFrame: 0,
+        }),
+        expect.objectContaining({
+          attributes: { implementation: 'Preview' },
+          afterFrame: 1,
+        }),
+      ])
     }),
   )
 

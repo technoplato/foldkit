@@ -12,6 +12,8 @@ Acquire the Resources Layer as part of Program runtime startup and preserve its 
 
 Add engine-owned state and replay URI parser-printers. Programs derive one canonical relative path and query format from their id and Schemas, and registered Program sets compose those routes into typed destination unions through case paths.
 
+Record renderer-independent runtime events beside Program transitions. Runtime events are anchored to replay frames, survive tape encoding and live branching, and remain inert during historical inspection. Hosts can preserve dependency selections and similar environment facts without fabricating domain Messages.
+
 Expose the renderer-neutral Program engine, journal, replay, tape store, and diagnostics APIs through `foldkit/program-runtime` so non-DOM hosts do not import the browser application runtime. The browser platform peer is optional for consumers that use only renderer-neutral subpaths.
 
 Add an injected replay tape store and canonical UUID-backed replay routes for short, durable links. Saved routes load and decode the typed tape through the selected Program, validate the requested frame, and remain portable across rendered, CLI, and terminal clients.

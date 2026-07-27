@@ -238,3 +238,28 @@ package, it must generalize to a typed tuple of choices, migrate the replay-cont
 binding off synchronous acquisition, prove React Native lifecycle parity, and decide
 whether the generic service forwarding implementation should remain internal or be
 replaced by a more direct Effect service indirection primitive.
+
+## Runtime Events | 2026-07-27 11:57:17 EDT
+
+A dependency implementation selection is not a domain Message. No event occurred in the
+business domain, update should not handle it, and it must not create a fake transition or
+Model change. It is nevertheless useful causal context when inspecting a replay.
+
+The Program runtime therefore owns a second, renderer-independent timeline for runtime
+events. A runtime event has a name, optional JSON attributes, a timestamp, and the replay
+frame after which it occurred. The current dependency adapter records
+`SelectedDependencyImplementation` only after the replacement Layer has acquired and the
+selection has become active.
+
+Runtime events obey these rules:
+
+- They are stored in the same portable tape as Messages and participate in its content
+  hash.
+- Historical inspection reads them but never executes them.
+- Branching at a settled frame retains only events that had occurred by that frame.
+- Resuming a branch preserves retained events and appends new live events.
+- They never replace behaviorally meaningful Model state or runtime diagnostics.
+
+This is the framework seam needed for dependency selection, scheduler configuration,
+feature-flag provenance, and similar host facts. Individual Programs should not invent
+parallel tape metadata or add environment Messages solely for replay bookkeeping.

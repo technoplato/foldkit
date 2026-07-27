@@ -25,6 +25,28 @@ const EncodedReplayTransition = Schema.Struct({
   timestamp: Schema.Number,
 })
 
+/** One renderer-independent runtime event anchored to a replay frame. */
+export const ProgramRuntimeEvent = Schema.Struct({
+  name: Schema.String,
+  attributes: Schema.optionalKey(Schema.Record(Schema.String, Schema.Json)),
+  afterFrame: Schema.Int,
+  timestamp: Schema.Number,
+})
+
+/** One renderer-independent runtime event anchored to a replay frame. */
+export type ProgramRuntimeEvent = typeof ProgramRuntimeEvent.Type
+
+/** Host-supplied data recorded beside, but never applied as, a Message. */
+export type ProgramRuntimeEventInput = Readonly<{
+  name: string
+  attributes?: Record<string, Schema.Json>
+  timestamp?: number
+}>
+
+const ProgramRuntimeEvents = Schema.Array(ProgramRuntimeEvent).pipe(
+  Schema.withDecodingDefaultKey(Effect.succeed([])),
+)
+
 const EncodedReplayTape = Schema.Struct({
   formatVersion: Schema.Literal(REPLAY_TAPE_FORMAT_VERSION),
   programId: Schema.String,
@@ -32,6 +54,7 @@ const EncodedReplayTape = Schema.Struct({
   initialModel: Schema.Json,
   initialCommands: Schema.Array(EncodedCommandRecord),
   transitions: Schema.Array(EncodedReplayTransition),
+  runtimeEvents: ProgramRuntimeEvents,
 })
 
 /** Builds the typed replay tape Schema for a Program. */
@@ -71,6 +94,7 @@ export const makeReplayTapeSchema = <
         timestamp: Schema.Number,
       }),
     ),
+    runtimeEvents: ProgramRuntimeEvents,
   })
 
 const ReplayTapeHeader = Schema.Struct({
@@ -101,6 +125,7 @@ export type ReplayTape<Model, Message> = Readonly<{
   initialModel: Model
   initialCommands: ReadonlyArray<CommandRecord>
   transitions: ReadonlyArray<ReplayTransition<Message>>
+  runtimeEvents: ReadonlyArray<ProgramRuntimeEvent>
 }>
 
 /** A portable tape could not be exported through the Program Schemas. */
@@ -238,6 +263,7 @@ export const fromJournal = <
 >(
   program: Program<Model, Message, Resources, ManagedResourceServices, P>,
   journal: ProgramJournalSnapshot<Model, Message>,
+  runtimeEvents: ReadonlyArray<ProgramRuntimeEvent> = [],
 ): ReplayTape<Model, Message> => ({
   formatVersion: REPLAY_TAPE_FORMAT_VERSION,
   programId: program.id,
@@ -245,6 +271,7 @@ export const fromJournal = <
   initialModel: journal.initialModel,
   initialCommands: journal.initialCommands,
   transitions: Array.map(journal.transitions, toReplayTransition),
+  runtimeEvents,
 })
 
 /** Validates that a typed tape belongs to the supplied Program version. */
@@ -290,7 +317,14 @@ export const branchReplayTape = <Model, Message>(
     if (!Array.isReadonlyArrayEmpty(tape.initialCommands)) {
       return Effect.fail(new UnsettledReplayFrameError({ frame }))
     }
-    return Effect.succeed({ ...tape, transitions: [] })
+    return Effect.succeed({
+      ...tape,
+      transitions: [],
+      runtimeEvents: Array.filter(
+        tape.runtimeEvents,
+        event => event.afterFrame === 0,
+      ),
+    })
   }
 
   const maybeTransition = pipe(tape.transitions, Array.get(frame - 1))
@@ -303,6 +337,10 @@ export const branchReplayTape = <Model, Message>(
   return Effect.succeed({
     ...tape,
     transitions: Array.take(tape.transitions, frame),
+    runtimeEvents: Array.filter(
+      tape.runtimeEvents,
+      event => event.afterFrame <= frame,
+    ),
   })
 }
 
@@ -339,6 +377,7 @@ export const encodeReplayTape = <
         initialModel,
         initialCommands,
         transitions,
+        runtimeEvents: tape.runtimeEvents,
       }),
       Effect.mapError(mapExportError('The replay tape is not portable JSON')),
     )
@@ -493,6 +532,7 @@ export const decodeReplayTape = <
       initialModel,
       initialCommands: encodedTape.initialCommands,
       transitions,
+      runtimeEvents: encodedTape.runtimeEvents,
     }
   })
 
