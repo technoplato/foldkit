@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 6:16:39 p.m. EDT — `bcb42fc3016f` feat(wallet): add portable wallet Program
+
+- **Implementation commit:** `bcb42fc3016f75555d0cfe6078cecab34bff7960`
+- **Change:** Add one portable wallet Program and deterministic resources for every client.
+- **Details:**
+  - Modeled exact timestamped values, accounts, receiving URIs, previews, post-transaction balances, address history, signatures, submissions, and persistent transaction observation while confining keys and private payloads to Redacted Effect services.
+- **Files:**
+  - `.changeset/config.json` — Keep private wallet examples outside release accounting.
+  - `docs/adr/0004-portable-wallet-and-staked-access.md` — Record wallet, replay, and staked-access boundaries.
+  - `examples/wallet/core/src/program.ts` — Define the canonical renderer-independent Program.
+  - `examples/wallet/core/src/model.ts` — Define public wallet state and workflows.
+  - `examples/wallet/core/src/update.ts` — Confine finite work to injected Commands.
+  - `examples/wallet/core/src/subscription.ts` — Observe live transactions without polling.
+  - `examples/wallet/core/src/walletClient.ts` — Keep custody and signed payloads behind Redacted services.
+  - `examples/wallet/core/src/program.test.ts` — Prove replay secrecy and Command boundaries.
+  - `examples/wallet/simulated-client/src/simulatedWallet.ts` — Exercise the complete wallet contract without money or keys.
+  - `pnpm-lock.yaml` — Lock wallet workspace importers.
+- **User context (verbatim):**
+  > We want an API for asking the wallet to sign.
+  > When you break it down into layers, side effects, actions, messages, commands, etc., this is going to be a lot simpler to build than we think.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this work was performed in Codex desktop, not a captured Codex CLI session.
+
 ## July 27th, 2026 at 6:13:12 p.m. EDT — `ad3f9d30b910` feat(message-versioning): prototype portable Message upgrades
 
 - **Implementation commit:** `ad3f9d30b9107c224293c08ed113ed0f95a7857d`
