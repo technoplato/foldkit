@@ -54,6 +54,7 @@
     "dev:example:counters": "pnpm --filter counters-example dev",
     "dev:example:counters:react": "pnpm --filter counters-react-example dev",
     "dev:example:counters:opentui": "pnpm --filter counters-opentui-example dev",
+    "dev:example:client-matrix": "pnpm --filter client-matrix-foldkit-example dev",
     "dev:example:stopwatch": "pnpm --filter stopwatch-example dev",
     "dev:example:weather": "pnpm --filter weather-example dev",
     "dev:example:api-cache": "pnpm --filter api-cache-example dev",

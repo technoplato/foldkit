@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Foldkit | Portable Program bombshells</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --background: #0c0a09;
+        --panel: #1c1917;
+        --border: #44403c;
+        --muted: #a8a29e;
+        --text: #e7e5e4;
+        --amber: #fcd34d;
+        --sky: #7dd3fc;
+        --green: #6ee7b7;
+        --red: #fca5a5;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--text);
+      }
+
+      body {
+        background:
+          radial-gradient(circle at 10% 0%, #422006 0, transparent 34rem),
+          radial-gradient(circle at 90% 18%, #082f49 0, transparent 30rem),
+          var(--background);
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .slide {
+        display: none;
+        width: 100%;
+        height: 100%;
+        padding: 76px 104px 68px;
+        overflow: hidden;
+      }
+
+      .slide[data-active='true'] {
+        display: grid;
+      }
+
+      .content {
+        width: min(100%, 1220px);
+        min-width: 0;
+        height: 100%;
+        margin: 0 auto;
+      }
+
+      .center {
+        display: grid;
+        place-content: center;
+        text-align: center;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: var(--amber);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+        letter-spacing: 0.19em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1,
+      h2 {
+        letter-spacing: -0.04em;
+      }
+
+      h1 {
+        max-width: 1080px;
+        margin-bottom: 24px;
+        color: var(--amber);
+        font-size: clamp(46px, 6vw, 82px);
+        line-height: 1.04;
+      }
+
+      h2 {
+        max-width: 1040px;
+        margin-bottom: 24px;
+        font-size: clamp(38px, 5vw, 66px);
+        line-height: 1.02;
+      }
+
+      h3 {
+        margin-bottom: 10px;
+        font-size: 21px;
+      }
+
+      .lede {
+        max-width: 900px;
+        margin-right: auto;
+        margin-left: auto;
+        color: var(--muted);
+        font-size: clamp(18px, 2vw, 24px);
+        line-height: 1.5;
+      }
+
+      .grid-two,
+      .grid-three {
+        display: grid;
+        min-width: 0;
+        gap: 18px;
+      }
+
+      .grid-two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .card {
+        min-width: 0;
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        background: rgba(28, 25, 23, 0.85);
+        padding: 22px;
+      }
+
+      .card p,
+      .card li {
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.48;
+      }
+
+      .card.good {
+        border-color: rgba(110, 231, 183, 0.4);
+      }
+
+      .card.good h3 {
+        color: var(--green);
+      }
+
+      .card.caution {
+        border-color: rgba(252, 165, 165, 0.4);
+      }
+
+      .card.caution h3 {
+        color: var(--red);
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 21px;
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+
+      .diagram-shell,
+      .code-shell {
+        min-width: 0;
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: rgba(12, 10, 9, 0.76);
+      }
+
+      .diagram-shell {
+        display: grid;
+        min-height: 58vh;
+        place-items: center;
+        padding: 22px;
+      }
+
+      .code-shell {
+        max-height: calc(100vh - 245px);
+      }
+
+      .mermaid {
+        width: 100%;
+      }
+
+      .bombshell-links {
+        position: fixed;
+        z-index: 12;
+        top: 16px;
+        left: 50%;
+        display: flex;
+        max-width: calc(100vw - 170px);
+        transform: translateX(-50%);
+        gap: 8px;
+      }
+
+      .bombshell-links button {
+        overflow: hidden;
+        border: 1px solid rgba(252, 211, 77, 0.4);
+        border-radius: 999px;
+        background: rgba(12, 10, 9, 0.86);
+        padding: 7px 11px;
+        color: var(--amber);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+
+      .nav-button {
+        position: fixed;
+        z-index: 10;
+        top: 0;
+        bottom: 0;
+        display: grid;
+        width: 62px;
+        place-items: center;
+        border: 0;
+        background: rgba(231, 229, 228, 0.07);
+        color: rgba(231, 229, 228, 0.58);
+        font-size: 44px;
+        cursor: pointer;
+      }
+
+      .nav-button:hover,
+      .nav-button:focus-visible {
+        background: rgba(231, 229, 228, 0.16);
+        color: var(--text);
+        outline: none;
+      }
+
+      .nav-button:disabled {
+        opacity: 0.18;
+      }
+
+      .previous {
+        left: 0;
+        border-right: 1px solid rgba(231, 229, 228, 0.1);
+      }
+
+      .next {
+        right: 0;
+        border-left: 1px solid rgba(231, 229, 228, 0.1);
+      }
+
+      .counter {
+        position: fixed;
+        right: 82px;
+        bottom: 18px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: rgba(12, 10, 9, 0.86);
+        padding: 7px 11px;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+      }
+
+      @media (max-width: 900px) {
+        .slide {
+          padding: 68px 74px 60px;
+          overflow-y: auto;
+        }
+
+        .grid-two,
+        .grid-three {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        h1 {
+          font-size: clamp(34px, 9vw, 58px);
+        }
+
+        h2 {
+          font-size: clamp(32px, 8vw, 52px);
+        }
+
+        .nav-button {
+          width: 48px;
+        }
+      }
+
+      @media (max-width: 520px) {
+        .slide {
+          padding: 70px 54px 52px;
+        }
+
+        h1 {
+          font-size: 34px;
+          line-height: 1.08;
+        }
+
+        .lede,
+        .card p,
+        .card li {
+          font-size: 15px;
+        }
+
+        .nav-button {
+          width: 40px;
+          font-size: 34px;
+        }
+
+        .bombshell-links {
+          max-width: calc(100vw - 90px);
+        }
+
+        .bombshell-links button {
+          max-width: 45vw;
+        }
+
+        .counter {
+          right: 48px;
+          bottom: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="bombshell-links" aria-label="Bombshell slides">
+      <button type="button" data-jump="0">1 | One Program</button>
+      <button type="button" data-jump="1">2 | One link</button>
+    </nav>
+
+    <main aria-live="polite">
+      <section class="slide" data-active="true">
+        <div class="content center">
+          <p class="eyebrow">Bombshell 1</p>
+          <h1>The server-client application divide is artificial.</h1>
+          <p class="lede">
+            Native stacks, browser history, terminals, servers, and every future
+            host are adapters around one portable Program. Dependencies
+            determine which side effects are authorized, not where the Program
+            is allowed to run.
+          </p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="content center">
+          <p class="eyebrow">Bombshell 2</p>
+          <h1>A link can identify a running application.</h1>
+          <p class="lede">
+            Portable state, event history, route, and capabilities can open in
+            any medium. The same link can be public, encrypted, signed, scoped,
+            revocable, or backed by a saved content-addressed tape.
+          </p>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="content">
+          <p class="eyebrow">Concrete input</p>
+          <h2>Start with the ReplayTape Foldkit already records.</h2>
+          <div class="code-shell" id="concrete-tape"></div>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="content">
+          <p class="eyebrow">Concrete compression | proposed notation</p>
+          <h2>Compress the vocabulary, while preserving event order.</h2>
+          <div class="code-shell" id="compressed-tape"></div>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="content">
+          <p class="eyebrow">Concrete address</p>
+          <h2>The compressed bytes become a verifiable lookup key.</h2>
+          <div class="diagram-shell">
+            <pre class="mermaid">
+flowchart TD
+  A["Canonical compressed bytes"]
+  B["SHA-256"]
+  C["uuiduri:72af8a74-3177-814e-90f6-0c1ee4290e9f"]
+  D["ReplayTapeStore saves bytes under UUID"]
+  E["Open URI, load bytes, verify hash, decode, replay"]
+  A --> B --> C --> D --> E
+            </pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="content">
+          <p class="eyebrow">Current Foldkit and the next codec</p>
+          <h2>Content addressing exists. Compression is the missing layer.</h2>
+          <div class="grid-two">
+            <article class="card good">
+              <h3>Implemented now</h3>
+              <p>
+                Schema-encoded ReplayTape JSON, SHA-256-derived UUIDv8,
+                ReplayTapeStore lookup, and integrity verification.
+              </p>
+            </article>
+            <article class="card caution">
+              <h3>Missing now</h3>
+              <p>
+                A versioned canonical compact codec before hashing and saving.
+                The current store hashes the encoded JSON string.
+              </p>
+            </article>
+            <article class="card good">
+              <h3>Generic first pass</h3>
+              <p>
+                Stable numeric event symbols, canonical payload bytes,
+                dictionaries, sequence and time deltas, then deterministic byte
+                compression.
+              </p>
+            </article>
+            <article class="card caution">
+              <h3>Two things not to do</h3>
+              <p>
+                Do not sort the event stream because replay order matters. Do
+                not replace payload bytes with only a hash because replay needs
+                the original payload.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="content">
+          <p class="eyebrow">Capability vocabulary | draft</p>
+          <h2>“Read” and “write” are not enough.</h2>
+          <div class="grid-three">
+            <article class="card">
+              <h3>Observe</h3>
+              <p>Read snapshots and subscribe to changes.</p>
+            </article>
+            <article class="card">
+              <h3>Create</h3>
+              <p>
+                Create selected entity types or append selected event cases.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Edit</h3>
+              <p>Update selected entities, IDs, or fields.</p>
+            </article>
+            <article class="card">
+              <h3>Execute</h3>
+              <p>
+                Authorize Commands such as a transfer or external API operation.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Delegate</h3>
+              <p>Grant a subset of capabilities to another identity.</p>
+            </article>
+            <article class="card">
+              <h3>Administer</h3>
+              <p>Delete, rotate, revoke, and change policy.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="content">
+          <p class="eyebrow">Native Back performance evidence</p>
+          <h2>
+            The runtime can process a simple navigation Message synchronously.
+          </h2>
+          <div class="code-shell" id="runtime-code"></div>
+        </div>
+      </section>
+
+      <section class="slide">
+        <div class="content">
+          <p class="eyebrow">Native Back prototype | measured</p>
+          <h2>Strict prevents invalid presentation. Optimistic reveals it.</h2>
+          <div class="grid-two">
+            <article class="card good">
+              <h3>Strict Program-first</h3>
+              <p>
+                iOS header Back reached Program Home at 42 ms and native Home at
+                67 ms. Android hardware Back reached Program Home at 153 ms and
+                native Home at 303 ms. No duplicate decision was observed.
+              </p>
+            </article>
+            <article class="card caution">
+              <h3>Optimistic rejected Back</h3>
+              <p>
+                Native Home appeared first. Returning to the rejected Scene
+                completed at 565 ms on iOS and 543 ms on Android, making the
+                rollback visibly perceptible.
+              </p>
+            </article>
+            <article class="card good">
+              <h3>Prototype found real bugs</h3>
+              <p>
+                Container-level reconciliation fixed an unmounted-screen race.
+                Attempt-scoped telemetry stopped late native events from
+                contaminating a later trace.
+              </p>
+            </article>
+            <article class="card caution">
+              <h3>Evidence still missing</h3>
+              <p>
+                Automated edge drags did not trigger an iOS interactive swipe. A
+                genuine partially canceled swipe remains unverified and is not
+                inferred from a native gestureCancel event.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <button
+      class="nav-button previous"
+      type="button"
+      aria-label="Previous slide"
+    >
+      ‹
+    </button>
+    <button class="nav-button next" type="button" aria-label="Next slide">
+      ›
+    </button>
+    <div class="counter"><span id="current">1</span> / 9</div>
+
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
+      import { File } from 'https://esm.sh/@pierre/diffs@1.2.10?bundle'
+
+      const slides = Array.from(document.querySelectorAll('.slide'))
+      const previous = document.querySelector('.previous')
+      const next = document.querySelector('.next')
+      const current = document.querySelector('#current')
+      let index = 0
+
+      const show = nextIndex => {
+        index = Math.max(0, Math.min(slides.length - 1, nextIndex))
+        slides.forEach((slide, slideIndex) => {
+          slide.dataset.active = String(slideIndex === index)
+        })
+        previous.disabled = index === 0
+        next.disabled = index === slides.length - 1
+        current.textContent = String(index + 1)
+        history.replaceState({}, '', `#slide-${index + 1}`)
+      }
+
+      previous.addEventListener('click', () => show(index - 1))
+      next.addEventListener('click', () => show(index + 1))
+      document.querySelectorAll('[data-jump]').forEach(button => {
+        button.addEventListener('click', () =>
+          show(Number(button.dataset.jump)),
+        )
+      })
+      addEventListener('keydown', event => {
+        if (event.key === 'ArrowLeft') show(index - 1)
+        if (event.key === 'ArrowRight' || event.key === ' ') show(index + 1)
+      })
+
+      const runtimeSource = `const enqueueQueuedMessage = (queuedMessage) => {
+  pendingMessages.push(queuedMessage)
+
+  if (isBootComplete) {
+    drainPendingMessages()
+  }
+}
+
+const send = (message, options) => {
+  enqueueQueuedMessage({ message, source: fromHost(options), operation: None })
+}
+
+// Default synchronous burst budget before yielding:
+const DEFAULT_SYNCHRONOUS_WORK_BUDGET_MS = 5
+`
+
+      const concreteTapeSource = `{
+  "formatVersion": 1,
+  "programId": "multiple-counters",
+  "programVersion": 1,
+  "initialModel": {
+    "rows": [
+      { "id": "counter-1", "counter": { "count": 0 } },
+      { "id": "counter-2", "counter": { "count": 0 } }
+    ]
+  },
+  "transitions": [
+    { "sequence": 1, "message": { "_tag": "SelectedCounter", "counterId": "counter-1" } },
+    { "sequence": 2, "message": { "_tag": "ClickedIncrementCounter", "counterId": "counter-1" } },
+    { "sequence": 3, "message": { "_tag": "ClickedIncrementCounter", "counterId": "counter-1" } },
+    { "sequence": 4, "message": { "_tag": "SelectedCounter", "counterId": "counter-2" } }
+    // ...100,000 more ordinary mixed transitions...
+  ]
+}
+`
+
+      const compressedTapeSource = `FKT1 multiple-counters@1
+
+event symbols, sorted once:
+  E0 = ClickedDecrementCounter
+  E1 = ClickedIncrementCounter
+  E2 = SelectedCounter
+
+payload dictionary:
+  P0 = { counterId: "counter-1" }
+  P1 = { counterId: "counter-2" }
+
+ordered stream, never sorted:
+  [E2,P0] [E1,P0]x2 [E2,P1] ...
+
+structural fields omitted because the versioned codec already knows them
+sequence numbers and timestamps encoded as deltas
+final notation encoded into deterministic compressed bytes
+`
+
+      new File({
+        theme: { light: 'github-light', dark: 'github-dark' },
+        themeType: 'dark',
+        overflow: 'wrap',
+      }).render({
+        containerWrapper: document.querySelector('#runtime-code'),
+        file: {
+          name: 'packages/foldkit/src/runtime/programRuntime.ts | focused',
+          contents: runtimeSource,
+        },
+      })
+
+      const codeOptions = {
+        theme: { light: 'github-light', dark: 'github-dark' },
+        themeType: 'dark',
+        overflow: 'wrap',
+      }
+
+      new File(codeOptions).render({
+        containerWrapper: document.querySelector('#concrete-tape'),
+        file: {
+          name: 'ReplayTape | representative current JSON',
+          contents: concreteTapeSource,
+        },
+      })
+
+      new File(codeOptions).render({
+        containerWrapper: document.querySelector('#compressed-tape'),
+        file: {
+          name: 'ReplayTape | proposed readable compact form',
+          contents: compressedTapeSource,
+        },
+      })
+
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        securityLevel: 'strict',
+        flowchart: { curve: 'basis' },
+        themeVariables: {
+          background: '#0c0a09',
+          primaryColor: '#292524',
+          primaryTextColor: '#e7e5e4',
+          primaryBorderColor: '#78716c',
+          lineColor: '#a8a29e',
+          secondaryColor: '#1c1917',
+          tertiaryColor: '#082f49',
+          fontFamily: 'Inter, ui-sans-serif, system-ui',
+        },
+      })
+      await mermaid.run({ querySelector: '.mermaid' })
+
+      const requested = Number(location.hash.replace('#slide-', ''))
+      show(Number.isFinite(requested) && requested > 0 ? requested - 1 : 0)
+    </script>
+  </body>
+</html>

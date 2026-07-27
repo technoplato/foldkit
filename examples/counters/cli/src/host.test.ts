@@ -1,8 +1,9 @@
 import {
   destinationForModel,
   interactionsForModel,
+  pathToNavigation,
 } from 'counters-core-example'
-import { Array, Effect } from 'effect'
+import { Array, Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { executeCounters, formatDestination } from './host.js'
@@ -49,5 +50,18 @@ describe('Multiple Counters CLI host', () => {
     expect(
       formatDestination(destinationForModel(execution.finalModel)),
     ).toStrictEqual(['Counters', 'counter-2: 0'])
+  })
+
+  it('opens a portable URI before running any requested actions', async () => {
+    const execution = await Effect.runPromise(
+      executeCounters(
+        [],
+        Option.some(pathToNavigation('/counters/counter-1/delete')),
+      ),
+    )
+
+    expect(
+      formatDestination(destinationForModel(execution.finalModel)),
+    ).toStrictEqual(['Delete counter-1?', 'This cannot be undone.'])
   })
 })

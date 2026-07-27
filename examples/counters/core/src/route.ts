@@ -1,7 +1,7 @@
 import { Match as M, Option, Schema as S, pipe } from 'effect'
 import { Route } from 'foldkit'
 import { literal, r, slash, string } from 'foldkit/route'
-import { type Url } from 'foldkit/url'
+import { type Url, fromString } from 'foldkit/url'
 
 import {
   CounterDetail,
@@ -72,6 +72,17 @@ export const urlToNavigation = (url: Url): Navigation =>
       NotFoundRoute: () => CounterList.make({}),
     }),
   )
+
+/** Parses a portable relative path or a host carrier into navigation state. */
+export const pathToNavigation = (pathOrCarrier: string): Navigation => {
+  const carrier = pathOrCarrier.includes('://')
+    ? pathOrCarrier
+    : `https://counters.invalid${pathOrCarrier.startsWith('/') ? pathOrCarrier : `/${pathOrCarrier}`}`
+  const maybeUrl = fromString(carrier)
+  return Option.isSome(maybeUrl)
+    ? urlToNavigation(maybeUrl.value)
+    : CounterList.make({})
+}
 
 /** Prints navigation state as a URL projection with no replay events. */
 export const navigationToPath = (navigation: Navigation): string =>

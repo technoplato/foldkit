@@ -19,6 +19,40 @@ pnpm dev:example:showcase:native
 The `native` command opens Expo's client selector. The other commands request a
 specific platform.
 
+## Native Back comparison
+
+iOS and Android use React Navigation native-stack for the Showcase home and scene
+boundary. React Navigation was chosen instead of Expo Router because this is a
+two-screen host experiment, not a file-routed application. Native-stack provides
+the native header, iOS interactive Back gesture, Android hardware Back behavior,
+`usePreventRemove`, and transition events without changing the portable Programs.
+
+The scene panel switches between two host policies:
+
+- `Strict Program-first` intercepts native Back, resolves the injected decision
+  gate, sends `TappedBackButton` when allowed, waits until the Showcase Model is
+  `HomeScene`, and only then dispatches the captured native pop.
+- `Optimistic native` allows the native pop immediately. An allowed decision then
+  sends `TappedBackButton`. A rejected decision pushes the scene back so the
+  rollback is visible and the native stack again matches the unchanged Program
+  Model.
+
+The injected gate defaults to 0 ms. `Slow gate (650 ms)` is an explicit stress
+mode for making interception and rollback visible. `Reject next Back` is also a
+host-only experiment. Rejection does not add a Message or state to the canonical
+Showcase or Multiple Counters Programs.
+
+Metrics reset when the policy or delay changes. They record the ordered raw event
+trace plus aggregate attempt counts, injected-gate latency, actual Program Model
+commit latency, native transition start and end latency, rollback start and end,
+the always-mounted navigation container's native Home commit, native
+`gestureCancel` events, and duplicate Back suppression. `gestureCancel` can
+describe a user-abandoned swipe or a cancellation caused by strict interception,
+so the ordered trace must be used to interpret it. Each latency label states its
+Back-interception and native-event boundary. Logical reconciliation uses the
+container state commit because a popped Scene cannot reliably observe its own
+final `transitionEnd` event.
+
 ## Navigation
 
 The initial Model presents `HomeScene`. Tapping an example sends a factual Message,
