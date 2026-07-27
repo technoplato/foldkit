@@ -19,6 +19,7 @@
     "pretest": "pnpm --filter wallet-core-example build",
     "pretypecheck": "pnpm --filter wallet-core-example build",
     "test": "vitest run",
+    "test:live:solana-transfer": "WALLET_SOLANA_DEVNET_LIVE_TRANSFER=1 vitest run src/live.transfer.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

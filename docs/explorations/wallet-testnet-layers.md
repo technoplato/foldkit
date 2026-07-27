@@ -153,8 +153,9 @@ path.
 - Solana transaction observation relies on the provider's parsed System and SPL
   Token instruction support. An unrecognized instruction is ignored instead
   of being guessed.
-- This package does not request airdrops, fund accounts, mint tokens, or send a
-  transfer during setup or tests.
+- This package does not request airdrops, fund accounts, or mint tokens during
+  setup or the normal suite. Its separately named live transfer test sends only
+  when `WALLET_SOLANA_DEVNET_LIVE_TRANSFER=1` is explicit.
 - `TestnetNodeLocalSignerLive` and `TestnetNodeWalletLive` read keys at Layer
   construction. Use `TestnetNodeNetworkLive` for read-only hosts, or merge it
   with a host-owned `WalletSigner` Layer.
@@ -176,3 +177,42 @@ Two read-only live smoke tests exist and are skipped unless separately enabled:
 The smoke tests do not construct, sign, submit, fund, airdrop, or observe a
 transaction. They require only the matching transport variables, not a private
 key.
+
+One separate live transfer test exercises the real Solana Devnet transport and
+local custody Layers. It starts the receiver's `logsSubscribe` Stream, previews
+and prepares a transfer, signs through `SolanaDevnetCustody`, submits through
+`SolanaDevnetTransport`, and waits for the matching incoming transaction record.
+It performs no balance loop, signature-status loop, or transaction-history
+loop.
+
+```sh
+WALLET_SOLANA_DEVNET_ACCOUNT_ID=... \
+WALLET_SOLANA_DEVNET_ACCOUNT_ADDRESS=... \
+WALLET_SOLANA_DEVNET_DISPLAY_NAME=... \
+WALLET_SOLANA_DEVNET_HTTP_RPC_URL=... \
+WALLET_SOLANA_DEVNET_WS_RPC_URL=... \
+WALLET_SOLANA_DEVNET_SECRET_KEY_BASE64=... \
+WALLET_SOLANA_DEVNET_LIVE_RECEIVER_ADDRESS=... \
+pnpm --filter wallet-testnet-node-example test:live:solana-transfer
+```
+
+The sender and receiver must be disposable Devnet accounts. The sender must be
+funded before the test starts. Secret key bytes remain Redacted and must never be
+written to the Model, a Message, a tape, test output, or Git.
+
+On July 27, 2026, the test submitted 0.001 Devnet SOL as transaction
+[`32sEXa6aTCKszyXnUgfi6DrE5szmFrd35gqnZpawR32XEVYaBtBdg8YSaksr4jcsD92D5UnHmret1hM2TpvqS2KA`](https://explorer.solana.com/tx/32sEXa6aTCKszyXnUgfi6DrE5szmFrd35gqnZpawR32XEVYaBtBdg8YSaksr4jcsD92D5UnHmret1hM2TpvqS2KA?cluster=devnet).
+The receiver Stream emitted the matching `:0` System instruction. A separate
+single balance read then reported 0.001 SOL at the receiver. That read was
+corroboration after the push event, not the observation mechanism.
+
+## Webhook adapters
+
+`WalletClient.observeTransactions` exposes a transport-neutral Effect Stream.
+A server host may therefore provide transaction records from authenticated
+provider webhooks without changing the Wallet Program, Model, Messages, or
+Subscription. A production webhook Layer still needs an explicit provider,
+public callback deployment, signature verification algorithm, retry and
+deduplication policy, and secret configuration. This local Node package proves
+provider WebSocket delivery. It does not claim a webhook integration without
+those provider-specific inputs.
