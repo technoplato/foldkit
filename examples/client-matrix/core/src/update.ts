@@ -19,10 +19,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Model.make({ ...model, orientation }),
         [],
       ],
-      OpenedLiveClient: ({ medium, mode }) => [
+      OpenedLiveClient: ({ clientId, mode }) => [
         Model.make({
           ...model,
-          liveClientState: ShowingLiveClient.make({ medium, mode }),
+          liveClientState: ShowingLiveClient.make({ clientId, mode }),
           selectedMode: mode,
         }),
         [],

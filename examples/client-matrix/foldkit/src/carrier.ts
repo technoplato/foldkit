@@ -1,5 +1,5 @@
 import {
-  type ClientMedium,
+  type ClientId,
   type ScreenMode,
   captureSlugForClient,
   captureSlugForScreenMode,
@@ -8,10 +8,10 @@ import { Match as M } from 'effect'
 
 /** Returns the concrete host carrier for one portable Multiple Counters URI. */
 export const carrierForClient = (
-  medium: ClientMedium,
+  clientId: ClientId,
   portableUri: string,
 ): string =>
-  M.value(medium).pipe(
+  M.value(clientId).pipe(
     M.withReturnType<string>(),
     M.when(
       'ReactWeb',
@@ -39,5 +39,5 @@ export const carrierForClient = (
   )
 
 /** Returns the checked-in capture path for one matrix cell. */
-export const capturePath = (mode: ScreenMode, medium: ClientMedium): string =>
-  `/captures/${captureSlugForScreenMode(mode)}/${captureSlugForClient(medium)}.webp`
+export const capturePath = (mode: ScreenMode, clientId: ClientId): string =>
+  `/captures/${captureSlugForScreenMode(mode)}/${captureSlugForClient(clientId)}.webp`

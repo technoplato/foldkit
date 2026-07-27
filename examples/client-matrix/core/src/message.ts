@@ -1,7 +1,7 @@
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
 
-import { LiveClientMedium, MatrixOrientation, ScreenMode } from './model.js'
+import { LiveClientId, MatrixOrientation, ScreenMode } from './model.js'
 
 /** The user selected a destination for the state inspector. */
 export const SelectedScreenMode = m('SelectedScreenMode', {
@@ -15,7 +15,7 @@ export const SelectedMatrixOrientation = m('SelectedMatrixOrientation', {
 
 /** The user opened an interactive browser client from one matrix capture. */
 export const OpenedLiveClient = m('OpenedLiveClient', {
-  medium: LiveClientMedium,
+  clientId: LiveClientId,
   mode: ScreenMode,
 })
 

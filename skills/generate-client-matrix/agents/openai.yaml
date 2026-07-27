@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Generate Client Matrix'
+  short_description: 'Generate verified cross-client Foldkit matrices'
+  default_prompt: 'Use $generate-client-matrix to build or audit a Foldkit client matrix with typed states, portable URIs, carriers, imagery, and evidence.'

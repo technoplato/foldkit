@@ -1,5 +1,6 @@
 export * from './currency.js'
 export * from './init.js'
+export * from './intent.js'
 export * from './message.js'
 export * from './model.js'
 export * from './program.js'

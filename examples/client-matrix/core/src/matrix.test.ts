@@ -17,6 +17,10 @@ import {
   walletProgramIdentity,
   walletRoutes,
 } from './wallet.js'
+import {
+  walletIntentCarrierForClient,
+  walletIntentDefinitions,
+} from './walletIntent.js'
 
 describe('Client Matrix core', () => {
   it('prints every canonical destination through the shared parser-printer', () => {
@@ -44,6 +48,29 @@ describe('Client Matrix core', () => {
     expect(clients).toHaveLength(8)
   })
 
+  it('separates client surface, renderer, platform, host, and carrier', () => {
+    expect(clients).toStrictEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          clientId: 'ExpoIos',
+          surface: 'Graphical',
+          renderer: 'ReactNative',
+          platform: 'Ios',
+          host: 'Expo',
+          carrier: 'CustomSchemeUrl',
+        }),
+        expect.objectContaining({
+          clientId: 'OpenTui',
+          surface: 'TerminalUI',
+          renderer: 'OpenTuiReact',
+          platform: 'Node',
+          host: 'EffectPlatform',
+          carrier: 'CommandLineArgument',
+        }),
+      ]),
+    )
+  })
+
   it('opens exactly one live cell from its selected mode and closes it', () => {
     const initialModel = Model.make({
       liveClientState: ShowingCaptures.make({}),
@@ -52,13 +79,13 @@ describe('Client Matrix core', () => {
     })
     const [openedModel] = update(
       initialModel,
-      OpenedLiveClient({ medium: 'ReactWeb', mode: 'Detail' }),
+      OpenedLiveClient({ clientId: 'ReactWeb', mode: 'Detail' }),
     )
 
     expect(openedModel).toStrictEqual(
       Model.make({
         liveClientState: ShowingLiveClient.make({
-          medium: 'ReactWeb',
+          clientId: 'ReactWeb',
           mode: 'Detail',
         }),
         orientation: 'ModesAsRows',
@@ -87,7 +114,7 @@ describe('Client Matrix core', () => {
       'StateRoute',
       'ReplayRoute',
     ])
-    expect(Array.map(walletClients, client => client.medium)).toStrictEqual([
+    expect(Array.map(walletClients, client => client.clientId)).toStrictEqual([
       'ReactWeb',
       'FoldkitView',
       'RawCli',
@@ -151,19 +178,19 @@ describe('Client Matrix core', () => {
   it('does not overstate Wallet route support', () => {
     const maybeTerminal = Array.findFirst(
       walletClients,
-      client => client.medium === 'EffectTerminal',
+      client => client.clientId === 'EffectTerminal',
     )
     const maybeReact = Array.findFirst(
       walletClients,
-      client => client.medium === 'ReactWeb',
+      client => client.clientId === 'ReactWeb',
     )
     const maybeFoldkit = Array.findFirst(
       walletClients,
-      client => client.medium === 'FoldkitView',
+      client => client.clientId === 'FoldkitView',
     )
     const maybeServer = Array.findFirst(
       walletClients,
-      client => client.medium === 'FutureServer',
+      client => client.clientId === 'FutureServer',
     )
 
     if (
@@ -188,6 +215,41 @@ describe('Client Matrix core', () => {
         Array.map(maybeServer.value.capabilities, value => value.support),
       ).toStrictEqual(['Planned', 'Planned'])
       expect(Option.isNone(maybeServer.value.maybeRouteCarrier)).toBe(true)
+    }
+  })
+
+  it('covers every asset and mode with canonical Wallet intent paths', () => {
+    expect(
+      Array.map(walletIntentDefinitions, definition => definition.id),
+    ).toStrictEqual([
+      'eth-devnet',
+      'eth-testnet',
+      'eth-live',
+      'sol-devnet',
+      'sol-testnet',
+      'sol-live',
+      'usd-devnet',
+      'usd-testnet',
+      'usd-live',
+    ])
+    expect(
+      Array.every(walletIntentDefinitions, definition =>
+        definition.portableRoute.startsWith('/wallet/intent/send/'),
+      ),
+    ).toBe(true)
+
+    const maybeEthTestnet = Array.findFirst(
+      walletIntentDefinitions,
+      definition => definition.id === 'eth-testnet',
+    )
+    if (Option.isSome(maybeEthTestnet)) {
+      expect(maybeEthTestnet.value.capability.support).toBe('Implemented')
+      expect(
+        walletIntentCarrierForClient(
+          'ExpoIos',
+          maybeEthTestnet.value.portableRoute,
+        ).carrier,
+      ).toBe(`foldkit://showcase${maybeEthTestnet.value.portableRoute}`)
     }
   })
 })

@@ -13,7 +13,7 @@ import { Array, Match as M, Option } from 'effect'
 
 import {
   ClientDefinition,
-  type ClientMedium,
+  type ClientId,
   type ScreenMode,
   ScreenModeDefinition,
 } from './model.js'
@@ -45,44 +45,84 @@ export const screenModes: ReadonlyArray<ScreenModeDefinition> = [
 /** The concrete client surfaces compared by the matrix. */
 export const clients: ReadonlyArray<ClientDefinition> = [
   ClientDefinition.make({
-    medium: 'ReactWeb',
+    clientId: 'ReactWeb',
     title: 'React',
     description: 'Shared React bindings with a React web presenter.',
+    surface: 'Graphical',
+    renderer: 'React',
+    platform: 'Web',
+    host: 'Vite',
+    carrier: 'HttpsUrl',
   }),
   ClientDefinition.make({
-    medium: 'FoldkitView',
+    clientId: 'FoldkitView',
     title: 'Foldkit',
     description: 'The canonical Foldkit view renderer.',
+    surface: 'Graphical',
+    renderer: 'FoldkitView',
+    platform: 'Web',
+    host: 'Vite',
+    carrier: 'HttpsUrl',
   }),
   ClientDefinition.make({
-    medium: 'ExpoWeb',
-    title: 'GUI',
-    description: 'The universal Expo application running on web.',
+    clientId: 'ExpoWeb',
+    title: 'Expo Web',
+    description: 'The universal React Native application running on web.',
+    surface: 'Graphical',
+    renderer: 'ReactNative',
+    platform: 'Web',
+    host: 'Expo',
+    carrier: 'HttpsUrl',
   }),
   ClientDefinition.make({
-    medium: 'EffectTerminal',
-    title: 'Terminal',
+    clientId: 'EffectTerminal',
+    title: 'Effect Terminal',
     description: 'A line-oriented Effect Terminal host.',
+    surface: 'LineTerminal',
+    renderer: 'Text',
+    platform: 'Node',
+    host: 'EffectPlatform',
+    carrier: 'CommandLineArgument',
   }),
   ClientDefinition.make({
-    medium: 'OpenTui',
-    title: 'TUI',
+    clientId: 'OpenTui',
+    title: 'OpenTUI',
     description: 'The OpenTUI React terminal reconciler.',
+    surface: 'TerminalUI',
+    renderer: 'OpenTuiReact',
+    platform: 'Node',
+    host: 'EffectPlatform',
+    carrier: 'CommandLineArgument',
   }),
   ClientDefinition.make({
-    medium: 'RawCli',
+    clientId: 'RawCli',
     title: 'Raw CLI',
     description: 'Portable URI input with stdout-only rendering.',
+    surface: 'OneShotCLI',
+    renderer: 'Text',
+    platform: 'Node',
+    host: 'EffectPlatform',
+    carrier: 'CommandLineArgument',
   }),
   ClientDefinition.make({
-    medium: 'ExpoIos',
+    clientId: 'ExpoIos',
     title: 'Expo iOS',
     description: 'The universal Expo application on an iOS simulator.',
+    surface: 'Graphical',
+    renderer: 'ReactNative',
+    platform: 'Ios',
+    host: 'Expo',
+    carrier: 'CustomSchemeUrl',
   }),
   ClientDefinition.make({
-    medium: 'ExpoAndroid',
+    clientId: 'ExpoAndroid',
     title: 'Expo Android',
     description: 'The universal Expo application on an Android emulator.',
+    surface: 'Graphical',
+    renderer: 'ReactNative',
+    platform: 'Android',
+    host: 'Expo',
+    carrier: 'CustomSchemeUrl',
   }),
 ]
 
@@ -131,8 +171,8 @@ export const definitionForScreenMode = (mode: ScreenMode) =>
   Array.findFirst(screenModes, definition => definition.mode === mode)
 
 /** Returns the stable capture slug for one client surface. */
-export const captureSlugForClient = (medium: ClientMedium): string =>
-  M.value(medium).pipe(
+export const captureSlugForClient = (clientId: ClientId): string =>
+  M.value(clientId).pipe(
     M.withReturnType<string>(),
     M.when('ReactWeb', () => 'react'),
     M.when('FoldkitView', () => 'foldkit'),

@@ -66,7 +66,7 @@ describe('Client Matrix Foldkit view', () => {
       Scene.with(initialModel()),
       Scene.expect(
         Scene.role('link', {
-          name: 'Open GUI for Fact presentation',
+          name: 'Open Expo Web for Fact presentation',
         }),
       ).toHaveAttr(
         'href',
@@ -84,7 +84,7 @@ describe('Client Matrix Foldkit view', () => {
       ).toHaveAttr('href', 'foldkit://showcase/counters'),
       Scene.expect(
         Scene.role('link', {
-          name: 'Open Terminal for Counter detail',
+          name: 'Open Effect Terminal for Counter detail',
         }),
       ).not.toExist(),
     )
@@ -111,6 +111,14 @@ describe('Client Matrix Foldkit view', () => {
       Scene.expect(Scene.text('Live branch only')).toExist(),
       Scene.expect(Scene.text('No route carrier is wired.')).toExist(),
       Scene.expect(Scene.text('No host evidence')).toExist(),
+      Scene.expect(Scene.text('Send money from any client')).toExist(),
+      Scene.expect(Scene.text('ETH | Testnet')).toExist(),
+      Scene.expect(
+        Scene.text('foldkit://showcase/wallet/intent/send/eth', {
+          exact: false,
+        }),
+      ).toExist(),
+      Scene.expect(Scene.text('HostIntakePending')).toExist(),
     )
   })
 })
