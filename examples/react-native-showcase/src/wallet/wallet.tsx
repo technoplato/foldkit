@@ -1,16 +1,27 @@
 import { Array, Match as M, Option } from 'effect'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import {
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native'
 import {
   type Model,
   type TransactionPreview,
   type TransactionState,
+  type TransactionSubmission,
   currencyValueLabel,
+  invalidNetworkAddressMessage,
   makeWalletTestChallenge,
+  networkAddressRuleMessages,
   networkLabel,
   primaryReceivingInstruction,
   primaryWalletAccount,
   primaryWalletBalance,
   shortenedAddress,
+  transferRecipientFormat,
   transferRecipientInput,
 } from 'wallet-core-example'
 import {
@@ -56,6 +67,42 @@ const transactionStatus = (transaction: TransactionState): string =>
       FailedTransactionSubmission: () => 'Send failed',
     }),
   )
+
+const TransactionSubmissionConfirmation = ({
+  submission,
+}: Readonly<{ submission: TransactionSubmission }>) => {
+  const maybeConfirmation = submission.maybeExplorerConfirmation
+  if (Option.isNone(maybeConfirmation)) {
+    return (
+      <View accessibilityLiveRegion="polite" style={styles.confirmation}>
+        <Text style={styles.confirmationTitle}>Transaction submitted</Text>
+        <Text selectable style={styles.codeText}>
+          {submission.transactionId}
+        </Text>
+      </View>
+    )
+  }
+  const confirmation = maybeConfirmation.value
+  return (
+    <View accessibilityLiveRegion="polite" style={styles.confirmation}>
+      <Text style={styles.confirmationTitle}>Transaction submitted</Text>
+      <Text style={styles.mutedText}>
+        Confirm it on {confirmation.explorer}.
+      </Text>
+      <Pressable
+        accessibilityRole="link"
+        onPress={() => void Linking.openURL(confirmation.transactionUri)}
+      >
+        <Text style={styles.confirmationLink}>
+          View on {confirmation.explorer}
+        </Text>
+      </Pressable>
+      <Text selectable style={styles.codeText}>
+        {submission.transactionId}
+      </Text>
+    </View>
+  )
+}
 
 /** Runs the shared Wallet React bindings through one React Native presenter. */
 export const WalletExample = ({
@@ -127,6 +174,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
   const maybeBalance = primaryWalletBalance(model)
   const maybePreview = maybePreviewForTransaction(model.transaction)
+  const recipientFormat = transferRecipientFormat(model.transferRecipient)
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -149,22 +197,36 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         </Text>
       </View>
       <View style={styles.recipientField}>
-        <Text style={styles.recipientLabel}>Recipient on Ethereum Sepolia</Text>
+        <Text style={styles.recipientLabel}>
+          Recipient on {recipientFormat.networkName}
+        </Text>
         <TextInput
-          accessibilityLabel="Recipient on Ethereum Sepolia"
+          accessibilityLabel={`Recipient on ${recipientFormat.networkName}`}
           autoCapitalize="none"
           autoCorrect={false}
           editable={model.transaction._tag !== 'SubmittingTransaction'}
           onChangeText={actions.changedTransferRecipient}
-          placeholder="0x…"
+          placeholder={recipientFormat.exampleAddress}
           placeholderTextColor="#9f8560"
           style={styles.recipientInput}
           value={transferRecipientInput(model.transferRecipient)}
         />
         {model.transferRecipient._tag === 'InvalidTransferRecipient' ? (
-          <Text accessibilityRole="alert" style={styles.validationText}>
-            Enter an Ethereum address with 0x followed by 40 hexadecimal digits.
-          </Text>
+          <View accessibilityRole="alert" style={styles.validationBlock}>
+            <Text style={styles.validationText}>
+              {invalidNetworkAddressMessage(model.transferRecipient.validation)}
+            </Text>
+            {Array.map(
+              networkAddressRuleMessages(
+                model.transferRecipient.validation.format,
+              ),
+              rule => (
+                <Text key={rule} style={styles.validationText}>
+                  • {rule}
+                </Text>
+              ),
+            )}
+          </View>
         ) : null}
       </View>
       {Option.isSome(maybePreview) ? (
@@ -189,6 +251,11 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           Preview a fixed test transfer before anything is signed.
         </Text>
       )}
+      {model.transaction._tag === 'SubmittedTransaction' ? (
+        <TransactionSubmissionConfirmation
+          submission={model.transaction.submission}
+        />
+      ) : null}
       <WalletActionButton
         isDisabled={
           Option.isNone(maybeBalance) ||
@@ -407,6 +474,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  validationBlock: { gap: 5 },
   mutedText: { color: '#d3a861', fontSize: 13, lineHeight: 19 },
   helpText: { color: '#d3a861', fontSize: 16, lineHeight: 23 },
   preview: { gap: 8 },
@@ -425,6 +493,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     textAlign: 'right',
+  },
+  confirmation: {
+    backgroundColor: '#100d09',
+    borderColor: '#f2b85f',
+    borderRadius: 16,
+    borderWidth: 2,
+    gap: 8,
+    padding: 14,
+  },
+  confirmationTitle: { color: '#f7dca5', fontSize: 17, fontWeight: '900' },
+  confirmationLink: {
+    color: '#f2b85f',
+    fontSize: 15,
+    fontWeight: '900',
+    textDecorationLine: 'underline',
   },
   list: { gap: 8 },
   activityRow: {

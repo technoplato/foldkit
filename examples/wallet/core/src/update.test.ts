@@ -7,6 +7,7 @@ import {
   EthereumSepolia,
   EthereumSepoliaEthValue,
 } from './currency.js'
+import { blockExplorerConfirmation } from './explorer.js'
 import {
   AddedAddressBookEntry,
   ChangedTransferRecipient,
@@ -41,7 +42,7 @@ import {
   FailedTransactionPreview,
   FailedTransactionSubmission,
   FamiliarAddress,
-  InvalidTransferRecipient,
+  IdleTransaction,
   LoadedPortfolio,
   LoadingPortfolio,
   type Model,
@@ -59,7 +60,6 @@ import {
   SubmittingTransaction,
   TransactionRecord,
   TransactionSubmission,
-  ValidTransferRecipient,
   WaitingForAccounts,
   WalletAccount,
   initialModel,
@@ -90,7 +90,7 @@ const resultingBalance = EthereumSepoliaEthValue.make({
 const account = WalletAccount.make({
   accountId: 'account-1',
   network: ethereum,
-  address: '0xAccount',
+  address: '0x1111111111111111111111111111111111111111',
   displayName: 'Sepolia Account',
 })
 const portfolio = PortfolioSnapshot.make({
@@ -118,7 +118,7 @@ const portfolio = PortfolioSnapshot.make({
 const addressBookEntry = AddressBookEntry.make({
   entryId: 'entry-1',
   network: ethereum,
-  address: '0xRecipient',
+  address: '0x2222222222222222222222222222222222222222',
   displayName: 'Recipient',
 })
 const draft = EthereumSepoliaEthTransferDraft.make({
@@ -155,6 +155,9 @@ const submission = TransactionSubmission.make({
   previewId: preview.previewId,
   transactionId: 'transaction-submitted',
   submittedAt: observedAt + 2,
+  maybeExplorerConfirmation: Option.some(
+    blockExplorerConfirmation(ethereum, 'transaction-submitted'),
+  ),
 })
 const observedTransaction = TransactionRecord.make({
   transactionId: 'transaction-observed',
@@ -261,12 +264,13 @@ describe('Wallet transaction update', () => {
       ChangedTransferRecipient.make({ value: invalidInput }),
     )
 
-    expect(invalidModel.transferRecipient).toStrictEqual(
-      InvalidTransferRecipient.make({
+    expect(invalidModel.transferRecipient).toMatchObject({
+      _tag: 'InvalidTransferRecipient',
+      validation: {
         input: invalidInput,
-        reason: 'ExpectedEthereumAddress',
-      }),
-    )
+        format: { networkName: 'Ethereum Sepolia' },
+      },
+    })
     expect(invalidModel.transaction._tag).toBe('IdleTransaction')
     expect(invalidCommands).toStrictEqual([])
 
@@ -280,9 +284,13 @@ describe('Wallet transaction update', () => {
       RequestedTransferPreview.make({}),
     )
 
-    expect(recipientModel.transferRecipient).toStrictEqual(
-      ValidTransferRecipient.make({ address: destinationAddress }),
-    )
+    expect(recipientModel.transferRecipient).toMatchObject({
+      _tag: 'ValidTransferRecipient',
+      address: {
+        _tag: 'EthereumNetworkAddress',
+        value: destinationAddress,
+      },
+    })
     expect(previewingModel.transaction).toMatchObject({
       _tag: 'PreviewingTransaction',
       draft: {
@@ -315,6 +323,22 @@ describe('Wallet transaction update', () => {
         recipientHistory: history,
       })
     }
+  })
+
+  it('rejects a composed transfer whose address is invalid for its network', () => {
+    const invalidDraft = EthereumSepoliaEthTransferDraft.make({
+      ...draft,
+      destinationAddress:
+        '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+    })
+    const [nextModel, commands] = update(
+      loadedModel,
+      ComposedTransfer.make({ draft: invalidDraft }),
+    )
+
+    expect(nextModel.transferRecipient._tag).toBe('InvalidTransferRecipient')
+    expect(nextModel.transaction).toStrictEqual(IdleTransaction.make({}))
+    expect(commands).toStrictEqual([])
   })
 
   it('handles preview success and failure facts', () => {
@@ -412,7 +436,10 @@ describe('Wallet transaction update', () => {
     )
 
     expect(successModel.transaction).toStrictEqual(
-      SubmittedTransaction.make({ preview, submission }),
+      SubmittedTransaction.make({
+        preview,
+        submission,
+      }),
     )
     expect(failedModel.transaction).toStrictEqual(
       FailedTransactionSubmission.make({ preview, failure }),

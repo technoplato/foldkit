@@ -22,7 +22,10 @@ import {
   SigningChallenge,
   type TransferDraft,
   WalletProgram,
+  invalidNetworkAddressMessage,
+  networkAddressRuleMessages,
   transferDraftFromInput,
+  validateNetworkAddress,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
@@ -227,6 +230,26 @@ const transferDraft = (
         }),
       )
     }
+    const addressValidation = validateNetworkAddress(
+      maybeAccount.value.network,
+      input.destinationAddress,
+    )
+    if (addressValidation._tag === 'InvalidNetworkAddress') {
+      return yield* Effect.fail(
+        new WalletCliError({
+          message: Array.join(
+            [
+              invalidNetworkAddressMessage(addressValidation),
+              ...Array.map(
+                networkAddressRuleMessages(addressValidation.format),
+                rule => `- ${rule}`,
+              ),
+            ],
+            '\n',
+          ),
+        }),
+      )
+    }
     const maybeBalance = Array.findFirst(
       snapshot.balanceSnapshot.balances,
       balance =>
@@ -426,9 +449,19 @@ const sendSummary = (
       runtime,
       transactionId,
     )
+    const maybeConfirmation =
+      model.transaction.submission.maybeExplorerConfirmation
+    const confirmationLines = Option.isSome(maybeConfirmation)
+      ? [
+          `Confirm on ${maybeConfirmation.value.explorer}: ${maybeConfirmation.value.transactionUri}`,
+        ]
+      : []
     return {
       model: observedModel,
-      summary: `Submitted ${transactionId}\nObserved: yes`,
+      summary: Array.join(
+        [`Submitted ${transactionId}`, ...confirmationLines, 'Observed: yes'],
+        '\n',
+      ),
     }
   })
 

@@ -125,6 +125,40 @@ input {
   line-height: 1.4;
 }
 
+.wallet-validation p,
+.wallet-validation ul {
+  margin: 0;
+}
+
+.wallet-validation ul {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0 0 1.25rem;
+}
+
+.wallet-confirmation {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  color: var(--cardboard-paper);
+  background: var(--cardboard-panel-deep);
+  border: 0.12rem solid var(--cardboard-amber);
+  border-radius: 1rem;
+}
+
+.wallet-confirmation a {
+  width: fit-content;
+  color: var(--cardboard-amber);
+  font-weight: 900;
+}
+
+.wallet-confirmation code {
+  overflow-wrap: anywhere;
+  color: var(--cardboard-paper-muted);
+  font-size: 0.78rem;
+}
+
 .wallet-preview {
   display: grid;
   gap: 0.75rem;

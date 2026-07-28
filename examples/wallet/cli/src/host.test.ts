@@ -4,6 +4,7 @@ import { WalletProgram } from 'wallet-core-example'
 
 import {
   WalletCliOperation,
+  WalletTransferInput,
   defaultWalletChallengeInput,
   defaultWalletTransferInput,
   executeWalletCli,
@@ -52,6 +53,33 @@ describe('raw Wallet CLI host', () => {
     expect(execution.model.transaction._tag).toBe('SubmittedTransaction')
     expect(execution.model.observedTransactions).toHaveLength(1)
     expect(execution.summary).toContain('Observed: yes')
+    expect(execution.summary).not.toContain('Etherscan')
+  })
+
+  it('prints the shared network-specific address guidance', async () => {
+    const failure = await Effect.runPromise(
+      executeWalletCli(
+        WalletCliOperation.make({
+          _tag: 'Preview',
+          input: WalletTransferInput.make({
+            ...defaultWalletTransferInput,
+            destinationAddress:
+              '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+          }),
+        }),
+      ).pipe(Effect.flip),
+    )
+
+    expect(failure).toMatchObject({
+      message: expect.stringContaining(
+        'That is not a valid address for Ethereum Sepolia.',
+      ),
+    })
+    expect(failure).toMatchObject({
+      message: expect.stringContaining(
+        'It contains exactly 40 characters after the prefix.',
+      ),
+    })
   })
 
   it('inspects the portable replay path without executing historical Commands', async () => {

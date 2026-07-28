@@ -4,6 +4,8 @@ import {
   DomainSeparatedDigest,
   type Model,
   SigningChallenge,
+  invalidNetworkAddressMessage,
+  networkAddressRuleMessages,
   transferDraftFromInput,
 } from 'wallet-core-example'
 import {
@@ -71,6 +73,19 @@ const defaultChallenge = (): typeof SigningChallenge.Type =>
       digestHex: '0xPublicDigest',
     }),
   })
+
+const explorerStatus = (model: Model): string => {
+  if (model.transaction._tag !== 'SubmittedTransaction') {
+    return 'Explorer: available after a network submission'
+  }
+  const maybeConfirmation =
+    model.transaction.submission.maybeExplorerConfirmation
+  if (Option.isSome(maybeConfirmation)) {
+    return `Confirm on ${maybeConfirmation.value.explorer}: ${maybeConfirmation.value.transactionUri}`
+  } else {
+    return 'Explorer: unavailable for simulated submissions'
+  }
+}
 
 /** Runs Wallet through the OpenTUI React reconciler. */
 export const App = ({
@@ -258,12 +273,31 @@ const WalletModelView = ({ model }: Readonly<{ model: Model }>) => (
     border
     borderColor="#36534a"
     flexDirection="column"
-    height={9}
+    height={12}
     padding={1}
     title="Canonical Wallet Model"
   >
     <PortfolioView model={model} />
     <text content={`Transaction: ${model.transaction._tag}`} height={1} />
+    <text
+      content={
+        model.transferRecipient._tag === 'InvalidTransferRecipient'
+          ? Array.join(
+              [
+                invalidNetworkAddressMessage(
+                  model.transferRecipient.validation,
+                ),
+                ...networkAddressRuleMessages(
+                  model.transferRecipient.validation.format,
+                ),
+              ],
+              ' ',
+            )
+          : 'Recipient address: ready for validation'
+      }
+      height={2}
+    />
+    <text content={explorerStatus(model)} height={1} />
     <text content={`Signature: ${model.signature._tag}`} height={1} />
     <text
       content={`Observed transactions: ${model.observedTransactions.length.toString()}`}

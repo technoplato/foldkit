@@ -19,12 +19,10 @@ import {
   EthereumSepoliaEthTransferDraft,
   EthereumSignatureProof,
   FirstTransactionWithRecipient,
-  InvalidTransferRecipient,
   PreviouslyTransactedWithRecipient,
   SignatureProof,
   SolanaEd25519SignatureProof,
   TransactionRecord,
-  ValidTransferRecipient,
   familiarityForAddress,
   recipientHistoryForDraft,
   transferDraftFromInput,
@@ -32,6 +30,8 @@ import {
 } from './model.js'
 
 const observedAt = 1_722_000_000_000
+const ethereumDestinationAddress = '0x2222222222222222222222222222222222222222'
+const solanaDestinationAddress = '11111111111111111111111111111111'
 const ethereum = EthereumSepolia.make({})
 const solanaDevnet = SolanaDevnet.make({})
 const solanaTestnet = SolanaTestnet.make({})
@@ -54,7 +54,7 @@ const draft = EthereumSepoliaEthTransferDraft.make({
   transferId: 'transfer-1',
   accountId: 'ethereum-account',
   network: ethereum,
-  destinationAddress: '0xRecipient',
+  destinationAddress: ethereumDestinationAddress,
   value: ethValue,
   maybeMessage: Option.some('Dinner'),
 })
@@ -66,7 +66,7 @@ const outgoingTransaction = TransactionRecord.make({
   direction: 'Outgoing',
   status: 'Confirmed',
   value: ethValue,
-  counterpartyAddress: '0xrecipient',
+  counterpartyAddress: ethereumDestinationAddress,
   observedAt: observedAt - 100,
 })
 
@@ -131,7 +131,7 @@ describe('Wallet currency schemas', () => {
       transferId: 'valid-transfer',
       accountId: 'ethereum-account',
       network: ethereum,
-      destinationAddress: '0xRecipient',
+      destinationAddress: ethereumDestinationAddress,
       value: ethValue,
       maybeMessage: Option.none(),
     })
@@ -139,7 +139,7 @@ describe('Wallet currency schemas', () => {
       transferId: 'mismatched-transfer',
       accountId: 'solana-account',
       network: solanaDevnet,
-      destinationAddress: 'SolanaRecipient',
+      destinationAddress: solanaDestinationAddress,
       value: ethValue,
       maybeMessage: Option.none(),
     })
@@ -153,19 +153,22 @@ describe('Wallet currency schemas', () => {
 
 describe('Wallet public identity and signing schemas', () => {
   it('distinguishes valid Ethereum recipients from 32-byte values', () => {
-    const address = '0x2222222222222222222222222222222222222222'
+    const address = ethereumDestinationAddress
     const nonAddress =
       '0x1111111111111111111111111111111111111111111111111111111111111111'
 
-    expect(transferRecipientFromInput(address)).toStrictEqual(
-      ValidTransferRecipient.make({ address }),
-    )
-    expect(transferRecipientFromInput(nonAddress)).toStrictEqual(
-      InvalidTransferRecipient.make({
+    expect(transferRecipientFromInput(ethereum, address)).toMatchObject({
+      _tag: 'ValidTransferRecipient',
+      address: { _tag: 'EthereumNetworkAddress', value: address },
+    })
+    expect(transferRecipientFromInput(ethereum, nonAddress)).toMatchObject({
+      _tag: 'InvalidTransferRecipient',
+      validation: {
+        _tag: 'InvalidNetworkAddress',
         input: nonAddress,
-        reason: 'ExpectedEthereumAddress',
-      }),
-    )
+        format: { networkName: 'Ethereum Sepolia' },
+      },
+    })
   })
 
   it('matches Ethereum addresses case-insensitively', () => {

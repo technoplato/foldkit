@@ -4,12 +4,15 @@ import {
   type TransactionPreview,
   type TransactionState,
   currencyValueLabel,
+  invalidNetworkAddressMessage,
   makeWalletTestChallenge,
+  networkAddressRuleMessages,
   networkLabel,
   primaryReceivingInstruction,
   primaryWalletAccount,
   primaryWalletBalance,
   shortenedAddress,
+  transferRecipientFormat,
   transferRecipientInput,
 } from 'wallet-core-example'
 import {
@@ -99,6 +102,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const maybeBalance = primaryWalletBalance(model)
   const maybePreview = maybePreviewForTransaction(model.transaction)
   const recipientValue = transferRecipientInput(model.transferRecipient)
+  const recipientFormat = transferRecipientFormat(model.transferRecipient)
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -118,7 +122,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         </span>
       </div>
       <label className="wallet-recipient" htmlFor="wallet-recipient">
-        <span>Recipient on Ethereum Sepolia</span>
+        <span>Recipient on {recipientFormat.networkName}</span>
         <input
           autoCapitalize="none"
           autoComplete="off"
@@ -127,16 +131,28 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           onChange={event =>
             actions.changedTransferRecipient(event.currentTarget.value)
           }
-          placeholder="0x…"
+          placeholder={recipientFormat.exampleAddress}
           spellCheck={false}
           type="text"
           value={recipientValue}
         />
       </label>
       {model.transferRecipient._tag === 'InvalidTransferRecipient' ? (
-        <p className="wallet-validation" role="alert">
-          Enter an Ethereum address with 0x followed by 40 hexadecimal digits.
-        </p>
+        <div className="wallet-validation" role="alert">
+          <p>
+            {invalidNetworkAddressMessage(model.transferRecipient.validation)}
+          </p>
+          <ul>
+            {Array.map(
+              networkAddressRuleMessages(
+                model.transferRecipient.validation.format,
+              ),
+              rule => (
+                <li key={rule}>{rule}</li>
+              ),
+            )}
+          </ul>
+        </div>
       ) : null}
       {Option.isSome(maybePreview) ? (
         <div className="wallet-preview">
@@ -164,6 +180,40 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           Preview a fixed test transfer before anything is signed.
         </p>
       )}
+      {model.transaction._tag === 'SubmittedTransaction' ? (
+        <div className="wallet-confirmation" role="status">
+          <strong>Transaction submitted</strong>
+          {Option.isSome(
+            model.transaction.submission.maybeExplorerConfirmation,
+          ) ? (
+            <>
+              <span>
+                Confirm it on{' '}
+                {
+                  model.transaction.submission.maybeExplorerConfirmation.value
+                    .explorer
+                }
+                .
+              </span>
+              <a
+                href={
+                  model.transaction.submission.maybeExplorerConfirmation.value
+                    .transactionUri
+                }
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                View on{' '}
+                {
+                  model.transaction.submission.maybeExplorerConfirmation.value
+                    .explorer
+                }
+              </a>
+            </>
+          ) : null}
+          <code>{model.transaction.submission.transactionId}</code>
+        </div>
+      ) : null}
       <div className="wallet-action-row">
         <button
           className="cardboard-button primary"
