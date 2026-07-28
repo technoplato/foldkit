@@ -4,6 +4,31 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 10:58:40 a.m. EDT — `a507f2439786` feat(wallet): validate recipients and link submissions
+
+- **Implementation commit:** `a507f24397868fb8d655cff9ad774406b67c8539`
+- **Change:** Added network-specific recipient validation and real-submission explorer confirmations to the portable Wallet Program and every client surface.
+- **Details:**
+  - Modeled address formats as Schema data containing a network name, valid example, and tagged printable rules.
+  - Rejected malformed composed transfers before Commands and attached explorer links only inside real Sepolia and Solana transport results.
+  - Bumped wallet to version 4 and made the client matrix print its representative routes from WalletProgram instead of copied URI blobs.
+- **Files:**
+  - `examples/wallet/core/src/address.ts` — Defines the typed cross-network validator and printable guidance.
+  - `examples/wallet/core/src/explorer.ts` — Defines canonical Etherscan and Solana Explorer confirmations.
+  - `examples/wallet/core/src/model.ts` — Carries validated recipient state and optional transport-proven explorer confirmation data.
+  - `examples/wallet/core/src/update.ts` — Prevents invalid transfer composition from producing Commands.
+  - `examples/wallet/testnet-node/src/ethereumSepolia.ts` — Attaches an Etherscan link after successful raw transaction submission.
+  - `examples/wallet/testnet-node/src/solanaDevnet.ts` — Attaches a cluster-specific Solana Explorer link after successful submission.
+  - `examples/wallet/react/src/App.tsx` — Prints shared validation guidance and submitted transaction links in React.
+  - `examples/wallet/foldkit/src/view.ts` — Prints the same shared structures through the canonical Foldkit view.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Prints and opens the same explorer data in Expo and React Native.
+  - `examples/wallet/cli/src/host.ts` — Prints structured address failures and real explorer links in the raw CLI.
+  - `examples/client-matrix/core/src/wallet.ts` — Derives representative wallet routes from the canonical versioned Program.
+- **User context (verbatim):**
+  > We want to show the, block explorer confirmation for a transaction once a, once we create the transaction successfully, sign and submit it.
+  > That is not a valid address for network name. Valid addresses for network name look like this, and follow the following rules.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this Codex desktop session is not captured by SpecStory.
+
 ## July 28th, 2026 at 10:04:45 a.m. EDT — `c539ddd59ff7` feat(wallet): enable recipient-addressed testnet sends
 
 - **Implementation commit:** `c539ddd59ff799e7c1620c032f0300e0ae5cfea9`
