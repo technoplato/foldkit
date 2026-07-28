@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 6:21:06 p.m. EDT — `3f5256b0c481` fix(wallet): access Vite source setting safely
+
+- **Implementation commit:** `3f5256b0c481569754d7ab86c0b748f0904de901`
+- **Change:** Keep production Wallet source selection compatible with strict Vite typing
+- **Details:**
+  - Changed both web hosts to indexed Vite environment access after the clean production build rejected property access through the environment index signature.
+- **Files:**
+  - `examples/wallet/react/src/App.tsx` — Read the configured Wallet data source through strict indexed environment access.
+  - `examples/wallet/foldkit/src/entry.ts` — Applied the same strict environment access in the Foldkit host.
+- **User context (verbatim):**
+  > one source of truth for the screen
+- **SpecStory:** unavailable — Codex desktop task; no durable SpecStory URI is available.
+
 ## July 28th, 2026 at 6:17:09 p.m. EDT — `9da38466ee5e` feat(wallet)!: persist local custody and separate data sources
 
 - **Implementation commit:** `9da38466ee5eb9cb7efd0a75b8deec89aea55f8a`
