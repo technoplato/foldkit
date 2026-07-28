@@ -4,6 +4,50 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 9:05:41 p.m. EDT — `c2a65a7cafcc` refactor(wallet): make executable transfers algebraic
+
+- **Implementation commit:** `c2a65a7cafcc396297d332002124460714cf377e`
+- **Change:** Make executable Wallet transfer states algebraic and prove Sepolia delivery
+- **Details:**
+  - Separated portable transfer requests from exact executable intent, draft, and preview tagged unions.
+  - Validated untrusted host drafts and provider quotes before they can enter the Model or a replay tape.
+  - Ignored stale Command completion facts and carried the same validated transfer union through every Wallet client.
+  - Proved real Sepolia signing, submission, and receiver-side WebSocket observation without polling.
+- **Files:**
+  - `docs/explorations/wallet-domain-invariants.md` — Record the algebraic and runtime invariant boundary.
+  - `docs/explorations/wallet-testnet-layers.md` — Record live transaction evidence and no-polling observation semantics.
+  - `examples/client-matrix/core/src/walletIntent.ts` — Describe valid requests separately from configured execution support.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Use the validated transfer boundary in Expo.
+  - `examples/wallet/cli/src/host.ts` — Construct only validated CLI transfer drafts.
+  - `examples/wallet/core/src/currency.ts` — Define exact Network, Currency, and precision combinations.
+  - `examples/wallet/core/src/intent.test.ts` — Prove request routing and executable capability separation.
+  - `examples/wallet/core/src/intent.ts` — Separate portable requests, executable intents, and unsupported capabilities.
+  - `examples/wallet/core/src/model.test.ts` — Prove invalid asset and Network drafts are rejected.
+  - `examples/wallet/core/src/model.ts` — Encode executable drafts and replayable previews as tagged unions.
+  - `examples/wallet/core/src/program.test.ts` — Exercise exact algebraic cases through Program replay.
+  - `examples/wallet/core/src/update.test.ts` — Prove stale Command facts do not mutate current state.
+  - `examples/wallet/core/src/update.ts` — Validate provider quotes and reject stale completion facts.
+  - `examples/wallet/foldkit/src/application.ts` — Expose the exact canonical Wallet Program to the Foldkit client.
+  - `examples/wallet/foldkit/src/view.ts` — Construct only validated Foldkit transfer drafts.
+  - `examples/wallet/react-bindings/src/wallet.test.tsx` — Prove stable React actions send exact transfer drafts.
+  - `examples/wallet/react-bindings/src/wallet.tsx` — Expose renderer-neutral typed transfer actions.
+  - `examples/wallet/react/src/App.tsx` — Construct only validated React transfer drafts.
+  - `examples/wallet/simulated-client/src/simulatedWallet.test.ts` — Validate simulated provider quotes through the core boundary.
+  - `examples/wallet/simulated-client/src/simulatedWallet.ts` — Return provider-shaped quotes for core validation.
+  - `examples/wallet/terminal/src/host.ts` — Construct only validated Effect Terminal transfer drafts.
+  - `examples/wallet/testnet-node/package.json` — Expose the opt-in live Sepolia transfer test.
+  - `examples/wallet/testnet-node/src/ethereumSepolia.ts` — Remove unreachable Network branches from executable transfers.
+  - `examples/wallet/testnet-node/src/live.transfer.test.ts` — Prove production Sepolia submission and WebSocket observation.
+  - `examples/wallet/testnet-node/src/solanaDevnet.ts` — Remove unreachable Network branches from executable transfers.
+  - `examples/wallet/testnet-node/src/walletServices.test.ts` — Prove Solana Testnet remains outside executable drafts.
+  - `examples/wallet/testnet-node/src/walletServices.ts` — Route only executable Network cases.
+  - `examples/wallet/tui/src/host.tsx` — Construct only validated OpenTUI transfer drafts.
+  - `examples/wallet/tui/src/presentation.ts` — Expose the exact canonical Wallet Program to OpenTUI.
+- **User context (verbatim):**
+  > i want to make sure this domain is modeled with algebraic data types making impossible state impossible..
+  > transaction completed
+- **SpecStory:** unavailable — Codex desktop GUI task; no verified SpecStory capture or durable public URI is available.
+
 ## July 27th, 2026 at 7:50:47 p.m. EDT — `1a4f066dd9b9` feat: add portable wallet intent client matrix
 
 - **Implementation commit:** `1a4f066dd9b93c4baef6ac3b0dbd0ae963cda63f`
