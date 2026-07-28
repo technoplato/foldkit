@@ -6,7 +6,10 @@ import {
 } from 'wallet-react-bindings-example'
 
 import { App } from './App.js'
+import { logBuildProvenance } from './buildProvenance.js'
 import './styles.css'
+
+logBuildProvenance()
 
 const rootElement = document.getElementById('root')
 if (rootElement === null) {
