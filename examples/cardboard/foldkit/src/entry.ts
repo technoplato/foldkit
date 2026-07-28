@@ -1,8 +1,12 @@
 import { Effect } from 'effect'
 import { Runtime } from 'foldkit'
 
+import { registerProgramLogButton } from '@foldkit/devtools'
+
 import { makeCardboardApplication } from './application.js'
 import { cardboardFoldkitStartForLocation } from './route.js'
+
+registerProgramLogButton()
 
 const root = document.getElementById('root')
 if (root === null) {

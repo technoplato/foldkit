@@ -33,6 +33,8 @@ import {
 import { Array, Option } from 'effect'
 import { Document, html } from 'foldkit/html'
 
+import { ProgramLogButton } from '@foldkit/devtools'
+
 const presentationForModel = (
   model: Model,
 ): Readonly<{ isRgbInverted: boolean; profile: AccessibilityProfile }> => {
@@ -205,6 +207,7 @@ const conversationLedgerView = (): Document => {
 
 const sequenceView = (model: Model): Document => {
   const h = html<Message>()
+  const programLogButton = ProgramLogButton.withMessage<Message>()
   const screen = cardboardScreen(model)
   return {
     title: `Project Cardboard | ${screen.content.text} | Foldkit`,
@@ -221,15 +224,21 @@ const sequenceView = (model: Model): Document => {
         ),
         h.nav(
           [h.AriaLabel('Cardboard commands'), h.Class('cardboard-commands')],
-          Array.map(screen.commands, command =>
-            h.button(
-              [
-                h.Key(command.key),
-                h.OnClick(messageForCardboardAction(command.action)),
-              ],
-              [`[${command.key}] ${command.text}`],
+          [
+            programLogButton(
+              [h.Style({ display: 'contents' })],
+              [h.button([], ['[L] Log'])],
             ),
-          ),
+            ...Array.map(screen.commands, command =>
+              h.button(
+                [
+                  h.Key(command.key),
+                  h.OnClick(messageForCardboardAction(command.action)),
+                ],
+                [`[${command.key}] ${command.text}`],
+              ),
+            ),
+          ],
         ),
       ],
     ),
