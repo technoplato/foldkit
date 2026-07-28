@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "node scripts/build-with-provenance.mjs",
     "dev": "vite",
     "prebuild": "pnpm --filter constructive-data-modeling-core-example build",
     "predev": "pnpm --filter constructive-data-modeling-core-example build",

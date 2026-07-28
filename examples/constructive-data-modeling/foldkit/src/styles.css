@@ -103,6 +103,22 @@ a:focus-visible,
   white-space: nowrap;
 }
 
+.goto-page-button {
+  padding: 0.48rem 0.75rem;
+  border: 1px solid rgb(196 255 82 / 48%);
+  border-radius: 999px;
+  background: rgb(196 255 82 / 8%);
+  color: var(--accent);
+  cursor: pointer;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.67rem;
+  font-weight: 500;
+}
+
+.goto-page-button:hover {
+  background: rgb(196 255 82 / 16%);
+}
+
 .source-link {
   color: #d7dab2;
   text-decoration-color: rgb(196 255 82 / 40%);
@@ -195,7 +211,7 @@ a:focus-visible,
 .cue-evidence {
   display: grid;
   margin: 1.75rem 0 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.7rem;
 }
 
@@ -339,6 +355,149 @@ a:focus-visible,
   white-space: nowrap;
 }
 
+.page-chooser-backdrop {
+  position: fixed;
+  z-index: 20;
+  display: grid;
+  padding: 1rem;
+  background: rgb(0 0 0 / 74%);
+  inset: 0;
+  place-items: center;
+}
+
+.page-chooser {
+  display: grid;
+  width: min(42rem, 100%);
+  max-height: min(42rem, calc(100vh - 2rem));
+  overflow: hidden;
+  border: 1px solid rgb(196 255 82 / 38%);
+  border-radius: 1rem;
+  background: #151914;
+  box-shadow: 0 2rem 7rem rgb(0 0 0 / 65%);
+  color: #f3f0e8;
+  grid-template-rows: auto minmax(8rem, 1fr) auto;
+}
+
+.page-chooser-heading,
+.page-chooser-footer {
+  display: flex;
+  padding: 1rem 1.15rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.page-chooser-heading {
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+}
+
+.page-chooser-heading h2 {
+  margin: 0.25rem 0 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.chooser-selection {
+  margin: 0;
+  color: #9da397;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  text-align: right;
+}
+
+.page-choice-list {
+  display: grid;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  scrollbar-color: #56604e #151914;
+}
+
+.page-choice {
+  display: grid;
+  min-width: 0;
+  padding: 0.68rem 1.15rem;
+  grid-template-columns: 3.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  border: 0;
+  border-bottom: 1px solid rgb(255 255 255 / 6%);
+  background: transparent;
+  color: #b8bdb3;
+  cursor: pointer;
+  text-align: left;
+}
+
+.page-choice:hover,
+.page-choice.selected {
+  background: rgb(196 255 82 / 10%);
+  color: #f3f0e8;
+}
+
+.page-choice.selected {
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.page-choice-number,
+.page-choice-time {
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+}
+
+.page-choice-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-choice-time {
+  color: #7f857b;
+}
+
+.page-chooser-footer {
+  border-top: 1px solid rgb(255 255 255 / 10%);
+}
+
+.all-pages-toggle,
+.chooser-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.all-pages-toggle {
+  color: #b8bdb3;
+  cursor: pointer;
+  font-size: 0.76rem;
+}
+
+.all-pages-toggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+
+.chooser-button {
+  padding: 0.56rem 0.9rem;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  background: #20251e;
+  color: #f3f0e8;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.chooser-button.confirm {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #111410;
+}
+
 @media (max-width: 920px) {
   .deck-shell {
     overflow: visible;
@@ -381,6 +540,37 @@ a:focus-visible,
 
   .cue-evidence {
     grid-template-columns: 1fr;
+  }
+
+  .deck-meta {
+    gap: 0.55rem;
+  }
+
+  .goto-page-button {
+    padding-inline: 0.6rem;
+  }
+
+  .page-chooser-heading,
+  .page-chooser-footer {
+    align-items: flex-start;
+  }
+
+  .page-chooser-heading,
+  .page-chooser-footer {
+    flex-direction: column;
+  }
+
+  .chooser-selection {
+    text-align: left;
+  }
+
+  .page-chooser-footer,
+  .chooser-actions {
+    width: 100%;
+  }
+
+  .chooser-actions {
+    justify-content: flex-end;
   }
 
   .deck-controls {

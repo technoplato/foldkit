@@ -17,11 +17,12 @@ type YouTubeNamespace = Readonly<{
   ) => YouTubePlayer
 }>
 
-type YouTubeWindow = typeof globalThis &
-  Readonly<{
+declare global {
+  interface Window {
     YT?: YouTubeNamespace
     onYouTubeIframeAPIReady?: () => void
-  }>
+  }
+}
 
 /** The small imperative surface owned by the browser's YouTube adapter. */
 export type VideoPlayerController = Readonly<{
@@ -29,32 +30,23 @@ export type VideoPlayerController = Readonly<{
   seekTo: (seconds: number) => void
 }>
 
-let youtubeApiPromise: Promise<YouTubeNamespace> | undefined
-
-const youtubeWindow = (): YouTubeWindow => globalThis as YouTubeWindow
-
 const loadYouTubeApi = (): Promise<YouTubeNamespace> => {
-  const existingNamespace = youtubeWindow().YT
+  const existingNamespace = window.YT
   if (existingNamespace !== undefined) {
     return Promise.resolve(existingNamespace)
   }
-  if (youtubeApiPromise !== undefined) {
-    return youtubeApiPromise
-  }
 
-  youtubeApiPromise = new Promise((resolve, reject) => {
-    const win = youtubeWindow()
-    const previousReady = win.onYouTubeIframeAPIReady
-    ;(win as { onYouTubeIframeAPIReady?: () => void }).onYouTubeIframeAPIReady =
-      () => {
-        previousReady?.()
-        const namespace = youtubeWindow().YT
-        if (namespace === undefined) {
-          reject(new Error('YouTube iframe API initialized without YT'))
-        } else {
-          resolve(namespace)
-        }
+  return new Promise((resolve, reject) => {
+    const previousReady = window.onYouTubeIframeAPIReady
+    window.onYouTubeIframeAPIReady = () => {
+      previousReady?.()
+      const namespace = window.YT
+      if (namespace === undefined) {
+        reject(new Error('YouTube iframe API initialized without YT'))
+      } else {
+        resolve(namespace)
       }
+    }
 
     const existingScript = document.getElementById('youtube-iframe-api')
     if (existingScript === null) {
@@ -67,7 +59,6 @@ const loadYouTubeApi = (): Promise<YouTubeNamespace> => {
       document.head.append(script)
     }
   })
-  return youtubeApiPromise
 }
 
 /** Connects the embedded recording to a typed playback observation callback. */

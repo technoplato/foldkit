@@ -2,9 +2,9 @@
 
 > An exact, time-indexed Foldkit companion to Alexis King's Software Should Work 2026 talk.
 
-The companion has 40 authored visual states plus the recording's question-and-answer tail. Every state has recording start and end times, a YouTube deep link, and the corresponding condensed-page and 158-page reveal locators. The deliberate return from generic `Ior` to the domain-named `UserContact` slide is preserved.
+The companion has all 158 authored reveal pages plus the recording's question-and-answer tail. Every reveal has an exact recording start and end time, a YouTube deep link, its logical slide, and its condensed-page locator. The deliberate return from generic `Ior` to the domain-named `UserContact` slide is preserved.
 
-The embedded YouTube recording and cue deck synchronize in both directions: choosing a cue seeks the recording, and playback crossing a cue boundary selects the corresponding cue. Stable cues can also be selected with `?slide=<slide-id>`. Keyboard controls are Left, Right, Space, Home, and End. Browser, command-line, and terminal hosts consume the same renderer-neutral Model and Message union.
+The embedded YouTube recording and authored pages synchronize in both directions: choosing a page seeks the recording, and playback crossing a reveal boundary selects the corresponding page. Stable pages can also be selected with `?page=<1-158>`. Press G for the authored Goto Page chooser, whose default landmarks exactly match the talk source: Title, Introduction, Static typing, Positive space, Obligation propagation, and Conclusion. Its All Pages mode exposes every reveal. Browser, command-line, terminal, and future remote-control hosts consume the same renderer-neutral Model and Message union.
 
 ## Primary sources
 
