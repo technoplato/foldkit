@@ -2,6 +2,11 @@ import { Effect } from 'effect'
 import * as Program from 'foldkit/program'
 import { describe, expect, it } from 'vitest'
 
+import {
+  cardboardAuthorship,
+  cardboardAuthorshipAcronym,
+  cardboardAuthorshipStatement,
+} from './authorship.js'
 import { zeroMachine } from './machine.js'
 import {
   AdvancedZeroButtonHold,
@@ -21,7 +26,27 @@ import { initialModel } from './model.js'
 import { CardboardRouter } from './route.js'
 import { update } from './update.js'
 
+const sha256 = async (value: string): Promise<string> => {
+  const digest = await globalThis.crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(value),
+  )
+
+  return Array.from(new Uint8Array(digest), byte =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
+}
+
 describe('Cardboard Program', () => {
+  it('content-addresses the exact public authorship record', async () => {
+    expect(await sha256(cardboardAuthorshipAcronym)).toBe(
+      cardboardAuthorship.acronymSha256,
+    )
+    expect(await sha256(cardboardAuthorshipStatement)).toBe(
+      cardboardAuthorship.statementSha256,
+    )
+  })
+
   it('models hold, opening, configuration, and completion as legal states', () => {
     const [pressing] = update(initialModel, PressedZeroButton())
     const [stillPressing] = update(

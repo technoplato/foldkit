@@ -1,3 +1,4 @@
+export * from './authorship.js'
 export * from './init.js'
 export * from './machine.js'
 export * from './message.js'

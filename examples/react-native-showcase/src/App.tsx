@@ -826,6 +826,32 @@ const CardboardScreen = () => {
         />
       ) : null}
       <ReplayControls label="Cardboard replay" replay={replay} />
+      <View
+        accessibilityLabel="Rule Zero original author and desktop command"
+        style={styles.cardboardAuthorship}
+      >
+        <Text style={styles.cardboardAuthorshipTitle}>
+          Original author · /0
+        </Text>
+        <Text selectable style={styles.cardboardAuthorshipText}>
+          {Cardboard.cardboardAuthorship.statement}
+        </Text>
+        <Text selectable style={styles.cardboardAuthorshipCode}>
+          {Cardboard.cardboardAuthorship.acronym}
+        </Text>
+        <Text selectable style={styles.cardboardAuthorshipCode}>
+          acronym sha256:{Cardboard.cardboardAuthorship.acronymSha256}
+        </Text>
+        <Text selectable style={styles.cardboardAuthorshipCode}>
+          statement sha256:{Cardboard.cardboardAuthorship.statementSha256}
+        </Text>
+        <Text style={styles.cardboardAuthorshipText}>
+          Play the same Program on your desktop:
+        </Text>
+        <Text selectable style={styles.cardboardAuthorshipCode}>
+          {Cardboard.cardboardDesktopCommand}
+        </Text>
+      </View>
     </View>
   )
 }
@@ -1502,6 +1528,30 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  cardboardAuthorship: {
+    borderBottomColor: '#685b47',
+    borderBottomWidth: 1,
+    borderTopColor: '#685b47',
+    borderTopWidth: 1,
+    gap: 8,
+    paddingVertical: 14,
+  },
+  cardboardAuthorshipTitle: {
+    color: '#d3a861',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  cardboardAuthorshipText: {
+    color: '#ffe5ae',
+    fontSize: 15,
+    lineHeight: 23,
+  },
+  cardboardAuthorshipCode: {
+    color: '#f4ad48',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    lineHeight: 18,
   },
   sectionHeader: {
     alignItems: 'center',

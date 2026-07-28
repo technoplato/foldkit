@@ -14,6 +14,8 @@ import {
   ToggledRgbInversion,
   accessibilityProfileLabel,
   accessibleDescription,
+  cardboardAuthorship,
+  cardboardDesktopCommand,
   initialAccessibilityProfile,
   inputMethodGlyph,
   inputMethodLabel,
@@ -252,6 +254,24 @@ export const view = (model: Model): Document => {
                   ),
                 ]
               : []),
+            h.details(
+              [h.Class('authorship')],
+              [
+                h.summary([], ['Original author and desktop command']),
+                h.p([], [cardboardAuthorship.statement]),
+                h.code([], [cardboardAuthorship.acronym]),
+                h.code(
+                  [],
+                  [`acronym sha256:${cardboardAuthorship.acronymSha256}`],
+                ),
+                h.code(
+                  [],
+                  [`statement sha256:${cardboardAuthorship.statementSha256}`],
+                ),
+                h.p([], ['Play the same Program on your desktop:']),
+                h.code([], [cardboardDesktopCommand]),
+              ],
+            ),
             h.footer(
               [],
               [
