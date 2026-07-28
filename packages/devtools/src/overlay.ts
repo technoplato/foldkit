@@ -50,7 +50,10 @@ import * as Tabs from '@foldkit/ui/tabs'
 
 import * as OptionExt from './internal/optionExtensions.js'
 import { overlayStyles } from './overlay-styles.js'
-import { PROGRAM_LOG_CONTROL_ID } from './programLogButton.js'
+import {
+  PROGRAM_LOG_CONTROL_ID,
+  PROGRAM_LOG_INTERACTION_BLOCKER_ID,
+} from './programLogButton.js'
 
 const SubmodelFilterListbox = Listbox.create<string>()
 
@@ -2427,7 +2430,13 @@ const makeView = (
     )
 
   const interactionBlocker = (): Html =>
-    h.div([h.Class('dt-interaction-blocker')], [])
+    h.div(
+      [
+        h.Class('dt-interaction-blocker'),
+        h.Id(PROGRAM_LOG_INTERACTION_BLOCKER_ID),
+      ],
+      [],
+    )
 
   return (model: Model): Html =>
     h.div(

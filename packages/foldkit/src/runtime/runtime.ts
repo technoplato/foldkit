@@ -1545,7 +1545,9 @@ const makeProgramRenderer = <
               () => Effect.sync(bridge.unbind),
             ),
         })
-        const decodeModel = Schema.decodeUnknownSync(program.Model)
+        const decodeModel = Schema.decodeUnknownSync(
+          Schema.toType(program.Model),
+        )
         const decodeMessage = Schema.decodeUnknownSync(program.Message)
         const encodeHmrModel = Schema.encodeUnknownSync(ModelJsonCodec)
         const preserveScheduler = yield* makePreserveScheduler<Model>(
