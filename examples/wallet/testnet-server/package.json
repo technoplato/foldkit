@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "build": "node scripts/build-with-provenance.mjs",
     "clean": "rimraf dist",
     "dev": "tsx src/entry.ts",
     "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter wallet-remote-example build && pnpm --filter wallet-testnet-node-example build",
