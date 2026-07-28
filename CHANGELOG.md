@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:46:21 a.m. EDT — `4436ca70e62c` feat(client-matrix): add Cardboard cross-client evidence
+
+- **Implementation commit:** `4436ca70e62c4305c1913cdab1d6af9c701e3b4d`
+- **Change:** Added an evidence-backed Project Cardboard matrix across portable Client carriers.
+- **Details:**
+  - Defined Cardboard Program identity, portable states, Client carriers, support levels, evidence levels, limitations, and capture paths as Schema data.
+  - Made the existing row and column orientation control drive the Cardboard matrix.
+  - Recorded real React, Foldkit, CLI, and final iOS Simulator captures without claiming unverified Android, native touch, or physical-device behavior.
+- **Files:**
+  - `examples/client-matrix/core/src/cardboard.ts` — Defines the typed Cardboard matrix contract and exact Client carriers.
+  - `examples/client-matrix/core/src/matrix.test.ts` — Proves every Client covers both portable Cardboard routes.
+  - `examples/client-matrix/foldkit/src/view.ts` — Renders the configurable Cardboard evidence matrix.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/rule-zero/expo-ios.webp` — Records final iOS Simulator rendering for Rule Zero.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/conversation-ledger/react.webp` — Records the WAN React ledger rendering used by the matrix.
+  - `examples/cardboard/core/src/route.ts` — Exports the canonical portable routes instead of duplicating them in the matrix.
+- **User context (verbatim):**
+  > Also, use generate the matrix of this application.
+  > we need to ship, we need to stop thinking
+- **SpecStory:** unavailable — Codex desktop GUI session is not available to SpecStory capture.
+
 ## July 28th, 2026 at 12:38:40 a.m. EDT — `a6376cdeb035` feat(cardboard): add the Rule Zero decision ledger
 
 - **Implementation commit:** `a6376cdeb0355629ecdf54b5f03cd526a2089cb3`
