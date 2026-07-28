@@ -1,4 +1,5 @@
 import {
+  AdvancedCardboardSequence,
   AdvancedZeroButtonHold,
   AdvancedZeroOpening,
   CardboardProgram,
@@ -29,6 +30,7 @@ import { Runtime } from 'foldkit'
 /** One-shot operations supported by the Cardboard CLI. */
 export const CliOperation = S.Literals([
   'Show',
+  'Next',
   'Tap',
   'Hold',
   'Skip',
@@ -47,6 +49,7 @@ const messagesForOperation = (
   M.value(operation).pipe(
     M.withReturnType<ReadonlyArray<Message>>(),
     M.when('Show', () => []),
+    M.when('Next', () => [AdvancedCardboardSequence()]),
     M.when('Tap', () => [PressedZeroButton(), ReleasedZeroButton()]),
     M.when('Hold', () => [
       PressedZeroButton(),

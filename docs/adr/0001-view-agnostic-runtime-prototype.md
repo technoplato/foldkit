@@ -684,6 +684,20 @@ Programs. Such a helper must remain optional and cannot define, enable, or chang
 replay semantics of an individual Program. Presentation functions, host-sendable
 actions, and input labels remain outside that composition helper.
 
+### Cardboard semantic component projection | 2026-07-28 00:53:52 EDT
+
+Cardboard now proves a smaller renderer-neutral presentation seam. `/0` contains a
+finite Model value of `4`. `AdvancedCardboardSequence` derives `5`, then each later
+natural value without storing an infinite list. The canonical parser-printer maps four
+to `/0`, five to `/0/5`, and every later value to `/0/<value>`.
+
+The Program projects its Model into a semantic `CardboardScreen` containing a
+`CardboardButton` with text, an accessibility label, and a typed action. React,
+Foldkit, React Native, CLI, and TUI consume that projection and choose only their
+layout and native input mapping. Viewport classes such as tiny, drawer, phone, car,
+television, browser, and native application remain host presentation context. They do
+not become competing Program state.
+
 ## Open Questions
 
 ### 2026-07-23 16:58:52 EDT

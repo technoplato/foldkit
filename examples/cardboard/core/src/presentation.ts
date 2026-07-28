@@ -1,6 +1,7 @@
 import { Array, Match as M } from 'effect'
 
 import { cardboardAuthorship, cardboardDesktopCommand } from './authorship.js'
+import { cardboardScreen, renderCardboardText } from './component.js'
 import {
   conversationLedger,
   conversationScale,
@@ -144,6 +145,7 @@ export const accessibleDescription = (model: Model): string =>
   M.value(model.page).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
+      SequencePage: ({ value }) => `Cardboard ${value.toString()}. Next.`,
       RuleZeroPage: () => zeroAccessibleDescription(model),
       ConversationLedgerPage: () =>
         `Conversation ledger. Scale level ${currentConversationScaleLevel.toString()}: Ship. When slash zero is four, publish the smallest verified artifact and continue from evidence.`,
@@ -159,7 +161,7 @@ const authorshipLines: ReadonlyArray<string> = [
 
 const terminalConversationLedger = (): string =>
   [
-    'cardboard host local /0/0',
+    'cardboard host local /0/log',
     `scale ${currentConversationScaleLevel.toString()} SHIP`,
     'when /0 is four: stop expanding, ship one verified artifact, record it, continue',
     '',
@@ -180,6 +182,9 @@ const terminalConversationLedger = (): string =>
 
 /** Prints the portable Model as a compact terminal presentation. */
 export const terminalPresentation = (model: Model): string => {
+  if (model.page._tag === 'SequencePage') {
+    return renderCardboardText(cardboardScreen(model))
+  }
   if (model.page._tag === 'ConversationLedgerPage') {
     return terminalConversationLedger()
   }
@@ -235,7 +240,7 @@ export const terminalPresentation = (model: Model): string => {
   return [
     'cardboard host local /0',
     ...stateLines,
-    'ledger /0/0',
+    'ledger /0/log',
     ...authorshipLines,
   ].join('\n')
 }

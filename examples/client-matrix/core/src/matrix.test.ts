@@ -33,12 +33,12 @@ describe('Client Matrix core', () => {
   it('covers both Cardboard routes across every concrete Client', () => {
     expect(cardboardProgramIdentity).toStrictEqual({
       id: '0',
-      version: 2,
+      version: 3,
       source: 'examples/cardboard/core/src/program.ts',
     })
     expect(
       Array.map(cardboardModes, definition => definition.portableRoute),
-    ).toStrictEqual(['/0', '/0/0'])
+    ).toStrictEqual(['/0', '/0/5'])
     expect(
       Array.every(cardboardClients, client =>
         Array.every(cardboardModes, mode =>
@@ -49,20 +49,20 @@ describe('Client Matrix core', () => {
   })
 
   it('keeps the Cardboard URI portable while each Client owns its carrier', () => {
-    expect(cardboardCarrierForClient('ReactWeb', 'RuleZero')).toBe(
+    expect(cardboardCarrierForClient('ReactWeb', 'Four')).toBe(
       'https://cardboard.knophy.com/0',
     )
-    expect(cardboardCarrierForClient('FoldkitView', 'ConversationLedger')).toBe(
-      'https://cardboard-foldkit.knophy.com/0/0',
+    expect(cardboardCarrierForClient('FoldkitView', 'Five')).toBe(
+      'https://cardboard-foldkit.knophy.com/0/5',
     )
-    expect(cardboardCarrierForClient('ExpoWeb', 'ConversationLedger')).toBe(
-      'https://expodemo.knophy.com/0/0',
+    expect(cardboardCarrierForClient('ExpoWeb', 'Five')).toBe(
+      'https://expodemo.knophy.com/0/5',
     )
-    expect(cardboardCarrierForClient('ExpoIos', 'RuleZero')).toBe(
+    expect(cardboardCarrierForClient('ExpoIos', 'Four')).toBe(
       'foldkit://showcase/0',
     )
-    expect(cardboardCarrierForClient('RawCli', 'ConversationLedger')).toBe(
-      'pnpm --filter cardboard-cli-example cardboard log',
+    expect(cardboardCarrierForClient('RawCli', 'Five')).toBe(
+      'pnpm --filter cardboard-cli-example cardboard next',
     )
   })
 

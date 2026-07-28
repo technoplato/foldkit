@@ -1,4 +1,5 @@
 export * from './authorship.js'
+export * from './component.js'
 export * from './init.js'
 export * from './ledger.js'
 export * from './machine.js'

@@ -122,8 +122,20 @@ export type KeyboardInput = typeof KeyboardInput.Type
 export const RuleZeroPage = ts('RuleZeroPage')
 /** Cardboard is presenting the append-only conversation ledger. */
 export const ConversationLedgerPage = ts('ConversationLedgerPage')
+/** A position in Cardboard's unbounded `/0` sequence. */
+export const SequenceValue = S.BigIntFromString.check(
+  S.isGreaterThanOrEqualToBigInt(4n),
+)
+/** A position in Cardboard's unbounded `/0` sequence. */
+export type SequenceValue = typeof SequenceValue.Type
+/** Cardboard is presenting one position in its unbounded sequence. */
+export const SequencePage = ts('SequencePage', { value: SequenceValue })
 /** Every legal Cardboard page. */
-export const CardboardPage = S.Union([RuleZeroPage, ConversationLedgerPage])
+export const CardboardPage = S.Union([
+  SequencePage,
+  RuleZeroPage,
+  ConversationLedgerPage,
+])
 /** One legal Cardboard page. */
 export type CardboardPage = typeof CardboardPage.Type
 
@@ -140,13 +152,21 @@ export type Model = typeof Model.Type
 export const initialAccessibilityProfile: AccessibilityProfile = 'AmberPaper'
 /** The constitutional initial slash count. */
 export const initialSlashCount = 0
+/** The first value presented at `/0`. */
+export const initialSequenceValue: SequenceValue = 4n
 /** The canonical empty keyboard sequence. */
 export const initialKeyboardInput = KeyboardInput.make({
   lowercaseGPressCount: 0,
   spacePressCount: 0,
 })
-/** The canonical Rule Zero Model. */
+/** The canonical Cardboard Model at `/0`. */
 export const initialModel = Model.make({
+  keyboardInput: initialKeyboardInput,
+  page: SequencePage({ value: initialSequenceValue }),
+  zero: WaitingAtZero({ slashCount: initialSlashCount }),
+})
+/** The earlier Rule Zero interaction retained as a noncanonical study. */
+export const initialRuleZeroModel = Model.make({
   keyboardInput: initialKeyboardInput,
   page: RuleZeroPage(),
   zero: WaitingAtZero({ slashCount: initialSlashCount }),

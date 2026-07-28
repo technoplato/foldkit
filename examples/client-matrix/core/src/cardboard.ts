@@ -1,12 +1,12 @@
 import {
   CardboardProgram,
-  conversationLedgerPortableRoute,
   ruleZeroPortableRoute,
+  sequencePortableRoute,
 } from 'cardboard-core-example'
 import { Array, Match as M, Option, Schema as S } from 'effect'
 
 /** One canonical Cardboard state compared across Clients. */
-export const CardboardMode = S.Literals(['RuleZero', 'ConversationLedger'])
+export const CardboardMode = S.Literals(['Four', 'Five'])
 /** One canonical Cardboard state compared across Clients. */
 export type CardboardMode = typeof CardboardMode.Type
 
@@ -90,21 +90,19 @@ export const cardboardProgramIdentity = CardboardProgramIdentity.make({
   source: 'examples/cardboard/core/src/program.ts',
 })
 
-/** The two canonical Cardboard states carried across every Client. */
+/** The first two canonical Cardboard states carried across every Client. */
 export const cardboardModes: ReadonlyArray<CardboardModeDefinition> = [
   CardboardModeDefinition.make({
-    mode: 'RuleZero',
-    title: 'Rule Zero',
-    description:
-      'The black control is waiting at slash zero with accessible feedback.',
+    mode: 'Four',
+    title: 'Four',
+    description: 'The shared Cardboard button displays four at slash zero.',
     portableRoute: ruleZeroPortableRoute,
   }),
   CardboardModeDefinition.make({
-    mode: 'ConversationLedger',
-    title: 'When /0 is four',
-    description:
-      'The conversation scale and append-only public decision ledger are visible.',
-    portableRoute: conversationLedgerPortableRoute,
+    mode: 'Five',
+    title: 'Five',
+    description: 'Activating four advances the same Program to five.',
+    portableRoute: sequencePortableRoute(5n),
   }),
 ]
 
@@ -115,8 +113,8 @@ const capturePath = (
   Option.some(
     `/captures/cardboard/${M.value(mode).pipe(
       M.withReturnType<string>(),
-      M.when('RuleZero', () => 'rule-zero'),
-      M.when('ConversationLedger', () => 'conversation-ledger'),
+      M.when('Four', () => 'four'),
+      M.when('Five', () => 'five'),
       M.exhaustive,
     )}/${clientSlug}.webp`,
   )
@@ -161,7 +159,7 @@ export const cardboardClients: ReadonlyArray<CardboardClientDefinition> = [
     description: 'Shared React bindings with the standalone web presenter.',
     capabilities: webCapabilities('react', [
       'https://cardboard.knophy.com/0',
-      'https://cardboard.knophy.com/0/0',
+      'https://cardboard.knophy.com/0/5',
     ]),
   }),
   CardboardClientDefinition.make({
@@ -170,7 +168,7 @@ export const cardboardClients: ReadonlyArray<CardboardClientDefinition> = [
     description: 'The canonical Foldkit HTML view over the same Model.',
     capabilities: webCapabilities('foldkit', [
       'https://cardboard-foldkit.knophy.com/0',
-      'https://cardboard-foldkit.knophy.com/0/0',
+      'https://cardboard-foldkit.knophy.com/0/5',
     ]),
   }),
   CardboardClientDefinition.make({
@@ -202,9 +200,9 @@ export const cardboardClients: ReadonlyArray<CardboardClientDefinition> = [
         'LocalTerminalInteraction',
         ['pnpm demo:cardboard:tui'],
         Option.none(),
-        definition.mode === 'ConversationLedger'
-          ? 'Press l to enter /0/0. Direct portable route input remains a framework gap.'
-          : 'Starts at /0. Direct portable route input remains a framework gap.',
+        definition.mode === 'Five'
+          ? 'Press Enter once to move from four to five. Direct portable route input remains a framework gap.'
+          : 'Starts at four. Direct portable route input remains a framework gap.',
       ),
     ),
   }),
@@ -214,19 +212,19 @@ export const cardboardClients: ReadonlyArray<CardboardClientDefinition> = [
     description: 'One-shot Effect CLI Commands with stdout presentation.',
     capabilities: [
       capability(
-        'RuleZero',
+        'Four',
         'OneShot',
         'LocalTerminalInteraction',
         ['pnpm --filter cardboard-cli-example cardboard show'],
-        capturePath('RuleZero', 'cli'),
+        Option.none(),
         'Prints the requested state and exits.',
       ),
       capability(
-        'ConversationLedger',
+        'Five',
         'OneShot',
         'LocalTerminalInteraction',
-        ['pnpm --filter cardboard-cli-example cardboard log'],
-        capturePath('ConversationLedger', 'cli'),
+        ['pnpm --filter cardboard-cli-example cardboard next'],
+        Option.none(),
         'Prints the requested state and exits.',
       ),
     ],
@@ -239,15 +237,10 @@ export const cardboardClients: ReadonlyArray<CardboardClientDefinition> = [
       capability(
         definition.mode,
         'DeepLink',
-        'IosSimulatorVisual',
-        [
-          'examples/react-native-showcase/src/App.tsx',
-          definition.mode === 'RuleZero'
-            ? 'examples/client-matrix/foldkit/public/captures/cardboard/rule-zero/expo-ios.webp'
-            : 'examples/client-matrix/foldkit/public/captures/cardboard/conversation-ledger/expo-ios.webp',
-        ],
-        capturePath(definition.mode, 'expo-ios'),
-        'Native launch, deep-link reconstruction, and final rendering were observed in Simulator. Native touch and physical-device behavior remain unverified.',
+        'TypecheckedSource',
+        ['examples/react-native-showcase/src/App.tsx'],
+        Option.none(),
+        'The shared native source typechecks. Fresh Simulator interaction for the sequence remains to be captured.',
       ),
     ),
   }),
@@ -275,8 +268,8 @@ export const cardboardCarrierForClient = (
 ): string => {
   const portableRoute = M.value(mode).pipe(
     M.withReturnType<string>(),
-    M.when('RuleZero', () => ruleZeroPortableRoute),
-    M.when('ConversationLedger', () => conversationLedgerPortableRoute),
+    M.when('Four', () => ruleZeroPortableRoute),
+    M.when('Five', () => sequencePortableRoute(5n)),
     M.exhaustive,
   )
   return M.value(clientId).pipe(
@@ -289,9 +282,9 @@ export const cardboardCarrierForClient = (
     M.when('ExpoWeb', () => `https://expodemo.knophy.com${portableRoute}`),
     M.when('EffectTui', () => 'pnpm demo:cardboard:tui'),
     M.when('RawCli', () =>
-      mode === 'RuleZero'
+      mode === 'Four'
         ? 'pnpm --filter cardboard-cli-example cardboard show'
-        : 'pnpm --filter cardboard-cli-example cardboard log',
+        : 'pnpm --filter cardboard-cli-example cardboard next',
     ),
     M.when('ExpoIos', () => `foldkit://showcase${portableRoute}`),
     M.when('ExpoAndroid', () => `foldkit://showcase${portableRoute}`),

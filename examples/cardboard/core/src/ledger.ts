@@ -51,7 +51,7 @@ export const conversationScale: ReadonlyArray<ConversationScaleLevel> = [
 /** The current public Cardboard operating level. */
 export const currentConversationScaleLevel = 4
 
-/** The public append-only decision log rendered at `/0/0`. */
+/** The public append-only decision log rendered at `/0/log`. */
 export const conversationLedger: ReadonlyArray<ConversationLedgerEntry> = [
   ConversationLedgerEntry.make({
     recordedOn: 'July 23, 2026',
