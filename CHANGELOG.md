@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 11:36:22 p.m. EDT — `039e2e8c5163` feat: extend Project Cardboard Rule Zero
+
+- **Implementation commit:** `039e2e8c516301d7e3dd3f2c81679e83a13fffd2`
+- **Change:** Extend Project Cardboard Rule Zero as a public hosted game root
+- **Details:**
+  - Reframed /0 as the portable Constitution and game root that any verified host may serve through its own carrier.
+  - Modeled press, hold, opening, configuration, completion, skip, and reset as one immutable transition loop projected into visual, accessibility, console, and terminal presentations.
+  - Added Arrow and Vim navigation, triple-Space skip, completion controls, six presentation profiles, and a literal RGB negative preview.
+  - Recorded the installed Effect Machine audit, state-driven navigation boundary, hermetic hosting direction, and typed non-executable Message boundary.
+- **Files:**
+  - `.lavish/project-cardboard-zero.html` — Provide the interactive hosted Rule Zero game, cross-medium state readout, keyboard controls, and negative-theme review surface.
+  - `docs/explorations/project-cardboard.md` — Record the public hosting model, game semantics, Effect comparison, navigation fit, accessibility behavior, and execution boundary.
+- **User context (verbatim):**
+  > Slash zero is constitution
+  > Also for the CLI, we need to note that the button is being held.
+  > You just do host, and then enter somebody's host address slash zero
+- **SpecStory:** unavailable — Codex desktop GUI task; no verified SpecStory CLI capture or durable public URI is available.
+
 ## July 27th, 2026 at 11:25:35 p.m. EDT — `74cc5a7bbcb4` feat: prototype Project Cardboard Rule Zero
 
 - **Implementation commit:** `74cc5a7bbcb464a29d75249009894da39845ffa3`
