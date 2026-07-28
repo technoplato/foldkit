@@ -4,6 +4,57 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:56:27 a.m. EDT — `af798b625901` feat: model Cardboard as an unbounded sequence
+
+- **Implementation commit:** `af798b625901350705bb867ae5d64cd9a24fedf4`
+- **Change:** Model Cardboard as a shared unbounded sequence
+- **Details:**
+  - Made /0 display four, advance through AdvancedCardboardSequence, and print canonical /0/<value> routes from a finite BigInt-backed Model.
+  - Projected one semantic Cardboard button into React, Foldkit, Expo, CLI, and TUI, with live route synchronization and refreshed Four/Five matrix captures.
+  - Retained the earlier black-button and decision-ledger work as a noncanonical study at /0/log, and documented the corrected boundary.
+- **Files:**
+  - `docs/adr/0001-view-agnostic-runtime-prototype.md` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `docs/explorations/project-cardboard.md` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/cli/src/entry.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/cli/src/host.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/component.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/index.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/init.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/ledger.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/message.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/model.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/presentation.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/program.test.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/program.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/route.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/core/src/update.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/foldkit/src/application.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/foldkit/src/view.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/react-bindings/src/cardboard.tsx` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/react/src/App.tsx` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/react/src/styles.css` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/cardboard/tui/src/host.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/core/src/cardboard.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/core/src/matrix.test.ts` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/conversation-ledger/cli.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/conversation-ledger/expo-ios.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/conversation-ledger/foldkit.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/conversation-ledger/react.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/five/foldkit.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/five/react.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/four/foldkit.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/four/react.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/rule-zero/cli.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/rule-zero/expo-ios.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/rule-zero/foldkit.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/rule-zero/react.webp` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+  - `examples/react-native-showcase/src/App.tsx` — Part of the verified Cardboard sequence implementation, client rendering, documentation, or evidence.
+- **User context (verbatim):**
+  > make slash zero equal to four
+  > it’s gonna take you to slash zero slash five
+  > cardboard was supposed to be a set of shared components
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture was available.
+
 ## July 28th, 2026 at 12:47:39 a.m. EDT — `f8b727597e35` feat(react-native-showcase): log embedded build provenance
 
 - **Implementation commit:** `f8b727597e3573d3c155abef72b4e63dc3cdcff6`
