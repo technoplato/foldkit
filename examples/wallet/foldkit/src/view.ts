@@ -496,7 +496,7 @@ const sendMoney = (model: Model): Html => {
                   ),
                   copyAddressControl(
                     model,
-                    transactionPreview.transfer.recipient.normalizedAddress,
+                    transactionPreview.transfer.recipient.displayAddress,
                     'transfer-preview-recipient',
                   ),
                 ],
