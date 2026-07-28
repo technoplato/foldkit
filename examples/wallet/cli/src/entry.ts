@@ -24,7 +24,7 @@ const usage = `Usage:
   foldkit-wallet sign-challenge [challenge flags] [--uri <path>] [--verbose]
   foldkit-wallet replay [--frame <number>] [--uri <state-or-replay-path>] [--verbose]
 
-Transfer flags: --transfer-id, --account, --asset, --to, --amount, --message
+Transfer flags: --transfer-id, --mode, --chain, --network, --account, --asset, --to, --amount, --message
 Challenge flags: --challenge-id, --account, --algorithm, --domain, --digest, --encoding`
 
 const arguments_ = pipe(
@@ -81,6 +81,9 @@ const networkModeForFlag = (
 
 const transferInput = Effect.gen(function* () {
   const transferId = yield* valueForFlag('--transfer-id')
+  const networkMode = yield* networkModeForFlag(yield* valueForFlag('--mode'))
+  const chainId = yield* valueForFlag('--chain')
+  const networkId = yield* valueForFlag('--network')
   const accountId = yield* valueForFlag('--account')
   const assetId = assetIdForFlag(yield* valueForFlag('--asset'))
   const destinationAddress = yield* valueForFlag('--to')
@@ -90,6 +93,15 @@ const transferInput = Effect.gen(function* () {
     transferId: Option.getOrElse(
       transferId,
       () => defaultWalletTransferInput.transferId,
+    ),
+    networkMode,
+    chainId: Option.getOrElse(
+      chainId,
+      () => defaultWalletTransferInput.chainId,
+    ),
+    networkId: Option.getOrElse(
+      networkId,
+      () => defaultWalletTransferInput.networkId,
     ),
     accountId: Option.getOrElse(
       accountId,

@@ -15,7 +15,6 @@ import {
 import * as Program from 'foldkit/program'
 import * as Runtime from 'foldkit/program-runtime'
 import {
-  AtomicUnits,
   ComposedTransfer,
   DomainSeparatedDigest,
   type Message,
@@ -23,20 +22,23 @@ import {
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
   RequestedWalletCreation,
+  SelectedSendNetwork,
   SelectedWalletNetworkMode,
   SigningChallenge,
   TransferRequest,
+  WalletIntentRouteError,
   WalletProgram,
   activeWalletAccounts,
+  demoTransferAtomicUnitsForSelection,
+  nextSendNetworkSelection,
+  parseWalletProgramRoute,
+  primaryReceivingInstruction,
   toggledWalletNetworkMode,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 const clearScreen = '\u001b[2J\u001b[H'
 const defaultAccountId = 'simulated-ethereum-account'
-const defaultAssetId = 'ethereum:sepolia:eth'
-const defaultDestinationAddress = '0x2222222222222222222222222222222222222222'
-const defaultAtomicUnits = '1000000000000000'
 const observationTimeout = '2 seconds'
 
 /** A native input action supported by the interactive Effect Terminal host. */
@@ -44,6 +46,7 @@ export const WalletTerminalAction = S.Literals([
   'Show',
   'CreateWallet',
   'ToggleNetwork',
+  'SelectNextSendNetwork',
   'Receive',
   'Preview',
   'Send',
@@ -75,8 +78,6 @@ export class WalletTerminalError extends Data.TaggedError(
 /** The exact Program object consumed by the Effect Terminal host. */
 export const walletTerminalProgram: typeof WalletProgram = WalletProgram
 
-const walletRouter = Program.makeRouter(WalletProgram)
-
 const relativeRouteForCarrier = (
   carrier: string,
 ): Effect.Effect<string, WalletTerminalError> => {
@@ -102,6 +103,7 @@ export const actionForWalletTerminalInput = (
     M.when('s', () => Option.some('Show')),
     M.when('w', () => Option.some('CreateWallet')),
     M.when('t', () => Option.some('ToggleNetwork')),
+    M.when('x', () => Option.some('SelectNextSendNetwork')),
     M.when('r', () => Option.some('Receive')),
     M.when('p', () => Option.some('Preview')),
     M.when('n', () => Option.some('Send')),
@@ -161,6 +163,10 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
   return [
     ...portfolioLines,
     `Wallets: ${model.wallets.length.toString()} | ${model.walletNetworkMode}`,
+    `Send network: ${Option.match(model.maybeSendNetworkSelection, {
+      onNone: () => 'unavailable',
+      onSome: selection => `${selection.chainId} | ${selection.networkId}`,
+    })}`,
     ...walletLines,
     `Transaction: ${model.transaction._tag}`,
     ...transactionLines,
@@ -187,7 +193,7 @@ export const renderWalletTerminal = (
       ...modelLines(snapshot.model),
       ...noticeLines,
       '',
-      '[s] Show  [w] Create wallet  [t] Toggle Devnet/Testnet',
+      '[s] Show  [w] Create wallet  [t] Toggle Devnet/Testnet  [x] Next send network',
       '[r] Receive  [p] Preview  [n] Send  [c] Sign challenge',
       '[←/h] Previous replay frame  [→/l] Next replay frame  [v] Live',
       '[q] Quit',
@@ -204,37 +210,38 @@ const defaultTransferRequest = (
       new WalletTerminalError({ message: 'Wallet portfolio is not loaded' }),
     )
   }
+  if (Option.isNone(model.maybeSendNetworkSelection)) {
+    return Effect.fail(
+      new WalletTerminalError({ message: 'No send network is selected' }),
+    )
+  }
+  const selection = model.maybeSendNetworkSelection.value
   const maybeAccount = Array.findFirst(
     model.portfolio.snapshot.accounts,
-    account => account.accountId === defaultAccountId,
+    account => account.accountId === selection.accountId,
   )
   const maybeBalance = Array.findFirst(
     model.portfolio.snapshot.balanceSnapshot.balances,
     balance =>
-      balance.accountId === defaultAccountId &&
-      balance.amount.assetId === defaultAssetId,
+      balance.accountId === selection.accountId &&
+      balance.amount.assetId === selection.assetId,
   )
   if (Option.isNone(maybeAccount) || Option.isNone(maybeBalance)) {
     return Effect.fail(
       new WalletTerminalError({
-        message: 'The simulated Ethereum account is unavailable',
+        message: 'The selected simulated account is unavailable',
       }),
     )
   }
-  return S.decodeUnknownEffect(AtomicUnits)(defaultAtomicUnits).pipe(
-    Effect.map(atomicUnits =>
-      TransferRequest.make({
-        transferId: 'terminal-transfer',
-        accountId: defaultAccountId,
-        assetId: defaultAssetId,
-        destinationAddress: defaultDestinationAddress,
-        atomicUnits,
-        maybeMessage: Option.none(),
-      }),
-    ),
-    Effect.mapError(
-      () => new WalletTerminalError({ message: 'Invalid transfer amount' }),
-    ),
+  return Effect.succeed(
+    TransferRequest.make({
+      transferId: `terminal-transfer-${selection.networkId}`,
+      accountId: selection.accountId,
+      assetId: selection.assetId,
+      destinationAddress: maybeAccount.value.address,
+      atomicUnits: demoTransferAtomicUnitsForSelection(selection),
+      maybeMessage: Option.none(),
+    }),
   )
 }
 
@@ -252,19 +259,11 @@ const defaultChallenge = (): typeof SigningChallenge.Type =>
   })
 
 const receivingNotice = (model: Model): string => {
-  if (model.portfolio._tag !== 'LoadedPortfolio') {
-    return 'Receiving instructions are unavailable while loading.'
-  }
-  const maybeInstruction = Array.findFirst(
-    model.portfolio.snapshot.receivingInstructions,
-    instruction =>
-      instruction.accountId === defaultAccountId &&
-      instruction.assetId === defaultAssetId,
-  )
+  const maybeInstruction = primaryReceivingInstruction(model)
   if (Option.isSome(maybeInstruction)) {
-    return `Receive ${defaultAssetId}: ${maybeInstruction.value.destinationAddress} | ${maybeInstruction.value.portableUri}`
+    return `Receive ${maybeInstruction.value.assetId}: ${maybeInstruction.value.destinationAddress} | ${maybeInstruction.value.portableUri}`
   } else {
-    return 'No simulated Ethereum receiving instruction is available.'
+    return 'No receiving instruction is available for the selected network.'
   }
 }
 
@@ -416,6 +415,46 @@ const runLiveAction = (
         }),
       ),
     ),
+    M.when('SelectNextSendNetwork', () => {
+      const model = state.runtime.readModel()
+      if (
+        model.portfolio._tag !== 'LoadedPortfolio' ||
+        Option.isNone(model.maybeSendNetworkSelection)
+      ) {
+        return Effect.succeed({
+          ...state,
+          maybeNotice: Option.some('No send network is available.'),
+        })
+      }
+      const maybeSelection = nextSendNetworkSelection(
+        model.portfolio.snapshot,
+        model.maybeSendNetworkSelection.value,
+      )
+      if (Option.isNone(maybeSelection)) {
+        return Effect.succeed({
+          ...state,
+          maybeNotice: Option.some('No send network is available.'),
+        })
+      }
+      return Effect.map(
+        state.runtime.run(
+          SelectedSendNetwork.make({ selection: maybeSelection.value }),
+        ),
+        nextModel => ({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(
+            `Send network selected: ${Option.match(
+              nextModel.maybeSendNetworkSelection,
+              {
+                onNone: () => 'unavailable',
+                onSome: selection => selection.networkId,
+              },
+            )}.`,
+          ),
+        }),
+      )
+    }),
     M.when('Receive', () =>
       Effect.succeed({
         ...state,
@@ -573,6 +612,7 @@ const startForCarrier = (
 ): Effect.Effect<
   Runtime.ProgramStart<Model, Message>,
   | WalletTerminalError
+  | WalletIntentRouteError
   | Program.ProgramRouteError
   | Runtime.ReplayFrameError
   | Runtime.UnsettledReplayFrameError
@@ -582,7 +622,7 @@ const startForCarrier = (
   }
   return Effect.gen(function* () {
     const relativeRoute = yield* relativeRouteForCarrier(maybeCarrier.value)
-    const route = yield* walletRouter.parse(relativeRoute)
+    const route = yield* parseWalletProgramRoute(relativeRoute)
     if (route._tag === 'SavedReplay') {
       return yield* Effect.fail(
         new WalletTerminalError({
@@ -609,6 +649,7 @@ export const runWalletTerminal = (
   void,
   | PlatformError.PlatformError
   | WalletTerminalError
+  | WalletIntentRouteError
   | Program.ProgramRouteError
   | Runtime.ProgramRuntimeStartError
   | Runtime.ReplayFrameError

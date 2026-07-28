@@ -1,6 +1,7 @@
 import { Array, Match as M, Option } from 'effect'
 import {
   type Model,
+  type SendNetworkSelection,
   type TransactionPreview,
   type TransactionState,
   type WalletCreationState,
@@ -9,11 +10,15 @@ import {
   activeWalletAccounts,
   assetAmountLabel,
   assetAmountLabelForModel,
+  availableSendNetworkSelections,
+  chainForId,
   clipboardCopyFailureMessage,
   clipboardCopyLabel,
   clipboardCopyRequestForAddress,
+  demoTransferAtomicUnitsForSelection,
   isSameClipboardCopyRequest,
   makeWalletTestChallenge,
+  networkForId,
   primaryReceivingInstruction,
   primaryWalletAccount,
   primaryWalletAsset,
@@ -21,22 +26,18 @@ import {
   primaryWalletNetwork,
   shortenedAddress,
   transferRecipientInput,
-  walletDemoTransferAtomicUnits,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
   initialWalletRoute,
   makeWalletReactClient,
 } from 'wallet-react-bindings-example'
-import {
-  makeRemoteWalletResources,
-  publicTestnetWalletEndpoint,
-} from 'wallet-remote-example'
+import { makeSimulatedWalletResources } from 'wallet-simulated-client-example'
 import { WalletWebClipboard } from 'wallet-web-client-example'
 
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
   makeWalletReactClient(
-    makeRemoteWalletResources(publicTestnetWalletEndpoint, {
+    makeSimulatedWalletResources({
       walletClipboard: WalletWebClipboard,
     }),
   )
@@ -289,6 +290,72 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
   )
 }
 
+const SendNetworkButton = ({
+  model,
+  selection,
+}: Readonly<{ model: Model; selection: SendNetworkSelection }>) => {
+  const actions = useWalletActions()
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return null
+  }
+  const portfolio = model.portfolio.snapshot
+  const chainName = Option.match(
+    chainForId(portfolio.chains, selection.chainId),
+    {
+      onNone: () => selection.chainId,
+      onSome: chain => chain.displayName,
+    },
+  )
+  const networkName = Option.match(
+    networkForId(portfolio.networks, selection.networkId),
+    {
+      onNone: () => selection.networkId,
+      onSome: network => network.displayName,
+    },
+  )
+  const isSelected = Option.exists(
+    model.maybeSendNetworkSelection,
+    current =>
+      current.networkId === selection.networkId &&
+      current.accountId === selection.accountId &&
+      current.assetId === selection.assetId,
+  )
+  return (
+    <button
+      aria-pressed={isSelected}
+      className={
+        isSelected ? 'wallet-send-network selected' : 'wallet-send-network'
+      }
+      onClick={() => actions.selectedSendNetwork(selection)}
+      type="button"
+    >
+      <strong>{chainName}</strong>
+      <span>{networkName}</span>
+    </button>
+  )
+}
+
+const SendNetworkPicker = ({ model }: Readonly<{ model: Model }>) => {
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return null
+  }
+  const selections = availableSendNetworkSelections(
+    model.portfolio.snapshot,
+    model.walletNetworkMode,
+  )
+  return (
+    <div aria-label="Send network selection" className="wallet-send-networks">
+      {Array.map(selections, selection => (
+        <SendNetworkButton
+          key={selection.networkId}
+          model={model}
+          selection={selection}
+        />
+      ))}
+    </div>
+  )
+}
+
 const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
   const maybeBalance = primaryWalletBalance(model)
@@ -302,17 +369,21 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
     onNone: () => 'Recipient address',
     onSome: account => account.address,
   })
-  const transferAmount = Option.match(primaryWalletAsset(model), {
-    onNone: () => walletDemoTransferAtomicUnits,
-    onSome: asset =>
-      assetAmountLabel(
-        {
-          assetId: asset.assetId,
-          atomicUnits: walletDemoTransferAtomicUnits,
-          observedAt: 0,
-        },
-        asset,
-      ),
+  const transferAmount = Option.match(model.maybeSendNetworkSelection, {
+    onNone: () => 'Select a network',
+    onSome: selection =>
+      Option.match(primaryWalletAsset(model), {
+        onNone: () => demoTransferAtomicUnitsForSelection(selection),
+        onSome: asset =>
+          assetAmountLabel(
+            {
+              assetId: asset.assetId,
+              atomicUnits: demoTransferAtomicUnitsForSelection(selection),
+              observedAt: 0,
+            },
+            asset,
+          ),
+      }),
   })
 
   const submitPreview = (): void => {
@@ -332,6 +403,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           {transactionStatus(model.transaction)}
         </span>
       </div>
+      <SendNetworkPicker model={model} />
       <label className="wallet-recipient" htmlFor="wallet-recipient">
         <span>Recipient on {networkName}</span>
         <input

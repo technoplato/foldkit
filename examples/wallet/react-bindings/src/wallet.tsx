@@ -19,7 +19,9 @@ import {
   RequestedWalletCreation,
   RequestedWalletRefresh,
   ResumedTransactionObservation,
+  SelectedSendNetwork,
   SelectedWalletNetworkMode,
+  SendNetworkSelection,
   SigningChallenge,
   TransferRequest,
   type WalletNetworkMode,
@@ -38,6 +40,7 @@ export type WalletActions = Readonly<{
   requestedClipboardCopy: (request: ClipboardCopyRequest) => void
   requestedWalletCreation: () => void
   selectedWalletNetworkMode: (networkMode: WalletNetworkMode) => void
+  selectedSendNetwork: (selection: SendNetworkSelection) => void
   requestedWalletRefresh: () => void
   changedTransferRecipient: (value: string) => void
   requestedTransferPreview: () => void
@@ -76,6 +79,8 @@ export const makeWalletReactClient = <ResourceError,>(
         enqueueMessage(RequestedWalletCreation.make({})),
       selectedWalletNetworkMode: networkMode =>
         enqueueMessage(SelectedWalletNetworkMode.make({ networkMode })),
+      selectedSendNetwork: selection =>
+        enqueueMessage(SelectedSendNetwork.make({ selection })),
       requestedWalletRefresh: () =>
         enqueueMessage(RequestedWalletRefresh.make({})),
       changedTransferRecipient: value =>

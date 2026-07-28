@@ -39,6 +39,7 @@ import {
   AddressFamiliarity,
   CryptoFailure,
   EditingTransferRecipient,
+  EmptyTransferRecipient,
   FailedChallengeSignature,
   FailedPortfolio,
   FailedTransactionHistory,
@@ -85,6 +86,11 @@ import {
   transferRecipientInput,
 } from './model.js'
 import {
+  demoTransferAtomicUnitsForSelection,
+  resolveSendNetworkSelection,
+  selectSendNetworkForMode,
+} from './sendNetworkSelection.js'
+import {
   WalletClient,
   WalletClientError,
   WalletCrypto,
@@ -119,9 +125,6 @@ const toCryptoFailure = (
   operation: WalletOperation,
   error: WalletCryptoError,
 ): WalletFailure => CryptoFailure.make({ operation, code: error.code })
-
-/** Atomic amount used by the public normalized transfer demonstration. */
-export const walletDemoTransferAtomicUnits = '10000000000000'
 
 /** Loads normalized public wallet data through the injected WalletClient. */
 export const LoadWallet = Command.define(
@@ -448,13 +451,17 @@ const transferRequestForIntent = (
   portfolio: PortfolioSnapshot,
   intent: WalletIntent,
 ): Option.Option<TransferRequest> => {
+  const maybeSelection = resolveSendNetworkSelection(portfolio, intent.source)
+  if (Option.isNone(maybeSelection)) {
+    return Option.none()
+  }
   const maybeAccount = Array_.findFirst(
     portfolio.accounts,
-    account => account.accountId === intent.accountId,
+    account => account.accountId === intent.source.accountId,
   )
   const maybeAsset = Array_.findFirst(
     portfolio.assets,
-    asset => asset.assetId === intent.assetId,
+    asset => asset.assetId === intent.source.assetId,
   )
   if (
     Option.isNone(maybeAccount) ||
@@ -465,8 +472,8 @@ const transferRequestForIntent = (
   } else {
     return Option.some({
       transferId: 'wallet-intent-transfer',
-      accountId: intent.accountId,
-      assetId: intent.assetId,
+      accountId: intent.source.accountId,
+      assetId: intent.source.assetId,
       destinationAddress: intent.destinationAddress,
       atomicUnits: intent.atomicUnits,
       maybeMessage: Option.none(),
@@ -480,28 +487,37 @@ const transferRequestForRecipient = (
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return Option.none()
   }
+  if (Option.isNone(model.maybeSendNetworkSelection)) {
+    return Option.none()
+  }
   const destinationAddress = transferRecipientInput(model.transferRecipient)
   if (destinationAddress === '') {
     return Option.none()
   }
   const portfolio = model.portfolio.snapshot
-  const maybeAccount = Array_.head(portfolio.accounts)
+  const selection = model.maybeSendNetworkSelection.value
+  const maybeAccount = Array_.findFirst(
+    portfolio.accounts,
+    account => account.accountId === selection.accountId,
+  )
   if (Option.isNone(maybeAccount)) {
     return Option.none()
   }
   const maybeBalance = Array_.findFirst(
     portfolio.balanceSnapshot.balances,
-    balance => balance.accountId === maybeAccount.value.accountId,
+    balance =>
+      balance.accountId === selection.accountId &&
+      balance.amount.assetId === selection.assetId,
   )
   if (Option.isNone(maybeBalance)) {
     return Option.none()
   }
   return Option.some({
     transferId: 'wallet-demo-transfer',
-    accountId: maybeAccount.value.accountId,
-    assetId: maybeBalance.value.amount.assetId,
+    accountId: selection.accountId,
+    assetId: selection.assetId,
     destinationAddress,
-    atomicUnits: walletDemoTransferAtomicUnits,
+    atomicUnits: demoTransferAtomicUnitsForSelection(selection),
     maybeMessage: Option.some('Shared Wallet testnet transfer'),
   })
 }
@@ -570,10 +586,50 @@ export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
-      SelectedWalletNetworkMode: ({ networkMode }) => [
-        { ...model, walletNetworkMode: networkMode },
-        [],
-      ],
+      SelectedWalletNetworkMode: ({ networkMode }) => {
+        const maybeSendNetworkSelection =
+          model.portfolio._tag === 'LoadedPortfolio'
+            ? selectSendNetworkForMode(
+                model.portfolio.snapshot,
+                model.maybeSendNetworkSelection,
+                networkMode,
+              )
+            : Option.none()
+        return [
+          {
+            ...model,
+            walletNetworkMode: networkMode,
+            maybeSendNetworkSelection,
+            walletIntent: NoWalletIntent.make({}),
+            transferRecipient: EmptyTransferRecipient.make({}),
+            transaction: IdleTransaction.make({}),
+          },
+          [],
+        ]
+      },
+      SelectedSendNetwork: ({ selection }) => {
+        if (model.portfolio._tag !== 'LoadedPortfolio') {
+          return [model, []]
+        }
+        const maybeSelection = resolveSendNetworkSelection(
+          model.portfolio.snapshot,
+          selection,
+        )
+        if (Option.isNone(maybeSelection)) {
+          return [model, []]
+        }
+        return [
+          {
+            ...model,
+            walletNetworkMode: selection.networkMode,
+            maybeSendNetworkSelection: maybeSelection,
+            walletIntent: NoWalletIntent.make({}),
+            transferRecipient: EmptyTransferRecipient.make({}),
+            transaction: IdleTransaction.make({}),
+          },
+          [],
+        ]
+      },
       RequestedWalletCreation: () => {
         if (model.walletCreation._tag === 'CreatingWallet') {
           return [model, []]
@@ -658,9 +714,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       SucceededLoadWallet: ({ portfolio }) => {
         const accountIds = accountIdsFromPortfolio(portfolio)
         const query = historyQuery(accountIds, Option.none())
+        const maybeSendNetworkSelection = selectSendNetworkForMode(
+          portfolio,
+          model.maybeSendNetworkSelection,
+          model.walletNetworkMode,
+        )
         const nextModel: Model = {
           ...model,
           portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
+          maybeSendNetworkSelection,
           transactionObservation: ObservingTransactions.make({ accountIds }),
           transactionHistory: LoadingTransactionHistory.make({ query }),
         }
@@ -669,15 +731,22 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [nextModel, [historyCommand]]
         }
         const intent = model.walletIntent.intent
+        const maybeIntentSelection = resolveSendNetworkSelection(
+          portfolio,
+          intent.source,
+        )
         const maybeRequest = transferRequestForIntent(portfolio, intent)
-        if (Option.isNone(maybeRequest)) {
+        if (
+          Option.isNone(maybeIntentSelection) ||
+          Option.isNone(maybeRequest)
+        ) {
           return [
             {
               ...nextModel,
               walletIntent: RejectedWalletIntent.make({
                 intent,
                 reason:
-                  'The loaded portfolio does not contain the requested account and asset.',
+                  'The loaded portfolio does not contain the requested network, account, and asset.',
               }),
               transferRecipient: transferRecipientFromInput(
                 intent.destinationAddress,
@@ -690,6 +759,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         return [
           {
             ...nextModel,
+            walletNetworkMode: intent.source.networkMode,
+            maybeSendNetworkSelection: maybeIntentSelection,
             walletIntent: AppliedWalletIntent.make({ intent }),
             transferRecipient: EditingTransferRecipient.make({
               value: request.destinationAddress,

@@ -1,9 +1,6 @@
 import { Effect } from 'effect'
 import { Runtime } from 'foldkit'
-import {
-  makeRemoteWalletResources,
-  publicTestnetWalletEndpoint,
-} from 'wallet-remote-example'
+import { makeSimulatedWalletResources } from 'wallet-simulated-client-example'
 import { WalletWebClipboard } from 'wallet-web-client-example'
 
 import { makeWalletApplication } from './application.js'
@@ -39,7 +36,7 @@ Effect.runPromise(
     Runtime.run(
       makeWalletApplication(
         root,
-        makeRemoteWalletResources(publicTestnetWalletEndpoint, {
+        makeSimulatedWalletResources({
           walletClipboard: WalletWebClipboard,
         }),
         start,
