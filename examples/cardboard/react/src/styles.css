@@ -74,9 +74,18 @@ input {
 }
 
 .program-log-shell {
+  --muted: #cba66c;
   min-height: 100svh;
   color: #f7dca5;
   background: #17130d;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.program-log-shell * {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 .program-log-pinned {
@@ -99,6 +108,10 @@ input {
   font-size: clamp(76px, 15vw, 190px);
   line-height: 0.86;
   overflow-wrap: anywhere;
+  text-shadow:
+    0 1px 0 #fff5c766,
+    0 3px 0 #9c612c,
+    0 7px 12px #000d;
 }
 
 .program-log-frame {
@@ -107,6 +120,9 @@ input {
   font:
     800 clamp(18px, 2vw, 28px) / 1.2 ui-monospace,
     monospace;
+  text-shadow:
+    0 1px 0 #ffe8b255,
+    0 3px 4px #000c;
 }
 
 .program-log-controls {
@@ -126,6 +142,9 @@ input {
   cursor: pointer;
   font-size: clamp(18px, 2vw, 28px);
   font-weight: 900;
+  text-shadow:
+    0 1px 0 #fff3,
+    0 2px 3px #000b;
 }
 
 .program-log-controls .program-log-done,
@@ -171,6 +190,10 @@ input {
   font-family: Georgia, serif;
   font-size: clamp(46px, 8vw, 104px);
   line-height: 0.92;
+  text-shadow:
+    0 1px 0 #fff5c755,
+    0 3px 0 #895526,
+    0 7px 12px #000c;
 }
 
 .program-log-row {
@@ -183,6 +206,10 @@ input {
   border-radius: 26px;
   color: #f7dca5;
   background: #251d13;
+  box-shadow:
+    inset 0 2px 0 #f7dca51a,
+    inset 0 -4px 0 #0c0805aa,
+    0 7px 14px #0006;
   cursor: pointer;
   text-align: left;
 }
@@ -194,17 +221,25 @@ input {
   font:
     900 clamp(28px, 4vw, 54px) / 1 ui-monospace,
     monospace;
+  text-shadow:
+    0 1px 0 #fff1bd77,
+    0 3px 0 #8e5222,
+    0 5px 8px #000d;
 }
 
 .program-log-row strong {
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: clamp(24px, 3vw, 42px);
+  text-shadow:
+    0 1px 0 #fff3,
+    0 3px 5px #000d;
 }
 
 .program-log-row small {
   color: #cba66c;
   font-size: clamp(16px, 1.6vw, 22px);
+  text-shadow: 0 2px 3px #000c;
 }
 
 .program-log-row.runtime-event {
@@ -216,10 +251,208 @@ input {
   opacity: 0.35;
 }
 
+.program-log-client-matrix {
+  display: grid;
+  gap: 24px;
+  width: min(86rem, 100%);
+  margin: 0 auto;
+  padding: 0 clamp(28px, 5vw, 72px) clamp(28px, 5vw, 72px);
+}
+
+.program-log-client-matrix > .program-log-heading > p:last-child {
+  max-width: 52ch;
+  color: #cba66c;
+  font-size: clamp(18px, 2vw, 26px);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.program-log-client-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.program-log-client-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(0, 1.3fr);
+  gap: 20px;
+  padding: clamp(18px, 3vw, 28px);
+  border: 2px solid #665237;
+  border-radius: 28px;
+  background: #251d13;
+  box-shadow:
+    inset 0 2px 0 #f7dca522,
+    inset 0 -5px 0 #0c0805aa,
+    0 12px 24px #0007;
+}
+
+.program-log-client-card.unavailable {
+  filter: saturate(0.55);
+}
+
+.program-log-client-preview {
+  min-width: 0;
+  min-height: 180px;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 20px;
+  border: 2px solid #8c704a;
+  color: #f7dca5;
+  background: #100d09;
+  box-shadow:
+    inset 0 2px 0 #fff2,
+    inset 0 -8px 0 #0008;
+  text-align: center;
+}
+
+.program-log-client-preview.web {
+  border-radius: 16px;
+}
+
+.program-log-client-preview.mobile {
+  width: min(170px, 100%);
+  justify-self: center;
+  border-radius: 30px;
+}
+
+.program-log-client-preview.terminal {
+  place-content: center start;
+  border-radius: 8px;
+  font-family: ui-monospace, monospace;
+  text-align: left;
+}
+
+.program-log-client-preview.unavailable {
+  border-style: dashed;
+  opacity: 0.65;
+}
+
+.program-log-client-preview strong {
+  overflow-wrap: anywhere;
+  color: #f2b85f;
+  font-family: Georgia, serif;
+  font-size: clamp(42px, 6vw, 78px);
+  line-height: 0.9;
+  text-shadow:
+    0 1px 0 #fff0b077,
+    0 3px 0 #7b481e,
+    0 7px 10px #000d;
+}
+
+.program-log-client-preview small,
+.program-log-client-preview span {
+  overflow-wrap: anywhere;
+  color: #cba66c;
+  font-weight: 800;
+}
+
+.program-log-window-dots {
+  justify-self: start;
+  letter-spacing: 0.25em;
+}
+
+.program-log-phone-speaker {
+  width: 42%;
+  height: 6px;
+  justify-self: center;
+  border-radius: 999px;
+  background: #665237;
+}
+
+.program-log-client-copy {
+  min-width: 0;
+}
+
+.program-log-client-copy h3 {
+  margin: 6px 0 8px;
+  font-family: Georgia, serif;
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1;
+  text-shadow:
+    0 1px 0 #fff3,
+    0 3px 5px #000d;
+}
+
+.program-log-client-copy p:not(.eyebrow) {
+  color: #cba66c;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.program-log-client-copy code {
+  display: -webkit-box;
+  max-height: 4.2em;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: #f2b85f;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.program-log-client-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.program-log-client-actions a,
+.program-log-client-actions button {
+  min-height: 52px;
+  display: inline-grid;
+  place-items: center;
+  padding: 10px 18px;
+  border: 2px solid #f2b85f;
+  border-radius: 999px;
+  color: #f7dca5;
+  background: transparent;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 900;
+  text-decoration: none;
+  text-shadow: 0 2px 3px #000b;
+}
+
+.program-log-client-actions a,
+.program-log-client-actions button.primary {
+  color: #17130d;
+  background: #f2b85f;
+  box-shadow:
+    inset 0 2px 0 #fff5,
+    inset 0 -6px 0 #c77b27;
+  text-shadow: 0 1px 0 #fff5;
+}
+
 .program-log-extra {
   display: grid;
   place-items: center;
   padding: 24px 24px 72px;
+}
+
+@media (max-width: 900px) {
+  .program-log-client-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .program-log-client-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .program-log-client-preview {
+    min-height: 150px;
+  }
+
+  .program-log-client-actions {
+    grid-column: 1;
+  }
 }
 
 .cardboard-shell {

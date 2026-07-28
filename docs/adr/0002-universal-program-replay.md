@@ -127,6 +127,16 @@ surface from an in-application control. The eventual public control seam must re
 the runtime journal and resume semantics. It must not add replay state to a domain
 Model, dispatch a fake Message, inspect the DOM, or create a second history.
 
+The selected frame also prints one portable replay path. A presentation-Client
+registry wraps that exact path in host-owned carriers: HTTPS for React and Expo Web,
+the `foldkit:` custom scheme for Expo on iOS or Android, and a quoted command-line
+argument for the Effect TUI. The registry does not parse or mutate the tape. The TUI
+accepts both absolute and portable carriers and enters the same inert inspection
+frame. The Foldkit View cell remains visibly unavailable until its runtime-control
+seam can mount a replay route. Presentation details such as opening a new window,
+copying a command, suppressing long-press menus, and embossed text remain Client
+concerns rather than Program Messages or Model state.
+
 ## Outcome Assessment | 2026-07-26 09:11:35 EDT
 
 | Dimension                  | Score | Evidence                                                                                                                                                                                                                                                                                                                                        |
