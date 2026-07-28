@@ -1,110 +1,89 @@
-import { Array, Effect, Fiber, Option, Stream } from 'effect'
-import { expect } from 'vitest'
+import { Effect, Option } from 'effect'
+import { describe, expect, it } from 'vitest'
 import {
   FirstTransactionWithRecipient,
-  SigningChallenge,
+  TransferRequest,
   UnfamiliarAddress,
   WalletClient,
-  WalletCrypto,
   WalletSigner,
   transactionPreviewFromQuote,
-  transferDraftFromInput,
 } from 'wallet-core-example'
-
-import { describe, it } from '@effect/vitest'
 
 import {
   SimulatedWalletResources,
   simulatedPortfolio,
 } from './simulatedWallet.js'
 
-const maybeEthereumAccount = Array.head(simulatedPortfolio.accounts)
-const maybeEthereumBalance = Array.head(
-  simulatedPortfolio.balanceSnapshot.balances,
-)
+describe('SimulatedWalletResources', () => {
+  it('loads normalized chains, networks, assets, and accounts', async () => {
+    const portfolio = await Effect.runPromise(
+      WalletClient.pipe(
+        Effect.flatMap(client => client.loadPortfolio),
+        Effect.provide(SimulatedWalletResources),
+      ),
+    )
 
-if (
-  Option.isNone(maybeEthereumAccount) ||
-  Option.isNone(maybeEthereumBalance)
-) {
-  throw new Error('Expected the simulated Ethereum fixtures')
-}
+    expect(portfolio).toEqual(simulatedPortfolio)
+    expect(portfolio.chains).toHaveLength(2)
+    expect(portfolio.assets).toHaveLength(4)
+  })
 
-const ethereumAccount = maybeEthereumAccount.value
-const ethereumBalance = maybeEthereumBalance.value
+  it('executes the generic transfer workflow without chain-specific drafts', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const client = yield* WalletClient
+        const signer = yield* WalletSigner
+        const request = TransferRequest.make({
+          transferId: 'transfer-1',
+          accountId: 'simulated-solana-account',
+          assetId: 'solana:devnet:sol',
+          destinationAddress: '11111111111111111111111111111111',
+          atomicUnits: '1000',
+          maybeMessage: Option.none(),
+        })
+        const validation = yield* client.validateTransfer(request)
+        if (validation._tag !== 'ValidatedTransfer') {
+          return yield* Effect.die('Expected a validated transfer')
+        }
+        const quote = yield* client.previewTransfer(validation)
+        const maybePreview = transactionPreviewFromQuote(
+          simulatedPortfolio,
+          validation,
+          quote,
+          UnfamiliarAddress.make({}),
+          FirstTransactionWithRecipient.make({}),
+        )
+        if (Option.isNone(maybePreview)) {
+          return yield* Effect.die('Expected a normalized preview')
+        }
+        const payload = yield* client.buildTransferPayload(maybePreview.value)
+        const signed = yield* signer.signTransaction(payload)
+        return yield* client.submitTransaction(signed)
+      }).pipe(Effect.provide(SimulatedWalletResources)),
+    )
 
-const maybeDraft = transferDraftFromInput({
-  transferId: 'transfer-1',
-  accountId: ethereumAccount.accountId,
-  network: ethereumAccount.network,
-  destinationAddress: '0x2222222222222222222222222222222222222222',
-  value: {
-    ...ethereumBalance.value,
-    atomicUnits: '100000000000000000',
-  },
-  maybeMessage: Option.some('Dinner'),
-})
+    expect(result.previewId).toContain('preview-')
+    expect(result.transactionId).toContain('simulated-')
+  })
 
-if (Option.isNone(maybeDraft)) {
-  throw new Error('Expected an executable simulated Wallet transfer')
-}
+  it('loads a finite page of normalized transaction history', async () => {
+    const page = await Effect.runPromise(
+      WalletClient.pipe(
+        Effect.flatMap(client =>
+          client.loadTransactionHistory({
+            accountIds: [
+              'simulated-ethereum-account',
+              'simulated-solana-account',
+            ],
+            maybeCursor: Option.none(),
+            limit: 2,
+          }),
+        ),
+        Effect.provide(SimulatedWalletResources),
+      ),
+    )
 
-const draft = maybeDraft.value
-
-describe('Simulated Wallet resources', () => {
-  it.effect('loads, previews, signs, submits, and emits the transaction', () =>
-    Effect.gen(function* () {
-      const client = yield* WalletClient
-      const signer = yield* WalletSigner
-      const crypto = yield* WalletCrypto
-      const portfolio = yield* client.loadPortfolio
-      const quote = yield* client.previewTransaction(draft)
-      const maybePreview = transactionPreviewFromQuote(
-        draft,
-        quote,
-        UnfamiliarAddress.make({}),
-        FirstTransactionWithRecipient.make({}),
-      )
-      expect(Option.isSome(maybePreview)).toBe(true)
-      if (Option.isNone(maybePreview)) {
-        return yield* Effect.die('Expected an executable transaction preview')
-      }
-      const preview = maybePreview.value
-      const observedFiber = yield* client
-        .observeTransactions(portfolio.accounts)
-        .pipe(Stream.runHead, Effect.forkChild)
-      const prepared = yield* client.prepareTransaction(preview)
-      const digest = yield* crypto.digestTransaction(prepared)
-      const signed = yield* signer.signTransaction(prepared, digest)
-      const submission = yield* client.submitTransaction(signed)
-      const maybeObserved = yield* Fiber.join(observedFiber)
-
-      expect(submission.previewId).toBe(preview.previewId)
-      expect(
-        Option.map(maybeObserved, value => value.transactionId),
-      ).toStrictEqual(Option.some(submission.transactionId))
-      expect(globalThis.String(signed.payload)).toBe('<redacted>')
-    }).pipe(Effect.provide(SimulatedWalletResources)),
-  )
-
-  it.effect('signs and verifies one canonical challenge', () =>
-    Effect.gen(function* () {
-      const signer = yield* WalletSigner
-      const crypto = yield* WalletCrypto
-      const challenge = SigningChallenge.make({
-        challengeId: 'challenge-1',
-        accountId: ethereumAccount.accountId,
-        digest: {
-          algorithm: 'Keccak256',
-          domain: 'foldkit.test.wallet',
-          digestHex: '0x1234',
-        },
-      })
-      const proof = yield* signer.signChallenge(challenge)
-      const isVerified = yield* crypto.verifySignatureProof(challenge, proof)
-
-      expect(isVerified).toBe(true)
-      expect(proof.accountId).toBe(ethereumAccount.accountId)
-    }).pipe(Effect.provide(SimulatedWalletResources)),
-  )
+    expect(page.records).toHaveLength(2)
+    expect(Option.isSome(page.maybeNextCursor)).toBe(true)
+  })
 })

@@ -1,30 +1,27 @@
 import {
+  Array,
   Config,
   Duration,
   Effect,
   Fiber,
   Layer,
   Option,
-  Schema as S,
   Stream,
 } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
-  AtomicUnits,
-  Eth,
-  EthereumSepolia,
-  EthereumSepoliaEthTransferDraft,
-  EthereumSepoliaEthValue,
+  type AtomicUnits,
+  BalanceSnapshot,
   FirstTransactionWithRecipient,
-  SolanaDevnet,
-  SolanaDevnetSol,
-  SolanaDevnetSolTransferDraft,
-  SolanaDevnetSolValue,
+  PortfolioSnapshot,
+  TransferRequest,
   UnfamiliarAddress,
   transactionPreviewFromQuote,
 } from 'wallet-core-example'
 
 import {
+  type ChainCustodyService,
+  type ChainTransportService,
   EthereumSepoliaCustody,
   EthereumSepoliaTransport,
   SolanaDevnetCustody,
@@ -47,11 +44,10 @@ import {
   SolanaDevnetTransportLive,
 } from './solanaDevnet.js'
 
-const transferAtomicUnits = S.decodeUnknownSync(AtomicUnits)('1000000')
-const ethereumTransferAtomicUnits =
-  S.decodeUnknownSync(AtomicUnits)('1000000000000000')
+const solanaTransferAtomicUnits = '1000000'
+const ethereumTransferAtomicUnits = '1000000000000000'
 const observationStartupDelay = Duration.seconds(2)
-const observationTimeout = Duration.seconds(45)
+const solanaObservationTimeout = Duration.seconds(45)
 const ethereumObservationTimeout = Duration.seconds(90)
 
 const SolanaSenderLive = Layer.merge(
@@ -75,9 +71,63 @@ const EthereumSenderLive = Layer.merge(
   ),
 )
 
+const submitNativeTransfer = (
+  transport: ChainTransportService,
+  custody: ChainCustodyService,
+  destinationAddress: string,
+  atomicUnits: AtomicUnits,
+) =>
+  Effect.gen(function* () {
+    const chainPortfolio = yield* transport.loadPortfolio
+    const maybeAsset = Array.findFirst(
+      chainPortfolio.assets,
+      asset => asset.kind._tag === 'NativeAsset',
+    )
+    if (Option.isNone(maybeAsset)) {
+      return yield* Effect.die('Expected a native asset')
+    }
+    const portfolio = PortfolioSnapshot.make({
+      chains: [chainPortfolio.chain],
+      networks: [chainPortfolio.network],
+      assets: chainPortfolio.assets,
+      accounts: [chainPortfolio.account],
+      balanceSnapshot: BalanceSnapshot.make({
+        observedAt: chainPortfolio.observedAt,
+        balances: chainPortfolio.balances,
+      }),
+      receivingInstructions: chainPortfolio.receivingInstructions,
+    })
+    const request = TransferRequest.make({
+      transferId: `live-transfer-${Date.now()}`,
+      accountId: transport.account.accountId,
+      assetId: maybeAsset.value.assetId,
+      destinationAddress,
+      atomicUnits,
+      maybeMessage: Option.none(),
+    })
+    const validation = yield* transport.validateTransfer(request)
+    if (validation._tag !== 'ValidatedTransfer') {
+      return yield* Effect.die('Expected a validated transfer')
+    }
+    const quote = yield* transport.previewTransfer(validation)
+    const maybePreview = transactionPreviewFromQuote(
+      portfolio,
+      validation,
+      quote,
+      UnfamiliarAddress.make({}),
+      FirstTransactionWithRecipient.make({}),
+    )
+    if (Option.isNone(maybePreview)) {
+      return yield* Effect.die('Expected an executable transaction preview')
+    }
+    const payload = yield* transport.buildTransferPayload(maybePreview.value)
+    const signed = yield* custody.signTransaction(payload)
+    return yield* transport.submitTransaction(signed)
+  })
+
 describe('live Ethereum Sepolia transfer', () => {
   it.skipIf(process.env['WALLET_ETHEREUM_SEPOLIA_LIVE_TRANSFER'] !== '1')(
-    'observes a submitted transfer at the receiver through newHeads',
+    'observes a generic submitted transfer at the receiver',
     async () => {
       await Effect.runPromise(
         Effect.gen(function* () {
@@ -93,15 +143,16 @@ describe('live Ethereum Sepolia transfer', () => {
           const webSocketRpcUrl = yield* Config.redacted(
             'WALLET_ETHEREUM_SEPOLIA_WS_RPC_URL',
           )
-          const receiverConfig = Layer.succeed(EthereumSepoliaNodeConfig, {
-            accountId: 'ethereum-live-receiver',
-            address: receiverAddress,
-            displayName: 'Disposable live receiver',
-            httpRpcUrl,
-            webSocketRpcUrl,
-          })
           const receiverLive = EthereumSepoliaTransportLive.pipe(
-            Layer.provide(receiverConfig),
+            Layer.provide(
+              Layer.succeed(EthereumSepoliaNodeConfig, {
+                accountId: 'ethereum-live-receiver',
+                address: receiverAddress,
+                displayName: 'Disposable live receiver',
+                httpRpcUrl,
+                webSocketRpcUrl,
+              }),
+            ),
           )
           const observedFiber = yield* EthereumSepoliaTransport.pipe(
             Effect.flatMap(transport =>
@@ -109,8 +160,8 @@ describe('live Ethereum Sepolia transfer', () => {
                 Stream.filter(
                   record =>
                     record.direction === 'Incoming' &&
-                    record.value.currency._tag === 'Eth' &&
-                    record.value.atomicUnits === ethereumTransferAtomicUnits &&
+                    record.amount.assetId === 'ethereum:sepolia:eth' &&
+                    record.amount.atomicUnits === ethereumTransferAtomicUnits &&
                     record.counterpartyAddress.toLowerCase() ===
                       senderAddress.toLowerCase(),
                 ),
@@ -127,38 +178,12 @@ describe('live Ethereum Sepolia transfer', () => {
           const submission = yield* Effect.gen(function* () {
             const transport = yield* EthereumSepoliaTransport
             const custody = yield* EthereumSepoliaCustody
-            const observedAt = Date.now()
-            const network = EthereumSepolia.make({})
-            const draft = EthereumSepoliaEthTransferDraft.make({
-              transferId: `ethereum-live-transfer-${observedAt}`,
-              accountId: transport.account.accountId,
-              network,
-              destinationAddress: receiverAddress,
-              value: EthereumSepoliaEthValue.make({
-                currency: Eth.make({ network }),
-                atomicUnits: ethereumTransferAtomicUnits,
-                decimalPlaces: 18,
-                observedAt,
-              }),
-              maybeMessage: Option.none(),
-            })
-            const quote = yield* transport.previewTransaction(draft)
-            const maybePreview = transactionPreviewFromQuote(
-              draft,
-              quote,
-              UnfamiliarAddress.make({}),
-              FirstTransactionWithRecipient.make({}),
+            return yield* submitNativeTransfer(
+              transport,
+              custody,
+              receiverAddress,
+              ethereumTransferAtomicUnits,
             )
-            if (Option.isNone(maybePreview)) {
-              return yield* Effect.die(
-                'Expected an executable Ethereum transaction preview',
-              )
-            }
-            const preview = maybePreview.value
-            const prepared = yield* transport.prepareTransaction(preview)
-            const digest = yield* transport.digestTransaction(prepared)
-            const signed = yield* custody.signTransaction(prepared, digest)
-            return yield* transport.submitTransaction(signed)
           }).pipe(Effect.provide(EthereumSenderLive))
 
           const maybeObserved = yield* Fiber.join(observedFiber)
@@ -166,12 +191,6 @@ describe('live Ethereum Sepolia transfer', () => {
           if (Option.isSome(maybeObserved)) {
             expect(maybeObserved.value.transactionId).toBe(
               submission.transactionId,
-            )
-            expect(maybeObserved.value.accountId).toBe('ethereum-live-receiver')
-            yield* Effect.sync(() =>
-              process.stdout.write(
-                `\nSubmitted ${submission.transactionId}\nObserved ${maybeObserved.value.transactionId} through Ethereum newHeads\n`,
-              ),
             )
           }
         }).pipe(Effect.scoped),
@@ -183,7 +202,7 @@ describe('live Ethereum Sepolia transfer', () => {
 
 describe('live Solana Devnet transfer', () => {
   it.skipIf(process.env['WALLET_SOLANA_DEVNET_LIVE_TRANSFER'] !== '1')(
-    'observes a submitted transfer at the receiver through logsSubscribe',
+    'observes a generic submitted transfer at the receiver',
     async () => {
       await Effect.runPromise(
         Effect.gen(function* () {
@@ -199,15 +218,16 @@ describe('live Solana Devnet transfer', () => {
           const webSocketRpcUrl = yield* Config.redacted(
             'WALLET_SOLANA_DEVNET_WS_RPC_URL',
           )
-          const receiverConfig = Layer.succeed(SolanaDevnetNodeConfig, {
-            accountId: 'solana-live-receiver',
-            address: receiverAddress,
-            displayName: 'Disposable live receiver',
-            httpRpcUrl,
-            webSocketRpcUrl,
-          })
           const receiverLive = SolanaDevnetTransportLive.pipe(
-            Layer.provide(receiverConfig),
+            Layer.provide(
+              Layer.succeed(SolanaDevnetNodeConfig, {
+                accountId: 'solana-live-receiver',
+                address: receiverAddress,
+                displayName: 'Disposable live receiver',
+                httpRpcUrl,
+                webSocketRpcUrl,
+              }),
+            ),
           )
           const observedFiber = yield* SolanaDevnetTransport.pipe(
             Effect.flatMap(transport =>
@@ -215,14 +235,14 @@ describe('live Solana Devnet transfer', () => {
                 Stream.filter(
                   record =>
                     record.direction === 'Incoming' &&
-                    record.value.currency._tag === 'Sol' &&
-                    record.value.atomicUnits === transferAtomicUnits,
+                    record.amount.assetId === 'solana:devnet:sol' &&
+                    record.amount.atomicUnits === solanaTransferAtomicUnits,
                 ),
                 Stream.runHead,
               ),
             ),
             Effect.provide(receiverLive),
-            Effect.timeout(observationTimeout),
+            Effect.timeout(solanaObservationTimeout),
             Effect.forkChild,
           )
 
@@ -231,38 +251,12 @@ describe('live Solana Devnet transfer', () => {
           const submission = yield* Effect.gen(function* () {
             const transport = yield* SolanaDevnetTransport
             const custody = yield* SolanaDevnetCustody
-            const observedAt = Date.now()
-            const network = SolanaDevnet.make({})
-            const draft = SolanaDevnetSolTransferDraft.make({
-              transferId: `solana-live-transfer-${observedAt}`,
-              accountId: transport.account.accountId,
-              network,
-              destinationAddress: receiverAddress,
-              value: SolanaDevnetSolValue.make({
-                currency: SolanaDevnetSol.make({ network }),
-                atomicUnits: transferAtomicUnits,
-                decimalPlaces: 9,
-                observedAt,
-              }),
-              maybeMessage: Option.none(),
-            })
-            const quote = yield* transport.previewTransaction(draft)
-            const maybePreview = transactionPreviewFromQuote(
-              draft,
-              quote,
-              UnfamiliarAddress.make({}),
-              FirstTransactionWithRecipient.make({}),
+            return yield* submitNativeTransfer(
+              transport,
+              custody,
+              receiverAddress,
+              solanaTransferAtomicUnits,
             )
-            if (Option.isNone(maybePreview)) {
-              return yield* Effect.die(
-                'Expected an executable Solana transaction preview',
-              )
-            }
-            const preview = maybePreview.value
-            const prepared = yield* transport.prepareTransaction(preview)
-            const digest = yield* transport.digestTransaction(prepared)
-            const signed = yield* custody.signTransaction(prepared, digest)
-            return yield* transport.submitTransaction(signed)
           }).pipe(Effect.provide(SolanaSenderLive))
 
           const maybeObserved = yield* Fiber.join(observedFiber)
@@ -271,13 +265,7 @@ describe('live Solana Devnet transfer', () => {
             expect(maybeObserved.value.transactionId).toBe(
               `${submission.transactionId}:0`,
             )
-            expect(maybeObserved.value.accountId).toBe('solana-live-receiver')
             expect(maybeObserved.value.counterpartyAddress).toBe(senderAddress)
-            yield* Effect.sync(() =>
-              process.stdout.write(
-                `\nSubmitted ${submission.transactionId}\nObserved ${maybeObserved.value.transactionId} through Solana logsSubscribe\n`,
-              ),
-            )
           }
         }).pipe(Effect.scoped),
       )

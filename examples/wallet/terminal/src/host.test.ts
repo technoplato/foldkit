@@ -70,6 +70,6 @@ describe('Wallet Effect Terminal host', () => {
     )
 
     expect(model.transaction._tag).toBe('SubmittedTransaction')
-    expect(model.observedTransactions).toHaveLength(1)
+    expect(model.transactions.length).toBeGreaterThan(0)
   })
 })

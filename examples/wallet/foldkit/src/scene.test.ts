@@ -31,7 +31,8 @@ const loadedModel = (): Model =>
         account => account.accountId,
       ),
     }),
-    observedTransactions: [],
+    transactionHistory: initialModel.transactionHistory,
+    transactions: [],
   })
 
 describe('Wallet Foldkit client', () => {
@@ -52,7 +53,9 @@ describe('Wallet Foldkit client', () => {
       Scene.expect(Scene.text('Nothing sent yet.')).toExist(),
       Scene.expect(Scene.text('Simulated Sepolia Account')).toExist(),
       Scene.expect(
-        Scene.text('/wallet/receive/simulated-ethereum-account?asset=eth'),
+        Scene.text(
+          '/wallet/receive/simulated-ethereum-account?asset=ethereum:sepolia:eth',
+        ),
       ).toExist(),
       Scene.expect(Scene.text('Sign test challenge')).toExist(),
       Scene.expect(Scene.text('Replay')).toExist(),
@@ -64,7 +67,7 @@ describe('Wallet Foldkit client', () => {
     )
   })
 
-  test('validates recipient input before previewing a real testnet transfer', () => {
+  test('collects recipient input before adapter validation', () => {
     Scene.scene(
       { update, view },
       Scene.with(loadedModel()),
@@ -73,16 +76,8 @@ describe('Wallet Foldkit client', () => {
         '0x1111111111111111111111111111111111111111111111111111111111111111',
       ),
       Scene.expect(
-        Scene.text(
-          'That is not a valid address for Ethereum Sepolia. Valid addresses for Ethereum Sepolia look like 0x1234567890abcdef1234567890abcdef12345678 and follow the following rules.',
-        ),
-      ).toExist(),
-      Scene.expect(
-        Scene.text('It contains exactly 40 characters after the prefix.'),
-      ).toExist(),
-      Scene.expect(
         Scene.role('button', { name: 'Preview send' }),
-      ).toBeDisabled(),
+      ).toBeEnabled(),
     )
 
     Scene.scene(

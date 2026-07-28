@@ -3,17 +3,17 @@ import {
   type Model,
   type TransactionPreview,
   type TransactionState,
-  currencyValueLabel,
-  invalidNetworkAddressMessage,
+  assetAmountLabel,
+  assetAmountLabelForModel,
   makeWalletTestChallenge,
-  networkAddressRuleMessages,
-  networkLabel,
   primaryReceivingInstruction,
   primaryWalletAccount,
+  primaryWalletAsset,
   primaryWalletBalance,
+  primaryWalletNetwork,
   shortenedAddress,
-  transferRecipientFormat,
   transferRecipientInput,
+  walletDemoTransferAtomicUnits,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
@@ -35,11 +35,14 @@ const maybePreviewForTransaction = (
     M.withReturnType<Option.Option<TransactionPreview>>(),
     M.tagsExhaustive({
       IdleTransaction: () => Option.none(),
+      ValidatingTransfer: () => Option.none(),
+      InvalidTransfer: () => Option.none(),
       PreviewingTransaction: () => Option.none(),
       PreviewedTransaction: ({ preview }) => Option.some(preview),
       SubmittingTransaction: ({ preview }) => Option.some(preview),
       SubmittedTransaction: ({ preview }) => Option.some(preview),
       FailedTransactionPreview: () => Option.none(),
+      FailedTransferValidation: () => Option.none(),
       FailedTransactionSubmission: ({ preview }) => Option.some(preview),
     }),
   )
@@ -49,11 +52,14 @@ const transactionStatus = (transaction: TransactionState): string =>
     M.withReturnType<string>(),
     M.tagsExhaustive({
       IdleTransaction: () => 'Ready',
+      ValidatingTransfer: () => 'Validating recipient…',
+      InvalidTransfer: () => 'Recipient needs attention',
       PreviewingTransaction: () => 'Preparing preview…',
       PreviewedTransaction: () => 'Check before sending',
       SubmittingTransaction: () => 'Sending…',
       SubmittedTransaction: () => 'Sent',
       FailedTransactionPreview: () => 'Preview failed',
+      FailedTransferValidation: () => 'Validation failed',
       FailedTransactionSubmission: () => 'Send failed',
     }),
   )
@@ -65,12 +71,17 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
   const balanceLabel = Option.match(maybeBalance, {
     onNone: () =>
       model.portfolio._tag === 'LoadingPortfolio' ? 'Loading…' : '—',
-    onSome: balance => currencyValueLabel(balance.value),
+    onSome: balance => assetAmountLabelForModel(model, balance.amount),
   })
   const accountLabel = Option.match(maybeAccount, {
     onNone: () => 'Sepolia test wallet',
-    onSome: account =>
-      `${networkLabel(account.network)} · ${shortenedAddress(account.address)}`,
+    onSome: account => {
+      const networkName = Option.match(primaryWalletNetwork(model), {
+        onNone: () => account.networkId,
+        onSome: network => network.displayName,
+      })
+      return `${networkName} · ${shortenedAddress(account.address)}`
+    },
   })
 
   return (
@@ -102,7 +113,26 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const maybeBalance = primaryWalletBalance(model)
   const maybePreview = maybePreviewForTransaction(model.transaction)
   const recipientValue = transferRecipientInput(model.transferRecipient)
-  const recipientFormat = transferRecipientFormat(model.transferRecipient)
+  const networkName = Option.match(primaryWalletNetwork(model), {
+    onNone: () => 'selected network',
+    onSome: network => network.displayName,
+  })
+  const exampleAddress = Option.match(primaryWalletAccount(model), {
+    onNone: () => 'Recipient address',
+    onSome: account => account.address,
+  })
+  const transferAmount = Option.match(primaryWalletAsset(model), {
+    onNone: () => walletDemoTransferAtomicUnits,
+    onSome: asset =>
+      assetAmountLabel(
+        {
+          assetId: asset.assetId,
+          atomicUnits: walletDemoTransferAtomicUnits,
+          observedAt: 0,
+        },
+        asset,
+      ),
+  })
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -115,14 +145,14 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       <div className="wallet-section-heading">
         <div>
           <p className="cardboard-eyebrow">Send</p>
-          <h2>0.00001 ETH</h2>
+          <h2>{transferAmount}</h2>
         </div>
         <span className="wallet-status">
           {transactionStatus(model.transaction)}
         </span>
       </div>
       <label className="wallet-recipient" htmlFor="wallet-recipient">
-        <span>Recipient on {recipientFormat.networkName}</span>
+        <span>Recipient on {networkName}</span>
         <input
           autoCapitalize="none"
           autoComplete="off"
@@ -131,7 +161,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           onChange={event =>
             actions.changedTransferRecipient(event.currentTarget.value)
           }
-          placeholder={recipientFormat.exampleAddress}
+          placeholder={exampleAddress}
           spellCheck={false}
           type="text"
           value={recipientValue}
@@ -139,18 +169,11 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       </label>
       {model.transferRecipient._tag === 'InvalidTransferRecipient' ? (
         <div className="wallet-validation" role="alert">
-          <p>
-            {invalidNetworkAddressMessage(model.transferRecipient.validation)}
-          </p>
+          <p>{model.transferRecipient.guidance.summary}</p>
           <ul>
-            {Array.map(
-              networkAddressRuleMessages(
-                model.transferRecipient.validation.format,
-              ),
-              rule => (
-                <li key={rule}>{rule}</li>
-              ),
-            )}
+            {Array.map(model.transferRecipient.guidance.details, detail => (
+              <li key={detail}>{detail}</li>
+            ))}
           </ul>
         </div>
       ) : null}
@@ -159,19 +182,24 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           <div>
             <span>To</span>
             <strong>
-              {shortenedAddress(maybePreview.value.draft.destinationAddress)}
+              {shortenedAddress(
+                maybePreview.value.transfer.recipient.displayAddress,
+              )}
             </strong>
           </div>
           <div>
             <span>Network fee</span>
             <strong>
-              {currencyValueLabel(maybePreview.value.estimatedFee)}
+              {assetAmountLabelForModel(model, maybePreview.value.estimatedFee)}
             </strong>
           </div>
           <div>
             <span>Balance after</span>
             <strong>
-              {currencyValueLabel(maybePreview.value.resultingBalance)}
+              {assetAmountLabelForModel(
+                model,
+                maybePreview.value.resultingBalance,
+              )}
             </strong>
           </div>
         </div>
@@ -191,14 +219,14 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
                 Confirm it on{' '}
                 {
                   model.transaction.submission.maybeExplorerConfirmation.value
-                    .explorer
+                    .label
                 }
                 .
               </span>
               <a
                 href={
                   model.transaction.submission.maybeExplorerConfirmation.value
-                    .transactionUri
+                    .url
                 }
                 rel="noopener noreferrer"
                 target="_blank"
@@ -206,7 +234,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
                 View on{' '}
                 {
                   model.transaction.submission.maybeExplorerConfirmation.value
-                    .explorer
+                    .label
                 }
               </a>
             </>
@@ -219,7 +247,8 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           className="cardboard-button primary"
           disabled={
             Option.isNone(maybeBalance) ||
-            model.transferRecipient._tag !== 'ValidTransferRecipient' ||
+            model.transferRecipient._tag === 'EmptyTransferRecipient' ||
+            model.transaction._tag === 'ValidatingTransfer' ||
             model.transaction._tag === 'PreviewingTransaction' ||
             model.transaction._tag === 'SubmittingTransaction'
           }
@@ -242,14 +271,16 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
 const Activity = ({ model }: Readonly<{ model: Model }>) => (
   <section className="wallet-activity cardboard-panel">
     <p className="cardboard-eyebrow">Recent activity</p>
-    {Array.match(model.observedTransactions, {
+    {Array.match(model.transactions, {
       onEmpty: () => <p className="wallet-empty">Nothing sent yet.</p>,
       onNonEmpty: transactions => (
         <ul>
           {Array.map(transactions, transaction => (
             <li key={transaction.transactionId}>
               <span>{transaction.status}</span>
-              <strong>{currencyValueLabel(transaction.value)}</strong>
+              <strong>
+                {assetAmountLabelForModel(model, transaction.amount)}
+              </strong>
               <small>{shortenedAddress(transaction.transactionId)}</small>
             </li>
           ))}

@@ -12,8 +12,9 @@ export const makeWalletTestChallenge = (
     challengeId,
     accountId,
     digest: DomainSeparatedDigest.make({
-      algorithm: 'Keccak256',
+      algorithm: 'keccak256',
       domain: 'foldkit.example.wallet',
-      digestHex: walletTestChallengeDigestHex,
+      digest: walletTestChallengeDigestHex,
+      encoding: 'hex',
     }),
   })

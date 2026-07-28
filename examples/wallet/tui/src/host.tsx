@@ -4,9 +4,6 @@ import {
   DomainSeparatedDigest,
   type Model,
   SigningChallenge,
-  invalidNetworkAddressMessage,
-  networkAddressRuleMessages,
-  transferDraftFromInput,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
@@ -29,6 +26,7 @@ const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
 export * from './presentation.js'
 
 const defaultAccountId = 'simulated-ethereum-account'
+const defaultAssetId = 'ethereum:sepolia:eth'
 const defaultDestinationAddress = '0x2222222222222222222222222222222222222222'
 
 const defaultTransferComposition = (
@@ -45,22 +43,21 @@ const defaultTransferComposition = (
     model.portfolio.snapshot.balanceSnapshot.balances,
     balance =>
       balance.accountId === defaultAccountId &&
-      balance.value.currency._tag === 'Eth',
+      balance.amount.assetId === defaultAssetId,
   )
   if (Option.isNone(maybeAccount) || Option.isNone(maybeBalance)) {
     return Option.none()
   }
-  return transferDraftFromInput({
-    transferId: 'opentui-transfer',
-    accountId: defaultAccountId,
-    network: maybeAccount.value.network,
-    destinationAddress: defaultDestinationAddress,
-    value: {
-      ...maybeBalance.value.value,
+  return Option.some(
+    WalletTransferComposition.make({
+      transferId: 'opentui-transfer',
+      accountId: defaultAccountId,
+      assetId: defaultAssetId,
+      destinationAddress: defaultDestinationAddress,
       atomicUnits: '1000000000000000',
-    },
-    maybeMessage: Option.none(),
-  })
+      maybeMessage: Option.none(),
+    }),
+  )
 }
 
 const defaultChallenge = (): typeof SigningChallenge.Type =>
@@ -68,9 +65,11 @@ const defaultChallenge = (): typeof SigningChallenge.Type =>
     challengeId: 'opentui-challenge',
     accountId: defaultAccountId,
     digest: DomainSeparatedDigest.make({
-      algorithm: 'Keccak256',
+      algorithm: 'keccak256',
       domain: 'wallet.example/access/v1',
-      digestHex: '0xPublicDigest',
+      digest:
+        '0x434a8d65ff6dedb682353c0b64080d079094c7bc538c6bf29c5049c4dca72e22',
+      encoding: 'hex',
     }),
   })
 
@@ -81,7 +80,7 @@ const explorerStatus = (model: Model): string => {
   const maybeConfirmation =
     model.transaction.submission.maybeExplorerConfirmation
   if (Option.isSome(maybeConfirmation)) {
-    return `Confirm on ${maybeConfirmation.value.explorer}: ${maybeConfirmation.value.transactionUri}`
+    return `Confirm on ${maybeConfirmation.value.label}: ${maybeConfirmation.value.url}`
   } else {
     return 'Explorer: unavailable for simulated submissions'
   }
@@ -169,13 +168,13 @@ const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
             model.portfolio.snapshot.receivingInstructions,
             instruction =>
               instruction.accountId === defaultAccountId &&
-              instruction.currency._tag === 'Eth',
+              instruction.assetId === defaultAssetId,
           )
           setNotice(
             Option.map(
               maybeInstruction,
               instruction =>
-                `Receive Eth: ${instruction.destinationAddress} | ${instruction.portableUri}`,
+                `Receive ${defaultAssetId}: ${instruction.destinationAddress} | ${instruction.portableUri}`,
             ),
           )
         },
@@ -284,12 +283,8 @@ const WalletModelView = ({ model }: Readonly<{ model: Model }>) => (
         model.transferRecipient._tag === 'InvalidTransferRecipient'
           ? Array.join(
               [
-                invalidNetworkAddressMessage(
-                  model.transferRecipient.validation,
-                ),
-                ...networkAddressRuleMessages(
-                  model.transferRecipient.validation.format,
-                ),
+                model.transferRecipient.guidance.summary,
+                ...model.transferRecipient.guidance.details,
               ],
               ' ',
             )
@@ -300,7 +295,7 @@ const WalletModelView = ({ model }: Readonly<{ model: Model }>) => (
     <text content={explorerStatus(model)} height={1} />
     <text content={`Signature: ${model.signature._tag}`} height={1} />
     <text
-      content={`Observed transactions: ${model.observedTransactions.length.toString()}`}
+      content={`Transactions: ${model.transactions.length.toString()}`}
       height={1}
     />
   </box>

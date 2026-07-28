@@ -17,23 +17,20 @@ import * as Runtime from 'foldkit/program-runtime'
 import {
   AtomicUnits,
   ComposedTransfer,
-  CurrencyValue,
   DomainSeparatedDigest,
   type Message,
   Model,
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
   SigningChallenge,
-  type TransferDraft,
+  TransferRequest,
   WalletProgram,
-  invalidNetworkAddressMessage,
-  networkAddressRuleMessages,
-  transferDraftFromInput,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 const clearScreen = '\u001b[2J\u001b[H'
 const defaultAccountId = 'simulated-ethereum-account'
+const defaultAssetId = 'ethereum:sepolia:eth'
 const defaultDestinationAddress = '0x2222222222222222222222222222222222222222'
 const defaultAtomicUnits = '1000000000000000'
 const observationTimeout = '2 seconds'
@@ -123,7 +120,7 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
         ...Array.map(
           snapshot.balanceSnapshot.balances,
           balance =>
-            `${balance.accountId} | ${balance.value.currency._tag} ${balance.value.atomicUnits}`,
+            `${balance.accountId} | ${balance.amount.assetId} ${balance.amount.atomicUnits}`,
         ),
       ],
     }),
@@ -132,18 +129,16 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
     model.transaction._tag === 'SubmittedTransaction' &&
     Option.isSome(model.transaction.submission.maybeExplorerConfirmation)
       ? [
-          `Confirm on ${model.transaction.submission.maybeExplorerConfirmation.value.explorer}: ${model.transaction.submission.maybeExplorerConfirmation.value.transactionUri}`,
+          `Confirm on ${model.transaction.submission.maybeExplorerConfirmation.value.label}: ${model.transaction.submission.maybeExplorerConfirmation.value.url}`,
         ]
       : []
   const addressValidationLines =
     model.transferRecipient._tag === 'InvalidTransferRecipient'
       ? [
-          invalidNetworkAddressMessage(model.transferRecipient.validation),
+          model.transferRecipient.guidance.summary,
           ...Array.map(
-            networkAddressRuleMessages(
-              model.transferRecipient.validation.format,
-            ),
-            rule => `- ${rule}`,
+            model.transferRecipient.guidance.details,
+            detail => `- ${detail}`,
           ),
         ]
       : []
@@ -153,7 +148,7 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
     ...transactionLines,
     ...addressValidationLines,
     `Signature: ${model.signature._tag}`,
-    `Observed: ${model.observedTransactions.length.toString()}`,
+    `Transactions: ${model.transactions.length.toString()}`,
   ]
 }
 
@@ -182,9 +177,9 @@ export const renderWalletTerminal = (
   )
 }
 
-const defaultTransferDraft = (
+const defaultTransferRequest = (
   model: Model,
-): Effect.Effect<typeof TransferDraft.Type, WalletTerminalError> => {
+): Effect.Effect<typeof TransferRequest.Type, WalletTerminalError> => {
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return Effect.fail(
       new WalletTerminalError({ message: 'Wallet portfolio is not loaded' }),
@@ -198,7 +193,7 @@ const defaultTransferDraft = (
     model.portfolio.snapshot.balanceSnapshot.balances,
     balance =>
       balance.accountId === defaultAccountId &&
-      balance.value.currency._tag === 'Eth',
+      balance.amount.assetId === defaultAssetId,
   )
   if (Option.isNone(maybeAccount) || Option.isNone(maybeBalance)) {
     return Effect.fail(
@@ -208,28 +203,16 @@ const defaultTransferDraft = (
     )
   }
   return S.decodeUnknownEffect(AtomicUnits)(defaultAtomicUnits).pipe(
-    Effect.flatMap(atomicUnits => {
-      const maybeDraft = transferDraftFromInput({
+    Effect.map(atomicUnits =>
+      TransferRequest.make({
         transferId: 'terminal-transfer',
         accountId: defaultAccountId,
-        network: maybeAccount.value.network,
+        assetId: defaultAssetId,
         destinationAddress: defaultDestinationAddress,
-        value: CurrencyValue.make({
-          ...maybeBalance.value.value,
-          atomicUnits,
-        }),
+        atomicUnits,
         maybeMessage: Option.none(),
-      })
-      if (Option.isSome(maybeDraft)) {
-        return Effect.succeed(maybeDraft.value)
-      } else {
-        return Effect.fail(
-          new WalletTerminalError({
-            message: 'The transfer does not match an executable Layer',
-          }),
-        )
-      }
-    }),
+      }),
+    ),
     Effect.mapError(
       () => new WalletTerminalError({ message: 'Invalid transfer amount' }),
     ),
@@ -241,9 +224,11 @@ const defaultChallenge = (): typeof SigningChallenge.Type =>
     challengeId: 'terminal-challenge',
     accountId: defaultAccountId,
     digest: DomainSeparatedDigest.make({
-      algorithm: 'Keccak256',
+      algorithm: 'keccak256',
       domain: 'wallet.example/access/v1',
-      digestHex: '0xPublicDigest',
+      digest:
+        '0x434a8d65ff6dedb682353c0b64080d079094c7bc538c6bf29c5049c4dca72e22',
+      encoding: 'hex',
     }),
   })
 
@@ -255,10 +240,10 @@ const receivingNotice = (model: Model): string => {
     model.portfolio.snapshot.receivingInstructions,
     instruction =>
       instruction.accountId === defaultAccountId &&
-      instruction.currency._tag === 'Eth',
+      instruction.assetId === defaultAssetId,
   )
   if (Option.isSome(maybeInstruction)) {
-    return `Receive Eth: ${maybeInstruction.value.destinationAddress} | ${maybeInstruction.value.portableUri}`
+    return `Receive ${defaultAssetId}: ${maybeInstruction.value.destinationAddress} | ${maybeInstruction.value.portableUri}`
   } else {
     return 'No simulated Ethereum receiving instruction is available.'
   }
@@ -270,7 +255,7 @@ const waitForObservedTransaction = (
 ): Effect.Effect<Model, WalletTerminalError> => {
   const containsTransaction = (model: Model): boolean =>
     Array.some(
-      model.observedTransactions,
+      model.transactions,
       transaction => transaction.transactionId === transactionId,
     )
   if (containsTransaction(runtime.readModel())) {
@@ -304,8 +289,8 @@ export const sendSimulatedWalletTransaction = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
 ): Effect.Effect<Model, WalletTerminalError> =>
   Effect.gen(function* () {
-    const draft = yield* defaultTransferDraft(runtime.readModel())
-    const previewed = yield* runtime.run(ComposedTransfer.make({ draft }))
+    const request = yield* defaultTransferRequest(runtime.readModel())
+    const previewed = yield* runtime.run(ComposedTransfer.make({ request }))
     if (previewed.transaction._tag !== 'PreviewedTransaction') {
       return yield* Effect.fail(
         new WalletTerminalError({
@@ -391,8 +376,10 @@ const runLiveAction = (
     ),
     M.when('Preview', () =>
       Effect.gen(function* () {
-        const draft = yield* defaultTransferDraft(state.runtime.readModel())
-        const model = yield* state.runtime.run(ComposedTransfer.make({ draft }))
+        const request = yield* defaultTransferRequest(state.runtime.readModel())
+        const model = yield* state.runtime.run(
+          ComposedTransfer.make({ request }),
+        )
         return {
           ...state,
           maybeReplaySession: Option.none(),
@@ -411,8 +398,8 @@ const runLiveAction = (
             Option.isSome(
               model.transaction.submission.maybeExplorerConfirmation,
             )
-            ? `Send settled: ${model.transaction._tag}; confirm on ${model.transaction.submission.maybeExplorerConfirmation.value.explorer}: ${model.transaction.submission.maybeExplorerConfirmation.value.transactionUri}`
-            : `Send settled: ${model.transaction._tag}; observed ${model.observedTransactions.length.toString()}`,
+            ? `Send settled: ${model.transaction._tag}; confirm on ${model.transaction.submission.maybeExplorerConfirmation.value.label}: ${model.transaction.submission.maybeExplorerConfirmation.value.url}`
+            : `Send settled: ${model.transaction._tag}; transactions ${model.transactions.length.toString()}`,
         ),
       })),
     ),

@@ -1,18 +1,10 @@
-import { Array, Context, Effect, Layer, Match as M, Stream } from 'effect'
+import { Array, Context, Effect, Layer, Stream } from 'effect'
 import {
   BalanceSnapshot,
   PortfolioSnapshot,
-  type PreparedTransaction,
-  type SignatureProof,
-  type SignedTransaction,
-  type SigningChallenge,
-  type TransactionPreview,
-  type TransferDraft,
-  type WalletAccount,
   WalletClient,
   WalletClientError,
   WalletCrypto,
-  WalletCryptoError,
   type WalletResources,
   WalletSigner,
   WalletSignerError,
@@ -25,52 +17,6 @@ import {
 
 const unsupportedClient = () => new WalletClientError({ code: 'Rejected' })
 
-const requireEthereumDraft = (
-  draft: TransferDraft,
-): Effect.Effect<void, WalletClientError> =>
-  M.value(draft.network).pipe(
-    M.withReturnType<Effect.Effect<void, WalletClientError>>(),
-    M.tagsExhaustive({
-      EthereumSepolia: () => Effect.void,
-      SolanaDevnet: () => Effect.fail(unsupportedClient()),
-    }),
-  )
-
-const requireEthereumPreview = (
-  preview: TransactionPreview,
-): Effect.Effect<void, WalletClientError> => requireEthereumDraft(preview.draft)
-
-const requireEthereumPrepared = (
-  prepared: PreparedTransaction,
-): Effect.Effect<void, WalletCryptoError> =>
-  M.value(prepared.network).pipe(
-    M.withReturnType<Effect.Effect<void, WalletCryptoError>>(),
-    M.tagsExhaustive({
-      EthereumSepolia: () => Effect.void,
-      SolanaDevnet: () =>
-        Effect.fail(new WalletCryptoError({ code: 'InvalidPayload' })),
-      SolanaTestnet: () =>
-        Effect.fail(new WalletCryptoError({ code: 'InvalidPayload' })),
-    }),
-  )
-
-const requireEthereumSigned = (
-  signed: SignedTransaction,
-): Effect.Effect<void, WalletClientError> =>
-  M.value(signed.network).pipe(
-    M.withReturnType<Effect.Effect<void, WalletClientError>>(),
-    M.tagsExhaustive({
-      EthereumSepolia: () => Effect.void,
-      SolanaDevnet: () => Effect.fail(unsupportedClient()),
-      SolanaTestnet: () => Effect.fail(unsupportedClient()),
-    }),
-  )
-
-const includesOnlyEthereumAccount = (
-  accounts: ReadonlyArray<WalletAccount>,
-): boolean =>
-  Array.every(accounts, account => account.network._tag === 'EthereumSepolia')
-
 const makeEthereumWalletNetworkServices = Effect.gen(function* () {
   const ethereum = yield* EthereumSepoliaTransport
 
@@ -78,6 +24,9 @@ const makeEthereumWalletNetworkServices = Effect.gen(function* () {
     loadPortfolio: ethereum.loadPortfolio.pipe(
       Effect.map(portfolio =>
         PortfolioSnapshot.make({
+          chains: [portfolio.chain],
+          networks: [portfolio.network],
+          assets: portfolio.assets,
           accounts: [portfolio.account],
           balanceSnapshot: BalanceSnapshot.make({
             observedAt: portfolio.observedAt,
@@ -87,39 +36,28 @@ const makeEthereumWalletNetworkServices = Effect.gen(function* () {
         }),
       ),
     ),
-    previewTransaction: draft =>
-      requireEthereumDraft(draft).pipe(
-        Effect.flatMap(() => ethereum.previewTransaction(draft)),
-      ),
-    prepareTransaction: preview =>
-      requireEthereumPreview(preview).pipe(
-        Effect.flatMap(() => ethereum.prepareTransaction(preview)),
-      ),
-    submitTransaction: signed =>
-      requireEthereumSigned(signed).pipe(
-        Effect.flatMap(() => ethereum.submitTransaction(signed)),
-      ),
-    observeTransactions: accounts => {
-      if (!includesOnlyEthereumAccount(accounts)) {
+    validateTransfer: request => ethereum.validateTransfer(request),
+    previewTransfer: transfer => ethereum.previewTransfer(transfer),
+    buildTransferPayload: preview => ethereum.buildTransferPayload(preview),
+    submitTransaction: signed => ethereum.submitTransaction(signed),
+    loadTransactionHistory: query => ethereum.loadTransactionHistory(query),
+    observeTransactions: accountIds => {
+      const hasUnknownAccount = Array.some(
+        accountIds,
+        accountId => accountId !== ethereum.account.accountId,
+      )
+      if (hasUnknownAccount) {
         return Stream.fail(unsupportedClient())
       }
-      const isObserved = Array.some(
-        accounts,
-        account => account.accountId === ethereum.account.accountId,
-      )
-      return isObserved ? ethereum.observeTransactions : Stream.empty
+      return Array.contains(accountIds, ethereum.account.accountId)
+        ? ethereum.observeTransactions
+        : Stream.empty
     },
   })
 
   const crypto = WalletCrypto.of({
-    digestTransaction: prepared =>
-      requireEthereumPrepared(prepared).pipe(
-        Effect.flatMap(() => ethereum.digestTransaction(prepared)),
-      ),
-    verifySignatureProof: (
-      challenge: SigningChallenge,
-      proof: SignatureProof,
-    ) => ethereum.verifySignatureProof(challenge, proof),
+    verifySignatureProof: (challenge, proof) =>
+      ethereum.verifySignatureProof(challenge, proof),
   })
 
   return Context.make(WalletClient, client).pipe(
@@ -130,18 +68,27 @@ const makeEthereumWalletNetworkServices = Effect.gen(function* () {
 const makeEthereumWalletSigner = Effect.gen(function* () {
   const custody = yield* EthereumSepoliaCustody
   return WalletSigner.of({
-    signTransaction: (prepared, digest) =>
-      M.value(prepared.network).pipe(
-        M.withReturnType<Effect.Effect<SignedTransaction, WalletSignerError>>(),
-        M.tagsExhaustive({
-          EthereumSepolia: () => custody.signTransaction(prepared, digest),
-          SolanaDevnet: () =>
-            Effect.fail(new WalletSignerError({ code: 'UnsupportedAccount' })),
-          SolanaTestnet: () =>
-            Effect.fail(new WalletSignerError({ code: 'UnsupportedAccount' })),
-        }),
-      ),
-    signChallenge: challenge => custody.signChallenge(challenge),
+    signTransaction: payload => {
+      if (
+        payload.accountId === custody.accountId &&
+        payload.networkId === custody.networkId
+      ) {
+        return custody.signTransaction(payload)
+      } else {
+        return Effect.fail(
+          new WalletSignerError({ code: 'UnsupportedAccount' }),
+        )
+      }
+    },
+    signChallenge: challenge => {
+      if (challenge.accountId === custody.accountId) {
+        return custody.signChallenge(challenge)
+      } else {
+        return Effect.fail(
+          new WalletSignerError({ code: 'UnsupportedAccount' }),
+        )
+      }
+    },
   })
 })
 

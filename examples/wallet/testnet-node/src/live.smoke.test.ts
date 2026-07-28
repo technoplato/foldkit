@@ -26,7 +26,7 @@ describe('live test-network smoke checks', () => {
           ),
         ),
       )
-      expect(portfolio.account.network._tag).toBe('EthereumSepolia')
+      expect(portfolio.account.networkId).toBe('ethereum:sepolia')
       expect(portfolio.balances).toHaveLength(2)
     },
   )
@@ -44,7 +44,7 @@ describe('live test-network smoke checks', () => {
           ),
         ),
       )
-      expect(portfolio.account.network._tag).toBe('SolanaDevnet')
+      expect(portfolio.account.networkId).toBe('solana:devnet')
       expect(portfolio.balances).toHaveLength(2)
     },
   )

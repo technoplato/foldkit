@@ -1,6 +1,12 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Option } from 'effect'
 
-import type { Currency, CurrencyValue, Network } from './currency.js'
+import {
+  type AssetAmount,
+  type AssetDescriptor,
+  type NetworkDescriptor,
+  assetForId,
+  networkForId,
+} from './currency.js'
 import type {
   AccountBalance,
   Model,
@@ -8,50 +14,44 @@ import type {
   WalletAccount,
 } from './model.js'
 
-/** Returns the short public ticker used to present one Currency. */
-export const currencyTicker = (currency: Currency): string =>
-  M.value(currency).pipe(
-    M.withReturnType<string>(),
-    M.tagsExhaustive({
-      Eth: () => 'ETH',
-      Sol: () => 'SOL',
-      Usdc: () => 'USDC',
-      Fiat: ({ code }) => code,
-    }),
-  )
-
-/** Returns the plain-language public label for one supported Network. */
-export const networkLabel = (network: Network): string =>
-  M.value(network).pipe(
-    M.withReturnType<string>(),
-    M.tagsExhaustive({
-      EthereumSepolia: () => 'Ethereum Sepolia',
-      SolanaDevnet: () => 'Solana Devnet',
-      SolanaTestnet: () => 'Solana Testnet',
-    }),
-  )
-
-/** Formats exact atomic units as a human-readable Currency amount. */
-export const currencyValueLabel = (value: CurrencyValue): string => {
-  const isNegative = value.atomicUnits.startsWith('-')
+/** Formats exact atomic units as a human-readable normalized asset amount. */
+export const assetAmountLabel = (
+  amount: AssetAmount,
+  asset: AssetDescriptor,
+): string => {
+  const isNegative = amount.atomicUnits.startsWith('-')
   const unsignedAtomicUnits = isNegative
-    ? value.atomicUnits.slice(1)
-    : value.atomicUnits
+    ? amount.atomicUnits.slice(1)
+    : amount.atomicUnits
   const paddedAtomicUnits = unsignedAtomicUnits.padStart(
-    value.decimalPlaces + 1,
+    asset.decimalPlaces + 1,
     '0',
   )
   const wholeUnits =
-    value.decimalPlaces === 0
+    asset.decimalPlaces === 0
       ? paddedAtomicUnits
-      : paddedAtomicUnits.slice(0, -value.decimalPlaces)
+      : paddedAtomicUnits.slice(0, -asset.decimalPlaces)
   const fractionalUnits =
-    value.decimalPlaces === 0
+    asset.decimalPlaces === 0
       ? ''
-      : paddedAtomicUnits.slice(-value.decimalPlaces).replace(/0+$/, '')
+      : paddedAtomicUnits.slice(-asset.decimalPlaces).replace(/0+$/, '')
   const decimalValue =
     fractionalUnits === '' ? wholeUnits : `${wholeUnits}.${fractionalUnits}`
-  return `${isNegative ? '-' : ''}${decimalValue} ${currencyTicker(value.currency)}`
+  return `${isNegative ? '-' : ''}${decimalValue} ${asset.symbol}`
+}
+
+/** Formats an amount through the normalized descriptors loaded in Model. */
+export const assetAmountLabelForModel = (
+  model: Model,
+  amount: AssetAmount,
+): string => {
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return `${amount.atomicUnits} ${amount.assetId}`
+  }
+  const maybeAsset = assetForId(model.portfolio.snapshot.assets, amount.assetId)
+  return Option.isSome(maybeAsset)
+    ? assetAmountLabel(amount, maybeAsset.value)
+    : `${amount.atomicUnits} ${amount.assetId}`
 }
 
 /** Shortens a public address while preserving both identifying ends. */
@@ -60,18 +60,15 @@ export const shortenedAddress = (address: string): string =>
     ? address
     : `${address.slice(0, 10)}…${address.slice(-6)}`
 
-/** Selects the first Ethereum account used by the Wallet example's primary flow. */
+/** Selects the first normalized account used by the primary Wallet flow. */
 export const primaryWalletAccount = (
   model: Model,
 ): Option.Option<WalletAccount> =>
   model.portfolio._tag === 'LoadedPortfolio'
-    ? Array.findFirst(
-        model.portfolio.snapshot.accounts,
-        account => account.network._tag === 'EthereumSepolia',
-      )
+    ? Array.head(model.portfolio.snapshot.accounts)
     : Option.none()
 
-/** Selects the primary account's ETH balance. */
+/** Selects the primary account's first loaded balance. */
 export const primaryWalletBalance = (
   model: Model,
 ): Option.Option<AccountBalance> =>
@@ -79,24 +76,44 @@ export const primaryWalletBalance = (
     model.portfolio._tag === 'LoadedPortfolio'
       ? Array.findFirst(
           model.portfolio.snapshot.balanceSnapshot.balances,
-          balance =>
-            balance.accountId === account.accountId &&
-            balance.value.currency._tag === 'Eth',
+          balance => balance.accountId === account.accountId,
         )
       : Option.none(),
   )
 
-/** Selects the primary account's ETH receiving instruction. */
+/** Selects the normalized network descriptor for the primary account. */
+export const primaryWalletNetwork = (
+  model: Model,
+): Option.Option<NetworkDescriptor> =>
+  Option.flatMap(primaryWalletAccount(model), account =>
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? networkForId(model.portfolio.snapshot.networks, account.networkId)
+      : Option.none(),
+  )
+
+/** Selects the normalized asset descriptor for the primary balance. */
+export const primaryWalletAsset = (
+  model: Model,
+): Option.Option<AssetDescriptor> =>
+  Option.flatMap(primaryWalletBalance(model), balance =>
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? assetForId(model.portfolio.snapshot.assets, balance.amount.assetId)
+      : Option.none(),
+  )
+
+/** Selects the primary account and asset's receiving instruction. */
 export const primaryReceivingInstruction = (
   model: Model,
 ): Option.Option<ReceivingInstruction> =>
   Option.flatMap(primaryWalletAccount(model), account =>
-    model.portfolio._tag === 'LoadedPortfolio'
-      ? Array.findFirst(
-          model.portfolio.snapshot.receivingInstructions,
-          instruction =>
-            instruction.accountId === account.accountId &&
-            instruction.currency._tag === 'Eth',
-        )
-      : Option.none(),
+    Option.flatMap(primaryWalletBalance(model), balance =>
+      model.portfolio._tag === 'LoadedPortfolio'
+        ? Array.findFirst(
+            model.portfolio.snapshot.receivingInstructions,
+            instruction =>
+              instruction.accountId === account.accountId &&
+              instruction.assetId === balance.amount.assetId,
+          )
+        : Option.none(),
+    ),
   )

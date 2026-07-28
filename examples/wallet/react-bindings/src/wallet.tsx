@@ -17,14 +17,14 @@ import {
   RequestedWalletRefresh,
   ResumedTransactionObservation,
   SigningChallenge,
-  TransferDraft,
+  TransferRequest,
   WalletProgram,
   type WalletResources,
   initialModel,
 } from 'wallet-core-example'
 
 /** An executable renderer-neutral transfer composition accepted by Wallet actions. */
-export const WalletTransferComposition = TransferDraft
+export const WalletTransferComposition = TransferRequest
 /** A renderer-neutral transfer composition accepted by Wallet actions. */
 export type WalletTransferComposition = typeof WalletTransferComposition.Type
 
@@ -74,8 +74,8 @@ export const makeWalletReactClient = <ResourceError,>(
         enqueueMessage(AddedAddressBookEntry.make({ entry })),
       removedAddressBookEntry: entryId =>
         enqueueMessage(RemovedAddressBookEntry.make({ entryId })),
-      composedTransfer: draft =>
-        enqueueMessage(ComposedTransfer.make({ draft })),
+      composedTransfer: request =>
+        enqueueMessage(ComposedTransfer.make({ request })),
       requestedSignedTransactionSubmission: previewId =>
         enqueueMessage(
           RequestedSignedTransactionSubmission.make({ previewId }),

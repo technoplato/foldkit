@@ -3,7 +3,6 @@ import {
   Cause,
   Effect,
   Layer,
-  Match as M,
   Option,
   Queue,
   Redacted,
@@ -15,7 +14,6 @@ import {
   encodeFunctionData,
   getAddress,
   http,
-  keccak256,
   parseAbi,
   parseAbiItem,
   parseTransaction,
@@ -27,31 +25,36 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { sepolia } from 'viem/chains'
 import {
   AccountBalance,
+  AssetAmount,
+  AssetDescriptor,
   AtomicUnits,
-  CurrencyValue,
-  Eth,
-  EthereumSepolia,
-  EthereumSignatureProof,
-  type PreparedTransaction,
+  ChainDescriptor,
+  IssuedAsset,
+  NativeAsset,
+  NetworkDescriptor,
   ReceivingInstruction,
+  RejectedTransfer,
   type SignatureProof,
+  SignatureProof as SignatureProofSchema,
   type SignedTransaction,
   type SigningChallenge,
-  type SigningDigest,
+  TransactionHistoryPage,
+  type TransactionPayload,
   type TransactionPreview,
   TransactionQuote,
   TransactionRecord,
   TransactionSubmission,
-  type TransferDraft,
-  Usdc,
+  TransferGuidance,
+  type TransferRequest,
+  ValidatedRecipient,
+  type ValidatedTransfer,
+  ValidatedTransfer as ValidatedTransferSchema,
   WalletAccount,
   WalletClientError,
   WalletCryptoError,
   WalletSignerError,
-  blockExplorerConfirmation,
-  makePreparedTransaction,
   makeSignedTransaction,
-  makeSigningDigest,
+  makeTransactionPayload,
 } from 'wallet-core-example'
 
 import {
@@ -64,7 +67,11 @@ import {
   EthereumSepoliaNodeConfig,
 } from './config.js'
 
-const ethereumChainId = 11_155_111
+const ethereumNumericChainId = 11_155_111
+const ethereumChainId = 'ethereum'
+const ethereumNetworkId = 'ethereum:sepolia'
+const ethereumEthAssetId = 'ethereum:sepolia:eth'
+const ethereumUsdcAssetId = 'ethereum:sepolia:usdc'
 const ethDecimalPlaces = 18
 const usdcDecimalPlaces = 6
 const quoteLifetimeMilliseconds = 60_000
@@ -120,59 +127,68 @@ type EthereumPreparedPayload = typeof EthereumPreparedPayload.Type
 const toClientError = () => new WalletClientError({ code: 'Unavailable' })
 const invalidClientResponse = () =>
   new WalletClientError({ code: 'InvalidResponse' })
-const invalidCryptoPayload = () =>
-  new WalletCryptoError({ code: 'InvalidPayload' })
 const isThirtyTwoByteHex = (value: string): boolean =>
   /^(?:0x)?[0-9a-fA-F]{64}$/.test(value)
 
-const ethereumNetwork = EthereumSepolia.make({})
-const ethCurrency = Eth.make({ network: ethereumNetwork })
-const usdcCurrency = Usdc.make({
-  network: ethereumNetwork,
-  tokenAddress: ethereumSepoliaUsdcAddress,
+const EthereumNetwork = S.TaggedStruct('Ethereum', {
+  network: S.Literal('Sepolia'),
+  chainId: S.Number,
 })
+const ethereumAdapterNetwork = EthereumNetwork.make({
+  network: 'Sepolia',
+  chainId: ethereumNumericChainId,
+})
+const ethereumChain = ChainDescriptor.make({
+  chainId: ethereumChainId,
+  displayName: 'Ethereum',
+})
+const ethereumNetwork = NetworkDescriptor.make({
+  networkId: ethereumNetworkId,
+  chainId: ethereumChainId,
+  displayName: 'Ethereum Sepolia',
+  environment: 'Testnet',
+  capabilities: ['Transfer', 'TransactionObservation', 'ChallengeSignature'],
+})
+const ethAsset = AssetDescriptor.make({
+  assetId: ethereumEthAssetId,
+  networkId: ethereumNetworkId,
+  displayName: 'Sepolia Ether',
+  symbol: 'ETH',
+  decimalPlaces: ethDecimalPlaces,
+  kind: NativeAsset.make({}),
+})
+const usdcAsset = AssetDescriptor.make({
+  assetId: ethereumUsdcAssetId,
+  networkId: ethereumNetworkId,
+  displayName: 'USDC',
+  symbol: 'USDC',
+  decimalPlaces: usdcDecimalPlaces,
+  kind: IssuedAsset.make({ reference: ethereumSepoliaUsdcAddress }),
+})
+const ethereumAssets = [ethAsset, usdcAsset]
 
-const currencyValue = (
+const assetAmount = (
   asset: EthereumTransferAsset,
   atomicUnits: bigint,
   observedAt: number,
-): typeof CurrencyValue.Type =>
-  CurrencyValue.make({
-    currency: asset === 'Eth' ? ethCurrency : usdcCurrency,
+): typeof AssetAmount.Type =>
+  AssetAmount.make({
+    assetId: asset === 'Eth' ? ethereumEthAssetId : ethereumUsdcAssetId,
     atomicUnits: S.decodeUnknownSync(AtomicUnits)(atomicUnits.toString()),
-    decimalPlaces: asset === 'Eth' ? ethDecimalPlaces : usdcDecimalPlaces,
     observedAt,
   })
 
-const assetForDraft = (
-  draft: TransferDraft,
-): Effect.Effect<EthereumTransferAsset, WalletClientError> =>
-  M.value(draft.value.currency).pipe(
-    M.withReturnType<Effect.Effect<EthereumTransferAsset, WalletClientError>>(),
-    M.tagsExhaustive({
-      Eth: ({ network }) =>
-        network._tag === 'EthereumSepolia'
-          ? Effect.succeed<EthereumTransferAsset>('Eth')
-          : Effect.fail(invalidClientResponse()),
-      Usdc: ({ network, tokenAddress }) => {
-        if (network._tag !== 'EthereumSepolia') {
-          return Effect.fail(invalidClientResponse())
-        }
-        return Effect.try({
-          try: () =>
-            getAddress(tokenAddress) === getAddress(ethereumSepoliaUsdcAddress),
-          catch: invalidClientResponse,
-        }).pipe(
-          Effect.flatMap(isExpectedAddress =>
-            isExpectedAddress
-              ? Effect.succeed<EthereumTransferAsset>('Usdc')
-              : Effect.fail(invalidClientResponse()),
-          ),
-        )
-      },
-      Sol: () => Effect.fail(invalidClientResponse()),
-    }),
-  )
+const assetForTransfer = (
+  transfer: ValidatedTransfer,
+): Effect.Effect<EthereumTransferAsset, WalletClientError> => {
+  if (transfer.request.assetId === ethereumEthAssetId) {
+    return Effect.succeed('Eth')
+  } else if (transfer.request.assetId === ethereumUsdcAssetId) {
+    return Effect.succeed('Usdc')
+  } else {
+    return Effect.fail(invalidClientResponse())
+  }
+}
 
 const serializePreparedTransaction = (payload: EthereumPreparedPayload) =>
   serializeTransaction({
@@ -187,7 +203,7 @@ const serializePreparedTransaction = (payload: EthereumPreparedPayload) =>
     data: payload.data === '0x' ? undefined : `0x${payload.data.slice(2)}`,
   })
 
-const decodePreparedPayload = (prepared: PreparedTransaction) =>
+const decodePreparedPayload = (prepared: TransactionPayload) =>
   S.decodeUnknownEffect(EthereumPreparedPayloadJson)(
     Redacted.value(prepared.payload),
   )
@@ -213,7 +229,7 @@ const makeEthereumTransport = Effect.gen(function* () {
   })
   const account = WalletAccount.make({
     accountId: config.accountId,
-    network: ethereumNetwork,
+    networkId: ethereumNetworkId,
     address: accountAddress,
     displayName: config.displayName,
   })
@@ -232,34 +248,35 @@ const makeEthereumTransport = Effect.gen(function* () {
           }),
         ])
         return {
+          chain: ethereumChain,
+          network: ethereumNetwork,
+          assets: ethereumAssets,
           account,
           observedAt,
           balances: [
             AccountBalance.make({
               accountId: account.accountId,
-              value: currencyValue('Eth', ethBalance, observedAt),
+              amount: assetAmount('Eth', ethBalance, observedAt),
             }),
             AccountBalance.make({
               accountId: account.accountId,
-              value: currencyValue('Usdc', usdcBalance, observedAt),
+              amount: assetAmount('Usdc', usdcBalance, observedAt),
             }),
           ],
           receivingInstructions: [
             ReceivingInstruction.make({
               accountId: account.accountId,
-              network: ethereumNetwork,
-              currency: ethCurrency,
+              assetId: ethereumEthAssetId,
               destinationAddress: account.address,
               maybeMemo: Option.none(),
-              portableUri: `ethereum:${account.address}@${ethereumChainId}`,
+              portableUri: `ethereum:${account.address}@${ethereumAdapterNetwork.chainId}`,
             }),
             ReceivingInstruction.make({
               accountId: account.accountId,
-              network: ethereumNetwork,
-              currency: usdcCurrency,
+              assetId: ethereumUsdcAssetId,
               destinationAddress: account.address,
               maybeMemo: Option.none(),
-              portableUri: `ethereum:${ethereumSepoliaUsdcAddress}@${ethereumChainId}/transfer?address=${account.address}`,
+              portableUri: `ethereum:${ethereumSepoliaUsdcAddress}@${ethereumAdapterNetwork.chainId}/transfer?address=${account.address}`,
             }),
           ],
         }
@@ -267,23 +284,83 @@ const makeEthereumTransport = Effect.gen(function* () {
       catch: toClientError,
     })
 
-  const previewTransaction = (
-    draft: TransferDraft,
+  const validateTransfer = (
+    request: TransferRequest,
+  ): Effect.Effect<
+    typeof ValidatedTransferSchema.Type | typeof RejectedTransfer.Type,
+    WalletClientError
+  > => {
+    if (
+      request.accountId !== account.accountId ||
+      (request.assetId !== ethereumEthAssetId &&
+        request.assetId !== ethereumUsdcAssetId)
+    ) {
+      return Effect.succeed(
+        RejectedTransfer.make({
+          request,
+          guidance: TransferGuidance.make({
+            summary:
+              'This Ethereum adapter does not own that account or asset.',
+            details: ['Choose an Ethereum Sepolia account and asset.'],
+          }),
+        }),
+      )
+    }
+    if (BigInt(request.atomicUnits) <= 0n) {
+      return Effect.succeed(
+        RejectedTransfer.make({
+          request,
+          guidance: TransferGuidance.make({
+            summary: 'The transfer amount must be positive.',
+            details: ['Enter a positive amount in atomic units.'],
+          }),
+        }),
+      )
+    }
+    return Effect.try({
+      try: () => {
+        const address = getAddress(request.destinationAddress)
+        return ValidatedTransferSchema.make({
+          request,
+          recipient: ValidatedRecipient.make({
+            networkId: ethereumNetworkId,
+            address,
+            normalizedAddress: address.toLowerCase(),
+            displayAddress: address,
+          }),
+        })
+      },
+      catch: () =>
+        RejectedTransfer.make({
+          request,
+          guidance: TransferGuidance.make({
+            summary: 'That is not a valid Ethereum address.',
+            details: [
+              'Ethereum addresses contain 20 bytes encoded as 0x-prefixed hexadecimal.',
+              'Use a valid checksum or hexadecimal Ethereum address.',
+            ],
+          }),
+        }),
+    }).pipe(Effect.catch(rejection => Effect.succeed(rejection)))
+  }
+
+  const previewTransfer = (
+    transfer: ValidatedTransfer,
   ): Effect.Effect<TransactionQuote, WalletClientError> =>
     Effect.gen(function* () {
       if (
-        draft.accountId !== account.accountId ||
-        draft.network._tag !== 'EthereumSepolia'
+        transfer.request.accountId !== account.accountId ||
+        transfer.recipient.networkId !== ethereumNetworkId
       ) {
         return yield* Effect.fail(invalidClientResponse())
       }
-      const asset = yield* assetForDraft(draft)
+      const asset = yield* assetForTransfer(transfer)
       const destination = yield* Effect.try({
-        try: () => getAddress(draft.destinationAddress),
+        try: () => getAddress(transfer.recipient.address),
         catch: invalidClientResponse,
       })
       const atomicUnits = yield* Effect.try({
-        try: () => BigInt(draft.value.atomicUnits),
+        try: () => BigInt(transfer.request.atomicUnits),
         catch: invalidClientResponse,
       })
       const observedAt = Date.now()
@@ -333,9 +410,9 @@ const makeEthereumTransport = Effect.gen(function* () {
         catch: toClientError,
       })
       return TransactionQuote.make({
-        quoteId: `${draft.transferId}:${observedAt}`,
-        estimatedFee: currencyValue('Eth', result.estimatedFee, observedAt),
-        resultingBalance: currencyValue(
+        quoteId: `${transfer.request.transferId}:${observedAt}`,
+        estimatedFee: assetAmount('Eth', result.estimatedFee, observedAt),
+        resultingBalance: assetAmount(
           result.resultingAsset,
           result.resultingBalance,
           observedAt,
@@ -344,20 +421,20 @@ const makeEthereumTransport = Effect.gen(function* () {
       })
     })
 
-  const prepareTransaction = (
+  const buildTransferPayload = (
     preview: TransactionPreview,
-  ): Effect.Effect<PreparedTransaction, WalletClientError> =>
+  ): Effect.Effect<TransactionPayload, WalletClientError> =>
     Effect.gen(function* () {
-      if (preview.draft.accountId !== account.accountId) {
+      if (preview.transfer.request.accountId !== account.accountId) {
         return yield* Effect.fail(invalidClientResponse())
       }
-      const asset = yield* assetForDraft(preview.draft)
+      const asset = yield* assetForTransfer(preview.transfer)
       const destination = yield* Effect.try({
-        try: () => getAddress(preview.draft.destinationAddress),
+        try: () => getAddress(preview.transfer.recipient.address),
         catch: invalidClientResponse,
       })
       const atomicUnits = yield* Effect.try({
-        try: () => BigInt(preview.draft.value.atomicUnits),
+        try: () => BigInt(preview.transfer.request.atomicUnits),
         catch: invalidClientResponse,
       })
       const prepared = yield* Effect.tryPromise({
@@ -391,7 +468,7 @@ const makeEthereumTransport = Effect.gen(function* () {
           return EthereumPreparedPayload.make({
             previewId: preview.previewId,
             asset,
-            chainId: ethereumChainId,
+            chainId: ethereumAdapterNetwork.chainId,
             nonce,
             gas: gas.toString(),
             maxFeePerGas: fees.maxFeePerGas.toString(),
@@ -403,9 +480,9 @@ const makeEthereumTransport = Effect.gen(function* () {
         },
         catch: toClientError,
       })
-      return makePreparedTransaction(
+      return makeTransactionPayload(
         account.accountId,
-        ethereumNetwork,
+        ethereumNetworkId,
         S.encodeSync(EthereumPreparedPayloadJson)(prepared),
       )
     })
@@ -415,7 +492,7 @@ const makeEthereumTransport = Effect.gen(function* () {
   ): Effect.Effect<TransactionSubmission, WalletClientError> => {
     if (
       signed.accountId !== account.accountId ||
-      signed.network._tag !== 'EthereumSepolia'
+      signed.networkId !== ethereumNetworkId
     ) {
       return Effect.fail(invalidClientResponse())
     }
@@ -431,9 +508,11 @@ const makeEthereumTransport = Effect.gen(function* () {
               previewId: payload.previewId,
               transactionId,
               submittedAt: Date.now(),
-              maybeExplorerConfirmation: Option.some(
-                blockExplorerConfirmation(ethereumNetwork, transactionId),
-              ),
+              maybeExplorerConfirmation: Option.some({
+                label: 'Etherscan',
+                transactionId,
+                url: `https://sepolia.etherscan.io/tx/${transactionId}`,
+              }),
             })
           },
           catch: toClientError,
@@ -473,17 +552,21 @@ const makeEthereumTransport = Effect.gen(function* () {
           Queue.offerUnsafe(
             queue,
             TransactionRecord.make({
+              recordId: `${log.transactionHash}:${log.logIndex}`,
               transactionId: `${log.transactionHash}:${log.logIndex}`,
               accountId: account.accountId,
-              network: ethereumNetwork,
+              networkId: ethereumNetworkId,
               direction: isOutgoing ? 'Outgoing' : 'Incoming',
               status: 'Confirmed',
-              value: currencyValue(
+              amount: assetAmount(
                 'Usdc',
                 value,
                 Number(block.timestamp) * 1_000,
               ),
               counterpartyAddress: isOutgoing ? to : from,
+              normalizedCounterpartyAddress: getAddress(
+                isOutgoing ? to : from,
+              ).toLowerCase(),
               observedAt: Number(block.timestamp) * 1_000,
             }),
           )
@@ -521,15 +604,16 @@ const makeEthereumTransport = Effect.gen(function* () {
                       Queue.offerUnsafe(
                         queue,
                         TransactionRecord.make({
+                          recordId: transaction.hash,
                           transactionId: transaction.hash,
                           accountId: account.accountId,
-                          network: ethereumNetwork,
+                          networkId: ethereumNetworkId,
                           direction: isOutgoing ? 'Outgoing' : 'Incoming',
                           status:
                             receipt.status === 'success'
                               ? 'Confirmed'
                               : 'Failed',
-                          value: currencyValue(
+                          amount: assetAmount(
                             'Eth',
                             transaction.value,
                             observedAt,
@@ -537,6 +621,11 @@ const makeEthereumTransport = Effect.gen(function* () {
                           counterpartyAddress: isOutgoing
                             ? (transaction.to ?? account.address)
                             : transaction.from,
+                          normalizedCounterpartyAddress: getAddress(
+                            isOutgoing
+                              ? (transaction.to ?? account.address)
+                              : transaction.from,
+                          ).toLowerCase(),
                           observedAt,
                         }),
                       )
@@ -585,71 +674,56 @@ const makeEthereumTransport = Effect.gen(function* () {
   )
 
   return EthereumSepoliaTransport.of({
+    chain: ethereumChain,
     network: ethereumNetwork,
+    assets: ethereumAssets,
     account,
     loadPortfolio,
-    previewTransaction,
-    prepareTransaction,
+    validateTransfer,
+    previewTransfer,
+    buildTransferPayload,
     submitTransaction,
+    loadTransactionHistory: () =>
+      Effect.succeed(
+        TransactionHistoryPage.make({
+          records: [],
+          maybeNextCursor: Option.none(),
+        }),
+      ),
     observeTransactions,
-    digestTransaction: prepared => {
-      if (
-        prepared.accountId !== account.accountId ||
-        prepared.network._tag !== 'EthereumSepolia'
-      ) {
-        return Effect.fail(invalidCryptoPayload())
-      }
-      return decodePreparedPayload(prepared).pipe(
-        Effect.mapError(invalidCryptoPayload),
-        Effect.flatMap(payload =>
-          Effect.try({
-            try: () =>
-              makeSigningDigest(
-                keccak256(serializePreparedTransaction(payload)),
-              ),
-            catch: invalidCryptoPayload,
-          }),
-        ),
-      )
-    },
     verifySignatureProof: (
       challenge: SigningChallenge,
       proof: SignatureProof,
-    ) =>
-      M.value(proof).pipe(
-        M.withReturnType<Effect.Effect<boolean, WalletCryptoError>>(),
-        M.tagsExhaustive({
-          EthereumSignatureProof: ethereumProof => {
-            if (
-              challenge.accountId !== account.accountId ||
-              challenge.digest.algorithm !== 'Keccak256' ||
-              !isThirtyTwoByteHex(challenge.digest.digestHex) ||
-              ethereumProof.challengeId !== challenge.challengeId ||
-              ethereumProof.accountId !== challenge.accountId
-            ) {
-              return Effect.succeed(false)
-            }
-            return Effect.tryPromise({
-              try: async () => {
-                const proofAddress = getAddress(ethereumProof.address)
-                if (proofAddress !== accountAddress) {
-                  return false
-                }
-                return verifyMessage({
-                  address: proofAddress,
-                  message: {
-                    raw: `0x${challenge.digest.digestHex.replace(/^0x/, '')}`,
-                  },
-                  signature: `0x${ethereumProof.signatureHex.replace(/^0x/, '')}`,
-                })
-              },
-              catch: () =>
-                new WalletCryptoError({ code: 'VerificationFailed' }),
-            })
-          },
-          SolanaEd25519SignatureProof: () => Effect.succeed(false),
-        }),
-      ),
+    ) => {
+      if (
+        challenge.accountId !== account.accountId ||
+        challenge.digest.algorithm !== 'keccak256' ||
+        challenge.digest.encoding !== 'hex' ||
+        !isThirtyTwoByteHex(challenge.digest.digest) ||
+        proof.challengeId !== challenge.challengeId ||
+        proof.accountId !== challenge.accountId ||
+        proof.algorithm !== 'secp256k1' ||
+        proof.encoding !== 'hex'
+      ) {
+        return Effect.succeed(false)
+      }
+      return Effect.tryPromise({
+        try: async () => {
+          const proofAddress = getAddress(proof.publicIdentity)
+          if (proofAddress !== accountAddress) {
+            return false
+          }
+          return verifyMessage({
+            address: proofAddress,
+            message: {
+              raw: `0x${challenge.digest.digest.replace(/^0x/, '')}`,
+            },
+            signature: `0x${proof.signature.replace(/^0x/, '')}`,
+          })
+        },
+        catch: () => new WalletCryptoError({ code: 'VerificationFailed' }),
+      })
+    },
   })
 })
 
@@ -683,10 +757,11 @@ const makeEthereumCustody = Effect.gen(function* () {
   }
   return EthereumSepoliaCustody.of({
     accountId: keyConfig.accountId,
-    signTransaction: (prepared: PreparedTransaction, digest: SigningDigest) => {
+    networkId: ethereumNetworkId,
+    signTransaction: (prepared: TransactionPayload) => {
       if (
         prepared.accountId !== keyConfig.accountId ||
-        prepared.network._tag !== 'EthereumSepolia'
+        prepared.networkId !== ethereumNetworkId
       ) {
         return Effect.fail(
           new WalletSignerError({ code: 'UnsupportedAccount' }),
@@ -696,9 +771,6 @@ const makeEthereumCustody = Effect.gen(function* () {
         Effect.mapError(() => new WalletSignerError({ code: 'Unavailable' })),
         Effect.flatMap(payload => {
           const serialized = serializePreparedTransaction(payload)
-          if (keccak256(serialized) !== Redacted.value(digest)) {
-            return Effect.fail(new WalletSignerError({ code: 'Denied' }))
-          }
           return Effect.tryPromise({
             try: async () => {
               const rawTransaction = await localAccount.signTransaction(
@@ -706,7 +778,7 @@ const makeEthereumCustody = Effect.gen(function* () {
               )
               return makeSignedTransaction(
                 prepared.accountId,
-                ethereumNetwork,
+                ethereumNetworkId,
                 S.encodeSync(EthereumSignedPayloadJson)({
                   previewId: payload.previewId,
                   rawTransaction,
@@ -720,19 +792,22 @@ const makeEthereumCustody = Effect.gen(function* () {
     },
     signChallenge: challenge =>
       challenge.accountId === keyConfig.accountId &&
-      challenge.digest.algorithm === 'Keccak256' &&
-      isThirtyTwoByteHex(challenge.digest.digestHex)
+      challenge.digest.algorithm === 'keccak256' &&
+      challenge.digest.encoding === 'hex' &&
+      isThirtyTwoByteHex(challenge.digest.digest)
         ? Effect.tryPromise({
             try: async () =>
-              EthereumSignatureProof.make({
+              SignatureProofSchema.make({
                 challengeId: challenge.challengeId,
                 accountId: challenge.accountId,
-                address: localAccount.address,
-                signatureHex: await localAccount.signMessage({
+                algorithm: 'secp256k1',
+                publicIdentity: localAccount.address,
+                signature: await localAccount.signMessage({
                   message: {
-                    raw: `0x${challenge.digest.digestHex.replace(/^0x/, '')}`,
+                    raw: `0x${challenge.digest.digest.replace(/^0x/, '')}`,
                   },
                 }),
+                encoding: 'hex',
               }),
             catch: () => new WalletSignerError({ code: 'Denied' }),
           })

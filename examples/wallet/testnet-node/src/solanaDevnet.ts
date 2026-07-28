@@ -3,7 +3,6 @@ import {
   Cause,
   Effect,
   Layer,
-  Match as M,
   Option,
   Queue,
   Record as Record_,
@@ -13,31 +12,37 @@ import {
 } from 'effect'
 import {
   AccountBalance,
+  AssetAmount,
+  AssetDescriptor,
   AtomicUnits,
-  CurrencyValue,
-  type PreparedTransaction,
+  ChainDescriptor,
+  IssuedAsset,
+  NativeAsset,
+  NetworkDescriptor,
   ReceivingInstruction,
+  RejectedTransfer,
   type SignatureProof,
+  SignatureProof as SignatureProofSchema,
   type SignedTransaction,
   type SigningChallenge,
-  type SigningDigest,
-  Sol,
-  SolanaDevnet,
-  SolanaEd25519SignatureProof,
+  TransactionHistoryPage,
+  type TransactionHistoryQuery,
+  type TransactionPayload,
   type TransactionPreview,
   TransactionQuote,
   TransactionRecord,
   TransactionSubmission,
-  type TransferDraft,
-  Usdc,
+  TransferGuidance,
+  type TransferRequest,
+  ValidatedRecipient,
+  type ValidatedTransfer,
+  ValidatedTransfer as ValidatedTransferSchema,
   WalletAccount,
   WalletClientError,
   WalletCryptoError,
   WalletSignerError,
-  blockExplorerConfirmation,
-  makePreparedTransaction,
   makeSignedTransaction,
-  makeSigningDigest,
+  makeTransactionPayload,
 } from 'wallet-core-example'
 
 import { getTransferSolInstruction } from '@solana-program/system'
@@ -68,6 +73,7 @@ import {
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
+  signature,
   signatureBytes,
   verifySignature,
 } from '@solana/kit'
@@ -81,6 +87,10 @@ import { SolanaDevnetKeyConfig, SolanaDevnetNodeConfig } from './config.js'
 
 const solDecimalPlaces = 9
 const usdcDecimalPlaces = 6
+const solanaChainId = 'solana'
+const solanaNetworkId = 'solana:devnet'
+const solanaSolAssetId = 'solana:devnet:sol'
+const solanaUsdcAssetId = 'solana:devnet:usdc'
 const quoteLifetimeMilliseconds = 60_000
 const splTokenAccountSpace = 165n
 const maximumObservedSignatures = 1_024
@@ -114,6 +124,14 @@ const JsonRpcFeeResponse = S.Struct({
   result: S.Struct({ value: S.NullOr(S.Number) }),
 })
 const JsonRpcSendResponse = S.Struct({ result: S.String })
+const JsonRpcSignaturesResponse = S.Struct({
+  result: S.Array(
+    S.Struct({
+      signature: S.String,
+      blockTime: S.NullOr(S.Number),
+    }),
+  ),
+})
 
 const AtomicAmount = S.Union([S.String, S.Number, S.BigInt])
 type AtomicAmount = typeof AtomicAmount.Type
@@ -153,52 +171,69 @@ const TokenTransferInstruction = S.Struct({
 const toClientError = () => new WalletClientError({ code: 'Unavailable' })
 const invalidClientResponse = () =>
   new WalletClientError({ code: 'InvalidResponse' })
-const invalidCryptoPayload = () =>
-  new WalletCryptoError({ code: 'InvalidPayload' })
 const isThirtyTwoByteHex = (value: string): boolean =>
   /^(?:0x)?[0-9a-fA-F]{64}$/.test(value)
 
-const solanaNetwork = SolanaDevnet.make({})
-const solCurrency = Sol.make({ network: solanaNetwork })
-const usdcCurrency = Usdc.make({
-  network: solanaNetwork,
-  tokenAddress: solanaDevnetUsdcAddress,
+const solanaChain = ChainDescriptor.make({
+  chainId: solanaChainId,
+  displayName: 'Solana',
 })
+const solanaNetwork = NetworkDescriptor.make({
+  networkId: solanaNetworkId,
+  chainId: solanaChainId,
+  displayName: 'Solana Devnet',
+  environment: 'Development',
+  capabilities: [
+    'Transfer',
+    'TransactionHistory',
+    'TransactionObservation',
+    'ChallengeSignature',
+  ],
+})
+const solAsset = AssetDescriptor.make({
+  assetId: solanaSolAssetId,
+  networkId: solanaNetworkId,
+  displayName: 'Devnet SOL',
+  symbol: 'SOL',
+  decimalPlaces: solDecimalPlaces,
+  kind: NativeAsset.make({}),
+})
+const usdcAsset = AssetDescriptor.make({
+  assetId: solanaUsdcAssetId,
+  networkId: solanaNetworkId,
+  displayName: 'USDC',
+  symbol: 'USDC',
+  decimalPlaces: usdcDecimalPlaces,
+  kind: IssuedAsset.make({ reference: solanaDevnetUsdcAddress }),
+})
+const solanaAssets = [solAsset, usdcAsset]
 
-const currencyValue = (
+const assetAmount = (
   asset: SolanaTransferAsset,
   atomicUnits: bigint,
   observedAt: number,
-): typeof CurrencyValue.Type =>
-  CurrencyValue.make({
-    currency: asset === 'Sol' ? solCurrency : usdcCurrency,
+): typeof AssetAmount.Type =>
+  AssetAmount.make({
+    assetId: asset === 'Sol' ? solanaSolAssetId : solanaUsdcAssetId,
     atomicUnits: S.decodeUnknownSync(AtomicUnits)(atomicUnits.toString()),
-    decimalPlaces: asset === 'Sol' ? solDecimalPlaces : usdcDecimalPlaces,
     observedAt,
   })
 
 const atomicBigInt = (amount: AtomicAmount): bigint => BigInt(amount)
 
-const assetForDraft = (
-  draft: TransferDraft,
-): Effect.Effect<SolanaTransferAsset, WalletClientError> =>
-  M.value(draft.value.currency).pipe(
-    M.withReturnType<Effect.Effect<SolanaTransferAsset, WalletClientError>>(),
-    M.tagsExhaustive({
-      Sol: ({ network }) =>
-        network._tag === 'SolanaDevnet'
-          ? Effect.succeed<SolanaTransferAsset>('Sol')
-          : Effect.fail(invalidClientResponse()),
-      Usdc: ({ network, tokenAddress }) =>
-        network._tag === 'SolanaDevnet' &&
-        tokenAddress === solanaDevnetUsdcAddress
-          ? Effect.succeed<SolanaTransferAsset>('Usdc')
-          : Effect.fail(invalidClientResponse()),
-      Eth: () => Effect.fail(invalidClientResponse()),
-    }),
-  )
+const assetForTransfer = (
+  transfer: ValidatedTransfer,
+): Effect.Effect<SolanaTransferAsset, WalletClientError> => {
+  if (transfer.request.assetId === solanaSolAssetId) {
+    return Effect.succeed('Sol')
+  } else if (transfer.request.assetId === solanaUsdcAssetId) {
+    return Effect.succeed('Usdc')
+  } else {
+    return Effect.fail(invalidClientResponse())
+  }
+}
 
-const decodePreparedPayload = (prepared: PreparedTransaction) =>
+const decodePreparedPayload = (prepared: TransactionPayload) =>
   S.decodeUnknownEffect(SolanaPreparedPayloadJson)(
     Redacted.value(prepared.payload),
   )
@@ -266,16 +301,6 @@ const buildTransactionMessage = async (
   return appendTransactionMessageInstructions(instructions, messageWithLifetime)
 }
 
-const digestMessage = async (
-  messageBytes: Iterable<number>,
-): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new Uint8Array(Array.from(messageBytes)),
-  )
-  return Buffer.from(digest).toString('hex')
-}
-
 const jsonRpc = async (
   rpcUrl: Redacted.Redacted<string>,
   method: string,
@@ -320,7 +345,7 @@ const makeSolanaTransport = Effect.gen(function* () {
   )
   const account = WalletAccount.make({
     accountId: config.accountId,
-    network: solanaNetwork,
+    networkId: solanaNetworkId,
     address: accountAddress,
     displayName: config.displayName,
   })
@@ -357,31 +382,32 @@ const makeSolanaTransport = Effect.gen(function* () {
             BigInt(tokenAccount.account.data.parsed.info.tokenAmount.amount),
         )
         return {
+          chain: solanaChain,
+          network: solanaNetwork,
+          assets: solanaAssets,
           account,
           observedAt,
           balances: [
             AccountBalance.make({
               accountId: account.accountId,
-              value: currencyValue('Sol', solBalanceResponse.value, observedAt),
+              amount: assetAmount('Sol', solBalanceResponse.value, observedAt),
             }),
             AccountBalance.make({
               accountId: account.accountId,
-              value: currencyValue('Usdc', usdcBalance, observedAt),
+              amount: assetAmount('Usdc', usdcBalance, observedAt),
             }),
           ],
           receivingInstructions: [
             ReceivingInstruction.make({
               accountId: account.accountId,
-              network: solanaNetwork,
-              currency: solCurrency,
+              assetId: solanaSolAssetId,
               destinationAddress: account.address,
               maybeMemo: Option.none(),
               portableUri: `solana:${account.address}?cluster=devnet`,
             }),
             ReceivingInstruction.make({
               accountId: account.accountId,
-              network: solanaNetwork,
-              currency: usdcCurrency,
+              assetId: solanaUsdcAssetId,
               destinationAddress: account.address,
               maybeMemo: Option.none(),
               portableUri: `solana:${account.address}?cluster=devnet&spl-token=${solanaDevnetUsdcAddress}`,
@@ -392,23 +418,82 @@ const makeSolanaTransport = Effect.gen(function* () {
       catch: toClientError,
     })
 
-  const previewTransaction = (
-    draft: TransferDraft,
+  const validateTransfer = (
+    request: TransferRequest,
+  ): Effect.Effect<
+    typeof ValidatedTransferSchema.Type | typeof RejectedTransfer.Type,
+    WalletClientError
+  > => {
+    if (
+      request.accountId !== account.accountId ||
+      (request.assetId !== solanaSolAssetId &&
+        request.assetId !== solanaUsdcAssetId)
+    ) {
+      return Effect.succeed(
+        RejectedTransfer.make({
+          request,
+          guidance: TransferGuidance.make({
+            summary: 'This Solana adapter does not own that account or asset.',
+            details: ['Choose a Solana Devnet account and asset.'],
+          }),
+        }),
+      )
+    }
+    if (BigInt(request.atomicUnits) <= 0n) {
+      return Effect.succeed(
+        RejectedTransfer.make({
+          request,
+          guidance: TransferGuidance.make({
+            summary: 'The transfer amount must be positive.',
+            details: ['Enter a positive amount in atomic units.'],
+          }),
+        }),
+      )
+    }
+    return Effect.try({
+      try: () => {
+        const destination = address(request.destinationAddress)
+        return ValidatedTransferSchema.make({
+          request,
+          recipient: ValidatedRecipient.make({
+            networkId: solanaNetworkId,
+            address: destination,
+            normalizedAddress: destination,
+            displayAddress: destination,
+          }),
+        })
+      },
+      catch: () =>
+        RejectedTransfer.make({
+          request,
+          guidance: TransferGuidance.make({
+            summary: 'That is not a valid Solana address.',
+            details: [
+              'Solana addresses are base58-encoded public keys.',
+              'Use a valid account address on Solana Devnet.',
+            ],
+          }),
+        }),
+    }).pipe(Effect.catch(rejection => Effect.succeed(rejection)))
+  }
+
+  const previewTransfer = (
+    transfer: ValidatedTransfer,
   ): Effect.Effect<TransactionQuote, WalletClientError> =>
     Effect.gen(function* () {
       if (
-        draft.accountId !== account.accountId ||
-        draft.network._tag !== 'SolanaDevnet'
+        transfer.request.accountId !== account.accountId ||
+        transfer.recipient.networkId !== solanaNetworkId
       ) {
         return yield* Effect.fail(invalidClientResponse())
       }
-      const asset = yield* assetForDraft(draft)
+      const asset = yield* assetForTransfer(transfer)
       const destinationAddress = yield* Effect.try({
-        try: () => address(draft.destinationAddress),
+        try: () => address(transfer.recipient.address),
         catch: invalidClientResponse,
       })
       const atomicUnits = yield* Effect.try({
-        try: () => BigInt(draft.value.atomicUnits),
+        try: () => BigInt(transfer.request.atomicUnits),
         catch: invalidClientResponse,
       })
       const observedAt = Date.now()
@@ -429,7 +514,7 @@ const makeSolanaTransport = Effect.gen(function* () {
                 .send(),
             ])
           const payload = SolanaPreparedPayload.make({
-            previewId: `${draft.transferId}:${observedAt}`,
+            previewId: `${transfer.request.transferId}:${observedAt}`,
             asset,
             sourceAddress: account.address,
             destinationAddress,
@@ -490,9 +575,9 @@ const makeSolanaTransport = Effect.gen(function* () {
         catch: toClientError,
       })
       return TransactionQuote.make({
-        quoteId: `${draft.transferId}:${observedAt}`,
-        estimatedFee: currencyValue('Sol', quote.fee, observedAt),
-        resultingBalance: currencyValue(
+        quoteId: `${transfer.request.transferId}:${observedAt}`,
+        estimatedFee: assetAmount('Sol', quote.fee, observedAt),
+        resultingBalance: assetAmount(
           quote.resultingAsset,
           quote.resultingBalance,
           observedAt,
@@ -501,20 +586,20 @@ const makeSolanaTransport = Effect.gen(function* () {
       })
     })
 
-  const prepareTransaction = (
+  const buildTransferPayload = (
     preview: TransactionPreview,
-  ): Effect.Effect<PreparedTransaction, WalletClientError> =>
+  ): Effect.Effect<TransactionPayload, WalletClientError> =>
     Effect.gen(function* () {
-      if (preview.draft.accountId !== account.accountId) {
+      if (preview.transfer.request.accountId !== account.accountId) {
         return yield* Effect.fail(invalidClientResponse())
       }
-      const asset = yield* assetForDraft(preview.draft)
+      const asset = yield* assetForTransfer(preview.transfer)
       const destinationAddress = yield* Effect.try({
-        try: () => address(preview.draft.destinationAddress),
+        try: () => address(preview.transfer.recipient.address),
         catch: invalidClientResponse,
       })
       const atomicUnits = yield* Effect.try({
-        try: () => BigInt(preview.draft.value.atomicUnits),
+        try: () => BigInt(preview.transfer.request.atomicUnits),
         catch: invalidClientResponse,
       })
       const latestBlockhash = yield* Effect.tryPromise({
@@ -531,9 +616,9 @@ const makeSolanaTransport = Effect.gen(function* () {
         lastValidBlockHeight:
           latestBlockhash.value.lastValidBlockHeight.toString(),
       })
-      return makePreparedTransaction(
+      return makeTransactionPayload(
         account.accountId,
-        solanaNetwork,
+        solanaNetworkId,
         S.encodeSync(SolanaPreparedPayloadJson)(payload),
       )
     })
@@ -543,7 +628,7 @@ const makeSolanaTransport = Effect.gen(function* () {
   ): Effect.Effect<TransactionSubmission, WalletClientError> => {
     if (
       signed.accountId !== account.accountId ||
-      signed.network._tag !== 'SolanaDevnet'
+      signed.networkId !== solanaNetworkId
     ) {
       return Effect.fail(invalidClientResponse())
     }
@@ -565,9 +650,11 @@ const makeSolanaTransport = Effect.gen(function* () {
               previewId: payload.previewId,
               transactionId: response.result,
               submittedAt: Date.now(),
-              maybeExplorerConfirmation: Option.some(
-                blockExplorerConfirmation(solanaNetwork, response.result),
-              ),
+              maybeExplorerConfirmation: Option.some({
+                label: 'Solana Explorer',
+                transactionId: response.result,
+                url: `https://explorer.solana.com/tx/${response.result}?cluster=devnet`,
+              }),
             })
           },
           catch: toClientError,
@@ -636,17 +723,21 @@ const makeSolanaTransport = Effect.gen(function* () {
           }
           return Option.some(
             TransactionRecord.make({
+              recordId: `${transactionSignature}:${instructionIndex}`,
               transactionId: `${transactionSignature}:${instructionIndex}`,
               accountId: account.accountId,
-              network: solanaNetwork,
+              networkId: solanaNetworkId,
               direction: isOutgoing ? 'Outgoing' : 'Incoming',
               status,
-              value: currencyValue(
+              amount: assetAmount(
                 'Sol',
                 atomicBigInt(info.lamports),
                 observedAt,
               ),
               counterpartyAddress: isOutgoing ? info.destination : info.source,
+              normalizedCounterpartyAddress: isOutgoing
+                ? info.destination
+                : info.source,
               observedAt,
             }),
           )
@@ -678,17 +769,22 @@ const makeSolanaTransport = Effect.gen(function* () {
         )
         return Option.some(
           TransactionRecord.make({
+            recordId: `${transactionSignature}:${instructionIndex}`,
             transactionId: `${transactionSignature}:${instructionIndex}`,
             accountId: account.accountId,
-            network: solanaNetwork,
+            networkId: solanaNetworkId,
             direction: isOutgoing ? 'Outgoing' : 'Incoming',
             status,
-            value: currencyValue(
+            amount: assetAmount(
               'Usdc',
               atomicBigInt(maybeAmount.value),
               observedAt,
             ),
             counterpartyAddress: Option.getOrElse(
+              maybeCounterpartyOwner,
+              () => counterpartyTokenAddress,
+            ),
+            normalizedCounterpartyAddress: Option.getOrElse(
               maybeCounterpartyOwner,
               () => counterpartyTokenAddress,
             ),
@@ -768,80 +864,103 @@ const makeSolanaTransport = Effect.gen(function* () {
     ).pipe(Effect.flatMap(() => Effect.never)),
   )
 
+  const loadTransactionHistory = (
+    query: TransactionHistoryQuery,
+  ): Effect.Effect<TransactionHistoryPage, WalletClientError> => {
+    if (!Array_.contains(query.accountIds, account.accountId)) {
+      return Effect.succeed(
+        TransactionHistoryPage.make({
+          records: [],
+          maybeNextCursor: Option.none(),
+        }),
+      )
+    }
+    return Effect.tryPromise({
+      try: async () => {
+        const signatureOptions = Option.isSome(query.maybeCursor)
+          ? {
+              commitment: 'confirmed',
+              limit: query.limit,
+              before: query.maybeCursor.value,
+            }
+          : { commitment: 'confirmed', limit: query.limit }
+        const response = S.decodeUnknownSync(JsonRpcSignaturesResponse)(
+          await jsonRpc(config.httpRpcUrl, 'getSignaturesForAddress', [
+            account.address,
+            signatureOptions,
+          ]),
+        )
+        const recordGroups = await Promise.all(
+          Array_.map(response.result, async item => {
+            const transaction = await rpc
+              .getTransaction(signature(item.signature), {
+                commitment: 'confirmed',
+                encoding: 'jsonParsed',
+                maxSupportedTransactionVersion: 0,
+              })
+              .send()
+            return recordsForTransaction(
+              item.signature,
+              transaction,
+              item.blockTime === null ? Date.now() : item.blockTime * 1_000,
+            )
+          }),
+        )
+        const maybeLastSignature = Array_.last(response.result)
+        return TransactionHistoryPage.make({
+          records: Array_.flatten(recordGroups),
+          maybeNextCursor:
+            Array_.length(response.result) === query.limit &&
+            Option.isSome(maybeLastSignature)
+              ? Option.some(maybeLastSignature.value.signature)
+              : Option.none(),
+        })
+      },
+      catch: toClientError,
+    })
+  }
+
   return SolanaDevnetTransport.of({
+    chain: solanaChain,
     network: solanaNetwork,
+    assets: solanaAssets,
     account,
     loadPortfolio,
-    previewTransaction,
-    prepareTransaction,
+    validateTransfer,
+    previewTransfer,
+    buildTransferPayload,
     submitTransaction,
+    loadTransactionHistory,
     observeTransactions,
-    digestTransaction: prepared => {
-      if (
-        prepared.accountId !== account.accountId ||
-        prepared.network._tag !== 'SolanaDevnet'
-      ) {
-        return Effect.fail(invalidCryptoPayload())
-      }
-      return decodePreparedPayload(prepared).pipe(
-        Effect.mapError(invalidCryptoPayload),
-        Effect.flatMap(payload =>
-          Effect.tryPromise({
-            try: async () => {
-              const message = await buildTransactionMessage(
-                payload,
-                createNoopSigner(address(payload.sourceAddress)),
-              )
-              const digest = await digestMessage(
-                compileTransaction(message).messageBytes,
-              )
-              return makeSigningDigest(digest)
-            },
-            catch: invalidCryptoPayload,
-          }),
-        ),
-      )
-    },
     verifySignatureProof: (
       challenge: SigningChallenge,
       proof: SignatureProof,
-    ) =>
-      M.value(proof).pipe(
-        M.withReturnType<Effect.Effect<boolean, WalletCryptoError>>(),
-        M.tagsExhaustive({
-          EthereumSignatureProof: () => Effect.succeed(false),
-          SolanaEd25519SignatureProof: solanaProof => {
-            if (
-              challenge.accountId !== account.accountId ||
-              challenge.digest.algorithm !== 'Sha256' ||
-              !isThirtyTwoByteHex(challenge.digest.digestHex) ||
-              solanaProof.challengeId !== challenge.challengeId ||
-              solanaProof.accountId !== challenge.accountId ||
-              solanaProof.publicKey !== account.address
-            ) {
-              return Effect.succeed(false)
-            }
-            return Effect.tryPromise({
-              try: async () => {
-                const publicKey = await getPublicKeyFromAddress(accountAddress)
-                const proofBytes = getBase58Encoder().encode(
-                  solanaProof.signatureBase58,
-                )
-                return verifySignature(
-                  publicKey,
-                  signatureBytes(proofBytes),
-                  Buffer.from(
-                    challenge.digest.digestHex.replace(/^0x/, ''),
-                    'hex',
-                  ),
-                )
-              },
-              catch: () =>
-                new WalletCryptoError({ code: 'VerificationFailed' }),
-            })
-          },
-        }),
-      ),
+    ) => {
+      if (
+        challenge.accountId !== account.accountId ||
+        challenge.digest.encoding !== 'hex' ||
+        !isThirtyTwoByteHex(challenge.digest.digest) ||
+        proof.challengeId !== challenge.challengeId ||
+        proof.accountId !== challenge.accountId ||
+        proof.algorithm !== 'ed25519' ||
+        proof.encoding !== 'base58' ||
+        proof.publicIdentity !== account.address
+      ) {
+        return Effect.succeed(false)
+      }
+      return Effect.tryPromise({
+        try: async () => {
+          const publicKey = await getPublicKeyFromAddress(accountAddress)
+          const proofBytes = getBase58Encoder().encode(proof.signature)
+          return verifySignature(
+            publicKey,
+            signatureBytes(proofBytes),
+            Buffer.from(challenge.digest.digest.replace(/^0x/, ''), 'hex'),
+          )
+        },
+        catch: () => new WalletCryptoError({ code: 'VerificationFailed' }),
+      })
+    },
   })
 })
 
@@ -875,10 +994,11 @@ const makeSolanaCustody = Effect.gen(function* () {
   }
   return SolanaDevnetCustody.of({
     accountId: keyConfig.accountId,
-    signTransaction: (prepared: PreparedTransaction, digest: SigningDigest) => {
+    networkId: solanaNetworkId,
+    signTransaction: (prepared: TransactionPayload) => {
       if (
         prepared.accountId !== keyConfig.accountId ||
-        prepared.network._tag !== 'SolanaDevnet'
+        prepared.networkId !== solanaNetworkId
       ) {
         return Effect.fail(
           new WalletSignerError({ code: 'UnsupportedAccount' }),
@@ -893,17 +1013,10 @@ const makeSolanaCustody = Effect.gen(function* () {
                 throw new Error('Solana transaction source mismatch')
               }
               const message = await buildTransactionMessage(payload, signer)
-              const transaction = compileTransaction(message)
-              const computedDigest = await digestMessage(
-                transaction.messageBytes,
-              )
-              if (computedDigest !== Redacted.value(digest)) {
-                throw new Error('Solana signing digest mismatch')
-              }
               const signed = await signTransactionMessageWithSigners(message)
               return makeSignedTransaction(
                 prepared.accountId,
-                solanaNetwork,
+                solanaNetworkId,
                 S.encodeSync(SolanaSignedPayloadJson)({
                   previewId: payload.previewId,
                   wireTransactionBase64:
@@ -918,14 +1031,14 @@ const makeSolanaCustody = Effect.gen(function* () {
     },
     signChallenge: challenge =>
       challenge.accountId === keyConfig.accountId &&
-      challenge.digest.algorithm === 'Sha256' &&
-      isThirtyTwoByteHex(challenge.digest.digestHex)
+      challenge.digest.encoding === 'hex' &&
+      isThirtyTwoByteHex(challenge.digest.digest)
         ? Effect.tryPromise({
             try: async () => {
               const signatures = await signer.signMessages([
                 createSignableMessage(
                   Buffer.from(
-                    challenge.digest.digestHex.replace(/^0x/, ''),
+                    challenge.digest.digest.replace(/^0x/, ''),
                     'hex',
                   ),
                 ),
@@ -941,13 +1054,13 @@ const makeSolanaCustody = Effect.gen(function* () {
               if (Option.isNone(maybeSignature)) {
                 throw new Error('Solana signature was unavailable')
               }
-              return SolanaEd25519SignatureProof.make({
+              return SignatureProofSchema.make({
                 challengeId: challenge.challengeId,
                 accountId: challenge.accountId,
-                publicKey: signer.address,
-                signatureBase58: getBase58Decoder().decode(
-                  maybeSignature.value,
-                ),
+                algorithm: 'ed25519',
+                publicIdentity: signer.address,
+                signature: getBase58Decoder().decode(maybeSignature.value),
+                encoding: 'base58',
               })
             },
             catch: () => new WalletSignerError({ code: 'Denied' }),
