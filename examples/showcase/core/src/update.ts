@@ -4,6 +4,7 @@ import type * as Command from 'foldkit/command'
 import { type Message } from './message.js'
 import {
   CalculatorScene,
+  CardboardScene,
   CounterScene,
   FactScene,
   HomeScene,
@@ -33,6 +34,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       TappedCalculatorButton: () => navigate(model, CalculatorScene.make({})),
       TappedFactButton: () => navigate(model, FactScene.make({})),
       TappedWalletButton: () => navigate(model, WalletScene.make({})),
+      TappedCardboardButton: () => navigate(model, CardboardScene.make({})),
       TappedBackButton: () => navigate(model, HomeScene.make({})),
       OpenedNavigation: ({ navigation }) => navigate(model, navigation),
     }),

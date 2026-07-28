@@ -4,6 +4,11 @@ import {
   type CalculatorInitialRoute,
   initialCalculatorRoute,
 } from 'calculator-react-bindings-example'
+import * as Cardboard from 'cardboard-core-example'
+import {
+  CardboardClient,
+  type CardboardInitialRoute,
+} from 'cardboard-react-bindings-example'
 import * as Counter from 'counter-core-example'
 import {
   CounterClient,
@@ -32,6 +37,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewStyle,
 } from 'react-native'
 import type { DependencyLifecycle } from 'shared-react-bindings-example'
 import * as Showcase from 'showcase-core-example'
@@ -60,6 +66,7 @@ import { WalletExample, WalletProgram } from './wallet'
 const counterRouter = Program.makeRouter(Counter.CounterProgram)
 const countersRouter = Program.makeRouter(Counters.MultipleCountersProgram)
 const calculatorRouter = Program.makeRouter(Calculator.CalculatorProgram)
+const cardboardRouter = Cardboard.CardboardRouter
 const factRouter = Program.makeRouter(FactProgram)
 const showcaseRouter = Program.makeRouter(Showcase.ShowcaseProgram)
 const walletRouter = Program.makeRouter(WalletProgram)
@@ -221,6 +228,9 @@ const ShowcaseScreen = ({
     initialMultipleCountersRoute,
   )
   const [calculatorRoute, setCalculatorRoute] = useState(initialCalculatorRoute)
+  const [cardboardRoute, setCardboardRoute] = useState<CardboardInitialRoute>(
+    Cardboard.initialCardboardRoute,
+  )
   const [factRoute, setFactRoute] = useState(initialFactRoute)
   const [walletRoute, setWalletRoute] =
     useState<WalletInitialRoute>(initialWalletRoute)
@@ -304,6 +314,12 @@ const ShowcaseScreen = ({
           Showcase.CalculatorScene.make({}),
           resolveInlineRoute(calculatorRouter.parse(path)),
           setCalculatorRoute,
+        )
+      } else if (path === '/0' || path.startsWith('/0/')) {
+        return selectRoute(
+          Showcase.CardboardScene.make({}),
+          resolveInlineRoute(cardboardRouter.parse(path)),
+          setCardboardRoute,
         )
       } else if (path.startsWith('/fact/')) {
         return selectRoute(
@@ -403,6 +419,9 @@ const ShowcaseScreen = ({
       ),
       CalculatorScene: () => (
         <CalculatorExample key={routeRevision} route={calculatorRoute} />
+      ),
+      CardboardScene: () => (
+        <CardboardExample key={routeRevision} route={cardboardRoute} />
       ),
       FactScene: () => <FactExample key={routeRevision} route={factRoute} />,
       WalletScene: () => (
@@ -522,6 +541,11 @@ const ShowcaseHome = () => {
         </Text>
       </View>
       <ShowcaseCard
+        description="Rule Zero, typed state transitions, portable /0 routes, and accessible presentation."
+        onPress={actions.tappedCardboardButton}
+        title="Project Cardboard"
+      />
+      <ShowcaseCard
         description="One shared Model and three domain actions."
         onPress={actions.tappedCounterButton}
         title="Counter"
@@ -579,6 +603,11 @@ const ShowcaseTabs = ({
   return (
     <View style={styles.tabs}>
       <SceneTab
+        isSelected={navigation._tag === 'CardboardScene'}
+        label="Cardboard"
+        onPress={actions.tappedCardboardButton}
+      />
+      <SceneTab
         isSelected={navigation._tag === 'CounterScene'}
         label="Counter"
         onPress={actions.tappedCounterButton}
@@ -627,6 +656,179 @@ const SceneTab = ({
     </Text>
   </Pressable>
 )
+
+const cardboardProfileStyle = (
+  profile: Cardboard.AccessibilityProfile,
+): ViewStyle =>
+  M.value(profile).pipe(
+    M.withReturnType<ViewStyle>(),
+    M.when('AmberPaper', () => ({ backgroundColor: '#23180d' })),
+    M.when('QuietBlack', () => ({ backgroundColor: '#020202' })),
+    M.when('Groovebox', () => ({ backgroundColor: '#321a0a' })),
+    M.when('GrooveboxThroughInvert', () => ({ backgroundColor: '#dce9f3' })),
+    M.when('Negative', () => ({ backgroundColor: '#f2f2f2' })),
+    M.when('HighContrast', () => ({ backgroundColor: '#000000' })),
+    M.exhaustive,
+  )
+
+const cardboardInputMethodStyle = (
+  inputMethod: Cardboard.InputMethod,
+): ViewStyle =>
+  M.value(inputMethod).pipe(
+    M.withReturnType<ViewStyle>(),
+    M.when('SegaGenesisController', () => ({ backgroundColor: '#171717' })),
+    M.when('Nintendo64Controller', () => ({ backgroundColor: '#aaa59a' })),
+    M.when('GameBoyColor', () => ({ backgroundColor: '#a868b1' })),
+    M.when('Xbox360Controller', () => ({ backgroundColor: '#e8ebe6' })),
+    M.when('MouseAndKeyboard', () => ({ backgroundColor: '#26313b' })),
+    M.when('Joystick', () => ({ backgroundColor: '#502123' })),
+    M.when('Eyes', () => ({ backgroundColor: '#223042' })),
+    M.when('HeadLookingUp', () => ({ backgroundColor: '#37274a' })),
+    M.when('HeadLookingDown', () => ({ backgroundColor: '#37274a' })),
+    M.when('HeadLookingRight', () => ({ backgroundColor: '#37274a' })),
+    M.when('Mirror', () => ({ backgroundColor: '#b9d8e8' })),
+    M.exhaustive,
+  )
+
+const cardboardProfileForModel = (
+  model: Cardboard.Model,
+): Cardboard.AccessibilityProfile =>
+  M.value(model.zero).pipe(
+    M.withReturnType<Cardboard.AccessibilityProfile>(),
+    M.tagsExhaustive({
+      WaitingAtZero: () => Cardboard.initialAccessibilityProfile,
+      PressingZero: () => Cardboard.initialAccessibilityProfile,
+      OpeningZero: () => Cardboard.initialAccessibilityProfile,
+      ConfiguringAtZero: ({ profile }) => profile,
+      ChoosingInputMethod: ({ profile }) => profile,
+      RejectedInputMethodChoice: ({ profile }) => profile,
+      CompletedAtZero: ({ profile }) => profile,
+    }),
+  )
+
+const CardboardExample = ({
+  route,
+}: Readonly<{ route: CardboardInitialRoute }>) => (
+  <CardboardClient.Provider initialRoute={route}>
+    <CardboardScreen />
+  </CardboardClient.Provider>
+)
+
+const CardboardScreen = () => {
+  const model = CardboardClient.useModel()
+  const actions = CardboardClient.useActions()
+  const replay = CardboardClient.useReplay()
+  const isConfigurationVisible = model.zero._tag === 'ConfiguringAtZero'
+  const isRiddleVisible =
+    model.zero._tag === 'ChoosingInputMethod' ||
+    model.zero._tag === 'RejectedInputMethodChoice'
+  const profile = cardboardProfileForModel(model)
+  const isPressed = model.zero._tag === 'PressingZero'
+  const progress =
+    model.zero._tag === 'OpeningZero'
+      ? Math.round(model.zero.progressPermille / 10)
+      : 0
+
+  return (
+    <View style={[styles.cardboardExample, cardboardProfileStyle(profile)]}>
+      <View style={styles.cardboardHeading}>
+        <View>
+          <Text style={styles.cardboardEyebrow}>Project Cardboard</Text>
+          <Text style={styles.cardboardTitle}>Rule Zero</Text>
+        </View>
+        <Text style={styles.cardboardRoute}>/0</Text>
+      </View>
+      <Pressable
+        accessibilityHint="Hold until the accessibility presentation opens"
+        accessibilityLabel="Rule Zero black button"
+        accessibilityRole="button"
+        onPressIn={actions.pressedZeroButton}
+        onPressOut={actions.releasedZeroButton}
+        style={[
+          styles.cardboardZeroButton,
+          isPressed ? styles.cardboardZeroButtonPressed : undefined,
+        ]}
+      >
+        <Text style={styles.cardboardZeroLabel}>0</Text>
+        <Text style={styles.cardboardProgress}>{progress}%</Text>
+      </Pressable>
+      <Text accessibilityLiveRegion="polite" style={styles.cardboardReadout}>
+        {Cardboard.accessibleDescription(model)}
+      </Text>
+      {isConfigurationVisible ? (
+        <View style={styles.cardboardConfiguration}>
+          <Text style={styles.cardboardProfile}>
+            {Cardboard.accessibilityProfileLabel(profile)}
+          </Text>
+          <View style={styles.buttonRow}>
+            <ActionButton
+              label="Previous"
+              onPress={() =>
+                actions.selectedAccessibilityProfile(
+                  Cardboard.previousAccessibilityProfile(profile),
+                )
+              }
+            />
+            <ActionButton
+              label="RGB negative"
+              onPress={actions.toggledRgbInversion}
+            />
+            <ActionButton
+              label="Next"
+              onPress={() =>
+                actions.selectedAccessibilityProfile(
+                  Cardboard.nextAccessibilityProfile(profile),
+                )
+              }
+            />
+            <ActionButton
+              label="Continue"
+              onPress={actions.completedZeroGame}
+              primary
+            />
+          </View>
+        </View>
+      ) : null}
+      {isRiddleVisible ? (
+        <View style={styles.cardboardRiddle}>
+          <Text style={styles.cardboardRiddleTitle}>
+            If you are looking at yourself, where are you looking?
+          </Text>
+          <View style={styles.cardboardChoices}>
+            {Array.map(Cardboard.inputMethods, inputMethod => (
+              <Pressable
+                accessibilityLabel={Cardboard.inputMethodLabel(inputMethod)}
+                accessibilityRole="button"
+                key={inputMethod}
+                onPress={() => actions.selectedInputMethod(inputMethod)}
+                style={[
+                  styles.cardboardChoice,
+                  cardboardInputMethodStyle(inputMethod),
+                ]}
+              >
+                <Text style={styles.cardboardChoiceGlyph}>
+                  {Cardboard.inputMethodGlyph(inputMethod)}
+                </Text>
+                <Text style={styles.cardboardChoiceLabel}>
+                  {Cardboard.inputMethodLabel(inputMethod)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {!isConfigurationVisible &&
+      !isRiddleVisible &&
+      model.zero._tag !== 'CompletedAtZero' ? (
+        <ActionButton
+          label="Open without holding"
+          onPress={actions.skippedZeroStep}
+        />
+      ) : null}
+      <ReplayControls label="Cardboard replay" replay={replay} />
+    </View>
+  )
+}
 
 const CounterExample = ({
   route,
@@ -1196,6 +1398,111 @@ const styles = StyleSheet.create({
   showcaseCardArrow: { color: '#a3e635', fontSize: 32, fontWeight: '300' },
   navigationReplay: { marginTop: 8 },
   example: { gap: 20 },
+  cardboardExample: {
+    borderColor: '#5f4a30',
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 18,
+    padding: 20,
+  },
+  cardboardHeading: {
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  cardboardEyebrow: {
+    color: '#d3a861',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  cardboardTitle: {
+    color: '#ffe5ae',
+    fontFamily: 'serif',
+    fontSize: 44,
+    fontWeight: '700',
+    lineHeight: 50,
+  },
+  cardboardRoute: { color: '#d3a861', fontFamily: 'monospace', fontSize: 15 },
+  cardboardZeroButton: {
+    alignItems: 'center',
+    backgroundColor: '#000000',
+    borderColor: '#594c3b',
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 250,
+    justifyContent: 'center',
+  },
+  cardboardZeroButtonPressed: { opacity: 0.82, transform: [{ translateY: 9 }] },
+  cardboardZeroLabel: {
+    color: '#ffffff',
+    fontFamily: 'serif',
+    fontSize: 72,
+    fontWeight: '800',
+    opacity: 0.2,
+  },
+  cardboardProgress: {
+    bottom: 14,
+    color: '#f4ad48',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    position: 'absolute',
+    right: 16,
+  },
+  cardboardReadout: {
+    backgroundColor: '#332414',
+    borderLeftColor: '#f4ad48',
+    borderLeftWidth: 3,
+    color: '#ffe5ae',
+    fontSize: 15,
+    lineHeight: 22,
+    minHeight: 58,
+    padding: 14,
+  },
+  cardboardConfiguration: { gap: 14 },
+  cardboardProfile: {
+    color: '#ffe5ae',
+    fontFamily: 'serif',
+    fontSize: 25,
+    fontWeight: '700',
+  },
+  cardboardRiddle: { gap: 14 },
+  cardboardRiddleTitle: {
+    color: '#ffe5ae',
+    fontFamily: 'serif',
+    fontSize: 26,
+    fontWeight: '700',
+    lineHeight: 32,
+  },
+  cardboardChoices: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  cardboardChoice: {
+    alignItems: 'center',
+    borderColor: '#685b47',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 8,
+    justifyContent: 'center',
+    minHeight: 104,
+    minWidth: 128,
+    padding: 12,
+  },
+  cardboardChoiceGlyph: {
+    color: '#ffffff',
+    fontFamily: 'monospace',
+    fontSize: 19,
+    fontWeight: '800',
+  },
+  cardboardChoiceLabel: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   sectionHeader: {
     alignItems: 'center',
     flexDirection: 'row',

@@ -1,0 +1,28 @@
+{
+  "name": "cardboard-react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite",
+    "prebuild": "pnpm --filter cardboard-react-bindings-example build",
+    "predev": "pnpm --filter cardboard-react-bindings-example build",
+    "pretypecheck": "pnpm --filter cardboard-react-bindings-example build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cardboard-core-example": "workspace:*",
+    "cardboard-react-bindings-example": "workspace:*",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}

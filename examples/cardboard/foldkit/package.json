@@ -1,0 +1,29 @@
+{
+  "name": "cardboard-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "prebuild": "pnpm --filter cardboard-core-example build",
+    "predev": "pnpm --filter cardboard-core-example build",
+    "pretypecheck": "pnpm --filter cardboard-core-example build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "cardboard-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "happy-dom": "^20.10.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}

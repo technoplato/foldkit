@@ -83,6 +83,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       SelectedAccessibilityProfile: zeroMessage =>
         transitionZero(model, zeroMessage),
       ToggledRgbInversion: zeroMessage => transitionZero(model, zeroMessage),
+      SelectedMirrorAnswer: zeroMessage => transitionZero(model, zeroMessage),
+      SelectedIncorrectInputMethod: zeroMessage =>
+        transitionZero(model, zeroMessage),
       SkippedZeroStep: zeroMessage => transitionZero(model, zeroMessage),
       CompletedZeroGame: zeroMessage => transitionZero(model, zeroMessage),
       ReturnedToZeroStart: zeroMessage => transitionZero(model, zeroMessage),

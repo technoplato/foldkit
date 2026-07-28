@@ -1,0 +1,277 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: #070604;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+button,
+input {
+  font: inherit;
+}
+
+.cardboard-shell {
+  --paper: #17130d;
+  --ink: #f6dfb2;
+  --accent: #f0a23d;
+  --muted: #aa8f66;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--ink);
+  background: radial-gradient(circle at 50% 0%, #312418, var(--paper) 60%);
+}
+
+.profile-QuietBlack {
+  --paper: #020202;
+  --ink: #e8e8e8;
+  --accent: #868686;
+  --muted: #969696;
+}
+.profile-Groovebox {
+  --paper: #24170c;
+  --ink: #ffe1a1;
+  --accent: #ff7a24;
+  --muted: #c59462;
+}
+.profile-GrooveboxThroughInvert {
+  --paper: #dbe8f3;
+  --ink: #001e5e;
+  --accent: #0085db;
+  --muted: #3a6b9d;
+}
+.profile-Negative {
+  --paper: #f2f2f2;
+  --ink: #111;
+  --accent: #075cff;
+  --muted: #4b4b4b;
+}
+.profile-HighContrast {
+  --paper: #000;
+  --ink: #fff;
+  --accent: #ffea00;
+  --muted: #fff;
+}
+.rgb-inverted {
+  filter: invert(1);
+}
+
+.cardboard-stage {
+  width: min(680px, 100%);
+  display: grid;
+  gap: 24px;
+}
+.cardboard-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.cardboard-header h1 {
+  margin: 4px 0 0;
+  font-family: Georgia, serif;
+  font-size: clamp(42px, 9vw, 86px);
+  line-height: 0.9;
+}
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.cardboard-header code {
+  color: var(--muted);
+}
+
+.zero-button {
+  position: relative;
+  min-height: 270px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent);
+  border-radius: 18px;
+  color: #fff;
+  background: #000;
+  box-shadow: 0 30px 80px #0008;
+  cursor: pointer;
+  transform-origin: bottom;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+.zero-button:focus-visible {
+  outline: 4px solid var(--accent);
+  outline-offset: 5px;
+}
+.zero-button.state-PressingZero {
+  transform: translateY(10px) scale(0.99);
+  box-shadow: 0 14px 32px #0008;
+}
+.zero-button.state-OpeningZero {
+  transform: perspective(800px) rotateX(-10deg) translateY(18px);
+}
+.zero-button-label {
+  font:
+    800 76px/1 Georgia,
+    serif;
+  opacity: 0.18;
+}
+.zero-button-progress {
+  position: absolute;
+  inset: auto 0 0;
+  height: 8px;
+  background: var(--accent);
+  transition: width 100ms linear;
+}
+.readout {
+  min-height: 48px;
+  margin: 0;
+  padding: 16px 18px;
+  border-left: 3px solid var(--accent);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.configuration {
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+.configuration h2 {
+  margin: 6px 0 18px;
+  font-family: Georgia, serif;
+  font-size: 28px;
+}
+.configuration-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.configuration button {
+  min-height: 46px;
+  border: 1px solid var(--muted);
+  border-radius: 8px;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+}
+.riddle {
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+.riddle h2 {
+  max-width: 560px;
+  margin: 8px 0 18px;
+  font-family: Georgia, serif;
+  font-size: clamp(26px, 5vw, 40px);
+}
+.input-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.input-method {
+  min-height: 108px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  border-radius: 16px;
+  color: var(--ink);
+  background: #171717;
+  cursor: pointer;
+}
+.input-method span {
+  font:
+    800 22px/1 ui-monospace,
+    monospace;
+  letter-spacing: 0.08em;
+}
+.input-method strong {
+  font-size: 12px;
+}
+.input-SegaGenesisController {
+  color: #f4f4f4;
+  background: #181818;
+  box-shadow: inset 0 -5px #9d1c2d;
+}
+.input-Nintendo64Controller {
+  color: #27221b;
+  background: #aaa59a;
+  box-shadow: inset 0 -5px #167a3e;
+}
+.input-GameBoyColor {
+  color: #221728;
+  background: #a868b1;
+  box-shadow: inset 0 -5px #512560;
+}
+.input-Xbox360Controller {
+  color: #172011;
+  background: #e8ebe6;
+  box-shadow: inset 0 -5px #62a92c;
+}
+.input-Mirror {
+  color: #17253b;
+  background: linear-gradient(135deg, #eefaff, #9fc1da 45%, #fff 50%, #96abc4);
+}
+.replay {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.replay input {
+  accent-color: var(--accent);
+}
+footer {
+  color: var(--muted);
+  font-size: 13px;
+}
+.route-error {
+  min-height: 100vh;
+  padding: 40px;
+  color: #ffd7d7;
+  background: #1c0505;
+}
+
+@media (max-width: 560px) {
+  .cardboard-shell {
+    padding: 16px;
+    align-items: start;
+  }
+  .cardboard-stage {
+    margin-top: 24px;
+    gap: 18px;
+  }
+  .zero-button {
+    min-height: 240px;
+  }
+  .configuration-actions {
+    grid-template-columns: 1fr;
+  }
+  .input-methods {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
