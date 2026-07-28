@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 11:48:09 a.m. EDT — `da044320bed4` build(testnet-server): embed server provenance
+
+- **Implementation commit:** `da044320bed4d3d54dc3c9fcc6c07868f42b5646`
+- **Change:** Made the wallet testnet server produce and log an embedded clean-source build identity before public deployment.
+- **Details:**
+  - The release build now generates provenance directly into the ignored server artifact directory before TypeScript compilation.
+  - Server startup reads the packaged provenance resource and logs it through Effect before opening the public listener.
+- **Files:**
+  - `examples/wallet/testnet-server/scripts/build-with-provenance.mjs` — Generates clean Git metadata and compiles the deployable Node server artifact.
+  - `examples/wallet/testnet-server/src/buildProvenance.ts` — Loads and logs the provenance resource packaged beside the compiled server entry point.
+  - `examples/wallet/testnet-server/src/entry.ts` — Requires the provenance log to complete before launching the wallet server Layer.
+  - `examples/wallet/testnet-server/package.json` — Routes release builds through the provenance-aware build script.
+- **User context (verbatim):**
+  > Okay, so we better do that.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this Codex desktop session is not captured by SpecStory.
+
 ## July 28th, 2026 at 11:39:28 a.m. EDT — `b089275911ea` refactor(wallet)!: normalize chain adapters
 
 - **Implementation commit:** `b089275911ea800e378e485761d9123cb860f82c`
