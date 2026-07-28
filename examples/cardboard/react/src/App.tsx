@@ -8,6 +8,7 @@ import {
   conversationLedger,
   conversationScale,
   currentConversationScaleLevel,
+  extraPortableRoute,
   initialAccessibilityProfile,
   inputMethodGlyph,
   inputMethodLabel,
@@ -23,6 +24,7 @@ import {
   useCardboardModel,
   useCardboardReplay,
 } from 'cardboard-react-bindings-example'
+import { Option } from 'effect'
 import { type KeyboardEvent, type PointerEvent, useEffect } from 'react'
 
 /** Runs Cardboard through the shared React and React Native bindings. */
@@ -42,7 +44,7 @@ const portableRouteForModel = (
   if (model.page._tag === 'SequencePage') {
     return sequencePortableRoute(model.page.value)
   } else if (model.page._tag === 'ConversationLedgerPage') {
-    return '/0/log'
+    return extraPortableRoute
   } else {
     return '/0'
   }
@@ -82,14 +84,33 @@ const CardboardScreen = () => {
     model.zero._tag === 'OpeningZero' ? model.zero.progressPermille / 10 : 0
 
   useEffect(() => {
-    if (replay.mode !== 'Live') {
-      return
+    let isCurrent = true
+    if (replay.mode === 'Live') {
+      const nextPath = portableRouteForModel(model)
+      if (globalThis.location.pathname !== nextPath) {
+        globalThis.history.pushState({}, '', nextPath)
+      }
+    } else {
+      void replay.replayPath().then(nextPath => {
+        if (isCurrent && globalThis.location.pathname !== nextPath) {
+          globalThis.history.replaceState({}, '', nextPath)
+        }
+      })
     }
-    const nextPath = portableRouteForModel(model)
-    if (globalThis.location.pathname !== nextPath) {
-      globalThis.history.pushState({}, '', nextPath)
+    return () => {
+      isCurrent = false
     }
-  }, [model.page, replay.mode])
+  }, [model.page, replay.frame, replay.mode])
+
+  if (replay.mode === 'Inspecting') {
+    return (
+      <ProgramLogScreen
+        model={model}
+        onOpenExtra={actions.openedExtra}
+        replay={replay}
+      />
+    )
+  }
 
   if (model.page._tag === 'SequencePage') {
     const screen = cardboardScreen(model)
@@ -106,6 +127,9 @@ const CardboardScreen = () => {
           {screen.content.text}
         </button>
         <nav aria-label="Cardboard commands" className="cardboard-commands">
+          <button onClick={() => replay.inspect()} type="button">
+            [L] Log
+          </button>
           {screen.commands.map(command => (
             <button
               key={command.key}
@@ -202,10 +226,10 @@ const CardboardScreen = () => {
 
         <button
           className="ledger-link"
-          onClick={actions.openedConversationLedger}
+          onClick={actions.openedExtra}
           type="button"
         >
-          Open /0/log decision log
+          Open /0/extra
         </button>
 
         {isConfigurationVisible ? (
@@ -315,7 +339,7 @@ const ConversationLedgerScreen = ({
           <p className="eyebrow">Project Cardboard</p>
           <h1>When /0 is four</h1>
         </div>
-        <code>/0/log</code>
+        <code>/0/extra</code>
       </header>
 
       <p className="ledger-declaration">
@@ -375,5 +399,142 @@ const ConversationLedgerScreen = ({
         <code>{cardboardDesktopCommand}</code>
       </details>
     </article>
+  </main>
+)
+
+const modelSummary = (model: ReturnType<typeof useCardboardModel>): string => {
+  if (model.page._tag === 'SequencePage') {
+    return model.page.value.toString()
+  } else if (model.page._tag === 'ConversationLedgerPage') {
+    return 'Extra'
+  } else {
+    return accessibleDescription(model)
+  }
+}
+
+const ProgramLogScreen = ({
+  model,
+  onOpenExtra,
+  replay,
+}: Readonly<{
+  model: ReturnType<typeof useCardboardModel>
+  onOpenExtra: () => void
+  replay: ReturnType<typeof useCardboardReplay>
+}>) => (
+  <main className="program-log-shell">
+    <header className="program-log-pinned">
+      <div>
+        <p className="eyebrow">Current Program state</p>
+        <h1>{modelSummary(model)}</h1>
+        <p className="program-log-frame">
+          Frame {replay.frame} of {replay.finalFrame}
+        </p>
+      </div>
+      <div className="program-log-controls">
+        <button
+          disabled={replay.frame === 0}
+          onClick={replay.stepBackward}
+          type="button"
+        >
+          Undo
+        </button>
+        <button
+          disabled={replay.frame === replay.finalFrame}
+          onClick={replay.stepForward}
+          type="button"
+        >
+          Redo
+        </button>
+        <button
+          className="program-log-done"
+          disabled={!replay.isBranchable}
+          onClick={replay.resume}
+          type="button"
+        >
+          Done
+        </button>
+      </div>
+      <input
+        aria-label="Selected replay frame"
+        max={replay.finalFrame}
+        min={0}
+        onChange={event => replay.seek(Number(event.currentTarget.value))}
+        type="range"
+        value={replay.frame}
+      />
+      {Option.isSome(replay.maybeError) ? (
+        <p className="program-log-error" role="alert">
+          {replay.maybeError.value}
+        </p>
+      ) : null}
+    </header>
+
+    <section className="program-log-list" aria-labelledby="program-log-title">
+      <div className="program-log-heading">
+        <p className="eyebrow">Replayable evidence</p>
+        <h2 id="program-log-title">Actions and events</h2>
+      </div>
+      <button
+        className="program-log-row"
+        onClick={() => replay.seek(0)}
+        type="button"
+      >
+        <span>0</span>
+        <strong>Initial Model</strong>
+        <small>Program start</small>
+      </button>
+      {replay.transitions.map((transition, index) => {
+        const frame = index + 1
+        const commandNames = transition.commands
+          .map(command => command.name)
+          .join(', ')
+        return (
+          <button
+            className={
+              frame > replay.frame
+                ? 'program-log-row future'
+                : 'program-log-row'
+            }
+            key={transition.sequence}
+            onClick={() => replay.seek(frame)}
+            type="button"
+          >
+            <span>{frame}</span>
+            <strong>{transition.message._tag}</strong>
+            <small>
+              {transition.source._tag}
+              {commandNames === '' ? '' : ` · Commands: ${commandNames}`}
+              {transition.isOperationSettled ? ' · Settled' : ' · Waiting'}
+            </small>
+          </button>
+        )
+      })}
+      {replay.runtimeEvents.map((event, index) => (
+        <button
+          className={
+            event.afterFrame > replay.frame
+              ? 'program-log-row runtime-event future'
+              : 'program-log-row runtime-event'
+          }
+          key={`${event.afterFrame.toString()}-${event.name}-${index.toString()}`}
+          onClick={() => replay.seek(event.afterFrame)}
+          type="button"
+        >
+          <span>{event.afterFrame}</span>
+          <strong>{event.name}</strong>
+          <small>Runtime event</small>
+        </button>
+      ))}
+    </section>
+
+    <footer className="program-log-extra">
+      <button
+        disabled={!replay.isBranchable}
+        onClick={onOpenExtra}
+        type="button"
+      >
+        [E] Extra
+      </button>
+    </footer>
   </main>
 )

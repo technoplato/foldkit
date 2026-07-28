@@ -14,14 +14,16 @@ const programRouter = Program.makeRouter(CardboardProgram)
 
 /** The canonical portable route for Cardboard at value four. */
 export const ruleZeroPortableRoute = '/0'
-/** The canonical portable route for the append-only conversation ledger. */
-export const conversationLedgerPortableRoute = '/0/log'
+/** The canonical portable route for Cardboard's supplementary material. */
+export const extraPortableRoute = '/0/extra'
 
 const isConstitutionRoot = (relativeRoute: string): boolean =>
   relativeRoute === ruleZeroPortableRoute || relativeRoute === '/0/'
 
 const isConversationLedgerRoot = (relativeRoute: string): boolean =>
-  relativeRoute === conversationLedgerPortableRoute ||
+  relativeRoute === extraPortableRoute ||
+  relativeRoute === '/0/extra/' ||
+  relativeRoute === '/0/log' ||
   relativeRoute === '/0/log/'
 
 const sequenceValueForRoute = (
@@ -89,7 +91,7 @@ export const CardboardRouter: Program.ProgramRouter<Model, Message> = {
     if (route._tag === 'State' && route.model.page._tag === 'SequencePage') {
       return Effect.succeed(sequencePortableRoute(route.model.page.value))
     } else if (isConversationLedgerStateRoute(route)) {
-      return Effect.succeed(conversationLedgerPortableRoute)
+      return Effect.succeed(extraPortableRoute)
     } else if (isInitialStateRoute(route)) {
       return Effect.succeed(ruleZeroPortableRoute)
     } else {
@@ -101,7 +103,7 @@ export const CardboardRouter: Program.ProgramRouter<Model, Message> = {
     if (Option.isSome(maybeSequenceValue)) {
       return Effect.succeed(sequencePortableRoute(maybeSequenceValue.value))
     } else if (isConversationLedgerRoot(relativeRoute)) {
-      return Effect.succeed(conversationLedgerPortableRoute)
+      return Effect.succeed(extraPortableRoute)
     } else if (isConstitutionRoot(relativeRoute)) {
       return Effect.succeed(ruleZeroPortableRoute)
     } else {

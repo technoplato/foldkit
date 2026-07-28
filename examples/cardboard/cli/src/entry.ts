@@ -29,7 +29,7 @@ const cardboard = Command.make('foldkit-cardboard').pipe(
       'Try a Genesis-style controller in the first riddle',
     ),
     operation('mirror', 'Mirror', 'Answer the first riddle with Mirror'),
-    operation('log', 'Log', 'Show the append-only /0/log decision log'),
+    operation('extra', 'Extra', 'Show the supplementary /0/extra material'),
     operation('reset', 'Reset', 'Return to /0'),
   ]),
 )

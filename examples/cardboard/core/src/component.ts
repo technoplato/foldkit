@@ -11,7 +11,7 @@ import { type Model } from './model.js'
 /** A renderer-neutral action exposed by a Cardboard component. */
 export const CardboardAction = S.Literals([
   'AdvanceCardboardSequence',
-  'OpenConversationLedger',
+  'OpenExtra',
 ])
 /** A renderer-neutral Cardboard action. */
 export type CardboardAction = typeof CardboardAction.Type
@@ -48,9 +48,9 @@ export const cardboardScreen = (model: Model): CardboardScreen => {
     return CardboardScreen({
       commands: [
         CardboardCommand({
-          action: 'OpenConversationLedger',
-          key: 'L',
-          text: 'Log',
+          action: 'OpenExtra',
+          key: 'E',
+          text: 'Extra',
         }),
       ],
       content: CardboardButton({
@@ -76,7 +76,7 @@ export const messageForCardboardAction = (action: CardboardAction): Message =>
   M.value(action).pipe(
     M.withReturnType<Message>(),
     M.when('AdvanceCardboardSequence', () => AdvancedCardboardSequence()),
-    M.when('OpenConversationLedger', () => OpenedConversationLedger()),
+    M.when('OpenExtra', () => OpenedConversationLedger()),
     M.exhaustive,
   )
 

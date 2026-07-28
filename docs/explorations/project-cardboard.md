@@ -136,6 +136,18 @@ Each renderer chooses layout for its surface, including tiny, drawer, phone,
 car, television, browser, and native application contexts. The Program does
 not store viewport or framework details.
 
+Cardboard reserves `[L] Log` for the Program's authoritative Message and runtime-event
+timeline. The current inspected Model remains pinned above that timeline. Undo, redo,
+direct frame selection, and Done use the shared replay controller. Done resumes live
+execution from the selected settled frame without appending a Message. Entries after
+the selected frame remain visible but de-emphasized until the participant resumes or
+branches.
+
+`[E] Extra` is intentionally different. It opens supplementary Cardboard material at
+`/0/extra`. The previous `/0/log` route remains a parse alias and canonicalizes to
+`/0/extra`; it no longer names Program history. Selecting Extra while inspecting is a
+new domain action and therefore branches live from the selected frame.
+
 ### Archived black-button study
 
 The earlier black-button interaction remains a noncanonical study. Its initial

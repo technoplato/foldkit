@@ -37,7 +37,7 @@ export const CliOperation = S.Literals([
   'Finish',
   'TryController',
   'Mirror',
-  'Log',
+  'Extra',
   'Reset',
 ])
 /** A one-shot Cardboard CLI operation. */
@@ -66,7 +66,7 @@ const messagesForOperation = (
       }),
     ]),
     M.when('Mirror', () => [CompletedZeroGame(), SelectedMirrorAnswer()]),
-    M.when('Log', () => [OpenedConversationLedger()]),
+    M.when('Extra', () => [OpenedConversationLedger()]),
     M.when('Reset', () => [ReturnedToZeroStart()]),
     M.exhaustive,
   )

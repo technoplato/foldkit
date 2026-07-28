@@ -19,9 +19,9 @@ import {
   cardboardDesktopCommand,
   cardboardScreen,
   conversationLedger,
-  conversationLedgerPortableRoute,
   conversationScale,
   currentConversationScaleLevel,
+  extraPortableRoute,
   initialAccessibilityProfile,
   inputMethodGlyph,
   inputMethodLabel,
@@ -106,7 +106,7 @@ const conversationLedgerView = (): Document => {
                     h.h1([], ['When /0 is four']),
                   ],
                 ),
-                h.code([], ['/0/log']),
+                h.code([], ['/0/extra']),
               ],
             ),
             h.p(
@@ -323,8 +323,8 @@ export const view = (model: Model): Document => {
               [accessibleDescription(model)],
             ),
             h.a(
-              [h.Class('ledger-link'), h.Href(conversationLedgerPortableRoute)],
-              ['Open /0/log decision log'],
+              [h.Class('ledger-link'), h.Href(extraPortableRoute)],
+              ['Open /0/extra'],
             ),
             ...(isConfigurationVisible
               ? [
