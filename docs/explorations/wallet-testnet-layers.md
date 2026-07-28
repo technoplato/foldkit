@@ -78,13 +78,14 @@ Model, Message, replay tape, error, log statement, fixture, or committed file.
 
 Ethereum Sepolia transport variables:
 
-| Variable                                  | Value                                                        |
-| ----------------------------------------- | ------------------------------------------------------------ |
-| `WALLET_ETHEREUM_SEPOLIA_ACCOUNT_ID`      | Stable public application account identifier                 |
-| `WALLET_ETHEREUM_SEPOLIA_ACCOUNT_ADDRESS` | Checksummed or valid hexadecimal Sepolia address             |
-| `WALLET_ETHEREUM_SEPOLIA_DISPLAY_NAME`    | Public display label                                         |
-| `WALLET_ETHEREUM_SEPOLIA_HTTP_RPC_URL`    | Protected HTTPS Sepolia JSON-RPC URL                         |
-| `WALLET_ETHEREUM_SEPOLIA_WS_RPC_URL`      | Protected WSS Sepolia JSON-RPC URL with subscription support |
+| Variable                                        | Value                                                          |
+| ----------------------------------------------- | -------------------------------------------------------------- |
+| `WALLET_ETHEREUM_SEPOLIA_ACCOUNT_ID`            | Stable public application account identifier                   |
+| `WALLET_ETHEREUM_SEPOLIA_ACCOUNT_ADDRESS`       | Checksummed or valid hexadecimal Sepolia address               |
+| `WALLET_ETHEREUM_SEPOLIA_DISPLAY_NAME`          | Public display label                                           |
+| `WALLET_ETHEREUM_SEPOLIA_HTTP_RPC_URL`          | Protected HTTPS Sepolia JSON-RPC URL                           |
+| `WALLET_ETHEREUM_SEPOLIA_WS_RPC_URL`            | Protected WSS Sepolia JSON-RPC URL with subscription support   |
+| `WALLET_ETHEREUM_SEPOLIA_LIVE_RECEIVER_ADDRESS` | Disposable receiver used only by the opt-in live transfer test |
 
 Solana Devnet transport variables:
 
@@ -154,8 +155,9 @@ path.
   Token instruction support. An unrecognized instruction is ignored instead
   of being guessed.
 - This package does not request airdrops, fund accounts, or mint tokens during
-  setup or the normal suite. Its separately named live transfer test sends only
-  when `WALLET_SOLANA_DEVNET_LIVE_TRANSFER=1` is explicit.
+  setup or the normal suite. Its separately named live transfer tests send only
+  when `WALLET_ETHEREUM_SEPOLIA_LIVE_TRANSFER=1` or
+  `WALLET_SOLANA_DEVNET_LIVE_TRANSFER=1` is explicit.
 - `TestnetNodeLocalSignerLive` and `TestnetNodeWalletLive` read keys at Layer
   construction. Use `TestnetNodeNetworkLive` for read-only hosts, or merge it
   with a host-owned `WalletSigner` Layer.
@@ -178,12 +180,23 @@ The smoke tests do not construct, sign, submit, fund, airdrop, or observe a
 transaction. They require only the matching transport variables, not a private
 key.
 
-One separate live transfer test exercises the real Solana Devnet transport and
-local custody Layers. It starts the receiver's `logsSubscribe` Stream, previews
-and prepares a transfer, signs through `SolanaDevnetCustody`, submits through
-`SolanaDevnetTransport`, and waits for the matching incoming transaction record.
-It performs no balance loop, signature-status loop, or transaction-history
-loop.
+Two separate live transfer tests exercise the real test-network transports and
+local custody Layers. Each starts the receiver Stream before it previews,
+prepares, signs, and submits the transfer, then waits for the matching incoming
+transaction record. Ethereum observes a WebSocket `newHeads` notification.
+Solana observes a `logsSubscribe` notification. Neither test performs a balance
+loop, signature-status loop, or transaction-history loop.
+
+```sh
+WALLET_ETHEREUM_SEPOLIA_ACCOUNT_ID=... \
+WALLET_ETHEREUM_SEPOLIA_ACCOUNT_ADDRESS=... \
+WALLET_ETHEREUM_SEPOLIA_DISPLAY_NAME=... \
+WALLET_ETHEREUM_SEPOLIA_HTTP_RPC_URL=... \
+WALLET_ETHEREUM_SEPOLIA_WS_RPC_URL=... \
+WALLET_ETHEREUM_SEPOLIA_PRIVATE_KEY_HEX=... \
+WALLET_ETHEREUM_SEPOLIA_LIVE_RECEIVER_ADDRESS=... \
+pnpm --filter wallet-testnet-node-example test:live:ethereum-transfer
+```
 
 ```sh
 WALLET_SOLANA_DEVNET_ACCOUNT_ID=... \
@@ -197,8 +210,17 @@ pnpm --filter wallet-testnet-node-example test:live:solana-transfer
 ```
 
 The sender and receiver must be disposable Devnet accounts. The sender must be
-funded before the test starts. Secret key bytes remain Redacted and must never be
-written to the Model, a Message, a tape, test output, or Git.
+funded before the test starts. The same disposable-account rule applies to
+Sepolia. Secret key bytes remain Redacted and must never be written to the
+Model, a Message, a tape, test output, or Git.
+
+On July 27, 2026, the Sepolia test submitted 0.001 ETH as transaction
+[`0x6ceed352a42c1750f21bfab2b7b5da3c6df8fa78c05ed7f9caadbc0c8b612802`](https://sepolia.etherscan.io/tx/0x6ceed352a42c1750f21bfab2b7b5da3c6df8fa78c05ed7f9caadbc0c8b612802).
+The receiver Stream emitted the same hash from the WebSocket new-head path. A
+separate single receipt and balance read then confirmed the transfer. Those
+reads were corroboration after the push event, not the observation mechanism.
+The disposable sender had first received 0.05 Sepolia ETH in
+[`0x6c4ac8540cfbbd462ef74e5876dddd559a6d3c7dfbd0cdc1709f6190de39b17b`](https://sepolia.etherscan.io/tx/0x6c4ac8540cfbbd462ef74e5876dddd559a6d3c7dfbd0cdc1709f6190de39b17b).
 
 On July 27, 2026, the test submitted 0.001 Devnet SOL as transaction
 [`32sEXa6aTCKszyXnUgfi6DrE5szmFrd35gqnZpawR32XEVYaBtBdg8YSaksr4jcsD92D5UnHmret1hM2TpvqS2KA`](https://explorer.solana.com/tx/32sEXa6aTCKszyXnUgfi6DrE5szmFrd35gqnZpawR32XEVYaBtBdg8YSaksr4jcsD92D5UnHmret1hM2TpvqS2KA?cluster=devnet).

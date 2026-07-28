@@ -170,7 +170,6 @@ const assetForDraft = (
         )
       },
       Sol: () => Effect.fail(invalidClientResponse()),
-      Fiat: () => Effect.fail(invalidClientResponse()),
     }),
   )
 
@@ -430,7 +429,6 @@ const makeEthereumTransport = Effect.gen(function* () {
             return TransactionSubmission.make({
               previewId: payload.previewId,
               transactionId,
-              network: ethereumNetwork,
               submittedAt: Date.now(),
             })
           },

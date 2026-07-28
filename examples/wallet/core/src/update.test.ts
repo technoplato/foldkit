@@ -1,7 +1,12 @@
 import { Array as Array_, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { CurrencyValue, Eth, EthereumSepolia } from './currency.js'
+import {
+  CurrencyValue,
+  Eth,
+  EthereumSepolia,
+  EthereumSepoliaEthValue,
+} from './currency.js'
 import {
   AddedAddressBookEntry,
   ComposedTransfer,
@@ -26,6 +31,8 @@ import {
   AccountBalance,
   AddressBookEntry,
   BalanceSnapshot,
+  EthereumSepoliaEthTransactionPreview,
+  EthereumSepoliaEthTransferDraft,
   EthereumSignatureProof,
   FailedPortfolio,
   FailedTransactionObservation,
@@ -47,10 +54,8 @@ import {
   SigningChallengeState,
   SubmittedTransaction,
   SubmittingTransaction,
-  TransactionPreview,
   TransactionRecord,
   TransactionSubmission,
-  TransferDraft,
   WaitingForAccounts,
   WalletAccount,
   initialModel,
@@ -66,13 +71,13 @@ const currentBalance = CurrencyValue.make({
   decimalPlaces: 18,
   observedAt,
 })
-const fee = CurrencyValue.make({
+const fee = EthereumSepoliaEthValue.make({
   currency: eth,
   atomicUnits: '1000',
   decimalPlaces: 18,
   observedAt,
 })
-const resultingBalance = CurrencyValue.make({
+const resultingBalance = EthereumSepoliaEthValue.make({
   currency: eth,
   atomicUnits: '899999999999999000',
   decimalPlaces: 18,
@@ -112,12 +117,12 @@ const addressBookEntry = AddressBookEntry.make({
   address: '0xRecipient',
   displayName: 'Recipient',
 })
-const draft = TransferDraft.make({
+const draft = EthereumSepoliaEthTransferDraft.make({
   transferId: 'transfer-1',
   accountId: account.accountId,
   network: ethereum,
   destinationAddress: addressBookEntry.address,
-  value: CurrencyValue.make({
+  value: EthereumSepoliaEthValue.make({
     currency: eth,
     atomicUnits: '100000000000000000',
     decimalPlaces: 18,
@@ -129,7 +134,7 @@ const history = PreviouslyTransactedWithRecipient.make({
   transactionCount: 1,
   mostRecentObservedAt: observedAt,
 })
-const preview = TransactionPreview.make({
+const preview = EthereumSepoliaEthTransactionPreview.make({
   previewId: 'quote-1',
   draft,
   estimatedFee: fee,
@@ -145,7 +150,6 @@ const failure = NetworkFailure.make({
 const submission = TransactionSubmission.make({
   previewId: preview.previewId,
   transactionId: 'transaction-submitted',
-  network: ethereum,
   submittedAt: observedAt + 2,
 })
 const observedTransaction = TransactionRecord.make({
@@ -270,12 +274,20 @@ describe('Wallet transaction update', () => {
   })
 
   it('handles preview success and failure facts', () => {
+    const previewingModel: Model = {
+      ...loadedModel,
+      transaction: PreviewingTransaction.make({
+        draft,
+        recipientFamiliarity: FamiliarAddress.make({ entry: addressBookEntry }),
+        recipientHistory: history,
+      }),
+    }
     const [successModel] = update(
-      loadedModel,
+      previewingModel,
       SucceededPreviewTransaction.make({ preview }),
     )
     const [failedModel] = update(
-      loadedModel,
+      previewingModel,
       FailedPreviewTransaction.make({ draft, failure }),
     )
 
@@ -285,6 +297,36 @@ describe('Wallet transaction update', () => {
     expect(failedModel.transaction).toStrictEqual(
       FailedTransactionPreview.make({ draft, failure }),
     )
+  })
+
+  it('ignores stale transaction completion facts', () => {
+    const previewingModel: Model = {
+      ...loadedModel,
+      transaction: PreviewingTransaction.make({
+        draft,
+        recipientFamiliarity: FamiliarAddress.make({ entry: addressBookEntry }),
+        recipientHistory: history,
+      }),
+    }
+    const staleDraft = EthereumSepoliaEthTransferDraft.make({
+      ...draft,
+      transferId: 'stale-transfer',
+    })
+    const stalePreview = EthereumSepoliaEthTransactionPreview.make({
+      ...preview,
+      draft: staleDraft,
+    })
+    const [stalePreviewSuccess] = update(
+      previewingModel,
+      SucceededPreviewTransaction.make({ preview: stalePreview }),
+    )
+    const [stalePreviewFailure] = update(
+      previewingModel,
+      FailedPreviewTransaction.make({ draft: staleDraft, failure }),
+    )
+
+    expect(stalePreviewSuccess).toBe(previewingModel)
+    expect(stalePreviewFailure).toBe(previewingModel)
   })
 
   it('submits only the currently previewed transaction', () => {

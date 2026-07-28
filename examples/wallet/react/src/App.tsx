@@ -1,14 +1,15 @@
+import { Option } from 'effect'
 import {
   type CurrencyValue,
   type Model,
   SigningChallenge,
   type TransactionPreview,
   type TransactionState,
+  transferDraftFromInput,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
   WalletProvider,
-  WalletTransferComposition,
   initialWalletRoute,
   useWalletActions,
   useWalletModel,
@@ -126,19 +127,20 @@ const Transaction = ({ model }: Readonly<{ model: Model }>) => {
 
   const composeTransfer = () => {
     if (account !== undefined && balance !== undefined) {
-      actions.composedTransfer(
-        WalletTransferComposition.make({
-          transferId: 'react-demo-transfer',
-          accountId: account.accountId,
-          network: account.network,
-          destinationAddress: '0x2222222222222222222222222222222222222222',
-          value: {
-            ...balance.value,
-            atomicUnits: '100000000000000000',
-          },
-          message: 'Shared React Wallet demo',
-        }),
-      )
+      const maybeDraft = transferDraftFromInput({
+        transferId: 'react-demo-transfer',
+        accountId: account.accountId,
+        network: account.network,
+        destinationAddress: '0x2222222222222222222222222222222222222222',
+        value: {
+          ...balance.value,
+          atomicUnits: '100000000000000000',
+        },
+        maybeMessage: Option.some('Shared React Wallet demo'),
+      })
+      if (Option.isSome(maybeDraft)) {
+        actions.composedTransfer(maybeDraft.value)
+      }
     }
   }
 

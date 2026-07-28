@@ -1,6 +1,19 @@
 import { Array as Array_, Match as M, Option, Schema as S } from 'effect'
 
-import { Currency, CurrencyValue, Network } from './currency.js'
+import {
+  Currency,
+  CurrencyValue,
+  EthereumSepolia,
+  EthereumSepoliaEthValue,
+  EthereumSepoliaUsdc,
+  EthereumSepoliaUsdcValue,
+  Network,
+  SolanaDevnet,
+  SolanaDevnetSol,
+  SolanaDevnetSolValue,
+  SolanaDevnetUsdc,
+  SolanaDevnetUsdcValue,
+} from './currency.js'
 
 /** One public wallet account. */
 export const WalletAccount = S.Struct({
@@ -91,17 +104,179 @@ export const RecipientHistory = S.Union([
 /** Prior-recipient history derived from public observed transactions. */
 export type RecipientHistory = typeof RecipientHistory.Type
 
-/** A public transfer request before network preview. */
-export const TransferDraft = S.Struct({
+const TransferDraftFields = {
   transferId: S.String,
   accountId: S.String,
-  network: Network,
   destinationAddress: S.String,
-  value: CurrencyValue,
   maybeMessage: S.OptionFromNullishOr(S.String, { onNoneEncoding: null }),
-})
-/** A public transfer request before network preview. */
+}
+
+/** An executable ETH transfer draft on Ethereum Sepolia. */
+export const EthereumSepoliaEthTransferDraft = S.TaggedStruct(
+  'EthereumSepoliaEthTransferDraft',
+  {
+    ...TransferDraftFields,
+    network: EthereumSepolia,
+    value: EthereumSepoliaEthValue,
+  },
+)
+/** An executable ETH transfer draft on Ethereum Sepolia. */
+export type EthereumSepoliaEthTransferDraft =
+  typeof EthereumSepoliaEthTransferDraft.Type
+
+/** An executable USDC transfer draft on Ethereum Sepolia. */
+export const EthereumSepoliaUsdcTransferDraft = S.TaggedStruct(
+  'EthereumSepoliaUsdcTransferDraft',
+  {
+    ...TransferDraftFields,
+    network: EthereumSepolia,
+    value: EthereumSepoliaUsdcValue,
+  },
+)
+/** An executable USDC transfer draft on Ethereum Sepolia. */
+export type EthereumSepoliaUsdcTransferDraft =
+  typeof EthereumSepoliaUsdcTransferDraft.Type
+
+/** An executable SOL transfer draft on Solana Devnet. */
+export const SolanaDevnetSolTransferDraft = S.TaggedStruct(
+  'SolanaDevnetSolTransferDraft',
+  {
+    ...TransferDraftFields,
+    network: SolanaDevnet,
+    value: SolanaDevnetSolValue,
+  },
+)
+/** An executable SOL transfer draft on Solana Devnet. */
+export type SolanaDevnetSolTransferDraft =
+  typeof SolanaDevnetSolTransferDraft.Type
+
+/** An executable USDC transfer draft on Solana Devnet. */
+export const SolanaDevnetUsdcTransferDraft = S.TaggedStruct(
+  'SolanaDevnetUsdcTransferDraft',
+  {
+    ...TransferDraftFields,
+    network: SolanaDevnet,
+    value: SolanaDevnetUsdcValue,
+  },
+)
+/** An executable USDC transfer draft on Solana Devnet. */
+export type SolanaDevnetUsdcTransferDraft =
+  typeof SolanaDevnetUsdcTransferDraft.Type
+
+/** A public transfer request that exactly matches an executable Layer. */
+export const TransferDraft = S.Union([
+  EthereumSepoliaEthTransferDraft,
+  EthereumSepoliaUsdcTransferDraft,
+  SolanaDevnetSolTransferDraft,
+  SolanaDevnetUsdcTransferDraft,
+])
+/** A public transfer request that exactly matches an executable Layer. */
 export type TransferDraft = typeof TransferDraft.Type
+
+/** Host input used to validate and construct one executable transfer draft. */
+export const TransferDraftInput = S.Struct({
+  ...TransferDraftFields,
+  network: Network,
+  value: CurrencyValue,
+})
+/** Host input used to validate and construct one executable transfer draft. */
+export type TransferDraftInput = typeof TransferDraftInput.Type
+
+/** Validates host composition input into exactly one executable transfer case. */
+export const transferDraftFromInput = (
+  input: TransferDraftInput,
+): Option.Option<TransferDraft> =>
+  M.value(input.value.currency).pipe(
+    M.withReturnType<Option.Option<TransferDraft>>(),
+    M.tagsExhaustive({
+      Eth: currency => {
+        if (
+          input.network._tag === 'EthereumSepolia' &&
+          input.value.decimalPlaces === 18
+        ) {
+          return Option.some(
+            EthereumSepoliaEthTransferDraft.make({
+              ...input,
+              network: currency.network,
+              value: EthereumSepoliaEthValue.make({
+                currency,
+                atomicUnits: input.value.atomicUnits,
+                decimalPlaces: 18,
+                observedAt: input.value.observedAt,
+              }),
+            }),
+          )
+        } else {
+          return Option.none()
+        }
+      },
+      Sol: ({ network }) => {
+        if (
+          input.network._tag === 'SolanaDevnet' &&
+          network._tag === 'SolanaDevnet' &&
+          input.value.decimalPlaces === 9
+        ) {
+          return Option.some(
+            SolanaDevnetSolTransferDraft.make({
+              ...input,
+              network,
+              value: SolanaDevnetSolValue.make({
+                currency: SolanaDevnetSol.make({ network }),
+                atomicUnits: input.value.atomicUnits,
+                decimalPlaces: 9,
+                observedAt: input.value.observedAt,
+              }),
+            }),
+          )
+        } else {
+          return Option.none()
+        }
+      },
+      Usdc: ({ network, tokenAddress }) => {
+        if (
+          input.network._tag === 'EthereumSepolia' &&
+          network._tag === 'EthereumSepolia' &&
+          input.value.decimalPlaces === 6
+        ) {
+          return Option.some(
+            EthereumSepoliaUsdcTransferDraft.make({
+              ...input,
+              network,
+              value: EthereumSepoliaUsdcValue.make({
+                currency: EthereumSepoliaUsdc.make({
+                  network,
+                  tokenAddress,
+                }),
+                atomicUnits: input.value.atomicUnits,
+                decimalPlaces: 6,
+                observedAt: input.value.observedAt,
+              }),
+            }),
+          )
+        } else if (
+          input.network._tag === 'SolanaDevnet' &&
+          network._tag === 'SolanaDevnet' &&
+          input.value.decimalPlaces === 6
+        ) {
+          return Option.some(
+            SolanaDevnetUsdcTransferDraft.make({
+              ...input,
+              network,
+              value: SolanaDevnetUsdcValue.make({
+                currency: SolanaDevnetUsdc.make({ network, tokenAddress }),
+                atomicUnits: input.value.atomicUnits,
+                decimalPlaces: 6,
+                observedAt: input.value.observedAt,
+              }),
+            }),
+          )
+        } else {
+          return Option.none()
+        }
+      },
+      Fiat: () => Option.none(),
+    }),
+  )
 
 /** A network-produced public quote for one transfer. */
 export const TransactionQuote = S.Struct({
@@ -113,24 +288,183 @@ export const TransactionQuote = S.Struct({
 /** A network-produced public quote for one transfer. */
 export type TransactionQuote = typeof TransactionQuote.Type
 
-/** A public transaction preview safe to render, journal, and replay. */
-export const TransactionPreview = S.Struct({
+const TransactionPreviewFields = {
   previewId: S.String,
-  draft: TransferDraft,
-  estimatedFee: CurrencyValue,
-  resultingBalance: CurrencyValue,
   expiresAt: S.Number,
   recipientFamiliarity: AddressFamiliarity,
   recipientHistory: RecipientHistory,
-})
+}
+
+/** A replayable ETH transaction preview on Ethereum Sepolia. */
+export const EthereumSepoliaEthTransactionPreview = S.TaggedStruct(
+  'EthereumSepoliaEthTransactionPreview',
+  {
+    ...TransactionPreviewFields,
+    draft: EthereumSepoliaEthTransferDraft,
+    estimatedFee: EthereumSepoliaEthValue,
+    resultingBalance: EthereumSepoliaEthValue,
+  },
+)
+
+/** A replayable USDC transaction preview on Ethereum Sepolia. */
+export const EthereumSepoliaUsdcTransactionPreview = S.TaggedStruct(
+  'EthereumSepoliaUsdcTransactionPreview',
+  {
+    ...TransactionPreviewFields,
+    draft: EthereumSepoliaUsdcTransferDraft,
+    estimatedFee: EthereumSepoliaEthValue,
+    resultingBalance: EthereumSepoliaUsdcValue,
+  },
+)
+
+/** A replayable SOL transaction preview on Solana Devnet. */
+export const SolanaDevnetSolTransactionPreview = S.TaggedStruct(
+  'SolanaDevnetSolTransactionPreview',
+  {
+    ...TransactionPreviewFields,
+    draft: SolanaDevnetSolTransferDraft,
+    estimatedFee: SolanaDevnetSolValue,
+    resultingBalance: SolanaDevnetSolValue,
+  },
+)
+
+/** A replayable USDC transaction preview on Solana Devnet. */
+export const SolanaDevnetUsdcTransactionPreview = S.TaggedStruct(
+  'SolanaDevnetUsdcTransactionPreview',
+  {
+    ...TransactionPreviewFields,
+    draft: SolanaDevnetUsdcTransferDraft,
+    estimatedFee: SolanaDevnetSolValue,
+    resultingBalance: SolanaDevnetUsdcValue,
+  },
+)
+
+/** A public transaction preview safe to render, journal, and replay. */
+export const TransactionPreview = S.Union([
+  EthereumSepoliaEthTransactionPreview,
+  EthereumSepoliaUsdcTransactionPreview,
+  SolanaDevnetSolTransactionPreview,
+  SolanaDevnetUsdcTransactionPreview,
+])
 /** A public transaction preview safe to render, journal, and replay. */
 export type TransactionPreview = typeof TransactionPreview.Type
+
+/** Validates one network quote against the exact transfer draft case. */
+export const transactionPreviewFromQuote = (
+  draft: TransferDraft,
+  quote: TransactionQuote,
+  recipientFamiliarity: AddressFamiliarity,
+  recipientHistory: RecipientHistory,
+): Option.Option<TransactionPreview> => {
+  const fields = {
+    previewId: quote.quoteId,
+    expiresAt: quote.expiresAt,
+    recipientFamiliarity,
+    recipientHistory,
+  }
+  return M.value(draft).pipe(
+    M.withReturnType<Option.Option<TransactionPreview>>(),
+    M.tagsExhaustive({
+      EthereumSepoliaEthTransferDraft: executableDraft => {
+        const maybeEstimatedFee = S.decodeUnknownOption(
+          EthereumSepoliaEthValue,
+        )(quote.estimatedFee)
+        const maybeResultingBalance = S.decodeUnknownOption(
+          EthereumSepoliaEthValue,
+        )(quote.resultingBalance)
+        if (
+          Option.isSome(maybeEstimatedFee) &&
+          Option.isSome(maybeResultingBalance)
+        ) {
+          return Option.some(
+            EthereumSepoliaEthTransactionPreview.make({
+              ...fields,
+              draft: executableDraft,
+              estimatedFee: maybeEstimatedFee.value,
+              resultingBalance: maybeResultingBalance.value,
+            }),
+          )
+        } else {
+          return Option.none()
+        }
+      },
+      EthereumSepoliaUsdcTransferDraft: executableDraft => {
+        const maybeEstimatedFee = S.decodeUnknownOption(
+          EthereumSepoliaEthValue,
+        )(quote.estimatedFee)
+        const maybeResultingBalance = S.decodeUnknownOption(
+          EthereumSepoliaUsdcValue,
+        )(quote.resultingBalance)
+        if (
+          Option.isSome(maybeEstimatedFee) &&
+          Option.isSome(maybeResultingBalance)
+        ) {
+          return Option.some(
+            EthereumSepoliaUsdcTransactionPreview.make({
+              ...fields,
+              draft: executableDraft,
+              estimatedFee: maybeEstimatedFee.value,
+              resultingBalance: maybeResultingBalance.value,
+            }),
+          )
+        } else {
+          return Option.none()
+        }
+      },
+      SolanaDevnetSolTransferDraft: executableDraft => {
+        const maybeEstimatedFee = S.decodeUnknownOption(SolanaDevnetSolValue)(
+          quote.estimatedFee,
+        )
+        const maybeResultingBalance = S.decodeUnknownOption(
+          SolanaDevnetSolValue,
+        )(quote.resultingBalance)
+        if (
+          Option.isSome(maybeEstimatedFee) &&
+          Option.isSome(maybeResultingBalance)
+        ) {
+          return Option.some(
+            SolanaDevnetSolTransactionPreview.make({
+              ...fields,
+              draft: executableDraft,
+              estimatedFee: maybeEstimatedFee.value,
+              resultingBalance: maybeResultingBalance.value,
+            }),
+          )
+        } else {
+          return Option.none()
+        }
+      },
+      SolanaDevnetUsdcTransferDraft: executableDraft => {
+        const maybeEstimatedFee = S.decodeUnknownOption(SolanaDevnetSolValue)(
+          quote.estimatedFee,
+        )
+        const maybeResultingBalance = S.decodeUnknownOption(
+          SolanaDevnetUsdcValue,
+        )(quote.resultingBalance)
+        if (
+          Option.isSome(maybeEstimatedFee) &&
+          Option.isSome(maybeResultingBalance)
+        ) {
+          return Option.some(
+            SolanaDevnetUsdcTransactionPreview.make({
+              ...fields,
+              draft: executableDraft,
+              estimatedFee: maybeEstimatedFee.value,
+              resultingBalance: maybeResultingBalance.value,
+            }),
+          )
+        } else {
+          return Option.none()
+        }
+      },
+    }),
+  )
+}
 
 /** A public result returned after a signed transaction was submitted. */
 export const TransactionSubmission = S.Struct({
   previewId: S.String,
   transactionId: S.String,
-  network: Network,
   submittedAt: S.Number,
 })
 /** A public result returned after a signed transaction was submitted. */

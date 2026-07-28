@@ -1,6 +1,8 @@
 import { Array, Effect, Match as M, Schema as S } from 'effect'
 import {
-  SendMoneyIntent,
+  SendEthIntent,
+  SendSolIntent,
+  SendUsdIntent,
   WalletIntent,
   WalletIntentCapability,
   capabilityForWalletIntent,
@@ -46,7 +48,7 @@ const makeIntentDefinition = (
   id: string,
   title: string,
   description: string,
-  intent: SendMoneyIntent,
+  intent: WalletIntent,
 ): WalletIntentDefinition =>
   WalletIntentDefinition.make({
     id,
@@ -62,11 +64,9 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
   makeIntentDefinition(
     'eth-devnet',
     'ETH | Devnet',
-    'Typed but invalid because Ethereum has no Devnet Layer.',
-    SendMoneyIntent.make({
-      asset: 'Eth',
+    'Valid request with no configured Ethereum Devnet execution Layer.',
+    SendEthIntent.make({
       mode: 'Devnet',
-      rail: 'Ethereum',
       atomicUnits: '1000000000000000',
       destinationAddress: ethereumDestination,
     }),
@@ -75,10 +75,8 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
     'eth-testnet',
     'ETH | Testnet',
     'One milli-ETH on Ethereum Sepolia.',
-    SendMoneyIntent.make({
-      asset: 'Eth',
+    SendEthIntent.make({
       mode: 'Testnet',
-      rail: 'Ethereum',
       atomicUnits: '1000000000000000',
       destinationAddress: ethereumDestination,
     }),
@@ -87,10 +85,8 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
     'eth-live',
     'ETH | Live',
     'Canonical mainnet intent with deliberately unavailable execution.',
-    SendMoneyIntent.make({
-      asset: 'Eth',
+    SendEthIntent.make({
       mode: 'Live',
-      rail: 'Ethereum',
       atomicUnits: '1000000000000000',
       destinationAddress: ethereumDestination,
     }),
@@ -99,10 +95,8 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
     'sol-devnet',
     'SOL | Devnet',
     'One milli-SOL on Solana Devnet.',
-    SendMoneyIntent.make({
-      asset: 'Sol',
+    SendSolIntent.make({
       mode: 'Devnet',
-      rail: 'Solana',
       atomicUnits: '1000000',
       destinationAddress: solanaDestination,
     }),
@@ -111,10 +105,8 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
     'sol-testnet',
     'SOL | Testnet',
     'The network is typed, but the current Layer rejects execution.',
-    SendMoneyIntent.make({
-      asset: 'Sol',
+    SendSolIntent.make({
       mode: 'Testnet',
-      rail: 'Solana',
       atomicUnits: '1000000',
       destinationAddress: solanaDestination,
     }),
@@ -123,10 +115,8 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
     'sol-live',
     'SOL | Live',
     'Canonical mainnet intent with deliberately unavailable execution.',
-    SendMoneyIntent.make({
-      asset: 'Sol',
+    SendSolIntent.make({
       mode: 'Live',
-      rail: 'Solana',
       atomicUnits: '1000000',
       destinationAddress: solanaDestination,
     }),
@@ -135,8 +125,7 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
     'usd-devnet',
     'USD | Devnet',
     'One USD represented by one million atomic USDC units on Solana Devnet.',
-    SendMoneyIntent.make({
-      asset: 'Usd',
+    SendUsdIntent.make({
       mode: 'Devnet',
       rail: 'Solana',
       atomicUnits: '1000000',
@@ -147,8 +136,7 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
     'usd-testnet',
     'USD | Testnet',
     'One USD represented by one million atomic USDC units on Sepolia.',
-    SendMoneyIntent.make({
-      asset: 'Usd',
+    SendUsdIntent.make({
       mode: 'Testnet',
       rail: 'Ethereum',
       atomicUnits: '1000000',
@@ -159,8 +147,7 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
     'usd-live',
     'USD | Live',
     'Canonical USDC intent with deliberately unavailable mainnet execution.',
-    SendMoneyIntent.make({
-      asset: 'Usd',
+    SendUsdIntent.make({
       mode: 'Live',
       rail: 'Ethereum',
       atomicUnits: '1000000',

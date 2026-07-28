@@ -1,4 +1,4 @@
-import { Effect, Layer, Option, Redacted, Stream } from 'effect'
+import { Effect, Layer, Option, Redacted, Schema as S, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   AccountBalance,
@@ -10,11 +10,14 @@ import {
   ReceivingInstruction,
   Sol,
   SolanaDevnet,
+  SolanaDevnetUsdc,
+  SolanaDevnetUsdcTransferDraft,
+  SolanaDevnetUsdcValue,
   SolanaTestnet,
   TransactionQuote,
   TransactionRecord,
   TransactionSubmission,
-  type TransferDraft,
+  TransferDraft,
   Usdc,
   WalletAccount,
   WalletClient,
@@ -176,7 +179,6 @@ const makeTransport = (
       TransactionSubmission.make({
         previewId: 'preview',
         transactionId: `submitted:${signed.accountId}`,
-        network: signed.network,
         submittedAt: 6_000,
       }),
     ),
@@ -246,14 +248,22 @@ describe('WalletServicesLive', () => {
   })
 
   it('routes previews and signing by the network and account', async () => {
-    const draft: TransferDraft = {
+    const draft = SolanaDevnetUsdcTransferDraft.make({
       transferId: 'solana-transfer',
       accountId: solanaAccount.accountId,
       network: solanaNetwork,
       destinationAddress: solanaRecord.counterpartyAddress,
-      value: value(solanaUsdc, '1000001', 6, 4_500),
+      value: SolanaDevnetUsdcValue.make({
+        currency: SolanaDevnetUsdc.make({
+          network: solanaNetwork,
+          tokenAddress: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+        }),
+        atomicUnits: '1000001',
+        decimalPlaces: 6,
+        observedAt: 4_500,
+      }),
       maybeMessage: Option.none(),
-    }
+    })
     const quote = await Effect.runPromise(
       WalletClient.pipe(
         Effect.flatMap(client => client.previewTransaction(draft)),
@@ -296,28 +306,23 @@ describe('WalletServicesLive', () => {
     ])
   })
 
-  it('exposes Solana Testnet as typed unsupported capability', async () => {
+  it('keeps Solana Testnet typed but outside executable drafts', () => {
     const unsupportedNetwork = SolanaTestnet.make({})
     expect(capabilityForNetwork(unsupportedNetwork)).toEqual({
       _tag: 'UnsupportedCapability',
       reason: 'SolanaTestnetIsNotSolanaDevnet',
     })
-    const draft: TransferDraft = {
-      transferId: 'unsupported',
-      accountId: solanaAccount.accountId,
-      network: unsupportedNetwork,
-      destinationAddress: solanaAccount.address,
-      value: value(Sol.make({ network: unsupportedNetwork }), '1', 9, 5_000),
-      maybeMessage: Option.none(),
-    }
-    const error = await Effect.runPromise(
-      WalletClient.pipe(
-        Effect.flatMap(client => client.previewTransaction(draft)),
-        Effect.flip,
-        Effect.provide(FakeWallet),
-      ),
-    )
-    expect(error.code).toBe('Rejected')
+    expect(() =>
+      S.decodeUnknownSync(TransferDraft)({
+        _tag: 'SolanaDevnetSolTransferDraft',
+        transferId: 'unsupported',
+        accountId: solanaAccount.accountId,
+        network: unsupportedNetwork,
+        destinationAddress: solanaAccount.address,
+        value: value(Sol.make({ network: unsupportedNetwork }), '1', 9, 5_000),
+        maybeMessage: Option.none(),
+      }),
+    ).toThrow()
   })
 
   it('routes public cryptography independently from custody', async () => {

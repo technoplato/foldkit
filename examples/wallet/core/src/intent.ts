@@ -12,11 +12,6 @@ import { literal, r, slash } from 'foldkit/route'
 
 import { AtomicUnits } from './currency.js'
 
-/** An asset accepted by the portable send-money intent. */
-export const TransferIntentAsset = S.Literals(['Eth', 'Sol', 'Usd'])
-/** An asset accepted by the portable send-money intent. */
-export type TransferIntentAsset = typeof TransferIntentAsset.Type
-
 /** A deployment mode selected by the portable send-money intent. */
 export const TransferIntentMode = S.Literals(['Devnet', 'Testnet', 'Live'])
 /** A deployment mode selected by the portable send-money intent. */
@@ -27,36 +22,116 @@ export const TransferIntentRail = S.Literals(['Ethereum', 'Solana'])
 /** A settlement rail selected by the portable send-money intent. */
 export type TransferIntentRail = typeof TransferIntentRail.Type
 
-/** A renderer-neutral request to compose one public money transfer. */
-export const SendMoneyIntent = S.TaggedStruct('SendMoneyIntent', {
-  asset: TransferIntentAsset,
-  mode: TransferIntentMode,
-  rail: TransferIntentRail,
+const SendMoneyIntentFields = {
   atomicUnits: AtomicUnits,
   destinationAddress: S.String,
+}
+
+/** A renderer-neutral request to send ETH on Ethereum. */
+export const SendEthIntent = S.TaggedStruct('SendEthIntent', {
+  mode: TransferIntentMode,
+  ...SendMoneyIntentFields,
 })
-/** A renderer-neutral request to compose one public money transfer. */
-export type SendMoneyIntent = typeof SendMoneyIntent.Type
+/** A renderer-neutral request to send ETH on Ethereum. */
+export type SendEthIntent = typeof SendEthIntent.Type
+
+/** A renderer-neutral request to send SOL on Solana. */
+export const SendSolIntent = S.TaggedStruct('SendSolIntent', {
+  mode: TransferIntentMode,
+  ...SendMoneyIntentFields,
+})
+/** A renderer-neutral request to send SOL on Solana. */
+export type SendSolIntent = typeof SendSolIntent.Type
+
+/** A renderer-neutral request to send USD-denominated USDC on one rail. */
+export const SendUsdIntent = S.TaggedStruct('SendUsdIntent', {
+  mode: TransferIntentMode,
+  rail: TransferIntentRail,
+  ...SendMoneyIntentFields,
+})
+/** A renderer-neutral request to send USD-denominated USDC on one rail. */
+export type SendUsdIntent = typeof SendUsdIntent.Type
 
 /** Every portable intent accepted by the Wallet domain. */
-export const WalletIntent = S.Union([SendMoneyIntent])
+export const WalletIntent = S.Union([
+  SendEthIntent,
+  SendSolIntent,
+  SendUsdIntent,
+])
 /** Every portable intent accepted by the Wallet domain. */
 export type WalletIntent = typeof WalletIntent.Type
 
-/** Current implementation support for a parsed Wallet intent. */
-export const WalletIntentSupport = S.Literals([
-  'Implemented',
-  'TypedUnsupported',
+/** An executable ETH transfer through the Ethereum Sepolia Layer. */
+export const SepoliaEthTransferIntent = S.TaggedStruct(
+  'SepoliaEthTransferIntent',
+  SendMoneyIntentFields,
+)
+/** An executable ETH transfer through the Ethereum Sepolia Layer. */
+export type SepoliaEthTransferIntent = typeof SepoliaEthTransferIntent.Type
+
+/** An executable USDC transfer through the Ethereum Sepolia Layer. */
+export const SepoliaUsdcTransferIntent = S.TaggedStruct(
+  'SepoliaUsdcTransferIntent',
+  SendMoneyIntentFields,
+)
+/** An executable USDC transfer through the Ethereum Sepolia Layer. */
+export type SepoliaUsdcTransferIntent = typeof SepoliaUsdcTransferIntent.Type
+
+/** An executable SOL transfer through the Solana Devnet Layer. */
+export const SolanaDevnetSolTransferIntent = S.TaggedStruct(
+  'SolanaDevnetSolTransferIntent',
+  SendMoneyIntentFields,
+)
+/** An executable SOL transfer through the Solana Devnet Layer. */
+export type SolanaDevnetSolTransferIntent =
+  typeof SolanaDevnetSolTransferIntent.Type
+
+/** An executable USDC transfer through the Solana Devnet Layer. */
+export const SolanaDevnetUsdcTransferIntent = S.TaggedStruct(
+  'SolanaDevnetUsdcTransferIntent',
+  SendMoneyIntentFields,
+)
+/** An executable USDC transfer through the Solana Devnet Layer. */
+export type SolanaDevnetUsdcTransferIntent =
+  typeof SolanaDevnetUsdcTransferIntent.Type
+
+/** Every transfer the currently configured Wallet Layers can execute. */
+export const ExecutableWalletIntent = S.Union([
+  SepoliaEthTransferIntent,
+  SepoliaUsdcTransferIntent,
+  SolanaDevnetSolTransferIntent,
+  SolanaDevnetUsdcTransferIntent,
 ])
-/** Current implementation support for a parsed Wallet intent. */
-export type WalletIntentSupport = typeof WalletIntentSupport.Type
+/** Every transfer the currently configured Wallet Layers can execute. */
+export type ExecutableWalletIntent = typeof ExecutableWalletIntent.Type
+
+/** A parsed Wallet request resolved to one executable Layer operation. */
+export const ImplementedWalletIntentCapability = S.TaggedStruct(
+  'ImplementedWalletIntentCapability',
+  {
+    support: S.Literal('Implemented'),
+    network: S.String,
+    reason: S.String,
+    intent: ExecutableWalletIntent,
+  },
+)
+
+/** A parsed Wallet request with no configured executable Layer operation. */
+export const UnsupportedWalletIntentCapability = S.TaggedStruct(
+  'UnsupportedWalletIntentCapability',
+  {
+    support: S.Literal('TypedUnsupported'),
+    network: S.String,
+    reason: S.String,
+    request: WalletIntent,
+  },
+)
 
 /** Current Layer support for a parsed Wallet intent. */
-export const WalletIntentCapability = S.Struct({
-  support: WalletIntentSupport,
-  network: S.String,
-  reason: S.String,
-})
+export const WalletIntentCapability = S.Union([
+  ImplementedWalletIntentCapability,
+  UnsupportedWalletIntentCapability,
+])
 /** Current Layer support for a parsed Wallet intent. */
 export type WalletIntentCapability = typeof WalletIntentCapability.Type
 
@@ -191,24 +266,61 @@ const decodeAtomicUnits = (
     Effect.mapError(toRouteError('Wallet intent amount must use atomic units')),
   )
 
-const makeSendMoneyIntent = (
-  asset: TransferIntentAsset,
-  rail: TransferIntentRail,
+const decodeSendMoneyFields = (
   mode: string,
   amount: string,
   destinationAddress: string,
-): Effect.Effect<SendMoneyIntent, WalletIntentRouteError> =>
+): Effect.Effect<
+  Readonly<{
+    mode: TransferIntentMode
+    atomicUnits: AtomicUnits
+    destinationAddress: string
+  }>,
+  WalletIntentRouteError
+> =>
   Effect.all({
     mode: decodeMode(mode),
     atomicUnits: decodeAtomicUnits(amount),
   }).pipe(
-    Effect.map(({ mode: decodedMode, atomicUnits }) =>
-      SendMoneyIntent.make({
-        asset,
-        mode: decodedMode,
-        rail,
-        atomicUnits,
-        destinationAddress,
+    Effect.map(({ mode: decodedMode, atomicUnits }) => ({
+      mode: decodedMode,
+      atomicUnits,
+      destinationAddress,
+    })),
+  )
+
+const makeEthIntent = (
+  mode: string,
+  amount: string,
+  destinationAddress: string,
+): Effect.Effect<SendEthIntent, WalletIntentRouteError> =>
+  decodeSendMoneyFields(mode, amount, destinationAddress).pipe(
+    Effect.map(fields => SendEthIntent.make(fields)),
+  )
+
+const makeSolIntent = (
+  mode: string,
+  amount: string,
+  destinationAddress: string,
+): Effect.Effect<SendSolIntent, WalletIntentRouteError> =>
+  decodeSendMoneyFields(mode, amount, destinationAddress).pipe(
+    Effect.map(fields => SendSolIntent.make(fields)),
+  )
+
+const makeUsdIntent = (
+  rail: string,
+  mode: string,
+  amount: string,
+  destinationAddress: string,
+): Effect.Effect<SendUsdIntent, WalletIntentRouteError> =>
+  Effect.all({
+    fields: decodeSendMoneyFields(mode, amount, destinationAddress),
+    rail: decodeRail(rail),
+  }).pipe(
+    Effect.map(({ fields, rail: decodedRail }) =>
+      SendUsdIntent.make({
+        ...fields,
+        rail: decodedRail,
       }),
     ),
   )
@@ -224,15 +336,11 @@ const parseIntent = (
         M.withReturnType<Effect.Effect<WalletIntent, WalletIntentRouteError>>(),
         M.tagsExhaustive({
           EthSendRoute: ({ mode, amount, to }) =>
-            makeSendMoneyIntent('Eth', 'Ethereum', mode, amount, to),
+            makeEthIntent(mode, amount, to),
           SolSendRoute: ({ mode, amount, to }) =>
-            makeSendMoneyIntent('Sol', 'Solana', mode, amount, to),
+            makeSolIntent(mode, amount, to),
           UsdSendRoute: ({ mode, amount, to, rail }) =>
-            decodeRail(rail).pipe(
-              Effect.flatMap(decodedRail =>
-                makeSendMoneyIntent('Usd', decodedRail, mode, amount, to),
-              ),
-            ),
+            makeUsdIntent(rail, mode, amount, to),
         }),
       ),
     ),
@@ -263,33 +371,25 @@ const printIntent = (
     M.value(intent).pipe(
       M.withReturnType<string>(),
       M.tagsExhaustive({
-        SendMoneyIntent: value =>
-          M.value(value.asset).pipe(
-            M.withReturnType<string>(),
-            M.when('Eth', () =>
-              ethSendRouter({
-                mode: encodedMode(value.mode),
-                amount: value.atomicUnits,
-                to: value.destinationAddress,
-              }),
-            ),
-            M.when('Sol', () =>
-              solSendRouter({
-                mode: encodedMode(value.mode),
-                amount: value.atomicUnits,
-                to: value.destinationAddress,
-              }),
-            ),
-            M.when('Usd', () =>
-              usdSendRouter({
-                mode: encodedMode(value.mode),
-                amount: value.atomicUnits,
-                to: value.destinationAddress,
-                rail: encodedRail(value.rail),
-              }),
-            ),
-            M.exhaustive,
-          ),
+        SendEthIntent: value =>
+          ethSendRouter({
+            mode: encodedMode(value.mode),
+            amount: value.atomicUnits,
+            to: value.destinationAddress,
+          }),
+        SendSolIntent: value =>
+          solSendRouter({
+            mode: encodedMode(value.mode),
+            amount: value.atomicUnits,
+            to: value.destinationAddress,
+          }),
+        SendUsdIntent: value =>
+          usdSendRouter({
+            mode: encodedMode(value.mode),
+            amount: value.atomicUnits,
+            to: value.destinationAddress,
+            rail: encodedRail(value.rail),
+          }),
       }),
     ),
   ).pipe(Effect.mapError(toRouteError('Could not print Wallet intent path')))
@@ -303,6 +403,16 @@ export const walletIntentRouter: WalletIntentRouter = {
     parseIntent(relativeRoute).pipe(Effect.flatMap(printIntent)),
 }
 
+const executableIntentFields = (
+  request: WalletIntent,
+): Readonly<{
+  atomicUnits: AtomicUnits
+  destinationAddress: string
+}> => ({
+  atomicUnits: request.atomicUnits,
+  destinationAddress: request.destinationAddress,
+})
+
 /** Reports whether the current testnet Layers can execute one Wallet intent. */
 export const capabilityForWalletIntent = (
   intent: WalletIntent,
@@ -310,56 +420,109 @@ export const capabilityForWalletIntent = (
   M.value(intent).pipe(
     M.withReturnType<WalletIntentCapability>(),
     M.tagsExhaustive({
-      SendMoneyIntent: ({ asset, mode, rail }) => {
-        if (mode === 'Live') {
-          return WalletIntentCapability.make({
-            support: 'TypedUnsupported',
-            network: `${rail} mainnet`,
-            reason: 'No live-mainnet Wallet Layer is configured.',
-          })
-        } else if (
-          asset === 'Eth' &&
-          rail === 'Ethereum' &&
-          mode === 'Testnet'
-        ) {
-          return WalletIntentCapability.make({
-            support: 'Implemented',
-            network: 'Ethereum Sepolia',
-            reason: 'The Ethereum Sepolia Layer supports ETH.',
-          })
-        } else if (asset === 'Sol' && rail === 'Solana' && mode === 'Devnet') {
-          return WalletIntentCapability.make({
-            support: 'Implemented',
-            network: 'Solana Devnet',
-            reason: 'The Solana Devnet Layer supports SOL.',
-          })
-        } else if (
-          asset === 'Usd' &&
-          rail === 'Ethereum' &&
-          mode === 'Testnet'
-        ) {
-          return WalletIntentCapability.make({
+      SendEthIntent: request =>
+        M.value(request.mode).pipe(
+          M.withReturnType<WalletIntentCapability>(),
+          M.when('Testnet', () =>
+            ImplementedWalletIntentCapability.make({
+              support: 'Implemented',
+              network: 'Ethereum Sepolia',
+              reason: 'The Ethereum Sepolia Layer supports ETH.',
+              intent: SepoliaEthTransferIntent.make(
+                executableIntentFields(request),
+              ),
+            }),
+          ),
+          M.when('Live', () =>
+            UnsupportedWalletIntentCapability.make({
+              support: 'TypedUnsupported',
+              network: 'Ethereum mainnet',
+              reason: 'No live-mainnet Wallet Layer is configured.',
+              request,
+            }),
+          ),
+          M.when('Devnet', () =>
+            UnsupportedWalletIntentCapability.make({
+              support: 'TypedUnsupported',
+              network: 'Ethereum Devnet',
+              reason: 'Ethereum has no configured Devnet Layer.',
+              request,
+            }),
+          ),
+          M.exhaustive,
+        ),
+      SendSolIntent: request =>
+        M.value(request.mode).pipe(
+          M.withReturnType<WalletIntentCapability>(),
+          M.when('Devnet', () =>
+            ImplementedWalletIntentCapability.make({
+              support: 'Implemented',
+              network: 'Solana Devnet',
+              reason: 'The Solana Devnet Layer supports SOL.',
+              intent: SolanaDevnetSolTransferIntent.make(
+                executableIntentFields(request),
+              ),
+            }),
+          ),
+          M.when('Testnet', () =>
+            UnsupportedWalletIntentCapability.make({
+              support: 'TypedUnsupported',
+              network: 'Solana Testnet',
+              reason:
+                'Solana Testnet is typed but its Layer rejects execution.',
+              request,
+            }),
+          ),
+          M.when('Live', () =>
+            UnsupportedWalletIntentCapability.make({
+              support: 'TypedUnsupported',
+              network: 'Solana mainnet',
+              reason: 'No live-mainnet Wallet Layer is configured.',
+              request,
+            }),
+          ),
+          M.exhaustive,
+        ),
+      SendUsdIntent: request => {
+        if (request.rail === 'Ethereum' && request.mode === 'Testnet') {
+          return ImplementedWalletIntentCapability.make({
             support: 'Implemented',
             network: 'Ethereum Sepolia USDC',
             reason: 'USD intent settles as USDC through the Sepolia Layer.',
+            intent: SepoliaUsdcTransferIntent.make(
+              executableIntentFields(request),
+            ),
           })
-        } else if (asset === 'Usd' && rail === 'Solana' && mode === 'Devnet') {
-          return WalletIntentCapability.make({
+        } else if (request.rail === 'Solana' && request.mode === 'Devnet') {
+          return ImplementedWalletIntentCapability.make({
             support: 'Implemented',
             network: 'Solana Devnet USDC',
             reason: 'USD intent settles as USDC through the Devnet Layer.',
+            intent: SolanaDevnetUsdcTransferIntent.make(
+              executableIntentFields(request),
+            ),
           })
-        } else if (rail === 'Solana' && mode === 'Testnet') {
-          return WalletIntentCapability.make({
+        } else if (request.rail === 'Solana' && request.mode === 'Testnet') {
+          return UnsupportedWalletIntentCapability.make({
             support: 'TypedUnsupported',
-            network: 'Solana Testnet',
+            network: 'Solana Testnet USDC',
             reason: 'Solana Testnet is typed but its Layer rejects execution.',
+            request,
+          })
+        } else if (request.mode === 'Live') {
+          return UnsupportedWalletIntentCapability.make({
+            support: 'TypedUnsupported',
+            network: `${request.rail} mainnet USDC`,
+            reason: 'No live-mainnet Wallet Layer is configured.',
+            request,
           })
         } else {
-          return WalletIntentCapability.make({
+          return UnsupportedWalletIntentCapability.make({
             support: 'TypedUnsupported',
-            network: `${rail} ${mode}`,
-            reason: 'The selected asset, rail, and mode do not form a Layer.',
+            network: `${request.rail} ${request.mode} USDC`,
+            reason:
+              'The selected rail and mode do not form a configured Layer.',
+            request,
           })
         }
       },

@@ -1,8 +1,11 @@
-import { Effect } from 'effect'
+import { Effect, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
-  SendMoneyIntent,
+  SendEthIntent,
+  SendSolIntent,
+  SendUsdIntent,
+  WalletIntentCapability,
   capabilityForWalletIntent,
   walletIntentRouter,
 } from './intent.js'
@@ -13,22 +16,17 @@ const solanaDestination = '7Z9vR1KxMPdQxFj8BkzjMLJFWhe8BngUz6jZb1YkZP8n'
 describe('Wallet intent router', () => {
   it('round-trips ETH, SOL, and USD through canonical portable paths', async () => {
     const intents = [
-      SendMoneyIntent.make({
-        asset: 'Eth',
+      SendEthIntent.make({
         mode: 'Testnet',
-        rail: 'Ethereum',
         atomicUnits: '1000000000000000',
         destinationAddress: ethereumDestination,
       }),
-      SendMoneyIntent.make({
-        asset: 'Sol',
+      SendSolIntent.make({
         mode: 'Devnet',
-        rail: 'Solana',
         atomicUnits: '1000000',
         destinationAddress: solanaDestination,
       }),
-      SendMoneyIntent.make({
-        asset: 'Usd',
+      SendUsdIntent.make({
         mode: 'Testnet',
         rail: 'Ethereum',
         atomicUnits: '1000000',
@@ -76,26 +74,47 @@ describe('Wallet intent router', () => {
   it('reports Layer availability without silently substituting networks', () => {
     expect(
       capabilityForWalletIntent(
-        SendMoneyIntent.make({
-          asset: 'Eth',
+        SendEthIntent.make({
           mode: 'Testnet',
-          rail: 'Ethereum',
           atomicUnits: '1',
           destinationAddress: ethereumDestination,
         }),
       ),
-    ).toMatchObject({ support: 'Implemented', network: 'Ethereum Sepolia' })
+    ).toMatchObject({
+      _tag: 'ImplementedWalletIntentCapability',
+      support: 'Implemented',
+      network: 'Ethereum Sepolia',
+      intent: { _tag: 'SepoliaEthTransferIntent' },
+    })
 
     expect(
       capabilityForWalletIntent(
-        SendMoneyIntent.make({
-          asset: 'Eth',
+        SendEthIntent.make({
           mode: 'Live',
-          rail: 'Ethereum',
           atomicUnits: '1',
           destinationAddress: ethereumDestination,
         }),
       ),
-    ).toMatchObject({ support: 'TypedUnsupported' })
+    ).toMatchObject({
+      _tag: 'UnsupportedWalletIntentCapability',
+      support: 'TypedUnsupported',
+      request: { _tag: 'SendEthIntent' },
+    })
+  })
+
+  it('does not allow a request to masquerade as an executable intent', () => {
+    expect(() =>
+      S.decodeUnknownSync(WalletIntentCapability)({
+        _tag: 'ImplementedWalletIntentCapability',
+        support: 'Implemented',
+        network: 'Ethereum Sepolia',
+        reason: 'Invalid fixture',
+        intent: SendEthIntent.make({
+          mode: 'Devnet',
+          atomicUnits: '1',
+          destinationAddress: ethereumDestination,
+        }),
+      }),
+    ).toThrow()
   })
 })

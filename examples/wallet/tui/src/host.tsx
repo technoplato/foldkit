@@ -1,10 +1,10 @@
 import { Array, Match as M, Option } from 'effect'
 import { type ReactNode, useState } from 'react'
 import {
-  CurrencyValue,
   DomainSeparatedDigest,
   type Model,
   SigningChallenge,
+  transferDraftFromInput,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
@@ -47,19 +47,17 @@ const defaultTransferComposition = (
   if (Option.isNone(maybeAccount) || Option.isNone(maybeBalance)) {
     return Option.none()
   }
-  return Option.some(
-    WalletTransferComposition.make({
-      transferId: 'opentui-transfer',
-      accountId: defaultAccountId,
-      network: maybeAccount.value.network,
-      destinationAddress: defaultDestinationAddress,
-      value: CurrencyValue.make({
-        ...maybeBalance.value.value,
-        atomicUnits: '1000000000000000',
-      }),
-      message: null,
-    }),
-  )
+  return transferDraftFromInput({
+    transferId: 'opentui-transfer',
+    accountId: defaultAccountId,
+    network: maybeAccount.value.network,
+    destinationAddress: defaultDestinationAddress,
+    value: {
+      ...maybeBalance.value.value,
+      atomicUnits: '1000000000000000',
+    },
+    maybeMessage: Option.none(),
+  })
 }
 
 const defaultChallenge = (): typeof SigningChallenge.Type =>

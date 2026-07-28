@@ -4,7 +4,12 @@ import { expect } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
 
-import { CurrencyValue, Eth, EthereumSepolia } from './currency.js'
+import {
+  CurrencyValue,
+  Eth,
+  EthereumSepolia,
+  EthereumSepoliaEthValue,
+} from './currency.js'
 import {
   ComposedTransfer,
   RequestedChallengeSignature,
@@ -14,6 +19,8 @@ import {
   AccountBalance,
   BalanceSnapshot,
   CryptoFailure,
+  EthereumSepoliaEthTransactionPreview,
+  EthereumSepoliaEthTransferDraft,
   EthereumSignatureProof,
   FirstTransactionWithRecipient,
   NetworkFailure,
@@ -25,7 +32,6 @@ import {
   TransactionQuote,
   TransactionRecord,
   TransactionSubmission,
-  TransferDraft,
   UnfamiliarAddress,
   WalletAccount,
 } from './model.js'
@@ -67,13 +73,13 @@ const balance = CurrencyValue.make({
   decimalPlaces: 18,
   observedAt,
 })
-const fee = CurrencyValue.make({
+const fee = EthereumSepoliaEthValue.make({
   currency: eth,
   atomicUnits: '1000',
   decimalPlaces: 18,
   observedAt,
 })
-const resultingBalance = CurrencyValue.make({
+const resultingBalance = EthereumSepoliaEthValue.make({
   currency: eth,
   atomicUnits: '899999999999999000',
   decimalPlaces: 18,
@@ -98,12 +104,12 @@ const portfolio = PortfolioSnapshot.make({
     }),
   ],
 })
-const draft = TransferDraft.make({
+const draft = EthereumSepoliaEthTransferDraft.make({
   transferId: 'transfer-1',
   accountId: account.accountId,
   network: ethereum,
   destinationAddress: '0xRecipient',
-  value: CurrencyValue.make({
+  value: EthereumSepoliaEthValue.make({
     currency: eth,
     atomicUnits: '100000000000000000',
     decimalPlaces: 18,
@@ -117,11 +123,11 @@ const quote = TransactionQuote.make({
   resultingBalance,
   expiresAt: observedAt + 60_000,
 })
-const preview = TransactionPreview.make({
+const preview = EthereumSepoliaEthTransactionPreview.make({
   previewId: quote.quoteId,
   draft,
-  estimatedFee: quote.estimatedFee,
-  resultingBalance: quote.resultingBalance,
+  estimatedFee: fee,
+  resultingBalance,
   expiresAt: quote.expiresAt,
   recipientFamiliarity: UnfamiliarAddress.make({}),
   recipientHistory: FirstTransactionWithRecipient.make({}),
@@ -129,7 +135,6 @@ const preview = TransactionPreview.make({
 const submission = TransactionSubmission.make({
   previewId: preview.previewId,
   transactionId: 'transaction-1',
-  network: ethereum,
   submittedAt: observedAt + 2,
 })
 const observedTransaction = TransactionRecord.make({
