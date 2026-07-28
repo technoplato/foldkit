@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project Cardboard | Readability Lab</title>
+    <style>
+      @font-face {
+        font-family: 'Atkinson Hyperlegible';
+        font-style: normal;
+        font-weight: 400 800;
+        font-display: swap;
+        src: url('https://cdn.jsdelivr.net/fontsource/fonts/atkinson-hyperlegible@latest/latin-wght-normal.woff2')
+          format('woff2-variations');
+      }
+
+      @font-face {
+        font-family: 'Lexend';
+        font-style: normal;
+        font-weight: 400 800;
+        font-display: swap;
+        src: url('https://cdn.jsdelivr.net/fontsource/fonts/lexend@latest/latin-wght-normal.woff2')
+          format('woff2-variations');
+      }
+
+      @font-face {
+        font-family: 'OpenDyslexic';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('https://cdn.jsdelivr.net/fontsource/fonts/opendyslexic@5.3.0/latin-400-normal.woff2')
+          format('woff2');
+      }
+
+      :root {
+        color-scheme: dark;
+        --paper: #d3a257;
+        --paper-light: #efd391;
+        --ink: #21140c;
+        --muted: #634522;
+        --accent: #7c3118;
+        --edge: rgba(33, 20, 12, 0.45);
+        --font: 'Atkinson Hyperlegible', Verdana, sans-serif;
+        --body-size: 1.6rem;
+        --hero-size: clamp(5.5rem, 18vw, 11rem);
+        --line-height: 1.42;
+      }
+
+      * {
+        box-sizing: border-box;
+        min-width: 0;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+        overflow-x: hidden;
+        background: #100c08;
+      }
+
+      body {
+        font-family: var(--font);
+        font-size: var(--body-size);
+        line-height: var(--line-height);
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      .app {
+        min-height: 100svh;
+        color: var(--ink);
+        background:
+          radial-gradient(
+            circle at 10% 0%,
+            var(--paper-light),
+            transparent 36rem
+          ),
+          repeating-linear-gradient(
+            4deg,
+            rgba(48, 28, 10, 0.05) 0 1px,
+            transparent 1px 7px
+          ),
+          var(--paper);
+      }
+
+      .app[data-theme='QuietBlack'] {
+        --paper: #17110d;
+        --paper-light: #2b2118;
+        --ink: #f3cf7a;
+        --muted: #c49b53;
+        --accent: #f3aa35;
+        --edge: rgba(243, 207, 122, 0.48);
+      }
+
+      .app[data-theme='Groovebox'] {
+        --paper: #c48c45;
+        --paper-light: #f0bf70;
+        --ink: #25140b;
+        --muted: #654020;
+        --accent: #174b34;
+      }
+
+      .app[data-theme='GrooveboxThroughInvert'] {
+        --paper: #315f9d;
+        --paper-light: #183f80;
+        --ink: #e4f1f4;
+        --muted: #bdd7e2;
+        --accent: #f0b9d2;
+        --edge: rgba(228, 241, 244, 0.45);
+      }
+
+      .app[data-theme='Negative'] {
+        --paper: #a20e22;
+        --paper-light: #d63216;
+        --ink: #ffe08f;
+        --muted: #ffc362;
+        --accent: #fff4b8;
+        --edge: rgba(255, 224, 143, 0.48);
+      }
+
+      .app[data-theme='HighContrast'] {
+        --paper: #fff4ca;
+        --paper-light: #fff;
+        --ink: #000;
+        --muted: #2d2d2d;
+        --accent: #003c29;
+        --edge: #000;
+      }
+
+      .app[data-inverted='true'] {
+        filter: invert(1) hue-rotate(180deg);
+      }
+
+      .app[data-font='Lexend'] {
+        --font: 'Lexend', Verdana, sans-serif;
+      }
+
+      .app[data-font='OpenDyslexic'] {
+        --font: 'OpenDyslexic', Verdana, sans-serif;
+        --line-height: 1.55;
+      }
+
+      .app[data-size='Large'] {
+        --body-size: 1.3rem;
+        --hero-size: clamp(4.8rem, 15vw, 9rem);
+      }
+
+      .app[data-size='Maximum'] {
+        --body-size: 2rem;
+        --hero-size: clamp(6.5rem, 22vw, 14rem);
+      }
+
+      .shell {
+        width: min(100%, 92rem);
+        margin: 0 auto;
+        padding: max(2rem, env(safe-area-inset-top)) clamp(1rem, 4vw, 4rem)
+          max(4rem, env(safe-area-inset-bottom));
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: var(--accent);
+        font-size: 0.72em;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        width: 100%;
+        max-width: 100%;
+        margin: 0.12em 0 0;
+        padding-block: 0.08em 0.12em;
+        font-size: var(--hero-size);
+        line-height: 1.05;
+        letter-spacing: 0;
+        overflow-wrap: break-word;
+        text-wrap: balance;
+      }
+
+      .lede {
+        max-width: 31ch;
+        margin: 1em 0 1.5em;
+        font-size: 1.14em;
+        font-weight: 650;
+      }
+
+      .preview {
+        margin: 1.5em 0;
+        padding: clamp(1rem, 4vw, 2.5rem);
+        border: 4px solid var(--edge);
+        border-radius: 1.25rem;
+        background: color-mix(in srgb, var(--paper-light) 65%, transparent);
+        box-shadow: 0 0.45em 0 color-mix(in srgb, var(--ink) 18%, transparent);
+      }
+
+      .preview p {
+        max-width: 38ch;
+        margin: 0.75em 0 0;
+      }
+
+      .preview strong {
+        color: var(--accent);
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        align-items: start;
+      }
+
+      fieldset {
+        margin: 0;
+        padding: 1rem;
+        border: 3px solid var(--edge);
+        border-radius: 1rem;
+      }
+
+      legend {
+        padding: 0 0.4rem;
+        font-size: 0.78em;
+        font-weight: 800;
+      }
+
+      .choices {
+        display: grid;
+        gap: 0.6rem;
+      }
+
+      .choice {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.7rem;
+        align-items: center;
+        min-height: 3.4em;
+        padding: 0.65rem 0.8rem;
+        border: 2px solid var(--edge);
+        border-radius: 0.75rem;
+        background: color-mix(in srgb, var(--paper-light) 55%, transparent);
+        cursor: pointer;
+      }
+
+      .choice:has(input:checked) {
+        outline: 0.22rem solid var(--accent);
+        outline-offset: 0.12rem;
+      }
+
+      .choice input {
+        width: 1.35em;
+        height: 1.35em;
+        accent-color: var(--accent);
+      }
+
+      .font-atkinson {
+        font-family: 'Atkinson Hyperlegible', Verdana, sans-serif;
+      }
+
+      .font-lexend {
+        font-family: 'Lexend', Verdana, sans-serif;
+      }
+
+      .font-open-dyslexic {
+        font-family: 'OpenDyslexic', Verdana, sans-serif;
+        line-height: 1.7;
+        padding-block: 1rem;
+      }
+
+      .theme-grid {
+        grid-column: 1 / -1;
+      }
+
+      .theme-grid .choices {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .compact-choice {
+        min-height: 3em;
+        font-size: 0.82em;
+      }
+
+      .review {
+        margin-top: 1.2em;
+        padding: 1em;
+        border: 3px solid var(--edge);
+        border-radius: 1rem;
+        background: color-mix(in srgb, var(--paper-light) 58%, transparent);
+      }
+
+      .review label,
+      .review textarea {
+        display: block;
+        width: 100%;
+      }
+
+      .review textarea {
+        min-height: 7em;
+        margin: 0.5em 0;
+        padding: 0.8em;
+        border: 3px solid var(--edge);
+        border-radius: 0.75rem;
+        color: var(--ink);
+        background: var(--paper-light);
+        resize: vertical;
+      }
+
+      .submit,
+      .invert {
+        min-height: 3.4em;
+        padding: 0.65em 1em;
+        border: 3px solid var(--ink);
+        border-radius: 0.8rem;
+        color: var(--paper);
+        background: var(--ink);
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        margin-top: 1em;
+        font-size: 0.76em;
+      }
+
+      .links a {
+        padding: 0.55em 0.75em;
+        border: 2px solid var(--edge);
+        border-radius: 999px;
+        color: inherit;
+        font-weight: 750;
+      }
+
+      #selection {
+        margin: 0.6em 0;
+        color: var(--accent);
+        font-weight: 800;
+      }
+
+      @media (max-width: 760px) {
+        .controls {
+          grid-template-columns: 1fr;
+        }
+
+        .theme-grid {
+          grid-column: auto;
+        }
+
+        .theme-grid .choices {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main
+      class="app"
+      id="app"
+      data-font="AtkinsonHyperlegible"
+      data-inverted="false"
+      data-size="ExtraLarge"
+      data-theme="AmberPaper"
+    >
+      <div class="shell">
+        <p class="eyebrow">Project Cardboard · /0 · Readability lab</p>
+        <h1>Read every word.</h1>
+        <p class="lede">
+          Pick what your eyes can read comfortably. This chooses a presentation,
+          not a diagnosis.
+        </p>
+
+        <section
+          class="preview"
+          aria-live="polite"
+          aria-label="Live text preview"
+        >
+          <p class="eyebrow">Live preview</p>
+          <p>
+            <strong>Rule Zero begins at zero.</strong> One portable Program owns
+            meaning, state, Messages, replay, and routes. Foldkit, React, Expo,
+            CLI, and TUI present the same information without changing it.
+          </p>
+          <p>
+            Screen context is sampled evidence. Capture is visible, bounded,
+            revocable, and never assumed to be continuous surveillance.
+          </p>
+        </section>
+
+        <form id="preferences" data-lavish-question="cardboard-readability">
+          <div class="controls">
+            <fieldset>
+              <legend>1. Which letters feel easiest?</legend>
+              <div class="choices">
+                <label class="choice font-atkinson">
+                  <input
+                    checked
+                    name="font"
+                    type="radio"
+                    value="AtkinsonHyperlegible"
+                  />
+                  <span>Atkinson Hyperlegible</span>
+                </label>
+                <label class="choice font-lexend">
+                  <input name="font" type="radio" value="Lexend" />
+                  <span>Lexend</span>
+                </label>
+                <label class="choice font-open-dyslexic">
+                  <input name="font" type="radio" value="OpenDyslexic" />
+                  <span>OpenDyslexic</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>2. How large should normal text be?</legend>
+              <div class="choices">
+                <label class="choice">
+                  <input name="size" type="radio" value="Large" />
+                  <span>Large</span>
+                </label>
+                <label class="choice">
+                  <input checked name="size" type="radio" value="ExtraLarge" />
+                  <span>Extra large, recommended</span>
+                </label>
+                <label class="choice">
+                  <input name="size" type="radio" value="Maximum" />
+                  <span>Maximum</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="theme-grid">
+              <legend>3. Pick the surface that hurts least</legend>
+              <div class="choices">
+                <label class="choice compact-choice">
+                  <input checked name="theme" type="radio" value="AmberPaper" />
+                  <span>Amber paper</span>
+                </label>
+                <label class="choice compact-choice">
+                  <input name="theme" type="radio" value="QuietBlack" />
+                  <span>Quiet black</span>
+                </label>
+                <label class="choice compact-choice">
+                  <input name="theme" type="radio" value="Groovebox" />
+                  <span>Groovebox</span>
+                </label>
+                <label class="choice compact-choice">
+                  <input
+                    name="theme"
+                    type="radio"
+                    value="GrooveboxThroughInvert"
+                  />
+                  <span>Groovebox inverted</span>
+                </label>
+                <label class="choice compact-choice">
+                  <input name="theme" type="radio" value="Negative" />
+                  <span>Negative</span>
+                </label>
+                <label class="choice compact-choice">
+                  <input name="theme" type="radio" value="HighContrast" />
+                  <span>High contrast</span>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+
+          <section class="review">
+            <button class="invert" id="invert" type="button">
+              RGB negative is off
+            </button>
+            <p id="selection">
+              Atkinson Hyperlegible · Extra large · Amber paper · RGB negative
+              off
+            </p>
+            <label for="notes">What still feels wrong?</label>
+            <textarea
+              id="notes"
+              name="notes"
+              placeholder="For example: the body is right, but buttons need to be twice as large."
+            ></textarea>
+            <button class="submit" type="submit">
+              Queue these exact choices for Codex
+            </button>
+          </section>
+        </form>
+
+        <nav class="links" aria-label="Live Rule Zero clients">
+          <a href="http://127.0.0.1:5193/0" target="_blank">Open React /0</a>
+          <a href="http://127.0.0.1:5194/0" target="_blank">Open Foldkit /0</a>
+          <a href="http://127.0.0.1:8091/0" target="_blank">Open Expo /0</a>
+        </nav>
+      </div>
+    </main>
+
+    <script>
+      const app = document.querySelector('#app')
+      const form = document.querySelector('#preferences')
+      const selection = document.querySelector('#selection')
+      const invertButton = document.querySelector('#invert')
+      let isInverted = false
+
+      const selectedValue = name =>
+        new FormData(form).get(name)?.toString() ?? ''
+
+      const readableName = value =>
+        ({
+          AmberPaper: 'Amber paper',
+          AtkinsonHyperlegible: 'Atkinson Hyperlegible',
+          ExtraLarge: 'Extra large',
+          Groovebox: 'Groovebox',
+          GrooveboxThroughInvert: 'Groovebox inverted',
+          HighContrast: 'High contrast',
+          Large: 'Large',
+          Lexend: 'Lexend',
+          Maximum: 'Maximum',
+          Negative: 'Negative',
+          OpenDyslexic: 'OpenDyslexic',
+          QuietBlack: 'Quiet black',
+        })[value] ?? value
+
+      const render = () => {
+        const font = selectedValue('font')
+        const size = selectedValue('size')
+        const theme = selectedValue('theme')
+        app.dataset.font = font
+        app.dataset.size = size
+        app.dataset.theme = theme
+        app.dataset.inverted = String(isInverted)
+        invertButton.textContent = `RGB negative is ${isInverted ? 'on' : 'off'}`
+        selection.textContent = `${readableName(font)} · ${readableName(size)} · ${readableName(theme)} · RGB negative ${isInverted ? 'on' : 'off'}`
+      }
+
+      form.addEventListener('change', render)
+      invertButton.addEventListener('click', () => {
+        isInverted = !isInverted
+        render()
+      })
+
+      form.addEventListener('submit', event => {
+        event.preventDefault()
+        const font = selectedValue('font')
+        const size = selectedValue('size')
+        const theme = selectedValue('theme')
+        const notes = new FormData(form).get('notes')?.toString().trim() ?? ''
+        const prompt =
+          `Promote this Cardboard readability profile across the canonical Program and every client: font ${font}, text size ${size}, theme ${theme}, RGB negative ${isInverted ? 'on' : 'off'}.` +
+          (notes === '' ? '' : ` Concrete feedback: ${notes}`)
+        window.lavish?.queuePrompt(prompt, {
+          tag: 'cardboard-readability',
+          text: selection.textContent,
+          element: form,
+          queueKey: 'cardboard-readability',
+          data: { font, size, theme, isInverted, notes },
+        })
+      })
+
+      render()
+    </script>
+  </body>
+</html>
