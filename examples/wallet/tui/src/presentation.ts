@@ -1,4 +1,4 @@
-import { Array, Match as M, Schema as S } from 'effect'
+import { Array, Match as M, Option, Schema as S } from 'effect'
 import { type Model, WalletProgram } from 'wallet-core-example'
 
 /** Shows the current Wallet Model without sending a Message. */
@@ -11,6 +11,11 @@ export const CreateWallet = S.TaggedStruct('CreateWallet', {
 })
 /** Switches every Wallet account between Devnet and Testnet together. */
 export const ToggleWalletNetwork = S.TaggedStruct('ToggleWalletNetwork', {
+  label: S.String,
+})
+
+/** Selects the next sendable chain in the current global network mode. */
+export const SelectNextSendNetwork = S.TaggedStruct('SelectNextSendNetwork', {
   label: S.String,
 })
 /** Shows the default public receiving instruction. */
@@ -45,6 +50,7 @@ export const WalletOpenTuiInteraction = S.Union([
   ShowWallet,
   CreateWallet,
   ToggleWalletNetwork,
+  SelectNextSendNetwork,
   ShowReceivingInstruction,
   PreviewWalletTransaction,
   SendWalletTransaction,
@@ -74,6 +80,7 @@ export const interactionsForWalletOpenTui = (
     ToggleWalletNetwork.make({
       label: `Switch every wallet to ${model.walletNetworkMode === 'Devnet' ? 'Testnet' : 'Devnet'}`,
     }),
+    SelectNextSendNetwork.make({ label: 'Select next send network' }),
     ShowReceivingInstruction.make({ label: 'Show receiving instruction' }),
     PreviewWalletTransaction.make({ label: 'Preview simulated transfer' }),
     ...send,
@@ -99,6 +106,10 @@ export const walletOpenTuiSummary = (model: Model): string => {
     [
       portfolio,
       `${model.wallets.length.toString()} wallets ${model.walletNetworkMode}`,
+      `Send ${Option.match(model.maybeSendNetworkSelection, {
+        onNone: () => 'unavailable',
+        onSome: selection => selection.networkId,
+      })}`,
       `Transaction ${model.transaction._tag}`,
       `Signature ${model.signature._tag}`,
       `Transactions ${model.transactions.length.toString()}`,

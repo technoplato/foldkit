@@ -1,6 +1,12 @@
-import { Effect, Option } from 'effect'
+import { Array, Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { WalletProgram } from 'wallet-core-example'
+import {
+  SendAssetIntent,
+  WalletProgram,
+  availableSendNetworkSelections,
+  walletIntentRouter,
+} from 'wallet-core-example'
+import { simulatedPortfolio } from 'wallet-simulated-client-example'
 
 import {
   WalletCliOperation,
@@ -70,6 +76,57 @@ describe('raw Wallet CLI host', () => {
     expect(execution.model.transactions.length).toBeGreaterThan(0)
     expect(execution.summary).toContain('Observed: yes')
     expect(execution.summary).not.toContain('Etherscan')
+  })
+
+  it('sends every chain in both modes from a deep link and reads every property back', async () => {
+    const selections = [
+      ...availableSendNetworkSelections(simulatedPortfolio, 'Devnet'),
+      ...availableSendNetworkSelections(simulatedPortfolio, 'Testnet'),
+    ]
+    const executions = await Effect.runPromise(
+      Effect.forEach(selections, selection =>
+        Effect.gen(function* () {
+          const account = Option.getOrThrow(
+            Array.findFirst(
+              simulatedPortfolio.accounts,
+              candidate => candidate.accountId === selection.accountId,
+            ),
+          )
+          const intent = SendAssetIntent.make({
+            source: selection,
+            atomicUnits: '1000',
+            destinationAddress: account.address,
+          })
+          const path = yield* walletIntentRouter.print(intent)
+          const execution = yield* executeWalletCli(
+            WalletCliOperation.make({
+              _tag: 'Send',
+              input: defaultWalletTransferInput,
+            }),
+            Option.some(`foldkit://showcase${path}`),
+          )
+          return { execution, intent, path }
+        }),
+      ),
+    )
+
+    expect(executions).toHaveLength(8)
+    Array.forEach(executions, ({ execution, intent, path }) => {
+      expect(execution.model.transaction._tag).toBe('SubmittedTransaction')
+      expect(execution.summary).toContain(`Intent: ${path}`)
+      expect(execution.summary).toContain(
+        `Network mode: ${intent.source.networkMode}`,
+      )
+      expect(execution.summary).toContain(`Chain: ${intent.source.chainId}`)
+      expect(execution.summary).toContain(`Network: ${intent.source.networkId}`)
+      expect(execution.summary).toContain(`Account: ${intent.source.accountId}`)
+      expect(execution.summary).toContain(`Asset: ${intent.source.assetId}`)
+      expect(execution.summary).toContain(
+        `Amount atomic units: ${intent.atomicUnits}`,
+      )
+      expect(execution.summary).toContain(`To: ${intent.destinationAddress}`)
+      expect(execution.summary).toContain('Observed: yes')
+    })
   })
 
   it('prints the shared network-specific address guidance', async () => {

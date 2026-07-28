@@ -115,11 +115,10 @@ describe('Client Matrix Foldkit view', () => {
       Scene.expect(Scene.text('ETH | Testnet')).toExist(),
       Scene.expect(
         Scene.text(
-          'foldkit://showcase/wallet/intent/send?account=simulated-ethereum-account',
+          'foldkit://showcase/wallet/intent/send?mode=Testnet&chain=ethereum&network=ethereum%3Asepolia&account=simulated-ethereum-account',
           { exact: false },
         ),
       ).toExist(),
-      Scene.expect(Scene.text('HostIntakePending')).toExist(),
       Scene.expect(Scene.text('Active')).toExist(),
     )
   })

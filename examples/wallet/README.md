@@ -12,6 +12,12 @@ Bitcoin, Ethereum, Solana, and Sui accounts. The public Model stores both Native
 Segwit and Taproot Bitcoin addresses, defaults to Native Segwit, and exposes
 one global `Devnet | Testnet` choice that projects every chain together.
 
+Sending has one explicit `SendNetworkSelection` in the Model. It identifies the
+global network mode plus the exact chain, network, account, and native asset.
+Changing the global mode preserves the selected chain when the corresponding
+rail exists. React, React Native, Foldkit, the CLI, Effect Terminal, and OpenTUI
+all select and render that same value.
+
 The checked-in `local-vault` adapter uses standards-derived public addresses
 and process-local, redacted custody. It does not persist or export recovery
 material. Closing the host loses the private keys, so this example must not be
@@ -22,14 +28,14 @@ The core also defines the renderer-neutral `walletIntentRouter`. Its canonical
 send paths have this shape:
 
 ```text
-/wallet/intent/send?account=<account-id>&asset=<asset-id>&amount=<atomic-units>&to=<address>
+/wallet/intent/send?mode=<Devnet|Testnet>&chain=<chain-id>&network=<network-id>&account=<account-id>&asset=<asset-id>&amount=<atomic-units>&to=<address>
 ```
 
-`account` and `asset` are stable identifiers from the normalized portfolio.
-`amount` is expressed in atomic units. Parsing is side-effect free. React,
-Foldkit, and Expo carriers decode an intent into pending Program state.
-Portfolio loading then starts adapter validation and preview Commands through
-update. Opening an intent never submits a transaction.
+Every query property is required. `mode`, `chain`, `network`, `account`, and
+`asset` identify one exact send rail. `amount` is expressed in atomic units.
+Parsing is side-effect free. Every carrier decodes an intent into pending
+Program state. Portfolio loading then starts adapter validation and preview
+Commands through update. Opening an intent never submits a transaction.
 
 Recipient validation results are portable Program data, but address rules and
 SDKs belong to the selected adapter. Ethereum uses viem and Solana uses
@@ -64,6 +70,7 @@ pnpm demo:wallet create --network devnet --verbose
 pnpm demo:wallet receive
 pnpm demo:wallet preview --verbose
 pnpm demo:wallet send --verbose
+pnpm demo:wallet send --uri 'foldkit://showcase/wallet/intent/send?mode=Testnet&chain=sui&network=sui%3Atestnet&account=simulated-sui-testnet-account&asset=sui%3Atestnet%3Asui&amount=1000000&to=0x2222222222222222222222222222222222222222222222222222222222222222'
 pnpm demo:wallet sign-challenge --verbose
 pnpm demo:wallet:terminal
 pnpm demo:wallet:tui
@@ -75,18 +82,18 @@ pnpm dev:example:showcase:ios
 pnpm dev:example:showcase:android
 ```
 
-The CLI, Effect Terminal, and TUI use the simulated network Layer plus the same
-local Wallet vault. The simulated Layer never contacts a network or controls
-real funds. It proves the full Program flow, including multi-chain creation,
-global network switching, previews, signing, submission, finite transaction
-history, live transaction observation, state routes, replay routes, and
-historical inspection.
+Every showcase client uses the simulated network Layer plus the same local
+Wallet vault. The simulated Layer exposes Bitcoin, Ethereum, Solana, and Sui in
+both Devnet and Testnet modes. It never contacts a network or controls real
+funds. It proves the full Program flow, including multichain creation, global
+network switching, per-chain selection, previews, signing, submission, finite
+transaction history, live transaction observation, state routes, replay
+routes, and historical inspection.
 
-The React, Foldkit, and Expo clients use the typed `remote` network Layer plus a
-platform entropy source for local Wallet creation. The public demo endpoint is
-deliberately unauthenticated and controls one disposable, shared Sepolia test
-wallet. The private key remains in the Node server. Clients receive only public
-portfolio values and opaque handles for protected transaction material.
+The raw CLI accepts the same deep link as the visual clients. `send --uri`
+submits the preview, waits until the transaction Subscription observes it, and
+prints the canonical link plus every encoded property. The focused suite runs
+that round trip for all eight chain and network-mode combinations.
 
 A real network Layer attaches a typed block-explorer confirmation to the
 successful submission result. Sepolia submissions link to Etherscan, and Solana
@@ -109,16 +116,14 @@ context. Native iOS and Android writes use `setStringAsync` and do not read the
 clipboard, so the flow does not trigger the privacy prompts associated with
 clipboard reads.
 
-The temporary server policy accepts positive, native Sepolia ETH transfers to
-syntactically valid Ethereum recipients, up to 0.00001 ETH. It rejects other
-networks, assets, malformed recipients, and larger amounts. Each visual
-client keeps recipient editing in the shared Model, previews through a Command,
-and requires a separate confirmation before signing and submission. Anyone who
-can reach the endpoint can still inspect the wallet, consume test ETH through
-permitted transfers and fees, and request signatures from this public test
-identity. The account must never hold mainnet assets or represent a trusted
-identity. The operation-handle store is process-local and is intentionally lost
-when the server restarts.
+The separate temporary server policy still accepts positive, native Sepolia ETH
+transfers to syntactically valid Ethereum recipients, up to 0.00001 ETH. It
+rejects other networks, assets, malformed recipients, and larger amounts. It is
+an opt-in real test-network example and is not the resource Layer behind the
+eight-rail showcase. Anyone who can reach it can consume test ETH and request
+signatures from its disposable public identity. The account must never hold
+Mainnet assets or represent a trusted identity. The operation-handle store is
+process-local and is intentionally lost when the server restarts.
 
 The public demos are available at:
 
@@ -134,6 +139,9 @@ Each adapter projects its nested chain configuration into normalized chain,
 network, asset, account, balance, and transaction facts. ETH, SOL, and Circle
 USDC values use exact atomic-unit strings. Provider URLs and local keys are
 loaded as `Redacted` configuration.
+
+Bitcoin and Sui networking are simulated in this increment. The repository
+does not claim a Bitcoin node, Bitcoin indexer, or Sui RPC broadcast adapter.
 
 Solana implements finite cursor-based history with
 `getSignaturesForAddress`, followed by normalized transaction reads. Ethereum

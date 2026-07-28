@@ -5,6 +5,9 @@ import {
   type Model,
   SigningChallenge,
   activeWalletAccounts,
+  demoTransferAtomicUnitsForSelection,
+  nextSendNetworkSelection,
+  primaryReceivingInstruction,
   toggledWalletNetworkMode,
 } from 'wallet-core-example'
 import {
@@ -28,24 +31,25 @@ const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
 export * from './presentation.js'
 
 const defaultAccountId = 'simulated-ethereum-account'
-const defaultAssetId = 'ethereum:sepolia:eth'
-const defaultDestinationAddress = '0x2222222222222222222222222222222222222222'
-
 const defaultTransferComposition = (
   model: Model,
 ): Option.Option<WalletTransferComposition> => {
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return Option.none()
   }
+  if (Option.isNone(model.maybeSendNetworkSelection)) {
+    return Option.none()
+  }
+  const selection = model.maybeSendNetworkSelection.value
   const maybeAccount = Array.findFirst(
     model.portfolio.snapshot.accounts,
-    account => account.accountId === defaultAccountId,
+    account => account.accountId === selection.accountId,
   )
   const maybeBalance = Array.findFirst(
     model.portfolio.snapshot.balanceSnapshot.balances,
     balance =>
-      balance.accountId === defaultAccountId &&
-      balance.amount.assetId === defaultAssetId,
+      balance.accountId === selection.accountId &&
+      balance.amount.assetId === selection.assetId,
   )
   if (Option.isNone(maybeAccount) || Option.isNone(maybeBalance)) {
     return Option.none()
@@ -53,10 +57,10 @@ const defaultTransferComposition = (
   return Option.some(
     WalletTransferComposition.make({
       transferId: 'opentui-transfer',
-      accountId: defaultAccountId,
-      assetId: defaultAssetId,
-      destinationAddress: defaultDestinationAddress,
-      atomicUnits: '1000000000000000',
+      accountId: selection.accountId,
+      assetId: selection.assetId,
+      destinationAddress: maybeAccount.value.address,
+      atomicUnits: demoTransferAtomicUnitsForSelection(selection),
       maybeMessage: Option.none(),
     }),
   )
@@ -170,22 +174,32 @@ const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
             toggledWalletNetworkMode(model.walletNetworkMode),
           )
         },
-        ShowReceivingInstruction: () => {
-          if (model.portfolio._tag !== 'LoadedPortfolio') {
-            setNotice(Option.some('Receiving instructions are not loaded.'))
+        SelectNextSendNetwork: () => {
+          if (
+            model.portfolio._tag !== 'LoadedPortfolio' ||
+            Option.isNone(model.maybeSendNetworkSelection)
+          ) {
+            setNotice(Option.some('No send network is available.'))
             return
           }
-          const maybeInstruction = Array.findFirst(
-            model.portfolio.snapshot.receivingInstructions,
-            instruction =>
-              instruction.accountId === defaultAccountId &&
-              instruction.assetId === defaultAssetId,
+          const maybeSelection = nextSendNetworkSelection(
+            model.portfolio.snapshot,
+            model.maybeSendNetworkSelection.value,
           )
+          if (Option.isSome(maybeSelection)) {
+            setNotice(
+              Option.some(`Selecting ${maybeSelection.value.networkId}…`),
+            )
+            actions.selectedSendNetwork(maybeSelection.value)
+          }
+        },
+        ShowReceivingInstruction: () => {
+          const maybeInstruction = primaryReceivingInstruction(model)
           setNotice(
             Option.map(
               maybeInstruction,
               instruction =>
-                `Receive ${defaultAssetId}: ${instruction.destinationAddress} | ${instruction.portableUri}`,
+                `Receive ${instruction.assetId}: ${instruction.destinationAddress} | ${instruction.portableUri}`,
             ),
           )
         },

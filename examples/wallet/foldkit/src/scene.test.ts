@@ -1,10 +1,8 @@
-import { Array } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 import {
-  LoadedPortfolio,
   Model,
-  ObservingTransactions,
+  SucceededLoadWallet,
   WalletProgram,
   initialModel,
   update,
@@ -14,19 +12,17 @@ import { simulatedPortfolio } from 'wallet-simulated-client-example'
 import { walletFoldkitProgram } from './application.js'
 import { view } from './view.js'
 
-const loadedModel = (): Model =>
-  Model.make({
-    ...initialModel,
-    portfolio: LoadedPortfolio.make({ snapshot: simulatedPortfolio }),
-    transactionObservation: ObservingTransactions.make({
-      accountIds: Array.map(
-        simulatedPortfolio.accounts,
-        account => account.accountId,
-      ),
-    }),
+const loadedModel = (): Model => {
+  const [model] = update(
+    initialModel,
+    SucceededLoadWallet.make({ portfolio: simulatedPortfolio }),
+  )
+  return Model.make({
+    ...model,
     transactionHistory: initialModel.transactionHistory,
     transactions: [],
   })
+}
 
 describe('Wallet Foldkit client', () => {
   test('uses the canonical exported Wallet Program identity', () => {

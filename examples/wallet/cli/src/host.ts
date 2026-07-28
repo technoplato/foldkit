@@ -18,18 +18,29 @@ import {
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
   RequestedWalletCreation,
+  SelectedSendNetwork,
   SelectedWalletNetworkMode,
+  SendAssetIntent,
+  SendNetworkSelection,
   SigningChallenge,
+  type TransactionPreview,
   TransferRequest,
+  WalletIntentRouteError,
   type WalletNetworkMode,
   WalletProgram,
   activeWalletAccounts,
+  parseWalletProgramRoute,
+  resolveSendNetworkSelection,
+  walletIntentRouter,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 /** Input shared by preview and send operations. */
 export const WalletTransferInput = S.Struct({
   transferId: S.String,
+  networkMode: S.Literals(['Devnet', 'Testnet']),
+  chainId: S.String,
+  networkId: S.String,
   accountId: S.String,
   assetId: S.String,
   destinationAddress: S.String,
@@ -88,6 +99,7 @@ export class WalletCliError extends Data.TaggedError('WalletCliError')<{
 /** Every typed failure produced by the raw Wallet CLI contract. */
 export type WalletCliExecutionError =
   | WalletCliError
+  | WalletIntentRouteError
   | Program.ProgramRouteError
   | Runtime.ProgramRuntimeStartError
   | Runtime.ReplayFrameError
@@ -100,6 +112,9 @@ export const walletCliProgram: typeof WalletProgram = WalletProgram
 export const defaultWalletTransferInput: WalletTransferInput =
   WalletTransferInput.make({
     transferId: 'cli-transfer',
+    networkMode: 'Testnet',
+    chainId: 'ethereum',
+    networkId: 'ethereum:sepolia',
     accountId: 'simulated-ethereum-account',
     assetId: 'ethereum:sepolia:eth',
     destinationAddress: '0x2222222222222222222222222222222222222222',
@@ -143,6 +158,7 @@ const startForCarrier = (
 ): Effect.Effect<
   Runtime.ProgramStart<Model, Message>,
   | WalletCliError
+  | WalletIntentRouteError
   | Program.ProgramRouteError
   | Runtime.ReplayFrameError
   | Runtime.UnsettledReplayFrameError
@@ -152,7 +168,7 @@ const startForCarrier = (
   }
   return Effect.gen(function* () {
     const relativeRoute = yield* relativeRouteForCarrier(maybeCarrier.value)
-    const route = yield* walletRouter.parse(relativeRoute)
+    const route = yield* parseWalletProgramRoute(relativeRoute)
     return yield* M.value(route).pipe(
       M.withReturnType<
         Effect.Effect<
@@ -204,9 +220,29 @@ const loadedSnapshot = (model: Model) => {
 const transferRequest = (
   model: Model,
   input: WalletTransferInput,
-): Effect.Effect<typeof TransferRequest.Type, WalletCliError> =>
+): Effect.Effect<
+  Readonly<{
+    request: typeof TransferRequest.Type
+    selection: typeof SendNetworkSelection.Type
+  }>,
+  WalletCliError
+> =>
   Effect.gen(function* () {
     const snapshot = yield* loadedSnapshot(model)
+    const selection = SendNetworkSelection.make({
+      networkMode: input.networkMode,
+      chainId: input.chainId,
+      networkId: input.networkId,
+      accountId: input.accountId,
+      assetId: input.assetId,
+    })
+    if (Option.isNone(resolveSendNetworkSelection(snapshot, selection))) {
+      return yield* Effect.fail(
+        new WalletCliError({
+          message: `Unknown send network selection: ${input.networkMode}/${input.chainId}/${input.networkId}/${input.accountId}/${input.assetId}`,
+        }),
+      )
+    }
     const maybeAccount = Array.findFirst(
       snapshot.accounts,
       account => account.accountId === input.accountId,
@@ -254,14 +290,17 @@ const transferRequest = (
           }),
       ),
     )
-    return TransferRequest.make({
-      transferId: input.transferId,
-      accountId: input.accountId,
-      assetId: input.assetId,
-      destinationAddress: input.destinationAddress,
-      atomicUnits,
-      maybeMessage: input.maybeMessage,
-    })
+    return {
+      selection,
+      request: TransferRequest.make({
+        transferId: input.transferId,
+        accountId: input.accountId,
+        assetId: input.assetId,
+        destinationAddress: input.destinationAddress,
+        atomicUnits,
+        maybeMessage: input.maybeMessage,
+      }),
+    }
   })
 
 const challengeForInput = (
@@ -362,15 +401,48 @@ const createdWalletSummary = (
   )
 }
 
+const transferPropertyLines = (
+  model: Model,
+  preview: TransactionPreview,
+): Effect.Effect<ReadonlyArray<string>> => {
+  if (Option.isNone(model.maybeSendNetworkSelection)) {
+    return Effect.succeed([])
+  }
+  const source = model.maybeSendNetworkSelection.value
+  const request = preview.transfer.request
+  return walletIntentRouter
+    .print(
+      SendAssetIntent.make({
+        source,
+        atomicUnits: request.atomicUnits,
+        destinationAddress: request.destinationAddress,
+      }),
+    )
+    .pipe(
+      Effect.orDie,
+      Effect.map(intentPath => [
+        `Intent: ${intentPath}`,
+        `Network mode: ${source.networkMode}`,
+        `Chain: ${source.chainId}`,
+        `Network: ${source.networkId}`,
+        `Account: ${source.accountId}`,
+        `Asset: ${source.assetId}`,
+        `Amount atomic units: ${request.atomicUnits}`,
+        `To: ${request.destinationAddress}`,
+      ]),
+    )
+}
+
 const previewSummary = (
   model: Model,
 ): Effect.Effect<string, WalletCliError> => {
   if (model.transaction._tag === 'PreviewedTransaction') {
     const preview = model.transaction.preview
-    return Effect.succeed(
+    return Effect.map(transferPropertyLines(model, preview), propertyLines =>
       Array.join(
         [
           `Preview ${preview.previewId}`,
+          ...propertyLines,
           `Fee: ${preview.estimatedFee.atomicUnits} ${preview.estimatedFee.assetId}`,
           `Resulting balance: ${preview.resultingBalance.atomicUnits}`,
         ],
@@ -473,10 +545,19 @@ const sendSummary = (
           `Confirm on ${maybeConfirmation.value.label}: ${maybeConfirmation.value.url}`,
         ]
       : []
+    const propertyLines = yield* transferPropertyLines(
+      model,
+      model.transaction.preview,
+    )
     return {
       model: observedModel,
       summary: Array.join(
-        [`Submitted ${transactionId}`, ...confirmationLines, 'Observed: yes'],
+        [
+          `Submitted ${transactionId}`,
+          ...propertyLines,
+          ...confirmationLines,
+          'Observed: yes',
+        ],
         '\n',
       ),
     }
@@ -531,17 +612,38 @@ const executionForRuntime = (
         ),
       Preview: ({ input }) =>
         Effect.gen(function* () {
-          const request = yield* transferRequest(runtime.readModel(), input)
+          const initialModel = runtime.readModel()
+          if (
+            initialModel.walletIntent._tag === 'AppliedWalletIntent' &&
+            initialModel.transaction._tag === 'PreviewedTransaction'
+          ) {
+            const summary = yield* previewSummary(initialModel)
+            return { model: initialModel, summary }
+          }
+          const { request, selection } = yield* transferRequest(
+            initialModel,
+            input,
+          )
+          yield* runtime.run(SelectedSendNetwork.make({ selection }))
           const model = yield* runtime.run(ComposedTransfer.make({ request }))
           const summary = yield* previewSummary(model)
           return { model, summary }
         }),
       Send: ({ input }) =>
         Effect.gen(function* () {
-          const request = yield* transferRequest(runtime.readModel(), input)
-          const previewedModel = yield* runtime.run(
-            ComposedTransfer.make({ request }),
-          )
+          const initialModel = runtime.readModel()
+          const previewedModel =
+            initialModel.walletIntent._tag === 'AppliedWalletIntent' &&
+            initialModel.transaction._tag === 'PreviewedTransaction'
+              ? initialModel
+              : yield* Effect.gen(function* () {
+                  const { request, selection } = yield* transferRequest(
+                    initialModel,
+                    input,
+                  )
+                  yield* runtime.run(SelectedSendNetwork.make({ selection }))
+                  return yield* runtime.run(ComposedTransfer.make({ request }))
+                })
           if (previewedModel.transaction._tag !== 'PreviewedTransaction') {
             const summary = yield* previewSummary(previewedModel)
             return { model: previewedModel, summary }

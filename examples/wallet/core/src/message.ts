@@ -16,6 +16,7 @@ import {
   ValidatedTransfer,
   WalletFailure,
 } from './model.js'
+import { SendNetworkSelection } from './sendNetworkSelection.js'
 import {
   WalletCreationRequest,
   WalletNetworkMode,
@@ -27,6 +28,10 @@ export const SelectedWalletNetworkMode = S.TaggedStruct(
   'SelectedWalletNetworkMode',
   { networkMode: WalletNetworkMode },
 )
+/** The host selected one exact chain, network, account, and asset for sending. */
+export const SelectedSendNetwork = S.TaggedStruct('SelectedSendNetwork', {
+  selection: SendNetworkSelection,
+})
 /** The host requested creation of one complete multi-chain Wallet profile. */
 export const RequestedWalletCreation = S.TaggedStruct(
   'RequestedWalletCreation',
@@ -182,6 +187,7 @@ export const ResumedTransactionObservation = S.TaggedStruct(
 /** Every fact accepted or produced by the Wallet Program. */
 export const Message = S.Union([
   SelectedWalletNetworkMode,
+  SelectedSendNetwork,
   RequestedWalletCreation,
   SucceededCreateWallet,
   FailedCreateWallet,

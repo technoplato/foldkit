@@ -265,19 +265,24 @@ describe('Client Matrix core', () => {
     expect(
       Array.map(walletIntentDefinitions, definition => definition.id),
     ).toStrictEqual([
+      'btc-devnet',
+      'btc-testnet',
       'eth-devnet',
       'eth-testnet',
-      'eth-live',
       'sol-devnet',
       'sol-testnet',
-      'sol-live',
-      'usd-devnet',
-      'usd-testnet',
-      'usd-live',
+      'sui-devnet',
+      'sui-testnet',
     ])
     expect(
       Array.every(walletIntentDefinitions, definition =>
         definition.portableRoute.startsWith('/wallet/intent/send?'),
+      ),
+    ).toBe(true)
+    expect(
+      Array.every(
+        walletIntentDefinitions,
+        definition => definition.capability.support === 'Implemented',
       ),
     ).toBe(true)
 

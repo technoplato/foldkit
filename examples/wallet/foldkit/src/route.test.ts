@@ -49,7 +49,7 @@ describe('Wallet Foldkit route intake', () => {
 
   test('loads and previews a portable send intent through the Program', async () => {
     const path =
-      '/wallet/intent/send?account=simulated-ethereum-account&asset=ethereum%3Asepolia%3Aeth&amount=10000000000000&to=0x1111111111111111111111111111111111111111'
+      '/wallet/intent/send?mode=Testnet&chain=ethereum&network=ethereum%3Asepolia&account=simulated-ethereum-account&asset=ethereum%3Asepolia%3Aeth&amount=10000000000000&to=0x1111111111111111111111111111111111111111'
     const start = await Effect.runPromise(
       walletFoldkitStartForRelativePath(path),
     )
