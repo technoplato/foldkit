@@ -4,6 +4,31 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:25:04 a.m. EDT — `0ca43aeb34d3` feat(cardboard): publish Rule Zero provenance
+
+- **Implementation commit:** `0ca43aeb34d3f6bd139615492259ac8d2476ce29`
+- **Change:** Published Rule Zero provenance across the public Cardboard clients.
+- **Details:**
+  - Added one Schema-validated authorship record with verified SHA-256 addresses, rendered it in React, Foldkit, and Expo, connected the review lab to WAN carriers, and documented the portable event-symbol and bounded-signing boundaries.
+- **Files:**
+  - `.lavish/cardboard-readability-lab.html` — Points visual review links at the public WAN clients.
+  - `docs/explorations/project-cardboard.md` — Records portable input, bounded signing, and voluntary continuity decisions.
+  - `examples/cardboard/core/src/authorship.ts` — Defines the shared content-addressed provenance record.
+  - `examples/cardboard/core/src/index.ts` — Exports provenance from the canonical core.
+  - `examples/cardboard/core/src/program.test.ts` — Verifies both authorship SHA-256 addresses.
+  - `examples/cardboard/foldkit/src/view.ts` — Renders provenance through the Foldkit view.
+  - `examples/cardboard/foldkit/vite.config.ts` — Allows the named Foldkit WAN carrier.
+  - `examples/cardboard/react/src/App.tsx` — Renders provenance through React.
+  - `examples/cardboard/react/src/styles.css` — Styles the accessible provenance disclosure.
+  - `examples/cardboard/react/vite.config.ts` — Allows the named React WAN carrier.
+  - `examples/react-native-showcase/src/App.tsx` — Renders provenance through Expo and React Native.
+- **User context (verbatim):**
+  > Get it live then.
+  > give me links from only over WAN
+  > Original author, Blueberry Chopsticks, Tuesday, July 28, 2026.
+  > Zero-handed timers or callbacks in React.
+- **SpecStory:** unavailable — Codex desktop GUI session is not available to SpecStory capture.
+
 ## July 28th, 2026 at 12:05:09 a.m. EDT — `af5fd725ba0a` feat(cardboard): add readability review lab
 
 - **Implementation commit:** `af5fd725ba0a17ebe56eac72489fe47035623891`
