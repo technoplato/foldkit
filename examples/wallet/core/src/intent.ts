@@ -61,6 +61,35 @@ export const WalletIntent = S.Union([
 /** Every portable intent accepted by the Wallet domain. */
 export type WalletIntent = typeof WalletIntent.Type
 
+/** The Wallet was opened without a portable transfer intent. */
+export const NoWalletIntent = S.TaggedStruct('NoWalletIntent', {})
+
+/** A portable transfer intent is waiting for the public portfolio. */
+export const PendingWalletIntent = S.TaggedStruct('PendingWalletIntent', {
+  intent: WalletIntent,
+})
+
+/** A portable transfer intent was accepted into the transaction workflow. */
+export const AppliedWalletIntent = S.TaggedStruct('AppliedWalletIntent', {
+  intent: WalletIntent,
+})
+
+/** A portable transfer intent could not be applied by the available wallet. */
+export const RejectedWalletIntent = S.TaggedStruct('RejectedWalletIntent', {
+  intent: WalletIntent,
+  reason: S.String,
+})
+
+/** The Wallet's behaviorally meaningful portable-intent state. */
+export const WalletIntentState = S.Union([
+  NoWalletIntent,
+  PendingWalletIntent,
+  AppliedWalletIntent,
+  RejectedWalletIntent,
+])
+/** The Wallet's behaviorally meaningful portable-intent state. */
+export type WalletIntentState = typeof WalletIntentState.Type
+
 /** An executable ETH transfer through the Ethereum Sepolia Layer. */
 export const SepoliaEthTransferIntent = S.TaggedStruct(
   'SepoliaEthTransferIntent',

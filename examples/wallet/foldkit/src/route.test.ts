@@ -47,6 +47,34 @@ describe('Wallet Foldkit route intake', () => {
     root.remove()
   })
 
+  test('loads and previews a portable send intent through the Program', async () => {
+    const path =
+      '/wallet/intent/send/eth?mode=testnet&amount=10000000000000&to=0x1111111111111111111111111111111111111111'
+    const start = await Effect.runPromise(
+      walletFoldkitStartForRelativePath(path),
+    )
+    expect(start).toMatchObject({
+      _tag: 'Model',
+      model: { walletIntent: { _tag: 'PendingWalletIntent' } },
+    })
+
+    const root = document.createElement('div')
+    root.id = 'wallet-intent-route-test'
+    document.body.append(root)
+    const application = makeWalletApplication(
+      root,
+      SimulatedWalletResources,
+      start,
+    )
+    const fiber = Effect.runFork(application.start())
+
+    await expect
+      .poll(() => document.body.textContent)
+      .toContain('Check before sending')
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    root.remove()
+  })
+
   test('rejects inline Replay because the renderer cannot mount its controller', async () => {
     const tape = await Effect.runPromise(
       Effect.scoped(

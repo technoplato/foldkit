@@ -1,6 +1,10 @@
-import { Context, Effect, Layer, Redacted, Stream } from 'effect'
+import { Context, Effect, Layer, Match as M, Redacted, Stream } from 'effect'
 import { FetchHttpClient } from 'effect/unstable/http'
-import { RpcClient, RpcSerialization } from 'effect/unstable/rpc'
+import {
+  RpcClient,
+  RpcClientError,
+  RpcSerialization,
+} from 'effect/unstable/rpc'
 import {
   WalletClient,
   WalletClientError,
@@ -18,12 +22,44 @@ import {
   PreparedTransactionHandle,
   SignedTransactionHandle,
   SigningDigestHandle,
+  type WalletRemoteError,
   WalletRpcs,
 } from './walletRpc.js'
 
-const clientUnavailable = () => new WalletClientError({ code: 'Unavailable' })
-const signerUnavailable = () => new WalletSignerError({ code: 'Unavailable' })
-const cryptoUnavailable = () => new WalletCryptoError({ code: 'Unavailable' })
+type RemoteCallError = WalletRemoteError | RpcClientError.RpcClientError
+
+const toClientError = (error: RemoteCallError): WalletClientError =>
+  M.value(error._tag === 'WalletRemoteError' ? error.code : 'Unavailable').pipe(
+    M.withReturnType<WalletClientError>(),
+    M.whenOr(
+      'Rejected',
+      'InvalidResponse',
+      code => new WalletClientError({ code }),
+    ),
+    M.orElse(() => new WalletClientError({ code: 'Unavailable' })),
+  )
+
+const toSignerError = (error: RemoteCallError): WalletSignerError =>
+  M.value(error._tag === 'WalletRemoteError' ? error.code : 'Unavailable').pipe(
+    M.withReturnType<WalletSignerError>(),
+    M.whenOr(
+      'Denied',
+      'UnsupportedAccount',
+      code => new WalletSignerError({ code }),
+    ),
+    M.orElse(() => new WalletSignerError({ code: 'Unavailable' })),
+  )
+
+const toCryptoError = (error: RemoteCallError): WalletCryptoError =>
+  M.value(error._tag === 'WalletRemoteError' ? error.code : 'Unavailable').pipe(
+    M.withReturnType<WalletCryptoError>(),
+    M.whenOr(
+      'InvalidPayload',
+      'VerificationFailed',
+      code => new WalletCryptoError({ code }),
+    ),
+    M.orElse(() => new WalletCryptoError({ code: 'Unavailable' })),
+  )
 
 /** Builds Fetch-backed Wallet resources over the typed remote protocol. */
 export const makeRemoteWalletResources = (
@@ -39,11 +75,11 @@ export const makeRemoteWalletResources = (
       const client = WalletClient.of({
         loadPortfolio: remote
           .WalletLoadPortfolio({})
-          .pipe(Effect.mapError(clientUnavailable)),
+          .pipe(Effect.mapError(toClientError)),
         previewTransaction: draft =>
           remote
             .WalletPreviewTransaction({ draft })
-            .pipe(Effect.mapError(clientUnavailable)),
+            .pipe(Effect.mapError(toClientError)),
         prepareTransaction: preview =>
           remote.WalletPrepareTransaction({ preview }).pipe(
             Effect.map(handle =>
@@ -53,7 +89,7 @@ export const makeRemoteWalletResources = (
                 handle.operationId,
               ),
             ),
-            Effect.mapError(clientUnavailable),
+            Effect.mapError(toClientError),
           ),
         submitTransaction: signed =>
           remote
@@ -64,11 +100,11 @@ export const makeRemoteWalletResources = (
                 network: signed.network,
               }),
             })
-            .pipe(Effect.mapError(clientUnavailable)),
+            .pipe(Effect.mapError(toClientError)),
         observeTransactions: accounts =>
           remote
             .WalletObserveTransactions({ accounts })
-            .pipe(Stream.mapError(clientUnavailable)),
+            .pipe(Stream.mapError(toClientError)),
       })
 
       const signer = WalletSigner.of({
@@ -92,12 +128,12 @@ export const makeRemoteWalletResources = (
                   handle.operationId,
                 ),
               ),
-              Effect.mapError(signerUnavailable),
+              Effect.mapError(toSignerError),
             ),
         signChallenge: challenge =>
           remote
             .WalletSignChallenge({ challenge })
-            .pipe(Effect.mapError(signerUnavailable)),
+            .pipe(Effect.mapError(toSignerError)),
       })
 
       const crypto = WalletCrypto.of({
@@ -112,12 +148,12 @@ export const makeRemoteWalletResources = (
             })
             .pipe(
               Effect.map(handle => makeSigningDigest(handle.operationId)),
-              Effect.mapError(cryptoUnavailable),
+              Effect.mapError(toCryptoError),
             ),
         verifySignatureProof: (challenge, proof) =>
           remote
             .WalletVerifySignatureProof({ challenge, proof })
-            .pipe(Effect.mapError(cryptoUnavailable)),
+            .pipe(Effect.mapError(toCryptoError)),
       })
 
       return Context.make(WalletClient, client).pipe(

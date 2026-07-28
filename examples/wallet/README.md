@@ -15,10 +15,11 @@ send paths have this shape:
 ```
 
 `amount` is expressed in atomic units. `usd` means USDC settlement, not a fiat
-bank transfer. Parsing is side-effect free. Clients must feed an intent into
-the Program as startup input or a factual Message so update remains the only
-place that produces preview or submission Commands. Live routes remain typed
-unsupported until a mainnet Layer is configured.
+bank transfer. Parsing is side-effect free. React, Foldkit, and Expo carriers
+decode an intent into pending Program state. Portfolio loading then produces
+the preview Command through update. Opening an intent never submits a
+transaction. Live routes remain typed unsupported until a mainnet Layer is
+configured.
 
 ```text
 wallet/

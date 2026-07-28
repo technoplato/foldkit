@@ -3,16 +3,15 @@ import { type Document, type Html, html } from 'foldkit/html'
 import {
   ComposedTransfer,
   CurrencyValue,
-  DomainSeparatedDigest,
   type Message,
   type Model,
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
   RequestedWalletRefresh,
-  SigningChallenge,
   type TransactionPreview,
   type TransactionState,
   currencyValueLabel,
+  makeWalletTestChallenge,
   networkLabel,
   primaryReceivingInstruction,
   primaryWalletAccount,
@@ -296,15 +295,10 @@ const proofDetails = (model: Model): Html => {
           h.Class('cardboard-button'),
           h.OnClick(
             RequestedChallengeSignature.make({
-              challenge: SigningChallenge.make({
-                challengeId: 'foldkit-demo-challenge',
-                accountId: account.accountId,
-                digest: DomainSeparatedDigest.make({
-                  algorithm: 'Keccak256',
-                  domain: 'foldkit.example.wallet',
-                  digestHex: '0x666f6c646b6974',
-                }),
-              }),
+              challenge: makeWalletTestChallenge(
+                'foldkit-demo-challenge',
+                account.accountId,
+              ),
             }),
           ),
         ],

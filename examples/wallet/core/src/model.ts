@@ -14,6 +14,7 @@ import {
   SolanaDevnetUsdc,
   SolanaDevnetUsdcValue,
 } from './currency.js'
+import { NoWalletIntent, WalletIntentState } from './intent.js'
 
 /** One public wallet account. */
 export const WalletAccount = S.Struct({
@@ -694,6 +695,7 @@ export type TransactionObservationState =
 /** The complete renderer- and platform-agnostic Wallet Model. */
 export const Model = S.Struct({
   portfolio: PortfolioState,
+  walletIntent: WalletIntentState,
   addressBookEntries: S.Array(AddressBookEntry),
   transaction: TransactionState,
   signature: SignatureState,
@@ -706,6 +708,7 @@ export type Model = typeof Model.Type
 /** The initial Wallet Model before public portfolio loading completes. */
 export const initialModel: Model = {
   portfolio: LoadingPortfolio.make({}),
+  walletIntent: NoWalletIntent.make({}),
   addressBookEntries: [],
   transaction: IdleTransaction.make({}),
   signature: IdleSignature.make({}),

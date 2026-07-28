@@ -2,12 +2,11 @@ import { Array, Match as M, Option } from 'effect'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import {
   CurrencyValue,
-  DomainSeparatedDigest,
   type Model,
-  SigningChallenge,
   type TransactionPreview,
   type TransactionState,
   currencyValueLabel,
+  makeWalletTestChallenge,
   networkLabel,
   primaryReceivingInstruction,
   primaryWalletAccount,
@@ -258,15 +257,10 @@ const AccountTools = ({ model }: Readonly<{ model: Model }>) => {
   const signChallenge = (): void => {
     if (Option.isSome(maybeAccount)) {
       actions.requestedChallengeSignature(
-        SigningChallenge.make({
-          challengeId: 'expo-wallet-challenge',
-          accountId: maybeAccount.value.accountId,
-          digest: DomainSeparatedDigest.make({
-            algorithm: 'Keccak256',
-            domain: 'foldkit.example.wallet',
-            digestHex: '0x666f6c646b6974',
-          }),
-        }),
+        makeWalletTestChallenge(
+          'expo-wallet-challenge',
+          maybeAccount.value.accountId,
+        ),
       )
     }
   }

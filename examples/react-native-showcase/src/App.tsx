@@ -52,6 +52,7 @@ import {
 import {
   type WalletInitialRoute,
   initialWalletRoute,
+  parseWalletInitialRoute,
 } from 'wallet-react-bindings-example'
 
 import { logBuildProvenance } from './buildProvenance'
@@ -64,7 +65,7 @@ import {
   ShowcaseFactClient,
 } from './platform'
 import { ReplayControls } from './replayControls'
-import { WalletExample, WalletProgram } from './wallet'
+import { WalletExample } from './wallet'
 
 const counterRouter = Program.makeRouter(Counter.CounterProgram)
 const countersRouter = Program.makeRouter(Counters.MultipleCountersProgram)
@@ -72,7 +73,6 @@ const calculatorRouter = Program.makeRouter(Calculator.CalculatorProgram)
 const cardboardRouter = Cardboard.CardboardRouter
 const factRouter = Program.makeRouter(FactProgram)
 const showcaseRouter = Program.makeRouter(Showcase.ShowcaseProgram)
-const walletRouter = Program.makeRouter(WalletProgram)
 
 const dependencyLabel = <ImplementationName extends string>(
   lifecycle: DependencyLifecycle<ImplementationName>,
@@ -326,7 +326,7 @@ const ShowcaseScreen = ({
       } else if (path.startsWith('/wallet/')) {
         return selectRoute(
           Showcase.WalletScene.make({}),
-          resolveInlineRoute(walletRouter.parse(path)),
+          Effect.tryPromise(() => parseWalletInitialRoute(path)),
           setWalletRoute,
         )
       }
