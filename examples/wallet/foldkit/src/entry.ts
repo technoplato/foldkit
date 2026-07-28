@@ -43,7 +43,7 @@ Effect.runPromise(
         root,
         makeWebWalletResources(
           walletDataSourceFromEnvironment(
-            import.meta.env.VITE_WALLET_DATA_SOURCE,
+            import.meta.env['VITE_WALLET_DATA_SOURCE'],
           ),
         ),
         start,

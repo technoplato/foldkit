@@ -42,7 +42,9 @@ import {
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
   makeWalletReactClient(
     makeWebWalletResources(
-      walletDataSourceFromEnvironment(import.meta.env.VITE_WALLET_DATA_SOURCE),
+      walletDataSourceFromEnvironment(
+        import.meta.env['VITE_WALLET_DATA_SOURCE'],
+      ),
     ),
   )
 
