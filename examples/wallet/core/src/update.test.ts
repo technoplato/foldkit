@@ -2,6 +2,10 @@ import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
+  CopyingToClipboard,
+  clipboardCopyRequestForAddress,
+} from './clipboard.js'
+import {
   AssetAmount,
   AssetDescriptor,
   ChainDescriptor,
@@ -10,6 +14,9 @@ import {
 } from './currency.js'
 import {
   ComposedTransfer,
+  FailedCopyToClipboard,
+  RequestedClipboardCopy,
+  SucceededCopyToClipboard,
   SucceededLoadTransactionHistory,
   SucceededLoadWallet,
   SucceededValidateTransfer,
@@ -24,7 +31,7 @@ import {
   ValidatedTransfer,
   initialModel,
 } from './model.js'
-import { update } from './update.js'
+import { restore, update } from './update.js'
 
 const chain = ChainDescriptor.make({ chainId: 'solana', displayName: 'Solana' })
 const network = NetworkDescriptor.make({
@@ -70,6 +77,65 @@ const portfolio = PortfolioSnapshot.make({
 })
 
 describe('wallet update', () => {
+  it('models a successful host clipboard write', () => {
+    const request = clipboardCopyRequestForAddress('account-address')
+    const [copyingModel, commands] = update(
+      initialModel,
+      RequestedClipboardCopy.make({ request }),
+    )
+    const [copiedModel] = update(
+      copyingModel,
+      SucceededCopyToClipboard.make({ request }),
+    )
+
+    expect(copyingModel.clipboardCopy._tag).toBe('CopyingToClipboard')
+    expect(commands).toHaveLength(1)
+    expect(copiedModel.clipboardCopy._tag).toBe('CopiedToClipboard')
+  })
+
+  it('models a denied host clipboard write and ignores stale results', () => {
+    const firstRequest = clipboardCopyRequestForAddress('first-address')
+    const secondRequest = clipboardCopyRequestForAddress('second-address')
+    const [firstModel] = update(
+      initialModel,
+      RequestedClipboardCopy.make({ request: firstRequest }),
+    )
+    const [secondModel] = update(
+      firstModel,
+      RequestedClipboardCopy.make({ request: secondRequest }),
+    )
+    const [staleModel] = update(
+      secondModel,
+      SucceededCopyToClipboard.make({ request: firstRequest }),
+    )
+    const [failedModel] = update(
+      staleModel,
+      FailedCopyToClipboard.make({
+        request: secondRequest,
+        code: 'Denied',
+      }),
+    )
+
+    expect(staleModel).toBe(secondModel)
+    expect(failedModel.clipboardCopy._tag).toBe('FailedClipboardCopy')
+    if (failedModel.clipboardCopy._tag !== 'FailedClipboardCopy') {
+      throw new Error('Expected clipboard copying to fail')
+    }
+    expect(failedModel.clipboardCopy.code).toBe('Denied')
+  })
+
+  it('does not replay a restored clipboard write without user activation', () => {
+    const request = clipboardCopyRequestForAddress('account-address')
+    const copyingModel = {
+      ...initialModel,
+      clipboardCopy: CopyingToClipboard.make({ request }),
+    }
+    const [restoredModel, commands] = restore(copyingModel)
+
+    expect(restoredModel.clipboardCopy._tag).toBe('FailedClipboardCopy')
+    expect(commands).toHaveLength(1)
+  })
+
   it('loads normalized catalogs and starts finite history loading', () => {
     const [model, commands] = update(
       initialModel,

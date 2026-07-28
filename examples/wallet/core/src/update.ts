@@ -2,12 +2,21 @@ import { Array as Array_, Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 
 import {
+  ClipboardCopyRequest,
+  CopiedToClipboard,
+  CopyingToClipboard,
+  FailedClipboardCopy,
+  WalletClipboard,
+  isSameClipboardCopyRequest,
+} from './clipboard.js'
+import {
   AppliedWalletIntent,
   NoWalletIntent,
   RejectedWalletIntent,
   type WalletIntent,
 } from './intent.js'
 import {
+  FailedCopyToClipboard,
   FailedCreateWallet,
   FailedLoadTransactionHistory,
   FailedLoadWallet,
@@ -16,6 +25,7 @@ import {
   FailedSubmitSignedTransaction,
   FailedValidateTransfer,
   type Message,
+  SucceededCopyToClipboard,
   SucceededCreateWallet,
   SucceededLoadTransactionHistory,
   SucceededLoadWallet,
@@ -170,6 +180,22 @@ export const CreateWallet = Command.define(
     Effect.map(wallet => SucceededCreateWallet.make({ request, wallet })),
     Effect.catch(error =>
       Effect.succeed(FailedCreateWallet.make({ request, code: error.code })),
+    ),
+  ),
+)
+
+/** Writes one public value through the injected host clipboard. */
+export const CopyToClipboard = Command.define(
+  'CopyToClipboard',
+  { request: ClipboardCopyRequest },
+  SucceededCopyToClipboard,
+  FailedCopyToClipboard,
+)(({ request }) =>
+  WalletClipboard.pipe(
+    Effect.flatMap(clipboard => clipboard.writeText(request.value)),
+    Effect.map(() => SucceededCopyToClipboard.make({ request })),
+    Effect.catch(error =>
+      Effect.succeed(FailedCopyToClipboard.make({ request, code: error.code })),
     ),
   ),
 )
@@ -381,9 +407,20 @@ const historyCommandsForRestore = (
     ? [LoadTransactionHistory({ query: model.transactionHistory.query })]
     : []
 
+const modelForClipboardRestore = (model: Model): Model =>
+  model.clipboardCopy._tag === 'CopyingToClipboard'
+    ? {
+        ...model,
+        clipboardCopy: FailedClipboardCopy.make({
+          request: model.clipboardCopy.request,
+          code: 'Unavailable',
+        }),
+      }
+    : model
+
 /** Restarts finite work represented by a restored Wallet Model. */
 export const restore = (model: Model): UpdateReturn => [
-  model,
+  modelForClipboardRestore(model),
   [
     ...walletCreationCommandsForRestore(model),
     ...portfolioCommandsForRestore(model),
@@ -581,6 +618,35 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           [],
         ]
       },
+      RequestedClipboardCopy: ({ request }) => [
+        {
+          ...model,
+          clipboardCopy: CopyingToClipboard.make({ request }),
+        },
+        [CopyToClipboard({ request })],
+      ],
+      SucceededCopyToClipboard: ({ request }) =>
+        model.clipboardCopy._tag === 'CopyingToClipboard' &&
+        isSameClipboardCopyRequest(model.clipboardCopy.request, request)
+          ? [
+              {
+                ...model,
+                clipboardCopy: CopiedToClipboard.make({ request }),
+              },
+              [],
+            ]
+          : [model, []],
+      FailedCopyToClipboard: ({ request, code }) =>
+        model.clipboardCopy._tag === 'CopyingToClipboard' &&
+        isSameClipboardCopyRequest(model.clipboardCopy.request, request)
+          ? [
+              {
+                ...model,
+                clipboardCopy: FailedClipboardCopy.make({ request, code }),
+              },
+              [],
+            ]
+          : [model, []],
       RequestedWalletRefresh: () => [
         {
           ...model,

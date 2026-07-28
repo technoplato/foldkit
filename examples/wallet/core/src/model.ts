@@ -1,5 +1,6 @@
 import { Array as Array_, Option, Schema as S } from 'effect'
 
+import { ClipboardCopyState, IdleClipboardCopy } from './clipboard.js'
 import {
   AssetAmount,
   AssetDescriptor,
@@ -633,6 +634,7 @@ export const Model = S.Struct({
   wallets: S.Array(WalletProfile),
   walletNetworkMode: WalletNetworkMode,
   walletCreation: WalletCreationState,
+  clipboardCopy: ClipboardCopyState,
   portfolio: PortfolioState,
   walletIntent: WalletIntentState,
   transferRecipient: TransferRecipientState,
@@ -651,6 +653,7 @@ export const initialModel: Model = {
   wallets: [],
   walletNetworkMode: 'Testnet',
   walletCreation: ReadyToCreateWallet.make({}),
+  clipboardCopy: IdleClipboardCopy.make({}),
   portfolio: LoadingPortfolio.make({}),
   walletIntent: NoWalletIntent.make({}),
   transferRecipient: EmptyTransferRecipient.make({}),

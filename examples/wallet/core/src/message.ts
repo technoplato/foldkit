@@ -1,5 +1,6 @@
 import { Schema as S } from 'effect'
 
+import { ClipboardCopyRequest } from './clipboard.js'
 import {
   AddressBookEntry,
   PortfolioSnapshot,
@@ -40,6 +41,21 @@ export const SucceededCreateWallet = S.TaggedStruct('SucceededCreateWallet', {
 export const FailedCreateWallet = S.TaggedStruct('FailedCreateWallet', {
   request: WalletCreationRequest,
   code: S.Literals(['Unavailable', 'InvalidKeyMaterial']),
+})
+
+/** The host requested writing one public value to its clipboard. */
+export const RequestedClipboardCopy = S.TaggedStruct('RequestedClipboardCopy', {
+  request: ClipboardCopyRequest,
+})
+/** The CopyToClipboard Command wrote one public value. */
+export const SucceededCopyToClipboard = S.TaggedStruct(
+  'SucceededCopyToClipboard',
+  { request: ClipboardCopyRequest },
+)
+/** The CopyToClipboard Command could not write one public value. */
+export const FailedCopyToClipboard = S.TaggedStruct('FailedCopyToClipboard', {
+  request: ClipboardCopyRequest,
+  code: S.Literals(['Unavailable', 'Denied', 'Failed']),
 })
 
 /** The host changed the editable transfer recipient. */
@@ -169,6 +185,9 @@ export const Message = S.Union([
   RequestedWalletCreation,
   SucceededCreateWallet,
   FailedCreateWallet,
+  RequestedClipboardCopy,
+  SucceededCopyToClipboard,
+  FailedCopyToClipboard,
   RequestedWalletRefresh,
   SucceededLoadWallet,
   FailedLoadWallet,

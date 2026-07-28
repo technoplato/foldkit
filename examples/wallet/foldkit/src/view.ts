@@ -5,6 +5,7 @@ import {
   type Message,
   type Model,
   RequestedChallengeSignature,
+  RequestedClipboardCopy,
   RequestedSignedTransactionSubmission,
   RequestedTransferPreview,
   RequestedWalletCreation,
@@ -18,6 +19,10 @@ import {
   activeWalletAccounts,
   assetAmountLabel,
   assetAmountLabelForModel,
+  clipboardCopyFailureMessage,
+  clipboardCopyLabel,
+  clipboardCopyRequestForAddress,
+  isSameClipboardCopyRequest,
   makeWalletTestChallenge,
   primaryReceivingInstruction,
   primaryWalletAccount,
@@ -75,6 +80,43 @@ const walletCreationLabel = (walletCreation: WalletCreationState): string =>
     }),
   )
 
+const copyAddressControl = (
+  model: Model,
+  address: string,
+  copyId: string,
+): Html => {
+  const h = html<Message>()
+  const request = clipboardCopyRequestForAddress(address, copyId)
+  const maybeFailure = clipboardCopyFailureMessage(model.clipboardCopy, request)
+  const isCopying =
+    model.clipboardCopy._tag === 'CopyingToClipboard' &&
+    isSameClipboardCopyRequest(model.clipboardCopy.request, request)
+  const failure = Option.isSome(maybeFailure)
+    ? [
+        h.small(
+          [h.Class('wallet-copy-error'), h.Role('alert')],
+          [maybeFailure.value],
+        ),
+      ]
+    : []
+  return h.div(
+    [h.Class('wallet-copy-control')],
+    [
+      h.button(
+        [
+          h.Type('button'),
+          h.Class('wallet-copy-button'),
+          h.AriaLive('polite'),
+          h.Disabled(isCopying),
+          h.OnClick(RequestedClipboardCopy.make({ request })),
+        ],
+        [clipboardCopyLabel(model.clipboardCopy, request)],
+      ),
+      ...failure,
+    ],
+  )
+}
+
 const networkModeButton = (
   model: Model,
   networkMode: WalletNetworkMode,
@@ -128,7 +170,17 @@ const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
                     h.span([], [account.networkName]),
                   ],
                 ),
-                h.code([], [shortenedAddress(account.address)]),
+                h.div(
+                  [h.Class('wallet-address-line')],
+                  [
+                    h.code([], [shortenedAddress(account.address)]),
+                    copyAddressControl(
+                      model,
+                      account.address,
+                      `profile:${wallet.walletId}:${account.accountId}`,
+                    ),
+                  ],
+                ),
                 h.small([], [account.detail]),
               ],
             ),
@@ -270,7 +322,18 @@ const walletHero = (model: Model): Html => {
         [
           h.p([], ['Available balance']),
           h.strong([h.Class('cardboard-embossed')], [balanceLabel]),
-          h.small([], [accountLabel]),
+          h.div(
+            [h.Class('wallet-address-line')],
+            [
+              h.small([], [accountLabel]),
+              ...Option.match(maybeAccount, {
+                onNone: () => [],
+                onSome: account => [
+                  copyAddressControl(model, account.address, 'primary-account'),
+                ],
+              }),
+            ],
+          ),
         ],
       ),
     ],
@@ -420,11 +483,21 @@ const sendMoney = (model: Model): Html => {
             [],
             [
               h.span([], ['To']),
-              h.strong(
-                [],
+              h.div(
+                [h.Class('wallet-preview-value')],
                 [
-                  shortenedAddress(
-                    transactionPreview.transfer.recipient.displayAddress,
+                  h.strong(
+                    [],
+                    [
+                      shortenedAddress(
+                        transactionPreview.transfer.recipient.displayAddress,
+                      ),
+                    ],
+                  ),
+                  copyAddressControl(
+                    model,
+                    transactionPreview.transfer.recipient.normalizedAddress,
+                    'transfer-preview-recipient',
                   ),
                 ],
               ),
@@ -533,13 +606,30 @@ const accountDetails = (model: Model): Html => {
         onNone: () => [h.p([], ['Account data is not loaded.'])],
         onSome: account => [
           h.p([], [account.displayName]),
-          h.code([], [account.address]),
+          h.div(
+            [h.Class('wallet-address-line')],
+            [
+              h.code([], [account.address]),
+              copyAddressControl(model, account.address, 'account-details'),
+            ],
+          ),
         ],
       }),
       ...Option.match(maybeReceiving, {
         onNone: () => [],
         onSome: instruction => [
           h.h3([], ['Receive']),
+          h.div(
+            [h.Class('wallet-address-line')],
+            [
+              h.code([], [instruction.destinationAddress]),
+              copyAddressControl(
+                model,
+                instruction.destinationAddress,
+                'receiving-address',
+              ),
+            ],
+          ),
           h.code([], [instruction.portableUri]),
         ],
       }),

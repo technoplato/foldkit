@@ -35,6 +35,7 @@ import {
   WalletAccount,
   WalletClient,
   WalletClientError,
+  WalletClipboardUnavailable,
   WalletCrypto,
   WalletCryptoError,
   type WalletResources,
@@ -540,4 +541,7 @@ const makeSimulatedServices = Effect.gen(function* () {
 
 /** Deterministic, side-effect-complete Wallet resources for demos and tests. */
 export const SimulatedWalletResources: Layer.Layer<WalletResources> =
-  Layer.merge(Layer.effectContext(makeSimulatedServices), LocalWalletVault)
+  Layer.merge(
+    Layer.merge(Layer.effectContext(makeSimulatedServices), LocalWalletVault),
+    WalletClipboardUnavailable,
+  )

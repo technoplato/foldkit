@@ -19,6 +19,10 @@ import {
   activeWalletAccounts,
   assetAmountLabel,
   assetAmountLabelForModel,
+  clipboardCopyFailureMessage,
+  clipboardCopyLabel,
+  clipboardCopyRequestForAddress,
+  isSameClipboardCopyRequest,
   makeWalletTestChallenge,
   primaryReceivingInstruction,
   primaryWalletAccount,
@@ -40,6 +44,7 @@ import {
 } from 'wallet-remote-example'
 
 import { ReplayControls } from '../replayControls'
+import { ExpoWalletClipboard } from './walletClipboard'
 
 const ExpoWalletVault = makeLocalWalletVault(byteCount =>
   Crypto.getRandomBytes(byteCount),
@@ -47,7 +52,10 @@ const ExpoWalletVault = makeLocalWalletVault(byteCount =>
 
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
   makeWalletReactClient(
-    makeRemoteWalletResources(publicTestnetWalletEndpoint, ExpoWalletVault),
+    makeRemoteWalletResources(publicTestnetWalletEndpoint, {
+      walletClipboard: ExpoWalletClipboard,
+      walletVault: ExpoWalletVault,
+    }),
   )
 
 const maybePreviewForTransaction = (
@@ -130,6 +138,41 @@ const walletCreationLabel = (walletCreation: WalletCreationState): string =>
     }),
   )
 
+const CopyAddressButton = ({
+  address,
+  copyId,
+  model,
+}: Readonly<{ address: string; copyId: string; model: Model }>) => {
+  const actions = useWalletActions()
+  const request = clipboardCopyRequestForAddress(address, copyId)
+  const maybeFailure = clipboardCopyFailureMessage(model.clipboardCopy, request)
+  const isCopying =
+    model.clipboardCopy._tag === 'CopyingToClipboard' &&
+    isSameClipboardCopyRequest(model.clipboardCopy.request, request)
+  return (
+    <View accessibilityLiveRegion="polite" style={styles.copyControl}>
+      <Pressable
+        accessibilityRole="button"
+        disabled={isCopying}
+        onPress={() => actions.requestedClipboardCopy(request)}
+        style={[
+          styles.copyButton,
+          isCopying ? styles.disabledButton : undefined,
+        ]}
+      >
+        <Text style={styles.copyButtonText}>
+          {clipboardCopyLabel(model.clipboardCopy, request)}
+        </Text>
+      </Pressable>
+      {Option.isSome(maybeFailure) ? (
+        <Text accessibilityRole="alert" style={styles.copyError}>
+          {maybeFailure.value}
+        </Text>
+      ) : null}
+    </View>
+  )
+}
+
 /** Runs the shared Wallet React bindings through one React Native presenter. */
 export const WalletExample = ({
   route,
@@ -208,9 +251,16 @@ const WalletProfileCard = ({
               <Text style={styles.chainName}>{account.chain}</Text>
               <Text style={styles.mutedText}>{account.networkName}</Text>
             </View>
-            <Text selectable style={styles.chainAddress}>
-              {shortenedAddress(account.address)}
-            </Text>
+            <View style={styles.chainAddressLine}>
+              <Text selectable style={styles.chainAddress}>
+                {shortenedAddress(account.address)}
+              </Text>
+              <CopyAddressButton
+                address={account.address}
+                copyId={`profile:${wallet.walletId}:${account.accountId}`}
+                model={model}
+              />
+            </View>
             <Text style={styles.chainDetail}>{account.detail}</Text>
           </View>
         ),
@@ -315,7 +365,16 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
         <Text adjustsFontSizeToFit numberOfLines={1} style={styles.balance}>
           {balanceLabel}
         </Text>
-        <Text style={styles.mutedText}>{accountLabel}</Text>
+        <View style={styles.addressLine}>
+          <Text style={styles.mutedText}>{accountLabel}</Text>
+          {Option.isSome(maybeAccount) ? (
+            <CopyAddressButton
+              address={maybeAccount.value.address}
+              copyId="primary-account"
+              model={model}
+            />
+          ) : null}
+        </View>
       </View>
     </View>
   )
@@ -396,7 +455,12 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       {Option.isSome(maybePreview) ? (
         <View style={styles.preview}>
           <PreviewRow
+            copyAddress={
+              maybePreview.value.transfer.recipient.normalizedAddress
+            }
+            copyId="transfer-preview-recipient"
             label="To"
+            model={model}
             value={shortenedAddress(
               maybePreview.value.transfer.recipient.displayAddress,
             )}
@@ -449,12 +513,32 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
 }
 
 const PreviewRow = ({
+  copyAddress,
+  copyId,
   label,
+  model,
   value,
-}: Readonly<{ label: string; value: string }>) => (
+}: Readonly<{
+  copyAddress?: string
+  copyId?: string
+  label: string
+  model?: Model
+  value: string
+}>) => (
   <View style={styles.previewRow}>
     <Text style={styles.mutedText}>{label}</Text>
-    <Text style={styles.previewValue}>{value}</Text>
+    <View style={styles.previewValueBlock}>
+      <Text style={styles.previewValue}>{value}</Text>
+      {copyAddress !== undefined &&
+      copyId !== undefined &&
+      model !== undefined ? (
+        <CopyAddressButton
+          address={copyAddress}
+          copyId={copyId}
+          model={model}
+        />
+      ) : null}
+    </View>
   </View>
 )
 
@@ -502,16 +586,36 @@ const AccountTools = ({ model }: Readonly<{ model: Model }>) => {
     <View style={[styles.card, styles.secondaryCard]}>
       <Text style={styles.eyebrow}>Account and proof</Text>
       {Option.isSome(maybeAccount) ? (
-        <Text selectable style={styles.codeText}>
-          {maybeAccount.value.address}
-        </Text>
+        <View style={styles.addressLine}>
+          <Text selectable style={styles.codeText}>
+            {maybeAccount.value.address}
+          </Text>
+          <CopyAddressButton
+            address={maybeAccount.value.address}
+            copyId="account-details"
+            model={model}
+          />
+        </View>
       ) : (
         <Text style={styles.mutedText}>Account data is not loaded.</Text>
       )}
       {Option.isSome(maybeReceiving) ? (
-        <Text selectable style={styles.codeText}>
-          Receive: {maybeReceiving.value.portableUri}
-        </Text>
+        <View style={styles.receiveBlock}>
+          <Text style={styles.mutedText}>Receive</Text>
+          <View style={styles.addressLine}>
+            <Text selectable style={styles.codeText}>
+              {maybeReceiving.value.destinationAddress}
+            </Text>
+            <CopyAddressButton
+              address={maybeReceiving.value.destinationAddress}
+              copyId="receiving-address"
+              model={model}
+            />
+          </View>
+          <Text selectable style={styles.codeText}>
+            {maybeReceiving.value.portableUri}
+          </Text>
+        </View>
       ) : null}
       <Text style={styles.mutedText}>Proof: {model.signature._tag}</Text>
       <WalletActionButton
@@ -656,6 +760,11 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     fontSize: 11,
   },
+  chainAddressLine: {
+    alignItems: 'flex-end',
+    flexShrink: 1,
+    gap: 6,
+  },
   chainDetail: {
     color: '#d3a861',
     flexBasis: '100%',
@@ -682,6 +791,13 @@ const styles = StyleSheet.create({
     textShadowRadius: 5,
   },
   balanceBlock: { gap: 5, marginTop: 50 },
+  addressLine: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  receiveBlock: { gap: 8 },
   balance: {
     color: '#f7dca5',
     fontFamily: 'serif',
@@ -751,6 +867,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'right',
   },
+  previewValueBlock: { alignItems: 'flex-end', flexShrink: 1, gap: 6 },
   confirmation: {
     backgroundColor: '#100d09',
     borderColor: '#f2b85f',
@@ -780,6 +897,7 @@ const styles = StyleSheet.create({
   activityValue: { color: '#f2b85f', fontSize: 16, fontWeight: '900' },
   codeText: {
     color: '#d3a861',
+    flexShrink: 1,
     fontFamily: 'monospace',
     fontSize: 11,
     lineHeight: 17,
@@ -798,4 +916,21 @@ const styles = StyleSheet.create({
   disabledButton: { opacity: 0.38 },
   primaryButtonText: { color: '#17130d', fontSize: 14, fontWeight: '900' },
   secondaryButtonText: { color: '#f7dca5', fontSize: 14, fontWeight: '900' },
+  copyControl: { alignItems: 'flex-start', flexShrink: 1, gap: 5 },
+  copyButton: {
+    borderColor: '#665237',
+    borderRadius: 999,
+    borderWidth: 1,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  copyButtonText: { color: '#f7dca5', fontSize: 11, fontWeight: '900' },
+  copyError: {
+    color: '#e8aa4a',
+    flexShrink: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    maxWidth: 280,
+  },
 })

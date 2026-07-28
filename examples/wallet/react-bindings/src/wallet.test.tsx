@@ -5,6 +5,7 @@ import {
   SigningChallenge,
   TransferRequest,
   WalletProgram,
+  clipboardCopyRequestForAddress,
 } from 'wallet-core-example'
 import { simulatedPortfolio } from 'wallet-simulated-client-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
@@ -66,6 +67,7 @@ describe('Wallet React bindings', () => {
       'importedAddressBookEntries',
       'removedAddressBookEntry',
       'requestedChallengeSignature',
+      'requestedClipboardCopy',
       'requestedSignedTransactionSubmission',
       'requestedTransferPreview',
       'requestedWalletCreation',
@@ -73,6 +75,18 @@ describe('Wallet React bindings', () => {
       'resumedTransactionObservation',
       'selectedWalletNetworkMode',
     ])
+
+    act(() => {
+      result.current.actions.requestedClipboardCopy(
+        clipboardCopyRequestForAddress(account.address),
+      )
+    })
+
+    await waitFor(() => {
+      expect(result.current.model.clipboardCopy._tag).toBe(
+        'FailedClipboardCopy',
+      )
+    })
 
     act(() => {
       result.current.actions.requestedWalletCreation()

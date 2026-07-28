@@ -1,6 +1,11 @@
 import { Array, Option } from 'effect'
 
 import {
+  type ClipboardCopyRequest,
+  type ClipboardCopyState,
+  isSameClipboardCopyRequest,
+} from './clipboard.js'
+import {
   type AssetAmount,
   type AssetDescriptor,
   type NetworkDescriptor,
@@ -59,6 +64,57 @@ export const shortenedAddress = (address: string): string =>
   address.length <= 18
     ? address
     : `${address.slice(0, 10)}…${address.slice(-6)}`
+
+/** Labels one address copy control from the shared clipboard state. */
+export const clipboardCopyLabel = (
+  clipboardCopy: ClipboardCopyState,
+  request: ClipboardCopyRequest,
+): string => {
+  if (
+    clipboardCopy._tag === 'CopyingToClipboard' &&
+    isSameClipboardCopyRequest(clipboardCopy.request, request)
+  ) {
+    return 'Copying…'
+  } else if (
+    clipboardCopy._tag === 'CopiedToClipboard' &&
+    isSameClipboardCopyRequest(clipboardCopy.request, request)
+  ) {
+    return 'Copied'
+  } else if (
+    clipboardCopy._tag === 'FailedClipboardCopy' &&
+    isSameClipboardCopyRequest(clipboardCopy.request, request)
+  ) {
+    return 'Try copy again'
+  } else {
+    return 'Copy address'
+  }
+}
+
+/** Selects actionable feedback for one failed address copy control. */
+export const clipboardCopyFailureMessage = (
+  clipboardCopy: ClipboardCopyState,
+  request: ClipboardCopyRequest,
+): Option.Option<string> => {
+  if (
+    clipboardCopy._tag !== 'FailedClipboardCopy' ||
+    !isSameClipboardCopyRequest(clipboardCopy.request, request)
+  ) {
+    return Option.none()
+  }
+  if (clipboardCopy.code === 'Denied') {
+    return Option.some(
+      'Clipboard access was denied. Check your browser or device settings, then try again.',
+    )
+  } else if (clipboardCopy.code === 'Unavailable') {
+    return Option.some(
+      'Clipboard access is unavailable here. Select and copy the address manually.',
+    )
+  } else {
+    return Option.some(
+      'The address could not be copied. Select and copy it manually.',
+    )
+  }
+}
 
 /** Selects the first normalized account used by the primary Wallet flow. */
 export const primaryWalletAccount = (

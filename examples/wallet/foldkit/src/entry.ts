@@ -4,6 +4,7 @@ import {
   makeRemoteWalletResources,
   publicTestnetWalletEndpoint,
 } from 'wallet-remote-example'
+import { WalletWebClipboard } from 'wallet-web-client-example'
 
 import { makeWalletApplication } from './application.js'
 import { walletFoldkitStartForLocation } from './route.js'
@@ -38,7 +39,9 @@ Effect.runPromise(
     Runtime.run(
       makeWalletApplication(
         root,
-        makeRemoteWalletResources(publicTestnetWalletEndpoint),
+        makeRemoteWalletResources(publicTestnetWalletEndpoint, {
+          walletClipboard: WalletWebClipboard,
+        }),
         start,
       ),
     ),

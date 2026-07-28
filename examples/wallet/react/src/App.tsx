@@ -9,6 +9,10 @@ import {
   activeWalletAccounts,
   assetAmountLabel,
   assetAmountLabelForModel,
+  clipboardCopyFailureMessage,
+  clipboardCopyLabel,
+  clipboardCopyRequestForAddress,
+  isSameClipboardCopyRequest,
   makeWalletTestChallenge,
   primaryReceivingInstruction,
   primaryWalletAccount,
@@ -28,9 +32,14 @@ import {
   makeRemoteWalletResources,
   publicTestnetWalletEndpoint,
 } from 'wallet-remote-example'
+import { WalletWebClipboard } from 'wallet-web-client-example'
 
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
-  makeWalletReactClient(makeRemoteWalletResources(publicTestnetWalletEndpoint))
+  makeWalletReactClient(
+    makeRemoteWalletResources(publicTestnetWalletEndpoint, {
+      walletClipboard: WalletWebClipboard,
+    }),
+  )
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -78,6 +87,37 @@ const walletCreationLabel = (walletCreation: WalletCreationState): string =>
     }),
   )
 
+const CopyAddressButton = ({
+  address,
+  copyId,
+  model,
+}: Readonly<{ address: string; copyId: string; model: Model }>) => {
+  const actions = useWalletActions()
+  const request = clipboardCopyRequestForAddress(address, copyId)
+  const maybeFailure = clipboardCopyFailureMessage(model.clipboardCopy, request)
+  const isCopying =
+    model.clipboardCopy._tag === 'CopyingToClipboard' &&
+    isSameClipboardCopyRequest(model.clipboardCopy.request, request)
+  return (
+    <div className="wallet-copy-control">
+      <button
+        aria-live="polite"
+        className="wallet-copy-button"
+        disabled={isCopying}
+        onClick={() => actions.requestedClipboardCopy(request)}
+        type="button"
+      >
+        {clipboardCopyLabel(model.clipboardCopy, request)}
+      </button>
+      {Option.isSome(maybeFailure) ? (
+        <small className="wallet-copy-error" role="alert">
+          {maybeFailure.value}
+        </small>
+      ) : null}
+    </div>
+  )
+}
+
 const NetworkModeButton = ({
   model,
   networkMode,
@@ -120,7 +160,14 @@ const WalletProfileCard = ({
               <strong>{account.chain}</strong>
               <span>{account.networkName}</span>
             </div>
-            <code>{shortenedAddress(account.address)}</code>
+            <div className="wallet-address-line">
+              <code>{shortenedAddress(account.address)}</code>
+              <CopyAddressButton
+                address={account.address}
+                copyId={`profile:${wallet.walletId}:${account.accountId}`}
+                model={model}
+              />
+            </div>
             <small>{account.detail}</small>
           </li>
         ),
@@ -227,7 +274,16 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
       <div className="wallet-balance">
         <p>Available balance</p>
         <strong className="cardboard-embossed">{balanceLabel}</strong>
-        <small>{accountLabel}</small>
+        <div className="wallet-address-line">
+          <small>{accountLabel}</small>
+          {Option.isSome(maybeAccount) ? (
+            <CopyAddressButton
+              address={maybeAccount.value.address}
+              copyId="primary-account"
+              model={model}
+            />
+          ) : null}
+        </div>
       </div>
     </header>
   )
@@ -306,11 +362,20 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         <div className="wallet-preview">
           <div>
             <span>To</span>
-            <strong>
-              {shortenedAddress(
-                maybePreview.value.transfer.recipient.displayAddress,
-              )}
-            </strong>
+            <div className="wallet-preview-value">
+              <strong>
+                {shortenedAddress(
+                  maybePreview.value.transfer.recipient.displayAddress,
+                )}
+              </strong>
+              <CopyAddressButton
+                address={
+                  maybePreview.value.transfer.recipient.normalizedAddress
+                }
+                copyId="transfer-preview-recipient"
+                model={model}
+              />
+            </div>
           </div>
           <div>
             <span>Network fee</span>
@@ -424,7 +489,14 @@ const AccountDetails = ({ model }: Readonly<{ model: Model }>) => {
       {Option.isSome(maybeAccount) ? (
         <>
           <p>{maybeAccount.value.displayName}</p>
-          <code>{maybeAccount.value.address}</code>
+          <div className="wallet-address-line">
+            <code>{maybeAccount.value.address}</code>
+            <CopyAddressButton
+              address={maybeAccount.value.address}
+              copyId="account-details"
+              model={model}
+            />
+          </div>
         </>
       ) : (
         <p>Account data is not loaded.</p>
@@ -432,6 +504,14 @@ const AccountDetails = ({ model }: Readonly<{ model: Model }>) => {
       {Option.isSome(maybeReceivingInstruction) ? (
         <>
           <h3>Receive</h3>
+          <div className="wallet-address-line">
+            <code>{maybeReceivingInstruction.value.destinationAddress}</code>
+            <CopyAddressButton
+              address={maybeReceivingInstruction.value.destinationAddress}
+              copyId="receiving-address"
+              model={model}
+            />
+          </div>
           <code>{maybeReceivingInstruction.value.portableUri}</code>
         </>
       ) : null}
