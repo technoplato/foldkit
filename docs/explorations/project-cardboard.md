@@ -1,8 +1,5 @@
 # Project Cardboard | Rule Zero
 
-Machine-local draft timestamp: Monday, July 27, 2026 at 11:21:02 p.m. EDT
-(-0400).
-
 Project Cardboard is a portable accessibility and presentation system. One
 Program owns meaning, state, Messages, replay, and portable routes. Each client
 expresses that Program through the capabilities of its medium.
@@ -18,10 +15,11 @@ speaker's explicit question budget.
 
 ## Immediate consistency decisions
 
-1. `/0` is the public, portable home route and contains no private state. It
-   may resolve locally to a person's current address, but sharing `/0` cannot
-   grant another person access. Sharing private state requires a separate,
-   explicit, revocable capability URI.
+1. `/0` is the public, portable Constitution and game root. Any conforming host
+   may serve it at its own scheme and authority, such as
+   `https://abcde.example/0`, while every client parses the same portable `/0`
+   value. Private state and consequential actions still require explicit,
+   scoped authority.
 2. Repeated use cannot prove that software contains no malicious behavior.
    Cardboard can instead provide reproducible builds, signed provenance,
    declared capabilities, resource budgets, deterministic replay, sandboxed
@@ -29,6 +27,9 @@ speaker's explicit question budget.
 3. A hash cannot make a market cycle repeatable. A point can carry an exact
    timestamped stake, while a separately versioned market reference defines
    its unit of account. Claims about predictability require observed evidence.
+4. A Message is data, not executable authority. A host validates its Schema,
+   Program version, signature, declared intent, capabilities, and resource
+   budget before choosing whether to execute the corresponding verified build.
 
 ## Declaration
 
@@ -66,6 +67,10 @@ special mode attached to one screen.
    rationale, test, review date, and removal path.
 10. **Security claims stay scoped.** Evidence says exactly which source,
     artifact, capabilities, inputs, and executions were inspected.
+11. **Rule Zero begins at zero.** A participant begins with zero slashes.
+    Increasing that count requires a versioned rule, evidence, notice, a typed
+    decision, and an appeal path. A stake may accompany a claim, but payment
+    does not authorize execution or prove the claim.
 
 ## Bill of Rights
 
@@ -82,9 +87,27 @@ Every participant has the right to:
 - leave, fork, or replace a service while retaining portable information; and
 - use quiet, offline, reduced-motion, low-light, and assistive presentations.
 
-## Rule Zero onboarding
+## Rule Zero as Constitution and game
 
-Every Cardboard client recognizes the portable route `/0`.
+Every Cardboard client recognizes the portable route `/0`. A platform adds its
+own carrier without changing the route or its meaning:
+
+```text
+Web             https://abcde.example/0
+Native          cardboard://abcde/0
+Terminal        cardboard host abcde /0
+Portable value  /0
+```
+
+The initial game state has `slashCount = 0`. The objective is to keep it there.
+Rules are philosophical claims made operational through stable identifiers,
+versions, Schemas, tests, evidence, review, and replayable decisions. A host may
+publish a game, accept typed proposals, and process allowed transitions without
+accepting arbitrary executable Messages.
+
+The first prototype is the Constitution's black button. It exercises one small
+state machine through visual, keyboard, screen-reader, terminal, speech,
+haptic, and future tactile presentations.
 
 The initial presentation is black. It contains one black square control. Its
 semantic label, focus behavior, keyboard behavior, tactile behavior, and
@@ -96,7 +119,8 @@ The portable onboarding state is:
 WaitingAtZero
 | PressingZero(elapsedMilliseconds)
 | OpeningZero(progressPermille)
-| OpenedAtZero(accessibilityProfile)
+| ConfiguringAtZero(accessibilityProfile, isRgbInverted)
+| CompletedAtZero(accessibilityProfile, isRgbInverted)
 ```
 
 The portable input and lifecycle facts are:
@@ -108,6 +132,10 @@ PressedZeroButton
 | AdvancedZeroOpening(progressPermille)
 | CompletedZeroOpening
 | SelectedAccessibilityProfile(profile)
+| ToggledRgbInversion
+| SkippedZeroStep
+| CompletedZeroGame
+| ReturnedToZeroStart
 ```
 
 A quick press and release returns to `WaitingAtZero` and presents the semantic
@@ -118,19 +146,66 @@ navigation state.
 
 Every host maps the same semantic feedback to its available outputs: visible
 readout, synthesized speech, haptics, terminal text, tones, Braille, radio
-description, or another declared medium. Feedback capability is injected; it
-is not detected inside the Program.
+description, or another declared medium. The terminal presentation prints the
+same state facts while a button is held:
+
+```text
+state PressingZero
+held 1.2s
+feedback "Black button held for 1.2 seconds."
+```
+
+Feedback capability is injected. It is not detected inside the Program. The
+meaning does not rely on a user having seen, heard, spoken, or physically
+pressed anything.
+
+The prototype accepts Arrow Left and `h` for the previous choice, Arrow Right
+and `l` for the next choice, `G` or semicolon to complete, and three Space
+presses to skip the current step. Canonical Vim `gg` returns to the beginning;
+using `GG` for completion would conflict with Vim's established grammar.
 
 ## Accessibility configuration
 
 The first configuration selects a presentation profile rather than asking a
 person to name a diagnosis. The initial profiles are Amber Paper, Quiet Black,
-Negative, and High Contrast. Each profile records color tokens, contrast,
-brightness, type scale, motion, audio, haptics, speech, and reading-position
-preferences.
+Groovebox, Groovebox Through Invert, Negative, and High Contrast. Each profile
+records color tokens, contrast, brightness, type scale, motion, audio, haptics,
+speech, and reading-position preferences.
+
+The prototype's testable negative transform is the literal RGB function
+`(red, green, blue) -> (255 - red, 255 - green, 255 - blue)`. Groovebox Through
+Invert stores the inverse of the desired warm Groovebox palette so applying the
+transform produces the intended colors. This is not labeled as Apple's Smart
+Invert algorithm, whose media-sensitive implementation is not a public color
+formula.
 
 The selected profile changes presentation only. It does not change the
 underlying Program state or the meaning of its Messages.
+
+## Effect Machine comparison
+
+The installed `effect@4.0.0-beta.97` has no general Machine API. Foldkit's
+Model, Message, update, Command, and Subscription loop already supplies the
+state-machine semantics. Cardboard should add a typed, inspectable transition
+graph and generated tools around that one source of truth rather than introduce
+a second state runtime.
+
+This is a good fit for navigation when destinations are tagged Model states and
+legal edges are Messages handled by update. It is a poor fit when a host router
+or native navigation stack becomes another authority that can transition
+without the Program.
+
+## Hosting and verified execution
+
+Becoming a host means serving a portable Program, its Constitution at `/0`, and
+the evidence needed to verify its build and behavior. Nix or another hermetic
+build system can later provide content-addressed, reproducible artifacts and
+shared caches. A route may identify an artifact and typed intent, but the host
+still decides whether to fetch, verify, sandbox, grant capabilities, and run it.
+
+A harmless boundary-probe game may visibly report that a test Message crossed
+a host boundary. It must be explicit and reversible. It does not silently plant
+a cookie, impersonate malware, or treat a stake as consent to execute code.
 
 ## Creating, testing, and deleting rules
 
