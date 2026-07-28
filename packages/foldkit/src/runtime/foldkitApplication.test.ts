@@ -11,6 +11,7 @@ import {
 import { expect, it } from 'vitest'
 
 import * as Command from '../command/index.js'
+import { INIT_INDEX } from '../devTools/store.js'
 import type { DevToolsStore } from '../devTools/store.js'
 import { html } from '../html/index.js'
 import { m } from '../message/index.js'
@@ -163,6 +164,53 @@ it('projects initialization Command history into DevTools', async () => {
     })
     .toStrictEqual(['CompletedInitialize'])
   await expect.poll(() => document.body.textContent).toContain('1')
+
+  await Effect.runPromise(Fiber.interrupt(fiber))
+  root.remove()
+})
+
+it('renders transformed Model values when DevTools inspects history', async () => {
+  const root = document.createElement('div')
+  root.id = 'shared-program-transformed-model-root'
+  document.body.append(root)
+
+  const TransformedModel = S.Struct({ value: S.BigIntFromString })
+  type TransformedModel = typeof TransformedModel.Type
+  const TransformedProgram = make({
+    id: 'transformed-model-history',
+    version: 1,
+    Model: TransformedModel,
+    Message,
+    init: () => [TransformedModel.make({ value: 69n }), []],
+    update: model => [model, []],
+  })
+  const h = html<Message>()
+  let devToolsStore: DevToolsStore | undefined
+  const application = makeFoldkitApplication({
+    program: TransformedProgram,
+    resources: Layer.empty,
+    container: root,
+    devTools: {
+      show: 'Always',
+      overlay: store =>
+        Effect.sync(() => {
+          devToolsStore = store
+        }),
+    },
+    view: model => ({
+      title: 'Transformed Model History',
+      body: h.main([], [model.value.toString()]),
+    }),
+  })
+  const fiber = Effect.runFork(application.start())
+
+  await expect.poll(() => document.body.textContent).toContain('69')
+  await expect.poll(() => devToolsStore).toBeDefined()
+  if (devToolsStore === undefined) {
+    throw new Error('Expected the DevTools store to be available')
+  }
+  await Effect.runPromise(devToolsStore.jumpTo(INIT_INDEX))
+  expect(document.body.textContent).toContain('69')
 
   await Effect.runPromise(Fiber.interrupt(fiber))
   root.remove()
