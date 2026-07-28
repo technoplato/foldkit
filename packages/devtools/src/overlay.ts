@@ -1740,6 +1740,7 @@ const makeView = (
           ),
         ),
         h.Style({ width: '22px', height: '56px', fontSize: '10px' }),
+        h.AriaLabel(model.isOpen ? 'Close Program Log' : 'Open Program Log'),
         h.OnClick(ClickedToggle()),
       ],
       [
@@ -1774,7 +1775,7 @@ const makeView = (
                   ),
                 ),
               ],
-              [h.span([], ['D']), h.span([], ['E']), h.span([], ['V'])],
+              [h.span([], ['L']), h.span([], ['O']), h.span([], ['G'])],
             ),
       ],
     )
