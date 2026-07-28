@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 8:00:26 a.m. EDT — `b85a71f19a78` fix: keep the Program Log reachable during replay
+
+- **Implementation commit:** `b85a71f19a786fdfb5a6ec87c13777d209c36f39`
+- **Change:** Kept the Foldkit Program Log crash-free and reachable while time travel is paused.
+- **Details:**
+  - Validated historical Models on the decoded Schema type side so transformed values such as Cardboard's bigint sequence value are not decoded twice.
+  - Made the in-page Program Log control a true toggle and routed its click through the pause interaction blocker without enabling product interactions.
+  - Added a regression test that inspects a historical Model containing BigIntFromString and renders its decoded bigint value.
+- **Files:**
+  - `packages/foldkit/src/runtime/runtime.ts` — Validates already-decoded historical Models before inspection rendering.
+  - `packages/foldkit/src/runtime/foldkitApplication.test.ts` — Covers DevTools inspection of transformed Model values.
+  - `packages/devtools/src/programLogButton.ts` — Toggles the log and reroutes blocked clicks while replay is paused.
+  - `packages/devtools/src/overlay.ts` — Identifies the protected time-travel interaction blocker for the log control.
+- **User context (verbatim):**
+  > if I open log once and then click anything in the list of events, uh, and then try and click log again, it does not work.
+- **SpecStory:** unavailable — Codex desktop GUI task; SpecStory does not document desktop GUI capture and no durable SpecStory URI was available.
+
 ## July 28th, 2026 at 7:48:12 a.m. EDT — `c4010cd5096d` feat(devtools): expose an in-app Program Log button
 
 - **Implementation commit:** `c4010cd5096d4a3beab7f3058a29e94d24204b4f`
