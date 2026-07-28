@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 4:13:06 a.m. EDT — `52ec38ab960e` build(cardboard): embed React build provenance
+
+- **Implementation commit:** `52ec38ab960e1dcc881b7d4f04e74881cb38ef6b`
+- **Change:** Embed reproducible build provenance in the Cardboard React Client
+- **Details:**
+  - Read Vite-injected provenance once and log the committed source and artifact identity when the React Client starts.
+  - Keep development builds explicit by logging that provenance is unavailable when the build pipeline did not inject it.
+- **Files:**
+  - `examples/cardboard/react/src/buildProvenance.ts` — Log injected provenance through one startup helper.
+  - `examples/cardboard/react/src/environment.d.ts` — Type the Vite provenance environment value.
+  - `examples/cardboard/react/src/main.tsx` — Log build identity before mounting the React Client.
+- **User context (verbatim):**
+  > it should be able to open the web URL in another window for the given event log
+- **SpecStory:** unavailable — Codex desktop task; no verified Codex CLI capture or durable SpecStory URI is available.
+
 ## July 28th, 2026 at 4:12:18 a.m. EDT — `08b2f9c1b0ac` feat(cardboard): add replay Client matrix
 
 - **Implementation commit:** `08b2f9c1b0ace86b553fc368891dc1662bb0fecc`
