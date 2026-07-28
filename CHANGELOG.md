@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 11:25:35 p.m. EDT — `74cc5a7bbcb4` feat: prototype Project Cardboard Rule Zero
+
+- **Implementation commit:** `74cc5a7bbcb464a29d75249009894da39845ffa3`
+- **Change:** Prototype Project Cardboard Rule Zero and its civic foundation
+- **Details:**
+  - Built an interactive black-square onboarding prototype with press, hold, keyboard, live-readout, reduced-motion, and selectable accessibility profiles.
+  - Defined /0 as a public portable home route while separating private state into explicit revocable capability URIs.
+  - Drafted Rule Omega, a declaration, constitution, Bill of Rights, rule lifecycle, and typed claim-stake boundary.
+  - Scoped security evidence to reproducible builds, declared capabilities, bounded resources, sandboxing, and observed behavior instead of claiming universal malware absence.
+- **Files:**
+  - `.lavish/project-cardboard-zero.html` — Provide the interactive Rule Zero and accessibility-profile review surface.
+  - `docs/explorations/project-cardboard.md` — Record Cardboard principles, state-machine semantics, rights, evidence limits, and governance process.
+- **User context (verbatim):**
+  > It's called Cardboard.
+  > Let's design first the black button.
+  > slash zero is peace. slash zero is home.
+  > start drafting a constitution and a declaration for me, a Bill of Rights
+- **SpecStory:** unavailable — Codex desktop GUI task; no verified SpecStory capture or durable public URI is available.
+
 ## July 27th, 2026 at 9:05:41 p.m. EDT — `c2a65a7cafcc` refactor(wallet): make executable transfers algebraic
 
 - **Implementation commit:** `c2a65a7cafcc396297d332002124460714cf377e`
