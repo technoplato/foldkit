@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 7:48:12 a.m. EDT — `c4010cd5096d` feat(devtools): expose an in-app Program Log button
+
+- **Implementation commit:** `c4010cd5096d4a3beab7f3058a29e94d24204b4f`
+- **Change:** Added a real in-app Program Log button to the Foldkit Cardboard presentation.
+- **Details:**
+  - Exported a reusable light-DOM ProgramLogButton CustomElement that opens the mounted DevTools overlay through its own control.
+  - Rendered [L] Log beside [E] Extra without moving DevTools state or effects into the portable Cardboard Program.
+- **Files:**
+  - `packages/devtools/src/programLogButton.ts` — Defines and registers the reusable in-app Program Log control.
+  - `packages/devtools/src/index.ts` — Exports the Program Log CustomElement and browser registration helper.
+  - `packages/devtools/src/overlay.ts` — Gives the authoritative overlay control a stable internal target.
+  - `examples/cardboard/foldkit/src/entry.ts` — Registers the Program Log CustomElement in the Foldkit browser host.
+  - `examples/cardboard/foldkit/src/view.ts` — Renders [L] Log beside the existing Cardboard commands.
+- **User context (verbatim):**
+  > FoldKit still doesn't have a log button. Can you add that, please?
+- **SpecStory:** unavailable — Codex desktop GUI task; SpecStory does not document desktop GUI capture and no durable SpecStory URI was available.
+
 ## July 28th, 2026 at 7:45:18 a.m. EDT — `642d27e57749` fix(devtools): label the Program Log control
 
 - **Implementation commit:** `642d27e5774926bafbe5e0c1c39cb9402d3e1538`
