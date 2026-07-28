@@ -4,6 +4,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 4:29:59 a.m. EDT — `b2c4b0671fd7` feat: simplify wallet and expose Cardboard replay
+
+- **Implementation commit:** `b2c4b0671fd7aa8ca46b0c68e1afa9cfa4fc7d08`
+- **Change:** Simplify the Wallet Clients and expose Cardboard replay in Foldkit
+- **Details:**
+  - Reduced the default Wallet presentation to balance, one test send, and recent activity while keeping account, receiving, signing, and replay tools available as secondary details.
+  - Moved exact currency formatting and primary account selection into Wallet core so React, Foldkit, and Expo share presentation facts without sharing rendering code.
+  - Extracted common Cardboard visual tokens and made the canonical Foldkit Client production journal visible in TimeTravel mode, preserving the runtime as the single replay authority.
+- **Files:**
+  - `examples/cardboard/common/cardboard.css` — Share Cardboard colors, surfaces, embossing, and controls across visual Clients.
+  - `examples/cardboard/foldkit/src/application.ts` — Expose the authoritative Program journal and time-travel controls in the Foldkit showcase.
+  - `examples/cardboard/react/src/styles.css` — Consume the shared Cardboard presentation tokens.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Present the Wallet as a calm balance, send, and activity flow on Expo platforms.
+  - `examples/wallet/core/src/index.ts` — Export shared Wallet presentation facts.
+  - `examples/wallet/core/src/presentation.test.ts` — Verify exact currency formatting and primary balance selection.
+  - `examples/wallet/core/src/presentation.ts` — Define renderer-independent Wallet labels and selectors.
+  - `examples/wallet/foldkit/src/scene.test.ts` — Verify the simplified Foldkit flow and retained advanced tools.
+  - `examples/wallet/foldkit/src/styles.css` — Reuse the same Cardboard Wallet presentation stylesheet.
+  - `examples/wallet/foldkit/src/view.ts` — Render the simplified Wallet hierarchy through Foldkit HTML.
+  - `examples/wallet/react/src/App.tsx` — Render the simplified Wallet hierarchy through React.
+  - `examples/wallet/react/src/styles.css` — Apply Cardboard surfaces, readable hierarchy, and responsive advanced details.
+- **User context (verbatim):**
+  > the wallet is way too confusing looking
+  > make it a lot simpler, please, and take some inspiration from Cardboard
+  > the fold kit showcase for Cardboard does not have undo, replay, etc.
+- **SpecStory:** unavailable — Codex desktop task; no verified Codex CLI capture or durable SpecStory URI is available.
+
 ## July 28th, 2026 at 4:18:40 a.m. EDT — `3e19fad9da32` feat(constructive-data-modeling): add exact page navigation
 
 - **Implementation commit:** `3e19fad9da32dfce36c4ff6902f41d542bd82b65`
