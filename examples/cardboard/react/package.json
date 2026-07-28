@@ -6,9 +6,9 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "dev": "vite",
-    "prebuild": "pnpm --filter cardboard-react-bindings-example build",
-    "predev": "pnpm --filter cardboard-react-bindings-example build",
-    "pretypecheck": "pnpm --filter cardboard-react-bindings-example build",
+    "prebuild": "pnpm --filter cardboard-react-bindings-example build && pnpm --filter cardboard-web-preview-example build",
+    "predev": "pnpm --filter cardboard-react-bindings-example build && pnpm --filter cardboard-web-preview-example build",
+    "pretypecheck": "pnpm --filter cardboard-react-bindings-example build && pnpm --filter cardboard-web-preview-example build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "cardboard-web-preview-example": "workspace:*",
     "prettier": "^3.8.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"

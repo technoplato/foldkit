@@ -1,4 +1,4 @@
-import { Array, Effect, Option, String as String_ } from 'effect'
+import { Array, Effect, Match as M, Option, String as String_ } from 'effect'
 import * as Program from 'foldkit/program'
 
 import { type Message } from './message.js'
@@ -45,6 +45,17 @@ const sequenceValueForRoute = (
 /** Prints one sequence value as its canonical portable Cardboard route. */
 export const sequencePortableRoute = (value: bigint): string =>
   value === 4n ? ruleZeroPortableRoute : `/0/${value.toString()}`
+
+/** Returns the canonical portable state route for one Cardboard Model. */
+export const portableRouteForModel = (model: Model): string =>
+  M.value(model.page).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      SequencePage: ({ value }) => sequencePortableRoute(value),
+      RuleZeroPage: () => ruleZeroPortableRoute,
+      ConversationLedgerPage: () => extraPortableRoute,
+    }),
+  )
 
 const isInitialStateRoute = (
   route: Program.ProgramRoute<Model, Message>,
