@@ -2,9 +2,13 @@ import { Match as M } from 'effect'
 import type * as Command from 'foldkit/command'
 import { evo } from 'foldkit/struct'
 
-import { nextSlideId, previousSlideId } from './deck.js'
+import {
+  nextSlideId,
+  previousSlideId,
+  slideIdForPlaybackSeconds,
+} from './deck.js'
 import type { Message } from './message.js'
-import type { Model } from './model.js'
+import { type Model, VideoPlaybackControl } from './model.js'
 
 type UpdateReturn = readonly [Model, ReadonlyArray<Command.Command<Message>>]
 
@@ -34,5 +38,17 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
+      ObservedPlayback: ({ seconds }) => {
+        const currentSlideId = slideIdForPlaybackSeconds(seconds)
+        return currentSlideId === model.currentSlideId
+          ? [model, []]
+          : [
+              evo(model, {
+                currentSlideId: () => currentSlideId,
+                lastControl: () => VideoPlaybackControl(),
+              }),
+              [],
+            ]
+      },
     }),
   )

@@ -1,6 +1,5 @@
 import {
   AdvancedSlide,
-  type ComparisonColumn,
   KeyboardControl,
   type Message,
   type Model,
@@ -11,10 +10,20 @@ import {
   type SlideId,
   constructiveDataModelingDeck,
   deckPresentation,
+  formatTimestamp,
   sourceForId,
 } from 'constructive-data-modeling-core-example'
 import { Array, Match as M, Option } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
+
+const contentTitle = (content: SlideContent): string =>
+  M.value(content).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      AuthoredSlide: ({ title }) => title,
+      QuestionAnswerSlide: ({ title }) => title,
+    }),
+  )
 
 const sourceLink = (
   sourceId: (typeof constructiveDataModelingDeck.sources)[number]['id'],
@@ -34,104 +43,59 @@ const sourceLink = (
   )
 }
 
-const comparisonColumn = (column: ComparisonColumn, modifier: string): Html => {
-  const h = html<Message>()
-  return h.section(
-    [h.Class(`comparison-column ${modifier}`)],
-    [
-      h.p([h.Class('comparison-label')], [column.label]),
-      h.pre([], [h.code([], [column.code])]),
-      h.p([h.Class('comparison-consequence')], [column.consequence]),
-    ],
-  )
-}
-
 const slideContentView = (content: SlideContent): Html => {
   const h = html<Message>()
   return M.value(content).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
-      TitleSlide: ({ eyebrow, speaker, subtitle, title }) =>
+      AuthoredSlide: ({
+        condensedPage,
+        revealEndPage,
+        revealStartPage,
+        summary,
+        title,
+      }) =>
         h.div(
-          [h.Class('title-slide')],
+          [h.Class('cue-content')],
           [
-            h.p([h.Class('eyebrow')], [eyebrow]),
+            h.p([h.Class('eyebrow')], ['Authored slide']),
             h.h1([], [title]),
-            h.p([h.Class('title-statement')], [subtitle]),
-            h.p([h.Class('speaker')], [speaker]),
-          ],
-        ),
-      PrincipleSlide: ({ eyebrow, points, statement, title }) =>
-        h.div(
-          [h.Class('principle-slide')],
-          [
-            h.p([h.Class('eyebrow')], [eyebrow]),
-            h.h1([], [title]),
-            h.p([h.Class('principle-statement')], [statement]),
-            h.ul(
-              [h.Class('point-list')],
-              Array.map(points, point => h.li([h.Key(point)], [point])),
-            ),
-          ],
-        ),
-      ComparisonSlide: ({ after, before, eyebrow, title }) =>
-        h.div(
-          [h.Class('comparison-slide')],
-          [
-            h.p([h.Class('eyebrow')], [eyebrow]),
-            h.h1([], [title]),
-            h.div(
-              [h.Class('comparison-grid')],
+            h.p([h.Class('cue-summary')], [summary]),
+            h.dl(
+              [h.Class('cue-evidence')],
               [
-                comparisonColumn(before, 'before'),
-                comparisonColumn(after, 'after'),
+                h.div(
+                  [],
+                  [
+                    h.dt([], ['Condensed page']),
+                    h.dd([], [condensedPage.toString().padStart(2, '0')]),
+                  ],
+                ),
+                h.div(
+                  [],
+                  [
+                    h.dt([], ['Authored reveals']),
+                    h.dd(
+                      [],
+                      [
+                        revealStartPage === revealEndPage
+                          ? revealStartPage.toString()
+                          : `${revealStartPage.toString()}–${revealEndPage.toString()}`,
+                      ],
+                    ),
+                  ],
+                ),
               ],
             ),
           ],
         ),
-      FlowSlide: ({ eyebrow, steps, title }) =>
+      QuestionAnswerSlide: ({ summary, title }) =>
         h.div(
-          [h.Class('flow-slide')],
+          [h.Class('cue-content question-answer')],
           [
-            h.p([h.Class('eyebrow')], [eyebrow]),
+            h.p([h.Class('eyebrow')], ['Recording-only section']),
             h.h1([], [title]),
-            h.ol(
-              [h.Class('flow-list')],
-              Array.map(steps, (step, index) =>
-                h.li(
-                  [h.Key(step.label)],
-                  [
-                    h.span(
-                      [h.Class('flow-number')],
-                      [(index + 1).toString().padStart(2, '0')],
-                    ),
-                    h.div([], [h.h2([], [step.label]), h.p([], [step.detail])]),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      SourcesSlide: ({ eyebrow, sourceIds, title }) =>
-        h.div(
-          [h.Class('sources-slide')],
-          [
-            h.p([h.Class('eyebrow')], [eyebrow]),
-            h.h1([], [title]),
-            h.ul(
-              [h.Class('source-list')],
-              Array.map(sourceIds, sourceId => {
-                const source = sourceForId(sourceId)
-                return h.li(
-                  [h.Key(source.id)],
-                  [
-                    sourceLink(source.id),
-                    h.p([], [source.note]),
-                    h.code([], [source.url]),
-                  ],
-                )
-              }),
-            ),
+            h.p([h.Class('cue-summary')], [summary]),
           ],
         ),
     }),
@@ -145,9 +109,9 @@ const keyboardMessage = (key: string): Option.Option<Message> => {
   } else if (key === 'ArrowLeft' || key === 'PageUp') {
     return Option.some(RewoundSlide({ origin }))
   } else if (key === 'Home') {
-    return Option.some(SelectedSlide({ origin, slideId: 'opening' }))
+    return Option.some(SelectedSlide({ origin, slideId: 'opening-title' }))
   } else if (key === 'End') {
-    return Option.some(SelectedSlide({ origin, slideId: 'sources' }))
+    return Option.some(SelectedSlide({ origin, slideId: 'q-and-a' }))
   } else {
     return Option.none()
   }
@@ -156,16 +120,13 @@ const keyboardMessage = (key: string): Option.Option<Message> => {
 const slideRail = (currentSlideId: SlideId): Html => {
   const h = html<Message>()
   return h.nav(
-    [h.AriaLabel('Choose a slide'), h.Class('slide-rail')],
+    [h.AriaLabel('Choose a synchronized talk cue'), h.Class('slide-rail')],
     Array.map(constructiveDataModelingDeck.slides, (slide, index) =>
       h.button(
         [
           h.AriaCurrent(slide.id === currentSlideId ? 'page' : 'false'),
-          h.AriaLabel(
-            `${(index + 1).toString().padStart(2, '0')} · ${slide.id}`,
-          ),
           h.Class(
-            slide.id === currentSlideId ? 'slide-dot active' : 'slide-dot',
+            slide.id === currentSlideId ? 'cue-marker active' : 'cue-marker',
           ),
           h.Key(slide.id),
           h.OnClick(
@@ -174,28 +135,55 @@ const slideRail = (currentSlideId: SlideId): Html => {
               slideId: slide.id,
             }),
           ),
+          h.Title(
+            `${formatTimestamp(slide.startSeconds)} · ${contentTitle(slide.content)}`,
+          ),
         ],
-        [h.span([], [(index + 1).toString().padStart(2, '0')])],
+        [
+          h.span(
+            [h.Class('cue-index')],
+            [(index + 1).toString().padStart(2, '0')],
+          ),
+          h.span([h.Class('cue-time')], [formatTimestamp(slide.startSeconds)]),
+          h.span(
+            [h.Class('visually-hidden')],
+            [
+              ` of ${constructiveDataModelingDeck.slides.length.toString()}: ${contentTitle(slide.content)}`,
+            ],
+          ),
+        ],
       ),
     ),
   )
 }
 
-/** Renders the source-backed deck with Foldkit HTML. */
+const videoEmbedUrl = (): string => {
+  const url = new URL(
+    `https://www.youtube.com/embed/${constructiveDataModelingDeck.videoId}`,
+  )
+  url.searchParams.set('enablejsapi', '1')
+  url.searchParams.set('origin', globalThis.location.origin)
+  url.searchParams.set('playsinline', '1')
+  url.searchParams.set('rel', '0')
+  return url.href
+}
+
+/** Renders the exact recording beside its synchronized semantic cue deck. */
 export const view = (model: Model): Document => {
   const h = html<Message>()
   const presentation = deckPresentation(model)
+  const slide = presentation.currentSlide
   const progress = `${(
     (presentation.position / presentation.total) *
     100
   ).toString()}%`
 
   return {
-    title: `${presentation.currentSlide.id} | Constructive data modeling | Foldkit`,
+    title: `${contentTitle(slide.content)} | Constructive data modeling | Foldkit`,
     body: h.main(
       [
         h.Autofocus(true),
-        h.Class(`deck-shell slide-${model.currentSlideId}`),
+        h.Class('deck-shell'),
         h.OnKeyDownPreventDefault(keyboardMessage),
         h.Tabindex(0),
       ],
@@ -206,7 +194,7 @@ export const view = (model: Model): Document => {
             h.div(
               [],
               [
-                h.p([h.Class('deck-kicker')], ['Foldkit study deck']),
+                h.p([h.Class('deck-kicker')], ['Foldkit · video synchronized']),
                 h.p(
                   [h.Class('deck-title')],
                   [constructiveDataModelingDeck.title],
@@ -227,29 +215,86 @@ export const view = (model: Model): Document => {
             ),
           ],
         ),
-        h.article(
+        h.section(
           [
-            h.AriaLabel(`Slide ${presentation.position.toString()}`),
-            h.Class('slide-canvas'),
+            h.AriaLabel('Synchronized video and slide cue'),
+            h.Class('sync-stage'),
           ],
-          [slideContentView(presentation.currentSlide.content)],
-        ),
-        h.div(
-          [h.Class('source-strip')],
           [
-            h.span([], ['Sources']),
-            ...Array.map(presentation.currentSlide.sourceIds, sourceId =>
-              sourceLink(sourceId),
+            h.div(
+              [h.Class('video-column')],
+              [
+                h.div(
+                  [h.Class('video-frame')],
+                  [
+                    h.iframe(
+                      [
+                        h.Allow(
+                          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
+                        ),
+                        h.Class('talk-player'),
+                        h.Id('talk-player'),
+                        h.Key('constructive-data-modeling-recording'),
+                        h.Referrerpolicy('strict-origin-when-cross-origin'),
+                        h.Src(videoEmbedUrl()),
+                        h.Title(
+                          'The Unreasonable Effectiveness of Constructive Data Modeling video',
+                        ),
+                      ],
+                      [],
+                    ),
+                  ],
+                ),
+                h.p(
+                  [h.Class('sync-note')],
+                  [
+                    'Play the recording and the cue follows. Choose any cue to seek the video.',
+                  ],
+                ),
+              ],
+            ),
+            h.article(
+              [
+                h.AriaLabel(`Cue ${presentation.position.toString()}`),
+                h.Class('cue-card'),
+              ],
+              [
+                h.div(
+                  [h.Class('cue-timing')],
+                  [
+                    h.time([], [formatTimestamp(slide.startSeconds)]),
+                    h.span([], ['→']),
+                    h.time([], [formatTimestamp(slide.endSeconds)]),
+                  ],
+                ),
+                slideContentView(slide.content),
+                h.a(
+                  [
+                    h.Class('deep-link'),
+                    h.Href(slide.deepLink),
+                    h.Rel('noopener noreferrer'),
+                    h.Target('_blank'),
+                  ],
+                  ['Open this exact moment ↗'],
+                ),
+              ],
             ),
           ],
         ),
         slideRail(model.currentSlideId),
+        h.div(
+          [h.Class('source-strip')],
+          [
+            h.span([], ['Evidence']),
+            ...Array.map(slide.sourceIds, sourceId => sourceLink(sourceId)),
+          ],
+        ),
         h.footer(
           [h.Class('deck-controls')],
           [
             h.button(
               [
-                h.AriaLabel('Previous slide'),
+                h.AriaLabel('Previous synchronized cue'),
                 h.Class('control-button previous'),
                 h.Disabled(!presentation.canRewind),
                 h.OnClick(RewoundSlide({ origin: PointerControl() })),
@@ -263,7 +308,7 @@ export const view = (model: Model): Document => {
             h.p([h.Class('keyboard-hint')], ['←  → · Space · Home · End']),
             h.button(
               [
-                h.AriaLabel('Next slide'),
+                h.AriaLabel('Next synchronized cue'),
                 h.Class('control-button next'),
                 h.Disabled(!presentation.canAdvance),
                 h.OnClick(AdvancedSlide({ origin: PointerControl() })),

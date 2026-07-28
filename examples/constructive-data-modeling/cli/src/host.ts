@@ -22,9 +22,10 @@ import { Runtime } from 'foldkit'
 export const CliOperation = S.Literals([
   'Show',
   'Next',
+  'PositiveSpace',
   'Obligations',
-  'ModelingLoop',
-  'Sources',
+  'Recap',
+  'Thanks',
 ])
 /** A one-shot constructive modeling CLI operation. */
 export type CliOperation = typeof CliOperation.Type
@@ -37,13 +38,14 @@ const messagesForOperation = (
     M.withReturnType<ReadonlyArray<Message>>(),
     M.when('Show', () => []),
     M.when('Next', () => [AdvancedSlide({ origin })]),
+    M.when('PositiveSpace', () => [
+      SelectedSlide({ origin, slideId: 'key-idea-1-positive-space' }),
+    ]),
     M.when('Obligations', () => [
-      SelectedSlide({ origin, slideId: 'obligations' }),
+      SelectedSlide({ origin, slideId: 'obligation-propagation-machine' }),
     ]),
-    M.when('ModelingLoop', () => [
-      SelectedSlide({ origin, slideId: 'modeling-loop' }),
-    ]),
-    M.when('Sources', () => [SelectedSlide({ origin, slideId: 'sources' })]),
+    M.when('Recap', () => [SelectedSlide({ origin, slideId: 'recap' })]),
+    M.when('Thanks', () => [SelectedSlide({ origin, slideId: 'thanks' })]),
     M.exhaustive,
   )
 }

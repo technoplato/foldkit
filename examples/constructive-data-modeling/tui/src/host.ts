@@ -44,9 +44,9 @@ export const messageForInput = (input: string): Option.Option<Message> => {
   } else if (input === 'p' || input === 'left') {
     return Option.some(RewoundSlide({ origin }))
   } else if (input === 'h' || input === 'home') {
-    return Option.some(SelectedSlide({ origin, slideId: 'opening' }))
+    return Option.some(SelectedSlide({ origin, slideId: 'opening-title' }))
   } else if (input === 'e' || input === 'end') {
-    return Option.some(SelectedSlide({ origin, slideId: 'sources' }))
+    return Option.some(SelectedSlide({ origin, slideId: 'q-and-a' }))
   } else {
     return Option.none()
   }

@@ -7,7 +7,7 @@ import {
 } from './deck.js'
 import { type Model, Slide, SourceReference } from './model.js'
 
-/** A complete renderer-neutral presentation of the current deck state. */
+/** A complete renderer-neutral presentation of the current synchronized deck. */
 export const DeckPresentation = S.Struct({
   canAdvance: S.Boolean,
   canRewind: S.Boolean,
@@ -15,15 +15,15 @@ export const DeckPresentation = S.Struct({
   position: S.Int,
   total: S.Int,
 })
-/** A renderer-neutral deck presentation value. */
+/** A renderer-neutral synchronized deck presentation value. */
 export type DeckPresentation = typeof DeckPresentation.Type
 
 /** Returns the renderer-neutral presentation for one Model. */
 export const deckPresentation = (model: Model): DeckPresentation => {
   const position = positionForSlideId(model.currentSlideId)
   return {
-    canAdvance: model.currentSlideId !== 'sources',
-    canRewind: model.currentSlideId !== 'opening',
+    canAdvance: position < constructiveDataModelingDeck.slides.length,
+    canRewind: position > 1,
     currentSlide: slideForId(model.currentSlideId),
     position,
     total: constructiveDataModelingDeck.slides.length,
@@ -41,27 +41,29 @@ export const sourceForId = (
     ),
   )
 
+/** Formats recording seconds as a stable minutes-and-seconds locator. */
+export const formatTimestamp = (seconds: number): string => {
+  const minutes = Math.floor(seconds / 60)
+  const remainder = Math.floor(seconds % 60)
+  return `${minutes.toString()}:${remainder.toString().padStart(2, '0')}`
+}
+
 const compactSlideText = (model: Model): string => {
-  const content = slideForId(model.currentSlideId).content
-  return M.value(content).pipe(
+  const slide = slideForId(model.currentSlideId)
+  const timing = `${formatTimestamp(slide.startSeconds)}–${formatTimestamp(slide.endSeconds)}`
+  return M.value(slide.content).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      TitleSlide: ({ speaker, subtitle, title }) =>
-        `${title}\n${subtitle}\n${speaker}`,
-      PrincipleSlide: ({ points, statement, title }) =>
-        `${title}\n${statement}\n• ${Array.join(points, '\n• ')}`,
-      ComparisonSlide: ({ after, before, title }) =>
-        `${title}\n${before.label}: ${before.consequence}\n${after.label}: ${after.consequence}`,
-      FlowSlide: ({ steps, title }) =>
-        `${title}\n${Array.join(
-          Array.map(steps, step => `${step.label}: ${step.detail}`),
-          '\n',
-        )}`,
-      SourcesSlide: ({ sourceIds, title }) =>
-        `${title}\n${Array.join(
-          Array.map(sourceIds, sourceId => sourceForId(sourceId).url),
-          '\n',
-        )}`,
+      AuthoredSlide: ({
+        condensedPage,
+        revealEndPage,
+        revealStartPage,
+        summary,
+        title,
+      }) =>
+        `${title}\n${timing} · authored slide ${condensedPage.toString()} · reveals ${revealStartPage.toString()}–${revealEndPage.toString()}\n${summary}\n${slide.deepLink}`,
+      QuestionAnswerSlide: ({ summary, title }) =>
+        `${title}\n${timing}\n${summary}\n${slide.deepLink}`,
     }),
   )
 }
