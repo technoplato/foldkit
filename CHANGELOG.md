@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 11:43:21 p.m. EDT — `d92eef7c3e87` feat(cardboard): define the portable Rule Zero program
+
+- **Implementation commit:** `d92eef7c3e873c0c519757f13f39928ffa921273`
+- **Change:** Defined Cardboard Rule Zero as one portable Foldkit Program
+- **Details:**
+  - Modeled onboarding with a typed Foldkit Machine while retaining Program ownership of subscriptions, replay, and portable routes.
+  - Added deterministic keyboard grammar, accessible and terminal projections, route round trips, and graph-integrity tests.
+  - Expanded the Constitution with bounded screen-context provenance and voluntary family-flourishing measures.
+- **Files:**
+  - `examples/cardboard/core/src/program.ts` — Defines the canonical renderer-neutral Program.
+  - `examples/cardboard/core/src/machine.ts` — Defines legal Rule Zero states and transitions.
+  - `examples/cardboard/core/src/program.test.ts` — Proves behavior, graph integrity, and portable route round trips.
+  - `docs/explorations/project-cardboard.md` — Records constitutional and architectural decisions.
+  - `pnpm-lock.yaml` — Registers the new workspace package.
+- **User context (verbatim):**
+  > Let's implement all programs.
+  > You can expand the constitution on every answer.
+- **SpecStory:** unavailable — Codex desktop GUI session is not available to SpecStory capture.
+
 ## July 27th, 2026 at 11:36:22 p.m. EDT — `039e2e8c5163` feat: extend Project Cardboard Rule Zero
 
 - **Implementation commit:** `039e2e8c516301d7e3dd3f2c81679e83a13fffd2`
