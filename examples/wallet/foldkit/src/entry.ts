@@ -1,7 +1,9 @@
 import { Effect } from 'effect'
 import { Runtime } from 'foldkit'
-import { makeSimulatedWalletResources } from 'wallet-simulated-client-example'
-import { WalletWebClipboard } from 'wallet-web-client-example'
+import {
+  makeWebWalletResources,
+  walletDataSourceFromEnvironment,
+} from 'wallet-web-client-example'
 
 import { makeWalletApplication } from './application.js'
 import { logBuildProvenance } from './buildProvenance.js'
@@ -39,9 +41,11 @@ Effect.runPromise(
     Runtime.run(
       makeWalletApplication(
         root,
-        makeSimulatedWalletResources({
-          walletClipboard: WalletWebClipboard,
-        }),
+        makeWebWalletResources(
+          walletDataSourceFromEnvironment(
+            import.meta.env.VITE_WALLET_DATA_SOURCE,
+          ),
+        ),
         start,
       ),
     ),

@@ -5,12 +5,14 @@ public Model, Messages, update function, finite Commands, persistent
 transaction Subscription, restoration rules, and injected Effect services live
 in `core`. Every client imports that exact `WalletProgram` object.
 
-Wallet creation is also portable. `RequestedWalletCreation` enters a finite
-creation state and emits `CreateWallet`, while the injected `WalletVault`
-generates private material outside the Model. One created profile always has
-Bitcoin, Ethereum, Solana, and Sui accounts. The public Model stores both Native
-Segwit and Taproot Bitcoin addresses, defaults to Native Segwit, and exposes
-one global `Devnet | Testnet` choice that projects every chain together.
+Wallet creation and restoration are also portable. Startup emits
+`LoadWalletProfiles`, and `RequestedWalletCreation` enters a finite creation
+state and emits `CreateWallet`. The injected `WalletVault` owns private
+material outside the Model. A creation succeeds only after the vault has
+durably written its custody record. One created profile always has Bitcoin,
+Ethereum, Solana, and Sui accounts. The public Model stores both Native Segwit
+and Taproot Bitcoin addresses, defaults to Native Segwit, and exposes one
+global `Devnet | Testnet` choice that projects every chain together.
 
 Sending has one explicit `SendNetworkSelection` in the Model. It identifies the
 global network mode plus the exact chain, network, account, and native asset.
@@ -18,11 +20,20 @@ Changing the global mode preserves the selected chain when the corresponding
 rail exists. React, React Native, Foldkit, the CLI, Effect Terminal, and OpenTUI
 all select and render that same value.
 
-The checked-in `local-vault` adapter uses standards-derived public addresses
-and process-local, redacted custody. It does not persist or export recovery
-material. Closing the host loses the private keys, so this example must not be
-treated as production custody. Public Wallet profiles remain safe to inspect in
-state routes and replay tapes.
+The checked-in `local-vault` adapter derives standards-based public addresses
+and serializes one opaque custody record per Wallet. Browser hosts encrypt each
+record with AES-GCM and store the ciphertext plus a non-extractable CryptoKey in
+origin-local IndexedDB. Expo stores each record in iOS Keychain or Android
+encrypted storage through `expo-secure-store`. CLI and other ephemeral hosts
+can still inject process-local record storage. No private key enters the Model,
+Message journal, route, replay tape, browser localStorage, or screen.
+
+This is durable example custody, not a complete production wallet. It has no
+recovery phrase, export, cloud backup, user-authentication gate, or hardware
+wallet integration. Same-origin script compromise can access a browser vault
+while the page is running, and users can erase browser site data. Native secure
+storage can also be lost or invalidated. Irreplaceable funds require an explicit
+backup and recovery design.
 
 The core also defines the renderer-neutral `walletIntentRouter`. Its canonical
 send paths have this shape:
@@ -45,11 +56,11 @@ or safe rejection guidance.
 ```text
 wallet/
   core/              portable Model, Message, Program, and service contracts
-  local-vault/       in-memory Bitcoin, Ethereum, Solana, and Sui key custody
+  local-vault/       portable persistent Bitcoin, Ethereum, Solana, and Sui vault
   simulated-client/  deterministic complete Layer with no network or real funds
   testnet-node/       Sepolia and Solana Devnet networking and optional custody
   remote/             Fetch-backed typed RPC Layer for remotely held custody
-  web-client/         browser clipboard Layer with normalized safe failures
+  web-client/         encrypted browser vault, clipboard, and source selection
   testnet-server/     deliberately unauthenticated disposable Sepolia bridge
   react-bindings/    domain-shaped React hooks with no DOM dependency
   react/             React web presenter
@@ -82,13 +93,29 @@ pnpm dev:example:showcase:ios
 pnpm dev:example:showcase:android
 ```
 
-Every showcase client uses the simulated network Layer plus the same local
-Wallet vault. The simulated Layer exposes Bitcoin, Ethereum, Solana, and Sui in
-both Devnet and Testnet modes. It never contacts a network or controls real
-funds. It proves the full Program flow, including multichain creation, global
-network switching, per-chain selection, previews, signing, submission, finite
-transaction history, live transaction observation, state routes, replay
-routes, and historical inspection.
+`PortfolioSnapshot.dataSource` is the authoritative provenance for every
+account, balance, receiving instruction, history request, and observation shown
+by the screen. It is exactly `Fixture` or `Testnet`. React and Foldkit select one
+complete resource graph at startup. Development defaults to `Fixture` so an
+unknown setting never contacts a network. The checked-in production settings
+select `Testnet` for the WAN demos, which use the public remote testnet bridge.
+Set `VITE_WALLET_DATA_SOURCE=Testnet` or `Fixture` explicitly to override the
+selected Vite mode. A host never mixes a fixture portfolio with live clients or
+signers.
+
+The simulated Layer exposes Bitcoin, Ethereum, Solana, and Sui in both Devnet
+and Testnet modes. It never contacts a network or controls real funds. It proves
+the full Program flow, including multichain creation, global network switching,
+per-chain selection, previews, signing, submission, finite transaction history,
+transaction observation, state routes, replay routes, and historical
+inspection. The screen labels this source `Fixture data`.
+
+The adapter-backed Portfolio and the locally created Wallet list are distinct.
+Creating a local Wallet does not invent a balance or splice its accounts into a
+fixture or server-owned testnet Portfolio. Connecting those generated accounts
+to chain transports and balance readers is future adapter work. The screen says
+so directly instead of presenting test money as if it belonged to the newly
+created Wallet.
 
 The raw CLI accepts the same deep link as the visual clients. `send --uri`
 submits the preview, waits until the transaction Subscription observes it, and

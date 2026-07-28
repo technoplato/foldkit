@@ -87,6 +87,7 @@ const submitNativeTransfer = (
       return yield* Effect.die('Expected a native asset')
     }
     const portfolio = PortfolioSnapshot.make({
+      dataSource: 'Testnet',
       chains: [chainPortfolio.chain],
       networks: [chainPortfolio.network],
       assets: chainPortfolio.assets,

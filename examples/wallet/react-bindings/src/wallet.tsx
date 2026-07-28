@@ -17,6 +17,7 @@ import {
   RequestedSignedTransactionSubmission,
   RequestedTransferPreview,
   RequestedWalletCreation,
+  RequestedWalletProfilesReload,
   RequestedWalletRefresh,
   ResumedTransactionObservation,
   SelectedSendNetwork,
@@ -39,6 +40,7 @@ export type WalletTransferComposition = typeof WalletTransferComposition.Type
 export type WalletActions = Readonly<{
   requestedClipboardCopy: (request: ClipboardCopyRequest) => void
   requestedWalletCreation: () => void
+  requestedWalletProfilesReload: () => void
   selectedWalletNetworkMode: (networkMode: WalletNetworkMode) => void
   selectedSendNetwork: (selection: SendNetworkSelection) => void
   requestedWalletRefresh: () => void
@@ -77,6 +79,8 @@ export const makeWalletReactClient = <ResourceError,>(
         enqueueMessage(RequestedClipboardCopy.make({ request })),
       requestedWalletCreation: () =>
         enqueueMessage(RequestedWalletCreation.make({})),
+      requestedWalletProfilesReload: () =>
+        enqueueMessage(RequestedWalletProfilesReload.make({})),
       selectedWalletNetworkMode: networkMode =>
         enqueueMessage(SelectedWalletNetworkMode.make({ networkMode })),
       selectedSendNetwork: selection =>

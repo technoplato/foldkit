@@ -16,10 +16,12 @@ import { BlockExplorerConfirmation } from './explorer.js'
 import { NoWalletIntent, WalletIntentState } from './intent.js'
 import { SendNetworkSelection } from './sendNetworkSelection.js'
 import {
+  LoadingWalletProfiles,
   ReadyToCreateWallet,
   WalletCreationState,
   WalletNetworkMode,
   WalletProfile,
+  WalletProfileLoadingState,
 } from './walletProfile.js'
 
 /** One public wallet account on one normalized network. */
@@ -59,8 +61,14 @@ export const ReceivingInstruction = S.Struct({
 /** Public instructions for receiving one asset into an account. */
 export type ReceivingInstruction = typeof ReceivingInstruction.Type
 
-/** Normalized public wallet data loaded from configured adapters. */
+/** The provenance of every balance and account in one portfolio snapshot. */
+export const WalletDataSource = S.Literals(['Fixture', 'Testnet'])
+/** The provenance of every balance and account in one portfolio snapshot. */
+export type WalletDataSource = typeof WalletDataSource.Type
+
+/** Normalized public wallet data loaded from exactly one configured source. */
 export const PortfolioSnapshot = S.Struct({
+  dataSource: WalletDataSource,
   chains: S.Array(ChainDescriptor),
   networks: S.Array(NetworkDescriptor),
   assets: S.Array(AssetDescriptor),
@@ -633,6 +641,7 @@ export type TransactionHistoryState = typeof TransactionHistoryState.Type
 /** The complete renderer-, platform-, and chain-agnostic Wallet Model. */
 export const Model = S.Struct({
   wallets: S.Array(WalletProfile),
+  walletProfileLoading: WalletProfileLoadingState,
   walletNetworkMode: WalletNetworkMode,
   maybeSendNetworkSelection: S.Option(SendNetworkSelection),
   walletCreation: WalletCreationState,
@@ -653,6 +662,7 @@ export type Model = typeof Model.Type
 /** The initial Wallet Model before public portfolio loading completes. */
 export const initialModel: Model = {
   wallets: [],
+  walletProfileLoading: LoadingWalletProfiles.make({}),
   walletNetworkMode: 'Testnet',
   maybeSendNetworkSelection: Option.none(),
   walletCreation: ReadyToCreateWallet.make({}),

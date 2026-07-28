@@ -77,6 +77,7 @@ describe('Wallet React bindings', () => {
       'requestedSignedTransactionSubmission',
       'requestedTransferPreview',
       'requestedWalletCreation',
+      'requestedWalletProfilesReload',
       'requestedWalletRefresh',
       'resumedTransactionObservation',
       'selectedSendNetwork',

@@ -309,6 +309,7 @@ const accountBalances = Array_.map(simulatedHoldings, holding =>
 
 /** Public deterministic normalized portfolio used by simulated hosts. */
 export const simulatedPortfolio = PortfolioSnapshot.make({
+  dataSource: 'Fixture',
   chains,
   networks,
   assets,

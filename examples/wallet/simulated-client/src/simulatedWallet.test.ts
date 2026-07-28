@@ -16,6 +16,10 @@ import {
 } from './simulatedWallet.js'
 
 describe('SimulatedWalletResources', () => {
+  it('identifies every simulated account and balance as fixture data', () => {
+    expect(simulatedPortfolio.dataSource).toBe('Fixture')
+  })
+
   it('loads normalized chains, networks, assets, and accounts', async () => {
     const portfolio = await Effect.runPromise(
       WalletClient.pipe(

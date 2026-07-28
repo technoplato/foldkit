@@ -264,6 +264,13 @@ input {
   white-space: nowrap;
 }
 
+.wallet-data-source-detail {
+  margin: 1.25rem 0 0;
+  color: var(--cardboard-paper-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .wallet-send h2,
 .wallet-activity h2,
 .wallet-detail-section h3 {

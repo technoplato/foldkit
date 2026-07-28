@@ -75,6 +75,7 @@ const balances = Array.map(accounts, account => {
   })
 })
 const simulatedPortfolioFixture = PortfolioSnapshot.make({
+  dataSource: 'Fixture',
   chains,
   networks,
   assets,

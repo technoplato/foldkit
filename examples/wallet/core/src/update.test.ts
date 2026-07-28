@@ -56,6 +56,7 @@ const account = {
   displayName: 'Account',
 }
 const portfolio = PortfolioSnapshot.make({
+  dataSource: 'Fixture',
   chains: [chain],
   networks: [network],
   assets: [asset],
@@ -133,7 +134,7 @@ describe('wallet update', () => {
     const [restoredModel, commands] = restore(copyingModel)
 
     expect(restoredModel.clipboardCopy._tag).toBe('FailedClipboardCopy')
-    expect(commands).toHaveLength(1)
+    expect(commands).toHaveLength(2)
   })
 
   it('loads normalized catalogs and starts finite history loading', () => {

@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   FailedCreateWallet,
+  FailedLoadWalletProfiles,
   RequestedWalletCreation,
+  RequestedWalletProfilesReload,
   SelectedWalletNetworkMode,
   SucceededCreateWallet,
+  SucceededLoadWalletProfiles,
 } from './message.js'
 import { initialModel } from './model.js'
 import { restore, update } from './update.js'
@@ -15,12 +18,18 @@ import {
   CreatingWallet,
   EthereumWalletAccount,
   FailedWalletCreation,
+  LoadedWalletProfiles,
   ReadyToCreateWallet,
   SolanaWalletAccount,
   SuiWalletAccount,
   WalletCreationRequest,
   WalletProfile,
 } from './walletProfile.js'
+
+const readyModel = {
+  ...initialModel,
+  walletProfileLoading: LoadedWalletProfiles.make({}),
+}
 
 const request = WalletCreationRequest.make({
   requestId: 'wallet-1',
@@ -64,9 +73,34 @@ const commandNames = (
 ): ReadonlyArray<string> => Array.map(commands, command => command.name)
 
 describe('wallet creation update', () => {
+  it('restores persisted profiles and exposes a finite retry path', () => {
+    const [loadedModel] = update(
+      initialModel,
+      SucceededLoadWalletProfiles.make({ wallets: [wallet] }),
+    )
+    const [failedModel] = update(
+      initialModel,
+      FailedLoadWalletProfiles.make({ code: 'Unavailable' }),
+    )
+    const [retryingModel, commands] = update(
+      failedModel,
+      RequestedWalletProfilesReload.make({}),
+    )
+
+    expect(loadedModel.wallets).toStrictEqual([wallet])
+    expect(loadedModel.walletProfileLoading._tag).toBe('LoadedWalletProfiles')
+    expect(failedModel.walletProfileLoading._tag).toBe(
+      'FailedWalletProfileLoading',
+    )
+    expect(retryingModel.walletProfileLoading._tag).toBe(
+      'LoadingWalletProfiles',
+    )
+    expect(commandNames(commands)).toStrictEqual(['LoadWalletProfiles'])
+  })
+
   it('creates one complete Wallet and switches every chain together', () => {
     const [creatingModel, commands] = update(
-      initialModel,
+      readyModel,
       RequestedWalletCreation.make({}),
     )
 
@@ -92,10 +126,7 @@ describe('wallet creation update', () => {
   })
 
   it('keeps failure and stale completion states finite', () => {
-    const [creatingModel] = update(
-      initialModel,
-      RequestedWalletCreation.make({}),
-    )
+    const [creatingModel] = update(readyModel, RequestedWalletCreation.make({}))
     const [failedModel] = update(
       creatingModel,
       FailedCreateWallet.make({ request, code: 'Unavailable' }),
@@ -122,6 +153,10 @@ describe('wallet creation update', () => {
     }
     const [, commands] = restore(creatingModel)
 
-    expect(commandNames(commands)).toStrictEqual(['CreateWallet', 'LoadWallet'])
+    expect(commandNames(commands)).toStrictEqual([
+      'LoadWalletProfiles',
+      'CreateWallet',
+      'LoadWallet',
+    ])
   })
 })

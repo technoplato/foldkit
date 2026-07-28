@@ -105,6 +105,24 @@ export const WalletCreationState = S.Union([
 /** The complete finite lifecycle of Wallet profile creation. */
 export type WalletCreationState = typeof WalletCreationState.Type
 
+/** Persisted Wallet profiles are being restored from injected secure storage. */
+export const LoadingWalletProfiles = S.TaggedStruct('LoadingWalletProfiles', {})
+/** Persisted Wallet profiles are available to the Program. */
+export const LoadedWalletProfiles = S.TaggedStruct('LoadedWalletProfiles', {})
+/** Persisted Wallet profiles could not be restored from secure storage. */
+export const FailedWalletProfileLoading = S.TaggedStruct(
+  'FailedWalletProfileLoading',
+  { code: S.Literals(['Unavailable', 'InvalidKeyMaterial']) },
+)
+/** The finite lifecycle for restoring persisted Wallet profiles. */
+export const WalletProfileLoadingState = S.Union([
+  LoadingWalletProfiles,
+  LoadedWalletProfiles,
+  FailedWalletProfileLoading,
+])
+/** The finite lifecycle for restoring persisted Wallet profiles. */
+export type WalletProfileLoadingState = typeof WalletProfileLoadingState.Type
+
 /** One chain account projected through the globally selected network mode. */
 export const ActiveWalletAccount = S.Struct({
   accountId: S.String,

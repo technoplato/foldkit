@@ -23,6 +23,7 @@ const makeEthereumWalletNetworkServices = Effect.gen(function* () {
     loadPortfolio: ethereum.loadPortfolio.pipe(
       Effect.map(portfolio =>
         PortfolioSnapshot.make({
+          dataSource: 'Testnet',
           chains: [portfolio.chain],
           networks: [portfolio.network],
           assets: portfolio.assets,
