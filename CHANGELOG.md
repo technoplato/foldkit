@@ -4,6 +4,37 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 4:12:18 a.m. EDT — `08b2f9c1b0ac` feat(cardboard): add replay Client matrix
+
+- **Implementation commit:** `08b2f9c1b0ace86b553fc368891dc1662bb0fecc`
+- **Change:** Add exact replay carriers and Client previews to the Program Log
+- **Details:**
+  - Wrap one selected portable replay path as React Web, Expo Web, Expo Mobile, and Effect TUI carriers without moving host concerns into the Program.
+  - Preview the exact selected Model in each presentation Client and provide explicit open, copy, or share actions.
+  - Suppress long-press callouts, strengthen the embossed Cardboard treatment, and keep the unavailable Foldkit replay-mount seam visible.
+  - Prove absolute-carrier TUI restoration and the shared presentation-Client registry with focused tests.
+- **Files:**
+  - `docs/adr/0002-universal-program-replay.md` — Record the portable-path and host-carrier boundary.
+  - `examples/cardboard/react-bindings/package.json` — Run focused tests for the shared Client registry.
+  - `examples/cardboard/react-bindings/src/index.ts` — Export the shared presentation-Client API.
+  - `examples/cardboard/react-bindings/src/presentationClients.test.ts` — Prove one path produces the expected mobile and terminal carriers.
+  - `examples/cardboard/react-bindings/src/presentationClients.ts` — Define the Schema-backed presentation-Client registry.
+  - `examples/cardboard/react/src/App.tsx` — Render and operate the selected-frame Client matrix in React.
+  - `examples/cardboard/react/src/styles.css` — Add embossed previews, responsive cards, and long-press suppression.
+  - `examples/cardboard/tui/package.json` — Run focused terminal carrier tests.
+  - `examples/cardboard/tui/src/entry.ts` — Accept an optional portable or absolute carrier argument.
+  - `examples/cardboard/tui/src/host.test.ts` — Prove exact selected-frame restoration from an HTTPS carrier.
+  - `examples/cardboard/tui/src/host.ts` — Parse carriers and start the TUI at the requested Program route.
+  - `examples/react-native-showcase/src/cardboardProgramLog.tsx` — Render the same Client matrix and actions in Expo.
+  - `pnpm-lock.yaml` — Lock the focused Vitest test dependencies.
+- **User context (verbatim):**
+  > Let's show the URL for the mobile client and the terminal
+  > it should be able to open the web URL in another window for the given event log
+  > this log should be kind of like the matrix of things
+  > not allow long clicking
+  > fonts and numbers and text to appear more embossed
+- **SpecStory:** unavailable — Codex desktop task; no verified Codex CLI capture or durable SpecStory URI is available.
+
 ## July 28th, 2026 at 3:57:03 a.m. EDT — `9853ed087828` feat(constructive-data-modeling): sync the exact talk
 
 - **Implementation commit:** `9853ed08782838225a9a5070b84263877d05b4be`
