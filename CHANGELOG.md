@@ -4,6 +4,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 11:58:05 a.m. EDT — `18298959af0b` feat(wallet): create portable multichain wallets
+
+- **Implementation commit:** `18298959af0be9dea8d6d893f64113841044fede`
+- **Change:** Created and integrated portable Bitcoin, Ethereum, Solana, and Sui wallets for the normalized Wallet Program and every supported client.
+- **Details:**
+  - Modeled wallet creation as finite Schema state with stale-completion protection and one Devnet/Testnet selection projected across every created wallet and chain.
+  - Generated real standard public addresses behind a session-only local vault while keeping private key material out of the Model, Messages, routes, and replay frames.
+  - Advanced the canonical Program to wallet@6, normalized intent examples and Expo presentation, and preserved transaction history, recipient validation, and explorer-confirmation behavior.
+  - Verified the public Cloudflare failure with Computer Use and identified stale browser and server processes as the WAN schema-skew cause before deployment.
+- **Files:**
+  - `examples/wallet/core/src/walletProfile.ts` — Defines four-chain wallet profiles, Bitcoin address variants, creation state, and global network projection.
+  - `examples/wallet/core/src/update.ts` — Runs finite wallet creation alongside normalized transfer and transaction-history Commands.
+  - `examples/wallet/local-vault/src/localWalletVault.ts` — Generates and retains Bitcoin, Ethereum, Solana, and Sui key material behind WalletVault.
+  - `examples/wallet/react/src/App.tsx` — Renders the Cardboard wallet home, creation control, and global network selector in React.
+  - `examples/wallet/foldkit/src/view.ts` — Renders the same canonical wallet state through Foldkit HTML.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Adapts normalized wallet creation, transfers, validation, confirmations, and history to Expo and React Native.
+  - `examples/wallet/cli/src/host.ts` — Adds scripted wallet creation and network selection to the raw CLI.
+  - `examples/wallet/terminal/src/host.ts` — Adds interactive creation and global network switching to Effect Terminal.
+  - `examples/wallet/tui/src/host.tsx` — Adds the same interactions and wallet summaries to OpenTUI.
+  - `examples/client-matrix/core/src/walletIntent.ts` — Updates exact matrix examples to the normalized account and asset intent route.
+- **User context (verbatim):**
+  > We'll just do creating a wallet for now
+  > use cardboard for design
+  > Test those a little bit more comprehensively and use them, uh, with computer use. They aren't working at all.
+  > And again, we want them on the WAN, not LAN.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this Codex desktop session is not captured by SpecStory.
+
 ## July 28th, 2026 at 11:48:09 a.m. EDT — `da044320bed4` build(testnet-server): embed server provenance
 
 - **Implementation commit:** `da044320bed4d3d54dc3c9fcc6c07868f42b5646`
