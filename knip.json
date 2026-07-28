@@ -130,6 +130,22 @@
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]
     },
+    "examples/constructive-data-modeling/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/constructive-data-modeling/foldkit": {
+      "entry": ["src/index.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/constructive-data-modeling/cli": {
+      "entry": ["src/entry.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/constructive-data-modeling/tui": {
+      "entry": ["src/entry.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
     "examples/fact/core": {
       "entry": ["src/index.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]

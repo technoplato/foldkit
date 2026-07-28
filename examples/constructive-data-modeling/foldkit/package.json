@@ -1,0 +1,27 @@
+{
+  "name": "constructive-data-modeling-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "prebuild": "pnpm --filter constructive-data-modeling-core-example build",
+    "predev": "pnpm --filter constructive-data-modeling-core-example build",
+    "pretypecheck": "pnpm --filter constructive-data-modeling-core-example build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "constructive-data-modeling-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}
