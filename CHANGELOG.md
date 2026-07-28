@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:38:40 a.m. EDT — `a6376cdeb035` feat(cardboard): add the Rule Zero decision ledger
+
+- **Implementation commit:** `a6376cdeb0355629ecdf54b5f03cd526a2089cb3`
+- **Change:** Added Cardboard's portable Rule Zero decision ledger and large-format client presentation.
+- **Details:**
+  - Modeled /0 and /0/0 as typed Program states with factual Message transitions and parser-printer round trips.
+  - Rendered the same ledger through React, Foldkit, Expo, CLI, and TUI while preserving the native Expo stack.
+  - Increased reading scale and added pill-shaped controls for the initial Cardboard experience.
+- **Files:**
+  - `examples/cardboard/core/src/ledger.ts` — Defines the append-only conversation scale and decision ledger.
+  - `examples/cardboard/core/src/route.ts` — Makes /0 and /0/0 canonical portable routes.
+  - `examples/cardboard/react/src/App.tsx` — Renders the readable React Rule Zero and ledger states.
+  - `examples/cardboard/foldkit/src/view.ts` — Renders the same states through Foldkit's canonical view path.
+  - `examples/react-native-showcase/src/App.tsx` — Presents Cardboard full-screen inside the native Expo stack.
+  - `examples/cardboard/tui/src/host.ts` — Adds terminal colors and direct ledger navigation.
+- **User context (verbatim):**
+  > we need to ship, we need to stop thinking
+  > slash zero slash zero explain when slash zero is four
+  > it's an append-only log for this conversation
+  > the text is not legible enough
+- **SpecStory:** unavailable — Codex desktop GUI session is not available to SpecStory capture.
+
 ## July 28th, 2026 at 12:25:04 a.m. EDT — `0ca43aeb34d3` feat(cardboard): publish Rule Zero provenance
 
 - **Implementation commit:** `0ca43aeb34d3f6bd139615492259ac8d2476ce29`
