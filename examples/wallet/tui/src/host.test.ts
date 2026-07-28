@@ -36,6 +36,8 @@ describe('Wallet OpenTUI host', () => {
 
     expect(tags).toStrictEqual([
       'ShowWallet',
+      'CreateWallet',
+      'ToggleWalletNetwork',
       'ShowReceivingInstruction',
       'PreviewWalletTransaction',
       'SignWalletChallenge',
@@ -44,5 +46,6 @@ describe('Wallet OpenTUI host', () => {
     ])
     expect(walletOpenTuiSummary(model)).toContain('2 accounts')
     expect(walletOpenTuiSummary(model)).toContain('Transactions 3')
+    expect(walletOpenTuiSummary(model)).toContain('0 wallets Testnet')
   })
 })

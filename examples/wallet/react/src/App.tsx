@@ -3,6 +3,10 @@ import {
   type Model,
   type TransactionPreview,
   type TransactionState,
+  type WalletCreationState,
+  type WalletNetworkMode,
+  type WalletProfile,
+  activeWalletAccounts,
   assetAmountLabel,
   assetAmountLabelForModel,
   makeWalletTestChallenge,
@@ -63,6 +67,127 @@ const transactionStatus = (transaction: TransactionState): string =>
       FailedTransactionSubmission: () => 'Send failed',
     }),
   )
+
+const walletCreationLabel = (walletCreation: WalletCreationState): string =>
+  M.value(walletCreation).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      ReadyToCreateWallet: () => 'Create wallet',
+      CreatingWallet: () => 'Creating…',
+      FailedWalletCreation: () => 'Try again',
+    }),
+  )
+
+const NetworkModeButton = ({
+  model,
+  networkMode,
+}: Readonly<{ model: Model; networkMode: WalletNetworkMode }>) => {
+  const actions = useWalletActions()
+  const className =
+    model.walletNetworkMode === networkMode
+      ? 'wallet-network-option selected'
+      : 'wallet-network-option'
+  return (
+    <button
+      aria-pressed={model.walletNetworkMode === networkMode}
+      className={className}
+      onClick={() => actions.selectedWalletNetworkMode(networkMode)}
+      type="button"
+    >
+      {networkMode}
+    </button>
+  )
+}
+
+const WalletProfileCard = ({
+  model,
+  wallet,
+}: Readonly<{ model: Model; wallet: WalletProfile }>) => (
+  <article className="wallet-profile">
+    <div className="wallet-profile-heading">
+      <div>
+        <p className="cardboard-eyebrow">Multi-chain wallet</p>
+        <h3>{wallet.displayName}</h3>
+      </div>
+      <span>{model.walletNetworkMode}</span>
+    </div>
+    <ul className="wallet-chain-list">
+      {Array.map(
+        activeWalletAccounts(wallet, model.walletNetworkMode),
+        account => (
+          <li key={account.accountId}>
+            <div>
+              <strong>{account.chain}</strong>
+              <span>{account.networkName}</span>
+            </div>
+            <code>{shortenedAddress(account.address)}</code>
+            <small>{account.detail}</small>
+          </li>
+        ),
+      )}
+    </ul>
+  </article>
+)
+
+const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
+  const actions = useWalletActions()
+  return (
+    <section className="wallet-home cardboard-panel">
+      <div className="wallet-heading-row">
+        <div>
+          <p className="cardboard-eyebrow">Session-only custody</p>
+          <h2>Your wallets</h2>
+        </div>
+        <button
+          className="cardboard-button primary"
+          disabled={model.walletCreation._tag === 'CreatingWallet'}
+          onClick={actions.requestedWalletCreation}
+          type="button"
+        >
+          {walletCreationLabel(model.walletCreation)}
+        </button>
+      </div>
+      <div className="wallet-network-control">
+        <div>
+          <strong>Network mode</strong>
+          <span>Switches every wallet and chain together.</span>
+        </div>
+        <div aria-label="Wallet network mode" className="wallet-network-switch">
+          <NetworkModeButton model={model} networkMode="Devnet" />
+          <NetworkModeButton model={model} networkMode="Testnet" />
+        </div>
+      </div>
+      {model.walletCreation._tag === 'FailedWalletCreation' ? (
+        <p className="wallet-validation" role="alert">
+          Wallet creation failed ({model.walletCreation.code}). No secret key
+          entered the Model or replay journal.
+        </p>
+      ) : null}
+      {Array.match(model.wallets, {
+        onEmpty: () => (
+          <div className="wallet-home-empty">
+            <strong>No wallets yet.</strong>
+            <p>
+              Create one wallet with Bitcoin, Ethereum, Solana, and Sui
+              accounts.
+            </p>
+          </div>
+        ),
+        onNonEmpty: wallets => (
+          <div className="wallet-profile-list">
+            {Array.map(wallets, wallet => (
+              <WalletProfileCard
+                key={wallet.walletId}
+                model={model}
+                wallet={wallet}
+              />
+            ))}
+          </div>
+        ),
+      })}
+    </section>
+  )
+}
 
 const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
@@ -406,6 +531,7 @@ const WalletScreen = () => {
   return (
     <main className="wallet-shell cardboard-surface">
       <div className="wallet-stack">
+        <WalletHome model={model} />
         <WalletHero model={model} />
         <SendMoney model={model} />
         <Activity model={model} />

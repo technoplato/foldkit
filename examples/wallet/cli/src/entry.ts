@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Array, Console, Effect, Match as M, Option, pipe } from 'effect'
+import type { WalletNetworkMode } from 'wallet-core-example'
 
 import { NodeRuntime, NodeServices } from '@effect/platform-node'
 
@@ -16,6 +17,7 @@ import {
 
 const usage = `Usage:
   foldkit-wallet show [--uri <state-or-replay-path>] [--verbose]
+  foldkit-wallet create [--network <devnet|testnet>] [--uri <path>] [--verbose]
   foldkit-wallet receive [--account <id>] [--asset <asset-id>] [--uri <path>] [--verbose]
   foldkit-wallet preview [transfer flags] [--uri <path>] [--verbose]
   foldkit-wallet send [transfer flags] [--uri <path>] [--verbose]
@@ -55,6 +57,26 @@ const assetIdForFlag = (maybeAssetId: Option.Option<string>): string => {
   } else {
     return maybeAssetId.value
   }
+}
+
+const networkModeForFlag = (
+  maybeNetworkMode: Option.Option<string>,
+): Effect.Effect<WalletNetworkMode, WalletCliError> => {
+  if (Option.isNone(maybeNetworkMode)) {
+    return Effect.succeed('Testnet')
+  }
+  return M.value(maybeNetworkMode.value.toLowerCase()).pipe(
+    M.withReturnType<Effect.Effect<WalletNetworkMode, WalletCliError>>(),
+    M.when('devnet', () => Effect.succeed('Devnet')),
+    M.when('testnet', () => Effect.succeed('Testnet')),
+    M.orElse(networkMode =>
+      Effect.fail(
+        new WalletCliError({
+          message: `Unsupported network mode: ${networkMode}. Use devnet or testnet.`,
+        }),
+      ),
+    ),
+  )
 }
 
 const transferInput = Effect.gen(function* () {
@@ -125,6 +147,13 @@ const operation = Effect.gen(function* () {
     M.withReturnType<Effect.Effect<WalletCliOperation, WalletCliError>>(),
     M.when('show', () =>
       Effect.succeed(WalletCliOperation.make({ _tag: 'Show' })),
+    ),
+    M.when('create', () =>
+      Effect.gen(function* () {
+        const maybeNetworkMode = yield* valueForFlag('--network')
+        const networkMode = yield* networkModeForFlag(maybeNetworkMode)
+        return WalletCliOperation.make({ _tag: 'CreateWallet', networkMode })
+      }),
     ),
     M.when('receive', () =>
       Effect.gen(function* () {

@@ -13,6 +13,12 @@ import {
 } from './currency.js'
 import { BlockExplorerConfirmation } from './explorer.js'
 import { NoWalletIntent, WalletIntentState } from './intent.js'
+import {
+  ReadyToCreateWallet,
+  WalletCreationState,
+  WalletNetworkMode,
+  WalletProfile,
+} from './walletProfile.js'
 
 /** One public wallet account on one normalized network. */
 export const WalletAccount = S.Struct({
@@ -624,6 +630,9 @@ export type TransactionHistoryState = typeof TransactionHistoryState.Type
 
 /** The complete renderer-, platform-, and chain-agnostic Wallet Model. */
 export const Model = S.Struct({
+  wallets: S.Array(WalletProfile),
+  walletNetworkMode: WalletNetworkMode,
+  walletCreation: WalletCreationState,
   portfolio: PortfolioState,
   walletIntent: WalletIntentState,
   transferRecipient: TransferRecipientState,
@@ -639,6 +648,9 @@ export type Model = typeof Model.Type
 
 /** The initial Wallet Model before public portfolio loading completes. */
 export const initialModel: Model = {
+  wallets: [],
+  walletNetworkMode: 'Testnet',
+  walletCreation: ReadyToCreateWallet.make({}),
   portfolio: LoadingPortfolio.make({}),
   walletIntent: NoWalletIntent.make({}),
   transferRecipient: EmptyTransferRecipient.make({}),

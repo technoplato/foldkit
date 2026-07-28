@@ -68,9 +68,30 @@ describe('Wallet React bindings', () => {
       'requestedChallengeSignature',
       'requestedSignedTransactionSubmission',
       'requestedTransferPreview',
+      'requestedWalletCreation',
       'requestedWalletRefresh',
       'resumedTransactionObservation',
+      'selectedWalletNetworkMode',
     ])
+
+    act(() => {
+      result.current.actions.requestedWalletCreation()
+    })
+
+    await waitFor(() => {
+      expect(result.current.model.wallets).toHaveLength(1)
+      expect(result.current.model.walletCreation._tag).toBe(
+        'ReadyToCreateWallet',
+      )
+    })
+
+    act(() => {
+      result.current.actions.selectedWalletNetworkMode('Devnet')
+    })
+
+    await waitFor(() => {
+      expect(result.current.model.walletNetworkMode).toBe('Devnet')
+    })
 
     act(() => {
       result.current.actions.composedTransfer(request)

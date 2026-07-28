@@ -15,6 +15,7 @@ import {
   type TransferValidation,
   type ValidatedTransfer,
 } from './model.js'
+import { WalletVault } from './walletVault.js'
 
 /** An opaque transaction payload protected from logging and replay. */
 export const TransactionPayload = S.Struct({
@@ -133,4 +134,8 @@ export class WalletCrypto extends Context.Service<
 >()('Wallet/WalletCrypto') {}
 
 /** Every Effect service required by the Wallet Program. */
-export type WalletResources = WalletClient | WalletSigner | WalletCrypto
+export type WalletResources =
+  | WalletClient
+  | WalletSigner
+  | WalletCrypto
+  | WalletVault

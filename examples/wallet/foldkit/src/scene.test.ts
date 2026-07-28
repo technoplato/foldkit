@@ -2,11 +2,8 @@ import { Array } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 import {
-  IdleSignature,
-  IdleTransaction,
   LoadedPortfolio,
   Model,
-  NoWalletIntent,
   ObservingTransactions,
   WalletProgram,
   initialModel,
@@ -19,12 +16,8 @@ import { view } from './view.js'
 
 const loadedModel = (): Model =>
   Model.make({
+    ...initialModel,
     portfolio: LoadedPortfolio.make({ snapshot: simulatedPortfolio }),
-    walletIntent: NoWalletIntent.make({}),
-    transferRecipient: initialModel.transferRecipient,
-    addressBookEntries: [],
-    transaction: IdleTransaction.make({}),
-    signature: IdleSignature.make({}),
     transactionObservation: ObservingTransactions.make({
       accountIds: Array.map(
         simulatedPortfolio.accounts,
@@ -47,6 +40,11 @@ describe('Wallet Foldkit client', () => {
       { update, view },
       Scene.with(loadedModel()),
       Scene.expect(Scene.text('Available balance')).toExist(),
+      Scene.expect(Scene.text('Your wallets')).toExist(),
+      Scene.expect(Scene.text('No wallets yet.')).toExist(),
+      Scene.expect(
+        Scene.text('Switches every wallet and chain together.'),
+      ).toExist(),
       Scene.expect(Scene.text('2.5 ETH')).toExist(),
       Scene.expect(Scene.text('0.00001 ETH')).toExist(),
       Scene.expect(Scene.text('Recipient on Ethereum Sepolia')).toExist(),

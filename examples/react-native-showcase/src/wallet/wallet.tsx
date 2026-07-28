@@ -1,4 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
+import * as Crypto from 'expo-crypto'
 import {
   Linking,
   Pressable,
@@ -12,18 +13,23 @@ import {
   type TransactionPreview,
   type TransactionState,
   type TransactionSubmission,
-  currencyValueLabel,
-  invalidNetworkAddressMessage,
+  type WalletCreationState,
+  type WalletNetworkMode,
+  type WalletProfile,
+  activeWalletAccounts,
+  assetAmountLabel,
+  assetAmountLabelForModel,
   makeWalletTestChallenge,
-  networkAddressRuleMessages,
-  networkLabel,
   primaryReceivingInstruction,
   primaryWalletAccount,
+  primaryWalletAsset,
   primaryWalletBalance,
+  primaryWalletNetwork,
   shortenedAddress,
-  transferRecipientFormat,
   transferRecipientInput,
+  walletDemoTransferAtomicUnits,
 } from 'wallet-core-example'
+import { makeLocalWalletVault } from 'wallet-local-vault-example'
 import {
   type WalletInitialRoute,
   makeWalletReactClient,
@@ -35,8 +41,14 @@ import {
 
 import { ReplayControls } from '../replayControls'
 
+const ExpoWalletVault = makeLocalWalletVault(byteCount =>
+  Crypto.getRandomBytes(byteCount),
+)
+
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
-  makeWalletReactClient(makeRemoteWalletResources(publicTestnetWalletEndpoint))
+  makeWalletReactClient(
+    makeRemoteWalletResources(publicTestnetWalletEndpoint, ExpoWalletVault),
+  )
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -45,11 +57,14 @@ const maybePreviewForTransaction = (
     M.withReturnType<Option.Option<TransactionPreview>>(),
     M.tagsExhaustive({
       IdleTransaction: () => Option.none(),
+      ValidatingTransfer: () => Option.none(),
+      InvalidTransfer: () => Option.none(),
       PreviewingTransaction: () => Option.none(),
       PreviewedTransaction: ({ preview }) => Option.some(preview),
       SubmittingTransaction: ({ preview }) => Option.some(preview),
       SubmittedTransaction: ({ preview }) => Option.some(preview),
       FailedTransactionPreview: () => Option.none(),
+      FailedTransferValidation: () => Option.none(),
       FailedTransactionSubmission: ({ preview }) => Option.some(preview),
     }),
   )
@@ -59,11 +74,14 @@ const transactionStatus = (transaction: TransactionState): string =>
     M.withReturnType<string>(),
     M.tagsExhaustive({
       IdleTransaction: () => 'Ready',
+      ValidatingTransfer: () => 'Validating recipient…',
+      InvalidTransfer: () => 'Recipient needs attention',
       PreviewingTransaction: () => 'Preparing preview…',
       PreviewedTransaction: () => 'Check before sending',
       SubmittingTransaction: () => 'Sending…',
       SubmittedTransaction: () => 'Sent',
       FailedTransactionPreview: () => 'Preview failed',
+      FailedTransferValidation: () => 'Validation failed',
       FailedTransactionSubmission: () => 'Send failed',
     }),
   )
@@ -86,15 +104,13 @@ const TransactionSubmissionConfirmation = ({
   return (
     <View accessibilityLiveRegion="polite" style={styles.confirmation}>
       <Text style={styles.confirmationTitle}>Transaction submitted</Text>
-      <Text style={styles.mutedText}>
-        Confirm it on {confirmation.explorer}.
-      </Text>
+      <Text style={styles.mutedText}>Confirm it on {confirmation.label}.</Text>
       <Pressable
         accessibilityRole="link"
-        onPress={() => void Linking.openURL(confirmation.transactionUri)}
+        onPress={() => void Linking.openURL(confirmation.url)}
       >
         <Text style={styles.confirmationLink}>
-          View on {confirmation.explorer}
+          View on {confirmation.label}
         </Text>
       </Pressable>
       <Text selectable style={styles.codeText}>
@@ -103,6 +119,16 @@ const TransactionSubmissionConfirmation = ({
     </View>
   )
 }
+
+const walletCreationLabel = (walletCreation: WalletCreationState): string =>
+  M.value(walletCreation).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      ReadyToCreateWallet: () => 'Create wallet',
+      CreatingWallet: () => 'Creating…',
+      FailedWalletCreation: () => 'Try again',
+    }),
+  )
 
 /** Runs the shared Wallet React bindings through one React Native presenter. */
 export const WalletExample = ({
@@ -124,11 +150,131 @@ const WalletScreen = () => {
   const replay = useWalletReplay()
   return (
     <View style={styles.wallet}>
+      <WalletHome model={model} />
       <WalletHero model={model} />
       <SendMoney model={model} />
       <Activity model={model} />
       <AccountTools model={model} />
       <ReplayControls label="Wallet replay" replay={replay} />
+    </View>
+  )
+}
+
+const NetworkModeButton = ({
+  model,
+  networkMode,
+}: Readonly<{ model: Model; networkMode: WalletNetworkMode }>) => {
+  const actions = useWalletActions()
+  const isSelected = model.walletNetworkMode === networkMode
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: isSelected }}
+      onPress={() => actions.selectedWalletNetworkMode(networkMode)}
+      style={[
+        styles.networkModeButton,
+        isSelected ? styles.selectedNetworkModeButton : undefined,
+      ]}
+    >
+      <Text
+        style={
+          isSelected ? styles.selectedNetworkModeText : styles.networkModeText
+        }
+      >
+        {networkMode}
+      </Text>
+    </Pressable>
+  )
+}
+
+const WalletProfileCard = ({
+  model,
+  wallet,
+}: Readonly<{ model: Model; wallet: WalletProfile }>) => (
+  <View style={styles.walletProfile}>
+    <View style={styles.headingRow}>
+      <View>
+        <Text style={styles.eyebrow}>Multi-chain wallet</Text>
+        <Text style={styles.walletProfileTitle}>{wallet.displayName}</Text>
+      </View>
+      <Text style={styles.networkModePill}>{model.walletNetworkMode}</Text>
+    </View>
+    <View style={styles.chainList}>
+      {Array.map(
+        activeWalletAccounts(wallet, model.walletNetworkMode),
+        account => (
+          <View key={account.accountId} style={styles.chainRow}>
+            <View style={styles.chainIdentity}>
+              <Text style={styles.chainName}>{account.chain}</Text>
+              <Text style={styles.mutedText}>{account.networkName}</Text>
+            </View>
+            <Text selectable style={styles.chainAddress}>
+              {shortenedAddress(account.address)}
+            </Text>
+            <Text style={styles.chainDetail}>{account.detail}</Text>
+          </View>
+        ),
+      )}
+    </View>
+  </View>
+)
+
+const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
+  const actions = useWalletActions()
+  return (
+    <View style={styles.card}>
+      <View style={styles.headingRow}>
+        <View>
+          <Text style={styles.eyebrow}>Session-only custody</Text>
+          <Text style={styles.sectionTitle}>Your wallets</Text>
+        </View>
+        <WalletActionButton
+          isDisabled={model.walletCreation._tag === 'CreatingWallet'}
+          isPrimary
+          label={walletCreationLabel(model.walletCreation)}
+          onPress={actions.requestedWalletCreation}
+        />
+      </View>
+      <View style={styles.networkControl}>
+        <View style={styles.networkExplanation}>
+          <Text style={styles.chainName}>Network mode</Text>
+          <Text style={styles.mutedText}>
+            Switches every wallet and chain together.
+          </Text>
+        </View>
+        <View style={styles.networkSwitch}>
+          <NetworkModeButton model={model} networkMode="Devnet" />
+          <NetworkModeButton model={model} networkMode="Testnet" />
+        </View>
+      </View>
+      {model.walletCreation._tag === 'FailedWalletCreation' ? (
+        <Text accessibilityRole="alert" style={styles.validationText}>
+          Wallet creation failed ({model.walletCreation.code}). No secret key
+          entered the Model or replay journal.
+        </Text>
+      ) : null}
+      {Array.match(model.wallets, {
+        onEmpty: () => (
+          <View style={styles.walletEmpty}>
+            <Text style={styles.chainName}>No wallets yet.</Text>
+            <Text style={styles.mutedText}>
+              Create one wallet with Bitcoin, Ethereum, Solana, and Sui
+              accounts.
+            </Text>
+          </View>
+        ),
+        onNonEmpty: wallets => (
+          <View style={styles.walletProfileList}>
+            {Array.map(wallets, wallet => (
+              <WalletProfileCard
+                key={wallet.walletId}
+                model={model}
+                wallet={wallet}
+              />
+            ))}
+          </View>
+        ),
+      })}
     </View>
   )
 }
@@ -140,12 +286,17 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
   const balanceLabel = Option.match(maybeBalance, {
     onNone: () =>
       model.portfolio._tag === 'LoadingPortfolio' ? 'Loading…' : '—',
-    onSome: balance => currencyValueLabel(balance.value),
+    onSome: balance => assetAmountLabelForModel(model, balance.amount),
   })
   const accountLabel = Option.match(maybeAccount, {
     onNone: () => 'Sepolia test wallet',
-    onSome: account =>
-      `${networkLabel(account.network)} · ${shortenedAddress(account.address)}`,
+    onSome: account => {
+      const networkName = Option.match(primaryWalletNetwork(model), {
+        onNone: () => account.networkId,
+        onSome: network => network.displayName,
+      })
+      return `${networkName} · ${shortenedAddress(account.address)}`
+    },
   })
   return (
     <View style={[styles.card, styles.hero]}>
@@ -174,7 +325,26 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
   const maybeBalance = primaryWalletBalance(model)
   const maybePreview = maybePreviewForTransaction(model.transaction)
-  const recipientFormat = transferRecipientFormat(model.transferRecipient)
+  const networkName = Option.match(primaryWalletNetwork(model), {
+    onNone: () => 'selected network',
+    onSome: network => network.displayName,
+  })
+  const exampleAddress = Option.match(primaryWalletAccount(model), {
+    onNone: () => 'Recipient address',
+    onSome: account => account.address,
+  })
+  const transferAmount = Option.match(primaryWalletAsset(model), {
+    onNone: () => walletDemoTransferAtomicUnits,
+    onSome: asset =>
+      assetAmountLabel(
+        {
+          assetId: asset.assetId,
+          atomicUnits: walletDemoTransferAtomicUnits,
+          observedAt: 0,
+        },
+        asset,
+      ),
+  })
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -183,6 +353,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   }
 
   const isBusy =
+    model.transaction._tag === 'ValidatingTransfer' ||
     model.transaction._tag === 'PreviewingTransaction' ||
     model.transaction._tag === 'SubmittingTransaction'
   return (
@@ -190,23 +361,21 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       <View style={styles.headingRow}>
         <View>
           <Text style={styles.eyebrow}>Send</Text>
-          <Text style={styles.sectionTitle}>0.00001 ETH</Text>
+          <Text style={styles.sectionTitle}>{transferAmount}</Text>
         </View>
         <Text style={styles.status}>
           {transactionStatus(model.transaction)}
         </Text>
       </View>
       <View style={styles.recipientField}>
-        <Text style={styles.recipientLabel}>
-          Recipient on {recipientFormat.networkName}
-        </Text>
+        <Text style={styles.recipientLabel}>Recipient on {networkName}</Text>
         <TextInput
-          accessibilityLabel={`Recipient on ${recipientFormat.networkName}`}
+          accessibilityLabel={`Recipient on ${networkName}`}
           autoCapitalize="none"
           autoCorrect={false}
           editable={model.transaction._tag !== 'SubmittingTransaction'}
           onChangeText={actions.changedTransferRecipient}
-          placeholder={recipientFormat.exampleAddress}
+          placeholder={exampleAddress}
           placeholderTextColor="#9f8560"
           style={styles.recipientInput}
           value={transferRecipientInput(model.transferRecipient)}
@@ -214,18 +383,13 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         {model.transferRecipient._tag === 'InvalidTransferRecipient' ? (
           <View accessibilityRole="alert" style={styles.validationBlock}>
             <Text style={styles.validationText}>
-              {invalidNetworkAddressMessage(model.transferRecipient.validation)}
+              {model.transferRecipient.guidance.summary}
             </Text>
-            {Array.map(
-              networkAddressRuleMessages(
-                model.transferRecipient.validation.format,
-              ),
-              rule => (
-                <Text key={rule} style={styles.validationText}>
-                  • {rule}
-                </Text>
-              ),
-            )}
+            {Array.map(model.transferRecipient.guidance.details, detail => (
+              <Text key={detail} style={styles.validationText}>
+                • {detail}
+              </Text>
+            ))}
           </View>
         ) : null}
       </View>
@@ -234,16 +398,22 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           <PreviewRow
             label="To"
             value={shortenedAddress(
-              maybePreview.value.draft.destinationAddress,
+              maybePreview.value.transfer.recipient.displayAddress,
             )}
           />
           <PreviewRow
             label="Network fee"
-            value={currencyValueLabel(maybePreview.value.estimatedFee)}
+            value={assetAmountLabelForModel(
+              model,
+              maybePreview.value.estimatedFee,
+            )}
           />
           <PreviewRow
             label="Balance after"
-            value={currencyValueLabel(maybePreview.value.resultingBalance)}
+            value={assetAmountLabelForModel(
+              model,
+              maybePreview.value.resultingBalance,
+            )}
           />
         </View>
       ) : (
@@ -259,7 +429,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       <WalletActionButton
         isDisabled={
           Option.isNone(maybeBalance) ||
-          model.transferRecipient._tag !== 'ValidTransferRecipient' ||
+          model.transferRecipient._tag === 'EmptyTransferRecipient' ||
           isBusy
         }
         isPrimary
@@ -291,7 +461,7 @@ const PreviewRow = ({
 const Activity = ({ model }: Readonly<{ model: Model }>) => (
   <View style={styles.card}>
     <Text style={styles.eyebrow}>Recent activity</Text>
-    {Array.match(model.observedTransactions, {
+    {Array.match(model.transactions, {
       onEmpty: () => <Text style={styles.helpText}>Nothing sent yet.</Text>,
       onNonEmpty: transactions => (
         <View style={styles.list}>
@@ -304,7 +474,7 @@ const Activity = ({ model }: Readonly<{ model: Model }>) => (
                 </Text>
               </View>
               <Text style={styles.activityValue}>
-                {currencyValueLabel(transaction.value)}
+                {assetAmountLabelForModel(model, transaction.amount)}
               </Text>
             </View>
           ))}
@@ -403,6 +573,93 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     justifyContent: 'space-between',
+  },
+  networkControl: {
+    backgroundColor: '#171109',
+    borderColor: '#665237',
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 12,
+    padding: 12,
+  },
+  networkExplanation: { gap: 3 },
+  networkSwitch: {
+    backgroundColor: '#100d09',
+    borderRadius: 13,
+    flexDirection: 'row',
+    padding: 4,
+  },
+  networkModeButton: {
+    alignItems: 'center',
+    borderRadius: 10,
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  selectedNetworkModeButton: { backgroundColor: '#f2b85f' },
+  networkModeText: { color: '#d3a861', fontSize: 13, fontWeight: '900' },
+  selectedNetworkModeText: {
+    color: '#17130d',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  walletEmpty: {
+    alignItems: 'center',
+    backgroundColor: '#171109',
+    borderColor: '#665237',
+    borderRadius: 16,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    gap: 5,
+    padding: 24,
+  },
+  walletProfileList: { gap: 12 },
+  walletProfile: {
+    backgroundColor: '#171109',
+    borderColor: '#665237',
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 12,
+    padding: 14,
+  },
+  walletProfileTitle: {
+    color: '#f7dca5',
+    fontFamily: 'serif',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  networkModePill: {
+    borderColor: '#665237',
+    borderRadius: 999,
+    borderWidth: 1,
+    color: '#d3a861',
+    fontSize: 11,
+    fontWeight: '900',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  chainList: { gap: 8 },
+  chainRow: {
+    alignItems: 'center',
+    backgroundColor: '#100d09',
+    borderRadius: 13,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  chainIdentity: { flexGrow: 1, gap: 2 },
+  chainName: { color: '#f7dca5', fontSize: 14, fontWeight: '900' },
+  chainAddress: {
+    color: '#f7dca5',
+    fontFamily: 'monospace',
+    fontSize: 11,
+  },
+  chainDetail: {
+    color: '#d3a861',
+    flexBasis: '100%',
+    fontSize: 11,
   },
   eyebrow: {
     color: '#d3a861',

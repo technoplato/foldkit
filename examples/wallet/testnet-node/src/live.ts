@@ -1,4 +1,5 @@
 import { Layer } from 'effect'
+import { LocalWalletVault } from 'wallet-local-vault-example'
 
 import {
   EthereumSepoliaKeyConfig,
@@ -63,13 +64,16 @@ export const makeEthereumSepoliaWalletLive = <LayerError, Requirements>(
     Requirements
   >,
 ) =>
-  EthereumSepoliaWalletServicesLive.pipe(
-    Layer.provide(
-      Layer.merge(
-        EthereumSepoliaTransportLive,
-        EthereumSepoliaLocalCustodyLive,
-      ).pipe(Layer.provide(config)),
+  Layer.merge(
+    EthereumSepoliaWalletServicesLive.pipe(
+      Layer.provide(
+        Layer.merge(
+          EthereumSepoliaTransportLive,
+          EthereumSepoliaLocalCustodyLive,
+        ).pipe(Layer.provide(config)),
+      ),
     ),
+    LocalWalletVault,
   )
 
 /** WalletClient and WalletCrypto for Sepolia and Devnet without local custody. */
@@ -83,13 +87,19 @@ export const TestnetNodeLocalSignerLive = WalletSignerLive.pipe(
 )
 
 /** Complete wallet-core resources for Sepolia and Devnet from Redacted environment configuration. */
-export const TestnetNodeWalletLive = WalletServicesLive.pipe(
-  Layer.provide(
-    Layer.merge(TestnetNodeNetworkAdaptersLive, TestnetNodeLocalCustodyLive),
+export const TestnetNodeWalletLive = Layer.merge(
+  WalletServicesLive.pipe(
+    Layer.provide(
+      Layer.merge(TestnetNodeNetworkAdaptersLive, TestnetNodeLocalCustodyLive),
+    ),
   ),
+  LocalWalletVault,
 )
 
 /** Complete wallet-core resources for the configured Sepolia account only. */
-export const EthereumSepoliaWalletLive = EthereumSepoliaWalletServicesLive.pipe(
-  Layer.provide(EthereumSepoliaAdaptersLive),
+export const EthereumSepoliaWalletLive = Layer.merge(
+  EthereumSepoliaWalletServicesLive.pipe(
+    Layer.provide(EthereumSepoliaAdaptersLive),
+  ),
+  LocalWalletVault,
 )

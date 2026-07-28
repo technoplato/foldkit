@@ -17,9 +17,13 @@ import {
   Model,
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
+  RequestedWalletCreation,
+  SelectedWalletNetworkMode,
   SigningChallenge,
   TransferRequest,
+  type WalletNetworkMode,
   WalletProgram,
+  activeWalletAccounts,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
@@ -50,6 +54,9 @@ export type WalletChallengeInput = typeof WalletChallengeInput.Type
 /** One raw CLI operation over the canonical Wallet Program. */
 export const WalletCliOperation = S.Union([
   S.TaggedStruct('Show', {}),
+  S.TaggedStruct('CreateWallet', {
+    networkMode: S.Literals(['Devnet', 'Testnet']),
+  }),
   S.TaggedStruct('Receive', {
     accountId: S.String,
     assetId: S.String,
@@ -314,11 +321,44 @@ const modelSummary = (model: Model): string => {
   return Array.join(
     [
       portfolio,
+      `Wallets: ${model.wallets.length.toString()} (${model.walletNetworkMode})`,
       `Transaction: ${model.transaction._tag}`,
       `Signature: ${model.signature._tag}`,
       `Transactions: ${model.transactions.length.toString()}`,
     ],
     '\n',
+  )
+}
+
+const createdWalletSummary = (
+  model: Model,
+  networkMode: WalletNetworkMode,
+): Effect.Effect<string, WalletCliError> => {
+  if (model.walletCreation._tag === 'FailedWalletCreation') {
+    return Effect.fail(
+      new WalletCliError({
+        message: `Wallet creation failed: ${model.walletCreation.code}`,
+      }),
+    )
+  }
+  const maybeWallet = Array.last(model.wallets)
+  if (Option.isNone(maybeWallet)) {
+    return Effect.fail(
+      new WalletCliError({ message: 'Wallet creation did not settle' }),
+    )
+  }
+  return Effect.succeed(
+    Array.join(
+      [
+        `Created ${maybeWallet.value.displayName} (${networkMode})`,
+        ...Array.map(
+          activeWalletAccounts(maybeWallet.value, networkMode),
+          account =>
+            `${account.chain} | ${account.networkName} | ${account.address}`,
+        ),
+      ],
+      '\n',
+    ),
   )
 }
 
@@ -478,6 +518,13 @@ const executionForRuntime = (
           model: runtime.readModel(),
           summary: modelSummary(runtime.readModel()),
         })),
+      CreateWallet: ({ networkMode }) =>
+        Effect.gen(function* () {
+          yield* runtime.run(SelectedWalletNetworkMode.make({ networkMode }))
+          const model = yield* runtime.run(RequestedWalletCreation.make({}))
+          const summary = yield* createdWalletSummary(model, networkMode)
+          return { model, summary }
+        }),
       Receive: ({ accountId, assetId }) =>
         receiveSummary(runtime.readModel(), accountId, assetId).pipe(
           Effect.map(summary => ({ model: runtime.readModel(), summary })),

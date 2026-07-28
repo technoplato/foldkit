@@ -5,7 +5,6 @@ import {
   WalletClient,
   WalletClientError,
   WalletCrypto,
-  type WalletResources,
   WalletSigner,
   WalletSignerError,
 } from 'wallet-core-example'
@@ -108,7 +107,7 @@ export const EthereumSepoliaWalletSignerLive: Layer.Layer<
 
 /** Complete wallet-core services backed only by Ethereum Sepolia. */
 export const EthereumSepoliaWalletServicesLive: Layer.Layer<
-  WalletResources,
+  WalletClient | WalletCrypto | WalletSigner,
   never,
   EthereumSepoliaTransport | EthereumSepoliaCustody
 > = Layer.merge(
