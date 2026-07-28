@@ -4,6 +4,37 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 3:40:43 a.m. EDT — `91bba4328f1f` feat(constructive-data-modeling): add portable study deck
+
+- **Implementation commit:** `91bba4328f1f3118d37a341cbbb361c2d4e21b1e`
+- **Change:** Add a ubiquitous constructive data modeling study deck
+- **Details:**
+  - Added a transformative ten-slide deck backed by the recording, event, authored slide repository commit, speaker site, and related primary essay.
+  - Modeled a non-empty Deck, stable SlideId and SourceId values, a closed SlideContent sum, total navigation, and one Message algebra shared by browser, CLI, TUI, and future remote inputs.
+  - Built and exercised every implemented host, verified desktop and mobile layouts, and recorded 100 Lighthouse scores for accessibility, best practices, SEO, and agentic browsing.
+  - Kept InstantDB as a typed RemoteControl origin only; room, identity, authority, ordering, reconnect, and conflict semantics remain deliberately undefined.
+- **Files:**
+  - `examples/constructive-data-modeling/core/src/model.ts` — make valid deck content and control origins explicit
+  - `examples/constructive-data-modeling/core/src/deck.ts` — encode the source-backed study deck and total slide navigation
+  - `examples/constructive-data-modeling/core/src/message.ts` — share one semantic navigation vocabulary across hosts
+  - `examples/constructive-data-modeling/core/src/update.ts` — apply every navigation case through an exhaustive update
+  - `examples/constructive-data-modeling/core/src/presentation.ts` — derive renderer-neutral browser and terminal presentations
+  - `examples/constructive-data-modeling/core/src/program.test.ts` — verify boundaries, stable identities, sources, and remote origin preservation
+  - `examples/constructive-data-modeling/foldkit/src/view.ts` — render exhaustive slide kinds with pointer and keyboard controls
+  - `examples/constructive-data-modeling/foldkit/src/styles.css` — provide responsive presentation layout and high-contrast controls
+  - `examples/constructive-data-modeling/foldkit/src/route.ts` — restore stable slide identity from the query string
+  - `examples/constructive-data-modeling/foldkit/public/llms.txt` — describe controls and primary sources for agentic clients
+  - `examples/constructive-data-modeling/cli/src/host.ts` — expose one-shot source and concept views
+  - `examples/constructive-data-modeling/tui/src/host.ts` — provide an interactive terminal presentation
+  - `package.json` — add browser, CLI, and TUI run commands
+  - `knip.json` — register the four example workspaces
+  - `pnpm-lock.yaml` — lock the new workspace importers
+- **User context (verbatim):**
+  > put together a representation in our FoldKit repository with the pattern of ubiquity
+  > they have great controls, and you can remote control them
+  > The remote control is, I haven't quite defined that yet. But it will use InstantDB.
+- **SpecStory:** unavailable — Codex desktop GUI session; no verified durable SpecStory URI was available.
+
 ## July 28th, 2026 at 1:08:33 a.m. EDT — `a3c0b7a2a40d` fix: restore Cardboard navigation carriers
 
 - **Implementation commit:** `a3c0b7a2a40d5857098e3c5fa6f484b13dc2e2aa`
