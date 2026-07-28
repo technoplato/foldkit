@@ -1,6 +1,6 @@
 import { Data, Effect, Match as M } from 'effect'
-import * as Program from 'foldkit/program'
-import { WalletProgram } from 'wallet-core-example'
+import type * as Program from 'foldkit/program'
+import { parseWalletProgramRoute } from 'wallet-core-example'
 
 import type { WalletInitialRoute } from './wallet.js'
 
@@ -9,14 +9,12 @@ export class MissingWalletReplayTapeStoreError extends Data.TaggedError(
   'MissingWalletReplayTapeStoreError',
 )<{ readonly message: string; readonly tapeId: Program.ReplayTapeId }> {}
 
-const walletRouter = Program.makeRouter(WalletProgram)
-
 /** Parses one canonical inline Wallet State or Replay path. */
 export const parseWalletInitialRoute = (
   relativePath: string,
 ): Promise<WalletInitialRoute> =>
   Effect.runPromise(
-    walletRouter.parse(relativePath).pipe(
+    parseWalletProgramRoute(relativePath).pipe(
       Effect.flatMap(route =>
         M.value(route).pipe(
           M.withReturnType<

@@ -1,23 +1,26 @@
 import { Data, Effect, Match as M } from 'effect'
 import { Runtime } from 'foldkit'
 import * as Program from 'foldkit/program'
-import { type Message, type Model, WalletProgram } from 'wallet-core-example'
+import {
+  type Message,
+  type Model,
+  type WalletIntentRouteError,
+  parseWalletProgramRoute,
+} from 'wallet-core-example'
 
 /** A portable Wallet route cannot be presented by the Foldkit renderer. */
 export class WalletFoldkitRouteError extends Data.TaggedError(
   'WalletFoldkitRouteError',
 )<{ readonly message: string }> {}
 
-const walletRouter = Program.makeRouter(WalletProgram)
-
 /** Converts one canonical Wallet path to a renderer-supported Program start. */
 export const walletFoldkitStartForRelativePath = (
   relativePath: string,
 ): Effect.Effect<
   Runtime.ProgramStart<Model, Message>,
-  Program.ProgramRouteError | WalletFoldkitRouteError
+  Program.ProgramRouteError | WalletFoldkitRouteError | WalletIntentRouteError
 > =>
-  walletRouter.parse(relativePath).pipe(
+  parseWalletProgramRoute(relativePath).pipe(
     Effect.flatMap(route =>
       M.value(route).pipe(
         M.withReturnType<
@@ -51,7 +54,7 @@ export const walletFoldkitStartForLocation = (
   search: string,
 ): Effect.Effect<
   Runtime.ProgramStart<Model, Message>,
-  Program.ProgramRouteError | WalletFoldkitRouteError
+  Program.ProgramRouteError | WalletFoldkitRouteError | WalletIntentRouteError
 > => {
   if (pathname === '/' && search === '') {
     return Effect.succeed(Runtime.fresh())

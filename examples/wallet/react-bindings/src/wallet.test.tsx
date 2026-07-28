@@ -177,6 +177,29 @@ describe('Wallet React bindings', () => {
     }
   })
 
+  it('loads and previews a portable send intent through the same Program', async () => {
+    const path =
+      '/wallet/intent/send/eth?mode=testnet&amount=10000000000000&to=0x2222222222222222222222222222222222222222'
+    const intentRoute = await parseWalletInitialRoute(path)
+    const intentWrapper = ({ children }: Readonly<{ children: ReactNode }>) => (
+      <WalletProvider initialRoute={intentRoute}>{children}</WalletProvider>
+    )
+    const { result } = renderHook(() => useWalletModel(), {
+      wrapper: intentWrapper,
+    })
+
+    await waitFor(() => {
+      expect(result.current.transaction._tag).toBe('PreviewedTransaction')
+    })
+    expect(result.current.walletIntent._tag).toBe('AppliedWalletIntent')
+    if (result.current.transaction._tag === 'PreviewedTransaction') {
+      expect(result.current.transaction.preview.draft).toMatchObject({
+        destinationAddress: '0x2222222222222222222222222222222222222222',
+        value: { atomicUnits: '10000000000000' },
+      })
+    }
+  })
+
   it('rejects saved replay links without inventing a tape store', async () => {
     const path = '/wallet/replay/179f2ae7-8c0b-4e4f-8201-67a691732769?frame=4'
 

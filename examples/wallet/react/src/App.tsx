@@ -1,12 +1,11 @@
 import { Array, Match as M, Option } from 'effect'
 import {
   CurrencyValue,
-  DomainSeparatedDigest,
   type Model,
-  SigningChallenge,
   type TransactionPreview,
   type TransactionState,
   currencyValueLabel,
+  makeWalletTestChallenge,
   networkLabel,
   primaryReceivingInstruction,
   primaryWalletAccount,
@@ -243,15 +242,10 @@ const Signature = ({ model }: Readonly<{ model: Model }>) => {
   const signChallenge = (): void => {
     if (Option.isSome(maybeAccount)) {
       actions.requestedChallengeSignature(
-        SigningChallenge.make({
-          challengeId: 'react-demo-challenge',
-          accountId: maybeAccount.value.accountId,
-          digest: DomainSeparatedDigest.make({
-            algorithm: 'Keccak256',
-            domain: 'foldkit.example.wallet',
-            digestHex: '0x666f6c646b6974',
-          }),
-        }),
+        makeWalletTestChallenge(
+          'react-demo-challenge',
+          maybeAccount.value.accountId,
+        ),
       )
     }
   }

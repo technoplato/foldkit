@@ -13,6 +13,7 @@ import { WalletClientId } from './wallet.js'
 
 /** Host intake support for the shared Wallet intent codec. */
 export const WalletIntentClientSupport = S.Literals([
+  'Active',
   'HostIntakePending',
   'Planned',
 ])
@@ -166,19 +167,19 @@ export const walletIntentCarrierForClient = (
     M.when('ReactWeb', () =>
       WalletIntentCarrier.make({
         clientId,
-        support: 'HostIntakePending',
+        support: 'Active',
         carrier: `<react-wallet-origin>${portableRoute}`,
         limitation:
-          'The shared React binding needs a startup-intent input before this carrier can compose a transfer.',
+          'Opening the carrier loads the wallet and previews the transfer without submitting it.',
       }),
     ),
     M.when('FoldkitView', () =>
       WalletIntentCarrier.make({
         clientId,
-        support: 'HostIntakePending',
+        support: 'Active',
         carrier: `<foldkit-wallet-origin>${portableRoute}`,
         limitation:
-          'The Foldkit application needs a startup-intent input before this carrier can compose a transfer.',
+          'Opening the carrier loads the wallet and previews the transfer without submitting it.',
       }),
     ),
     M.when('RawCli', () =>
@@ -211,19 +212,19 @@ export const walletIntentCarrierForClient = (
     M.when('ExpoWeb', () =>
       WalletIntentCarrier.make({
         clientId,
-        support: 'HostIntakePending',
+        support: 'Active',
         carrier: `<expo-web-origin>${portableRoute}`,
         limitation:
-          'The Showcase route graph needs a Wallet intent destination and startup input.',
+          'Opening the carrier selects Wallet, loads it, and previews the transfer without submitting it.',
       }),
     ),
     M.whenOr('ExpoIos', 'ExpoAndroid', () =>
       WalletIntentCarrier.make({
         clientId,
-        support: 'HostIntakePending',
+        support: 'Active',
         carrier: `foldkit://showcase${portableRoute}`,
         limitation:
-          'The native route graph needs a Wallet intent destination and startup input.',
+          'Opening the carrier selects Wallet, loads it, and previews the transfer without submitting it.',
       }),
     ),
     M.when('FutureServer', () =>

@@ -6,6 +6,7 @@ import {
   IdleTransaction,
   LoadedPortfolio,
   Model,
+  NoWalletIntent,
   ObservingTransactions,
   WalletProgram,
   update,
@@ -18,6 +19,7 @@ import { view } from './view.js'
 const loadedModel = (): Model =>
   Model.make({
     portfolio: LoadedPortfolio.make({ snapshot: simulatedPortfolio }),
+    walletIntent: NoWalletIntent.make({}),
     addressBookEntries: [],
     transaction: IdleTransaction.make({}),
     signature: IdleSignature.make({}),

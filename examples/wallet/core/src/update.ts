@@ -2,6 +2,13 @@ import { Array as Array_, Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 
 import {
+  AppliedWalletIntent,
+  type ExecutableWalletIntent,
+  RejectedWalletIntent,
+  type WalletIntent,
+  capabilityForWalletIntent,
+} from './intent.js'
+import {
   FailedLoadWallet,
   FailedPreviewTransaction,
   FailedSignChallenge,
@@ -14,6 +21,7 @@ import {
   SucceededSubmitSignedTransaction,
 } from './message.js'
 import {
+  type AccountBalance,
   type AddressBookEntry,
   AddressFamiliarity,
   CryptoFailure,
@@ -27,6 +35,7 @@ import {
   type Model,
   NetworkFailure,
   ObservingTransactions,
+  type PortfolioSnapshot,
   PreviewedTransaction,
   PreviewingTransaction,
   RecipientHistory,
@@ -39,11 +48,13 @@ import {
   TransactionPreview,
   TransferDraft,
   WaitingForAccounts,
+  type WalletAccount,
   type WalletFailure,
   type WalletOperation,
   familiarityForAddress,
   recipientHistoryForDraft,
   transactionPreviewFromQuote,
+  transferDraftFromInput,
 } from './model.js'
 import {
   WalletClient,
@@ -310,6 +321,83 @@ const accountIdsFromModel = (model: Model): ReadonlyArray<string> => {
   }
 }
 
+const accountSupportsIntent = (
+  intent: ExecutableWalletIntent,
+  account: WalletAccount,
+): boolean =>
+  M.value(intent).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      SepoliaEthTransferIntent: () =>
+        account.network._tag === 'EthereumSepolia',
+      SepoliaUsdcTransferIntent: () =>
+        account.network._tag === 'EthereumSepolia',
+      SolanaDevnetSolTransferIntent: () =>
+        account.network._tag === 'SolanaDevnet',
+      SolanaDevnetUsdcTransferIntent: () =>
+        account.network._tag === 'SolanaDevnet',
+    }),
+  )
+
+const balanceSupportsIntent = (
+  intent: ExecutableWalletIntent,
+  balance: AccountBalance,
+): boolean =>
+  M.value(intent).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      SepoliaEthTransferIntent: () => balance.value.currency._tag === 'Eth',
+      SepoliaUsdcTransferIntent: () =>
+        balance.value.currency._tag === 'Usdc' &&
+        balance.value.currency.network._tag === 'EthereumSepolia',
+      SolanaDevnetSolTransferIntent: () =>
+        balance.value.currency._tag === 'Sol',
+      SolanaDevnetUsdcTransferIntent: () =>
+        balance.value.currency._tag === 'Usdc' &&
+        balance.value.currency.network._tag === 'SolanaDevnet',
+    }),
+  )
+
+const transferDraftForWalletIntent = (
+  portfolio: PortfolioSnapshot,
+  intent: WalletIntent,
+): Option.Option<TransferDraft> => {
+  const capability = capabilityForWalletIntent(intent)
+  if (capability._tag === 'UnsupportedWalletIntentCapability') {
+    return Option.none()
+  }
+
+  const executableIntent = capability.intent
+  const maybeAccount = Array_.findFirst(portfolio.accounts, account =>
+    accountSupportsIntent(executableIntent, account),
+  )
+  if (Option.isNone(maybeAccount)) {
+    return Option.none()
+  }
+
+  const maybeBalance = Array_.findFirst(
+    portfolio.balanceSnapshot.balances,
+    balance =>
+      balance.accountId === maybeAccount.value.accountId &&
+      balanceSupportsIntent(executableIntent, balance),
+  )
+  if (Option.isNone(maybeBalance)) {
+    return Option.none()
+  }
+
+  return transferDraftFromInput({
+    transferId: 'wallet-intent-transfer',
+    accountId: maybeAccount.value.accountId,
+    network: maybeAccount.value.network,
+    destinationAddress: executableIntent.destinationAddress,
+    value: {
+      ...maybeBalance.value.value,
+      atomicUnits: executableIntent.atomicUnits,
+    },
+    maybeMessage: Option.none(),
+  })
+}
+
 /** Applies one Wallet Message and returns its finite Commands. */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
@@ -323,8 +411,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         },
         [LoadWallet()],
       ],
-      SucceededLoadWallet: ({ portfolio }) => [
-        {
+      SucceededLoadWallet: ({ portfolio }) => {
+        const nextModel: Model = {
           ...model,
           portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
           transactionObservation: ObservingTransactions.make({
@@ -333,9 +421,70 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               account => account.accountId,
             ),
           }),
-        },
-        [],
-      ],
+        }
+        if (model.walletIntent._tag !== 'PendingWalletIntent') {
+          return [nextModel, []]
+        }
+
+        const intent = model.walletIntent.intent
+        const capability = capabilityForWalletIntent(intent)
+        if (capability._tag === 'UnsupportedWalletIntentCapability') {
+          return [
+            {
+              ...nextModel,
+              walletIntent: RejectedWalletIntent.make({
+                intent,
+                reason: capability.reason,
+              }),
+            },
+            [],
+          ]
+        }
+
+        const maybeDraft = transferDraftForWalletIntent(portfolio, intent)
+        if (Option.isNone(maybeDraft)) {
+          return [
+            {
+              ...nextModel,
+              walletIntent: RejectedWalletIntent.make({
+                intent,
+                reason:
+                  'The loaded portfolio has no account and balance for this transfer.',
+              }),
+            },
+            [],
+          ]
+        }
+
+        const draft = maybeDraft.value
+        const recipientFamiliarity = familiarityForAddress(
+          nextModel.addressBookEntries,
+          draft.network,
+          draft.destinationAddress,
+        )
+        const recipientHistory = recipientHistoryForDraft(
+          nextModel.observedTransactions,
+          draft,
+        )
+        return [
+          {
+            ...nextModel,
+            walletIntent: AppliedWalletIntent.make({ intent }),
+            transaction: PreviewingTransaction.make({
+              draft,
+              recipientFamiliarity,
+              recipientHistory,
+            }),
+          },
+          [
+            PreviewTransaction({
+              draft,
+              recipientFamiliarity,
+              recipientHistory,
+            }),
+          ],
+        ]
+      },
       FailedLoadWallet: ({ failure }) => [
         {
           ...model,

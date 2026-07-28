@@ -6,7 +6,7 @@ The Client Matrix is a Foldkit Program with three complementary comparisons:
   and route parser-printer. It compares those modes across eight real client
   surfaces. Every cell shows the client carrier and a checked-in capture of that
   client rendering the same canonical application state.
-- Wallet audits the `wallet@1` Program identity, one exact state route, one exact
+- Wallet audits the `wallet@2` Program identity, one exact state route, one exact
   settled replay route, and the carrier and evidence boundary for React,
   Foldkit, raw CLI, Effect Terminal, OpenTUI, Expo Web, Expo iOS, Expo Android,
   and a future server host.
@@ -58,7 +58,7 @@ It distinguishes route implementation from Program reuse:
   be different semantics and is not substituted silently.
 - No future server host, endpoint, or ReplayTapeStore is claimed.
 
-The Wallet route strings are exact outputs of the shared `wallet@1` Program
+The Wallet route strings are exact outputs of the shared `wallet@2` Program
 router over a small public Model and a one-transition settled replay tape. The
 carrier strings use `<portable-wallet-route>` and `<expo-web-origin>` as explicit
 substitution points. They are not deployment claims. Source inspection and
@@ -72,12 +72,11 @@ Ethereum or Solana rail. It does not mean a fiat bank transfer. The current
 Sepolia and Solana Devnet Layers are labeled independently from typed but
 unsupported combinations. Live never falls back to a test Layer.
 
-Intent parsing is implemented in the shared core. Host intake is deliberately
-labeled `HostIntakePending`: parsing a URL cannot submit a transaction. A host
-must provide the intent as startup input or a factual Message, after which
-update can compose a draft and produce the preview and submission Commands.
-The displayed carrier paths therefore define the portable contract without
-pretending the current clients execute it.
+Intent parsing and pending intent state are implemented in the shared core.
+React Web, Foldkit View, Expo Web, Expo iOS, and Expo Android carriers are
+labeled `Active`: opening one loads the wallet and produces a preview Command,
+but never submits the transaction. CLI and terminal carriers remain labeled
+`HostIntakePending` until they accept the same portable intent route.
 
 Run it with:
 

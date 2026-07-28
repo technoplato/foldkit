@@ -9,7 +9,7 @@ import { restore, update } from './update.js'
 /** The renderer- and platform-agnostic Wallet Program. */
 export const WalletProgram = Program.make({
   id: 'wallet',
-  version: 1,
+  version: 2,
   Model,
   Message,
   init,
