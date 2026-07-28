@@ -54,6 +54,7 @@ import {
   initialWalletRoute,
 } from 'wallet-react-bindings-example'
 
+import { logBuildProvenance } from './buildProvenance'
 import { NativeNavigationComparison } from './nativeNavigationComparison'
 import {
   ClientPlatformDependency,
@@ -139,6 +140,8 @@ const resolveShowcaseProgramRoute = (
 /** Runs the canonical examples through one Expo Web, iOS, and Android host. */
 export const App = () => {
   const [initialization, setInitialization] = useState<ShowcaseInitialization>()
+
+  useEffect(logBuildProvenance, [])
 
   const openShowcaseProgramRoute = useCallback(
     (path: string): Promise<boolean> =>
