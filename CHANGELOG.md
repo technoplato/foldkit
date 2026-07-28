@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:05:09 a.m. EDT — `af5fd725ba0a` feat(cardboard): add readability review lab
+
+- **Implementation commit:** `af5fd725ba0a17ebe56eac72489fe47035623891`
+- **Change:** Add a Cardboard readability review lab
+- **Details:**
+  - Added live comparison controls for Atkinson Hyperlegible, Lexend, and OpenDyslexic with three large text scales.
+  - Kept all six Cardboard surfaces and RGB inversion available while showing the same portable Program language.
+  - Queues one exact typography profile and free-form visual feedback through Lavish before changing every client.
+- **Files:**
+  - `.lavish/cardboard-readability-lab.html` — Provides the interactive, mobile-readable Cardboard typography and theme review surface.
+- **User context (verbatim):**
+  > all text is, should be the size of triple the normal hero
+  > Allow me to choose different fonts
+  > can you give me something to click on and I can give you concrete feedback
+- **SpecStory:** unavailable — Codex desktop GUI session is not available to SpecStory capture.
+
 ## July 27th, 2026 at 11:59:49 p.m. EDT — `358066475407` feat(cardboard): run Rule Zero across portable clients
 
 - **Implementation commit:** `358066475407c149304a70d4bf7be2ed3ac984a8`
