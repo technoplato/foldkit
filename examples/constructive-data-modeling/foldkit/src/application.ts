@@ -5,10 +5,11 @@ import {
   type Model as ModelValue,
   ObservedPlayback,
   init,
-  slideForId,
+  locationKey,
+  startSecondsForLocation,
   update,
 } from 'constructive-data-modeling-core-example'
-import { Layer, Schema as S } from 'effect'
+import { Layer, Match as M, Schema as S } from 'effect'
 import { Port, Program, Runtime, Subscription } from 'foldkit'
 
 import { overlay } from '@foldkit/devtools'
@@ -44,8 +45,9 @@ export const makeConstructiveDataModelingApplication = (
   container: HTMLElement,
   start: Runtime.ProgramStart<ModelValue, MessageValue> = Runtime.fresh(),
   requestVideoSeek: (seconds: number) => void = () => undefined,
-) =>
-  Runtime.makeFoldkitApplication({
+) => {
+  let previousLocationKey: string | undefined
+  return Runtime.makeFoldkitApplication({
     container,
     devTools: {
       overlay,
@@ -57,16 +59,29 @@ export const makeConstructiveDataModelingApplication = (
     view,
     onModel: model => {
       const nextUrl = new URL(globalThis.location.href)
-      nextUrl.searchParams.set('slide', model.currentSlideId)
+      M.value(model.location).pipe(
+        M.tagsExhaustive({
+          AuthoredPageLocation: ({ page }) =>
+            nextUrl.searchParams.set('page', page.toString()),
+          QuestionAnswerLocation: () =>
+            nextUrl.searchParams.set('page', 'q-and-a'),
+        }),
+      )
+      nextUrl.searchParams.delete('slide')
       if (globalThis.location.href !== nextUrl.href) {
         globalThis.history.replaceState({}, '', nextUrl)
       }
 
+      const nextLocationKey = locationKey(model.location)
       if (
+        previousLocationKey !== undefined &&
+        previousLocationKey !== nextLocationKey &&
         model.lastControl._tag !== 'VideoPlaybackControl' &&
         model.lastControl._tag !== 'InitialControl'
       ) {
-        requestVideoSeek(slideForId(model.currentSlideId).startSeconds)
+        requestVideoSeek(startSecondsForLocation(model.location))
       }
+      previousLocationKey = nextLocationKey
     },
   })
+}

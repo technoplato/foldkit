@@ -1,10 +1,11 @@
 import {
-  AdvancedSlide,
+  AdvancedPage,
   CommandLineControl,
   ConstructiveDataModelingProgram,
   type Message,
   type Model,
-  SelectedSlide,
+  RevealPage,
+  SelectedRevealPage,
   terminalPresentation,
 } from 'constructive-data-modeling-core-example'
 import {
@@ -37,15 +38,11 @@ const messagesForOperation = (
   return M.value(operation).pipe(
     M.withReturnType<ReadonlyArray<Message>>(),
     M.when('Show', () => []),
-    M.when('Next', () => [AdvancedSlide({ origin })]),
-    M.when('PositiveSpace', () => [
-      SelectedSlide({ origin, slideId: 'key-idea-1-positive-space' }),
-    ]),
-    M.when('Obligations', () => [
-      SelectedSlide({ origin, slideId: 'obligation-propagation-machine' }),
-    ]),
-    M.when('Recap', () => [SelectedSlide({ origin, slideId: 'recap' })]),
-    M.when('Thanks', () => [SelectedSlide({ origin, slideId: 'thanks' })]),
+    M.when('Next', () => [AdvancedPage({ origin })]),
+    M.when('PositiveSpace', () => [SelectedRevealPage({ origin, page: 52 })]),
+    M.when('Obligations', () => [SelectedRevealPage({ origin, page: 101 })]),
+    M.when('Recap', () => [SelectedRevealPage({ origin, page: 147 })]),
+    M.when('Thanks', () => [SelectedRevealPage({ origin, page: 158 })]),
     M.exhaustive,
   )
 }
@@ -87,6 +84,36 @@ export const runCliOperation = (
         isVerbose
           ? `${terminalPresentation(model)}\nmodel ${JSON.stringify(model)}`
           : terminalPresentation(model),
+      ),
+    ),
+  )
+
+/** Runs and prints a direct authored-page jump through the shared Message. */
+export const runCliPage = (page: number, isVerbose: boolean) =>
+  S.decodeUnknownEffect(RevealPage)(page).pipe(
+    Effect.flatMap(revealPage =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* Effect.orDie(
+            Runtime.makeProgramRuntime({
+              program: ConstructiveDataModelingProgram,
+              resources: Layer.empty,
+            }),
+          )
+          yield* runtime.initialization
+          const model = yield* runtime.run(
+            SelectedRevealPage({
+              origin: CommandLineControl(),
+              page: revealPage,
+            }),
+          )
+          yield* runtime.shutdown
+          yield* Console.log(
+            isVerbose
+              ? `${terminalPresentation(model)}\nmodel ${JSON.stringify(model)}`
+              : terminalPresentation(model),
+          )
+        }),
       ),
     ),
   )

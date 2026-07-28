@@ -2,16 +2,17 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 
 import {
   constructiveDataModelingDeck,
-  positionForSlideId,
-  slideForId,
+  revealForPage,
+  slideForLocation,
 } from './deck.js'
-import { type Model, Slide, SourceReference } from './model.js'
+import { DeckLocation, type Model, Slide, SourceReference } from './model.js'
 
-/** A complete renderer-neutral presentation of the current synchronized deck. */
+/** A complete renderer-neutral presentation of the synchronized deck. */
 export const DeckPresentation = S.Struct({
   canAdvance: S.Boolean,
   canRewind: S.Boolean,
   currentSlide: Slide,
+  location: DeckLocation,
   position: S.Int,
   total: S.Int,
 })
@@ -20,13 +21,20 @@ export type DeckPresentation = typeof DeckPresentation.Type
 
 /** Returns the renderer-neutral presentation for one Model. */
 export const deckPresentation = (model: Model): DeckPresentation => {
-  const position = positionForSlideId(model.currentSlideId)
+  const position = M.value(model.location).pipe(
+    M.withReturnType<number>(),
+    M.tagsExhaustive({
+      AuthoredPageLocation: ({ page }) => page,
+      QuestionAnswerLocation: () => 159,
+    }),
+  )
   return {
-    canAdvance: position < constructiveDataModelingDeck.slides.length,
+    canAdvance: position < 159,
     canRewind: position > 1,
-    currentSlide: slideForId(model.currentSlideId),
+    currentSlide: slideForLocation(model.location),
+    location: model.location,
     position,
-    total: constructiveDataModelingDeck.slides.length,
+    total: 159,
   }
 }
 
@@ -49,21 +57,30 @@ export const formatTimestamp = (seconds: number): string => {
 }
 
 const compactSlideText = (model: Model): string => {
-  const slide = slideForId(model.currentSlideId)
-  const timing = `${formatTimestamp(slide.startSeconds)}–${formatTimestamp(slide.endSeconds)}`
-  return M.value(slide.content).pipe(
+  const slide = slideForLocation(model.location)
+  return M.value(model.location).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      AuthoredSlide: ({
-        condensedPage,
-        revealEndPage,
-        revealStartPage,
-        summary,
-        title,
-      }) =>
-        `${title}\n${timing} · authored slide ${condensedPage.toString()} · reveals ${revealStartPage.toString()}–${revealEndPage.toString()}\n${summary}\n${slide.deepLink}`,
-      QuestionAnswerSlide: ({ summary, title }) =>
-        `${title}\n${timing}\n${summary}\n${slide.deepLink}`,
+      AuthoredPageLocation: ({ page }) => {
+        const reveal = revealForPage(page)
+        return M.value(slide.content).pipe(
+          M.withReturnType<string>(),
+          M.tagsExhaustive({
+            AuthoredSlide: ({ condensedPage, summary, title }) =>
+              `${title}\n${formatTimestamp(reveal.startSeconds)}–${formatTimestamp(reveal.endSeconds)} · authored page ${page.toString()}/158 · condensed slide ${condensedPage.toString()}\n${summary}\n${reveal.deepLink}`,
+            QuestionAnswerSlide: () => '',
+          }),
+        )
+      },
+      QuestionAnswerLocation: () =>
+        M.value(slide.content).pipe(
+          M.withReturnType<string>(),
+          M.tagsExhaustive({
+            AuthoredSlide: () => '',
+            QuestionAnswerSlide: ({ summary, title }) =>
+              `${title}\n${formatTimestamp(slide.startSeconds)}–${formatTimestamp(slide.endSeconds)}\n${summary}\n${slide.deepLink}`,
+          }),
+        ),
     }),
   )
 }

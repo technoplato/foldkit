@@ -1,9 +1,15 @@
-import { Array, Option } from 'effect'
+import { Array, Match as M, Option, Schema as S } from 'effect'
 
 import {
+  AuthoredPageLocation,
   AuthoredSlide,
   Deck,
+  type DeckLocation,
+  type PageChooserScope,
+  QuestionAnswerLocation,
   QuestionAnswerSlide,
+  RevealPage,
+  type RevealPage as RevealPageValue,
   type Slide,
   type SlideId,
 } from './model.js'
@@ -18,11 +24,71 @@ type AuthoredSlideInput = Readonly<{
   title: string
   summary: string
   condensedPage: number
-  revealStartPage: number
-  revealEndPage: number
+  revealStartPage: RevealPageValue
+  revealEndPage: RevealPageValue
   startSeconds: number
   endSeconds: number
 }>
+
+/** One exact authored reveal and its synchronized recording interval. */
+export const Reveal = S.Struct({
+  deepLink: S.String,
+  endSeconds: S.Number,
+  page: RevealPage,
+  startSeconds: S.Number,
+})
+/** One exact authored reveal value. */
+export type Reveal = typeof Reveal.Type
+
+/** One named destination exposed by Alexis King's authored page chooser. */
+export const PageLandmark = S.Struct({
+  label: S.String,
+  page: RevealPage,
+})
+/** One named page destination. */
+export type PageLandmark = typeof PageLandmark.Type
+
+/** The six authored section destinations shown by the talk's page chooser. */
+export const pageLandmarks = S.NonEmptyArray(PageLandmark).make([
+  { label: 'Title', page: 1 },
+  { label: 'Introduction', page: 2 },
+  { label: 'Static typing', page: 9 },
+  { label: 'Positive space', page: 52 },
+  { label: 'Obligation propagation', page: 101 },
+  { label: 'Conclusion', page: 147 },
+])
+
+const revealStartSeconds: ReadonlyArray<number> = [
+  0, 5, 7, 27, 36, 46, 54, 70, 77, 85, 86, 89, 93, 103, 104, 116, 132, 137, 138,
+  140, 145, 154, 165, 177, 182, 187, 193, 198, 215, 236, 242, 244, 257, 279,
+  297, 312, 315, 321, 322, 332, 341, 342, 350, 357, 366, 375, 381, 387, 395,
+  405, 411, 416, 421, 425, 431, 434, 439, 453, 456, 459, 473, 485, 487, 494,
+  501, 505, 510, 537, 542, 549, 561, 563, 568, 574, 579, 585, 588, 594, 609,
+  615, 621, 625, 647, 648, 660, 677, 687, 694, 706, 732, 747, 757, 772, 786,
+  790, 806, 822, 829, 863, 884, 891, 893, 908, 921, 938, 959, 978, 984, 990,
+  998, 1002, 1018, 1024, 1035, 1048, 1055, 1071, 1075, 1081, 1084, 1104, 1117,
+  1122, 1128, 1132, 1150, 1155, 1166, 1167, 1182, 1205, 1227, 1253, 1257, 1267,
+  1268, 1275, 1280, 1287, 1296, 1310, 1314, 1319, 1323, 1332, 1337, 1373, 1378,
+  1382, 1386, 1400, 1437, 1448, 1453, 1460, 1485, 1491, 1507,
+]
+
+/** Every authored reveal page aligned to its exact recording interval. */
+export const revealTimeline = Array.map(
+  RevealPage.literals,
+  (page, index): Reveal => {
+    const startSeconds = Option.getOrThrow(Array.get(revealStartSeconds, index))
+    const endSeconds = Option.getOrElse(
+      Array.get(revealStartSeconds, index + 1),
+      () => 1692,
+    )
+    return Reveal.make({
+      deepLink: deepLinkAt(startSeconds),
+      endSeconds,
+      page,
+      startSeconds,
+    })
+  },
+)
 
 const authored = (input: AuthoredSlideInput): Slide => ({
   id: input.id,
@@ -537,19 +603,22 @@ const indexForSlideId = (slideId: SlideId): number =>
 
 /** Returns the source-backed slide for one stable identity. */
 export const slideForId = (slideId: SlideId): Slide =>
-  talkSlides[indexForSlideId(slideId)] as Slide
+  Option.getOrThrow(Array.get(talkSlides, indexForSlideId(slideId)))
 
 /** Returns the next slide identity, stopping at the final cue. */
 export const nextSlideId = (slideId: SlideId): SlideId =>
-  (
-    talkSlides[
-      Math.min(indexForSlideId(slideId) + 1, talkSlides.length - 1)
-    ] as Slide
+  Option.getOrThrow(
+    Array.get(
+      talkSlides,
+      Math.min(indexForSlideId(slideId) + 1, talkSlides.length - 1),
+    ),
   ).id
 
 /** Returns the previous slide identity, stopping at the opening cue. */
 export const previousSlideId = (slideId: SlideId): SlideId =>
-  (talkSlides[Math.max(indexForSlideId(slideId) - 1, 0)] as Slide).id
+  Option.getOrThrow(
+    Array.get(talkSlides, Math.max(indexForSlideId(slideId) - 1, 0)),
+  ).id
 
 /** Returns a one-based position for one stable slide identity. */
 export const positionForSlideId = (slideId: SlideId): number =>
@@ -559,5 +628,174 @@ export const positionForSlideId = (slideId: SlideId): number =>
 export const slideIdForPlaybackSeconds = (seconds: number): SlideId =>
   Option.getOrElse(
     Array.findLast(talkSlides, slide => seconds >= slide.startSeconds),
-    () => talkSlides[0],
+    () => Array.headNonEmpty(talkSlides),
   ).id
+
+/** Returns the exact time-indexed reveal for one authored page. */
+export const revealForPage = (page: RevealPageValue): Reveal =>
+  Option.getOrThrow(
+    Array.findFirst(revealTimeline, reveal => reveal.page === page),
+  )
+
+/** Returns the exact authored reveal visible at one recording time. */
+export const revealPageForPlaybackSeconds = (
+  seconds: number,
+): RevealPageValue =>
+  Option.getOrElse(
+    Array.findLast(revealTimeline, reveal => seconds >= reveal.startSeconds),
+    () => Option.getOrThrow(Array.head(revealTimeline)),
+  ).page
+
+/** Returns the logical authored slide containing an exact reveal page. */
+export const slideForRevealPage = (page: RevealPageValue): Slide =>
+  Option.getOrThrow(
+    Array.findFirst(talkSlides, slide =>
+      M.value(slide.content).pipe(
+        M.withReturnType<boolean>(),
+        M.tagsExhaustive({
+          AuthoredSlide: ({ revealEndPage, revealStartPage }) =>
+            page >= revealStartPage && page <= revealEndPage,
+          QuestionAnswerSlide: () => false,
+        }),
+      ),
+    ),
+  )
+
+/** Returns the exact synchronized location for one observed recording time. */
+export const locationForPlaybackSeconds = (seconds: number): DeckLocation =>
+  seconds >= 1692
+    ? QuestionAnswerLocation()
+    : AuthoredPageLocation({ page: revealPageForPlaybackSeconds(seconds) })
+
+/** Returns the first exact location represented by one logical slide. */
+export const locationForSlideId = (slideId: SlideId): DeckLocation => {
+  const slide = slideForId(slideId)
+  return M.value(slide.content).pipe(
+    M.withReturnType<DeckLocation>(),
+    M.tagsExhaustive({
+      AuthoredSlide: ({ revealStartPage }) =>
+        AuthoredPageLocation({ page: revealStartPage }),
+      QuestionAnswerSlide: () => QuestionAnswerLocation(),
+    }),
+  )
+}
+
+/** Returns the logical slide containing one exact synchronized location. */
+export const slideForLocation = (location: DeckLocation): Slide =>
+  M.value(location).pipe(
+    M.withReturnType<Slide>(),
+    M.tagsExhaustive({
+      AuthoredPageLocation: ({ page }) => slideForRevealPage(page),
+      QuestionAnswerLocation: () => slideForId('q-and-a'),
+    }),
+  )
+
+/** Returns the stable location key used by host adapters. */
+export const locationKey = (location: DeckLocation): string =>
+  M.value(location).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      AuthoredPageLocation: ({ page }) => `page-${page.toString()}`,
+      QuestionAnswerLocation: () => 'q-and-a',
+    }),
+  )
+
+/** Returns the exact recording time for one synchronized location. */
+export const startSecondsForLocation = (location: DeckLocation): number =>
+  M.value(location).pipe(
+    M.withReturnType<number>(),
+    M.tagsExhaustive({
+      AuthoredPageLocation: ({ page }) => revealForPage(page).startSeconds,
+      QuestionAnswerLocation: () => slideForId('q-and-a').startSeconds,
+    }),
+  )
+
+/** Advances one exact page, entering Q&A after authored page 158. */
+export const nextLocation = (location: DeckLocation): DeckLocation =>
+  M.value(location).pipe(
+    M.withReturnType<DeckLocation>(),
+    M.tagsExhaustive({
+      AuthoredPageLocation: ({ page }) => {
+        const maybeNextPage = Array.get(RevealPage.literals, page)
+        return Option.match(maybeNextPage, {
+          onNone: () => QuestionAnswerLocation(),
+          onSome: nextPage => AuthoredPageLocation({ page: nextPage }),
+        })
+      },
+      QuestionAnswerLocation: () => QuestionAnswerLocation(),
+    }),
+  )
+
+/** Rewinds one exact page, returning from Q&A to authored page 158. */
+export const previousLocation = (location: DeckLocation): DeckLocation =>
+  M.value(location).pipe(
+    M.withReturnType<DeckLocation>(),
+    M.tagsExhaustive({
+      AuthoredPageLocation: ({ page }) =>
+        AuthoredPageLocation({
+          page: Option.getOrElse(
+            Array.get(RevealPage.literals, page - 2),
+            () => 1,
+          ),
+        }),
+      QuestionAnswerLocation: () => AuthoredPageLocation({ page: 158 }),
+    }),
+  )
+
+const landmarkRevealPages = Array.map(pageLandmarks, landmark => landmark.page)
+
+/** Returns the authored pages visible in one chooser scope. */
+export const pagesForChooserScope = (
+  scope: PageChooserScope,
+): ReadonlyArray<RevealPageValue> =>
+  M.value(scope).pipe(
+    M.withReturnType<ReadonlyArray<RevealPageValue>>(),
+    M.tagsExhaustive({
+      AllAuthoredPages: () => RevealPage.literals,
+      LandmarkPages: () => landmarkRevealPages,
+    }),
+  )
+
+/** Returns the closest selectable page in one chooser scope. */
+export const nearestPageForChooserScope = (
+  page: RevealPageValue,
+  scope: PageChooserScope,
+): RevealPageValue => {
+  const pages = pagesForChooserScope(scope)
+  const firstPage = Option.getOrThrow(Array.head(pages))
+  return Array.reduce(pages, firstPage, (nearestPage, candidatePage) =>
+    Math.abs(candidatePage - page) < Math.abs(nearestPage - page)
+      ? candidatePage
+      : nearestPage,
+  )
+}
+
+const movePageForChooserScope = (
+  page: RevealPageValue,
+  scope: PageChooserScope,
+  offset: number,
+): RevealPageValue => {
+  const pages = pagesForChooserScope(scope)
+  const normalizedPage = nearestPageForChooserScope(page, scope)
+  const index = Option.getOrThrow(
+    Array.findFirstIndex(
+      pages,
+      candidatePage => candidatePage === normalizedPage,
+    ),
+  )
+  return Option.getOrThrow(
+    Array.get(pages, Math.max(0, Math.min(index + offset, pages.length - 1))),
+  )
+}
+
+/** Advances the selected chooser target within its current scope. */
+export const nextPageForChooserScope = (
+  page: RevealPageValue,
+  scope: PageChooserScope,
+): RevealPageValue => movePageForChooserScope(page, scope, 1)
+
+/** Rewinds the selected chooser target within its current scope. */
+export const previousPageForChooserScope = (
+  page: RevealPageValue,
+  scope: PageChooserScope,
+): RevealPageValue => movePageForChooserScope(page, scope, -1)

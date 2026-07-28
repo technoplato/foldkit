@@ -1,26 +1,53 @@
 import {
+  AuthoredPageLocation,
+  type DeckLocation,
   InitialControl,
   type Message,
   Model,
+  PageChooserClosed,
+  QuestionAnswerLocation,
+  RevealPage,
   SlideId,
+  locationForSlideId,
 } from 'constructive-data-modeling-core-example'
 import { Option, Schema as S } from 'effect'
 import { Runtime } from 'foldkit'
 
-/** Selects a fresh start or a stable slide from a browser query string. */
+/** Decodes an exact authored page, Q&A tail, or legacy logical slide URL. */
+export const locationForSearch = (
+  search: string,
+): Option.Option<DeckLocation> => {
+  const parameters = new URLSearchParams(search)
+  const encodedPage = parameters.get('page')
+  if (encodedPage === 'q-and-a') {
+    return Option.some(QuestionAnswerLocation())
+  }
+
+  const maybePage = Option.flatMap(Option.fromNullishOr(encodedPage), page =>
+    S.decodeUnknownOption(RevealPage)(Number(page)),
+  )
+  if (Option.isSome(maybePage)) {
+    return Option.some(AuthoredPageLocation({ page: maybePage.value }))
+  }
+
+  return Option.map(
+    S.decodeUnknownOption(SlideId)(parameters.get('slide')),
+    locationForSlideId,
+  )
+}
+
+/** Selects a fresh start or an exact synchronized URL location. */
 export const startForSearch = (
   search: string,
-): Runtime.ProgramStart<typeof Model.Type, Message> => {
-  const encodedSlideId = new URLSearchParams(search).get('slide')
-  const maybeSlideId = S.decodeUnknownOption(SlideId)(encodedSlideId)
-  return Option.match(maybeSlideId, {
+): Runtime.ProgramStart<typeof Model.Type, Message> =>
+  Option.match(locationForSearch(search), {
     onNone: () => Runtime.fresh(),
-    onSome: currentSlideId =>
+    onSome: location =>
       Runtime.fromModel(
         Model.make({
-          currentSlideId,
           lastControl: InitialControl(),
+          location,
+          pageChooser: PageChooserClosed(),
         }),
       ),
   })
-}
