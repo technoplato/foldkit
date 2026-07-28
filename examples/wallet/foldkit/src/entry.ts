@@ -4,8 +4,11 @@ import { makeSimulatedWalletResources } from 'wallet-simulated-client-example'
 import { WalletWebClipboard } from 'wallet-web-client-example'
 
 import { makeWalletApplication } from './application.js'
+import { logBuildProvenance } from './buildProvenance.js'
 import { walletFoldkitStartForLocation } from './route.js'
 import './styles.css'
+
+logBuildProvenance()
 
 const root = document.getElementById('root')
 if (root === null) {
