@@ -91,6 +91,11 @@ export const ReturnedToRuleZeroPage: CallableTaggedStruct<
   'ReturnedToRuleZeroPage',
   {}
 > = m('ReturnedToRuleZeroPage')
+/** Records that Cardboard returned from the ledger to its sequence root. */
+export const ReturnedToCardboardSequence: CallableTaggedStruct<
+  'ReturnedToCardboardSequence',
+  {}
+> = m('ReturnedToCardboardSequence')
 /** Records that the participant advanced the Cardboard sequence once. */
 export const AdvancedCardboardSequence: CallableTaggedStruct<
   'AdvancedCardboardSequence',
@@ -115,6 +120,7 @@ export const Message = S.Union([
   PressedLowercaseG,
   OpenedConversationLedger,
   ReturnedToRuleZeroPage,
+  ReturnedToCardboardSequence,
   AdvancedCardboardSequence,
 ])
 /** A Cardboard Message value. */

@@ -14,10 +14,19 @@ pnpm dev:example:showcase:web
 pnpm dev:example:showcase:ios
 pnpm dev:example:showcase:android
 pnpm dev:example:showcase:native
+pnpm dev:example:showcase:go
 ```
 
 The `native` command opens Expo's client selector. The other commands request a
 specific platform.
+
+The `go` command starts Metro on the local network specifically for Expo Go. Its
+terminal prints the current LAN carrier. Append the portable path after `/--/`,
+for example `exp://192.168.1.20:8081/--/0` or
+`exp://192.168.1.20:8081/--/0/5`. The host and port come from the current Metro
+session. Shared state and replay controls use `expo-linking` to generate this
+carrier in Expo Go and the configured `foldkit://` carrier in development and
+production builds.
 
 ## Native Back comparison
 

@@ -16,6 +16,7 @@ import {
   SequencePage,
   type SpacePressCount,
   initialKeyboardInput,
+  initialSequenceValue,
 } from './model.js'
 
 // UPDATE
@@ -87,6 +88,14 @@ const returnedToRuleZeroPage = (model: Model): UpdateReturn => [
   [],
 ]
 
+const returnedToCardboardSequence = (model: Model): UpdateReturn => [
+  evo(model, {
+    keyboardInput: resetKeyboardInput,
+    page: () => SequencePage({ value: initialSequenceValue }),
+  }),
+  [],
+]
+
 const advancedCardboardSequence = (model: Model): UpdateReturn => {
   if (model.page._tag === 'SequencePage') {
     const nextValue = model.page.value + 1n
@@ -111,6 +120,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       PressedLowercaseG: () => pressedLowercaseG(model),
       OpenedConversationLedger: () => openedConversationLedger(model),
       ReturnedToRuleZeroPage: () => returnedToRuleZeroPage(model),
+      ReturnedToCardboardSequence: () => returnedToCardboardSequence(model),
       AdvancedCardboardSequence: () => advancedCardboardSequence(model),
       PressedZeroButton: zeroMessage => transitionZero(model, zeroMessage),
       AdvancedZeroButtonHold: zeroMessage => transitionZero(model, zeroMessage),

@@ -8,7 +8,7 @@ import {
   PressedLowercaseG,
   PressedZeroButton,
   ReleasedZeroButton,
-  ReturnedToRuleZeroPage,
+  ReturnedToCardboardSequence,
   SelectedIncorrectInputMethod,
   SelectedMirrorAnswer,
   SkippedZeroStep,
@@ -34,7 +34,7 @@ const resetTerminalStyle = '\u001b[0m'
 /** Renders the canonical Cardboard Model for a text terminal. */
 export const renderCardboardScreen = (model: Model): string =>
   model.page._tag === 'SequencePage'
-    ? `${amberPaper}${clearScreen}${amberAccent}╭───╮\n│ ${terminalPresentation(model)} │\n╰───╯${amberPaper}\n enter\n${resetTerminalStyle}`
+    ? `${amberPaper}${clearScreen}${amberAccent}╭───╮\n│ ${terminalPresentation(model)} │\n╰───╯${amberPaper}\n[Enter] Next\n[L] Log  [Q] Quit\n${resetTerminalStyle}`
     : `${amberPaper}${clearScreen}${amberAccent}PROJECT CARDBOARD${amberPaper}\n${terminalPresentation(model)}\n\n${amberAccent}[l] /0/log  [0] /0${amberPaper}\n[p] press  [r] release  [o] open  [space x3] skip\n[1] Genesis  [2] N64  [3] Game Boy  [4] Xbox  [5] keys\n[6] joystick  [7] eyes  [8] up  [9] down  [a] right  [m] mirror\n[g g] home  [G or ;] continue  [q] quit\n${resetTerminalStyle}`
 
 /** Maps a terminal key to a Cardboard Message. */
@@ -102,7 +102,7 @@ export const messageForInput = (input: string): Option.Option<Message> => {
       SelectedIncorrectInputMethod({ inputMethod: 'HeadLookingRight' }),
     )
   } else if (input === '0') {
-    return Option.some(ReturnedToRuleZeroPage())
+    return Option.some(ReturnedToCardboardSequence())
   } else if (input === 'l') {
     return Option.some(OpenedConversationLedger())
   } else {

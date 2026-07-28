@@ -22,9 +22,7 @@ const isConstitutionRoot = (relativeRoute: string): boolean =>
 
 const isConversationLedgerRoot = (relativeRoute: string): boolean =>
   relativeRoute === conversationLedgerPortableRoute ||
-  relativeRoute === '/0/log/' ||
-  relativeRoute === '/0/0' ||
-  relativeRoute === '/0/0/'
+  relativeRoute === '/0/log/'
 
 const sequenceValueForRoute = (
   relativeRoute: string,

@@ -550,7 +550,10 @@ export const NativeNavigationComparison = ({
           </NativeStack.Screen>
           <NativeStack.Screen
             name={SCENE_ROUTE}
-            options={{ title: 'Program Scene' }}
+            options={{
+              headerShown: showsComparisonPanel,
+              title: 'Program Scene',
+            }}
           >
             {() => (
               <NativeSceneScreen
