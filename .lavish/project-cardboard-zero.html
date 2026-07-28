@@ -65,11 +65,29 @@
         --green: #ffe0a3;
       }
 
+      .stage[data-profile='groove'] {
+        --paper: #c8944f;
+        --paper-light: #e5b86d;
+        --ink: #26150d;
+        --green: #174b34;
+      }
+
+      .stage[data-profile='groove-invert'] {
+        --paper: #376bb0;
+        --paper-light: #1a4792;
+        --ink: #d9eaf2;
+        --green: #e8b4cb;
+      }
+
       .stage[data-profile='contrast'] {
         --paper: #fff4ca;
         --paper-light: #ffffff;
         --ink: #000000;
         --green: #003c29;
+      }
+
+      .stage[data-inverted='true'] {
+        filter: invert(1);
       }
 
       .paper {
@@ -85,7 +103,8 @@
           transform 500ms ease;
       }
 
-      .stage[data-state='opened'] .paper {
+      .stage[data-state='configuring'] .paper,
+      .stage[data-state='completed'] .paper {
         opacity: 1;
         transform: none;
         visibility: visible;
@@ -111,7 +130,7 @@
 
       h1 {
         max-width: 12ch;
-        margin: 12svh 0 0.5rem;
+        margin: 5svh 0 0.5rem;
         font-size: clamp(3.5rem, 17vw, 7.5rem);
         line-height: 0.85;
         letter-spacing: -0.07em;
@@ -163,6 +182,16 @@
         color: #ffbd54;
       }
 
+      .profile[data-profile='groove'] {
+        background: #c8944f;
+        color: #26150d;
+      }
+
+      .profile[data-profile='groove-invert'] {
+        background: #376bb0;
+        color: #d9eaf2;
+      }
+
       .profile[data-profile='contrast'] {
         background: #fff4ca;
         color: #000;
@@ -173,6 +202,60 @@
         margin-top: 2rem;
         padding-top: 1.2rem;
         border-top: 2px solid rgba(36, 21, 12, 0.35);
+      }
+
+      .program-state {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem;
+        max-width: 40rem;
+        margin-top: 1.4rem;
+      }
+
+      .state-card {
+        min-height: 8rem;
+        border: 2px solid var(--ink);
+        border-radius: 1rem;
+        padding: 0.9rem;
+        background: color-mix(in srgb, var(--paper-light) 75%, transparent);
+      }
+
+      .state-card h2 {
+        margin: 0 0 0.65rem;
+        font-size: 0.75rem;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      .state-card pre,
+      .state-card output {
+        display: block;
+        max-width: 100%;
+        margin: 0;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        line-height: 1.45;
+      }
+
+      .controls {
+        max-width: 40rem;
+        margin-top: 1rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        line-height: 1.5;
+      }
+
+      .invert-button {
+        width: 100%;
+        margin-top: 1rem;
+        border: 2px solid var(--ink);
+        border-radius: 999px;
+        padding: 0.75rem 1rem;
+        background: var(--ink);
+        color: var(--paper-light);
+        font-weight: 850;
       }
 
       .feedback-form button {
@@ -199,12 +282,14 @@
       }
 
       .stage[data-state='opening'] .curtain,
-      .stage[data-state='opened'] .curtain {
+      .stage[data-state='configuring'] .curtain,
+      .stage[data-state='completed'] .curtain {
         transform: translateY(115%) rotate(2deg);
         opacity: 0.6;
       }
 
-      .stage[data-state='opened'] .curtain {
+      .stage[data-state='configuring'] .curtain,
+      .stage[data-state='completed'] .curtain {
         visibility: hidden;
         pointer-events: none;
       }
@@ -307,7 +392,7 @@
         }
 
         .profiles {
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(3, minmax(0, 1fr));
         }
       }
     </style>
@@ -343,6 +428,22 @@
           </button>
           <button
             class="profile"
+            data-profile="groove"
+            type="button"
+            aria-pressed="false"
+          >
+            Groovebox
+          </button>
+          <button
+            class="profile"
+            data-profile="groove-invert"
+            type="button"
+            aria-pressed="false"
+          >
+            Groovebox Through Invert
+          </button>
+          <button
+            class="profile"
             data-profile="negative"
             type="button"
             aria-pressed="false"
@@ -358,6 +459,31 @@
             High Contrast
           </button>
         </div>
+        <button
+          class="invert-button"
+          id="invert-button"
+          type="button"
+          aria-pressed="false"
+        >
+          Apply literal RGB negative
+        </button>
+        <div class="program-state">
+          <section class="state-card" aria-labelledby="model-title">
+            <h2 id="model-title">Portable Model</h2>
+            <output id="model-output">WaitingAtZero</output>
+          </section>
+          <section class="state-card" aria-labelledby="terminal-title">
+            <h2 id="terminal-title">Terminal presentation</h2>
+            <pre id="terminal-output">
+cardboard host abcde /0
+state WaitingAtZero</pre
+            >
+          </section>
+        </div>
+        <p class="controls">
+          Previous: ← or h · Next: → or l · Start: gg · Finish: G or ; · Skip:
+          Space Space Space
+        </p>
         <form
           class="feedback-form"
           data-lavish-question="cardboard-zero"
@@ -418,11 +544,25 @@
       const curtain = document.querySelector('.curtain')
       const readout = document.querySelector('#readout')
       const profiles = document.querySelectorAll('.profile')
+      const invertButton = document.querySelector('#invert-button')
+      const modelOutput = document.querySelector('#model-output')
+      const terminalOutput = document.querySelector('#terminal-output')
       const holdThresholdMilliseconds = 1_800
+      const profileValues = Array.from(profiles)
+      const spaceSequenceWindowMilliseconds = 1_200
+      const vimSequenceWindowMilliseconds = 500
+      const initialModel = Object.freeze({
+        state: Object.freeze({ _tag: 'WaitingAtZero' }),
+        profile: 'AmberPaper',
+        isRgbInverted: false,
+        slashCount: 0,
+      })
+      let model = initialModel
       let pressedAt = 0
       let animationFrame = 0
-      let isPressed = false
-      let isOpened = false
+      let lastRenderedHoldDecisecond = -1
+      let spacePresses = []
+      let lastLowercaseGAt = 0
 
       const announce = message => {
         readout.value = message
@@ -430,56 +570,285 @@
         readout.dataset.active = 'true'
       }
 
-      const renderHold = now => {
-        if (!isPressed || isOpened) return
-        const elapsedMilliseconds = now - pressedAt
-        const progress = Math.min(
+      const profileFromData = profile => {
+        if (profile === 'amber') return 'AmberPaper'
+        if (profile === 'quiet') return 'QuietBlack'
+        if (profile === 'groove') return 'Groovebox'
+        if (profile === 'groove-invert') return 'GrooveboxThroughInvert'
+        if (profile === 'negative') return 'Negative'
+        return 'HighContrast'
+      }
+
+      const profileDataFrom = profile => {
+        if (profile === 'AmberPaper') return 'amber'
+        if (profile === 'QuietBlack') return 'quiet'
+        if (profile === 'Groovebox') return 'groove'
+        if (profile === 'GrooveboxThroughInvert') return 'groove-invert'
+        if (profile === 'Negative') return 'negative'
+        return 'contrast'
+      }
+
+      const profileName = profile =>
+        profileValues
+          .find(
+            candidate => profileFromData(candidate.dataset.profile) === profile,
+          )
+          ?.textContent.trim() || 'Amber Paper'
+
+      const modelDescription = currentModel => {
+        const { state } = currentModel
+        if (state._tag === 'PressingZero') {
+          return `PressingZero(elapsedMilliseconds: ${Math.round(state.elapsedMilliseconds)})`
+        }
+        if (state._tag === 'OpeningZero') {
+          return `OpeningZero(progressPermille: ${state.progressPermille})`
+        }
+        if (
+          state._tag === 'ConfiguringAtZero' ||
+          state._tag === 'CompletedAtZero'
+        ) {
+          return `${state._tag}(profile: ${currentModel.profile}, isRgbInverted: ${currentModel.isRgbInverted})`
+        }
+        return state._tag
+      }
+
+      const terminalDescription = currentModel => {
+        const lines = [
+          'cardboard host abcde /0',
+          `state ${currentModel.state._tag}`,
+          `slashes ${currentModel.slashCount}`,
+        ]
+        if (currentModel.state._tag === 'PressingZero') {
+          lines.push(
+            `held ${(currentModel.state.elapsedMilliseconds / 1000).toFixed(1)}s`,
+            `feedback "Black button held for ${(currentModel.state.elapsedMilliseconds / 1000).toFixed(1)} seconds."`,
+          )
+        }
+        return lines.join('\n')
+      }
+
+      const feedbackFor = message => {
+        if (message._tag === 'PressedZeroButton') {
+          return 'Black button pressed.'
+        }
+        if (message._tag === 'AdvancedZeroButtonHold') {
+          return `Black button held for ${(message.elapsedMilliseconds / 1000).toFixed(1)} seconds.`
+        }
+        if (message._tag === 'ReleasedZeroButton') {
+          return 'Black button pressed and released. Hold to open Cardboard.'
+        }
+        if (message._tag === 'CompletedZeroOpening') {
+          return 'Project Cardboard opened at slash zero. Amber Paper selected.'
+        }
+        if (message._tag === 'SelectedAccessibilityProfile') {
+          return `${profileName(message.profile)} selected.`
+        }
+        if (message._tag === 'ToggledRgbInversion') {
+          return model.isRgbInverted
+            ? 'Literal RGB negative applied.'
+            : 'Literal RGB negative removed.'
+        }
+        if (message._tag === 'SkippedZeroStep') {
+          return 'Current Rule Zero step skipped.'
+        }
+        if (message._tag === 'CompletedZeroGame') {
+          return 'Rule Zero complete. Slash count remains zero.'
+        }
+        if (message._tag === 'ReturnedToZeroStart') {
+          return 'Returned to the beginning of Rule Zero.'
+        }
+        return 'Rule Zero. Press or hold the black button.'
+      }
+
+      const stageStateFor = stateTag => {
+        if (stateTag === 'OpeningZero') {
+          return 'opening'
+        }
+        if (stateTag === 'ConfiguringAtZero') {
+          return 'configuring'
+        }
+        if (stateTag === 'CompletedAtZero') {
+          return 'completed'
+        }
+        return 'waiting'
+      }
+
+      const update = (currentModel, message) => {
+        if (message._tag === 'ReturnedToZeroStart') {
+          return initialModel
+        }
+        if (message._tag === 'CompletedZeroGame') {
+          return Object.freeze({
+            ...currentModel,
+            state: Object.freeze({ _tag: 'CompletedAtZero' }),
+          })
+        }
+        if (message._tag === 'SkippedZeroStep') {
+          const nextTag =
+            currentModel.state._tag === 'ConfiguringAtZero'
+              ? 'CompletedAtZero'
+              : 'ConfiguringAtZero'
+          return Object.freeze({
+            ...currentModel,
+            state: Object.freeze({ _tag: nextTag }),
+          })
+        }
+        if (message._tag === 'SelectedAccessibilityProfile') {
+          return Object.freeze({ ...currentModel, profile: message.profile })
+        }
+        if (message._tag === 'ToggledRgbInversion') {
+          return Object.freeze({
+            ...currentModel,
+            isRgbInverted: !currentModel.isRgbInverted,
+          })
+        }
+        if (
+          message._tag === 'PressedZeroButton' &&
+          currentModel.state._tag === 'WaitingAtZero'
+        ) {
+          return Object.freeze({
+            ...currentModel,
+            state: Object.freeze({
+              _tag: 'PressingZero',
+              elapsedMilliseconds: 0,
+            }),
+          })
+        }
+        if (
+          message._tag === 'AdvancedZeroButtonHold' &&
+          currentModel.state._tag === 'PressingZero'
+        ) {
+          if (message.elapsedMilliseconds >= holdThresholdMilliseconds) {
+            return Object.freeze({
+              ...currentModel,
+              state: Object.freeze({
+                _tag: 'OpeningZero',
+                progressPermille: 1000,
+              }),
+            })
+          }
+          return Object.freeze({
+            ...currentModel,
+            state: Object.freeze({
+              _tag: 'PressingZero',
+              elapsedMilliseconds: message.elapsedMilliseconds,
+            }),
+          })
+        }
+        if (
+          message._tag === 'ReleasedZeroButton' &&
+          currentModel.state._tag === 'PressingZero'
+        ) {
+          return Object.freeze({
+            ...currentModel,
+            state: Object.freeze({ _tag: 'WaitingAtZero' }),
+          })
+        }
+        if (
+          message._tag === 'CompletedZeroOpening' &&
+          currentModel.state._tag === 'OpeningZero'
+        ) {
+          return Object.freeze({
+            ...currentModel,
+            state: Object.freeze({ _tag: 'ConfiguringAtZero' }),
+          })
+        }
+        return currentModel
+      }
+
+      const render = message => {
+        const stateTag = model.state._tag
+        const nextStageState = stageStateFor(stateTag)
+        const isPressed = stateTag === 'PressingZero'
+        const isVisible =
+          stateTag === 'ConfiguringAtZero' || stateTag === 'CompletedAtZero'
+        const elapsedMilliseconds = isPressed
+          ? model.state.elapsedMilliseconds
+          : 0
+        const holdProgress = Math.min(
           elapsedMilliseconds / holdThresholdMilliseconds,
           1,
         )
-        button.style.setProperty('--depth', `${8 + progress * 82}px`)
-        announce(
-          `Black button held for ${(elapsedMilliseconds / 1000).toFixed(1)} seconds.`,
+
+        stage.dataset.state = nextStageState
+        stage.dataset.profile = profileDataFrom(model.profile)
+        stage.dataset.inverted = String(model.isRgbInverted)
+        button.dataset.pressed = String(isPressed)
+        button.style.setProperty(
+          '--depth',
+          `${isPressed ? 8 + holdProgress * 82 : 0}px`,
         )
-        if (progress >= 1) {
-          isOpened = true
-          isPressed = false
-          button.dataset.pressed = 'false'
-          stage.dataset.state = 'opening'
-          announce(
-            'Black button held. Project Cardboard opening at slash zero.',
+        curtain.hidden = isVisible
+        modelOutput.value = modelDescription(model)
+        modelOutput.textContent = modelDescription(model)
+        terminalOutput.textContent = terminalDescription(model)
+        invertButton.setAttribute('aria-pressed', String(model.isRgbInverted))
+        profileValues.forEach(profile => {
+          const nextProfile = profileFromData(profile.dataset.profile)
+          profile.setAttribute(
+            'aria-pressed',
+            String(nextProfile === model.profile),
           )
-          window.setTimeout(() => {
-            stage.dataset.state = 'opened'
-            curtain.hidden = true
-            announce('Project Cardboard opened. Amber Paper selected.')
-          }, 650)
-          return
+        })
+        announce(feedbackFor(message))
+        console.info(
+          'cardboard',
+          JSON.stringify({
+            route: '/0',
+            message: message._tag,
+            model,
+          }),
+        )
+      }
+
+      const dispatch = message => {
+        const previousStateTag = model.state._tag
+        model = update(model, message)
+        render(message)
+        if (
+          previousStateTag !== 'OpeningZero' &&
+          model.state._tag === 'OpeningZero'
+        ) {
+          window.setTimeout(
+            () => dispatch({ _tag: 'CompletedZeroOpening' }),
+            650,
+          )
         }
-        animationFrame = requestAnimationFrame(renderHold)
+      }
+
+      const renderHold = now => {
+        if (model.state._tag !== 'PressingZero') return
+        const elapsedMilliseconds = now - pressedAt
+        const nextDecisecond = Math.floor(elapsedMilliseconds / 100)
+        if (nextDecisecond !== lastRenderedHoldDecisecond) {
+          lastRenderedHoldDecisecond = nextDecisecond
+          dispatch({
+            _tag: 'AdvancedZeroButtonHold',
+            elapsedMilliseconds,
+          })
+        }
+        if (model.state._tag === 'PressingZero') {
+          animationFrame = requestAnimationFrame(renderHold)
+        }
       }
 
       const press = event => {
-        if (isPressed || isOpened) return
+        if (model.state._tag !== 'WaitingAtZero') return
         event.preventDefault()
-        isPressed = true
         pressedAt = performance.now()
-        button.dataset.pressed = 'true'
+        lastRenderedHoldDecisecond = -1
         if (Number.isFinite(event.pointerId)) {
           button.setPointerCapture?.(event.pointerId)
         }
-        announce('Black button pressed.')
+        dispatch({ _tag: 'PressedZeroButton' })
         animationFrame = requestAnimationFrame(renderHold)
       }
 
       const release = event => {
-        if (!isPressed || isOpened) return
+        if (model.state._tag !== 'PressingZero') return
         event.preventDefault()
-        isPressed = false
         cancelAnimationFrame(animationFrame)
-        button.dataset.pressed = 'false'
-        button.style.setProperty('--depth', '0px')
-        announce('Black button pressed and released. Hold to open Cardboard.')
+        dispatch({ _tag: 'ReleasedZeroButton' })
       }
 
       button.addEventListener('pointerdown', press)
@@ -499,20 +868,84 @@
 
       profiles.forEach(profile => {
         profile.addEventListener('click', () => {
-          profiles.forEach(candidate =>
-            candidate.setAttribute(
-              'aria-pressed',
-              String(candidate === profile),
-            ),
-          )
-          stage.dataset.profile = profile.dataset.profile
-          announce(`${profile.textContent.trim()} selected.`)
+          const nextProfile = profileFromData(profile.dataset.profile)
+          dispatch({
+            _tag: 'SelectedAccessibilityProfile',
+            profile: nextProfile,
+          })
         })
       })
+
+      invertButton.addEventListener('click', () => {
+        dispatch({ _tag: 'ToggledRgbInversion' })
+      })
+
+      const selectRelativeProfile = offset => {
+        if (
+          model.state._tag !== 'ConfiguringAtZero' &&
+          model.state._tag !== 'CompletedAtZero'
+        ) {
+          return
+        }
+        const currentIndex = profileValues.findIndex(
+          profile => profile.getAttribute('aria-pressed') === 'true',
+        )
+        const nextIndex =
+          (currentIndex + offset + profileValues.length) % profileValues.length
+        const nextProfile = profileValues.at(nextIndex)
+        nextProfile?.click()
+        nextProfile?.focus()
+      }
+
+      window.addEventListener(
+        'keydown',
+        event => {
+          const now = performance.now()
+          if (!event.repeat && event.key === ' ') {
+            spacePresses = spacePresses.filter(
+              pressed => now - pressed <= spaceSequenceWindowMilliseconds,
+            )
+            spacePresses.push(now)
+            if (spacePresses.length >= 3) {
+              event.preventDefault()
+              event.stopPropagation()
+              spacePresses = []
+              dispatch({ _tag: 'SkippedZeroStep' })
+              return
+            }
+          }
+          if (event.key === 'G' || event.key === ';') {
+            event.preventDefault()
+            dispatch({ _tag: 'CompletedZeroGame' })
+            return
+          }
+          if (event.key === 'g') {
+            if (now - lastLowercaseGAt <= vimSequenceWindowMilliseconds) {
+              event.preventDefault()
+              curtain.hidden = false
+              dispatch({ _tag: 'ReturnedToZeroStart' })
+              lastLowercaseGAt = 0
+              return
+            }
+            lastLowercaseGAt = now
+          }
+          if (event.key === 'ArrowLeft' || event.key === 'h') {
+            event.preventDefault()
+            selectRelativeProfile(-1)
+            return
+          }
+          if (event.key === 'ArrowRight' || event.key === 'l') {
+            event.preventDefault()
+            selectRelativeProfile(1)
+          }
+        },
+        true,
+      )
 
       window.setTimeout(() => {
         readout.dataset.active = 'true'
       }, 500)
+      render({ _tag: 'StartedZeroGame' })
     </script>
   </body>
 </html>
