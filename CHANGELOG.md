@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:36:34 p.m. EDT — `d43ed2b4bcc9` fix(wallet): copy displayed preview addresses
+
+- **Implementation commit:** `d43ed2b4bcc9dc661e962b8d671518f906c7b23a`
+- **Change:** Made transfer-preview copy controls write the exact canonical address displayed to the user.
+- **Details:**
+  - WAN interaction captured the preview clipboard argument and showed that the valid adapter-normalized lowercase Ethereum address differed from the checksummed display address.
+  - React, Foldkit, and React Native now copy displayAddress from the same preview field they render, while validation and transaction execution continue to use normalizedAddress internally.
+- **Files:**
+  - `examples/wallet/react/src/App.tsx` — Copies the full displayed recipient value from the React transfer preview.
+  - `examples/wallet/foldkit/src/view.ts` — Copies the same displayed recipient value from the Foldkit transfer preview.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Keeps the native preview copy value identical to its visible address.
+- **User context (verbatim):**
+  > copy behavior for the addresses and handle all the copy flows
+  > as well as in the React and FoldKit.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this Codex desktop session is not captured by SpecStory.
+
 ## July 28th, 2026 at 12:29:35 p.m. EDT — `1869bebf9949` feat(wallet)!: add portable address copy flows
 
 - **Implementation commit:** `1869bebf99496d2b794725a22cc31060d037df3b`
