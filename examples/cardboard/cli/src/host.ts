@@ -6,6 +6,7 @@ import {
   CompletedZeroOpening,
   type Message,
   type Model,
+  OpenedConversationLedger,
   PressedZeroButton,
   ReleasedZeroButton,
   ReturnedToZeroStart,
@@ -34,6 +35,7 @@ export const CliOperation = S.Literals([
   'Finish',
   'TryController',
   'Mirror',
+  'Log',
   'Reset',
 ])
 /** A one-shot Cardboard CLI operation. */
@@ -61,6 +63,7 @@ const messagesForOperation = (
       }),
     ]),
     M.when('Mirror', () => [CompletedZeroGame(), SelectedMirrorAnswer()]),
+    M.when('Log', () => [OpenedConversationLedger()]),
     M.when('Reset', () => [ReturnedToZeroStart()]),
     M.exhaustive,
   )

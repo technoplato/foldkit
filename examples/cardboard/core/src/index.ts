@@ -1,5 +1,6 @@
 export * from './authorship.js'
 export * from './init.js'
+export * from './ledger.js'
 export * from './machine.js'
 export * from './message.js'
 export * from './model.js'

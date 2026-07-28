@@ -9,7 +9,7 @@ import { update } from './update.js'
 /** The canonical renderer- and platform-agnostic Cardboard Program. */
 export const CardboardProgram = Program.make({
   id: '0',
-  version: 1,
+  version: 2,
   Model,
   Message,
   init,

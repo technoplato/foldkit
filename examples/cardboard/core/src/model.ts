@@ -118,9 +118,19 @@ export const KeyboardInput = S.Struct({
 /** Portable keyboard-sequence state. */
 export type KeyboardInput = typeof KeyboardInput.Type
 
+/** Cardboard is presenting the constitutional Rule Zero interaction. */
+export const RuleZeroPage = ts('RuleZeroPage')
+/** Cardboard is presenting the append-only conversation ledger. */
+export const ConversationLedgerPage = ts('ConversationLedgerPage')
+/** Every legal Cardboard page. */
+export const CardboardPage = S.Union([RuleZeroPage, ConversationLedgerPage])
+/** One legal Cardboard page. */
+export type CardboardPage = typeof CardboardPage.Type
+
 /** The complete renderer-neutral Cardboard Model. */
 export const Model = S.Struct({
   keyboardInput: KeyboardInput,
+  page: CardboardPage,
   zero: ZeroState,
 })
 /** A renderer-neutral Cardboard Model value. */
@@ -138,5 +148,12 @@ export const initialKeyboardInput = KeyboardInput.make({
 /** The canonical Rule Zero Model. */
 export const initialModel = Model.make({
   keyboardInput: initialKeyboardInput,
+  page: RuleZeroPage(),
+  zero: WaitingAtZero({ slashCount: initialSlashCount }),
+})
+/** The canonical append-only conversation-ledger Model. */
+export const initialConversationLedgerModel = Model.make({
+  keyboardInput: initialKeyboardInput,
+  page: ConversationLedgerPage(),
   zero: WaitingAtZero({ slashCount: initialSlashCount }),
 })

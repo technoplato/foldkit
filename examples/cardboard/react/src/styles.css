@@ -7,9 +7,17 @@
 * {
   box-sizing: border-box;
 }
+html,
+body {
+  min-height: 100%;
+  background: #070604;
+}
 body {
   margin: 0;
   min-width: 320px;
+}
+#root {
+  min-height: 100vh;
 }
 button,
 input {
@@ -23,8 +31,8 @@ input {
   --muted: #aa8f66;
   min-height: 100vh;
   display: grid;
-  place-items: center;
-  padding: 24px;
+  place-items: start center;
+  padding: clamp(20px, 4vw, 72px);
   color: var(--ink);
   background: radial-gradient(circle at 50% 0%, #312418, var(--paper) 60%);
 }
@@ -64,9 +72,11 @@ input {
 }
 
 .cardboard-stage {
-  width: min(680px, 100%);
+  width: min(96rem, 100%);
+  min-height: calc(100svh - clamp(40px, 8vw, 144px));
   display: grid;
-  gap: 24px;
+  align-content: start;
+  gap: clamp(22px, 3vw, 42px);
 }
 .cardboard-header {
   display: flex;
@@ -77,30 +87,33 @@ input {
 .cardboard-header h1 {
   margin: 4px 0 0;
   font-family: Georgia, serif;
-  font-size: clamp(42px, 9vw, 86px);
-  line-height: 0.9;
+  font-size: clamp(64px, 12vw, 160px);
+  line-height: 0.84;
 }
 .eyebrow {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: clamp(15px, 1.7vw, 24px);
   font-weight: 800;
   letter-spacing: 0.22em;
   text-transform: uppercase;
 }
 .cardboard-header code {
   color: var(--muted);
+  font-size: clamp(20px, 3vw, 40px);
 }
 
 .zero-button {
   position: relative;
-  min-height: 270px;
+  min-height: clamp(340px, 56svh, 760px);
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--ink) 20%, transparent);
-  border-radius: 18px;
+  border: 2px solid color-mix(in srgb, var(--ink) 24%, transparent);
+  border-radius: clamp(24px, 3vw, 44px);
   color: #fff;
   background: #000;
-  box-shadow: 0 30px 80px #0008;
+  box-shadow:
+    inset 0 -14px 0 #12100d,
+    0 30px 80px #0008;
   cursor: pointer;
   transform-origin: bottom;
   transition:
@@ -120,9 +133,9 @@ input {
 }
 .zero-button-label {
   font:
-    800 76px/1 Georgia,
+    800 clamp(120px, 24vw, 340px) / 1 Georgia,
     serif;
-  opacity: 0.18;
+  opacity: 0.22;
 }
 .zero-button-progress {
   position: absolute;
@@ -132,23 +145,27 @@ input {
   transition: width 100ms linear;
 }
 .readout {
-  min-height: 48px;
+  min-height: 96px;
   margin: 0;
-  padding: 16px 18px;
-  border-left: 3px solid var(--accent);
+  padding: clamp(22px, 3vw, 44px);
+  border-left: 8px solid var(--accent);
+  border-radius: 0 24px 24px 0;
   color: var(--ink);
   background: color-mix(in srgb, var(--ink) 6%, transparent);
+  font-size: clamp(24px, 3.4vw, 52px);
+  font-weight: 650;
+  line-height: 1.16;
 }
 .configuration {
-  padding: 20px;
+  padding: clamp(24px, 4vw, 56px);
   border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
-  border-radius: 14px;
+  border-radius: 30px;
   background: color-mix(in srgb, var(--ink) 5%, transparent);
 }
 .configuration h2 {
   margin: 6px 0 18px;
   font-family: Georgia, serif;
-  font-size: 28px;
+  font-size: clamp(36px, 6vw, 76px);
 }
 .configuration-actions {
   display: grid;
@@ -156,24 +173,31 @@ input {
   gap: 10px;
 }
 .configuration button {
-  min-height: 46px;
-  border: 1px solid var(--muted);
-  border-radius: 8px;
+  min-height: 76px;
+  padding: 16px 24px;
+  border: 2px solid var(--muted);
+  border-radius: 999px;
   color: var(--ink);
-  background: transparent;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+  box-shadow:
+    inset 0 -6px color-mix(in srgb, var(--ink) 12%, transparent),
+    0 10px 26px #0004;
   cursor: pointer;
+  font-size: clamp(20px, 2vw, 30px);
+  font-weight: 800;
 }
 .riddle {
-  padding: 20px;
+  padding: clamp(24px, 4vw, 56px);
   border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
-  border-radius: 14px;
+  border-radius: 30px;
   background: color-mix(in srgb, var(--ink) 5%, transparent);
 }
 .riddle h2 {
-  max-width: 560px;
+  max-width: 24ch;
   margin: 8px 0 18px;
   font-family: Georgia, serif;
-  font-size: clamp(26px, 5vw, 40px);
+  font-size: clamp(38px, 6vw, 82px);
+  line-height: 1.04;
 }
 .input-methods {
   display: grid;
@@ -181,25 +205,28 @@ input {
   gap: 10px;
 }
 .input-method {
-  min-height: 108px;
+  min-height: 150px;
   display: grid;
   place-items: center;
   gap: 8px;
   padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
-  border-radius: 16px;
+  border: 2px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  border-radius: 28px;
   color: var(--ink);
   background: #171717;
+  box-shadow:
+    inset 0 -8px #0004,
+    0 12px 28px #0004;
   cursor: pointer;
 }
 .input-method span {
   font:
-    800 22px/1 ui-monospace,
+    800 clamp(26px, 3vw, 44px) / 1 ui-monospace,
     monospace;
   letter-spacing: 0.08em;
 }
 .input-method strong {
-  font-size: 12px;
+  font-size: clamp(17px, 1.6vw, 24px);
 }
 .input-SegaGenesisController {
   color: #f4f4f4;
@@ -231,16 +258,16 @@ input {
   align-items: center;
   gap: 12px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: clamp(17px, 1.5vw, 22px);
 }
 .replay input {
   accent-color: var(--accent);
 }
 .authorship {
-  padding: 12px 0;
+  padding: 24px 0;
   border-block: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
   color: var(--muted);
-  font-size: 15px;
+  font-size: clamp(18px, 1.8vw, 26px);
   line-height: 1.55;
 }
 .authorship summary {
@@ -257,11 +284,92 @@ input {
   margin: 6px 0;
   overflow-wrap: anywhere;
   color: var(--ink);
-  font-size: 13px;
+  font-size: clamp(15px, 1.4vw, 21px);
 }
 footer {
   color: var(--muted);
-  font-size: 13px;
+  font-size: clamp(16px, 1.5vw, 22px);
+}
+.ledger-link {
+  min-height: 76px;
+  display: grid;
+  place-items: center;
+  padding: 16px 28px;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  color: var(--paper);
+  background: var(--accent);
+  box-shadow:
+    inset 0 -7px #0002,
+    0 12px 28px #0005;
+  cursor: pointer;
+  font-size: clamp(21px, 2.2vw, 32px);
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
+}
+.ledger-page {
+  max-width: 84rem;
+}
+.ledger-declaration {
+  max-width: 24ch;
+  margin: 0;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: clamp(38px, 6vw, 84px);
+  font-weight: 700;
+  line-height: 1.04;
+}
+.ledger-section {
+  padding: clamp(24px, 4vw, 56px);
+  border: 2px solid color-mix(in srgb, var(--ink) 20%, transparent);
+  border-radius: 30px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.ledger-section h2 {
+  margin: 8px 0 24px;
+  font-family: Georgia, serif;
+  font-size: clamp(36px, 6vw, 76px);
+  line-height: 1;
+}
+.scale-list,
+.decision-log {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.scale-level,
+.decision-log li {
+  display: grid;
+  gap: 8px;
+  padding: clamp(20px, 3vw, 36px);
+  border: 2px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  font-size: clamp(20px, 2.3vw, 32px);
+  line-height: 1.3;
+}
+.scale-level strong {
+  font-size: clamp(24px, 3vw, 42px);
+}
+.current-scale-level {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: 0 14px 34px #0005;
+}
+.decision-log p {
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(16px, 1.5vw, 22px);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.decision-log h3 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: clamp(28px, 4vw, 52px);
 }
 .route-error {
   min-height: 100vh;
@@ -272,21 +380,25 @@ footer {
 
 @media (max-width: 560px) {
   .cardboard-shell {
-    padding: 16px;
+    padding: 18px;
     align-items: start;
   }
   .cardboard-stage {
-    margin-top: 24px;
-    gap: 18px;
+    min-height: calc(100svh - 36px);
+    margin-top: 8px;
+    gap: 24px;
   }
   .zero-button {
-    min-height: 240px;
+    min-height: 52svh;
   }
   .configuration-actions {
     grid-template-columns: 1fr;
   }
   .input-methods {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+  }
+  .replay {
+    grid-template-columns: 1fr;
   }
 }
 

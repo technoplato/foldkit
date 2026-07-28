@@ -421,7 +421,11 @@ const ShowcaseScreen = ({
         <CalculatorExample key={routeRevision} route={calculatorRoute} />
       ),
       CardboardScene: () => (
-        <CardboardExample key={routeRevision} route={cardboardRoute} />
+        <CardboardExample
+          key={routeRevision}
+          onBackToShowcase={actions.tappedBackButton}
+          route={cardboardRoute}
+        />
       ),
       FactScene: () => <FactExample key={routeRevision} route={factRoute} />,
       WalletScene: () => (
@@ -431,6 +435,7 @@ const ShowcaseScreen = ({
   )
 
   const isHome = model.navigation._tag === 'HomeScene'
+  const isCardboard = model.navigation._tag === 'CardboardScene'
 
   if (!isHome) {
     lastSceneContent.current = content
@@ -447,6 +452,7 @@ const ShowcaseScreen = ({
       ) : (
         <NativeShowcaseScreen
           content={preservedSceneContent}
+          isCardboard={isCardboard}
           maybeNavigation={Option.some(preservedSceneNavigation)}
           replay={replay}
         />
@@ -457,6 +463,7 @@ const ShowcaseScreen = ({
         home={
           <NativeShowcaseScreen
             content={<ShowcaseHome />}
+            isCardboard={false}
             maybeNavigation={Option.none()}
             replay={replay}
           />
@@ -464,7 +471,19 @@ const ShowcaseScreen = ({
         isProgramHome={isHome}
         onAcceptedBack={actions.tappedBackButton}
         scene={scene}
+        showsComparisonPanel={!isCardboard}
       />
+    )
+  }
+
+  if (isCardboard) {
+    return (
+      <SafeAreaView style={styles.cardboardSafeArea}>
+        <StatusBar style="light" />
+        <ScrollView contentContainerStyle={styles.cardboardContent}>
+          {content}
+        </ScrollView>
+      </SafeAreaView>
     )
   }
 
@@ -505,24 +524,32 @@ const ShowcaseScreen = ({
 
 const NativeShowcaseScreen = ({
   content,
+  isCardboard,
   maybeNavigation,
   replay,
 }: Readonly<{
   content: ReactNode
+  isCardboard: boolean
   maybeNavigation: Option.Option<Showcase.Navigation>
   replay: ReturnType<typeof useShowcaseReplay>
 }>) => (
   <SafeAreaView style={styles.safeArea}>
     <StatusBar style="light" />
     <View style={styles.shell}>
-      {Option.isSome(maybeNavigation) ? (
+      {Option.isSome(maybeNavigation) && !isCardboard ? (
         <ShowcaseTabs navigation={maybeNavigation.value} />
       ) : null}
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={
+          isCardboard ? styles.cardboardContent : styles.content
+        }
+      >
         {content}
-        <View style={styles.navigationReplay}>
-          <ReplayControls label="Showcase replay" replay={replay} />
-        </View>
+        {isCardboard ? null : (
+          <View style={styles.navigationReplay}>
+            <ReplayControls label="Showcase replay" replay={replay} />
+          </View>
+        )}
       </ScrollView>
     </View>
   </SafeAreaView>
@@ -707,14 +734,20 @@ const cardboardProfileForModel = (
   )
 
 const CardboardExample = ({
+  onBackToShowcase,
   route,
-}: Readonly<{ route: CardboardInitialRoute }>) => (
+}: Readonly<{
+  onBackToShowcase: () => void
+  route: CardboardInitialRoute
+}>) => (
   <CardboardClient.Provider initialRoute={route}>
-    <CardboardScreen />
+    <CardboardScreen onBackToShowcase={onBackToShowcase} />
   </CardboardClient.Provider>
 )
 
-const CardboardScreen = () => {
+const CardboardScreen = ({
+  onBackToShowcase,
+}: Readonly<{ onBackToShowcase: () => void }>) => {
   const model = CardboardClient.useModel()
   const actions = CardboardClient.useActions()
   const replay = CardboardClient.useReplay()
@@ -729,8 +762,36 @@ const CardboardScreen = () => {
       ? Math.round(model.zero.progressPermille / 10)
       : 0
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || replay.mode !== 'Live') {
+      return
+    }
+    const nextPath =
+      model.page._tag === 'ConversationLedgerPage' ? '/0/0' : '/0'
+    if (globalThis.location.pathname !== nextPath) {
+      globalThis.history.pushState({}, '', nextPath)
+    }
+  }, [model.page._tag, replay.mode])
+
+  if (model.page._tag === 'ConversationLedgerPage') {
+    return (
+      <CardboardLedgerScreen
+        onBackToShowcase={onBackToShowcase}
+        onReturn={actions.returnedToRuleZeroPage}
+      />
+    )
+  }
+
   return (
     <View style={[styles.cardboardExample, cardboardProfileStyle(profile)]}>
+      <Pressable
+        accessibilityLabel="Back to showcase"
+        accessibilityRole="button"
+        onPress={onBackToShowcase}
+        style={styles.cardboardBackButton}
+      >
+        <Text style={styles.cardboardBackButtonText}>‹ Showcase</Text>
+      </Pressable>
       <View style={styles.cardboardHeading}>
         <View>
           <Text style={styles.cardboardEyebrow}>Project Cardboard</Text>
@@ -755,6 +816,15 @@ const CardboardScreen = () => {
       <Text accessibilityLiveRegion="polite" style={styles.cardboardReadout}>
         {Cardboard.accessibleDescription(model)}
       </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={actions.openedConversationLedger}
+        style={styles.cardboardPillButton}
+      >
+        <Text style={styles.cardboardPillButtonText}>
+          Open /0/0 decision log
+        </Text>
+      </Pressable>
       {isConfigurationVisible ? (
         <View style={styles.cardboardConfiguration}>
           <Text style={styles.cardboardProfile}>
@@ -855,6 +925,83 @@ const CardboardScreen = () => {
     </View>
   )
 }
+
+const CardboardLedgerScreen = ({
+  onBackToShowcase,
+  onReturn,
+}: Readonly<{
+  onBackToShowcase: () => void
+  onReturn: () => void
+}>) => (
+  <View style={[styles.cardboardExample, styles.cardboardLedger]}>
+    <Pressable
+      accessibilityLabel="Back to showcase"
+      accessibilityRole="button"
+      onPress={onBackToShowcase}
+      style={styles.cardboardBackButton}
+    >
+      <Text style={styles.cardboardBackButtonText}>‹ Showcase</Text>
+    </Pressable>
+    <View style={styles.cardboardHeading}>
+      <View style={styles.cardboardHeadingCopy}>
+        <Text style={styles.cardboardEyebrow}>Project Cardboard</Text>
+        <Text style={styles.cardboardLedgerTitle}>When /0 is four</Text>
+      </View>
+      <Text style={styles.cardboardRoute}>/0/0</Text>
+    </View>
+    <Text style={styles.cardboardLedgerDeclaration}>
+      Four means Ship. Stop expanding the theory. Publish the smallest verified
+      artifact, record what happened, and continue from evidence.
+    </Text>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onReturn}
+      style={styles.cardboardPillButton}
+    >
+      <Text style={styles.cardboardPillButtonText}>Return to /0</Text>
+    </Pressable>
+    <View style={styles.cardboardLedgerSection}>
+      <Text style={styles.cardboardEyebrow}>
+        Current level {Cardboard.currentConversationScaleLevel}
+      </Text>
+      <Text style={styles.cardboardLedgerSectionTitle}>Conversation scale</Text>
+      {Array.map(Cardboard.conversationScale, level => (
+        <View
+          key={level.level}
+          style={
+            level.level === Cardboard.currentConversationScaleLevel
+              ? styles.cardboardCurrentScaleLevel
+              : styles.cardboardScaleLevel
+          }
+        >
+          <Text style={styles.cardboardScaleLevelTitle}>
+            {level.level} · {level.label}
+          </Text>
+          <Text style={styles.cardboardScaleLevelDescription}>
+            {level.description}
+          </Text>
+        </View>
+      ))}
+    </View>
+    <View style={styles.cardboardLedgerSection}>
+      <Text style={styles.cardboardEyebrow}>Append only</Text>
+      <Text style={styles.cardboardLedgerSectionTitle}>
+        Public decision log
+      </Text>
+      {Array.map(Cardboard.conversationLedger, entry => (
+        <View key={entry.sequence} style={styles.cardboardLedgerEntry}>
+          <Text style={styles.cardboardLedgerEntryMeta}>
+            {entry.sequence.toString().padStart(2, '0')} · {entry.recordedOn}
+          </Text>
+          <Text style={styles.cardboardLedgerEntryTitle}>{entry.title}</Text>
+          <Text style={styles.cardboardLedgerEntryStatement}>
+            {entry.statement}
+          </Text>
+        </View>
+      ))}
+    </View>
+  </View>
+)
 
 const CounterExample = ({
   route,
@@ -1323,6 +1470,11 @@ const DestructiveActionButton = ({
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: '#09090b', flex: 1 },
+  cardboardSafeArea: { backgroundColor: '#23180d', flex: 1 },
+  cardboardContent: {
+    backgroundColor: '#23180d',
+    flexGrow: 1,
+  },
   shell: { flex: 1 },
   startingShowcase: {
     alignItems: 'center',
@@ -1425,20 +1577,35 @@ const styles = StyleSheet.create({
   navigationReplay: { marginTop: 8 },
   example: { gap: 20 },
   cardboardExample: {
-    borderColor: '#5f4a30',
-    borderRadius: 22,
-    borderWidth: 1,
-    gap: 18,
-    padding: 20,
+    backgroundColor: '#23180d',
+    flex: 1,
+    gap: 24,
+    minHeight: 820,
+    padding: 24,
+  },
+  cardboardBackButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#f4ad48',
+    borderRadius: 99,
+    minHeight: 56,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  cardboardBackButtonText: {
+    color: '#23180d',
+    fontSize: 20,
+    fontWeight: '900',
   },
   cardboardHeading: {
     alignItems: 'flex-end',
     flexDirection: 'row',
+    gap: 16,
     justifyContent: 'space-between',
   },
+  cardboardHeadingCopy: { flex: 1, minWidth: 0 },
   cardboardEyebrow: {
     color: '#d3a861',
-    fontSize: 11,
+    fontSize: 16,
     fontWeight: '800',
     letterSpacing: 2,
     textTransform: 'uppercase',
@@ -1446,25 +1613,25 @@ const styles = StyleSheet.create({
   cardboardTitle: {
     color: '#ffe5ae',
     fontFamily: 'serif',
-    fontSize: 44,
+    fontSize: 72,
     fontWeight: '700',
-    lineHeight: 50,
+    lineHeight: 76,
   },
-  cardboardRoute: { color: '#d3a861', fontFamily: 'monospace', fontSize: 15 },
+  cardboardRoute: { color: '#d3a861', fontFamily: 'monospace', fontSize: 22 },
   cardboardZeroButton: {
     alignItems: 'center',
     backgroundColor: '#000000',
     borderColor: '#594c3b',
-    borderRadius: 16,
-    borderWidth: 1,
-    height: 250,
+    borderRadius: 30,
+    borderWidth: 2,
+    height: 420,
     justifyContent: 'center',
   },
   cardboardZeroButtonPressed: { opacity: 0.82, transform: [{ translateY: 9 }] },
   cardboardZeroLabel: {
     color: '#ffffff',
     fontFamily: 'serif',
-    fontSize: 72,
+    fontSize: 150,
     fontWeight: '800',
     opacity: 0.2,
   },
@@ -1472,34 +1639,51 @@ const styles = StyleSheet.create({
     bottom: 14,
     color: '#f4ad48',
     fontFamily: 'monospace',
-    fontSize: 12,
+    fontSize: 20,
     position: 'absolute',
     right: 16,
   },
   cardboardReadout: {
     backgroundColor: '#332414',
     borderLeftColor: '#f4ad48',
-    borderLeftWidth: 3,
+    borderLeftWidth: 8,
+    borderRadius: 22,
     color: '#ffe5ae',
-    fontSize: 15,
-    lineHeight: 22,
-    minHeight: 58,
-    padding: 14,
+    fontSize: 28,
+    fontWeight: '700',
+    lineHeight: 36,
+    minHeight: 112,
+    padding: 24,
   },
-  cardboardConfiguration: { gap: 14 },
+  cardboardPillButton: {
+    alignItems: 'center',
+    backgroundColor: '#f4ad48',
+    borderRadius: 99,
+    justifyContent: 'center',
+    minHeight: 72,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  cardboardPillButtonText: {
+    color: '#23180d',
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  cardboardConfiguration: { gap: 20 },
   cardboardProfile: {
     color: '#ffe5ae',
     fontFamily: 'serif',
-    fontSize: 25,
+    fontSize: 44,
     fontWeight: '700',
   },
-  cardboardRiddle: { gap: 14 },
+  cardboardRiddle: { gap: 20 },
   cardboardRiddleTitle: {
     color: '#ffe5ae',
     fontFamily: 'serif',
-    fontSize: 26,
+    fontSize: 40,
     fontWeight: '700',
-    lineHeight: 32,
+    lineHeight: 48,
   },
   cardboardChoices: {
     flexDirection: 'row',
@@ -1509,23 +1693,23 @@ const styles = StyleSheet.create({
   cardboardChoice: {
     alignItems: 'center',
     borderColor: '#685b47',
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 26,
+    borderWidth: 2,
     gap: 8,
     justifyContent: 'center',
-    minHeight: 104,
-    minWidth: 128,
-    padding: 12,
+    minHeight: 160,
+    minWidth: 180,
+    padding: 20,
   },
   cardboardChoiceGlyph: {
     color: '#ffffff',
     fontFamily: 'monospace',
-    fontSize: 19,
+    fontSize: 28,
     fontWeight: '800',
   },
   cardboardChoiceLabel: {
     color: '#ffffff',
-    fontSize: 11,
+    fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -1539,19 +1723,100 @@ const styles = StyleSheet.create({
   },
   cardboardAuthorshipTitle: {
     color: '#d3a861',
-    fontSize: 16,
+    fontSize: 24,
     fontWeight: '800',
   },
   cardboardAuthorshipText: {
     color: '#ffe5ae',
-    fontSize: 15,
-    lineHeight: 23,
+    fontSize: 21,
+    lineHeight: 30,
   },
   cardboardAuthorshipCode: {
     color: '#f4ad48',
     fontFamily: 'monospace',
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  cardboardLedger: { backgroundColor: '#23180d' },
+  cardboardLedgerTitle: {
+    color: '#ffe5ae',
+    fontFamily: 'serif',
+    fontSize: 64,
+    fontWeight: '700',
+    lineHeight: 68,
+  },
+  cardboardLedgerDeclaration: {
+    color: '#ffe5ae',
+    fontFamily: 'serif',
+    fontSize: 38,
+    fontWeight: '700',
+    lineHeight: 46,
+  },
+  cardboardLedgerSection: {
+    backgroundColor: '#2d2013',
+    borderColor: '#685b47',
+    borderRadius: 28,
+    borderWidth: 2,
+    gap: 16,
+    padding: 22,
+  },
+  cardboardLedgerSectionTitle: {
+    color: '#ffe5ae',
+    fontFamily: 'serif',
+    fontSize: 40,
+    fontWeight: '700',
+    lineHeight: 44,
+  },
+  cardboardScaleLevel: {
+    backgroundColor: '#332414',
+    borderColor: '#685b47',
+    borderRadius: 22,
+    borderWidth: 2,
+    gap: 8,
+    padding: 20,
+  },
+  cardboardCurrentScaleLevel: {
+    backgroundColor: '#5b3712',
+    borderColor: '#f4ad48',
+    borderRadius: 22,
+    borderWidth: 3,
+    gap: 8,
+    padding: 20,
+  },
+  cardboardScaleLevelTitle: {
+    color: '#ffe5ae',
+    fontSize: 28,
+    fontWeight: '900',
+  },
+  cardboardScaleLevelDescription: {
+    color: '#ffe5ae',
+    fontSize: 22,
+    lineHeight: 30,
+  },
+  cardboardLedgerEntry: {
+    backgroundColor: '#332414',
+    borderColor: '#685b47',
+    borderRadius: 22,
+    borderWidth: 2,
+    gap: 8,
+    padding: 20,
+  },
+  cardboardLedgerEntryMeta: {
+    color: '#d3a861',
+    fontSize: 16,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  cardboardLedgerEntryTitle: {
+    color: '#ffe5ae',
+    fontFamily: 'serif',
+    fontSize: 30,
+    fontWeight: '700',
+  },
+  cardboardLedgerEntryStatement: {
+    color: '#ffe5ae',
+    fontSize: 21,
+    lineHeight: 30,
   },
   sectionHeader: {
     alignItems: 'center',

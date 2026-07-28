@@ -5,10 +5,12 @@ import {
   type InputMethod,
   type Message,
   type Model,
+  OpenedConversationLedger,
   PressedLowercaseG,
   PressedSpace,
   PressedZeroButton,
   ReleasedZeroButton,
+  ReturnedToRuleZeroPage,
   ReturnedToZeroStart,
   SelectedAccessibilityProfile,
   SelectedIncorrectInputMethod,
@@ -24,11 +26,13 @@ import { createReplayableReactProgramClient } from 'shared-react-bindings-exampl
 /** Host-sendable Cardboard actions. Internal lifecycle ticks remain private. */
 export type CardboardActions = Readonly<{
   completedZeroGame: () => void
+  openedConversationLedger: () => void
   pressedLowercaseG: () => void
   pressedSpace: () => void
   pressedZeroButton: () => void
   releasedZeroButton: () => void
   returnedToZeroStart: () => void
+  returnedToRuleZeroPage: () => void
   selectedAccessibilityProfile: (profile: AccessibilityProfile) => void
   selectedInputMethod: (inputMethod: InputMethod) => void
   skippedZeroStep: () => void
@@ -47,11 +51,13 @@ export const CardboardClient = createReplayableReactProgramClient<
 >({
   createActions: enqueueMessage => ({
     completedZeroGame: () => enqueueMessage(CompletedZeroGame()),
+    openedConversationLedger: () => enqueueMessage(OpenedConversationLedger()),
     pressedLowercaseG: () => enqueueMessage(PressedLowercaseG()),
     pressedSpace: () => enqueueMessage(PressedSpace()),
     pressedZeroButton: () => enqueueMessage(PressedZeroButton()),
     releasedZeroButton: () => enqueueMessage(ReleasedZeroButton()),
     returnedToZeroStart: () => enqueueMessage(ReturnedToZeroStart()),
+    returnedToRuleZeroPage: () => enqueueMessage(ReturnedToRuleZeroPage()),
     selectedAccessibilityProfile: profile =>
       enqueueMessage(SelectedAccessibilityProfile({ profile })),
     selectedInputMethod: inputMethod => {

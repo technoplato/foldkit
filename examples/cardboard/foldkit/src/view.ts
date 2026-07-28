@@ -16,6 +16,9 @@ import {
   accessibleDescription,
   cardboardAuthorship,
   cardboardDesktopCommand,
+  conversationLedger,
+  conversationScale,
+  currentConversationScaleLevel,
   initialAccessibilityProfile,
   inputMethodGlyph,
   inputMethodLabel,
@@ -79,10 +82,125 @@ const keyboardMessage = (
   }
 }
 
+const conversationLedgerView = (): Document => {
+  const h = html<Message>()
+  return {
+    title: 'Project Cardboard | When /0 is four | Foldkit',
+    body: h.main(
+      [h.Class('cardboard-shell profile-AmberPaper')],
+      [
+        h.article(
+          [h.Class('cardboard-stage ledger-page')],
+          [
+            h.header(
+              [h.Class('cardboard-header')],
+              [
+                h.div(
+                  [],
+                  [
+                    h.p([h.Class('eyebrow')], ['Project Cardboard']),
+                    h.h1([], ['When /0 is four']),
+                  ],
+                ),
+                h.code([], ['/0/0']),
+              ],
+            ),
+            h.p(
+              [h.Class('ledger-declaration')],
+              [
+                'Four means Ship. Stop expanding the theory. Publish the smallest verified artifact, record what happened, and continue from evidence.',
+              ],
+            ),
+            h.a([h.Class('ledger-link'), h.Href('/0')], ['Return to /0']),
+            h.section(
+              [
+                h.AriaLabelledBy('conversation-scale'),
+                h.Class('ledger-section'),
+              ],
+              [
+                h.p(
+                  [h.Class('eyebrow')],
+                  [`Current level ${currentConversationScaleLevel.toString()}`],
+                ),
+                h.h2([h.Id('conversation-scale')], ['Conversation scale']),
+                h.ol(
+                  [h.Class('scale-list')],
+                  Array.map(conversationScale, level =>
+                    h.li(
+                      [
+                        h.Key(level.level.toString()),
+                        h.Class(
+                          level.level === currentConversationScaleLevel
+                            ? 'scale-level current-scale-level'
+                            : 'scale-level',
+                        ),
+                      ],
+                      [
+                        h.strong(
+                          [],
+                          [`${level.level.toString()} · ${level.label}`],
+                        ),
+                        h.span([], [level.description]),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            h.section(
+              [h.AriaLabelledBy('decision-log'), h.Class('ledger-section')],
+              [
+                h.p([h.Class('eyebrow')], ['Append only']),
+                h.h2([h.Id('decision-log')], ['Public decision log']),
+                h.ol(
+                  [h.Class('decision-log')],
+                  Array.map(conversationLedger, entry =>
+                    h.li(
+                      [h.Key(entry.sequence.toString())],
+                      [
+                        h.p(
+                          [],
+                          [
+                            `${entry.sequence.toString().padStart(2, '0')} · ${entry.recordedOn}`,
+                          ],
+                        ),
+                        h.h3([], [entry.title]),
+                        h.span([], [entry.statement]),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            h.details(
+              [h.Class('authorship')],
+              [
+                h.summary([], ['Original author and desktop command']),
+                h.p([], [cardboardAuthorship.statement]),
+                h.code([], [cardboardAuthorship.acronym]),
+                h.code(
+                  [],
+                  [`statement sha256:${cardboardAuthorship.statementSha256}`],
+                ),
+                h.p([], ['Play the same Program on your desktop:']),
+                h.code([], [cardboardDesktopCommand]),
+              ],
+            ),
+          ],
+        ),
+      ],
+    ),
+  }
+}
+
 // VIEW
 
 /** Renders the same Cardboard Program with Foldkit HTML. */
 export const view = (model: Model): Document => {
+  if (model.page._tag === 'ConversationLedgerPage') {
+    return conversationLedgerView()
+  }
+
   const h = html<Message>()
   const presentation = presentationForModel(model)
   const isConfigurationVisible = model.zero._tag === 'ConfiguringAtZero'
@@ -158,6 +276,10 @@ export const view = (model: Model): Document => {
                 h.Id('cardboard-readout'),
               ],
               [accessibleDescription(model)],
+            ),
+            h.a(
+              [h.Class('ledger-link'), h.Href('/0/0')],
+              ['Open /0/0 decision log'],
             ),
             ...(isConfigurationVisible
               ? [
