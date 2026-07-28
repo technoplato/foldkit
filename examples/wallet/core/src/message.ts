@@ -23,6 +23,22 @@ import {
   WalletProfile,
 } from './walletProfile.js'
 
+/** The host requested another secure-storage restoration attempt. */
+export const RequestedWalletProfilesReload = S.TaggedStruct(
+  'RequestedWalletProfilesReload',
+  {},
+)
+/** The Wallet vault restored every persisted public profile. */
+export const SucceededLoadWalletProfiles = S.TaggedStruct(
+  'SucceededLoadWalletProfiles',
+  { wallets: S.Array(WalletProfile) },
+)
+/** The Wallet vault could not restore persisted profiles. */
+export const FailedLoadWalletProfiles = S.TaggedStruct(
+  'FailedLoadWalletProfiles',
+  { code: S.Literals(['Unavailable', 'InvalidKeyMaterial']) },
+)
+
 /** The host selected one global non-production network mode. */
 export const SelectedWalletNetworkMode = S.TaggedStruct(
   'SelectedWalletNetworkMode',
@@ -186,6 +202,9 @@ export const ResumedTransactionObservation = S.TaggedStruct(
 
 /** Every fact accepted or produced by the Wallet Program. */
 export const Message = S.Union([
+  RequestedWalletProfilesReload,
+  SucceededLoadWalletProfiles,
+  FailedLoadWalletProfiles,
   SelectedWalletNetworkMode,
   SelectedSendNetwork,
   RequestedWalletCreation,

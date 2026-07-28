@@ -10,8 +10,9 @@ export class WalletVaultError extends Data.TaggedError('WalletVaultError')<{
   readonly code: 'Unavailable' | 'InvalidKeyMaterial'
 }> {}
 
-/** Account-creation capabilities implemented by one injected custody Layer. */
+/** Custody and profile-restoration capabilities implemented by one injected Layer. */
 export type WalletVaultService = Readonly<{
+  loadWallets: Effect.Effect<ReadonlyArray<WalletProfile>, WalletVaultError>
   createWallet: (
     request: WalletCreationRequest,
   ) => Effect.Effect<WalletProfile, WalletVaultError>

@@ -9,6 +9,7 @@ import {
   RequestedSignedTransactionSubmission,
   RequestedTransferPreview,
   RequestedWalletCreation,
+  RequestedWalletProfilesReload,
   RequestedWalletRefresh,
   SelectedSendNetwork,
   SelectedWalletNetworkMode,
@@ -37,6 +38,8 @@ import {
   primaryWalletNetwork,
   shortenedAddress,
   transferRecipientInput,
+  walletDataSourceDetail,
+  walletDataSourceLabel,
 } from 'wallet-core-example'
 
 const maybePreviewForTransaction = (
@@ -200,7 +203,10 @@ const walletHome = (model: Model): Html => {
   const creationButtonAttributes = [
     h.Type('button'),
     h.Class('cardboard-button primary'),
-    h.Disabled(model.walletCreation._tag === 'CreatingWallet'),
+    h.Disabled(
+      model.walletProfileLoading._tag !== 'LoadedWalletProfiles' ||
+        model.walletCreation._tag === 'CreatingWallet',
+    ),
     h.OnClick(RequestedWalletCreation.make({})),
   ]
   const creationFailure =
@@ -214,26 +220,61 @@ const walletHome = (model: Model): Html => {
           ),
         ]
       : []
-  const profiles = Array.match(model.wallets, {
-    onEmpty: () =>
-      h.div(
+  const profiles = (() => {
+    if (model.walletProfileLoading._tag === 'LoadingWalletProfiles') {
+      return h.div(
         [h.Class('wallet-home-empty')],
         [
-          h.strong([], ['No wallets yet.']),
+          h.strong([], ['Restoring secure wallets…']),
+          h.p([], ['Loading locally protected custody and public addresses.']),
+        ],
+      )
+    } else if (
+      model.walletProfileLoading._tag === 'FailedWalletProfileLoading'
+    ) {
+      return h.div(
+        [h.Class('wallet-home-empty'), h.Role('alert')],
+        [
+          h.strong([], ['Secure wallet storage is unavailable.']),
           h.p(
             [],
             [
-              'Create one wallet with Bitcoin, Ethereum, Solana, and Sui accounts.',
+              `No stored key material was loaded (${model.walletProfileLoading.code}).`,
             ],
           ),
+          h.button(
+            [
+              h.Type('button'),
+              h.Class('cardboard-button'),
+              h.OnClick(RequestedWalletProfilesReload.make({})),
+            ],
+            ['Retry secure storage'],
+          ),
         ],
-      ),
-    onNonEmpty: wallets =>
-      h.div(
-        [h.Class('wallet-profile-list')],
-        Array.map(wallets, wallet => walletProfileCard(model, wallet)),
-      ),
-  })
+      )
+    } else {
+      return Array.match(model.wallets, {
+        onEmpty: () =>
+          h.div(
+            [h.Class('wallet-home-empty')],
+            [
+              h.strong([], ['No wallets yet.']),
+              h.p(
+                [],
+                [
+                  'Create one wallet with Bitcoin, Ethereum, Solana, and Sui accounts.',
+                ],
+              ),
+            ],
+          ),
+        onNonEmpty: wallets =>
+          h.div(
+            [h.Class('wallet-profile-list')],
+            Array.map(wallets, wallet => walletProfileCard(model, wallet)),
+          ),
+      })
+    }
+  })()
   return h.section(
     [h.Class('wallet-home cardboard-panel')],
     [
@@ -243,7 +284,7 @@ const walletHome = (model: Model): Html => {
           h.div(
             [],
             [
-              h.p([h.Class('cardboard-eyebrow')], ['Session-only custody']),
+              h.p([h.Class('cardboard-eyebrow')], ['Secure local custody']),
               h.h2([], ['Your wallets']),
             ],
           ),
@@ -290,7 +331,10 @@ const walletHero = (model: Model): Html => {
     onSome: balance => assetAmountLabelForModel(model, balance.amount),
   })
   const accountLabel = Option.match(maybeAccount, {
-    onNone: () => 'Sepolia test wallet',
+    onNone: () =>
+      model.portfolio._tag === 'LoadingPortfolio'
+        ? 'Loading adapter account…'
+        : 'No adapter account available',
     onSome: account => {
       const networkName = Option.match(primaryWalletNetwork(model), {
         onNone: () => account.networkId,
@@ -299,6 +343,14 @@ const walletHero = (model: Model): Html => {
       return `${networkName} · ${shortenedAddress(account.address)}`
     },
   })
+  const dataSourceLabel =
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? walletDataSourceLabel(model.portfolio.snapshot.dataSource)
+      : 'Loading data source'
+  const dataSourceDetail =
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? walletDataSourceDetail(model.portfolio.snapshot.dataSource)
+      : 'Waiting for the selected portfolio adapter.'
   return h.header(
     [h.Class('wallet-hero cardboard-panel')],
     [
@@ -308,8 +360,8 @@ const walletHero = (model: Model): Html => {
           h.div(
             [],
             [
-              h.p([h.Class('cardboard-eyebrow')], ['Test money']),
-              h.h1([h.Class('cardboard-embossed')], ['Wallet']),
+              h.p([h.Class('cardboard-eyebrow')], [dataSourceLabel]),
+              h.h1([h.Class('cardboard-embossed')], ['Portfolio']),
             ],
           ),
           h.button(
@@ -341,6 +393,7 @@ const walletHero = (model: Model): Html => {
           ),
         ],
       ),
+      h.p([h.Class('wallet-data-source-detail')], [dataSourceDetail]),
     ],
   )
 }

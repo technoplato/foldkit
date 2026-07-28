@@ -1,4 +1,4 @@
-import { Array, Option } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 
 import {
   type ClipboardCopyRequest,
@@ -17,7 +17,34 @@ import type {
   Model,
   ReceivingInstruction,
   WalletAccount,
+  WalletDataSource,
 } from './model.js'
+
+/** Labels the single source behind every account and amount on the screen. */
+export const walletDataSourceLabel = (dataSource: WalletDataSource): string =>
+  M.value(dataSource).pipe(
+    M.withReturnType<string>(),
+    M.when('Fixture', () => 'Fixture data'),
+    M.when('Testnet', () => 'Live testnet data'),
+    M.exhaustive,
+  )
+
+/** Explains whether the current portfolio came from fixtures or real networks. */
+export const walletDataSourceDetail = (dataSource: WalletDataSource): string =>
+  M.value(dataSource).pipe(
+    M.withReturnType<string>(),
+    M.when(
+      'Fixture',
+      () =>
+        'Deterministic local values. No network was contacted. Created local wallets remain separate from this fixture portfolio.',
+    ),
+    M.when(
+      'Testnet',
+      () =>
+        'Balances and activity loaded from configured public test networks. Created local wallets remain separate until their account adapters are connected.',
+    ),
+    M.exhaustive,
+  )
 
 /** Formats exact atomic units as a human-readable normalized asset amount. */
 export const assetAmountLabel = (

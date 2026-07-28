@@ -1,5 +1,4 @@
 import { Array, Match as M, Option } from 'effect'
-import * as Crypto from 'expo-crypto'
 import {
   Linking,
   Pressable,
@@ -36,8 +35,9 @@ import {
   primaryWalletNetwork,
   shortenedAddress,
   transferRecipientInput,
+  walletDataSourceDetail,
+  walletDataSourceLabel,
 } from 'wallet-core-example'
-import { makeLocalWalletVault } from 'wallet-local-vault-example'
 import {
   type WalletInitialRoute,
   makeWalletReactClient,
@@ -46,10 +46,7 @@ import { makeSimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import { ReplayControls } from '../replayControls'
 import { ExpoWalletClipboard } from './walletClipboard'
-
-const ExpoWalletVault = makeLocalWalletVault(byteCount =>
-  Crypto.getRandomBytes(byteCount),
-)
+import { ExpoWalletVault } from './walletVault'
 
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
   makeWalletReactClient(
@@ -272,15 +269,71 @@ const WalletProfileCard = ({
 
 const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
+  const profiles = (() => {
+    if (model.walletProfileLoading._tag === 'LoadingWalletProfiles') {
+      return (
+        <View style={styles.walletEmpty}>
+          <Text style={styles.chainName}>Restoring secure wallets…</Text>
+          <Text style={styles.mutedText}>
+            Loading locally protected custody and public addresses.
+          </Text>
+        </View>
+      )
+    } else if (
+      model.walletProfileLoading._tag === 'FailedWalletProfileLoading'
+    ) {
+      return (
+        <View accessibilityRole="alert" style={styles.walletEmpty}>
+          <Text style={styles.chainName}>
+            Secure wallet storage is unavailable.
+          </Text>
+          <Text style={styles.mutedText}>
+            No stored key material was loaded ({model.walletProfileLoading.code}
+            ).
+          </Text>
+          <WalletActionButton
+            label="Retry secure storage"
+            onPress={actions.requestedWalletProfilesReload}
+          />
+        </View>
+      )
+    } else {
+      return Array.match(model.wallets, {
+        onEmpty: () => (
+          <View style={styles.walletEmpty}>
+            <Text style={styles.chainName}>No wallets yet.</Text>
+            <Text style={styles.mutedText}>
+              Create one wallet with Bitcoin, Ethereum, Solana, and Sui
+              accounts.
+            </Text>
+          </View>
+        ),
+        onNonEmpty: wallets => (
+          <View style={styles.walletProfileList}>
+            {Array.map(wallets, wallet => (
+              <WalletProfileCard
+                key={wallet.walletId}
+                model={model}
+                wallet={wallet}
+              />
+            ))}
+          </View>
+        ),
+      })
+    }
+  })()
   return (
     <View style={styles.card}>
       <View style={styles.headingRow}>
         <View>
-          <Text style={styles.eyebrow}>Session-only custody</Text>
+          <Text style={styles.eyebrow}>Secure local custody</Text>
           <Text style={styles.sectionTitle}>Your wallets</Text>
         </View>
         <WalletActionButton
-          isDisabled={model.walletCreation._tag === 'CreatingWallet'}
+          isDisabled={
+            model.walletProfileLoading._tag !== 'LoadedWalletProfiles' ||
+            model.walletCreation._tag === 'CreatingWallet'
+          }
           isPrimary
           label={walletCreationLabel(model.walletCreation)}
           onPress={actions.requestedWalletCreation}
@@ -304,28 +357,7 @@ const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
           entered the Model or replay journal.
         </Text>
       ) : null}
-      {Array.match(model.wallets, {
-        onEmpty: () => (
-          <View style={styles.walletEmpty}>
-            <Text style={styles.chainName}>No wallets yet.</Text>
-            <Text style={styles.mutedText}>
-              Create one wallet with Bitcoin, Ethereum, Solana, and Sui
-              accounts.
-            </Text>
-          </View>
-        ),
-        onNonEmpty: wallets => (
-          <View style={styles.walletProfileList}>
-            {Array.map(wallets, wallet => (
-              <WalletProfileCard
-                key={wallet.walletId}
-                model={model}
-                wallet={wallet}
-              />
-            ))}
-          </View>
-        ),
-      })}
+      {profiles}
     </View>
   )
 }
@@ -340,7 +372,10 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
     onSome: balance => assetAmountLabelForModel(model, balance.amount),
   })
   const accountLabel = Option.match(maybeAccount, {
-    onNone: () => 'Sepolia test wallet',
+    onNone: () =>
+      model.portfolio._tag === 'LoadingPortfolio'
+        ? 'Loading adapter account…'
+        : 'No adapter account available',
     onSome: account => {
       const networkName = Option.match(primaryWalletNetwork(model), {
         onNone: () => account.networkId,
@@ -349,12 +384,20 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
       return `${networkName} · ${shortenedAddress(account.address)}`
     },
   })
+  const dataSourceLabel =
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? walletDataSourceLabel(model.portfolio.snapshot.dataSource)
+      : 'Loading data source'
+  const dataSourceDetail =
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? walletDataSourceDetail(model.portfolio.snapshot.dataSource)
+      : 'Waiting for the selected portfolio adapter.'
   return (
     <View style={[styles.card, styles.hero]}>
       <View style={styles.headingRow}>
         <View>
-          <Text style={styles.eyebrow}>Test money</Text>
-          <Text style={styles.title}>Wallet</Text>
+          <Text style={styles.eyebrow}>{dataSourceLabel}</Text>
+          <Text style={styles.title}>Portfolio</Text>
         </View>
         <WalletActionButton
           label="Refresh"
@@ -377,6 +420,7 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
           ) : null}
         </View>
       </View>
+      <Text style={styles.mutedText}>{dataSourceDetail}</Text>
     </View>
   )
 }

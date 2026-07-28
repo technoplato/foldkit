@@ -20,6 +20,7 @@ import {
   FailedCreateWallet,
   FailedLoadTransactionHistory,
   FailedLoadWallet,
+  FailedLoadWalletProfiles,
   FailedPreviewTransaction,
   FailedSignChallenge,
   FailedSubmitSignedTransaction,
@@ -29,6 +30,7 @@ import {
   SucceededCreateWallet,
   SucceededLoadTransactionHistory,
   SucceededLoadWallet,
+  SucceededLoadWalletProfiles,
   SucceededPreviewTransaction,
   SucceededSignChallenge,
   SucceededSubmitSignedTransaction,
@@ -102,6 +104,9 @@ import {
 import {
   CreatingWallet,
   FailedWalletCreation,
+  FailedWalletProfileLoading,
+  LoadedWalletProfiles,
+  LoadingWalletProfiles,
   ReadyToCreateWallet,
   WalletCreationRequest,
   nextWalletCreationRequest,
@@ -183,6 +188,21 @@ export const CreateWallet = Command.define(
     Effect.map(wallet => SucceededCreateWallet.make({ request, wallet })),
     Effect.catch(error =>
       Effect.succeed(FailedCreateWallet.make({ request, code: error.code })),
+    ),
+  ),
+)
+
+/** Restores public Wallet profiles whose custody remains in secure storage. */
+export const LoadWalletProfiles = Command.define(
+  'LoadWalletProfiles',
+  SucceededLoadWalletProfiles,
+  FailedLoadWalletProfiles,
+)(
+  WalletVault.pipe(
+    Effect.flatMap(vault => vault.loadWallets),
+    Effect.map(wallets => SucceededLoadWalletProfiles.make({ wallets })),
+    Effect.catch(error =>
+      Effect.succeed(FailedLoadWalletProfiles.make({ code: error.code })),
     ),
   ),
 )
@@ -396,6 +416,13 @@ const walletCreationCommandsForRestore = (
   }
 }
 
+const walletProfileCommandsForRestore = (
+  model: Model,
+): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
+  model.walletProfileLoading._tag === 'LoadingWalletProfiles'
+    ? [LoadWalletProfiles()]
+    : []
+
 const signatureCommandsForRestore = (
   model: Model,
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
@@ -425,6 +452,7 @@ const modelForClipboardRestore = (model: Model): Model =>
 export const restore = (model: Model): UpdateReturn => [
   modelForClipboardRestore(model),
   [
+    ...walletProfileCommandsForRestore(model),
     ...walletCreationCommandsForRestore(model),
     ...portfolioCommandsForRestore(model),
     ...transactionCommandsForRestore(model),
@@ -586,6 +614,38 @@ export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
+      RequestedWalletProfilesReload: () => [
+        {
+          ...model,
+          walletProfileLoading: LoadingWalletProfiles.make({}),
+        },
+        [LoadWalletProfiles()],
+      ],
+      SucceededLoadWalletProfiles: ({ wallets }) => {
+        if (model.walletProfileLoading._tag !== 'LoadingWalletProfiles') {
+          return [model, []]
+        }
+        return [
+          {
+            ...model,
+            wallets,
+            walletProfileLoading: LoadedWalletProfiles.make({}),
+          },
+          [],
+        ]
+      },
+      FailedLoadWalletProfiles: ({ code }) => {
+        if (model.walletProfileLoading._tag !== 'LoadingWalletProfiles') {
+          return [model, []]
+        }
+        return [
+          {
+            ...model,
+            walletProfileLoading: FailedWalletProfileLoading.make({ code }),
+          },
+          [],
+        ]
+      },
       SelectedWalletNetworkMode: ({ networkMode }) => {
         const maybeSendNetworkSelection =
           model.portfolio._tag === 'LoadedPortfolio'
@@ -631,7 +691,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       RequestedWalletCreation: () => {
-        if (model.walletCreation._tag === 'CreatingWallet') {
+        if (
+          model.walletProfileLoading._tag !== 'LoadedWalletProfiles' ||
+          model.walletCreation._tag === 'CreatingWallet'
+        ) {
           return [model, []]
         }
         const request = nextWalletCreationRequest(model.wallets)

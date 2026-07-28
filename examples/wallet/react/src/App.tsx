@@ -26,20 +26,24 @@ import {
   primaryWalletNetwork,
   shortenedAddress,
   transferRecipientInput,
+  walletDataSourceDetail,
+  walletDataSourceLabel,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
   initialWalletRoute,
   makeWalletReactClient,
 } from 'wallet-react-bindings-example'
-import { makeSimulatedWalletResources } from 'wallet-simulated-client-example'
-import { WalletWebClipboard } from 'wallet-web-client-example'
+import {
+  makeWebWalletResources,
+  walletDataSourceFromEnvironment,
+} from 'wallet-web-client-example'
 
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
   makeWalletReactClient(
-    makeSimulatedWalletResources({
-      walletClipboard: WalletWebClipboard,
-    }),
+    makeWebWalletResources(
+      walletDataSourceFromEnvironment(import.meta.env.VITE_WALLET_DATA_SOURCE),
+    ),
   )
 
 const maybePreviewForTransaction = (
@@ -179,16 +183,71 @@ const WalletProfileCard = ({
 
 const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
+  const profiles = (() => {
+    if (model.walletProfileLoading._tag === 'LoadingWalletProfiles') {
+      return (
+        <div className="wallet-home-empty">
+          <strong>Restoring secure wallets…</strong>
+          <p>Loading locally protected custody and public addresses.</p>
+        </div>
+      )
+    } else if (
+      model.walletProfileLoading._tag === 'FailedWalletProfileLoading'
+    ) {
+      return (
+        <div className="wallet-home-empty" role="alert">
+          <strong>Secure wallet storage is unavailable.</strong>
+          <p>
+            No stored key material was loaded ({model.walletProfileLoading.code}
+            ).
+          </p>
+          <button
+            className="cardboard-button"
+            onClick={actions.requestedWalletProfilesReload}
+            type="button"
+          >
+            Retry secure storage
+          </button>
+        </div>
+      )
+    } else {
+      return Array.match(model.wallets, {
+        onEmpty: () => (
+          <div className="wallet-home-empty">
+            <strong>No wallets yet.</strong>
+            <p>
+              Create one wallet with Bitcoin, Ethereum, Solana, and Sui
+              accounts.
+            </p>
+          </div>
+        ),
+        onNonEmpty: wallets => (
+          <div className="wallet-profile-list">
+            {Array.map(wallets, wallet => (
+              <WalletProfileCard
+                key={wallet.walletId}
+                model={model}
+                wallet={wallet}
+              />
+            ))}
+          </div>
+        ),
+      })
+    }
+  })()
   return (
     <section className="wallet-home cardboard-panel">
       <div className="wallet-heading-row">
         <div>
-          <p className="cardboard-eyebrow">Session-only custody</p>
+          <p className="cardboard-eyebrow">Secure local custody</p>
           <h2>Your wallets</h2>
         </div>
         <button
           className="cardboard-button primary"
-          disabled={model.walletCreation._tag === 'CreatingWallet'}
+          disabled={
+            model.walletProfileLoading._tag !== 'LoadedWalletProfiles' ||
+            model.walletCreation._tag === 'CreatingWallet'
+          }
           onClick={actions.requestedWalletCreation}
           type="button"
         >
@@ -211,28 +270,7 @@ const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
           entered the Model or replay journal.
         </p>
       ) : null}
-      {Array.match(model.wallets, {
-        onEmpty: () => (
-          <div className="wallet-home-empty">
-            <strong>No wallets yet.</strong>
-            <p>
-              Create one wallet with Bitcoin, Ethereum, Solana, and Sui
-              accounts.
-            </p>
-          </div>
-        ),
-        onNonEmpty: wallets => (
-          <div className="wallet-profile-list">
-            {Array.map(wallets, wallet => (
-              <WalletProfileCard
-                key={wallet.walletId}
-                model={model}
-                wallet={wallet}
-              />
-            ))}
-          </div>
-        ),
-      })}
+      {profiles}
     </section>
   )
 }
@@ -247,7 +285,10 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
     onSome: balance => assetAmountLabelForModel(model, balance.amount),
   })
   const accountLabel = Option.match(maybeAccount, {
-    onNone: () => 'Sepolia test wallet',
+    onNone: () =>
+      model.portfolio._tag === 'LoadingPortfolio'
+        ? 'Loading adapter account…'
+        : 'No adapter account available',
     onSome: account => {
       const networkName = Option.match(primaryWalletNetwork(model), {
         onNone: () => account.networkId,
@@ -256,13 +297,21 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
       return `${networkName} · ${shortenedAddress(account.address)}`
     },
   })
+  const dataSourceLabel =
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? walletDataSourceLabel(model.portfolio.snapshot.dataSource)
+      : 'Loading data source'
+  const dataSourceDetail =
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? walletDataSourceDetail(model.portfolio.snapshot.dataSource)
+      : 'Waiting for the selected portfolio adapter.'
 
   return (
     <header className="wallet-hero cardboard-panel">
       <div className="wallet-heading-row">
         <div>
-          <p className="cardboard-eyebrow">Test money</p>
-          <h1 className="cardboard-embossed">Wallet</h1>
+          <p className="cardboard-eyebrow">{dataSourceLabel}</p>
+          <h1 className="cardboard-embossed">Portfolio</h1>
         </div>
         <button
           className="cardboard-button"
@@ -286,6 +335,7 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
           ) : null}
         </div>
       </div>
+      <p className="wallet-data-source-detail">{dataSourceDetail}</p>
     </header>
   )
 }

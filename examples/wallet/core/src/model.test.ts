@@ -55,6 +55,7 @@ const amount = AssetAmount.make({
   observedAt: 1,
 })
 const portfolio = PortfolioSnapshot.make({
+  dataSource: 'Fixture',
   chains: [chain],
   networks: [network],
   assets: [asset],

@@ -132,6 +132,7 @@ const makeWalletNetworkServices = Effect.gen(function* () {
     ).pipe(
       Effect.map(portfolios =>
         PortfolioSnapshot.make({
+          dataSource: 'Testnet',
           chains: Array_.map(portfolios, portfolio => portfolio.chain),
           networks: Array_.map(portfolios, portfolio => portfolio.network),
           assets: Array_.flatMap(portfolios, portfolio => portfolio.assets),

@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 import {
   Model,
   SucceededLoadWallet,
+  SucceededLoadWalletProfiles,
   WalletProgram,
   initialModel,
   update,
@@ -13,8 +14,12 @@ import { walletFoldkitProgram } from './application.js'
 import { view } from './view.js'
 
 const loadedModel = (): Model => {
-  const [model] = update(
+  const [walletModel] = update(
     initialModel,
+    SucceededLoadWalletProfiles.make({ wallets: [] }),
+  )
+  const [model] = update(
+    walletModel,
     SucceededLoadWallet.make({ portfolio: simulatedPortfolio }),
   )
   return Model.make({
@@ -36,6 +41,12 @@ describe('Wallet Foldkit client', () => {
       { update, view },
       Scene.with(loadedModel()),
       Scene.expect(Scene.text('Available balance')).toExist(),
+      Scene.expect(Scene.text('Fixture data')).toExist(),
+      Scene.expect(
+        Scene.text(
+          'Deterministic local values. No network was contacted. Created local wallets remain separate from this fixture portfolio.',
+        ),
+      ).toExist(),
       Scene.expect(Scene.text('Your wallets')).toExist(),
       Scene.expect(Scene.text('No wallets yet.')).toExist(),
       Scene.expect(

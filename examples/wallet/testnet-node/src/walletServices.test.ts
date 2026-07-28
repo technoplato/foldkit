@@ -206,6 +206,7 @@ describe('normalized Wallet service composition', () => {
       ),
     )
 
+    expect(portfolio.dataSource).toBe('Testnet')
     expect(portfolio.chains).toHaveLength(2)
     expect(portfolio.networks).toHaveLength(2)
     expect(portfolio.assets).toHaveLength(2)
