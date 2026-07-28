@@ -8,5 +8,8 @@ import { foldkitAliases } from '../../vite.aliases'
 export default defineConfig({
   plugins: [foldkit({ devToolsMcpPort: 9996 })],
   resolve: { alias: foldkitAliases(path.resolve(__dirname, '..')) },
-  server: { fs: { allow: ['../../../'] } },
+  server: {
+    allowedHosts: ['cardboard-foldkit.knophy.com'],
+    fs: { allow: ['../../../'] },
+  },
 })

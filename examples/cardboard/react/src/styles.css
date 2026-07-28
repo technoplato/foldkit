@@ -236,6 +236,29 @@ input {
 .replay input {
   accent-color: var(--accent);
 }
+.authorship {
+  padding: 12px 0;
+  border-block: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.authorship summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 750;
+}
+.authorship p {
+  max-width: 68ch;
+}
+.authorship code {
+  display: block;
+  max-width: 100%;
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 13px;
+}
 footer {
   color: var(--muted);
   font-size: 13px;

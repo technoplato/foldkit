@@ -2,6 +2,8 @@ import {
   type AccessibilityProfile,
   accessibilityProfileLabel,
   accessibleDescription,
+  cardboardAuthorship,
+  cardboardDesktopCommand,
   initialAccessibilityProfile,
   inputMethodGlyph,
   inputMethodLabel,
@@ -211,6 +213,16 @@ const CardboardScreen = () => {
             {replay.frame} / {replay.finalFrame}
           </span>
         </section>
+
+        <details className="authorship">
+          <summary>Original author and desktop command</summary>
+          <p>{cardboardAuthorship.statement}</p>
+          <code>{cardboardAuthorship.acronym}</code>
+          <code>acronym sha256:{cardboardAuthorship.acronymSha256}</code>
+          <code>statement sha256:{cardboardAuthorship.statementSha256}</code>
+          <p>Play the same Program on your desktop:</p>
+          <code>{cardboardDesktopCommand}</code>
+        </details>
 
         <footer>
           Hold the control, press Space three times, use h/l, gg, G, or

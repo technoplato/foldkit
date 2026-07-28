@@ -87,6 +87,15 @@ special mode attached to one screen.
 15. **Play remains voluntary.** A riddle may invite exploration, but it never
     hides a consequential permission, charge, or data grant. Skipping remains
     explicit, available, and represented in the replayable Model.
+16. **An autograph is not a blank check.** Automatic signing is allowed only
+    through an explicit client policy scoped by Program, Message Schema,
+    recipient, amount, total budget, expiry, and revocation. A signed Message
+    proves its bytes and signer. It does not authorize a relay to take unrelated
+    funds.
+17. **Continuity is volunteered.** Reinstallation continuity uses an explicit
+    client-held recovery key or transferable receipt. Cardboard does not hide
+    device fingerprints in timing, network location, Morse code, or another
+    covert channel.
 
 ## Bill of Rights
 
@@ -218,6 +227,31 @@ business rules.
 Interactive clients use the runtime's non-blocking `send` operation so a press
 can remain active while further input arrives. One-shot clients use `run` when
 they must wait for a finite causal Command chain before printing or exiting.
+
+## Portable interaction boundary
+
+A generated presentation receives one immutable, Schema-validated `params`
+value. It does not receive domain functions. Its elements declare compact event
+symbols and Schema payloads. A client adapter interprets those declarations,
+creates stable native callbacks, and sends the corresponding domain Messages
+into the Program.
+
+Semantic time belongs to the Program runtime through Commands, Subscriptions,
+and injected clocks. React and React Native contain no application timers.
+Their native renderers may interpolate paint and animation frames from pure
+parameters. When an animation completion affects behavior, the adapter reports
+that completed fact as a Message.
+
+Voice recognition is another input adapter. A recognized phrase maps to the
+same event symbol and domain Message as a button, keyboard command, terminal
+command, agent request, or another input medium. Input provenance may be kept in
+runtime diagnostics when useful, but it does not create a second business
+event.
+
+Four-to-six-character uppercase symbols remain a proposed human notation, not
+the global identity by themselves. A global event address must also identify
+the Program archetype, Program version, Message Schema, and canonical payload.
+The exact grammar remains open until round-trip and collision tests prove it.
 
 ## Accessibility configuration
 
