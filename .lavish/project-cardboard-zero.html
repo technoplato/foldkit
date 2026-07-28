@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project Cardboard | Rule Zero</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+        --paper: #c6944f;
+        --paper-light: #e1bc78;
+        --ink: #24150c;
+        --mustard: #d49b19;
+        --green: #164c34;
+        --orange: #b84c1b;
+        --black: #030302;
+      }
+
+      * {
+        box-sizing: border-box;
+        min-width: 0;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        overflow-x: hidden;
+        background: var(--black);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .stage {
+        position: relative;
+        min-height: 100svh;
+        overflow: hidden;
+        isolation: isolate;
+        background:
+          radial-gradient(circle at 25% 15%, #f0cf8d 0 8%, transparent 36%),
+          repeating-linear-gradient(
+            3deg,
+            rgba(49, 27, 10, 0.08) 0 1px,
+            transparent 1px 6px
+          ),
+          var(--paper);
+      }
+
+      .stage[data-profile='quiet'] {
+        --paper: #17110d;
+        --paper-light: #2b2118;
+        --ink: #e4bd6a;
+        --green: #efc14d;
+      }
+
+      .stage[data-profile='negative'] {
+        --paper: #a80f23;
+        --paper-light: #d62c18;
+        --ink: #ffd078;
+        --green: #ffe0a3;
+      }
+
+      .stage[data-profile='contrast'] {
+        --paper: #fff4ca;
+        --paper-light: #ffffff;
+        --ink: #000000;
+        --green: #003c29;
+      }
+
+      .paper {
+        min-height: 100svh;
+        padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem
+          max(2rem, env(safe-area-inset-bottom));
+        color: var(--ink);
+        opacity: 0;
+        transform: scale(0.98);
+        visibility: hidden;
+        transition:
+          opacity 500ms ease,
+          transform 500ms ease;
+      }
+
+      .stage[data-state='opened'] .paper {
+        opacity: 1;
+        transform: none;
+        visibility: visible;
+      }
+
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        color: var(--green);
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .route {
+        padding: 0.4rem 0.7rem;
+        border: 2px solid currentColor;
+        border-radius: 999px;
+        font-family: ui-monospace, monospace;
+      }
+
+      h1 {
+        max-width: 12ch;
+        margin: 12svh 0 0.5rem;
+        font-size: clamp(3.5rem, 17vw, 7.5rem);
+        line-height: 0.85;
+        letter-spacing: -0.07em;
+      }
+
+      .lede {
+        max-width: 31rem;
+        margin: 1.5rem 0 2.5rem;
+        font-size: clamp(1.15rem, 4.5vw, 1.55rem);
+        line-height: 1.35;
+        font-weight: 650;
+      }
+
+      .profiles {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem;
+        max-width: 40rem;
+      }
+
+      .profile {
+        min-height: 7rem;
+        border: 3px solid var(--ink);
+        border-radius: 1.2rem;
+        padding: 1rem;
+        text-align: left;
+        font-weight: 850;
+        box-shadow: 0 6px 0 rgba(36, 21, 12, 0.3);
+      }
+
+      .profile:active,
+      .profile[aria-pressed='true'] {
+        transform: translateY(5px);
+        box-shadow: 0 1px 0 rgba(36, 21, 12, 0.3);
+      }
+
+      .profile[data-profile='amber'] {
+        background: #d8a858;
+        color: #24150c;
+      }
+
+      .profile[data-profile='quiet'] {
+        background: #18120e;
+        color: #d8a858;
+      }
+
+      .profile[data-profile='negative'] {
+        background: #8f1321;
+        color: #ffbd54;
+      }
+
+      .profile[data-profile='contrast'] {
+        background: #fff4ca;
+        color: #000;
+      }
+
+      .feedback-form {
+        max-width: 40rem;
+        margin-top: 2rem;
+        padding-top: 1.2rem;
+        border-top: 2px solid rgba(36, 21, 12, 0.35);
+      }
+
+      .feedback-form button {
+        width: 100%;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.9rem 1rem;
+        background: var(--green);
+        color: #fff2cd;
+        font-weight: 850;
+      }
+
+      .curtain {
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 50% 47%, #090806, #020201 42%), var(--black);
+        transition:
+          transform 800ms cubic-bezier(0.65, 0, 0.35, 1),
+          opacity 500ms ease;
+      }
+
+      .stage[data-state='opening'] .curtain,
+      .stage[data-state='opened'] .curtain {
+        transform: translateY(115%) rotate(2deg);
+        opacity: 0.6;
+      }
+
+      .stage[data-state='opened'] .curtain {
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .zero-button {
+        width: min(62vw, 20rem);
+        aspect-ratio: 1;
+        border: 1px solid #11100d;
+        border-radius: 1.75rem;
+        background:
+          linear-gradient(140deg, rgba(255, 255, 255, 0.018), transparent 45%),
+          #030302;
+        color: transparent;
+        box-shadow:
+          0 2.2rem 3.8rem rgba(0, 0, 0, 0.9),
+          inset 0 1px 0 rgba(255, 255, 255, 0.035),
+          0 0 0 1px #050504;
+        transform: translateY(var(--depth, 0px));
+        transition:
+          transform 80ms linear,
+          box-shadow 120ms ease,
+          outline-color 120ms ease;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      .zero-button:focus-visible {
+        outline: 4px solid #d49b19;
+        outline-offset: 8px;
+      }
+
+      .zero-button[data-pressed='true'] {
+        box-shadow:
+          0 0.6rem 1rem rgba(0, 0, 0, 0.95),
+          inset 0 0.5rem 1.2rem rgba(0, 0, 0, 0.95),
+          0 0 0 1px #15130e;
+      }
+
+      .zero-label {
+        position: absolute;
+        top: max(1.2rem, env(safe-area-inset-top));
+        left: 50%;
+        transform: translateX(-50%);
+        color: #5e501e;
+        font-family: ui-monospace, monospace;
+        font-size: 0.9rem;
+        letter-spacing: 0.12em;
+      }
+
+      .readout {
+        position: absolute;
+        z-index: 20;
+        right: 1rem;
+        bottom: max(1rem, env(safe-area-inset-bottom));
+        left: 1rem;
+        max-width: 38rem;
+        margin: auto;
+        border: 1px solid #3b3119;
+        border-radius: 1rem;
+        padding: 0.85rem 1rem;
+        background: rgba(7, 6, 4, 0.88);
+        color: #e2b74d;
+        font-family: ui-monospace, monospace;
+        font-size: 0.95rem;
+        line-height: 1.35;
+        text-align: center;
+        opacity: 0.15;
+        transition: opacity 160ms ease;
+        pointer-events: none;
+      }
+
+      .readout[data-active='true'] {
+        opacity: 1;
+      }
+
+      .screen-reader-only {
+        position: absolute;
+        top: 0;
+        left: 0;
+        max-width: 100%;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 1ms !important;
+          animation-duration: 1ms !important;
+        }
+      }
+
+      @media (min-width: 700px) {
+        .paper {
+          padding-right: 8vw;
+          padding-left: 8vw;
+        }
+
+        .profiles {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage" id="stage" data-state="waiting" data-profile="amber">
+      <section class="paper" aria-labelledby="cardboard-title">
+        <div class="eyebrow">
+          <span>Project Cardboard</span>
+          <span class="route">/0</span>
+        </div>
+        <h1 id="cardboard-title">Make it yours.</h1>
+        <p class="lede">
+          Choose how this Program should look, sound, move, and speak. The
+          information stays the same.
+        </p>
+        <div class="profiles" aria-label="Presentation profiles">
+          <button
+            class="profile"
+            data-profile="amber"
+            type="button"
+            aria-pressed="true"
+          >
+            Amber Paper
+          </button>
+          <button
+            class="profile"
+            data-profile="quiet"
+            type="button"
+            aria-pressed="false"
+          >
+            Quiet Black
+          </button>
+          <button
+            class="profile"
+            data-profile="negative"
+            type="button"
+            aria-pressed="false"
+          >
+            Negative
+          </button>
+          <button
+            class="profile"
+            data-profile="contrast"
+            type="button"
+            aria-pressed="false"
+          >
+            High Contrast
+          </button>
+        </div>
+        <form
+          class="feedback-form"
+          data-lavish-question="cardboard-zero"
+          onsubmit="
+            event.preventDefault()
+            const profile =
+              document
+                .querySelector('.profile[aria-pressed=&quot;true&quot;]')
+                ?.textContent.trim() || 'Amber Paper'
+            window.lavish?.queuePrompt(
+              'Use ' +
+                profile +
+                ' as the initial Project Cardboard presentation profile and continue implementing the /0 onboarding flow.',
+              {
+                tag: 'cardboard',
+                text: 'Cardboard /0: ' + profile,
+                element: event.currentTarget,
+                data: { profile },
+                queueKey: 'cardboard-zero',
+              },
+            )
+          "
+        >
+          <button type="submit">Queue this profile for Codex</button>
+        </form>
+      </section>
+
+      <section class="curtain" aria-label="Project Cardboard Rule Zero">
+        <span class="zero-label" aria-hidden="true">/0</span>
+        <button
+          class="zero-button"
+          id="zero-button"
+          type="button"
+          aria-label="Press or hold the black button to open Project Cardboard"
+          aria-describedby="zero-instructions"
+        >
+          Open Project Cardboard
+        </button>
+        <p class="screen-reader-only" id="zero-instructions">
+          Press and release for feedback. Hold until the block falls away to
+          open accessibility configuration.
+        </p>
+      </section>
+
+      <output
+        class="readout"
+        id="readout"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        Rule Zero. Press or hold the black button.
+      </output>
+    </main>
+
+    <script>
+      const stage = document.querySelector('#stage')
+      const button = document.querySelector('#zero-button')
+      const curtain = document.querySelector('.curtain')
+      const readout = document.querySelector('#readout')
+      const profiles = document.querySelectorAll('.profile')
+      const holdThresholdMilliseconds = 1_800
+      let pressedAt = 0
+      let animationFrame = 0
+      let isPressed = false
+      let isOpened = false
+
+      const announce = message => {
+        readout.value = message
+        readout.textContent = message
+        readout.dataset.active = 'true'
+      }
+
+      const renderHold = now => {
+        if (!isPressed || isOpened) return
+        const elapsedMilliseconds = now - pressedAt
+        const progress = Math.min(
+          elapsedMilliseconds / holdThresholdMilliseconds,
+          1,
+        )
+        button.style.setProperty('--depth', `${8 + progress * 82}px`)
+        announce(
+          `Black button held for ${(elapsedMilliseconds / 1000).toFixed(1)} seconds.`,
+        )
+        if (progress >= 1) {
+          isOpened = true
+          isPressed = false
+          button.dataset.pressed = 'false'
+          stage.dataset.state = 'opening'
+          announce(
+            'Black button held. Project Cardboard opening at slash zero.',
+          )
+          window.setTimeout(() => {
+            stage.dataset.state = 'opened'
+            curtain.hidden = true
+            announce('Project Cardboard opened. Amber Paper selected.')
+          }, 650)
+          return
+        }
+        animationFrame = requestAnimationFrame(renderHold)
+      }
+
+      const press = event => {
+        if (isPressed || isOpened) return
+        event.preventDefault()
+        isPressed = true
+        pressedAt = performance.now()
+        button.dataset.pressed = 'true'
+        if (Number.isFinite(event.pointerId)) {
+          button.setPointerCapture?.(event.pointerId)
+        }
+        announce('Black button pressed.')
+        animationFrame = requestAnimationFrame(renderHold)
+      }
+
+      const release = event => {
+        if (!isPressed || isOpened) return
+        event.preventDefault()
+        isPressed = false
+        cancelAnimationFrame(animationFrame)
+        button.dataset.pressed = 'false'
+        button.style.setProperty('--depth', '0px')
+        announce('Black button pressed and released. Hold to open Cardboard.')
+      }
+
+      button.addEventListener('pointerdown', press)
+      button.addEventListener('pointerup', release)
+      button.addEventListener('pointercancel', release)
+      button.addEventListener('contextmenu', event => event.preventDefault())
+      button.addEventListener('keydown', event => {
+        if (!event.repeat && (event.key === ' ' || event.key === 'Enter')) {
+          press(event)
+        }
+      })
+      button.addEventListener('keyup', event => {
+        if (event.key === ' ' || event.key === 'Enter') {
+          release(event)
+        }
+      })
+
+      profiles.forEach(profile => {
+        profile.addEventListener('click', () => {
+          profiles.forEach(candidate =>
+            candidate.setAttribute(
+              'aria-pressed',
+              String(candidate === profile),
+            ),
+          )
+          stage.dataset.profile = profile.dataset.profile
+          announce(`${profile.textContent.trim()} selected.`)
+        })
+      })
+
+      window.setTimeout(() => {
+        readout.dataset.active = 'true'
+      }, 500)
+    </script>
+  </body>
+</html>
