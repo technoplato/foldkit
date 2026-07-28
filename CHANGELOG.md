@@ -4,6 +4,29 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 6:17:09 p.m. EDT — `9da38466ee5e` feat(wallet)!: persist local custody and separate data sources
+
+- **Implementation commit:** `9da38466ee5eb9cb7efd0a75b8deec89aea55f8a`
+- **Change:** Persist created wallets securely and make portfolio data provenance explicit
+- **Details:**
+  - Added chain-agnostic Wallet profile restoration state and commands so every host boots from persisted custody before enabling creation.
+  - Added encrypted IndexedDB storage for browser Wallets and Expo SecureStore-backed storage for native Wallets, with restoration and failure tests.
+  - Separated Fixture and Testnet resource graphs so each screen renders one PortfolioSnapshot source without mixing invented balances into created Wallets.
+- **Files:**
+  - `examples/wallet/core/src/walletVault.ts` — Extended the injected custody contract with profile restoration.
+  - `examples/wallet/core/src/update.ts` — Modeled wallet restoration, retry, creation gating, and failures in the portable Program.
+  - `examples/wallet/local-vault/src/localWalletVault.ts` — Persisted private key records and reconstructed public profiles from stored key material.
+  - `examples/wallet/web-client/src/webWalletVault.ts` — Encrypted browser vault records with an origin-local non-extractable AES-GCM key.
+  - `examples/wallet/web-client/src/webWalletResources.ts` — Selected one complete Fixture or Testnet resource graph for each screen.
+  - `examples/react-native-showcase/src/wallet/walletVault.ts` — Adapted native custody persistence to Expo SecureStore.
+  - `examples/wallet/react/src/App.tsx` — Rendered restoration state and explicit portfolio provenance in the React host.
+  - `examples/wallet/foldkit/src/view.ts` — Rendered the same restoration state and portfolio provenance in the Foldkit host.
+  - `examples/wallet/README.md` — Documented persistence guarantees, limitations, and source-of-truth semantics.
+- **User context (verbatim):**
+  > we don't persist the wallet yet
+  > one source of truth for the screen
+- **SpecStory:** unavailable — Codex desktop task; no durable SpecStory URI is available.
+
 ## July 28th, 2026 at 1:05:54 p.m. EDT — `51f6c41984bb` fix(wallet): log web build provenance
 
 - **Implementation commit:** `51f6c41984bb0067fa23f668d8592fedc1557278`
