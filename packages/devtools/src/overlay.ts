@@ -50,6 +50,7 @@ import * as Tabs from '@foldkit/ui/tabs'
 
 import * as OptionExt from './internal/optionExtensions.js'
 import { overlayStyles } from './overlay-styles.js'
+import { PROGRAM_LOG_CONTROL_ID } from './programLogButton.js'
 
 const SubmodelFilterListbox = Listbox.create<string>()
 
@@ -1739,6 +1740,7 @@ const makeView = (
             model.isPaused ? 'dt-badge-paused' : 'dt-badge-accent',
           ),
         ),
+        h.Id(PROGRAM_LOG_CONTROL_ID),
         h.Style({ width: '22px', height: '56px', fontSize: '10px' }),
         h.AriaLabel(model.isOpen ? 'Close Program Log' : 'Open Program Log'),
         h.OnClick(ClickedToggle()),
