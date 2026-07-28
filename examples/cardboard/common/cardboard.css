@@ -1,0 +1,75 @@
+:root {
+  --cardboard-ink: #17130d;
+  --cardboard-ink-raised: #211a11;
+  --cardboard-paper: #f7dca5;
+  --cardboard-paper-muted: #d3a861;
+  --cardboard-amber: #f2b85f;
+  --cardboard-brown: #7b481e;
+  --cardboard-line: #665237;
+  --cardboard-panel: #251d13;
+  --cardboard-panel-deep: #100d09;
+  --cardboard-success: #9bc995;
+  --cardboard-failure: #f0a39c;
+  --cardboard-radius: 1.5rem;
+  --cardboard-shadow:
+    0 0.45rem 0 #0e0b08, inset 0 0.08rem 0 rgb(255 241 189 / 15%);
+  --cardboard-emboss:
+    0 0.08em 0 #fff1bd, 0 0.16em 0 var(--cardboard-brown), 0 0.24em 0 #000;
+}
+
+.cardboard-surface {
+  min-height: 100svh;
+  color: var(--cardboard-paper);
+  background:
+    radial-gradient(circle at 50% 0%, #2d2114 0, transparent 28rem),
+    var(--cardboard-ink);
+}
+
+.cardboard-panel {
+  color: var(--cardboard-paper);
+  background: var(--cardboard-panel);
+  border: 0.12rem solid var(--cardboard-line);
+  border-radius: var(--cardboard-radius);
+  box-shadow: var(--cardboard-shadow);
+}
+
+.cardboard-eyebrow {
+  margin: 0;
+  color: var(--cardboard-paper-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 0.12em 0 #000;
+}
+
+.cardboard-embossed {
+  text-shadow: var(--cardboard-emboss);
+}
+
+.cardboard-button {
+  min-height: 3.25rem;
+  padding: 0.8rem 1.2rem;
+  color: var(--cardboard-paper);
+  font: inherit;
+  font-weight: 900;
+  background: transparent;
+  border: 0.13rem solid var(--cardboard-line);
+  border-radius: 999px;
+  box-shadow:
+    0 0.28rem 0 #0e0b08,
+    inset 0 0.08rem 0 rgb(255 241 189 / 16%);
+  cursor: pointer;
+}
+
+.cardboard-button.primary {
+  color: var(--cardboard-ink);
+  background: var(--cardboard-amber);
+  border-color: var(--cardboard-amber);
+  text-shadow: 0 0.08em 0 #fff1bd;
+}
+
+.cardboard-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}

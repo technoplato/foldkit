@@ -32,7 +32,14 @@ export const makeCardboardApplication = (
 ) =>
   Runtime.makeFoldkitApplication({
     container,
-    devTools: { overlay, Message: cardboardFoldkitProgram.Message },
+    devTools: {
+      banner:
+        'Program Log: choose an action to inspect that frame, scrub backward or forward, then Resume to continue from the present.',
+      mode: 'TimeTravel',
+      overlay,
+      show: 'Always',
+      Message: cardboardFoldkitProgram.Message,
+    },
     program: cardboardFoldkitProgram,
     resources: Layer.empty,
     start,

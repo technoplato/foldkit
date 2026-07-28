@@ -37,20 +37,25 @@ describe('Wallet Foldkit client', () => {
     expect(walletFoldkitProgram.version).toBe(WalletProgram.version)
   })
 
-  test('renders the same public portfolio, receiving payload, and workflows', () => {
+  test('renders the simple flow and keeps advanced wallet tools available', () => {
     Scene.scene(
       { update, view },
       Scene.with(loadedModel()),
+      Scene.expect(Scene.text('Available balance')).toExist(),
+      Scene.expect(Scene.text('2.5 ETH')).toExist(),
+      Scene.expect(Scene.text('0.1 ETH')).toExist(),
+      Scene.expect(Scene.text('Nothing sent yet.')).toExist(),
       Scene.expect(Scene.text('Simulated Sepolia Account')).toExist(),
       Scene.expect(
+        Scene.text('/wallet/receive/simulated-ethereum-account?asset=eth'),
+      ).toExist(),
+      Scene.expect(Scene.text('Sign test challenge')).toExist(),
+      Scene.expect(Scene.text('Replay')).toExist(),
+      Scene.expect(
         Scene.text(
-          'QR payload: /wallet/receive/simulated-ethereum-account?asset=eth',
+          'Open the Foldkit DevTools badge to inspect the authoritative Program journal.',
         ),
       ).toExist(),
-      Scene.expect(Scene.text('Transaction composition')).toExist(),
-      Scene.expect(Scene.text('Observed transaction stream')).toExist(),
-      Scene.expect(Scene.text('Challenge signing')).toExist(),
-      Scene.expect(Scene.text('Foldkit DevTools')).toExist(),
     )
   })
 })

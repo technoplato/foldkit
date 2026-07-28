@@ -1,3 +1,5 @@
+@import '../../common/cardboard.css';
+
 :root {
   color-scheme: dark;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
