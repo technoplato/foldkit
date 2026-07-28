@@ -4,6 +4,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 4:18:40 a.m. EDT — `3e19fad9da32` feat(constructive-data-modeling): add exact page navigation
+
+- **Implementation commit:** `3e19fad9da32dfce36c4ff6902f41d542bd82b65`
+- **Change:** Added exact authored-page navigation and deployment-ready provenance for the constructive modeling slideshow.
+- **Details:**
+  - Modeled all 158 reveal pages as typed locations with exact start/end times and YouTube deep links, while keeping the camera-only Q&A tail as a separate location case.
+  - Added the authored six-landmark Goto Page chooser plus All Pages mode to the shared Program, with browser modal, CLI page command, TUI chooser, playback sync, and remote-origin support.
+  - Prepared a static Cloudflare Worker custom domain with workers.dev and preview URLs disabled, and made clean production builds embed and log immutable Git provenance.
+- **Files:**
+  - `examples/constructive-data-modeling/core/src/model.ts` — Typed exact page, recording-only location, and page chooser state unions.
+  - `examples/constructive-data-modeling/core/src/deck.ts` — All 158 exact reveal intervals, authored landmarks, deep links, and total navigation helpers.
+  - `examples/constructive-data-modeling/core/src/update.ts` — Shared browser, CLI, TUI, playback, and remote page operations.
+  - `examples/constructive-data-modeling/core/src/program.test.ts` — Boundary, reveal, chooser, remote, and source-chain verification.
+  - `examples/constructive-data-modeling/foldkit/src/view.ts` — Accessible Goto Page modal and exact authored-page controls.
+  - `examples/constructive-data-modeling/foldkit/src/application.ts` — Loop-free exact page URL and video seeking.
+  - `examples/constructive-data-modeling/foldkit/scripts/build-with-provenance.mjs` — Clean production build with embedded immutable provenance.
+  - `examples/constructive-data-modeling/foldkit/wrangler.jsonc` — Protected custom-domain Worker route without public preview endpoints.
+  - `examples/constructive-data-modeling/cli/src/host.ts` — Validated direct page-number operation.
+  - `examples/constructive-data-modeling/tui/src/host.ts` — Terminal Goto Page and All Pages controls.
+- **User context (verbatim):**
+  > We want to be able to do that in any medium and quickly page through all the slides.
+  > I want video to slideshow, and then the slideshow is a fold kit.
+- **SpecStory:** unavailable — Codex desktop session; no durable SpecStory capture URI is available.
+
 ## July 28th, 2026 at 4:13:06 a.m. EDT — `52ec38ab960e` build(cardboard): embed React build provenance
 
 - **Implementation commit:** `52ec38ab960e1dcc881b7d4f04e74881cb38ef6b`
