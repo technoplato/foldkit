@@ -4,6 +4,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:59:57 p.m. EDT — `db033a763dd1` feat(wallet): add multichain send selection
+
+- **Implementation commit:** `db033a763dd1e26f4fee1d45578b6c67299206dd`
+- **Change:** Send from every simulated Wallet network rail and read deep-link properties back through the CLI.
+- **Details:**
+  - Mode changes now preserve the selected chain while switching all Wallet accounts between Devnet and Testnet.
+  - Bitcoin, Ethereum, Solana, and Sui each expose deterministic native-asset validation, preview, submission, observation, balance, receive, and history behavior in both modes.
+  - React, React Native, Foldkit, raw CLI, Terminal, OpenTUI, and the client matrix consume the same exact source selection and portable intent codec.
+  - The visual hosts preserve their browser or Expo clipboard Layers while using the deterministic eight-rail Wallet resources.
+  - Focused host tests execute all eight deep links, submit their transfers, observe the resulting transactions, and assert every source and destination property printed by the CLI.
+- **Files:**
+  - `examples/wallet/core/src/sendNetworkSelection.ts` — define the exact mode, chain, network, account, and asset send source
+  - `examples/wallet/core/src/update.ts` — apply global mode changes, source selection, and portable send intents
+  - `examples/wallet/simulated-client/src/simulatedWallet.ts` — provide deterministic resources for four chains across eight rails with host-selected vault and clipboard Layers
+  - `examples/wallet/react/src/App.tsx` — render Cardboard network selection in the React host
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — render the same shared selection in React Native
+  - `examples/wallet/foldkit/src/view.ts` — render the same selection in the Foldkit host
+  - `examples/wallet/cli/src/host.ts` — execute deep-link sends and print every settled property
+  - `examples/wallet/terminal/src/host.ts` — accept intents and cycle network rails in the terminal client
+  - `examples/wallet/tui/src/host.tsx` — accept intents and cycle network rails in OpenTUI
+  - `examples/client-matrix/core/src/walletIntent.ts` — document all eight implemented host-neutral send intents
+  - `pnpm-lock.yaml` — synchronize visual host dependencies with simulated Wallet resources
+- **User context (verbatim):**
+  > I want it to sending SUI, Bitcoin, etc.
+  > And in the full test, I want you to read the stuff back from the CLI after performing the operation with the deep link on the, on each property.
+- **SpecStory:** unavailable — No SpecStory URI is available because this work was performed in Codex desktop and no Codex CLI capture sync evidence exists.
+
 ## July 28th, 2026 at 12:36:34 p.m. EDT — `d43ed2b4bcc9` fix(wallet): copy displayed preview addresses
 
 - **Implementation commit:** `d43ed2b4bcc9dc661e962b8d671518f906c7b23a`
