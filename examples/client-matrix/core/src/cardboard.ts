@@ -175,19 +175,10 @@ export const cardboardClients: ReadonlyArray<CardboardClientDefinition> = [
     clientId: 'ExpoWeb',
     title: 'Expo Web',
     description: 'The React Native Showcase running through its web carrier.',
-    capabilities: Array.map(cardboardModes, definition =>
-      capability(
-        definition.mode,
-        'DeepLink',
-        'TypecheckedSource',
-        [
-          'examples/react-native-showcase/src/App.tsx',
-          'examples/cardboard/react-bindings/src/cardboard.tsx',
-        ],
-        Option.none(),
-        'The production WAN export and captures are completed by the next build increment.',
-      ),
-    ),
+    capabilities: webCapabilities('expo-web', [
+      'https://expodemo.knophy.com/0',
+      'https://expodemo.knophy.com/0/5',
+    ]),
   }),
   CardboardClientDefinition.make({
     clientId: 'EffectTui',
