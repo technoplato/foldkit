@@ -5,6 +5,7 @@ import { createReplayableReactProgramClient } from 'shared-react-bindings-exampl
 import {
   AddedAddressBookEntry,
   AddressBookEntry,
+  ChangedTransferRecipient,
   ComposedTransfer,
   ImportedAddressBookEntries,
   type Message,
@@ -12,6 +13,7 @@ import {
   RemovedAddressBookEntry,
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
+  RequestedTransferPreview,
   RequestedWalletRefresh,
   ResumedTransactionObservation,
   SigningChallenge,
@@ -29,6 +31,8 @@ export type WalletTransferComposition = typeof WalletTransferComposition.Type
 /** Domain actions exposed to React consumers of the Wallet Program. */
 export type WalletActions = Readonly<{
   requestedWalletRefresh: () => void
+  changedTransferRecipient: (value: string) => void
+  requestedTransferPreview: () => void
   importedAddressBookEntries: (entries: ReadonlyArray<AddressBookEntry>) => void
   addedAddressBookEntry: (entry: AddressBookEntry) => void
   removedAddressBookEntry: (entryId: string) => void
@@ -60,6 +64,10 @@ export const makeWalletReactClient = <ResourceError,>(
     createActions: enqueueMessage => ({
       requestedWalletRefresh: () =>
         enqueueMessage(RequestedWalletRefresh.make({})),
+      changedTransferRecipient: value =>
+        enqueueMessage(ChangedTransferRecipient.make({ value })),
+      requestedTransferPreview: () =>
+        enqueueMessage(RequestedTransferPreview.make({})),
       importedAddressBookEntries: entries =>
         enqueueMessage(ImportedAddressBookEntries.make({ entries })),
       addedAddressBookEntry: entry =>

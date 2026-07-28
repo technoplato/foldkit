@@ -9,6 +9,7 @@ import {
 } from './currency.js'
 import {
   AddedAddressBookEntry,
+  ChangedTransferRecipient,
   ComposedTransfer,
   FailedLoadWallet,
   FailedObserveTransactions,
@@ -20,6 +21,7 @@ import {
   RemovedAddressBookEntry,
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
+  RequestedTransferPreview,
   RequestedWalletRefresh,
   ResumedTransactionObservation,
   SucceededLoadWallet,
@@ -39,6 +41,7 @@ import {
   FailedTransactionPreview,
   FailedTransactionSubmission,
   FamiliarAddress,
+  InvalidTransferRecipient,
   LoadedPortfolio,
   LoadingPortfolio,
   type Model,
@@ -56,11 +59,12 @@ import {
   SubmittingTransaction,
   TransactionRecord,
   TransactionSubmission,
+  ValidTransferRecipient,
   WaitingForAccounts,
   WalletAccount,
   initialModel,
 } from './model.js'
-import { restore, update } from './update.js'
+import { restore, update, walletDemoTransferAtomicUnits } from './update.js'
 
 const observedAt = 1_722_000_000_000
 const ethereum = EthereumSepolia.make({})
@@ -249,6 +253,46 @@ describe('Wallet portfolio and address-book update', () => {
 })
 
 describe('Wallet transaction update', () => {
+  it('validates the editable recipient before requesting a preview', () => {
+    const invalidInput =
+      '0x1111111111111111111111111111111111111111111111111111111111111111'
+    const [invalidModel, invalidCommands] = update(
+      loadedModel,
+      ChangedTransferRecipient.make({ value: invalidInput }),
+    )
+
+    expect(invalidModel.transferRecipient).toStrictEqual(
+      InvalidTransferRecipient.make({
+        input: invalidInput,
+        reason: 'ExpectedEthereumAddress',
+      }),
+    )
+    expect(invalidModel.transaction._tag).toBe('IdleTransaction')
+    expect(invalidCommands).toStrictEqual([])
+
+    const destinationAddress = '0x2222222222222222222222222222222222222222'
+    const [recipientModel] = update(
+      invalidModel,
+      ChangedTransferRecipient.make({ value: destinationAddress }),
+    )
+    const [previewingModel, commands] = update(
+      recipientModel,
+      RequestedTransferPreview.make({}),
+    )
+
+    expect(recipientModel.transferRecipient).toStrictEqual(
+      ValidTransferRecipient.make({ address: destinationAddress }),
+    )
+    expect(previewingModel.transaction).toMatchObject({
+      _tag: 'PreviewingTransaction',
+      draft: {
+        destinationAddress,
+        value: { atomicUnits: walletDemoTransferAtomicUnits },
+      },
+    })
+    expect(commandNames(commands)).toStrictEqual(['PreviewTransaction'])
+  })
+
   it('derives recipient context and requests a preview', () => {
     const [nextModel, commands] = update(
       loadedModel,

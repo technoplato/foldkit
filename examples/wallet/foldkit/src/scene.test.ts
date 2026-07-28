@@ -2,6 +2,7 @@ import { Array } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 import {
+  EmptyTransferRecipient,
   IdleSignature,
   IdleTransaction,
   LoadedPortfolio,
@@ -20,6 +21,7 @@ const loadedModel = (): Model =>
   Model.make({
     portfolio: LoadedPortfolio.make({ snapshot: simulatedPortfolio }),
     walletIntent: NoWalletIntent.make({}),
+    transferRecipient: EmptyTransferRecipient.make({}),
     addressBookEntries: [],
     transaction: IdleTransaction.make({}),
     signature: IdleSignature.make({}),
@@ -46,6 +48,7 @@ describe('Wallet Foldkit client', () => {
       Scene.expect(Scene.text('Available balance')).toExist(),
       Scene.expect(Scene.text('2.5 ETH')).toExist(),
       Scene.expect(Scene.text('0.00001 ETH')).toExist(),
+      Scene.expect(Scene.text('Recipient on Ethereum Sepolia')).toExist(),
       Scene.expect(Scene.text('Nothing sent yet.')).toExist(),
       Scene.expect(Scene.text('Simulated Sepolia Account')).toExist(),
       Scene.expect(
@@ -58,6 +61,37 @@ describe('Wallet Foldkit client', () => {
           'Open the Foldkit DevTools badge to inspect the authoritative Program journal.',
         ),
       ).toExist(),
+    )
+  })
+
+  test('validates recipient input before previewing a real testnet transfer', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(loadedModel()),
+      Scene.type(
+        Scene.label('Recipient on Ethereum Sepolia'),
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      ),
+      Scene.expect(
+        Scene.text(
+          'Enter an Ethereum address with 0x followed by 40 hexadecimal digits.',
+        ),
+      ).toExist(),
+      Scene.expect(
+        Scene.role('button', { name: 'Preview send' }),
+      ).toBeDisabled(),
+    )
+
+    Scene.scene(
+      { update, view },
+      Scene.with(loadedModel()),
+      Scene.type(
+        Scene.label('Recipient on Ethereum Sepolia'),
+        '0x2222222222222222222222222222222222222222',
+      ),
+      Scene.expect(
+        Scene.role('button', { name: 'Preview send' }),
+      ).toBeEnabled(),
     )
   })
 })

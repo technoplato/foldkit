@@ -4,6 +4,7 @@ import { Command } from 'foldkit'
 import {
   AppliedWalletIntent,
   type ExecutableWalletIntent,
+  NoWalletIntent,
   RejectedWalletIntent,
   type WalletIntent,
   capabilityForWalletIntent,
@@ -30,6 +31,7 @@ import {
   FailedTransactionObservation,
   FailedTransactionPreview,
   FailedTransactionSubmission,
+  IdleTransaction,
   LoadedPortfolio,
   LoadingPortfolio,
   type Model,
@@ -55,6 +57,7 @@ import {
   recipientHistoryForDraft,
   transactionPreviewFromQuote,
   transferDraftFromInput,
+  transferRecipientFromInput,
 } from './model.js'
 import {
   WalletClient,
@@ -80,6 +83,9 @@ const toCryptoFailure = (
   operation: WalletOperation,
   error: WalletCryptoError,
 ): WalletFailure => CryptoFailure.make({ operation, code: error.code })
+
+/** Atomic ETH amount used by the public testnet transfer demonstration. */
+export const walletDemoTransferAtomicUnits = '10000000000000'
 
 /** Loads public wallet data through the injected WalletClient. */
 export const LoadWallet = Command.define(
@@ -368,6 +374,22 @@ const transferDraftForWalletIntent = (
   }
 
   const executableIntent = capability.intent
+  const isEthereumIntent = M.value(executableIntent).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      SepoliaEthTransferIntent: () => true,
+      SepoliaUsdcTransferIntent: () => true,
+      SolanaDevnetSolTransferIntent: () => false,
+      SolanaDevnetUsdcTransferIntent: () => false,
+    }),
+  )
+  if (
+    isEthereumIntent &&
+    transferRecipientFromInput(executableIntent.destinationAddress)._tag !==
+      'ValidTransferRecipient'
+  ) {
+    return Option.none()
+  }
   const maybeAccount = Array_.findFirst(portfolio.accounts, account =>
     accountSupportsIntent(executableIntent, account),
   )
@@ -396,6 +418,68 @@ const transferDraftForWalletIntent = (
     },
     maybeMessage: Option.none(),
   })
+}
+
+const transferDraftForRecipient = (
+  model: Model,
+): Option.Option<TransferDraft> => {
+  if (
+    model.portfolio._tag !== 'LoadedPortfolio' ||
+    model.transferRecipient._tag !== 'ValidTransferRecipient'
+  ) {
+    return Option.none()
+  }
+  const portfolio = model.portfolio.snapshot
+  const maybeAccount = Array_.findFirst(
+    portfolio.accounts,
+    account => account.network._tag === 'EthereumSepolia',
+  )
+  if (Option.isNone(maybeAccount)) {
+    return Option.none()
+  }
+  const maybeBalance = Array_.findFirst(
+    portfolio.balanceSnapshot.balances,
+    balance =>
+      balance.accountId === maybeAccount.value.accountId &&
+      balance.value.currency._tag === 'Eth',
+  )
+  if (Option.isNone(maybeBalance)) {
+    return Option.none()
+  }
+  return transferDraftFromInput({
+    transferId: 'wallet-demo-transfer',
+    accountId: maybeAccount.value.accountId,
+    network: maybeAccount.value.network,
+    destinationAddress: model.transferRecipient.address,
+    value: {
+      ...maybeBalance.value.value,
+      atomicUnits: walletDemoTransferAtomicUnits,
+    },
+    maybeMessage: Option.some('Shared Wallet testnet transfer'),
+  })
+}
+
+const previewTransfer = (model: Model, draft: TransferDraft): UpdateReturn => {
+  const recipientFamiliarity = familiarityForAddress(
+    model.addressBookEntries,
+    draft.network,
+    draft.destinationAddress,
+  )
+  const recipientHistory = recipientHistoryForDraft(
+    model.observedTransactions,
+    draft,
+  )
+  return [
+    {
+      ...model,
+      transaction: PreviewingTransaction.make({
+        draft,
+        recipientFamiliarity,
+        recipientHistory,
+      }),
+    },
+    [PreviewTransaction({ draft, recipientFamiliarity, recipientHistory })],
+  ]
 }
 
 /** Applies one Wallet Message and returns its finite Commands. */
@@ -427,6 +511,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }
 
         const intent = model.walletIntent.intent
+        const nextTransferRecipient = transferRecipientFromInput(
+          intent.destinationAddress,
+        )
         const capability = capabilityForWalletIntent(intent)
         if (capability._tag === 'UnsupportedWalletIntentCapability') {
           return [
@@ -436,6 +523,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 intent,
                 reason: capability.reason,
               }),
+              transferRecipient: nextTransferRecipient,
             },
             [],
           ]
@@ -451,6 +539,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 reason:
                   'The loaded portfolio has no account and balance for this transfer.',
               }),
+              transferRecipient: nextTransferRecipient,
             },
             [],
           ]
@@ -470,6 +559,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           {
             ...nextModel,
             walletIntent: AppliedWalletIntent.make({ intent }),
+            transferRecipient: nextTransferRecipient,
             transaction: PreviewingTransaction.make({
               draft,
               recipientFamiliarity,
@@ -493,6 +583,22 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         },
         [],
       ],
+      ChangedTransferRecipient: ({ value }) => [
+        {
+          ...model,
+          walletIntent: NoWalletIntent.make({}),
+          transferRecipient: transferRecipientFromInput(value),
+          transaction: IdleTransaction.make({}),
+        },
+        [],
+      ],
+      RequestedTransferPreview: () => {
+        const maybeDraft = transferDraftForRecipient(model)
+        if (Option.isNone(maybeDraft)) {
+          return [model, []]
+        }
+        return previewTransfer(model, maybeDraft.value)
+      },
       ImportedAddressBookEntries: ({ entries }) => [
         { ...model, addressBookEntries: entries },
         [],
@@ -511,34 +617,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         },
         [],
       ],
-      ComposedTransfer: ({ draft }) => {
-        const recipientFamiliarity = familiarityForAddress(
-          model.addressBookEntries,
-          draft.network,
-          draft.destinationAddress,
-        )
-        const recipientHistory = recipientHistoryForDraft(
-          model.observedTransactions,
-          draft,
-        )
-        return [
-          {
-            ...model,
-            transaction: PreviewingTransaction.make({
-              draft,
-              recipientFamiliarity,
-              recipientHistory,
-            }),
-          },
-          [
-            PreviewTransaction({
-              draft,
-              recipientFamiliarity,
-              recipientHistory,
-            }),
-          ],
-        ]
-      },
+      ComposedTransfer: ({ draft }) => previewTransfer(model, draft),
       SucceededPreviewTransaction: ({ preview }) => {
         if (
           model.transaction._tag === 'PreviewingTransaction' &&

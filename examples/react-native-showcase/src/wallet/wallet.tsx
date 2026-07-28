@@ -1,7 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import {
-  CurrencyValue,
   type Model,
   type TransactionPreview,
   type TransactionState,
@@ -12,7 +11,7 @@ import {
   primaryWalletAccount,
   primaryWalletBalance,
   shortenedAddress,
-  transferDraftFromInput,
+  transferRecipientInput,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
@@ -27,8 +26,6 @@ import { ReplayControls } from '../replayControls'
 
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
   makeWalletReactClient(makeRemoteWalletResources(publicTestnetWalletEndpoint))
-
-const presetTransferAtomicUnits = '10000000000000'
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -128,31 +125,8 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
 
 const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
-  const maybeAccount = primaryWalletAccount(model)
   const maybeBalance = primaryWalletBalance(model)
   const maybePreview = maybePreviewForTransaction(model.transaction)
-
-  const composeTransfer = (): void => {
-    if (Option.isSome(maybeAccount) && Option.isSome(maybeBalance)) {
-      const balance = maybeBalance.value
-      const maybeDraft = transferDraftFromInput({
-        transferId: 'expo-wallet-transfer',
-        accountId: maybeAccount.value.accountId,
-        network: maybeAccount.value.network,
-        destinationAddress: maybeAccount.value.address,
-        value: CurrencyValue.make({
-          currency: balance.value.currency,
-          atomicUnits: presetTransferAtomicUnits,
-          decimalPlaces: balance.value.decimalPlaces,
-          observedAt: balance.value.observedAt,
-        }),
-        maybeMessage: Option.some('Shared Expo Wallet transfer'),
-      })
-      if (Option.isSome(maybeDraft)) {
-        actions.composedTransfer(maybeDraft.value)
-      }
-    }
-  }
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -173,6 +147,25 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         <Text style={styles.status}>
           {transactionStatus(model.transaction)}
         </Text>
+      </View>
+      <View style={styles.recipientField}>
+        <Text style={styles.recipientLabel}>Recipient on Ethereum Sepolia</Text>
+        <TextInput
+          accessibilityLabel="Recipient on Ethereum Sepolia"
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={model.transaction._tag !== 'SubmittingTransaction'}
+          onChangeText={actions.changedTransferRecipient}
+          placeholder="0x…"
+          placeholderTextColor="#9f8560"
+          style={styles.recipientInput}
+          value={transferRecipientInput(model.transferRecipient)}
+        />
+        {model.transferRecipient._tag === 'InvalidTransferRecipient' ? (
+          <Text accessibilityRole="alert" style={styles.validationText}>
+            Enter an Ethereum address with 0x followed by 40 hexadecimal digits.
+          </Text>
+        ) : null}
       </View>
       {Option.isSome(maybePreview) ? (
         <View style={styles.preview}>
@@ -197,7 +190,11 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         </Text>
       )}
       <WalletActionButton
-        isDisabled={Option.isNone(maybeBalance) || isBusy}
+        isDisabled={
+          Option.isNone(maybeBalance) ||
+          model.transferRecipient._tag !== 'ValidTransferRecipient' ||
+          isBusy
+        }
         isPrimary
         label={
           model.transaction._tag === 'PreviewedTransaction'
@@ -207,7 +204,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         onPress={
           model.transaction._tag === 'PreviewedTransaction'
             ? submitPreview
-            : composeTransfer
+            : actions.requestedTransferPreview
         }
       />
     </View>
@@ -387,6 +384,28 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     paddingHorizontal: 10,
     paddingVertical: 7,
+  },
+  recipientField: { gap: 8 },
+  recipientLabel: {
+    color: '#d8bd8c',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  recipientInput: {
+    backgroundColor: '#171109',
+    borderColor: '#665237',
+    borderRadius: 16,
+    borderWidth: 2,
+    color: '#f7dca5',
+    fontFamily: 'monospace',
+    fontSize: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  validationText: {
+    color: '#e8aa4a',
+    fontSize: 14,
+    lineHeight: 20,
   },
   mutedText: { color: '#d3a861', fontSize: 13, lineHeight: 19 },
   helpText: { color: '#d3a861', fontSize: 16, lineHeight: 23 },

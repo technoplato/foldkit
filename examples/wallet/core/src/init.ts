@@ -2,7 +2,11 @@ import type { Command } from 'foldkit'
 
 import { PendingWalletIntent, type WalletIntent } from './intent.js'
 import type { Message } from './message.js'
-import { type Model, initialModel } from './model.js'
+import {
+  type Model,
+  initialModel,
+  transferRecipientFromInput,
+} from './model.js'
 import { LoadWallet } from './update.js'
 import type { WalletResources } from './walletClient.js'
 
@@ -16,4 +20,5 @@ export const init = (): readonly [
 export const modelForWalletIntent = (intent: WalletIntent): Model => ({
   ...initialModel,
   walletIntent: PendingWalletIntent.make({ intent }),
+  transferRecipient: transferRecipientFromInput(intent.destinationAddress),
 })

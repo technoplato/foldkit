@@ -1,6 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
 import {
-  CurrencyValue,
   type Model,
   type TransactionPreview,
   type TransactionState,
@@ -11,7 +10,7 @@ import {
   primaryWalletAccount,
   primaryWalletBalance,
   shortenedAddress,
-  transferDraftFromInput,
+  transferRecipientInput,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
@@ -25,8 +24,6 @@ import {
 
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
   makeWalletReactClient(makeRemoteWalletResources(publicTestnetWalletEndpoint))
-
-const presetTransferAtomicUnits = '10000000000000'
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -99,31 +96,9 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
 
 const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
-  const maybeAccount = primaryWalletAccount(model)
   const maybeBalance = primaryWalletBalance(model)
   const maybePreview = maybePreviewForTransaction(model.transaction)
-
-  const composeTransfer = (): void => {
-    if (Option.isSome(maybeAccount) && Option.isSome(maybeBalance)) {
-      const balance = maybeBalance.value
-      const maybeDraft = transferDraftFromInput({
-        transferId: 'react-demo-transfer',
-        accountId: maybeAccount.value.accountId,
-        network: maybeAccount.value.network,
-        destinationAddress: maybeAccount.value.address,
-        value: CurrencyValue.make({
-          currency: balance.value.currency,
-          atomicUnits: presetTransferAtomicUnits,
-          decimalPlaces: balance.value.decimalPlaces,
-          observedAt: balance.value.observedAt,
-        }),
-        maybeMessage: Option.some('Shared React Wallet demo'),
-      })
-      if (Option.isSome(maybeDraft)) {
-        actions.composedTransfer(maybeDraft.value)
-      }
-    }
-  }
+  const recipientValue = transferRecipientInput(model.transferRecipient)
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -142,6 +117,27 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           {transactionStatus(model.transaction)}
         </span>
       </div>
+      <label className="wallet-recipient" htmlFor="wallet-recipient">
+        <span>Recipient on Ethereum Sepolia</span>
+        <input
+          autoCapitalize="none"
+          autoComplete="off"
+          disabled={model.transaction._tag === 'SubmittingTransaction'}
+          id="wallet-recipient"
+          onChange={event =>
+            actions.changedTransferRecipient(event.currentTarget.value)
+          }
+          placeholder="0x…"
+          spellCheck={false}
+          type="text"
+          value={recipientValue}
+        />
+      </label>
+      {model.transferRecipient._tag === 'InvalidTransferRecipient' ? (
+        <p className="wallet-validation" role="alert">
+          Enter an Ethereum address with 0x followed by 40 hexadecimal digits.
+        </p>
+      ) : null}
       {Option.isSome(maybePreview) ? (
         <div className="wallet-preview">
           <div>
@@ -173,13 +169,14 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           className="cardboard-button primary"
           disabled={
             Option.isNone(maybeBalance) ||
+            model.transferRecipient._tag !== 'ValidTransferRecipient' ||
             model.transaction._tag === 'PreviewingTransaction' ||
             model.transaction._tag === 'SubmittingTransaction'
           }
           onClick={
             model.transaction._tag === 'PreviewedTransaction'
               ? submitPreview
-              : composeTransfer
+              : actions.requestedTransferPreview
           }
           type="button"
         >
