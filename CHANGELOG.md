@@ -4,6 +4,45 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 3:49:03 a.m. EDT — `36ad0b9adf65` feat: add interactive Program log controls
+
+- **Implementation commit:** `36ad0b9adf653e00bbdfba456ef33bd739ef1a63`
+- **Change:** Add one interactive Program log across presentation Clients
+- **Details:**
+  - ReplayController.resume branches from a selected settled frame and returns to live execution without inventing a domain Message or rerunning historical Commands.
+  - React, Expo, and TUI pin the inspected Model above the action and runtime-event history, support undo and redo, and keep supplementary material behind the separate [E] Extra boundary.
+  - The Foldkit Client continues to expose the authoritative journal through DevTools; its missing in-app runtime-control seam is documented rather than duplicated in the domain Model.
+- **Files:**
+  - `.changeset/add-replay-controller-resume.md` — Declare the public replay-controller capability change.
+  - `docs/adr/0002-universal-program-replay.md` — Record the engine-owned Program log semantics and remaining Foldkit control seam.
+  - `docs/explorations/project-cardboard.md` — Document Log and Extra as separate Client affordances.
+  - `examples/cardboard/cli/src/entry.ts` — Rename the supplementary CLI command to Extra.
+  - `examples/cardboard/cli/src/host.ts` — Route the renamed Extra command through the Cardboard Program.
+  - `examples/cardboard/core/src/component.ts` — Project the shared Extra command without conflating it with Program history.
+  - `examples/cardboard/core/src/ledger.ts` — Rename supplementary presentation wording to Extra.
+  - `examples/cardboard/core/src/presentation.ts` — Render Extra through the renderer-neutral projection.
+  - `examples/cardboard/core/src/program.test.ts` — Prove Extra route compatibility and canonicalization.
+  - `examples/cardboard/core/src/route.ts` — Canonicalize supplementary material at /0/extra while accepting the legacy alias.
+  - `examples/cardboard/foldkit/src/application.ts` — Point the Foldkit supplementary carrier at the canonical Extra route.
+  - `examples/cardboard/foldkit/src/view.ts` — Render the shared Extra command in the canonical Foldkit Client.
+  - `examples/cardboard/react-bindings/src/cardboard.tsx` — Expose the typed Extra action to React Clients.
+  - `examples/cardboard/react/src/App.tsx` — Present the pinned Program state, history controls, and transition log.
+  - `examples/cardboard/react/src/styles.css` — Style the sticky Program log and de-emphasized future transitions.
+  - `examples/cardboard/tui/src/host.ts` — Run the Cardboard TUI through ReplayController with Log, undo, redo, Done, and Extra controls.
+  - `examples/react-native-showcase/src/App.tsx` — Integrate the shared Program log into the Expo Cardboard scene.
+  - `examples/react-native-showcase/src/cardboardProgramLog.tsx` — Render the native pinned state and action and event history.
+  - `examples/shared/react-bindings/src/replayableReactProgram.test.tsx` — Verify transitions, resume, and typed unsettled-frame failure in React bindings.
+  - `examples/shared/react-bindings/src/replayableReactProgram.tsx` — Expose transitions and resume through the framework-agnostic React replay contract.
+  - `knip.json` — Register nested Cardboard workspaces for dead-code analysis.
+  - `packages/foldkit/src/runtime/replayController.test.ts` — Verify resource lifetime and live resumption from inert inspection.
+  - `packages/foldkit/src/runtime/replayController.ts` — Add the engine operation that resumes a settled inspected frame.
+- **User context (verbatim):**
+  > pressing the log should show them the log of actions and events
+  > the current state of the program is pinned to the top
+  > allow them to control and undo and redo
+  > just a letter E for extra
+- **SpecStory:** unavailable — Codex desktop task; no verified Codex CLI capture or durable SpecStory URI is available.
+
 ## July 28th, 2026 at 3:40:43 a.m. EDT — `91bba4328f1f` feat(constructive-data-modeling): add portable study deck
 
 - **Implementation commit:** `91bba4328f1f3118d37a341cbbb361c2d4e21b1e`
