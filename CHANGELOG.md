@@ -4,6 +4,31 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 11:39:28 a.m. EDT — `b089275911ea` refactor(wallet)!: normalize chain adapters
+
+- **Implementation commit:** `b089275911ea800e378e485761d9123cb860f82c`
+- **Change:** Normalized the Wallet domain and transaction workflow so new chains plug in through adapters without widening core unions.
+- **Details:**
+  - Replaced chain-specific network, asset, address, transfer, preview, payload, history, and signature variants with normalized Schema descriptors and stable identifiers.
+  - Moved viem and Solana SDK address validation, nested network configuration, transaction construction, signing, and submission into their respective adapters.
+  - Added cursor-based normalized transaction history to the core workflow, with simulated and Solana implementations and an explicit Ethereum RPC capability limitation.
+  - Recorded contract and program reading and writing as future generic intent contracts instead of prematurely exposing chain-specific calls.
+- **Files:**
+  - `docs/adr/0005-normalized-wallet-chain-adapters.md` — Defines the accepted normalized core, adapter ownership, transaction pipeline, history boundary, and contract operation TODOs.
+  - `examples/wallet/core/src/currency.ts` — Defines normalized chain, network, asset, capability, and amount Schemas without SDK imports.
+  - `examples/wallet/core/src/model.ts` — Defines generic accounts, transfers, transaction history, submissions, and signature proof state.
+  - `examples/wallet/core/src/walletClient.ts` — Defines the generic client, signer, crypto, opaque payload, history, and observation service contracts.
+  - `examples/wallet/testnet-node/src/ethereumSepolia.ts` — Keeps Ethereum configuration, validation, building, signing, submission, and RPC limitations inside the Ethereum adapter.
+  - `examples/wallet/testnet-node/src/solanaDevnet.ts` — Keeps Solana configuration and SDK behavior inside the Solana adapter and implements owner-address transaction history.
+  - `examples/wallet/testnet-node/src/walletServices.ts` — Routes generic operations by stable identifiers and advertised adapter capabilities.
+  - `examples/wallet/remote/src/walletRpc.ts` — Carries the normalized workflow across the remote boundary using generic RPC Schemas and opaque handles.
+  - `examples/wallet/README.md` — Explains how hosts consume the chain-neutral Program and how adapters provide chain behavior.
+- **User context (verbatim):**
+  > model the business logic for the cryptocurrency wallet operations completely agnostic of any chain
+  > We want build transfer payload or whatever
+  > Let's mark contract reading as a to-do, contract reading and writing.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this Codex desktop session is not captured by SpecStory.
+
 ## July 28th, 2026 at 10:58:40 a.m. EDT — `a507f2439786` feat(wallet): validate recipients and link submissions
 
 - **Implementation commit:** `a507f24397868fb8d655cff9ad774406b67c8539`
