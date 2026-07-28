@@ -1,9 +1,6 @@
 import { Effect } from 'effect'
 import { Runtime } from 'foldkit'
-import {
-  makeRemoteWalletResources,
-  publicTestnetWalletEndpoint,
-} from 'wallet-remote-example'
+import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import { makeWalletApplication } from './application.js'
 import { walletFoldkitStartForLocation } from './route.js'
@@ -35,12 +32,6 @@ Effect.runPromise(
   ),
 ).then(
   start =>
-    Runtime.run(
-      makeWalletApplication(
-        root,
-        makeRemoteWalletResources(publicTestnetWalletEndpoint),
-        start,
-      ),
-    ),
+    Runtime.run(makeWalletApplication(root, SimulatedWalletResources, start)),
   renderRouteError,
 )

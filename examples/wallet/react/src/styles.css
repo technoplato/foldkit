@@ -232,6 +232,43 @@ input {
   border-radius: 999px;
 }
 
+.wallet-send-networks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+}
+
+.wallet-send-network {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+  padding: 0.8rem;
+  color: var(--cardboard-paper-muted);
+  text-align: left;
+  background: var(--cardboard-panel-deep);
+  border: 0.1rem solid var(--cardboard-line);
+  border-radius: 0.85rem;
+  cursor: pointer;
+}
+
+.wallet-send-network strong,
+.wallet-send-network span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wallet-send-network.selected {
+  color: var(--cardboard-ink);
+  background: var(--cardboard-amber);
+  border-color: var(--cardboard-amber);
+}
+
+.wallet-send-network span {
+  font-size: 0.76rem;
+}
+
 .wallet-recipient {
   display: grid;
   gap: 0.55rem;

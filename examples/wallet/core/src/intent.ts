@@ -2,12 +2,13 @@ import { Array, Data, Effect, Schema as S, String, pipe } from 'effect'
 import { Route } from 'foldkit'
 import { literal, r, slash } from 'foldkit/route'
 
-import { AssetId, AtomicUnits } from './currency.js'
+import { AtomicUnits } from './currency.js'
+import { SendNetworkSelection } from './sendNetworkSelection.js'
+import { WalletNetworkMode } from './walletProfile.js'
 
 /** A renderer-neutral request to send one normalized asset. */
 export const SendAssetIntent = S.TaggedStruct('SendAssetIntent', {
-  accountId: S.String,
-  assetId: AssetId,
+  source: SendNetworkSelection,
   atomicUnits: AtomicUnits,
   destinationAddress: S.String,
 })
@@ -69,6 +70,9 @@ export type WalletIntentRouter = Readonly<{
 }>
 
 const SendAssetRoute = r('SendAssetRoute', {
+  mode: S.String,
+  chain: S.String,
+  network: S.String,
   account: S.String,
   asset: S.String,
   amount: S.String,
@@ -81,6 +85,9 @@ const sendAssetRouter = pipe(
   slash(literal('send')),
   Route.query(
     S.Struct({
+      mode: S.String,
+      chain: S.String,
+      network: S.String,
       account: S.String,
       asset: S.String,
       amount: S.String,
@@ -120,14 +127,24 @@ const parseIntent = (
   return sendAssetRouter.parse(segments, search).pipe(
     Effect.mapError(toRouteError('Could not parse Wallet intent path')),
     Effect.flatMap(([route]) =>
-      S.decodeUnknownEffect(AtomicUnits)(route.amount).pipe(
+      Effect.all({
+        atomicUnits: S.decodeUnknownEffect(AtomicUnits)(route.amount),
+        networkMode: S.decodeUnknownEffect(WalletNetworkMode)(route.mode),
+      }).pipe(
         Effect.mapError(
-          toRouteError('Wallet intent amount must use atomic units'),
+          toRouteError(
+            'Wallet intent mode and amount must use canonical values',
+          ),
         ),
-        Effect.map(atomicUnits =>
+        Effect.map(({ atomicUnits, networkMode }) =>
           SendAssetIntent.make({
-            accountId: route.account,
-            assetId: route.asset,
+            source: SendNetworkSelection.make({
+              networkMode,
+              chainId: route.chain,
+              networkId: route.network,
+              accountId: route.account,
+              assetId: route.asset,
+            }),
             atomicUnits,
             destinationAddress: route.to,
           }),
@@ -142,8 +159,11 @@ const printIntent = (
 ): Effect.Effect<string, WalletIntentRouteError> =>
   Effect.sync(() =>
     sendAssetRouter({
-      account: intent.accountId,
-      asset: intent.assetId,
+      mode: intent.source.networkMode,
+      chain: intent.source.chainId,
+      network: intent.source.networkId,
+      account: intent.source.accountId,
+      asset: intent.source.assetId,
       amount: intent.atomicUnits,
       to: intent.destinationAddress,
     }),

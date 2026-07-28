@@ -60,15 +60,24 @@ export const shortenedAddress = (address: string): string =>
     ? address
     : `${address.slice(0, 10)}…${address.slice(-6)}`
 
-/** Selects the first normalized account used by the primary Wallet flow. */
+/** Selects the account chosen by the current send-network selection. */
 export const primaryWalletAccount = (
   model: Model,
-): Option.Option<WalletAccount> =>
-  model.portfolio._tag === 'LoadedPortfolio'
-    ? Array.head(model.portfolio.snapshot.accounts)
-    : Option.none()
+): Option.Option<WalletAccount> => {
+  if (
+    model.portfolio._tag !== 'LoadedPortfolio' ||
+    Option.isNone(model.maybeSendNetworkSelection)
+  ) {
+    return Option.none()
+  }
+  const selection = model.maybeSendNetworkSelection.value
+  return Array.findFirst(
+    model.portfolio.snapshot.accounts,
+    account => account.accountId === selection.accountId,
+  )
+}
 
-/** Selects the primary account's first loaded balance. */
+/** Selects the balance chosen by the current send-network selection. */
 export const primaryWalletBalance = (
   model: Model,
 ): Option.Option<AccountBalance> =>
@@ -76,7 +85,11 @@ export const primaryWalletBalance = (
     model.portfolio._tag === 'LoadedPortfolio'
       ? Array.findFirst(
           model.portfolio.snapshot.balanceSnapshot.balances,
-          balance => balance.accountId === account.accountId,
+          balance =>
+            balance.accountId === account.accountId &&
+            Option.isSome(model.maybeSendNetworkSelection) &&
+            balance.amount.assetId ===
+              model.maybeSendNetworkSelection.value.assetId,
         )
       : Option.none(),
   )

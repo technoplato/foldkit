@@ -9,7 +9,9 @@ import {
   RequestedTransferPreview,
   RequestedWalletCreation,
   RequestedWalletRefresh,
+  SelectedSendNetwork,
   SelectedWalletNetworkMode,
+  type SendNetworkSelection,
   type TransactionPreview,
   type TransactionState,
   type WalletCreationState,
@@ -18,7 +20,11 @@ import {
   activeWalletAccounts,
   assetAmountLabel,
   assetAmountLabelForModel,
+  availableSendNetworkSelections,
+  chainForId,
+  demoTransferAtomicUnitsForSelection,
   makeWalletTestChallenge,
+  networkForId,
   primaryReceivingInstruction,
   primaryWalletAccount,
   primaryWalletAsset,
@@ -26,7 +32,6 @@ import {
   primaryWalletNetwork,
   shortenedAddress,
   transferRecipientInput,
-  walletDemoTransferAtomicUnits,
 } from 'wallet-core-example'
 
 const maybePreviewForTransaction = (
@@ -277,6 +282,67 @@ const walletHero = (model: Model): Html => {
   )
 }
 
+const sendNetworkButton = (
+  model: Model,
+  selection: SendNetworkSelection,
+): Html => {
+  const h = html<Message>()
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return h.span([], [])
+  }
+  const portfolio = model.portfolio.snapshot
+  const chainName = Option.match(
+    chainForId(portfolio.chains, selection.chainId),
+    {
+      onNone: () => selection.chainId,
+      onSome: chain => chain.displayName,
+    },
+  )
+  const networkName = Option.match(
+    networkForId(portfolio.networks, selection.networkId),
+    {
+      onNone: () => selection.networkId,
+      onSome: network => network.displayName,
+    },
+  )
+  const isSelected = Option.exists(
+    model.maybeSendNetworkSelection,
+    current =>
+      current.networkId === selection.networkId &&
+      current.accountId === selection.accountId &&
+      current.assetId === selection.assetId,
+  )
+  return h.button(
+    [
+      h.Type('button'),
+      h.Key(selection.networkId),
+      h.Class(
+        isSelected ? 'wallet-send-network selected' : 'wallet-send-network',
+      ),
+      h.AriaPressed(String(isSelected)),
+      h.OnClick(SelectedSendNetwork.make({ selection })),
+    ],
+    [h.strong([], [chainName]), h.span([], [networkName])],
+  )
+}
+
+const sendNetworkPicker = (model: Model): Html => {
+  const h = html<Message>()
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return h.div([h.Class('wallet-send-networks')], [])
+  }
+  return h.div(
+    [h.Class('wallet-send-networks'), h.AriaLabel('Send network selection')],
+    Array.map(
+      availableSendNetworkSelections(
+        model.portfolio.snapshot,
+        model.walletNetworkMode,
+      ),
+      selection => sendNetworkButton(model, selection),
+    ),
+  )
+}
+
 const sendButton = (model: Model): Html => {
   const h = html<Message>()
   if (model.transaction._tag === 'PreviewedTransaction') {
@@ -362,17 +428,21 @@ const sendMoney = (model: Model): Html => {
     onNone: () => 'Recipient address',
     onSome: account => account.address,
   })
-  const transferAmount = Option.match(primaryWalletAsset(model), {
-    onNone: () => walletDemoTransferAtomicUnits,
-    onSome: asset =>
-      assetAmountLabel(
-        {
-          assetId: asset.assetId,
-          atomicUnits: walletDemoTransferAtomicUnits,
-          observedAt: 0,
-        },
-        asset,
-      ),
+  const transferAmount = Option.match(model.maybeSendNetworkSelection, {
+    onNone: () => 'Select a network',
+    onSome: selection =>
+      Option.match(primaryWalletAsset(model), {
+        onNone: () => demoTransferAtomicUnitsForSelection(selection),
+        onSome: asset =>
+          assetAmountLabel(
+            {
+              assetId: asset.assetId,
+              atomicUnits: demoTransferAtomicUnitsForSelection(selection),
+              observedAt: 0,
+            },
+            asset,
+          ),
+      }),
   })
   const recipientField = h.label(
     [h.Class('wallet-recipient'), h.For('wallet-recipient')],
@@ -483,6 +553,7 @@ const sendMoney = (model: Model): Html => {
           ),
         ],
       ),
+      sendNetworkPicker(model),
       recipientField,
       ...validation,
       preview,

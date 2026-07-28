@@ -1,6 +1,5 @@
 import { Array, Data, Effect, Option, pipe } from 'effect'
-import * as Program from 'foldkit/program'
-import { WalletProgram } from 'wallet-core-example'
+import { parseWalletProgramRoute } from 'wallet-core-example'
 import { type WalletInitialRoute } from 'wallet-react-bindings-example'
 
 import { CliRenderEvents, createCliRenderer } from '@opentui/core'
@@ -11,8 +10,6 @@ import { App } from './host.js'
 class WalletOpenTuiCarrierError extends Data.TaggedError(
   'WalletOpenTuiCarrierError',
 )<{ readonly message: string }> {}
-
-const walletRouter = Program.makeRouter(WalletProgram)
 
 const relativeRouteForCarrier = (
   carrier: string,
@@ -44,7 +41,7 @@ const maybeInitialRoute = await Effect.runPromise(
     onSome: carrier =>
       Effect.gen(function* () {
         const relativeRoute = yield* relativeRouteForCarrier(carrier)
-        const route = yield* walletRouter.parse(relativeRoute)
+        const route = yield* parseWalletProgramRoute(relativeRoute)
         if (route._tag === 'SavedReplay') {
           return yield* Effect.fail(
             new WalletOpenTuiCarrierError({

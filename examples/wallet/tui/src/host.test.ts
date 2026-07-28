@@ -38,14 +38,15 @@ describe('Wallet OpenTUI host', () => {
       'ShowWallet',
       'CreateWallet',
       'ToggleWalletNetwork',
+      'SelectNextSendNetwork',
       'ShowReceivingInstruction',
       'PreviewWalletTransaction',
       'SignWalletChallenge',
       'ShowWalletStatePath',
       'ShowWalletReplayPath',
     ])
-    expect(walletOpenTuiSummary(model)).toContain('2 accounts')
-    expect(walletOpenTuiSummary(model)).toContain('Transactions 3')
+    expect(walletOpenTuiSummary(model)).toContain('8 accounts')
+    expect(walletOpenTuiSummary(model)).toContain('Transactions 8')
     expect(walletOpenTuiSummary(model)).toContain('0 wallets Testnet')
   })
 })

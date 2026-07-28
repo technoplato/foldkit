@@ -13,6 +13,7 @@ import {
 } from './currency.js'
 import { BlockExplorerConfirmation } from './explorer.js'
 import { NoWalletIntent, WalletIntentState } from './intent.js'
+import { SendNetworkSelection } from './sendNetworkSelection.js'
 import {
   ReadyToCreateWallet,
   WalletCreationState,
@@ -632,6 +633,7 @@ export type TransactionHistoryState = typeof TransactionHistoryState.Type
 export const Model = S.Struct({
   wallets: S.Array(WalletProfile),
   walletNetworkMode: WalletNetworkMode,
+  maybeSendNetworkSelection: S.Option(SendNetworkSelection),
   walletCreation: WalletCreationState,
   portfolio: PortfolioState,
   walletIntent: WalletIntentState,
@@ -650,6 +652,7 @@ export type Model = typeof Model.Type
 export const initialModel: Model = {
   wallets: [],
   walletNetworkMode: 'Testnet',
+  maybeSendNetworkSelection: Option.none(),
   walletCreation: ReadyToCreateWallet.make({}),
   portfolio: LoadingPortfolio.make({}),
   walletIntent: NoWalletIntent.make({}),

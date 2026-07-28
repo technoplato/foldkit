@@ -94,13 +94,13 @@ describe('Client Matrix Foldkit view', () => {
     Scene.scene(
       { update, view },
       Scene.with(initialModel()),
-      Scene.expect(Scene.text('wallet@6')).toExist(),
+      Scene.expect(Scene.text('wallet@7')).toExist(),
       Scene.expect(
         Scene.text('/wallet/state?model=<encoded Wallet Model>'),
       ).toExist(),
       Scene.expect(
         Scene.text(
-          '/wallet/replay?tape=<encoded wallet@6 ReplayTape>&frame=<frame>',
+          '/wallet/replay?tape=<encoded wallet@7 ReplayTape>&frame=<frame>',
         ),
       ).toExist(),
       Scene.expect(
@@ -115,11 +115,10 @@ describe('Client Matrix Foldkit view', () => {
       Scene.expect(Scene.text('ETH | Testnet')).toExist(),
       Scene.expect(
         Scene.text(
-          'foldkit://showcase/wallet/intent/send?account=simulated-ethereum-account',
+          'foldkit://showcase/wallet/intent/send?mode=Testnet&chain=ethereum&network=ethereum%3Asepolia&account=simulated-ethereum-account',
           { exact: false },
         ),
       ).toExist(),
-      Scene.expect(Scene.text('HostIntakePending')).toExist(),
       Scene.expect(Scene.text('Active')).toExist(),
     )
   })

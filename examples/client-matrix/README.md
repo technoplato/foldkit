@@ -6,7 +6,7 @@ The Client Matrix is a Foldkit Program with three complementary comparisons:
   and route parser-printer. It compares those modes across eight real client
   surfaces. Every cell shows the client carrier and a checked-in capture of that
   client rendering the same canonical application state.
-- Wallet audits the `wallet@6` Program identity, one exact state route, one exact
+- Wallet audits the `wallet@7` Program identity, one exact state route, one exact
   settled replay route, and the carrier and evidence boundary for React,
   Foldkit, raw CLI, Effect Terminal, OpenTUI, Expo Web, Expo iOS, Expo Android,
   and a future server host.
@@ -58,7 +58,7 @@ It distinguishes route implementation from Program reuse:
   be different semantics and is not substituted silently.
 - No future server host, endpoint, or ReplayTapeStore is claimed.
 
-The Wallet route strings are exact outputs of the shared `wallet@6` Program
+The Wallet route strings are exact outputs of the shared `wallet@7` Program
 router over a small public Model and a one-transition settled replay tape. The
 carrier strings use `<portable-wallet-route>` and `<expo-web-origin>` as explicit
 substitution points. They are not deployment claims. Source inspection and
@@ -66,17 +66,17 @@ focused-test evidence are labeled independently, and no physical iOS or Android
 behavior is implied.
 
 Wallet intent paths are exact outputs of
-`examples/wallet/core/src/intent.ts`. The parser-printer covers all nine
-asset/mode combinations. `usd` means USDC settlement through either the
-Ethereum or Solana rail. It does not mean a fiat bank transfer. The current
-Sepolia and Solana Devnet Layers are labeled independently from typed but
-unsupported combinations. Live never falls back to a test Layer.
+`examples/wallet/core/src/intent.ts`. The parser-printer covers all eight native
+asset and network-mode combinations for Bitcoin, Ethereum, Solana, and Sui.
+Every example uses deterministic test money. No Mainnet rail silently falls
+back to a Devnet or Testnet Layer.
 
 Intent parsing and pending intent state are implemented in the shared core.
 React Web, Foldkit View, Expo Web, Expo iOS, and Expo Android carriers are
 labeled `Active`: opening one loads the wallet and produces a preview Command,
-but never submits the transaction. CLI and terminal carriers remain labeled
-`HostIntakePending` until they accept the same portable intent route.
+but never submits the transaction. CLI, Effect Terminal, and OpenTUI accept the
+same portable intent route. The CLI can submit that preview and reads every
+encoded property back after the observed simulated transaction settles.
 
 Run it with:
 

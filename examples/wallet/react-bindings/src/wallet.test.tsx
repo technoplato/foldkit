@@ -26,8 +26,14 @@ const wrapper = ({ children }: Readonly<{ children: ReactNode }>) => (
   </StrictMode>
 )
 
-const maybeAccount = Array.head(simulatedPortfolio.accounts)
-const maybeBalance = Array.head(simulatedPortfolio.balanceSnapshot.balances)
+const maybeAccount = Array.findFirst(
+  simulatedPortfolio.accounts,
+  candidate => candidate.accountId === 'simulated-ethereum-account',
+)
+const maybeBalance = Array.findFirst(
+  simulatedPortfolio.balanceSnapshot.balances,
+  candidate => candidate.accountId === 'simulated-ethereum-account',
+)
 
 if (Option.isNone(maybeAccount) || Option.isNone(maybeBalance)) {
   throw new Error('Expected simulated Wallet fixtures')
@@ -71,6 +77,7 @@ describe('Wallet React bindings', () => {
       'requestedWalletCreation',
       'requestedWalletRefresh',
       'resumedTransactionObservation',
+      'selectedSendNetwork',
       'selectedWalletNetworkMode',
     ])
 
@@ -204,7 +211,7 @@ describe('Wallet React bindings', () => {
 
   it('loads and previews a portable send intent through the same Program', async () => {
     const path =
-      '/wallet/intent/send?account=simulated-ethereum-account&asset=ethereum%3Asepolia%3Aeth&amount=10000000000000&to=0x2222222222222222222222222222222222222222'
+      '/wallet/intent/send?mode=Testnet&chain=ethereum&network=ethereum%3Asepolia&account=simulated-ethereum-account&asset=ethereum%3Asepolia%3Aeth&amount=10000000000000&to=0x2222222222222222222222222222222222222222'
     const intentRoute = await parseWalletInitialRoute(path)
     const intentWrapper = ({ children }: Readonly<{ children: ReactNode }>) => (
       <WalletProvider initialRoute={intentRoute}>{children}</WalletProvider>

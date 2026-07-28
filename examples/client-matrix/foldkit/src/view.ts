@@ -1595,7 +1595,7 @@ const walletIntentAudit = (): Html => {
                   h.p(
                     [h.Class('max-w-4xl text-sm leading-6 text-stone-400')],
                     [
-                      'The Wallet core owns one parser-printer for the global relative path. Each client owns only its origin, custom scheme, or command-line wrapper. USD means USDC settlement here, not a bank-dollar transfer. Parsing an intent never performs a side effect. It must enter the Program as startup input or a Message, and update must decide the resulting Commands.',
+                      'The Wallet core owns one parser-printer for the global relative path. Each client owns only its origin, custom scheme, or command-line wrapper. Every native Bitcoin, Ethereum, Solana, and Sui rail is represented in both Devnet and Testnet modes. Parsing an intent never performs a side effect. It enters the Program as startup input, and update decides the resulting Commands.',
                     ],
                   ),
                 ],

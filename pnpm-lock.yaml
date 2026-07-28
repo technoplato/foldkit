@@ -2325,9 +2325,9 @@ importers:
       wallet-react-bindings-example:
         specifier: workspace:*
         version: link:../wallet/react-bindings
-      wallet-remote-example:
+      wallet-simulated-client-example:
         specifier: workspace:*
-        version: link:../wallet/remote
+        version: link:../wallet/simulated-client
     devDependencies:
       '@babel/plugin-transform-object-rest-spread':
         specifier: ^7.29.7
@@ -3168,9 +3168,6 @@ importers:
       wallet-core-example:
         specifier: workspace:*
         version: link:../core
-      wallet-remote-example:
-        specifier: workspace:*
-        version: link:../remote
       wallet-simulated-client-example:
         specifier: workspace:*
         version: link:../simulated-client
@@ -3245,9 +3242,9 @@ importers:
       wallet-react-bindings-example:
         specifier: workspace:*
         version: link:../react-bindings
-      wallet-remote-example:
+      wallet-simulated-client-example:
         specifier: workspace:*
-        version: link:../remote
+        version: link:../simulated-client
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.1

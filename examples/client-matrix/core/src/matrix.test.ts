@@ -150,7 +150,7 @@ describe('Client Matrix core', () => {
   it('covers both Wallet route modes across every required client', () => {
     expect(walletProgramIdentity).toStrictEqual({
       id: 'wallet',
-      version: 6,
+      version: 7,
       source: 'examples/wallet/core/src/program.ts',
     })
     expect(Array.map(walletRoutes, route => route.mode)).toStrictEqual([
@@ -205,7 +205,7 @@ describe('Client Matrix core', () => {
       expect(replayTape).toMatchObject({
         formatVersion: 1,
         programId: 'wallet',
-        programVersion: 6,
+        programVersion: 7,
       })
       expect(replayTape.transitions).toHaveLength(1)
       const maybeTransition = Array.head(replayTape.transitions)
@@ -265,19 +265,24 @@ describe('Client Matrix core', () => {
     expect(
       Array.map(walletIntentDefinitions, definition => definition.id),
     ).toStrictEqual([
+      'btc-devnet',
+      'btc-testnet',
       'eth-devnet',
       'eth-testnet',
-      'eth-live',
       'sol-devnet',
       'sol-testnet',
-      'sol-live',
-      'usd-devnet',
-      'usd-testnet',
-      'usd-live',
+      'sui-devnet',
+      'sui-testnet',
     ])
     expect(
       Array.every(walletIntentDefinitions, definition =>
         definition.portableRoute.startsWith('/wallet/intent/send?'),
+      ),
+    ).toBe(true)
+    expect(
+      Array.every(
+        walletIntentDefinitions,
+        definition => definition.capability.support === 'Implemented',
       ),
     ).toBe(true)
 
