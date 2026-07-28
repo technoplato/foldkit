@@ -369,9 +369,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
                 )}
               </strong>
               <CopyAddressButton
-                address={
-                  maybePreview.value.transfer.recipient.normalizedAddress
-                }
+                address={maybePreview.value.transfer.recipient.displayAddress}
                 copyId="transfer-preview-recipient"
                 model={model}
               />

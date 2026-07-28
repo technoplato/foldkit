@@ -455,9 +455,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       {Option.isSome(maybePreview) ? (
         <View style={styles.preview}>
           <PreviewRow
-            copyAddress={
-              maybePreview.value.transfer.recipient.normalizedAddress
-            }
+            copyAddress={maybePreview.value.transfer.recipient.displayAddress}
             copyId="transfer-preview-recipient"
             label="To"
             model={model}
