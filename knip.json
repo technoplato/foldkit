@@ -99,6 +99,10 @@
     "examples/cardboard/react": {
       "ignoreDependencies": ["prettier"]
     },
+    "examples/cardboard/web": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["@fontsource/jetbrains-mono", "prettier"]
+    },
     "examples/cardboard/cli": {
       "entry": ["src/entry.ts"],
       "ignoreDependencies": ["prettier"]

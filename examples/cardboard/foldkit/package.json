@@ -6,9 +6,9 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "prebuild": "pnpm --filter cardboard-core-example build",
-    "predev": "pnpm --filter cardboard-core-example build",
-    "pretypecheck": "pnpm --filter cardboard-core-example build",
+    "prebuild": "pnpm --filter cardboard-web-preview-example build",
+    "predev": "pnpm --filter cardboard-web-preview-example build",
+    "pretypecheck": "pnpm --filter cardboard-web-preview-example build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "workspace:*",
+    "cardboard-web-preview-example": "workspace:*",
     "happy-dom": "^20.10.4",
     "prettier": "^3.8.4",
     "typescript": "^6.0.3",
