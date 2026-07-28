@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 6:29:45 p.m. EDT — `a9a83ae981f0` fix(wallet): wrap native Wallet headings
+
+- **Implementation commit:** `a9a83ae981f085951c6c1284f48cfcc0b0cbea9d`
+- **Change:** Keep native Wallet heading actions inside narrow screens
+- **Details:**
+  - Allowed shared native Wallet heading rows to wrap after simulator verification found the Create wallet action clipped beyond the iPhone 17 Pro viewport.
+- **Files:**
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Wrapped narrow heading rows so Wallet actions remain visible and tappable.
+- **User context (verbatim):**
+  > every time I refresh the page, it's just gonna go away
+- **SpecStory:** unavailable — Codex desktop task; no durable SpecStory URI is available.
+
 ## July 28th, 2026 at 6:21:06 p.m. EDT — `3f5256b0c481` fix(wallet): access Vite source setting safely
 
 - **Implementation commit:** `3f5256b0c481569754d7ab86c0b748f0904de901`
