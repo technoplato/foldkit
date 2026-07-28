@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 27th, 2026 at 11:59:49 p.m. EDT — `358066475407` feat(cardboard): run Rule Zero across portable clients
+
+- **Implementation commit:** `358066475407c149304a70d4bf7be2ed3ac984a8`
+- **Change:** Run Rule Zero across portable clients
+- **Details:**
+  - Added Foldkit, React, Expo, CLI, and TUI presentations over one canonical Cardboard Program.
+  - Modeled the controller and mirror riddle as typed states and Messages, including explicit invalid, answered, and skipped outcomes.
+  - Kept interactive terminal input non-blocking while Program Subscriptions drive lifecycle progress.
+- **Files:**
+  - `examples/cardboard/core/src/model.ts` — Defines the portable controller riddle and legal resolution states.
+  - `examples/cardboard/foldkit/src/view.ts` — Renders Rule Zero through the normal Foldkit view path.
+  - `examples/cardboard/react-bindings/src/cardboard.tsx` — Exposes shared React and React Native model, actions, and replay hooks.
+  - `examples/cardboard/react/src/App.tsx` — Presents the React Rule Zero client.
+  - `examples/cardboard/cli/src/host.ts` — Presents deterministic one-shot commands.
+  - `examples/cardboard/tui/src/host.ts` — Processes real interactive terminal input without blocking persistent Subscriptions.
+  - `examples/react-native-showcase/src/App.tsx` — Presents Cardboard in Expo Web, iOS, and Android.
+  - `examples/showcase/core/src/route.ts` — Adds the portable /0 showcase destination.
+  - `docs/explorations/project-cardboard.md` — Records the client contract, riddle state graph, and constitutional play rule.
+  - `package.json` — Adds runnable Cardboard demo commands.
+  - `pnpm-lock.yaml` — Records the nested example dependency graph.
+- **User context (verbatim):**
+  > Let's implement all programs.
+  > Let's also add a game controller
+  > What would you do if you had to prioritize speed?
+- **SpecStory:** unavailable — Codex desktop GUI session is not available to SpecStory capture.
+
 ## July 27th, 2026 at 11:43:21 p.m. EDT — `d92eef7c3e87` feat(cardboard): define the portable Rule Zero program
 
 - **Implementation commit:** `d92eef7c3e873c0c519757f13f39928ffa921273`
