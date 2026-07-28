@@ -1,6 +1,7 @@
 import {
   AdvancedCardboardSequence,
   CardboardProgram,
+  CardboardRouter,
   CompletedZeroGame,
   type Message,
   type Model,
@@ -18,20 +19,79 @@ import {
 import {
   Array,
   Cause,
+  Data,
   Effect,
   Layer,
+  Match as M,
   Option,
   PlatformError,
   Queue,
   Terminal,
 } from 'effect'
-import { Runtime } from 'foldkit'
+import { Program, Runtime } from 'foldkit'
 
 const clearScreen = '\u001b[2J\u001b[H'
 const amberPaper = '\u001b[38;2;255;229;174m\u001b[48;2;35;24;13m'
 const amberAccent = '\u001b[38;2;244;173;72m'
 const dimTerminalText = '\u001b[2m'
 const resetTerminalStyle = '\u001b[0m'
+
+/** A terminal carrier is not a valid absolute or portable replay route. */
+export class CardboardTuiCarrierError extends Data.TaggedError(
+  'CardboardTuiCarrierError',
+)<{ readonly cause: unknown; readonly carrier: string }> {}
+
+/** A saved replay needs a ReplayTapeStore before the TUI can open it. */
+export class MissingCardboardTuiReplayTapeStoreError extends Data.TaggedError(
+  'MissingCardboardTuiReplayTapeStoreError',
+)<{ readonly tapeId: Program.ReplayTapeId }> {}
+
+const relativeRouteForCarrier = (
+  carrier: string,
+): Effect.Effect<string, CardboardTuiCarrierError> => {
+  if (!carrier.includes('://')) {
+    return Effect.succeed(carrier)
+  } else {
+    return Effect.try({
+      try: () => {
+        const url = new URL(carrier)
+        return `${url.pathname}${url.search}`
+      },
+      catch: cause => new CardboardTuiCarrierError({ carrier, cause }),
+    })
+  }
+}
+
+/** Parses a portable, HTTPS, or mobile carrier into a TUI Program start. */
+export const parseCardboardTuiRoute = (
+  carrier: string,
+): Effect.Effect<
+  Program.ResolvedProgramRoute<Model, Message>,
+  | CardboardTuiCarrierError
+  | Program.ProgramRouteError
+  | MissingCardboardTuiReplayTapeStoreError
+> =>
+  relativeRouteForCarrier(carrier).pipe(
+    Effect.flatMap(CardboardRouter.parse),
+    Effect.flatMap(route =>
+      M.value(route).pipe(
+        M.withReturnType<
+          Effect.Effect<
+            Program.ResolvedProgramRoute<Model, Message>,
+            MissingCardboardTuiReplayTapeStoreError
+          >
+        >(),
+        M.tagsExhaustive({
+          State: stateRoute => Effect.succeed(stateRoute),
+          Replay: replayRoute => Effect.succeed(replayRoute),
+          SavedReplay: ({ tapeId }) =>
+            Effect.fail(
+              new MissingCardboardTuiReplayTapeStoreError({ tapeId }),
+            ),
+        }),
+      ),
+    ),
+  )
 
 /** Renders the canonical Cardboard Model for a text terminal. */
 export const renderCardboardScreen = (model: Model): string =>
@@ -238,7 +298,9 @@ const runInputCharacters = (
   })
 
 /** Runs the interactive Cardboard terminal host. */
-export const runCardboardTui = (): Effect.Effect<
+export const runCardboardTui = (
+  route: Program.ResolvedProgramRoute<Model, Message> = initialCardboardRoute,
+): Effect.Effect<
   void,
   Cause.Done | PlatformError.PlatformError,
   Terminal.Terminal
@@ -250,7 +312,7 @@ export const runCardboardTui = (): Effect.Effect<
         Runtime.makeReplayController({
           program: CardboardProgram,
           resources: Layer.empty,
-          route: initialCardboardRoute,
+          route,
         }),
       )
       let currentScreen = renderControllerScreen(controller)
