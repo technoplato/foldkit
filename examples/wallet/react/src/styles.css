@@ -189,6 +189,7 @@ input {
 }
 
 .wallet-balance {
+  container-type: inline-size;
   display: grid;
   gap: 0.35rem;
   margin-top: clamp(2.5rem, 10vw, 5rem);
@@ -204,10 +205,11 @@ input {
 }
 
 .wallet-balance strong {
-  overflow-wrap: anywhere;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(3.5rem, 15vw, 7.5rem);
+  font-size: clamp(1.35rem, 7vw, 4.25rem);
+  font-size: clamp(1.35rem, 7cqw, 4.25rem);
   line-height: 0.95;
+  white-space: nowrap;
 }
 
 .wallet-send h2,
