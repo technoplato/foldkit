@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:05:18 p.m. EDT — `fafce2244108` fix(wallet): fit balances to Cardboard panels
+
+- **Implementation commit:** `fafce2244108e3802c8d480c9cc6305a1442675b`
+- **Change:** Kept long testnet balances legible inside the shared Cardboard wallet panels.
+- **Details:**
+  - Computer Use exposed overlapping balance lines in the narrow React and Foldkit WAN clients after the functional wallet flows passed.
+  - The balance now scales from its containing panel with a viewport fallback and remains on one line.
+- **Files:**
+  - `examples/wallet/react/src/styles.css` — Provides the shared responsive balance typography consumed by React and Foldkit.
+- **User context (verbatim):**
+  > Test those a little bit more comprehensively and use them, uh, with computer use. They aren't working at all.
+  > And again, we want them on the WAN, not LAN.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this Codex desktop session is not captured by SpecStory.
+
 ## July 28th, 2026 at 11:58:05 a.m. EDT — `18298959af0b` feat(wallet): create portable multichain wallets
 
 - **Implementation commit:** `18298959af0be9dea8d6d893f64113841044fede`
