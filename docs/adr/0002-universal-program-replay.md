@@ -100,6 +100,33 @@ need to explain that earlier transitions are no longer available.
 Replay tapes can contain sensitive application facts. Exporting, persisting, or sharing
 a tape remains an explicit adapter action rather than an automatic runtime side effect.
 
+## Interactive Program Log | 2026-07-28
+
+An interactive Program log is a presentation of the engine-owned replay controller,
+not a domain page and not another Model history. Opening the log enters inert
+inspection at the current frame. Undo and redo select earlier and later frames. Future
+transitions remain visible but visually de-emphasized. Selecting a transition seeks to
+its frame. The inspected Model is the only Model rendered and remains pinned above the
+scrolling transition and runtime-event list.
+
+Leaving inspection requires an engine operation that does not fabricate a domain
+Message. `ReplayController.resume` branches from the selected settled frame, creates a
+live runtime with the normal Resources Layer, and returns its initialized Model.
+Historical Commands remain inert. If the selected frame is unsettled, resume returns
+`UnsettledReplayFrameError` and inspection remains active.
+
+React and React Native consume the same `useReplay` contract. It exposes immutable
+typed transitions, runtime events, seeking, stepping, branchability, and resume. Each
+client renders those facts through its native controls. A terminal client consumes the
+same `ReplayController` directly. Domain supplementary material is a separate `[E]
+Extra` action and `/0/extra` route. It must not be presented as Program history.
+
+The canonical Foldkit view runtime still projects its authoritative Program journal
+through DevTools, but its `view(model)` boundary cannot yet open that inspection
+surface from an in-application control. The eventual public control seam must reuse
+the runtime journal and resume semantics. It must not add replay state to a domain
+Model, dispatch a fake Message, inspect the DOM, or create a second history.
+
 ## Outcome Assessment | 2026-07-26 09:11:35 EDT
 
 | Dimension                  | Score | Evidence                                                                                                                                                                                                                                                                                                                                        |

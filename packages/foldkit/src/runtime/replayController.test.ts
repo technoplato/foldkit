@@ -283,14 +283,27 @@ describe('makeReplayController', () => {
           expect(releasedCount).toBe(1)
           expect(Option.isNone(controller.readTimeline())).toBe(true)
 
-          yield* controller.run(RequestedSave())
-
+          expect(yield* controller.resume).toStrictEqual({
+            count: 0,
+            status: 'Ready',
+          })
           expect(acquiredCount).toBe(2)
           expect(releasedCount).toBe(1)
+          expect(controller.read().mode).toBe('Live')
+          expect(controller.readReplayTape().transitions).toHaveLength(0)
+
+          yield* controller.inspect()
+
+          expect(releasedCount).toBe(2)
+
+          yield* controller.run(RequestedSave())
+
+          expect(acquiredCount).toBe(3)
+          expect(releasedCount).toBe(2)
 
           yield* controller.shutdown
 
-          expect(releasedCount).toBe(2)
+          expect(releasedCount).toBe(3)
         }),
       ),
   )

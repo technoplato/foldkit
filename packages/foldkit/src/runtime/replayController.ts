@@ -97,6 +97,11 @@ export type ReplayController<Model, Message, ResourceError = never> = Readonly<{
   >
   /** Leaves Live mode and inspects the current tape at one inert frame. */
   inspect: (frame?: number) => Effect.Effect<Model, ReplayFrameError>
+  /** Resumes live execution from the selected settled inspection frame. */
+  resume: Effect.Effect<
+    Model,
+    ProgramRuntimeStartError | UnsettledReplayFrameError | ResourceError
+  >
   /**
    * Sends a new live Message. Inspecting first branches from the selected
    * settled frame; historical Commands stay inert and new Commands run.
@@ -345,6 +350,19 @@ export const makeReplayController = <
         return yield* liveRuntime.run(message, options)
       })
 
+    const resume: Effect.Effect<
+      Model,
+      ProgramRuntimeStartError | UnsettledReplayFrameError | ResourceError
+    > = Effect.gen(function* () {
+      if (controllerState._tag === 'Live') {
+        return controllerState.runtime.readModel()
+      }
+      const tape = yield* controllerState.session.branch()
+      const live = yield* makeLiveRuntime(fromReplay(tape))
+      const liveRuntime = activateLiveRuntime(live)
+      return yield* liveRuntime.initialization
+    })
+
     const observe = (
       listener: (snapshot: ReplayControllerSnapshot<Model>) => void,
     ): (() => void) => {
@@ -399,6 +417,7 @@ export const makeReplayController = <
       stepBackward,
       stepForward,
       inspect,
+      resume,
       run,
       observe,
       stateRoute,

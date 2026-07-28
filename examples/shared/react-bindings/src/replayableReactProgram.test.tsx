@@ -95,6 +95,11 @@ describe('replayable React Program bindings', () => {
       expect(result.current.replay.frame).toBe(2)
       expect(result.current.replay.mode).toBe('Live')
     })
+    expect(
+      result.current.replay.transitions.map(
+        transition => transition.message._tag,
+      ),
+    ).toStrictEqual(['ClickedIncrement', 'ClickedIncrement'])
     await expect(result.current.replay.statePath()).resolves.toContain(
       '/state?',
     )
@@ -111,13 +116,22 @@ describe('replayable React Program bindings', () => {
     })
 
     act(() => {
+      result.current.replay.resume()
+    })
+    await waitFor(() => {
+      expect(result.current.model.count).toBe(4)
+      expect(result.current.replay.frame).toBe(0)
+      expect(result.current.replay.finalFrame).toBe(0)
+      expect(result.current.replay.mode).toBe('Live')
+    })
+
+    act(() => {
       result.current.actions.clickedIncrement()
     })
     await waitFor(() => {
       expect(result.current.model.count).toBe(5)
       expect(result.current.replay.frame).toBe(1)
       expect(result.current.replay.finalFrame).toBe(1)
-      expect(result.current.replay.mode).toBe('Live')
     })
   })
 
@@ -164,6 +178,13 @@ describe('replayable React Program bindings', () => {
     await waitFor(() => {
       expect(result.current.replay.mode).toBe('Inspecting')
       expect(result.current.replay.isBranchable).toBe(false)
+    })
+    act(() => {
+      result.current.replay.resume()
+    })
+    await waitFor(() => {
+      expect(result.current.replay.mode).toBe('Inspecting')
+      expect(Option.isSome(result.current.replay.maybeError)).toBe(true)
     })
     act(() => {
       result.current.actions.clickedIncrement()

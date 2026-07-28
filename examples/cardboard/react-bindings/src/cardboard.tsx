@@ -32,7 +32,7 @@ export type CardboardActions = Readonly<{
   advancedCardboardSequence: () => void
   performedCardboardAction: (action: CardboardAction) => void
   completedZeroGame: () => void
-  openedConversationLedger: () => void
+  openedExtra: () => void
   pressedLowercaseG: () => void
   pressedSpace: () => void
   pressedZeroButton: () => void
@@ -62,7 +62,7 @@ export const CardboardClient = createReplayableReactProgramClient<
     performedCardboardAction: action =>
       enqueueMessage(messageForCardboardAction(action)),
     completedZeroGame: () => enqueueMessage(CompletedZeroGame()),
-    openedConversationLedger: () => enqueueMessage(OpenedConversationLedger()),
+    openedExtra: () => enqueueMessage(OpenedConversationLedger()),
     pressedLowercaseG: () => enqueueMessage(PressedLowercaseG()),
     pressedSpace: () => enqueueMessage(PressedSpace()),
     pressedZeroButton: () => enqueueMessage(PressedZeroButton()),

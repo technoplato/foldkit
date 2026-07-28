@@ -55,6 +55,7 @@ import {
 } from 'wallet-react-bindings-example'
 
 import { logBuildProvenance } from './buildProvenance'
+import { CardboardProgramLog } from './cardboardProgramLog'
 import { portablePathFromCarrier } from './carrier'
 import { NativeNavigationComparison } from './nativeNavigationComparison'
 import {
@@ -475,9 +476,7 @@ const ShowcaseScreen = ({
     return (
       <SafeAreaView style={styles.cardboardSafeArea}>
         <StatusBar style="light" />
-        <ScrollView contentContainerStyle={styles.cardboardContent}>
-          {content}
-        </ScrollView>
+        <View style={styles.cardboardContent}>{content}</View>
       </SafeAreaView>
     )
   }
@@ -534,18 +533,16 @@ const NativeShowcaseScreen = ({
       {Option.isSome(maybeNavigation) && !isCardboard ? (
         <ShowcaseTabs navigation={maybeNavigation.value} />
       ) : null}
-      <ScrollView
-        contentContainerStyle={
-          isCardboard ? styles.cardboardContent : styles.content
-        }
-      >
-        {content}
-        {isCardboard ? null : (
+      {isCardboard ? (
+        <View style={styles.cardboardContent}>{content}</View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content}>
+          {content}
           <View style={styles.navigationReplay}>
             <ReplayControls label="Showcase replay" replay={replay} />
           </View>
-        )}
-      </ScrollView>
+        </ScrollView>
+      )}
     </View>
   </SafeAreaView>
 )
@@ -744,7 +741,7 @@ const cardboardPortableRoute = (model: Cardboard.Model): string => {
   if (model.page._tag === 'SequencePage') {
     return Cardboard.sequencePortableRoute(model.page.value)
   } else if (model.page._tag === 'ConversationLedgerPage') {
-    return Cardboard.conversationLedgerPortableRoute
+    return Cardboard.extraPortableRoute
   } else {
     return Cardboard.ruleZeroPortableRoute
   }
@@ -768,14 +765,37 @@ const CardboardScreen = ({
       : 0
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || replay.mode !== 'Live') {
+    if (Platform.OS !== 'web') {
       return
     }
-    const nextPath = cardboardPortableRoute(model)
-    if (globalThis.location.pathname !== nextPath) {
-      globalThis.history.pushState({}, '', nextPath)
+    let isCurrent = true
+    if (replay.mode === 'Live') {
+      const nextPath = cardboardPortableRoute(model)
+      if (globalThis.location.pathname !== nextPath) {
+        globalThis.history.pushState({}, '', nextPath)
+      }
+    } else {
+      void replay.replayPath().then(nextPath => {
+        if (isCurrent && globalThis.location.pathname !== nextPath) {
+          globalThis.history.replaceState({}, '', nextPath)
+        }
+      })
     }
-  }, [model.page, replay.mode])
+    return () => {
+      isCurrent = false
+    }
+  }, [model.page, replay.frame, replay.mode])
+
+  if (replay.mode === 'Inspecting') {
+    return (
+      <CardboardProgramLog
+        model={model}
+        onBackToShowcase={onBackToShowcase}
+        onOpenExtra={actions.openedExtra}
+        replay={replay}
+      />
+    )
+  }
 
   if (model.page._tag === 'SequencePage') {
     const screen = Cardboard.cardboardScreen(model)
@@ -804,6 +824,13 @@ const CardboardScreen = ({
           accessibilityLabel="Cardboard commands"
           style={styles.cardboardCommandBar}
         >
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => replay.inspect()}
+            style={styles.cardboardCommand}
+          >
+            <Text style={styles.cardboardCommandText}>[L] Log</Text>
+          </Pressable>
           {Array.map(screen.commands, command => (
             <Pressable
               accessibilityRole="button"
@@ -831,154 +858,156 @@ const CardboardScreen = ({
 
   if (model.page._tag === 'ConversationLedgerPage') {
     return (
-      <CardboardLedgerScreen
-        onBackToShowcase={onBackToShowcase}
-        onReturn={actions.returnedToCardboardSequence}
-      />
+      <ScrollView contentContainerStyle={styles.cardboardScrollableContent}>
+        <CardboardLedgerScreen
+          onBackToShowcase={onBackToShowcase}
+          onReturn={actions.returnedToCardboardSequence}
+        />
+      </ScrollView>
     )
   }
 
   return (
-    <View style={[styles.cardboardExample, cardboardProfileStyle(profile)]}>
-      <Pressable
-        accessibilityLabel="Back to showcase"
-        accessibilityRole="button"
-        onPress={onBackToShowcase}
-        style={styles.cardboardBackButton}
-      >
-        <Text style={styles.cardboardBackButtonText}>‹ Showcase</Text>
-      </Pressable>
-      <View style={styles.cardboardHeading}>
-        <View>
-          <Text style={styles.cardboardEyebrow}>Project Cardboard</Text>
-          <Text style={styles.cardboardTitle}>Rule Zero</Text>
-        </View>
-        <Text style={styles.cardboardRoute}>/0</Text>
-      </View>
-      <Pressable
-        accessibilityHint="Hold until the accessibility presentation opens"
-        accessibilityLabel="Rule Zero black button"
-        accessibilityRole="button"
-        onPressIn={actions.pressedZeroButton}
-        onPressOut={actions.releasedZeroButton}
-        style={[
-          styles.cardboardZeroButton,
-          isPressed ? styles.cardboardZeroButtonPressed : undefined,
-        ]}
-      >
-        <Text style={styles.cardboardZeroLabel}>0</Text>
-        <Text style={styles.cardboardProgress}>{progress}%</Text>
-      </Pressable>
-      <Text accessibilityLiveRegion="polite" style={styles.cardboardReadout}>
-        {Cardboard.accessibleDescription(model)}
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        onPress={actions.openedConversationLedger}
-        style={styles.cardboardPillButton}
-      >
-        <Text style={styles.cardboardPillButtonText}>
-          Open /0/log decision log
-        </Text>
-      </Pressable>
-      {isConfigurationVisible ? (
-        <View style={styles.cardboardConfiguration}>
-          <Text style={styles.cardboardProfile}>
-            {Cardboard.accessibilityProfileLabel(profile)}
-          </Text>
-          <View style={styles.buttonRow}>
-            <ActionButton
-              label="Previous"
-              onPress={() =>
-                actions.selectedAccessibilityProfile(
-                  Cardboard.previousAccessibilityProfile(profile),
-                )
-              }
-            />
-            <ActionButton
-              label="RGB negative"
-              onPress={actions.toggledRgbInversion}
-            />
-            <ActionButton
-              label="Next"
-              onPress={() =>
-                actions.selectedAccessibilityProfile(
-                  Cardboard.nextAccessibilityProfile(profile),
-                )
-              }
-            />
-            <ActionButton
-              label="Continue"
-              onPress={actions.completedZeroGame}
-              primary
-            />
+    <ScrollView contentContainerStyle={styles.cardboardScrollableContent}>
+      <View style={[styles.cardboardExample, cardboardProfileStyle(profile)]}>
+        <Pressable
+          accessibilityLabel="Back to showcase"
+          accessibilityRole="button"
+          onPress={onBackToShowcase}
+          style={styles.cardboardBackButton}
+        >
+          <Text style={styles.cardboardBackButtonText}>‹ Showcase</Text>
+        </Pressable>
+        <View style={styles.cardboardHeading}>
+          <View>
+            <Text style={styles.cardboardEyebrow}>Project Cardboard</Text>
+            <Text style={styles.cardboardTitle}>Rule Zero</Text>
           </View>
+          <Text style={styles.cardboardRoute}>/0</Text>
         </View>
-      ) : null}
-      {isRiddleVisible ? (
-        <View style={styles.cardboardRiddle}>
-          <Text style={styles.cardboardRiddleTitle}>
-            If you are looking at yourself, where are you looking?
-          </Text>
-          <View style={styles.cardboardChoices}>
-            {Array.map(Cardboard.inputMethods, inputMethod => (
-              <Pressable
-                accessibilityLabel={Cardboard.inputMethodLabel(inputMethod)}
-                accessibilityRole="button"
-                key={inputMethod}
-                onPress={() => actions.selectedInputMethod(inputMethod)}
-                style={[
-                  styles.cardboardChoice,
-                  cardboardInputMethodStyle(inputMethod),
-                ]}
-              >
-                <Text style={styles.cardboardChoiceGlyph}>
-                  {Cardboard.inputMethodGlyph(inputMethod)}
-                </Text>
-                <Text style={styles.cardboardChoiceLabel}>
-                  {Cardboard.inputMethodLabel(inputMethod)}
-                </Text>
-              </Pressable>
-            ))}
+        <Pressable
+          accessibilityHint="Hold until the accessibility presentation opens"
+          accessibilityLabel="Rule Zero black button"
+          accessibilityRole="button"
+          onPressIn={actions.pressedZeroButton}
+          onPressOut={actions.releasedZeroButton}
+          style={[
+            styles.cardboardZeroButton,
+            isPressed ? styles.cardboardZeroButtonPressed : undefined,
+          ]}
+        >
+          <Text style={styles.cardboardZeroLabel}>0</Text>
+          <Text style={styles.cardboardProgress}>{progress}%</Text>
+        </Pressable>
+        <Text accessibilityLiveRegion="polite" style={styles.cardboardReadout}>
+          {Cardboard.accessibleDescription(model)}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={actions.openedExtra}
+          style={styles.cardboardPillButton}
+        >
+          <Text style={styles.cardboardPillButtonText}>Open /0/extra</Text>
+        </Pressable>
+        {isConfigurationVisible ? (
+          <View style={styles.cardboardConfiguration}>
+            <Text style={styles.cardboardProfile}>
+              {Cardboard.accessibilityProfileLabel(profile)}
+            </Text>
+            <View style={styles.buttonRow}>
+              <ActionButton
+                label="Previous"
+                onPress={() =>
+                  actions.selectedAccessibilityProfile(
+                    Cardboard.previousAccessibilityProfile(profile),
+                  )
+                }
+              />
+              <ActionButton
+                label="RGB negative"
+                onPress={actions.toggledRgbInversion}
+              />
+              <ActionButton
+                label="Next"
+                onPress={() =>
+                  actions.selectedAccessibilityProfile(
+                    Cardboard.nextAccessibilityProfile(profile),
+                  )
+                }
+              />
+              <ActionButton
+                label="Continue"
+                onPress={actions.completedZeroGame}
+                primary
+              />
+            </View>
           </View>
+        ) : null}
+        {isRiddleVisible ? (
+          <View style={styles.cardboardRiddle}>
+            <Text style={styles.cardboardRiddleTitle}>
+              If you are looking at yourself, where are you looking?
+            </Text>
+            <View style={styles.cardboardChoices}>
+              {Array.map(Cardboard.inputMethods, inputMethod => (
+                <Pressable
+                  accessibilityLabel={Cardboard.inputMethodLabel(inputMethod)}
+                  accessibilityRole="button"
+                  key={inputMethod}
+                  onPress={() => actions.selectedInputMethod(inputMethod)}
+                  style={[
+                    styles.cardboardChoice,
+                    cardboardInputMethodStyle(inputMethod),
+                  ]}
+                >
+                  <Text style={styles.cardboardChoiceGlyph}>
+                    {Cardboard.inputMethodGlyph(inputMethod)}
+                  </Text>
+                  <Text style={styles.cardboardChoiceLabel}>
+                    {Cardboard.inputMethodLabel(inputMethod)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
+        {!isConfigurationVisible &&
+        !isRiddleVisible &&
+        model.zero._tag !== 'CompletedAtZero' ? (
+          <ActionButton
+            label="Open without holding"
+            onPress={actions.skippedZeroStep}
+          />
+        ) : null}
+        <ReplayControls label="Cardboard replay" replay={replay} />
+        <View
+          accessibilityLabel="Rule Zero original author and desktop command"
+          style={styles.cardboardAuthorship}
+        >
+          <Text style={styles.cardboardAuthorshipTitle}>
+            Original author · /0
+          </Text>
+          <Text selectable style={styles.cardboardAuthorshipText}>
+            {Cardboard.cardboardAuthorship.statement}
+          </Text>
+          <Text selectable style={styles.cardboardAuthorshipCode}>
+            {Cardboard.cardboardAuthorship.acronym}
+          </Text>
+          <Text selectable style={styles.cardboardAuthorshipCode}>
+            acronym sha256:{Cardboard.cardboardAuthorship.acronymSha256}
+          </Text>
+          <Text selectable style={styles.cardboardAuthorshipCode}>
+            statement sha256:{Cardboard.cardboardAuthorship.statementSha256}
+          </Text>
+          <Text style={styles.cardboardAuthorshipText}>
+            Play the same Program on your desktop:
+          </Text>
+          <Text selectable style={styles.cardboardAuthorshipCode}>
+            {Cardboard.cardboardDesktopCommand}
+          </Text>
         </View>
-      ) : null}
-      {!isConfigurationVisible &&
-      !isRiddleVisible &&
-      model.zero._tag !== 'CompletedAtZero' ? (
-        <ActionButton
-          label="Open without holding"
-          onPress={actions.skippedZeroStep}
-        />
-      ) : null}
-      <ReplayControls label="Cardboard replay" replay={replay} />
-      <View
-        accessibilityLabel="Rule Zero original author and desktop command"
-        style={styles.cardboardAuthorship}
-      >
-        <Text style={styles.cardboardAuthorshipTitle}>
-          Original author · /0
-        </Text>
-        <Text selectable style={styles.cardboardAuthorshipText}>
-          {Cardboard.cardboardAuthorship.statement}
-        </Text>
-        <Text selectable style={styles.cardboardAuthorshipCode}>
-          {Cardboard.cardboardAuthorship.acronym}
-        </Text>
-        <Text selectable style={styles.cardboardAuthorshipCode}>
-          acronym sha256:{Cardboard.cardboardAuthorship.acronymSha256}
-        </Text>
-        <Text selectable style={styles.cardboardAuthorshipCode}>
-          statement sha256:{Cardboard.cardboardAuthorship.statementSha256}
-        </Text>
-        <Text style={styles.cardboardAuthorshipText}>
-          Play the same Program on your desktop:
-        </Text>
-        <Text selectable style={styles.cardboardAuthorshipCode}>
-          {Cardboard.cardboardDesktopCommand}
-        </Text>
       </View>
-    </View>
+    </ScrollView>
   )
 }
 
@@ -1003,7 +1032,7 @@ const CardboardLedgerScreen = ({
         <Text style={styles.cardboardEyebrow}>Project Cardboard</Text>
         <Text style={styles.cardboardLedgerTitle}>When /0 is four</Text>
       </View>
-      <Text style={styles.cardboardRoute}>/0/log</Text>
+      <Text style={styles.cardboardRoute}>/0/extra</Text>
     </View>
     <Text style={styles.cardboardLedgerDeclaration}>
       Four means Ship. Stop expanding the theory. Publish the smallest verified
@@ -1528,6 +1557,10 @@ const styles = StyleSheet.create({
   safeArea: { backgroundColor: '#09090b', flex: 1 },
   cardboardSafeArea: { backgroundColor: '#23180d', flex: 1 },
   cardboardContent: {
+    backgroundColor: '#23180d',
+    flex: 1,
+  },
+  cardboardScrollableContent: {
     backgroundColor: '#23180d',
     flexGrow: 1,
   },

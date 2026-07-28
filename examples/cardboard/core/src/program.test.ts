@@ -150,21 +150,21 @@ describe('Cardboard Program', () => {
     expect(parsed).toStrictEqual(stateRoute)
   })
 
-  it('round-trips the append-only ledger at /0/log', async () => {
+  it('round-trips Extra and canonicalizes its previous route', async () => {
     await expect(
       Effect.runPromise(CardboardRouter.canonicalize('/0/log/')),
-    ).resolves.toBe('/0/log')
+    ).resolves.toBe('/0/extra')
 
     const obsoleteAlias = await Effect.runPromiseExit(
       CardboardRouter.parse('/0/0'),
     )
 
-    const parsed = await Effect.runPromise(CardboardRouter.parse('/0/log'))
+    const parsed = await Effect.runPromise(CardboardRouter.parse('/0/extra'))
     const printed = await Effect.runPromise(CardboardRouter.print(parsed))
 
     expect(Exit.isFailure(obsoleteAlias)).toBe(true)
     expect(parsed).toStrictEqual(Program.state(initialConversationLedgerModel))
-    expect(printed).toBe('/0/log')
+    expect(printed).toBe('/0/extra')
   })
 
   it('moves between the sequence and ledger through factual Messages', () => {
@@ -235,9 +235,9 @@ describe('Cardboard Program', () => {
       commands: [
         {
           _tag: 'CardboardCommand',
-          action: 'OpenConversationLedger',
-          key: 'L',
-          text: 'Log',
+          action: 'OpenExtra',
+          key: 'E',
+          text: 'Extra',
         },
       ],
       content: {

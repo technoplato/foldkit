@@ -161,7 +161,7 @@ const authorshipLines: ReadonlyArray<string> = [
 
 const terminalConversationLedger = (): string =>
   [
-    'cardboard host local /0/log',
+    'cardboard host local /0/extra',
     `scale ${currentConversationScaleLevel.toString()} SHIP`,
     'when /0 is four: stop expanding, ship one verified artifact, record it, continue',
     '',
@@ -240,7 +240,7 @@ export const terminalPresentation = (model: Model): string => {
   return [
     'cardboard host local /0',
     ...stateLines,
-    'ledger /0/log',
+    'extra /0/extra',
     ...authorshipLines,
   ].join('\n')
 }

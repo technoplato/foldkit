@@ -2,7 +2,7 @@ import {
   CardboardProgram,
   type Message,
   type Model,
-  conversationLedgerPortableRoute,
+  extraPortableRoute,
   sequencePortableRoute,
 } from 'cardboard-core-example'
 import { Layer } from 'effect'
@@ -16,7 +16,7 @@ const portableRouteForModel = (model: Model): string => {
   if (model.page._tag === 'SequencePage') {
     return sequencePortableRoute(model.page.value)
   } else if (model.page._tag === 'ConversationLedgerPage') {
-    return conversationLedgerPortableRoute
+    return extraPortableRoute
   } else {
     return globalThis.location.pathname
   }

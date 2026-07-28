@@ -8,6 +8,7 @@ import {
   type ReplayController,
   type ReplayControllerSnapshot,
   type ReplayFrameError,
+  type ReplayTransition,
   type SendOptions,
   UnsettledReplayFrameError,
   makeReplayController,
@@ -44,7 +45,9 @@ export type ReactReplay<Model, Message> = Readonly<{
   maybeError: Option.Option<string>
   runtimeEvents: ReadonlyArray<ProgramRuntimeEvent>
   occurredRuntimeEvents: ReadonlyArray<ProgramRuntimeEvent>
+  transitions: ReadonlyArray<ReplayTransition<Message>>
   inspect: (frame?: number) => void
+  resume: () => void
   seek: (frame: number) => void
   stepBackward: () => void
   stepForward: () => void
@@ -365,6 +368,11 @@ const makeReplayableProgramStore = <
     execute(controller.inspect(frame))
   }
 
+  const resume = (): void => {
+    maybeError = Option.none()
+    execute(controller.resume)
+  }
+
   const seek = (frame: number): void => {
     maybeError = Option.none()
     const nextFrame = clampFrame(frame, snapshot.finalFrame)
@@ -408,7 +416,9 @@ const makeReplayableProgramStore = <
       nextSnapshot.runtimeEvents,
       event => event.afterFrame <= nextSnapshot.frame,
     ),
+    transitions: controller.readReplayTape().transitions,
     inspect,
+    resume,
     seek,
     stepBackward,
     stepForward,
