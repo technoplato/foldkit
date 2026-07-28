@@ -2,7 +2,8 @@ import { Array, Match as M, Option } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
 import {
   ComposedTransfer,
-  type CurrencyValue,
+  CurrencyValue,
+  DomainSeparatedDigest,
   type Message,
   type Model,
   RequestedChallengeSignature,
@@ -11,22 +12,17 @@ import {
   SigningChallenge,
   type TransactionPreview,
   type TransactionState,
-  type TransferDraft,
+  currencyValueLabel,
+  networkLabel,
+  primaryReceivingInstruction,
+  primaryWalletAccount,
+  primaryWalletBalance,
+  shortenedAddress,
   transferDraftFromInput,
 } from 'wallet-core-example'
 
-const cardClass =
-  'rounded-3xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-200/60'
-const primaryButtonClass =
-  'rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-40'
-const secondaryButtonClass =
-  'rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-cyan-500 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40'
-
-const valueText = (value: CurrencyValue): string =>
-  `${value.atomicUnits} ${value.currency._tag} atomic units (${value.decimalPlaces.toString()} decimals)`
-
-const currencyKey = (value: CurrencyValue): string =>
-  `${value.currency._tag}:${JSON.stringify(value.currency)}`
+const presetTransferAtomicUnits = '100000000000000000'
+const presetDestinationAddress = '0x2222222222222222222222222222222222222222'
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -44,400 +40,309 @@ const maybePreviewForTransaction = (
     }),
   )
 
-const portfolioView = (model: Model): Html => {
-  const h = html<Message>()
-
-  return M.value(model.portfolio).pipe(
-    M.withReturnType<Html>(),
+const transactionStatus = (transaction: TransactionState): string =>
+  M.value(transaction).pipe(
+    M.withReturnType<string>(),
     M.tagsExhaustive({
-      LoadingPortfolio: () =>
-        h.p([h.Class('text-sm text-slate-500')], ['Loading public accounts…']),
-      FailedPortfolio: ({ failure }) =>
-        h.p(
-          [h.Class('text-sm text-rose-700')],
-          [`Portfolio failed: ${failure.operation}`],
-        ),
-      LoadedPortfolio: ({ snapshot }) =>
-        h.div(
-          [h.Class('grid gap-4 lg:grid-cols-2')],
-          Array.map(snapshot.accounts, account => {
-            const balances = Array.filter(
-              snapshot.balanceSnapshot.balances,
-              balance => balance.accountId === account.accountId,
-            )
-            const receivingInstructions = Array.filter(
-              snapshot.receivingInstructions,
-              instruction => instruction.accountId === account.accountId,
-            )
-            return h.article(
-              [
-                h.Key(account.accountId),
-                h.Class('rounded-2xl border border-slate-200 bg-slate-50 p-5'),
-              ],
-              [
-                h.p(
-                  [
-                    h.Class(
-                      'text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700',
-                    ),
-                  ],
-                  [account.network._tag],
-                ),
-                h.h3(
-                  [h.Class('mt-2 text-lg font-semibold')],
-                  [account.displayName],
-                ),
-                h.p(
-                  [h.Class('mt-1 break-all font-mono text-xs text-slate-500')],
-                  [account.address],
-                ),
-                h.ul(
-                  [h.Class('mt-4 space-y-2')],
-                  Array.map(balances, balance =>
-                    h.li(
-                      [
-                        h.Key(
-                          `${balance.accountId}:${currencyKey(balance.value)}`,
-                        ),
-                        h.Class(
-                          'rounded-xl bg-white px-3 py-2 font-mono text-xs text-slate-700',
-                        ),
-                      ],
-                      [valueText(balance.value)],
-                    ),
-                  ),
-                ),
-                h.div(
-                  [h.Class('mt-4 space-y-3')],
-                  Array.map(receivingInstructions, instruction =>
-                    h.div(
-                      [
-                        h.Key(
-                          `${instruction.accountId}:${JSON.stringify(instruction.currency)}`,
-                        ),
-                        h.Class(
-                          'rounded-xl border border-dashed border-cyan-300 bg-cyan-50 p-3',
-                        ),
-                      ],
-                      [
-                        h.p(
-                          [h.Class('text-xs font-semibold text-cyan-900')],
-                          [`Receive ${instruction.currency._tag}`],
-                        ),
-                        h.p(
-                          [
-                            h.Class(
-                              'mt-1 break-all font-mono text-xs text-cyan-800',
-                            ),
-                          ],
-                          [`QR payload: ${instruction.portableUri}`],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            )
-          }),
-        ),
+      IdleTransaction: () => 'Ready',
+      PreviewingTransaction: () => 'Preparing preview…',
+      PreviewedTransaction: () => 'Check before sending',
+      SubmittingTransaction: () => 'Sending…',
+      SubmittedTransaction: () => 'Sent',
+      FailedTransactionPreview: () => 'Preview failed',
+      FailedTransactionSubmission: () => 'Send failed',
     }),
   )
-}
 
-const maybeDemoTransfer = (model: Model): Option.Option<TransferDraft> => {
-  if (model.portfolio._tag !== 'LoadedPortfolio') {
-    return Option.none()
-  }
-  const snapshot = model.portfolio.snapshot
-  const maybeAccount = Array.findFirst(
-    snapshot.accounts,
-    account => account.network._tag === 'EthereumSepolia',
-  )
-  if (Option.isNone(maybeAccount)) {
-    return Option.none()
-  }
-  const account = maybeAccount.value
-  const maybeBalance = Array.findFirst(
-    snapshot.balanceSnapshot.balances,
-    balance =>
-      balance.accountId === account.accountId &&
-      balance.value.currency._tag === 'Eth',
-  )
-  if (Option.isNone(maybeBalance)) {
-    return Option.none()
-  }
-  return transferDraftFromInput({
-    transferId: 'foldkit-demo-transfer',
-    accountId: account.accountId,
-    network: account.network,
-    destinationAddress: '0x2222222222222222222222222222222222222222',
-    value: {
-      ...maybeBalance.value.value,
-      atomicUnits: '100000000000000000',
-    },
-    maybeMessage: Option.some('Shared Foldkit Wallet demo'),
-  })
-}
-
-const compositionButton = (model: Model): Html => {
+const walletHero = (model: Model): Html => {
   const h = html<Message>()
-  const maybeDraft = maybeDemoTransfer(model)
-  if (Option.isSome(maybeDraft)) {
-    return h.button(
-      [
-        h.Type('button'),
-        h.Class(secondaryButtonClass),
-        h.OnClick(ComposedTransfer.make({ draft: maybeDraft.value })),
-      ],
-      ['Compose preset transfer'],
-    )
-  } else {
-    return h.button(
-      [h.Type('button'), h.Class(secondaryButtonClass), h.Disabled(true)],
-      ['Compose preset transfer'],
-    )
-  }
+  const maybeAccount = primaryWalletAccount(model)
+  const maybeBalance = primaryWalletBalance(model)
+  const balanceLabel = Option.match(maybeBalance, {
+    onNone: () =>
+      model.portfolio._tag === 'LoadingPortfolio' ? 'Loading…' : '—',
+    onSome: balance => currencyValueLabel(balance.value),
+  })
+  const accountLabel = Option.match(maybeAccount, {
+    onNone: () => 'Sepolia test wallet',
+    onSome: account =>
+      `${networkLabel(account.network)} · ${shortenedAddress(account.address)}`,
+  })
+  return h.header(
+    [h.Class('wallet-hero cardboard-panel')],
+    [
+      h.div(
+        [h.Class('wallet-heading-row')],
+        [
+          h.div(
+            [],
+            [
+              h.p([h.Class('cardboard-eyebrow')], ['Test money']),
+              h.h1([h.Class('cardboard-embossed')], ['Wallet']),
+            ],
+          ),
+          h.button(
+            [
+              h.Type('button'),
+              h.Class('cardboard-button'),
+              h.OnClick(RequestedWalletRefresh.make({})),
+            ],
+            ['Refresh'],
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('wallet-balance')],
+        [
+          h.p([], ['Available balance']),
+          h.strong([h.Class('cardboard-embossed')], [balanceLabel]),
+          h.small([], [accountLabel]),
+        ],
+      ),
+    ],
+  )
 }
 
-const submissionButton = (model: Model): Html => {
+const maybeDemoTransfer = (model: Model) =>
+  Option.flatMap(primaryWalletAccount(model), account =>
+    Option.flatMap(primaryWalletBalance(model), balance =>
+      transferDraftFromInput({
+        transferId: 'foldkit-demo-transfer',
+        accountId: account.accountId,
+        network: account.network,
+        destinationAddress: presetDestinationAddress,
+        value: CurrencyValue.make({
+          currency: balance.value.currency,
+          atomicUnits: presetTransferAtomicUnits,
+          decimalPlaces: balance.value.decimalPlaces,
+          observedAt: balance.value.observedAt,
+        }),
+        maybeMessage: Option.some('Shared Foldkit Wallet demo'),
+      }),
+    ),
+  )
+
+const sendButton = (model: Model): Html => {
   const h = html<Message>()
   if (model.transaction._tag === 'PreviewedTransaction') {
     return h.button(
       [
         h.Type('button'),
-        h.Class(primaryButtonClass),
+        h.Class('cardboard-button primary'),
         h.OnClick(
           RequestedSignedTransactionSubmission.make({
             previewId: model.transaction.preview.previewId,
           }),
         ),
       ],
-      ['Sign and submit'],
-    )
-  } else {
-    return h.button(
-      [h.Type('button'), h.Class(primaryButtonClass), h.Disabled(true)],
-      ['Sign and submit'],
+      ['Confirm send'],
     )
   }
+  const maybeDraft = maybeDemoTransfer(model)
+  const isBusy =
+    model.transaction._tag === 'PreviewingTransaction' ||
+    model.transaction._tag === 'SubmittingTransaction'
+  if (Option.isNone(maybeDraft) || isBusy) {
+    return h.button(
+      [h.Type('button'), h.Class('cardboard-button primary'), h.Disabled(true)],
+      ['Preview send'],
+    )
+  }
+  return h.button(
+    [
+      h.Type('button'),
+      h.Class('cardboard-button primary'),
+      h.OnClick(ComposedTransfer.make({ draft: maybeDraft.value })),
+    ],
+    ['Preview send'],
+  )
 }
 
-const transactionView = (model: Model): Html => {
+const sendMoney = (model: Model): Html => {
   const h = html<Message>()
   const maybePreview = maybePreviewForTransaction(model.transaction)
-  const preview = Option.isSome(maybePreview)
-    ? h.div(
-        [
-          h.Class(
-            'mt-4 grid gap-3 rounded-2xl bg-slate-950 p-5 text-sm text-slate-200 md:grid-cols-2',
-          ),
-        ],
-        [
-          h.p(
-            [h.Class('break-all')],
-            [`Destination: ${maybePreview.value.draft.destinationAddress}`],
-          ),
-          h.p([], [valueText(maybePreview.value.draft.value)]),
-          h.p(
-            [],
-            [`Estimated fee: ${valueText(maybePreview.value.estimatedFee)}`],
-          ),
-          h.p(
-            [],
-            [
-              `Resulting balance: ${valueText(maybePreview.value.resultingBalance)}`,
-            ],
-          ),
-        ],
-      )
-    : h.p(
-        [h.Class('mt-4 text-sm text-slate-500')],
-        ['Compose the deterministic transfer to request a preview.'],
-      )
-
-  return h.section(
-    [h.Class(cardClass)],
-    [
+  const preview = Option.match(maybePreview, {
+    onNone: () =>
+      h.p(
+        [h.Class('wallet-help')],
+        ['Preview a fixed test transfer before anything is signed.'],
+      ),
+    onSome: transactionPreview =>
       h.div(
-        [h.Class('flex flex-wrap items-center justify-between gap-3')],
+        [h.Class('wallet-preview')],
         [
           h.div(
             [],
             [
-              h.p(
-                [
-                  h.Class(
-                    'text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700',
-                  ),
-                ],
-                ['Transaction composition'],
-              ),
-              h.h2(
-                [h.Class('mt-2 text-2xl font-semibold')],
-                ['Preview, sign, submit'],
+              h.span([], ['To']),
+              h.strong(
+                [],
+                [shortenedAddress(transactionPreview.draft.destinationAddress)],
               ),
             ],
           ),
           h.div(
-            [h.Class('flex flex-wrap gap-2')],
-            [compositionButton(model), submissionButton(model)],
+            [],
+            [
+              h.span([], ['Network fee']),
+              h.strong(
+                [],
+                [currencyValueLabel(transactionPreview.estimatedFee)],
+              ),
+            ],
+          ),
+          h.div(
+            [],
+            [
+              h.span([], ['Balance after']),
+              h.strong(
+                [],
+                [currencyValueLabel(transactionPreview.resultingBalance)],
+              ),
+            ],
           ),
         ],
       ),
-      h.p(
-        [h.Class('mt-5 text-sm text-slate-600')],
-        [`State: ${model.transaction._tag}`],
+  })
+  return h.section(
+    [h.Class('wallet-send cardboard-panel')],
+    [
+      h.div(
+        [h.Class('wallet-section-heading')],
+        [
+          h.div(
+            [],
+            [
+              h.p([h.Class('cardboard-eyebrow')], ['Send']),
+              h.h2([], ['0.1 ETH']),
+            ],
+          ),
+          h.span(
+            [h.Class('wallet-status')],
+            [transactionStatus(model.transaction)],
+          ),
+        ],
       ),
       preview,
+      h.div([h.Class('wallet-action-row')], [sendButton(model)]),
     ],
   )
 }
 
-const activityView = (model: Model): Html => {
+const activity = (model: Model): Html => {
   const h = html<Message>()
-  const activity = Array.isReadonlyArrayEmpty(model.observedTransactions)
-    ? [
-        h.p(
-          [h.Class('mt-4 text-sm text-slate-500')],
-          ['Submit the preview to emit a simulated network observation.'],
-        ),
-      ]
-    : [
-        h.ul(
-          [h.Class('mt-4 space-y-3')],
-          Array.map(model.observedTransactions, transaction =>
-            h.li(
-              [
-                h.Key(transaction.transactionId),
-                h.Class('rounded-2xl border border-slate-200 bg-slate-50 p-4'),
-              ],
-              [
-                h.p(
-                  [h.Class('font-mono text-xs text-slate-500')],
-                  [transaction.transactionId],
-                ),
-                h.p(
-                  [h.Class('mt-2 text-sm font-semibold')],
-                  [
-                    `${transaction.direction} · ${transaction.status} · ${valueText(transaction.value)}`,
-                  ],
-                ),
-              ],
-            ),
+  const entries = Array.match(model.observedTransactions, {
+    onEmpty: () => [h.p([h.Class('wallet-empty')], ['Nothing sent yet.'])],
+    onNonEmpty: transactions => [
+      h.ul(
+        [],
+        Array.map(transactions, transaction =>
+          h.li(
+            [h.Key(transaction.transactionId)],
+            [
+              h.span([], [transaction.status]),
+              h.strong([], [currencyValueLabel(transaction.value)]),
+              h.small([], [shortenedAddress(transaction.transactionId)]),
+            ],
           ),
         ),
-      ]
-
+      ),
+    ],
+  })
   return h.section(
-    [h.Class(cardClass)],
+    [h.Class('wallet-activity cardboard-panel')],
+    [h.p([h.Class('cardboard-eyebrow')], ['Recent activity']), ...entries],
+  )
+}
+
+const accountDetails = (model: Model): Html => {
+  const h = html<Message>()
+  const maybeAccount = primaryWalletAccount(model)
+  const maybeReceiving = primaryReceivingInstruction(model)
+  return h.section(
+    [h.Class('wallet-detail-section')],
     [
-      h.p(
+      h.h3([], ['Account']),
+      ...Option.match(maybeAccount, {
+        onNone: () => [h.p([], ['Account data is not loaded.'])],
+        onSome: account => [
+          h.p([], [account.displayName]),
+          h.code([], [account.address]),
+        ],
+      }),
+      ...Option.match(maybeReceiving, {
+        onNone: () => [],
+        onSome: instruction => [
+          h.h3([], ['Receive']),
+          h.code([], [instruction.portableUri]),
+        ],
+      }),
+    ],
+  )
+}
+
+const proofDetails = (model: Model): Html => {
+  const h = html<Message>()
+  const maybeAccount = primaryWalletAccount(model)
+  const button = Option.match(maybeAccount, {
+    onNone: () =>
+      h.button(
+        [h.Type('button'), h.Class('cardboard-button'), h.Disabled(true)],
+        ['Sign test challenge'],
+      ),
+    onSome: account =>
+      h.button(
         [
-          h.Class(
-            'text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700',
+          h.Type('button'),
+          h.Class('cardboard-button'),
+          h.OnClick(
+            RequestedChallengeSignature.make({
+              challenge: SigningChallenge.make({
+                challengeId: 'foldkit-demo-challenge',
+                accountId: account.accountId,
+                digest: DomainSeparatedDigest.make({
+                  algorithm: 'Keccak256',
+                  domain: 'foldkit.example.wallet',
+                  digestHex: '0x666f6c646b6974',
+                }),
+              }),
+            }),
           ),
         ],
-        ['Observed transaction stream'],
+        ['Sign test challenge'],
       ),
-      h.h2(
-        [h.Class('mt-2 text-2xl font-semibold')],
-        [model.transactionObservation._tag],
-      ),
-      ...activity,
-    ],
-  )
-}
-
-const maybeChallenge = (model: Model): Option.Option<SigningChallenge> => {
-  if (model.portfolio._tag !== 'LoadedPortfolio') {
-    return Option.none()
-  }
-  return Array.findFirst(
-    model.portfolio.snapshot.accounts,
-    account => account.network._tag === 'EthereumSepolia',
-  ).pipe(
-    Option.map(account =>
-      SigningChallenge.make({
-        challengeId: 'foldkit-demo-challenge',
-        accountId: account.accountId,
-        digest: {
-          algorithm: 'Keccak256',
-          domain: 'foldkit.example.wallet',
-          digestHex: '0x666f6c646b6974',
-        },
-      }),
-    ),
-  )
-}
-
-const signatureButton = (model: Model): Html => {
-  const h = html<Message>()
-  const challenge = maybeChallenge(model)
-  if (Option.isSome(challenge)) {
-    return h.button(
-      [
-        h.Type('button'),
-        h.Class(secondaryButtonClass),
-        h.OnClick(
-          RequestedChallengeSignature.make({ challenge: challenge.value }),
-        ),
-      ],
-      ['Sign canonical challenge'],
-    )
-  } else {
-    return h.button(
-      [h.Type('button'), h.Class(secondaryButtonClass), h.Disabled(true)],
-      ['Sign canonical challenge'],
-    )
-  }
-}
-
-const signatureView = (model: Model): Html => {
-  const h = html<Message>()
-  const proof =
-    model.signature._tag === 'SignedChallenge'
-      ? h.p(
-          [
-            h.Class(
-              'mt-4 break-all rounded-2xl bg-emerald-50 p-4 font-mono text-xs text-emerald-900',
-            ),
-          ],
-          [
-            `Verified proof: ${model.signature.proof._tag} · ${model.signature.proof.challengeId}`,
-          ],
-        )
-      : h.p(
-          [h.Class('mt-4 text-sm text-slate-500')],
-          ['The simulated signer returns a public verified proof.'],
-        )
-
+  })
   return h.section(
-    [h.Class(cardClass)],
+    [h.Class('wallet-detail-section')],
+    [h.h3([], ['Proof']), h.p([], [model.signature._tag]), button],
+  )
+}
+
+const advancedDetails = (model: Model): Html => {
+  const h = html<Message>()
+  return h.details(
+    [h.Class('wallet-details cardboard-panel')],
     [
+      h.summary([], ['Account, proof, and replay']),
       h.div(
-        [h.Class('flex flex-wrap items-center justify-between gap-3')],
+        [h.Class('wallet-detail-grid')],
         [
-          h.div(
-            [],
+          accountDetails(model),
+          proofDetails(model),
+          h.section(
+            [h.Class('wallet-detail-section')],
             [
+              h.h3([], ['Replay']),
               h.p(
+                [],
                 [
-                  h.Class(
-                    'text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700',
-                  ),
+                  'Open the Foldkit DevTools badge to inspect the authoritative Program journal.',
                 ],
-                ['Challenge signing'],
-              ),
-              h.h2(
-                [h.Class('mt-2 text-2xl font-semibold')],
-                [model.signature._tag],
               ),
             ],
           ),
-          signatureButton(model),
         ],
       ),
-      proof,
     ],
   )
 }
@@ -445,108 +350,18 @@ const signatureView = (model: Model): Html => {
 /** Renders the complete public Wallet Model with ordinary Foldkit HTML. */
 export const view = (model: Model): Document => {
   const h = html<Message>()
-
   return {
-    title: 'Portable Wallet | Foldkit',
+    title: 'Wallet | Foldkit',
     body: h.main(
-      [h.Class('min-h-screen bg-slate-100 px-5 py-10 text-slate-950')],
+      [h.Class('wallet-shell cardboard-surface')],
       [
         h.div(
-          [h.Class('mx-auto max-w-6xl space-y-6')],
+          [h.Class('wallet-stack')],
           [
-            h.header(
-              [
-                h.Class(
-                  'rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 p-8 text-white shadow-xl shadow-cyan-950/20',
-                ),
-              ],
-              [
-                h.p(
-                  [
-                    h.Class(
-                      'text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300',
-                    ),
-                  ],
-                  ['Shared public Model · Foldkit host'],
-                ),
-                h.div(
-                  [
-                    h.Class(
-                      'mt-3 flex flex-wrap items-end justify-between gap-4',
-                    ),
-                  ],
-                  [
-                    h.div(
-                      [],
-                      [
-                        h.h1(
-                          [h.Class('text-4xl font-semibold tracking-tight')],
-                          ['Portable Wallet'],
-                        ),
-                        h.p(
-                          [
-                            h.Class(
-                              'mt-2 max-w-2xl text-sm leading-6 text-slate-300',
-                            ),
-                          ],
-                          [
-                            'The canonical Wallet Program running through the ordinary Foldkit renderer and simulated Layer.',
-                          ],
-                        ),
-                      ],
-                    ),
-                    h.button(
-                      [
-                        h.Type('button'),
-                        h.Class(
-                          'rounded-full bg-cyan-300 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-200',
-                        ),
-                        h.OnClick(RequestedWalletRefresh.make({})),
-                      ],
-                      ['Refresh wallet'],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            h.section(
-              [h.Class(cardClass)],
-              [
-                h.h2(
-                  [h.Class('mb-5 text-2xl font-semibold')],
-                  ['Accounts and balances'],
-                ),
-                portfolioView(model),
-              ],
-            ),
-            transactionView(model),
-            h.div(
-              [h.Class('grid gap-6 lg:grid-cols-2')],
-              [activityView(model), signatureView(model)],
-            ),
-            h.section(
-              [h.Class(cardClass)],
-              [
-                h.p(
-                  [
-                    h.Class(
-                      'text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700',
-                    ),
-                  ],
-                  ['Replay'],
-                ),
-                h.h2(
-                  [h.Class('mt-2 text-2xl font-semibold')],
-                  ['Foldkit DevTools'],
-                ),
-                h.p(
-                  [h.Class('mt-3 text-sm leading-6 text-slate-600')],
-                  [
-                    'Inspect and time travel through the canonical Program journal with the Foldkit DevTools overlay.',
-                  ],
-                ),
-              ],
-            ),
+            walletHero(model),
+            sendMoney(model),
+            activity(model),
+            advancedDetails(model),
           ],
         ),
       ],
