@@ -71,6 +71,15 @@ special mode attached to one screen.
     Increasing that count requires a versioned rule, evidence, notice, a typed
     decision, and an appeal path. A stake may accompany a claim, but payment
     does not authorize execution or prove the claim.
+12. **Context is volunteered evidence.** A client may attach a sampled screen,
+    route, timestamp, source, reason, and retention period so another person or
+    agent can understand what was being discussed. Capture is visible,
+    consented, bounded, revocable, and never presumed to be continuous hidden
+    surveillance.
+13. **Flourishing is measured without prescribing a household.** Cardboard may
+    measure how many hours people must work to survive, thrive, and support the
+    people they love. Membership does not require one family structure. Rules
+    remain versioned, challengeable, and forkable.
 
 ## Bill of Rights
 
@@ -184,11 +193,12 @@ underlying Program state or the meaning of its Messages.
 
 ## Effect Machine comparison
 
-The installed `effect@4.0.0-beta.97` has no general Machine API. Foldkit's
-Model, Message, update, Command, and Subscription loop already supplies the
-state-machine semantics. Cardboard should add a typed, inspectable transition
-graph and generated tools around that one source of truth rather than introduce
-a second state runtime.
+The installed `effect@4.0.0-beta.97` has no general Machine API. Foldkit does
+provide `foldkit/experimental/machine`. Cardboard uses that pure transition
+graph inside its ordinary Program. The Machine defines legal tagged states,
+Messages, guards, edges, and static analysis. It does not become a second
+runtime. The Program still owns Model, update, Commands, Subscriptions, routes,
+and replay.
 
 This is a good fit for navigation when destinations are tagged Model states and
 legal edges are Messages handled by update. It is a poor fit when a host router
