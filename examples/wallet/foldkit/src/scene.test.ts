@@ -50,6 +50,7 @@ describe('Wallet Foldkit client', () => {
       Scene.expect(Scene.text('Recipient on Ethereum Sepolia')).toExist(),
       Scene.expect(Scene.text('Nothing sent yet.')).toExist(),
       Scene.expect(Scene.text('Simulated Sepolia Account')).toExist(),
+      Scene.expect(Scene.text('Copy address')).toExist(),
       Scene.expect(
         Scene.text(
           '/wallet/receive/simulated-ethereum-account?asset=ethereum:sepolia:eth',

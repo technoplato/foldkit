@@ -1,3 +1,4 @@
+export * from './clipboard.js'
 export * from './currency.js'
 export * from './explorer.js'
 export * from './init.js'

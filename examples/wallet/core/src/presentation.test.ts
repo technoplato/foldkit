@@ -1,7 +1,18 @@
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import {
+  CopiedToClipboard,
+  FailedClipboardCopy,
+  clipboardCopyRequestForAddress,
+} from './clipboard.js'
 import { AssetAmount, AssetDescriptor, NativeAsset } from './currency.js'
-import { assetAmountLabel, shortenedAddress } from './presentation.js'
+import {
+  assetAmountLabel,
+  clipboardCopyFailureMessage,
+  clipboardCopyLabel,
+  shortenedAddress,
+} from './presentation.js'
 
 describe('wallet presentation', () => {
   it('renders normalized asset amounts from descriptors', () => {
@@ -26,5 +37,17 @@ describe('wallet presentation', () => {
     expect(shortenedAddress('1234567890abcdefghijklmnopqrstuvwxyz')).toBe(
       '1234567890…uvwxyz',
     )
+  })
+
+  it('labels and explains the matching address copy flow', () => {
+    const request = clipboardCopyRequestForAddress('account-address')
+    const copied = CopiedToClipboard.make({ request })
+    const denied = FailedClipboardCopy.make({ request, code: 'Denied' })
+
+    expect(clipboardCopyLabel(copied, request)).toBe('Copied')
+    expect(clipboardCopyLabel(denied, request)).toBe('Try copy again')
+    expect(
+      Option.getOrThrow(clipboardCopyFailureMessage(denied, request)),
+    ).toContain('denied')
   })
 })

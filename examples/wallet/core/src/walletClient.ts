@@ -1,5 +1,6 @@
 import { Context, Data, Effect, Redacted, Schema as S, Stream } from 'effect'
 
+import { WalletClipboard } from './clipboard.js'
 import { NetworkId } from './currency.js'
 import {
   type PortfolioSnapshot,
@@ -138,4 +139,5 @@ export type WalletResources =
   | WalletClient
   | WalletSigner
   | WalletCrypto
+  | WalletClipboard
   | WalletVault

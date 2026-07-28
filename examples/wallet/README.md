@@ -43,6 +43,7 @@ wallet/
   simulated-client/  deterministic complete Layer with no network or real funds
   testnet-node/       Sepolia and Solana Devnet networking and optional custody
   remote/             Fetch-backed typed RPC Layer for remotely held custody
+  web-client/         browser clipboard Layer with normalized safe failures
   testnet-server/     deliberately unauthenticated disposable Sepolia bridge
   react-bindings/    domain-shaped React hooks with no DOM dependency
   react/             React web presenter
@@ -92,6 +93,21 @@ successful submission result. Sepolia submissions link to Etherscan, and Solana
 Devnet submissions link to the matching Solana Explorer cluster.
 Simulated submissions deliberately carry no explorer confirmation, so a fake
 transaction identifier can never be presented as chain evidence.
+
+Address copying follows the same portable architecture. The shared Program
+records `RequestedClipboardCopy`, runs `CopyToClipboard` through an injected
+`WalletClipboard`, and stores copied, denied, unavailable, or failed state for
+every presenter. React and Foldkit provide the browser Layer. Expo provides a
+native Layer backed by `expo-clipboard`. CLI and terminal hosts provide an
+explicit unavailable Layer because they do not render copy controls.
+
+Browser writes happen only from the copy button interaction. The clients do
+not preflight the Permissions API because clipboard permission behavior differs
+across browsers. They instead surface a denied or unavailable result and keep
+the address selectable for manual copying. Browser demos require a secure
+context. Native iOS and Android writes use `setStringAsync` and do not read the
+clipboard, so the flow does not trigger the privacy prompts associated with
+clipboard reads.
 
 The temporary server policy accepts positive, native Sepolia ETH transfers to
 syntactically valid Ethereum recipients, up to 0.00001 ETH. It rejects other

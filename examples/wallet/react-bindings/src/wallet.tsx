@@ -6,12 +6,14 @@ import {
   AddedAddressBookEntry,
   AddressBookEntry,
   ChangedTransferRecipient,
+  type ClipboardCopyRequest,
   ComposedTransfer,
   ImportedAddressBookEntries,
   type Message,
   type Model,
   RemovedAddressBookEntry,
   RequestedChallengeSignature,
+  RequestedClipboardCopy,
   RequestedSignedTransactionSubmission,
   RequestedTransferPreview,
   RequestedWalletCreation,
@@ -33,6 +35,7 @@ export type WalletTransferComposition = typeof WalletTransferComposition.Type
 
 /** Domain actions exposed to React consumers of the Wallet Program. */
 export type WalletActions = Readonly<{
+  requestedClipboardCopy: (request: ClipboardCopyRequest) => void
   requestedWalletCreation: () => void
   selectedWalletNetworkMode: (networkMode: WalletNetworkMode) => void
   requestedWalletRefresh: () => void
@@ -67,6 +70,8 @@ export const makeWalletReactClient = <ResourceError,>(
     ResourceError
   >({
     createActions: enqueueMessage => ({
+      requestedClipboardCopy: request =>
+        enqueueMessage(RequestedClipboardCopy.make({ request })),
       requestedWalletCreation: () =>
         enqueueMessage(RequestedWalletCreation.make({})),
       selectedWalletNetworkMode: networkMode =>

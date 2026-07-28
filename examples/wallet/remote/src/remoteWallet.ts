@@ -8,6 +8,8 @@ import {
 import {
   WalletClient,
   WalletClientError,
+  WalletClipboard,
+  WalletClipboardUnavailable,
   WalletCrypto,
   WalletCryptoError,
   type WalletResources,
@@ -64,8 +66,13 @@ const toCryptoError = (error: RemoteCallError): WalletCryptoError =>
 /** Builds Fetch-backed Wallet resources over the typed remote protocol. */
 export const makeRemoteWalletResources = (
   endpoint: string,
-  walletVault: Layer.Layer<WalletVault> = LocalWalletVault,
+  options: Readonly<{
+    walletClipboard?: Layer.Layer<WalletClipboard>
+    walletVault?: Layer.Layer<WalletVault>
+  }> = {},
 ): Layer.Layer<WalletResources> => {
+  const walletClipboard = options.walletClipboard ?? WalletClipboardUnavailable
+  const walletVault = options.walletVault ?? LocalWalletVault
   const ProtocolLive = RpcClient.layerProtocolHttp({ url: endpoint }).pipe(
     Layer.provide([FetchHttpClient.layer, RpcSerialization.layerNdjson]),
   )
@@ -156,5 +163,8 @@ export const makeRemoteWalletResources = (
     }),
   ).pipe(Layer.provide(ProtocolLive))
 
-  return Layer.merge(RemoteWalletResources, walletVault)
+  return Layer.merge(
+    Layer.merge(RemoteWalletResources, walletVault),
+    walletClipboard,
+  )
 }
