@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 7:45:18 a.m. EDT — `642d27e57749` fix(devtools): label the Program Log control
+
+- **Implementation commit:** `642d27e5774926bafbe5e0c1c39cb9402d3e1538`
+- **Change:** Made the Foldkit Program Log control explicit and accessible.
+- **Details:**
+  - Replaced the ambiguous vertical DEV badge with a visible LOG label.
+  - Added state-specific accessible names for opening and closing the authoritative Program Log overlay.
+- **Files:**
+  - `packages/devtools/src/overlay.ts` — Names and renders the Foldkit Program Log launcher.
+- **User context (verbatim):**
+  > but FoldKit still doesn't have a log button. Can you add that, please?
+- **SpecStory:** unavailable — Codex desktop GUI task; SpecStory does not document desktop GUI capture and no durable SpecStory URI was available.
+
 ## July 28th, 2026 at 4:38:26 a.m. EDT — `29bfb7c4cff4` feat(cardboard): generate route-specific social previews
 
 - **Implementation commit:** `29bfb7c4cff4935670c96385e0925d338bc043b7`
