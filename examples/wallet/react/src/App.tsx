@@ -16,15 +16,18 @@ import {
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
-  WalletProvider,
   initialWalletRoute,
-  useWalletActions,
-  useWalletModel,
-  useWalletReplay,
+  makeWalletReactClient,
 } from 'wallet-react-bindings-example'
+import {
+  makeRemoteWalletResources,
+  publicTestnetWalletEndpoint,
+} from 'wallet-remote-example'
 
-const presetTransferAtomicUnits = '100000000000000000'
-const presetDestinationAddress = '0x2222222222222222222222222222222222222222'
+const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
+  makeWalletReactClient(makeRemoteWalletResources(publicTestnetWalletEndpoint))
+
+const presetTransferAtomicUnits = '10000000000000'
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -108,7 +111,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         transferId: 'react-demo-transfer',
         accountId: maybeAccount.value.accountId,
         network: maybeAccount.value.network,
-        destinationAddress: presetDestinationAddress,
+        destinationAddress: maybeAccount.value.address,
         value: CurrencyValue.make({
           currency: balance.value.currency,
           atomicUnits: presetTransferAtomicUnits,
@@ -134,7 +137,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       <div className="wallet-section-heading">
         <div>
           <p className="cardboard-eyebrow">Send</p>
-          <h2>0.1 ETH</h2>
+          <h2>0.00001 ETH</h2>
         </div>
         <span className="wallet-status">
           {transactionStatus(model.transaction)}

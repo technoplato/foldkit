@@ -7,19 +7,18 @@ import {
   transferDraftFromInput,
 } from 'wallet-core-example'
 import { simulatedPortfolio } from 'wallet-simulated-client-example'
+import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import { act, renderHook, waitFor } from '@testing-library/react'
 
-import {
-  WalletProvider,
-  useWalletActions,
-  useWalletModel,
-  useWalletReplay,
-} from './wallet.js'
+import { makeWalletReactClient } from './wallet.js'
 import {
   MissingWalletReplayTapeStoreError,
   parseWalletInitialRoute,
 } from './walletRoute.js'
+
+const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
+  makeWalletReactClient(SimulatedWalletResources)
 
 const wrapper = ({ children }: Readonly<{ children: ReactNode }>) => (
   <StrictMode>

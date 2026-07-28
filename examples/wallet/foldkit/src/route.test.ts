@@ -33,7 +33,11 @@ describe('Wallet Foldkit route intake', () => {
     const root = document.createElement('div')
     root.id = 'wallet-state-route-test'
     document.body.append(root)
-    const application = makeWalletApplication(root, start)
+    const application = makeWalletApplication(
+      root,
+      SimulatedWalletResources,
+      start,
+    )
     const fiber = Effect.runFork(application.start())
 
     await expect

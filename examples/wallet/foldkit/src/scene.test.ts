@@ -43,7 +43,7 @@ describe('Wallet Foldkit client', () => {
       Scene.with(loadedModel()),
       Scene.expect(Scene.text('Available balance')).toExist(),
       Scene.expect(Scene.text('2.5 ETH')).toExist(),
-      Scene.expect(Scene.text('0.1 ETH')).toExist(),
+      Scene.expect(Scene.text('0.00001 ETH')).toExist(),
       Scene.expect(Scene.text('Nothing sent yet.')).toExist(),
       Scene.expect(Scene.text('Simulated Sepolia Account')).toExist(),
       Scene.expect(

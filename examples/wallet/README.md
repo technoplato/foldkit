@@ -25,6 +25,8 @@ wallet/
   core/              portable Model, Message, Program, and service contracts
   simulated-client/  deterministic complete Layer with no network or real funds
   testnet-node/       Sepolia and Solana Devnet networking and optional custody
+  remote/             Fetch-backed typed RPC Layer for remotely held custody
+  testnet-server/     deliberately unauthenticated disposable Sepolia bridge
   react-bindings/    domain-shaped React hooks with no DOM dependency
   react/             React web presenter
   foldkit/           ordinary Foldkit view presenter
@@ -33,7 +35,7 @@ wallet/
   tui/               interactive OpenTUI React client
 ```
 
-## Run the simulated clients
+## Run the clients
 
 From the repository root:
 
@@ -45,6 +47,7 @@ pnpm demo:wallet send --verbose
 pnpm demo:wallet sign-challenge --verbose
 pnpm demo:wallet:terminal
 pnpm demo:wallet:tui
+pnpm dev:example:wallet:testnet-server
 pnpm dev:example:wallet:react
 pnpm dev:example:wallet:foldkit
 pnpm dev:example:showcase:web
@@ -52,9 +55,30 @@ pnpm dev:example:showcase:ios
 pnpm dev:example:showcase:android
 ```
 
-The simulated Layer never contacts a network or controls real funds. It proves
-the full Program flow, including previews, signing, submission, transaction
-observation, state routes, replay routes, and historical inspection.
+The CLI, Effect Terminal, and TUI use the simulated Layer. It never contacts a
+network or controls real funds. It proves the full Program flow, including
+previews, signing, submission, transaction observation, state routes, replay
+routes, and historical inspection.
+
+The React, Foldkit, and Expo clients use the typed `remote` Layer. The public
+demo endpoint is deliberately unauthenticated and controls one disposable,
+shared Sepolia test wallet. The private key remains in the Node server. Clients
+receive only public portfolio values and opaque handles for protected
+transaction material.
+
+The temporary server policy accepts only positive, native Sepolia ETH
+self-transfers of at most 0.00001 ETH. It rejects other networks, currencies,
+destinations, and amounts. Anyone who can reach the endpoint can still inspect
+the wallet, consume test ETH through permitted fees, and request signatures
+from this public test identity. The account must never hold mainnet assets or
+represent a trusted identity. The operation-handle store is process-local and
+is intentionally lost when the server restarts.
+
+The public demos are available at:
+
+- `https://wallet.knophy.com/` for React
+- `https://wallet-foldkit.knophy.com/` for Foldkit
+- `https://wallet-testnet.knophy.com/health` for the server health check
 
 ## Real test-network Layers
 
@@ -71,6 +95,11 @@ poll balances or signature status. No test requests an airdrop or mints tokens.
 See
 [`docs/explorations/wallet-testnet-layers.md`](../../docs/explorations/wallet-testnet-layers.md)
 for configuration and capability details.
+
+`makeWalletReactClient(resources)` and `makeWalletApplication(container,
+resources, start)` keep React and Foldkit independent of the selected wallet
+implementation. A client can receive simulated, local-custody, hardware,
+managed-custody, or remote resources without changing the Wallet Program.
 
 ## Portable signing boundary
 

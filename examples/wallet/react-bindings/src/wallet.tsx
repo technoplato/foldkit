@@ -1,3 +1,4 @@
+import { Layer } from 'effect'
 import * as Program from 'foldkit/program'
 import type { ReactNode } from 'react'
 import { createReplayableReactProgramClient } from 'shared-react-bindings-example'
@@ -19,7 +20,6 @@ import {
   type WalletResources,
   initialModel,
 } from 'wallet-core-example'
-import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 /** An executable renderer-neutral transfer composition accepted by Wallet actions. */
 export const WalletTransferComposition = TransferDraft
@@ -45,61 +45,66 @@ export type WalletInitialRoute = Program.ResolvedProgramRoute<Model, Message>
 export const initialWalletRoute: WalletInitialRoute =
   Program.state(initialModel)
 
-/** The canonical replayable React client for the Wallet Program. */
-export const WalletClient = createReplayableReactProgramClient<
-  Model,
-  Message,
-  WalletActions,
-  WalletInitialRoute,
-  WalletResources
->({
-  createActions: enqueueMessage => ({
-    requestedWalletRefresh: () =>
-      enqueueMessage(RequestedWalletRefresh.make({})),
-    importedAddressBookEntries: entries =>
-      enqueueMessage(ImportedAddressBookEntries.make({ entries })),
-    addedAddressBookEntry: entry =>
-      enqueueMessage(AddedAddressBookEntry.make({ entry })),
-    removedAddressBookEntry: entryId =>
-      enqueueMessage(RemovedAddressBookEntry.make({ entryId })),
-    composedTransfer: draft => enqueueMessage(ComposedTransfer.make({ draft })),
-    requestedSignedTransactionSubmission: previewId =>
-      enqueueMessage(RequestedSignedTransactionSubmission.make({ previewId })),
-    requestedChallengeSignature: challenge =>
-      enqueueMessage(RequestedChallengeSignature.make({ challenge })),
-    resumedTransactionObservation: () =>
-      enqueueMessage(ResumedTransactionObservation.make({})),
-  }),
-  name: 'Wallet',
-  program: WalletProgram,
-  resources: SimulatedWalletResources,
-  route: initialRoute => initialRoute,
-})
+/** Creates domain-shaped React bindings from host-selected Wallet resources. */
+export const makeWalletReactClient = <ResourceError,>(
+  resources: Layer.Layer<WalletResources, ResourceError>,
+) => {
+  const client = createReplayableReactProgramClient<
+    Model,
+    Message,
+    WalletActions,
+    WalletInitialRoute,
+    WalletResources,
+    ResourceError
+  >({
+    createActions: enqueueMessage => ({
+      requestedWalletRefresh: () =>
+        enqueueMessage(RequestedWalletRefresh.make({})),
+      importedAddressBookEntries: entries =>
+        enqueueMessage(ImportedAddressBookEntries.make({ entries })),
+      addedAddressBookEntry: entry =>
+        enqueueMessage(AddedAddressBookEntry.make({ entry })),
+      removedAddressBookEntry: entryId =>
+        enqueueMessage(RemovedAddressBookEntry.make({ entryId })),
+      composedTransfer: draft =>
+        enqueueMessage(ComposedTransfer.make({ draft })),
+      requestedSignedTransactionSubmission: previewId =>
+        enqueueMessage(
+          RequestedSignedTransactionSubmission.make({ previewId }),
+        ),
+      requestedChallengeSignature: challenge =>
+        enqueueMessage(RequestedChallengeSignature.make({ challenge })),
+      resumedTransactionObservation: () =>
+        enqueueMessage(ResumedTransactionObservation.make({})),
+    }),
+    name: 'Wallet',
+    program: WalletProgram,
+    resources,
+    route: initialRoute => initialRoute,
+  })
 
-/** Provides one simulated Wallet runtime to React children. */
-export const WalletProvider = ({
-  children,
-  fallback,
-  initialRoute,
-}: Readonly<{
-  children: ReactNode
-  fallback?: ReactNode
-  initialRoute?: WalletInitialRoute
-}>) => {
-  const route = initialRoute ?? initialWalletRoute
+  const WalletProvider = ({
+    children,
+    fallback,
+    initialRoute,
+  }: Readonly<{
+    children: ReactNode
+    fallback?: ReactNode
+    initialRoute?: WalletInitialRoute
+  }>) => {
+    const route = initialRoute ?? initialWalletRoute
+    return (
+      <client.Provider initialRoute={route} fallback={fallback}>
+        {children}
+      </client.Provider>
+    )
+  }
 
-  return (
-    <WalletClient.Provider initialRoute={route} fallback={fallback}>
-      {children}
-    </WalletClient.Provider>
-  )
+  return {
+    WalletProvider,
+    useWalletActions: client.useActions,
+    useWalletLifecycle: client.useLifecycle,
+    useWalletModel: client.useModel,
+    useWalletReplay: client.useReplay,
+  }
 }
-
-/** Reads the current immutable public Wallet Model. */
-export const useWalletModel = WalletClient.useModel
-
-/** Returns stable host-callable Wallet actions. */
-export const useWalletActions = WalletClient.useActions
-
-/** Returns inert inspection and live branching controls for the Wallet tape. */
-export const useWalletReplay = WalletClient.useReplay

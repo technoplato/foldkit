@@ -70,6 +70,7 @@
     "dev:example:client-matrix": "pnpm --filter client-matrix-foldkit-example dev",
     "dev:example:wallet:foldkit": "pnpm --filter wallet-foldkit-example dev",
     "dev:example:wallet:react": "pnpm --filter wallet-react-example dev",
+    "dev:example:wallet:testnet-server": "pnpm --filter wallet-testnet-server-example dev",
     "dev:example:stopwatch": "pnpm --filter stopwatch-example dev",
     "dev:example:weather": "pnpm --filter weather-example dev",
     "dev:example:api-cache": "pnpm --filter api-cache-example dev",
