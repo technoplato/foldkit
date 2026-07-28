@@ -9,8 +9,10 @@ import {
   SkippedZeroStep,
 } from './message.js'
 import {
+  ConversationLedgerPage,
   type KeyboardInput,
   type Model,
+  RuleZeroPage,
   type SpacePressCount,
   initialKeyboardInput,
 } from './model.js'
@@ -68,6 +70,22 @@ const pressedLowercaseG = (model: Model): UpdateReturn => {
   }
 }
 
+const openedConversationLedger = (model: Model): UpdateReturn => [
+  evo(model, {
+    keyboardInput: resetKeyboardInput,
+    page: () => ConversationLedgerPage(),
+  }),
+  [],
+]
+
+const returnedToRuleZeroPage = (model: Model): UpdateReturn => [
+  evo(model, {
+    keyboardInput: resetKeyboardInput,
+    page: () => RuleZeroPage(),
+  }),
+  [],
+]
+
 /** Applies one Cardboard Message through its keyboard grammar or Rule Zero Machine. */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
@@ -75,6 +93,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     M.tagsExhaustive({
       PressedSpace: () => pressedSpace(model),
       PressedLowercaseG: () => pressedLowercaseG(model),
+      OpenedConversationLedger: () => openedConversationLedger(model),
+      ReturnedToRuleZeroPage: () => returnedToRuleZeroPage(model),
       PressedZeroButton: zeroMessage => transitionZero(model, zeroMessage),
       AdvancedZeroButtonHold: zeroMessage => transitionZero(model, zeroMessage),
       ReleasedZeroButton: zeroMessage => transitionZero(model, zeroMessage),

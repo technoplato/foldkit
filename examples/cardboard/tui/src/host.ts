@@ -3,11 +3,12 @@ import {
   CompletedZeroGame,
   type Message,
   type Model,
+  OpenedConversationLedger,
   PressedLowercaseG,
   PressedSpace,
   PressedZeroButton,
   ReleasedZeroButton,
-  ReturnedToZeroStart,
+  ReturnedToRuleZeroPage,
   SelectedIncorrectInputMethod,
   SelectedMirrorAnswer,
   SkippedZeroStep,
@@ -26,10 +27,13 @@ import {
 import { Runtime } from 'foldkit'
 
 const clearScreen = '\u001b[2J\u001b[H'
+const amberPaper = '\u001b[38;2;255;229;174m\u001b[48;2;35;24;13m'
+const amberAccent = '\u001b[38;2;244;173;72m'
+const resetTerminalStyle = '\u001b[0m'
 
 /** Renders the canonical Cardboard Model for a text terminal. */
 export const renderCardboardScreen = (model: Model): string =>
-  `${clearScreen}${terminalPresentation(model)}\n\n[p] press  [r] release  [o] open  [space x3] skip\n[1] Genesis  [2] N64  [3] Game Boy  [4] Xbox  [5] keys\n[6] joystick  [7] eyes  [8] up  [9] down  [a] right  [m] mirror\n[g g] home  [G or ;] continue  [q] quit\n`
+  `${amberPaper}${clearScreen}${amberAccent}PROJECT CARDBOARD${amberPaper}\n${terminalPresentation(model)}\n\n${amberAccent}[l] /0/0 log  [0] /0${amberPaper}\n[p] press  [r] release  [o] open  [space x3] skip\n[1] Genesis  [2] N64  [3] Game Boy  [4] Xbox  [5] keys\n[6] joystick  [7] eyes  [8] up  [9] down  [a] right  [m] mirror\n[g g] home  [G or ;] continue  [q] quit\n${resetTerminalStyle}`
 
 /** Maps a terminal key to a Cardboard Message. */
 export const messageForInput = (input: string): Option.Option<Message> => {
@@ -90,7 +94,9 @@ export const messageForInput = (input: string): Option.Option<Message> => {
       SelectedIncorrectInputMethod({ inputMethod: 'HeadLookingRight' }),
     )
   } else if (input === '0') {
-    return Option.some(ReturnedToZeroStart())
+    return Option.some(ReturnedToRuleZeroPage())
+  } else if (input === 'l') {
+    return Option.some(OpenedConversationLedger())
   } else {
     return Option.none()
   }

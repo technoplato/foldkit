@@ -81,6 +81,16 @@ export const PressedSpace: CallableTaggedStruct<'PressedSpace', {}> =
 /** Records one lowercase G key press in a keyboard-capable client. */
 export const PressedLowercaseG: CallableTaggedStruct<'PressedLowercaseG', {}> =
   m('PressedLowercaseG')
+/** Records that the append-only conversation ledger was opened. */
+export const OpenedConversationLedger: CallableTaggedStruct<
+  'OpenedConversationLedger',
+  {}
+> = m('OpenedConversationLedger')
+/** Records that Cardboard returned from the ledger to Rule Zero. */
+export const ReturnedToRuleZeroPage: CallableTaggedStruct<
+  'ReturnedToRuleZeroPage',
+  {}
+> = m('ReturnedToRuleZeroPage')
 
 /** Every Message accepted by the Cardboard Program. */
 export const Message = S.Union([
@@ -98,6 +108,8 @@ export const Message = S.Union([
   ReturnedToZeroStart,
   PressedSpace,
   PressedLowercaseG,
+  OpenedConversationLedger,
+  ReturnedToRuleZeroPage,
 ])
 /** A Cardboard Message value. */
 export type Message = typeof Message.Type

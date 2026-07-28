@@ -4,6 +4,9 @@ import {
   accessibleDescription,
   cardboardAuthorship,
   cardboardDesktopCommand,
+  conversationLedger,
+  conversationScale,
+  currentConversationScaleLevel,
   initialAccessibilityProfile,
   inputMethodGlyph,
   inputMethodLabel,
@@ -18,7 +21,7 @@ import {
   useCardboardModel,
   useCardboardReplay,
 } from 'cardboard-react-bindings-example'
-import type { KeyboardEvent, PointerEvent } from 'react'
+import { type KeyboardEvent, type PointerEvent, useEffect } from 'react'
 
 /** Runs Cardboard through the shared React and React Native bindings. */
 export const App = ({
@@ -63,6 +66,23 @@ const CardboardScreen = () => {
     model.zero._tag === 'RejectedInputMethodChoice'
   const progress =
     model.zero._tag === 'OpeningZero' ? model.zero.progressPermille / 10 : 0
+
+  useEffect(() => {
+    if (replay.mode !== 'Live') {
+      return
+    }
+    const nextPath =
+      model.page._tag === 'ConversationLedgerPage' ? '/0/0' : '/0'
+    if (globalThis.location.pathname !== nextPath) {
+      globalThis.history.pushState({}, '', nextPath)
+    }
+  }, [model.page._tag, replay.mode])
+
+  if (model.page._tag === 'ConversationLedgerPage') {
+    return (
+      <ConversationLedgerScreen onReturn={actions.returnedToRuleZeroPage} />
+    )
+  }
 
   const handledKeyboardInput = (event: KeyboardEvent<HTMLElement>): void => {
     if (event.key === ' ') {
@@ -135,6 +155,14 @@ const CardboardScreen = () => {
         <p aria-live="polite" className="readout" id="cardboard-readout">
           {accessibleDescription(model)}
         </p>
+
+        <button
+          className="ledger-link"
+          onClick={actions.openedConversationLedger}
+          type="button"
+        >
+          Open /0/0 decision log
+        </button>
 
         {isConfigurationVisible ? (
           <section
@@ -232,3 +260,76 @@ const CardboardScreen = () => {
     </main>
   )
 }
+
+const ConversationLedgerScreen = ({
+  onReturn,
+}: Readonly<{ onReturn: () => void }>) => (
+  <main className="cardboard-shell profile-AmberPaper">
+    <article className="cardboard-stage ledger-page">
+      <header className="cardboard-header">
+        <div>
+          <p className="eyebrow">Project Cardboard</p>
+          <h1>When /0 is four</h1>
+        </div>
+        <code>/0/0</code>
+      </header>
+
+      <p className="ledger-declaration">
+        Four means Ship. Stop expanding the theory. Publish the smallest
+        verified artifact, record what happened, and continue from evidence.
+      </p>
+
+      <button className="ledger-link" onClick={onReturn} type="button">
+        Return to /0
+      </button>
+
+      <section aria-labelledby="conversation-scale" className="ledger-section">
+        <p className="eyebrow">Current level {currentConversationScaleLevel}</p>
+        <h2 id="conversation-scale">Conversation scale</h2>
+        <ol className="scale-list">
+          {conversationScale.map(level => (
+            <li
+              className={
+                level.level === currentConversationScaleLevel
+                  ? 'scale-level current-scale-level'
+                  : 'scale-level'
+              }
+              key={level.level}
+            >
+              <strong>
+                {level.level} · {level.label}
+              </strong>
+              <span>{level.description}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section aria-labelledby="decision-log" className="ledger-section">
+        <p className="eyebrow">Append only</p>
+        <h2 id="decision-log">Public decision log</h2>
+        <ol className="decision-log">
+          {conversationLedger.map(entry => (
+            <li key={entry.sequence}>
+              <p>
+                {entry.sequence.toString().padStart(2, '0')} ·{' '}
+                {entry.recordedOn}
+              </p>
+              <h3>{entry.title}</h3>
+              <span>{entry.statement}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <details className="authorship">
+        <summary>Original author and desktop command</summary>
+        <p>{cardboardAuthorship.statement}</p>
+        <code>{cardboardAuthorship.acronym}</code>
+        <code>statement sha256:{cardboardAuthorship.statementSha256}</code>
+        <p>Play the same Program on your desktop:</p>
+        <code>{cardboardDesktopCommand}</code>
+      </details>
+    </article>
+  </main>
+)

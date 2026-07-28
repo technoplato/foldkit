@@ -7,22 +7,25 @@ import {
   cardboardAuthorshipAcronym,
   cardboardAuthorshipStatement,
 } from './authorship.js'
+import { conversationLedger, currentConversationScaleLevel } from './ledger.js'
 import { zeroMachine } from './machine.js'
 import {
   AdvancedZeroButtonHold,
   AdvancedZeroOpening,
   CompletedZeroGame,
   CompletedZeroOpening,
+  OpenedConversationLedger,
   PressedLowercaseG,
   PressedSpace,
   PressedZeroButton,
   ReleasedZeroButton,
+  ReturnedToRuleZeroPage,
   SelectedAccessibilityProfile,
   SelectedIncorrectInputMethod,
   SelectedMirrorAnswer,
   ToggledRgbInversion,
 } from './message.js'
-import { initialModel } from './model.js'
+import { initialConversationLedgerModel, initialModel } from './model.js'
 import { CardboardRouter } from './route.js'
 import { update } from './update.js'
 
@@ -135,5 +138,32 @@ describe('Cardboard Program', () => {
 
     expect(printed.startsWith('/0/state?model=')).toBe(true)
     expect(parsed).toStrictEqual(stateRoute)
+  })
+
+  it('round-trips the append-only ledger at /0/0', async () => {
+    await expect(
+      Effect.runPromise(CardboardRouter.canonicalize('/0/0/')),
+    ).resolves.toBe('/0/0')
+
+    const parsed = await Effect.runPromise(CardboardRouter.parse('/0/0'))
+    const printed = await Effect.runPromise(CardboardRouter.print(parsed))
+
+    expect(parsed).toStrictEqual(Program.state(initialConversationLedgerModel))
+    expect(printed).toBe('/0/0')
+  })
+
+  it('moves between Rule Zero and the ledger through factual Messages', () => {
+    const [ledger] = update(initialModel, OpenedConversationLedger())
+    const [ruleZero] = update(ledger, ReturnedToRuleZeroPage())
+
+    expect(ledger.page._tag).toBe('ConversationLedgerPage')
+    expect(ruleZero).toStrictEqual(initialModel)
+  })
+
+  it('keeps the public conversation ledger ordered and at Ship level', () => {
+    expect(currentConversationScaleLevel).toBe(4)
+    expect(conversationLedger.map(entry => entry.sequence)).toStrictEqual([
+      1, 2, 3, 4, 5, 6,
+    ])
   })
 })

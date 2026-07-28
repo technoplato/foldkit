@@ -111,11 +111,13 @@ export const NativeNavigationComparison = ({
   isProgramHome,
   onAcceptedBack,
   scene,
+  showsComparisonPanel,
 }: Readonly<{
   home: ReactNode
   isProgramHome: boolean
   onAcceptedBack: () => void
   scene: ReactNode
+  showsComparisonPanel: boolean
 }>) => {
   const [isNavigationReady, setNavigationReady] = useState(false)
   const [isRemovalAllowed, setRemovalAllowed] = useState(false)
@@ -556,33 +558,35 @@ export const NativeNavigationComparison = ({
                 onAttemptedBack={attemptBackTransition}
                 policy={policy}
               >
-                <TransitionComparisonPanel
-                  isTransitionPending={isTransitionPending}
-                  decisionDelay={decisionDelay}
-                  metrics={metrics}
-                  nextDecision={nextDecision}
-                  observationTrace={observationTrace}
-                  onResetMetrics={() => {
-                    nextObservationSequenceNumber.current = 1
-                    setMetrics(initialTransitionMetrics)
-                    setObservationTrace([])
-                  }}
-                  onSelectedDecisionDelay={nextDecisionDelay => {
-                    nextObservationSequenceNumber.current = 1
-                    setDecisionDelay(nextDecisionDelay)
-                    setMetrics(initialTransitionMetrics)
-                    setObservationTrace([])
-                  }}
-                  onSelectedDecision={setNextDecision}
-                  onSelectedPolicy={nextPolicy => {
-                    nextObservationSequenceNumber.current = 1
-                    setPolicy(nextPolicy)
-                    setMetrics(initialTransitionMetrics)
-                    setObservationTrace([])
-                  }}
-                  policy={policy}
-                  transitionPhase={transitionPhase}
-                />
+                {showsComparisonPanel ? (
+                  <TransitionComparisonPanel
+                    isTransitionPending={isTransitionPending}
+                    decisionDelay={decisionDelay}
+                    metrics={metrics}
+                    nextDecision={nextDecision}
+                    observationTrace={observationTrace}
+                    onResetMetrics={() => {
+                      nextObservationSequenceNumber.current = 1
+                      setMetrics(initialTransitionMetrics)
+                      setObservationTrace([])
+                    }}
+                    onSelectedDecisionDelay={nextDecisionDelay => {
+                      nextObservationSequenceNumber.current = 1
+                      setDecisionDelay(nextDecisionDelay)
+                      setMetrics(initialTransitionMetrics)
+                      setObservationTrace([])
+                    }}
+                    onSelectedDecision={setNextDecision}
+                    onSelectedPolicy={nextPolicy => {
+                      nextObservationSequenceNumber.current = 1
+                      setPolicy(nextPolicy)
+                      setMetrics(initialTransitionMetrics)
+                      setObservationTrace([])
+                    }}
+                    policy={policy}
+                    transitionPhase={transitionPhase}
+                  />
+                ) : null}
                 <View style={styles.sceneContent}>{scene}</View>
               </NativeSceneScreen>
             )}
