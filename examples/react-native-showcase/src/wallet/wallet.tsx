@@ -805,6 +805,7 @@ const styles = StyleSheet.create({
   headingRow: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     justifyContent: 'space-between',
   },
