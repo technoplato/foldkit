@@ -1,3 +1,4 @@
+export * from './authoredPages.js'
 export * from './deck.js'
 export * from './init.js'
 export * from './message.js'

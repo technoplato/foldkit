@@ -18,6 +18,7 @@ import {
   SelectedSlide,
   type SlideContent,
   type SlideId,
+  authoredTextForPage,
   constructiveDataModelingDeck,
   deckPresentation,
   formatTimestamp,
@@ -28,7 +29,7 @@ import {
   slideForRevealPage,
   sourceForId,
 } from 'constructive-data-modeling-core-example'
-import { Array, Match as M, Option } from 'effect'
+import { Array, Match as M, Option, String } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
 
 const contentTitle = (content: SlideContent): string =>
@@ -58,80 +59,91 @@ const sourceLink = (
   )
 }
 
-const slideContentView = (model: Model): Html => {
+const authoredPageDensityClass = (text: string): string => {
+  const length = String.length(text)
+  if (length > 660) {
+    return 'dense'
+  } else if (length > 320) {
+    return 'compact'
+  } else {
+    return 'sparse'
+  }
+}
+
+const authoredCodePattern =
+  /(^|\n)\s*(?:\/\/|struct\s+[A-Z]|enum\s+[A-Z]|type\s+[A-Z][^\n=]*=|data\s+[A-Z]|record\s+[A-Z]|case class\s+[A-Z]|def\s+\w+|match\s+\w+)/m
+
+const authoredPageView = (model: Model): Html => {
   const h = html<Message>()
   const slide = slideForLocation(model.location)
-  return M.value(slide.content).pipe(
+  return M.value(model.location).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
-      AuthoredSlide: ({
-        condensedPage,
-        revealEndPage,
-        revealStartPage,
-        summary,
-        title,
-      }) => {
-        const currentPage = M.value(model.location).pipe(
-          M.withReturnType<number>(),
-          M.tagsExhaustive({
-            AuthoredPageLocation: ({ page }) => page,
-            QuestionAnswerLocation: () => revealEndPage,
-          }),
-        )
+      AuthoredPageLocation: ({ page }) => {
+        const pageText = authoredTextForPage(page)
+        const isCodePage = authoredCodePattern.test(pageText)
         return h.div(
-          [h.Class('cue-content')],
+          [h.Class('authored-page-column')],
           [
-            h.p([h.Class('eyebrow')], ['Authored reveal']),
-            h.h1([], [title]),
-            h.p([h.Class('cue-summary')], [summary]),
-            h.dl(
-              [h.Class('cue-evidence')],
+            h.div(
+              [h.Class('authored-page-heading')],
               [
-                h.div(
-                  [],
-                  [
-                    h.dt([], ['Authored page']),
-                    h.dd([], [`${currentPage.toString()} / 158`]),
-                  ],
+                h.p([h.Class('eyebrow')], ['Official authored reveal']),
+                h.p(
+                  [h.Class('authored-page-position')],
+                  [`Page ${page.toString()} of 158`],
                 ),
-                h.div(
-                  [],
-                  [
-                    h.dt([], ['Condensed page']),
-                    h.dd([], [condensedPage.toString().padStart(2, '0')]),
-                  ],
+              ],
+            ),
+            h.article(
+              [
+                h.AriaLabel(`Authored slide page ${page.toString()}`),
+                h.Class(
+                  `authored-page-sheet ${authoredPageDensityClass(pageText)}${isCodePage ? ' code-page' : ''}`,
                 ),
-                h.div(
-                  [],
-                  [
-                    h.dt([], ['Logical reveal range']),
-                    h.dd(
-                      [],
-                      [
-                        revealStartPage === revealEndPage
-                          ? revealStartPage.toString()
-                          : `${revealStartPage.toString()}–${revealEndPage.toString()}`,
-                      ],
-                    ),
-                  ],
+              ],
+              [
+                h.pre(
+                  [h.Class('authored-page-text')],
+                  [h.code([], [pageText])],
+                ),
+                h.span(
+                  [h.AriaHidden(true), h.Class('authored-page-number')],
+                  [page.toString()],
                 ),
               ],
             ),
           ],
         )
       },
-      QuestionAnswerSlide: ({ summary, title }) =>
-        h.div(
-          [h.Class('cue-content question-answer')],
-          [
-            h.p([h.Class('eyebrow')], ['Recording-only section']),
-            h.h1([], [title]),
-            h.p([h.Class('cue-summary')], [summary]),
-          ],
+      QuestionAnswerLocation: () =>
+        M.value(slide.content).pipe(
+          M.withReturnType<Html>(),
+          M.tagsExhaustive({
+            AuthoredSlide: () => null,
+            QuestionAnswerSlide: ({ summary, title }) =>
+              h.article(
+                [h.Class('authored-page-sheet recording-only')],
+                [
+                  h.p([h.Class('eyebrow')], ['Recording-only section']),
+                  h.h1([], [title]),
+                  h.p([h.Class('cue-summary')], [summary]),
+                ],
+              ),
+          }),
         ),
     }),
   )
 }
+
+const slideSummary = (content: SlideContent): string =>
+  M.value(content).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      AuthoredSlide: ({ summary }) => summary,
+      QuestionAnswerSlide: ({ summary }) => summary,
+    }),
+  )
 
 const chooserKeyboardMessage = (key: string): Option.Option<Message> => {
   if (key === 'ArrowDown' || key === 'PageDown') {
@@ -393,6 +405,52 @@ export const view = (model: Model): Document => {
         h.Tabindex(0),
       ],
       [
+        h.nav(
+          [h.AriaLabel('Authored page navigation'), h.Class('deck-controls')],
+          [
+            h.button(
+              [
+                h.AriaLabel('Previous authored page'),
+                h.Class('control-button previous'),
+                h.Disabled(!presentation.canRewind),
+                h.OnClick(RewoundPage({ origin: PointerControl() })),
+              ],
+              [h.span([h.AriaHidden(true)], ['←']), h.span([], ['Previous'])],
+            ),
+            h.div(
+              [h.Class('navigation-status')],
+              [
+                h.span(
+                  [h.Class('navigation-position')],
+                  [
+                    `${presentation.position.toString()} / ${presentation.total.toString()}`,
+                  ],
+                ),
+                h.button(
+                  [
+                    h.Class('goto-page-button'),
+                    h.OnClick(OpenedPageChooser({ origin: PointerControl() })),
+                    h.Title('Open authored page chooser (G)'),
+                  ],
+                  ['Goto Page'],
+                ),
+              ],
+            ),
+            h.button(
+              [
+                h.AriaLabel('Next authored page'),
+                h.Class('control-button next'),
+                h.Disabled(!presentation.canAdvance),
+                h.OnClick(AdvancedPage({ origin: PointerControl() })),
+              ],
+              [h.span([], ['Next']), h.span([h.AriaHidden(true)], ['→'])],
+            ),
+            h.div(
+              [h.Class('progress-track')],
+              [h.span([h.Style({ width: progress })], [])],
+            ),
+          ],
+        ),
         h.header(
           [h.Class('deck-header')],
           [
@@ -410,19 +468,9 @@ export const view = (model: Model): Document => {
               [h.Class('deck-meta')],
               [
                 sourceLink('recording'),
-                h.span(
-                  [],
-                  [
-                    `${presentation.position.toString()} / ${presentation.total.toString()}`,
-                  ],
-                ),
-                h.button(
-                  [
-                    h.Class('goto-page-button'),
-                    h.OnClick(OpenedPageChooser({ origin: PointerControl() })),
-                    h.Title('Open authored page chooser (G)'),
-                  ],
-                  ['Goto Page'],
+                h.p(
+                  [h.Class('keyboard-hint')],
+                  ['← → · Space · Goto Page [G] · Home · End'],
                 ),
               ],
             ),
@@ -434,9 +482,37 @@ export const view = (model: Model): Document => {
             h.Class('sync-stage'),
           ],
           [
+            authoredPageView(model),
             h.div(
               [h.Class('video-column')],
               [
+                h.div(
+                  [h.Class('video-context')],
+                  [
+                    h.p([h.Class('eyebrow')], ['Synchronized recording']),
+                    h.div(
+                      [h.Class('cue-timing')],
+                      [
+                        h.time([], [formatTimestamp(timing.startSeconds)]),
+                        h.span([], ['→']),
+                        h.time([], [formatTimestamp(timing.endSeconds)]),
+                      ],
+                    ),
+                    h.p(
+                      [h.Class('companion-summary')],
+                      [slideSummary(slide.content)],
+                    ),
+                    h.a(
+                      [
+                        h.Class('deep-link'),
+                        h.Href(timing.deepLink),
+                        h.Rel('noopener noreferrer'),
+                        h.Target('_blank'),
+                      ],
+                      ['Open this exact moment ↗'],
+                    ),
+                  ],
+                ),
                 h.div(
                   [h.Class('video-frame')],
                   [
@@ -461,34 +537,8 @@ export const view = (model: Model): Document => {
                 h.p(
                   [h.Class('sync-note')],
                   [
-                    'Play the recording and the exact authored page follows. Page through all 158 reveals or press G to jump.',
+                    'Play the recording and the exact authored text follows. The page itself stays selectable and deep-linkable.',
                   ],
-                ),
-              ],
-            ),
-            h.article(
-              [
-                h.AriaLabel(`Position ${presentation.position.toString()}`),
-                h.Class('cue-card'),
-              ],
-              [
-                h.div(
-                  [h.Class('cue-timing')],
-                  [
-                    h.time([], [formatTimestamp(timing.startSeconds)]),
-                    h.span([], ['→']),
-                    h.time([], [formatTimestamp(timing.endSeconds)]),
-                  ],
-                ),
-                slideContentView(model),
-                h.a(
-                  [
-                    h.Class('deep-link'),
-                    h.Href(timing.deepLink),
-                    h.Rel('noopener noreferrer'),
-                    h.Target('_blank'),
-                  ],
-                  ['Open this exact moment ↗'],
                 ),
               ],
             ),
@@ -500,37 +550,6 @@ export const view = (model: Model): Document => {
           [
             h.span([], ['Evidence']),
             ...Array.map(slide.sourceIds, sourceId => sourceLink(sourceId)),
-          ],
-        ),
-        h.footer(
-          [h.Class('deck-controls')],
-          [
-            h.button(
-              [
-                h.AriaLabel('Previous authored page'),
-                h.Class('control-button previous'),
-                h.Disabled(!presentation.canRewind),
-                h.OnClick(RewoundPage({ origin: PointerControl() })),
-              ],
-              [h.span([h.AriaHidden(true)], ['←']), h.span([], ['Previous'])],
-            ),
-            h.div(
-              [h.Class('progress-track')],
-              [h.span([h.Style({ width: progress })], [])],
-            ),
-            h.p(
-              [h.Class('keyboard-hint')],
-              ['← → · Space · Goto Page [G] · Home · End'],
-            ),
-            h.button(
-              [
-                h.AriaLabel('Next authored page'),
-                h.Class('control-button next'),
-                h.Disabled(!presentation.canAdvance),
-                h.OnClick(AdvancedPage({ origin: PointerControl() })),
-              ],
-              [h.span([], ['Next']), h.span([h.AriaHidden(true)], ['→'])],
-            ),
           ],
         ),
         pageChooserView(model),
