@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 4:38:26 a.m. EDT — `29bfb7c4cff4` feat(cardboard): generate route-specific social previews
+
+- **Implementation commit:** `29bfb7c4cff4935670c96385e0925d338bc043b7`
+- **Change:** Added route-specific social link previews for Cardboard.
+- **Details:**
+  - Resolved public routes through CardboardRouter and projected exact content and portable paths from the authoritative Model.
+  - Generated 1200 by 630 PNG cards through Satori SVG and Resvg, wrapping large numeric content and carrier text without numeric coercion.
+  - Injected canonical, Open Graph, and Twitter metadata and served versioned cacheable images from both React and Foldkit Vite hosts.
+- **Files:**
+  - `examples/cardboard/core/src/preview.ts` — Defines presentation-neutral preview content derived from the canonical Cardboard Model.
+  - `examples/cardboard/core/src/route.ts` — Exposes the canonical public portable route for a Cardboard Model.
+  - `examples/cardboard/web/src/preview.ts` — Resolves canonical web and native carriers for each public route.
+  - `examples/cardboard/web/src/meta.ts` — Renders complete canonical, Open Graph, and Twitter metadata.
+  - `examples/cardboard/web/src/ogImage.ts` — Renders exact wrapped content and carriers through SVG into a 1200 by 630 PNG.
+  - `examples/cardboard/web/src/vitePlugin.ts` — Serves dynamic HTML metadata and versioned cacheable PNG responses.
+  - `examples/cardboard/web/src/preview.test.ts` — Verifies carriers, metadata, exact wrapping, and PNG dimensions.
+  - `examples/cardboard/react/vite.config.ts` — Installs route-specific previews in the React web host.
+  - `examples/cardboard/foldkit/vite.config.ts` — Installs route-specific previews in the Foldkit web host.
+  - `pnpm-lock.yaml` — Locks the web preview workspace and its deterministic font dependency.
+  - `knip.json` — Documents the font resource dependency resolved dynamically for rasterization.
+- **User context (verbatim):**
+  > Let's have it create an SVG to PNG that shows the contents of the page, the URL of the page, and the deep link of the page.
+  > Make sure the number is formatted correctly. Yeah, make sure it wraps.
+  > provide it ubiquitously in all the OG headers and stuff
+- **SpecStory:** unavailable — Codex desktop GUI task; SpecStory does not document desktop GUI capture and no durable SpecStory URI was available.
+
 ## July 28th, 2026 at 4:29:59 a.m. EDT — `b2c4b0671fd7` feat: simplify wallet and expose Cardboard replay
 
 - **Implementation commit:** `b2c4b0671fd7aa8ca46b0c68e1afa9cfa4fc7d08`
