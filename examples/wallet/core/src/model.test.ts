@@ -19,13 +19,16 @@ import {
   EthereumSepoliaEthTransferDraft,
   EthereumSignatureProof,
   FirstTransactionWithRecipient,
+  InvalidTransferRecipient,
   PreviouslyTransactedWithRecipient,
   SignatureProof,
   SolanaEd25519SignatureProof,
   TransactionRecord,
+  ValidTransferRecipient,
   familiarityForAddress,
   recipientHistoryForDraft,
   transferDraftFromInput,
+  transferRecipientFromInput,
 } from './model.js'
 
 const observedAt = 1_722_000_000_000
@@ -149,6 +152,22 @@ describe('Wallet currency schemas', () => {
 })
 
 describe('Wallet public identity and signing schemas', () => {
+  it('distinguishes valid Ethereum recipients from 32-byte values', () => {
+    const address = '0x2222222222222222222222222222222222222222'
+    const nonAddress =
+      '0x1111111111111111111111111111111111111111111111111111111111111111'
+
+    expect(transferRecipientFromInput(address)).toStrictEqual(
+      ValidTransferRecipient.make({ address }),
+    )
+    expect(transferRecipientFromInput(nonAddress)).toStrictEqual(
+      InvalidTransferRecipient.make({
+        input: nonAddress,
+        reason: 'ExpectedEthereumAddress',
+      }),
+    )
+  })
+
   it('matches Ethereum addresses case-insensitively', () => {
     const entry = AddressBookEntry.make({
       entryId: 'entry-1',

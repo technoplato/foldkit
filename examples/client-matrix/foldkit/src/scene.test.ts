@@ -94,13 +94,13 @@ describe('Client Matrix Foldkit view', () => {
     Scene.scene(
       { update, view },
       Scene.with(initialModel()),
-      Scene.expect(Scene.text('wallet@2')).toExist(),
+      Scene.expect(Scene.text('wallet@3')).toExist(),
       Scene.expect(
         Scene.text('/wallet/state?model=<encoded Wallet Model>'),
       ).toExist(),
       Scene.expect(
         Scene.text(
-          '/wallet/replay?tape=<encoded wallet@2 ReplayTape>&frame=<frame>',
+          '/wallet/replay?tape=<encoded wallet@3 ReplayTape>&frame=<frame>',
         ),
       ).toExist(),
       Scene.expect(

@@ -94,6 +94,37 @@ input {
   border-radius: 999px;
 }
 
+.wallet-recipient {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.5rem;
+  color: var(--cardboard-paper-muted);
+  font-weight: 900;
+}
+
+.wallet-recipient input {
+  width: 100%;
+  min-width: 0;
+  padding: 1rem;
+  color: var(--cardboard-paper);
+  background: var(--cardboard-panel-deep);
+  border: 0.12rem solid var(--cardboard-line);
+  border-radius: 1rem;
+  outline: none;
+}
+
+.wallet-recipient input:focus {
+  border-color: var(--cardboard-amber);
+  box-shadow: 0 0 0 0.2rem
+    color-mix(in srgb, var(--cardboard-amber) 30%, transparent);
+}
+
+.wallet-validation {
+  margin: 0.65rem 0 0;
+  color: var(--cardboard-amber);
+  line-height: 1.4;
+}
+
 .wallet-preview {
   display: grid;
   gap: 0.75rem;

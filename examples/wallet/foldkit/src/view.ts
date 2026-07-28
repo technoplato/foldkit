@@ -1,12 +1,12 @@
 import { Array, Match as M, Option } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
 import {
-  ComposedTransfer,
-  CurrencyValue,
+  ChangedTransferRecipient,
   type Message,
   type Model,
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
+  RequestedTransferPreview,
   RequestedWalletRefresh,
   type TransactionPreview,
   type TransactionState,
@@ -17,10 +17,8 @@ import {
   primaryWalletAccount,
   primaryWalletBalance,
   shortenedAddress,
-  transferDraftFromInput,
+  transferRecipientInput,
 } from 'wallet-core-example'
-
-const presetTransferAtomicUnits = '10000000000000'
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -101,25 +99,6 @@ const walletHero = (model: Model): Html => {
   )
 }
 
-const maybeDemoTransfer = (model: Model) =>
-  Option.flatMap(primaryWalletAccount(model), account =>
-    Option.flatMap(primaryWalletBalance(model), balance =>
-      transferDraftFromInput({
-        transferId: 'foldkit-demo-transfer',
-        accountId: account.accountId,
-        network: account.network,
-        destinationAddress: account.address,
-        value: CurrencyValue.make({
-          currency: balance.value.currency,
-          atomicUnits: presetTransferAtomicUnits,
-          decimalPlaces: balance.value.decimalPlaces,
-          observedAt: balance.value.observedAt,
-        }),
-        maybeMessage: Option.some('Shared Foldkit Wallet demo'),
-      }),
-    ),
-  )
-
 const sendButton = (model: Model): Html => {
   const h = html<Message>()
   if (model.transaction._tag === 'PreviewedTransaction') {
@@ -136,11 +115,14 @@ const sendButton = (model: Model): Html => {
       ['Confirm send'],
     )
   }
-  const maybeDraft = maybeDemoTransfer(model)
   const isBusy =
     model.transaction._tag === 'PreviewingTransaction' ||
     model.transaction._tag === 'SubmittingTransaction'
-  if (Option.isNone(maybeDraft) || isBusy) {
+  if (
+    Option.isNone(primaryWalletBalance(model)) ||
+    model.transferRecipient._tag !== 'ValidTransferRecipient' ||
+    isBusy
+  ) {
     return h.button(
       [h.Type('button'), h.Class('cardboard-button primary'), h.Disabled(true)],
       ['Preview send'],
@@ -150,7 +132,7 @@ const sendButton = (model: Model): Html => {
     [
       h.Type('button'),
       h.Class('cardboard-button primary'),
-      h.OnClick(ComposedTransfer.make({ draft: maybeDraft.value })),
+      h.OnClick(RequestedTransferPreview.make({})),
     ],
     ['Preview send'],
   )
@@ -159,6 +141,32 @@ const sendButton = (model: Model): Html => {
 const sendMoney = (model: Model): Html => {
   const h = html<Message>()
   const maybePreview = maybePreviewForTransaction(model.transaction)
+  const recipientField = h.label(
+    [h.Class('wallet-recipient'), h.For('wallet-recipient')],
+    [
+      h.span([], ['Recipient on Ethereum Sepolia']),
+      h.input([
+        h.Id('wallet-recipient'),
+        h.Type('text'),
+        h.Placeholder('0x…'),
+        h.Spellcheck(false),
+        h.Value(transferRecipientInput(model.transferRecipient)),
+        h.Disabled(model.transaction._tag === 'SubmittingTransaction'),
+        h.OnInput(value => ChangedTransferRecipient.make({ value })),
+      ]),
+    ],
+  )
+  const validation =
+    model.transferRecipient._tag === 'InvalidTransferRecipient'
+      ? [
+          h.p(
+            [h.Class('wallet-validation'), h.Role('alert')],
+            [
+              'Enter an Ethereum address with 0x followed by 40 hexadecimal digits.',
+            ],
+          ),
+        ]
+      : []
   const preview = Option.match(maybePreview, {
     onNone: () =>
       h.p(
@@ -221,6 +229,8 @@ const sendMoney = (model: Model): Html => {
           ),
         ],
       ),
+      recipientField,
+      ...validation,
       preview,
       h.div([h.Class('wallet-action-row')], [sendButton(model)]),
     ],

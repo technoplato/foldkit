@@ -70,11 +70,13 @@ describe('Wallet React bindings', () => {
     const actions = result.current.actions
     expect(Object.keys(actions).sort()).toStrictEqual([
       'addedAddressBookEntry',
+      'changedTransferRecipient',
       'composedTransfer',
       'importedAddressBookEntries',
       'removedAddressBookEntry',
       'requestedChallengeSignature',
       'requestedSignedTransactionSubmission',
+      'requestedTransferPreview',
       'requestedWalletRefresh',
       'resumedTransactionObservation',
     ])

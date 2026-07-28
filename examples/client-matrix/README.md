@@ -6,7 +6,7 @@ The Client Matrix is a Foldkit Program with three complementary comparisons:
   and route parser-printer. It compares those modes across eight real client
   surfaces. Every cell shows the client carrier and a checked-in capture of that
   client rendering the same canonical application state.
-- Wallet audits the `wallet@2` Program identity, one exact state route, one exact
+- Wallet audits the `wallet@3` Program identity, one exact state route, one exact
   settled replay route, and the carrier and evidence boundary for React,
   Foldkit, raw CLI, Effect Terminal, OpenTUI, Expo Web, Expo iOS, Expo Android,
   and a future server host.
@@ -58,7 +58,7 @@ It distinguishes route implementation from Program reuse:
   be different semantics and is not substituted silently.
 - No future server host, endpoint, or ReplayTapeStore is claimed.
 
-The Wallet route strings are exact outputs of the shared `wallet@2` Program
+The Wallet route strings are exact outputs of the shared `wallet@3` Program
 router over a small public Model and a one-transition settled replay tape. The
 carrier strings use `<portable-wallet-route>` and `<expo-web-origin>` as explicit
 substitution points. They are not deployment claims. Source inspection and

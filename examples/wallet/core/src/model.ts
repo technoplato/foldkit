@@ -112,6 +112,71 @@ const TransferDraftFields = {
   maybeMessage: S.OptionFromNullishOr(S.String, { onNoneEncoding: null }),
 }
 
+/** A public Ethereum address accepted by the Sepolia transfer workflow. */
+export const EthereumAddress = S.String.check(
+  S.isPattern(/^0x[0-9a-fA-F]{40}$/),
+)
+/** A public Ethereum address accepted by the Sepolia transfer workflow. */
+export type EthereumAddress = typeof EthereumAddress.Type
+
+/** No Sepolia recipient has been entered. */
+export const EmptyTransferRecipient = S.TaggedStruct(
+  'EmptyTransferRecipient',
+  {},
+)
+/** The entered recipient is not an Ethereum address. */
+export const InvalidTransferRecipient = S.TaggedStruct(
+  'InvalidTransferRecipient',
+  {
+    input: S.String,
+    reason: S.Literal('ExpectedEthereumAddress'),
+  },
+)
+/** The entered recipient is valid for an Ethereum Sepolia transfer. */
+export const ValidTransferRecipient = S.TaggedStruct('ValidTransferRecipient', {
+  address: EthereumAddress,
+})
+/** The renderer-neutral state of the editable transfer recipient. */
+export const TransferRecipientState = S.Union([
+  EmptyTransferRecipient,
+  InvalidTransferRecipient,
+  ValidTransferRecipient,
+])
+/** The renderer-neutral state of the editable transfer recipient. */
+export type TransferRecipientState = typeof TransferRecipientState.Type
+
+/** Validates editable host input into the Sepolia recipient state machine. */
+export const transferRecipientFromInput = (
+  input: string,
+): TransferRecipientState => {
+  const trimmedInput = input.trim()
+  if (trimmedInput === '') {
+    return EmptyTransferRecipient.make({})
+  }
+  const maybeAddress = S.decodeUnknownOption(EthereumAddress)(trimmedInput)
+  if (Option.isSome(maybeAddress)) {
+    return ValidTransferRecipient.make({ address: maybeAddress.value })
+  } else {
+    return InvalidTransferRecipient.make({
+      input,
+      reason: 'ExpectedEthereumAddress',
+    })
+  }
+}
+
+/** Returns the editable text represented by one recipient state. */
+export const transferRecipientInput = (
+  recipient: TransferRecipientState,
+): string =>
+  M.value(recipient).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      EmptyTransferRecipient: () => '',
+      InvalidTransferRecipient: ({ input }) => input,
+      ValidTransferRecipient: ({ address }) => address,
+    }),
+  )
+
 /** An executable ETH transfer draft on Ethereum Sepolia. */
 export const EthereumSepoliaEthTransferDraft = S.TaggedStruct(
   'EthereumSepoliaEthTransferDraft',
@@ -696,6 +761,7 @@ export type TransactionObservationState =
 export const Model = S.Struct({
   portfolio: PortfolioState,
   walletIntent: WalletIntentState,
+  transferRecipient: TransferRecipientState,
   addressBookEntries: S.Array(AddressBookEntry),
   transaction: TransactionState,
   signature: SignatureState,
@@ -709,6 +775,7 @@ export type Model = typeof Model.Type
 export const initialModel: Model = {
   portfolio: LoadingPortfolio.make({}),
   walletIntent: NoWalletIntent.make({}),
+  transferRecipient: EmptyTransferRecipient.make({}),
   addressBookEntries: [],
   transaction: IdleTransaction.make({}),
   signature: IdleSignature.make({}),

@@ -12,6 +12,17 @@ import {
   WalletFailure,
 } from './model.js'
 
+/** The host changed the editable transfer recipient. */
+export const ChangedTransferRecipient = S.TaggedStruct(
+  'ChangedTransferRecipient',
+  { value: S.String },
+)
+/** The host requested a preview for the current valid transfer recipient. */
+export const RequestedTransferPreview = S.TaggedStruct(
+  'RequestedTransferPreview',
+  {},
+)
+
 /** The host requested a fresh public portfolio snapshot. */
 export const RequestedWalletRefresh = S.TaggedStruct(
   'RequestedWalletRefresh',
@@ -103,6 +114,8 @@ export const Message = S.Union([
   RequestedWalletRefresh,
   SucceededLoadWallet,
   FailedLoadWallet,
+  ChangedTransferRecipient,
+  RequestedTransferPreview,
   ImportedAddressBookEntries,
   AddedAddressBookEntry,
   RemovedAddressBookEntry,

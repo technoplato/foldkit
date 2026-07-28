@@ -67,13 +67,16 @@ shared Sepolia test wallet. The private key remains in the Node server. Clients
 receive only public portfolio values and opaque handles for protected
 transaction material.
 
-The temporary server policy accepts only positive, native Sepolia ETH
-self-transfers of at most 0.00001 ETH. It rejects other networks, currencies,
-destinations, and amounts. Anyone who can reach the endpoint can still inspect
-the wallet, consume test ETH through permitted fees, and request signatures
-from this public test identity. The account must never hold mainnet assets or
-represent a trusted identity. The operation-handle store is process-local and
-is intentionally lost when the server restarts.
+The temporary server policy accepts positive, native Sepolia ETH transfers to
+syntactically valid Ethereum recipients, up to 0.00001 ETH. It rejects other
+networks, currencies, malformed recipients, and larger amounts. Each visual
+client keeps recipient editing in the shared Model, previews through a Command,
+and requires a separate confirmation before signing and submission. Anyone who
+can reach the endpoint can still inspect the wallet, consume test ETH through
+permitted transfers and fees, and request signatures from this public test
+identity. The account must never hold mainnet assets or represent a trusted
+identity. The operation-handle store is process-local and is intentionally lost
+when the server restarts.
 
 The public demos are available at:
 

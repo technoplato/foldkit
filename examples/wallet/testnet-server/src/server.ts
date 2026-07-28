@@ -7,6 +7,7 @@ import {
 } from 'effect/unstable/http'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 import { createServer } from 'node:http'
+import { isAddress } from 'viem'
 import {
   type TransferDraft,
   WalletClient,
@@ -33,6 +34,10 @@ import {
 
 const testnetServerPort = 5197
 const maximumDemoTransferAtomicUnits = 10_000_000_000_000n
+
+/** Checks whether the public testnet bridge can address one Sepolia recipient. */
+export const isValidDemoRecipientAddress = (address: string): boolean =>
+  isAddress(address)
 
 const clientError = (
   operation: WalletRemoteOperation,
@@ -89,8 +94,7 @@ const authorizeDemoTransfer = (
     if (
       Option.isNone(maybeAccount) ||
       maybeAccount.value.network._tag !== 'EthereumSepolia' ||
-      maybeAccount.value.address.toLowerCase() !==
-        draft.destinationAddress.toLowerCase()
+      !isValidDemoRecipientAddress(draft.destinationAddress)
     ) {
       return yield* Effect.fail(rejectedDemoTransfer(operation))
     }
