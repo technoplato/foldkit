@@ -46,7 +46,6 @@ const clientForDraft = (
     M.tagsExhaustive({
       EthereumSepolia: () => Effect.succeed(ethereum),
       SolanaDevnet: () => Effect.succeed(solana),
-      SolanaTestnet: () => Effect.fail(unsupportedNetworkError()),
     }),
   )
 

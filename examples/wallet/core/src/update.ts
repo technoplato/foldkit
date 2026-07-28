@@ -1,4 +1,4 @@
-import { Array as Array_, Effect, Match as M } from 'effect'
+import { Array as Array_, Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 
 import {
@@ -43,10 +43,11 @@ import {
   type WalletOperation,
   familiarityForAddress,
   recipientHistoryForDraft,
+  transactionPreviewFromQuote,
 } from './model.js'
 import {
   WalletClient,
-  type WalletClientError,
+  WalletClientError,
   WalletCrypto,
   type WalletCryptoError,
   type WalletResources,
@@ -101,19 +102,21 @@ export const PreviewTransaction = Command.define(
 )(({ draft, recipientFamiliarity, recipientHistory }) =>
   WalletClient.pipe(
     Effect.flatMap(client => client.previewTransaction(draft)),
-    Effect.map(quote =>
-      SucceededPreviewTransaction.make({
-        preview: {
-          previewId: quote.quoteId,
-          draft,
-          estimatedFee: quote.estimatedFee,
-          resultingBalance: quote.resultingBalance,
-          expiresAt: quote.expiresAt,
-          recipientFamiliarity,
-          recipientHistory,
-        },
-      }),
-    ),
+    Effect.flatMap(quote => {
+      const maybePreview = transactionPreviewFromQuote(
+        draft,
+        quote,
+        recipientFamiliarity,
+        recipientHistory,
+      )
+      if (Option.isSome(maybePreview)) {
+        return Effect.succeed(
+          SucceededPreviewTransaction.make({ preview: maybePreview.value }),
+        )
+      } else {
+        return Effect.fail(new WalletClientError({ code: 'InvalidResponse' }))
+      }
+    }),
     Effect.catch(error =>
       Effect.succeed(
         FailedPreviewTransaction.make({
@@ -387,17 +390,38 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ],
         ]
       },
-      SucceededPreviewTransaction: ({ preview }) => [
-        { ...model, transaction: PreviewedTransaction.make({ preview }) },
-        [],
-      ],
-      FailedPreviewTransaction: ({ draft, failure }) => [
-        {
-          ...model,
-          transaction: FailedTransactionPreview.make({ draft, failure }),
-        },
-        [],
-      ],
+      SucceededPreviewTransaction: ({ preview }) => {
+        if (
+          model.transaction._tag === 'PreviewingTransaction' &&
+          model.transaction.draft.transferId === preview.draft.transferId
+        ) {
+          return [
+            {
+              ...model,
+              transaction: PreviewedTransaction.make({ preview }),
+            },
+            [],
+          ]
+        } else {
+          return [model, []]
+        }
+      },
+      FailedPreviewTransaction: ({ draft, failure }) => {
+        if (
+          model.transaction._tag === 'PreviewingTransaction' &&
+          model.transaction.draft.transferId === draft.transferId
+        ) {
+          return [
+            {
+              ...model,
+              transaction: FailedTransactionPreview.make({ draft, failure }),
+            },
+            [],
+          ]
+        } else {
+          return [model, []]
+        }
+      },
       RequestedSignedTransactionSubmission: ({ previewId }) => {
         if (
           model.transaction._tag === 'PreviewedTransaction' &&
@@ -434,13 +458,25 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
       },
-      FailedSubmitSignedTransaction: ({ preview, failure }) => [
-        {
-          ...model,
-          transaction: FailedTransactionSubmission.make({ preview, failure }),
-        },
-        [],
-      ],
+      FailedSubmitSignedTransaction: ({ preview, failure }) => {
+        if (
+          model.transaction._tag === 'SubmittingTransaction' &&
+          model.transaction.preview.previewId === preview.previewId
+        ) {
+          return [
+            {
+              ...model,
+              transaction: FailedTransactionSubmission.make({
+                preview,
+                failure,
+              }),
+            },
+            [],
+          ]
+        } else {
+          return [model, []]
+        }
+      },
       RequestedChallengeSignature: ({ challenge }) => [
         {
           ...model,
@@ -448,20 +484,43 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         },
         [SignChallenge({ challenge })],
       ],
-      SucceededSignChallenge: ({ challenge, proof }) => [
-        {
-          ...model,
-          signature: SignedChallenge.make({ challenge, proof }),
-        },
-        [],
-      ],
-      FailedSignChallenge: ({ challenge, failure }) => [
-        {
-          ...model,
-          signature: FailedChallengeSignature.make({ challenge, failure }),
-        },
-        [],
-      ],
+      SucceededSignChallenge: ({ challenge, proof }) => {
+        if (
+          model.signature._tag === 'SigningChallengeState' &&
+          model.signature.challenge.challengeId === challenge.challengeId &&
+          proof.challengeId === challenge.challengeId &&
+          proof.accountId === challenge.accountId
+        ) {
+          return [
+            {
+              ...model,
+              signature: SignedChallenge.make({ challenge, proof }),
+            },
+            [],
+          ]
+        } else {
+          return [model, []]
+        }
+      },
+      FailedSignChallenge: ({ challenge, failure }) => {
+        if (
+          model.signature._tag === 'SigningChallengeState' &&
+          model.signature.challenge.challengeId === challenge.challengeId
+        ) {
+          return [
+            {
+              ...model,
+              signature: FailedChallengeSignature.make({
+                challenge,
+                failure,
+              }),
+            },
+            [],
+          ]
+        } else {
+          return [model, []]
+        }
+      },
       ObservedTransaction: message => [
         upsertObservedTransaction(model, message),
         [],

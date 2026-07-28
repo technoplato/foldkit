@@ -31,6 +31,7 @@ import {
   TransactionPreview,
   TransactionRecord,
   TransactionSubmission,
+  type TransferDraft,
   Usdc,
   WalletAccount,
   WalletClient,
@@ -173,39 +174,36 @@ const stableHash = (value: string): string => {
   return (hash >>> 0).toString(16).padStart(8, '0')
 }
 
-const feeForPreview = (
-  preview: TransactionPreview,
-): typeof CurrencyValue.Type =>
-  M.value(preview.draft.network).pipe(
+const feeForDraft = (draft: TransferDraft): typeof CurrencyValue.Type =>
+  M.value(draft.network).pipe(
     M.withReturnType<typeof CurrencyValue.Type>(),
     M.tagsExhaustive({
       EthereumSepolia: () =>
         currencyValue(ethereumCurrency, '1000000000000000', 18),
       SolanaDevnet: () => currencyValue(solanaCurrency, '5000', 9),
-      SolanaTestnet: network => currencyValue(Sol.make({ network }), '5000', 9),
     }),
   )
 
 const balanceForDraft = (
   accountId: string,
-  preview: TransactionPreview,
+  draft: TransferDraft,
 ): typeof CurrencyValue.Type => {
   const maybeBalance = Array_.findFirst(
     accountBalances,
     balance =>
       balance.accountId === accountId &&
-      balance.value.currency._tag === preview.draft.value.currency._tag,
+      balance.value.currency._tag === draft.value.currency._tag,
   )
   if (Option.isNone(maybeBalance)) {
     return currencyValue(
-      preview.draft.value.currency,
-      S.decodeUnknownSync(AtomicUnits)(`-${preview.draft.value.atomicUnits}`),
-      preview.draft.value.decimalPlaces,
+      draft.value.currency,
+      S.decodeUnknownSync(AtomicUnits)(`-${draft.value.atomicUnits}`),
+      draft.value.decimalPlaces,
     )
   }
   const nextAtomicUnits =
     BigInt(maybeBalance.value.value.atomicUnits) -
-    BigInt(preview.draft.value.atomicUnits)
+    BigInt(draft.value.atomicUnits)
   return CurrencyValue.make({
     ...maybeBalance.value.value,
     atomicUnits: S.decodeUnknownSync(AtomicUnits)(nextAtomicUnits.toString()),
@@ -269,31 +267,13 @@ const makeSimulatedServices = Effect.gen(function* () {
   })
   const client = WalletClient.of({
     loadPortfolio: Effect.succeed(simulatedPortfolio),
-    previewTransaction: draft => {
-      const previewStub = TransactionPreview.make({
-        previewId: `preview-${stableHash(draft.transferId)}`,
-        draft,
-        estimatedFee: currencyValue(
-          draft.value.currency,
-          '0',
-          draft.value.decimalPlaces,
-        ),
-        resultingBalance: currencyValue(
-          draft.value.currency,
-          draft.value.atomicUnits,
-          draft.value.decimalPlaces,
-        ),
+    previewTransaction: draft =>
+      Effect.succeed({
+        quoteId: `preview-${stableHash(draft.transferId)}`,
+        estimatedFee: feeForDraft(draft),
+        resultingBalance: balanceForDraft(draft.accountId, draft),
         expiresAt: fixedExpiresAt,
-        recipientFamiliarity: { _tag: 'UnfamiliarAddress' },
-        recipientHistory: { _tag: 'FirstTransactionWithRecipient' },
-      })
-      return Effect.succeed({
-        quoteId: previewStub.previewId,
-        estimatedFee: feeForPreview(previewStub),
-        resultingBalance: balanceForDraft(draft.accountId, previewStub),
-        expiresAt: fixedExpiresAt,
-      })
-    },
+      }),
     prepareTransaction: preview =>
       Effect.succeed(
         makePreparedTransaction(
@@ -328,7 +308,6 @@ const makeSimulatedServices = Effect.gen(function* () {
         return TransactionSubmission.make({
           previewId: signedPayload.preview.previewId,
           transactionId,
-          network: signedPayload.preview.draft.network,
           submittedAt: fixedObservedAt,
         })
       }),

@@ -20,8 +20,9 @@ import {
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
   SigningChallenge,
-  TransferDraft,
+  type TransferDraft,
   WalletProgram,
+  transferDraftFromInput,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
@@ -93,7 +94,7 @@ export type WalletCliExecutionError =
   | Runtime.UnsettledReplayFrameError
 
 /** The exact Program object consumed by the raw CLI host. */
-export const walletCliProgram = WalletProgram
+export const walletCliProgram: typeof WalletProgram = WalletProgram
 
 /** Deterministic transfer input used when flags are omitted. */
 export const defaultWalletTransferInput: WalletTransferInput =
@@ -249,7 +250,7 @@ const transferDraft = (
           }),
       ),
     )
-    return TransferDraft.make({
+    const maybeDraft = transferDraftFromInput({
       transferId: input.transferId,
       accountId: input.accountId,
       network: maybeAccount.value.network,
@@ -260,6 +261,15 @@ const transferDraft = (
       }),
       maybeMessage: input.maybeMessage,
     })
+    if (Option.isSome(maybeDraft)) {
+      return maybeDraft.value
+    } else {
+      return yield* Effect.fail(
+        new WalletCliError({
+          message: `${input.asset} is not executable on the selected account Layer`,
+        }),
+      )
+    }
   })
 
 const challengeForInput = (

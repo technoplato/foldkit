@@ -8,11 +8,11 @@ import {
   SigningChallenge,
   type TransactionPreview,
   type TransactionState,
+  transferDraftFromInput,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
   WalletProvider,
-  WalletTransferComposition,
   useWalletActions,
   useWalletModel,
   useWalletReplay,
@@ -188,21 +188,22 @@ const Transaction = ({ model }: Readonly<{ model: Model }>) => {
   const composeTransfer = (): void => {
     if (Option.isSome(maybeAccount) && Option.isSome(maybeBalance)) {
       const balance = maybeBalance.value
-      actions.composedTransfer(
-        WalletTransferComposition.make({
-          transferId: 'expo-wallet-transfer',
-          accountId: maybeAccount.value.accountId,
-          network: maybeAccount.value.network,
-          destinationAddress: presetDestinationAddress,
-          value: CurrencyValue.make({
-            currency: balance.value.currency,
-            atomicUnits: presetTransferAtomicUnits,
-            decimalPlaces: balance.value.decimalPlaces,
-            observedAt: balance.value.observedAt,
-          }),
-          message: 'Shared Expo Wallet transfer',
+      const maybeDraft = transferDraftFromInput({
+        transferId: 'expo-wallet-transfer',
+        accountId: maybeAccount.value.accountId,
+        network: maybeAccount.value.network,
+        destinationAddress: presetDestinationAddress,
+        value: CurrencyValue.make({
+          currency: balance.value.currency,
+          atomicUnits: presetTransferAtomicUnits,
+          decimalPlaces: balance.value.decimalPlaces,
+          observedAt: balance.value.observedAt,
         }),
-      )
+        maybeMessage: Option.some('Shared Expo Wallet transfer'),
+      })
+      if (Option.isSome(maybeDraft)) {
+        actions.composedTransfer(maybeDraft.value)
+      }
     }
   }
 

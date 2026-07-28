@@ -7,7 +7,7 @@ import { overlay } from '@foldkit/devtools'
 import { view } from './view.js'
 
 /** The exact canonical Program used by the Foldkit Wallet renderer. */
-export const walletFoldkitProgram = WalletProgram
+export const walletFoldkitProgram: typeof WalletProgram = WalletProgram
 
 /** Creates the page-owning Foldkit Wallet application from one Program start. */
 export const makeWalletApplication = (

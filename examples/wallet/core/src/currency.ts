@@ -189,9 +189,23 @@ export type Network = typeof Network.Type
 export const Eth = S.TaggedStruct('Eth', { network: EthereumSepolia })
 /** Native SOL on a selected Solana test network. */
 export const Sol = S.TaggedStruct('Sol', { network: SolanaNetwork })
+/** Native SOL on the executable Solana Devnet Layer. */
+export const SolanaDevnetSol = S.TaggedStruct('Sol', {
+  network: SolanaDevnet,
+})
 /** USDC on a supported network. */
 export const Usdc = S.TaggedStruct('Usdc', {
   network: Network,
+  tokenAddress: S.String,
+})
+/** USDC on the executable Ethereum Sepolia Layer. */
+export const EthereumSepoliaUsdc = S.TaggedStruct('Usdc', {
+  network: EthereumSepolia,
+  tokenAddress: S.String,
+})
+/** USDC on the executable Solana Devnet Layer. */
+export const SolanaDevnetUsdc = S.TaggedStruct('Usdc', {
+  network: SolanaDevnet,
   tokenAddress: S.String,
 })
 /** A fiat currency used to value public wallet balances. */
@@ -219,6 +233,47 @@ export const CurrencyValue = S.Struct({
 })
 /** An exact integer quantity expressed in a currency's atomic units. */
 export type CurrencyValue = typeof CurrencyValue.Type
+
+const ExactCurrencyValueFields = {
+  atomicUnits: AtomicUnits,
+  observedAt: S.Number,
+}
+
+/** An exact executable ETH value on Ethereum Sepolia. */
+export const EthereumSepoliaEthValue = S.Struct({
+  currency: Eth,
+  decimalPlaces: S.Literal(18),
+  ...ExactCurrencyValueFields,
+})
+/** An exact executable ETH value on Ethereum Sepolia. */
+export type EthereumSepoliaEthValue = typeof EthereumSepoliaEthValue.Type
+
+/** An exact executable USDC value on Ethereum Sepolia. */
+export const EthereumSepoliaUsdcValue = S.Struct({
+  currency: EthereumSepoliaUsdc,
+  decimalPlaces: S.Literal(6),
+  ...ExactCurrencyValueFields,
+})
+/** An exact executable USDC value on Ethereum Sepolia. */
+export type EthereumSepoliaUsdcValue = typeof EthereumSepoliaUsdcValue.Type
+
+/** An exact executable SOL value on Solana Devnet. */
+export const SolanaDevnetSolValue = S.Struct({
+  currency: SolanaDevnetSol,
+  decimalPlaces: S.Literal(9),
+  ...ExactCurrencyValueFields,
+})
+/** An exact executable SOL value on Solana Devnet. */
+export type SolanaDevnetSolValue = typeof SolanaDevnetSolValue.Type
+
+/** An exact executable USDC value on Solana Devnet. */
+export const SolanaDevnetUsdcValue = S.Struct({
+  currency: SolanaDevnetUsdc,
+  decimalPlaces: S.Literal(6),
+  ...ExactCurrencyValueFields,
+})
+/** An exact executable USDC value on Solana Devnet. */
+export type SolanaDevnetUsdcValue = typeof SolanaDevnetUsdcValue.Type
 
 /** Returns the optional network carried by a currency. */
 export const maybeNetworkForCurrency = (

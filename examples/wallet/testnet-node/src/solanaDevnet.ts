@@ -194,7 +194,6 @@ const assetForDraft = (
           ? Effect.succeed<SolanaTransferAsset>('Usdc')
           : Effect.fail(invalidClientResponse()),
       Eth: () => Effect.fail(invalidClientResponse()),
-      Fiat: () => Effect.fail(invalidClientResponse()),
     }),
   )
 
@@ -564,7 +563,6 @@ const makeSolanaTransport = Effect.gen(function* () {
             return TransactionSubmission.make({
               previewId: payload.previewId,
               transactionId: response.result,
-              network: solanaNetwork,
               submittedAt: Date.now(),
             })
           },

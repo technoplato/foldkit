@@ -3,12 +3,12 @@ import { expect } from 'vitest'
 import {
   FirstTransactionWithRecipient,
   SigningChallenge,
-  TransactionPreview,
-  TransferDraft,
   UnfamiliarAddress,
   WalletClient,
   WalletCrypto,
   WalletSigner,
+  transactionPreviewFromQuote,
+  transferDraftFromInput,
 } from 'wallet-core-example'
 
 import { describe, it } from '@effect/vitest'
@@ -33,7 +33,7 @@ if (
 const ethereumAccount = maybeEthereumAccount.value
 const ethereumBalance = maybeEthereumBalance.value
 
-const draft = TransferDraft.make({
+const maybeDraft = transferDraftFromInput({
   transferId: 'transfer-1',
   accountId: ethereumAccount.accountId,
   network: ethereumAccount.network,
@@ -45,6 +45,12 @@ const draft = TransferDraft.make({
   maybeMessage: Option.some('Dinner'),
 })
 
+if (Option.isNone(maybeDraft)) {
+  throw new Error('Expected an executable simulated Wallet transfer')
+}
+
+const draft = maybeDraft.value
+
 describe('Simulated Wallet resources', () => {
   it.effect('loads, previews, signs, submits, and emits the transaction', () =>
     Effect.gen(function* () {
@@ -53,15 +59,17 @@ describe('Simulated Wallet resources', () => {
       const crypto = yield* WalletCrypto
       const portfolio = yield* client.loadPortfolio
       const quote = yield* client.previewTransaction(draft)
-      const preview = TransactionPreview.make({
-        previewId: quote.quoteId,
+      const maybePreview = transactionPreviewFromQuote(
         draft,
-        estimatedFee: quote.estimatedFee,
-        resultingBalance: quote.resultingBalance,
-        expiresAt: quote.expiresAt,
-        recipientFamiliarity: UnfamiliarAddress.make({}),
-        recipientHistory: FirstTransactionWithRecipient.make({}),
-      })
+        quote,
+        UnfamiliarAddress.make({}),
+        FirstTransactionWithRecipient.make({}),
+      )
+      expect(Option.isSome(maybePreview)).toBe(true)
+      if (Option.isNone(maybePreview)) {
+        return yield* Effect.die('Expected an executable transaction preview')
+      }
+      const preview = maybePreview.value
       const observedFiber = yield* client
         .observeTransactions(portfolio.accounts)
         .pipe(Stream.runHead, Effect.forkChild)

@@ -1,4 +1,3 @@
-import { Option, Schema as S } from 'effect'
 import * as Program from 'foldkit/program'
 import type { ReactNode } from 'react'
 import { createReplayableReactProgramClient } from 'shared-react-bindings-example'
@@ -6,11 +5,9 @@ import {
   AddedAddressBookEntry,
   AddressBookEntry,
   ComposedTransfer,
-  CurrencyValue,
   ImportedAddressBookEntries,
   type Message,
   type Model,
-  Network,
   RemovedAddressBookEntry,
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
@@ -24,15 +21,8 @@ import {
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
-/** A renderer-neutral transfer composition accepted by Wallet actions. */
-export const WalletTransferComposition = S.Struct({
-  transferId: S.String,
-  accountId: S.String,
-  network: Network,
-  destinationAddress: S.String,
-  value: CurrencyValue,
-  message: S.NullOr(S.String),
-})
+/** An executable renderer-neutral transfer composition accepted by Wallet actions. */
+export const WalletTransferComposition = TransferDraft
 /** A renderer-neutral transfer composition accepted by Wallet actions. */
 export type WalletTransferComposition = typeof WalletTransferComposition.Type
 
@@ -72,19 +62,7 @@ export const WalletClient = createReplayableReactProgramClient<
       enqueueMessage(AddedAddressBookEntry.make({ entry })),
     removedAddressBookEntry: entryId =>
       enqueueMessage(RemovedAddressBookEntry.make({ entryId })),
-    composedTransfer: composition =>
-      enqueueMessage(
-        ComposedTransfer.make({
-          draft: TransferDraft.make({
-            transferId: composition.transferId,
-            accountId: composition.accountId,
-            network: composition.network,
-            destinationAddress: composition.destinationAddress,
-            value: composition.value,
-            maybeMessage: Option.fromNullishOr(composition.message),
-          }),
-        }),
-      ),
+    composedTransfer: draft => enqueueMessage(ComposedTransfer.make({ draft })),
     requestedSignedTransactionSubmission: previewId =>
       enqueueMessage(RequestedSignedTransactionSubmission.make({ previewId })),
     requestedChallengeSignature: challenge =>

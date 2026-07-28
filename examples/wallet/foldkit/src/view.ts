@@ -11,7 +11,8 @@ import {
   SigningChallenge,
   type TransactionPreview,
   type TransactionState,
-  TransferDraft,
+  type TransferDraft,
+  transferDraftFromInput,
 } from 'wallet-core-example'
 
 const cardClass =
@@ -165,19 +166,17 @@ const maybeDemoTransfer = (model: Model): Option.Option<TransferDraft> => {
   if (Option.isNone(maybeBalance)) {
     return Option.none()
   }
-  return Option.some(
-    TransferDraft.make({
-      transferId: 'foldkit-demo-transfer',
-      accountId: account.accountId,
-      network: account.network,
-      destinationAddress: '0x2222222222222222222222222222222222222222',
-      value: {
-        ...maybeBalance.value.value,
-        atomicUnits: '100000000000000000',
-      },
-      maybeMessage: Option.some('Shared Foldkit Wallet demo'),
-    }),
-  )
+  return transferDraftFromInput({
+    transferId: 'foldkit-demo-transfer',
+    accountId: account.accountId,
+    network: account.network,
+    destinationAddress: '0x2222222222222222222222222222222222222222',
+    value: {
+      ...maybeBalance.value.value,
+      atomicUnits: '100000000000000000',
+    },
+    maybeMessage: Option.some('Shared Foldkit Wallet demo'),
+  })
 }
 
 const compositionButton = (model: Model): Html => {

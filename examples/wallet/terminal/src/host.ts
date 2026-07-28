@@ -24,8 +24,9 @@ import {
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
   SigningChallenge,
-  TransferDraft,
+  type TransferDraft,
   WalletProgram,
+  transferDraftFromInput,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
@@ -67,7 +68,7 @@ export class WalletTerminalError extends Data.TaggedError(
 )<{ readonly message: string }> {}
 
 /** The exact Program object consumed by the Effect Terminal host. */
-export const walletTerminalProgram = WalletProgram
+export const walletTerminalProgram: typeof WalletProgram = WalletProgram
 
 const walletRouter = Program.makeRouter(WalletProgram)
 
@@ -184,8 +185,8 @@ const defaultTransferDraft = (
     )
   }
   return S.decodeUnknownEffect(AtomicUnits)(defaultAtomicUnits).pipe(
-    Effect.map(atomicUnits =>
-      TransferDraft.make({
+    Effect.flatMap(atomicUnits => {
+      const maybeDraft = transferDraftFromInput({
         transferId: 'terminal-transfer',
         accountId: defaultAccountId,
         network: maybeAccount.value.network,
@@ -195,8 +196,17 @@ const defaultTransferDraft = (
           atomicUnits,
         }),
         maybeMessage: Option.none(),
-      }),
-    ),
+      })
+      if (Option.isSome(maybeDraft)) {
+        return Effect.succeed(maybeDraft.value)
+      } else {
+        return Effect.fail(
+          new WalletTerminalError({
+            message: 'The transfer does not match an executable Layer',
+          }),
+        )
+      }
+    }),
     Effect.mapError(
       () => new WalletTerminalError({ message: 'Invalid transfer amount' }),
     ),

@@ -6,6 +6,7 @@ import {
   CurrencyValue,
   Eth,
   EthereumSepolia,
+  EthereumSepoliaEthValue,
   Fiat,
   Sol,
   SolanaDevnet,
@@ -15,15 +16,16 @@ import {
 } from './currency.js'
 import {
   AddressBookEntry,
+  EthereumSepoliaEthTransferDraft,
   EthereumSignatureProof,
   FirstTransactionWithRecipient,
   PreviouslyTransactedWithRecipient,
   SignatureProof,
   SolanaEd25519SignatureProof,
   TransactionRecord,
-  TransferDraft,
   familiarityForAddress,
   recipientHistoryForDraft,
+  transferDraftFromInput,
 } from './model.js'
 
 const observedAt = 1_722_000_000_000
@@ -38,14 +40,14 @@ const usdc = Usdc.make({
 })
 const usd = Fiat.make({ code: 'USD', decimalPlaces: 2 })
 
-const ethValue = CurrencyValue.make({
+const ethValue = EthereumSepoliaEthValue.make({
   currency: eth,
   atomicUnits: '1000000000000000000',
   decimalPlaces: 18,
   observedAt,
 })
 
-const draft = TransferDraft.make({
+const draft = EthereumSepoliaEthTransferDraft.make({
   transferId: 'transfer-1',
   accountId: 'ethereum-account',
   network: ethereum,
@@ -119,6 +121,30 @@ describe('Wallet currency schemas', () => {
       Option.some(solanaTestnet),
     )
     expect(maybeNetworkForCurrency(usd)).toStrictEqual(Option.none())
+  })
+
+  it('constructs only transfer drafts whose asset and Layer agree', () => {
+    const validDraft = transferDraftFromInput({
+      transferId: 'valid-transfer',
+      accountId: 'ethereum-account',
+      network: ethereum,
+      destinationAddress: '0xRecipient',
+      value: ethValue,
+      maybeMessage: Option.none(),
+    })
+    const mismatchedDraft = transferDraftFromInput({
+      transferId: 'mismatched-transfer',
+      accountId: 'solana-account',
+      network: solanaDevnet,
+      destinationAddress: 'SolanaRecipient',
+      value: ethValue,
+      maybeMessage: Option.none(),
+    })
+
+    expect(Option.map(validDraft, value => value._tag)).toStrictEqual(
+      Option.some('EthereumSepoliaEthTransferDraft'),
+    )
+    expect(Option.isNone(mismatchedDraft)).toBe(true)
   })
 })
 

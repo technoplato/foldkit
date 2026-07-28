@@ -46,7 +46,7 @@ export const WalletOpenTuiInteraction = S.Union([
 export type WalletOpenTuiInteraction = typeof WalletOpenTuiInteraction.Type
 
 /** The exact Program object consumed by the OpenTUI host. */
-export const walletOpenTuiProgram = WalletProgram
+export const walletOpenTuiProgram: typeof WalletProgram = WalletProgram
 
 /** Derives the currently valid OpenTUI operations without adding domain state. */
 export const interactionsForWalletOpenTui = (

@@ -1,14 +1,17 @@
 import { Array, Option } from 'effect'
 import { type ReactNode, StrictMode } from 'react'
 import { describe, expect, it } from 'vitest'
-import { SigningChallenge, WalletProgram } from 'wallet-core-example'
+import {
+  SigningChallenge,
+  WalletProgram,
+  transferDraftFromInput,
+} from 'wallet-core-example'
 import { simulatedPortfolio } from 'wallet-simulated-client-example'
 
 import { act, renderHook, waitFor } from '@testing-library/react'
 
 import {
   WalletProvider,
-  WalletTransferComposition,
   useWalletActions,
   useWalletModel,
   useWalletReplay,
@@ -33,6 +36,23 @@ if (Option.isNone(maybeAccount) || Option.isNone(maybeBalance)) {
 
 const account = maybeAccount.value
 const balance = maybeBalance.value
+const maybeDraft = transferDraftFromInput({
+  transferId: 'react-transfer',
+  accountId: account.accountId,
+  network: account.network,
+  destinationAddress: '0x2222222222222222222222222222222222222222',
+  value: {
+    ...balance.value,
+    atomicUnits: '100000000000000000',
+  },
+  maybeMessage: Option.some('React demo transfer'),
+})
+
+if (Option.isNone(maybeDraft)) {
+  throw new Error('Expected an executable simulated Wallet transfer')
+}
+
+const draft = maybeDraft.value
 
 describe('Wallet React bindings', () => {
   it('maps only host-sendable facts to stable domain actions', async () => {
@@ -61,19 +81,7 @@ describe('Wallet React bindings', () => {
     ])
 
     act(() => {
-      result.current.actions.composedTransfer(
-        WalletTransferComposition.make({
-          transferId: 'react-transfer',
-          accountId: account.accountId,
-          network: account.network,
-          destinationAddress: '0x2222222222222222222222222222222222222222',
-          value: {
-            ...balance.value,
-            atomicUnits: '100000000000000000',
-          },
-          message: 'React demo transfer',
-        }),
-      )
+      result.current.actions.composedTransfer(draft)
     })
 
     await waitFor(() => {
