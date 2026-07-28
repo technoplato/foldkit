@@ -4,6 +4,41 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 1:08:33 a.m. EDT — `a3c0b7a2a40d` fix: restore Cardboard navigation carriers
+
+- **Implementation commit:** `a3c0b7a2a40d5857098e3c5fa6f484b13dc2e2aa`
+- **Change:** Restored explicit Cardboard navigation across Clients and added Expo Go carriers.
+- **Details:**
+  - The renderer-neutral Cardboard projection now exposes a typed Log command; React, Foldkit, Expo, and TUI render it, while the Expo showcase adds its host-owned Showcase command.
+  - Cardboard occupies the Expo scene without the comparison panel, tabs, or native stack header, and its flexible layout no longer clips behind fixed mobile heights.
+  - Expo Go links are created with expo-linking and normalized from exp://host/--/<portable-path> before Program routing. The obsolete /0/0 ledger alias was removed in favor of /0/log.
+  - A replay-tape regression test proves the sequence 4, 5, ledger, 4 and guards the explicit field-replacement transformer.
+- **Files:**
+  - `examples/cardboard/core/src/component.ts` — Defined the shared semantic command projection.
+  - `examples/cardboard/core/src/message.ts` — Added the factual return-to-sequence Message.
+  - `examples/cardboard/core/src/update.ts` — Implemented explicit sequence-page replacement.
+  - `examples/cardboard/core/src/route.ts` — Removed the obsolete /0/0 alias.
+  - `examples/cardboard/core/src/program.test.ts` — Proved routes, semantic commands, and replay frames.
+  - `examples/cardboard/react-bindings/src/cardboard.tsx` — Exposed typed domain-shaped React actions.
+  - `examples/cardboard/react/src/App.tsx` — Rendered the shared Cardboard command bar.
+  - `examples/cardboard/react/src/styles.css` — Kept the command bar legible below full-screen content.
+  - `examples/cardboard/foldkit/src/view.ts` — Rendered the same semantic commands through Foldkit.
+  - `examples/cardboard/tui/src/host.ts` — Exposed Log and root commands in the terminal.
+  - `examples/react-native-showcase/src/App.tsx` — Restored explicit Log and Showcase commands in Expo.
+  - `examples/react-native-showcase/src/nativeNavigationComparison/nativeNavigationComparison.tsx` — Removed native stack chrome from Cardboard scenes.
+  - `examples/react-native-showcase/src/carrier.ts` — Centralized Expo Go and portable-path normalization.
+  - `examples/react-native-showcase/src/carrier.test.ts` — Tested native, Expo Go, and query carriers.
+  - `examples/react-native-showcase/src/replayControls.tsx` — Generated environment-correct shared deep links.
+  - `examples/react-native-showcase/package.json` — Added Expo Go scripts and expo-linking.
+  - `examples/react-native-showcase/README.md` — Documented Expo Go launch carriers.
+  - `package.json` — Added repository-level Expo Go demo scripts.
+  - `pnpm-lock.yaml` — Locked expo-linking.
+- **User context (verbatim):**
+  > there needs to be a bracket and a letter followed by a command
+  > can you set up deep links for Expo Go?
+  > Can you proof that message tape?
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this work was performed in Codex desktop, whose GUI capture is not documented by SpecStory.
+
 ## July 28th, 2026 at 12:58:46 a.m. EDT — `38045a18632c` docs(client-matrix): add Expo Web sequence evidence
 
 - **Implementation commit:** `38045a18632c063a2bb37e823f6d3e7127220d68`
