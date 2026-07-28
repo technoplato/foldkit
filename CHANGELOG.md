@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 1:05:54 p.m. EDT — `51f6c41984bb` fix(wallet): log web build provenance
+
+- **Implementation commit:** `51f6c41984bb0067fa23f668d8592fedc1557278`
+- **Change:** Logged the exact clean-source identity embedded in the public React and Foldkit Wallet bundles.
+- **Details:**
+  - Both web hosts now print one build-provenance line before starting their Wallet Program.
+  - Development builds explicitly report that provenance is unavailable instead of implying a reproducible artifact.
+- **Files:**
+  - `examples/wallet/react/src/buildProvenance.ts` — read and log the provenance embedded by the React production build
+  - `examples/wallet/react/src/main.tsx` — log provenance before starting the React Wallet host
+  - `examples/wallet/foldkit/src/buildProvenance.ts` — read and log the provenance embedded by the Foldkit production build
+  - `examples/wallet/foldkit/src/entry.ts` — log provenance before starting the Foldkit Wallet host
+- **User context (verbatim):**
+  > And again, we want them on the WAN, not LAN.
+- **SpecStory:** unavailable — No SpecStory URI is available because this work was performed in Codex desktop and no Codex CLI capture sync evidence exists.
+
 ## July 28th, 2026 at 12:59:57 p.m. EDT — `db033a763dd1` feat(wallet): add multichain send selection
 
 - **Implementation commit:** `db033a763dd1e26f4fee1d45578b6c67299206dd`
