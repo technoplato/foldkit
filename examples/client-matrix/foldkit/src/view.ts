@@ -1,4 +1,9 @@
 import {
+  type CardboardCapability,
+  type CardboardClientDefinition,
+  type CardboardEvidenceLevel,
+  type CardboardModeDefinition,
+  type CardboardRouteSupport,
   type ClientDefinition,
   type ClientId,
   ClosedLiveClient,
@@ -18,7 +23,12 @@ import {
   type WalletRouteCapability,
   type WalletRouteDefinition,
   type WalletRouteSupport,
+  capabilityForCardboardMode,
   capabilityForWalletRoute,
+  cardboardCarrierForClient,
+  cardboardClients,
+  cardboardModes,
+  cardboardProgramIdentity,
   clients,
   definitionForScreenMode,
   destinationForScreenMode,
@@ -605,6 +615,461 @@ const inspectorValue = (label: string, value: unknown): Html => {
           ),
         ],
         [JSON.stringify(value, null, 2)],
+      ),
+    ],
+  )
+}
+
+const cardboardSupportLabel = (support: CardboardRouteSupport): string =>
+  M.value(support).pipe(
+    M.withReturnType<string>(),
+    M.when('DeepLink', () => 'Deep link'),
+    M.when('InteractiveTransition', () => 'Interactive transition'),
+    M.when('OneShot', () => 'One shot'),
+    M.exhaustive,
+  )
+
+const cardboardSupportClass = (support: CardboardRouteSupport): string =>
+  M.value(support).pipe(
+    M.withReturnType<string>(),
+    M.when(
+      'DeepLink',
+      () =>
+        'inline-flex rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-emerald-200',
+    ),
+    M.when(
+      'InteractiveTransition',
+      () =>
+        'inline-flex rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber-200',
+    ),
+    M.when(
+      'OneShot',
+      () =>
+        'inline-flex rounded-full border border-sky-400/40 bg-sky-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-sky-200',
+    ),
+    M.exhaustive,
+  )
+
+const cardboardEvidenceLabel = (level: CardboardEvidenceLevel): string =>
+  M.value(level).pipe(
+    M.withReturnType<string>(),
+    M.when('WanBrowserInteraction', () => 'WAN browser interaction'),
+    M.when('LocalTerminalInteraction', () => 'Local terminal interaction'),
+    M.when('IosSimulatorVisual', () => 'iOS simulator visual'),
+    M.when('TypecheckedSource', () => 'Typechecked source only'),
+    M.exhaustive,
+  )
+
+const cardboardModeCard = (definition: CardboardModeDefinition): Html => {
+  const h = html<Message>()
+  return h.article(
+    [
+      h.Key(definition.mode),
+      h.Class('rounded-3xl border border-orange-300/30 bg-orange-300/5 p-6'),
+    ],
+    [
+      h.p(
+        [
+          h.Class(
+            'text-xs font-semibold uppercase tracking-[0.22em] text-orange-300',
+          ),
+        ],
+        [definition.title],
+      ),
+      h.code(
+        [h.Class('mt-4 block text-4xl font-semibold text-orange-100')],
+        [definition.portableRoute],
+      ),
+      h.p(
+        [h.Class('mt-4 max-w-xl text-base leading-7 text-stone-300')],
+        [definition.description],
+      ),
+    ],
+  )
+}
+
+const cardboardCapture = (
+  client: CardboardClientDefinition,
+  definition: CardboardModeDefinition,
+  capability: CardboardCapability,
+  carrier: string,
+): Html => {
+  const h = html<Message>()
+  if (Option.isNone(capability.maybeCapturePath)) {
+    return h.div(
+      [
+        h.Class(
+          'grid aspect-[8/5] place-items-center rounded-2xl border border-dashed border-stone-700 bg-stone-950 p-6 text-center',
+        ),
+      ],
+      [
+        h.p(
+          [h.Class('max-w-56 text-sm leading-6 text-stone-500')],
+          ['No visual capture is claimed for this Client yet.'],
+        ),
+      ],
+    )
+  }
+
+  const image = h.img([
+    h.Src(capability.maybeCapturePath.value),
+    h.Alt(`${client.title} showing ${definition.title}`),
+    h.Loading('lazy'),
+    h.Width('640'),
+    h.Height('400'),
+    h.Class(
+      'aspect-[8/5] w-full rounded-2xl border border-stone-700 bg-stone-950 object-cover object-top shadow-xl shadow-black/30',
+    ),
+  ])
+  return M.value(client.clientId).pipe(
+    M.withReturnType<Html>(),
+    M.whenOr('ReactWeb', 'FoldkitView', 'ExpoWeb', () =>
+      h.a(
+        [
+          h.Href(carrier),
+          h.Target('_blank'),
+          h.Rel('noopener noreferrer'),
+          h.AriaLabel(`Open ${client.title} at ${definition.portableRoute}`),
+          h.Class('block rounded-2xl focus-visible:ring-4 ring-orange-300'),
+        ],
+        [image],
+      ),
+    ),
+    M.whenOr('ExpoIos', 'ExpoAndroid', () =>
+      h.a(
+        [
+          h.Href(carrier),
+          h.AriaLabel(`Open ${client.title} at ${definition.portableRoute}`),
+          h.Class('block rounded-2xl focus-visible:ring-4 ring-orange-300'),
+        ],
+        [image],
+      ),
+    ),
+    M.whenOr('EffectTui', 'RawCli', () => image),
+    M.exhaustive,
+  )
+}
+
+const cardboardCapabilityCell = (
+  client: CardboardClientDefinition,
+  definition: CardboardModeDefinition,
+): Html => {
+  const h = html<Message>()
+  const maybeCapability = capabilityForCardboardMode(client, definition.mode)
+  if (Option.isNone(maybeCapability)) {
+    return h.p(
+      [h.Class('text-sm font-semibold text-red-300')],
+      ['Missing typed capability evidence.'],
+    )
+  }
+
+  const capability = maybeCapability.value
+  const carrier = cardboardCarrierForClient(client.clientId, definition.mode)
+  return h.div(
+    [h.Class('grid min-w-80 gap-4')],
+    [
+      cardboardCapture(client, definition, capability, carrier),
+      h.div(
+        [h.Class('flex flex-wrap items-center gap-2')],
+        [
+          h.span(
+            [h.Class(cardboardSupportClass(capability.support))],
+            [cardboardSupportLabel(capability.support)],
+          ),
+          h.span(
+            [h.Class('text-[0.68rem] font-medium text-stone-500')],
+            [cardboardEvidenceLabel(capability.evidenceLevel)],
+          ),
+        ],
+      ),
+      h.code(
+        [
+          h.Class(
+            'block break-all rounded-xl border border-stone-800 bg-stone-950 p-3 text-xs leading-5 text-orange-200',
+          ),
+        ],
+        [carrier],
+      ),
+      h.p(
+        [h.Class('text-xs leading-5 text-stone-400')],
+        [capability.limitation],
+      ),
+    ],
+  )
+}
+
+const cardboardClientHeading = (client: CardboardClientDefinition): Html => {
+  const h = html<Message>()
+  return h.div(
+    [h.Class('min-w-56 space-y-2')],
+    [
+      h.strong([h.Class('block text-base text-stone-100')], [client.title]),
+      h.p(
+        [h.Class('text-xs font-normal leading-5 text-stone-500')],
+        [client.description],
+      ),
+    ],
+  )
+}
+
+const cardboardClientsAsRows = (): Html => {
+  const h = html<Message>()
+  return h.table(
+    [h.Class('min-w-[76rem] border-separate border-spacing-0')],
+    [
+      h.thead(
+        [h.Class('sticky top-0 z-10 bg-stone-950/95 backdrop-blur')],
+        [
+          h.tr(
+            [],
+            [
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 p-4 text-left align-bottom',
+                  ),
+                ],
+                ['Cardboard Client'],
+              ),
+              ...Array.map(cardboardModes, definition =>
+                h.th(
+                  [
+                    h.Key(definition.mode),
+                    h.Class(
+                      'border-b border-r border-stone-800 p-4 text-left align-bottom',
+                    ),
+                  ],
+                  [
+                    h.strong(
+                      [h.Class('block text-sm text-orange-100')],
+                      [definition.title],
+                    ),
+                    h.code(
+                      [h.Class('mt-2 block text-xs text-orange-300')],
+                      [definition.portableRoute],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.tbody(
+        [],
+        Array.map(cardboardClients, client =>
+          h.tr(
+            [h.Key(client.clientId), h.Class('align-top')],
+            [
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 bg-stone-950 p-4 text-left',
+                  ),
+                ],
+                [cardboardClientHeading(client)],
+              ),
+              ...Array.map(cardboardModes, definition =>
+                h.td(
+                  [
+                    h.Key(definition.mode),
+                    h.Class(
+                      'border-b border-r border-stone-800 bg-stone-900/50 p-4',
+                    ),
+                  ],
+                  [cardboardCapabilityCell(client, definition)],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  )
+}
+
+const cardboardModesAsRows = (): Html => {
+  const h = html<Message>()
+  return h.table(
+    [h.Class('min-w-[150rem] border-separate border-spacing-0')],
+    [
+      h.thead(
+        [h.Class('sticky top-0 z-10 bg-stone-950/95 backdrop-blur')],
+        [
+          h.tr(
+            [],
+            [
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 p-4 text-left align-bottom',
+                  ),
+                ],
+                ['Cardboard state'],
+              ),
+              ...Array.map(cardboardClients, client =>
+                h.th(
+                  [
+                    h.Key(client.clientId),
+                    h.Class(
+                      'border-b border-r border-stone-800 p-4 text-left align-bottom',
+                    ),
+                  ],
+                  [cardboardClientHeading(client)],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.tbody(
+        [],
+        Array.map(cardboardModes, definition =>
+          h.tr(
+            [h.Key(definition.mode), h.Class('align-top')],
+            [
+              h.th(
+                [
+                  h.Class(
+                    'border-b border-r border-stone-800 bg-stone-950 p-4 text-left',
+                  ),
+                ],
+                [
+                  h.div(
+                    [h.Class('min-w-56 space-y-2')],
+                    [
+                      h.strong(
+                        [h.Class('block text-base text-orange-100')],
+                        [definition.title],
+                      ),
+                      h.code(
+                        [h.Class('block text-sm text-orange-300')],
+                        [definition.portableRoute],
+                      ),
+                      h.p(
+                        [h.Class('text-xs leading-5 text-stone-500')],
+                        [definition.description],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ...Array.map(cardboardClients, client =>
+                h.td(
+                  [
+                    h.Key(client.clientId),
+                    h.Class(
+                      'border-b border-r border-stone-800 bg-stone-900/50 p-4',
+                    ),
+                  ],
+                  [cardboardCapabilityCell(client, definition)],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  )
+}
+
+const cardboardMatrix = (orientation: MatrixOrientation): Html =>
+  M.value(orientation).pipe(
+    M.withReturnType<Html>(),
+    M.when('ModesAsRows', cardboardModesAsRows),
+    M.when('ClientsAsRows', cardboardClientsAsRows),
+    M.exhaustive,
+  )
+
+const cardboardAudit = (model: Model): Html => {
+  const h = html<Message>()
+  return h.section(
+    [h.AriaLabel('Project Cardboard Client Matrix')],
+    [
+      h.div(
+        [h.Class('border-y border-orange-300/20 bg-[#181008] px-5 py-12')],
+        [
+          h.div(
+            [h.Class('mx-auto grid max-w-[116rem] gap-7')],
+            [
+              h.div(
+                [
+                  h.Class(
+                    'grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start',
+                  ),
+                ],
+                [
+                  h.div(
+                    [h.Class('space-y-4')],
+                    [
+                      h.p(
+                        [
+                          h.Class(
+                            'text-xs font-semibold uppercase tracking-[0.24em] text-orange-300',
+                          ),
+                        ],
+                        ['Project Cardboard | Portable Program'],
+                      ),
+                      h.h2(
+                        [h.Class('text-4xl font-semibold sm:text-6xl')],
+                        ['/0 across every Client'],
+                      ),
+                      h.p(
+                        [
+                          h.Class(
+                            'max-w-4xl text-base leading-7 text-stone-300',
+                          ),
+                        ],
+                        [
+                          'One Model and Message protocol. Two portable routes. Every cell distinguishes implementation support from the evidence actually collected.',
+                        ],
+                      ),
+                    ],
+                  ),
+                  h.div(
+                    [
+                      h.Class(
+                        'rounded-3xl border border-orange-300/30 bg-orange-300/5 p-6',
+                      ),
+                    ],
+                    [
+                      h.p(
+                        [
+                          h.Class(
+                            'text-xs font-semibold uppercase tracking-[0.18em] text-orange-300',
+                          ),
+                        ],
+                        ['Program identity'],
+                      ),
+                      h.code(
+                        [h.Class('mt-3 block text-2xl text-orange-100')],
+                        [
+                          `${cardboardProgramIdentity.id}@${cardboardProgramIdentity.version.toString()}`,
+                        ],
+                      ),
+                      h.code(
+                        [
+                          h.Class(
+                            'mt-2 block break-all text-xs text-stone-500',
+                          ),
+                        ],
+                        [cardboardProgramIdentity.source],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              h.div(
+                [h.Class('grid gap-4 lg:grid-cols-2')],
+                Array.map(cardboardModes, cardboardModeCard),
+              ),
+            ],
+          ),
+        ],
+      ),
+      h.div(
+        [h.Class('overflow-x-auto overscroll-x-contain')],
+        [cardboardMatrix(model.orientation)],
       ),
     ],
   )
@@ -1312,6 +1777,7 @@ export const view = (model: Model): Document => {
           ],
           [matrixView(model)],
         ),
+        cardboardAudit(model),
         walletAudit(),
         walletIntentAudit(),
       ],

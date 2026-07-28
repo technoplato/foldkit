@@ -2,6 +2,13 @@ import { Array, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
+  capabilityForCardboardMode,
+  cardboardCarrierForClient,
+  cardboardClients,
+  cardboardModes,
+  cardboardProgramIdentity,
+} from './cardboard.js'
+import {
   clients,
   navigationForScreenMode,
   portableUriForScreenMode,
@@ -23,6 +30,42 @@ import {
 } from './walletIntent.js'
 
 describe('Client Matrix core', () => {
+  it('covers both Cardboard routes across every concrete Client', () => {
+    expect(cardboardProgramIdentity).toStrictEqual({
+      id: '0',
+      version: 2,
+      source: 'examples/cardboard/core/src/program.ts',
+    })
+    expect(
+      Array.map(cardboardModes, definition => definition.portableRoute),
+    ).toStrictEqual(['/0', '/0/0'])
+    expect(
+      Array.every(cardboardClients, client =>
+        Array.every(cardboardModes, mode =>
+          Option.isSome(capabilityForCardboardMode(client, mode.mode)),
+        ),
+      ),
+    ).toBe(true)
+  })
+
+  it('keeps the Cardboard URI portable while each Client owns its carrier', () => {
+    expect(cardboardCarrierForClient('ReactWeb', 'RuleZero')).toBe(
+      'https://cardboard.knophy.com/0',
+    )
+    expect(cardboardCarrierForClient('FoldkitView', 'ConversationLedger')).toBe(
+      'https://cardboard-foldkit.knophy.com/0/0',
+    )
+    expect(cardboardCarrierForClient('ExpoWeb', 'ConversationLedger')).toBe(
+      'https://expodemo.knophy.com/0/0',
+    )
+    expect(cardboardCarrierForClient('ExpoIos', 'RuleZero')).toBe(
+      'foldkit://showcase/0',
+    )
+    expect(cardboardCarrierForClient('RawCli', 'ConversationLedger')).toBe(
+      'pnpm --filter cardboard-cli-example cardboard log',
+    )
+  })
+
   it('prints every canonical destination through the shared parser-printer', () => {
     expect(
       Array.map(screenModes, definition =>

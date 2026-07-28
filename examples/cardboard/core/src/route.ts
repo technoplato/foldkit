@@ -11,11 +11,16 @@ import { CardboardProgram } from './program.js'
 
 const programRouter = Program.makeRouter(CardboardProgram)
 
+/** The canonical portable route for the Rule Zero interaction. */
+export const ruleZeroPortableRoute = '/0'
+/** The canonical portable route for the append-only conversation ledger. */
+export const conversationLedgerPortableRoute = '/0/0'
+
 const isConstitutionRoot = (relativeRoute: string): boolean =>
-  relativeRoute === '/0' || relativeRoute === '/0/'
+  relativeRoute === ruleZeroPortableRoute || relativeRoute === '/0/'
 
 const isConversationLedgerRoot = (relativeRoute: string): boolean =>
-  relativeRoute === '/0/0' || relativeRoute === '/0/0/'
+  relativeRoute === conversationLedgerPortableRoute || relativeRoute === '/0/0/'
 
 const isInitialStateRoute = (
   route: Program.ProgramRoute<Model, Message>,
@@ -49,18 +54,18 @@ export const CardboardRouter: Program.ProgramRouter<Model, Message> = {
   },
   print: route => {
     if (isConversationLedgerStateRoute(route)) {
-      return Effect.succeed('/0/0')
+      return Effect.succeed(conversationLedgerPortableRoute)
     } else if (isInitialStateRoute(route)) {
-      return Effect.succeed('/0')
+      return Effect.succeed(ruleZeroPortableRoute)
     } else {
       return programRouter.print(route)
     }
   },
   canonicalize: relativeRoute => {
     if (isConversationLedgerRoot(relativeRoute)) {
-      return Effect.succeed('/0/0')
+      return Effect.succeed(conversationLedgerPortableRoute)
     } else if (isConstitutionRoot(relativeRoute)) {
-      return Effect.succeed('/0')
+      return Effect.succeed(ruleZeroPortableRoute)
     } else {
       return programRouter.canonicalize(relativeRoute)
     }

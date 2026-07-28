@@ -744,6 +744,9 @@ importers:
 
   examples/client-matrix/core:
     dependencies:
+      cardboard-core-example:
+        specifier: workspace:*
+        version: link:../../cardboard/core
       counters-core-example:
         specifier: workspace:*
         version: link:../../counters/core
