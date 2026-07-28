@@ -5,10 +5,14 @@ import {
   PortfolioSnapshot,
   SignatureProof,
   SigningChallenge,
+  TransactionHistoryPage,
+  TransactionHistoryQuery,
   TransactionPreview,
   TransactionRecord,
   TransactionSubmission,
-  TransferDraft,
+  TransferRequest,
+  TransferValidation,
+  ValidatedTransfer,
   WalletFailure,
 } from './model.js'
 
@@ -17,18 +21,17 @@ export const ChangedTransferRecipient = S.TaggedStruct(
   'ChangedTransferRecipient',
   { value: S.String },
 )
-/** The host requested a preview for the current valid transfer recipient. */
+/** The host requested a preview for the current transfer recipient. */
 export const RequestedTransferPreview = S.TaggedStruct(
   'RequestedTransferPreview',
   {},
 )
-
 /** The host requested a fresh public portfolio snapshot. */
 export const RequestedWalletRefresh = S.TaggedStruct(
   'RequestedWalletRefresh',
   {},
 )
-/** The LoadWallet Command loaded public wallet data. */
+/** The LoadWallet Command loaded normalized public wallet data. */
 export const SucceededLoadWallet = S.TaggedStruct('SucceededLoadWallet', {
   portfolio: PortfolioSnapshot,
 })
@@ -50,19 +53,29 @@ export const RemovedAddressBookEntry = S.TaggedStruct(
   'RemovedAddressBookEntry',
   { entryId: S.String },
 )
-/** The host composed a public transfer draft. */
+/** The host composed one generic public transfer request. */
 export const ComposedTransfer = S.TaggedStruct('ComposedTransfer', {
-  draft: TransferDraft,
+  request: TransferRequest,
 })
-/** The PreviewTransaction Command produced a public preview. */
+/** The ValidateTransfer Command produced a portable validation result. */
+export const SucceededValidateTransfer = S.TaggedStruct(
+  'SucceededValidateTransfer',
+  { validation: TransferValidation },
+)
+/** The ValidateTransfer Command could not reach the selected adapter. */
+export const FailedValidateTransfer = S.TaggedStruct('FailedValidateTransfer', {
+  request: TransferRequest,
+  failure: WalletFailure,
+})
+/** The PreviewTransfer Command produced a public preview. */
 export const SucceededPreviewTransaction = S.TaggedStruct(
   'SucceededPreviewTransaction',
   { preview: TransactionPreview },
 )
-/** The PreviewTransaction Command failed. */
+/** The PreviewTransfer Command failed. */
 export const FailedPreviewTransaction = S.TaggedStruct(
   'FailedPreviewTransaction',
-  { draft: TransferDraft, failure: WalletFailure },
+  { transfer: ValidatedTransfer, failure: WalletFailure },
 )
 /** The host requested submission of one preview as a signed transaction. */
 export const RequestedSignedTransactionSubmission = S.TaggedStruct(
@@ -94,6 +107,21 @@ export const FailedSignChallenge = S.TaggedStruct('FailedSignChallenge', {
   challenge: SigningChallenge,
   failure: WalletFailure,
 })
+/** The host requested the next available transaction-history page. */
+export const RequestedNextTransactionHistoryPage = S.TaggedStruct(
+  'RequestedNextTransactionHistoryPage',
+  {},
+)
+/** The LoadTransactionHistory Command loaded one normalized history page. */
+export const SucceededLoadTransactionHistory = S.TaggedStruct(
+  'SucceededLoadTransactionHistory',
+  { query: TransactionHistoryQuery, page: TransactionHistoryPage },
+)
+/** The LoadTransactionHistory Command failed. */
+export const FailedLoadTransactionHistory = S.TaggedStruct(
+  'FailedLoadTransactionHistory',
+  { query: TransactionHistoryQuery, failure: WalletFailure },
+)
 /** A live network Subscription observed a public transaction record. */
 export const ObservedTransaction = S.TaggedStruct('ObservedTransaction', {
   transaction: TransactionRecord,
@@ -120,6 +148,8 @@ export const Message = S.Union([
   AddedAddressBookEntry,
   RemovedAddressBookEntry,
   ComposedTransfer,
+  SucceededValidateTransfer,
+  FailedValidateTransfer,
   SucceededPreviewTransaction,
   FailedPreviewTransaction,
   RequestedSignedTransactionSubmission,
@@ -128,6 +158,9 @@ export const Message = S.Union([
   RequestedChallengeSignature,
   SucceededSignChallenge,
   FailedSignChallenge,
+  RequestedNextTransactionHistoryPage,
+  SucceededLoadTransactionHistory,
+  FailedLoadTransactionHistory,
   ObservedTransaction,
   FailedObserveTransactions,
   ResumedTransactionObservation,

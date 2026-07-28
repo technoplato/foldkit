@@ -16,8 +16,8 @@
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter shared-react-bindings-example build",
-    "pretest": "pnpm run build",
-    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter shared-react-bindings-example build",
+    "pretest": "pnpm run build && pnpm --filter wallet-simulated-client-example build",
+    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter shared-react-bindings-example build && pnpm --filter wallet-simulated-client-example build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

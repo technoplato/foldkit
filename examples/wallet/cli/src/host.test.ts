@@ -51,7 +51,7 @@ describe('raw Wallet CLI host', () => {
     )
 
     expect(execution.model.transaction._tag).toBe('SubmittedTransaction')
-    expect(execution.model.observedTransactions).toHaveLength(1)
+    expect(execution.model.transactions.length).toBeGreaterThan(0)
     expect(execution.summary).toContain('Observed: yes')
     expect(execution.summary).not.toContain('Etherscan')
   })
@@ -71,13 +71,11 @@ describe('raw Wallet CLI host', () => {
     )
 
     expect(failure).toMatchObject({
-      message: expect.stringContaining(
-        'That is not a valid address for Ethereum Sepolia.',
-      ),
+      message: expect.stringContaining('That is not a valid Ethereum address.'),
     })
     expect(failure).toMatchObject({
       message: expect.stringContaining(
-        'It contains exactly 40 characters after the prefix.',
+        '20 bytes encoded as 0x-prefixed hexadecimal.',
       ),
     })
   })

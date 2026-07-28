@@ -26,7 +26,9 @@ describe('raw Wallet CLI process', () => {
 
     expect(result.status).not.toBe(0)
     expect(result.stdout).toBe('')
-    expect(result.stderr).toContain('No Eth receiving instruction for missing')
+    expect(result.stderr).toContain(
+      'No ethereum:sepolia:eth receiving instruction for missing',
+    )
   })
 
   it('includes progress and the full Model only with verbose output', () => {

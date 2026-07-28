@@ -1,4 +1,3 @@
-export * from './address.js'
 export * from './currency.js'
 export * from './explorer.js'
 export * from './init.js'

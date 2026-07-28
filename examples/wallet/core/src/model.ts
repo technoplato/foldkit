@@ -1,84 +1,135 @@
-import { Array as Array_, Match as M, Option, Schema as S } from 'effect'
+import { Array as Array_, Option, Schema as S } from 'effect'
 
 import {
-  InvalidNetworkAddress,
-  NetworkAddressFormat,
-  ValidatedNetworkAddress,
-  networkAddressFormat,
-  validateNetworkAddress,
-} from './address.js'
-import {
-  Currency,
-  CurrencyValue,
-  EthereumSepolia,
-  EthereumSepoliaEthValue,
-  EthereumSepoliaUsdc,
-  EthereumSepoliaUsdcValue,
-  Network,
-  SolanaDevnet,
-  SolanaDevnetSol,
-  SolanaDevnetSolValue,
-  SolanaDevnetUsdc,
-  SolanaDevnetUsdcValue,
+  AssetAmount,
+  AssetDescriptor,
+  AssetId,
+  AtomicUnits,
+  ChainDescriptor,
+  NetworkDescriptor,
+  NetworkId,
+  assetForId,
+  networkForId,
 } from './currency.js'
 import { BlockExplorerConfirmation } from './explorer.js'
 import { NoWalletIntent, WalletIntentState } from './intent.js'
 
-/** One public wallet account. */
+/** One public wallet account on one normalized network. */
 export const WalletAccount = S.Struct({
   accountId: S.String,
-  network: Network,
+  networkId: NetworkId,
   address: S.String,
   displayName: S.String,
 })
-/** One public wallet account. */
+/** One public wallet account on one normalized network. */
 export type WalletAccount = typeof WalletAccount.Type
 
-/** One account's balance in one currency. */
+/** One account's balance in one normalized asset. */
 export const AccountBalance = S.Struct({
   accountId: S.String,
-  value: CurrencyValue,
+  amount: AssetAmount,
 })
-/** One account's balance in one currency. */
+/** One account's balance in one normalized asset. */
 export type AccountBalance = typeof AccountBalance.Type
 
-/** A timestamped snapshot of currency-valued balances. */
+/** A timestamped snapshot of normalized asset balances. */
 export const BalanceSnapshot = S.Struct({
   observedAt: S.Number,
   balances: S.Array(AccountBalance),
 })
-/** A timestamped snapshot of currency-valued balances. */
+/** A timestamped snapshot of normalized asset balances. */
 export type BalanceSnapshot = typeof BalanceSnapshot.Type
 
-/** Public instructions for receiving one currency into an account. */
+/** Public instructions for receiving one asset into an account. */
 export const ReceivingInstruction = S.Struct({
   accountId: S.String,
-  network: Network,
-  currency: Currency,
+  assetId: AssetId,
   destinationAddress: S.String,
   maybeMemo: S.OptionFromNullishOr(S.String, { onNoneEncoding: null }),
   portableUri: S.String,
 })
-/** Public instructions for receiving one currency into an account. */
+/** Public instructions for receiving one asset into an account. */
 export type ReceivingInstruction = typeof ReceivingInstruction.Type
 
-/** Public wallet data loaded from the selected networking Layer. */
+/** Normalized public wallet data loaded from configured adapters. */
 export const PortfolioSnapshot = S.Struct({
+  chains: S.Array(ChainDescriptor),
+  networks: S.Array(NetworkDescriptor),
+  assets: S.Array(AssetDescriptor),
   accounts: S.Array(WalletAccount),
   balanceSnapshot: BalanceSnapshot,
   receivingInstructions: S.Array(ReceivingInstruction),
 })
-/** Public wallet data loaded from the selected networking Layer. */
+/** Normalized public wallet data loaded from configured adapters. */
 export type PortfolioSnapshot = typeof PortfolioSnapshot.Type
 
-/** One public address-book entry. */
+/** Reports whether every normalized portfolio reference resolves consistently. */
+export const isPortfolioSnapshotConsistent = (
+  portfolio: PortfolioSnapshot,
+): boolean => {
+  const hasNetworks = Array_.every(portfolio.networks, network =>
+    Array_.some(portfolio.chains, chain => chain.chainId === network.chainId),
+  )
+  const hasAssets = Array_.every(portfolio.assets, asset =>
+    Array_.some(
+      portfolio.networks,
+      network => network.networkId === asset.networkId,
+    ),
+  )
+  const hasAccounts = Array_.every(portfolio.accounts, account =>
+    Array_.some(
+      portfolio.networks,
+      network => network.networkId === account.networkId,
+    ),
+  )
+  const hasBalances = Array_.every(
+    portfolio.balanceSnapshot.balances,
+    balance => {
+      const maybeAccount = Array_.findFirst(
+        portfolio.accounts,
+        account => account.accountId === balance.accountId,
+      )
+      const maybeAsset = assetForId(portfolio.assets, balance.amount.assetId)
+      return (
+        Option.isSome(maybeAccount) &&
+        Option.isSome(maybeAsset) &&
+        maybeAccount.value.networkId === maybeAsset.value.networkId
+      )
+    },
+  )
+  const hasReceivingInstructions = Array_.every(
+    portfolio.receivingInstructions,
+    instruction => {
+      const maybeAccount = Array_.findFirst(
+        portfolio.accounts,
+        account => account.accountId === instruction.accountId,
+      )
+      const maybeAsset = assetForId(portfolio.assets, instruction.assetId)
+      return (
+        Option.isSome(maybeAccount) &&
+        Option.isSome(maybeAsset) &&
+        maybeAccount.value.networkId === maybeAsset.value.networkId
+      )
+    },
+  )
+  return (
+    hasNetworks &&
+    hasAssets &&
+    hasAccounts &&
+    hasBalances &&
+    hasReceivingInstructions
+  )
+}
+
+/** One public address-book entry with an adapter-normalized address. */
 export const AddressBookEntry = S.Struct({
   entryId: S.String,
-  network: Network,
+  networkId: NetworkId,
   address: S.String,
+  normalizedAddress: S.String,
   displayName: S.String,
 })
-/** One public address-book entry. */
+/** One public address-book entry with an adapter-normalized address. */
 export type AddressBookEntry = typeof AddressBookEntry.Type
 
 /** The destination does not match a saved address-book entry. */
@@ -87,17 +138,17 @@ export const UnfamiliarAddress = S.TaggedStruct('UnfamiliarAddress', {})
 export const FamiliarAddress = S.TaggedStruct('FamiliarAddress', {
   entry: AddressBookEntry,
 })
-/** Address-book familiarity for a transaction destination. */
+/** Address-book familiarity for a validated recipient. */
 export const AddressFamiliarity = S.Union([UnfamiliarAddress, FamiliarAddress])
-/** Address-book familiarity for a transaction destination. */
+/** Address-book familiarity for a validated recipient. */
 export type AddressFamiliarity = typeof AddressFamiliarity.Type
 
-/** No prior outgoing transaction was observed for this recipient. */
+/** No prior outgoing transaction was loaded for this recipient. */
 export const FirstTransactionWithRecipient = S.TaggedStruct(
   'FirstTransactionWithRecipient',
   {},
 )
-/** Public transaction history was observed for this recipient. */
+/** Public transaction history was loaded for this recipient. */
 export const PreviouslyTransactedWithRecipient = S.TaggedStruct(
   'PreviouslyTransactedWithRecipient',
   {
@@ -105,446 +156,185 @@ export const PreviouslyTransactedWithRecipient = S.TaggedStruct(
     mostRecentObservedAt: S.Number,
   },
 )
-/** Prior-recipient history derived from public observed transactions. */
+/** Prior-recipient history derived from normalized transaction records. */
 export const RecipientHistory = S.Union([
   FirstTransactionWithRecipient,
   PreviouslyTransactedWithRecipient,
 ])
-/** Prior-recipient history derived from public observed transactions. */
+/** Prior-recipient history derived from normalized transaction records. */
 export type RecipientHistory = typeof RecipientHistory.Type
 
-const TransferDraftFields = {
-  transferId: S.String,
-  accountId: S.String,
-  destinationAddress: S.String,
-  maybeMessage: S.OptionFromNullishOr(S.String, { onNoneEncoding: null }),
-}
-
-/** No transfer recipient has been entered for the selected network. */
-export const EmptyTransferRecipient = S.TaggedStruct('EmptyTransferRecipient', {
-  format: NetworkAddressFormat,
+/** Safe adapter-provided guidance for an invalid transfer request. */
+export const TransferGuidance = S.Struct({
+  summary: S.String,
+  details: S.Array(S.String),
 })
-/** The entered recipient is not an address on the selected network. */
+/** Safe adapter-provided guidance for an invalid transfer request. */
+export type TransferGuidance = typeof TransferGuidance.Type
+
+/** A chain adapter validated and normalized one recipient. */
+export const ValidatedRecipient = S.Struct({
+  networkId: NetworkId,
+  address: S.String,
+  normalizedAddress: S.String,
+  displayAddress: S.String,
+})
+/** A chain adapter validated and normalized one recipient. */
+export type ValidatedRecipient = typeof ValidatedRecipient.Type
+
+/** No transfer recipient has been entered. */
+export const EmptyTransferRecipient = S.TaggedStruct(
+  'EmptyTransferRecipient',
+  {},
+)
+/** Unvalidated transfer recipient text is being edited. */
+export const EditingTransferRecipient = S.TaggedStruct(
+  'EditingTransferRecipient',
+  { value: S.String },
+)
+/** The selected adapter rejected the transfer recipient. */
 export const InvalidTransferRecipient = S.TaggedStruct(
   'InvalidTransferRecipient',
   {
-    validation: InvalidNetworkAddress,
+    value: S.String,
+    guidance: TransferGuidance,
   },
 )
-/** The entered recipient is valid for its selected network. */
+/** The selected adapter validated the transfer recipient. */
 export const ValidTransferRecipient = S.TaggedStruct('ValidTransferRecipient', {
-  address: ValidatedNetworkAddress,
+  recipient: ValidatedRecipient,
 })
-/** The renderer-neutral state of the editable transfer recipient. */
+/** Renderer-neutral state of the editable transfer recipient. */
 export const TransferRecipientState = S.Union([
   EmptyTransferRecipient,
+  EditingTransferRecipient,
   InvalidTransferRecipient,
   ValidTransferRecipient,
 ])
-/** The renderer-neutral state of the editable transfer recipient. */
+/** Renderer-neutral state of the editable transfer recipient. */
 export type TransferRecipientState = typeof TransferRecipientState.Type
 
-/** Validates editable host input into the selected network's recipient state. */
+/** Converts editable recipient text into chain-agnostic local state. */
 export const transferRecipientFromInput = (
-  network: Network,
   input: string,
 ): TransferRecipientState => {
-  const trimmedInput = input.trim()
-  if (trimmedInput === '') {
-    return EmptyTransferRecipient.make({
-      format: networkAddressFormat(network),
-    })
-  }
-  const validation = validateNetworkAddress(network, trimmedInput)
-  if (validation._tag === 'ValidNetworkAddress') {
-    return ValidTransferRecipient.make({ address: validation.address })
+  const value = input.trim()
+  if (value === '') {
+    return EmptyTransferRecipient.make({})
   } else {
-    return InvalidTransferRecipient.make({ validation })
+    return EditingTransferRecipient.make({ value })
   }
 }
 
 /** Returns the editable text represented by one recipient state. */
 export const transferRecipientInput = (
   recipient: TransferRecipientState,
-): string =>
-  M.value(recipient).pipe(
-    M.withReturnType<string>(),
-    M.tagsExhaustive({
-      EmptyTransferRecipient: () => '',
-      InvalidTransferRecipient: ({ validation }) => validation.input,
-      ValidTransferRecipient: ({ address }) => address.value,
-    }),
-  )
-
-/** Returns printable network address guidance for an editable recipient. */
-export const transferRecipientFormat = (
-  recipient: TransferRecipientState,
-): NetworkAddressFormat =>
-  M.value(recipient).pipe(
-    M.withReturnType<NetworkAddressFormat>(),
-    M.tagsExhaustive({
-      EmptyTransferRecipient: ({ format }) => format,
-      InvalidTransferRecipient: ({ validation }) => validation.format,
-      ValidTransferRecipient: ({ address }) =>
-        networkAddressFormat(address.network),
-    }),
-  )
-
-/** An executable ETH transfer draft on Ethereum Sepolia. */
-export const EthereumSepoliaEthTransferDraft = S.TaggedStruct(
-  'EthereumSepoliaEthTransferDraft',
-  {
-    ...TransferDraftFields,
-    network: EthereumSepolia,
-    value: EthereumSepoliaEthValue,
-  },
-)
-/** An executable ETH transfer draft on Ethereum Sepolia. */
-export type EthereumSepoliaEthTransferDraft =
-  typeof EthereumSepoliaEthTransferDraft.Type
-
-/** An executable USDC transfer draft on Ethereum Sepolia. */
-export const EthereumSepoliaUsdcTransferDraft = S.TaggedStruct(
-  'EthereumSepoliaUsdcTransferDraft',
-  {
-    ...TransferDraftFields,
-    network: EthereumSepolia,
-    value: EthereumSepoliaUsdcValue,
-  },
-)
-/** An executable USDC transfer draft on Ethereum Sepolia. */
-export type EthereumSepoliaUsdcTransferDraft =
-  typeof EthereumSepoliaUsdcTransferDraft.Type
-
-/** An executable SOL transfer draft on Solana Devnet. */
-export const SolanaDevnetSolTransferDraft = S.TaggedStruct(
-  'SolanaDevnetSolTransferDraft',
-  {
-    ...TransferDraftFields,
-    network: SolanaDevnet,
-    value: SolanaDevnetSolValue,
-  },
-)
-/** An executable SOL transfer draft on Solana Devnet. */
-export type SolanaDevnetSolTransferDraft =
-  typeof SolanaDevnetSolTransferDraft.Type
-
-/** An executable USDC transfer draft on Solana Devnet. */
-export const SolanaDevnetUsdcTransferDraft = S.TaggedStruct(
-  'SolanaDevnetUsdcTransferDraft',
-  {
-    ...TransferDraftFields,
-    network: SolanaDevnet,
-    value: SolanaDevnetUsdcValue,
-  },
-)
-/** An executable USDC transfer draft on Solana Devnet. */
-export type SolanaDevnetUsdcTransferDraft =
-  typeof SolanaDevnetUsdcTransferDraft.Type
-
-/** A public transfer request that exactly matches an executable Layer. */
-export const TransferDraft = S.Union([
-  EthereumSepoliaEthTransferDraft,
-  EthereumSepoliaUsdcTransferDraft,
-  SolanaDevnetSolTransferDraft,
-  SolanaDevnetUsdcTransferDraft,
-])
-/** A public transfer request that exactly matches an executable Layer. */
-export type TransferDraft = typeof TransferDraft.Type
-
-/** Host input used to validate and construct one executable transfer draft. */
-export const TransferDraftInput = S.Struct({
-  ...TransferDraftFields,
-  network: Network,
-  value: CurrencyValue,
-})
-/** Host input used to validate and construct one executable transfer draft. */
-export type TransferDraftInput = typeof TransferDraftInput.Type
-
-/** Validates host composition input into exactly one executable transfer case. */
-export const transferDraftFromInput = (
-  input: TransferDraftInput,
-): Option.Option<TransferDraft> => {
-  if (
-    validateNetworkAddress(input.network, input.destinationAddress)._tag ===
-    'InvalidNetworkAddress'
-  ) {
-    return Option.none()
+): string => {
+  if (recipient._tag === 'EmptyTransferRecipient') {
+    return ''
+  } else if (recipient._tag === 'ValidTransferRecipient') {
+    return recipient.recipient.displayAddress
+  } else {
+    return recipient.value
   }
-  return M.value(input.value.currency).pipe(
-    M.withReturnType<Option.Option<TransferDraft>>(),
-    M.tagsExhaustive({
-      Eth: currency => {
-        if (
-          input.network._tag === 'EthereumSepolia' &&
-          input.value.decimalPlaces === 18
-        ) {
-          return Option.some(
-            EthereumSepoliaEthTransferDraft.make({
-              ...input,
-              network: currency.network,
-              value: EthereumSepoliaEthValue.make({
-                currency,
-                atomicUnits: input.value.atomicUnits,
-                decimalPlaces: 18,
-                observedAt: input.value.observedAt,
-              }),
-            }),
-          )
-        } else {
-          return Option.none()
-        }
-      },
-      Sol: ({ network }) => {
-        if (
-          input.network._tag === 'SolanaDevnet' &&
-          network._tag === 'SolanaDevnet' &&
-          input.value.decimalPlaces === 9
-        ) {
-          return Option.some(
-            SolanaDevnetSolTransferDraft.make({
-              ...input,
-              network,
-              value: SolanaDevnetSolValue.make({
-                currency: SolanaDevnetSol.make({ network }),
-                atomicUnits: input.value.atomicUnits,
-                decimalPlaces: 9,
-                observedAt: input.value.observedAt,
-              }),
-            }),
-          )
-        } else {
-          return Option.none()
-        }
-      },
-      Usdc: ({ network, tokenAddress }) => {
-        if (
-          input.network._tag === 'EthereumSepolia' &&
-          network._tag === 'EthereumSepolia' &&
-          input.value.decimalPlaces === 6
-        ) {
-          return Option.some(
-            EthereumSepoliaUsdcTransferDraft.make({
-              ...input,
-              network,
-              value: EthereumSepoliaUsdcValue.make({
-                currency: EthereumSepoliaUsdc.make({
-                  network,
-                  tokenAddress,
-                }),
-                atomicUnits: input.value.atomicUnits,
-                decimalPlaces: 6,
-                observedAt: input.value.observedAt,
-              }),
-            }),
-          )
-        } else if (
-          input.network._tag === 'SolanaDevnet' &&
-          network._tag === 'SolanaDevnet' &&
-          input.value.decimalPlaces === 6
-        ) {
-          return Option.some(
-            SolanaDevnetUsdcTransferDraft.make({
-              ...input,
-              network,
-              value: SolanaDevnetUsdcValue.make({
-                currency: SolanaDevnetUsdc.make({ network, tokenAddress }),
-                atomicUnits: input.value.atomicUnits,
-                decimalPlaces: 6,
-                observedAt: input.value.observedAt,
-              }),
-            }),
-          )
-        } else {
-          return Option.none()
-        }
-      },
-      Fiat: () => Option.none(),
-    }),
-  )
 }
 
-/** A network-produced public quote for one transfer. */
+/** One chain-agnostic request to transfer an exact asset amount. */
+export const TransferRequest = S.Struct({
+  transferId: S.String,
+  accountId: S.String,
+  assetId: AssetId,
+  destinationAddress: S.String,
+  atomicUnits: AtomicUnits,
+  maybeMessage: S.OptionFromNullishOr(S.String, { onNoneEncoding: null }),
+})
+/** One chain-agnostic request to transfer an exact asset amount. */
+export type TransferRequest = typeof TransferRequest.Type
+
+/** An adapter-validated transfer ready for previewing. */
+export const ValidatedTransfer = S.TaggedStruct('ValidatedTransfer', {
+  request: TransferRequest,
+  recipient: ValidatedRecipient,
+})
+/** An adapter-validated transfer ready for previewing. */
+export type ValidatedTransfer = typeof ValidatedTransfer.Type
+
+/** An adapter rejected a transfer before it could be previewed. */
+export const RejectedTransfer = S.TaggedStruct('RejectedTransfer', {
+  request: TransferRequest,
+  guidance: TransferGuidance,
+})
+/** Result of validating one generic transfer through its selected adapter. */
+export const TransferValidation = S.Union([ValidatedTransfer, RejectedTransfer])
+/** Result of validating one generic transfer through its selected adapter. */
+export type TransferValidation = typeof TransferValidation.Type
+
+/** A network-produced public quote for one validated transfer. */
 export const TransactionQuote = S.Struct({
   quoteId: S.String,
-  estimatedFee: CurrencyValue,
-  resultingBalance: CurrencyValue,
+  estimatedFee: AssetAmount,
+  resultingBalance: AssetAmount,
   expiresAt: S.Number,
 })
-/** A network-produced public quote for one transfer. */
+/** A network-produced public quote for one validated transfer. */
 export type TransactionQuote = typeof TransactionQuote.Type
 
-const TransactionPreviewFields = {
+/** A replayable preview of one validated transfer. */
+export const TransactionPreview = S.Struct({
   previewId: S.String,
+  transfer: ValidatedTransfer,
+  estimatedFee: AssetAmount,
+  resultingBalance: AssetAmount,
   expiresAt: S.Number,
   recipientFamiliarity: AddressFamiliarity,
   recipientHistory: RecipientHistory,
-}
-
-/** A replayable ETH transaction preview on Ethereum Sepolia. */
-export const EthereumSepoliaEthTransactionPreview = S.TaggedStruct(
-  'EthereumSepoliaEthTransactionPreview',
-  {
-    ...TransactionPreviewFields,
-    draft: EthereumSepoliaEthTransferDraft,
-    estimatedFee: EthereumSepoliaEthValue,
-    resultingBalance: EthereumSepoliaEthValue,
-  },
-)
-
-/** A replayable USDC transaction preview on Ethereum Sepolia. */
-export const EthereumSepoliaUsdcTransactionPreview = S.TaggedStruct(
-  'EthereumSepoliaUsdcTransactionPreview',
-  {
-    ...TransactionPreviewFields,
-    draft: EthereumSepoliaUsdcTransferDraft,
-    estimatedFee: EthereumSepoliaEthValue,
-    resultingBalance: EthereumSepoliaUsdcValue,
-  },
-)
-
-/** A replayable SOL transaction preview on Solana Devnet. */
-export const SolanaDevnetSolTransactionPreview = S.TaggedStruct(
-  'SolanaDevnetSolTransactionPreview',
-  {
-    ...TransactionPreviewFields,
-    draft: SolanaDevnetSolTransferDraft,
-    estimatedFee: SolanaDevnetSolValue,
-    resultingBalance: SolanaDevnetSolValue,
-  },
-)
-
-/** A replayable USDC transaction preview on Solana Devnet. */
-export const SolanaDevnetUsdcTransactionPreview = S.TaggedStruct(
-  'SolanaDevnetUsdcTransactionPreview',
-  {
-    ...TransactionPreviewFields,
-    draft: SolanaDevnetUsdcTransferDraft,
-    estimatedFee: SolanaDevnetSolValue,
-    resultingBalance: SolanaDevnetUsdcValue,
-  },
-)
-
-/** A public transaction preview safe to render, journal, and replay. */
-export const TransactionPreview = S.Union([
-  EthereumSepoliaEthTransactionPreview,
-  EthereumSepoliaUsdcTransactionPreview,
-  SolanaDevnetSolTransactionPreview,
-  SolanaDevnetUsdcTransactionPreview,
-])
-/** A public transaction preview safe to render, journal, and replay. */
+})
+/** A replayable preview of one validated transfer. */
 export type TransactionPreview = typeof TransactionPreview.Type
 
-/** Validates one network quote against the exact transfer draft case. */
+/** Validates one adapter quote against the normalized public portfolio. */
 export const transactionPreviewFromQuote = (
-  draft: TransferDraft,
+  portfolio: PortfolioSnapshot,
+  transfer: ValidatedTransfer,
   quote: TransactionQuote,
   recipientFamiliarity: AddressFamiliarity,
   recipientHistory: RecipientHistory,
 ): Option.Option<TransactionPreview> => {
-  const fields = {
-    previewId: quote.quoteId,
-    expiresAt: quote.expiresAt,
-    recipientFamiliarity,
-    recipientHistory,
-  }
-  return M.value(draft).pipe(
-    M.withReturnType<Option.Option<TransactionPreview>>(),
-    M.tagsExhaustive({
-      EthereumSepoliaEthTransferDraft: executableDraft => {
-        const maybeEstimatedFee = S.decodeUnknownOption(
-          EthereumSepoliaEthValue,
-        )(quote.estimatedFee)
-        const maybeResultingBalance = S.decodeUnknownOption(
-          EthereumSepoliaEthValue,
-        )(quote.resultingBalance)
-        if (
-          Option.isSome(maybeEstimatedFee) &&
-          Option.isSome(maybeResultingBalance)
-        ) {
-          return Option.some(
-            EthereumSepoliaEthTransactionPreview.make({
-              ...fields,
-              draft: executableDraft,
-              estimatedFee: maybeEstimatedFee.value,
-              resultingBalance: maybeResultingBalance.value,
-            }),
-          )
-        } else {
-          return Option.none()
-        }
-      },
-      EthereumSepoliaUsdcTransferDraft: executableDraft => {
-        const maybeEstimatedFee = S.decodeUnknownOption(
-          EthereumSepoliaEthValue,
-        )(quote.estimatedFee)
-        const maybeResultingBalance = S.decodeUnknownOption(
-          EthereumSepoliaUsdcValue,
-        )(quote.resultingBalance)
-        if (
-          Option.isSome(maybeEstimatedFee) &&
-          Option.isSome(maybeResultingBalance)
-        ) {
-          return Option.some(
-            EthereumSepoliaUsdcTransactionPreview.make({
-              ...fields,
-              draft: executableDraft,
-              estimatedFee: maybeEstimatedFee.value,
-              resultingBalance: maybeResultingBalance.value,
-            }),
-          )
-        } else {
-          return Option.none()
-        }
-      },
-      SolanaDevnetSolTransferDraft: executableDraft => {
-        const maybeEstimatedFee = S.decodeUnknownOption(SolanaDevnetSolValue)(
-          quote.estimatedFee,
-        )
-        const maybeResultingBalance = S.decodeUnknownOption(
-          SolanaDevnetSolValue,
-        )(quote.resultingBalance)
-        if (
-          Option.isSome(maybeEstimatedFee) &&
-          Option.isSome(maybeResultingBalance)
-        ) {
-          return Option.some(
-            SolanaDevnetSolTransactionPreview.make({
-              ...fields,
-              draft: executableDraft,
-              estimatedFee: maybeEstimatedFee.value,
-              resultingBalance: maybeResultingBalance.value,
-            }),
-          )
-        } else {
-          return Option.none()
-        }
-      },
-      SolanaDevnetUsdcTransferDraft: executableDraft => {
-        const maybeEstimatedFee = S.decodeUnknownOption(SolanaDevnetSolValue)(
-          quote.estimatedFee,
-        )
-        const maybeResultingBalance = S.decodeUnknownOption(
-          SolanaDevnetUsdcValue,
-        )(quote.resultingBalance)
-        if (
-          Option.isSome(maybeEstimatedFee) &&
-          Option.isSome(maybeResultingBalance)
-        ) {
-          return Option.some(
-            SolanaDevnetUsdcTransactionPreview.make({
-              ...fields,
-              draft: executableDraft,
-              estimatedFee: maybeEstimatedFee.value,
-              resultingBalance: maybeResultingBalance.value,
-            }),
-          )
-        } else {
-          return Option.none()
-        }
-      },
-    }),
+  const request = transfer.request
+  const maybeAccount = Array_.findFirst(
+    portfolio.accounts,
+    account => account.accountId === request.accountId,
   )
+  const maybeAsset = assetForId(portfolio.assets, request.assetId)
+  const maybeFeeAsset = assetForId(portfolio.assets, quote.estimatedFee.assetId)
+  const maybeResultingAsset = assetForId(
+    portfolio.assets,
+    quote.resultingBalance.assetId,
+  )
+  if (
+    Option.isNone(maybeAccount) ||
+    Option.isNone(maybeAsset) ||
+    Option.isNone(maybeFeeAsset) ||
+    Option.isNone(maybeResultingAsset) ||
+    maybeAccount.value.networkId !== maybeAsset.value.networkId ||
+    maybeAsset.value.networkId !== transfer.recipient.networkId ||
+    maybeFeeAsset.value.networkId !== maybeAsset.value.networkId ||
+    quote.resultingBalance.assetId !== request.assetId
+  ) {
+    return Option.none()
+  } else {
+    return Option.some(
+      TransactionPreview.make({
+        previewId: quote.quoteId,
+        transfer,
+        estimatedFee: quote.estimatedFee,
+        resultingBalance: quote.resultingBalance,
+        expiresAt: quote.expiresAt,
+        recipientFamiliarity,
+        recipientHistory,
+      }),
+    )
+  }
 }
 
 /** A public result returned after a signed transaction was submitted. */
@@ -567,30 +357,45 @@ export const TransactionStatus = S.Literals(['Pending', 'Confirmed', 'Failed'])
 /** A public transaction status observed from a network. */
 export type TransactionStatus = typeof TransactionStatus.Type
 
-/** One public transaction record emitted by live network observation. */
+/** One normalized public transaction record from history or observation. */
 export const TransactionRecord = S.Struct({
+  recordId: S.String,
   transactionId: S.String,
   accountId: S.String,
-  network: Network,
+  networkId: NetworkId,
   direction: TransactionDirection,
   status: TransactionStatus,
-  value: CurrencyValue,
+  amount: AssetAmount,
   counterpartyAddress: S.String,
+  normalizedCounterpartyAddress: S.String,
   observedAt: S.Number,
 })
-/** One public transaction record emitted by live network observation. */
+/** One normalized public transaction record from history or observation. */
 export type TransactionRecord = typeof TransactionRecord.Type
 
-/** A hash algorithm used by a canonical domain-separated challenge digest. */
-export const DigestAlgorithm = S.Literals(['Keccak256', 'Sha256'])
-/** A hash algorithm used by a canonical domain-separated challenge digest. */
-export type DigestAlgorithm = typeof DigestAlgorithm.Type
+/** A cursor-based request for public transaction history. */
+export const TransactionHistoryQuery = S.Struct({
+  accountIds: S.Array(S.String),
+  maybeCursor: S.OptionFromNullishOr(S.String, { onNoneEncoding: null }),
+  limit: S.Int,
+})
+/** A cursor-based request for public transaction history. */
+export type TransactionHistoryQuery = typeof TransactionHistoryQuery.Type
+
+/** One adapter-composed page of normalized transaction history. */
+export const TransactionHistoryPage = S.Struct({
+  records: S.Array(TransactionRecord),
+  maybeNextCursor: S.OptionFromNullishOr(S.String, { onNoneEncoding: null }),
+})
+/** One adapter-composed page of normalized transaction history. */
+export type TransactionHistoryPage = typeof TransactionHistoryPage.Type
 
 /** A canonical public digest scoped to one signing domain. */
 export const DomainSeparatedDigest = S.Struct({
-  algorithm: DigestAlgorithm,
+  algorithm: S.String,
   domain: S.String,
-  digestHex: S.String,
+  digest: S.String,
+  encoding: S.String,
 })
 /** A canonical public digest scoped to one signing domain. */
 export type DomainSeparatedDigest = typeof DomainSeparatedDigest.Type
@@ -604,39 +409,27 @@ export const SigningChallenge = S.Struct({
 /** A public challenge that can be signed by one wallet account. */
 export type SigningChallenge = typeof SigningChallenge.Type
 
-/** A public Ethereum-compatible signature proof. */
-export const EthereumSignatureProof = S.TaggedStruct('EthereumSignatureProof', {
+/** A normalized public proof that one wallet account signed a challenge. */
+export const SignatureProof = S.Struct({
   challengeId: S.String,
   accountId: S.String,
-  address: S.String,
-  signatureHex: S.String,
+  algorithm: S.String,
+  publicIdentity: S.String,
+  signature: S.String,
+  encoding: S.String,
 })
-/** A public Solana Ed25519 signature proof. */
-export const SolanaEd25519SignatureProof = S.TaggedStruct(
-  'SolanaEd25519SignatureProof',
-  {
-    challengeId: S.String,
-    accountId: S.String,
-    publicKey: S.String,
-    signatureBase58: S.String,
-  },
-)
-/** A public proof that a wallet account signed one exact challenge. */
-export const SignatureProof = S.Union([
-  EthereumSignatureProof,
-  SolanaEd25519SignatureProof,
-])
-/** A public proof that a wallet account signed one exact challenge. */
+/** A normalized public proof that one wallet account signed a challenge. */
 export type SignatureProof = typeof SignatureProof.Type
 
 /** A public wallet operation that can fail. */
 export const WalletOperation = S.Literals([
   'LoadPortfolio',
-  'PreviewTransaction',
-  'PrepareTransaction',
-  'DigestTransaction',
+  'ValidateTransfer',
+  'PreviewTransfer',
+  'BuildTransferPayload',
   'SignTransaction',
   'SubmitTransaction',
+  'LoadTransactionHistory',
   'ObserveTransactions',
   'SignChallenge',
   'VerifyChallenge',
@@ -689,9 +482,18 @@ export type PortfolioState = typeof PortfolioState.Type
 
 /** No transfer is being prepared. */
 export const IdleTransaction = S.TaggedStruct('IdleTransaction', {})
-/** One transfer is waiting for its network preview. */
+/** One generic transfer is being validated by its selected adapter. */
+export const ValidatingTransfer = S.TaggedStruct('ValidatingTransfer', {
+  request: TransferRequest,
+})
+/** The selected adapter rejected one generic transfer. */
+export const InvalidTransfer = S.TaggedStruct('InvalidTransfer', {
+  request: TransferRequest,
+  guidance: TransferGuidance,
+})
+/** One validated transfer is waiting for its network preview. */
 export const PreviewingTransaction = S.TaggedStruct('PreviewingTransaction', {
-  draft: TransferDraft,
+  transfer: ValidatedTransfer,
   recipientFamiliarity: AddressFamiliarity,
   recipientHistory: RecipientHistory,
 })
@@ -708,27 +510,35 @@ export const SubmittedTransaction = S.TaggedStruct('SubmittedTransaction', {
   preview: TransactionPreview,
   submission: TransactionSubmission,
 })
+/** One transaction validation failed because its adapter was unavailable. */
+export const FailedTransferValidation = S.TaggedStruct(
+  'FailedTransferValidation',
+  { request: TransferRequest, failure: WalletFailure },
+)
 /** One transaction preview failed. */
 export const FailedTransactionPreview = S.TaggedStruct(
   'FailedTransactionPreview',
-  { draft: TransferDraft, failure: WalletFailure },
+  { transfer: ValidatedTransfer, failure: WalletFailure },
 )
 /** One signed-transaction submission failed. */
 export const FailedTransactionSubmission = S.TaggedStruct(
   'FailedTransactionSubmission',
   { preview: TransactionPreview, failure: WalletFailure },
 )
-/** The Wallet's current transaction workflow. */
+/** The Wallet's current generic transfer workflow. */
 export const TransactionState = S.Union([
   IdleTransaction,
+  ValidatingTransfer,
+  InvalidTransfer,
   PreviewingTransaction,
   PreviewedTransaction,
   SubmittingTransaction,
   SubmittedTransaction,
+  FailedTransferValidation,
   FailedTransactionPreview,
   FailedTransactionSubmission,
 ])
-/** The Wallet's current transaction workflow. */
+/** The Wallet's current generic transfer workflow. */
 export type TransactionState = typeof TransactionState.Type
 
 /** No arbitrary challenge is being signed. */
@@ -778,7 +588,41 @@ export const TransactionObservationState = S.Union([
 export type TransactionObservationState =
   typeof TransactionObservationState.Type
 
-/** The complete renderer- and platform-agnostic Wallet Model. */
+/** Transaction history has not yet been requested. */
+export const NotLoadedTransactionHistory = S.TaggedStruct(
+  'NotLoadedTransactionHistory',
+  {},
+)
+/** One page of transaction history is loading. */
+export const LoadingTransactionHistory = S.TaggedStruct(
+  'LoadingTransactionHistory',
+  { query: TransactionHistoryQuery },
+)
+/** Transaction history loaded and may have another page. */
+export const LoadedTransactionHistory = S.TaggedStruct(
+  'LoadedTransactionHistory',
+  {
+    maybeNextCursor: S.OptionFromNullishOr(S.String, {
+      onNoneEncoding: null,
+    }),
+  },
+)
+/** Loading transaction history failed. */
+export const FailedTransactionHistory = S.TaggedStruct(
+  'FailedTransactionHistory',
+  { query: TransactionHistoryQuery, failure: WalletFailure },
+)
+/** The Wallet's finite transaction-history loading state. */
+export const TransactionHistoryState = S.Union([
+  NotLoadedTransactionHistory,
+  LoadingTransactionHistory,
+  LoadedTransactionHistory,
+  FailedTransactionHistory,
+])
+/** The Wallet's finite transaction-history loading state. */
+export type TransactionHistoryState = typeof TransactionHistoryState.Type
+
+/** The complete renderer-, platform-, and chain-agnostic Wallet Model. */
 export const Model = S.Struct({
   portfolio: PortfolioState,
   walletIntent: WalletIntentState,
@@ -787,51 +631,35 @@ export const Model = S.Struct({
   transaction: TransactionState,
   signature: SignatureState,
   transactionObservation: TransactionObservationState,
-  observedTransactions: S.Array(TransactionRecord),
+  transactionHistory: TransactionHistoryState,
+  transactions: S.Array(TransactionRecord),
 })
-/** The complete renderer- and platform-agnostic Wallet Model. */
+/** The complete renderer-, platform-, and chain-agnostic Wallet Model. */
 export type Model = typeof Model.Type
 
 /** The initial Wallet Model before public portfolio loading completes. */
 export const initialModel: Model = {
   portfolio: LoadingPortfolio.make({}),
   walletIntent: NoWalletIntent.make({}),
-  transferRecipient: EmptyTransferRecipient.make({
-    format: networkAddressFormat(EthereumSepolia.make({})),
-  }),
+  transferRecipient: EmptyTransferRecipient.make({}),
   addressBookEntries: [],
   transaction: IdleTransaction.make({}),
   signature: IdleSignature.make({}),
   transactionObservation: WaitingForAccounts.make({}),
-  observedTransactions: [],
+  transactionHistory: NotLoadedTransactionHistory.make({}),
+  transactions: [],
 }
 
-const addressesMatch = (
-  network: Network,
-  leftAddress: string,
-  rightAddress: string,
-): boolean =>
-  M.value(network).pipe(
-    M.withReturnType<boolean>(),
-    M.tagsExhaustive({
-      EthereumSepolia: () =>
-        leftAddress.toLowerCase() === rightAddress.toLowerCase(),
-      SolanaDevnet: () => leftAddress === rightAddress,
-      SolanaTestnet: () => leftAddress === rightAddress,
-    }),
-  )
-
-/** Derives address-book familiarity without consulting a host service. */
-export const familiarityForAddress = (
+/** Derives address-book familiarity from one adapter-normalized recipient. */
+export const familiarityForRecipient = (
   entries: ReadonlyArray<AddressBookEntry>,
-  network: Network,
-  address: string,
+  recipient: ValidatedRecipient,
 ): AddressFamiliarity => {
   const maybeEntry = Array_.findFirst(
     entries,
     entry =>
-      entry.network._tag === network._tag &&
-      addressesMatch(network, entry.address, address),
+      entry.networkId === recipient.networkId &&
+      entry.normalizedAddress === recipient.normalizedAddress,
   )
   if (Option.isSome(maybeEntry)) {
     return FamiliarAddress.make({ entry: maybeEntry.value })
@@ -840,35 +668,52 @@ export const familiarityForAddress = (
   }
 }
 
-/** Derives public prior-recipient history from observed transactions. */
-export const recipientHistoryForDraft = (
+/** Derives prior-recipient history from normalized transaction records. */
+export const recipientHistoryForTransfer = (
   transactions: ReadonlyArray<TransactionRecord>,
-  draft: TransferDraft,
+  transfer: ValidatedTransfer,
 ): RecipientHistory => {
   const matchingTransactions = Array_.filter(
     transactions,
     transaction =>
-      transaction.accountId === draft.accountId &&
-      transaction.network._tag === draft.network._tag &&
+      transaction.accountId === transfer.request.accountId &&
+      transaction.networkId === transfer.recipient.networkId &&
       transaction.direction === 'Outgoing' &&
-      addressesMatch(
-        draft.network,
-        transaction.counterpartyAddress,
-        draft.destinationAddress,
-      ),
+      transaction.normalizedCounterpartyAddress ===
+        transfer.recipient.normalizedAddress,
   )
   return Array_.match(matchingTransactions, {
     onEmpty: () => FirstTransactionWithRecipient.make({}),
-    onNonEmpty: transactions => {
+    onNonEmpty: records => {
       const mostRecentObservedAt = Array_.reduce(
-        transactions,
+        records,
         Number.NEGATIVE_INFINITY,
         (latest, transaction) => Math.max(latest, transaction.observedAt),
       )
       return PreviouslyTransactedWithRecipient.make({
-        transactionCount: transactions.length,
+        transactionCount: Array_.length(records),
         mostRecentObservedAt,
       })
     },
   })
 }
+
+/** Merges history and live records by stable record identifier. */
+export const mergeTransactionRecords = (
+  current: ReadonlyArray<TransactionRecord>,
+  incoming: ReadonlyArray<TransactionRecord>,
+): ReadonlyArray<TransactionRecord> =>
+  Array_.reduce(incoming, current, (records, transaction) => [
+    ...Array_.filter(
+      records,
+      record => record.recordId !== transaction.recordId,
+    ),
+    transaction,
+  ])
+
+/** Finds the normalized network used by one account. */
+export const networkForAccount = (
+  portfolio: PortfolioSnapshot,
+  account: WalletAccount,
+): Option.Option<NetworkDescriptor> =>
+  networkForId(portfolio.networks, account.networkId)

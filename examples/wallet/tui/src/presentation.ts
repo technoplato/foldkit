@@ -84,7 +84,7 @@ export const walletOpenTuiSummary = (model: Model): string => {
       portfolio,
       `Transaction ${model.transaction._tag}`,
       `Signature ${model.signature._tag}`,
-      `Observed ${model.observedTransactions.length.toString()}`,
+      `Transactions ${model.transactions.length.toString()}`,
     ],
     ' | ',
   )

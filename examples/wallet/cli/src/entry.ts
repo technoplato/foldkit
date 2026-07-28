@@ -4,7 +4,6 @@ import { Array, Console, Effect, Match as M, Option, pipe } from 'effect'
 import { NodeRuntime, NodeServices } from '@effect/platform-node'
 
 import {
-  WalletAsset,
   WalletChallengeInput,
   WalletCliError,
   WalletCliOperation,
@@ -17,14 +16,14 @@ import {
 
 const usage = `Usage:
   foldkit-wallet show [--uri <state-or-replay-path>] [--verbose]
-  foldkit-wallet receive [--account <id>] [--asset <eth|sol|usdc>] [--uri <path>] [--verbose]
+  foldkit-wallet receive [--account <id>] [--asset <asset-id>] [--uri <path>] [--verbose]
   foldkit-wallet preview [transfer flags] [--uri <path>] [--verbose]
   foldkit-wallet send [transfer flags] [--uri <path>] [--verbose]
   foldkit-wallet sign-challenge [challenge flags] [--uri <path>] [--verbose]
   foldkit-wallet replay [--frame <number>] [--uri <state-or-replay-path>] [--verbose]
 
 Transfer flags: --transfer-id, --account, --asset, --to, --amount, --message
-Challenge flags: --challenge-id, --account, --algorithm, --domain, --digest`
+Challenge flags: --challenge-id, --account, --algorithm, --domain, --digest, --encoding`
 
 const arguments_ = pipe(
   Array.drop(process.argv, 2),
@@ -50,31 +49,18 @@ const valueForFlag = (
   )
 }
 
-const assetForFlag = (
-  maybeAsset: Option.Option<string>,
-): Effect.Effect<WalletAsset, WalletCliError> => {
-  if (Option.isNone(maybeAsset)) {
-    return Effect.succeed(defaultWalletTransferInput.asset)
+const assetIdForFlag = (maybeAssetId: Option.Option<string>): string => {
+  if (Option.isNone(maybeAssetId)) {
+    return defaultWalletTransferInput.assetId
+  } else {
+    return maybeAssetId.value
   }
-  return M.value(maybeAsset.value.toLowerCase()).pipe(
-    M.withReturnType<Effect.Effect<WalletAsset, WalletCliError>>(),
-    M.when('eth', () => Effect.succeed(WalletAsset.make('Eth'))),
-    M.when('sol', () => Effect.succeed(WalletAsset.make('Sol'))),
-    M.when('usdc', () => Effect.succeed(WalletAsset.make('Usdc'))),
-    M.orElse(asset =>
-      Effect.fail(
-        new WalletCliError({
-          message: `Unsupported asset: ${asset}. Use eth, sol, or usdc.`,
-        }),
-      ),
-    ),
-  )
 }
 
 const transferInput = Effect.gen(function* () {
   const transferId = yield* valueForFlag('--transfer-id')
   const accountId = yield* valueForFlag('--account')
-  const asset = yield* assetForFlag(yield* valueForFlag('--asset'))
+  const assetId = assetIdForFlag(yield* valueForFlag('--asset'))
   const destinationAddress = yield* valueForFlag('--to')
   const atomicUnits = yield* valueForFlag('--amount')
   const maybeMessage = yield* valueForFlag('--message')
@@ -87,7 +73,7 @@ const transferInput = Effect.gen(function* () {
       accountId,
       () => defaultWalletTransferInput.accountId,
     ),
-    asset,
+    assetId,
     destinationAddress: Option.getOrElse(
       destinationAddress,
       () => defaultWalletTransferInput.destinationAddress,
@@ -105,18 +91,12 @@ const challengeInput = Effect.gen(function* () {
   const accountId = yield* valueForFlag('--account')
   const algorithm = yield* valueForFlag('--algorithm')
   const domain = yield* valueForFlag('--domain')
-  const digestHex = yield* valueForFlag('--digest')
+  const digest = yield* valueForFlag('--digest')
+  const encoding = yield* valueForFlag('--encoding')
   const nextAlgorithm = Option.getOrElse(
     algorithm,
     () => defaultWalletChallengeInput.algorithm,
   )
-  if (nextAlgorithm !== 'Keccak256' && nextAlgorithm !== 'Sha256') {
-    return yield* Effect.fail(
-      new WalletCliError({
-        message: `Unsupported digest algorithm: ${nextAlgorithm}`,
-      }),
-    )
-  }
   return WalletChallengeInput.make({
     challengeId: Option.getOrElse(
       challengeId,
@@ -128,9 +108,10 @@ const challengeInput = Effect.gen(function* () {
     ),
     algorithm: nextAlgorithm,
     domain: Option.getOrElse(domain, () => defaultWalletChallengeInput.domain),
-    digestHex: Option.getOrElse(
-      digestHex,
-      () => defaultWalletChallengeInput.digestHex,
+    digest: Option.getOrElse(digest, () => defaultWalletChallengeInput.digest),
+    encoding: Option.getOrElse(
+      encoding,
+      () => defaultWalletChallengeInput.encoding,
     ),
   })
 })
@@ -148,14 +129,14 @@ const operation = Effect.gen(function* () {
     M.when('receive', () =>
       Effect.gen(function* () {
         const accountId = yield* valueForFlag('--account')
-        const asset = yield* assetForFlag(yield* valueForFlag('--asset'))
+        const assetId = assetIdForFlag(yield* valueForFlag('--asset'))
         return WalletCliOperation.make({
           _tag: 'Receive',
           accountId: Option.getOrElse(
             accountId,
             () => defaultWalletTransferInput.accountId,
           ),
-          asset,
+          assetId,
         })
       }),
     ),

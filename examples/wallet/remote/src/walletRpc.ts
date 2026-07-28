@@ -1,26 +1,30 @@
 import { Schema as S } from 'effect'
 import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 import {
-  Network,
+  NetworkId,
   PortfolioSnapshot,
   SignatureProof,
   SigningChallenge,
+  TransactionHistoryPage,
+  TransactionHistoryQuery,
   TransactionPreview,
   TransactionQuote,
   TransactionRecord,
   TransactionSubmission,
-  TransferDraft,
-  WalletAccount,
+  TransferRequest,
+  TransferValidation,
+  ValidatedTransfer,
 } from 'wallet-core-example'
 
 /** Operations exposed by the deliberately unauthenticated testnet bridge. */
 export const WalletRemoteOperation = S.Literals([
   'LoadPortfolio',
-  'PreviewTransaction',
-  'PrepareTransaction',
-  'DigestTransaction',
+  'ValidateTransfer',
+  'PreviewTransfer',
+  'BuildTransferPayload',
   'SignTransaction',
   'SubmitTransaction',
+  'LoadTransactionHistory',
   'SignChallenge',
   'VerifySignatureProof',
   'ObserveTransactions',
@@ -45,25 +49,20 @@ export class WalletRemoteError extends S.TaggedErrorClass<WalletRemoteError>()(
   },
 ) {}
 
-/** An opaque reference to server-owned prepared transaction material. */
-export const PreparedTransactionHandle = S.Struct({
+/** An opaque reference to server-owned transaction payload material. */
+export const TransactionPayloadHandle = S.Struct({
   operationId: S.String,
   accountId: S.String,
-  network: Network,
+  networkId: NetworkId,
 })
-/** An opaque reference to server-owned prepared transaction material. */
-export type PreparedTransactionHandle = typeof PreparedTransactionHandle.Type
-
-/** An opaque reference to a server-owned transaction digest. */
-export const SigningDigestHandle = S.Struct({ operationId: S.String })
-/** An opaque reference to a server-owned transaction digest. */
-export type SigningDigestHandle = typeof SigningDigestHandle.Type
+/** An opaque reference to server-owned transaction payload material. */
+export type TransactionPayloadHandle = typeof TransactionPayloadHandle.Type
 
 /** An opaque reference to server-owned signed transaction material. */
 export const SignedTransactionHandle = S.Struct({
   operationId: S.String,
   accountId: S.String,
-  network: Network,
+  networkId: NetworkId,
 })
 /** An opaque reference to server-owned signed transaction material. */
 export type SignedTransactionHandle = typeof SignedTransactionHandle.Type
@@ -75,33 +74,30 @@ export const loadPortfolioRpc = Rpc.make('WalletLoadPortfolio', {
   error: WalletRemoteError,
 })
 
-/** Previews a testnet transaction without signing or submitting it. */
-export const previewTransactionRpc = Rpc.make('WalletPreviewTransaction', {
-  payload: S.Struct({ draft: TransferDraft }),
+/** Validates one generic transfer through its selected server adapter. */
+export const validateTransferRpc = Rpc.make('WalletValidateTransfer', {
+  payload: S.Struct({ request: TransferRequest }),
+  success: TransferValidation,
+  error: WalletRemoteError,
+})
+
+/** Previews one adapter-validated transfer. */
+export const previewTransferRpc = Rpc.make('WalletPreviewTransfer', {
+  payload: S.Struct({ transfer: ValidatedTransfer }),
   success: TransactionQuote,
   error: WalletRemoteError,
 })
 
-/** Prepares server-owned transaction material and returns an opaque handle. */
-export const prepareTransactionRpc = Rpc.make('WalletPrepareTransaction', {
+/** Builds server-owned transaction material and returns an opaque handle. */
+export const buildTransferPayloadRpc = Rpc.make('WalletBuildTransferPayload', {
   payload: S.Struct({ preview: TransactionPreview }),
-  success: PreparedTransactionHandle,
+  success: TransactionPayloadHandle,
   error: WalletRemoteError,
 })
 
-/** Digests prepared transaction material behind the custody boundary. */
-export const digestTransactionRpc = Rpc.make('WalletDigestTransaction', {
-  payload: S.Struct({ prepared: PreparedTransactionHandle }),
-  success: SigningDigestHandle,
-  error: WalletRemoteError,
-})
-
-/** Signs prepared transaction material behind the custody boundary. */
+/** Signs server-owned transaction material behind the custody boundary. */
 export const signTransactionRpc = Rpc.make('WalletSignTransaction', {
-  payload: S.Struct({
-    prepared: PreparedTransactionHandle,
-    digest: SigningDigestHandle,
-  }),
+  payload: S.Struct({ transaction: TransactionPayloadHandle }),
   success: SignedTransactionHandle,
   error: WalletRemoteError,
 })
@@ -112,6 +108,16 @@ export const submitTransactionRpc = Rpc.make('WalletSubmitTransaction', {
   success: TransactionSubmission,
   error: WalletRemoteError,
 })
+
+/** Loads one finite page of normalized public transaction history. */
+export const loadTransactionHistoryRpc = Rpc.make(
+  'WalletLoadTransactionHistory',
+  {
+    payload: S.Struct({ query: TransactionHistoryQuery }),
+    success: TransactionHistoryPage,
+    error: WalletRemoteError,
+  },
+)
 
 /** Signs one public challenge with the configured test wallet. */
 export const signChallengeRpc = Rpc.make('WalletSignChallenge', {
@@ -130,9 +136,9 @@ export const verifySignatureProofRpc = Rpc.make('WalletVerifySignatureProof', {
   error: WalletRemoteError,
 })
 
-/** Streams transactions observed for the requested public accounts. */
+/** Streams transactions observed for the requested public account identifiers. */
 export const observeTransactionsRpc = Rpc.make('WalletObserveTransactions', {
-  payload: S.Struct({ accounts: S.Array(WalletAccount) }),
+  payload: S.Struct({ accountIds: S.Array(S.String) }),
   success: TransactionRecord,
   error: WalletRemoteError,
   stream: true,
@@ -141,11 +147,12 @@ export const observeTransactionsRpc = Rpc.make('WalletObserveTransactions', {
 /** The typed public protocol implemented by the testnet bridge. */
 export const WalletRpcs = RpcGroup.make(
   loadPortfolioRpc,
-  previewTransactionRpc,
-  prepareTransactionRpc,
-  digestTransactionRpc,
+  validateTransferRpc,
+  previewTransferRpc,
+  buildTransferPayloadRpc,
   signTransactionRpc,
   submitTransactionRpc,
+  loadTransactionHistoryRpc,
   signChallengeRpc,
   verifySignatureProofRpc,
   observeTransactionsRpc,

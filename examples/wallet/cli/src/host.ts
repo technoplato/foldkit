@@ -12,33 +12,22 @@ import * as Runtime from 'foldkit/program-runtime'
 import {
   AtomicUnits,
   ComposedTransfer,
-  type Currency,
-  CurrencyValue,
   DomainSeparatedDigest,
   type Message,
   Model,
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
   SigningChallenge,
-  type TransferDraft,
+  TransferRequest,
   WalletProgram,
-  invalidNetworkAddressMessage,
-  networkAddressRuleMessages,
-  transferDraftFromInput,
-  validateNetworkAddress,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
-
-/** Asset selectors accepted by the raw Wallet CLI. */
-export const WalletAsset = S.Literals(['Eth', 'Sol', 'Usdc'])
-/** Asset selectors accepted by the raw Wallet CLI. */
-export type WalletAsset = typeof WalletAsset.Type
 
 /** Input shared by preview and send operations. */
 export const WalletTransferInput = S.Struct({
   transferId: S.String,
   accountId: S.String,
-  asset: WalletAsset,
+  assetId: S.String,
   destinationAddress: S.String,
   atomicUnits: S.String,
   maybeMessage: S.OptionFromNullishOr(S.String, { onNoneEncoding: null }),
@@ -50,9 +39,10 @@ export type WalletTransferInput = typeof WalletTransferInput.Type
 export const WalletChallengeInput = S.Struct({
   challengeId: S.String,
   accountId: S.String,
-  algorithm: S.Literals(['Keccak256', 'Sha256']),
+  algorithm: S.String,
   domain: S.String,
-  digestHex: S.String,
+  digest: S.String,
+  encoding: S.String,
 })
 /** Input for one domain-separated challenge signature. */
 export type WalletChallengeInput = typeof WalletChallengeInput.Type
@@ -62,7 +52,7 @@ export const WalletCliOperation = S.Union([
   S.TaggedStruct('Show', {}),
   S.TaggedStruct('Receive', {
     accountId: S.String,
-    asset: WalletAsset,
+    assetId: S.String,
   }),
   S.TaggedStruct('Preview', { input: WalletTransferInput }),
   S.TaggedStruct('Send', { input: WalletTransferInput }),
@@ -104,7 +94,7 @@ export const defaultWalletTransferInput: WalletTransferInput =
   WalletTransferInput.make({
     transferId: 'cli-transfer',
     accountId: 'simulated-ethereum-account',
-    asset: 'Eth',
+    assetId: 'ethereum:sepolia:eth',
     destinationAddress: '0x2222222222222222222222222222222222222222',
     atomicUnits: '1000000000000000',
     maybeMessage: Option.none(),
@@ -115,9 +105,11 @@ export const defaultWalletChallengeInput: WalletChallengeInput =
   WalletChallengeInput.make({
     challengeId: 'cli-challenge',
     accountId: 'simulated-ethereum-account',
-    algorithm: 'Keccak256',
+    algorithm: 'keccak256',
     domain: 'wallet.example/access/v1',
-    digestHex: '0xPublicDigest',
+    digest:
+      '0x434a8d65ff6dedb682353c0b64080d079094c7bc538c6bf29c5049c4dca72e22',
+    encoding: 'hex',
   })
 
 const walletRouter = Program.makeRouter(WalletProgram)
@@ -186,17 +178,6 @@ const startForCarrier = (
   })
 }
 
-const assetMatches = (asset: WalletAsset, currency: Currency): boolean =>
-  M.value(asset).pipe(
-    M.withReturnType<boolean>(),
-    M.when('Eth', () => currency._tag === 'Eth'),
-    M.when('Sol', () => currency._tag === 'Sol'),
-    M.when('Usdc', () => currency._tag === 'Usdc'),
-    M.exhaustive,
-  )
-
-const currencyName = (currency: Currency): string => currency._tag
-
 const loadedSnapshot = (model: Model) => {
   if (model.portfolio._tag === 'LoadedPortfolio') {
     return Effect.succeed(model.portfolio.snapshot)
@@ -213,10 +194,10 @@ const loadedSnapshot = (model: Model) => {
   }
 }
 
-const transferDraft = (
+const transferRequest = (
   model: Model,
   input: WalletTransferInput,
-): Effect.Effect<typeof TransferDraft.Type, WalletCliError> =>
+): Effect.Effect<typeof TransferRequest.Type, WalletCliError> =>
   Effect.gen(function* () {
     const snapshot = yield* loadedSnapshot(model)
     const maybeAccount = Array.findFirst(
@@ -230,23 +211,16 @@ const transferDraft = (
         }),
       )
     }
-    const addressValidation = validateNetworkAddress(
-      maybeAccount.value.network,
-      input.destinationAddress,
+    const maybeAsset = Array.findFirst(
+      snapshot.assets,
+      asset =>
+        asset.assetId === input.assetId &&
+        asset.networkId === maybeAccount.value.networkId,
     )
-    if (addressValidation._tag === 'InvalidNetworkAddress') {
+    if (Option.isNone(maybeAsset)) {
       return yield* Effect.fail(
         new WalletCliError({
-          message: Array.join(
-            [
-              invalidNetworkAddressMessage(addressValidation),
-              ...Array.map(
-                networkAddressRuleMessages(addressValidation.format),
-                rule => `- ${rule}`,
-              ),
-            ],
-            '\n',
-          ),
+          message: `Unknown Wallet asset for ${input.accountId}: ${input.assetId}`,
         }),
       )
     }
@@ -254,12 +228,12 @@ const transferDraft = (
       snapshot.balanceSnapshot.balances,
       balance =>
         balance.accountId === input.accountId &&
-        assetMatches(input.asset, balance.value.currency),
+        balance.amount.assetId === input.assetId,
     )
     if (Option.isNone(maybeBalance)) {
       return yield* Effect.fail(
         new WalletCliError({
-          message: `${input.asset} is unavailable for ${input.accountId}`,
+          message: `${input.assetId} is unavailable for ${input.accountId}`,
         }),
       )
     }
@@ -273,26 +247,14 @@ const transferDraft = (
           }),
       ),
     )
-    const maybeDraft = transferDraftFromInput({
+    return TransferRequest.make({
       transferId: input.transferId,
       accountId: input.accountId,
-      network: maybeAccount.value.network,
+      assetId: input.assetId,
       destinationAddress: input.destinationAddress,
-      value: CurrencyValue.make({
-        ...maybeBalance.value.value,
-        atomicUnits,
-      }),
+      atomicUnits,
       maybeMessage: input.maybeMessage,
     })
-    if (Option.isSome(maybeDraft)) {
-      return maybeDraft.value
-    } else {
-      return yield* Effect.fail(
-        new WalletCliError({
-          message: `${input.asset} is not executable on the selected account Layer`,
-        }),
-      )
-    }
   })
 
 const challengeForInput = (
@@ -304,33 +266,33 @@ const challengeForInput = (
     digest: DomainSeparatedDigest.make({
       algorithm: input.algorithm,
       domain: input.domain,
-      digestHex: input.digestHex,
+      digest: input.digest,
+      encoding: input.encoding,
     }),
   })
 
 const receiveSummary = (
   model: Model,
   accountId: string,
-  asset: WalletAsset,
+  assetId: string,
 ): Effect.Effect<string, WalletCliError> =>
   Effect.gen(function* () {
     const snapshot = yield* loadedSnapshot(model)
     const maybeInstruction = Array.findFirst(
       snapshot.receivingInstructions,
       instruction =>
-        instruction.accountId === accountId &&
-        assetMatches(asset, instruction.currency),
+        instruction.accountId === accountId && instruction.assetId === assetId,
     )
     if (Option.isNone(maybeInstruction)) {
       return yield* Effect.fail(
         new WalletCliError({
-          message: `No ${asset} receiving instruction for ${accountId}`,
+          message: `No ${assetId} receiving instruction for ${accountId}`,
         }),
       )
     }
     return Array.join(
       [
-        `Receive ${asset}`,
+        `Receive ${assetId}`,
         maybeInstruction.value.destinationAddress,
         maybeInstruction.value.portableUri,
       ],
@@ -354,7 +316,7 @@ const modelSummary = (model: Model): string => {
       portfolio,
       `Transaction: ${model.transaction._tag}`,
       `Signature: ${model.signature._tag}`,
-      `Observed transactions: ${model.observedTransactions.length.toString()}`,
+      `Transactions: ${model.transactions.length.toString()}`,
     ],
     '\n',
   )
@@ -369,7 +331,7 @@ const previewSummary = (
       Array.join(
         [
           `Preview ${preview.previewId}`,
-          `Fee: ${preview.estimatedFee.atomicUnits} ${currencyName(preview.estimatedFee.currency)}`,
+          `Fee: ${preview.estimatedFee.atomicUnits} ${preview.estimatedFee.assetId}`,
           `Resulting balance: ${preview.resultingBalance.atomicUnits}`,
         ],
         '\n',
@@ -379,6 +341,21 @@ const previewSummary = (
     return Effect.fail(
       new WalletCliError({
         message: `Preview failed: ${model.transaction.failure.operation}/${model.transaction.failure.code}`,
+      }),
+    )
+  } else if (model.transaction._tag === 'InvalidTransfer') {
+    return Effect.fail(
+      new WalletCliError({
+        message: Array.join(
+          [
+            model.transaction.guidance.summary,
+            ...Array.map(
+              model.transaction.guidance.details,
+              detail => `- ${detail}`,
+            ),
+          ],
+          '\n',
+        ),
       }),
     )
   } else {
@@ -396,7 +373,7 @@ const waitForObservedTransaction = (
 ): Effect.Effect<Model, WalletCliError> => {
   const containsTransaction = (model: Model): boolean =>
     Array.some(
-      model.observedTransactions,
+      model.transactions,
       transaction => transaction.transactionId === transactionId,
     )
   if (containsTransaction(runtime.readModel())) {
@@ -453,7 +430,7 @@ const sendSummary = (
       model.transaction.submission.maybeExplorerConfirmation
     const confirmationLines = Option.isSome(maybeConfirmation)
       ? [
-          `Confirm on ${maybeConfirmation.value.explorer}: ${maybeConfirmation.value.transactionUri}`,
+          `Confirm on ${maybeConfirmation.value.label}: ${maybeConfirmation.value.url}`,
         ]
       : []
     return {
@@ -469,16 +446,8 @@ const signatureSummary = (
   model: Model,
 ): Effect.Effect<string, WalletCliError> => {
   if (model.signature._tag === 'SignedChallenge') {
-    const proof = model.signature.proof
-    const signature = M.value(proof).pipe(
-      M.withReturnType<string>(),
-      M.tagsExhaustive({
-        EthereumSignatureProof: ({ signatureHex }) => signatureHex,
-        SolanaEd25519SignatureProof: ({ signatureBase58 }) => signatureBase58,
-      }),
-    )
     return Effect.succeed(
-      `Signed ${model.signature.challenge.challengeId}\n${proof._tag}: ${signature}`,
+      `Signed ${model.signature.challenge.challengeId}\n${model.signature.proof.algorithm}: ${model.signature.proof.signature}`,
     )
   } else if (model.signature._tag === 'FailedChallengeSignature') {
     return Effect.fail(
@@ -509,22 +478,22 @@ const executionForRuntime = (
           model: runtime.readModel(),
           summary: modelSummary(runtime.readModel()),
         })),
-      Receive: ({ accountId, asset }) =>
-        receiveSummary(runtime.readModel(), accountId, asset).pipe(
+      Receive: ({ accountId, assetId }) =>
+        receiveSummary(runtime.readModel(), accountId, assetId).pipe(
           Effect.map(summary => ({ model: runtime.readModel(), summary })),
         ),
       Preview: ({ input }) =>
         Effect.gen(function* () {
-          const draft = yield* transferDraft(runtime.readModel(), input)
-          const model = yield* runtime.run(ComposedTransfer.make({ draft }))
+          const request = yield* transferRequest(runtime.readModel(), input)
+          const model = yield* runtime.run(ComposedTransfer.make({ request }))
           const summary = yield* previewSummary(model)
           return { model, summary }
         }),
       Send: ({ input }) =>
         Effect.gen(function* () {
-          const draft = yield* transferDraft(runtime.readModel(), input)
+          const request = yield* transferRequest(runtime.readModel(), input)
           const previewedModel = yield* runtime.run(
-            ComposedTransfer.make({ draft }),
+            ComposedTransfer.make({ request }),
           )
           if (previewedModel.transaction._tag !== 'PreviewedTransaction') {
             const summary = yield* previewSummary(previewedModel)

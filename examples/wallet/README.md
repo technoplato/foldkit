@@ -9,23 +9,19 @@ The core also defines the renderer-neutral `walletIntentRouter`. Its canonical
 send paths have this shape:
 
 ```text
-/wallet/intent/send/eth?mode=testnet&amount=1000000000000000&to=0x...
-/wallet/intent/send/sol?mode=devnet&amount=1000000&to=...
-/wallet/intent/send/usd?mode=testnet&amount=1000000&to=0x...&rail=ethereum
+/wallet/intent/send?account=<account-id>&asset=<asset-id>&amount=<atomic-units>&to=<address>
 ```
 
-`amount` is expressed in atomic units. `usd` means USDC settlement, not a fiat
-bank transfer. Parsing is side-effect free. React, Foldkit, and Expo carriers
-decode an intent into pending Program state. Portfolio loading then produces
-the preview Command through update. Opening an intent never submits a
-transaction. Live routes remain typed unsupported until a mainnet Layer is
-configured.
+`account` and `asset` are stable identifiers from the normalized portfolio.
+`amount` is expressed in atomic units. Parsing is side-effect free. React,
+Foldkit, and Expo carriers decode an intent into pending Program state.
+Portfolio loading then starts adapter validation and preview Commands through
+update. Opening an intent never submits a transaction.
 
-Recipient validation is also portable Program data. Each supported network
-defines a Schema-backed display name, example address, and tagged rules for its
-prefix, encoded alphabet, encoded length, and decoded byte length. Every client
-prints the same human guidance from that structure. A valid recipient is paired
-with its Network before it can become a transfer draft.
+Recipient validation results are portable Program data, but address rules and
+SDKs belong to the selected adapter. Ethereum uses viem and Solana uses
+`@solana/kit` inside `testnet-node`. Core knows only validated-recipient facts
+or safe rejection guidance.
 
 ```text
 wallet/
@@ -64,8 +60,8 @@ pnpm dev:example:showcase:android
 
 The CLI, Effect Terminal, and TUI use the simulated Layer. It never contacts a
 network or controls real funds. It proves the full Program flow, including
-previews, signing, submission, transaction observation, state routes, replay
-routes, and historical inspection.
+previews, signing, submission, finite transaction history, live transaction
+observation, state routes, replay routes, and historical inspection.
 
 The React, Foldkit, and Expo clients use the typed `remote` Layer. The public
 demo endpoint is deliberately unauthenticated and controls one disposable,
@@ -75,13 +71,13 @@ transaction material.
 
 A real network Layer attaches a typed block-explorer confirmation to the
 successful submission result. Sepolia submissions link to Etherscan, and Solana
-Devnet or Testnet submissions link to the matching Solana Explorer cluster.
+Devnet submissions link to the matching Solana Explorer cluster.
 Simulated submissions deliberately carry no explorer confirmation, so a fake
 transaction identifier can never be presented as chain evidence.
 
 The temporary server policy accepts positive, native Sepolia ETH transfers to
 syntactically valid Ethereum recipients, up to 0.00001 ETH. It rejects other
-networks, currencies, malformed recipients, and larger amounts. Each visual
+networks, assets, malformed recipients, and larger amounts. Each visual
 client keeps recipient editing in the shared Model, previews through a Command,
 and requires a separate confirmation before signing and submission. Anyone who
 can reach the endpoint can still inspect the wallet, consume test ETH through
@@ -99,9 +95,17 @@ The public demos are available at:
 ## Real test-network Layers
 
 `testnet-node` implements the same `WalletClient`, `WalletSigner`, and
-`WalletCrypto` contracts with Ethereum Sepolia and Solana Devnet adapters. ETH,
-SOL, and Circle USDC values use exact atomic-unit strings. Provider URLs and
-local keys are loaded as `Redacted` configuration.
+`WalletCrypto` contracts with Ethereum Sepolia and Solana Devnet adapters.
+Each adapter projects its nested chain configuration into normalized chain,
+network, asset, account, balance, and transaction facts. ETH, SOL, and Circle
+USDC values use exact atomic-unit strings. Provider URLs and local keys are
+loaded as `Redacted` configuration.
+
+Solana implements finite cursor-based history with
+`getSignaturesForAddress`, followed by normalized transaction reads. Ethereum
+does not advertise `TransactionHistory` because standard Ethereum JSON-RPC
+does not provide complete account history. A production Ethereum adapter must
+inject an indexer, provider history API, or local indexed database.
 
 The normal suite uses fake transports. Read-only live smoke tests load public
 balances. A separately named opt-in Solana transfer test previews, signs,
@@ -121,9 +125,15 @@ managed-custody, or remote resources without changing the Wallet Program.
 
 Consumers use one `WalletSigner` contract for Ethereum and Solana. A public
 challenge identifies the account and carries a domain-separated digest. The
-injected signer returns the appropriate typed proof, and the injected crypto
-Layer verifies it. Chain-specific transaction assembly, custody, cryptography,
-and RPC clients remain behind the Effect service boundary.
+injected signer returns one normalized proof containing algorithm, public
+identity, signature, and encoding strings. The injected crypto Layer verifies
+it. Chain-specific transaction assembly, custody, cryptography, and RPC
+clients remain behind the Effect service boundary.
+
+Contract or program reading and writing are explicit TODO capabilities. They
+will use chain-neutral read and write intents plus adapter-owned executable
+payloads. Ethereum ABIs and Solana program instructions will not be added to
+Wallet core.
 
 The higher-order Staked Access Program consumes this same signing boundary. It
 binds a signed claim to an exact tape, ordered Message IDs, derived state,

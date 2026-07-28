@@ -7,7 +7,8 @@ services without placing runtime, framework, or platform checks in the Wallet
 Program.
 
 The package targets Ethereum Sepolia and Solana Devnet. It does not treat
-Solana Testnet as an alias for Devnet.
+Solana Testnet as an alias for Devnet. That distinction is adapter-local. It is
+not a case in a core Network union.
 
 ## Network and asset configuration
 
@@ -25,9 +26,8 @@ The Solana Foundation describes
 [Devnet](https://solana.com/docs/references/clusters) as the cluster application
 developers should target for public testing and development. Testnet is for
 validator and release-feature stress testing and may be intermittently
-unavailable. This adapter therefore implements `SolanaDevnet` and reports
-`SolanaTestnet` as the typed `UnsupportedCapability` reason
-`SolanaTestnetIsNotSolanaDevnet`.
+unavailable. This package therefore configures only Devnet. Another cluster is
+another adapter instance or adapter-local configuration, not a new core case.
 
 All balances, transfer amounts, fees, and resulting balances cross the adapter
 boundary as signed base-10 integer strings in exact atomic units. Every balance
@@ -50,10 +50,11 @@ imported inside this Node adapter package. Wallet core knows only the injected
 Effect services and portable Schema values.
 
 The package entrypoint exposes one set of wallet-core service contracts. It
-does not expose a chain-specific public client or signer interface. A
-`TransferDraft`, `PreparedTransaction`, `SignedTransaction`,
-`SigningChallenge`, or `SignatureProof` carries the selected Network and its
-typed data through `WalletClient`, `WalletSigner`, and `WalletCrypto`.
+does not expose a chain-specific public client or signer interface.
+`TransferRequest`, `ValidatedTransfer`, `TransactionPreview`, opaque
+`TransactionPayload`, `SignedTransaction`, `SigningChallenge`, and
+`SignatureProof` move through `WalletClient`, `WalletSigner`, and
+`WalletCrypto` using stable identifiers and normalized public facts.
 
 | Public Layer                 | Wallet-core services              | Key variables required |
 | ---------------------------- | --------------------------------- | ---------------------- |
@@ -123,12 +124,13 @@ does not need a chain-specific public custody interface.
 | Circle USDC balance      | ERC-20 `balanceOf`                                                      | `getTokenAccountsByOwner` for the Circle mint                                                                 |
 | Native preview           | EIP-1559 gas and fee estimate                                           | Compiled message fee from `getFeeForMessage`                                                                  |
 | USDC preview             | ERC-20 transfer gas estimate                                            | SPL transfer fee plus destination token-account rent when creation is required                                |
-| Prepare                  | EIP-1559 unsigned transaction fields                                    | Versioned message with fresh blockhash and exact instructions                                                 |
+| Build payload            | EIP-1559 unsigned transaction fields                                    | Versioned message with fresh blockhash and exact instructions                                                 |
 | Sign                     | Injected custody or Redacted local private key                          | Injected custody or Redacted local key-pair bytes                                                             |
 | Submit                   | Raw signed transaction                                                  | Base64 signed wire transaction                                                                                |
 | Challenge                | Raw domain-separated digest signed and verified with viem               | Raw digest signed and verified with Ed25519 Kit primitives                                                    |
 | Observe native transfers | WebSocket new-head subscription, followed by one block and receipt read | `logsSubscribe` for the wallet account, followed by one `getTransaction` read                                 |
 | Observe USDC transfers   | WebSocket ERC-20 `Transfer` log subscriptions                           | `logsSubscribe` for the wallet and its USDC associated token account, followed by parsed SPL instruction data |
+| Load history             | Not advertised without an injected indexer                              | `getSignaturesForAddress`, followed by normalized `getTransaction` reads                                      |
 
 The Ethereum transport uses viem's
 [WebSocket transport](https://viem.sh/docs/clients/transports/websocket).
@@ -149,9 +151,12 @@ path.
 
 ## Explicitly blocked or limited paths
 
-- Solana Testnet is not implemented. `capabilityForNetwork` returns a typed
-  unsupported result, and `WalletClient` rejects attempts to route Testnet
-  work through the Devnet adapter.
+- Solana Testnet is not configured. Core has no Solana Testnet case to reject.
+  A Testnet adapter would publish its own Network descriptor and route by its
+  stable identifiers.
+- Ethereum transaction history is not advertised. Standard JSON-RPC cannot
+  reconstruct complete account history, so a production Layer needs an
+  indexer, provider history API, or local indexed database.
 - Providers without the required WebSocket subscription methods are not
   silently downgraded to polling. The observation Stream fails with a
   sanitized `WalletClientError`.
@@ -160,6 +165,9 @@ path.
 - Solana transaction observation relies on the provider's parsed System and SPL
   Token instruction support. An unrecognized instruction is ignored instead
   of being guessed.
+- Solana history currently pages signatures for the public owner account.
+  Incoming token transfers that mention only its associated token account need
+  a future multi-address cursor or an indexer to appear in finite history.
 - This package does not request airdrops, fund accounts, or mint tokens during
   setup or the normal suite. Its separately named live transfer tests send only
   when `WALLET_ETHEREUM_SEPOLIA_LIVE_TRANSFER=1` or
@@ -188,7 +196,7 @@ key.
 
 Two separate live transfer tests exercise the real test-network transports and
 local custody Layers. Each starts the receiver Stream before it previews,
-prepares, signs, and submits the transfer, then waits for the matching incoming
+builds, signs, and submits the transfer, then waits for the matching incoming
 transaction record. Ethereum observes a WebSocket `newHeads` notification.
 Solana observes a `logsSubscribe` notification. Neither test performs a balance
 loop, signature-status loop, or transaction-history loop.
@@ -257,8 +265,8 @@ those provider-specific inputs.
 `examples/wallet/remote` defines a renderer- and platform-independent RPC
 protocol plus a Fetch-backed Layer. `examples/wallet/testnet-server` implements
 that protocol with the Sepolia transport and custody Layers. The bridge keeps
-prepared transactions, digests, signed payloads, provider URLs, and private key
-bytes behind the server boundary. Clients receive opaque operation IDs.
+transaction payloads, signed payloads, provider URLs, and private key bytes
+behind the server boundary. Clients receive opaque operation IDs.
 
 This split generalizes to any capability that combines public state with a
 protected operation:

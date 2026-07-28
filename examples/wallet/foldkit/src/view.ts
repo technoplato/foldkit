@@ -10,17 +10,17 @@ import {
   RequestedWalletRefresh,
   type TransactionPreview,
   type TransactionState,
-  currencyValueLabel,
-  invalidNetworkAddressMessage,
+  assetAmountLabel,
+  assetAmountLabelForModel,
   makeWalletTestChallenge,
-  networkAddressRuleMessage,
-  networkLabel,
   primaryReceivingInstruction,
   primaryWalletAccount,
+  primaryWalletAsset,
   primaryWalletBalance,
+  primaryWalletNetwork,
   shortenedAddress,
-  transferRecipientFormat,
   transferRecipientInput,
+  walletDemoTransferAtomicUnits,
 } from 'wallet-core-example'
 
 const maybePreviewForTransaction = (
@@ -30,11 +30,14 @@ const maybePreviewForTransaction = (
     M.withReturnType<Option.Option<TransactionPreview>>(),
     M.tagsExhaustive({
       IdleTransaction: () => Option.none(),
+      ValidatingTransfer: () => Option.none(),
+      InvalidTransfer: () => Option.none(),
       PreviewingTransaction: () => Option.none(),
       PreviewedTransaction: ({ preview }) => Option.some(preview),
       SubmittingTransaction: ({ preview }) => Option.some(preview),
       SubmittedTransaction: ({ preview }) => Option.some(preview),
       FailedTransactionPreview: () => Option.none(),
+      FailedTransferValidation: () => Option.none(),
       FailedTransactionSubmission: ({ preview }) => Option.some(preview),
     }),
   )
@@ -44,11 +47,14 @@ const transactionStatus = (transaction: TransactionState): string =>
     M.withReturnType<string>(),
     M.tagsExhaustive({
       IdleTransaction: () => 'Ready',
+      ValidatingTransfer: () => 'Validating recipient…',
+      InvalidTransfer: () => 'Recipient needs attention',
       PreviewingTransaction: () => 'Preparing preview…',
       PreviewedTransaction: () => 'Check before sending',
       SubmittingTransaction: () => 'Sending…',
       SubmittedTransaction: () => 'Sent',
       FailedTransactionPreview: () => 'Preview failed',
+      FailedTransferValidation: () => 'Validation failed',
       FailedTransactionSubmission: () => 'Send failed',
     }),
   )
@@ -60,12 +66,17 @@ const walletHero = (model: Model): Html => {
   const balanceLabel = Option.match(maybeBalance, {
     onNone: () =>
       model.portfolio._tag === 'LoadingPortfolio' ? 'Loading…' : '—',
-    onSome: balance => currencyValueLabel(balance.value),
+    onSome: balance => assetAmountLabelForModel(model, balance.amount),
   })
   const accountLabel = Option.match(maybeAccount, {
     onNone: () => 'Sepolia test wallet',
-    onSome: account =>
-      `${networkLabel(account.network)} · ${shortenedAddress(account.address)}`,
+    onSome: account => {
+      const networkName = Option.match(primaryWalletNetwork(model), {
+        onNone: () => account.networkId,
+        onSome: network => network.displayName,
+      })
+      return `${networkName} · ${shortenedAddress(account.address)}`
+    },
   })
   return h.header(
     [h.Class('wallet-hero cardboard-panel')],
@@ -119,11 +130,12 @@ const sendButton = (model: Model): Html => {
     )
   }
   const isBusy =
+    model.transaction._tag === 'ValidatingTransfer' ||
     model.transaction._tag === 'PreviewingTransaction' ||
     model.transaction._tag === 'SubmittingTransaction'
   if (
     Option.isNone(primaryWalletBalance(model)) ||
-    model.transferRecipient._tag !== 'ValidTransferRecipient' ||
+    model.transferRecipient._tag === 'EmptyTransferRecipient' ||
     isBusy
   ) {
     return h.button(
@@ -152,14 +164,14 @@ const submittedTransactionConfirmation = (
     model.transaction.submission.maybeExplorerConfirmation
   const explorerConfirmation = Option.isSome(maybeConfirmation)
     ? [
-        h.span([], [`Confirm it on ${maybeConfirmation.value.explorer}.`]),
+        h.span([], [`Confirm it on ${maybeConfirmation.value.label}.`]),
         h.a(
           [
-            h.Href(maybeConfirmation.value.transactionUri),
+            h.Href(maybeConfirmation.value.url),
             h.Target('_blank'),
             h.Rel('noopener noreferrer'),
           ],
-          [`View on ${maybeConfirmation.value.explorer}`],
+          [`View on ${maybeConfirmation.value.label}`],
         ),
       ]
     : []
@@ -178,15 +190,34 @@ const submittedTransactionConfirmation = (
 const sendMoney = (model: Model): Html => {
   const h = html<Message>()
   const maybePreview = maybePreviewForTransaction(model.transaction)
-  const recipientFormat = transferRecipientFormat(model.transferRecipient)
+  const networkName = Option.match(primaryWalletNetwork(model), {
+    onNone: () => 'selected network',
+    onSome: network => network.displayName,
+  })
+  const exampleAddress = Option.match(primaryWalletAccount(model), {
+    onNone: () => 'Recipient address',
+    onSome: account => account.address,
+  })
+  const transferAmount = Option.match(primaryWalletAsset(model), {
+    onNone: () => walletDemoTransferAtomicUnits,
+    onSome: asset =>
+      assetAmountLabel(
+        {
+          assetId: asset.assetId,
+          atomicUnits: walletDemoTransferAtomicUnits,
+          observedAt: 0,
+        },
+        asset,
+      ),
+  })
   const recipientField = h.label(
     [h.Class('wallet-recipient'), h.For('wallet-recipient')],
     [
-      h.span([], [`Recipient on ${recipientFormat.networkName}`]),
+      h.span([], [`Recipient on ${networkName}`]),
       h.input([
         h.Id('wallet-recipient'),
         h.Type('text'),
-        h.Placeholder(recipientFormat.exampleAddress),
+        h.Placeholder(exampleAddress),
         h.Spellcheck(false),
         h.Value(transferRecipientInput(model.transferRecipient)),
         h.Disabled(model.transaction._tag === 'SubmittingTransaction'),
@@ -200,22 +231,11 @@ const sendMoney = (model: Model): Html => {
           h.div(
             [h.Class('wallet-validation'), h.Role('alert')],
             [
-              h.p(
-                [],
-                [
-                  invalidNetworkAddressMessage(
-                    model.transferRecipient.validation,
-                  ),
-                ],
-              ),
+              h.p([], [model.transferRecipient.guidance.summary]),
               h.ul(
                 [],
-                Array.map(
-                  model.transferRecipient.validation.format.rules,
-                  rule => {
-                    const ruleMessage = networkAddressRuleMessage(rule)
-                    return h.li([h.Key(ruleMessage)], [ruleMessage])
-                  },
+                Array.map(model.transferRecipient.guidance.details, detail =>
+                  h.li([h.Key(detail)], [detail]),
                 ),
               ),
             ],
@@ -238,7 +258,11 @@ const sendMoney = (model: Model): Html => {
               h.span([], ['To']),
               h.strong(
                 [],
-                [shortenedAddress(transactionPreview.draft.destinationAddress)],
+                [
+                  shortenedAddress(
+                    transactionPreview.transfer.recipient.displayAddress,
+                  ),
+                ],
               ),
             ],
           ),
@@ -248,7 +272,12 @@ const sendMoney = (model: Model): Html => {
               h.span([], ['Network fee']),
               h.strong(
                 [],
-                [currencyValueLabel(transactionPreview.estimatedFee)],
+                [
+                  assetAmountLabelForModel(
+                    model,
+                    transactionPreview.estimatedFee,
+                  ),
+                ],
               ),
             ],
           ),
@@ -258,7 +287,12 @@ const sendMoney = (model: Model): Html => {
               h.span([], ['Balance after']),
               h.strong(
                 [],
-                [currencyValueLabel(transactionPreview.resultingBalance)],
+                [
+                  assetAmountLabelForModel(
+                    model,
+                    transactionPreview.resultingBalance,
+                  ),
+                ],
               ),
             ],
           ),
@@ -276,7 +310,7 @@ const sendMoney = (model: Model): Html => {
             [],
             [
               h.p([h.Class('cardboard-eyebrow')], ['Send']),
-              h.h2([], ['0.00001 ETH']),
+              h.h2([], [transferAmount]),
             ],
           ),
           h.span(
@@ -296,7 +330,7 @@ const sendMoney = (model: Model): Html => {
 
 const activity = (model: Model): Html => {
   const h = html<Message>()
-  const entries = Array.match(model.observedTransactions, {
+  const entries = Array.match(model.transactions, {
     onEmpty: () => [h.p([h.Class('wallet-empty')], ['Nothing sent yet.'])],
     onNonEmpty: transactions => [
       h.ul(
@@ -306,7 +340,10 @@ const activity = (model: Model): Html => {
             [h.Key(transaction.transactionId)],
             [
               h.span([], [transaction.status]),
-              h.strong([], [currencyValueLabel(transaction.value)]),
+              h.strong(
+                [],
+                [assetAmountLabelForModel(model, transaction.amount)],
+              ),
               h.small([], [shortenedAddress(transaction.transactionId)]),
             ],
           ),

@@ -1,27 +1,20 @@
+import { Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { EthereumSepolia, SolanaDevnet, SolanaTestnet } from './currency.js'
-import { blockExplorerConfirmation } from './explorer.js'
+import { BlockExplorerConfirmation } from './explorer.js'
 
-describe('Wallet block explorer confirmation', () => {
-  it('builds the Sepolia Etherscan transaction URI', () => {
+describe('BlockExplorerConfirmation', () => {
+  it('accepts an adapter-provided explorer link without a chain union', () => {
     expect(
-      blockExplorerConfirmation(EthereumSepolia.make({}), '0xtransaction'),
-    ).toMatchObject({
-      explorer: 'Etherscan',
-      networkName: 'Ethereum Sepolia',
-      transactionUri: 'https://sepolia.etherscan.io/tx/0xtransaction',
+      S.decodeUnknownSync(BlockExplorerConfirmation)({
+        label: 'Explorer',
+        transactionId: 'transaction-1',
+        url: 'https://explorer.example/transaction-1',
+      }),
+    ).toEqual({
+      label: 'Explorer',
+      transactionId: 'transaction-1',
+      url: 'https://explorer.example/transaction-1',
     })
-  })
-
-  it('builds cluster-specific Solana Explorer transaction URIs', () => {
-    expect(
-      blockExplorerConfirmation(SolanaDevnet.make({}), 'signature')
-        .transactionUri,
-    ).toBe('https://explorer.solana.com/tx/signature?cluster=devnet')
-    expect(
-      blockExplorerConfirmation(SolanaTestnet.make({}), 'signature')
-        .transactionUri,
-    ).toBe('https://explorer.solana.com/tx/signature?cluster=testnet')
   })
 })

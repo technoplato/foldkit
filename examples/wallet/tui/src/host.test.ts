@@ -43,6 +43,6 @@ describe('Wallet OpenTUI host', () => {
       'ShowWalletReplayPath',
     ])
     expect(walletOpenTuiSummary(model)).toContain('2 accounts')
-    expect(walletOpenTuiSummary(model)).toContain('Observed 0')
+    expect(walletOpenTuiSummary(model)).toContain('Transactions 3')
   })
 })

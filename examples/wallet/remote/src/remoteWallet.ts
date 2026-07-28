@@ -13,15 +13,13 @@ import {
   type WalletResources,
   WalletSigner,
   WalletSignerError,
-  makePreparedTransaction,
   makeSignedTransaction,
-  makeSigningDigest,
+  makeTransactionPayload,
 } from 'wallet-core-example'
 
 import {
-  PreparedTransactionHandle,
   SignedTransactionHandle,
-  SigningDigestHandle,
+  TransactionPayloadHandle,
   type WalletRemoteError,
   WalletRpcs,
 } from './walletRpc.js'
@@ -76,16 +74,20 @@ export const makeRemoteWalletResources = (
         loadPortfolio: remote
           .WalletLoadPortfolio({})
           .pipe(Effect.mapError(toClientError)),
-        previewTransaction: draft =>
+        validateTransfer: request =>
           remote
-            .WalletPreviewTransaction({ draft })
+            .WalletValidateTransfer({ request })
             .pipe(Effect.mapError(toClientError)),
-        prepareTransaction: preview =>
-          remote.WalletPrepareTransaction({ preview }).pipe(
+        previewTransfer: transfer =>
+          remote
+            .WalletPreviewTransfer({ transfer })
+            .pipe(Effect.mapError(toClientError)),
+        buildTransferPayload: preview =>
+          remote.WalletBuildTransferPayload({ preview }).pipe(
             Effect.map(handle =>
-              makePreparedTransaction(
+              makeTransactionPayload(
                 handle.accountId,
-                handle.network,
+                handle.networkId,
                 handle.operationId,
               ),
             ),
@@ -97,34 +99,35 @@ export const makeRemoteWalletResources = (
               signed: SignedTransactionHandle.make({
                 operationId: Redacted.value(signed.payload),
                 accountId: signed.accountId,
-                network: signed.network,
+                networkId: signed.networkId,
               }),
             })
             .pipe(Effect.mapError(toClientError)),
-        observeTransactions: accounts =>
+        loadTransactionHistory: query =>
           remote
-            .WalletObserveTransactions({ accounts })
+            .WalletLoadTransactionHistory({ query })
+            .pipe(Effect.mapError(toClientError)),
+        observeTransactions: accountIds =>
+          remote
+            .WalletObserveTransactions({ accountIds })
             .pipe(Stream.mapError(toClientError)),
       })
 
       const signer = WalletSigner.of({
-        signTransaction: (prepared, digest) =>
+        signTransaction: transaction =>
           remote
             .WalletSignTransaction({
-              prepared: PreparedTransactionHandle.make({
-                operationId: Redacted.value(prepared.payload),
-                accountId: prepared.accountId,
-                network: prepared.network,
-              }),
-              digest: SigningDigestHandle.make({
-                operationId: Redacted.value(digest),
+              transaction: TransactionPayloadHandle.make({
+                operationId: Redacted.value(transaction.payload),
+                accountId: transaction.accountId,
+                networkId: transaction.networkId,
               }),
             })
             .pipe(
               Effect.map(handle =>
                 makeSignedTransaction(
                   handle.accountId,
-                  handle.network,
+                  handle.networkId,
                   handle.operationId,
                 ),
               ),
@@ -137,19 +140,6 @@ export const makeRemoteWalletResources = (
       })
 
       const crypto = WalletCrypto.of({
-        digestTransaction: prepared =>
-          remote
-            .WalletDigestTransaction({
-              prepared: PreparedTransactionHandle.make({
-                operationId: Redacted.value(prepared.payload),
-                accountId: prepared.accountId,
-                network: prepared.network,
-              }),
-            })
-            .pipe(
-              Effect.map(handle => makeSigningDigest(handle.operationId)),
-              Effect.mapError(toCryptoError),
-            ),
         verifySignatureProof: (challenge, proof) =>
           remote
             .WalletVerifySignatureProof({ challenge, proof })

@@ -1,60 +1,62 @@
-import { Context, Data, Effect, Redacted, Stream } from 'effect'
+import { Context, Data, Effect, Redacted, Schema as S, Stream } from 'effect'
 
-import { type Network } from './currency.js'
+import { NetworkId } from './currency.js'
 import {
   type PortfolioSnapshot,
   type SignatureProof,
   type SigningChallenge,
+  type TransactionHistoryPage,
+  type TransactionHistoryQuery,
   type TransactionPreview,
   type TransactionQuote,
   type TransactionRecord,
   type TransactionSubmission,
-  type TransferDraft,
-  type WalletAccount,
+  type TransferRequest,
+  type TransferValidation,
+  type ValidatedTransfer,
 } from './model.js'
 
-/** A prepared transaction whose encoded payload is protected from logging. */
-export type PreparedTransaction = Readonly<{
-  accountId: string
-  network: Network
-  payload: Redacted.Redacted<string>
-}>
-
-/** A signing digest protected from logging. */
-export type SigningDigest = Redacted.Redacted<string>
-
-/** A signed transaction whose encoded payload is protected from logging. */
-export type SignedTransaction = Readonly<{
-  accountId: string
-  network: Network
-  payload: Redacted.Redacted<string>
-}>
-
-/** Creates a protected prepared transaction for a WalletClient Layer. */
-export const makePreparedTransaction = (
-  accountId: string,
-  network: Network,
-  payload: string,
-): PreparedTransaction => ({
-  accountId,
-  network,
-  payload: Redacted.make(payload),
+/** An opaque transaction payload protected from logging and replay. */
+export const TransactionPayload = S.Struct({
+  accountId: S.String,
+  networkId: NetworkId,
+  payload: S.Redacted(S.String),
 })
+/** An opaque transaction payload protected from logging and replay. */
+export type TransactionPayload = typeof TransactionPayload.Type
 
-/** Creates a protected signing digest for a WalletCrypto Layer. */
-export const makeSigningDigest = (digest: string): SigningDigest =>
-  Redacted.make(digest)
+/** A signed transaction protected from logging and replay. */
+export const SignedTransaction = S.Struct({
+  accountId: S.String,
+  networkId: NetworkId,
+  payload: S.Redacted(S.String),
+})
+/** A signed transaction protected from logging and replay. */
+export type SignedTransaction = typeof SignedTransaction.Type
 
-/** Creates a protected signed transaction for a WalletSigner Layer. */
+/** Creates a protected payload built by one chain adapter. */
+export const makeTransactionPayload = (
+  accountId: string,
+  networkId: NetworkId,
+  payload: string,
+): TransactionPayload =>
+  TransactionPayload.make({
+    accountId,
+    networkId,
+    payload: Redacted.make(payload),
+  })
+
+/** Creates a protected signed transaction returned by one custody adapter. */
 export const makeSignedTransaction = (
   accountId: string,
-  network: Network,
+  networkId: NetworkId,
   payload: string,
-): SignedTransaction => ({
-  accountId,
-  network,
-  payload: Redacted.make(payload),
-})
+): SignedTransaction =>
+  SignedTransaction.make({
+    accountId,
+    networkId,
+    payload: Redacted.make(payload),
+  })
 
 /** A sanitized networking failure that contains no host cause. */
 export class WalletClientError extends Data.TaggedError('WalletClientError')<{
@@ -71,34 +73,39 @@ export class WalletCryptoError extends Data.TaggedError('WalletCryptoError')<{
   readonly code: 'Unavailable' | 'InvalidPayload' | 'VerificationFailed'
 }> {}
 
-/** Networking capabilities implemented by one injected chain Layer. */
+/** Chain-agnostic networking capabilities implemented by host Layers. */
 export type WalletClientService = Readonly<{
   loadPortfolio: Effect.Effect<PortfolioSnapshot, WalletClientError>
-  previewTransaction: (
-    draft: TransferDraft,
+  validateTransfer: (
+    request: TransferRequest,
+  ) => Effect.Effect<TransferValidation, WalletClientError>
+  previewTransfer: (
+    transfer: ValidatedTransfer,
   ) => Effect.Effect<TransactionQuote, WalletClientError>
-  prepareTransaction: (
+  buildTransferPayload: (
     preview: TransactionPreview,
-  ) => Effect.Effect<PreparedTransaction, WalletClientError>
+  ) => Effect.Effect<TransactionPayload, WalletClientError>
   submitTransaction: (
     transaction: SignedTransaction,
   ) => Effect.Effect<TransactionSubmission, WalletClientError>
+  loadTransactionHistory: (
+    query: TransactionHistoryQuery,
+  ) => Effect.Effect<TransactionHistoryPage, WalletClientError>
   observeTransactions: (
-    accounts: ReadonlyArray<WalletAccount>,
+    accountIds: ReadonlyArray<string>,
   ) => Stream.Stream<TransactionRecord, WalletClientError>
 }>
 
-/** An injected networking client selected by the host. */
+/** An injected Wallet client selected and composed by the host. */
 export class WalletClient extends Context.Service<
   WalletClient,
   WalletClientService
 >()('Wallet/WalletClient') {}
 
-/** Signing capabilities implemented by an injected account custody Layer. */
+/** Signing capabilities implemented by injected account custody Layers. */
 export type WalletSignerService = Readonly<{
   signTransaction: (
-    prepared: PreparedTransaction,
-    digest: SigningDigest,
+    payload: TransactionPayload,
   ) => Effect.Effect<SignedTransaction, WalletSignerError>
   signChallenge: (
     challenge: SigningChallenge,
@@ -111,11 +118,8 @@ export class WalletSigner extends Context.Service<
   WalletSignerService
 >()('Wallet/WalletSigner') {}
 
-/** Cryptographic capabilities implemented by an injected platform Layer. */
+/** Public cryptographic verification implemented by injected adapters. */
 export type WalletCryptoService = Readonly<{
-  digestTransaction: (
-    prepared: PreparedTransaction,
-  ) => Effect.Effect<SigningDigest, WalletCryptoError>
   verifySignatureProof: (
     challenge: SigningChallenge,
     proof: SignatureProof,

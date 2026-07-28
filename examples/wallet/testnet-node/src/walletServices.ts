@@ -3,19 +3,19 @@ import {
   Context,
   Effect,
   Layer,
-  Match as M,
+  Option,
+  Schema as S,
   Stream,
 } from 'effect'
 import {
   BalanceSnapshot,
   PortfolioSnapshot,
-  type PreparedTransaction,
-  type SignatureProof,
-  type SignedTransaction,
-  type SigningChallenge,
+  TransactionHistoryPage,
+  type TransactionHistoryQuery,
+  type TransactionPayload,
   type TransactionPreview,
-  type TransferDraft,
-  type WalletAccount,
+  type TransferRequest,
+  type ValidatedTransfer,
   WalletClient,
   WalletClientError,
   WalletCrypto,
@@ -26,6 +26,7 @@ import {
 } from 'wallet-core-example'
 
 import {
+  type ChainCustodyService,
   type ChainTransportService,
   EthereumSepoliaCustody,
   EthereumSepoliaTransport,
@@ -33,146 +34,211 @@ import {
   SolanaDevnetTransport,
 } from './chainTransport.js'
 
-const unsupportedNetworkError = () =>
-  new WalletClientError({ code: 'Rejected' })
+const HistoryCursorEntry = S.Struct({
+  networkId: S.String,
+  cursor: S.String,
+})
+const CompositeHistoryCursor = S.Array(HistoryCursorEntry)
+const CompositeHistoryCursorJson = S.fromJsonString(CompositeHistoryCursor)
 
-const clientForDraft = (
-  draft: TransferDraft,
-  ethereum: ChainTransportService,
-  solana: ChainTransportService,
-) =>
-  M.value(draft.network).pipe(
-    M.withReturnType<Effect.Effect<ChainTransportService, WalletClientError>>(),
-    M.tagsExhaustive({
-      EthereumSepolia: () => Effect.succeed(ethereum),
-      SolanaDevnet: () => Effect.succeed(solana),
-    }),
+const unsupportedClient = () => new WalletClientError({ code: 'Rejected' })
+
+const transportForRequest = (
+  request: TransferRequest,
+  transports: ReadonlyArray<ChainTransportService>,
+): Effect.Effect<ChainTransportService, WalletClientError> => {
+  const maybeTransport = Array_.findFirst(
+    transports,
+    transport =>
+      transport.account.accountId === request.accountId &&
+      Array_.some(transport.assets, asset => asset.assetId === request.assetId),
   )
+  if (Option.isSome(maybeTransport)) {
+    return Effect.succeed(maybeTransport.value)
+  } else {
+    return Effect.fail(unsupportedClient())
+  }
+}
 
-const clientForPreview = (
+const transportForPreview = (
   preview: TransactionPreview,
-  ethereum: ChainTransportService,
-  solana: ChainTransportService,
-) => clientForDraft(preview.draft, ethereum, solana)
+  transports: ReadonlyArray<ChainTransportService>,
+) => transportForRequest(preview.transfer.request, transports)
 
-const clientForPrepared = (
-  prepared: PreparedTransaction,
-  ethereum: ChainTransportService,
-  solana: ChainTransportService,
-) =>
-  M.value(prepared.network).pipe(
-    M.withReturnType<Effect.Effect<ChainTransportService, WalletClientError>>(),
-    M.tagsExhaustive({
-      EthereumSepolia: () => Effect.succeed(ethereum),
-      SolanaDevnet: () => Effect.succeed(solana),
-      SolanaTestnet: () => Effect.fail(unsupportedNetworkError()),
-    }),
+const transportForPayload = (
+  payload: TransactionPayload,
+  transports: ReadonlyArray<ChainTransportService>,
+): Effect.Effect<ChainTransportService, WalletClientError> => {
+  const maybeTransport = Array_.findFirst(
+    transports,
+    transport =>
+      transport.account.accountId === payload.accountId &&
+      transport.network.networkId === payload.networkId,
   )
+  if (Option.isSome(maybeTransport)) {
+    return Effect.succeed(maybeTransport.value)
+  } else {
+    return Effect.fail(unsupportedClient())
+  }
+}
 
-const clientForSigned = (
-  signed: SignedTransaction,
-  ethereum: ChainTransportService,
-  solana: ChainTransportService,
-) =>
-  M.value(signed.network).pipe(
-    M.withReturnType<Effect.Effect<ChainTransportService, WalletClientError>>(),
-    M.tagsExhaustive({
-      EthereumSepolia: () => Effect.succeed(ethereum),
-      SolanaDevnet: () => Effect.succeed(solana),
-      SolanaTestnet: () => Effect.fail(unsupportedNetworkError()),
-    }),
+const custodyForPayload = (
+  payload: TransactionPayload,
+  custodyAdapters: ReadonlyArray<ChainCustodyService>,
+): Effect.Effect<ChainCustodyService, WalletSignerError> => {
+  const maybeCustody = Array_.findFirst(
+    custodyAdapters,
+    custody =>
+      custody.accountId === payload.accountId &&
+      custody.networkId === payload.networkId,
   )
-
-const isRequestedAccount = (
-  accounts: ReadonlyArray<WalletAccount>,
-  accountId: string,
-): boolean => Array_.some(accounts, account => account.accountId === accountId)
-
-const hasUnsupportedAccount = (
-  accounts: ReadonlyArray<WalletAccount>,
-): boolean =>
-  Array_.some(accounts, account => account.network._tag === 'SolanaTestnet')
+  if (Option.isSome(maybeCustody)) {
+    return Effect.succeed(maybeCustody.value)
+  } else {
+    return Effect.fail(new WalletSignerError({ code: 'UnsupportedAccount' }))
+  }
+}
 
 const observationStream = (
-  accounts: ReadonlyArray<WalletAccount>,
-  ethereum: ChainTransportService,
-  solana: ChainTransportService,
-) => {
-  if (hasUnsupportedAccount(accounts)) {
-    return Stream.fail(unsupportedNetworkError())
+  accountIds: ReadonlyArray<string>,
+  transports: ReadonlyArray<ChainTransportService>,
+) =>
+  Stream.mergeAll(
+    Array_.map(transports, transport =>
+      Array_.contains(accountIds, transport.account.accountId)
+        ? transport.observeTransactions
+        : Stream.empty,
+    ),
+    { concurrency: 'unbounded' },
+  )
+
+const decodeHistoryCursors = (query: TransactionHistoryQuery) => {
+  if (Option.isNone(query.maybeCursor)) {
+    return []
   }
-  const streams = [
-    isRequestedAccount(accounts, ethereum.account.accountId)
-      ? ethereum.observeTransactions
-      : Stream.empty,
-    isRequestedAccount(accounts, solana.account.accountId)
-      ? solana.observeTransactions
-      : Stream.empty,
-  ]
-  return Stream.mergeAll(streams, { concurrency: 'unbounded' })
+  return S.decodeUnknownSync(CompositeHistoryCursorJson)(
+    query.maybeCursor.value,
+  )
 }
 
 const makeWalletNetworkServices = Effect.gen(function* () {
   const ethereum = yield* EthereumSepoliaTransport
   const solana = yield* SolanaDevnetTransport
+  const transports = [ethereum, solana]
 
   const client = WalletClient.of({
-    loadPortfolio: Effect.zip(ethereum.loadPortfolio, solana.loadPortfolio, {
-      concurrent: true,
-    }).pipe(
-      Effect.map(([ethereumPortfolio, solanaPortfolio]) => {
-        const observedAt = Math.max(
-          ethereumPortfolio.observedAt,
-          solanaPortfolio.observedAt,
-        )
-        return PortfolioSnapshot.make({
-          accounts: [ethereumPortfolio.account, solanaPortfolio.account],
+    loadPortfolio: Effect.all(
+      Array_.map(transports, transport => transport.loadPortfolio),
+      { concurrency: 'unbounded' },
+    ).pipe(
+      Effect.map(portfolios =>
+        PortfolioSnapshot.make({
+          chains: Array_.map(portfolios, portfolio => portfolio.chain),
+          networks: Array_.map(portfolios, portfolio => portfolio.network),
+          assets: Array_.flatMap(portfolios, portfolio => portfolio.assets),
+          accounts: Array_.map(portfolios, portfolio => portfolio.account),
           balanceSnapshot: BalanceSnapshot.make({
-            observedAt,
-            balances: Array_.appendAll(
-              ethereumPortfolio.balances,
-              solanaPortfolio.balances,
+            observedAt: Array_.reduce(portfolios, 0, (latest, portfolio) =>
+              Math.max(latest, portfolio.observedAt),
+            ),
+            balances: Array_.flatMap(
+              portfolios,
+              portfolio => portfolio.balances,
             ),
           }),
-          receivingInstructions: Array_.appendAll(
-            ethereumPortfolio.receivingInstructions,
-            solanaPortfolio.receivingInstructions,
+          receivingInstructions: Array_.flatMap(
+            portfolios,
+            portfolio => portfolio.receivingInstructions,
           ),
-        })
-      }),
-    ),
-    previewTransaction: draft =>
-      clientForDraft(draft, ethereum, solana).pipe(
-        Effect.flatMap(chain => chain.previewTransaction(draft)),
+        }),
       ),
-    prepareTransaction: preview =>
-      clientForPreview(preview, ethereum, solana).pipe(
-        Effect.flatMap(chain => chain.prepareTransaction(preview)),
+    ),
+    validateTransfer: request =>
+      transportForRequest(request, transports).pipe(
+        Effect.flatMap(transport => transport.validateTransfer(request)),
+      ),
+    previewTransfer: (transfer: ValidatedTransfer) =>
+      transportForRequest(transfer.request, transports).pipe(
+        Effect.flatMap(transport => transport.previewTransfer(transfer)),
+      ),
+    buildTransferPayload: preview =>
+      transportForPreview(preview, transports).pipe(
+        Effect.flatMap(transport => transport.buildTransferPayload(preview)),
       ),
     submitTransaction: signed =>
-      clientForSigned(signed, ethereum, solana).pipe(
-        Effect.flatMap(chain => chain.submitTransaction(signed)),
+      transportForPayload(signed, transports).pipe(
+        Effect.flatMap(transport => transport.submitTransaction(signed)),
       ),
-    observeTransactions: accounts =>
-      observationStream(accounts, ethereum, solana),
+    loadTransactionHistory: query =>
+      Effect.try({
+        try: () => decodeHistoryCursors(query),
+        catch: () => new WalletClientError({ code: 'InvalidResponse' }),
+      }).pipe(
+        Effect.flatMap(cursors => {
+          const selectedTransports = Array_.filter(
+            transports,
+            transport =>
+              Array_.contains(query.accountIds, transport.account.accountId) &&
+              Array_.contains(
+                transport.network.capabilities,
+                'TransactionHistory',
+              ),
+          )
+          return Effect.all(
+            Array_.map(selectedTransports, transport => {
+              const maybeCursor = Array_.findFirst(
+                cursors,
+                cursor => cursor.networkId === transport.network.networkId,
+              ).pipe(Option.map(cursor => cursor.cursor))
+              return transport.loadTransactionHistory({
+                ...query,
+                accountIds: [transport.account.accountId],
+                maybeCursor,
+              })
+            }),
+            { concurrency: 'unbounded' },
+          ).pipe(
+            Effect.map(pages => {
+              const nextCursors = Array_.getSomes(
+                Array_.map(pages, (page, index) =>
+                  Option.flatMap(
+                    Array_.get(selectedTransports, index),
+                    transport =>
+                      Option.map(page.maybeNextCursor, cursor =>
+                        HistoryCursorEntry.make({
+                          networkId: transport.network.networkId,
+                          cursor,
+                        }),
+                      ),
+                  ),
+                ),
+              )
+              return TransactionHistoryPage.make({
+                records: Array_.flatMap(pages, page => page.records),
+                maybeNextCursor: Array_.match(nextCursors, {
+                  onEmpty: () => Option.none(),
+                  onNonEmpty: cursors =>
+                    Option.some(
+                      S.encodeSync(CompositeHistoryCursorJson)(cursors),
+                    ),
+                }),
+              })
+            }),
+          )
+        }),
+      ),
+    observeTransactions: accountIds =>
+      observationStream(accountIds, transports),
   })
 
   const crypto = WalletCrypto.of({
-    digestTransaction: prepared =>
-      clientForPrepared(prepared, ethereum, solana).pipe(
-        Effect.mapError(
-          () => new WalletCryptoError({ code: 'InvalidPayload' }),
-        ),
-        Effect.flatMap(chain => chain.digestTransaction(prepared)),
-      ),
-    verifySignatureProof: (
-      challenge: SigningChallenge,
-      proof: SignatureProof,
-    ) => {
-      if (challenge.accountId === ethereum.account.accountId) {
-        return ethereum.verifySignatureProof(challenge, proof)
-      } else if (challenge.accountId === solana.account.accountId) {
-        return solana.verifySignatureProof(challenge, proof)
+    verifySignatureProof: (challenge, proof) => {
+      const maybeTransport = Array_.findFirst(
+        transports,
+        transport => transport.account.accountId === challenge.accountId,
+      )
+      if (Option.isSome(maybeTransport)) {
+        return maybeTransport.value.verifySignatureProof(challenge, proof)
       } else {
         return Effect.fail(new WalletCryptoError({ code: 'InvalidPayload' }))
       }
@@ -185,26 +251,22 @@ const makeWalletNetworkServices = Effect.gen(function* () {
 })
 
 const makeWalletSigner = Effect.gen(function* () {
-  const ethereumCustody = yield* EthereumSepoliaCustody
-  const solanaCustody = yield* SolanaDevnetCustody
+  const ethereum = yield* EthereumSepoliaCustody
+  const solana = yield* SolanaDevnetCustody
+  const custodyAdapters = [ethereum, solana]
 
   return WalletSigner.of({
-    signTransaction: (prepared, digest) =>
-      M.value(prepared.network).pipe(
-        M.withReturnType<Effect.Effect<SignedTransaction, WalletSignerError>>(),
-        M.tagsExhaustive({
-          EthereumSepolia: () =>
-            ethereumCustody.signTransaction(prepared, digest),
-          SolanaDevnet: () => solanaCustody.signTransaction(prepared, digest),
-          SolanaTestnet: () =>
-            Effect.fail(new WalletSignerError({ code: 'UnsupportedAccount' })),
-        }),
+    signTransaction: payload =>
+      custodyForPayload(payload, custodyAdapters).pipe(
+        Effect.flatMap(custody => custody.signTransaction(payload)),
       ),
     signChallenge: challenge => {
-      if (challenge.accountId === ethereumCustody.accountId) {
-        return ethereumCustody.signChallenge(challenge)
-      } else if (challenge.accountId === solanaCustody.accountId) {
-        return solanaCustody.signChallenge(challenge)
+      const maybeCustody = Array_.findFirst(
+        custodyAdapters,
+        custody => custody.accountId === challenge.accountId,
+      )
+      if (Option.isSome(maybeCustody)) {
+        return maybeCustody.value.signChallenge(challenge)
       } else {
         return Effect.fail(
           new WalletSignerError({ code: 'UnsupportedAccount' }),

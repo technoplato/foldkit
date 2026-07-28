@@ -1,31 +1,30 @@
-import { Match as M, Schema as S } from 'effect'
-import { type Network } from 'wallet-core-example'
+import { Array, Schema as S } from 'effect'
+import {
+  type NetworkDescriptor,
+  type WalletCapability,
+} from 'wallet-core-example'
 
-/** A network capability implemented by this Node adapter. */
+/** The configured adapter advertises the requested capability. */
 export const SupportedCapability = S.TaggedStruct('SupportedCapability', {})
-/** A network capability intentionally excluded from this Node adapter. */
+
+/** The configured adapter does not advertise the requested capability. */
 export const UnsupportedCapability = S.TaggedStruct('UnsupportedCapability', {
-  reason: S.Literals(['SolanaTestnetIsNotSolanaDevnet']),
+  capability: S.String,
 })
 
-/** Whether this adapter implements the requested network. */
+/** Whether a normalized network advertises one generic Wallet capability. */
 export const NetworkCapability = S.Union([
   SupportedCapability,
   UnsupportedCapability,
 ])
-/** Whether this adapter implements the requested network. */
+/** Whether a normalized network advertises one generic Wallet capability. */
 export type NetworkCapability = typeof NetworkCapability.Type
 
-/** Reports support without substituting Solana Testnet for Solana Devnet. */
-export const capabilityForNetwork = (network: Network): NetworkCapability =>
-  M.value(network).pipe(
-    M.withReturnType<NetworkCapability>(),
-    M.tagsExhaustive({
-      EthereumSepolia: () => SupportedCapability.make({}),
-      SolanaDevnet: () => SupportedCapability.make({}),
-      SolanaTestnet: () =>
-        UnsupportedCapability.make({
-          reason: 'SolanaTestnetIsNotSolanaDevnet',
-        }),
-    }),
-  )
+/** Evaluates a generic capability without branching on a chain tag. */
+export const capabilityForNetwork = (
+  network: NetworkDescriptor,
+  capability: WalletCapability,
+): NetworkCapability =>
+  Array.contains(network.capabilities, capability)
+    ? SupportedCapability.make({})
+    : UnsupportedCapability.make({ capability })
