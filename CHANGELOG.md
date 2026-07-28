@@ -4,6 +4,39 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 3:57:03 a.m. EDT — `9853ed087828` feat(constructive-data-modeling): sync the exact talk
+
+- **Implementation commit:** `9853ed08782838225a9a5070b84263877d05b4be`
+- **Change:** Synchronize the constructive modeling deck with the exact talk
+- **Details:**
+  - Replace the ten-slide conceptual outline with 40 time-indexed authored visual states plus the recording-only Q&A tail, including every condensed-page and reveal-range locator.
+  - Preserve the intentional UserContact revisit after Ior, contiguous cue boundaries from 0:00 through 42:25, and a YouTube deep link for every state.
+  - Embed the actual YouTube recording and connect it bidirectionally through a typed playback port: cue selection seeks without forced autoplay, while playback advances cues without seek loops.
+  - Verify nine core tests, every host typecheck and build, CLI output, responsive browser layout, zero console errors, 100 accessibility, exact 13:06 seeking, and playback-driven transition at 13:10.
+- **Files:**
+  - `examples/constructive-data-modeling/core/src/model.ts` — model exact authored and Q&A states, timing, sources, and video control origin
+  - `examples/constructive-data-modeling/core/src/deck.ts` — encode the verified 41-cue recording timeline and deep links
+  - `examples/constructive-data-modeling/core/src/message.ts` — accept typed playback observations in the shared Message union
+  - `examples/constructive-data-modeling/core/src/update.ts` — select the cue containing observed playback time without feedback effects
+  - `examples/constructive-data-modeling/core/src/presentation.ts` — project exact timing and reveal metadata across hosts
+  - `examples/constructive-data-modeling/core/src/program.ts` — version the expanded portable Program schema
+  - `examples/constructive-data-modeling/core/src/program.test.ts` — prove timing coverage, repeated authored state, boundaries, and control origins
+  - `examples/constructive-data-modeling/foldkit/src/application.ts` — adapt browser playback through a typed inbound port and seek callback
+  - `examples/constructive-data-modeling/foldkit/src/player.ts` — own YouTube API polling and state-preserving seeks
+  - `examples/constructive-data-modeling/foldkit/src/entry.ts` — embed the runtime and connect its playback port to YouTube
+  - `examples/constructive-data-modeling/foldkit/src/view.ts` — render the exact video beside its synchronized semantic cue
+  - `examples/constructive-data-modeling/foldkit/src/styles.css` — provide responsive video, cue, timeline, and control layouts
+  - `examples/constructive-data-modeling/foldkit/src/route.ts` — restore stable time-indexed cue identities from deep links
+  - `examples/constructive-data-modeling/foldkit/index.html` — describe and brand the synchronized viewer
+  - `examples/constructive-data-modeling/foldkit/public/llms.txt` — publish the exact synchronization and source contract for agents
+  - `examples/constructive-data-modeling/cli/src/entry.ts` — expose useful exact-talk cue commands
+  - `examples/constructive-data-modeling/cli/src/host.ts` — route CLI commands to stable timeline identities
+  - `examples/constructive-data-modeling/tui/src/host.ts` — navigate the exact timeline through the terminal host
+- **User context (verbatim):**
+  > I want the talk exactly, with also timestamps to go to the deep link of the actual talk.
+  > And we can watch the talk and sync the talk to slides in this viewer.
+- **SpecStory:** unavailable — Codex desktop GUI session; no verified durable SpecStory URI was available.
+
 ## July 28th, 2026 at 3:49:03 a.m. EDT — `36ad0b9adf65` feat: add interactive Program log controls
 
 - **Implementation commit:** `36ad0b9adf653e00bbdfba456ef33bd739ef1a63`
