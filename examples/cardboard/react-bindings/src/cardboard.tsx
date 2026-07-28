@@ -1,6 +1,7 @@
 import {
   type AccessibilityProfile,
   AdvancedCardboardSequence,
+  type CardboardAction,
   CardboardProgram,
   CompletedZeroGame,
   type InputMethod,
@@ -11,6 +12,7 @@ import {
   PressedSpace,
   PressedZeroButton,
   ReleasedZeroButton,
+  ReturnedToCardboardSequence,
   ReturnedToRuleZeroPage,
   ReturnedToZeroStart,
   SelectedAccessibilityProfile,
@@ -19,6 +21,7 @@ import {
   SkippedZeroStep,
   ToggledRgbInversion,
   initialCardboardRoute,
+  messageForCardboardAction,
 } from 'cardboard-core-example'
 import { Layer } from 'effect'
 import type { ReactNode } from 'react'
@@ -27,6 +30,7 @@ import { createReplayableReactProgramClient } from 'shared-react-bindings-exampl
 /** Host-sendable Cardboard actions. Internal lifecycle ticks remain private. */
 export type CardboardActions = Readonly<{
   advancedCardboardSequence: () => void
+  performedCardboardAction: (action: CardboardAction) => void
   completedZeroGame: () => void
   openedConversationLedger: () => void
   pressedLowercaseG: () => void
@@ -35,6 +39,7 @@ export type CardboardActions = Readonly<{
   releasedZeroButton: () => void
   returnedToZeroStart: () => void
   returnedToRuleZeroPage: () => void
+  returnedToCardboardSequence: () => void
   selectedAccessibilityProfile: (profile: AccessibilityProfile) => void
   selectedInputMethod: (inputMethod: InputMethod) => void
   skippedZeroStep: () => void
@@ -54,6 +59,8 @@ export const CardboardClient = createReplayableReactProgramClient<
   createActions: enqueueMessage => ({
     advancedCardboardSequence: () =>
       enqueueMessage(AdvancedCardboardSequence()),
+    performedCardboardAction: action =>
+      enqueueMessage(messageForCardboardAction(action)),
     completedZeroGame: () => enqueueMessage(CompletedZeroGame()),
     openedConversationLedger: () => enqueueMessage(OpenedConversationLedger()),
     pressedLowercaseG: () => enqueueMessage(PressedLowercaseG()),
@@ -62,6 +69,8 @@ export const CardboardClient = createReplayableReactProgramClient<
     releasedZeroButton: () => enqueueMessage(ReleasedZeroButton()),
     returnedToZeroStart: () => enqueueMessage(ReturnedToZeroStart()),
     returnedToRuleZeroPage: () => enqueueMessage(ReturnedToRuleZeroPage()),
+    returnedToCardboardSequence: () =>
+      enqueueMessage(ReturnedToCardboardSequence()),
     selectedAccessibilityProfile: profile =>
       enqueueMessage(SelectedAccessibilityProfile({ profile })),
     selectedInputMethod: inputMethod => {

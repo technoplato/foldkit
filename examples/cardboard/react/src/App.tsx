@@ -98,18 +98,33 @@ const CardboardScreen = () => {
         <button
           aria-label={screen.content.accessibilityLabel}
           className="cardboard-sequence-button"
-          onClick={actions.advancedCardboardSequence}
+          onClick={() =>
+            actions.performedCardboardAction(screen.content.action)
+          }
           type="button"
         >
           {screen.content.text}
         </button>
+        <nav aria-label="Cardboard commands" className="cardboard-commands">
+          {screen.commands.map(command => (
+            <button
+              key={command.key}
+              onClick={() => actions.performedCardboardAction(command.action)}
+              type="button"
+            >
+              [{command.key}] {command.text}
+            </button>
+          ))}
+        </nav>
       </main>
     )
   }
 
   if (model.page._tag === 'ConversationLedgerPage') {
     return (
-      <ConversationLedgerScreen onReturn={actions.returnedToRuleZeroPage} />
+      <ConversationLedgerScreen
+        onReturn={actions.returnedToCardboardSequence}
+      />
     )
   }
 

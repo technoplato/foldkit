@@ -55,6 +55,7 @@ import {
 } from 'wallet-react-bindings-example'
 
 import { logBuildProvenance } from './buildProvenance'
+import { portablePathFromCarrier } from './carrier'
 import { NativeNavigationComparison } from './nativeNavigationComparison'
 import {
   ClientPlatformDependency,
@@ -90,17 +91,6 @@ const dependencyLabel = <ImplementationName extends string>(
       },
     }),
   )
-
-const portablePath = (url: string): string => {
-  const parsed = new URL(url)
-  if (parsed.pathname === '/--') {
-    return `/${parsed.search}`
-  }
-  if (parsed.pathname.startsWith('/--/')) {
-    return `${parsed.pathname.slice(3)}${parsed.search}`
-  }
-  return `${parsed.pathname}${parsed.search}`
-}
 
 const resolveInlineRoute = <
   Model,
@@ -183,7 +173,9 @@ export const App = () => {
       )
     } else {
       Linking.getInitialURL().then(url => {
-        initializePath(url === null ? '/showcase' : portablePath(url))
+        initializePath(
+          url === null ? '/showcase' : portablePathFromCarrier(url),
+        )
       })
     }
     return () => {
@@ -341,7 +333,7 @@ const ShowcaseScreen = ({
     }
 
     const openUrl = (url: string, isInitial = false): Promise<void> =>
-      openPortablePath(portablePath(url), isInitial)
+      openPortablePath(portablePathFromCarrier(url), isInitial)
 
     const openedCarrierPath = (): void => {
       openPortablePath(
@@ -792,7 +784,9 @@ const CardboardScreen = ({
         <Pressable
           accessibilityLabel={screen.content.accessibilityLabel}
           accessibilityRole="button"
-          onPress={actions.advancedCardboardSequence}
+          onPress={() =>
+            actions.performedCardboardAction(screen.content.action)
+          }
           style={({ pressed }) => [
             styles.cardboardSequenceButton,
             pressed ? styles.cardboardSequenceButtonPressed : undefined,
@@ -806,6 +800,31 @@ const CardboardScreen = ({
             {screen.content.text}
           </Text>
         </Pressable>
+        <View
+          accessibilityLabel="Cardboard commands"
+          style={styles.cardboardCommandBar}
+        >
+          {Array.map(screen.commands, command => (
+            <Pressable
+              accessibilityRole="button"
+              key={command.key}
+              onPress={() => actions.performedCardboardAction(command.action)}
+              style={styles.cardboardCommand}
+            >
+              <Text style={styles.cardboardCommandText}>
+                [{command.key}] {command.text}
+              </Text>
+            </Pressable>
+          ))}
+          <Pressable
+            accessibilityLabel="Back to showcase"
+            accessibilityRole="button"
+            onPress={onBackToShowcase}
+            style={styles.cardboardCommand}
+          >
+            <Text style={styles.cardboardCommandText}>[S] Showcase</Text>
+          </Pressable>
+        </View>
       </View>
     )
   }
@@ -814,7 +833,7 @@ const CardboardScreen = ({
     return (
       <CardboardLedgerScreen
         onBackToShowcase={onBackToShowcase}
-        onReturn={actions.returnedToRuleZeroPage}
+        onReturn={actions.returnedToCardboardSequence}
       />
     )
   }
@@ -1148,7 +1167,7 @@ const useCountersNavigationCarrier = (
       }
     }
     const openUrl = ({ url }: Readonly<{ url: string }>): void => {
-      openPortablePath(portablePath(url))
+      openPortablePath(portablePathFromCarrier(url))
     }
     const openBrowserPath = (): void => {
       openPortablePath(
@@ -1616,7 +1635,7 @@ const styles = StyleSheet.create({
   cardboardSequence: {
     backgroundColor: '#17130d',
     flex: 1,
-    minHeight: 720,
+    gap: 12,
     padding: 18,
   },
   cardboardSequenceButton: {
@@ -1627,7 +1646,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     flex: 1,
     justifyContent: 'center',
-    minHeight: 680,
+    minHeight: 0,
   },
   cardboardSequenceButtonPressed: {
     opacity: 0.9,
@@ -1641,6 +1660,22 @@ const styles = StyleSheet.create({
     lineHeight: 390,
     textAlign: 'center',
     width: '94%',
+  },
+  cardboardCommandBar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  cardboardCommand: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  cardboardCommandText: {
+    color: '#f7dca5',
+    fontFamily: 'monospace',
+    fontSize: 16,
+    fontWeight: '800',
   },
   cardboardExample: {
     backgroundColor: '#23180d',

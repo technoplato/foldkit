@@ -27,8 +27,27 @@ input {
 .cardboard-sequence {
   min-height: 100svh;
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
   padding: clamp(18px, 4vw, 64px);
   background: #17130d;
+}
+
+.cardboard-commands {
+  display: flex;
+  justify-content: center;
+}
+
+.cardboard-commands button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 18px;
+  color: #f7dca5;
+  background: transparent;
+  font-family: ui-monospace, monospace;
+  font-size: clamp(1rem, 2vw, 1.4rem);
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .cardboard-sequence-button {

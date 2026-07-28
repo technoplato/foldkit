@@ -1,3 +1,4 @@
+import * as ExpoLinking from 'expo-linking'
 import {
   Platform,
   Pressable,
@@ -7,6 +8,8 @@ import {
   View,
 } from 'react-native'
 import type { ReactReplay } from 'shared-react-bindings-example'
+
+import { expoLinkingPath } from './carrier'
 
 type ReplayControlsProps<
   Model,
@@ -20,7 +23,7 @@ const carrierForPath = (path: string): string => {
   if (Platform.OS === 'web' && globalThis.location !== undefined) {
     return `${globalThis.location.origin}${path}`
   }
-  return `foldkit://showcase${path}`
+  return ExpoLinking.createURL(expoLinkingPath(path))
 }
 
 /** Renders the same engine-owned replay controls for every showcase Program. */

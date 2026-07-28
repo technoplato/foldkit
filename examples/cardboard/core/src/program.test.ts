@@ -1,5 +1,6 @@
-import { Effect } from 'effect'
+import { Array, Effect, Exit, Layer } from 'effect'
 import * as Program from 'foldkit/program'
+import * as Runtime from 'foldkit/program-runtime'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -21,7 +22,7 @@ import {
   PressedSpace,
   PressedZeroButton,
   ReleasedZeroButton,
-  ReturnedToRuleZeroPage,
+  ReturnedToCardboardSequence,
   SelectedAccessibilityProfile,
   SelectedIncorrectInputMethod,
   SelectedMirrorAnswer,
@@ -32,6 +33,7 @@ import {
   initialModel,
   initialRuleZeroModel,
 } from './model.js'
+import { CardboardProgram } from './program.js'
 import { CardboardRouter, sequencePortableRoute } from './route.js'
 import { update } from './update.js'
 
@@ -41,9 +43,11 @@ const sha256 = async (value: string): Promise<string> => {
     new TextEncoder().encode(value),
   )
 
-  return Array.from(new Uint8Array(digest), byte =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('')
+  const hexadecimalOctets = Array.map(
+    Array.fromIterable(new Uint8Array(digest)),
+    byte => byte.toString(16).padStart(2, '0'),
+  )
+  return hexadecimalOctets.join('')
 }
 
 describe('Cardboard Program', () => {
@@ -148,22 +152,60 @@ describe('Cardboard Program', () => {
 
   it('round-trips the append-only ledger at /0/log', async () => {
     await expect(
-      Effect.runPromise(CardboardRouter.canonicalize('/0/0/')),
+      Effect.runPromise(CardboardRouter.canonicalize('/0/log/')),
     ).resolves.toBe('/0/log')
+
+    const obsoleteAlias = await Effect.runPromiseExit(
+      CardboardRouter.parse('/0/0'),
+    )
 
     const parsed = await Effect.runPromise(CardboardRouter.parse('/0/log'))
     const printed = await Effect.runPromise(CardboardRouter.print(parsed))
 
+    expect(Exit.isFailure(obsoleteAlias)).toBe(true)
     expect(parsed).toStrictEqual(Program.state(initialConversationLedgerModel))
     expect(printed).toBe('/0/log')
   })
 
-  it('moves between Rule Zero and the ledger through factual Messages', () => {
+  it('moves between the sequence and ledger through factual Messages', () => {
     const [ledger] = update(initialModel, OpenedConversationLedger())
-    const [ruleZero] = update(ledger, ReturnedToRuleZeroPage())
+    const [sequence] = update(ledger, ReturnedToCardboardSequence())
 
     expect(ledger.page._tag).toBe('ConversationLedgerPage')
-    expect(ruleZero).toStrictEqual(initialRuleZeroModel)
+    expect(sequence).toStrictEqual(initialModel)
+  })
+
+  it('records each page replacement in the Message tape', async () => {
+    const tape = await Effect.runPromise(
+      Effect.scoped(
+        Runtime.recordReplayTape(CardboardProgram, Layer.empty, [
+          AdvancedCardboardSequence(),
+          OpenedConversationLedger(),
+          ReturnedToCardboardSequence(),
+        ]),
+      ),
+    )
+    const five = await Effect.runPromise(
+      Runtime.replayToFrame(CardboardProgram, tape, 1),
+    )
+    const ledger = await Effect.runPromise(
+      Runtime.replayToFrame(CardboardProgram, tape, 2),
+    )
+    const four = await Effect.runPromise(
+      Runtime.replayToFrame(CardboardProgram, tape, 3),
+    )
+
+    expect(
+      Array.map(tape.transitions, transition => transition.message._tag),
+    ).toStrictEqual([
+      'AdvancedCardboardSequence',
+      'OpenedConversationLedger',
+      'ReturnedToCardboardSequence',
+    ])
+    expect(tape.initialModel.page).toMatchObject({ value: 4n })
+    expect(five.page).toMatchObject({ value: 5n })
+    expect(ledger.page._tag).toBe('ConversationLedgerPage')
+    expect(four).toStrictEqual(initialModel)
   })
 
   it('models an unbounded sequence with one finite value', async () => {
@@ -190,6 +232,14 @@ describe('Cardboard Program', () => {
 
     expect(screen).toStrictEqual({
       _tag: 'CardboardScreen',
+      commands: [
+        {
+          _tag: 'CardboardCommand',
+          action: 'OpenConversationLedger',
+          key: 'L',
+          text: 'Log',
+        },
+      ],
       content: {
         _tag: 'CardboardButton',
         accessibilityLabel: 'Next',

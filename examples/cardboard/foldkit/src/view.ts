@@ -8,6 +8,7 @@ import {
   PressedSpace,
   PressedZeroButton,
   ReleasedZeroButton,
+  ReturnedToCardboardSequence,
   SelectedAccessibilityProfile,
   SelectedIncorrectInputMethod,
   SelectedMirrorAnswer,
@@ -28,7 +29,6 @@ import {
   messageForCardboardAction,
   nextAccessibilityProfile,
   previousAccessibilityProfile,
-  ruleZeroPortableRoute,
 } from 'cardboard-core-example'
 import { Array, Option } from 'effect'
 import { Document, html } from 'foldkit/html'
@@ -115,8 +115,11 @@ const conversationLedgerView = (): Document => {
                 'Four means Ship. Stop expanding the theory. Publish the smallest verified artifact, record what happened, and continue from evidence.',
               ],
             ),
-            h.a(
-              [h.Class('ledger-link'), h.Href(ruleZeroPortableRoute)],
+            h.button(
+              [
+                h.Class('ledger-link'),
+                h.OnClick(ReturnedToCardboardSequence()),
+              ],
               ['Return to /0'],
             ),
             h.section(
@@ -215,6 +218,18 @@ const sequenceView = (model: Model): Document => {
             h.OnClick(messageForCardboardAction(screen.content.action)),
           ],
           [screen.content.text],
+        ),
+        h.nav(
+          [h.AriaLabel('Cardboard commands'), h.Class('cardboard-commands')],
+          Array.map(screen.commands, command =>
+            h.button(
+              [
+                h.Key(command.key),
+                h.OnClick(messageForCardboardAction(command.action)),
+              ],
+              [`[${command.key}] ${command.text}`],
+            ),
+          ),
         ),
       ],
     ),
