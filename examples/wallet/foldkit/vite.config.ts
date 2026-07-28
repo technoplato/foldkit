@@ -12,6 +12,7 @@ export default defineConfig({
     alias: foldkitAliases(path.resolve(__dirname, '..')),
   },
   server: {
+    allowedHosts: ['wallet-foldkit.knophy.com'],
     fs: {
       allow: ['../../../'],
     },

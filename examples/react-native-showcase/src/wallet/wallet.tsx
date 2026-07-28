@@ -17,16 +17,19 @@ import {
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
-  WalletProvider,
-  useWalletActions,
-  useWalletModel,
-  useWalletReplay,
+  makeWalletReactClient,
 } from 'wallet-react-bindings-example'
+import {
+  makeRemoteWalletResources,
+  publicTestnetWalletEndpoint,
+} from 'wallet-remote-example'
 
 import { ReplayControls } from '../replayControls'
 
-const presetTransferAtomicUnits = '100000000000000000'
-const presetDestinationAddress = '0x2222222222222222222222222222222222222222'
+const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
+  makeWalletReactClient(makeRemoteWalletResources(publicTestnetWalletEndpoint))
+
+const presetTransferAtomicUnits = '10000000000000'
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -137,7 +140,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         transferId: 'expo-wallet-transfer',
         accountId: maybeAccount.value.accountId,
         network: maybeAccount.value.network,
-        destinationAddress: presetDestinationAddress,
+        destinationAddress: maybeAccount.value.address,
         value: CurrencyValue.make({
           currency: balance.value.currency,
           atomicUnits: presetTransferAtomicUnits,
@@ -166,7 +169,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       <View style={styles.headingRow}>
         <View>
           <Text style={styles.eyebrow}>Send</Text>
-          <Text style={styles.sectionTitle}>0.1 ETH</Text>
+          <Text style={styles.sectionTitle}>0.00001 ETH</Text>
         </View>
         <Text style={styles.status}>
           {transactionStatus(model.transaction)}

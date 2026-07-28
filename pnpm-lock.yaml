@@ -2319,6 +2319,9 @@ importers:
       wallet-react-bindings-example:
         specifier: workspace:*
         version: link:../wallet/react-bindings
+      wallet-remote-example:
+        specifier: workspace:*
+        version: link:../wallet/remote
     devDependencies:
       '@babel/plugin-transform-object-rest-spread':
         specifier: ^7.29.7
@@ -3162,6 +3165,9 @@ importers:
       wallet-core-example:
         specifier: workspace:*
         version: link:../core
+      wallet-remote-example:
+        specifier: workspace:*
+        version: link:../remote
       wallet-simulated-client-example:
         specifier: workspace:*
         version: link:../simulated-client
@@ -3199,6 +3205,9 @@ importers:
       wallet-react-bindings-example:
         specifier: workspace:*
         version: link:../react-bindings
+      wallet-remote-example:
+        specifier: workspace:*
+        version: link:../remote
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.1
@@ -3239,9 +3248,6 @@ importers:
       wallet-core-example:
         specifier: workspace:*
         version: link:../core
-      wallet-simulated-client-example:
-        specifier: workspace:*
-        version: link:../simulated-client
     devDependencies:
       '@testing-library/react':
         specifier: ^16.3.2
@@ -3273,6 +3279,25 @@ importers:
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      wallet-simulated-client-example:
+        specifier: workspace:*
+        version: link:../simulated-client
+
+  examples/wallet/remote:
+    dependencies:
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      wallet-core-example:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   examples/wallet/simulated-client:
     dependencies:
@@ -3376,6 +3401,43 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  examples/wallet/testnet-server:
+    dependencies:
+      '@effect/platform-node':
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97(effect@4.0.0-beta.97)(ioredis@5.10.1)
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      viem:
+        specifier: 2.55.10
+        version: 2.55.10(typescript@6.0.3)(zod@4.3.6)
+      wallet-core-example:
+        specifier: workspace:*
+        version: link:../core
+      wallet-remote-example:
+        specifier: workspace:*
+        version: link:../remote
+      wallet-testnet-node-example:
+        specifier: workspace:*
+        version: link:../testnet-node
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
   examples/wallet/tui:
     dependencies:
       '@opentui/core':
@@ -3399,6 +3461,9 @@ importers:
       wallet-react-bindings-example:
         specifier: workspace:*
         version: link:../react-bindings
+      wallet-simulated-client-example:
+        specifier: workspace:*
+        version: link:../simulated-client
     devDependencies:
       '@types/node':
         specifier: ^25.9.3
@@ -3418,9 +3483,6 @@ importers:
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
-      wallet-simulated-client-example:
-        specifier: workspace:*
-        version: link:../simulated-client
 
   examples/weather:
     dependencies:

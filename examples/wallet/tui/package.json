@@ -35,7 +35,8 @@
     "foldkit": "workspace:*",
     "react": "19.2.3",
     "wallet-core-example": "workspace:*",
-    "wallet-react-bindings-example": "workspace:*"
+    "wallet-react-bindings-example": "workspace:*",
+    "wallet-simulated-client-example": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
@@ -43,7 +44,6 @@
     "prettier": "^3.8.4",
     "rimraf": "^6.1.3",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9",
-    "wallet-simulated-client-example": "workspace:*"
+    "vitest": "^4.1.9"
   }
 }

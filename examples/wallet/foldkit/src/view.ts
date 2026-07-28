@@ -21,8 +21,7 @@ import {
   transferDraftFromInput,
 } from 'wallet-core-example'
 
-const presetTransferAtomicUnits = '100000000000000000'
-const presetDestinationAddress = '0x2222222222222222222222222222222222222222'
+const presetTransferAtomicUnits = '10000000000000'
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -110,7 +109,7 @@ const maybeDemoTransfer = (model: Model) =>
         transferId: 'foldkit-demo-transfer',
         accountId: account.accountId,
         network: account.network,
-        destinationAddress: presetDestinationAddress,
+        destinationAddress: account.address,
         value: CurrencyValue.make({
           currency: balance.value.currency,
           atomicUnits: presetTransferAtomicUnits,
@@ -214,7 +213,7 @@ const sendMoney = (model: Model): Html => {
             [],
             [
               h.p([h.Class('cardboard-eyebrow')], ['Send']),
-              h.h2([], ['0.1 ETH']),
+              h.h2([], ['0.00001 ETH']),
             ],
           ),
           h.span(

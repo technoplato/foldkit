@@ -60,6 +60,12 @@ typed data through `WalletClient`, `WalletSigner`, and `WalletCrypto`.
 | `TestnetNodeNetworkLive`     | `WalletClient` and `WalletCrypto` | No                     |
 | `TestnetNodeLocalSignerLive` | `WalletSigner`                    | Yes                    |
 | `TestnetNodeWalletLive`      | All three services                | Yes                    |
+| `EthereumSepoliaWalletLive`  | All three Sepolia services        | Yes                    |
+
+`makeEthereumSepoliaWalletLive(config)` builds the same Sepolia-only resources
+from a host-supplied configuration Layer. It lets the disposable test-wallet
+server load a protected key file without requiring unrelated Solana
+configuration.
 
 The chain-specific transports, custody adapters, SDK clients, and
 configuration services remain package-internal implementation dependencies.
@@ -222,6 +228,13 @@ reads were corroboration after the push event, not the observation mechanism.
 The disposable sender had first received 0.05 Sepolia ETH in
 [`0x6c4ac8540cfbbd462ef74e5876dddd559a6d3c7dfbd0cdc1709f6190de39b17b`](https://sepolia.etherscan.io/tx/0x6c4ac8540cfbbd462ef74e5876dddd559a6d3c7dfbd0cdc1709f6190de39b17b).
 
+On July 28, 2026, the unauthenticated browser bridge loaded that same Sepolia
+account, previewed a 0.00001 ETH self-transfer, signed it inside the Node
+custody boundary, and submitted transaction
+[`0x2d5ce0124d9fc99c8f20ec7ee84d8b9ff05b79dc20a9b6d42c8299f3ea4090b2`](https://sepolia.etherscan.io/tx/0x2d5ce0124d9fc99c8f20ec7ee84d8b9ff05b79dc20a9b6d42c8299f3ea4090b2).
+The React and Foldkit clients then independently loaded the resulting
+0.047525153961312 ETH balance through the same typed remote Layer.
+
 On July 27, 2026, the test submitted 0.001 Devnet SOL as transaction
 [`32sEXa6aTCKszyXnUgfi6DrE5szmFrd35gqnZpawR32XEVYaBtBdg8YSaksr4jcsD92D5UnHmret1hM2TpvqS2KA`](https://explorer.solana.com/tx/32sEXa6aTCKszyXnUgfi6DrE5szmFrd35gqnZpawR32XEVYaBtBdg8YSaksr4jcsD92D5UnHmret1hM2TpvqS2KA?cluster=devnet).
 The receiver Stream emitted the matching `:0` System instruction. A separate
@@ -238,3 +251,28 @@ public callback deployment, signature verification algorithm, retry and
 deduplication policy, and secret configuration. This local Node package proves
 provider WebSocket delivery. It does not claim a webhook integration without
 those provider-specific inputs.
+
+## Unauthenticated remote bridge
+
+`examples/wallet/remote` defines a renderer- and platform-independent RPC
+protocol plus a Fetch-backed Layer. `examples/wallet/testnet-server` implements
+that protocol with the Sepolia transport and custody Layers. The bridge keeps
+prepared transactions, digests, signed payloads, provider URLs, and private key
+bytes behind the server boundary. Clients receive opaque operation IDs.
+
+This split generalizes to any capability that combines public state with a
+protected operation:
+
+1. The Program depends on portable Effect services.
+2. A host selects a local or remote implementation Layer.
+3. A typed protocol carries public Schemas and opaque handles.
+4. A trusted process owns secrets and enforces operation policy.
+5. Results return as factual Messages and enter the same update function.
+
+Authentication is deliberately absent from this testnet bridge. Its server
+policy permits only Sepolia ETH self-transfers up to 0.00001 ETH. This limits
+the demo's transaction authority but does not make the public account private
+or trusted. A production bridge needs authenticated principals, scoped and
+revocable capabilities, durable idempotency, rate limits, audit records,
+protected provider configuration, and a signer that requires explicit user or
+policy approval.

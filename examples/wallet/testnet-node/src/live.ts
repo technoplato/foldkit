@@ -1,7 +1,9 @@
 import { Layer } from 'effect'
 
 import {
+  EthereumSepoliaKeyConfig,
   EthereumSepoliaKeyConfigFromEnv,
+  EthereumSepoliaNodeConfig,
   EthereumSepoliaNodeConfigFromEnv,
   SolanaDevnetKeyConfigFromEnv,
   SolanaDevnetNodeConfigFromEnv,
@@ -10,6 +12,7 @@ import {
   EthereumSepoliaLocalCustodyLive,
   EthereumSepoliaTransportLive,
 } from './ethereumSepolia.js'
+import { EthereumSepoliaWalletServicesLive } from './ethereumWalletServices.js'
 import {
   SolanaDevnetLocalCustodyLive,
   SolanaDevnetTransportLive,
@@ -42,6 +45,33 @@ const TestnetNodeLocalCustodyLive = Layer.mergeAll(
   SolanaDevnetLocalCustodyLive,
 ).pipe(Layer.provide(TestnetNodeLocalSignerConfigFromEnv))
 
+const EthereumSepoliaConfigFromEnv = Layer.mergeAll(
+  EthereumSepoliaNodeConfigFromEnv,
+  EthereumSepoliaKeyConfigFromEnv,
+)
+
+const EthereumSepoliaAdaptersLive = Layer.merge(
+  EthereumSepoliaTransportLive,
+  EthereumSepoliaLocalCustodyLive,
+).pipe(Layer.provide(EthereumSepoliaConfigFromEnv))
+
+/** Builds complete Sepolia resources from host-supplied public and protected configuration. */
+export const makeEthereumSepoliaWalletLive = <LayerError, Requirements>(
+  config: Layer.Layer<
+    EthereumSepoliaNodeConfig | EthereumSepoliaKeyConfig,
+    LayerError,
+    Requirements
+  >,
+) =>
+  EthereumSepoliaWalletServicesLive.pipe(
+    Layer.provide(
+      Layer.merge(
+        EthereumSepoliaTransportLive,
+        EthereumSepoliaLocalCustodyLive,
+      ).pipe(Layer.provide(config)),
+    ),
+  )
+
 /** WalletClient and WalletCrypto for Sepolia and Devnet without local custody. */
 export const TestnetNodeNetworkLive = WalletNetworkServicesLive.pipe(
   Layer.provide(TestnetNodeNetworkAdaptersLive),
@@ -57,4 +87,9 @@ export const TestnetNodeWalletLive = WalletServicesLive.pipe(
   Layer.provide(
     Layer.merge(TestnetNodeNetworkAdaptersLive, TestnetNodeLocalCustodyLive),
   ),
+)
+
+/** Complete wallet-core resources for the configured Sepolia account only. */
+export const EthereumSepoliaWalletLive = EthereumSepoliaWalletServicesLive.pipe(
+  Layer.provide(EthereumSepoliaAdaptersLive),
 )

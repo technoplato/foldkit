@@ -1,4 +1,6 @@
 export * from './capability.js'
+export * from './config.js'
 export { ethereumSepoliaUsdcAddress } from './ethereumSepolia.js'
+export * from './ethereumWalletServices.js'
 export * from './live.js'
 export { solanaDevnetUsdcAddress } from './solanaDevnet.js'

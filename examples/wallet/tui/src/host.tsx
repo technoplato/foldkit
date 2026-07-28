@@ -8,12 +8,10 @@ import {
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
-  WalletProvider,
   WalletTransferComposition,
-  useWalletActions,
-  useWalletModel,
-  useWalletReplay,
+  makeWalletReactClient,
 } from 'wallet-react-bindings-example'
+import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import { type CliRenderer, type SelectOption } from '@opentui/core'
 import { useKeyboard } from '@opentui/react'
@@ -22,6 +20,9 @@ import {
   interactionsForWalletOpenTui,
   walletOpenTuiSummary,
 } from './presentation.js'
+
+const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
+  makeWalletReactClient(SimulatedWalletResources)
 
 export * from './presentation.js'
 

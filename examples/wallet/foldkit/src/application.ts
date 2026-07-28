@@ -1,6 +1,11 @@
+import { Layer } from 'effect'
 import { Runtime } from 'foldkit'
-import { type Message, type Model, WalletProgram } from 'wallet-core-example'
-import { SimulatedWalletResources } from 'wallet-simulated-client-example'
+import {
+  type Message,
+  type Model,
+  WalletProgram,
+  type WalletResources,
+} from 'wallet-core-example'
 
 import { overlay } from '@foldkit/devtools'
 
@@ -12,6 +17,7 @@ export const walletFoldkitProgram: typeof WalletProgram = WalletProgram
 /** Creates the page-owning Foldkit Wallet application from one Program start. */
 export const makeWalletApplication = (
   container: HTMLElement | null,
+  resources: Layer.Layer<WalletResources>,
   start: Runtime.ProgramStart<Model, Message> = Runtime.fresh(),
 ) =>
   Runtime.makeFoldkitApplication({
@@ -21,7 +27,7 @@ export const makeWalletApplication = (
       Message: walletFoldkitProgram.Message,
     },
     program: walletFoldkitProgram,
-    resources: SimulatedWalletResources,
+    resources,
     start,
     view,
   })

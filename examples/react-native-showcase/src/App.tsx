@@ -585,7 +585,7 @@ const ShowcaseHome = () => {
         title="Fact"
       />
       <ShowcaseCard
-        description="Public accounts, simulated signing, subscriptions, and replay."
+        description="Public accounts, remote Sepolia signing, subscriptions, and replay."
         onPress={actions.tappedWalletButton}
         title="Wallet"
       />

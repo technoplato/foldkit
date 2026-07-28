@@ -6,10 +6,10 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
-    "predev": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter wallet-remote-example build && pnpm --filter wallet-simulated-client-example build",
+    "predev": "pnpm --filter wallet-core-example build && pnpm --filter wallet-remote-example build && pnpm --filter wallet-simulated-client-example build",
     "pretest": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
-    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter wallet-remote-example build && pnpm --filter wallet-simulated-client-example build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -21,6 +21,7 @@
     "foldkit": "workspace:*",
     "tailwindcss": "^4.3.1",
     "wallet-core-example": "workspace:*",
+    "wallet-remote-example": "workspace:*",
     "wallet-simulated-client-example": "workspace:*"
   },
   "devDependencies": {
