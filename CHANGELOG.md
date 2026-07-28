@@ -4,6 +4,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:29:35 p.m. EDT — `1869bebf9949` feat(wallet)!: add portable address copy flows
+
+- **Implementation commit:** `1869bebf99496d2b794725a22cc31060d037df3b`
+- **Change:** Added portable, failure-aware address copying across every visual Wallet client.
+- **Details:**
+  - Modeled clipboard requests, in-flight work, success, denial, unavailability, failure, stale completion, and restore behavior in the renderer-neutral Wallet Program.
+  - Provided an Effect browser Clipboard adapter and an Expo clipboard adapter without adding chain-specific logic or permission preflight to core.
+  - Added accessible copy controls and selectable manual fallbacks for created wallet accounts, the primary account, transfer previews, account details, and receiving addresses in React, Foldkit, and React Native.
+  - Advanced the shared Program and client matrix to wallet@7 and verified every Wallet package plus browser failure normalization, shared React actions, Expo typechecking, lint, dead-code checks, and repository formatting.
+- **Files:**
+  - `examples/wallet/core/src/clipboard.ts` — Defines chain-neutral clipboard request, state, error, service, and unavailable host Layer.
+  - `examples/wallet/core/src/update.ts` — Runs CopyToClipboard and applies matching success or sanitized failure Messages without replaying user-activation work on restore.
+  - `examples/wallet/web-client/src/webClipboard.ts` — Adapts the Effect browser Clipboard service and normalizes denied, unavailable, and failed writes.
+  - `examples/react-native-showcase/src/wallet/walletClipboard.ts` — Adapts expo-clipboard for native Wallet hosts.
+  - `examples/wallet/react/src/App.tsx` — Adds address copy controls and feedback to every React Wallet address surface.
+  - `examples/wallet/foldkit/src/view.ts` — Adds the same Program-driven copy controls through ordinary Foldkit HTML.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Adds native address copy controls, status, retry feedback, and selectable fallbacks.
+  - `examples/client-matrix/core/src/wallet.ts` — Advances exact Wallet route examples to the version 7 Program contract.
+- **User context (verbatim):**
+  > Add copy button for add, copy behavior for the addresses and handle all the copy flows
+  > both permissions if they exist, maybe even on native
+  > as well as in the React and FoldKit.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this Codex desktop session is not captured by SpecStory.
+
 ## July 28th, 2026 at 12:05:18 p.m. EDT — `fafce2244108` fix(wallet): fit balances to Cardboard panels
 
 - **Implementation commit:** `fafce2244108e3802c8d480c9cc6305a1442675b`
