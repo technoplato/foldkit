@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 8:19:11 a.m. EDT — `612a26c37f99` feat(wallet): expose the Sepolia test wallet remotely
+
+- **Implementation commit:** `612a26c37f99d3fa942cf3309e2f1eea77f23057`
+- **Change:** Exposed the funded Sepolia test wallet through the same portable Wallet Program in React, Foldkit, and Expo.
+- **Details:**
+  - Added a typed Fetch/RPC Layer whose public Schemas and opaque handles keep protected transaction material outside clients.
+  - Added a deliberately unauthenticated Node bridge that loads the disposable key from a protected local file and restricts transactions to small Sepolia ETH self-transfers.
+  - Made React bindings and the Foldkit application accept host-selected Wallet resources while retaining simulated resources for the TUI.
+  - Verified a real on-chain transfer, matching balances across clients, production builds, Expo Web export, tests, typechecks, lint, dead-code analysis, and formatting.
+- **Files:**
+  - `examples/wallet/remote/src/remoteWallet.ts` — Implements portable Wallet services over the typed remote protocol.
+  - `examples/wallet/testnet-server/src/server.ts` — Owns disposable custody and enforces the temporary public testnet policy.
+  - `examples/wallet/react-bindings/src/wallet.tsx` — Builds domain-shaped React hooks from host-selected Wallet resources.
+  - `examples/wallet/foldkit/src/application.ts` — Accepts the selected Wallet Layer without changing the canonical Program.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Runs the same remote Wallet resources in the Expo showcase.
+  - `docs/explorations/wallet-testnet-layers.md` — Records the boundary, limitations, reusable pattern, and live transfer evidence.
+- **User context (verbatim):**
+  > I want to be able to use the test wallet from this unauthenticated place.
+- **SpecStory:** unavailable — Codex desktop task; no verified Codex CLI capture or durable SpecStory URI is available.
+
 ## July 28th, 2026 at 8:01:37 a.m. EDT — `311f6238647a` feat(constructive-data-modeling): render authored slides as text
 
 - **Implementation commit:** `311f6238647a509ce9e988262da9e4279e3b3343`
