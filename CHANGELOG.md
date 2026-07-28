@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:58:46 a.m. EDT — `38045a18632c` docs(client-matrix): add Expo Web sequence evidence
+
+- **Implementation commit:** `38045a18632c063a2bb37e823f6d3e7127220d68`
+- **Change:** Add Expo Web Cardboard sequence evidence
+- **Details:**
+  - Verified the clean production Expo Web export through the public Cloudflare carrier at /0 and /0/5.
+  - Recorded current Four and Five captures and promoted Expo Web matrix cells from source-only evidence to WAN browser interaction.
+- **Files:**
+  - `examples/client-matrix/core/src/cardboard.ts` — Records verified Expo Web carrier evidence for the Cardboard sequence matrix.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/five/expo-web.webp` — Records verified Expo Web carrier evidence for the Cardboard sequence matrix.
+  - `examples/client-matrix/foldkit/public/captures/cardboard/four/expo-web.webp` — Records verified Expo Web carrier evidence for the Cardboard sequence matrix.
+- **User context (verbatim):**
+  > They can be rendered just by text.
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture was available.
+
 ## July 28th, 2026 at 12:56:27 a.m. EDT — `af798b625901` feat: model Cardboard as an unbounded sequence
 
 - **Implementation commit:** `af798b625901350705bb867ae5d64cd9a24fedf4`
