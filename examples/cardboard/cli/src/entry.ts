@@ -17,7 +17,8 @@ const operation = (name: string, value: CliOperation, description: string) =>
 
 const cardboard = Command.make('foldkit-cardboard').pipe(
   Command.withSubcommands([
-    operation('show', 'Show', 'Show the fresh Rule Zero Model'),
+    operation('show', 'Show', 'Show four at /0'),
+    operation('next', 'Next', 'Advance from /0 to /0/5'),
     operation('tap', 'Tap', 'Press and release the black control'),
     operation('hold', 'Hold', 'Hold the control until configuration opens'),
     operation('skip', 'Skip', 'Skip the current onboarding step'),
@@ -28,7 +29,7 @@ const cardboard = Command.make('foldkit-cardboard').pipe(
       'Try a Genesis-style controller in the first riddle',
     ),
     operation('mirror', 'Mirror', 'Answer the first riddle with Mirror'),
-    operation('log', 'Log', 'Show the append-only /0/0 decision log'),
+    operation('log', 'Log', 'Show the append-only /0/log decision log'),
     operation('reset', 'Reset', 'Return to /0'),
   ]),
 )

@@ -1,9 +1,10 @@
-import { Effect } from 'effect'
+import { Array, Effect, Option, String as String_ } from 'effect'
 import * as Program from 'foldkit/program'
 
 import { type Message } from './message.js'
 import {
-  type Model,
+  Model,
+  SequencePage,
   initialConversationLedgerModel,
   initialModel,
 } from './model.js'
@@ -11,22 +12,46 @@ import { CardboardProgram } from './program.js'
 
 const programRouter = Program.makeRouter(CardboardProgram)
 
-/** The canonical portable route for the Rule Zero interaction. */
+/** The canonical portable route for Cardboard at value four. */
 export const ruleZeroPortableRoute = '/0'
 /** The canonical portable route for the append-only conversation ledger. */
-export const conversationLedgerPortableRoute = '/0/0'
+export const conversationLedgerPortableRoute = '/0/log'
 
 const isConstitutionRoot = (relativeRoute: string): boolean =>
   relativeRoute === ruleZeroPortableRoute || relativeRoute === '/0/'
 
 const isConversationLedgerRoot = (relativeRoute: string): boolean =>
-  relativeRoute === conversationLedgerPortableRoute || relativeRoute === '/0/0/'
+  relativeRoute === conversationLedgerPortableRoute ||
+  relativeRoute === '/0/log/' ||
+  relativeRoute === '/0/0' ||
+  relativeRoute === '/0/0/'
+
+const sequenceValueForRoute = (
+  relativeRoute: string,
+): Option.Option<bigint> => {
+  const maybeMatch = String_.match(/^\/0\/([5-9]|[1-9][0-9]+)\/?$/u)(
+    relativeRoute,
+  )
+  if (Option.isNone(maybeMatch)) {
+    return Option.none()
+  }
+  const maybeValue = Array.get(maybeMatch.value, 1)
+  if (Option.isNone(maybeValue)) {
+    return Option.none()
+  }
+  return Option.some(BigInt(maybeValue.value))
+}
+
+/** Prints one sequence value as its canonical portable Cardboard route. */
+export const sequencePortableRoute = (value: bigint): string =>
+  value === 4n ? ruleZeroPortableRoute : `/0/${value.toString()}`
 
 const isInitialStateRoute = (
   route: Program.ProgramRoute<Model, Message>,
 ): boolean =>
   route._tag === 'State' &&
-  route.model.page._tag === 'RuleZeroPage' &&
+  route.model.page._tag === 'SequencePage' &&
+  route.model.page.value === 4n &&
   route.model.zero._tag === 'WaitingAtZero' &&
   route.model.keyboardInput.spacePressCount === 0 &&
   route.model.keyboardInput.lowercaseGPressCount === 0
@@ -44,7 +69,17 @@ const isConversationLedgerStateRoute = (
 export const CardboardRouter: Program.ProgramRouter<Model, Message> = {
   Route: programRouter.Route,
   parse: relativeRoute => {
-    if (isConversationLedgerRoot(relativeRoute)) {
+    const maybeSequenceValue = sequenceValueForRoute(relativeRoute)
+    if (Option.isSome(maybeSequenceValue)) {
+      return Effect.succeed(
+        Program.state(
+          Model.make({
+            ...initialModel,
+            page: SequencePage({ value: maybeSequenceValue.value }),
+          }),
+        ),
+      )
+    } else if (isConversationLedgerRoot(relativeRoute)) {
       return Effect.succeed(Program.state(initialConversationLedgerModel))
     } else if (isConstitutionRoot(relativeRoute)) {
       return Effect.succeed(Program.state(initialModel))
@@ -53,7 +88,9 @@ export const CardboardRouter: Program.ProgramRouter<Model, Message> = {
     }
   },
   print: route => {
-    if (isConversationLedgerStateRoute(route)) {
+    if (route._tag === 'State' && route.model.page._tag === 'SequencePage') {
+      return Effect.succeed(sequencePortableRoute(route.model.page.value))
+    } else if (isConversationLedgerStateRoute(route)) {
       return Effect.succeed(conversationLedgerPortableRoute)
     } else if (isInitialStateRoute(route)) {
       return Effect.succeed(ruleZeroPortableRoute)
@@ -62,7 +99,10 @@ export const CardboardRouter: Program.ProgramRouter<Model, Message> = {
     }
   },
   canonicalize: relativeRoute => {
-    if (isConversationLedgerRoot(relativeRoute)) {
+    const maybeSequenceValue = sequenceValueForRoute(relativeRoute)
+    if (Option.isSome(maybeSequenceValue)) {
+      return Effect.succeed(sequencePortableRoute(maybeSequenceValue.value))
+    } else if (isConversationLedgerRoot(relativeRoute)) {
       return Effect.succeed(conversationLedgerPortableRoute)
     } else if (isConstitutionRoot(relativeRoute)) {
       return Effect.succeed(ruleZeroPortableRoute)

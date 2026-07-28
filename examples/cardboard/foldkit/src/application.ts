@@ -2,6 +2,8 @@ import {
   CardboardProgram,
   type Message,
   type Model,
+  conversationLedgerPortableRoute,
+  sequencePortableRoute,
 } from 'cardboard-core-example'
 import { Layer } from 'effect'
 import { Runtime } from 'foldkit'
@@ -9,6 +11,16 @@ import { Runtime } from 'foldkit'
 import { overlay } from '@foldkit/devtools'
 
 import { view } from './view.js'
+
+const portableRouteForModel = (model: Model): string => {
+  if (model.page._tag === 'SequencePage') {
+    return sequencePortableRoute(model.page.value)
+  } else if (model.page._tag === 'ConversationLedgerPage') {
+    return conversationLedgerPortableRoute
+  } else {
+    return globalThis.location.pathname
+  }
+}
 
 /** The canonical Program consumed by the Foldkit presentation. */
 export const cardboardFoldkitProgram: typeof CardboardProgram = CardboardProgram
@@ -25,4 +37,10 @@ export const makeCardboardApplication = (
     resources: Layer.empty,
     start,
     view,
+    onModel: model => {
+      const nextPath = portableRouteForModel(model)
+      if (globalThis.location.pathname !== nextPath) {
+        globalThis.history.pushState({}, '', nextPath)
+      }
+    },
   })

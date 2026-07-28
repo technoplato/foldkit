@@ -7,9 +7,11 @@ import {
   cardboardAuthorshipAcronym,
   cardboardAuthorshipStatement,
 } from './authorship.js'
+import { cardboardScreen, renderCardboardText } from './component.js'
 import { conversationLedger, currentConversationScaleLevel } from './ledger.js'
 import { zeroMachine } from './machine.js'
 import {
+  AdvancedCardboardSequence,
   AdvancedZeroButtonHold,
   AdvancedZeroOpening,
   CompletedZeroGame,
@@ -25,8 +27,12 @@ import {
   SelectedMirrorAnswer,
   ToggledRgbInversion,
 } from './message.js'
-import { initialConversationLedgerModel, initialModel } from './model.js'
-import { CardboardRouter } from './route.js'
+import {
+  initialConversationLedgerModel,
+  initialModel,
+  initialRuleZeroModel,
+} from './model.js'
+import { CardboardRouter, sequencePortableRoute } from './route.js'
 import { update } from './update.js'
 
 const sha256 = async (value: string): Promise<string> => {
@@ -51,7 +57,7 @@ describe('Cardboard Program', () => {
   })
 
   it('models hold, opening, configuration, and completion as legal states', () => {
-    const [pressing] = update(initialModel, PressedZeroButton())
+    const [pressing] = update(initialRuleZeroModel, PressedZeroButton())
     const [stillPressing] = update(
       pressing,
       AdvancedZeroButtonHold({ elapsedMilliseconds: 900 }),
@@ -99,14 +105,14 @@ describe('Cardboard Program', () => {
   })
 
   it('cancels an incomplete hold on release', () => {
-    const [pressing] = update(initialModel, PressedZeroButton())
+    const [pressing] = update(initialRuleZeroModel, PressedZeroButton())
     const [released] = update(pressing, ReleasedZeroButton())
 
-    expect(released).toStrictEqual(initialModel)
+    expect(released).toStrictEqual(initialRuleZeroModel)
   })
 
   it('interprets three Spaces as skip and canonical Vim gg as return', () => {
-    const [oneSpace] = update(initialModel, PressedSpace())
+    const [oneSpace] = update(initialRuleZeroModel, PressedSpace())
     const [twoSpaces] = update(oneSpace, PressedSpace())
     const [skipped] = update(twoSpaces, PressedSpace())
     const [oneG] = update(skipped, PressedLowercaseG())
@@ -115,7 +121,7 @@ describe('Cardboard Program', () => {
     expect(oneSpace.keyboardInput.spacePressCount).toBe(1)
     expect(twoSpaces.keyboardInput.spacePressCount).toBe(2)
     expect(skipped.zero._tag).toBe('ConfiguringAtZero')
-    expect(returned).toStrictEqual(initialModel)
+    expect(returned).toStrictEqual(initialRuleZeroModel)
   })
 
   it('exposes an enumerable graph with no unreachable state', () => {
@@ -131,7 +137,7 @@ describe('Cardboard Program', () => {
       Effect.runPromise(CardboardRouter.canonicalize('/0/')),
     ).resolves.toBe('/0')
 
-    const [pressing] = update(initialModel, PressedZeroButton())
+    const [pressing] = update(initialRuleZeroModel, PressedZeroButton())
     const stateRoute = Program.state(pressing)
     const printed = await Effect.runPromise(CardboardRouter.print(stateRoute))
     const parsed = await Effect.runPromise(CardboardRouter.parse(printed))
@@ -140,16 +146,16 @@ describe('Cardboard Program', () => {
     expect(parsed).toStrictEqual(stateRoute)
   })
 
-  it('round-trips the append-only ledger at /0/0', async () => {
+  it('round-trips the append-only ledger at /0/log', async () => {
     await expect(
       Effect.runPromise(CardboardRouter.canonicalize('/0/0/')),
-    ).resolves.toBe('/0/0')
+    ).resolves.toBe('/0/log')
 
-    const parsed = await Effect.runPromise(CardboardRouter.parse('/0/0'))
+    const parsed = await Effect.runPromise(CardboardRouter.parse('/0/log'))
     const printed = await Effect.runPromise(CardboardRouter.print(parsed))
 
     expect(parsed).toStrictEqual(Program.state(initialConversationLedgerModel))
-    expect(printed).toBe('/0/0')
+    expect(printed).toBe('/0/log')
   })
 
   it('moves between Rule Zero and the ledger through factual Messages', () => {
@@ -157,7 +163,41 @@ describe('Cardboard Program', () => {
     const [ruleZero] = update(ledger, ReturnedToRuleZeroPage())
 
     expect(ledger.page._tag).toBe('ConversationLedgerPage')
-    expect(ruleZero).toStrictEqual(initialModel)
+    expect(ruleZero).toStrictEqual(initialRuleZeroModel)
+  })
+
+  it('models an unbounded sequence with one finite value', async () => {
+    const [five] = update(initialModel, AdvancedCardboardSequence())
+    const [six] = update(five, AdvancedCardboardSequence())
+    const veryLargeValue =
+      999999999999999999999999999999999999999999999999999999999999n
+    const veryLargeRoute = sequencePortableRoute(veryLargeValue)
+    const parsed = await Effect.runPromise(
+      CardboardRouter.parse(veryLargeRoute),
+    )
+
+    expect(initialModel.page).toMatchObject({ value: 4n })
+    expect(five.page).toMatchObject({ value: 5n })
+    expect(six.page).toMatchObject({ value: 6n })
+    expect(
+      await Effect.runPromise(CardboardRouter.print(Program.state(five))),
+    ).toBe('/0/5')
+    expect(parsed).toMatchObject({ model: { page: { value: veryLargeValue } } })
+  })
+
+  it('projects one shared semantic button for every renderer', () => {
+    const screen = cardboardScreen(initialModel)
+
+    expect(screen).toStrictEqual({
+      _tag: 'CardboardScreen',
+      content: {
+        _tag: 'CardboardButton',
+        accessibilityLabel: 'Next',
+        action: 'AdvanceCardboardSequence',
+        text: '4',
+      },
+    })
+    expect(renderCardboardText(screen)).toBe('4')
   })
 
   it('keeps the public conversation ledger ordered and at Ship level', () => {

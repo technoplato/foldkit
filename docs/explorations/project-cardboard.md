@@ -15,10 +15,10 @@ speaker's explicit question budget.
 
 ## Immediate consistency decisions
 
-1. `/0` is the public, portable Constitution and game root. Any conforming host
-   may serve it at its own scheme and authority, such as
-   `https://abcde.example/0`, while every client parses the same portable `/0`
-   value. Private state and consequential actions still require explicit,
+1. `/0` is the public, portable Cardboard root and displays the value `4`.
+   Activating `4` advances to `/0/5`, then `/0/6`, without a terminal state.
+   Any conforming host may serve the portable route through its own scheme and
+   authority. Private state and consequential actions still require explicit,
    scoped authority.
 2. Repeated use cannot prove that software contains no malicious behavior.
    Cardboard can instead provide reproducible builds, signed provenance,
@@ -67,10 +67,10 @@ special mode attached to one screen.
    rationale, test, review date, and removal path.
 10. **Security claims stay scoped.** Evidence says exactly which source,
     artifact, capabilities, inputs, and executions were inspected.
-11. **Rule Zero begins at zero.** A participant begins with zero slashes.
-    Increasing that count requires a versioned rule, evidence, notice, a typed
-    decision, and an appeal path. A stake may accompany a claim, but payment
-    does not authorize execution or prove the claim.
+11. **Rule Zero displays four.** `/0` contains one semantic Cardboard button
+    labeled `4`. Activating it records `AdvancedCardboardSequence` and derives
+    the next natural value. The Model stores only the current value, never an
+    infinite collection.
 12. **Context is volunteered evidence.** A client may attach a sampled screen,
     route, timestamp, source, reason, and retention period so another person or
     agent can understand what was being discussed. Capture is visible,
@@ -124,7 +124,22 @@ Terminal        cardboard host abcde /0
 Portable value  /0
 ```
 
-The initial game state has `slashCount = 0`. The objective is to keep it there.
+The canonical `/0` screen contains one renderer-neutral `CardboardButton`. Its
+text is `4`, its accessible label is `Next`, and its action maps to the factual
+Message `AdvancedCardboardSequence`. Update derives `5`; the route printer
+emits `/0/5`. Repeating that transition produces `/0/6`, `/0/7`, and so on.
+This models an unbounded sequence with one finite natural value and one
+transition rule. It does not allocate an infinite list.
+
+React, Foldkit, React Native, CLI, and TUI consume the same semantic component.
+Each renderer chooses layout for its surface, including tiny, drawer, phone,
+car, television, browser, and native application contexts. The Program does
+not store viewport or framework details.
+
+### Archived black-button study
+
+The earlier black-button interaction remains a noncanonical study. Its initial
+game state has `slashCount = 0`. The objective is to keep it there.
 Rules are philosophical claims made operational through stable identifiers,
 versions, Schemas, tests, evidence, review, and replayable decisions. A host may
 publish a game, accept typed proposals, and process allowed transitions without

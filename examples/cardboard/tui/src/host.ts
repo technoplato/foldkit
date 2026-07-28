@@ -1,11 +1,11 @@
 import {
+  AdvancedCardboardSequence,
   CardboardProgram,
   CompletedZeroGame,
   type Message,
   type Model,
   OpenedConversationLedger,
   PressedLowercaseG,
-  PressedSpace,
   PressedZeroButton,
   ReleasedZeroButton,
   ReturnedToRuleZeroPage,
@@ -33,12 +33,20 @@ const resetTerminalStyle = '\u001b[0m'
 
 /** Renders the canonical Cardboard Model for a text terminal. */
 export const renderCardboardScreen = (model: Model): string =>
-  `${amberPaper}${clearScreen}${amberAccent}PROJECT CARDBOARD${amberPaper}\n${terminalPresentation(model)}\n\n${amberAccent}[l] /0/0 log  [0] /0${amberPaper}\n[p] press  [r] release  [o] open  [space x3] skip\n[1] Genesis  [2] N64  [3] Game Boy  [4] Xbox  [5] keys\n[6] joystick  [7] eyes  [8] up  [9] down  [a] right  [m] mirror\n[g g] home  [G or ;] continue  [q] quit\n${resetTerminalStyle}`
+  model.page._tag === 'SequencePage'
+    ? `${amberPaper}${clearScreen}${amberAccent}╭───╮\n│ ${terminalPresentation(model)} │\n╰───╯${amberPaper}\n enter\n${resetTerminalStyle}`
+    : `${amberPaper}${clearScreen}${amberAccent}PROJECT CARDBOARD${amberPaper}\n${terminalPresentation(model)}\n\n${amberAccent}[l] /0/log  [0] /0${amberPaper}\n[p] press  [r] release  [o] open  [space x3] skip\n[1] Genesis  [2] N64  [3] Game Boy  [4] Xbox  [5] keys\n[6] joystick  [7] eyes  [8] up  [9] down  [a] right  [m] mirror\n[g g] home  [G or ;] continue  [q] quit\n${resetTerminalStyle}`
 
 /** Maps a terminal key to a Cardboard Message. */
 export const messageForInput = (input: string): Option.Option<Message> => {
-  if (input === ' ') {
-    return Option.some(PressedSpace())
+  if (
+    input === ' ' ||
+    input === 'enter' ||
+    input === 'return' ||
+    input === '\r' ||
+    input === 'n'
+  ) {
+    return Option.some(AdvancedCardboardSequence())
   } else if (input === 'G' || input === ';') {
     return Option.some(CompletedZeroGame())
   } else if (input === 'g') {

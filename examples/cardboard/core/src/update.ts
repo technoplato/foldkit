@@ -13,6 +13,7 @@ import {
   type KeyboardInput,
   type Model,
   RuleZeroPage,
+  SequencePage,
   type SpacePressCount,
   initialKeyboardInput,
 } from './model.js'
@@ -86,6 +87,21 @@ const returnedToRuleZeroPage = (model: Model): UpdateReturn => [
   [],
 ]
 
+const advancedCardboardSequence = (model: Model): UpdateReturn => {
+  if (model.page._tag === 'SequencePage') {
+    const nextValue = model.page.value + 1n
+    return [
+      evo(model, {
+        keyboardInput: resetKeyboardInput,
+        page: () => SequencePage({ value: nextValue }),
+      }),
+      [],
+    ]
+  } else {
+    return [model, []]
+  }
+}
+
 /** Applies one Cardboard Message through its keyboard grammar or Rule Zero Machine. */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
@@ -95,6 +111,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       PressedLowercaseG: () => pressedLowercaseG(model),
       OpenedConversationLedger: () => openedConversationLedger(model),
       ReturnedToRuleZeroPage: () => returnedToRuleZeroPage(model),
+      AdvancedCardboardSequence: () => advancedCardboardSequence(model),
       PressedZeroButton: zeroMessage => transitionZero(model, zeroMessage),
       AdvancedZeroButtonHold: zeroMessage => transitionZero(model, zeroMessage),
       ReleasedZeroButton: zeroMessage => transitionZero(model, zeroMessage),

@@ -4,6 +4,7 @@ import {
   accessibleDescription,
   cardboardAuthorship,
   cardboardDesktopCommand,
+  cardboardScreen,
   conversationLedger,
   conversationScale,
   currentConversationScaleLevel,
@@ -13,6 +14,7 @@ import {
   inputMethods,
   nextAccessibilityProfile,
   previousAccessibilityProfile,
+  sequencePortableRoute,
 } from 'cardboard-core-example'
 import {
   type CardboardInitialRoute,
@@ -33,6 +35,18 @@ export const App = ({
 )
 
 const Starting = () => <main className="cardboard-shell">Opening /0…</main>
+
+const portableRouteForModel = (
+  model: ReturnType<typeof useCardboardModel>,
+): string => {
+  if (model.page._tag === 'SequencePage') {
+    return sequencePortableRoute(model.page.value)
+  } else if (model.page._tag === 'ConversationLedgerPage') {
+    return '/0/log'
+  } else {
+    return '/0'
+  }
+}
 
 const presentationForModel = (
   model: ReturnType<typeof useCardboardModel>,
@@ -71,12 +85,27 @@ const CardboardScreen = () => {
     if (replay.mode !== 'Live') {
       return
     }
-    const nextPath =
-      model.page._tag === 'ConversationLedgerPage' ? '/0/0' : '/0'
+    const nextPath = portableRouteForModel(model)
     if (globalThis.location.pathname !== nextPath) {
       globalThis.history.pushState({}, '', nextPath)
     }
-  }, [model.page._tag, replay.mode])
+  }, [model.page, replay.mode])
+
+  if (model.page._tag === 'SequencePage') {
+    const screen = cardboardScreen(model)
+    return (
+      <main className="cardboard-sequence">
+        <button
+          aria-label={screen.content.accessibilityLabel}
+          className="cardboard-sequence-button"
+          onClick={actions.advancedCardboardSequence}
+          type="button"
+        >
+          {screen.content.text}
+        </button>
+      </main>
+    )
+  }
 
   if (model.page._tag === 'ConversationLedgerPage') {
     return (
@@ -161,7 +190,7 @@ const CardboardScreen = () => {
           onClick={actions.openedConversationLedger}
           type="button"
         >
-          Open /0/0 decision log
+          Open /0/log decision log
         </button>
 
         {isConfigurationVisible ? (
@@ -271,7 +300,7 @@ const ConversationLedgerScreen = ({
           <p className="eyebrow">Project Cardboard</p>
           <h1>When /0 is four</h1>
         </div>
-        <code>/0/0</code>
+        <code>/0/log</code>
       </header>
 
       <p className="ledger-declaration">

@@ -16,15 +16,19 @@ import {
   accessibleDescription,
   cardboardAuthorship,
   cardboardDesktopCommand,
+  cardboardScreen,
   conversationLedger,
+  conversationLedgerPortableRoute,
   conversationScale,
   currentConversationScaleLevel,
   initialAccessibilityProfile,
   inputMethodGlyph,
   inputMethodLabel,
   inputMethods,
+  messageForCardboardAction,
   nextAccessibilityProfile,
   previousAccessibilityProfile,
+  ruleZeroPortableRoute,
 } from 'cardboard-core-example'
 import { Array, Option } from 'effect'
 import { Document, html } from 'foldkit/html'
@@ -102,7 +106,7 @@ const conversationLedgerView = (): Document => {
                     h.h1([], ['When /0 is four']),
                   ],
                 ),
-                h.code([], ['/0/0']),
+                h.code([], ['/0/log']),
               ],
             ),
             h.p(
@@ -111,7 +115,10 @@ const conversationLedgerView = (): Document => {
                 'Four means Ship. Stop expanding the theory. Publish the smallest verified artifact, record what happened, and continue from evidence.',
               ],
             ),
-            h.a([h.Class('ledger-link'), h.Href('/0')], ['Return to /0']),
+            h.a(
+              [h.Class('ledger-link'), h.Href(ruleZeroPortableRoute)],
+              ['Return to /0'],
+            ),
             h.section(
               [
                 h.AriaLabelledBy('conversation-scale'),
@@ -193,11 +200,34 @@ const conversationLedgerView = (): Document => {
   }
 }
 
+const sequenceView = (model: Model): Document => {
+  const h = html<Message>()
+  const screen = cardboardScreen(model)
+  return {
+    title: `Project Cardboard | ${screen.content.text} | Foldkit`,
+    body: h.main(
+      [h.Class('cardboard-sequence')],
+      [
+        h.button(
+          [
+            h.AriaLabel(screen.content.accessibilityLabel),
+            h.Class('cardboard-sequence-button'),
+            h.OnClick(messageForCardboardAction(screen.content.action)),
+          ],
+          [screen.content.text],
+        ),
+      ],
+    ),
+  }
+}
+
 // VIEW
 
 /** Renders the same Cardboard Program with Foldkit HTML. */
 export const view = (model: Model): Document => {
-  if (model.page._tag === 'ConversationLedgerPage') {
+  if (model.page._tag === 'SequencePage') {
+    return sequenceView(model)
+  } else if (model.page._tag === 'ConversationLedgerPage') {
     return conversationLedgerView()
   }
 
@@ -278,8 +308,8 @@ export const view = (model: Model): Document => {
               [accessibleDescription(model)],
             ),
             h.a(
-              [h.Class('ledger-link'), h.Href('/0/0')],
-              ['Open /0/0 decision log'],
+              [h.Class('ledger-link'), h.Href(conversationLedgerPortableRoute)],
+              ['Open /0/log decision log'],
             ),
             ...(isConfigurationVisible
               ? [

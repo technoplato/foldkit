@@ -1,5 +1,6 @@
 import {
   type AccessibilityProfile,
+  AdvancedCardboardSequence,
   CardboardProgram,
   CompletedZeroGame,
   type InputMethod,
@@ -25,6 +26,7 @@ import { createReplayableReactProgramClient } from 'shared-react-bindings-exampl
 
 /** Host-sendable Cardboard actions. Internal lifecycle ticks remain private. */
 export type CardboardActions = Readonly<{
+  advancedCardboardSequence: () => void
   completedZeroGame: () => void
   openedConversationLedger: () => void
   pressedLowercaseG: () => void
@@ -50,6 +52,8 @@ export const CardboardClient = createReplayableReactProgramClient<
   CardboardInitialRoute
 >({
   createActions: enqueueMessage => ({
+    advancedCardboardSequence: () =>
+      enqueueMessage(AdvancedCardboardSequence()),
     completedZeroGame: () => enqueueMessage(CompletedZeroGame()),
     openedConversationLedger: () => enqueueMessage(OpenedConversationLedger()),
     pressedLowercaseG: () => enqueueMessage(PressedLowercaseG()),

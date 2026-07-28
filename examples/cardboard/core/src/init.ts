@@ -5,7 +5,7 @@ import { type Model, initialModel } from './model.js'
 
 // INIT
 
-/** Creates the constitutional Rule Zero Model and no initial Commands. */
+/** Creates Cardboard at value four and no initial Commands. */
 export const init = (): readonly [
   Model,
   ReadonlyArray<Command.Command<Message>>,

@@ -748,6 +748,16 @@ const CardboardExample = ({
   </CardboardClient.Provider>
 )
 
+const cardboardPortableRoute = (model: Cardboard.Model): string => {
+  if (model.page._tag === 'SequencePage') {
+    return Cardboard.sequencePortableRoute(model.page.value)
+  } else if (model.page._tag === 'ConversationLedgerPage') {
+    return Cardboard.conversationLedgerPortableRoute
+  } else {
+    return Cardboard.ruleZeroPortableRoute
+  }
+}
+
 const CardboardScreen = ({
   onBackToShowcase,
 }: Readonly<{ onBackToShowcase: () => void }>) => {
@@ -769,12 +779,36 @@ const CardboardScreen = ({
     if (Platform.OS !== 'web' || replay.mode !== 'Live') {
       return
     }
-    const nextPath =
-      model.page._tag === 'ConversationLedgerPage' ? '/0/0' : '/0'
+    const nextPath = cardboardPortableRoute(model)
     if (globalThis.location.pathname !== nextPath) {
       globalThis.history.pushState({}, '', nextPath)
     }
-  }, [model.page._tag, replay.mode])
+  }, [model.page, replay.mode])
+
+  if (model.page._tag === 'SequencePage') {
+    const screen = Cardboard.cardboardScreen(model)
+    return (
+      <View style={styles.cardboardSequence}>
+        <Pressable
+          accessibilityLabel={screen.content.accessibilityLabel}
+          accessibilityRole="button"
+          onPress={actions.advancedCardboardSequence}
+          style={({ pressed }) => [
+            styles.cardboardSequenceButton,
+            pressed ? styles.cardboardSequenceButtonPressed : undefined,
+          ]}
+        >
+          <Text
+            adjustsFontSizeToFit
+            numberOfLines={1}
+            style={styles.cardboardSequenceText}
+          >
+            {screen.content.text}
+          </Text>
+        </Pressable>
+      </View>
+    )
+  }
 
   if (model.page._tag === 'ConversationLedgerPage') {
     return (
@@ -825,7 +859,7 @@ const CardboardScreen = ({
         style={styles.cardboardPillButton}
       >
         <Text style={styles.cardboardPillButtonText}>
-          Open /0/0 decision log
+          Open /0/log decision log
         </Text>
       </Pressable>
       {isConfigurationVisible ? (
@@ -950,7 +984,7 @@ const CardboardLedgerScreen = ({
         <Text style={styles.cardboardEyebrow}>Project Cardboard</Text>
         <Text style={styles.cardboardLedgerTitle}>When /0 is four</Text>
       </View>
-      <Text style={styles.cardboardRoute}>/0/0</Text>
+      <Text style={styles.cardboardRoute}>/0/log</Text>
     </View>
     <Text style={styles.cardboardLedgerDeclaration}>
       Four means Ship. Stop expanding the theory. Publish the smallest verified
@@ -1579,6 +1613,35 @@ const styles = StyleSheet.create({
   showcaseCardArrow: { color: '#a3e635', fontSize: 32, fontWeight: '300' },
   navigationReplay: { marginTop: 8 },
   example: { gap: 20 },
+  cardboardSequence: {
+    backgroundColor: '#17130d',
+    flex: 1,
+    minHeight: 720,
+    padding: 18,
+  },
+  cardboardSequenceButton: {
+    alignItems: 'center',
+    backgroundColor: '#f2b85f',
+    borderColor: '#f7dca5',
+    borderRadius: 48,
+    borderWidth: 3,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 680,
+  },
+  cardboardSequenceButtonPressed: {
+    opacity: 0.9,
+    transform: [{ translateY: 9 }],
+  },
+  cardboardSequenceText: {
+    color: '#17130d',
+    fontFamily: 'serif',
+    fontSize: 360,
+    fontWeight: '900',
+    lineHeight: 390,
+    textAlign: 'center',
+    width: '94%',
+  },
   cardboardExample: {
     backgroundColor: '#23180d',
     flex: 1,
