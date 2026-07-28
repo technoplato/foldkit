@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 8:01:37 a.m. EDT — `311f6238647a` feat(constructive-data-modeling): render authored slides as text
+
+- **Implementation commit:** `311f6238647a509ce9e988262da9e4279e3b3343`
+- **Change:** Rendered every authored reveal as selectable slide text and moved mobile navigation above the page.
+- **Details:**
+  - Added typed text for all 158 official reveal pages, including exact code examples and explicit textual equivalents for image-only pages.
+  - Made the authored page the primary responsive surface, with the synchronized YouTube recording and timestamp deep link as a secondary companion.
+  - Pinned Previous, Goto Page, and Next controls at the top; contained mobile overflow; and used touch-action manipulation to suppress double-tap zoom while preserving pinch zoom.
+- **Files:**
+  - `examples/constructive-data-modeling/core/src/authoredPages.ts` — Defines the selectable official reveal text for all 158 authored pages.
+  - `examples/constructive-data-modeling/core/src/authoredPages.test.ts` — Verifies page coverage, representative code, and image-only textual equivalents.
+  - `examples/constructive-data-modeling/core/src/index.ts` — Exports authored page text to all presentation hosts.
+  - `examples/constructive-data-modeling/foldkit/index.html` — Enables safe-area-aware mobile layout without disabling accessible pinch zoom.
+  - `examples/constructive-data-modeling/foldkit/src/styles.css` — Makes the authored page primary, fixes top navigation and mobile overflow, and disables double-tap zoom.
+  - `examples/constructive-data-modeling/foldkit/src/view.ts` — Renders official page text and code while retaining synchronized video timing and deep links.
+- **User context (verbatim):**
+  > The next previous button should be at the very top, because I can't see the page.
+  > I don't want rapid double taps or rapid taps in succession to zoom the page.
+  > I want the code representation actually, like the slide actually represented in text on our thing.
+- **SpecStory:** unavailable — Codex desktop task; no verified Codex CLI capture or durable SpecStory URI is available.
+
 ## July 28th, 2026 at 8:00:26 a.m. EDT — `b85a71f19a78` fix: keep the Program Log reachable during replay
 
 - **Implementation commit:** `b85a71f19a786fdfb5a6ec87c13777d209c36f39`
