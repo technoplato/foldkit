@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 10:04:45 a.m. EDT — `c539ddd59ff7` feat(wallet): enable recipient-addressed testnet sends
+
+- **Implementation commit:** `c539ddd59ff799e7c1620c032f0300e0ae5cfea9`
+- **Change:** Added recipient-addressed Sepolia preview and submission across shared Wallet clients.
+- **Details:**
+  - The canonical Wallet Model now distinguishes empty, invalid, and valid Ethereum recipients and invalidates stale previews whenever recipient input changes.
+  - Foldkit, React, and Expo render the same recipient state and request previews through shared Messages instead of constructing drafts in each client.
+  - The unauthenticated disposable Sepolia bridge accepts bounded ETH transfers to valid Ethereum recipients while retaining the amount cap and explicit confirmation flow.
+- **Files:**
+  - `examples/wallet/core/src/model.ts` — Define the typed editable recipient state.
+  - `examples/wallet/core/src/update.ts` — Construct previews from shared Model state and invalidate stale previews.
+  - `examples/wallet/react/src/App.tsx` — Render recipient entry through shared Wallet actions.
+  - `examples/wallet/foldkit/src/view.ts` — Render the same recipient state through Foldkit HTML.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Render the same recipient state through React Native and Expo.
+  - `examples/wallet/testnet-server/src/server.ts` — Permit bounded transfers to valid Sepolia recipients.
+  - `examples/wallet/testnet-server/src/server.test.ts` — Reject 32-byte values that are not Ethereum addresses.
+  - `examples/client-matrix/core/src/wallet.ts` — Advance exact Wallet state and replay fixtures to wallet@3.
+- **User context (verbatim):**
+  > Let me put in who to transfer to
+  > I want to perform real sends (and we’ll start on testnet)
+- **SpecStory:** unavailable — This work was performed in Codex desktop, whose session is not available to SpecStory CLI sync.
+
 ## July 28th, 2026 at 9:05:57 a.m. EDT — `a2b71015b09d` feat(wallet): preview portable send intents across clients
 
 - **Implementation commit:** `a2b71015b09db265bbab11f661ba5a774819ac78`
