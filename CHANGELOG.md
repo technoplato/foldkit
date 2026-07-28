@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 9:05:57 a.m. EDT — `a2b71015b09d` feat(wallet): preview portable send intents across clients
+
+- **Implementation commit:** `a2b71015b09db265bbab11f661ba5a774819ac78`
+- **Change:** Preview portable wallet send intents across React, Foldkit, and Expo
+- **Details:**
+  - Decoded the global wallet intent path into pending Wallet Program state so the existing LoadWallet result deterministically produces the preview Command without submitting a transaction.
+  - Centralized a valid 32-byte Keccak signing challenge and preserved compatible typed RPC error codes instead of collapsing every remote failure to Unavailable.
+  - Updated the client matrix to mark visual intent carriers active, bumped wallet replay identity to wallet@2, and added core, React binding, and Foldkit route coverage.
+- **Files:**
+  - `examples/wallet/core/src/update.ts` — Apply pending portable intents when the public portfolio loads and produce only the preview Command.
+  - `examples/wallet/core/src/route.ts` — Own the global Wallet Program route intake shared by every visual client.
+  - `examples/wallet/core/src/signingChallenge.ts` — Provide one deterministic 32-byte Keccak test challenge for every host.
+  - `examples/wallet/react-bindings/src/walletRoute.ts` — Route React and Expo carriers through the core Wallet URI intake.
+  - `examples/wallet/foldkit/src/route.ts` — Route the canonical Foldkit presenter through the same core Wallet URI intake.
+  - `examples/react-native-showcase/src/App.tsx` — Open Wallet intent deep links through the shared React binding on Expo hosts.
+  - `examples/wallet/remote/src/remoteWallet.ts` — Preserve compatible typed RPC failure codes at the remote Layer boundary.
+  - `examples/client-matrix/core/src/walletIntent.ts` — Mark visual Wallet intent carriers active while keeping CLI intake limitations explicit.
+- **User context (verbatim):**
+  > Looks like the actual interactivity isn't quite working yet. For Foldkit, check React and Expo as well.
+  > And actually invoke the deep link to preview a send, and make sure that sends back the right JSON response or something from the page.
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture is available.
+
 ## July 28th, 2026 at 8:19:11 a.m. EDT — `612a26c37f99` feat(wallet): expose the Sepolia test wallet remotely
 
 - **Implementation commit:** `612a26c37f99d3fa942cf3309e2f1eea77f23057`
