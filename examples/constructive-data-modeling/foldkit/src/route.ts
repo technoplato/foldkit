@@ -17,7 +17,10 @@ export const startForSearch = (
     onNone: () => Runtime.fresh(),
     onSome: currentSlideId =>
       Runtime.fromModel(
-        Model.make({ currentSlideId, lastControl: InitialControl() }),
+        Model.make({
+          currentSlideId,
+          lastControl: InitialControl(),
+        }),
       ),
   })
 }

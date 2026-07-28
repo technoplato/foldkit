@@ -19,9 +19,18 @@ const deck = Command.make('foldkit-constructive-data-modeling').pipe(
   Command.withSubcommands([
     operation('show', 'Show', 'Show the opening slide'),
     operation('next', 'Next', 'Advance once from the opening slide'),
-    operation('obligations', 'Obligations', 'Show the obligations flow'),
-    operation('modeling-loop', 'ModelingLoop', 'Show the seven-move loop'),
-    operation('sources', 'Sources', 'Show the primary source index'),
+    operation(
+      'positive-space',
+      'PositiveSpace',
+      'Show the positive-space construction cue',
+    ),
+    operation(
+      'obligations',
+      'Obligations',
+      'Show the obligation-propagation cue',
+    ),
+    operation('recap', 'Recap', 'Show the authored recap cue'),
+    operation('thanks', 'Thanks', 'Show the authored closing cue'),
   ]),
 )
 

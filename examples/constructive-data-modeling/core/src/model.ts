@@ -1,28 +1,59 @@
 import { Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 
-/** Stable identities for every slide in the constructive modeling study deck. */
+/** Stable identities for the talk's authored logical slides and Q&A tail. */
 export const SlideId = S.Literals([
-  'opening',
+  'opening-title',
+  'about-alexis',
+  'software-should-work',
+  'static-typing',
+  'static-typing-dark-ages',
+  'type-system-renaissance',
+  'but-at-what-cost',
+  'gradual-typing',
+  'this-makes-me-sad',
+  'what-if-i-told-you',
   'ingredients',
-  'positive-space',
-  'checkout-example',
-  'representation',
-  'obligations',
-  'total-functions',
-  'modeling-loop',
-  'ubiquitous-deck',
-  'sources',
+  'shift-in-perspective',
+  'types-as-restrictions',
+  'other-languages',
+  'key-idea-1-negative-space',
+  'key-idea-1-positive-space',
+  'more-examples',
+  'key-idea-2',
+  'correlated-optionals',
+  'dependent-field-attempt',
+  'user-contact-sum',
+  'ior-sum',
+  'user-contact-sum-revisited',
+  'system-user-boolean',
+  'system-user-sum',
+  'time-range',
+  'representation-choice',
+  'type-system-purpose',
+  'obligations-far-apart',
+  'new-case-obligation',
+  'obligation-propagation-machine',
+  'list-versus-nonempty-list',
+  'key-idea-3',
+  'option-types',
+  'it-depends',
+  'sowing-and-reaping',
+  'move-obligations',
+  'recap',
+  'convenience',
+  'thanks',
+  'q-and-a',
 ])
 /** One stable slide identity. */
 export type SlideId = typeof SlideId.Type
 
-/** Stable identities for the primary sources behind the study deck. */
+/** Stable identities for the primary evidence behind the synchronized deck. */
 export const SourceId = S.Literals([
   'recording',
-  'event',
+  'transcript',
   'slides',
-  'essay',
+  'event',
   'speaker',
 ])
 /** One primary-source identity. */
@@ -38,85 +69,49 @@ export const SourceReference = S.Struct({
 /** A durable primary-source reference value. */
 export type SourceReference = typeof SourceReference.Type
 
-/** The deck is presenting its title and provenance. */
-export const TitleSlide = ts('TitleSlide', {
-  eyebrow: S.String,
-  speaker: S.String,
-  subtitle: S.String,
-  title: S.String,
-})
-/** The deck is presenting one principle and supporting points. */
-export const PrincipleSlide = ts('PrincipleSlide', {
-  eyebrow: S.String,
-  points: S.NonEmptyArray(S.String),
-  statement: S.String,
+/** One logical slide backed by an authored condensed page and reveal range. */
+export const AuthoredSlide = ts('AuthoredSlide', {
+  condensedPage: S.Int,
+  revealEndPage: S.Int,
+  revealStartPage: S.Int,
+  summary: S.String,
   title: S.String,
 })
 
-/** One side of a constructive modeling comparison. */
-export const ComparisonColumn = S.Struct({
-  code: S.String,
-  consequence: S.String,
-  label: S.String,
-})
-/** One constructive modeling comparison column value. */
-export type ComparisonColumn = typeof ComparisonColumn.Type
-/** The deck is contrasting two representations. */
-export const ComparisonSlide = ts('ComparisonSlide', {
-  after: ComparisonColumn,
-  before: ComparisonColumn,
-  eyebrow: S.String,
+/** The camera-only question-and-answer tail after the authored deck. */
+export const QuestionAnswerSlide = ts('QuestionAnswerSlide', {
+  summary: S.String,
   title: S.String,
 })
 
-/** One ordered move in a modeling flow. */
-export const FlowStep = S.Struct({
-  detail: S.String,
-  label: S.String,
-})
-/** The deck is presenting an ordered flow. */
-export const FlowSlide = ts('FlowSlide', {
-  eyebrow: S.String,
-  steps: S.NonEmptyArray(FlowStep),
-  title: S.String,
-})
-
-/** The deck is presenting its source chain. */
-export const SourcesSlide = ts('SourcesSlide', {
-  eyebrow: S.String,
-  sourceIds: S.NonEmptyArray(SourceId),
-  title: S.String,
-})
-
-/** Every slide body supported by all deck hosts. */
-export const SlideContent = S.Union([
-  TitleSlide,
-  PrincipleSlide,
-  ComparisonSlide,
-  FlowSlide,
-  SourcesSlide,
-])
-/** One supported slide body. */
+/** Every synchronized talk state supported by all deck hosts. */
+export const SlideContent = S.Union([AuthoredSlide, QuestionAnswerSlide])
+/** One synchronized talk state. */
 export type SlideContent = typeof SlideContent.Type
 
-/** A source-backed slide with a stable identity. */
+/** A time-indexed source-backed slide with a stable identity. */
 export const Slide = S.Struct({
   content: SlideContent,
+  deepLink: S.String,
+  endSeconds: S.Number,
   id: SlideId,
   sourceIds: S.NonEmptyArray(SourceId),
+  startSeconds: S.Number,
 })
-/** A source-backed slide value. */
+/** A time-indexed source-backed slide value. */
 export type Slide = typeof Slide.Type
 
-/** A non-empty, source-backed, portable slide deck. */
+/** A non-empty, source-backed, portable synchronized talk deck. */
 export const Deck = S.Struct({
   byline: S.String,
   id: S.Literal('constructive-data-modeling'),
   slides: S.NonEmptyArray(Slide),
   sources: S.NonEmptyArray(SourceReference),
   title: S.String,
+  videoDurationSeconds: S.Number,
+  videoId: S.String,
 })
-/** A portable slide deck value. */
+/** A portable synchronized talk deck value. */
 export type Deck = typeof Deck.Type
 
 /** No host has controlled the freshly initialized deck. */
@@ -129,6 +124,8 @@ export const PointerControl = ts('PointerControl')
 export const CommandLineControl = ts('CommandLineControl')
 /** An interactive terminal controlled the deck. */
 export const TerminalControl = ts('TerminalControl')
+/** Video playback selected the cue containing its observed time. */
+export const VideoPlaybackControl = ts('VideoPlaybackControl')
 /** A future remote adapter controlled the deck through the shared Message API. */
 export const RemoteControl = ts('RemoteControl', {
   controllerId: S.String,
@@ -141,21 +138,22 @@ export const ControlOrigin = S.Union([
   PointerControl,
   CommandLineControl,
   TerminalControl,
+  VideoPlaybackControl,
   RemoteControl,
 ])
 /** One shared Message origin. */
 export type ControlOrigin = typeof ControlOrigin.Type
 
-/** The complete renderer-neutral slide deck Model. */
+/** The complete renderer-neutral synchronized deck Model. */
 export const Model = S.Struct({
   currentSlideId: SlideId,
   lastControl: ControlOrigin,
 })
-/** A renderer-neutral slide deck Model value. */
+/** A renderer-neutral synchronized deck Model value. */
 export type Model = typeof Model.Type
 
 /** The canonical initial slide deck Model shared by every host. */
 export const initialModel = Model.make({
-  currentSlideId: 'opening',
+  currentSlideId: 'opening-title',
   lastControl: InitialControl(),
 })

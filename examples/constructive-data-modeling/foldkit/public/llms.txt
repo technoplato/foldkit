@@ -1,13 +1,15 @@
-# Constructive data modeling
+# The Unreasonable Effectiveness of Constructive Data Modeling
 
-> A source-backed Foldkit study deck after Alexis King's Software Should Work 2026 talk.
+> An exact, time-indexed Foldkit companion to Alexis King's Software Should Work 2026 talk.
 
-The deck has ten stable slides selected with `?slide=<slide-id>`. Keyboard controls are Left, Right, Space, Home, and End. Browser, command-line, and terminal hosts consume the same renderer-neutral Program, Model, and Message union.
+The companion has 40 authored visual states plus the recording's question-and-answer tail. Every state has recording start and end times, a YouTube deep link, and the corresponding condensed-page and 158-page reveal locators. The deliberate return from generic `Ior` to the domain-named `UserContact` slide is preserved.
+
+The embedded YouTube recording and cue deck synchronize in both directions: choosing a cue seeks the recording, and playback crossing a cue boundary selects the corresponding cue. Stable cues can also be selected with `?slide=<slide-id>`. Keyboard controls are Left, Right, Space, Home, and End. Browser, command-line, and terminal hosts consume the same renderer-neutral Model and Message union.
 
 ## Primary sources
 
 - [Conference recording](https://www.youtube.com/watch?v=0BXuYlNrUmE)
+- Timed English captions from the conference recording
 - [Authored slide source](https://github.com/lexi-lambda/talks/tree/c43b8f2d7645c78fb60c2e724f47f8b0c4872277/2026-07%20constructive%20data%20modeling)
 - [Software Should Work 2026](https://softwareshould.work/)
-- [Parse, don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
 - [Alexis King](https://lexi-lambda.github.io/)
