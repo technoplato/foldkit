@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 28th, 2026 at 12:47:39 a.m. EDT — `f8b727597e35` feat(react-native-showcase): log embedded build provenance
+
+- **Implementation commit:** `f8b727597e3573d3c155abef72b4e63dc3cdcff6`
+- **Change:** Made Expo Showcase builds report their embedded source and build identity at startup.
+- **Details:**
+  - Reads the Expo public build provenance payload exactly once and reports when development builds have no embedded payload.
+- **Files:**
+  - `examples/react-native-showcase/src/buildProvenance.ts` — Logs the build-time provenance payload at application startup.
+  - `examples/react-native-showcase/src/environment.d.ts` — Types the Expo public provenance environment variable without adding Node runtime APIs.
+  - `examples/react-native-showcase/src/App.tsx` — Runs provenance logging when the Showcase starts.
+- **User context (verbatim):**
+  > we need to ship
+- **SpecStory:** unavailable — Codex desktop GUI session is not available to SpecStory capture.
+
 ## July 28th, 2026 at 12:46:21 a.m. EDT — `4436ca70e62c` feat(client-matrix): add Cardboard cross-client evidence
 
 - **Implementation commit:** `4436ca70e62c4305c1913cdab1d6af9c701e3b4d`
