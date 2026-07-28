@@ -5,6 +5,7 @@ import type { Url } from 'foldkit/url'
 
 import {
   CalculatorScene,
+  CardboardScene,
   CounterScene,
   FactScene,
   HomeScene,
@@ -19,6 +20,7 @@ const MultipleCountersRoute = r('MultipleCountersRoute')
 const CalculatorRoute = r('CalculatorRoute')
 const FactRoute = r('FactRoute')
 const WalletRoute = r('WalletRoute')
+const CardboardRoute = r('CardboardRoute')
 const NotFoundRoute = r('NotFoundRoute', { path: S.String })
 
 const homeRouter = pipe(literal('showcase'), Route.mapTo(HomeRoute))
@@ -47,6 +49,7 @@ const walletRouter = pipe(
   slash(literal('wallet')),
   Route.mapTo(WalletRoute),
 )
+const cardboardRouter = pipe(literal('0'), Route.mapTo(CardboardRoute))
 
 const routeParser = Route.oneOf(
   counterRouter,
@@ -54,6 +57,7 @@ const routeParser = Route.oneOf(
   calculatorRouter,
   factRouter,
   walletRouter,
+  cardboardRouter,
   homeRouter,
 )
 
@@ -70,6 +74,7 @@ export const urlToNavigation = (url: Url): Navigation =>
       CalculatorRoute: () => CalculatorScene.make({}),
       FactRoute: () => FactScene.make({}),
       WalletRoute: () => WalletScene.make({}),
+      CardboardRoute: () => CardboardScene.make({}),
       NotFoundRoute: () => HomeScene.make({}),
     }),
   )
@@ -85,5 +90,6 @@ export const navigationToPath = (navigation: Navigation): string =>
       CalculatorScene: () => calculatorRouter(),
       FactScene: () => factRouter(),
       WalletScene: () => walletRouter(),
+      CardboardScene: () => cardboardRouter(),
     }),
   )

@@ -13,6 +13,8 @@ import {
   PressedZeroButton,
   ReleasedZeroButton,
   SelectedAccessibilityProfile,
+  SelectedIncorrectInputMethod,
+  SelectedMirrorAnswer,
   ToggledRgbInversion,
 } from './message.js'
 import { initialModel } from './model.js'
@@ -40,7 +42,14 @@ describe('Cardboard Program', () => {
       SelectedAccessibilityProfile({ profile: 'Groovebox' }),
     )
     const [inverted] = update(groovebox, ToggledRgbInversion())
-    const [completed] = update(inverted, CompletedZeroGame())
+    const [choosing] = update(inverted, CompletedZeroGame())
+    const [rejected] = update(
+      choosing,
+      SelectedIncorrectInputMethod({
+        inputMethod: 'Nintendo64Controller',
+      }),
+    )
+    const [completed] = update(rejected, SelectedMirrorAnswer())
 
     expect(pressing.zero._tag).toBe('PressingZero')
     expect(stillPressing.zero).toMatchObject({ elapsedMilliseconds: 900 })
@@ -49,8 +58,14 @@ describe('Cardboard Program', () => {
     expect(configuring.zero._tag).toBe('ConfiguringAtZero')
     expect(groovebox.zero).toMatchObject({ profile: 'Groovebox' })
     expect(inverted.zero).toMatchObject({ isRgbInverted: true })
+    expect(choosing.zero._tag).toBe('ChoosingInputMethod')
+    expect(rejected.zero).toMatchObject({
+      _tag: 'RejectedInputMethodChoice',
+      attemptedInputMethod: 'Nintendo64Controller',
+    })
     expect(completed.zero).toMatchObject({
       _tag: 'CompletedAtZero',
+      resolution: { _tag: 'AnsweredMirrorRiddle' },
       slashCount: 0,
     })
   })

@@ -2,7 +2,7 @@ import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
 import type { CallableTaggedStruct } from 'foldkit/schema'
 
-import { AccessibilityProfile } from './model.js'
+import { AccessibilityProfile, IncorrectInputMethod } from './model.js'
 
 // MESSAGE
 
@@ -36,6 +36,15 @@ export const ToggledRgbInversion: CallableTaggedStruct<
   'ToggledRgbInversion',
   {}
 > = m('ToggledRgbInversion')
+/** Records that the participant selected Mirror as the riddle answer. */
+export const SelectedMirrorAnswer: CallableTaggedStruct<
+  'SelectedMirrorAnswer',
+  {}
+> = m('SelectedMirrorAnswer')
+/** Records an input-method choice that does not answer the mirror riddle. */
+export const SelectedIncorrectInputMethod = m('SelectedIncorrectInputMethod', {
+  inputMethod: IncorrectInputMethod,
+})
 /** Records that the current Rule Zero step was skipped. */
 export const SkippedZeroStep: CallableTaggedStruct<'SkippedZeroStep', {}> =
   m('SkippedZeroStep')
@@ -57,6 +66,8 @@ export const ZeroMessage = S.Union([
   CompletedZeroOpening,
   SelectedAccessibilityProfile,
   ToggledRgbInversion,
+  SelectedMirrorAnswer,
+  SelectedIncorrectInputMethod,
   SkippedZeroStep,
   CompletedZeroGame,
   ReturnedToZeroStart,
@@ -80,6 +91,8 @@ export const Message = S.Union([
   CompletedZeroOpening,
   SelectedAccessibilityProfile,
   ToggledRgbInversion,
+  SelectedMirrorAnswer,
+  SelectedIncorrectInputMethod,
   SkippedZeroStep,
   CompletedZeroGame,
   ReturnedToZeroStart,

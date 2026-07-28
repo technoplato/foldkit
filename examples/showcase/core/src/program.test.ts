@@ -10,6 +10,7 @@ import {
 } from './message.js'
 import {
   CalculatorScene,
+  CardboardScene,
   CounterScene,
   FactScene,
   HomeScene,
@@ -49,6 +50,7 @@ describe('Showcase Program', () => {
       CalculatorScene.make({}),
       FactScene.make({}),
       WalletScene.make({}),
+      CardboardScene.make({}),
     ]
 
     for (const navigation of navigationValues) {

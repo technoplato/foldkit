@@ -10,6 +10,7 @@ import {
   ShowcaseProgram,
   TappedBackButton,
   TappedCalculatorButton,
+  TappedCardboardButton,
   TappedCounterButton,
   TappedFactButton,
   TappedMultipleCountersButton,
@@ -21,6 +22,7 @@ import {
 export type ShowcaseActions = Readonly<{
   tappedBackButton: () => void
   tappedCalculatorButton: () => void
+  tappedCardboardButton: () => void
   tappedCounterButton: () => void
   tappedFactButton: () => void
   tappedMultipleCountersButton: () => void
@@ -45,6 +47,7 @@ export const ShowcaseClient = createReplayableReactProgramClient<
   createActions: enqueueMessage => ({
     tappedBackButton: () => enqueueMessage(TappedBackButton()),
     tappedCalculatorButton: () => enqueueMessage(TappedCalculatorButton()),
+    tappedCardboardButton: () => enqueueMessage(TappedCardboardButton()),
     tappedCounterButton: () => enqueueMessage(TappedCounterButton()),
     tappedFactButton: () => enqueueMessage(TappedFactButton()),
     tappedMultipleCountersButton: () =>

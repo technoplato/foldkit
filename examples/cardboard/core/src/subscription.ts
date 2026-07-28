@@ -40,6 +40,8 @@ const tickForModel = (model: Model): typeof Tick.Type =>
               nextProgressPermille: progressPermille + openingTickPermille,
             }),
       ConfiguringAtZero: () => IdleTick(),
+      ChoosingInputMethod: () => IdleTick(),
+      RejectedInputMethodChoice: () => IdleTick(),
       CompletedAtZero: () => IdleTick(),
     }),
   )

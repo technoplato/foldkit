@@ -15,6 +15,39 @@ export const AccessibilityProfile = S.Literals([
 /** A Rule Zero presentation profile. */
 export type AccessibilityProfile = typeof AccessibilityProfile.Type
 
+/** Input choices that do not answer the mirror riddle. */
+export const IncorrectInputMethod = S.Literals([
+  'SegaGenesisController',
+  'Nintendo64Controller',
+  'GameBoyColor',
+  'Xbox360Controller',
+  'MouseAndKeyboard',
+  'Joystick',
+  'Eyes',
+  'HeadLookingUp',
+  'HeadLookingDown',
+  'HeadLookingRight',
+])
+/** An input choice that does not answer the mirror riddle. */
+export type IncorrectInputMethod = typeof IncorrectInputMethod.Type
+
+/** Every portable choice in the first Cardboard riddle. */
+export const InputMethod = S.Union([IncorrectInputMethod, S.Literal('Mirror')])
+/** A portable Cardboard input choice. */
+export type InputMethod = typeof InputMethod.Type
+
+/** The mirror riddle was deliberately skipped. */
+export const SkippedInputMethodRiddle = ts('SkippedInputMethodRiddle')
+/** The mirror riddle was answered with Mirror. */
+export const AnsweredMirrorRiddle = ts('AnsweredMirrorRiddle')
+/** Every legal resolution of the mirror riddle. */
+export const RiddleResolution = S.Union([
+  SkippedInputMethodRiddle,
+  AnsweredMirrorRiddle,
+])
+/** A legal resolution of the mirror riddle. */
+export type RiddleResolution = typeof RiddleResolution.Type
+
 /** Rule Zero is waiting for its first interaction. */
 export const WaitingAtZero = ts('WaitingAtZero', { slashCount: S.Int })
 /** Rule Zero is measuring an active hold. */
@@ -33,10 +66,24 @@ export const ConfiguringAtZero = ts('ConfiguringAtZero', {
   profile: AccessibilityProfile,
   slashCount: S.Int,
 })
+/** Rule Zero is asking which choice looks back at the participant. */
+export const ChoosingInputMethod = ts('ChoosingInputMethod', {
+  isRgbInverted: S.Boolean,
+  profile: AccessibilityProfile,
+  slashCount: S.Int,
+})
+/** Rule Zero records an incorrect riddle choice without adding a slash. */
+export const RejectedInputMethodChoice = ts('RejectedInputMethodChoice', {
+  attemptedInputMethod: IncorrectInputMethod,
+  isRgbInverted: S.Boolean,
+  profile: AccessibilityProfile,
+  slashCount: S.Int,
+})
 /** Rule Zero has completed without adding a slash. */
 export const CompletedAtZero = ts('CompletedAtZero', {
   isRgbInverted: S.Boolean,
   profile: AccessibilityProfile,
+  resolution: RiddleResolution,
   slashCount: S.Int,
 })
 
@@ -46,6 +93,8 @@ export const ZeroState = S.Union([
   PressingZero,
   OpeningZero,
   ConfiguringAtZero,
+  ChoosingInputMethod,
+  RejectedInputMethodChoice,
   CompletedAtZero,
 ])
 /** A legal Rule Zero state. */

@@ -80,6 +80,13 @@ special mode attached to one screen.
     measure how many hours people must work to survive, thrive, and support the
     people they love. Membership does not require one family structure. Rules
     remain versioned, challengeable, and forkable.
+14. **Computation has a visible budget.** A host exposes material compute,
+    network, storage, energy, and paid-service costs before or while they are
+    incurred. A participant can set limits, cancel work, and inspect which
+    Program intent consumed the budget.
+15. **Play remains voluntary.** A riddle may invite exploration, but it never
+    hides a consequential permission, charge, or data grant. Skipping remains
+    explicit, available, and represented in the replayable Model.
 
 ## Bill of Rights
 
@@ -129,7 +136,9 @@ WaitingAtZero
 | PressingZero(elapsedMilliseconds)
 | OpeningZero(progressPermille)
 | ConfiguringAtZero(accessibilityProfile, isRgbInverted)
-| CompletedAtZero(accessibilityProfile, isRgbInverted)
+| ChoosingInputMethod(accessibilityProfile, isRgbInverted)
+| RejectedInputMethodChoice(attemptedInputMethod, accessibilityProfile)
+| CompletedAtZero(accessibilityProfile, isRgbInverted, riddleResolution)
 ```
 
 The portable input and lifecycle facts are:
@@ -142,6 +151,8 @@ PressedZeroButton
 | CompletedZeroOpening
 | SelectedAccessibilityProfile(profile)
 | ToggledRgbInversion
+| SelectedIncorrectInputMethod(inputMethod)
+| SelectedMirrorAnswer
 | SkippedZeroStep
 | CompletedZeroGame
 | ReturnedToZeroStart
@@ -172,6 +183,41 @@ The prototype accepts Arrow Left and `h` for the previous choice, Arrow Right
 and `l` for the next choice, `G` or semicolon to complete, and three Space
 presses to skip the current step. Canonical Vim `gg` returns to the beginning;
 using `GG` for completion would conflict with Vim's established grammar.
+
+The next state is a replayable dungeon riddle: “If you are looking at
+yourself, where are you looking?” The choices include era-specific controller
+silhouettes, mouse and keyboard, joystick, eyes, directional head poses, and a
+mirror. Controller art, color, touch, keyboard, and terminal shortcuts are host
+presentations. `SelectedIncorrectInputMethod` and `SelectedMirrorAnswer` are
+portable facts. Only the Mirror fact reaches `CompletedAtZero`; an explicit
+skip has its own typed resolution.
+
+## Implemented clients
+
+The canonical implementation lives in `examples/cardboard/core`. The Foldkit,
+React, Expo, raw CLI, and TUI packages import that exact Program. React and
+Expo share one renderer-neutral binding package whose public actions exclude
+internal timer Messages.
+
+```text
+examples/cardboard/core             Model, Message, Machine, Program, route
+examples/cardboard/foldkit          Foldkit HTML presentation
+examples/cardboard/react-bindings   React and React Native observation/actions
+examples/cardboard/react            React presentation
+examples/cardboard/cli              one-shot text presentation
+examples/cardboard/tui              interactive text presentation
+examples/react-native-showcase      Expo Web, iOS, and Android presentation
+```
+
+Expo proves native iOS and Android primitives over the TypeScript Program. A
+standalone Swift, Kotlin, or Flutter client is not claimed yet. Those clients
+need either a portable TypeScript execution boundary or a faithful runtime and
+Effect port before they can consume the same Program without duplicating its
+business rules.
+
+Interactive clients use the runtime's non-blocking `send` operation so a press
+can remain active while further input arrives. One-shot clients use `run` when
+they must wait for a finite causal Command chain before printing or exiting.
 
 ## Accessibility configuration
 

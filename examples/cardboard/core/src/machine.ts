@@ -3,10 +3,15 @@ import { otherwise, to, when } from 'foldkit/experimental/machine'
 
 import { Message } from './message.js'
 import {
+  type AccessibilityProfile,
+  AnsweredMirrorRiddle,
+  ChoosingInputMethod,
   CompletedAtZero,
   ConfiguringAtZero,
   OpeningZero,
   PressingZero,
+  RejectedInputMethodChoice,
+  SkippedInputMethodRiddle,
   WaitingAtZero,
   ZeroState,
   initialAccessibilityProfile,
@@ -30,11 +35,17 @@ const configuringAtZero = (slashCount: number): typeof ConfiguringAtZero.Type =>
     slashCount,
   })
 
-const completedAtZero = (slashCount: number): typeof CompletedAtZero.Type =>
-  CompletedAtZero({
-    isRgbInverted: false,
-    profile: initialAccessibilityProfile,
-    slashCount,
+const choosingInputMethod = (
+  state: Readonly<{
+    isRgbInverted: boolean
+    profile: AccessibilityProfile
+    slashCount: number
+  }>,
+): typeof ChoosingInputMethod.Type =>
+  ChoosingInputMethod({
+    isRgbInverted: state.isRgbInverted,
+    profile: state.profile,
+    slashCount: state.slashCount,
   })
 
 /** The typed and inspectable Rule Zero transition graph. */
@@ -55,8 +66,8 @@ export const zeroMachine = Machine.define({
         SkippedZeroStep: to('ConfiguringAtZero', ({ state }) =>
           configuringAtZero(state.slashCount),
         ),
-        CompletedZeroGame: to('CompletedAtZero', ({ state }) =>
-          completedAtZero(state.slashCount),
+        CompletedZeroGame: to('ChoosingInputMethod', ({ state }) =>
+          choosingInputMethod(configuringAtZero(state.slashCount)),
         ),
         ReturnedToZeroStart: to('WaitingAtZero', ({ state }) =>
           waitingAtZero(state.slashCount),
@@ -91,8 +102,8 @@ export const zeroMachine = Machine.define({
         SkippedZeroStep: to('ConfiguringAtZero', ({ state }) =>
           configuringAtZero(state.slashCount),
         ),
-        CompletedZeroGame: to('CompletedAtZero', ({ state }) =>
-          completedAtZero(state.slashCount),
+        CompletedZeroGame: to('ChoosingInputMethod', ({ state }) =>
+          choosingInputMethod(configuringAtZero(state.slashCount)),
         ),
         ReturnedToZeroStart: to('WaitingAtZero', ({ state }) =>
           waitingAtZero(state.slashCount),
@@ -113,8 +124,8 @@ export const zeroMachine = Machine.define({
         SkippedZeroStep: to('ConfiguringAtZero', ({ state }) =>
           configuringAtZero(state.slashCount),
         ),
-        CompletedZeroGame: to('CompletedAtZero', ({ state }) =>
-          completedAtZero(state.slashCount),
+        CompletedZeroGame: to('ChoosingInputMethod', ({ state }) =>
+          choosingInputMethod(configuringAtZero(state.slashCount)),
         ),
         ReturnedToZeroStart: to('WaitingAtZero', ({ state }) =>
           waitingAtZero(state.slashCount),
@@ -134,10 +145,42 @@ export const zeroMachine = Machine.define({
             isRgbInverted: !state.isRgbInverted,
           }),
         ),
+        SkippedZeroStep: to('ChoosingInputMethod', ({ state }) =>
+          choosingInputMethod(state),
+        ),
+        CompletedZeroGame: to('ChoosingInputMethod', ({ state }) =>
+          choosingInputMethod(state),
+        ),
+        ReturnedToZeroStart: to('WaitingAtZero', ({ state }) =>
+          waitingAtZero(state.slashCount),
+        ),
+      },
+    },
+    ChoosingInputMethod: {
+      on: {
+        SelectedMirrorAnswer: to('CompletedAtZero', ({ state }) =>
+          CompletedAtZero({
+            isRgbInverted: state.isRgbInverted,
+            profile: state.profile,
+            resolution: AnsweredMirrorRiddle(),
+            slashCount: state.slashCount,
+          }),
+        ),
+        SelectedIncorrectInputMethod: to(
+          'RejectedInputMethodChoice',
+          ({ state, message }) =>
+            RejectedInputMethodChoice({
+              attemptedInputMethod: message.inputMethod,
+              isRgbInverted: state.isRgbInverted,
+              profile: state.profile,
+              slashCount: state.slashCount,
+            }),
+        ),
         SkippedZeroStep: to('CompletedAtZero', ({ state }) =>
           CompletedAtZero({
             isRgbInverted: state.isRgbInverted,
             profile: state.profile,
+            resolution: SkippedInputMethodRiddle(),
             slashCount: state.slashCount,
           }),
         ),
@@ -145,6 +188,46 @@ export const zeroMachine = Machine.define({
           CompletedAtZero({
             isRgbInverted: state.isRgbInverted,
             profile: state.profile,
+            resolution: SkippedInputMethodRiddle(),
+            slashCount: state.slashCount,
+          }),
+        ),
+        ReturnedToZeroStart: to('WaitingAtZero', ({ state }) =>
+          waitingAtZero(state.slashCount),
+        ),
+      },
+    },
+    RejectedInputMethodChoice: {
+      on: {
+        SelectedMirrorAnswer: to('CompletedAtZero', ({ state }) =>
+          CompletedAtZero({
+            isRgbInverted: state.isRgbInverted,
+            profile: state.profile,
+            resolution: AnsweredMirrorRiddle(),
+            slashCount: state.slashCount,
+          }),
+        ),
+        SelectedIncorrectInputMethod: to(
+          'RejectedInputMethodChoice',
+          ({ state, message }) =>
+            RejectedInputMethodChoice({
+              ...state,
+              attemptedInputMethod: message.inputMethod,
+            }),
+        ),
+        SkippedZeroStep: to('CompletedAtZero', ({ state }) =>
+          CompletedAtZero({
+            isRgbInverted: state.isRgbInverted,
+            profile: state.profile,
+            resolution: SkippedInputMethodRiddle(),
+            slashCount: state.slashCount,
+          }),
+        ),
+        CompletedZeroGame: to('CompletedAtZero', ({ state }) =>
+          CompletedAtZero({
+            isRgbInverted: state.isRgbInverted,
+            profile: state.profile,
+            resolution: SkippedInputMethodRiddle(),
             slashCount: state.slashCount,
           }),
         ),

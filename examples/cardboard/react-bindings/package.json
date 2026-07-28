@@ -1,0 +1,38 @@
+{
+  "name": "cardboard-react-bindings-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "prebuild": "pnpm --filter cardboard-core-example build && pnpm --filter shared-react-bindings-example build",
+    "pretypecheck": "pnpm --filter cardboard-core-example build && pnpm --filter shared-react-bindings-example build",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "cardboard-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "shared-react-bindings-example": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=19.2.3 <20"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "prettier": "^3.8.4",
+    "react": "19.2.3",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3"
+  }
+}
