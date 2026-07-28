@@ -309,6 +309,7 @@ const makeSimulatedServices = Effect.gen(function* () {
           previewId: signedPayload.preview.previewId,
           transactionId,
           submittedAt: fixedObservedAt,
+          maybeExplorerConfirmation: Option.none(),
         })
       }),
     observeTransactions: accounts => {

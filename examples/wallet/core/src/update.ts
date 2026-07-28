@@ -1,6 +1,7 @@
 import { Array as Array_, Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 
+import { EthereumSepolia, type Network, SolanaDevnet } from './currency.js'
 import {
   AppliedWalletIntent,
   type ExecutableWalletIntent,
@@ -57,6 +58,7 @@ import {
   recipientHistoryForDraft,
   transactionPreviewFromQuote,
   transferDraftFromInput,
+  transferRecipientFormat,
   transferRecipientFromInput,
 } from './model.js'
 import {
@@ -374,22 +376,6 @@ const transferDraftForWalletIntent = (
   }
 
   const executableIntent = capability.intent
-  const isEthereumIntent = M.value(executableIntent).pipe(
-    M.withReturnType<boolean>(),
-    M.tagsExhaustive({
-      SepoliaEthTransferIntent: () => true,
-      SepoliaUsdcTransferIntent: () => true,
-      SolanaDevnetSolTransferIntent: () => false,
-      SolanaDevnetUsdcTransferIntent: () => false,
-    }),
-  )
-  if (
-    isEthereumIntent &&
-    transferRecipientFromInput(executableIntent.destinationAddress)._tag !==
-      'ValidTransferRecipient'
-  ) {
-    return Option.none()
-  }
   const maybeAccount = Array_.findFirst(portfolio.accounts, account =>
     accountSupportsIntent(executableIntent, account),
   )
@@ -420,12 +406,24 @@ const transferDraftForWalletIntent = (
   })
 }
 
+const networkForExecutableIntent = (intent: ExecutableWalletIntent): Network =>
+  M.value(intent).pipe(
+    M.withReturnType<Network>(),
+    M.tagsExhaustive({
+      SepoliaEthTransferIntent: () => EthereumSepolia.make({}),
+      SepoliaUsdcTransferIntent: () => EthereumSepolia.make({}),
+      SolanaDevnetSolTransferIntent: () => SolanaDevnet.make({}),
+      SolanaDevnetUsdcTransferIntent: () => SolanaDevnet.make({}),
+    }),
+  )
+
 const transferDraftForRecipient = (
   model: Model,
 ): Option.Option<TransferDraft> => {
   if (
     model.portfolio._tag !== 'LoadedPortfolio' ||
-    model.transferRecipient._tag !== 'ValidTransferRecipient'
+    model.transferRecipient._tag !== 'ValidTransferRecipient' ||
+    model.transferRecipient.address._tag !== 'EthereumNetworkAddress'
   ) {
     return Option.none()
   }
@@ -450,7 +448,7 @@ const transferDraftForRecipient = (
     transferId: 'wallet-demo-transfer',
     accountId: maybeAccount.value.accountId,
     network: maybeAccount.value.network,
-    destinationAddress: model.transferRecipient.address,
+    destinationAddress: model.transferRecipient.address.value,
     value: {
       ...maybeBalance.value.value,
       atomicUnits: walletDemoTransferAtomicUnits,
@@ -460,6 +458,20 @@ const transferDraftForRecipient = (
 }
 
 const previewTransfer = (model: Model, draft: TransferDraft): UpdateReturn => {
+  const nextTransferRecipient = transferRecipientFromInput(
+    draft.network,
+    draft.destinationAddress,
+  )
+  if (nextTransferRecipient._tag === 'InvalidTransferRecipient') {
+    return [
+      {
+        ...model,
+        transferRecipient: nextTransferRecipient,
+        transaction: IdleTransaction.make({}),
+      },
+      [],
+    ]
+  }
   const recipientFamiliarity = familiarityForAddress(
     model.addressBookEntries,
     draft.network,
@@ -472,6 +484,7 @@ const previewTransfer = (model: Model, draft: TransferDraft): UpdateReturn => {
   return [
     {
       ...model,
+      transferRecipient: nextTransferRecipient,
       transaction: PreviewingTransaction.make({
         draft,
         recipientFamiliarity,
@@ -511,9 +524,6 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }
 
         const intent = model.walletIntent.intent
-        const nextTransferRecipient = transferRecipientFromInput(
-          intent.destinationAddress,
-        )
         const capability = capabilityForWalletIntent(intent)
         if (capability._tag === 'UnsupportedWalletIntentCapability') {
           return [
@@ -523,11 +533,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 intent,
                 reason: capability.reason,
               }),
-              transferRecipient: nextTransferRecipient,
             },
             [],
           ]
         }
+
+        const nextTransferRecipient = transferRecipientFromInput(
+          networkForExecutableIntent(capability.intent),
+          intent.destinationAddress,
+        )
 
         const maybeDraft = transferDraftForWalletIntent(portfolio, intent)
         if (Option.isNone(maybeDraft)) {
@@ -587,7 +601,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         {
           ...model,
           walletIntent: NoWalletIntent.make({}),
-          transferRecipient: transferRecipientFromInput(value),
+          transferRecipient: transferRecipientFromInput(
+            transferRecipientFormat(model.transferRecipient).network,
+            value,
+          ),
           transaction: IdleTransaction.make({}),
         },
         [],

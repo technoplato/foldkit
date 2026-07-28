@@ -105,6 +105,14 @@ describe('Wallet React bindings', () => {
       expect(result.current.model.transaction._tag).toBe('SubmittedTransaction')
       expect(result.current.model.observedTransactions).toHaveLength(1)
     })
+    if (result.current.model.transaction._tag !== 'SubmittedTransaction') {
+      throw new Error('Expected a submitted transaction')
+    }
+    expect(
+      Option.isNone(
+        result.current.model.transaction.submission.maybeExplorerConfirmation,
+      ),
+    ).toBe(true)
 
     act(() => {
       result.current.actions.requestedChallengeSignature(

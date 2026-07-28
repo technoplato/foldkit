@@ -19,8 +19,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@solana/addresses": "7.0.0",
     "effect": "4.0.0-beta.97",
-    "foldkit": "workspace:*"
+    "foldkit": "workspace:*",
+    "viem": "2.55.10"
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-beta.97",

@@ -11,12 +11,15 @@ import {
   type TransactionPreview,
   type TransactionState,
   currencyValueLabel,
+  invalidNetworkAddressMessage,
   makeWalletTestChallenge,
+  networkAddressRuleMessage,
   networkLabel,
   primaryReceivingInstruction,
   primaryWalletAccount,
   primaryWalletBalance,
   shortenedAddress,
+  transferRecipientFormat,
   transferRecipientInput,
 } from 'wallet-core-example'
 
@@ -138,17 +141,52 @@ const sendButton = (model: Model): Html => {
   )
 }
 
+const submittedTransactionConfirmation = (
+  model: Model,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  if (model.transaction._tag !== 'SubmittedTransaction') {
+    return []
+  }
+  const maybeConfirmation =
+    model.transaction.submission.maybeExplorerConfirmation
+  const explorerConfirmation = Option.isSome(maybeConfirmation)
+    ? [
+        h.span([], [`Confirm it on ${maybeConfirmation.value.explorer}.`]),
+        h.a(
+          [
+            h.Href(maybeConfirmation.value.transactionUri),
+            h.Target('_blank'),
+            h.Rel('noopener noreferrer'),
+          ],
+          [`View on ${maybeConfirmation.value.explorer}`],
+        ),
+      ]
+    : []
+  return [
+    h.div(
+      [h.Class('wallet-confirmation'), h.Role('status')],
+      [
+        h.strong([], ['Transaction submitted']),
+        ...explorerConfirmation,
+        h.code([], [model.transaction.submission.transactionId]),
+      ],
+    ),
+  ]
+}
+
 const sendMoney = (model: Model): Html => {
   const h = html<Message>()
   const maybePreview = maybePreviewForTransaction(model.transaction)
+  const recipientFormat = transferRecipientFormat(model.transferRecipient)
   const recipientField = h.label(
     [h.Class('wallet-recipient'), h.For('wallet-recipient')],
     [
-      h.span([], ['Recipient on Ethereum Sepolia']),
+      h.span([], [`Recipient on ${recipientFormat.networkName}`]),
       h.input([
         h.Id('wallet-recipient'),
         h.Type('text'),
-        h.Placeholder('0x…'),
+        h.Placeholder(recipientFormat.exampleAddress),
         h.Spellcheck(false),
         h.Value(transferRecipientInput(model.transferRecipient)),
         h.Disabled(model.transaction._tag === 'SubmittingTransaction'),
@@ -159,10 +197,27 @@ const sendMoney = (model: Model): Html => {
   const validation =
     model.transferRecipient._tag === 'InvalidTransferRecipient'
       ? [
-          h.p(
+          h.div(
             [h.Class('wallet-validation'), h.Role('alert')],
             [
-              'Enter an Ethereum address with 0x followed by 40 hexadecimal digits.',
+              h.p(
+                [],
+                [
+                  invalidNetworkAddressMessage(
+                    model.transferRecipient.validation,
+                  ),
+                ],
+              ),
+              h.ul(
+                [],
+                Array.map(
+                  model.transferRecipient.validation.format.rules,
+                  rule => {
+                    const ruleMessage = networkAddressRuleMessage(rule)
+                    return h.li([h.Key(ruleMessage)], [ruleMessage])
+                  },
+                ),
+              ),
             ],
           ),
         ]
@@ -210,6 +265,7 @@ const sendMoney = (model: Model): Html => {
         ],
       ),
   })
+  const confirmation = submittedTransactionConfirmation(model)
   return h.section(
     [h.Class('wallet-send cardboard-panel')],
     [
@@ -232,6 +288,7 @@ const sendMoney = (model: Model): Html => {
       recipientField,
       ...validation,
       preview,
+      ...confirmation,
       h.div([h.Class('wallet-action-row')], [sendButton(model)]),
     ],
   )

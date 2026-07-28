@@ -26,6 +26,8 @@ import {
   SigningChallenge,
   type TransferDraft,
   WalletProgram,
+  invalidNetworkAddressMessage,
+  networkAddressRuleMessages,
   transferDraftFromInput,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
@@ -126,9 +128,30 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
       ],
     }),
   )
+  const transactionLines =
+    model.transaction._tag === 'SubmittedTransaction' &&
+    Option.isSome(model.transaction.submission.maybeExplorerConfirmation)
+      ? [
+          `Confirm on ${model.transaction.submission.maybeExplorerConfirmation.value.explorer}: ${model.transaction.submission.maybeExplorerConfirmation.value.transactionUri}`,
+        ]
+      : []
+  const addressValidationLines =
+    model.transferRecipient._tag === 'InvalidTransferRecipient'
+      ? [
+          invalidNetworkAddressMessage(model.transferRecipient.validation),
+          ...Array.map(
+            networkAddressRuleMessages(
+              model.transferRecipient.validation.format,
+            ),
+            rule => `- ${rule}`,
+          ),
+        ]
+      : []
   return [
     ...portfolioLines,
     `Transaction: ${model.transaction._tag}`,
+    ...transactionLines,
+    ...addressValidationLines,
     `Signature: ${model.signature._tag}`,
     `Observed: ${model.observedTransactions.length.toString()}`,
   ]
@@ -384,7 +407,12 @@ const runLiveAction = (
         ...state,
         maybeReplaySession: Option.none(),
         maybeNotice: Option.some(
-          `Send settled: ${model.transaction._tag}; observed ${model.observedTransactions.length.toString()}`,
+          model.transaction._tag === 'SubmittedTransaction' &&
+            Option.isSome(
+              model.transaction.submission.maybeExplorerConfirmation,
+            )
+            ? `Send settled: ${model.transaction._tag}; confirm on ${model.transaction.submission.maybeExplorerConfirmation.value.explorer}: ${model.transaction.submission.maybeExplorerConfirmation.value.transactionUri}`
+            : `Send settled: ${model.transaction._tag}; observed ${model.observedTransactions.length.toString()}`,
         ),
       })),
     ),

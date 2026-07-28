@@ -64,7 +64,7 @@ const eth = Eth.make({ network: ethereum })
 const account = WalletAccount.make({
   accountId: 'account-1',
   network: ethereum,
-  address: '0xAccount',
+  address: '0x1111111111111111111111111111111111111111',
   displayName: 'Sepolia Account',
 })
 const balance = CurrencyValue.make({
@@ -108,7 +108,7 @@ const draft = EthereumSepoliaEthTransferDraft.make({
   transferId: 'transfer-1',
   accountId: account.accountId,
   network: ethereum,
-  destinationAddress: '0xRecipient',
+  destinationAddress: '0x2222222222222222222222222222222222222222',
   value: EthereumSepoliaEthValue.make({
     currency: eth,
     atomicUnits: '100000000000000000',
@@ -136,6 +136,7 @@ const submission = TransactionSubmission.make({
   previewId: preview.previewId,
   transactionId: 'transaction-1',
   submittedAt: observedAt + 2,
+  maybeExplorerConfirmation: Option.none(),
 })
 const observedTransaction = TransactionRecord.make({
   transactionId: 'transaction-observed',

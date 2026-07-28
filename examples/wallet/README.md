@@ -21,6 +21,12 @@ the preview Command through update. Opening an intent never submits a
 transaction. Live routes remain typed unsupported until a mainnet Layer is
 configured.
 
+Recipient validation is also portable Program data. Each supported network
+defines a Schema-backed display name, example address, and tagged rules for its
+prefix, encoded alphabet, encoded length, and decoded byte length. Every client
+prints the same human guidance from that structure. A valid recipient is paired
+with its Network before it can become a transfer draft.
+
 ```text
 wallet/
   core/              portable Model, Message, Program, and service contracts
@@ -66,6 +72,12 @@ demo endpoint is deliberately unauthenticated and controls one disposable,
 shared Sepolia test wallet. The private key remains in the Node server. Clients
 receive only public portfolio values and opaque handles for protected
 transaction material.
+
+A real network Layer attaches a typed block-explorer confirmation to the
+successful submission result. Sepolia submissions link to Etherscan, and Solana
+Devnet or Testnet submissions link to the matching Solana Explorer cluster.
+Simulated submissions deliberately carry no explorer confirmation, so a fake
+transaction identifier can never be presented as chain evidence.
 
 The temporary server policy accepts positive, native Sepolia ETH transfers to
 syntactically valid Ethereum recipients, up to 0.00001 ETH. It rejects other

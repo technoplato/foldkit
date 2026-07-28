@@ -2,7 +2,6 @@ import { Array } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 import {
-  EmptyTransferRecipient,
   IdleSignature,
   IdleTransaction,
   LoadedPortfolio,
@@ -10,6 +9,7 @@ import {
   NoWalletIntent,
   ObservingTransactions,
   WalletProgram,
+  initialModel,
   update,
 } from 'wallet-core-example'
 import { simulatedPortfolio } from 'wallet-simulated-client-example'
@@ -21,7 +21,7 @@ const loadedModel = (): Model =>
   Model.make({
     portfolio: LoadedPortfolio.make({ snapshot: simulatedPortfolio }),
     walletIntent: NoWalletIntent.make({}),
-    transferRecipient: EmptyTransferRecipient.make({}),
+    transferRecipient: initialModel.transferRecipient,
     addressBookEntries: [],
     transaction: IdleTransaction.make({}),
     signature: IdleSignature.make({}),
@@ -74,8 +74,11 @@ describe('Wallet Foldkit client', () => {
       ),
       Scene.expect(
         Scene.text(
-          'Enter an Ethereum address with 0x followed by 40 hexadecimal digits.',
+          'That is not a valid address for Ethereum Sepolia. Valid addresses for Ethereum Sepolia look like 0x1234567890abcdef1234567890abcdef12345678 and follow the following rules.',
         ),
+      ).toExist(),
+      Scene.expect(
+        Scene.text('It contains exactly 40 characters after the prefix.'),
       ).toExist(),
       Scene.expect(
         Scene.role('button', { name: 'Preview send' }),

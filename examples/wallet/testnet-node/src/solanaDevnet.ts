@@ -34,6 +34,7 @@ import {
   WalletClientError,
   WalletCryptoError,
   WalletSignerError,
+  blockExplorerConfirmation,
   makePreparedTransaction,
   makeSignedTransaction,
   makeSigningDigest,
@@ -564,6 +565,9 @@ const makeSolanaTransport = Effect.gen(function* () {
               previewId: payload.previewId,
               transactionId: response.result,
               submittedAt: Date.now(),
+              maybeExplorerConfirmation: Option.some(
+                blockExplorerConfirmation(solanaNetwork, response.result),
+              ),
             })
           },
           catch: toClientError,

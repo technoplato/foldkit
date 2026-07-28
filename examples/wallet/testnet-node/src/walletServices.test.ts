@@ -180,6 +180,7 @@ const makeTransport = (
         previewId: 'preview',
         transactionId: `submitted:${signed.accountId}`,
         submittedAt: 6_000,
+        maybeExplorerConfirmation: Option.none(),
       }),
     ),
   observeTransactions: Stream.make(record),

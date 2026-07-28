@@ -150,7 +150,7 @@ describe('Client Matrix core', () => {
   it('covers both Wallet route modes across every required client', () => {
     expect(walletProgramIdentity).toStrictEqual({
       id: 'wallet',
-      version: 3,
+      version: 4,
       source: 'examples/wallet/core/src/program.ts',
     })
     expect(Array.map(walletRoutes, route => route.mode)).toStrictEqual([
@@ -205,7 +205,7 @@ describe('Client Matrix core', () => {
       expect(replayTape).toMatchObject({
         formatVersion: 1,
         programId: 'wallet',
-        programVersion: 3,
+        programVersion: 4,
       })
       expect(replayTape.transitions).toHaveLength(1)
       const maybeTransition = Array.head(replayTape.transitions)

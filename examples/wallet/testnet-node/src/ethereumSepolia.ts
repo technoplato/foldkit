@@ -48,6 +48,7 @@ import {
   WalletClientError,
   WalletCryptoError,
   WalletSignerError,
+  blockExplorerConfirmation,
   makePreparedTransaction,
   makeSignedTransaction,
   makeSigningDigest,
@@ -430,6 +431,9 @@ const makeEthereumTransport = Effect.gen(function* () {
               previewId: payload.previewId,
               transactionId,
               submittedAt: Date.now(),
+              maybeExplorerConfirmation: Option.some(
+                blockExplorerConfirmation(ethereumNetwork, transactionId),
+              ),
             })
           },
           catch: toClientError,
