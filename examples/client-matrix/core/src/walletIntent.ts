@@ -1,11 +1,7 @@
 import { Array, Effect, Match as M, Schema as S } from 'effect'
 import {
-  SendEthIntent,
-  SendSolIntent,
-  SendUsdIntent,
+  SendAssetIntent,
   WalletIntent,
-  WalletIntentCapability,
-  capabilityForWalletIntent,
   walletIntentRouter,
 } from 'wallet-core-example'
 
@@ -19,6 +15,20 @@ export const WalletIntentClientSupport = S.Literals([
 ])
 /** Host intake support for the shared Wallet intent codec. */
 export type WalletIntentClientSupport = typeof WalletIntentClientSupport.Type
+
+/** Execution support represented by one normalized Wallet intent example. */
+export const WalletIntentSupport = S.Literals(['Implemented', 'Unsupported'])
+/** Execution support represented by one normalized Wallet intent example. */
+export type WalletIntentSupport = typeof WalletIntentSupport.Type
+
+/** Network capability metadata for one normalized Wallet intent example. */
+export const WalletIntentCapability = S.Struct({
+  support: WalletIntentSupport,
+  network: S.String,
+  reason: S.String,
+})
+/** Network capability metadata for one normalized Wallet intent example. */
+export type WalletIntentCapability = typeof WalletIntentCapability.Type
 
 /** One canonical send-money intent and its portable relative URI. */
 export const WalletIntentDefinition = S.Struct({
@@ -50,6 +60,7 @@ const makeIntentDefinition = (
   title: string,
   description: string,
   intent: WalletIntent,
+  capability: WalletIntentCapability,
 ): WalletIntentDefinition =>
   WalletIntentDefinition.make({
     id,
@@ -57,7 +68,7 @@ const makeIntentDefinition = (
     description,
     intent,
     portableRoute: Effect.runSync(walletIntentRouter.print(intent)),
-    capability: capabilityForWalletIntent(intent),
+    capability,
   })
 
 /** ETH, SOL, and USD intent examples over every requested deployment mode. */
@@ -66,93 +77,146 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
     'eth-devnet',
     'ETH | Devnet',
     'Valid request with no configured Ethereum Devnet execution Layer.',
-    SendEthIntent.make({
-      mode: 'Devnet',
+    SendAssetIntent.make({
+      accountId: 'ethereum-local-demo',
+      assetId: 'ethereum:local:eth',
       atomicUnits: '1000000000000000',
       destinationAddress: ethereumDestination,
+    }),
+    WalletIntentCapability.make({
+      support: 'Unsupported',
+      network: 'Ethereum Localnet',
+      reason: 'No Ethereum development execution Layer is configured.',
     }),
   ),
   makeIntentDefinition(
     'eth-testnet',
     'ETH | Testnet',
     'One milli-ETH on Ethereum Sepolia.',
-    SendEthIntent.make({
-      mode: 'Testnet',
+    SendAssetIntent.make({
+      accountId: 'simulated-ethereum-account',
+      assetId: 'ethereum:sepolia:eth',
       atomicUnits: '1000000000000000',
       destinationAddress: ethereumDestination,
+    }),
+    WalletIntentCapability.make({
+      support: 'Implemented',
+      network: 'Ethereum Sepolia',
+      reason:
+        'The testnet adapter validates, previews, signs, and submits ETH.',
     }),
   ),
   makeIntentDefinition(
     'eth-live',
     'ETH | Live',
     'Canonical mainnet intent with deliberately unavailable execution.',
-    SendEthIntent.make({
-      mode: 'Live',
+    SendAssetIntent.make({
+      accountId: 'ethereum-mainnet-demo',
+      assetId: 'ethereum:mainnet:eth',
       atomicUnits: '1000000000000000',
       destinationAddress: ethereumDestination,
+    }),
+    WalletIntentCapability.make({
+      support: 'Unsupported',
+      network: 'Ethereum Mainnet',
+      reason: 'No mainnet execution Layer is configured.',
     }),
   ),
   makeIntentDefinition(
     'sol-devnet',
     'SOL | Devnet',
     'One milli-SOL on Solana Devnet.',
-    SendSolIntent.make({
-      mode: 'Devnet',
+    SendAssetIntent.make({
+      accountId: 'simulated-solana-account',
+      assetId: 'solana:devnet:sol',
       atomicUnits: '1000000',
       destinationAddress: solanaDestination,
+    }),
+    WalletIntentCapability.make({
+      support: 'Implemented',
+      network: 'Solana Devnet',
+      reason:
+        'The testnet adapter validates, previews, signs, and submits SOL.',
     }),
   ),
   makeIntentDefinition(
     'sol-testnet',
     'SOL | Testnet',
     'The network is typed, but the current Layer rejects execution.',
-    SendSolIntent.make({
-      mode: 'Testnet',
+    SendAssetIntent.make({
+      accountId: 'solana-testnet-demo',
+      assetId: 'solana:testnet:sol',
       atomicUnits: '1000000',
       destinationAddress: solanaDestination,
+    }),
+    WalletIntentCapability.make({
+      support: 'Unsupported',
+      network: 'Solana Testnet',
+      reason: 'No Solana Testnet execution Layer is configured.',
     }),
   ),
   makeIntentDefinition(
     'sol-live',
     'SOL | Live',
     'Canonical mainnet intent with deliberately unavailable execution.',
-    SendSolIntent.make({
-      mode: 'Live',
+    SendAssetIntent.make({
+      accountId: 'solana-mainnet-demo',
+      assetId: 'solana:mainnet:sol',
       atomicUnits: '1000000',
       destinationAddress: solanaDestination,
+    }),
+    WalletIntentCapability.make({
+      support: 'Unsupported',
+      network: 'Solana Mainnet',
+      reason: 'No mainnet execution Layer is configured.',
     }),
   ),
   makeIntentDefinition(
     'usd-devnet',
     'USD | Devnet',
     'One USD represented by one million atomic USDC units on Solana Devnet.',
-    SendUsdIntent.make({
-      mode: 'Devnet',
-      rail: 'Solana',
+    SendAssetIntent.make({
+      accountId: 'simulated-solana-account',
+      assetId: 'solana:devnet:usdc',
       atomicUnits: '1000000',
       destinationAddress: solanaDestination,
+    }),
+    WalletIntentCapability.make({
+      support: 'Implemented',
+      network: 'Solana Devnet',
+      reason: 'The normalized adapter represents USDC as an issued asset.',
     }),
   ),
   makeIntentDefinition(
     'usd-testnet',
     'USD | Testnet',
     'One USD represented by one million atomic USDC units on Sepolia.',
-    SendUsdIntent.make({
-      mode: 'Testnet',
-      rail: 'Ethereum',
+    SendAssetIntent.make({
+      accountId: 'simulated-ethereum-account',
+      assetId: 'ethereum:sepolia:usdc',
       atomicUnits: '1000000',
       destinationAddress: ethereumDestination,
+    }),
+    WalletIntentCapability.make({
+      support: 'Implemented',
+      network: 'Ethereum Sepolia',
+      reason: 'The normalized adapter represents USDC as an issued asset.',
     }),
   ),
   makeIntentDefinition(
     'usd-live',
     'USD | Live',
     'Canonical USDC intent with deliberately unavailable mainnet execution.',
-    SendUsdIntent.make({
-      mode: 'Live',
-      rail: 'Ethereum',
+    SendAssetIntent.make({
+      accountId: 'ethereum-mainnet-demo',
+      assetId: 'ethereum:mainnet:usdc',
       atomicUnits: '1000000',
       destinationAddress: ethereumDestination,
+    }),
+    WalletIntentCapability.make({
+      support: 'Unsupported',
+      network: 'Ethereum Mainnet',
+      reason: 'No mainnet execution Layer is configured.',
     }),
   ),
 ]

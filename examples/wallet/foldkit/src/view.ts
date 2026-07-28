@@ -7,9 +7,15 @@ import {
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
   RequestedTransferPreview,
+  RequestedWalletCreation,
   RequestedWalletRefresh,
+  SelectedWalletNetworkMode,
   type TransactionPreview,
   type TransactionState,
+  type WalletCreationState,
+  type WalletNetworkMode,
+  type WalletProfile,
+  activeWalletAccounts,
   assetAmountLabel,
   assetAmountLabelForModel,
   makeWalletTestChallenge,
@@ -58,6 +64,164 @@ const transactionStatus = (transaction: TransactionState): string =>
       FailedTransactionSubmission: () => 'Send failed',
     }),
   )
+
+const walletCreationLabel = (walletCreation: WalletCreationState): string =>
+  M.value(walletCreation).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      ReadyToCreateWallet: () => 'Create wallet',
+      CreatingWallet: () => 'Creating…',
+      FailedWalletCreation: () => 'Try again',
+    }),
+  )
+
+const networkModeButton = (
+  model: Model,
+  networkMode: WalletNetworkMode,
+): Html => {
+  const h = html<Message>()
+  const className =
+    model.walletNetworkMode === networkMode
+      ? 'wallet-network-option selected'
+      : 'wallet-network-option'
+  return h.button(
+    [
+      h.Type('button'),
+      h.Class(className),
+      h.AriaPressed(String(model.walletNetworkMode === networkMode)),
+      h.OnClick(SelectedWalletNetworkMode.make({ networkMode })),
+    ],
+    [networkMode],
+  )
+}
+
+const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
+  const h = html<Message>()
+  return h.article(
+    [h.Class('wallet-profile'), h.Key(wallet.walletId)],
+    [
+      h.div(
+        [h.Class('wallet-profile-heading')],
+        [
+          h.div(
+            [],
+            [
+              h.p([h.Class('cardboard-eyebrow')], ['Multi-chain wallet']),
+              h.h3([], [wallet.displayName]),
+            ],
+          ),
+          h.span([], [model.walletNetworkMode]),
+        ],
+      ),
+      h.ul(
+        [h.Class('wallet-chain-list')],
+        Array.map(
+          activeWalletAccounts(wallet, model.walletNetworkMode),
+          account =>
+            h.li(
+              [h.Key(account.accountId)],
+              [
+                h.div(
+                  [],
+                  [
+                    h.strong([], [account.chain]),
+                    h.span([], [account.networkName]),
+                  ],
+                ),
+                h.code([], [shortenedAddress(account.address)]),
+                h.small([], [account.detail]),
+              ],
+            ),
+        ),
+      ),
+    ],
+  )
+}
+
+const walletHome = (model: Model): Html => {
+  const h = html<Message>()
+  const creationButtonAttributes = [
+    h.Type('button'),
+    h.Class('cardboard-button primary'),
+    h.Disabled(model.walletCreation._tag === 'CreatingWallet'),
+    h.OnClick(RequestedWalletCreation.make({})),
+  ]
+  const creationFailure =
+    model.walletCreation._tag === 'FailedWalletCreation'
+      ? [
+          h.p(
+            [h.Class('wallet-validation'), h.Role('alert')],
+            [
+              `Wallet creation failed (${model.walletCreation.code}). No secret key entered the Model or replay journal.`,
+            ],
+          ),
+        ]
+      : []
+  const profiles = Array.match(model.wallets, {
+    onEmpty: () =>
+      h.div(
+        [h.Class('wallet-home-empty')],
+        [
+          h.strong([], ['No wallets yet.']),
+          h.p(
+            [],
+            [
+              'Create one wallet with Bitcoin, Ethereum, Solana, and Sui accounts.',
+            ],
+          ),
+        ],
+      ),
+    onNonEmpty: wallets =>
+      h.div(
+        [h.Class('wallet-profile-list')],
+        Array.map(wallets, wallet => walletProfileCard(model, wallet)),
+      ),
+  })
+  return h.section(
+    [h.Class('wallet-home cardboard-panel')],
+    [
+      h.div(
+        [h.Class('wallet-heading-row')],
+        [
+          h.div(
+            [],
+            [
+              h.p([h.Class('cardboard-eyebrow')], ['Session-only custody']),
+              h.h2([], ['Your wallets']),
+            ],
+          ),
+          h.button(creationButtonAttributes, [
+            walletCreationLabel(model.walletCreation),
+          ]),
+        ],
+      ),
+      h.div(
+        [h.Class('wallet-network-control')],
+        [
+          h.div(
+            [],
+            [
+              h.strong([], ['Network mode']),
+              h.span([], ['Switches every wallet and chain together.']),
+            ],
+          ),
+          h.div(
+            [
+              h.Class('wallet-network-switch'),
+              h.AriaLabel('Wallet network mode'),
+            ],
+            [
+              networkModeButton(model, 'Devnet'),
+              networkModeButton(model, 'Testnet'),
+            ],
+          ),
+        ],
+      ),
+      ...creationFailure,
+      profiles,
+    ],
+  )
+}
 
 const walletHero = (model: Model): Html => {
   const h = html<Message>()
@@ -455,6 +619,7 @@ export const view = (model: Model): Document => {
         h.div(
           [h.Class('wallet-stack')],
           [
+            walletHome(model),
             walletHero(model),
             sendMoney(model),
             activity(model),

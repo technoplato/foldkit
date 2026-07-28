@@ -15,9 +15,9 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "prebuild": "pnpm --filter wallet-core-example build",
-    "pretest": "pnpm --filter wallet-core-example build",
-    "pretypecheck": "pnpm --filter wallet-core-example build",
+    "prebuild": "pnpm --filter wallet-local-vault-example build",
+    "pretest": "pnpm --filter wallet-local-vault-example build",
+    "pretypecheck": "pnpm --filter wallet-local-vault-example build",
     "test": "vitest run",
     "test:live:ethereum-transfer": "WALLET_ETHEREUM_SEPOLIA_LIVE_TRANSFER=1 vitest run src/live.transfer.test.ts",
     "test:live:solana-transfer": "WALLET_SOLANA_DEVNET_LIVE_TRANSFER=1 vitest run src/live.transfer.test.ts",
@@ -29,7 +29,8 @@
     "@solana/kit": "7.0.0",
     "effect": "4.0.0-beta.97",
     "viem": "2.55.10",
-    "wallet-core-example": "workspace:*"
+    "wallet-core-example": "workspace:*",
+    "wallet-local-vault-example": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

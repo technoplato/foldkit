@@ -4,6 +4,8 @@ import {
   DomainSeparatedDigest,
   type Model,
   SigningChallenge,
+  activeWalletAccounts,
+  toggledWalletNetworkMode,
 } from 'wallet-core-example'
 import {
   type WalletInitialRoute,
@@ -159,6 +161,15 @@ const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
       M.withReturnType<void>(),
       M.tagsExhaustive({
         ShowWallet: () => setNotice(Option.some(walletOpenTuiSummary(model))),
+        CreateWallet: () => {
+          setNotice(Option.some('Creating multi-chain wallet…'))
+          actions.requestedWalletCreation()
+        },
+        ToggleWalletNetwork: () => {
+          actions.selectedWalletNetworkMode(
+            toggledWalletNetworkMode(model.walletNetworkMode),
+          )
+        },
         ShowReceivingInstruction: () => {
           if (model.portfolio._tag !== 'LoadedPortfolio') {
             setNotice(Option.some('Receiving instructions are not loaded.'))
@@ -277,6 +288,22 @@ const WalletModelView = ({ model }: Readonly<{ model: Model }>) => (
     title="Canonical Wallet Model"
   >
     <PortfolioView model={model} />
+    <text
+      content={`Wallets: ${model.wallets.length.toString()} | ${model.walletNetworkMode} | ${model.walletCreation._tag}`}
+      height={1}
+    />
+    {Array.flatMap(model.wallets, wallet =>
+      Array.map(
+        activeWalletAccounts(wallet, model.walletNetworkMode),
+        account => (
+          <text
+            content={`${wallet.displayName} · ${account.chain} · ${account.networkName} · ${account.address}`}
+            height={1}
+            key={account.accountId}
+          />
+        ),
+      ),
+    )}
     <text content={`Transaction: ${model.transaction._tag}`} height={1} />
     <text
       content={

@@ -22,9 +22,13 @@ import {
   Model,
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
+  RequestedWalletCreation,
+  SelectedWalletNetworkMode,
   SigningChallenge,
   TransferRequest,
   WalletProgram,
+  activeWalletAccounts,
+  toggledWalletNetworkMode,
 } from 'wallet-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
@@ -38,6 +42,8 @@ const observationTimeout = '2 seconds'
 /** A native input action supported by the interactive Effect Terminal host. */
 export const WalletTerminalAction = S.Literals([
   'Show',
+  'CreateWallet',
+  'ToggleNetwork',
   'Receive',
   'Preview',
   'Send',
@@ -94,6 +100,8 @@ export const actionForWalletTerminalInput = (
   M.value(input.toLowerCase()).pipe(
     M.withReturnType<Option.Option<WalletTerminalAction>>(),
     M.when('s', () => Option.some('Show')),
+    M.when('w', () => Option.some('CreateWallet')),
+    M.when('t', () => Option.some('ToggleNetwork')),
     M.when('r', () => Option.some('Receive')),
     M.when('p', () => Option.some('Preview')),
     M.when('n', () => Option.some('Send')),
@@ -142,8 +150,18 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
           ),
         ]
       : []
+  const walletLines = Array.flatMap(model.wallets, wallet => [
+    `${wallet.displayName} | ${model.walletNetworkMode}`,
+    ...Array.map(
+      activeWalletAccounts(wallet, model.walletNetworkMode),
+      account =>
+        `  ${account.chain} | ${account.networkName} | ${account.address}`,
+    ),
+  ])
   return [
     ...portfolioLines,
+    `Wallets: ${model.wallets.length.toString()} | ${model.walletNetworkMode}`,
+    ...walletLines,
     `Transaction: ${model.transaction._tag}`,
     ...transactionLines,
     ...addressValidationLines,
@@ -169,7 +187,8 @@ export const renderWalletTerminal = (
       ...modelLines(snapshot.model),
       ...noticeLines,
       '',
-      '[s] Show  [r] Receive  [p] Preview  [n] Send  [c] Sign challenge',
+      '[s] Show  [w] Create wallet  [t] Toggle Devnet/Testnet',
+      '[r] Receive  [p] Preview  [n] Send  [c] Sign challenge',
       '[←/h] Previous replay frame  [→/l] Next replay frame  [v] Live',
       '[q] Quit',
     ],
@@ -366,6 +385,36 @@ const runLiveAction = (
         maybeReplaySession: Option.none(),
         maybeNotice: Option.some('Current public Wallet Model.'),
       }),
+    ),
+    M.when('CreateWallet', () =>
+      Effect.map(
+        state.runtime.run(RequestedWalletCreation.make({})),
+        model => ({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(
+            `Wallet creation settled: ${model.walletCreation._tag}`,
+          ),
+        }),
+      ),
+    ),
+    M.when('ToggleNetwork', () =>
+      Effect.map(
+        state.runtime.run(
+          SelectedWalletNetworkMode.make({
+            networkMode: toggledWalletNetworkMode(
+              state.runtime.readModel().walletNetworkMode,
+            ),
+          }),
+        ),
+        model => ({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(
+            `All wallets switched to ${model.walletNetworkMode}.`,
+          ),
+        }),
+      ),
     ),
     M.when('Receive', () =>
       Effect.succeed({

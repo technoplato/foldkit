@@ -14,10 +14,13 @@ import {
   RequestedChallengeSignature,
   RequestedSignedTransactionSubmission,
   RequestedTransferPreview,
+  RequestedWalletCreation,
   RequestedWalletRefresh,
   ResumedTransactionObservation,
+  SelectedWalletNetworkMode,
   SigningChallenge,
   TransferRequest,
+  type WalletNetworkMode,
   WalletProgram,
   type WalletResources,
   initialModel,
@@ -30,6 +33,8 @@ export type WalletTransferComposition = typeof WalletTransferComposition.Type
 
 /** Domain actions exposed to React consumers of the Wallet Program. */
 export type WalletActions = Readonly<{
+  requestedWalletCreation: () => void
+  selectedWalletNetworkMode: (networkMode: WalletNetworkMode) => void
   requestedWalletRefresh: () => void
   changedTransferRecipient: (value: string) => void
   requestedTransferPreview: () => void
@@ -62,6 +67,10 @@ export const makeWalletReactClient = <ResourceError,>(
     ResourceError
   >({
     createActions: enqueueMessage => ({
+      requestedWalletCreation: () =>
+        enqueueMessage(RequestedWalletCreation.make({})),
+      selectedWalletNetworkMode: networkMode =>
+        enqueueMessage(SelectedWalletNetworkMode.make({ networkMode })),
       requestedWalletRefresh: () =>
         enqueueMessage(RequestedWalletRefresh.make({})),
       changedTransferRecipient: value =>

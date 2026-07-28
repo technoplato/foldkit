@@ -40,6 +40,22 @@ describe('raw Wallet CLI host', () => {
     expect(signature.progress).toContain('SucceededSignChallenge')
   })
 
+  it('creates all four chain accounts in one selected mode', async () => {
+    const execution = await Effect.runPromise(
+      executeWalletCli(
+        WalletCliOperation.make({
+          _tag: 'CreateWallet',
+          networkMode: 'Devnet',
+        }),
+      ),
+    )
+
+    expect(execution.model.walletNetworkMode).toBe('Devnet')
+    expect(execution.model.wallets).toHaveLength(1)
+    expect(execution.summary).toContain('Bitcoin | Bitcoin Regtest')
+    expect(execution.summary).toContain('Sui | Sui Devnet')
+  })
+
   it('observes the transaction emitted by simulated submission', async () => {
     const execution = await Effect.runPromise(
       executeWalletCli(

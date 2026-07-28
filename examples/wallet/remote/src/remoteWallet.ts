@@ -13,9 +13,11 @@ import {
   type WalletResources,
   WalletSigner,
   WalletSignerError,
+  WalletVault,
   makeSignedTransaction,
   makeTransactionPayload,
 } from 'wallet-core-example'
+import { LocalWalletVault } from 'wallet-local-vault-example'
 
 import {
   SignedTransactionHandle,
@@ -62,6 +64,7 @@ const toCryptoError = (error: RemoteCallError): WalletCryptoError =>
 /** Builds Fetch-backed Wallet resources over the typed remote protocol. */
 export const makeRemoteWalletResources = (
   endpoint: string,
+  walletVault: Layer.Layer<WalletVault> = LocalWalletVault,
 ): Layer.Layer<WalletResources> => {
   const ProtocolLive = RpcClient.layerProtocolHttp({ url: endpoint }).pipe(
     Layer.provide([FetchHttpClient.layer, RpcSerialization.layerNdjson]),
@@ -153,5 +156,5 @@ export const makeRemoteWalletResources = (
     }),
   ).pipe(Layer.provide(ProtocolLive))
 
-  return RemoteWalletResources
+  return Layer.merge(RemoteWalletResources, walletVault)
 }

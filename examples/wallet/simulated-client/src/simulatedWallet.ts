@@ -44,6 +44,7 @@ import {
   makeSignedTransaction,
   makeTransactionPayload,
 } from 'wallet-core-example'
+import { LocalWalletVault } from 'wallet-local-vault-example'
 
 const fixedObservedAt = 1_785_129_600_000
 const fixedExpiresAt = fixedObservedAt + 5 * 60 * 1_000
@@ -539,4 +540,4 @@ const makeSimulatedServices = Effect.gen(function* () {
 
 /** Deterministic, side-effect-complete Wallet resources for demos and tests. */
 export const SimulatedWalletResources: Layer.Layer<WalletResources> =
-  Layer.effectContext(makeSimulatedServices)
+  Layer.merge(Layer.effectContext(makeSimulatedServices), LocalWalletVault)

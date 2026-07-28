@@ -5,6 +5,19 @@ public Model, Messages, update function, finite Commands, persistent
 transaction Subscription, restoration rules, and injected Effect services live
 in `core`. Every client imports that exact `WalletProgram` object.
 
+Wallet creation is also portable. `RequestedWalletCreation` enters a finite
+creation state and emits `CreateWallet`, while the injected `WalletVault`
+generates private material outside the Model. One created profile always has
+Bitcoin, Ethereum, Solana, and Sui accounts. The public Model stores both Native
+Segwit and Taproot Bitcoin addresses, defaults to Native Segwit, and exposes
+one global `Devnet | Testnet` choice that projects every chain together.
+
+The checked-in `local-vault` adapter uses standards-derived public addresses
+and process-local, redacted custody. It does not persist or export recovery
+material. Closing the host loses the private keys, so this example must not be
+treated as production custody. Public Wallet profiles remain safe to inspect in
+state routes and replay tapes.
+
 The core also defines the renderer-neutral `walletIntentRouter`. Its canonical
 send paths have this shape:
 
@@ -26,6 +39,7 @@ or safe rejection guidance.
 ```text
 wallet/
   core/              portable Model, Message, Program, and service contracts
+  local-vault/       in-memory Bitcoin, Ethereum, Solana, and Sui key custody
   simulated-client/  deterministic complete Layer with no network or real funds
   testnet-node/       Sepolia and Solana Devnet networking and optional custody
   remote/             Fetch-backed typed RPC Layer for remotely held custody
@@ -44,6 +58,8 @@ From the repository root:
 
 ```sh
 pnpm demo:wallet show
+pnpm demo:wallet create --network testnet
+pnpm demo:wallet create --network devnet --verbose
 pnpm demo:wallet receive
 pnpm demo:wallet preview --verbose
 pnpm demo:wallet send --verbose
@@ -58,16 +74,18 @@ pnpm dev:example:showcase:ios
 pnpm dev:example:showcase:android
 ```
 
-The CLI, Effect Terminal, and TUI use the simulated Layer. It never contacts a
-network or controls real funds. It proves the full Program flow, including
-previews, signing, submission, finite transaction history, live transaction
-observation, state routes, replay routes, and historical inspection.
+The CLI, Effect Terminal, and TUI use the simulated network Layer plus the same
+local Wallet vault. The simulated Layer never contacts a network or controls
+real funds. It proves the full Program flow, including multi-chain creation,
+global network switching, previews, signing, submission, finite transaction
+history, live transaction observation, state routes, replay routes, and
+historical inspection.
 
-The React, Foldkit, and Expo clients use the typed `remote` Layer. The public
-demo endpoint is deliberately unauthenticated and controls one disposable,
-shared Sepolia test wallet. The private key remains in the Node server. Clients
-receive only public portfolio values and opaque handles for protected
-transaction material.
+The React, Foldkit, and Expo clients use the typed `remote` network Layer plus a
+platform entropy source for local Wallet creation. The public demo endpoint is
+deliberately unauthenticated and controls one disposable, shared Sepolia test
+wallet. The private key remains in the Node server. Clients receive only public
+portfolio values and opaque handles for protected transaction material.
 
 A real network Layer attaches a typed block-explorer confirmation to the
 successful submission result. Sepolia submissions link to Etherscan, and Solana

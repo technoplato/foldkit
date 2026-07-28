@@ -43,6 +43,8 @@ describe('Wallet Effect Terminal host', () => {
     })
 
     expect(screen).toContain('[s] Show')
+    expect(screen).toContain('[w] Create wallet')
+    expect(screen).toContain('[t] Toggle Devnet/Testnet')
     expect(screen).toContain('[r] Receive')
     expect(screen).toContain('[p] Preview')
     expect(screen).toContain('[n] Send')
@@ -51,6 +53,9 @@ describe('Wallet Effect Terminal host', () => {
       Option.some('InspectPrevious'),
     )
     expect(actionForWalletTerminalInput('q')).toStrictEqual(Option.some('Quit'))
+    expect(actionForWalletTerminalInput('w')).toStrictEqual(
+      Option.some('CreateWallet'),
+    )
   })
 
   it('awaits submission and observes the simulated transaction', async () => {

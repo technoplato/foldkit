@@ -8,6 +8,7 @@ import {
   type WalletIntent,
 } from './intent.js'
 import {
+  FailedCreateWallet,
   FailedLoadTransactionHistory,
   FailedLoadWallet,
   FailedPreviewTransaction,
@@ -15,6 +16,7 @@ import {
   FailedSubmitSignedTransaction,
   FailedValidateTransfer,
   type Message,
+  SucceededCreateWallet,
   SucceededLoadTransactionHistory,
   SucceededLoadWallet,
   SucceededPreviewTransaction,
@@ -81,6 +83,15 @@ import {
   WalletSigner,
   type WalletSignerError,
 } from './walletClient.js'
+import {
+  CreatingWallet,
+  FailedWalletCreation,
+  ReadyToCreateWallet,
+  WalletCreationRequest,
+  nextWalletCreationRequest,
+  upsertWalletProfile,
+} from './walletProfile.js'
+import { WalletVault } from './walletVault.js'
 
 const transactionHistoryPageSize = 50
 
@@ -143,6 +154,22 @@ export const ValidateTransfer = Command.define(
           failure: toNetworkFailure('ValidateTransfer', error),
         }),
       ),
+    ),
+  ),
+)
+
+/** Creates one multi-chain Wallet profile through the injected vault. */
+export const CreateWallet = Command.define(
+  'CreateWallet',
+  { request: WalletCreationRequest },
+  SucceededCreateWallet,
+  FailedCreateWallet,
+)(({ request }) =>
+  WalletVault.pipe(
+    Effect.flatMap(vault => vault.createWallet(request)),
+    Effect.map(wallet => SucceededCreateWallet.make({ request, wallet })),
+    Effect.catch(error =>
+      Effect.succeed(FailedCreateWallet.make({ request, code: error.code })),
     ),
   ),
 )
@@ -330,6 +357,16 @@ const transactionCommandsForRestore = (
   }
 }
 
+const walletCreationCommandsForRestore = (
+  model: Model,
+): ReadonlyArray<Command.Command<Message, never, WalletResources>> => {
+  if (model.walletCreation._tag === 'CreatingWallet') {
+    return [CreateWallet({ request: model.walletCreation.request })]
+  } else {
+    return []
+  }
+}
+
 const signatureCommandsForRestore = (
   model: Model,
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
@@ -348,6 +385,7 @@ const historyCommandsForRestore = (
 export const restore = (model: Model): UpdateReturn => [
   model,
   [
+    ...walletCreationCommandsForRestore(model),
     ...portfolioCommandsForRestore(model),
     ...transactionCommandsForRestore(model),
     ...signatureCommandsForRestore(model),
@@ -495,6 +533,54 @@ export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
+      SelectedWalletNetworkMode: ({ networkMode }) => [
+        { ...model, walletNetworkMode: networkMode },
+        [],
+      ],
+      RequestedWalletCreation: () => {
+        if (model.walletCreation._tag === 'CreatingWallet') {
+          return [model, []]
+        }
+        const request = nextWalletCreationRequest(model.wallets)
+        return [
+          {
+            ...model,
+            walletCreation: CreatingWallet.make({ request }),
+          },
+          [CreateWallet({ request })],
+        ]
+      },
+      SucceededCreateWallet: ({ request, wallet }) => {
+        if (
+          model.walletCreation._tag !== 'CreatingWallet' ||
+          model.walletCreation.request.requestId !== request.requestId
+        ) {
+          return [model, []]
+        }
+        return [
+          {
+            ...model,
+            wallets: upsertWalletProfile(model.wallets, wallet),
+            walletCreation: ReadyToCreateWallet.make({}),
+          },
+          [],
+        ]
+      },
+      FailedCreateWallet: ({ request, code }) => {
+        if (
+          model.walletCreation._tag !== 'CreatingWallet' ||
+          model.walletCreation.request.requestId !== request.requestId
+        ) {
+          return [model, []]
+        }
+        return [
+          {
+            ...model,
+            walletCreation: FailedWalletCreation.make({ request, code }),
+          },
+          [],
+        ]
+      },
       RequestedWalletRefresh: () => [
         {
           ...model,

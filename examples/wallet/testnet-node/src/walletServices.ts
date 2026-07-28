@@ -20,7 +20,6 @@ import {
   WalletClientError,
   WalletCrypto,
   WalletCryptoError,
-  type WalletResources,
   WalletSigner,
   WalletSignerError,
 } from 'wallet-core-example'
@@ -292,7 +291,7 @@ export const WalletSignerLive: Layer.Layer<
 
 /** Complete wallet-core services backed by injected test-network adapters. */
 export const WalletServicesLive: Layer.Layer<
-  WalletResources,
+  WalletClient | WalletCrypto | WalletSigner,
   never,
   | EthereumSepoliaTransport
   | SolanaDevnetTransport

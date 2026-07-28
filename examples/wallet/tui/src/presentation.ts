@@ -5,6 +5,14 @@ import { type Model, WalletProgram } from 'wallet-core-example'
 export const ShowWallet = S.TaggedStruct('ShowWallet', {
   label: S.String,
 })
+/** Creates one complete multi-chain Wallet profile. */
+export const CreateWallet = S.TaggedStruct('CreateWallet', {
+  label: S.String,
+})
+/** Switches every Wallet account between Devnet and Testnet together. */
+export const ToggleWalletNetwork = S.TaggedStruct('ToggleWalletNetwork', {
+  label: S.String,
+})
 /** Shows the default public receiving instruction. */
 export const ShowReceivingInstruction = S.TaggedStruct(
   'ShowReceivingInstruction',
@@ -35,6 +43,8 @@ export const ShowWalletReplayPath = S.TaggedStruct('ShowWalletReplayPath', {
 /** One OpenTUI interaction derived from the current canonical Wallet Model. */
 export const WalletOpenTuiInteraction = S.Union([
   ShowWallet,
+  CreateWallet,
+  ToggleWalletNetwork,
   ShowReceivingInstruction,
   PreviewWalletTransaction,
   SendWalletTransaction,
@@ -58,6 +68,12 @@ export const interactionsForWalletOpenTui = (
       : []
   return [
     ShowWallet.make({ label: 'Show public Wallet Model' }),
+    CreateWallet.make({
+      label: 'Create Bitcoin, Ethereum, Solana, and Sui wallet',
+    }),
+    ToggleWalletNetwork.make({
+      label: `Switch every wallet to ${model.walletNetworkMode === 'Devnet' ? 'Testnet' : 'Devnet'}`,
+    }),
     ShowReceivingInstruction.make({ label: 'Show receiving instruction' }),
     PreviewWalletTransaction.make({ label: 'Preview simulated transfer' }),
     ...send,
@@ -82,6 +98,7 @@ export const walletOpenTuiSummary = (model: Model): string => {
   return Array.join(
     [
       portfolio,
+      `${model.wallets.length.toString()} wallets ${model.walletNetworkMode}`,
       `Transaction ${model.transaction._tag}`,
       `Signature ${model.signature._tag}`,
       `Transactions ${model.transactions.length.toString()}`,

@@ -15,6 +15,32 @@ import {
   ValidatedTransfer,
   WalletFailure,
 } from './model.js'
+import {
+  WalletCreationRequest,
+  WalletNetworkMode,
+  WalletProfile,
+} from './walletProfile.js'
+
+/** The host selected one global non-production network mode. */
+export const SelectedWalletNetworkMode = S.TaggedStruct(
+  'SelectedWalletNetworkMode',
+  { networkMode: WalletNetworkMode },
+)
+/** The host requested creation of one complete multi-chain Wallet profile. */
+export const RequestedWalletCreation = S.TaggedStruct(
+  'RequestedWalletCreation',
+  {},
+)
+/** The CreateWallet Command created one public multi-chain Wallet profile. */
+export const SucceededCreateWallet = S.TaggedStruct('SucceededCreateWallet', {
+  request: WalletCreationRequest,
+  wallet: WalletProfile,
+})
+/** The CreateWallet Command failed without exposing a vault cause. */
+export const FailedCreateWallet = S.TaggedStruct('FailedCreateWallet', {
+  request: WalletCreationRequest,
+  code: S.Literals(['Unavailable', 'InvalidKeyMaterial']),
+})
 
 /** The host changed the editable transfer recipient. */
 export const ChangedTransferRecipient = S.TaggedStruct(
@@ -139,6 +165,10 @@ export const ResumedTransactionObservation = S.TaggedStruct(
 
 /** Every fact accepted or produced by the Wallet Program. */
 export const Message = S.Union([
+  SelectedWalletNetworkMode,
+  RequestedWalletCreation,
+  SucceededCreateWallet,
+  FailedCreateWallet,
   RequestedWalletRefresh,
   SucceededLoadWallet,
   FailedLoadWallet,

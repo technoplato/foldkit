@@ -15,7 +15,7 @@ export const SendAssetIntent = S.TaggedStruct('SendAssetIntent', {
 export type SendAssetIntent = typeof SendAssetIntent.Type
 
 /** Every portable intent accepted by the Wallet domain. */
-export const WalletIntent = SendAssetIntent
+export const WalletIntent = S.Union([SendAssetIntent])
 /** Every portable intent accepted by the Wallet domain. */
 export type WalletIntent = typeof WalletIntent.Type
 
