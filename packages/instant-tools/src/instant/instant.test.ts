@@ -291,6 +291,46 @@ describe('Instant adapter', () => {
   )
 
   it.effect(
+    'reports malformed observed Issue payloads through the typed failure channel',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeStore
+        const malformedRecord = {
+          ...makeInstantIssueRecord(issue),
+          payloadJson: '{"status":"Future"}',
+        }
+        const malformedStore: InstantEntityStoreService = {
+          ...store,
+          observeIssues: Stream.succeed([malformedRecord]),
+          observeIssue: () => Stream.succeed(Option.some(malformedRecord)),
+        }
+        const issueTracker = makeIssueTracker(malformedStore)
+        const query = IssueQuery.make({
+          limit: 100,
+          productId: Option.none(),
+          projectId: Option.none(),
+          statuses: [],
+        })
+
+        const collectionError = yield* Stream.runCollect(
+          issueTracker.observe(query),
+        ).pipe(Effect.flip)
+        const detailError = yield* Stream.runCollect(
+          issueTracker.observeIssue(issue.id),
+        ).pipe(Effect.flip)
+
+        expect(collectionError).toMatchObject({
+          _tag: 'IssueTrackerError',
+          operation: 'Observe',
+        })
+        expect(detailError).toMatchObject({
+          _tag: 'IssueTrackerError',
+          operation: 'ObserveIssue',
+        })
+      }),
+  )
+
+  it.effect(
     'persists and observes Applications and Libraries as products',
     () =>
       Effect.gen(function* () {

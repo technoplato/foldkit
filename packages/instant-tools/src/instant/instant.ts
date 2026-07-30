@@ -469,7 +469,16 @@ export const makeIssueTracker = (
     ),
   observe: query =>
     store.observeIssues.pipe(
-      Stream.map(records => Array.map(records, decodeIssueRecord)),
+      Stream.mapEffect(records =>
+        Effect.try({
+          try: () => Array.map(records, decodeIssueRecord),
+          catch: cause =>
+            new IssueTrackerError({
+              cause,
+              operation: 'Observe',
+            }),
+        }),
+      ),
       Stream.map(issues =>
         Array.take(
           Array.filter(issues, issue => matchesQuery(issue, query)),
@@ -478,21 +487,34 @@ export const makeIssueTracker = (
       ),
       Stream.mapError(
         cause =>
-          new IssueTrackerError({
-            cause,
-            operation: 'Observe',
-          }),
+          cause instanceof IssueTrackerError
+            ? cause
+            : new IssueTrackerError({
+                cause,
+                operation: 'Observe',
+              }),
       ),
     ),
   observeIssue: issueId =>
     store.observeIssue(issueId).pipe(
-      Stream.map(maybeRecord => Option.map(maybeRecord, decodeIssueRecord)),
+      Stream.mapEffect(maybeRecord =>
+        Effect.try({
+          try: () => Option.map(maybeRecord, decodeIssueRecord),
+          catch: cause =>
+            new IssueTrackerError({
+              cause,
+              operation: 'ObserveIssue',
+            }),
+        }),
+      ),
       Stream.mapError(
         cause =>
-          new IssueTrackerError({
-            cause,
-            operation: 'ObserveIssue',
-          }),
+          cause instanceof IssueTrackerError
+            ? cause
+            : new IssueTrackerError({
+                cause,
+                operation: 'ObserveIssue',
+              }),
       ),
     ),
   save: issue =>

@@ -16,6 +16,7 @@ export const IssueStatus = S.Literals([
   'InProgress',
   'Open',
   'PartiallyDone',
+  'Planned',
   'Regressed',
   'Resolved',
   'VerificationNeeded',

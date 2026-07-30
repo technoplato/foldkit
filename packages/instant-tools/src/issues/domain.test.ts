@@ -7,6 +7,7 @@ import {
   IssueAttachment,
   IssueMention,
   type IssuePriority,
+  IssueStatus,
   IssueSuccessCriterion,
   MediaReference,
   RecordingMention,
@@ -76,6 +77,10 @@ const makeIssue = () =>
   })
 
 describe('issue domain', () => {
+  it('preserves planned feature workflow state', () => {
+    expect(S.decodeUnknownSync(IssueStatus)('Planned')).toBe('Planned')
+  })
+
   it('escalates one step toward P0 and saturates there', () => {
     const priorities: ReadonlyArray<IssuePriority> = [
       'P4',
