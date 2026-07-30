@@ -78,9 +78,9 @@ const authorizeDemoTransfer = (
     ) {
       return yield* Effect.fail(rejectedDemoTransfer(operation))
     }
-    const portfolio = yield* client.loadPortfolio.pipe(
-      Effect.mapError(error => clientError('LoadPortfolio', error)),
-    )
+    const portfolio = yield* client
+      .loadPortfolio([])
+      .pipe(Effect.mapError(error => clientError('LoadPortfolio', error)))
     const maybeAccount = Array.findFirst(
       portfolio.accounts,
       account => account.accountId === request.accountId,
@@ -101,10 +101,16 @@ const WalletRpcLive = WalletRpcs.toLayer(
     const operations = yield* WalletOperationStore
 
     return {
-      WalletLoadPortfolio: () =>
-        client.loadPortfolio.pipe(
-          Effect.mapError(error => clientError('LoadPortfolio', error)),
-        ),
+      WalletLoadPortfolio: ({ wallets }) =>
+        client
+          .loadPortfolio(wallets)
+          .pipe(Effect.mapError(error => clientError('LoadPortfolio', error))),
+      WalletRequestTestFunding: ({ request }) =>
+        client
+          .requestTestFunding(request)
+          .pipe(
+            Effect.mapError(error => clientError('RequestTestFunding', error)),
+          ),
       WalletValidateTransfer: ({ request }) =>
         authorizeDemoTransfer(client, request, 'ValidateTransfer').pipe(
           Effect.flatMap(() => client.validateTransfer(request)),

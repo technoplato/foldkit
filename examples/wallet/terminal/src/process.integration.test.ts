@@ -10,6 +10,10 @@ describe('Wallet Effect Terminal process', () => {
   it('accepts input and exits cleanly on q', () => {
     const result = spawnSync(process.execPath, [terminalEntryPath], {
       encoding: 'utf8',
+      env: {
+        ...process.env,
+        FOLDKIT_WALLET_RESOURCES: 'simulated',
+      },
       input: 'q',
       timeout: 5_000,
     })

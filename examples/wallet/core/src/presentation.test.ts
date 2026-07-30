@@ -12,6 +12,8 @@ import {
   clipboardCopyFailureMessage,
   clipboardCopyLabel,
   shortenedAddress,
+  walletDataSourceDetail,
+  walletDataSourceLabel,
 } from './presentation.js'
 
 describe('wallet presentation', () => {
@@ -36,6 +38,13 @@ describe('wallet presentation', () => {
   it('shortens long public addresses', () => {
     expect(shortenedAddress('1234567890abcdefghijklmnopqrstuvwxyz')).toBe(
       '1234567890…uvwxyz',
+    )
+  })
+
+  it('labels adapter-backed live portfolio provenance', () => {
+    expect(walletDataSourceLabel('Live')).toBe('Live network data')
+    expect(walletDataSourceDetail('Live')).toContain(
+      'persisted Wallet accounts',
     )
   })
 

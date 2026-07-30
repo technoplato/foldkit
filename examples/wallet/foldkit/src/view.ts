@@ -1,33 +1,35 @@
 import { Array, Match as M, Option } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
 import {
+  ChangedTransferAmount,
   ChangedTransferRecipient,
   type Message,
   type Model,
   RequestedChallengeSignature,
   RequestedClipboardCopy,
+  RequestedNextTransactionHistoryPage,
   RequestedSignedTransactionSubmission,
+  RequestedTestFunding,
+  RequestedTransactionHistoryReload,
   RequestedTransferPreview,
   RequestedWalletCreation,
   RequestedWalletProfilesReload,
   RequestedWalletRefresh,
+  ResumedTransactionObservation,
   SelectedSendNetwork,
   SelectedWalletNetworkMode,
-  type SendNetworkSelection,
   type TransactionPreview,
   type TransactionState,
   type WalletCreationState,
   type WalletNetworkMode,
   type WalletProfile,
   activeWalletAccounts,
-  assetAmountLabel,
   assetAmountLabelForModel,
   availableSendNetworkSelections,
-  chainForId,
   clipboardCopyFailureMessage,
   clipboardCopyLabel,
   clipboardCopyRequestForAddress,
-  demoTransferAtomicUnitsForSelection,
+  isPrimaryWalletBalanceUnavailable,
   isSameClipboardCopyRequest,
   makeWalletTestChallenge,
   networkForId,
@@ -36,7 +38,11 @@ import {
   primaryWalletAsset,
   primaryWalletBalance,
   primaryWalletNetwork,
+  primaryWalletTestFundingMethod,
+  sendNetworkSelectionIdentity,
+  sendNetworkSelectionLabel,
   shortenedAddress,
+  transferAmountInput,
   transferRecipientInput,
   walletDataSourceDetail,
   walletDataSourceLabel,
@@ -77,6 +83,68 @@ const transactionStatus = (transaction: TransactionState): string =>
       FailedTransactionSubmission: () => 'Send failed',
     }),
   )
+
+const transferAmountFailure = (model: Model): Option.Option<string> => {
+  if (model.transferAmount._tag !== 'InvalidTransferAmount') {
+    return Option.none()
+  }
+  return Option.some(
+    M.value(model.transferAmount.code).pipe(
+      M.withReturnType<string>(),
+      M.when(
+        'AssetUnavailable',
+        () => 'Select an asset before entering an amount.',
+      ),
+      M.when(
+        'InvalidFormat',
+        () =>
+          'Enter a positive decimal amount using digits and one decimal point.',
+      ),
+      M.when(
+        'TooManyDecimalPlaces',
+        () =>
+          'This amount has more decimal places than the selected asset supports.',
+      ),
+      M.when('MustBePositive', () => 'The amount must be greater than zero.'),
+      M.exhaustive,
+    ),
+  )
+}
+
+const selectedNetworkHasCapability = (
+  model: Model,
+  capability: 'TestFunding' | 'TransactionHistory',
+): boolean => {
+  if (
+    model.portfolio._tag !== 'LoadedPortfolio' ||
+    Option.isNone(model.maybeSendNetworkSelection)
+  ) {
+    return false
+  }
+  const maybeNetwork = networkForId(
+    model.portfolio.snapshot.networks,
+    model.maybeSendNetworkSelection.value.networkId,
+  )
+  return (
+    Option.isSome(maybeNetwork) &&
+    Array.contains(maybeNetwork.value.capabilities, capability)
+  )
+}
+
+const walletNetworkModeFromValue = (
+  value: string,
+  current: WalletNetworkMode,
+): WalletNetworkMode => {
+  if (value === 'Devnet') {
+    return 'Devnet'
+  } else if (value === 'Testnet') {
+    return 'Testnet'
+  } else if (value === 'Live') {
+    return 'Live'
+  } else {
+    return current
+  }
+}
 
 const walletCreationLabel = (walletCreation: WalletCreationState): string =>
   M.value(walletCreation).pipe(
@@ -125,23 +193,27 @@ const copyAddressControl = (
   )
 }
 
-const networkModeButton = (
-  model: Model,
-  networkMode: WalletNetworkMode,
-): Html => {
+const networkModePicker = (model: Model): Html => {
   const h = html<Message>()
-  const className =
-    model.walletNetworkMode === networkMode
-      ? 'wallet-network-option selected'
-      : 'wallet-network-option'
-  return h.button(
+  return h.select(
     [
-      h.Type('button'),
-      h.Class(className),
-      h.AriaPressed(String(model.walletNetworkMode === networkMode)),
-      h.OnClick(SelectedWalletNetworkMode.make({ networkMode })),
+      h.Class('wallet-select'),
+      h.AriaLabel('Wallet network mode'),
+      h.Value(model.walletNetworkMode),
+      h.OnChange(value =>
+        SelectedWalletNetworkMode.make({
+          networkMode: walletNetworkModeFromValue(
+            value,
+            model.walletNetworkMode,
+          ),
+        }),
+      ),
     ],
-    [networkMode],
+    [
+      h.option([h.Value('Devnet')], ['Devnet']),
+      h.option([h.Value('Testnet')], ['Testnet']),
+      h.option([h.Value('Live')], ['Live']),
+    ],
   )
 }
 
@@ -166,7 +238,13 @@ const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
       h.ul(
         [h.Class('wallet-chain-list')],
         Array.map(
-          activeWalletAccounts(wallet, model.walletNetworkMode),
+          activeWalletAccounts(
+            wallet,
+            model.portfolio._tag === 'LoadedPortfolio'
+              ? model.portfolio.snapshot.networks
+              : [],
+            model.walletNetworkMode,
+          ),
           account =>
             h.li(
               [h.Key(account.accountId)],
@@ -174,7 +252,7 @@ const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
                 h.div(
                   [],
                   [
-                    h.strong([], [account.chain]),
+                    h.strong([], [account.displayName]),
                     h.span([], [account.networkName]),
                   ],
                 ),
@@ -189,7 +267,7 @@ const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
                     ),
                   ],
                 ),
-                h.small([], [account.detail]),
+                h.small([], [account.chainId]),
               ],
             ),
         ),
@@ -303,16 +381,7 @@ const walletHome = (model: Model): Html => {
               h.span([], ['Switches every wallet and chain together.']),
             ],
           ),
-          h.div(
-            [
-              h.Class('wallet-network-switch'),
-              h.AriaLabel('Wallet network mode'),
-            ],
-            [
-              networkModeButton(model, 'Devnet'),
-              networkModeButton(model, 'Testnet'),
-            ],
-          ),
+          networkModePicker(model),
         ],
       ),
       ...creationFailure,
@@ -325,9 +394,17 @@ const walletHero = (model: Model): Html => {
   const h = html<Message>()
   const maybeAccount = primaryWalletAccount(model)
   const maybeBalance = primaryWalletBalance(model)
+  const isBalanceUnavailable = isPrimaryWalletBalanceUnavailable(model)
   const balanceLabel = Option.match(maybeBalance, {
-    onNone: () =>
-      model.portfolio._tag === 'LoadingPortfolio' ? 'Loading…' : '—',
+    onNone: () => {
+      if (model.portfolio._tag === 'LoadingPortfolio') {
+        return 'Loading…'
+      } else if (isBalanceUnavailable) {
+        return 'Unavailable. Refresh to retry.'
+      } else {
+        return '—'
+      }
+    },
     onSome: balance => assetAmountLabelForModel(model, balance.amount),
   })
   const accountLabel = Option.match(maybeAccount, {
@@ -394,69 +471,79 @@ const walletHero = (model: Model): Html => {
         ],
       ),
       h.p([h.Class('wallet-data-source-detail')], [dataSourceDetail]),
+      ...(model.portfolio._tag === 'FailedPortfolio'
+        ? [
+            h.p(
+              [h.Class('wallet-validation'), h.Role('alert')],
+              [
+                `Portfolio failed: ${model.portfolio.failure.operation} · ${model.portfolio.failure.code}`,
+              ],
+            ),
+          ]
+        : []),
     ],
-  )
-}
-
-const sendNetworkButton = (
-  model: Model,
-  selection: SendNetworkSelection,
-): Html => {
-  const h = html<Message>()
-  if (model.portfolio._tag !== 'LoadedPortfolio') {
-    return h.span([], [])
-  }
-  const portfolio = model.portfolio.snapshot
-  const chainName = Option.match(
-    chainForId(portfolio.chains, selection.chainId),
-    {
-      onNone: () => selection.chainId,
-      onSome: chain => chain.displayName,
-    },
-  )
-  const networkName = Option.match(
-    networkForId(portfolio.networks, selection.networkId),
-    {
-      onNone: () => selection.networkId,
-      onSome: network => network.displayName,
-    },
-  )
-  const isSelected = Option.exists(
-    model.maybeSendNetworkSelection,
-    current =>
-      current.networkId === selection.networkId &&
-      current.accountId === selection.accountId &&
-      current.assetId === selection.assetId,
-  )
-  return h.button(
-    [
-      h.Type('button'),
-      h.Key(selection.networkId),
-      h.Class(
-        isSelected ? 'wallet-send-network selected' : 'wallet-send-network',
-      ),
-      h.AriaPressed(String(isSelected)),
-      h.OnClick(SelectedSendNetwork.make({ selection })),
-    ],
-    [h.strong([], [chainName]), h.span([], [networkName])],
   )
 }
 
 const sendNetworkPicker = (model: Model): Html => {
   const h = html<Message>()
   if (model.portfolio._tag !== 'LoadedPortfolio') {
-    return h.div([h.Class('wallet-send-networks')], [])
+    return h.div([], [])
   }
-  return h.div(
-    [h.Class('wallet-send-networks'), h.AriaLabel('Send network selection')],
-    Array.map(
-      availableSendNetworkSelections(
-        model.portfolio.snapshot,
-        model.walletNetworkMode,
-      ),
-      selection => sendNetworkButton(model, selection),
-    ),
+  const portfolio = model.portfolio.snapshot
+  const selections = availableSendNetworkSelections(
+    portfolio,
+    model.walletNetworkMode,
   )
+  return Array.match(selections, {
+    onEmpty: () =>
+      h.p(
+        [h.Class('wallet-validation'), h.Role('alert')],
+        ['No transferable assets are available for this network mode.'],
+      ),
+    onNonEmpty: nonEmptySelections => {
+      const selected = Option.getOrElse(model.maybeSendNetworkSelection, () =>
+        Array.headNonEmpty(nonEmptySelections),
+      )
+      return h.div(
+        [h.Class('wallet-picker')],
+        [
+          h.label([h.For('wallet-asset')], ['Cryptocurrency and network']),
+          h.select(
+            [
+              h.Id('wallet-asset'),
+              h.Class('wallet-select'),
+              h.Value(sendNetworkSelectionIdentity(selected)),
+              h.OnChange(value => {
+                const maybeSelection = Array.findFirst(
+                  nonEmptySelections,
+                  selection =>
+                    sendNetworkSelectionIdentity(selection) === value,
+                )
+                return SelectedSendNetwork.make({
+                  selection: Option.getOrElse(maybeSelection, () =>
+                    Array.headNonEmpty(nonEmptySelections),
+                  ),
+                })
+              }),
+            ],
+            Array.map(nonEmptySelections, selection =>
+              h.option(
+                [h.Value(sendNetworkSelectionIdentity(selection))],
+                [
+                  sendNetworkSelectionLabel(
+                    portfolio,
+                    model.wallets,
+                    selection,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      )
+    },
+  })
 }
 
 const sendButton = (model: Model): Html => {
@@ -481,6 +568,7 @@ const sendButton = (model: Model): Html => {
     model.transaction._tag === 'SubmittingTransaction'
   if (
     Option.isNone(primaryWalletBalance(model)) ||
+    model.transferAmount._tag !== 'ValidTransferAmount' ||
     model.transferRecipient._tag === 'EmptyTransferRecipient' ||
     isBusy
   ) {
@@ -533,6 +621,16 @@ const submittedTransactionConfirmation = (
   ]
 }
 
+const testFundingButtonLabel = (model: Model): string => {
+  if (model.testFunding._tag === 'RequestingTestFunding') {
+    return 'Requesting test funds…'
+  } else if (model.transferAmount._tag !== 'ValidTransferAmount') {
+    return 'Enter amount to request test funds'
+  } else {
+    return 'Request test funds'
+  }
+}
+
 const sendMoney = (model: Model): Html => {
   const h = html<Message>()
   const maybePreview = maybePreviewForTransaction(model.transaction)
@@ -540,25 +638,31 @@ const sendMoney = (model: Model): Html => {
     onNone: () => 'selected network',
     onSome: network => network.displayName,
   })
-  const exampleAddress = Option.match(primaryWalletAccount(model), {
-    onNone: () => 'Recipient address',
-    onSome: account => account.address,
+  const maybeAsset = primaryWalletAsset(model)
+  const amountSymbol = Option.match(maybeAsset, {
+    onNone: () => 'Amount',
+    onSome: asset => `Amount in ${asset.symbol}`,
   })
-  const transferAmount = Option.match(model.maybeSendNetworkSelection, {
-    onNone: () => 'Select a network',
-    onSome: selection =>
-      Option.match(primaryWalletAsset(model), {
-        onNone: () => demoTransferAtomicUnitsForSelection(selection),
-        onSome: asset =>
-          assetAmountLabel(
-            {
-              assetId: asset.assetId,
-              atomicUnits: demoTransferAtomicUnitsForSelection(selection),
-              observedAt: 0,
-            },
-            asset,
-          ),
-      }),
+  const maybeAmountFailure = transferAmountFailure(model)
+  const amountField = h.label(
+    [h.Class('wallet-recipient'), h.For('wallet-amount')],
+    [
+      h.span([], [amountSymbol]),
+      h.input([
+        h.Id('wallet-amount'),
+        h.Type('text'),
+        h.Placeholder('0.00'),
+        h.Value(transferAmountInput(model.transferAmount)),
+        h.Disabled(model.transaction._tag === 'SubmittingTransaction'),
+        h.OnInput(value => ChangedTransferAmount.make({ value })),
+      ]),
+    ],
+  )
+  const amountFailure = Option.match(maybeAmountFailure, {
+    onNone: () => [],
+    onSome: message => [
+      h.p([h.Class('wallet-validation'), h.Role('alert')], [message]),
+    ],
   })
   const recipientField = h.label(
     [h.Class('wallet-recipient'), h.For('wallet-recipient')],
@@ -567,7 +671,7 @@ const sendMoney = (model: Model): Html => {
       h.input([
         h.Id('wallet-recipient'),
         h.Type('text'),
-        h.Placeholder(exampleAddress),
+        h.Placeholder('Recipient address'),
         h.Spellcheck(false),
         h.Value(transferRecipientInput(model.transferRecipient)),
         h.Disabled(model.transaction._tag === 'SubmittingTransaction'),
@@ -596,7 +700,9 @@ const sendMoney = (model: Model): Html => {
     onNone: () =>
       h.p(
         [h.Class('wallet-help')],
-        ['Preview a fixed test transfer before anything is signed.'],
+        [
+          'Enter an exact amount and recipient. The selected adapter validates a network quote before anything is signed.',
+        ],
       ),
     onSome: transactionPreview =>
       h.div(
@@ -660,6 +766,101 @@ const sendMoney = (model: Model): Html => {
       ),
   })
   const confirmation = submittedTransactionConfirmation(model)
+  const maybeExternalTestFunding = Option.flatMap(
+    primaryWalletTestFundingMethod(model),
+    method =>
+      method._tag === 'ExternalTestFundingMethod'
+        ? Option.some(method)
+        : Option.none(),
+  )
+  const canRequestTestFunding = selectedNetworkHasCapability(
+    model,
+    'TestFunding',
+  )
+  const isTestFundingDisabled =
+    model.testFunding._tag === 'RequestingTestFunding' ||
+    model.transferAmount._tag !== 'ValidTransferAmount'
+  const testFunding = canRequestTestFunding
+    ? [
+        h.div(
+          [h.Class('wallet-funding')],
+          [
+            h.button(
+              [
+                h.Type('button'),
+                h.Class('cardboard-button'),
+                h.Disabled(isTestFundingDisabled),
+                h.OnClick(RequestedTestFunding.make({})),
+              ],
+              [testFundingButtonLabel(model)],
+            ),
+            ...(model.testFunding._tag === 'ReceivedTestFunding'
+              ? [
+                  h.span(
+                    [h.Role('status')],
+                    [
+                      `Received ${assetAmountLabelForModel(
+                        model,
+                        model.testFunding.receipt.amount,
+                      )}`,
+                    ],
+                  ),
+                ]
+              : []),
+          ],
+        ),
+      ]
+    : []
+  const externalTestFunding = Option.match(maybeExternalTestFunding, {
+    onNone: () => [],
+    onSome: method => [
+      h.div(
+        [h.Class('wallet-funding')],
+        [
+          h.a(
+            [
+              h.Class('cardboard-button'),
+              h.Href(method.providerUrl),
+              h.Target('_blank'),
+              h.Rel('noopener noreferrer'),
+            ],
+            [`Open ${method.providerName}`],
+          ),
+          h.span(
+            [],
+            [
+              'Copy this Wallet’s receiving address, then complete the provider-owned faucet flow.',
+            ],
+          ),
+        ],
+      ),
+    ],
+  })
+  const testFundingFailure =
+    model.testFunding._tag === 'FailedTestFunding' ||
+    model.testFunding._tag === 'UnavailableTestFunding'
+      ? [
+          h.p(
+            [h.Class('wallet-validation'), h.Role('alert')],
+            [
+              `Test funding failed: ${model.testFunding.failure.operation} · ${model.testFunding.failure.code}`,
+            ],
+          ),
+        ]
+      : []
+  const transactionFailure =
+    model.transaction._tag === 'FailedTransferValidation' ||
+    model.transaction._tag === 'FailedTransactionPreview' ||
+    model.transaction._tag === 'FailedTransactionSubmission'
+      ? [
+          h.p(
+            [h.Class('wallet-validation'), h.Role('alert')],
+            [
+              `${model.transaction.failure.operation} failed: ${model.transaction.failure.code}`,
+            ],
+          ),
+        ]
+      : []
   return h.section(
     [h.Class('wallet-send cardboard-panel')],
     [
@@ -670,7 +871,15 @@ const sendMoney = (model: Model): Html => {
             [],
             [
               h.p([h.Class('cardboard-eyebrow')], ['Send']),
-              h.h2([], [transferAmount]),
+              h.h2(
+                [],
+                [
+                  Option.match(maybeAsset, {
+                    onNone: () => 'Select an asset',
+                    onSome: asset => asset.symbol,
+                  }),
+                ],
+              ),
             ],
           ),
           h.span(
@@ -680,9 +889,15 @@ const sendMoney = (model: Model): Html => {
         ],
       ),
       sendNetworkPicker(model),
+      amountField,
+      ...amountFailure,
       recipientField,
       ...validation,
       preview,
+      ...testFunding,
+      ...externalTestFunding,
+      ...testFundingFailure,
+      ...transactionFailure,
       ...confirmation,
       h.div([h.Class('wallet-action-row')], [sendButton(model)]),
     ],
@@ -692,15 +907,15 @@ const sendMoney = (model: Model): Html => {
 const activity = (model: Model): Html => {
   const h = html<Message>()
   const entries = Array.match(model.transactions, {
-    onEmpty: () => [h.p([h.Class('wallet-empty')], ['Nothing sent yet.'])],
+    onEmpty: () => [h.p([h.Class('wallet-empty')], ['No transactions found.'])],
     onNonEmpty: transactions => [
       h.ul(
         [],
         Array.map(transactions, transaction =>
           h.li(
-            [h.Key(transaction.transactionId)],
+            [h.Key(transaction.recordId)],
             [
-              h.span([], [transaction.status]),
+              h.span([], [`${transaction.direction} · ${transaction.status}`]),
               h.strong(
                 [],
                 [assetAmountLabelForModel(model, transaction.amount)],
@@ -712,9 +927,92 @@ const activity = (model: Model): Html => {
       ),
     ],
   })
+  const canLoadHistory = selectedNetworkHasCapability(
+    model,
+    'TransactionHistory',
+  )
+  const hasNextPage =
+    model.transactionHistory._tag === 'LoadedTransactionHistory' &&
+    Option.isSome(model.transactionHistory.maybeNextCursor)
+  const observationFailure =
+    model.transactionObservation._tag === 'FailedTransactionObservation'
+      ? [
+          h.div(
+            [h.Class('wallet-validation'), h.Role('alert')],
+            [
+              h.p(
+                [],
+                [
+                  `Live observation failed: ${model.transactionObservation.failure.code}`,
+                ],
+              ),
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class('cardboard-button'),
+                  h.OnClick(ResumedTransactionObservation.make({})),
+                ],
+                ['Retry live observation'],
+              ),
+            ],
+          ),
+        ]
+      : []
+  const historyFailure =
+    model.transactionHistory._tag === 'FailedTransactionHistory'
+      ? [
+          h.p(
+            [h.Class('wallet-validation'), h.Role('alert')],
+            [
+              `History failed: ${model.transactionHistory.failure.operation} · ${model.transactionHistory.failure.code}`,
+            ],
+          ),
+        ]
+      : []
+  const historyActions = canLoadHistory
+    ? [
+        h.div(
+          [h.Class('wallet-action-row')],
+          [
+            h.button(
+              [
+                h.Type('button'),
+                h.Class('cardboard-button'),
+                h.Disabled(
+                  model.transactionHistory._tag === 'LoadingTransactionHistory',
+                ),
+                h.OnClick(RequestedTransactionHistoryReload.make({})),
+              ],
+              ['Reload history'],
+            ),
+            h.button(
+              [
+                h.Type('button'),
+                h.Class('cardboard-button'),
+                h.Disabled(!hasNextPage),
+                h.OnClick(RequestedNextTransactionHistoryPage.make({})),
+              ],
+              [hasNextPage ? 'Load next page' : 'No more history'],
+            ),
+          ],
+        ),
+      ]
+    : [
+        h.p(
+          [h.Class('wallet-help')],
+          ['Transaction history is unavailable for the selected network.'],
+        ),
+      ]
   return h.section(
     [h.Class('wallet-activity cardboard-panel')],
-    [h.p([h.Class('cardboard-eyebrow')], ['Recent activity']), ...entries],
+    [
+      h.p([h.Class('cardboard-eyebrow')], ['Recent activity']),
+      h.small([], [model.transactionObservation._tag]),
+      ...observationFailure,
+      ...historyFailure,
+      ...entries,
+      ...historyActions,
+    ],
   )
 }
 
@@ -778,7 +1076,7 @@ const proofDetails = (model: Model): Html => {
           h.OnClick(
             RequestedChallengeSignature.make({
               challenge: makeWalletTestChallenge(
-                'foldkit-demo-challenge',
+                'foldkit-wallet-access-challenge',
                 account.accountId,
               ),
             }),

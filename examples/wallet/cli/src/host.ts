@@ -3,6 +3,7 @@ import {
   Data,
   Deferred,
   Effect,
+  Layer,
   Match as M,
   Option,
   Schema as S,
@@ -11,12 +12,16 @@ import * as Program from 'foldkit/program'
 import * as Runtime from 'foldkit/program-runtime'
 import {
   AtomicUnits,
+  ChangedTransferAmount,
   ComposedTransfer,
   DomainSeparatedDigest,
   type Message,
   Model,
   RequestedChallengeSignature,
+  RequestedNextTransactionHistoryPage,
   RequestedSignedTransactionSubmission,
+  RequestedTestFunding,
+  RequestedTransactionHistoryReload,
   RequestedWalletCreation,
   SelectedSendNetwork,
   SelectedWalletNetworkMode,
@@ -28,17 +33,21 @@ import {
   WalletIntentRouteError,
   type WalletNetworkMode,
   WalletProgram,
+  type WalletResources,
   activeWalletAccounts,
+  chainForId,
   parseWalletProgramRoute,
+  primaryReceivingInstruction,
+  primaryWalletTestFundingMethod,
   resolveSendNetworkSelection,
   walletIntentRouter,
 } from 'wallet-core-example'
-import { SimulatedWalletResources } from 'wallet-simulated-client-example'
+import { MacOSLiveWalletResources } from 'wallet-node-client-example'
 
 /** Input shared by preview and send operations. */
 export const WalletTransferInput = S.Struct({
   transferId: S.String,
-  networkMode: S.Literals(['Devnet', 'Testnet']),
+  networkMode: S.Literals(['Devnet', 'Testnet', 'Live']),
   chainId: S.String,
   networkId: S.String,
   accountId: S.String,
@@ -49,6 +58,18 @@ export const WalletTransferInput = S.Struct({
 })
 /** Input shared by preview and send operations. */
 export type WalletTransferInput = typeof WalletTransferInput.Type
+
+/** Input for one capability-gated test-funding request. */
+export const WalletTestFundingInput = S.Struct({
+  networkMode: S.Literals(['Devnet', 'Testnet', 'Live']),
+  chainId: S.String,
+  networkId: S.String,
+  accountId: S.String,
+  assetId: S.String,
+  maybeDisplayAmount: S.Option(S.String),
+})
+/** Input for one capability-gated test-funding request. */
+export type WalletTestFundingInput = typeof WalletTestFundingInput.Type
 
 /** Input for one domain-separated challenge signature. */
 export const WalletChallengeInput = S.Struct({
@@ -66,14 +87,17 @@ export type WalletChallengeInput = typeof WalletChallengeInput.Type
 export const WalletCliOperation = S.Union([
   S.TaggedStruct('Show', {}),
   S.TaggedStruct('CreateWallet', {
-    networkMode: S.Literals(['Devnet', 'Testnet']),
+    networkMode: S.Literals(['Devnet', 'Testnet', 'Live']),
   }),
   S.TaggedStruct('Receive', {
     accountId: S.String,
     assetId: S.String,
   }),
-  S.TaggedStruct('Preview', { input: WalletTransferInput }),
-  S.TaggedStruct('Send', { input: WalletTransferInput }),
+  S.TaggedStruct('History', {}),
+  S.TaggedStruct('NextHistoryPage', {}),
+  S.TaggedStruct('RequestTestFunding', { input: WalletTestFundingInput }),
+  S.TaggedStruct('Preview', { maybeInput: S.Option(WalletTransferInput) }),
+  S.TaggedStruct('Send', { maybeInput: S.Option(WalletTransferInput) }),
   S.TaggedStruct('SignChallenge', { input: WalletChallengeInput }),
   S.TaggedStruct('InspectReplay', { maybeFrame: S.Option(S.Int) }),
 ])
@@ -108,34 +132,8 @@ export type WalletCliExecutionError =
 /** The exact Program object consumed by the raw CLI host. */
 export const walletCliProgram: typeof WalletProgram = WalletProgram
 
-/** Deterministic transfer input used when flags are omitted. */
-export const defaultWalletTransferInput: WalletTransferInput =
-  WalletTransferInput.make({
-    transferId: 'cli-transfer',
-    networkMode: 'Testnet',
-    chainId: 'ethereum',
-    networkId: 'ethereum:sepolia',
-    accountId: 'simulated-ethereum-account',
-    assetId: 'ethereum:sepolia:eth',
-    destinationAddress: '0x2222222222222222222222222222222222222222',
-    atomicUnits: '1000000000000000',
-    maybeMessage: Option.none(),
-  })
-
-/** Deterministic challenge input used when flags are omitted. */
-export const defaultWalletChallengeInput: WalletChallengeInput =
-  WalletChallengeInput.make({
-    challengeId: 'cli-challenge',
-    accountId: 'simulated-ethereum-account',
-    algorithm: 'keccak256',
-    domain: 'wallet.example/access/v1',
-    digest:
-      '0x434a8d65ff6dedb682353c0b64080d079094c7bc538c6bf29c5049c4dca72e22',
-    encoding: 'hex',
-  })
-
 const walletRouter = Program.makeRouter(WalletProgram)
-const observationTimeout = '2 seconds'
+const observationTimeout = '8 seconds'
 
 const relativeRouteForCarrier = (
   carrier: string,
@@ -317,6 +315,83 @@ const challengeForInput = (
     }),
   })
 
+const selectionForTestFunding = (
+  model: Model,
+  input: WalletTestFundingInput,
+): Effect.Effect<SendNetworkSelection, WalletCliError> =>
+  Effect.gen(function* () {
+    const snapshot = yield* loadedSnapshot(model)
+    const selection = SendNetworkSelection.make({
+      networkMode: input.networkMode,
+      chainId: input.chainId,
+      networkId: input.networkId,
+      accountId: input.accountId,
+      assetId: input.assetId,
+    })
+    if (Option.isNone(resolveSendNetworkSelection(snapshot, selection))) {
+      return yield* Effect.fail(
+        new WalletCliError({
+          message: `Unknown test-funding selection: ${input.networkMode}/${input.chainId}/${input.networkId}/${input.accountId}/${input.assetId}`,
+        }),
+      )
+    }
+    return selection
+  })
+
+const testFundingSummary = (
+  model: Model,
+): Effect.Effect<string, WalletCliError> => {
+  if (model.testFunding._tag === 'ReceivedTestFunding') {
+    const receipt = model.testFunding.receipt
+    return Effect.succeed(
+      `Test funding accepted: ${receipt.amount.atomicUnits} ${receipt.amount.assetId} | ${receipt.fundingId}`,
+    )
+  } else if (
+    model.testFunding._tag === 'FailedTestFunding' ||
+    model.testFunding._tag === 'UnavailableTestFunding'
+  ) {
+    return Effect.fail(
+      new WalletCliError({
+        message: `Test funding failed: ${model.testFunding.failure.operation}/${model.testFunding.failure.code}`,
+      }),
+    )
+  } else {
+    return Effect.fail(
+      new WalletCliError({
+        message: `Test funding did not settle: ${model.testFunding._tag}`,
+      }),
+    )
+  }
+}
+
+const externalTestFundingSummary = (
+  model: Model,
+): Effect.Effect<string, WalletCliError> => {
+  const maybeMethod = primaryWalletTestFundingMethod(model)
+  const maybeInstruction = primaryReceivingInstruction(model)
+  if (
+    Option.isNone(maybeMethod) ||
+    maybeMethod.value._tag !== 'ExternalTestFundingMethod' ||
+    Option.isNone(maybeInstruction)
+  ) {
+    return Effect.fail(
+      new WalletCliError({
+        message: 'No external test-funding handoff is available.',
+      }),
+    )
+  }
+  return Effect.succeed(
+    Array.join(
+      [
+        `Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl}`,
+        `Receiving address: ${maybeInstruction.value.destinationAddress}`,
+        'Complete the provider-owned authentication or CAPTCHA flow, then reload history.',
+      ],
+      '\n',
+    ),
+  )
+}
+
 const receiveSummary = (
   model: Model,
   accountId: string,
@@ -350,11 +425,12 @@ const modelSummary = (model: Model): string => {
   const portfolio = M.value(model.portfolio).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
+      WaitingForWalletProfiles: () => 'Portfolio: waiting for wallet profiles',
       LoadingPortfolio: () => 'Portfolio: loading',
       FailedPortfolio: ({ failure }) =>
         `Portfolio: failed ${failure.operation}/${failure.code}`,
       LoadedPortfolio: ({ snapshot }) =>
-        `Portfolio: ${snapshot.accounts.length.toString()} accounts, ${snapshot.balanceSnapshot.balances.length.toString()} balances`,
+        `Portfolio: ${snapshot.accounts.length.toString()} accounts, ${snapshot.balanceSnapshot.balances.length.toString()} balances, ${snapshot.balanceSnapshot.unavailableAccountIds.length.toString()} unavailable`,
     }),
   )
   return Array.join(
@@ -386,19 +462,32 @@ const createdWalletSummary = (
       new WalletCliError({ message: 'Wallet creation did not settle' }),
     )
   }
-  return Effect.succeed(
-    Array.join(
+  return Effect.gen(function* () {
+    const snapshot = yield* loadedSnapshot(model)
+    return Array.join(
       [
         `Created ${maybeWallet.value.displayName} (${networkMode})`,
         ...Array.map(
-          activeWalletAccounts(maybeWallet.value, networkMode),
-          account =>
-            `${account.chain} | ${account.networkName} | ${account.address}`,
+          activeWalletAccounts(
+            maybeWallet.value,
+            snapshot.networks,
+            networkMode,
+          ),
+          account => {
+            const chainName = Option.match(
+              chainForId(snapshot.chains, account.chainId),
+              {
+                onNone: () => account.chainId,
+                onSome: chain => chain.displayName,
+              },
+            )
+            return `${chainName} | ${account.networkName} | ${account.address}`
+          },
         ),
       ],
       '\n',
-    ),
-  )
+    )
+  })
 }
 
 const transferPropertyLines = (
@@ -482,22 +571,28 @@ const previewSummary = (
 const waitForObservedTransaction = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   transactionId: string,
+  observationStartFrame: number,
 ): Effect.Effect<Model, WalletCliError> => {
-  const containsTransaction = (model: Model): boolean =>
+  const hasObservedTransaction = (): boolean =>
     Array.some(
-      model.transactions,
-      transaction => transaction.transactionId === transactionId,
+      Array.drop(runtime.replay.readTape().transitions, observationStartFrame),
+      transition =>
+        transition.message._tag === 'ObservedTransaction' &&
+        transition.message.transaction.transactionId === transactionId,
     )
-  if (containsTransaction(runtime.readModel())) {
+  if (hasObservedTransaction()) {
     return Effect.succeed(runtime.readModel())
   }
   return Effect.gen(function* () {
     const observedModel = yield* Deferred.make<Model>()
     const stopObserving = runtime.observeModel(model => {
-      if (containsTransaction(model)) {
+      if (hasObservedTransaction()) {
         Deferred.doneUnsafe(observedModel, Effect.succeed(model))
       }
     })
+    if (hasObservedTransaction()) {
+      Deferred.doneUnsafe(observedModel, Effect.succeed(runtime.readModel()))
+    }
     const maybeObserved = yield* Deferred.await(observedModel).pipe(
       Effect.timeoutOption(observationTimeout),
       Effect.ensuring(Effect.sync(stopObserving)),
@@ -516,6 +611,7 @@ const waitForObservedTransaction = (
 
 const sendSummary = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
+  observationStartFrame: number,
 ): Effect.Effect<Readonly<{ model: Model; summary: string }>, WalletCliError> =>
   Effect.gen(function* () {
     const model = runtime.readModel()
@@ -537,6 +633,7 @@ const sendSummary = (
     const observedModel = yield* waitForObservedTransaction(
       runtime,
       transactionId,
+      observationStartFrame,
     )
     const maybeConfirmation =
       model.transaction.submission.maybeExplorerConfirmation
@@ -585,6 +682,35 @@ const signatureSummary = (
   }
 }
 
+const historySummary = (model: Model): string => {
+  const state = M.value(model.transactionHistory).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      NotLoadedTransactionHistory: () => 'not loaded',
+      LoadingTransactionHistory: () => 'loading',
+      LoadedTransactionHistory: ({ maybeNextCursor }) =>
+        Option.isSome(maybeNextCursor) ? 'loaded, more available' : 'loaded',
+      FailedTransactionHistory: ({ failure }) =>
+        `failed ${failure.operation}/${failure.code}`,
+    }),
+  )
+  const records = Array.map(
+    model.transactions,
+    transaction =>
+      `${transaction.direction} ${transaction.status} | ${transaction.amount.atomicUnits} ${transaction.amount.assetId} | ${transaction.transactionId}`,
+  )
+  return Array.join(
+    [
+      `History: ${state}`,
+      ...Array.match(records, {
+        onEmpty: () => ['No transactions found.'],
+        onNonEmpty: transactions => transactions,
+      }),
+    ],
+    '\n',
+  )
+}
+
 const executionForRuntime = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   operation: Exclude<WalletCliOperation, { _tag: 'InspectReplay' }>,
@@ -610,7 +736,61 @@ const executionForRuntime = (
         receiveSummary(runtime.readModel(), accountId, assetId).pipe(
           Effect.map(summary => ({ model: runtime.readModel(), summary })),
         ),
-      Preview: ({ input }) =>
+      History: () =>
+        Effect.map(
+          runtime.run(RequestedTransactionHistoryReload.make({})),
+          model => ({ model, summary: historySummary(model) }),
+        ),
+      NextHistoryPage: () =>
+        Effect.map(
+          runtime.run(RequestedNextTransactionHistoryPage.make({})),
+          model => ({ model, summary: historySummary(model) }),
+        ),
+      RequestTestFunding: ({ input }) =>
+        Effect.gen(function* () {
+          const selection = yield* selectionForTestFunding(
+            runtime.readModel(),
+            input,
+          )
+          const selectedModel = yield* runtime.run(
+            SelectedSendNetwork.make({ selection }),
+          )
+          const maybeMethod = primaryWalletTestFundingMethod(selectedModel)
+          if (
+            Option.isSome(maybeMethod) &&
+            maybeMethod.value._tag === 'ExternalTestFundingMethod'
+          ) {
+            const summary = yield* externalTestFundingSummary(selectedModel)
+            return { model: selectedModel, summary }
+          }
+          if (
+            Option.isNone(maybeMethod) ||
+            maybeMethod.value._tag !== 'AdapterTestFundingMethod'
+          ) {
+            return yield* Effect.fail(
+              new WalletCliError({
+                message: 'Test funding is unavailable for this network.',
+              }),
+            )
+          }
+          if (Option.isNone(input.maybeDisplayAmount)) {
+            return yield* Effect.fail(
+              new WalletCliError({
+                message:
+                  '--display-amount is required for adapter-backed test funding.',
+              }),
+            )
+          }
+          yield* runtime.run(
+            ChangedTransferAmount.make({
+              value: input.maybeDisplayAmount.value,
+            }),
+          )
+          const model = yield* runtime.run(RequestedTestFunding.make({}))
+          const summary = yield* testFundingSummary(model)
+          return { model, summary }
+        }),
+      Preview: ({ maybeInput }) =>
         Effect.gen(function* () {
           const initialModel = runtime.readModel()
           if (
@@ -620,16 +800,24 @@ const executionForRuntime = (
             const summary = yield* previewSummary(initialModel)
             return { model: initialModel, summary }
           }
+          if (Option.isNone(maybeInput)) {
+            return yield* Effect.fail(
+              new WalletCliError({
+                message:
+                  'Transfer flags are required unless --uri contains a prepared send intent.',
+              }),
+            )
+          }
           const { request, selection } = yield* transferRequest(
             initialModel,
-            input,
+            maybeInput.value,
           )
           yield* runtime.run(SelectedSendNetwork.make({ selection }))
           const model = yield* runtime.run(ComposedTransfer.make({ request }))
           const summary = yield* previewSummary(model)
           return { model, summary }
         }),
-      Send: ({ input }) =>
+      Send: ({ maybeInput }) =>
         Effect.gen(function* () {
           const initialModel = runtime.readModel()
           const previewedModel =
@@ -637,9 +825,17 @@ const executionForRuntime = (
             initialModel.transaction._tag === 'PreviewedTransaction'
               ? initialModel
               : yield* Effect.gen(function* () {
+                  if (Option.isNone(maybeInput)) {
+                    return yield* Effect.fail(
+                      new WalletCliError({
+                        message:
+                          'Transfer flags are required unless --uri contains a prepared send intent.',
+                      }),
+                    )
+                  }
                   const { request, selection } = yield* transferRequest(
                     initialModel,
-                    input,
+                    maybeInput.value,
                   )
                   yield* runtime.run(SelectedSendNetwork.make({ selection }))
                   return yield* runtime.run(ComposedTransfer.make({ request }))
@@ -648,12 +844,14 @@ const executionForRuntime = (
             const summary = yield* previewSummary(previewedModel)
             return { model: previewedModel, summary }
           }
+          const observationStartFrame =
+            runtime.replay.readTape().transitions.length
           yield* runtime.run(
             RequestedSignedTransactionSubmission.make({
               previewId: previewedModel.transaction.preview.previewId,
             }),
           )
-          return yield* sendSummary(runtime)
+          return yield* sendSummary(runtime, observationStartFrame)
         }),
       SignChallenge: ({ input }) =>
         Effect.gen(function* () {
@@ -682,6 +880,7 @@ const pathsForRuntime = (
 const inspectReplay = (
   maybeFrame: Option.Option<number>,
   maybeCarrier: Option.Option<string>,
+  resources: Layer.Layer<WalletResources>,
 ): Effect.Effect<
   WalletCliExecution,
   | WalletCliError
@@ -694,7 +893,7 @@ const inspectReplay = (
       if (Option.isNone(maybeCarrier)) {
         const runtime = yield* Runtime.makeProgramRuntime({
           program: WalletProgram,
-          resources: SimulatedWalletResources,
+          resources,
         })
         yield* runtime.initialization
         const tape = runtime.replay.readTape()
@@ -769,16 +968,17 @@ const inspectReplay = (
 export const executeWalletCli = (
   operation: WalletCliOperation,
   maybeCarrier = Option.none<string>(),
+  resources: Layer.Layer<WalletResources> = MacOSLiveWalletResources,
 ): Effect.Effect<WalletCliExecution, WalletCliExecutionError> => {
   if (operation._tag === 'InspectReplay') {
-    return inspectReplay(operation.maybeFrame, maybeCarrier)
+    return inspectReplay(operation.maybeFrame, maybeCarrier, resources)
   }
   return Effect.scoped(
     Effect.gen(function* () {
       const start = yield* startForCarrier(maybeCarrier)
       const runtime = yield* Runtime.makeProgramRuntime({
         program: WalletProgram,
-        resources: SimulatedWalletResources,
+        resources,
         start,
       })
       yield* runtime.initialization

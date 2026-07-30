@@ -13,7 +13,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -76,28 +77,15 @@ input {
   color: var(--cardboard-paper-muted);
 }
 
-.wallet-network-switch {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  min-width: min(100%, 15rem);
-  padding: 0.25rem;
-  background: var(--cardboard-ink);
-  border-radius: 0.85rem;
-}
-
-.wallet-network-option {
-  padding: 0.65rem 0.8rem;
-  color: var(--cardboard-paper-muted);
+.wallet-select {
+  width: min(100%, 26rem);
+  min-height: 3rem;
+  padding: 0.7rem 2.5rem 0.7rem 0.85rem;
+  color: var(--cardboard-paper);
   font-weight: 900;
-  background: transparent;
-  border: 0;
-  border-radius: 0.65rem;
-  cursor: pointer;
-}
-
-.wallet-network-option.selected {
-  color: var(--cardboard-ink);
-  background: var(--cardboard-amber);
+  background: var(--cardboard-ink);
+  border: 0.1rem solid var(--cardboard-line);
+  border-radius: 0.85rem;
 }
 
 .wallet-home-empty {
@@ -291,41 +279,16 @@ input {
   border-radius: 999px;
 }
 
-.wallet-send-networks {
+.wallet-picker {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
+  gap: 0.55rem;
   margin-top: 1.5rem;
-}
-
-.wallet-send-network {
-  display: grid;
-  min-width: 0;
-  gap: 0.2rem;
-  padding: 0.8rem;
   color: var(--cardboard-paper-muted);
-  text-align: left;
-  background: var(--cardboard-panel-deep);
-  border: 0.1rem solid var(--cardboard-line);
-  border-radius: 0.85rem;
-  cursor: pointer;
+  font-weight: 900;
 }
 
-.wallet-send-network strong,
-.wallet-send-network span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wallet-send-network.selected {
-  color: var(--cardboard-ink);
-  background: var(--cardboard-amber);
-  border-color: var(--cardboard-amber);
-}
-
-.wallet-send-network span {
-  font-size: 0.76rem;
+.wallet-picker .wallet-select {
+  width: 100%;
 }
 
 .wallet-recipient {
@@ -436,6 +399,15 @@ input {
 .wallet-action-row {
   justify-content: flex-start;
   margin-top: 1.25rem;
+}
+
+.wallet-funding {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 1.25rem;
+  color: var(--cardboard-paper-muted);
+  flex-wrap: wrap;
 }
 
 .wallet-activity ul {

@@ -1,4 +1,4 @@
-import { Array as Array_, Option, Schema as S } from 'effect'
+import { Array as Array_, Effect, Option, Order, Schema as S } from 'effect'
 
 import { ClipboardCopyState, IdleClipboardCopy } from './clipboard.js'
 import {
@@ -7,9 +7,12 @@ import {
   AssetId,
   AtomicUnits,
   ChainDescriptor,
+  ChainId,
   NetworkDescriptor,
   NetworkId,
+  TestFundingEnvironment,
   assetForId,
+  convertDisplayAmountToAtomicUnits,
   networkForId,
 } from './currency.js'
 import { BlockExplorerConfirmation } from './explorer.js'
@@ -21,16 +24,20 @@ import {
   WalletCreationState,
   WalletNetworkMode,
   WalletProfile,
+  WalletProfileAccount,
   WalletProfileLoadingState,
 } from './walletProfile.js'
 
+const isHttpsUrl = (value: string): boolean => {
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 /** One public wallet account on one normalized network. */
-export const WalletAccount = S.Struct({
-  accountId: S.String,
-  networkId: NetworkId,
-  address: S.String,
-  displayName: S.String,
-})
+export const WalletAccount = WalletProfileAccount
 /** One public wallet account on one normalized network. */
 export type WalletAccount = typeof WalletAccount.Type
 
@@ -42,10 +49,16 @@ export const AccountBalance = S.Struct({
 /** One account's balance in one normalized asset. */
 export type AccountBalance = typeof AccountBalance.Type
 
+const UnavailableBalanceAccountIds = S.Array(S.String).pipe(
+  S.withDecodingDefaultKey(Effect.succeed([])),
+  S.withConstructorDefault(Effect.succeed([])),
+)
+
 /** A timestamped snapshot of normalized asset balances. */
 export const BalanceSnapshot = S.Struct({
   observedAt: S.Number,
   balances: S.Array(AccountBalance),
+  unavailableAccountIds: UnavailableBalanceAccountIds,
 })
 /** A timestamped snapshot of normalized asset balances. */
 export type BalanceSnapshot = typeof BalanceSnapshot.Type
@@ -62,7 +75,7 @@ export const ReceivingInstruction = S.Struct({
 export type ReceivingInstruction = typeof ReceivingInstruction.Type
 
 /** The provenance of every balance and account in one portfolio snapshot. */
-export const WalletDataSource = S.Literals(['Fixture', 'Testnet'])
+export const WalletDataSource = S.Literals(['Fixture', 'Testnet', 'Live'])
 /** The provenance of every balance and account in one portfolio snapshot. */
 export type WalletDataSource = typeof WalletDataSource.Type
 
@@ -83,6 +96,33 @@ export type PortfolioSnapshot = typeof PortfolioSnapshot.Type
 export const isPortfolioSnapshotConsistent = (
   portfolio: PortfolioSnapshot,
 ): boolean => {
+  const hasUniqueCatalogIdentifiers =
+    new Set(Array_.map(portfolio.chains, chain => chain.chainId)).size ===
+      Array_.length(portfolio.chains) &&
+    new Set(Array_.map(portfolio.networks, network => network.networkId))
+      .size === Array_.length(portfolio.networks) &&
+    new Set(Array_.map(portfolio.assets, asset => asset.assetId)).size ===
+      Array_.length(portfolio.assets) &&
+    new Set(Array_.map(portfolio.accounts, account => account.accountId))
+      .size === Array_.length(portfolio.accounts)
+  const hasUniqueCapabilities = Array_.every(
+    portfolio.networks,
+    network =>
+      new Set(network.capabilities).size ===
+      Array_.length(network.capabilities),
+  )
+  const hasSafeExternalTestFundingProviders = Array_.every(
+    portfolio.networks,
+    network => {
+      if (network.testFundingMethod._tag !== 'ExternalTestFundingMethod') {
+        return true
+      }
+      return (
+        isHttpsUrl(network.testFundingMethod.providerUrl) &&
+        network.testFundingMethod.providerName.trim() !== ''
+      )
+    },
+  )
   const hasNetworks = Array_.every(portfolio.networks, network =>
     Array_.some(portfolio.chains, chain => chain.chainId === network.chainId),
   )
@@ -95,8 +135,40 @@ export const isPortfolioSnapshotConsistent = (
   const hasAccounts = Array_.every(portfolio.accounts, account =>
     Array_.some(
       portfolio.networks,
-      network => network.networkId === account.networkId,
+      network =>
+        network.networkId === account.networkId &&
+        network.chainId === account.chainId,
     ),
+  )
+  const hasNoMainnetTestFunding = Array_.every(
+    portfolio.networks,
+    network =>
+      network.environment !== 'Mainnet' ||
+      (!Array_.contains(network.capabilities, 'TestFunding') &&
+        !Array_.contains(network.capabilities, 'ExternalTestFunding') &&
+        network.testFundingMethod._tag === 'UnavailableTestFundingMethod'),
+  )
+  const hasConsistentTestFundingMethods = Array_.every(
+    portfolio.networks,
+    network => {
+      const hasAdapterCapability = Array_.contains(
+        network.capabilities,
+        'TestFunding',
+      )
+      const hasExternalCapability = Array_.contains(
+        network.capabilities,
+        'ExternalTestFunding',
+      )
+      if (network.testFundingMethod._tag === 'AdapterTestFundingMethod') {
+        return hasAdapterCapability && !hasExternalCapability
+      } else if (
+        network.testFundingMethod._tag === 'ExternalTestFundingMethod'
+      ) {
+        return hasExternalCapability && !hasAdapterCapability
+      } else {
+        return !hasAdapterCapability && !hasExternalCapability
+      }
+    },
   )
   const hasBalances = Array_.every(
     portfolio.balanceSnapshot.balances,
@@ -113,6 +185,29 @@ export const isPortfolioSnapshotConsistent = (
       )
     },
   )
+  const hasUniqueBalances =
+    new Set(
+      Array_.map(
+        portfolio.balanceSnapshot.balances,
+        balance => `${balance.accountId}\u0000${balance.amount.assetId}`,
+      ),
+    ).size === Array_.length(portfolio.balanceSnapshot.balances)
+  const unavailableAccountIds = portfolio.balanceSnapshot.unavailableAccountIds
+  const hasUnavailableBalanceAccounts =
+    new Set(unavailableAccountIds).size ===
+      Array_.length(unavailableAccountIds) &&
+    Array_.every(
+      unavailableAccountIds,
+      accountId =>
+        Array_.some(
+          portfolio.accounts,
+          account => account.accountId === accountId,
+        ) &&
+        !Array_.some(
+          portfolio.balanceSnapshot.balances,
+          balance => balance.accountId === accountId,
+        ),
+    )
   const hasReceivingInstructions = Array_.every(
     portfolio.receivingInstructions,
     instruction => {
@@ -128,14 +223,47 @@ export const isPortfolioSnapshotConsistent = (
       )
     },
   )
+  const hasUniqueReceivingInstructions =
+    new Set(
+      Array_.map(
+        portfolio.receivingInstructions,
+        instruction => `${instruction.accountId}\u0000${instruction.assetId}`,
+      ),
+    ).size === Array_.length(portfolio.receivingInstructions)
   return (
+    hasUniqueCatalogIdentifiers &&
+    hasUniqueCapabilities &&
+    hasSafeExternalTestFundingProviders &&
     hasNetworks &&
     hasAssets &&
     hasAccounts &&
+    hasNoMainnetTestFunding &&
+    hasConsistentTestFundingMethods &&
     hasBalances &&
-    hasReceivingInstructions
+    hasUniqueBalances &&
+    hasUnavailableBalanceAccounts &&
+    hasReceivingInstructions &&
+    hasUniqueReceivingInstructions
   )
 }
+
+/** Reports whether every restored profile account is present in a portfolio. */
+export const doesPortfolioIncludeWalletProfiles = (
+  portfolio: PortfolioSnapshot,
+  wallets: ReadonlyArray<WalletProfile>,
+): boolean =>
+  Array_.every(wallets, wallet =>
+    Array_.every(wallet.accounts, profileAccount =>
+      Array_.some(
+        portfolio.accounts,
+        account =>
+          account.accountId === profileAccount.accountId &&
+          account.chainId === profileAccount.chainId &&
+          account.networkId === profileAccount.networkId &&
+          account.address === profileAccount.address,
+      ),
+    ),
+  )
 
 /** One public address-book entry with an adapter-normalized address. */
 export const AddressBookEntry = S.Struct({
@@ -255,6 +383,61 @@ export const transferRecipientInput = (
   }
 }
 
+/** No transfer amount has been entered. */
+export const EmptyTransferAmount = S.TaggedStruct('EmptyTransferAmount', {})
+/** A transfer amount cannot be represented by the selected asset. */
+export const InvalidTransferAmount = S.TaggedStruct('InvalidTransferAmount', {
+  value: S.String,
+  code: S.Literals([
+    'AssetUnavailable',
+    'InvalidFormat',
+    'TooManyDecimalPlaces',
+    'MustBePositive',
+  ]),
+})
+/** A transfer amount exactly represents positive atomic units. */
+export const ValidTransferAmount = S.TaggedStruct('ValidTransferAmount', {
+  value: S.String,
+  atomicUnits: AtomicUnits,
+})
+/** Renderer-neutral state of the user-entered transfer amount. */
+export const TransferAmountState = S.Union([
+  EmptyTransferAmount,
+  InvalidTransferAmount,
+  ValidTransferAmount,
+])
+/** Renderer-neutral state of the user-entered transfer amount. */
+export type TransferAmountState = typeof TransferAmountState.Type
+
+/** Returns the editable text represented by one transfer amount state. */
+export const transferAmountInput = (amount: TransferAmountState): string =>
+  amount._tag === 'EmptyTransferAmount' ? '' : amount.value
+
+/** Converts editable amount text through one exact asset descriptor. */
+export const transferAmountFromInput = (
+  value: string,
+  maybeAsset: Option.Option<AssetDescriptor>,
+): TransferAmountState => {
+  if (value.trim() === '') {
+    return EmptyTransferAmount.make({})
+  }
+  if (Option.isNone(maybeAsset)) {
+    return InvalidTransferAmount.make({ value, code: 'AssetUnavailable' })
+  }
+  const conversion = convertDisplayAmountToAtomicUnits(
+    value,
+    maybeAsset.value.decimalPlaces,
+  )
+  if (conversion._tag === 'InvalidAssetDisplayAmount') {
+    return InvalidTransferAmount.make({ value, code: conversion.code })
+  } else {
+    return ValidTransferAmount.make({
+      value,
+      atomicUnits: conversion.atomicUnits,
+    })
+  }
+}
+
 /** One chain-agnostic request to transfer an exact asset amount. */
 export const TransferRequest = S.Struct({
   transferId: S.String,
@@ -363,6 +546,29 @@ export const TransactionSubmission = S.Struct({
 /** A public result returned after a signed transaction was submitted. */
 export type TransactionSubmission = typeof TransactionSubmission.Type
 
+/** Checks that a submission belongs to its preview and exposes only a safe explorer link. */
+export const isTransactionSubmissionConsistent = (
+  preview: TransactionPreview,
+  submission: TransactionSubmission,
+): boolean => {
+  if (
+    submission.previewId !== preview.previewId ||
+    submission.transactionId.trim() === '' ||
+    submission.submittedAt < 0
+  ) {
+    return false
+  }
+  if (Option.isNone(submission.maybeExplorerConfirmation)) {
+    return true
+  }
+  const confirmation = submission.maybeExplorerConfirmation.value
+  return (
+    confirmation.label.trim() !== '' &&
+    confirmation.transactionId === submission.transactionId &&
+    isHttpsUrl(confirmation.url)
+  )
+}
+
 /** The direction of an observed transaction relative to one account. */
 export const TransactionDirection = S.Literals(['Incoming', 'Outgoing'])
 /** The direction of an observed transaction relative to one account. */
@@ -389,11 +595,43 @@ export const TransactionRecord = S.Struct({
 /** One normalized public transaction record from history or observation. */
 export type TransactionRecord = typeof TransactionRecord.Type
 
+/** One idempotent request for non-production funds on an exact network. */
+export const TestFundingRequest = S.Struct({
+  requestId: S.String,
+  accountId: S.String,
+  chainId: ChainId,
+  networkId: NetworkId,
+  environment: TestFundingEnvironment,
+  assetId: AssetId,
+  atomicUnits: AtomicUnits,
+})
+/** One idempotent request for non-production funds on an exact network. */
+export type TestFundingRequest = typeof TestFundingRequest.Type
+
+/** A public receipt proving that a test-funding request was accepted. */
+export const TestFundingReceipt = S.Struct({
+  requestId: S.String,
+  fundingId: S.String,
+  acceptedAt: S.Number,
+  amount: AssetAmount,
+  maybeTransactionId: S.OptionFromNullishOr(S.String, {
+    onNoneEncoding: null,
+  }),
+})
+/** A public receipt proving that a test-funding request was accepted. */
+export type TestFundingReceipt = typeof TestFundingReceipt.Type
+
+/** The largest portable transaction-history page supported by every adapter. */
+export const maximumTransactionHistoryPageSize = 50
+
 /** A cursor-based request for public transaction history. */
 export const TransactionHistoryQuery = S.Struct({
-  accountIds: S.Array(S.String),
+  accountId: S.String,
+  networkId: NetworkId,
   maybeCursor: S.OptionFromNullishOr(S.String, { onNoneEncoding: null }),
-  limit: S.Int,
+  limit: S.Int.check(
+    S.isBetween({ minimum: 1, maximum: maximumTransactionHistoryPageSize }),
+  ),
 })
 /** A cursor-based request for public transaction history. */
 export type TransactionHistoryQuery = typeof TransactionHistoryQuery.Type
@@ -440,6 +678,7 @@ export type SignatureProof = typeof SignatureProof.Type
 /** A public wallet operation that can fail. */
 export const WalletOperation = S.Literals([
   'LoadPortfolio',
+  'RequestTestFunding',
   'ValidateTransfer',
   'PreviewTransfer',
   'BuildTransferPayload',
@@ -456,7 +695,12 @@ export type WalletOperation = typeof WalletOperation.Type
 /** A networking failure safe to persist in the Wallet Model. */
 export const NetworkFailure = S.TaggedStruct('NetworkFailure', {
   operation: WalletOperation,
-  code: S.Literals(['Unavailable', 'Rejected', 'InvalidResponse']),
+  code: S.Literals([
+    'Unavailable',
+    'Rejected',
+    'InvalidResponse',
+    'UnsupportedCapability',
+  ]),
 })
 /** A signing failure safe to persist in the Wallet Model. */
 export const SigningFailure = S.TaggedStruct('SigningFailure', {
@@ -477,8 +721,49 @@ export const WalletFailure = S.Union([
 /** A public Wallet failure containing no host error or secret material. */
 export type WalletFailure = typeof WalletFailure.Type
 
-/** The Wallet is loading its public portfolio. */
-export const LoadingPortfolio = S.TaggedStruct('LoadingPortfolio', {})
+/** Test funding is ready to be requested for the current selection. */
+export const ReadyToRequestTestFunding = S.TaggedStruct(
+  'ReadyToRequestTestFunding',
+  {},
+)
+/** The selected adapter is requesting non-production funds. */
+export const RequestingTestFunding = S.TaggedStruct('RequestingTestFunding', {
+  request: TestFundingRequest,
+})
+/** One non-production funding request was accepted. */
+export const ReceivedTestFunding = S.TaggedStruct('ReceivedTestFunding', {
+  request: TestFundingRequest,
+  receipt: TestFundingReceipt,
+})
+/** Test funding is unavailable for the current network or asset. */
+export const UnavailableTestFunding = S.TaggedStruct('UnavailableTestFunding', {
+  failure: WalletFailure,
+})
+/** One non-production funding request failed safely. */
+export const FailedTestFunding = S.TaggedStruct('FailedTestFunding', {
+  request: TestFundingRequest,
+  failure: WalletFailure,
+})
+/** The finite lifecycle of generic non-production funding. */
+export const TestFundingState = S.Union([
+  ReadyToRequestTestFunding,
+  RequestingTestFunding,
+  ReceivedTestFunding,
+  UnavailableTestFunding,
+  FailedTestFunding,
+])
+/** The finite lifecycle of generic non-production funding. */
+export type TestFundingState = typeof TestFundingState.Type
+
+/** The Wallet is waiting for restored profiles before loading its portfolio. */
+export const WaitingForWalletProfiles = S.TaggedStruct(
+  'WaitingForWalletProfiles',
+  {},
+)
+/** The Wallet is loading its public portfolio for one exact request. */
+export const LoadingPortfolio = S.TaggedStruct('LoadingPortfolio', {
+  requestId: S.String,
+})
 /** The Wallet loaded its public portfolio. */
 export const LoadedPortfolio = S.TaggedStruct('LoadedPortfolio', {
   snapshot: PortfolioSnapshot,
@@ -489,6 +774,7 @@ export const FailedPortfolio = S.TaggedStruct('FailedPortfolio', {
 })
 /** The Wallet's portfolio loading state. */
 export const PortfolioState = S.Union([
+  WaitingForWalletProfiles,
   LoadingPortfolio,
   LoadedPortfolio,
   FailedPortfolio,
@@ -649,6 +935,11 @@ export const Model = S.Struct({
   portfolio: PortfolioState,
   walletIntent: WalletIntentState,
   transferRecipient: TransferRecipientState,
+  transferAmount: TransferAmountState,
+  nextPortfolioRequestNumber: S.Int,
+  nextTransferRequestNumber: S.Int,
+  testFunding: TestFundingState,
+  nextTestFundingRequestNumber: S.Int,
   addressBookEntries: S.Array(AddressBookEntry),
   transaction: TransactionState,
   signature: SignatureState,
@@ -667,9 +958,14 @@ export const initialModel: Model = {
   maybeSendNetworkSelection: Option.none(),
   walletCreation: ReadyToCreateWallet.make({}),
   clipboardCopy: IdleClipboardCopy.make({}),
-  portfolio: LoadingPortfolio.make({}),
+  portfolio: WaitingForWalletProfiles.make({}),
   walletIntent: NoWalletIntent.make({}),
   transferRecipient: EmptyTransferRecipient.make({}),
+  transferAmount: EmptyTransferAmount.make({}),
+  nextPortfolioRequestNumber: 1,
+  nextTransferRequestNumber: 1,
+  testFunding: ReadyToRequestTestFunding.make({}),
+  nextTestFundingRequestNumber: 1,
   addressBookEntries: [],
   transaction: IdleTransaction.make({}),
   signature: IdleSignature.make({}),
@@ -726,18 +1022,54 @@ export const recipientHistoryForTransfer = (
   })
 }
 
-/** Merges history and live records by stable record identifier. */
+const isSameSubmittedTransfer = (
+  left: TransactionRecord,
+  right: TransactionRecord,
+): boolean =>
+  left.accountId === right.accountId &&
+  left.networkId === right.networkId &&
+  left.transactionId === right.transactionId &&
+  left.direction === right.direction &&
+  left.amount.assetId === right.amount.assetId &&
+  left.amount.atomicUnits === right.amount.atomicUnits &&
+  left.normalizedCounterpartyAddress === right.normalizedCounterpartyAddress
+
+/** Merges history and live records while reconciling an exact optimistic send. */
 export const mergeTransactionRecords = (
   current: ReadonlyArray<TransactionRecord>,
   incoming: ReadonlyArray<TransactionRecord>,
-): ReadonlyArray<TransactionRecord> =>
-  Array_.reduce(incoming, current, (records, transaction) => [
-    ...Array_.filter(
-      records,
-      record => record.recordId !== transaction.recordId,
-    ),
-    transaction,
-  ])
+): ReadonlyArray<TransactionRecord> => {
+  const records = Array_.reduce(incoming, current, (merged, transaction) => {
+    const hasSettledTransfer = Array_.some(
+      merged,
+      record =>
+        record.status !== 'Pending' &&
+        transaction.status === 'Pending' &&
+        isSameSubmittedTransfer(record, transaction),
+    )
+    if (hasSettledTransfer) {
+      return merged
+    }
+    return [
+      ...Array_.filter(
+        merged,
+        record =>
+          record.recordId !== transaction.recordId &&
+          !(
+            record.status === 'Pending' &&
+            transaction.status !== 'Pending' &&
+            isSameSubmittedTransfer(record, transaction)
+          ),
+      ),
+      transaction,
+    ]
+  })
+  return Array_.sortWith(
+    records,
+    transaction => transaction.observedAt,
+    Order.flip(Order.Number),
+  )
+}
 
 /** Finds the normalized network used by one account. */
 export const networkForAccount = (

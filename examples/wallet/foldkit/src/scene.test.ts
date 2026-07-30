@@ -1,11 +1,18 @@
+import { Option } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 import {
+  LoadTransactionHistory,
   Model,
+  SendNetworkSelection,
+  SucceededLoadTransactionHistory,
   SucceededLoadWallet,
   SucceededLoadWalletProfiles,
+  TransactionHistoryPage,
+  TransactionHistoryQuery,
   WalletProgram,
   initialModel,
+  sendNetworkSelectionIdentity,
   update,
 } from 'wallet-core-example'
 import { simulatedPortfolio } from 'wallet-simulated-client-example'
@@ -18,9 +25,15 @@ const loadedModel = (): Model => {
     initialModel,
     SucceededLoadWalletProfiles.make({ wallets: [] }),
   )
+  if (walletModel.portfolio._tag !== 'LoadingPortfolio') {
+    throw new Error('Expected the Wallet portfolio to be loading')
+  }
   const [model] = update(
     walletModel,
-    SucceededLoadWallet.make({ portfolio: simulatedPortfolio }),
+    SucceededLoadWallet.make({
+      requestId: walletModel.portfolio.requestId,
+      portfolio: simulatedPortfolio,
+    }),
   )
   return Model.make({
     ...model,
@@ -28,6 +41,23 @@ const loadedModel = (): Model => {
     transactions: [],
   })
 }
+
+const resolveEmptyHistory = (accountId: string, networkId: string) =>
+  Scene.Command.resolve(
+    LoadTransactionHistory,
+    SucceededLoadTransactionHistory.make({
+      query: TransactionHistoryQuery.make({
+        accountId,
+        networkId,
+        maybeCursor: Option.none(),
+        limit: 50,
+      }),
+      page: TransactionHistoryPage.make({
+        records: [],
+        maybeNextCursor: Option.none(),
+      }),
+    }),
+  )
 
 describe('Wallet Foldkit client', () => {
   test('uses the canonical exported Wallet Program identity', () => {
@@ -43,9 +73,7 @@ describe('Wallet Foldkit client', () => {
       Scene.expect(Scene.text('Available balance')).toExist(),
       Scene.expect(Scene.text('Fixture data')).toExist(),
       Scene.expect(
-        Scene.text(
-          'Deterministic local values. No network was contacted. Created local wallets remain separate from this fixture portfolio.',
-        ),
+        Scene.text('Deterministic test values. No network was contacted.'),
       ).toExist(),
       Scene.expect(Scene.text('Your wallets')).toExist(),
       Scene.expect(Scene.text('No wallets yet.')).toExist(),
@@ -53,9 +81,10 @@ describe('Wallet Foldkit client', () => {
         Scene.text('Switches every wallet and chain together.'),
       ).toExist(),
       Scene.expect(Scene.text('2.5 ETH')).toExist(),
-      Scene.expect(Scene.text('0.00001 ETH')).toExist(),
+      Scene.expect(Scene.label('Cryptocurrency and network')).toExist(),
+      Scene.expect(Scene.label('Amount in ETH')).toExist(),
       Scene.expect(Scene.text('Recipient on Ethereum Sepolia')).toExist(),
-      Scene.expect(Scene.text('Nothing sent yet.')).toExist(),
+      Scene.expect(Scene.text('No transactions found.')).toExist(),
       Scene.expect(Scene.text('Simulated Sepolia Account')).toExist(),
       Scene.expect(Scene.text('Copy address')).toExist(),
       Scene.expect(
@@ -77,6 +106,7 @@ describe('Wallet Foldkit client', () => {
     Scene.scene(
       { update, view },
       Scene.with(loadedModel()),
+      Scene.type(Scene.label('Amount in ETH'), '0.00001'),
       Scene.type(
         Scene.label('Recipient on Ethereum Sepolia'),
         '0x1111111111111111111111111111111111111111111111111111111111111111',
@@ -89,6 +119,7 @@ describe('Wallet Foldkit client', () => {
     Scene.scene(
       { update, view },
       Scene.with(loadedModel()),
+      Scene.type(Scene.label('Amount in ETH'), '0.00001'),
       Scene.type(
         Scene.label('Recipient on Ethereum Sepolia'),
         '0x2222222222222222222222222222222222222222',
@@ -96,6 +127,69 @@ describe('Wallet Foldkit client', () => {
       Scene.expect(
         Scene.role('button', { name: 'Preview send' }),
       ).toBeEnabled(),
+    )
+  })
+
+  test('requires an exact amount before requesting test funds', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(loadedModel()),
+      Scene.expect(
+        Scene.role('button', {
+          name: 'Enter amount to request test funds',
+        }),
+      ).toBeDisabled(),
+      Scene.type(Scene.label('Amount in ETH'), '0.01'),
+      Scene.expect(
+        Scene.role('button', { name: 'Request test funds' }),
+      ).toBeEnabled(),
+    )
+  })
+
+  test('rebinds visible wallet data across mode and cryptocurrency changes', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(loadedModel()),
+      Scene.type(Scene.label('Amount in ETH'), '1.25'),
+      Scene.type(
+        Scene.label('Recipient on Ethereum Sepolia'),
+        '0x2222222222222222222222222222222222222222',
+      ),
+      Scene.change(Scene.label('Wallet network mode'), 'Devnet'),
+      resolveEmptyHistory(
+        'simulated-ethereum-localnet-account',
+        'ethereum:localnet',
+      ),
+      Scene.expect(Scene.text('Recipient on Ethereum Localnet')).toExist(),
+      Scene.expect(Scene.label('Amount in ETH')).toHaveValue(''),
+      Scene.change(
+        Scene.label('Cryptocurrency and network'),
+        sendNetworkSelectionIdentity(
+          SendNetworkSelection.make({
+            networkMode: 'Devnet',
+            chainId: 'sui',
+            networkId: 'sui:devnet',
+            accountId: 'simulated-sui-devnet-account',
+            assetId: 'sui:devnet:sui',
+          }),
+        ),
+      ),
+      resolveEmptyHistory('simulated-sui-devnet-account', 'sui:devnet'),
+      Scene.expect(Scene.text('Recipient on Sui Devnet')).toExist(),
+      Scene.expect(Scene.label('Amount in SUI')).toHaveValue(''),
+      Scene.expect(Scene.text('12 SUI')).toExist(),
+      Scene.change(Scene.label('Wallet network mode'), 'Live'),
+      Scene.expect(
+        Scene.text(
+          'No transferable assets are available for this network mode.',
+        ),
+      ).toExist(),
+      Scene.expect(Scene.text('No adapter account available')).toExist(),
+      Scene.change(Scene.label('Wallet network mode'), 'Testnet'),
+      resolveEmptyHistory('simulated-ethereum-account', 'ethereum:sepolia'),
+      Scene.expect(Scene.text('Recipient on Ethereum Sepolia')).toExist(),
+      Scene.expect(Scene.label('Amount in ETH')).toHaveValue(''),
+      Scene.expect(Scene.text('2.5 ETH')).toExist(),
     )
   })
 })

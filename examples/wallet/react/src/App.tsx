@@ -1,21 +1,18 @@
 import { Array, Match as M, Option } from 'effect'
 import {
   type Model,
-  type SendNetworkSelection,
   type TransactionPreview,
   type TransactionState,
   type WalletCreationState,
   type WalletNetworkMode,
   type WalletProfile,
   activeWalletAccounts,
-  assetAmountLabel,
   assetAmountLabelForModel,
   availableSendNetworkSelections,
-  chainForId,
   clipboardCopyFailureMessage,
   clipboardCopyLabel,
   clipboardCopyRequestForAddress,
-  demoTransferAtomicUnitsForSelection,
+  isPrimaryWalletBalanceUnavailable,
   isSameClipboardCopyRequest,
   makeWalletTestChallenge,
   networkForId,
@@ -24,7 +21,11 @@ import {
   primaryWalletAsset,
   primaryWalletBalance,
   primaryWalletNetwork,
+  primaryWalletTestFundingMethod,
+  sendNetworkSelectionIdentity,
+  sendNetworkSelectionLabel,
   shortenedAddress,
+  transferAmountInput,
   transferRecipientInput,
   walletDataSourceDetail,
   walletDataSourceLabel,
@@ -39,14 +40,11 @@ import {
   walletDataSourceFromEnvironment,
 } from 'wallet-web-client-example'
 
+const walletDataSource = walletDataSourceFromEnvironment(
+  import.meta.env['VITE_WALLET_DATA_SOURCE'],
+)
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
-  makeWalletReactClient(
-    makeWebWalletResources(
-      walletDataSourceFromEnvironment(
-        import.meta.env['VITE_WALLET_DATA_SOURCE'],
-      ),
-    ),
-  )
+  makeWalletReactClient(makeWebWalletResources(walletDataSource))
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -83,6 +81,68 @@ const transactionStatus = (transaction: TransactionState): string =>
       FailedTransactionSubmission: () => 'Send failed',
     }),
   )
+
+const transferAmountFailure = (model: Model): Option.Option<string> => {
+  if (model.transferAmount._tag !== 'InvalidTransferAmount') {
+    return Option.none()
+  }
+  return Option.some(
+    M.value(model.transferAmount.code).pipe(
+      M.withReturnType<string>(),
+      M.when(
+        'AssetUnavailable',
+        () => 'Select an asset before entering an amount.',
+      ),
+      M.when(
+        'InvalidFormat',
+        () =>
+          'Enter a positive decimal amount using digits and one decimal point.',
+      ),
+      M.when(
+        'TooManyDecimalPlaces',
+        () =>
+          'This amount has more decimal places than the selected asset supports.',
+      ),
+      M.when('MustBePositive', () => 'The amount must be greater than zero.'),
+      M.exhaustive,
+    ),
+  )
+}
+
+const selectedNetworkHasCapability = (
+  model: Model,
+  capability: 'TestFunding' | 'TransactionHistory',
+): boolean => {
+  if (
+    model.portfolio._tag !== 'LoadedPortfolio' ||
+    Option.isNone(model.maybeSendNetworkSelection)
+  ) {
+    return false
+  }
+  const maybeNetwork = networkForId(
+    model.portfolio.snapshot.networks,
+    model.maybeSendNetworkSelection.value.networkId,
+  )
+  return (
+    Option.isSome(maybeNetwork) &&
+    Array.contains(maybeNetwork.value.capabilities, capability)
+  )
+}
+
+const walletNetworkModeFromValue = (
+  value: string,
+  current: WalletNetworkMode,
+): WalletNetworkMode => {
+  if (value === 'Devnet') {
+    return 'Devnet'
+  } else if (value === 'Testnet') {
+    return 'Testnet'
+  } else if (value === 'Live') {
+    return 'Live'
+  } else {
+    return current
+  }
+}
 
 const walletCreationLabel = (walletCreation: WalletCreationState): string =>
   M.value(walletCreation).pipe(
@@ -125,24 +185,26 @@ const CopyAddressButton = ({
   )
 }
 
-const NetworkModeButton = ({
-  model,
-  networkMode,
-}: Readonly<{ model: Model; networkMode: WalletNetworkMode }>) => {
+const NetworkModePicker = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
-  const className =
-    model.walletNetworkMode === networkMode
-      ? 'wallet-network-option selected'
-      : 'wallet-network-option'
   return (
-    <button
-      aria-pressed={model.walletNetworkMode === networkMode}
-      className={className}
-      onClick={() => actions.selectedWalletNetworkMode(networkMode)}
-      type="button"
+    <select
+      aria-label="Wallet network mode"
+      className="wallet-select"
+      onChange={event =>
+        actions.selectedWalletNetworkMode(
+          walletNetworkModeFromValue(
+            event.currentTarget.value,
+            model.walletNetworkMode,
+          ),
+        )
+      }
+      value={model.walletNetworkMode}
     >
-      {networkMode}
-    </button>
+      <option value="Devnet">Devnet</option>
+      <option value="Testnet">Testnet</option>
+      <option value="Live">Live</option>
+    </select>
   )
 }
 
@@ -160,11 +222,17 @@ const WalletProfileCard = ({
     </div>
     <ul className="wallet-chain-list">
       {Array.map(
-        activeWalletAccounts(wallet, model.walletNetworkMode),
+        activeWalletAccounts(
+          wallet,
+          model.portfolio._tag === 'LoadedPortfolio'
+            ? model.portfolio.snapshot.networks
+            : [],
+          model.walletNetworkMode,
+        ),
         account => (
           <li key={account.accountId}>
             <div>
-              <strong>{account.chain}</strong>
+              <strong>{account.displayName}</strong>
               <span>{account.networkName}</span>
             </div>
             <div className="wallet-address-line">
@@ -175,7 +243,7 @@ const WalletProfileCard = ({
                 model={model}
               />
             </div>
-            <small>{account.detail}</small>
+            <small>{account.chainId}</small>
           </li>
         ),
       )}
@@ -261,10 +329,7 @@ const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
           <strong>Network mode</strong>
           <span>Switches every wallet and chain together.</span>
         </div>
-        <div aria-label="Wallet network mode" className="wallet-network-switch">
-          <NetworkModeButton model={model} networkMode="Devnet" />
-          <NetworkModeButton model={model} networkMode="Testnet" />
-        </div>
+        <NetworkModePicker model={model} />
       </div>
       {model.walletCreation._tag === 'FailedWalletCreation' ? (
         <p className="wallet-validation" role="alert">
@@ -281,9 +346,17 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
   const maybeAccount = primaryWalletAccount(model)
   const maybeBalance = primaryWalletBalance(model)
+  const isBalanceUnavailable = isPrimaryWalletBalanceUnavailable(model)
   const balanceLabel = Option.match(maybeBalance, {
-    onNone: () =>
-      model.portfolio._tag === 'LoadingPortfolio' ? 'Loading…' : '—',
+    onNone: () => {
+      if (model.portfolio._tag === 'LoadingPortfolio') {
+        return 'Loading…'
+      } else if (isBalanceUnavailable) {
+        return 'Unavailable. Refresh to retry.'
+      } else {
+        return '—'
+      }
+    },
     onSome: balance => assetAmountLabelForModel(model, balance.amount),
   })
   const accountLabel = Option.match(maybeAccount, {
@@ -302,11 +375,11 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
   const dataSourceLabel =
     model.portfolio._tag === 'LoadedPortfolio'
       ? walletDataSourceLabel(model.portfolio.snapshot.dataSource)
-      : 'Loading data source'
+      : walletDataSourceLabel(walletDataSource)
   const dataSourceDetail =
     model.portfolio._tag === 'LoadedPortfolio'
       ? walletDataSourceDetail(model.portfolio.snapshot.dataSource)
-      : 'Waiting for the selected portfolio adapter.'
+      : `Connecting to the ${walletDataSourceLabel(walletDataSource).toLowerCase()} adapter.`
 
   return (
     <header className="wallet-hero cardboard-panel">
@@ -338,74 +411,72 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
         </div>
       </div>
       <p className="wallet-data-source-detail">{dataSourceDetail}</p>
+      {model.portfolio._tag === 'FailedPortfolio' ? (
+        <p className="wallet-validation" role="alert">
+          Portfolio failed: {model.portfolio.failure.operation} ·{' '}
+          {model.portfolio.failure.code}
+        </p>
+      ) : null}
     </header>
   )
 }
 
-const SendNetworkButton = ({
-  model,
-  selection,
-}: Readonly<{ model: Model; selection: SendNetworkSelection }>) => {
+const SendNetworkPicker = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return null
   }
   const portfolio = model.portfolio.snapshot
-  const chainName = Option.match(
-    chainForId(portfolio.chains, selection.chainId),
-    {
-      onNone: () => selection.chainId,
-      onSome: chain => chain.displayName,
-    },
+  const selections = availableSendNetworkSelections(
+    portfolio,
+    model.walletNetworkMode,
   )
-  const networkName = Option.match(
-    networkForId(portfolio.networks, selection.networkId),
-    {
-      onNone: () => selection.networkId,
-      onSome: network => network.displayName,
-    },
-  )
-  const isSelected = Option.exists(
-    model.maybeSendNetworkSelection,
-    current =>
-      current.networkId === selection.networkId &&
-      current.accountId === selection.accountId &&
-      current.assetId === selection.assetId,
-  )
+  const value = Option.match(model.maybeSendNetworkSelection, {
+    onNone: () => '',
+    onSome: sendNetworkSelectionIdentity,
+  })
   return (
-    <button
-      aria-pressed={isSelected}
-      className={
-        isSelected ? 'wallet-send-network selected' : 'wallet-send-network'
-      }
-      onClick={() => actions.selectedSendNetwork(selection)}
-      type="button"
-    >
-      <strong>{chainName}</strong>
-      <span>{networkName}</span>
-    </button>
+    <label className="wallet-picker" htmlFor="wallet-asset">
+      <span>Cryptocurrency and network</span>
+      <select
+        className="wallet-select"
+        id="wallet-asset"
+        onChange={event => {
+          const nextValue = event.currentTarget.value
+          const maybeSelection = Array.findFirst(
+            selections,
+            selection => sendNetworkSelectionIdentity(selection) === nextValue,
+          )
+          if (Option.isSome(maybeSelection)) {
+            actions.selectedSendNetwork(maybeSelection.value)
+          }
+        }}
+        value={value}
+      >
+        {value === '' ? (
+          <option value="">Select a cryptocurrency</option>
+        ) : null}
+        {Array.map(selections, selection => (
+          <option
+            key={sendNetworkSelectionIdentity(selection)}
+            value={sendNetworkSelectionIdentity(selection)}
+          >
+            {sendNetworkSelectionLabel(portfolio, model.wallets, selection)}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
 
-const SendNetworkPicker = ({ model }: Readonly<{ model: Model }>) => {
-  if (model.portfolio._tag !== 'LoadedPortfolio') {
-    return null
+const testFundingButtonLabel = (model: Model): string => {
+  if (model.testFunding._tag === 'RequestingTestFunding') {
+    return 'Requesting test funds…'
+  } else if (model.transferAmount._tag !== 'ValidTransferAmount') {
+    return 'Enter amount to request test funds'
+  } else {
+    return 'Request test funds'
   }
-  const selections = availableSendNetworkSelections(
-    model.portfolio.snapshot,
-    model.walletNetworkMode,
-  )
-  return (
-    <div aria-label="Send network selection" className="wallet-send-networks">
-      {Array.map(selections, selection => (
-        <SendNetworkButton
-          key={selection.networkId}
-          model={model}
-          selection={selection}
-        />
-      ))}
-    </div>
-  )
 }
 
 const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
@@ -417,26 +488,26 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
     onNone: () => 'selected network',
     onSome: network => network.displayName,
   })
-  const exampleAddress = Option.match(primaryWalletAccount(model), {
-    onNone: () => 'Recipient address',
-    onSome: account => account.address,
+  const maybeAsset = primaryWalletAsset(model)
+  const amountSymbol = Option.match(maybeAsset, {
+    onNone: () => 'Amount',
+    onSome: asset => `Amount in ${asset.symbol}`,
   })
-  const transferAmount = Option.match(model.maybeSendNetworkSelection, {
-    onNone: () => 'Select a network',
-    onSome: selection =>
-      Option.match(primaryWalletAsset(model), {
-        onNone: () => demoTransferAtomicUnitsForSelection(selection),
-        onSome: asset =>
-          assetAmountLabel(
-            {
-              assetId: asset.assetId,
-              atomicUnits: demoTransferAtomicUnitsForSelection(selection),
-              observedAt: 0,
-            },
-            asset,
-          ),
-      }),
-  })
+  const maybeAmountFailure = transferAmountFailure(model)
+  const maybeExternalTestFunding = Option.flatMap(
+    primaryWalletTestFundingMethod(model),
+    method =>
+      method._tag === 'ExternalTestFundingMethod'
+        ? Option.some(method)
+        : Option.none(),
+  )
+  const canRequestTestFunding = selectedNetworkHasCapability(
+    model,
+    'TestFunding',
+  )
+  const isTestFundingDisabled =
+    model.testFunding._tag === 'RequestingTestFunding' ||
+    model.transferAmount._tag !== 'ValidTransferAmount'
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -449,13 +520,38 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       <div className="wallet-section-heading">
         <div>
           <p className="cardboard-eyebrow">Send</p>
-          <h2>{transferAmount}</h2>
+          <h2>
+            {Option.match(maybeAsset, {
+              onNone: () => 'Select an asset',
+              onSome: asset => asset.symbol,
+            })}
+          </h2>
         </div>
         <span className="wallet-status">
           {transactionStatus(model.transaction)}
         </span>
       </div>
       <SendNetworkPicker model={model} />
+      <label className="wallet-recipient" htmlFor="wallet-amount">
+        <span>{amountSymbol}</span>
+        <input
+          autoComplete="off"
+          disabled={model.transaction._tag === 'SubmittingTransaction'}
+          id="wallet-amount"
+          inputMode="decimal"
+          onChange={event =>
+            actions.changedTransferAmount(event.currentTarget.value)
+          }
+          placeholder="0.00"
+          type="text"
+          value={transferAmountInput(model.transferAmount)}
+        />
+      </label>
+      {Option.isSome(maybeAmountFailure) ? (
+        <p className="wallet-validation" role="alert">
+          {maybeAmountFailure.value}
+        </p>
+      ) : null}
       <label className="wallet-recipient" htmlFor="wallet-recipient">
         <span>Recipient on {networkName}</span>
         <input
@@ -466,7 +562,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           onChange={event =>
             actions.changedTransferRecipient(event.currentTarget.value)
           }
-          placeholder={exampleAddress}
+          placeholder="Recipient address"
           spellCheck={false}
           type="text"
           value={recipientValue}
@@ -517,9 +613,62 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         </div>
       ) : (
         <p className="wallet-help">
-          Preview a fixed test transfer before anything is signed.
+          Enter an exact amount and recipient. The selected adapter validates a
+          network quote before anything is signed.
         </p>
       )}
+      {canRequestTestFunding ? (
+        <div className="wallet-funding">
+          <button
+            className="cardboard-button"
+            disabled={isTestFundingDisabled}
+            onClick={actions.requestedTestFunding}
+            type="button"
+          >
+            {testFundingButtonLabel(model)}
+          </button>
+          {model.testFunding._tag === 'ReceivedTestFunding' ? (
+            <span role="status">
+              Received{' '}
+              {assetAmountLabelForModel(
+                model,
+                model.testFunding.receipt.amount,
+              )}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {Option.isSome(maybeExternalTestFunding) ? (
+        <div className="wallet-funding">
+          <a
+            className="cardboard-button"
+            href={maybeExternalTestFunding.value.providerUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Open {maybeExternalTestFunding.value.providerName}
+          </a>
+          <span>
+            Copy this Wallet’s receiving address, then complete the
+            provider-owned faucet flow.
+          </span>
+        </div>
+      ) : null}
+      {model.testFunding._tag === 'FailedTestFunding' ||
+      model.testFunding._tag === 'UnavailableTestFunding' ? (
+        <p className="wallet-validation" role="alert">
+          Test funding failed: {model.testFunding.failure.operation} ·{' '}
+          {model.testFunding.failure.code}
+        </p>
+      ) : null}
+      {model.transaction._tag === 'FailedTransferValidation' ||
+      model.transaction._tag === 'FailedTransactionPreview' ||
+      model.transaction._tag === 'FailedTransactionSubmission' ? (
+        <p className="wallet-validation" role="alert">
+          {model.transaction.failure.operation} failed:{' '}
+          {model.transaction.failure.code}
+        </p>
+      ) : null}
       {model.transaction._tag === 'SubmittedTransaction' ? (
         <div className="wallet-confirmation" role="status">
           <strong>Transaction submitted</strong>
@@ -559,6 +708,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           className="cardboard-button primary"
           disabled={
             Option.isNone(maybeBalance) ||
+            model.transferAmount._tag !== 'ValidTransferAmount' ||
             model.transferRecipient._tag === 'EmptyTransferRecipient' ||
             model.transaction._tag === 'ValidatingTransfer' ||
             model.transaction._tag === 'PreviewingTransaction' ||
@@ -580,27 +730,92 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   )
 }
 
-const Activity = ({ model }: Readonly<{ model: Model }>) => (
-  <section className="wallet-activity cardboard-panel">
-    <p className="cardboard-eyebrow">Recent activity</p>
-    {Array.match(model.transactions, {
-      onEmpty: () => <p className="wallet-empty">Nothing sent yet.</p>,
-      onNonEmpty: transactions => (
-        <ul>
-          {Array.map(transactions, transaction => (
-            <li key={transaction.transactionId}>
-              <span>{transaction.status}</span>
-              <strong>
-                {assetAmountLabelForModel(model, transaction.amount)}
-              </strong>
-              <small>{shortenedAddress(transaction.transactionId)}</small>
-            </li>
-          ))}
-        </ul>
-      ),
-    })}
-  </section>
-)
+const Activity = ({ model }: Readonly<{ model: Model }>) => {
+  const actions = useWalletActions()
+  const canLoadHistory = selectedNetworkHasCapability(
+    model,
+    'TransactionHistory',
+  )
+  const hasNextPage =
+    model.transactionHistory._tag === 'LoadedTransactionHistory' &&
+    Option.isSome(model.transactionHistory.maybeNextCursor)
+  return (
+    <section className="wallet-activity cardboard-panel">
+      <div className="wallet-heading-row">
+        <div>
+          <p className="cardboard-eyebrow">Recent activity</p>
+          <small>{model.transactionObservation._tag}</small>
+        </div>
+        {canLoadHistory ? (
+          <button
+            className="cardboard-button"
+            disabled={
+              model.transactionHistory._tag === 'LoadingTransactionHistory'
+            }
+            onClick={actions.requestedTransactionHistoryReload}
+            type="button"
+          >
+            Reload history
+          </button>
+        ) : null}
+      </div>
+      {model.transactionObservation._tag === 'FailedTransactionObservation' ? (
+        <div className="wallet-validation" role="alert">
+          <p>
+            Live observation failed: {model.transactionObservation.failure.code}
+          </p>
+          <button
+            className="cardboard-button"
+            onClick={actions.resumedTransactionObservation}
+            type="button"
+          >
+            Retry live observation
+          </button>
+        </div>
+      ) : null}
+      {model.transactionHistory._tag === 'FailedTransactionHistory' ? (
+        <p className="wallet-validation" role="alert">
+          History failed: {model.transactionHistory.failure.operation} ·{' '}
+          {model.transactionHistory.failure.code}
+        </p>
+      ) : null}
+      {Array.match(model.transactions, {
+        onEmpty: () => <p className="wallet-empty">No transactions found.</p>,
+        onNonEmpty: transactions => (
+          <ul>
+            {Array.map(transactions, transaction => (
+              <li key={transaction.recordId}>
+                <span>
+                  {transaction.direction} · {transaction.status}
+                </span>
+                <strong>
+                  {assetAmountLabelForModel(model, transaction.amount)}
+                </strong>
+                <small>{shortenedAddress(transaction.transactionId)}</small>
+              </li>
+            ))}
+          </ul>
+        ),
+      })}
+      {canLoadHistory ? (
+        <div className="wallet-action-row">
+          <button
+            className="cardboard-button"
+            disabled={!hasNextPage}
+            onClick={actions.requestedNextTransactionHistoryPage}
+            type="button"
+          >
+            {hasNextPage ? 'Load next page' : 'No more history'}
+          </button>
+        </div>
+      ) : (
+        <p className="wallet-help">
+          Transaction history is unavailable for the selected network.
+        </p>
+      )}
+    </section>
+  )
+}
 
 const AccountDetails = ({ model }: Readonly<{ model: Model }>) => {
   const maybeAccount = primaryWalletAccount(model)
@@ -648,7 +863,7 @@ const Signature = ({ model }: Readonly<{ model: Model }>) => {
     if (Option.isSome(maybeAccount)) {
       actions.requestedChallengeSignature(
         makeWalletTestChallenge(
-          'react-demo-challenge',
+          'react-wallet-access-challenge',
           maybeAccount.value.accountId,
         ),
       )

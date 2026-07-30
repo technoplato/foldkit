@@ -8,6 +8,8 @@ import {
   type SignatureProof,
   type SignedTransaction,
   type SigningChallenge,
+  type TestFundingReceipt,
+  type TestFundingRequest,
   type TransactionHistoryPage,
   type TransactionHistoryQuery,
   type TransactionPayload,
@@ -56,6 +58,9 @@ export type ChainTransportService = Readonly<{
   submitTransaction: (
     transaction: SignedTransaction,
   ) => Effect.Effect<TransactionSubmission, WalletClientError>
+  requestTestFunding: (
+    request: TestFundingRequest,
+  ) => Effect.Effect<TestFundingReceipt, WalletClientError>
   loadTransactionHistory: (
     query: TransactionHistoryQuery,
   ) => Effect.Effect<TransactionHistoryPage, WalletClientError>

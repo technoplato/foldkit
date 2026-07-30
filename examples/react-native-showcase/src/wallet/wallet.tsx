@@ -1,4 +1,4 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Layer, Match as M, Option } from 'effect'
 import {
   Linking,
   Pressable,
@@ -9,7 +9,6 @@ import {
 } from 'react-native'
 import {
   type Model,
-  type SendNetworkSelection,
   type TransactionPreview,
   type TransactionState,
   type TransactionSubmission,
@@ -17,14 +16,12 @@ import {
   type WalletNetworkMode,
   type WalletProfile,
   activeWalletAccounts,
-  assetAmountLabel,
   assetAmountLabelForModel,
   availableSendNetworkSelections,
-  chainForId,
   clipboardCopyFailureMessage,
   clipboardCopyLabel,
   clipboardCopyRequestForAddress,
-  demoTransferAtomicUnitsForSelection,
+  isPrimaryWalletBalanceUnavailable,
   isSameClipboardCopyRequest,
   makeWalletTestChallenge,
   networkForId,
@@ -33,27 +30,55 @@ import {
   primaryWalletAsset,
   primaryWalletBalance,
   primaryWalletNetwork,
+  primaryWalletTestFundingMethod,
+  sendNetworkSelectionIdentity,
+  sendNetworkSelectionLabel,
   shortenedAddress,
+  transferAmountInput,
   transferRecipientInput,
   walletDataSourceDetail,
   walletDataSourceLabel,
 } from 'wallet-core-example'
 import {
+  EthereumAnvilEndpoint,
+  LiveWalletClient,
+  liveWalletNetworksWithEthereumAnvilEndpoint,
+  makeLiveWalletClientLayer,
+} from 'wallet-live-client-example'
+import {
   type WalletInitialRoute,
   makeWalletReactClient,
 } from 'wallet-react-bindings-example'
-import { makeSimulatedWalletResources } from 'wallet-simulated-client-example'
+
+import { Picker } from '@react-native-picker/picker'
 
 import { ReplayControls } from '../replayControls'
 import { ExpoWalletClipboard } from './walletClipboard'
-import { ExpoWalletVault } from './walletVault'
+import { ExpoWalletResources } from './walletVault'
+
+const nativeLiveWalletClient = (() => {
+  const httpRpcUrl =
+    process.env['EXPO_PUBLIC_WALLET_ETHEREUM_ANVIL_HTTP_RPC_URL']
+  const webSocketRpcUrl =
+    process.env['EXPO_PUBLIC_WALLET_ETHEREUM_ANVIL_WS_RPC_URL']
+  if (httpRpcUrl === undefined || webSocketRpcUrl === undefined) {
+    return LiveWalletClient
+  } else {
+    return makeLiveWalletClientLayer(
+      liveWalletNetworksWithEthereumAnvilEndpoint(
+        EthereumAnvilEndpoint.make({ httpRpcUrl, webSocketRpcUrl }),
+      ),
+    )
+  }
+})()
 
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
   makeWalletReactClient(
-    makeSimulatedWalletResources({
-      walletClipboard: ExpoWalletClipboard,
-      walletVault: ExpoWalletVault,
-    }),
+    Layer.mergeAll(
+      nativeLiveWalletClient,
+      ExpoWalletResources,
+      ExpoWalletClipboard,
+    ),
   )
 
 const maybePreviewForTransaction = (
@@ -91,6 +116,68 @@ const transactionStatus = (transaction: TransactionState): string =>
       FailedTransactionSubmission: () => 'Send failed',
     }),
   )
+
+const transferAmountFailure = (model: Model): Option.Option<string> => {
+  if (model.transferAmount._tag !== 'InvalidTransferAmount') {
+    return Option.none()
+  }
+  return Option.some(
+    M.value(model.transferAmount.code).pipe(
+      M.withReturnType<string>(),
+      M.when(
+        'AssetUnavailable',
+        () => 'Select an asset before entering an amount.',
+      ),
+      M.when(
+        'InvalidFormat',
+        () =>
+          'Enter a positive decimal amount using digits and one decimal point.',
+      ),
+      M.when(
+        'TooManyDecimalPlaces',
+        () =>
+          'This amount has more decimal places than the selected asset supports.',
+      ),
+      M.when('MustBePositive', () => 'The amount must be greater than zero.'),
+      M.exhaustive,
+    ),
+  )
+}
+
+const selectedNetworkHasCapability = (
+  model: Model,
+  capability: 'TestFunding' | 'TransactionHistory',
+): boolean => {
+  if (
+    model.portfolio._tag !== 'LoadedPortfolio' ||
+    Option.isNone(model.maybeSendNetworkSelection)
+  ) {
+    return false
+  }
+  const maybeNetwork = networkForId(
+    model.portfolio.snapshot.networks,
+    model.maybeSendNetworkSelection.value.networkId,
+  )
+  return (
+    Option.isSome(maybeNetwork) &&
+    Array.contains(maybeNetwork.value.capabilities, capability)
+  )
+}
+
+const walletNetworkModeFromValue = (
+  value: string,
+  current: WalletNetworkMode,
+): WalletNetworkMode => {
+  if (value === 'Devnet') {
+    return 'Devnet'
+  } else if (value === 'Testnet') {
+    return 'Testnet'
+  } else if (value === 'Live') {
+    return 'Live'
+  } else {
+    return current
+  }
+}
 
 const TransactionSubmissionConfirmation = ({
   submission,
@@ -201,30 +288,28 @@ const WalletScreen = () => {
   )
 }
 
-const NetworkModeButton = ({
-  model,
-  networkMode,
-}: Readonly<{ model: Model; networkMode: WalletNetworkMode }>) => {
+const NetworkModePicker = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
-  const isSelected = model.walletNetworkMode === networkMode
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: isSelected }}
-      onPress={() => actions.selectedWalletNetworkMode(networkMode)}
-      style={[
-        styles.networkModeButton,
-        isSelected ? styles.selectedNetworkModeButton : undefined,
-      ]}
-    >
-      <Text
-        style={
-          isSelected ? styles.selectedNetworkModeText : styles.networkModeText
-        }
+    <View style={styles.pickerFrame}>
+      <Picker
+        accessibilityLabel="Wallet network mode"
+        dropdownIconColor="#f2b85f"
+        onValueChange={value => {
+          if (typeof value === 'string') {
+            actions.selectedWalletNetworkMode(
+              walletNetworkModeFromValue(value, model.walletNetworkMode),
+            )
+          }
+        }}
+        selectedValue={model.walletNetworkMode}
+        style={styles.picker}
       >
-        {networkMode}
-      </Text>
-    </Pressable>
+        <Picker.Item label="Devnet" value="Devnet" />
+        <Picker.Item label="Testnet" value="Testnet" />
+        <Picker.Item label="Live" value="Live" />
+      </Picker>
+    </View>
   )
 }
 
@@ -242,11 +327,17 @@ const WalletProfileCard = ({
     </View>
     <View style={styles.chainList}>
       {Array.map(
-        activeWalletAccounts(wallet, model.walletNetworkMode),
+        activeWalletAccounts(
+          wallet,
+          model.portfolio._tag === 'LoadedPortfolio'
+            ? model.portfolio.snapshot.networks
+            : [],
+          model.walletNetworkMode,
+        ),
         account => (
           <View key={account.accountId} style={styles.chainRow}>
             <View style={styles.chainIdentity}>
-              <Text style={styles.chainName}>{account.chain}</Text>
+              <Text style={styles.chainName}>{account.displayName}</Text>
               <Text style={styles.mutedText}>{account.networkName}</Text>
             </View>
             <View style={styles.chainAddressLine}>
@@ -259,7 +350,7 @@ const WalletProfileCard = ({
                 model={model}
               />
             </View>
-            <Text style={styles.chainDetail}>{account.detail}</Text>
+            <Text style={styles.chainDetail}>{account.chainId}</Text>
           </View>
         ),
       )}
@@ -346,10 +437,7 @@ const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
             Switches every wallet and chain together.
           </Text>
         </View>
-        <View style={styles.networkSwitch}>
-          <NetworkModeButton model={model} networkMode="Devnet" />
-          <NetworkModeButton model={model} networkMode="Testnet" />
-        </View>
+        <NetworkModePicker model={model} />
       </View>
       {model.walletCreation._tag === 'FailedWalletCreation' ? (
         <Text accessibilityRole="alert" style={styles.validationText}>
@@ -366,9 +454,17 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
   const maybeAccount = primaryWalletAccount(model)
   const maybeBalance = primaryWalletBalance(model)
+  const isBalanceUnavailable = isPrimaryWalletBalanceUnavailable(model)
   const balanceLabel = Option.match(maybeBalance, {
-    onNone: () =>
-      model.portfolio._tag === 'LoadingPortfolio' ? 'Loading…' : '—',
+    onNone: () => {
+      if (model.portfolio._tag === 'LoadingPortfolio') {
+        return 'Loading…'
+      } else if (isBalanceUnavailable) {
+        return 'Unavailable. Refresh to retry.'
+      } else {
+        return '—'
+      }
+    },
     onSome: balance => assetAmountLabelForModel(model, balance.amount),
   })
   const accountLabel = Option.match(maybeAccount, {
@@ -421,90 +517,80 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
         </View>
       </View>
       <Text style={styles.mutedText}>{dataSourceDetail}</Text>
+      {model.portfolio._tag === 'FailedPortfolio' ? (
+        <Text accessibilityRole="alert" style={styles.validationText}>
+          Portfolio failed: {model.portfolio.failure.operation} ·{' '}
+          {model.portfolio.failure.code}
+        </Text>
+      ) : null}
     </View>
   )
 }
 
-const SendNetworkButton = ({
-  model,
-  selection,
-}: Readonly<{ model: Model; selection: SendNetworkSelection }>) => {
+const SendNetworkPicker = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return null
   }
   const portfolio = model.portfolio.snapshot
-  const chainName = Option.match(
-    chainForId(portfolio.chains, selection.chainId),
-    {
-      onNone: () => selection.chainId,
-      onSome: chain => chain.displayName,
-    },
+  const selections = availableSendNetworkSelections(
+    portfolio,
+    model.walletNetworkMode,
   )
-  const networkName = Option.match(
-    networkForId(portfolio.networks, selection.networkId),
-    {
-      onNone: () => selection.networkId,
-      onSome: network => network.displayName,
-    },
-  )
-  const isSelected = Option.exists(
-    model.maybeSendNetworkSelection,
-    current =>
-      current.networkId === selection.networkId &&
-      current.accountId === selection.accountId &&
-      current.assetId === selection.assetId,
-  )
+  const selectedValue = Option.match(model.maybeSendNetworkSelection, {
+    onNone: () => '',
+    onSome: sendNetworkSelectionIdentity,
+  })
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: isSelected }}
-      onPress={() => actions.selectedSendNetwork(selection)}
-      style={[
-        styles.sendNetwork,
-        isSelected ? styles.selectedSendNetwork : undefined,
-      ]}
-    >
-      <Text
-        numberOfLines={1}
-        style={isSelected ? styles.selectedSendNetworkText : styles.chainName}
-      >
-        {chainName}
-      </Text>
-      <Text
-        numberOfLines={1}
-        style={isSelected ? styles.selectedSendNetworkText : styles.mutedText}
-      >
-        {networkName}
-      </Text>
-    </Pressable>
+    <View style={styles.pickerField}>
+      <Text style={styles.recipientLabel}>Cryptocurrency and network</Text>
+      <View style={styles.pickerFrame}>
+        <Picker
+          accessibilityLabel="Cryptocurrency and network"
+          dropdownIconColor="#f2b85f"
+          onValueChange={value => {
+            if (typeof value !== 'string') {
+              return
+            }
+            const maybeSelection = Array.findFirst(
+              selections,
+              selection => sendNetworkSelectionIdentity(selection) === value,
+            )
+            if (Option.isSome(maybeSelection)) {
+              actions.selectedSendNetwork(maybeSelection.value)
+            }
+          }}
+          selectedValue={selectedValue}
+          style={styles.picker}
+        >
+          {selectedValue === '' ? (
+            <Picker.Item label="Select a cryptocurrency" value="" />
+          ) : null}
+          {Array.map(selections, selection => (
+            <Picker.Item
+              key={sendNetworkSelectionIdentity(selection)}
+              label={sendNetworkSelectionLabel(
+                portfolio,
+                model.wallets,
+                selection,
+              )}
+              value={sendNetworkSelectionIdentity(selection)}
+            />
+          ))}
+        </Picker>
+      </View>
+    </View>
   )
 }
 
-const SendNetworkPicker = ({ model }: Readonly<{ model: Model }>) => {
-  if (model.portfolio._tag !== 'LoadedPortfolio') {
-    return null
+const testFundingButtonLabel = (model: Model): string => {
+  if (model.testFunding._tag === 'RequestingTestFunding') {
+    return 'Requesting test funds…'
+  } else if (model.transferAmount._tag !== 'ValidTransferAmount') {
+    return 'Enter amount to request test funds'
+  } else {
+    return 'Request test funds'
   }
-  return (
-    <View
-      accessibilityLabel="Send network selection"
-      style={styles.sendNetworks}
-    >
-      {Array.map(
-        availableSendNetworkSelections(
-          model.portfolio.snapshot,
-          model.walletNetworkMode,
-        ),
-        selection => (
-          <SendNetworkButton
-            key={selection.networkId}
-            model={model}
-            selection={selection}
-          />
-        ),
-      )}
-    </View>
-  )
 }
 
 const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
@@ -515,26 +601,26 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
     onNone: () => 'selected network',
     onSome: network => network.displayName,
   })
-  const exampleAddress = Option.match(primaryWalletAccount(model), {
-    onNone: () => 'Recipient address',
-    onSome: account => account.address,
+  const maybeAsset = primaryWalletAsset(model)
+  const amountSymbol = Option.match(maybeAsset, {
+    onNone: () => 'Amount',
+    onSome: asset => `Amount in ${asset.symbol}`,
   })
-  const transferAmount = Option.match(model.maybeSendNetworkSelection, {
-    onNone: () => 'Select a network',
-    onSome: selection =>
-      Option.match(primaryWalletAsset(model), {
-        onNone: () => demoTransferAtomicUnitsForSelection(selection),
-        onSome: asset =>
-          assetAmountLabel(
-            {
-              assetId: asset.assetId,
-              atomicUnits: demoTransferAtomicUnitsForSelection(selection),
-              observedAt: 0,
-            },
-            asset,
-          ),
-      }),
-  })
+  const maybeAmountFailure = transferAmountFailure(model)
+  const maybeExternalTestFunding = Option.flatMap(
+    primaryWalletTestFundingMethod(model),
+    method =>
+      method._tag === 'ExternalTestFundingMethod'
+        ? Option.some(method)
+        : Option.none(),
+  )
+  const canRequestTestFunding = selectedNetworkHasCapability(
+    model,
+    'TestFunding',
+  )
+  const isTestFundingDisabled =
+    model.testFunding._tag === 'RequestingTestFunding' ||
+    model.transferAmount._tag !== 'ValidTransferAmount'
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -551,13 +637,38 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       <View style={styles.headingRow}>
         <View>
           <Text style={styles.eyebrow}>Send</Text>
-          <Text style={styles.sectionTitle}>{transferAmount}</Text>
+          <Text style={styles.sectionTitle}>
+            {Option.match(maybeAsset, {
+              onNone: () => 'Select an asset',
+              onSome: asset => asset.symbol,
+            })}
+          </Text>
         </View>
         <Text style={styles.status}>
           {transactionStatus(model.transaction)}
         </Text>
       </View>
       <SendNetworkPicker model={model} />
+      <View style={styles.recipientField}>
+        <Text style={styles.recipientLabel}>{amountSymbol}</Text>
+        <TextInput
+          accessibilityLabel={amountSymbol}
+          autoCorrect={false}
+          editable={model.transaction._tag !== 'SubmittingTransaction'}
+          inputMode="decimal"
+          keyboardType="decimal-pad"
+          onChangeText={actions.changedTransferAmount}
+          placeholder="0.00"
+          placeholderTextColor="#9f8560"
+          style={styles.recipientInput}
+          value={transferAmountInput(model.transferAmount)}
+        />
+        {Option.isSome(maybeAmountFailure) ? (
+          <Text accessibilityRole="alert" style={styles.validationText}>
+            {maybeAmountFailure.value}
+          </Text>
+        ) : null}
+      </View>
       <View style={styles.recipientField}>
         <Text style={styles.recipientLabel}>Recipient on {networkName}</Text>
         <TextInput
@@ -566,7 +677,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           autoCorrect={false}
           editable={model.transaction._tag !== 'SubmittingTransaction'}
           onChangeText={actions.changedTransferRecipient}
-          placeholder={exampleAddress}
+          placeholder="Recipient address"
           placeholderTextColor="#9f8560"
           style={styles.recipientInput}
           value={transferRecipientInput(model.transferRecipient)}
@@ -612,9 +723,57 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         </View>
       ) : (
         <Text style={styles.helpText}>
-          Preview a fixed test transfer before anything is signed.
+          Enter an exact amount and recipient. The selected adapter validates a
+          network quote before anything is signed.
         </Text>
       )}
+      {canRequestTestFunding ? (
+        <View style={styles.fundingRow}>
+          <WalletActionButton
+            isDisabled={isTestFundingDisabled}
+            label={testFundingButtonLabel(model)}
+            onPress={actions.requestedTestFunding}
+          />
+          {model.testFunding._tag === 'ReceivedTestFunding' ? (
+            <Text accessibilityLiveRegion="polite" style={styles.mutedText}>
+              Received{' '}
+              {assetAmountLabelForModel(
+                model,
+                model.testFunding.receipt.amount,
+              )}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+      {Option.isSome(maybeExternalTestFunding) ? (
+        <View style={styles.fundingRow}>
+          <WalletActionButton
+            label={`Open ${maybeExternalTestFunding.value.providerName}`}
+            onPress={() =>
+              void Linking.openURL(maybeExternalTestFunding.value.providerUrl)
+            }
+          />
+          <Text style={styles.mutedText}>
+            Copy this Wallet’s receiving address, then complete the
+            provider-owned faucet flow.
+          </Text>
+        </View>
+      ) : null}
+      {model.testFunding._tag === 'FailedTestFunding' ||
+      model.testFunding._tag === 'UnavailableTestFunding' ? (
+        <Text accessibilityRole="alert" style={styles.validationText}>
+          Test funding failed: {model.testFunding.failure.operation} ·{' '}
+          {model.testFunding.failure.code}
+        </Text>
+      ) : null}
+      {model.transaction._tag === 'FailedTransferValidation' ||
+      model.transaction._tag === 'FailedTransactionPreview' ||
+      model.transaction._tag === 'FailedTransactionSubmission' ? (
+        <Text accessibilityRole="alert" style={styles.validationText}>
+          {model.transaction.failure.operation} failed:{' '}
+          {model.transaction.failure.code}
+        </Text>
+      ) : null}
       {model.transaction._tag === 'SubmittedTransaction' ? (
         <TransactionSubmissionConfirmation
           submission={model.transaction.submission}
@@ -623,6 +782,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       <WalletActionButton
         isDisabled={
           Option.isNone(maybeBalance) ||
+          model.transferAmount._tag !== 'ValidTransferAmount' ||
           model.transferRecipient._tag === 'EmptyTransferRecipient' ||
           isBusy
         }
@@ -672,31 +832,89 @@ const PreviewRow = ({
   </View>
 )
 
-const Activity = ({ model }: Readonly<{ model: Model }>) => (
-  <View style={styles.card}>
-    <Text style={styles.eyebrow}>Recent activity</Text>
-    {Array.match(model.transactions, {
-      onEmpty: () => <Text style={styles.helpText}>Nothing sent yet.</Text>,
-      onNonEmpty: transactions => (
-        <View style={styles.list}>
-          {Array.map(transactions, transaction => (
-            <View key={transaction.transactionId} style={styles.activityRow}>
-              <View>
-                <Text style={styles.activityStatus}>{transaction.status}</Text>
-                <Text style={styles.mutedText}>
-                  {shortenedAddress(transaction.transactionId)}
+const Activity = ({ model }: Readonly<{ model: Model }>) => {
+  const actions = useWalletActions()
+  const canLoadHistory = selectedNetworkHasCapability(
+    model,
+    'TransactionHistory',
+  )
+  const hasNextPage =
+    model.transactionHistory._tag === 'LoadedTransactionHistory' &&
+    Option.isSome(model.transactionHistory.maybeNextCursor)
+  return (
+    <View style={styles.card}>
+      <View style={styles.headingRow}>
+        <View>
+          <Text style={styles.eyebrow}>Recent activity</Text>
+          <Text style={styles.mutedText}>
+            {model.transactionObservation._tag}
+          </Text>
+        </View>
+        {canLoadHistory ? (
+          <WalletActionButton
+            isDisabled={
+              model.transactionHistory._tag === 'LoadingTransactionHistory'
+            }
+            label="Reload history"
+            onPress={actions.requestedTransactionHistoryReload}
+          />
+        ) : null}
+      </View>
+      {model.transactionObservation._tag === 'FailedTransactionObservation' ? (
+        <View accessibilityRole="alert" style={styles.validationBlock}>
+          <Text style={styles.validationText}>
+            Live observation failed: {model.transactionObservation.failure.code}
+          </Text>
+          <WalletActionButton
+            label="Retry live observation"
+            onPress={actions.resumedTransactionObservation}
+          />
+        </View>
+      ) : null}
+      {model.transactionHistory._tag === 'FailedTransactionHistory' ? (
+        <Text accessibilityRole="alert" style={styles.validationText}>
+          History failed: {model.transactionHistory.failure.operation} ·{' '}
+          {model.transactionHistory.failure.code}
+        </Text>
+      ) : null}
+      {Array.match(model.transactions, {
+        onEmpty: () => (
+          <Text style={styles.helpText}>No transactions found.</Text>
+        ),
+        onNonEmpty: transactions => (
+          <View style={styles.list}>
+            {Array.map(transactions, transaction => (
+              <View key={transaction.recordId} style={styles.activityRow}>
+                <View>
+                  <Text style={styles.activityStatus}>
+                    {transaction.direction} · {transaction.status}
+                  </Text>
+                  <Text style={styles.mutedText}>
+                    {shortenedAddress(transaction.transactionId)}
+                  </Text>
+                </View>
+                <Text style={styles.activityValue}>
+                  {assetAmountLabelForModel(model, transaction.amount)}
                 </Text>
               </View>
-              <Text style={styles.activityValue}>
-                {assetAmountLabelForModel(model, transaction.amount)}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ),
-    })}
-  </View>
-)
+            ))}
+          </View>
+        ),
+      })}
+      {canLoadHistory ? (
+        <WalletActionButton
+          isDisabled={!hasNextPage}
+          label={hasNextPage ? 'Load next page' : 'No more history'}
+          onPress={actions.requestedNextTransactionHistoryPage}
+        />
+      ) : (
+        <Text style={styles.helpText}>
+          Transaction history is unavailable for the selected network.
+        </Text>
+      )}
+    </View>
+  )
+}
 
 const AccountTools = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
@@ -818,26 +1036,17 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   networkExplanation: { gap: 3 },
-  networkSwitch: {
+  pickerField: { gap: 8 },
+  pickerFrame: {
     backgroundColor: '#100d09',
+    borderColor: '#665237',
     borderRadius: 13,
-    flexDirection: 'row',
-    padding: 4,
+    borderWidth: 1,
+    flexGrow: 1,
+    minWidth: 220,
+    overflow: 'hidden',
   },
-  networkModeButton: {
-    alignItems: 'center',
-    borderRadius: 10,
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  selectedNetworkModeButton: { backgroundColor: '#f2b85f' },
-  networkModeText: { color: '#d3a861', fontSize: 13, fontWeight: '900' },
-  selectedNetworkModeText: {
-    color: '#17130d',
-    fontSize: 13,
-    fontWeight: '900',
-  },
+  picker: { color: '#f7dca5' },
   walletEmpty: {
     alignItems: 'center',
     backgroundColor: '#171109',
@@ -956,31 +1165,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
-  sendNetworks: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  sendNetwork: {
-    backgroundColor: '#171109',
-    borderColor: '#665237',
-    borderRadius: 14,
-    borderWidth: 1,
-    flexBasis: '47%',
-    flexGrow: 1,
-    gap: 2,
-    minWidth: 0,
-    padding: 10,
-  },
-  selectedSendNetwork: {
-    backgroundColor: '#f2b85f',
-    borderColor: '#f2b85f',
-  },
-  selectedSendNetworkText: {
-    color: '#17130d',
-    fontSize: 13,
-    fontWeight: '900',
-  },
   recipientField: { gap: 8 },
   recipientLabel: {
     color: '#d8bd8c',
@@ -1006,6 +1190,12 @@ const styles = StyleSheet.create({
   validationBlock: { gap: 5 },
   mutedText: { color: '#d3a861', fontSize: 13, lineHeight: 19 },
   helpText: { color: '#d3a861', fontSize: 16, lineHeight: 23 },
+  fundingRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
   preview: { gap: 8 },
   previewRow: {
     alignItems: 'center',

@@ -1,8 +1,9 @@
-import { type Layer, Match as M } from 'effect'
+import { Layer, Match as M } from 'effect'
 import {
   type WalletDataSource,
   type WalletResources,
 } from 'wallet-core-example'
+import { LiveWalletClient } from 'wallet-live-client-example'
 import {
   makeRemoteWalletResources,
   publicTestnetWalletEndpoint,
@@ -10,12 +11,18 @@ import {
 import { makeSimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import { WalletWebClipboard } from './webClipboard.js'
-import { BrowserWalletVault } from './webWalletVault.js'
+import { BrowserWalletResources, BrowserWalletVault } from './webWalletVault.js'
 
 /** Parses a host setting into one complete Wallet data-source selection. */
 export const walletDataSourceFromEnvironment = (
   value: string | undefined,
-): WalletDataSource => (value === 'Testnet' ? 'Testnet' : 'Fixture')
+): WalletDataSource => {
+  if (value === 'Fixture' || value === 'Testnet') {
+    return value
+  } else {
+    return 'Live'
+  }
+}
 
 /** Selects one complete browser resource graph without mixing data sources. */
 export const makeWebWalletResources = (
@@ -26,7 +33,6 @@ export const makeWebWalletResources = (
     M.when('Fixture', () =>
       makeSimulatedWalletResources({
         walletClipboard: WalletWebClipboard,
-        walletVault: BrowserWalletVault,
       }),
     ),
     M.when('Testnet', () =>
@@ -34,6 +40,13 @@ export const makeWebWalletResources = (
         walletClipboard: WalletWebClipboard,
         walletVault: BrowserWalletVault,
       }),
+    ),
+    M.when('Live', () =>
+      Layer.mergeAll(
+        LiveWalletClient,
+        BrowserWalletResources,
+        WalletWebClipboard,
+      ),
     ),
     M.exhaustive,
   )

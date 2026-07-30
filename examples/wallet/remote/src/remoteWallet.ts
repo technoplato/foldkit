@@ -36,6 +36,7 @@ const toClientError = (error: RemoteCallError): WalletClientError =>
     M.whenOr(
       'Rejected',
       'InvalidResponse',
+      'UnsupportedCapability',
       code => new WalletClientError({ code }),
     ),
     M.orElse(() => new WalletClientError({ code: 'Unavailable' })),
@@ -81,9 +82,14 @@ export const makeRemoteWalletResources = (
     Effect.gen(function* () {
       const remote = yield* RpcClient.make(WalletRpcs)
       const client = WalletClient.of({
-        loadPortfolio: remote
-          .WalletLoadPortfolio({})
-          .pipe(Effect.mapError(toClientError)),
+        loadPortfolio: wallets =>
+          remote
+            .WalletLoadPortfolio({ wallets })
+            .pipe(Effect.mapError(toClientError)),
+        requestTestFunding: request =>
+          remote
+            .WalletRequestTestFunding({ request })
+            .pipe(Effect.mapError(toClientError)),
         validateTransfer: request =>
           remote
             .WalletValidateTransfer({ request })

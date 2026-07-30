@@ -1,7 +1,13 @@
 import { Array as Array_, Effect, Layer, Schema as S } from 'effect'
-import { WalletVault, WalletVaultError } from 'wallet-core-example'
+import {
+  WalletCrypto,
+  WalletSigner,
+  WalletVault,
+  WalletVaultError,
+} from 'wallet-core-example'
 import {
   type WalletVaultStorage,
+  makePersistentLocalWalletResources,
   makePersistentLocalWalletVault,
 } from 'wallet-local-vault-example'
 
@@ -276,3 +282,14 @@ export const BrowserWalletVault: Layer.Layer<WalletVault> =
       globalThis.crypto,
     ),
   )
+
+/** Encrypted origin-local Wallet vault, signer, and crypto services. */
+export const BrowserWalletResources: Layer.Layer<
+  WalletVault | WalletSigner | WalletCrypto
+> = makePersistentLocalWalletResources(
+  byteCount => globalThis.crypto.getRandomValues(new Uint8Array(byteCount)),
+  makeBrowserWalletVaultStorage(
+    makeIndexedDbWalletVaultDatabase(),
+    globalThis.crypto,
+  ),
+)

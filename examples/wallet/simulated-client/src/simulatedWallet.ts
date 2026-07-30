@@ -6,11 +6,13 @@ import {
   Option,
   PubSub,
   Redacted,
+  Ref,
   Schema as S,
   Stream,
 } from 'effect'
 import {
   AccountBalance,
+  AdapterTestFundingMethod,
   AssetAmount,
   AssetDescriptor,
   BalanceSnapshot,
@@ -23,6 +25,8 @@ import {
   SignatureProof,
   type SignedTransaction,
   type SigningChallenge,
+  TestFundingReceipt,
+  type TestFundingRequest,
   TransactionHistoryPage,
   TransactionPreview,
   TransactionRecord,
@@ -39,15 +43,18 @@ import {
   WalletClipboardUnavailable,
   WalletCrypto,
   WalletCryptoError,
+  WalletProfile,
   type WalletResources,
   WalletSigner,
   WalletSignerError,
   WalletVault,
+  WalletVaultError,
   assetForId,
+  doesPortfolioIncludeWalletProfiles,
   makeSignedTransaction,
   makeTransactionPayload,
+  mergeTransactionRecords,
 } from 'wallet-core-example'
-import { LocalWalletVault } from 'wallet-local-vault-example'
 
 const fixedObservedAt = 1_785_129_600_000
 const fixedExpiresAt = fixedObservedAt + 5 * 60 * 1_000
@@ -91,10 +98,12 @@ const chains = [
 
 const transferCapabilities: ReadonlyArray<WalletCapability> = [
   'Transfer',
+  'TestFunding',
   'TransactionHistory',
   'TransactionObservation',
   'ChallengeSignature',
 ]
+const adapterTestFundingMethod = AdapterTestFundingMethod.make({})
 
 const networks = [
   NetworkDescriptor.make({
@@ -103,6 +112,7 @@ const networks = [
     displayName: 'Bitcoin Regtest',
     environment: 'Local',
     capabilities: transferCapabilities,
+    testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
     networkId: bitcoinTestnetNetworkId,
@@ -110,6 +120,7 @@ const networks = [
     displayName: 'Bitcoin Testnet',
     environment: 'Testnet',
     capabilities: transferCapabilities,
+    testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
     networkId: ethereumLocalnetNetworkId,
@@ -117,6 +128,7 @@ const networks = [
     displayName: 'Ethereum Localnet',
     environment: 'Local',
     capabilities: transferCapabilities,
+    testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
     networkId: ethereumNetworkId,
@@ -124,6 +136,7 @@ const networks = [
     displayName: 'Ethereum Sepolia',
     environment: 'Testnet',
     capabilities: transferCapabilities,
+    testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
     networkId: solanaNetworkId,
@@ -131,6 +144,7 @@ const networks = [
     displayName: 'Solana Devnet',
     environment: 'Development',
     capabilities: transferCapabilities,
+    testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
     networkId: solanaTestnetNetworkId,
@@ -138,6 +152,7 @@ const networks = [
     displayName: 'Solana Testnet',
     environment: 'Testnet',
     capabilities: transferCapabilities,
+    testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
     networkId: suiDevnetNetworkId,
@@ -145,6 +160,7 @@ const networks = [
     displayName: 'Sui Devnet',
     environment: 'Development',
     capabilities: transferCapabilities,
+    testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
     networkId: suiTestnetNetworkId,
@@ -152,6 +168,7 @@ const networks = [
     displayName: 'Sui Testnet',
     environment: 'Testnet',
     capabilities: transferCapabilities,
+    testFundingMethod: adapterTestFundingMethod,
   }),
 ]
 
@@ -221,13 +238,20 @@ const amount = (
 
 const simulatedHolding = (
   accountId: string,
+  chainId: string,
   networkId: string,
   address: string,
   displayName: string,
   assetId: string,
   atomicUnits: (typeof AssetAmount.Type)['atomicUnits'],
 ) => ({
-  account: WalletAccount.make({ accountId, networkId, address, displayName }),
+  account: WalletAccount.make({
+    accountId,
+    chainId,
+    networkId,
+    address,
+    displayName,
+  }),
   assetId,
   atomicUnits,
 })
@@ -235,6 +259,7 @@ const simulatedHolding = (
 const simulatedHoldings = [
   simulatedHolding(
     bitcoinRegtestAccountId,
+    bitcoinChainId,
     bitcoinRegtestNetworkId,
     'bcrt1q2n0r7w3x8k9m4p6s5t2v7y9z3c8d4f6g0h2j5k',
     'Simulated Bitcoin Regtest Account',
@@ -243,6 +268,7 @@ const simulatedHoldings = [
   ),
   simulatedHolding(
     bitcoinTestnetAccountId,
+    bitcoinChainId,
     bitcoinTestnetNetworkId,
     'tb1q2n0r7w3x8k9m4p6s5t2v7y9z3c8d4f6g0h2j5k',
     'Simulated Bitcoin Testnet Account',
@@ -251,6 +277,7 @@ const simulatedHoldings = [
   ),
   simulatedHolding(
     ethereumLocalnetAccountId,
+    ethereumChainId,
     ethereumLocalnetNetworkId,
     '0x4444444444444444444444444444444444444444',
     'Simulated Ethereum Localnet Account',
@@ -259,6 +286,7 @@ const simulatedHoldings = [
   ),
   simulatedHolding(
     ethereumAccountId,
+    ethereumChainId,
     ethereumNetworkId,
     ethereumAddress,
     'Simulated Sepolia Account',
@@ -267,6 +295,7 @@ const simulatedHoldings = [
   ),
   simulatedHolding(
     solanaAccountId,
+    solanaChainId,
     solanaNetworkId,
     solanaAddress,
     'Simulated Solana Devnet Account',
@@ -275,6 +304,7 @@ const simulatedHoldings = [
   ),
   simulatedHolding(
     solanaTestnetAccountId,
+    solanaChainId,
     solanaTestnetNetworkId,
     '11111111111111111111111111111111',
     'Simulated Solana Testnet Account',
@@ -283,6 +313,7 @@ const simulatedHoldings = [
   ),
   simulatedHolding(
     suiDevnetAccountId,
+    suiChainId,
     suiDevnetNetworkId,
     '0x1111111111111111111111111111111111111111111111111111111111111111',
     'Simulated Sui Devnet Account',
@@ -291,6 +322,7 @@ const simulatedHoldings = [
   ),
   simulatedHolding(
     suiTestnetAccountId,
+    suiChainId,
     suiTestnetNetworkId,
     '0x2222222222222222222222222222222222222222222222222222222222222222',
     'Simulated Sui Testnet Account',
@@ -307,7 +339,7 @@ const accountBalances = Array_.map(simulatedHoldings, holding =>
   }),
 )
 
-/** Public deterministic normalized portfolio used by simulated hosts. */
+/** Public deterministic normalized portfolio used only by explicit test hosts. */
 export const simulatedPortfolio = PortfolioSnapshot.make({
   dataSource: 'Fixture',
   chains,
@@ -565,34 +597,103 @@ const signingProof = (
 }
 
 const historyPage = (
-  accountIds: ReadonlyArray<string>,
+  transactions: ReadonlyArray<TransactionRecord>,
+  accountId: string,
+  networkId: string,
   maybeCursor: Option.Option<string>,
   limit: number,
-): typeof TransactionHistoryPage.Type => {
+): Effect.Effect<TransactionHistoryPage, WalletClientError> => {
   const offset = Option.match(maybeCursor, {
     onNone: () => 0,
     onSome: cursor => Number.parseInt(cursor, 10),
   })
-  const filtered = Array_.filter(historicalTransactions, transaction =>
-    Array_.contains(accountIds, transaction.accountId),
+  if (!Number.isInteger(offset) || offset < 0) {
+    return Effect.fail(new WalletClientError({ code: 'InvalidResponse' }))
+  }
+  const filtered = mergeTransactionRecords(
+    [],
+    Array_.filter(
+      transactions,
+      transaction =>
+        transaction.accountId === accountId &&
+        transaction.networkId === networkId,
+    ),
   )
   const records = Array_.take(Array_.drop(filtered, offset), limit)
   const nextOffset = offset + Array_.length(records)
-  return TransactionHistoryPage.make({
-    records,
-    maybeNextCursor:
-      nextOffset < Array_.length(filtered)
-        ? Option.some(nextOffset.toString())
-        : Option.none(),
-  })
+  return Effect.succeed(
+    TransactionHistoryPage.make({
+      records,
+      maybeNextCursor:
+        nextOffset < Array_.length(filtered)
+          ? Option.some(nextOffset.toString())
+          : Option.none(),
+    }),
+  )
 }
 
 const makeSimulatedServices = Effect.gen(function* () {
   const transactionChanges = yield* PubSub.unbounded<TransactionRecord>({
     replay: 1,
   })
+  const transactions = yield* Ref.make<ReadonlyArray<TransactionRecord>>(
+    historicalTransactions,
+  )
   const client = WalletClient.of({
-    loadPortfolio: Effect.succeed(simulatedPortfolio),
+    loadPortfolio: wallets =>
+      doesPortfolioIncludeWalletProfiles(simulatedPortfolio, wallets)
+        ? Effect.succeed(simulatedPortfolio)
+        : Effect.fail(new WalletClientError({ code: 'UnsupportedCapability' })),
+    requestTestFunding: (request: TestFundingRequest) => {
+      const maybeAccount = accountForId(request.accountId)
+      const maybeNetwork = Array_.findFirst(
+        simulatedPortfolio.networks,
+        network => network.networkId === request.networkId,
+      )
+      const maybeAsset = assetForId(simulatedPortfolio.assets, request.assetId)
+      if (
+        Option.isNone(maybeAccount) ||
+        Option.isNone(maybeNetwork) ||
+        Option.isNone(maybeAsset) ||
+        maybeAccount.value.chainId !== request.chainId ||
+        maybeAccount.value.networkId !== request.networkId ||
+        maybeNetwork.value.chainId !== request.chainId ||
+        maybeNetwork.value.environment !== request.environment ||
+        maybeAsset.value.networkId !== request.networkId ||
+        !Array_.contains(maybeNetwork.value.capabilities, 'TestFunding') ||
+        BigInt(request.atomicUnits) <= 0n
+      ) {
+        return Effect.fail(
+          new WalletClientError({ code: 'UnsupportedCapability' }),
+        )
+      }
+      const fundingId = `simulated-funding-${stableHash(request.requestId)}`
+      const record = TransactionRecord.make({
+        recordId: fundingId,
+        transactionId: fundingId,
+        accountId: request.accountId,
+        networkId: request.networkId,
+        direction: 'Incoming',
+        status: 'Confirmed',
+        amount: amount(request.assetId, request.atomicUnits),
+        counterpartyAddress: 'simulated-test-funding',
+        normalizedCounterpartyAddress: 'simulated-test-funding',
+        observedAt: fixedObservedAt,
+      })
+      return Effect.gen(function* () {
+        yield* Ref.update(transactions, current =>
+          mergeTransactionRecords(current, [record]),
+        )
+        yield* PubSub.publish(transactionChanges, record)
+        return TestFundingReceipt.make({
+          requestId: request.requestId,
+          fundingId,
+          acceptedAt: fixedObservedAt,
+          amount: record.amount,
+          maybeTransactionId: Option.some(fundingId),
+        })
+      })
+    },
     validateTransfer: request => Effect.succeed(validateTransfer(request)),
     previewTransfer: transfer =>
       Effect.succeed({
@@ -637,6 +738,9 @@ const makeSimulatedServices = Effect.gen(function* () {
           normalizedCounterpartyAddress: transfer.recipient.normalizedAddress,
           observedAt: fixedObservedAt,
         })
+        yield* Ref.update(transactions, current =>
+          mergeTransactionRecords(current, [record]),
+        )
         yield* PubSub.publish(transactionChanges, record)
         return TransactionSubmission.make({
           previewId: signedPayload.preview.previewId,
@@ -645,16 +749,43 @@ const makeSimulatedServices = Effect.gen(function* () {
           maybeExplorerConfirmation: Option.none(),
         })
       }),
-    loadTransactionHistory: query =>
-      Effect.succeed(
-        historyPage(query.accountIds, query.maybeCursor, query.limit),
-      ),
-    observeTransactions: accountIds =>
-      Stream.fromPubSub(transactionChanges).pipe(
+    loadTransactionHistory: query => {
+      const maybeAccount = accountForId(query.accountId)
+      if (
+        Option.isNone(maybeAccount) ||
+        maybeAccount.value.networkId !== query.networkId
+      ) {
+        return Effect.fail(
+          new WalletClientError({ code: 'UnsupportedCapability' }),
+        )
+      }
+      return Ref.get(transactions).pipe(
+        Effect.flatMap(records =>
+          historyPage(
+            records,
+            query.accountId,
+            query.networkId,
+            query.maybeCursor,
+            query.limit,
+          ),
+        ),
+      )
+    },
+    observeTransactions: accountIds => {
+      const hasUnknownAccount = Array_.some(accountIds, accountId =>
+        Option.isNone(accountForId(accountId)),
+      )
+      if (hasUnknownAccount) {
+        return Stream.fail(
+          new WalletClientError({ code: 'UnsupportedCapability' }),
+        )
+      }
+      return Stream.fromPubSub(transactionChanges).pipe(
         Stream.filter(transaction =>
           Array_.contains(accountIds, transaction.accountId),
         ),
-      ),
+      )
+    },
   })
   const signer = WalletSigner.of({
     signTransaction: payload => {
@@ -689,7 +820,48 @@ const makeSimulatedServices = Effect.gen(function* () {
   )
 })
 
-/** Builds deterministic Wallet resources with a host-selected local vault. */
+/** Deterministic test-only vault whose profiles match the fixture portfolio. */
+export const SimulatedWalletVault: Layer.Layer<WalletVault> = Layer.effect(
+  WalletVault,
+  Effect.sync(() => {
+    const walletsById = new Map<string, WalletProfile>()
+    return WalletVault.of({
+      loadWallets: Effect.sync(() => Array_.fromIterable(walletsById.values())),
+      createWallet: request =>
+        Effect.suspend(() => {
+          const existing = walletsById.get(request.requestId)
+          if (existing !== undefined) {
+            return Effect.succeed(existing)
+          }
+          const accounts = Array_.getSomes(
+            Array_.map(request.networks, network =>
+              Array_.findFirst(
+                simulatedPortfolio.accounts,
+                account =>
+                  account.chainId === network.chainId &&
+                  account.networkId === network.networkId,
+              ),
+            ),
+          )
+          if (Array_.length(accounts) !== Array_.length(request.networks)) {
+            return Effect.fail(
+              new WalletVaultError({ code: 'InvalidKeyMaterial' }),
+            )
+          }
+          const wallet = WalletProfile.make({
+            walletId: request.requestId,
+            displayName: request.displayName,
+            createdAt: fixedObservedAt + walletsById.size,
+            accounts,
+          })
+          walletsById.set(wallet.walletId, wallet)
+          return Effect.succeed(wallet)
+        }),
+    })
+  }),
+)
+
+/** Builds deterministic test-only Wallet resources with a host-selected vault. */
 export const makeSimulatedWalletResources = (
   options: Readonly<{
     walletClipboard?: Layer.Layer<WalletClipboard>
@@ -697,13 +869,13 @@ export const makeSimulatedWalletResources = (
   }> = {},
 ): Layer.Layer<WalletResources> => {
   const walletClipboard = options.walletClipboard ?? WalletClipboardUnavailable
-  const walletVault = options.walletVault ?? LocalWalletVault
+  const walletVault = options.walletVault ?? SimulatedWalletVault
   return Layer.merge(
     Layer.merge(Layer.effectContext(makeSimulatedServices), walletVault),
     walletClipboard,
   )
 }
 
-/** Deterministic, side-effect-complete Wallet resources for demos and tests. */
+/** Deterministic Wallet resources that production hosts must never select. */
 export const SimulatedWalletResources: Layer.Layer<WalletResources> =
   makeSimulatedWalletResources()

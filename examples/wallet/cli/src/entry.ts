@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { Array, Console, Effect, Match as M, Option, pipe } from 'effect'
 import type { WalletNetworkMode } from 'wallet-core-example'
+import { MacOSLiveWalletResources } from 'wallet-node-client-example'
+import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import { NodeRuntime, NodeServices } from '@effect/platform-node'
 
@@ -8,24 +10,32 @@ import {
   WalletChallengeInput,
   WalletCliError,
   WalletCliOperation,
+  WalletTestFundingInput,
   WalletTransferInput,
-  defaultWalletChallengeInput,
-  defaultWalletTransferInput,
   executeWalletCli,
   formatWalletCliExecution,
 } from './host.js'
 
 const usage = `Usage:
   foldkit-wallet show [--uri <state-or-replay-path>] [--verbose]
-  foldkit-wallet create [--network <devnet|testnet>] [--uri <path>] [--verbose]
-  foldkit-wallet receive [--account <id>] [--asset <asset-id>] [--uri <path>] [--verbose]
-  foldkit-wallet preview [transfer flags] [--uri <path>] [--verbose]
-  foldkit-wallet send [transfer flags] [--uri <path>] [--verbose]
-  foldkit-wallet sign-challenge [challenge flags] [--uri <path>] [--verbose]
+  foldkit-wallet create [--network <devnet|testnet|live>] [--uri <path>] [--verbose]
+  foldkit-wallet receive --account <id> --asset <asset-id> [--uri <path>] [--verbose]
+  foldkit-wallet history [--uri <path>] [--verbose]
+  foldkit-wallet history-next [--uri <path>] [--verbose]
+  foldkit-wallet fund --mode <mode> --chain <id> --network <id> --account <id> --asset <id> [--display-amount <amount>] [--verbose]
+  foldkit-wallet preview <transfer flags> [--uri <path>] [--verbose]
+  foldkit-wallet send <transfer flags> [--uri <path>] [--verbose]
+  foldkit-wallet sign-challenge <challenge flags> [--uri <path>] [--verbose]
   foldkit-wallet replay [--frame <number>] [--uri <state-or-replay-path>] [--verbose]
 
-Transfer flags: --transfer-id, --mode, --chain, --network, --account, --asset, --to, --amount, --message
-Challenge flags: --challenge-id, --account, --algorithm, --domain, --digest, --encoding`
+Transfer flags: --transfer-id, --mode, --chain, --network, --account, --asset, --to, --amount; optional --message
+Challenge flags: --challenge-id, --account, --algorithm, --domain, --digest, --encoding
+A prepared send-intent --uri supplies transfer data instead of transfer flags.`
+
+const walletResources =
+  process.env['FOLDKIT_WALLET_RESOURCES'] === 'simulated'
+    ? SimulatedWalletResources
+    : MacOSLiveWalletResources
 
 const arguments_ = pipe(
   Array.drop(process.argv, 2),
@@ -51,13 +61,18 @@ const valueForFlag = (
   )
 }
 
-const assetIdForFlag = (maybeAssetId: Option.Option<string>): string => {
-  if (Option.isNone(maybeAssetId)) {
-    return defaultWalletTransferInput.assetId
-  } else {
-    return maybeAssetId.value
-  }
-}
+const requiredValueForFlag = (
+  name: string,
+): Effect.Effect<string, WalletCliError> =>
+  Effect.flatMap(valueForFlag(name), maybeValue =>
+    Option.match(maybeValue, {
+      onNone: () =>
+        Effect.fail(
+          new WalletCliError({ message: `Missing required flag ${name}` }),
+        ),
+      onSome: Effect.succeed,
+    }),
+  )
 
 const networkModeForFlag = (
   maybeNetworkMode: Option.Option<string>,
@@ -69,10 +84,11 @@ const networkModeForFlag = (
     M.withReturnType<Effect.Effect<WalletNetworkMode, WalletCliError>>(),
     M.when('devnet', () => Effect.succeed('Devnet')),
     M.when('testnet', () => Effect.succeed('Testnet')),
+    M.when('live', () => Effect.succeed('Live')),
     M.orElse(networkMode =>
       Effect.fail(
         new WalletCliError({
-          message: `Unsupported network mode: ${networkMode}. Use devnet or testnet.`,
+          message: `Unsupported network mode: ${networkMode}. Use devnet, testnet, or live.`,
         }),
       ),
     ),
@@ -80,73 +96,65 @@ const networkModeForFlag = (
 }
 
 const transferInput = Effect.gen(function* () {
-  const transferId = yield* valueForFlag('--transfer-id')
-  const networkMode = yield* networkModeForFlag(yield* valueForFlag('--mode'))
-  const chainId = yield* valueForFlag('--chain')
-  const networkId = yield* valueForFlag('--network')
-  const accountId = yield* valueForFlag('--account')
-  const assetId = assetIdForFlag(yield* valueForFlag('--asset'))
-  const destinationAddress = yield* valueForFlag('--to')
-  const atomicUnits = yield* valueForFlag('--amount')
+  const transferId = yield* requiredValueForFlag('--transfer-id')
+  const networkMode = yield* networkModeForFlag(
+    Option.some(yield* requiredValueForFlag('--mode')),
+  )
+  const chainId = yield* requiredValueForFlag('--chain')
+  const networkId = yield* requiredValueForFlag('--network')
+  const accountId = yield* requiredValueForFlag('--account')
+  const assetId = yield* requiredValueForFlag('--asset')
+  const destinationAddress = yield* requiredValueForFlag('--to')
+  const atomicUnits = yield* requiredValueForFlag('--amount')
   const maybeMessage = yield* valueForFlag('--message')
   return WalletTransferInput.make({
-    transferId: Option.getOrElse(
-      transferId,
-      () => defaultWalletTransferInput.transferId,
-    ),
+    transferId,
     networkMode,
-    chainId: Option.getOrElse(
-      chainId,
-      () => defaultWalletTransferInput.chainId,
-    ),
-    networkId: Option.getOrElse(
-      networkId,
-      () => defaultWalletTransferInput.networkId,
-    ),
-    accountId: Option.getOrElse(
-      accountId,
-      () => defaultWalletTransferInput.accountId,
-    ),
+    chainId,
+    networkId,
+    accountId,
     assetId,
-    destinationAddress: Option.getOrElse(
-      destinationAddress,
-      () => defaultWalletTransferInput.destinationAddress,
-    ),
-    atomicUnits: Option.getOrElse(
-      atomicUnits,
-      () => defaultWalletTransferInput.atomicUnits,
-    ),
+    destinationAddress,
+    atomicUnits,
     maybeMessage,
   })
 })
 
-const challengeInput = Effect.gen(function* () {
-  const challengeId = yield* valueForFlag('--challenge-id')
-  const accountId = yield* valueForFlag('--account')
-  const algorithm = yield* valueForFlag('--algorithm')
-  const domain = yield* valueForFlag('--domain')
-  const digest = yield* valueForFlag('--digest')
-  const encoding = yield* valueForFlag('--encoding')
-  const nextAlgorithm = Option.getOrElse(
-    algorithm,
-    () => defaultWalletChallengeInput.algorithm,
+const maybeTransferInput = Effect.gen(function* () {
+  const maybeCarrier = yield* valueForFlag('--uri')
+  return Option.isSome(maybeCarrier)
+    ? Option.none<typeof WalletTransferInput.Type>()
+    : Option.some(yield* transferInput)
+})
+
+const testFundingInput = Effect.gen(function* () {
+  const networkMode = yield* networkModeForFlag(
+    Option.some(yield* requiredValueForFlag('--mode')),
   )
+  return WalletTestFundingInput.make({
+    networkMode,
+    chainId: yield* requiredValueForFlag('--chain'),
+    networkId: yield* requiredValueForFlag('--network'),
+    accountId: yield* requiredValueForFlag('--account'),
+    assetId: yield* requiredValueForFlag('--asset'),
+    maybeDisplayAmount: yield* valueForFlag('--display-amount'),
+  })
+})
+
+const challengeInput = Effect.gen(function* () {
+  const challengeId = yield* requiredValueForFlag('--challenge-id')
+  const accountId = yield* requiredValueForFlag('--account')
+  const algorithm = yield* requiredValueForFlag('--algorithm')
+  const domain = yield* requiredValueForFlag('--domain')
+  const digest = yield* requiredValueForFlag('--digest')
+  const encoding = yield* requiredValueForFlag('--encoding')
   return WalletChallengeInput.make({
-    challengeId: Option.getOrElse(
-      challengeId,
-      () => defaultWalletChallengeInput.challengeId,
-    ),
-    accountId: Option.getOrElse(
-      accountId,
-      () => defaultWalletChallengeInput.accountId,
-    ),
-    algorithm: nextAlgorithm,
-    domain: Option.getOrElse(domain, () => defaultWalletChallengeInput.domain),
-    digest: Option.getOrElse(digest, () => defaultWalletChallengeInput.digest),
-    encoding: Option.getOrElse(
-      encoding,
-      () => defaultWalletChallengeInput.encoding,
-    ),
+    challengeId,
+    accountId,
+    algorithm,
+    domain,
+    digest,
+    encoding,
   })
 })
 
@@ -169,26 +177,34 @@ const operation = Effect.gen(function* () {
     ),
     M.when('receive', () =>
       Effect.gen(function* () {
-        const accountId = yield* valueForFlag('--account')
-        const assetId = assetIdForFlag(yield* valueForFlag('--asset'))
+        const accountId = yield* requiredValueForFlag('--account')
+        const assetId = yield* requiredValueForFlag('--asset')
         return WalletCliOperation.make({
           _tag: 'Receive',
-          accountId: Option.getOrElse(
-            accountId,
-            () => defaultWalletTransferInput.accountId,
-          ),
+          accountId,
           assetId,
         })
       }),
     ),
+    M.when('history', () =>
+      Effect.succeed(WalletCliOperation.make({ _tag: 'History' })),
+    ),
+    M.when('history-next', () =>
+      Effect.succeed(WalletCliOperation.make({ _tag: 'NextHistoryPage' })),
+    ),
+    M.when('fund', () =>
+      Effect.map(testFundingInput, input =>
+        WalletCliOperation.make({ _tag: 'RequestTestFunding', input }),
+      ),
+    ),
     M.when('preview', () =>
-      Effect.map(transferInput, input =>
-        WalletCliOperation.make({ _tag: 'Preview', input }),
+      Effect.map(maybeTransferInput, maybeInput =>
+        WalletCliOperation.make({ _tag: 'Preview', maybeInput }),
       ),
     ),
     M.when('send', () =>
-      Effect.map(transferInput, input =>
-        WalletCliOperation.make({ _tag: 'Send', input }),
+      Effect.map(maybeTransferInput, maybeInput =>
+        WalletCliOperation.make({ _tag: 'Send', maybeInput }),
       ),
     ),
     M.when('sign-challenge', () =>
@@ -232,7 +248,11 @@ const operation = Effect.gen(function* () {
 const program = Effect.gen(function* () {
   const selectedOperation = yield* operation
   const maybeCarrier = yield* valueForFlag('--uri')
-  const execution = yield* executeWalletCli(selectedOperation, maybeCarrier)
+  const execution = yield* executeWalletCli(
+    selectedOperation,
+    maybeCarrier,
+    walletResources,
+  )
   yield* Console.log(
     formatWalletCliExecution(
       execution,

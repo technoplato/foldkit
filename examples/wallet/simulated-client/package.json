@@ -15,16 +15,15 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "prebuild": "pnpm --filter wallet-local-vault-example build",
-    "pretest": "pnpm --filter wallet-local-vault-example build",
-    "pretypecheck": "pnpm --filter wallet-local-vault-example build",
+    "prebuild": "pnpm --filter wallet-core-example build",
+    "pretest": "pnpm --filter wallet-core-example build",
+    "pretypecheck": "pnpm --filter wallet-core-example build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "effect": "4.0.0-beta.97",
-    "wallet-core-example": "workspace:*",
-    "wallet-local-vault-example": "workspace:*"
+    "wallet-core-example": "workspace:*"
   },
   "devDependencies": {
     "prettier": "^3.8.4",

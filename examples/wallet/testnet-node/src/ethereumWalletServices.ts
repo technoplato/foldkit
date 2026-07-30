@@ -14,28 +14,45 @@ import {
   EthereumSepoliaTransport,
 } from './chainTransport.js'
 
-const unsupportedClient = () => new WalletClientError({ code: 'Rejected' })
+const unsupportedClient = () =>
+  new WalletClientError({ code: 'UnsupportedCapability' })
 
 const makeEthereumWalletNetworkServices = Effect.gen(function* () {
   const ethereum = yield* EthereumSepoliaTransport
 
   const client = WalletClient.of({
-    loadPortfolio: ethereum.loadPortfolio.pipe(
-      Effect.map(portfolio =>
-        PortfolioSnapshot.make({
-          dataSource: 'Testnet',
-          chains: [portfolio.chain],
-          networks: [portfolio.network],
-          assets: portfolio.assets,
-          accounts: [portfolio.account],
-          balanceSnapshot: BalanceSnapshot.make({
-            observedAt: portfolio.observedAt,
-            balances: portfolio.balances,
+    loadPortfolio: wallets => {
+      const hasUnsupportedProfile = Array.some(wallets, wallet =>
+        Array.some(
+          wallet.accounts,
+          account =>
+            account.accountId !== ethereum.account.accountId ||
+            account.chainId !== ethereum.account.chainId ||
+            account.networkId !== ethereum.account.networkId ||
+            account.address !== ethereum.account.address,
+        ),
+      )
+      if (hasUnsupportedProfile) {
+        return Effect.fail(unsupportedClient())
+      }
+      return ethereum.loadPortfolio.pipe(
+        Effect.map(portfolio =>
+          PortfolioSnapshot.make({
+            dataSource: 'Testnet',
+            chains: [portfolio.chain],
+            networks: [portfolio.network],
+            assets: portfolio.assets,
+            accounts: [portfolio.account],
+            balanceSnapshot: BalanceSnapshot.make({
+              observedAt: portfolio.observedAt,
+              balances: portfolio.balances,
+            }),
+            receivingInstructions: portfolio.receivingInstructions,
           }),
-          receivingInstructions: portfolio.receivingInstructions,
-        }),
-      ),
-    ),
+        ),
+      )
+    },
+    requestTestFunding: request => ethereum.requestTestFunding(request),
     validateTransfer: request => ethereum.validateTransfer(request),
     previewTransfer: transfer => ethereum.previewTransfer(transfer),
     buildTransferPayload: preview => ethereum.buildTransferPayload(preview),

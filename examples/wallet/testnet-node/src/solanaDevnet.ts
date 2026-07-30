@@ -4,6 +4,7 @@ import {
   Effect,
   Layer,
   Option,
+  Order,
   Queue,
   Record as Record_,
   Redacted,
@@ -12,6 +13,7 @@ import {
 } from 'effect'
 import {
   AccountBalance,
+  AdapterTestFundingMethod,
   AssetAmount,
   AssetDescriptor,
   AtomicUnits,
@@ -25,6 +27,8 @@ import {
   SignatureProof as SignatureProofSchema,
   type SignedTransaction,
   type SigningChallenge,
+  TestFundingReceipt,
+  type TestFundingRequest,
   TransactionHistoryPage,
   type TransactionHistoryQuery,
   type TransactionPayload,
@@ -171,6 +175,8 @@ const TokenTransferInstruction = S.Struct({
 const toClientError = () => new WalletClientError({ code: 'Unavailable' })
 const invalidClientResponse = () =>
   new WalletClientError({ code: 'InvalidResponse' })
+const unsupportedClientCapability = () =>
+  new WalletClientError({ code: 'UnsupportedCapability' })
 const isThirtyTwoByteHex = (value: string): boolean =>
   /^(?:0x)?[0-9a-fA-F]{64}$/.test(value)
 
@@ -185,10 +191,12 @@ const solanaNetwork = NetworkDescriptor.make({
   environment: 'Development',
   capabilities: [
     'Transfer',
+    'TestFunding',
     'TransactionHistory',
     'TransactionObservation',
     'ChallengeSignature',
   ],
+  testFundingMethod: AdapterTestFundingMethod.make({}),
 })
 const solAsset = AssetDescriptor.make({
   assetId: solanaSolAssetId,
@@ -345,6 +353,7 @@ const makeSolanaTransport = Effect.gen(function* () {
   )
   const account = WalletAccount.make({
     accountId: config.accountId,
+    chainId: solanaChainId,
     networkId: solanaNetworkId,
     address: accountAddress,
     displayName: config.displayName,
@@ -864,16 +873,52 @@ const makeSolanaTransport = Effect.gen(function* () {
     ).pipe(Effect.flatMap(() => Effect.never)),
   )
 
+  const requestTestFunding = (
+    request: TestFundingRequest,
+  ): Effect.Effect<TestFundingReceipt, WalletClientError> => {
+    if (
+      request.accountId !== account.accountId ||
+      request.chainId !== solanaChainId ||
+      request.networkId !== solanaNetworkId ||
+      request.environment !== 'Development' ||
+      request.assetId !== solanaSolAssetId
+    ) {
+      return Effect.fail(unsupportedClientCapability())
+    }
+    const atomicUnits = BigInt(request.atomicUnits)
+    if (atomicUnits <= 0n || atomicUnits > BigInt(Number.MAX_SAFE_INTEGER)) {
+      return Effect.fail(new WalletClientError({ code: 'Rejected' }))
+    }
+    return Effect.tryPromise({
+      try: async () => {
+        const acceptedAt = Date.now()
+        const response = S.decodeUnknownSync(JsonRpcSendResponse)(
+          await jsonRpc(config.httpRpcUrl, 'requestAirdrop', [
+            account.address,
+            Number(atomicUnits),
+            { commitment: 'confirmed' },
+          ]),
+        )
+        return TestFundingReceipt.make({
+          requestId: request.requestId,
+          fundingId: response.result,
+          acceptedAt,
+          amount: assetAmount('Sol', atomicUnits, acceptedAt),
+          maybeTransactionId: Option.some(response.result),
+        })
+      },
+      catch: toClientError,
+    })
+  }
+
   const loadTransactionHistory = (
     query: TransactionHistoryQuery,
   ): Effect.Effect<TransactionHistoryPage, WalletClientError> => {
-    if (!Array_.contains(query.accountIds, account.accountId)) {
-      return Effect.succeed(
-        TransactionHistoryPage.make({
-          records: [],
-          maybeNextCursor: Option.none(),
-        }),
-      )
+    if (
+      query.accountId !== account.accountId ||
+      query.networkId !== solanaNetworkId
+    ) {
+      return Effect.fail(unsupportedClientCapability())
     }
     return Effect.tryPromise({
       try: async () => {
@@ -908,7 +953,11 @@ const makeSolanaTransport = Effect.gen(function* () {
         )
         const maybeLastSignature = Array_.last(response.result)
         return TransactionHistoryPage.make({
-          records: Array_.flatten(recordGroups),
+          records: Array_.sortWith(
+            Array_.flatten(recordGroups),
+            record => record.observedAt,
+            Order.flip(Order.Number),
+          ),
           maybeNextCursor:
             Array_.length(response.result) === query.limit &&
             Option.isSome(maybeLastSignature)
@@ -930,6 +979,7 @@ const makeSolanaTransport = Effect.gen(function* () {
     previewTransfer,
     buildTransferPayload,
     submitTransaction,
+    requestTestFunding,
     loadTransactionHistory,
     observeTransactions,
     verifySignatureProof: (

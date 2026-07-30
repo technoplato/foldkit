@@ -9,6 +9,8 @@ import {
   type AssetAmount,
   type AssetDescriptor,
   type NetworkDescriptor,
+  type TestFundingMethod,
+  WalletCapability,
   assetForId,
   networkForId,
 } from './currency.js'
@@ -19,6 +21,7 @@ import type {
   WalletAccount,
   WalletDataSource,
 } from './model.js'
+import { sendNetworkSelectionLabel } from './sendNetworkSelection.js'
 
 /** Labels the single source behind every account and amount on the screen. */
 export const walletDataSourceLabel = (dataSource: WalletDataSource): string =>
@@ -26,6 +29,7 @@ export const walletDataSourceLabel = (dataSource: WalletDataSource): string =>
     M.withReturnType<string>(),
     M.when('Fixture', () => 'Fixture data'),
     M.when('Testnet', () => 'Live testnet data'),
+    M.when('Live', () => 'Live network data'),
     M.exhaustive,
   )
 
@@ -35,13 +39,17 @@ export const walletDataSourceDetail = (dataSource: WalletDataSource): string =>
     M.withReturnType<string>(),
     M.when(
       'Fixture',
-      () =>
-        'Deterministic local values. No network was contacted. Created local wallets remain separate from this fixture portfolio.',
+      () => 'Deterministic test values. No network was contacted.',
     ),
     M.when(
       'Testnet',
       () =>
-        'Balances and activity loaded from configured public test networks. Created local wallets remain separate until their account adapters are connected.',
+        'Balances and activity loaded from configured public test networks for the persisted Wallet accounts.',
+    ),
+    M.when(
+      'Live',
+      () =>
+        'Balances and activity loaded from configured network adapters for the persisted Wallet accounts.',
     ),
     M.exhaustive,
   )
@@ -91,6 +99,21 @@ export const shortenedAddress = (address: string): string =>
   address.length <= 18
     ? address
     : `${address.slice(0, 10)}…${address.slice(-6)}`
+
+/** Labels the currently selected Wallet, cryptocurrency, and network. */
+export const selectedSendNetworkLabel = (model: Model): string => {
+  if (
+    model.portfolio._tag !== 'LoadedPortfolio' ||
+    Option.isNone(model.maybeSendNetworkSelection)
+  ) {
+    return 'unavailable'
+  }
+  return sendNetworkSelectionLabel(
+    model.portfolio.snapshot,
+    model.wallets,
+    model.maybeSendNetworkSelection.value,
+  )
+}
 
 /** Labels one address copy control from the shared clipboard state. */
 export const clipboardCopyLabel = (
@@ -177,6 +200,15 @@ export const primaryWalletBalance = (
       : Option.none(),
   )
 
+/** Reports whether the selected account's live balance request failed. */
+export const isPrimaryWalletBalanceUnavailable = (model: Model): boolean =>
+  model.portfolio._tag === 'LoadedPortfolio' &&
+  Option.isSome(model.maybeSendNetworkSelection) &&
+  Array.contains(
+    model.portfolio.snapshot.balanceSnapshot.unavailableAccountIds,
+    model.maybeSendNetworkSelection.value.accountId,
+  )
+
 /** Selects the normalized network descriptor for the primary account. */
 export const primaryWalletNetwork = (
   model: Model,
@@ -187,29 +219,56 @@ export const primaryWalletNetwork = (
       : Option.none(),
   )
 
+/** Reports whether the selected send network supports one portable capability. */
+export const selectedNetworkHasCapability = (
+  model: Model,
+  capability: typeof WalletCapability.Type,
+): boolean => {
+  const maybeNetwork = primaryWalletNetwork(model)
+  return (
+    Option.isSome(maybeNetwork) &&
+    Array.contains(maybeNetwork.value.capabilities, capability)
+  )
+}
+
+/** Selects the real test-funding path for the primary network. */
+export const primaryWalletTestFundingMethod = (
+  model: Model,
+): Option.Option<TestFundingMethod> =>
+  Option.map(primaryWalletNetwork(model), network => network.testFundingMethod)
+
 /** Selects the normalized asset descriptor for the primary balance. */
 export const primaryWalletAsset = (
   model: Model,
 ): Option.Option<AssetDescriptor> =>
-  Option.flatMap(primaryWalletBalance(model), balance =>
-    model.portfolio._tag === 'LoadedPortfolio'
-      ? assetForId(model.portfolio.snapshot.assets, balance.amount.assetId)
-      : Option.none(),
-  )
+  model.portfolio._tag === 'LoadedPortfolio' &&
+  Option.isSome(model.maybeSendNetworkSelection)
+    ? assetForId(
+        model.portfolio.snapshot.assets,
+        model.maybeSendNetworkSelection.value.assetId,
+      )
+    : Option.none()
 
 /** Selects the primary account and asset's receiving instruction. */
 export const primaryReceivingInstruction = (
   model: Model,
-): Option.Option<ReceivingInstruction> =>
-  Option.flatMap(primaryWalletAccount(model), account =>
-    Option.flatMap(primaryWalletBalance(model), balance =>
-      model.portfolio._tag === 'LoadedPortfolio'
-        ? Array.findFirst(
-            model.portfolio.snapshot.receivingInstructions,
-            instruction =>
-              instruction.accountId === account.accountId &&
-              instruction.assetId === balance.amount.assetId,
-          )
-        : Option.none(),
-    ),
+): Option.Option<ReceivingInstruction> => {
+  if (
+    model.portfolio._tag !== 'LoadedPortfolio' ||
+    Option.isNone(model.maybeSendNetworkSelection)
+  ) {
+    return Option.none()
+  }
+  const portfolio = model.portfolio.snapshot
+  const selection = model.maybeSendNetworkSelection.value
+  const maybeAccount = primaryWalletAccount(model)
+  if (Option.isNone(maybeAccount)) {
+    return Option.none()
+  }
+  return Array.findFirst(
+    portfolio.receivingInstructions,
+    instruction =>
+      instruction.accountId === maybeAccount.value.accountId &&
+      instruction.assetId === selection.assetId,
   )
+}

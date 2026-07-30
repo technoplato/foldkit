@@ -2,70 +2,82 @@ import { Array } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
+  AdapterTestFundingMethod,
+  ChainDescriptor,
+  NetworkDescriptor,
+} from './currency.js'
+import {
   FailedCreateWallet,
   FailedLoadWalletProfiles,
   RequestedWalletCreation,
   RequestedWalletProfilesReload,
-  SelectedWalletNetworkMode,
   SucceededCreateWallet,
   SucceededLoadWalletProfiles,
 } from './message.js'
-import { initialModel } from './model.js'
+import {
+  BalanceSnapshot,
+  LoadedPortfolio,
+  LoadingPortfolio,
+  PortfolioSnapshot,
+  initialModel,
+} from './model.js'
 import { restore, update } from './update.js'
 import {
-  BitcoinAddressSet,
-  BitcoinWalletAccount,
   CreatingWallet,
-  EthereumWalletAccount,
   FailedWalletCreation,
   LoadedWalletProfiles,
   ReadyToCreateWallet,
-  SolanaWalletAccount,
-  SuiWalletAccount,
   WalletCreationRequest,
   WalletProfile,
+  WalletProfileAccount,
 } from './walletProfile.js'
 
+const chain = ChainDescriptor.make({
+  chainId: 'solana',
+  displayName: 'Solana',
+})
+const network = NetworkDescriptor.make({
+  networkId: 'solana:devnet',
+  chainId: chain.chainId,
+  displayName: 'Solana Devnet',
+  environment: 'Development',
+  capabilities: ['Transfer', 'TestFunding'],
+  testFundingMethod: AdapterTestFundingMethod.make({}),
+})
+const portfolio = PortfolioSnapshot.make({
+  dataSource: 'Live',
+  chains: [chain],
+  networks: [network],
+  assets: [],
+  accounts: [],
+  balanceSnapshot: BalanceSnapshot.make({ observedAt: 1, balances: [] }),
+  receivingInstructions: [],
+})
 const readyModel = {
   ...initialModel,
   walletProfileLoading: LoadedWalletProfiles.make({}),
+  portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
 }
 
 const request = WalletCreationRequest.make({
   requestId: 'wallet-1',
   displayName: 'Wallet 1',
+  networks: [network],
 })
 
 const wallet = WalletProfile.make({
   walletId: request.requestId,
   displayName: request.displayName,
   createdAt: 1,
-  accounts: {
-    bitcoin: BitcoinWalletAccount.make({
-      accountId: 'wallet-1:bitcoin',
-      devnetAddresses: BitcoinAddressSet.make({
-        nativeSegwitAddress: 'bcrt1native',
-        taprootAddress: 'bcrt1taproot',
-      }),
-      testnetAddresses: BitcoinAddressSet.make({
-        nativeSegwitAddress: 'tb1native',
-        taprootAddress: 'tb1taproot',
-      }),
-      preferredAddressType: 'NativeSegwit',
-    }),
-    ethereum: EthereumWalletAccount.make({
-      accountId: 'wallet-1:ethereum',
-      address: '0x1111111111111111111111111111111111111111',
-    }),
-    solana: SolanaWalletAccount.make({
-      accountId: 'wallet-1:solana',
+  accounts: [
+    WalletProfileAccount.make({
+      accountId: 'wallet-1:solana:devnet',
+      chainId: network.chainId,
+      networkId: network.networkId,
       address: 'solana-address',
+      displayName: 'Solana Devnet account',
     }),
-    sui: SuiWalletAccount.make({
-      accountId: 'wallet-1:sui',
-      address: '0xsui',
-    }),
-  },
+  ],
 })
 
 const commandNames = (
@@ -73,8 +85,8 @@ const commandNames = (
 ): ReadonlyArray<string> => Array.map(commands, command => command.name)
 
 describe('wallet creation update', () => {
-  it('restores persisted profiles and exposes a finite retry path', () => {
-    const [loadedModel] = update(
+  it('loads the portfolio only after secure profiles are restored', () => {
+    const [loadedModel, commands] = update(
       initialModel,
       SucceededLoadWalletProfiles.make({ wallets: [wallet] }),
     )
@@ -82,23 +94,27 @@ describe('wallet creation update', () => {
       initialModel,
       FailedLoadWalletProfiles.make({ code: 'Unavailable' }),
     )
-    const [retryingModel, commands] = update(
+    const [retryingModel, retryCommands] = update(
       failedModel,
       RequestedWalletProfilesReload.make({}),
     )
 
     expect(loadedModel.wallets).toStrictEqual([wallet])
-    expect(loadedModel.walletProfileLoading._tag).toBe('LoadedWalletProfiles')
+    expect(loadedModel.portfolio).toStrictEqual(
+      LoadingPortfolio.make({ requestId: 'portfolio-1' }),
+    )
+    expect(loadedModel.nextPortfolioRequestNumber).toBe(2)
+    expect(commandNames(commands)).toStrictEqual(['LoadWallet'])
     expect(failedModel.walletProfileLoading._tag).toBe(
       'FailedWalletProfileLoading',
     )
     expect(retryingModel.walletProfileLoading._tag).toBe(
       'LoadingWalletProfiles',
     )
-    expect(commandNames(commands)).toStrictEqual(['LoadWalletProfiles'])
+    expect(commandNames(retryCommands)).toStrictEqual(['LoadWalletProfiles'])
   })
 
-  it('creates one complete Wallet and switches every chain together', () => {
+  it('creates exact network accounts and refreshes with the updated profiles', () => {
     const [creatingModel, commands] = update(
       readyModel,
       RequestedWalletCreation.make({}),
@@ -109,20 +125,20 @@ describe('wallet creation update', () => {
     )
     expect(commandNames(commands)).toStrictEqual(['CreateWallet'])
 
-    const [createdModel] = update(
+    const [createdModel, refreshCommands] = update(
       creatingModel,
       SucceededCreateWallet.make({ request, wallet }),
-    )
-    const [devnetModel] = update(
-      createdModel,
-      SelectedWalletNetworkMode.make({ networkMode: 'Devnet' }),
     )
 
     expect(createdModel.wallets).toStrictEqual([wallet])
     expect(createdModel.walletCreation).toStrictEqual(
       ReadyToCreateWallet.make({}),
     )
-    expect(devnetModel.walletNetworkMode).toBe('Devnet')
+    expect(createdModel.portfolio).toStrictEqual(
+      LoadingPortfolio.make({ requestId: 'portfolio-1' }),
+    )
+    expect(createdModel.nextPortfolioRequestNumber).toBe(2)
+    expect(commandNames(refreshCommands)).toStrictEqual(['LoadWallet'])
   })
 
   it('keeps failure and stale completion states finite', () => {
@@ -134,6 +150,7 @@ describe('wallet creation update', () => {
     const staleRequest = WalletCreationRequest.make({
       requestId: 'wallet-stale',
       displayName: 'Stale Wallet',
+      networks: [network],
     })
     const [staleModel] = update(
       failedModel,
@@ -146,17 +163,14 @@ describe('wallet creation update', () => {
     expect(staleModel).toBe(failedModel)
   })
 
-  it('restarts wallet creation alongside the initial portfolio load', () => {
+  it('restarts creation and portfolio loading from restored finite state', () => {
     const creatingModel = {
-      ...initialModel,
+      ...readyModel,
+      portfolio: LoadingPortfolio.make({ requestId: 'portfolio-restored' }),
       walletCreation: CreatingWallet.make({ request }),
     }
     const [, commands] = restore(creatingModel)
 
-    expect(commandNames(commands)).toStrictEqual([
-      'LoadWalletProfiles',
-      'CreateWallet',
-      'LoadWallet',
-    ])
+    expect(commandNames(commands)).toStrictEqual(['CreateWallet', 'LoadWallet'])
   })
 })

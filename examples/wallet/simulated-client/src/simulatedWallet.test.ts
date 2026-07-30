@@ -23,7 +23,7 @@ describe('SimulatedWalletResources', () => {
   it('loads normalized chains, networks, assets, and accounts', async () => {
     const portfolio = await Effect.runPromise(
       WalletClient.pipe(
-        Effect.flatMap(client => client.loadPortfolio),
+        Effect.flatMap(client => client.loadPortfolio([])),
         Effect.provide(SimulatedWalletResources),
       ),
     )
@@ -135,20 +135,47 @@ describe('SimulatedWalletResources', () => {
       WalletClient.pipe(
         Effect.flatMap(client =>
           client.loadTransactionHistory({
-            accountIds: [
-              'simulated-bitcoin-testnet-account',
-              'simulated-ethereum-account',
-              'simulated-solana-account',
-            ],
+            accountId: 'simulated-solana-account',
+            networkId: 'solana:devnet',
             maybeCursor: Option.none(),
-            limit: 2,
+            limit: 1,
           }),
         ),
         Effect.provide(SimulatedWalletResources),
       ),
     )
 
-    expect(page.records).toHaveLength(2)
-    expect(Option.isSome(page.maybeNextCursor)).toBe(true)
+    expect(page.records).toHaveLength(1)
+    expect(Option.isNone(page.maybeNextCursor)).toBe(true)
+  })
+
+  it('records explicit test funding in observation and history', async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const client = yield* WalletClient
+        const receipt = yield* client.requestTestFunding({
+          requestId: 'funding-1',
+          accountId: 'simulated-solana-account',
+          chainId: 'solana',
+          networkId: 'solana:devnet',
+          environment: 'Development',
+          assetId: 'solana:devnet:sol',
+          atomicUnits: '1000000000',
+        })
+        const history = yield* client.loadTransactionHistory({
+          accountId: 'simulated-solana-account',
+          networkId: 'solana:devnet',
+          maybeCursor: Option.none(),
+          limit: 2,
+        })
+        return { receipt, history }
+      }).pipe(Effect.provide(SimulatedWalletResources)),
+    )
+
+    expect(result.receipt.fundingId).toContain('simulated-funding-')
+    expect(result.history.records).toHaveLength(2)
+    expect(
+      Option.getOrThrow(Array.head(result.history.records)).transactionId,
+    ).toBe(result.receipt.fundingId)
   })
 })

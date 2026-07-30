@@ -5,6 +5,7 @@ import { createReplayableReactProgramClient } from 'shared-react-bindings-exampl
 import {
   AddedAddressBookEntry,
   AddressBookEntry,
+  ChangedTransferAmount,
   ChangedTransferRecipient,
   type ClipboardCopyRequest,
   ComposedTransfer,
@@ -14,7 +15,10 @@ import {
   RemovedAddressBookEntry,
   RequestedChallengeSignature,
   RequestedClipboardCopy,
+  RequestedNextTransactionHistoryPage,
   RequestedSignedTransactionSubmission,
+  RequestedTestFunding,
+  RequestedTransactionHistoryReload,
   RequestedTransferPreview,
   RequestedWalletCreation,
   RequestedWalletProfilesReload,
@@ -44,7 +48,11 @@ export type WalletActions = Readonly<{
   selectedWalletNetworkMode: (networkMode: WalletNetworkMode) => void
   selectedSendNetwork: (selection: SendNetworkSelection) => void
   requestedWalletRefresh: () => void
+  changedTransferAmount: (value: string) => void
   changedTransferRecipient: (value: string) => void
+  requestedTestFunding: () => void
+  requestedTransactionHistoryReload: () => void
+  requestedNextTransactionHistoryPage: () => void
   requestedTransferPreview: () => void
   importedAddressBookEntries: (entries: ReadonlyArray<AddressBookEntry>) => void
   addedAddressBookEntry: (entry: AddressBookEntry) => void
@@ -58,7 +66,7 @@ export type WalletActions = Readonly<{
 /** One portable state or replay route accepted by the Wallet client. */
 export type WalletInitialRoute = Program.ResolvedProgramRoute<Model, Message>
 
-/** The canonical initial public Wallet state used before simulated loading. */
+/** The canonical initial public Wallet state used before host loading. */
 export const initialWalletRoute: WalletInitialRoute =
   Program.state(initialModel)
 
@@ -87,8 +95,15 @@ export const makeWalletReactClient = <ResourceError,>(
         enqueueMessage(SelectedSendNetwork.make({ selection })),
       requestedWalletRefresh: () =>
         enqueueMessage(RequestedWalletRefresh.make({})),
+      changedTransferAmount: value =>
+        enqueueMessage(ChangedTransferAmount.make({ value })),
       changedTransferRecipient: value =>
         enqueueMessage(ChangedTransferRecipient.make({ value })),
+      requestedTestFunding: () => enqueueMessage(RequestedTestFunding.make({})),
+      requestedTransactionHistoryReload: () =>
+        enqueueMessage(RequestedTransactionHistoryReload.make({})),
+      requestedNextTransactionHistoryPage: () =>
+        enqueueMessage(RequestedNextTransactionHistoryPage.make({})),
       requestedTransferPreview: () =>
         enqueueMessage(RequestedTransferPreview.make({})),
       importedAddressBookEntries: entries =>

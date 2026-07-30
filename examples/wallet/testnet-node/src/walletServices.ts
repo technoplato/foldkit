@@ -1,19 +1,12 @@
-import {
-  Array as Array_,
-  Context,
-  Effect,
-  Layer,
-  Option,
-  Schema as S,
-  Stream,
-} from 'effect'
+import { Array as Array_, Context, Effect, Layer, Option, Stream } from 'effect'
 import {
   BalanceSnapshot,
   PortfolioSnapshot,
-  TransactionHistoryPage,
+  type TestFundingRequest,
   type TransactionHistoryQuery,
   type TransactionPayload,
   type TransactionPreview,
+  type TransactionRecord,
   type TransferRequest,
   type ValidatedTransfer,
   WalletClient,
@@ -33,14 +26,8 @@ import {
   SolanaDevnetTransport,
 } from './chainTransport.js'
 
-const HistoryCursorEntry = S.Struct({
-  networkId: S.String,
-  cursor: S.String,
-})
-const CompositeHistoryCursor = S.Array(HistoryCursorEntry)
-const CompositeHistoryCursorJson = S.fromJsonString(CompositeHistoryCursor)
-
-const unsupportedClient = () => new WalletClientError({ code: 'Rejected' })
+const unsupportedClient = () =>
+  new WalletClientError({ code: 'UnsupportedCapability' })
 
 const transportForRequest = (
   request: TransferRequest,
@@ -63,6 +50,24 @@ const transportForPreview = (
   preview: TransactionPreview,
   transports: ReadonlyArray<ChainTransportService>,
 ) => transportForRequest(preview.transfer.request, transports)
+
+const transportForAccountNetwork = (
+  accountId: string,
+  networkId: string,
+  transports: ReadonlyArray<ChainTransportService>,
+): Effect.Effect<ChainTransportService, WalletClientError> => {
+  const maybeTransport = Array_.findFirst(
+    transports,
+    transport =>
+      transport.account.accountId === accountId &&
+      transport.network.networkId === networkId,
+  )
+  if (Option.isSome(maybeTransport)) {
+    return Effect.succeed(maybeTransport.value)
+  } else {
+    return Effect.fail(unsupportedClient())
+  }
+}
 
 const transportForPayload = (
   payload: TransactionPayload,
@@ -101,22 +106,36 @@ const custodyForPayload = (
 const observationStream = (
   accountIds: ReadonlyArray<string>,
   transports: ReadonlyArray<ChainTransportService>,
-) =>
-  Stream.mergeAll(
-    Array_.map(transports, transport =>
-      Array_.contains(accountIds, transport.account.accountId)
-        ? transport.observeTransactions
-        : Stream.empty,
-    ),
-    { concurrency: 'unbounded' },
+): Stream.Stream<TransactionRecord, WalletClientError> => {
+  const selectedTransports = Array_.filter(transports, transport =>
+    Array_.contains(accountIds, transport.account.accountId),
   )
-
-const decodeHistoryCursors = (query: TransactionHistoryQuery) => {
-  if (Option.isNone(query.maybeCursor)) {
-    return []
+  const hasUnknownAccount = Array_.some(
+    accountIds,
+    accountId =>
+      !Array_.some(
+        transports,
+        transport => transport.account.accountId === accountId,
+      ),
+  )
+  if (hasUnknownAccount) {
+    return Stream.fail(unsupportedClient())
   }
-  return S.decodeUnknownSync(CompositeHistoryCursorJson)(
-    query.maybeCursor.value,
+  if (
+    Array_.some(
+      selectedTransports,
+      transport =>
+        !Array_.contains(
+          transport.network.capabilities,
+          'TransactionObservation',
+        ),
+    )
+  ) {
+    return Stream.fail(unsupportedClient())
+  }
+  return Stream.mergeAll(
+    Array_.map(selectedTransports, transport => transport.observeTransactions),
+    { concurrency: 'unbounded' },
   )
 }
 
@@ -126,33 +145,65 @@ const makeWalletNetworkServices = Effect.gen(function* () {
   const transports = [ethereum, solana]
 
   const client = WalletClient.of({
-    loadPortfolio: Effect.all(
-      Array_.map(transports, transport => transport.loadPortfolio),
-      { concurrency: 'unbounded' },
-    ).pipe(
-      Effect.map(portfolios =>
-        PortfolioSnapshot.make({
-          dataSource: 'Testnet',
-          chains: Array_.map(portfolios, portfolio => portfolio.chain),
-          networks: Array_.map(portfolios, portfolio => portfolio.network),
-          assets: Array_.flatMap(portfolios, portfolio => portfolio.assets),
-          accounts: Array_.map(portfolios, portfolio => portfolio.account),
-          balanceSnapshot: BalanceSnapshot.make({
-            observedAt: Array_.reduce(portfolios, 0, (latest, portfolio) =>
-              Math.max(latest, portfolio.observedAt),
-            ),
-            balances: Array_.flatMap(
+    loadPortfolio: wallets => {
+      const profileAccounts = Array_.flatMap(wallets, wallet => wallet.accounts)
+      const hasUnsupportedProfile = Array_.some(
+        profileAccounts,
+        profileAccount =>
+          !Array_.some(
+            transports,
+            transport =>
+              transport.account.accountId === profileAccount.accountId &&
+              transport.account.chainId === profileAccount.chainId &&
+              transport.account.networkId === profileAccount.networkId &&
+              transport.account.address === profileAccount.address,
+          ),
+      )
+      if (hasUnsupportedProfile) {
+        return Effect.fail(unsupportedClient())
+      }
+      return Effect.all(
+        Array_.map(transports, transport => transport.loadPortfolio),
+        { concurrency: 'unbounded' },
+      ).pipe(
+        Effect.map(portfolios =>
+          PortfolioSnapshot.make({
+            dataSource: 'Testnet',
+            chains: Array_.map(portfolios, portfolio => portfolio.chain),
+            networks: Array_.map(portfolios, portfolio => portfolio.network),
+            assets: Array_.flatMap(portfolios, portfolio => portfolio.assets),
+            accounts: Array_.map(portfolios, portfolio => portfolio.account),
+            balanceSnapshot: BalanceSnapshot.make({
+              observedAt: Array_.reduce(portfolios, 0, (latest, portfolio) =>
+                Math.max(latest, portfolio.observedAt),
+              ),
+              balances: Array_.flatMap(
+                portfolios,
+                portfolio => portfolio.balances,
+              ),
+            }),
+            receivingInstructions: Array_.flatMap(
               portfolios,
-              portfolio => portfolio.balances,
+              portfolio => portfolio.receivingInstructions,
             ),
           }),
-          receivingInstructions: Array_.flatMap(
-            portfolios,
-            portfolio => portfolio.receivingInstructions,
-          ),
+        ),
+      )
+    },
+    requestTestFunding: (request: TestFundingRequest) =>
+      transportForAccountNetwork(
+        request.accountId,
+        request.networkId,
+        transports,
+      ).pipe(
+        Effect.flatMap(transport => {
+          if (Array_.contains(transport.network.capabilities, 'TestFunding')) {
+            return transport.requestTestFunding(request)
+          } else {
+            return Effect.fail(unsupportedClient())
+          }
         }),
       ),
-    ),
     validateTransfer: request =>
       transportForRequest(request, transports).pipe(
         Effect.flatMap(transport => transport.validateTransfer(request)),
@@ -169,62 +220,23 @@ const makeWalletNetworkServices = Effect.gen(function* () {
       transportForPayload(signed, transports).pipe(
         Effect.flatMap(transport => transport.submitTransaction(signed)),
       ),
-    loadTransactionHistory: query =>
-      Effect.try({
-        try: () => decodeHistoryCursors(query),
-        catch: () => new WalletClientError({ code: 'InvalidResponse' }),
-      }).pipe(
-        Effect.flatMap(cursors => {
-          const selectedTransports = Array_.filter(
-            transports,
-            transport =>
-              Array_.contains(query.accountIds, transport.account.accountId) &&
-              Array_.contains(
-                transport.network.capabilities,
-                'TransactionHistory',
-              ),
-          )
-          return Effect.all(
-            Array_.map(selectedTransports, transport => {
-              const maybeCursor = Array_.findFirst(
-                cursors,
-                cursor => cursor.networkId === transport.network.networkId,
-              ).pipe(Option.map(cursor => cursor.cursor))
-              return transport.loadTransactionHistory({
-                ...query,
-                accountIds: [transport.account.accountId],
-                maybeCursor,
-              })
-            }),
-            { concurrency: 'unbounded' },
-          ).pipe(
-            Effect.map(pages => {
-              const nextCursors = Array_.getSomes(
-                Array_.map(pages, (page, index) =>
-                  Option.flatMap(
-                    Array_.get(selectedTransports, index),
-                    transport =>
-                      Option.map(page.maybeNextCursor, cursor =>
-                        HistoryCursorEntry.make({
-                          networkId: transport.network.networkId,
-                          cursor,
-                        }),
-                      ),
-                  ),
-                ),
-              )
-              return TransactionHistoryPage.make({
-                records: Array_.flatMap(pages, page => page.records),
-                maybeNextCursor: Array_.match(nextCursors, {
-                  onEmpty: () => Option.none(),
-                  onNonEmpty: cursors =>
-                    Option.some(
-                      S.encodeSync(CompositeHistoryCursorJson)(cursors),
-                    ),
-                }),
-              })
-            }),
-          )
+    loadTransactionHistory: (query: TransactionHistoryQuery) =>
+      transportForAccountNetwork(
+        query.accountId,
+        query.networkId,
+        transports,
+      ).pipe(
+        Effect.flatMap(transport => {
+          if (
+            Array_.contains(
+              transport.network.capabilities,
+              'TransactionHistory',
+            )
+          ) {
+            return transport.loadTransactionHistory(query)
+          } else {
+            return Effect.fail(unsupportedClient())
+          }
         }),
       ),
     observeTransactions: accountIds =>

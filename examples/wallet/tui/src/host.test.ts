@@ -40,13 +40,17 @@ describe('Wallet OpenTUI host', () => {
       'ToggleWalletNetwork',
       'SelectNextSendNetwork',
       'ShowReceivingInstruction',
+      'ReloadWalletHistory',
       'PreviewWalletTransaction',
       'SignWalletChallenge',
       'ShowWalletStatePath',
       'ShowWalletReplayPath',
     ])
     expect(walletOpenTuiSummary(model)).toContain('8 accounts')
-    expect(walletOpenTuiSummary(model)).toContain('Transactions 8')
+    expect(walletOpenTuiSummary(model)).toContain(
+      'Send simulated-ethereum-account · ETH · Ethereum Sepolia',
+    )
+    expect(walletOpenTuiSummary(model)).toContain('Transactions 1')
     expect(walletOpenTuiSummary(model)).toContain('0 wallets Testnet')
   })
 })
