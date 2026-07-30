@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit Dependencies'
+  short_description: 'Inject Effect services through host Layers'
+  default_prompt: 'Use $foldkit-dependencies to make this Foldkit effect deterministic and host-provided.'

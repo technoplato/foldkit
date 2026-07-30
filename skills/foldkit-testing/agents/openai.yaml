@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit Testing'
+  short_description: 'Test updates, Scenes, Stories, and replay'
+  default_prompt: 'Use $foldkit-testing to add deterministic tests for this Foldkit behavior.'

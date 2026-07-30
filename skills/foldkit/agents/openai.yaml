@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit'
+  short_description: 'Build idiomatic Effect-powered Foldkit apps'
+  default_prompt: 'Use $foldkit to implement this feature with the repository canonical patterns.'

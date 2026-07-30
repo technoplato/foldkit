@@ -1,10 +1,19 @@
 {
   "name": "foldkit-skills",
-  "version": "0.10.29",
-  "description": "Skills for building Foldkit apps — app generator, message scaffolding, submodel extraction, and architecture auditing",
+  "version": "0.10.30",
+  "description": "Skills for building Foldkit apps with architecture, Schema, Effect, state, navigation, testing, view, and multi-client guidance",
   "skills": [
     "./skills/foldkit/",
+    "./skills/foldkit-composable-architecture/",
+    "./skills/foldkit-schema-modeling/",
+    "./skills/foldkit-dependencies/",
+    "./skills/foldkit-sharing/",
+    "./skills/foldkit-navigation/",
+    "./skills/foldkit-testing/",
+    "./skills/foldkit-view/",
+    "./skills/foldkit-client-hosts/",
     "./skills/generate-program/",
-    "./skills/audit-program/"
+    "./skills/audit-program/",
+    "./skills/generate-client-matrix/"
   ]
 }

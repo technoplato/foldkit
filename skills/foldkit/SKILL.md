@@ -18,6 +18,35 @@ Foldkit is not incremental. There is no React interop, no escape hatch, no "just
 - **Let `evo` setters receive the field.** If an `evo` setter only transforms the current value of that same field, pass the transformer directly (`entries: Array.map(f)`, `count: Number.increment`, `priceSlider: Slider.reflectRange({ min: minPrice, max: maxPrice })`). Use `() => value` for replacement values from Messages, child updates, Commands, or other Model fields.
 - **The repo is more authoritative than memory.** When in doubt about a convention, an API, a name, or a pattern, read from the vendored foldkit subtree rather than guessing. Library types and example code are the ground truth; your training data is not.
 
+## Route to companion skills
+
+Use this skill as the umbrella, then load only the companion skills needed for
+the task:
+
+- `$foldkit-composable-architecture` for Program, update, Command, Submodel,
+  OutMessage, Subscription, and lifecycle composition.
+- `$foldkit-schema-modeling` for Model, Message, domain unions, codecs,
+  migrations, and invalid-state elimination.
+- `$foldkit-dependencies` for Effect Context services, Layers, deterministic
+  adapters, and resource lifetimes.
+- `$foldkit-sharing` for persistence, observation, restoration, synchronization,
+  and shared state across clients.
+- `$foldkit-navigation` for typed destinations, bidirectional routes, deep
+  links, Program state and replay URIs, and canonicalization laws.
+- `$foldkit-testing` for pure update tests, Story, Scene, Command substitution,
+  Layer tests, routes, and runtime replay.
+- `$foldkit-view` for pure accessible rendering, identity, UI Submodels,
+  Mounts, and CustomElements.
+- `$foldkit-client-hosts` for renderer-free Programs, adapters, Ports, replay,
+  and browser, native, terminal, CLI, or server clients.
+- `$generate-program`, `$audit-program`, and `$generate-client-matrix` for the
+  existing task-oriented generation, audit, and evidence-matrix workflows.
+
+These companions mirror the useful organization of Point-Free skills, not the
+`@tca/*` runtime. Do not apply `ts-pfw-*` API names, stores, reducers,
+dependencies, sharing wrappers, or React bindings to Foldkit. Swift and TCA
+ideas may suggest a question, but Foldkit source and examples decide the answer.
+
 ## Where to look
 
 The foldkit repo is vendored as a git subtree at `repos/foldkit/` from the project root. It is the source of truth for everything: conventions, framework source, examples, the quality bar. Browse it directly.
