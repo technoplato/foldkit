@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 12:46:31 p.m. EDT — `c07f7e7e2504` feat(foldkit): version portable effect protocols
+
+- **Implementation commit:** `c07f7e7e2504bb875ab51095ab725cc56a2e43f7`
+- **Change:** Versioned portable effect protocols and Processor effect support for schema-safe cross-device execution.
+- **Details:**
+  - Retained the version-one effect manifest while adding version-two permitted result event ranges so executors cannot return undeclared facts.
+  - Separated Processor effect implementation ranges from capability placement versions and admitted historical Program and Message version zero envelopes for migration compatibility.
+  - Verified 12 focused Processor and effect-manifest tests plus the Foldkit package typecheck.
+- **Files:**
+  - `.changeset/evolve-processor-effect-protocols.md` — Declare the non-breaking Foldkit protocol feature for release.
+  - `packages/foldkit/src/command/effectManifest.ts` — Version effect manifests and constrain the factual events a manifested Command may return.
+  - `packages/foldkit/src/command/effectManifest.test.ts` — Prove v1 compatibility, v2 result constraints, and invalid-range rejection.
+  - `packages/foldkit/src/command/public.ts` — Expose the versioned effect contract through the public Command API.
+  - `packages/foldkit/src/processor/processor.ts` — Advertise effect support ranges separately and decode historical version-zero Messages.
+  - `packages/foldkit/src/processor/processor.test.ts` — Cover effect support matching, historical envelopes, and invalid ranges.
+  - `packages/foldkit/src/processor/public.ts` — Expose effect support through the public Processor API.
+- **User context (verbatim):**
+  > So let's expand that effect manifest, please.
+  > we also need to start thinking about schema message schema type migrations
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 12:42:22 p.m. EDT — `a334bbab37f8` fix(instant-tools): preserve evolving evidence labels
 
 - **Implementation commit:** `a334bbab37f82ed6a6af9b6e7080a77629723466`
