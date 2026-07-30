@@ -86,6 +86,22 @@ is adapted into an Effect Stream, but the adapter must deduplicate occurrences
 because query subscriptions return current results rather than a durable broker
 delta.
 
+Materialized entity projections are useful for fast startup, query performance,
+and the last known offline view. They remain disposable derivatives, not a
+second synchronization protocol:
+
+- every projection records its projection version, Program version, accepted
+  Message sequence, and content digest;
+- a Client loads a compatible projection and folds only the accepted Message
+  tail after that sequence;
+- offline local proposals may render on top with explicit pending status, but
+  they do not rewrite the accepted projection;
+- a designated projector lease and fencing token prevent competing writers
+  from moving one projection partition backward;
+- projection schema changes rebuild from the Message journal rather than
+  requiring peers to exchange snapshots;
+- no domain action writes a projection entity directly.
+
 Use rooms and presence for temporary coordination:
 
 - connected Processor identity;
@@ -323,15 +339,17 @@ terminal result replaces them.
 3. Define Processor presence, capability versioning, and compatibility
    negotiation.
 4. Define accepted Message ordering and offline proposal behavior.
-5. Define effect-manifest encoding and how the runtime keeps unselected
+5. Define projection partitions, versions, accepted positions, projector
+   leases, and rebuild rules.
+6. Define effect-manifest encoding and how the runtime keeps unselected
    Commands inert.
-6. Define effect-request idempotency, claiming, retry, cancellation, and
+7. Define effect-request idempotency, claiming, retry, cancellation, and
    terminal result rules.
-7. Define lifecycle placement, leases, fencing, takeover, and release.
-8. Define authenticated, guest, and QR pairing with expiry and revocation.
-9. Extend the Client Matrix with operating mode, Processor identity,
-   capability, and evidence axes.
-10. Prove one narrow flow as an observable core before adding InstantDB
+8. Define lifecycle placement, leases, fencing, takeover, and release.
+9. Define authenticated, guest, and QR pairing with expiry and revocation.
+10. Extend the Client Matrix with operating mode, Processor identity,
+    capability, and evidence axes.
+11. Prove one narrow flow as an observable core before adding InstantDB
     adapters.
 
 The first unresolved decision is whether the four-part placement description is

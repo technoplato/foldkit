@@ -940,7 +940,9 @@
             <h3>Entities + live queries</h3>
             <p>
               Durable Message occurrences, membership, effect requests, results,
-              revocation, and materialized projection checkpoints.
+              revocation, and materialized projection checkpoints. Each
+              checkpoint records its projection version and accepted Message
+              position so it can be rebuilt.
             </p>
           </article>
           <article class="card">
