@@ -95,6 +95,16 @@ describe('issue domain', () => {
     )
   })
 
+  it('preserves new non-empty evidence labels without a decoder redeploy', () => {
+    expect(S.decodeUnknownSync(IssueSuccessEvidence)('Snapshot')).toBe(
+      'Snapshot',
+    )
+    expect(S.decodeUnknownSync(IssueSuccessEvidence)('FutureEvidence')).toBe(
+      'FutureEvidence',
+    )
+    expect(() => S.decodeUnknownSync(IssueSuccessEvidence)('')).toThrow()
+  })
+
   it('defaults missing legacy attachment metadata to none', () => {
     const attachment = S.decodeUnknownSync(IssueAttachment)({
       contentType: 'image/png',
