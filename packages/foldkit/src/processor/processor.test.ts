@@ -9,12 +9,16 @@ import {
   CapabilityId,
   CapabilityRequirement,
   Descriptor,
+  EffectSupportRange,
   Failed,
   Ignored,
+  MessageEnvelope,
   OriginClient,
   Placement,
+  SystemActor,
   Waiting,
   selectProcessor,
+  supportsEffectVersion,
 } from './processor.js'
 
 const CameraCapture = CapabilityId.make(['Camera', 'Capture'])
@@ -118,6 +122,69 @@ describe('selectProcessor', () => {
         },
         affinity: { _tag: 'Any' },
         unavailable: 'Wait',
+      }),
+    ).toThrow()
+  })
+})
+
+describe('Processor protocol contracts', () => {
+  it('advertises effect versions separately from capability versions', () => {
+    const processor = Descriptor.make({
+      ...phone,
+      effectSupport: [
+        EffectSupportRange.make({
+          id: 'Audio.Speech.Transcribe',
+          minimumVersion: 1,
+          maximumVersion: 2,
+        }),
+      ],
+    })
+
+    expect(
+      supportsEffectVersion(processor, 'Audio.Speech.Transcribe', 1),
+    ).toBe(true)
+    expect(
+      supportsEffectVersion(processor, 'Audio.Speech.Transcribe', 3),
+    ).toBe(false)
+    expect(supportsEffectVersion(phone, 'Audio.Speech.Transcribe', 1)).toBe(
+      false,
+    )
+  })
+
+  it('accepts historical version-zero Programs and events in Message envelopes', () => {
+    const envelope = MessageEnvelope.make({
+      formatVersion: 1,
+      occurrenceId: 'occurrence-0',
+      programId: 'historical-program',
+      programVersion: 0,
+      eventId: 'HistoricalEvent',
+      eventVersion: 0,
+      actor: SystemActor.make({ processorId: 'processor-authority' }),
+      originClientId: 'client-browser',
+      originDeviceId: 'device-browser',
+      ingressProcessorId: 'processor-browser',
+      sessionId: 'session-1',
+      originSequence: 1,
+      acceptedSequence: Option.some(1),
+      causationOccurrenceId: Option.none(),
+      correlationId: Option.none(),
+      createdAtMs: 1,
+      acceptedAtMs: Option.some(1),
+    })
+
+    expect(
+      Schema.decodeUnknownSync(MessageEnvelope)(
+        Schema.encodeSync(MessageEnvelope)(envelope),
+      ),
+    ).toStrictEqual(envelope)
+  })
+
+  it('rejects inverted effect support ranges', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(EffectSupportRange)({
+        id: 'Audio.Speech.Transcribe',
+        minimumVersion: 2,
+        maximumVersion: 1,
       }),
     ).toThrow()
   })

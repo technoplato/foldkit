@@ -1,6 +1,7 @@
 import { Array, Option, Order, Schema } from 'effect'
 
 const PositiveVersion = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))
+const NonNegativeVersion = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
 /** A stable, nested capability identifier such as Banking / SWIFT / Write. */
 export const CapabilityId = Schema.NonEmptyArray(Schema.String)
@@ -35,12 +36,32 @@ export const ProtocolRange = Schema.Struct({
 /** The shared-Program protocol range understood by one Processor. */
 export type ProtocolRange = typeof ProtocolRange.Type
 
+/** The inclusive versions of one portable effect implemented by a Processor. */
+export const EffectSupportRange = Schema.Struct({
+  id: Schema.String,
+  minimumVersion: PositiveVersion,
+  maximumVersion: PositiveVersion,
+}).check(
+  Schema.makeFilter(range =>
+    range.minimumVersion <= range.maximumVersion
+      ? undefined
+      : {
+          path: ['maximumVersion'],
+          issue: 'maximumVersion must be greater than or equal to minimumVersion',
+        },
+  ),
+)
+
+/** The inclusive versions of one portable effect implemented by a Processor. */
+export type EffectSupportRange = typeof EffectSupportRange.Type
+
 /** Transport-neutral identity and advertised capabilities for one Processor. */
 export const Descriptor = Schema.Struct({
   processorId: Schema.String,
   clientId: Schema.String,
   protocol: ProtocolRange,
   capabilities: Schema.Array(Capability),
+  effectSupport: Schema.optionalKey(Schema.Array(EffectSupportRange)),
 })
 
 /** Transport-neutral identity and advertised capabilities for one Processor. */
@@ -151,9 +172,9 @@ export const MessageEnvelope = Schema.Struct({
   formatVersion: Schema.Literal(1),
   occurrenceId: Schema.String,
   programId: Schema.String,
-  programVersion: PositiveVersion,
+  programVersion: NonNegativeVersion,
   eventId: Schema.String,
-  eventVersion: PositiveVersion,
+  eventVersion: NonNegativeVersion,
   actor: Actor,
   originClientId: Schema.String,
   originDeviceId: Schema.String,
@@ -239,6 +260,20 @@ export type PlacementContext = Readonly<{
   maybeIngressProcessorId: Option.Option<string>
   previousAssignments: ReadonlyMap<string, string>
 }>
+
+/** Returns whether a Processor advertises support for one portable effect version. */
+export const supportsEffectVersion = (
+  processor: Descriptor,
+  effectId: string,
+  version: number,
+): boolean =>
+  Array.some(
+    processor.effectSupport ?? [],
+    range =>
+      range.id === effectId &&
+      version >= range.minimumVersion &&
+      version <= range.maximumVersion,
+  )
 
 const areCapabilityIdsEqual = Schema.toEquivalence(CapabilityId)
 const processorIdOrder = Order.mapInput(
