@@ -1,0 +1,122 @@
+import { Schema as S } from 'effect'
+
+import { Issue, ProductCatalogEntry } from '@foldkit/instant-tools/issues'
+
+/** The live collection has not emitted its first snapshot. */
+export const LoadingIssues = S.TaggedStruct('LoadingIssues', {})
+/** The live collection emitted its latest snapshot. */
+export const LoadedIssues = S.TaggedStruct('LoadedIssues', {
+  issues: S.Array(Issue),
+})
+/** Live collection observation failed. */
+export const FailedIssues = S.TaggedStruct('FailedIssues', {
+  reason: S.String,
+})
+/** Every live Issue collection state. */
+export const IssuesState = S.Union([LoadingIssues, LoadedIssues, FailedIssues])
+/** Every live Issue collection state. */
+export type IssuesState = typeof IssuesState.Type
+
+/** The product catalog has not emitted its first snapshot. */
+export const LoadingProducts = S.TaggedStruct('LoadingProducts', {})
+/** The product catalog emitted its latest snapshot. */
+export const LoadedProducts = S.TaggedStruct('LoadedProducts', {
+  products: S.Array(ProductCatalogEntry),
+})
+/** Product catalog observation failed. */
+export const FailedProducts = S.TaggedStruct('FailedProducts', {
+  reason: S.String,
+})
+/** Every first-class product catalog state. */
+export const ProductsState = S.Union([
+  LoadingProducts,
+  LoadedProducts,
+  FailedProducts,
+])
+/** Every first-class product catalog state. */
+export type ProductsState = typeof ProductsState.Type
+
+/** No individual Issue destination is being observed. */
+export const NotObservingIssue = S.TaggedStruct('NotObservingIssue', {})
+/** One individual Issue is being observed, but has not emitted yet. */
+export const LoadingIssue = S.TaggedStruct('LoadingIssue', {
+  issueId: S.String,
+})
+/** One individual Issue observation emitted. */
+export const LoadedIssue = S.TaggedStruct('LoadedIssue', {
+  issue: S.Option(Issue),
+  issueId: S.String,
+})
+/** One individual Issue observation failed. */
+export const FailedIssue = S.TaggedStruct('FailedIssue', {
+  issueId: S.String,
+  reason: S.String,
+})
+/** Every selected-Issue observation state. */
+export const IssueDetailState = S.Union([
+  NotObservingIssue,
+  LoadingIssue,
+  LoadedIssue,
+  FailedIssue,
+])
+/** Every selected-Issue observation state. */
+export type IssueDetailState = typeof IssueDetailState.Type
+
+/** The live Issue collection is visible. */
+export const IssueList = S.TaggedStruct('IssueList', {})
+/** One Issue detail is visible. */
+export const IssueDetail = S.TaggedStruct('IssueDetail', {
+  issueId: S.String,
+})
+/** The new-Issue filing form is visible. */
+export const FileIssue = S.TaggedStruct('FileIssue', {})
+/** Transcript-derived draft triage candidates are visible. */
+export const TriageInbox = S.TaggedStruct('TriageInbox', {})
+/** Every representable navigation destination. */
+export const Navigation = S.Union([
+  IssueList,
+  IssueDetail,
+  FileIssue,
+  TriageInbox,
+])
+/** Every representable navigation destination. */
+export type Navigation = typeof Navigation.Type
+
+/** The editable fields required to file one Issue. */
+export const IssueDraft = S.Struct({
+  details: S.String,
+  priority: Issue.fields.priority,
+  productId: S.String,
+  title: S.String,
+})
+/** The editable fields required to file one Issue. */
+export type IssueDraft = typeof IssueDraft.Type
+
+/** The filing form is ready for editing or submission. */
+export const EditingIssueDraft = S.TaggedStruct('EditingIssueDraft', {})
+/** The filing form is saving an Issue. */
+export const SavingIssueDraft = S.TaggedStruct('SavingIssueDraft', {})
+/** The filing form failed to save. */
+export const FailedIssueDraft = S.TaggedStruct('FailedIssueDraft', {
+  reason: S.String,
+})
+/** Every filing state. */
+export const IssueDraftState = S.Union([
+  EditingIssueDraft,
+  SavingIssueDraft,
+  FailedIssueDraft,
+])
+/** Every filing state. */
+export type IssueDraftState = typeof IssueDraftState.Type
+
+/** The shared renderer-independent Issue Tracker Model. */
+export const Model = S.Struct({
+  draft: IssueDraft,
+  draftState: IssueDraftState,
+  issueDetail: IssueDetailState,
+  issues: IssuesState,
+  navigation: Navigation,
+  products: ProductsState,
+})
+/** The shared renderer-independent Issue Tracker Model. */
+export type Model = typeof Model.Type
