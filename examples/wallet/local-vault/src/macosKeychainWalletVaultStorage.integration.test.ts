@@ -39,6 +39,7 @@ import {
   liveWalletNetworkDescriptors,
 } from ${JSON.stringify(liveClientModuleUrl)}
 import {
+  localWalletVaultOwnerKey,
   makePersistentLocalWalletVault,
 } from ${JSON.stringify(localVaultModuleUrl)}
 import {
@@ -59,7 +60,11 @@ const randomBytes = byteCount => {
   globalThis.crypto.getRandomValues(bytes)
   return bytes
 }
-const storage = makeMacOSKeychainWalletVaultStorage(entryFactory, service)
+const storage = makeMacOSKeychainWalletVaultStorage(
+  entryFactory,
+  localWalletVaultOwnerKey,
+  service,
+)
 const vaultLayer = makePersistentLocalWalletVault(randomBytes, storage)
 const result = await Effect.runPromise(
   Effect.gen(function* () {
