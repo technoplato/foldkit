@@ -237,8 +237,8 @@ export const IssueWorkLogEntry = S.Struct({
 /** One dated unit of work associated with an Issue. */
 export type IssueWorkLogEntry = typeof IssueWorkLogEntry.Type
 
-/** A kind of proof required to demonstrate that an Issue outcome succeeded. */
-export const IssueSuccessEvidence = S.Literals([
+/** Evidence labels with first-class semantics in the current clients. */
+export const KnownIssueSuccessEvidence = S.Literals([
   'Accessibility',
   'BuildProvenance',
   'CodeReview',
@@ -248,8 +248,19 @@ export const IssueSuccessEvidence = S.Literals([
   'PhysicalDeviceInteraction',
   'Research',
   'SimulatorInteraction',
+  'Snapshot',
   'VisualComparison',
 ])
+/** Evidence labels with first-class semantics in the current clients. */
+export type KnownIssueSuccessEvidence = typeof KnownIssueSuccessEvidence.Type
+
+/**
+ * A non-empty proof label required to demonstrate that an Issue outcome succeeded.
+ *
+ * Readers preserve unfamiliar labels so adding evidence in one client cannot make
+ * every Issue unreadable in another client.
+ */
+export const IssueSuccessEvidence = S.NonEmptyString
 /** A kind of proof required to demonstrate that an Issue outcome succeeded. */
 export type IssueSuccessEvidence = typeof IssueSuccessEvidence.Type
 
