@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 3:48:04 p.m. EDT — `87bdfdc76138` fix(vault-transfer): harden authenticated Wallet handoff
+
+- **Implementation commit:** `87bdfdc761386b8bb5c778614ffc984fc348440f`
+- **Change:** Hardened the authenticated Wallet vault-transfer protocol without exposing transfer secrets through the package root.
+- **Details:**
+  - Moved authenticated principal identity into Effect Context, kept principal bindings unlinkable and server-side, and made the relay lifecycle Schema-backed, bounded, periodically cleaned, and retry-safe through winner acknowledgement.
+  - Required canonical QR ticket encoding, host-supplied timing-safe verifier comparison with dummy work for unavailable states, strict payload and lifetime limits, Schema validation at crypto adapter boundaries, and guaranteed plaintext wiping.
+  - Verification passed: production and full TypeScript checks, 17 focused tests, targeted oxlint, Prettier, and Git diff checks. Production timing-safe, Expo Crypto, authenticated persistent relay, durable storage, rate limiting, and host wiring remain explicit integration work.
+- **Files:**
+  - `examples/wallet/vault-transfer/src/crypto.ts` — Validate bounded cryptography adapter results and wipe plaintext on every exit.
+  - `examples/wallet/vault-transfer/src/index.ts` — Restrict the package root to non-secret public projections and outcomes.
+  - `examples/wallet/vault-transfer/src/protocol.ts` — Keep the canonical secret and public transfer Schemas internally separated.
+  - `examples/wallet/vault-transfer/src/public.ts` — Define the reviewed non-secret package root surface.
+  - `examples/wallet/vault-transfer/src/relay.ts` — Bind principals through Context and enforce a bounded retry-safe authenticated lifecycle.
+  - `examples/wallet/vault-transfer/src/ticket.ts` — Reject noncanonical or unbounded QR ticket carriers.
+  - `examples/wallet/vault-transfer/src/vaultTransfer.test.ts` — Exercise canonicality, timing behavior, lifecycle authorization, limits, cleanup, and public exports.
+- **User context (verbatim):**
+  > I'd like to share the credentials and private keys amongst all the different things, but in a secure way.
+- **SpecStory:** unavailable — Codex desktop GUI capture is not documented by SpecStory, so no durable URI is available.
+
 ## July 30th, 2026 at 3:23:57 p.m. EDT — `976eed1cd52a` feat: checkpoint Wallet vault transfer foundation
 
 - **Implementation commit:** `976eed1cd52ab0c5e1bce3a0f9bcc3470a2b692a`
