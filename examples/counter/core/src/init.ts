@@ -10,3 +10,8 @@ export const init = (): readonly [
   Model,
   ReadonlyArray<Command.Command<Message>>,
 ] => [{ count: initialCount }, []]
+
+/** Restores an existing Counter Model without inventing host coordination state. */
+export const restore = (
+  model: Model,
+): readonly [Model, ReadonlyArray<Command.Command<Message>>] => [model, []]

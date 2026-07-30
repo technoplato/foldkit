@@ -1821,6 +1821,9 @@ importers:
       '@instantdb/core':
         specifier: 1.0.53
         version: 1.0.53
+      counter-core-example:
+        specifier: workspace:*
+        version: link:../counter/core
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97

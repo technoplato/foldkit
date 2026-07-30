@@ -1,6 +1,6 @@
 import * as Program from 'foldkit/program'
 
-import { init } from './init.js'
+import { init, restore } from './init.js'
 import { Message } from './message.js'
 import { Model } from './model.js'
 import { update } from './update.js'
@@ -12,5 +12,6 @@ export const CounterProgram: Program.Program<Model, Message> = Program.make({
   Model,
   Message,
   init,
+  restore,
   update,
 })
