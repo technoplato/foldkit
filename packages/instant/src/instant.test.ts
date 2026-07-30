@@ -1,4 +1,13 @@
-import { Effect, Fiber, Latch, Schema as S, Stream } from 'effect'
+import {
+  Array,
+  Effect,
+  Fiber,
+  Latch,
+  Option,
+  Schema as S,
+  Stream,
+} from 'effect'
+import { Command, Processor } from 'foldkit'
 import { expect, expectTypeOf } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
@@ -13,40 +22,61 @@ import {
   AcceptedOccurrenceIdConflict,
   AcceptedSequenceConflict,
   InstantAcceptedMessageOccurrenceRecord,
+  InstantEffectPlacementRecord,
   InstantEffectRequestRecord,
   InstantMessageProposalRecord,
+  InstantProcessorActivity,
+  InstantProcessorPresence,
   InstantProgramEntities,
   InstantProgramSchema,
+  InstantProgramSessionRecord,
   InstantProjectionCheckpointRecord,
+  decodeProgramStoreTransactionOutcome,
   enqueuedTransactionOutcome,
   makeAcceptedOccurrenceCursor,
   makeAcceptedOccurrencePositionKey,
   makeInMemoryProgramStore,
   makeInstantAcceptedMessageOccurrenceTransaction,
+  makeInstantCapabilityIdIndex,
+  makeInstantEffectPlacementPositionKey,
+  makeInstantEffectPlacementTransaction,
   makeInstantEffectRequestTransaction,
   makeInstantMessageProposalTransaction,
+  makeInstantProgramSessionTransaction,
   makeInstantProgramStore,
   makeInstantProjectionCheckpointTransaction,
 } from './index.js'
 
 const sessionId = 'session-001'
+const subjectId = 'user-001'
 
 const messageProposal = InstantMessageProposalRecord.make({
   actorId: 'user-001',
   actorSequence: 1,
+  causationOccurrenceId: null,
   clientId: 'client-001',
+  correlationId: null,
   createdAtMs: 1_753_825_100_000,
+  effectAssignmentGeneration: null,
+  effectCancellationGeneration: null,
+  effectIdempotencyKey: null,
+  effectRequestId: null,
   envelopeJson: '{"protocol":"foldkit-message"}',
   envelopeVersion: 1,
   eventId: 'counter.adjusted',
   eventVersion: 2,
+  executorProcessorId: null,
   id: '11111111-1111-4111-8111-111111111111',
+  occurrenceId: '11111111-1111-4111-8111-111111111111',
+  originDeviceId: 'device-phone',
   originatingProcessorId: 'processor-phone',
   payloadJson: '{"_tag":"AdjustedCounter","amount":1}',
   programId: 'counter',
   programVersion: 3,
   proposalId: '11111111-1111-4111-8111-111111111111',
+  proposalKind: 'Message',
   sessionId,
+  subjectId,
 })
 
 const secondMessageProposal = InstantMessageProposalRecord.make({
@@ -54,6 +84,7 @@ const secondMessageProposal = InstantMessageProposalRecord.make({
   actorSequence: 2,
   createdAtMs: messageProposal.createdAtMs + 1,
   id: '11111111-1111-4111-8111-111111111112',
+  occurrenceId: '11111111-1111-4111-8111-111111111112',
   proposalId: '11111111-1111-4111-8111-111111111112',
 })
 
@@ -66,22 +97,33 @@ const makeAcceptedMessageOccurrence = (
     acceptedSequence,
     acceptingProcessorId: 'processor-authority',
     actorId: 'user-001',
+    actorSequence: acceptedSequence,
     causationId: `proposal-${acceptedSequence}`,
     clientId: 'client-001',
     correlationId: sessionId,
+    createdAtMs: 1_753_825_100_000 + acceptedSequence,
+    effectAssignmentGeneration: null,
+    effectCancellationGeneration: null,
+    effectIdempotencyKey: null,
+    effectRequestId: null,
     envelopeJson: '{"protocol":"foldkit-message"}',
     envelopeVersion: 1,
     eventId: 'counter.adjusted',
     eventVersion: 2,
+    executorProcessorId: null,
     id: occurrenceId,
     occurrenceId,
+    originDeviceId: 'device-phone',
     originatingProcessorId: 'processor-phone',
     payloadJson: `{"_tag":"AdjustedCounter","amount":${acceptedSequence}}`,
     positionKey: makeAcceptedOccurrencePositionKey(sessionId, acceptedSequence),
     programId: 'counter',
     programVersion: 3,
+    proposedEnvelopeJson: '{"protocol":"foldkit-message"}',
     proposalId: `proposal-${acceptedSequence}`,
+    proposalKind: 'Message',
     sessionId,
+    subjectId,
   })
 
 const firstOccurrence = makeAcceptedMessageOccurrence(
@@ -109,12 +151,16 @@ const projectionCheckpoint = InstantProjectionCheckpointRecord.make({
   projectionVersion: 1,
   projectorProcessorId: 'processor-authority',
   sessionId,
+  subjectId,
   throughAcceptedSequence: 3,
 })
 
+const effectCapability = Processor.CapabilityRequirement.make({
+  id: ['Counter', 'Persistence'],
+  minimumVersion: 1,
+})
+
 const effectRequest = InstantEffectRequestRecord.make({
-  argumentsJson: '{"amount":1}',
-  cancellationGeneration: 0,
   causalOccurrenceId: firstOccurrence.occurrenceId,
   effectId: 'persist-counter',
   effectVersion: 1,
@@ -122,13 +168,62 @@ const effectRequest = InstantEffectRequestRecord.make({
   idempotencyKey: `${sessionId}:persist-counter:1`,
   minimumCapabilityVersion: 1,
   originatingProcessorId: 'processor-authority',
-  placementJson: '{"_tag":"AnyCapableProcessor"}',
+  placement: Processor.Placement.make({
+    affinity: Processor.AnyProcessor.make({}),
+    capability: effectCapability,
+    cardinality: 'One',
+    unavailable: 'Wait',
+    version: 1,
+  }),
   programId: 'counter',
   programVersion: 3,
+  publicArguments: { amount: 1 },
+  permittedResultEvents: [
+    Command.ResultEventRange.make({
+      eventId: 'counter.persisted',
+      maximumVersion: 1,
+      minimumVersion: 1,
+    }),
+  ],
   requestId: 'effect-request-001',
   requestedAtMs: 1_753_825_400_000,
-  requiredCapability: 'counter.persistence',
+  requiredCapabilityIdJson: makeInstantCapabilityIdIndex(effectCapability.id),
   sessionId,
+  subjectId,
+})
+
+const effectPlacement = InstantEffectPlacementRecord.make({
+  assignedProcessorId: 'processor-phone',
+  assignmentGeneration: 1,
+  cancellationGeneration: 0,
+  decidedAtMs: 1_753_825_400_001,
+  id: '55555555-5555-4555-8555-555555555555',
+  placementDecision: Processor.AssignedPreferred.make({
+    processorId: 'processor-phone',
+  }),
+  placementStatus: 'AssignedPreferred',
+  positionKey: makeInstantEffectPlacementPositionKey(
+    effectRequest.requestId,
+    1,
+    0,
+  ),
+  programId: 'counter',
+  programVersion: 3,
+  requestId: effectRequest.requestId,
+  sessionId,
+  subjectId,
+})
+
+const programSession = InstantProgramSessionRecord.make({
+  authorityProcessorId: 'processor-authority',
+  createdAtMs: 1_753_825_000_000,
+  id: '66666666-6666-4666-8666-666666666666',
+  isRevoked: false,
+  processorRoomId: 'room-4ec724f1c3584d679b8a3b88f470e372',
+  programId: 'counter',
+  programVersion: 3,
+  sessionId,
+  subjectId,
 })
 
 const ApplicationSchema = i.schema({
@@ -152,6 +247,7 @@ describe('@foldkit/instant', () => {
     )
     const checkpointJson = S.fromJsonString(InstantProjectionCheckpointRecord)
     const effectRequestJson = S.fromJsonString(InstantEffectRequestRecord)
+    const effectPlacementJson = S.fromJsonString(InstantEffectPlacementRecord)
 
     expect(
       S.decodeUnknownSync(proposalJson)(
@@ -173,6 +269,11 @@ describe('@foldkit/instant', () => {
         S.encodeSync(effectRequestJson)(effectRequest),
       ),
     ).toEqual(effectRequest)
+    expect(
+      S.decodeUnknownSync(effectPlacementJson)(
+        S.encodeSync(effectPlacementJson)(effectPlacement),
+      ),
+    ).toEqual(effectPlacement)
   })
 
   it.effect(
@@ -185,7 +286,7 @@ describe('@foldkit/instant', () => {
           Stream.runCollect(
             Stream.take(
               Stream.tap(
-                store.observeMessageProposals(sessionId),
+                store.observeMessageProposals({ sessionId, subjectId }),
                 () => subscribed.open,
               ),
               3,
@@ -226,32 +327,52 @@ describe('@foldkit/instant', () => {
       }),
   )
 
+  it.effect(
+    'isolates durable snapshots by authenticated subject and session',
+    () =>
+      Effect.gen(function* () {
+        const store = yield* makeInMemoryProgramStore()
+        const otherSubjectProposal = InstantMessageProposalRecord.make({
+          ...secondMessageProposal,
+          id: '11111111-1111-4111-8111-111111111113',
+          occurrenceId: '11111111-1111-4111-8111-111111111113',
+          proposalId: '11111111-1111-4111-8111-111111111113',
+          subjectId: 'user-other',
+        })
+        yield* store.appendMessageProposal(messageProposal)
+        yield* store.appendMessageProposal(otherSubjectProposal)
+
+        const maybeSnapshot = yield* Stream.runHead(
+          store.observeMessageProposals({ sessionId, subjectId }),
+        )
+        expect(Option.getOrThrow(maybeSnapshot)).toEqual([messageProposal])
+      }),
+  )
+
   it.effect('buffers gaps and suppresses duplicate accepted occurrences', () =>
     Effect.gen(function* () {
       const cursor = yield* makeAcceptedOccurrenceCursor(sessionId)
 
-      expect(yield* cursor.ingest([firstOccurrence, thirdOccurrence])).toEqual([
-        firstOccurrence,
-      ])
-      expect(yield* cursor.ingest([thirdOccurrence])).toEqual([])
-      expect(yield* cursor.ingest([secondOccurrence])).toEqual([
-        secondOccurrence,
-        thirdOccurrence,
-      ])
-      expect(
-        yield* cursor.ingest([
-          firstOccurrence,
-          secondOccurrence,
-          thirdOccurrence,
-        ]),
-      ).toEqual([])
+      yield* cursor.stage([firstOccurrence, thirdOccurrence])
+      expect(yield* cursor.next).toEqual(Option.some(firstOccurrence))
+      yield* cursor.commit(firstOccurrence)
+      yield* cursor.stage([thirdOccurrence])
+      expect(yield* cursor.next).toEqual(Option.none())
+      yield* cursor.stage([secondOccurrence])
+      expect(yield* cursor.next).toEqual(Option.some(secondOccurrence))
+      yield* cursor.commit(secondOccurrence)
+      expect(yield* cursor.next).toEqual(Option.some(thirdOccurrence))
+      yield* cursor.commit(thirdOccurrence)
+      yield* cursor.stage([firstOccurrence, secondOccurrence, thirdOccurrence])
+      expect(yield* cursor.next).toEqual(Option.none())
     }),
   )
 
   it.effect('rejects occurrence identity and accepted sequence conflicts', () =>
     Effect.gen(function* () {
       const cursor = yield* makeAcceptedOccurrenceCursor(sessionId)
-      yield* cursor.ingest([firstOccurrence])
+      yield* cursor.stage([firstOccurrence])
+      yield* cursor.commit(firstOccurrence)
 
       const reusedOccurrenceId = InstantAcceptedMessageOccurrenceRecord.make({
         ...firstOccurrence,
@@ -263,10 +384,10 @@ describe('@foldkit/instant', () => {
       )
 
       const occurrenceIdConflict = yield* Effect.flip(
-        cursor.ingest([reusedOccurrenceId]),
+        cursor.stage([reusedOccurrenceId]),
       )
       const acceptedSequenceConflict = yield* Effect.flip(
-        cursor.ingest([reusedSequence]),
+        cursor.stage([reusedSequence]),
       )
 
       expect(occurrenceIdConflict).toBeInstanceOf(AcceptedOccurrenceIdConflict)
@@ -287,14 +408,101 @@ describe('@foldkit/instant', () => {
         projectionCheckpoint,
       ),
       makeInstantEffectRequestTransaction(transactions, effectRequest),
+      makeInstantEffectPlacementTransaction(transactions, effectPlacement),
+      makeInstantProgramSessionTransaction(transactions, programSession),
     ]
 
     expect(() =>
       validateTransactions(chunks, InstantProgramSchema),
     ).not.toThrow()
+    expect(
+      Array.map(chunks, chunk =>
+        Array.map(chunk.__ops, operation =>
+          Option.getOrThrow(Array.head(operation)),
+        ),
+      ),
+    ).toEqual([
+      ['create'],
+      ['create'],
+      ['create'],
+      ['create'],
+      ['create'],
+      ['update'],
+    ])
   })
 
   it('accepts a database whose application schema composes the entities', () => {
     expectTypeOf(adaptApplicationDatabase).toBeFunction()
+  })
+
+  it('decodes both documented and shipped transaction correlation fields', () => {
+    expect(
+      decodeProgramStoreTransactionOutcome({
+        clientId: 'documented-client-id',
+        status: 'synced',
+      }),
+    ).toEqual({
+      _tag: 'Synced',
+      clientId: 'documented-client-id',
+    })
+    expect(
+      decodeProgramStoreTransactionOutcome({
+        eventId: 'shipped-event-id',
+        status: 'enqueued',
+      }),
+    ).toEqual({
+      _tag: 'Enqueued',
+      clientId: 'shipped-event-id',
+    })
+    expect(() =>
+      decodeProgramStoreTransactionOutcome({ status: 'synced' }),
+    ).toThrow()
+  })
+
+  it('keeps Processor room data transient, capability-oriented, and subject-free', () => {
+    const presence = InstantProcessorPresence.make({
+      clientId: 'client-phone',
+      descriptor: Processor.Descriptor.make({
+        capabilities: [
+          Processor.Capability.make({
+            id: ['Device', 'Vibrate'],
+            version: 1,
+          }),
+        ],
+        clientId: 'client-phone',
+        effectSupport: [
+          Processor.EffectSupportRange.make({
+            id: 'device.vibrate',
+            maximumVersion: 1,
+            minimumVersion: 1,
+          }),
+        ],
+        processorId: 'processor-phone',
+        protocol: Processor.ProtocolRange.make({
+          maximumVersion: 1,
+          minimumVersion: 1,
+        }),
+      }),
+      isEffectExecutorAvailable: true,
+      lastSeenAtMs: 1_753_825_500_000,
+      latestAcceptedSequence: 12,
+      processorId: 'processor-phone',
+      protocolMaximumVersion: 1,
+      protocolMinimumVersion: 1,
+    })
+    const activity = InstantProcessorActivity.make({
+      activity: 'HandlingEffect',
+      effectRequestId: 'effect-request-001',
+      processorId: 'processor-phone',
+    })
+
+    expect(S.decodeUnknownSync(InstantProcessorPresence)(presence)).toEqual(
+      presence,
+    )
+    expect(S.decodeUnknownSync(InstantProcessorActivity)(activity)).toEqual(
+      activity,
+    )
+    expect('subjectId' in presence).toBe(false)
+    expect('sessionId' in presence).toBe(false)
   })
 })
