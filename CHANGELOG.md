@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 11:24:18 a.m. EDT — `b89625859e25` fix: use valid UUIDs for issue log links
+
+- **Implementation commit:** `b89625859e25181bb68c3f721a3aa0c1ec405bb2`
+- **Change:** Made Instant Issue-log link identities valid, deterministic RFC UUID-v5 values.
+- **Details:**
+  - Derived each link ID from the canonical instantToolsLogs/<logID>/issues/<issueID> name in the URL namespace so TypeScript and other clients can converge on one row.
+  - Added two cross-client vectors, retry and distinct-pair assertions, and real Instant transaction schema validation.
+  - Pinned the browser-exporting uuid package as a runtime dependency and verified all 21 package tests, typechecking, and the production build.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — Generate valid deterministic UUID-v5 entity IDs for Issue-log links.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Prove shared vectors, idempotency, pair distinction, and Instant transaction validation.
+  - `packages/instant-tools/package.json` — Declare uuid as an intentional runtime dependency.
+  - `pnpm-lock.yaml` — Lock uuid 14.0.1 for the instant-tools importer.
+- **User context (verbatim):**
+  > IDs must be valid UUIDs, deterministic/idempotent for same log+issue, distinct pairs, real transaction validation.
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 11:06:50 a.m. EDT — `7bd2ebc5368a` fix: render live issue evidence in React
 
 - **Implementation commit:** `7bd2ebc5368a2b15e84ffe88ae0e444af83b82f0`
