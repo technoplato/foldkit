@@ -13,28 +13,35 @@ import {
 
 import {
   ProgramStore,
+  type ProgramStoreConnectionStatus,
   ProgramStoreError,
+  type ProgramStoreScope,
   type ProgramStoreService,
   type ProgramStoreTransactionOutcome,
   syncedTransactionOutcome,
 } from '../programStore/index.js'
 import {
   InstantAcceptedMessageOccurrenceRecord,
+  InstantEffectPlacementRecord,
   InstantEffectRequestRecord,
   InstantMessageProposalRecord,
+  InstantProgramSessionRecord,
   InstantProjectionCheckpointRecord,
 } from '../schema/index.js'
 
 type IdentifiedRecord = Readonly<{
   id: string
   sessionId: string
+  subjectId: string
 }>
 
 const acceptedMessageOccurrenceJson = S.fromJsonString(
   InstantAcceptedMessageOccurrenceRecord,
 )
 const effectRequestJson = S.fromJsonString(InstantEffectRequestRecord)
+const effectPlacementJson = S.fromJsonString(InstantEffectPlacementRecord)
 const messageProposalJson = S.fromJsonString(InstantMessageProposalRecord)
+const programSessionJson = S.fromJsonString(InstantProgramSessionRecord)
 const projectionCheckpointJson = S.fromJsonString(
   InstantProjectionCheckpointRecord,
 )
@@ -61,6 +68,17 @@ const effectRequestOrder = Order.combine(
   ),
 )
 
+const effectPlacementOrder = Order.combine(
+  Order.mapInput(
+    Order.Number,
+    (record: InstantEffectPlacementRecord) => record.assignmentGeneration,
+  ),
+  Order.mapInput(
+    Order.String,
+    (record: InstantEffectPlacementRecord) => record.positionKey,
+  ),
+)
+
 const messageProposalOrder = Order.combine(
   Order.mapInput(
     Order.Number,
@@ -82,6 +100,11 @@ const projectionCheckpointOrder = Order.combine(
     Order.String,
     (record: InstantProjectionCheckpointRecord) => record.checkpointId,
   ),
+)
+
+const programSessionOrder = Order.mapInput(
+  Order.String,
+  (record: InstantProgramSessionRecord) => record.sessionId,
 )
 
 const appendRecord = <Record extends IdentifiedRecord>(
@@ -118,18 +141,47 @@ const appendRecord = <Record extends IdentifiedRecord>(
 
 const observeSessionRecords = <Record extends IdentifiedRecord>(
   ref: SubscriptionRef.SubscriptionRef<ReadonlyArray<Record>>,
-  sessionId: string,
+  scope: ProgramStoreScope,
   order: Order.Order<Record>,
 ): Stream.Stream<ReadonlyArray<Record>> =>
   SubscriptionRef.changes(ref).pipe(
     Stream.map(records =>
       pipe(
         records,
-        Array.filter(record => record.sessionId === sessionId),
+        Array.filter(
+          record =>
+            record.sessionId === scope.sessionId &&
+            record.subjectId === scope.subjectId,
+        ),
         Array.sort(order),
       ),
     ),
   )
+
+const putRecord = <Record extends IdentifiedRecord>(
+  ref: SubscriptionRef.SubscriptionRef<ReadonlyArray<Record>>,
+  record: Record,
+  encode: (record: Record) => string,
+  outcome: ProgramStoreTransactionOutcome,
+): Effect.Effect<ProgramStoreTransactionOutcome> =>
+  SubscriptionRef.modify(ref, records => {
+    const maybeExistingRecord = Array.findFirst(
+      records,
+      existingRecord => existingRecord.id === record.id,
+    )
+    if (Option.isNone(maybeExistingRecord)) {
+      return Tuple.make(outcome, [...records, record])
+    }
+    if (encode(maybeExistingRecord.value) === encode(record)) {
+      return Tuple.make(outcome, records)
+    }
+    return Tuple.make(
+      outcome,
+      Array.map(records, existingRecord =>
+        existingRecord.id === record.id ? record : existingRecord,
+      ),
+    )
+  })
 
 /** Creates a deterministic in-memory Program store for tests and local previews. */
 export const makeInMemoryProgramStore = (
@@ -144,8 +196,14 @@ export const makeInMemoryProgramStore = (
     const effectRequests = yield* SubscriptionRef.make<
       ReadonlyArray<InstantEffectRequestRecord>
     >([])
+    const effectPlacements = yield* SubscriptionRef.make<
+      ReadonlyArray<InstantEffectPlacementRecord>
+    >([])
     const messageProposals = yield* SubscriptionRef.make<
       ReadonlyArray<InstantMessageProposalRecord>
+    >([])
+    const programSessions = yield* SubscriptionRef.make<
+      ReadonlyArray<InstantProgramSessionRecord>
     >([])
     const projectionCheckpoints = yield* SubscriptionRef.make<
       ReadonlyArray<InstantProjectionCheckpointRecord>
@@ -159,6 +217,14 @@ export const makeInMemoryProgramStore = (
           S.encodeSync(acceptedMessageOccurrenceJson),
           outcome,
           'AppendAcceptedMessageOccurrence',
+        ),
+      appendEffectPlacement: record =>
+        appendRecord(
+          effectPlacements,
+          record,
+          S.encodeSync(effectPlacementJson),
+          outcome,
+          'AppendEffectPlacement',
         ),
       appendEffectRequest: record =>
         appendRecord(
@@ -176,6 +242,13 @@ export const makeInMemoryProgramStore = (
           outcome,
           'AppendMessageProposal',
         ),
+      appendProgramSession: record =>
+        putRecord(
+          programSessions,
+          record,
+          S.encodeSync(programSessionJson),
+          outcome,
+        ),
       appendProjectionCheckpoint: record =>
         appendRecord(
           projectionCheckpoints,
@@ -184,24 +257,26 @@ export const makeInMemoryProgramStore = (
           outcome,
           'AppendProjectionCheckpoint',
         ),
-      observeAcceptedMessageOccurrences: sessionId =>
+      observeAcceptedMessageOccurrences: scope =>
         observeSessionRecords(
           acceptedMessageOccurrences,
-          sessionId,
+          scope,
           acceptedMessageOccurrenceOrder,
         ),
-      observeEffectRequests: sessionId =>
-        observeSessionRecords(effectRequests, sessionId, effectRequestOrder),
-      observeMessageProposals: sessionId =>
-        observeSessionRecords(
-          messageProposals,
-          sessionId,
-          messageProposalOrder,
-        ),
-      observeProjectionCheckpoints: sessionId =>
+      observeConnectionStatus:
+        Stream.succeed<ProgramStoreConnectionStatus>('authenticated'),
+      observeEffectPlacements: scope =>
+        observeSessionRecords(effectPlacements, scope, effectPlacementOrder),
+      observeEffectRequests: scope =>
+        observeSessionRecords(effectRequests, scope, effectRequestOrder),
+      observeMessageProposals: scope =>
+        observeSessionRecords(messageProposals, scope, messageProposalOrder),
+      observeProgramSessions: scope =>
+        observeSessionRecords(programSessions, scope, programSessionOrder),
+      observeProjectionCheckpoints: scope =>
         observeSessionRecords(
           projectionCheckpoints,
-          sessionId,
+          scope,
           projectionCheckpointOrder,
         ),
     })

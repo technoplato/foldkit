@@ -4396,6 +4396,9 @@ importers:
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../foldkit
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3

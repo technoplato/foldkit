@@ -6,7 +6,6 @@ import {
   Option,
   Schema as S,
   SynchronizedRef,
-  Tuple,
 } from 'effect'
 
 import { InstantAcceptedMessageOccurrenceRecord } from '../schema/index.js'
@@ -64,21 +63,30 @@ export class AcceptedOccurrencePositionMismatch extends Data.TaggedError(
   readonly occurrenceId: string
 }> {}
 
+/** A consumer tried to commit an occurrence other than the next staged item. */
+export class AcceptedOccurrenceCommitMismatch extends Data.TaggedError(
+  'AcceptedOccurrenceCommitMismatch',
+)<{
+  readonly occurrenceId: string
+}> {}
+
 /** A conflict that prevents deterministic accepted Message ordering. */
 export type AcceptedOccurrenceCursorError =
+  | AcceptedOccurrenceCommitMismatch
   | AcceptedOccurrenceIdConflict
   | AcceptedSequenceConflict
   | AcceptedOccurrenceSessionMismatch
   | AcceptedOccurrencePositionMismatch
 
-/** A stateful cursor that emits each accepted Message exactly once and in order. */
+/** A two-phase cursor that advances only after its consumer applies an occurrence. */
 export type AcceptedOccurrenceCursorService = Readonly<{
-  ingest: (
+  commit: (
+    occurrence: InstantAcceptedMessageOccurrenceRecord,
+  ) => Effect.Effect<void, AcceptedOccurrenceCommitMismatch>
+  next: Effect.Effect<Option.Option<InstantAcceptedMessageOccurrenceRecord>>
+  stage: (
     occurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
-  ) => Effect.Effect<
-    ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
-    AcceptedOccurrenceCursorError
-  >
+  ) => Effect.Effect<void, AcceptedOccurrenceCursorError>
 }>
 
 /** Derives the unique InstantDB position key for one accepted sequence. */
@@ -184,30 +192,6 @@ const insertOccurrences = (
   )
 }
 
-const drainContiguousOccurrences = (
-  state: AcceptedOccurrenceCursorState,
-  emittedOccurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
-): readonly [
-  ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
-  AcceptedOccurrenceCursorState,
-] => {
-  const maybeKnownOccurrence = HashMap.get(
-    state.knownBySequence,
-    state.nextAcceptedSequence,
-  )
-  if (Option.isSome(maybeKnownOccurrence)) {
-    return drainContiguousOccurrences(
-      {
-        ...state,
-        nextAcceptedSequence: state.nextAcceptedSequence + 1,
-      },
-      [...emittedOccurrences, maybeKnownOccurrence.value.occurrence],
-    )
-  } else {
-    return Tuple.make(emittedOccurrences, state)
-  }
-}
-
 /** Creates a cursor positioned immediately after a trusted projection checkpoint. */
 export const makeAcceptedOccurrenceCursor = (
   sessionId: string,
@@ -224,13 +208,40 @@ export const makeAcceptedOccurrenceCursor = (
     )
 
     return {
-      ingest: occurrences =>
-        SynchronizedRef.modifyEffect(stateRef, state =>
-          Effect.map(insertOccurrences(state, occurrences), nextState => {
-            const [emittedOccurrences, drainedState] =
-              drainContiguousOccurrences(nextState, [])
-            return Tuple.make(emittedOccurrences, drainedState)
-          }),
+      commit: occurrence =>
+        SynchronizedRef.updateEffect(stateRef, state => {
+          const maybeNext = HashMap.get(
+            state.knownBySequence,
+            state.nextAcceptedSequence,
+          )
+          if (
+            Option.isNone(maybeNext) ||
+            maybeNext.value.encodedOccurrence !==
+              encodeAcceptedMessageOccurrence(occurrence)
+          ) {
+            return Effect.fail(
+              new AcceptedOccurrenceCommitMismatch({
+                occurrenceId: occurrence.occurrenceId,
+              }),
+            )
+          } else {
+            return Effect.succeed({
+              ...state,
+              nextAcceptedSequence: state.nextAcceptedSequence + 1,
+            })
+          }
+        }),
+      next: SynchronizedRef.get(stateRef).pipe(
+        Effect.map(state =>
+          Option.map(
+            HashMap.get(state.knownBySequence, state.nextAcceptedSequence),
+            known => known.occurrence,
+          ),
+        ),
+      ),
+      stage: occurrences =>
+        SynchronizedRef.updateEffect(stateRef, state =>
+          insertOccurrences(state, occurrences),
         ),
     }
   })
