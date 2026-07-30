@@ -48,6 +48,7 @@ jobs:
           - embedding
           - ui-showcase
           - personal-blog
+          - ssr
     steps:
       - name: Checkout
         uses: actions/checkout@v4

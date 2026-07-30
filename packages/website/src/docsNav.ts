@@ -33,6 +33,7 @@ import {
   coreRenderRouter,
   coreResourcesRouter,
   coreRuntimeRouter,
+  coreServerRenderingRouter,
   coreSlowWarningsRouter,
   coreSubmodelRouter,
   coreSubscriptionsRouter,
@@ -218,6 +219,11 @@ export const docsSections: ReadonlyArray<DocsSection> = [
           _tag: 'CoreRuntime',
           href: coreRuntimeRouter(),
           label: 'Runtime',
+        },
+        {
+          _tag: 'CoreServerRendering',
+          href: coreServerRenderingRouter(),
+          label: 'Server Rendering',
         },
         {
           _tag: 'CoreEmbedding',
