@@ -7,8 +7,10 @@ import { InstantCoreDatabase, i } from '@instantdb/core'
 import {
   ApplicationProduct,
   Issue,
+  IssueAttachment,
   IssueQuery,
   type IssueTrackerService,
+  RepositoryAttachmentSource,
 } from '../issues/index.js'
 import { LogEvent, type LoggerService } from '../logging/index.js'
 import {
@@ -35,6 +37,23 @@ const adaptApplicationDatabase = (
 ) => makeInstantEntityStore(database)
 
 const issue = Issue.make({
+  attachments: [
+    IssueAttachment.make({
+      byteCount: Option.some(334_048),
+      capturedAtMs: Option.some(1_753_842_697_000),
+      contentType: 'image/png',
+      fileName: 'offset.png',
+      id: 'attachment-042-1',
+      issueId: 'issue-021',
+      kind: 'Screenshot',
+      sha256: Option.some(
+        '28da2c5f4e14e976f3c04f56684ecf2778e88c488d0b9090117814e4a7ee9b83',
+      ),
+      source: RepositoryAttachmentSource.make({
+        path: 'issues/attachments/042/offset.png',
+      }),
+    }),
+  ],
   createdAtMs: 1_753_800_000_000,
   details: '',
   id: 'issue-021',
@@ -93,6 +112,17 @@ describe('Instant adapter', () => {
         const records = yield* Ref.get(savedIssues)
         expect(records).toHaveLength(1)
         const maybeRecord = Option.fromIterable(records)
+        expect(
+          Option.map(maybeRecord, record => ({
+            attachmentCount: record.attachmentCount,
+            attachmentIdsJson: record.attachmentIdsJson,
+          })),
+        ).toEqual(
+          Option.some({
+            attachmentCount: 1,
+            attachmentIdsJson: '["attachment-042-1"]',
+          }),
+        )
         expect(Option.map(maybeRecord, decodeIssueRecord)).toEqual(
           Option.some(issue),
         )

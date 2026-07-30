@@ -91,6 +91,59 @@ export const IssueReference = S.Union([
 /** A polymorphic link from Issue data to one related artifact. */
 export type IssueReference = typeof IssueReference.Type
 
+/** The media kind of an Issue attachment. */
+export const IssueAttachmentKind = S.Literals([
+  'Audio',
+  'File',
+  'Screenshot',
+  'Video',
+])
+/** The media kind of an Issue attachment. */
+export type IssueAttachmentKind = typeof IssueAttachmentKind.Type
+
+/** An Issue attachment stored by Instant. */
+export const InstantStorageAttachmentSource = S.TaggedStruct('InstantStorage', {
+  fileId: S.String,
+})
+/** An Issue attachment captured in one Recording. */
+export const RecordingAttachmentSource = S.TaggedStruct('Recording', {
+  mediaId: S.OptionFromNullOr(S.String),
+  recordingId: S.String,
+})
+/** An Issue attachment retained with the repository issue catalog. */
+export const RepositoryAttachmentSource = S.TaggedStruct('Repository', {
+  path: S.String,
+})
+/** An Issue attachment addressed by URI. */
+export const UriAttachmentSource = S.TaggedStruct('Uri', {
+  value: S.String,
+})
+
+/** The durable origin of an Issue attachment. */
+export const IssueAttachmentSource = S.Union([
+  InstantStorageAttachmentSource,
+  RecordingAttachmentSource,
+  RepositoryAttachmentSource,
+  UriAttachmentSource,
+])
+/** The durable origin of an Issue attachment. */
+export type IssueAttachmentSource = typeof IssueAttachmentSource.Type
+
+/** One immutable media artifact attached to an Issue. */
+export const IssueAttachment = S.Struct({
+  byteCount: S.OptionFromNullOr(S.Int),
+  capturedAtMs: S.OptionFromNullOr(S.Number),
+  contentType: S.String,
+  fileName: S.String,
+  id: S.String,
+  issueId: S.String,
+  kind: IssueAttachmentKind,
+  sha256: S.OptionFromNullOr(S.String),
+  source: IssueAttachmentSource,
+})
+/** One immutable media artifact attached to an Issue. */
+export type IssueAttachment = typeof IssueAttachment.Type
+
 /** One user or Agent report of an Issue. */
 export const IssueMention = S.Struct({
   capturedAtMs: S.Number,
@@ -128,6 +181,7 @@ export type IssueSourceDocument = typeof IssueSourceDocument.Type
 
 /** A transport-independent Issue with durable evidence and work history. */
 export const Issue = S.Struct({
+  attachments: S.Array(IssueAttachment),
   createdAtMs: S.Number,
   details: S.String,
   id: S.String,

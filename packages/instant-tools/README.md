@@ -4,11 +4,11 @@ Transport-neutral structured logging and issue tracking for Effect applications.
 
 The package keeps its portable domain separate from persistence:
 
-- `@foldkit/instant-tools/issues` defines Issue, Mention, work-log, reference, query, escalation, and `IssueTracker` service types.
+- `@foldkit/instant-tools/issues` defines Issue, Attachment, Mention, work-log, reference, query, escalation, and `IssueTracker` service types.
 - `@foldkit/instant-tools/logging` defines structured Log Events, source locations, levels, and the `Logger` service.
 - `@foldkit/instant-tools/instant` supplies queryable InstantDB envelopes and adapters for those services.
 
-Issue references are an algebraic data type that can link an Issue to an Agent, Commit, Media artifact, Project, exact Recording position, Release, or URI. A first unique Mention preserves the Issue's baseline priority. Each later unique Mention moves it one step toward P0; retries with the same Mention id are idempotent.
+Issue references are an algebraic data type that can link an Issue to an Agent, Commit, Media artifact, Project, exact Recording position, Release, or URI. Attachments preserve their content type, digest, capture time, and tagged durable source. A first unique Mention preserves the Issue's baseline priority. Each later unique Mention moves it one step toward P0; retries with the same Mention id are idempotent.
 
 ## Install
 
@@ -53,7 +53,11 @@ const ApplicationSchema = i.schema({
 })
 ```
 
-Keep development credentials in the machine's environment or secret manager, outside application source and Git.
+Keep development credentials in the machine's environment or secret manager,
+outside application source and Git. On this development Mac, source the neutral
+`~/.config/instant-tools/instant.env` path before launching a local host. Client
+applications use `INSTANT_APP_ID`; never deliver `INSTANT_APP_ADMIN_TOKEN` to a
+browser or device application.
 
 ## Portable domains
 
@@ -70,6 +74,7 @@ import {
 } from '@foldkit/instant-tools/issues'
 
 const issue = Issue.make({
+  attachments: [],
   createdAtMs: Date.now(),
   details: 'Timestamp should be in the right gutter.',
   id: 'issue-021',
