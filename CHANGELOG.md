@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:37:56 a.m. EDT — `9f6385cba98d` feat(instant-tools): persist transcript triage drafts
+
+- **Implementation commit:** `9f6385cba98d1cbea44cb7337cfbe41bc348bb6b`
+- **Change:** Persist first-class recording segments and transcript triage drafts in the shared Instant app.
+- **Details:**
+  - RecordingSegment carries exact bounds, transcript text, and an optional share URL. TriageCandidate snapshots its Application or Library domain and remains Draft, Dismissed, or Promoted. The Instant adapter observes and saves both through a dedicated TriageInbox service, with lossless envelope tests.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Defines shareable RecordingSegment and review-gated TriageCandidate values.
+  - `packages/instant-tools/src/issues/triageInbox.ts` — Defines the injected observe and persistence capability.
+  - `packages/instant-tools/src/instant/instant.ts` — Adds Instant entities, envelopes, live observation, persistence, and Layer composition.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Proves lossless candidate and segment persistence and observation.
+- **User context (verbatim):**
+  > We also need to add sharing of segments from a longer recording
+  > Single instant app is fine for now
+- **SpecStory:** unavailable — Unavailable: this task is running in Codex desktop and no verified SpecStory CLI capture URI was produced.
+
 ## July 30th, 2026 at 1:36:27 a.m. EDT — `886426c8f5c7` feat(issues): add CLI TUI native and Foldkit hosts
 
 - **Implementation commit:** `886426c8f5c76caaef7bba0d878dbb862e735a12`
