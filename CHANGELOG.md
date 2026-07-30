@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 29th, 2026 at 8:08:05 p.m. EDT — `3cf2da44fcdc` feat: add portable Instant Tools package
+
+- **Implementation commit:** `3cf2da44fcdcf2b3993e4271b74d9d5911fbbbbb`
+- **Change:** Added portable Effect logging and issue tracking with a composable InstantDB adapter
+- **Details:**
+  - Created separate algebraic Issue and Log Event domains, injected Effect services, idempotent one-step repeat-mention escalation, exact recording evidence, composable InstantDB entity definitions, and host-owned credential boundaries.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Modeled priorities, products, polymorphic evidence, mentions, work logs, and escalation
+  - `packages/instant-tools/src/issues/issueTracker.ts` — Defined the injected portable Issue store capability
+  - `packages/instant-tools/src/logging/domain.ts` — Modeled structured logs, levels, direct quotes, and source locations
+  - `packages/instant-tools/src/logging/logger.ts` — Defined the injected portable Logger capability
+  - `packages/instant-tools/src/instant/instant.ts` — Added composable InstantDB entities and service adapters
+  - `packages/instant-tools/src/instant/instant.test.ts` — Verified persistence, filtering, logging, and host schema composition
+  - `packages/instant-tools/README.md` — Documented host-owned initialization and portable use
+  - `packages/instant-tools/package.json` — Declared the new public package
+  - `pnpm-lock.yaml` — Pinned the InstantDB package graph
+  - `.changeset/add-instant-tools.md` — Recorded the public package addition
+- **User context (verbatim):**
+  > We should work in Swift and TypeScript.
+  > separate modules, which should be in the same library.
+- **SpecStory:** unavailable — SpecStory URI unavailable: this task ran in Codex desktop and no verified CLI capture exists.
+
 ## July 28th, 2026 at 6:29:45 p.m. EDT — `a9a83ae981f0` fix(wallet): wrap native Wallet headings
 
 - **Implementation commit:** `a9a83ae981f085951c6c1284f48cfcc0b0cbea9d`
