@@ -132,6 +132,23 @@ textarea {
 .loading {
   padding: 4rem;
 }
+.issue-failure {
+  background: #18181b;
+  border: 1px solid #7f1d1d;
+  border-radius: 1.25rem;
+  max-width: 52rem;
+  padding: 1.5rem;
+}
+.issue-failure h2 {
+  margin-top: 0;
+}
+.issue-failure pre {
+  background: #09090b;
+  border-radius: 0.8rem;
+  overflow-wrap: anywhere;
+  padding: 1rem;
+  white-space: pre-wrap;
+}
 
 .evidence-section {
   border-top: 1px solid #3f3f46;

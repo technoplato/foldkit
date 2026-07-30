@@ -1,4 +1,4 @@
-import { Array, Match as M, Option, Schema as S } from 'effect'
+import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
 import { Program } from 'foldkit'
 import {
   type Destination,
@@ -11,7 +11,12 @@ import {
   navigationToPath,
   pathToNavigation,
 } from 'issues-core-example'
-import { type ChangeEvent, type FormEvent, type ReactNode } from 'react'
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+} from 'react'
 import { useProgramNavigationHistory } from 'shared-react-bindings-example'
 
 import {
@@ -21,6 +26,7 @@ import {
 import { type IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { IssueTrackerClient } from './client.js'
+import { recoverCurrentViewerAfterFailure } from './viewerFailureRecovery.js'
 
 const priorities: ReadonlyArray<typeof IssuePriority.Type> = [
   'P0',
@@ -108,7 +114,9 @@ const NavButtons = () => {
 const IssueList = ({ state }: { state: IssuesState }) => {
   const actions = IssueTrackerClient.useActions()
   if (state._tag === 'LoadingIssues') return <p>Observing Issues…</p>
-  if (state._tag === 'FailedIssues') return <p role="alert">{state.reason}</p>
+  if (state._tag === 'FailedIssues') {
+    return <IssueFailure reason={state.reason} />
+  }
   return (
     <section aria-labelledby="issues-heading">
       <div className="heading-row">
@@ -135,6 +143,26 @@ const IssueList = ({ state }: { state: IssuesState }) => {
         ))}
       </div>
     </section>
+  )
+}
+
+/** Recovers one stale deployment automatically and keeps current failures actionable. */
+export const IssueFailure = ({ reason }: { reason: string }) => {
+  useEffect(() => {
+    Effect.runSync(recoverCurrentViewerAfterFailure)
+  }, [reason])
+  return (
+    <div className="issue-failure">
+      <h2>The live Issue data could not be read.</h2>
+      <p>
+        This tab may be running an older viewer. Reload to use the latest
+        deployed schema.
+      </p>
+      <pre role="alert">{reason}</pre>
+      <button onClick={() => window.location.reload()} type="button">
+        Reload latest viewer
+      </button>
+    </div>
   )
 }
 
@@ -282,7 +310,7 @@ const IssueDetail = ({
     return (
       <section>
         <BackButton />
-        <p role="alert">{state.reason}</p>
+        <IssueFailure reason={state.reason} />
       </section>
     )
   }

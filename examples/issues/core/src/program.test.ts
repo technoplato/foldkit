@@ -189,6 +189,7 @@ describe('Issue Tracker Program', () => {
         const collectionFailure = Option.getOrThrow(maybeCollectionFailure)
         expect(collectionFailure).toMatchObject({
           _tag: 'FailedObserveIssues',
+          reason: 'Observe: Issue collection payload failed to decode.',
         })
         const [failedList] = update(
           modelForNavigation(IssueList.make({})),
@@ -210,6 +211,7 @@ describe('Issue Tracker Program', () => {
         expect(detailFailure).toMatchObject({
           _tag: 'FailedObserveIssue',
           issueId: issue.id,
+          reason: 'ObserveIssue: Issue detail payload failed to decode.',
         })
         const [failedDetail] = update(
           modelForNavigation(IssueDetail.make({ issueId: issue.id })),
