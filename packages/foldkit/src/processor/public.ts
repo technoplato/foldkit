@@ -9,6 +9,7 @@ export {
   CapabilityId,
   CapabilityRequirement,
   Descriptor,
+  EffectSupportRange,
   Failed,
   GuestActor,
   Ignored,
@@ -25,6 +26,7 @@ export {
   UnavailableReason,
   Waiting,
   selectProcessor,
+  supportsEffectVersion,
 } from './processor.js'
 
 export type { PlacementContext } from './processor.js'

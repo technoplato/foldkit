@@ -4,7 +4,13 @@ export type {
   CommandDefinitionNoArgs,
   CommandDefinitionWithArgs,
 } from './index.js'
-export { EffectManifest } from './effectManifest.js'
+export {
+  EffectManifest,
+  EffectManifestV1,
+  EffectManifestV2,
+  ResultEventRange,
+  permitsResultEvent,
+} from './effectManifest.js'
 export type { EffectManifest as EffectManifestType } from './effectManifest.js'
 export {
   CommandDefinitionTypeId,

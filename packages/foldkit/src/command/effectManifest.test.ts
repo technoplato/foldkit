@@ -7,7 +7,12 @@ import {
   CapabilityRequirement,
   Placement,
 } from '../processor/processor.js'
-import { EffectManifest } from './effectManifest.js'
+import {
+  EffectManifest,
+  EffectManifestV2,
+  ResultEventRange,
+  permitsResultEvent,
+} from './effectManifest.js'
 import { define, mapEffect, mapMessage, withEffectManifest } from './index.js'
 
 const manifest = EffectManifest.make({
@@ -43,6 +48,54 @@ describe('EffectManifest', () => {
       Schema.decodeUnknownSync(EffectManifest)({
         ...Schema.encodeSync(EffectManifest)(manifest),
         version: 0,
+      }),
+    ).toThrow()
+  })
+
+  it('retains version-one manifests while version two constrains factual results', () => {
+    const nextManifest = EffectManifestV2.make({
+      formatVersion: 2,
+      id: 'Banking.SubmitTransfer',
+      version: 2,
+      publicArguments: {
+        transferId: 'transfer-1',
+      },
+      placement: manifest.placement,
+      permittedResultEvents: [
+        ResultEventRange.make({
+          eventId: 'SucceededSubmitTransfer',
+          minimumVersion: 0,
+          maximumVersion: 2,
+        }),
+        ResultEventRange.make({
+          eventId: 'FailedSubmitTransfer',
+          minimumVersion: 1,
+          maximumVersion: 1,
+        }),
+      ],
+    })
+
+    expect(
+      Schema.decodeUnknownSync(EffectManifest)(
+        Schema.encodeSync(EffectManifest)(nextManifest),
+      ),
+    ).toStrictEqual(nextManifest)
+    expect(permitsResultEvent(manifest, 'AnyHistoricalResult', 0)).toBe(true)
+    expect(
+      permitsResultEvent(nextManifest, 'SucceededSubmitTransfer', 0),
+    ).toBe(true)
+    expect(
+      permitsResultEvent(nextManifest, 'SucceededSubmitTransfer', 3),
+    ).toBe(false)
+    expect(permitsResultEvent(nextManifest, 'UnexpectedResult', 1)).toBe(false)
+  })
+
+  it('rejects an inverted permitted result version range', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(ResultEventRange)({
+        eventId: 'SucceededSubmitTransfer',
+        minimumVersion: 2,
+        maximumVersion: 1,
       }),
     ).toThrow()
   })
