@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:46:01 a.m. EDT — `a923bd37062a` feat(issues): log release build provenance
+
+- **Implementation commit:** `a923bd37062a0bd6acd7601ee9febb80da3a2c15`
+- **Change:** Log immutable build provenance when the Issue Tracker web app and Mac listener start.
+- **Details:**
+  - Release builders can embed the clean commit, branch, build time, host, source root, and artifact location through environment values. Development runs remain explicit when provenance is unavailable.
+- **Files:**
+  - `examples/issues/react/src/buildProvenance.ts` — Logs the Vite-embedded release identity at startup.
+  - `examples/issues/react/src/main.tsx` — Emits provenance before mounting the React application.
+  - `examples/issues/listener/src/entry.ts` — Emits listener provenance before observing Scribe.
+- **User context (verbatim):**
+  > Go ahead and do those steps
+- **SpecStory:** unavailable — Unavailable: this task is running in Codex desktop and no verified SpecStory CLI capture URI was produced.
+
 ## July 30th, 2026 at 1:44:48 a.m. EDT — `79e59b6e8954` feat(issues): add transcript triage listener
 
 - **Implementation commit:** `79e59b6e89540c9182fb31775cebe333e82222a3`
