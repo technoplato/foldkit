@@ -9,7 +9,9 @@ import {
 } from 'effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  BalanceSnapshot,
   FirstTransactionWithRecipient,
+  PortfolioSnapshot,
   TestFundingRequest,
   TransactionHistoryQuery,
   type TransactionPayload,
@@ -36,6 +38,11 @@ import {
   liveWalletNetworks,
   makeLiveNetworkAdapter,
 } from 'wallet-live-client-example'
+import {
+  freshWalletHostOrigin,
+  liveWalletRuntimeMode,
+  projectReceivingQr,
+} from 'wallet-qr-example'
 
 import { bcs } from '@mysten/sui/bcs'
 import { base64, hex } from '@scure/base'
@@ -137,8 +144,10 @@ vi.mock('@mysten/sui/grpc', async importOriginal => {
         $kind: 'Transaction',
         Transaction: {
           effects: {
+            status: { success: true, error: null },
             gasUsed: {
               computationCost: '100',
+              nonRefundableStorageFee: '0',
               storageCost: '100',
               storageRebate: '0',
             },
@@ -740,6 +749,35 @@ describe.sequential('live Wallet adapter conformance', () => {
           fakeTransport.chainId = configuration.chain.chainId
           fakeTransport.destinationAddress = recipientProfile.address
           const adapter = makeLiveNetworkAdapter(configuration)
+          const instruction = adapter.receivingInstruction(account)
+          const receivingQr = projectReceivingQr({
+            hostOrigin: freshWalletHostOrigin,
+            runtimeMode: liveWalletRuntimeMode,
+            portfolio: PortfolioSnapshot.make({
+              dataSource: 'Live',
+              chains: [configuration.chain],
+              networks: [configuration.network],
+              assets: [configuration.asset],
+              accounts: [account.account],
+              balanceSnapshot: BalanceSnapshot.make({
+                observedAt: Date.now(),
+                balances: [],
+                unavailableAccountIds: [],
+              }),
+              receivingInstructions: [instruction],
+            }),
+            account: account.account,
+            instruction,
+          })
+          expect(receivingQr._tag).toBe('AvailableReceivingQr')
+          if (receivingQr._tag !== 'AvailableReceivingQr') {
+            throw new Error(
+              `${row.networkId} did not project a scannable receive QR`,
+            )
+          }
+          expect(receivingQr.payload).toBe(instruction.portableUri)
+          expect(receivingQr.dataUrl).toMatch(/^data:image\/gif;base64,/)
+          expect(receivingQr.modules.length).toBeGreaterThan(0)
           const request = TransferRequest.make({
             transferId: `transfer:${row.networkId}`,
             accountId: account.account.accountId,

@@ -4,6 +4,7 @@ import {
   type SendNetworkSelection,
   type WalletNetworkMode,
   WalletProgram,
+  primaryReceivingInstruction,
   primaryWalletSuggestedTestTransferLabel,
   primaryWalletTestFundingMethod,
   selectedNetworkHasCapability,
@@ -11,6 +12,48 @@ import {
   toggledWalletNetworkMode,
   walletDataSourceLabel,
 } from 'wallet-core-example'
+import {
+  type ReceivingQrProjectionInput,
+  projectReceivingQr,
+  receivingQrTextLines,
+  receivingQrUnavailableLabel,
+} from 'wallet-qr-example'
+
+/** The close instruction reserved in every OpenTUI receiving panel. */
+export const openTuiReceivingPanelFooter =
+  'Press Enter, Escape, or q to close this presenter-local panel.'
+const openTuiPanelHorizontalOverhead = 4
+const openTuiPanelVerticalOverhead = 6
+
+/** The current OpenTUI viewport used to prove a full QR remains visible. */
+export const ReceivingQrViewport = S.Struct({
+  columns: S.Int,
+  rows: S.Int,
+})
+/** The current OpenTUI viewport used to prove a full QR remains visible. */
+export type ReceivingQrViewport = typeof ReceivingQrViewport.Type
+
+const openTuiReceivingPanelRequirements = (lines: ReadonlyArray<string>) => ({
+  columns:
+    Array.reduce(
+      Array.append(lines, openTuiReceivingPanelFooter),
+      0,
+      (maximumWidth, line) => Math.max(maximumWidth, line.length),
+    ) + openTuiPanelHorizontalOverhead,
+  rows: Array.length(lines) + openTuiPanelVerticalOverhead,
+})
+
+/** Reports whether a full OpenTUI receiving panel fits without clipping. */
+export const doesReceivingQrPanelFitOpenTui = (
+  lines: ReadonlyArray<string>,
+  viewport: ReceivingQrViewport,
+): boolean => {
+  const requirements = openTuiReceivingPanelRequirements(lines)
+  return (
+    viewport.columns >= requirements.columns &&
+    viewport.rows >= requirements.rows
+  )
+}
 
 /** Network modes in the exact order exposed by the OpenTUI selector. */
 export const walletNetworkModes: ReadonlyArray<WalletNetworkMode> = [
@@ -114,6 +157,67 @@ export type WalletOpenTuiInteraction = typeof WalletOpenTuiInteraction.Type
 
 /** The exact Program object consumed by the OpenTUI host. */
 export const walletOpenTuiProgram: typeof WalletProgram = WalletProgram
+
+/** Projects the selected receiving instruction for one presenter-local panel. */
+export const receivingQrPanelLines = (
+  model: Model,
+  hostOrigin: ReceivingQrProjectionInput['hostOrigin'],
+  runtimeMode: ReceivingQrProjectionInput['runtimeMode'],
+  viewport: ReceivingQrViewport,
+): ReadonlyArray<string> => {
+  const maybeInstruction = primaryReceivingInstruction(model)
+  if (Option.isNone(maybeInstruction)) {
+    return ['No receiving instruction is available for the selected network.']
+  }
+  const instruction = maybeInstruction.value
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return [
+      `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+      'Not a scannable QR. The Wallet portfolio is not loaded.',
+      `Payload: ${instruction.portableUri}`,
+    ]
+  }
+  const portfolio = model.portfolio.snapshot
+  const maybeAccount = Array.findFirst(
+    portfolio.accounts,
+    account => account.accountId === instruction.accountId,
+  )
+  if (Option.isNone(maybeAccount)) {
+    return [
+      `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+      'Not a scannable QR. The receiving account is inconsistent.',
+      `Payload: ${instruction.portableUri}`,
+    ]
+  }
+  const projection = projectReceivingQr({
+    account: maybeAccount.value,
+    hostOrigin,
+    instruction,
+    portfolio,
+    runtimeMode,
+  })
+  if (projection._tag === 'AvailableReceivingQr') {
+    const availableLines = [
+      `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+      `QR payload: ${projection.payload}`,
+      ...receivingQrTextLines(projection),
+    ]
+    if (doesReceivingQrPanelFitOpenTui(availableLines, viewport)) {
+      return availableLines
+    }
+    const requirements = openTuiReceivingPanelRequirements(availableLines)
+    return [
+      `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+      `Not a scannable QR. Resize OpenTUI to at least ${requirements.columns.toString()} columns by ${requirements.rows.toString()} rows.`,
+      `Payload: ${projection.payload}`,
+    ]
+  }
+  return [
+    `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+    receivingQrUnavailableLabel(projection.reason),
+    `Payload: ${instruction.portableUri}`,
+  ]
+}
 
 /** Derives the currently valid OpenTUI operations without adding domain state. */
 export const interactionsForWalletOpenTui = (

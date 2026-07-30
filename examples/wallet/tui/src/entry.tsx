@@ -1,6 +1,10 @@
 import { Array, Data, Effect, Option, pipe } from 'effect'
 import { parseWalletProgramRoute } from 'wallet-core-example'
 import { MacOSLiveWalletResources } from 'wallet-node-client-example'
+import {
+  freshWalletHostOrigin,
+  portableWalletRouteOrigin,
+} from 'wallet-qr-example'
 import { type WalletInitialRoute } from 'wallet-react-bindings-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
@@ -60,6 +64,9 @@ const maybeInitialRoute = await Effect.runPromise(
       }),
   }),
 )
+const hostOrigin = Option.isNone(maybeCarrier)
+  ? freshWalletHostOrigin
+  : portableWalletRouteOrigin
 
 const renderer = await createCliRenderer({
   clearOnShutdown: true,
@@ -79,10 +86,17 @@ if (Option.isSome(maybeInitialRoute)) {
   root.render(
     <App
       initialRoute={maybeInitialRoute.value}
+      hostOrigin={hostOrigin}
       renderer={renderer}
       resources={walletResources}
     />,
   )
 } else {
-  root.render(<App renderer={renderer} resources={walletResources} />)
+  root.render(
+    <App
+      hostOrigin={hostOrigin}
+      renderer={renderer}
+      resources={walletResources}
+    />,
+  )
 }

@@ -1,6 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
+  freshWalletHostOrigin,
+  portableWalletRouteOrigin,
+} from 'wallet-qr-example'
+import {
   initialWalletRoute,
   parseWalletInitialRoute,
 } from 'wallet-react-bindings-example'
@@ -33,6 +37,12 @@ const renderRouteError = (error: unknown): void => {
 }
 
 const relativePath = `${window.location.pathname}${window.location.search}`
+const hostOrigin =
+  window.location.pathname === '/' &&
+  window.location.search === '' &&
+  window.location.hash === ''
+    ? freshWalletHostOrigin
+    : portableWalletRouteOrigin
 const initialRoute =
   window.location.pathname === '/' && window.location.search === ''
     ? Promise.resolve(initialWalletRoute)
@@ -41,7 +51,7 @@ const initialRoute =
 void initialRoute.then(route => {
   root.render(
     <StrictMode>
-      <App initialRoute={route} />
+      <App hostOrigin={hostOrigin} initialRoute={route} />
     </StrictMode>,
   )
 }, renderRouteError)

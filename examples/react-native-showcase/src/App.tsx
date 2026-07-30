@@ -50,6 +50,13 @@ import {
   useShowcaseReplay,
 } from 'showcase-react-bindings-example'
 import {
+  type ReceivingQrProjectionInput,
+  freshWalletHostOrigin,
+  inspectingWalletRuntimeMode,
+  liveWalletRuntimeMode,
+  portableWalletRouteOrigin,
+} from 'wallet-qr-example'
+import {
   type WalletInitialRoute,
   initialWalletRoute,
   parseWalletInitialRoute,
@@ -113,6 +120,7 @@ const resolveInlineRoute = <
 type ShowcaseInitialization = Readonly<{
   initialCarrierPath?: string
   initialRoute: ShowcaseInitialRoute
+  initialWalletHostOrigin: ReceivingQrProjectionInput['hostOrigin']
   revision: number
 }>
 
@@ -128,6 +136,9 @@ const resolveShowcaseProgramRoute = (
     },
   )
 
+const isCanonicalShowcaseNavigationPath = (path: string): boolean =>
+  path === '/showcase' || path.startsWith('/showcase/')
+
 /** Runs the canonical examples through one Expo Web, iOS, and Android host. */
 export const App = () => {
   const [initialization, setInitialization] = useState<ShowcaseInitialization>()
@@ -142,6 +153,7 @@ export const App = () => {
         }
         setInitialization(current => ({
           initialRoute: maybeRoute.value,
+          initialWalletHostOrigin: portableWalletRouteOrigin,
           revision: (current?.revision ?? 0) + 1,
         }))
         return true
@@ -157,11 +169,18 @@ export const App = () => {
           return
         }
         if (Option.isSome(maybeRoute)) {
-          setInitialization({ initialRoute: maybeRoute.value, revision: 0 })
+          setInitialization({
+            initialRoute: maybeRoute.value,
+            initialWalletHostOrigin: portableWalletRouteOrigin,
+            revision: 0,
+          })
         } else {
           setInitialization({
             initialCarrierPath: path,
             initialRoute: initialShowcaseRoute,
+            initialWalletHostOrigin: isCanonicalShowcaseNavigationPath(path)
+              ? freshWalletHostOrigin
+              : portableWalletRouteOrigin,
             revision: 0,
           })
         }
@@ -195,6 +214,7 @@ export const App = () => {
     >
       <ShowcaseScreen
         initialCarrierPath={initialization.initialCarrierPath}
+        initialWalletHostOrigin={initialization.initialWalletHostOrigin}
         openShowcaseProgramRoute={openShowcaseProgramRoute}
       />
     </ShowcaseProvider>
@@ -211,9 +231,11 @@ const StartingShowcase = () => (
 
 const ShowcaseScreen = ({
   initialCarrierPath,
+  initialWalletHostOrigin,
   openShowcaseProgramRoute,
 }: Readonly<{
   initialCarrierPath: string | undefined
+  initialWalletHostOrigin: ReceivingQrProjectionInput['hostOrigin']
   openShowcaseProgramRoute: (path: string) => Promise<boolean>
 }>) => {
   const model = useShowcaseModel()
@@ -230,6 +252,9 @@ const ShowcaseScreen = ({
   const [factRoute, setFactRoute] = useState(initialFactRoute)
   const [walletRoute, setWalletRoute] =
     useState<WalletInitialRoute>(initialWalletRoute)
+  const [walletHostOrigin, setWalletHostOrigin] = useState(
+    initialWalletHostOrigin,
+  )
   const [routeRevision, setRouteRevision] = useState(0)
   const [isCarrierReady, setCarrierReady] = useState(false)
   const hasOpenedInitialCarrier = useRef(false)
@@ -265,6 +290,7 @@ const ShowcaseScreen = ({
         })
 
       if (path === '/showcase' || path.startsWith('/showcase/')) {
+        setWalletHostOrigin(freshWalletHostOrigin)
         const maybeUrl = fromString(`https://showcase.invalid${path}`)
         if (Option.isSome(maybeUrl)) {
           const navigation = Showcase.urlToNavigation(maybeUrl.value)
@@ -324,6 +350,7 @@ const ShowcaseScreen = ({
           setFactRoute,
         )
       } else if (path.startsWith('/wallet/')) {
+        setWalletHostOrigin(portableWalletRouteOrigin)
         return selectRoute(
           Showcase.WalletScene.make({}),
           Effect.tryPromise(() => parseWalletInitialRoute(path)),
@@ -403,10 +430,15 @@ const ShowcaseScreen = ({
     hasProjectedInitialNavigation.current = true
   }, [isCarrierReady, model.navigation, replay.mode])
 
+  const openedFreshWallet = (): void => {
+    setWalletHostOrigin(freshWalletHostOrigin)
+    actions.tappedWalletButton()
+  }
+
   const content = M.value(model.navigation).pipe(
     M.withReturnType<ReactNode>(),
     M.tagsExhaustive({
-      HomeScene: () => <ShowcaseHome />,
+      HomeScene: () => <ShowcaseHome onTappedWallet={openedFreshWallet} />,
       CounterScene: () => (
         <CounterExample key={routeRevision} route={counterRoute} />
       ),
@@ -425,7 +457,16 @@ const ShowcaseScreen = ({
       ),
       FactScene: () => <FactExample key={routeRevision} route={factRoute} />,
       WalletScene: () => (
-        <WalletExample key={routeRevision} route={walletRoute} />
+        <WalletExample
+          hostOrigin={walletHostOrigin}
+          key={routeRevision}
+          outerRuntimeMode={
+            replay.mode === 'Live'
+              ? liveWalletRuntimeMode
+              : inspectingWalletRuntimeMode
+          }
+          route={walletRoute}
+        />
       ),
     }),
   )
@@ -450,6 +491,7 @@ const ShowcaseScreen = ({
           content={preservedSceneContent}
           isCardboard={isCardboard}
           maybeNavigation={Option.some(preservedSceneNavigation)}
+          onTappedWallet={openedFreshWallet}
           replay={replay}
         />
       )
@@ -458,9 +500,10 @@ const ShowcaseScreen = ({
       <NativeNavigationComparison
         home={
           <NativeShowcaseScreen
-            content={<ShowcaseHome />}
+            content={<ShowcaseHome onTappedWallet={openedFreshWallet} />}
             isCardboard={false}
             maybeNavigation={Option.none()}
+            onTappedWallet={openedFreshWallet}
             replay={replay}
           />
         }
@@ -504,7 +547,12 @@ const ShowcaseScreen = ({
           </View>
           <Text style={styles.platform}>{Platform.OS}</Text>
         </View>
-        {isHome ? null : <ShowcaseTabs navigation={model.navigation} />}
+        {isHome ? null : (
+          <ShowcaseTabs
+            navigation={model.navigation}
+            onTappedWallet={openedFreshWallet}
+          />
+        )}
         <ScrollView contentContainerStyle={styles.content}>
           {content}
           <View style={styles.navigationReplay}>
@@ -520,18 +568,23 @@ const NativeShowcaseScreen = ({
   content,
   isCardboard,
   maybeNavigation,
+  onTappedWallet,
   replay,
 }: Readonly<{
   content: ReactNode
   isCardboard: boolean
   maybeNavigation: Option.Option<Showcase.Navigation>
+  onTappedWallet: () => void
   replay: ReturnType<typeof useShowcaseReplay>
 }>) => (
   <SafeAreaView style={styles.safeArea}>
     <StatusBar style="light" />
     <View style={styles.shell}>
       {Option.isSome(maybeNavigation) && !isCardboard ? (
-        <ShowcaseTabs navigation={maybeNavigation.value} />
+        <ShowcaseTabs
+          navigation={maybeNavigation.value}
+          onTappedWallet={onTappedWallet}
+        />
       ) : null}
       {isCardboard ? (
         <View style={styles.cardboardContent}>{content}</View>
@@ -547,7 +600,9 @@ const NativeShowcaseScreen = ({
   </SafeAreaView>
 )
 
-const ShowcaseHome = () => {
+const ShowcaseHome = ({
+  onTappedWallet,
+}: Readonly<{ onTappedWallet: () => void }>) => {
   const actions = useShowcaseActions()
   return (
     <View style={styles.home}>
@@ -586,7 +641,7 @@ const ShowcaseHome = () => {
       />
       <ShowcaseCard
         description="Public accounts, remote Sepolia signing, subscriptions, and replay."
-        onPress={actions.tappedWalletButton}
+        onPress={onTappedWallet}
         title="Wallet"
       />
     </View>
@@ -617,7 +672,11 @@ const ShowcaseCard = ({
 
 const ShowcaseTabs = ({
   navigation,
-}: Readonly<{ navigation: Showcase.Navigation }>) => {
+  onTappedWallet,
+}: Readonly<{
+  navigation: Showcase.Navigation
+  onTappedWallet: () => void
+}>) => {
   const actions = useShowcaseActions()
   return (
     <View style={styles.tabs}>
@@ -649,7 +708,7 @@ const ShowcaseTabs = ({
       <SceneTab
         isSelected={navigation._tag === 'WalletScene'}
         label="Wallet"
-        onPress={actions.tappedWalletButton}
+        onPress={onTappedWallet}
       />
     </View>
   )

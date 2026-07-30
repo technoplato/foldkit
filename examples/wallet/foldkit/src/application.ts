@@ -6,18 +6,20 @@ import {
   WalletProgram,
   type WalletResources,
 } from 'wallet-core-example'
+import type { ReceivingQrHostOrigin } from 'wallet-qr-example'
 
 import { overlay } from '@foldkit/devtools'
 
-import { view } from './view.js'
+import { makeView } from './view.js'
 
 /** The exact canonical Program used by the Foldkit Wallet renderer. */
 export const walletFoldkitProgram: typeof WalletProgram = WalletProgram
 
-/** Creates the page-owning Foldkit Wallet application from one Program start. */
+/** Creates the Foldkit Wallet application from host context and a Program start. */
 export const makeWalletApplication = (
   container: HTMLElement | null,
   resources: Layer.Layer<WalletResources>,
+  hostOrigin: ReceivingQrHostOrigin,
   start: Runtime.ProgramStart<Model, Message> = Runtime.fresh(),
 ) =>
   Runtime.makeFoldkitApplication({
@@ -29,5 +31,5 @@ export const makeWalletApplication = (
     program: walletFoldkitProgram,
     resources,
     start,
-    view,
+    view: makeView(hostOrigin),
   })

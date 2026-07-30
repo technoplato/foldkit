@@ -5,6 +5,8 @@ import {
   ChangedTransferRecipient,
   type Message,
   type Model,
+  type PortfolioSnapshot,
+  type ReceivingInstruction,
   RequestedChallengeSignature,
   RequestedClipboardCopy,
   RequestedNextTransactionHistoryPage,
@@ -20,6 +22,7 @@ import {
   SelectedWalletNetworkMode,
   type TransactionPreview,
   type TransactionState,
+  type WalletAccount,
   type WalletCreationState,
   type WalletNetworkMode,
   type WalletProfile,
@@ -52,6 +55,13 @@ import {
   walletDataSourceDetail,
   walletDataSourceLabel,
 } from 'wallet-core-example'
+import {
+  type ReceivingQrHostOrigin,
+  freshWalletHostOrigin,
+  liveWalletRuntimeMode,
+  projectReceivingQr,
+  receivingQrUnavailableLabel,
+} from 'wallet-qr-example'
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,
@@ -202,7 +212,69 @@ const networkModePicker = (model: Model): Html => {
   )
 }
 
-const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
+const receivingQr = (
+  portfolio: PortfolioSnapshot,
+  account: WalletAccount,
+  instruction: ReceivingInstruction,
+  hostOrigin: ReceivingQrHostOrigin,
+): Html => {
+  const h = html<Message>()
+  const projection = projectReceivingQr({
+    account,
+    hostOrigin,
+    instruction,
+    portfolio,
+    runtimeMode: liveWalletRuntimeMode,
+  })
+  if (projection._tag === 'AvailableReceivingQr') {
+    return h.div(
+      [
+        h.Class('wallet-public-receiving'),
+        h.Key(instruction.assetId),
+        h.AriaLabel(
+          `${account.displayName} ${instruction.assetId} public receiving QR`,
+        ),
+        h.DataAttribute('wallet-qr-state', 'Available'),
+        h.DataAttribute('wallet-qr-value', projection.payload),
+      ],
+      [
+        h.span([], ['Public receive']),
+        h.img([
+          h.Class('wallet-receiving-qr-image'),
+          h.Src(projection.dataUrl),
+          h.Alt(
+            `${account.displayName} ${instruction.assetId} receiving QR code`,
+          ),
+          h.Width('192'),
+          h.Height('192'),
+        ]),
+        h.code([], [projection.payload]),
+      ],
+    )
+  } else {
+    return h.div(
+      [
+        h.Class('wallet-public-receiving wallet-receiving-qr-unavailable'),
+        h.Key(instruction.assetId),
+        h.AriaLabel(
+          `${account.displayName} ${instruction.assetId} public receiving payload`,
+        ),
+        h.DataAttribute('wallet-qr-state', 'Unavailable'),
+        h.DataAttribute('wallet-qr-reason', projection.reason),
+      ],
+      [
+        h.strong([], [receivingQrUnavailableLabel(projection.reason)]),
+        h.code([], [instruction.portableUri]),
+      ],
+    )
+  }
+}
+
+const walletProfileCard = (
+  model: Model,
+  wallet: WalletProfile,
+  hostOrigin: ReceivingQrHostOrigin,
+): Html => {
   const h = html<Message>()
   return h.article(
     [
@@ -235,13 +307,18 @@ const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
             model.walletNetworkMode,
           ),
           account => {
-            const maybeReceivingInstruction =
+            const maybePortfolio =
               model.portfolio._tag === 'LoadedPortfolio'
-                ? Array.findFirst(
-                    model.portfolio.snapshot.receivingInstructions,
-                    instruction => instruction.accountId === account.accountId,
-                  )
+                ? Option.some(model.portfolio.snapshot)
                 : Option.none()
+            const receivingInstructions = Option.match(maybePortfolio, {
+              onNone: () => [],
+              onSome: portfolio =>
+                Array.filter(
+                  portfolio.receivingInstructions,
+                  instruction => instruction.accountId === account.accountId,
+                ),
+            })
             return h.li(
               [h.Key(account.accountId)],
               [
@@ -273,26 +350,12 @@ const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
                   ],
                 ),
                 h.small([], [account.chainId]),
-                ...Option.match(maybeReceivingInstruction, {
+                ...Option.match(maybePortfolio, {
                   onNone: () => [],
-                  onSome: instruction => [
-                    h.div(
-                      [
-                        h.Class('wallet-public-receiving'),
-                        h.AriaLabel(
-                          `${account.displayName} public receiving payload`,
-                        ),
-                        h.DataAttribute(
-                          'wallet-qr-value',
-                          instruction.portableUri,
-                        ),
-                      ],
-                      [
-                        h.span([], ['Public receive']),
-                        h.code([], [instruction.portableUri]),
-                      ],
+                  onSome: portfolio =>
+                    Array.map(receivingInstructions, instruction =>
+                      receivingQr(portfolio, account, instruction, hostOrigin),
                     ),
-                  ],
                 }),
               ],
             )
@@ -303,7 +366,7 @@ const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
   )
 }
 
-const walletHome = (model: Model): Html => {
+const walletHome = (model: Model, hostOrigin: ReceivingQrHostOrigin): Html => {
   const h = html<Message>()
   const creationButtonAttributes = [
     h.Type('button'),
@@ -375,7 +438,9 @@ const walletHome = (model: Model): Html => {
         onNonEmpty: wallets =>
           h.div(
             [h.Class('wallet-profile-list')],
-            Array.map(wallets, wallet => walletProfileCard(model, wallet)),
+            Array.map(wallets, wallet =>
+              walletProfileCard(model, wallet, hostOrigin),
+            ),
           ),
       })
     }
@@ -1211,25 +1276,30 @@ const advancedDetails = (model: Model): Html => {
   )
 }
 
-/** Renders the complete public Wallet Model with ordinary Foldkit HTML. */
-export const view = (model: Model): Document => {
-  const h = html<Message>()
-  return {
-    title: 'Wallet | Foldkit',
-    body: h.main(
-      [h.Class('wallet-shell cardboard-surface')],
-      [
-        h.div(
-          [h.Class('wallet-stack')],
-          [
-            walletHome(model),
-            walletHero(model),
-            sendMoney(model),
-            activity(model),
-            advancedDetails(model),
-          ],
-        ),
-      ],
-    ),
+/** Creates a Foldkit Wallet view closed over host-owned QR trust context. */
+export const makeView =
+  (hostOrigin: ReceivingQrHostOrigin) =>
+  (model: Model): Document => {
+    const h = html<Message>()
+    return {
+      title: 'Wallet | Foldkit',
+      body: h.main(
+        [h.Class('wallet-shell cardboard-surface')],
+        [
+          h.div(
+            [h.Class('wallet-stack')],
+            [
+              walletHome(model, hostOrigin),
+              walletHero(model),
+              sendMoney(model),
+              activity(model),
+              advancedDetails(model),
+            ],
+          ),
+        ],
+      ),
+    }
   }
-}
+
+/** Renders a fresh-host Wallet Model with ordinary Foldkit HTML. */
+export const view = makeView(freshWalletHostOrigin)

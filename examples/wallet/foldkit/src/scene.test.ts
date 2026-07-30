@@ -1,9 +1,11 @@
-import { Option } from 'effect'
+import { Array, Option } from 'effect'
 import { Scene } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 import {
   LoadTransactionHistory,
   Model,
+  PortfolioSnapshot,
+  ReceivingInstruction,
   SucceededLoadTransactionHistory,
   SucceededLoadWallet,
   SucceededLoadWalletProfiles,
@@ -14,13 +16,19 @@ import {
   initialModel,
   update,
 } from 'wallet-core-example'
+import {
+  freshWalletHostOrigin,
+  portableWalletRouteOrigin,
+  receivingQrUnavailableLabel,
+} from 'wallet-qr-example'
 import { simulatedPortfolio } from 'wallet-simulated-client-example'
 
 import { walletFoldkitProgram } from './application.js'
-import { view } from './view.js'
+import { makeView, view } from './view.js'
 
 const loadedModel = (
   wallets: ReadonlyArray<typeof WalletProfile.Type> = [],
+  portfolio: PortfolioSnapshot = simulatedPortfolio,
 ): Model => {
   const [walletModel] = update(
     initialModel,
@@ -33,7 +41,7 @@ const loadedModel = (
     walletModel,
     SucceededLoadWallet.make({
       requestId: walletModel.portfolio.requestId,
-      portfolio: simulatedPortfolio,
+      portfolio,
     }),
   )
   return Model.make({
@@ -48,6 +56,35 @@ const simulatedWallet = WalletProfile.make({
   displayName: 'Fixture',
   createdAt: 1_722_009_600_000,
   accounts: simulatedPortfolio.accounts,
+})
+
+const ethereumAccount = Option.getOrThrow(
+  Array.findFirst(
+    simulatedPortfolio.accounts,
+    account => account.accountId === 'simulated-ethereum-account',
+  ),
+)
+const originalEthereumInstruction = Option.getOrThrow(
+  Array.findFirst(
+    simulatedPortfolio.receivingInstructions,
+    instruction => instruction.accountId === ethereumAccount.accountId,
+  ),
+)
+const ethereumCarrier = `ethereum:${ethereumAccount.address}@11155111`
+const ethereumInstruction = ReceivingInstruction.make({
+  ...originalEthereumInstruction,
+  portableUri: ethereumCarrier,
+})
+const scannablePortfolio = PortfolioSnapshot.make({
+  ...simulatedPortfolio,
+  dataSource: 'Testnet',
+  receivingInstructions: Array.map(
+    simulatedPortfolio.receivingInstructions,
+    instruction =>
+      instruction.accountId === ethereumAccount.accountId
+        ? ethereumInstruction
+        : instruction,
+  ),
 })
 
 const resolveEmptyHistory = (accountId: string, networkId: string) =>
@@ -118,7 +155,7 @@ describe('Wallet Foldkit client', () => {
     )
   })
 
-  test('shows each active account balance with its public receiving payload', () => {
+  test('shows fixture receiving payloads without inventing scannable QR images', () => {
     const wallet = Scene.role('article', { name: 'Fixture wallet' })
     Scene.scene(
       { update, view },
@@ -136,10 +173,75 @@ describe('Wallet Foldkit client', () => {
         Scene.within(
           wallet,
           Scene.selector(
-            '[data-wallet-qr-value="/wallet/receive/simulated-ethereum-account?asset=ethereum:sepolia:eth"]',
+            '[data-wallet-qr-state="Unavailable"][data-wallet-qr-reason="FixturePortfolio"]',
           ),
         ),
       ).toExist(),
+      Scene.expect(
+        Scene.within(
+          wallet,
+          Scene.text(receivingQrUnavailableLabel('FixturePortfolio')),
+        ),
+      ).toExist(),
+      Scene.expect(
+        Scene.within(
+          wallet,
+          Scene.role('img', {
+            name: 'Simulated Sepolia Account ethereum:sepolia:eth receiving QR code',
+          }),
+        ),
+      ).not.toExist(),
+    )
+  })
+
+  test('renders an accessible QR image only for fresh live host state', () => {
+    const freshView = makeView(freshWalletHostOrigin)
+    const wallet = Scene.role('article', { name: 'Fixture wallet' })
+    Scene.scene(
+      { update, view: freshView },
+      Scene.with(loadedModel([simulatedWallet], scannablePortfolio)),
+      Scene.expect(
+        Scene.within(
+          wallet,
+          Scene.selector(
+            `[data-wallet-qr-state="Available"][data-wallet-qr-value="${ethereumCarrier}"]`,
+          ),
+        ),
+      ).toExist(),
+      Scene.expect(
+        Scene.within(
+          wallet,
+          Scene.role('img', {
+            name: 'Simulated Sepolia Account ethereum:sepolia:eth receiving QR code',
+          }),
+        ),
+      ).toExist(),
+    )
+  })
+
+  test('suppresses a scannable QR image for portable route state', () => {
+    const portableView = makeView(portableWalletRouteOrigin)
+    const wallet = Scene.role('article', { name: 'Fixture wallet' })
+    Scene.scene(
+      { update, view: portableView },
+      Scene.with(loadedModel([simulatedWallet], scannablePortfolio)),
+      Scene.expect(
+        Scene.within(
+          wallet,
+          Scene.selector(
+            '[data-wallet-qr-state="Unavailable"][data-wallet-qr-reason="PortableRoute"]',
+          ),
+        ),
+      ).toExist(),
+      Scene.expect(Scene.within(wallet, Scene.text(ethereumCarrier))).toExist(),
+      Scene.expect(
+        Scene.within(
+          wallet,
+          Scene.role('img', {
+            name: 'Simulated Sepolia Account ethereum:sepolia:eth receiving QR code',
+          }),
+        ),
+      ).not.toExist(),
     )
   })
 
@@ -237,17 +339,15 @@ describe('Wallet Foldkit client', () => {
       Scene.expect(Scene.label('Amount in SUI')).toHaveValue(''),
       Scene.expect(Scene.text('12 SUI')).toExist(),
       Scene.change(Scene.label('Wallet network mode'), 'Live'),
-      Scene.expect(
-        Scene.text(
-          'No transferable assets are available for this network mode.',
-        ),
-      ).toExist(),
-      Scene.expect(Scene.text('No adapter account available')).toExist(),
+      resolveEmptyHistory('simulated-sui-mainnet-account', 'sui:mainnet'),
+      Scene.expect(Scene.text('Recipient on Sui Mainnet')).toExist(),
+      Scene.expect(Scene.label('Amount in SUI')).toHaveValue(''),
+      Scene.expect(Scene.text('12 SUI')).toExist(),
       Scene.change(Scene.label('Wallet network mode'), 'Testnet'),
-      resolveEmptyHistory('simulated-ethereum-account', 'ethereum:sepolia'),
-      Scene.expect(Scene.text('Recipient on Ethereum Sepolia')).toExist(),
-      Scene.expect(Scene.label('Amount in ETH')).toHaveValue(''),
-      Scene.expect(Scene.text('2.5 ETH')).toExist(),
+      resolveEmptyHistory('simulated-sui-testnet-account', 'sui:testnet'),
+      Scene.expect(Scene.text('Recipient on Sui Testnet')).toExist(),
+      Scene.expect(Scene.label('Amount in SUI')).toHaveValue(''),
+      Scene.expect(Scene.text('12 SUI')).toExist(),
     )
   })
 })

@@ -24,15 +24,23 @@ import {
 } from 'wallet-core-example'
 import { MacOSLiveWalletResources } from 'wallet-node-client-example'
 import {
+  type ReceivingQrProjectionInput,
+  inspectingWalletRuntimeMode,
+  liveWalletRuntimeMode,
+} from 'wallet-qr-example'
+import {
   type WalletInitialRoute,
   makeWalletReactClient,
 } from 'wallet-react-bindings-example'
 
 import { type CliRenderer, type SelectOption } from '@opentui/core'
-import { useKeyboard } from '@opentui/react'
+import { useKeyboard, useTerminalDimensions } from '@opentui/react'
 
 import {
+  ReceivingQrViewport,
   interactionsForWalletOpenTui,
+  openTuiReceivingPanelFooter,
+  receivingQrPanelLines,
   walletNetworkModeAtIndex,
   walletNetworkModes,
   walletOpenTuiSummary,
@@ -103,10 +111,12 @@ const explorerStatus = (model: Model): string => {
 
 /** Runs Wallet through the OpenTUI React reconciler. */
 export const App = ({
+  hostOrigin,
   initialRoute,
   renderer,
   resources = MacOSLiveWalletResources,
 }: Readonly<{
+  hostOrigin: ReceivingQrProjectionInput['hostOrigin']
   initialRoute?: WalletInitialRoute
   renderer: CliRenderer
   resources?: Layer.Layer<WalletResources>
@@ -117,7 +127,11 @@ export const App = ({
   )
   const WalletProvider = walletClient.WalletProvider
   const content = (
-    <WalletTerminal renderer={renderer} walletClient={walletClient} />
+    <WalletTerminal
+      hostOrigin={hostOrigin}
+      renderer={renderer}
+      walletClient={walletClient}
+    />
   )
   if (initialRoute === undefined) {
     return (
@@ -137,15 +151,21 @@ export const App = ({
 }
 
 const WalletTerminal = ({
+  hostOrigin,
   renderer,
   walletClient,
 }: Readonly<{
+  hostOrigin: ReceivingQrProjectionInput['hostOrigin']
   renderer: CliRenderer
   walletClient: WalletReactClient
 }>) => {
   const model = walletClient.useWalletModel()
   const actions = walletClient.useWalletActions()
   const replay = walletClient.useWalletReplay()
+  const runtimeMode =
+    replay.mode === 'Live' ? liveWalletRuntimeMode : inspectingWalletRuntimeMode
+  const terminalDimensions = useTerminalDimensions()
+  const [isReceivingPanelVisible, setReceivingPanelVisible] = useState(false)
   const [maybeNotice, setNotice] = useState(Option.none<string>())
   const [focus, setFocus] = useState<WalletOpenTuiFocus>('Operations')
   const interactions = interactionsForWalletOpenTui(model)
@@ -197,7 +217,16 @@ const WalletTerminal = ({
   )
 
   useKeyboard(key => {
-    if (key.name === 'f1') {
+    if (isReceivingPanelVisible) {
+      if (
+        key.name === 'escape' ||
+        key.name === 'enter' ||
+        key.name === 'return' ||
+        key.name === 'q'
+      ) {
+        setReceivingPanelVisible(false)
+      }
+    } else if (key.name === 'f1') {
       setFocus('Mode')
     } else if (key.name === 'f2') {
       setFocus('SendNetwork')
@@ -279,14 +308,8 @@ const WalletTerminal = ({
           }
         },
         ShowReceivingInstruction: () => {
-          const maybeInstruction = primaryReceivingInstruction(model)
-          setNotice(
-            Option.map(
-              maybeInstruction,
-              instruction =>
-                `Receive ${instruction.assetId}: ${instruction.destinationAddress} | ${instruction.portableUri}`,
-            ),
-          )
+          setReceivingPanelVisible(true)
+          setNotice(Option.none())
         },
         ReloadWalletHistory: () => {
           setNotice(Option.some('Reloading transaction history…'))
@@ -360,6 +383,34 @@ const WalletTerminal = ({
         ShowWalletStatePath: () => showPath(replay.statePath, 'State path'),
         ShowWalletReplayPath: () => showPath(replay.replayPath, 'Replay path'),
       }),
+    )
+  }
+
+  if (isReceivingPanelVisible) {
+    const lines = receivingQrPanelLines(
+      model,
+      hostOrigin,
+      runtimeMode,
+      ReceivingQrViewport.make({
+        columns: terminalDimensions.width,
+        rows: terminalDimensions.height,
+      }),
+    )
+    return (
+      <box
+        backgroundColor="#07130f"
+        border
+        borderColor="#34d399"
+        flexDirection="column"
+        gap={1}
+        height="100%"
+        padding={1}
+        title="Receive cryptocurrency"
+        width="100%"
+      >
+        <text content={Array.join(lines, '\n')} fg="#d1fae5" flexGrow={1} />
+        <text content={openTuiReceivingPanelFooter} fg="#fbbf24" height={1} />
+      </box>
     )
   }
 
