@@ -4,6 +4,7 @@ import type { EffectManifest } from '../command/effectManifest.js'
 import type { ManagedResources } from '../managedResource/managedResource.js'
 import type { Ports } from '../port/port.js'
 import type { Subscriptions } from '../subscription/subscription.js'
+import type { VersionedEventRegistry } from './versionedEvent.js'
 
 /** A Schema usable by a portable Foldkit Program without codec services. */
 export type ProgramSchema<Value> = Schema.Codec<Value, unknown, never, never>
@@ -73,6 +74,7 @@ export type Program<
   managedResources?: ManagedResources<Model, Message, ManagedResourceServices>
   ports?: P
   migrations?: ReadonlyArray<Migration>
+  versionedEvents?: VersionedEventRegistry<Message>
 }>
 
 /** Defines a renderer-free Foldkit Program while preserving inferred types. */

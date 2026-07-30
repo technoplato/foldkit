@@ -11,6 +11,19 @@ export {
   ReplayTapeId,
   isContentAddressedReplayTapeId,
 } from './route.js'
+export {
+  UnknownVersionedEventError,
+  UnsupportedVersionedEventVersionError,
+  VersionedEventEnvelopeDecodeError,
+  VersionedEventFamilyConstructionError,
+  VersionedEventMigrationError,
+  VersionedEventPayloadDecodeError,
+  VersionedEventProgramMismatchError,
+  VersionedEventRegistryConstructionError,
+  decodeVersionedEvent,
+  makeVersionedEventFamily,
+  makeVersionedEventRegistry,
+} from './versionedEvent.js'
 
 export type {
   MessageOf,
@@ -23,6 +36,18 @@ export type {
   ProgramSchema,
   ResourcesOf,
 } from './program.js'
+
+export type {
+  DecodedVersionedEvent,
+  OriginalVersionedEventWireInput,
+  VersionedEventDecodeError,
+  VersionedEventFamily,
+  VersionedEventFamilyDefinition,
+  VersionedEventMigration,
+  VersionedEventRegistry,
+  VersionedEventRegistryDefinition,
+  VersionedEventWireInput,
+} from './versionedEvent.js'
 
 export type {
   ProgramRoute,
