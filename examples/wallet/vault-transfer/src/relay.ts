@@ -1,15 +1,22 @@
-import { Context, Effect, Encoding, Layer, Result, Schema as S } from 'effect'
-
 import {
-  VaultTransferCrypto,
-  deriveAuthenticatedPrincipalBinding,
-  deriveTransferClaimVerifier,
-} from './crypto.js'
+  Context,
+  Duration,
+  Effect,
+  Encoding,
+  Layer,
+  Match as M,
+  Result,
+  Schema as S,
+  Scope,
+} from 'effect'
+
+import { VaultTransferCrypto, deriveTransferClaimVerifier } from './crypto.js'
 import {
   AcknowledgedTransfer,
   type AuthenticatedPrincipal,
   AuthenticatedPrincipal as AuthenticatedPrincipalSchema,
   AuthenticatedRelayError,
+  type AuthenticatedRelayOperation,
   CancelledTransfer,
   type EncryptedRelayCapsule,
   EncryptedRelayCapsule as EncryptedRelayCapsuleSchema,
@@ -23,82 +30,135 @@ import {
   type TransferClaim,
   type TransferClaimOutcome,
   TransferClaim as TransferClaimSchema,
+  type TransferClaimVerifier,
+  TransferClaimVerifier as TransferClaimVerifierSchema,
+  TransferCryptoError,
   type TransferEnvironment,
+  TransferEnvironment as TransferEnvironmentSchema,
   type TransferReference,
   TransferReference as TransferReferenceSchema,
-  type TransferReservation,
+  TransferReservation as TransferReservationSchema,
   WonTransferClaim,
   transferProtocolVersion,
 } from './protocol.js'
 
 const transferIdByteLength = 16
+const principalBindingByteLength = 32
+const claimVerifierByteLength = 32
 const transferIdAllocationAttempts = 8
+const maximumTransferCount = 256
+const maximumTransferLifetimeMs = 15 * 60 * 1_000
+const TransferIdBytes = S.Uint8Array.check(
+  S.isLengthBetween(transferIdByteLength, transferIdByteLength),
+)
+const PrincipalBindingBytes = S.Uint8Array.check(
+  S.isLengthBetween(principalBindingByteLength, principalBindingByteLength),
+)
+const ClaimVerifierBytes = S.Uint8Array.check(
+  S.isLengthBetween(claimVerifierByteLength, claimVerifierByteLength),
+)
 
-type ReservedState = Readonly<{
-  _tag: 'Reserved'
-  claimVerifier: string
+const ReservedState = S.TaggedStruct('Reserved', {
+  claimVerifier: TransferClaimVerifierSchema,
+})
+
+const ReadyState = S.TaggedStruct('Ready', {
+  claimVerifier: TransferClaimVerifierSchema,
+  capsule: EncryptedRelayCapsuleSchema,
+})
+
+const ClaimedState = S.TaggedStruct('Claimed', {
+  claimVerifier: TransferClaimVerifierSchema,
+  capsule: EncryptedRelayCapsuleSchema,
+  claimant: AuthenticatedPrincipalSchema,
+})
+
+const AcknowledgedState = S.TaggedStruct('Acknowledged', {
+  claimant: AuthenticatedPrincipalSchema,
+})
+
+const CancelledState = S.TaggedStruct('Cancelled', {})
+
+const StoredTransferState = S.Union([
+  ReservedState,
+  ReadyState,
+  ClaimedState,
+  AcknowledgedState,
+  CancelledState,
+])
+type StoredTransferState = typeof StoredTransferState.Type
+
+const StoredTransfer = S.Struct({
+  reservation: TransferReservationSchema,
+  owner: AuthenticatedPrincipalSchema,
+  state: StoredTransferState,
+})
+type StoredTransfer = typeof StoredTransfer.Type
+
+/** The principal established by the host authentication middleware. */
+export class AuthenticatedRequestPrincipal extends Context.Service<
+  AuthenticatedRequestPrincipal,
+  AuthenticatedPrincipal
+>()('Wallet/AuthenticatedRequestPrincipal') {}
+
+/** Host-native constant-time comparison for two equal-length byte sequences. */
+export type HostTimingSafeEqualService = Readonly<{
+  compare: (
+    left: Uint8Array,
+    right: Uint8Array,
+  ) => Effect.Effect<boolean, TransferCryptoError>
 }>
 
-type ReadyState = Readonly<{
-  _tag: 'Ready'
-  claimVerifier: string
-  capsule: EncryptedRelayCapsule
-}>
+/** The host timing-safe comparison capability used by the relay. */
+export class HostTimingSafeEqual extends Context.Service<
+  HostTimingSafeEqual,
+  HostTimingSafeEqualService
+>()('Wallet/HostTimingSafeEqual') {}
 
-type ClaimedState = Readonly<{
-  _tag: 'Claimed'
-  claimVerifier: string
-  capsule: EncryptedRelayCapsule
-  claimantBinding: string
-}>
-
-type AcknowledgedState = Readonly<{
-  _tag: 'Acknowledged'
-  claimantBinding: string
-}>
-
-type CancelledState = Readonly<{
-  _tag: 'Cancelled'
-}>
-
-type StoredTransferState =
-  | ReservedState
-  | ReadyState
-  | ClaimedState
-  | AcknowledgedState
-  | CancelledState
-
-type StoredTransfer = Readonly<{
-  reservation: TransferReservation
-  state: StoredTransferState
-}>
-
-/** Authenticated relay capabilities whose principal comes from the host context. */
+/** Authenticated relay operations that read identity only from Effect Context. */
 export type AuthenticatedRelayService = Readonly<{
   reserve: (
-    principal: AuthenticatedPrincipal,
     request: ReserveTransferRequest,
-  ) => Effect.Effect<ReservedTransfer, AuthenticatedRelayError>
+  ) => Effect.Effect<
+    ReservedTransfer,
+    AuthenticatedRelayError,
+    AuthenticatedRequestPrincipal
+  >
   publish: (
-    principal: AuthenticatedPrincipal,
     capsule: EncryptedRelayCapsule,
-  ) => Effect.Effect<PublishedTransfer, AuthenticatedRelayError>
+  ) => Effect.Effect<
+    PublishedTransfer,
+    AuthenticatedRelayError,
+    AuthenticatedRequestPrincipal
+  >
   claim: (
-    principal: AuthenticatedPrincipal,
     claim: TransferClaim,
-  ) => Effect.Effect<TransferClaimOutcome, AuthenticatedRelayError>
+  ) => Effect.Effect<
+    TransferClaimOutcome,
+    AuthenticatedRelayError,
+    AuthenticatedRequestPrincipal
+  >
   acknowledge: (
-    principal: AuthenticatedPrincipal,
     reference: TransferReference,
-  ) => Effect.Effect<AcknowledgedTransfer, AuthenticatedRelayError>
+  ) => Effect.Effect<
+    AcknowledgedTransfer,
+    AuthenticatedRelayError,
+    AuthenticatedRequestPrincipal
+  >
   cancel: (
-    principal: AuthenticatedPrincipal,
     reference: TransferReference,
-  ) => Effect.Effect<CancelledTransfer, AuthenticatedRelayError>
+  ) => Effect.Effect<
+    CancelledTransfer,
+    AuthenticatedRelayError,
+    AuthenticatedRequestPrincipal
+  >
   purge: (
-    principal: AuthenticatedPrincipal,
     reference: TransferReference,
-  ) => Effect.Effect<PurgedTransfer, AuthenticatedRelayError>
+  ) => Effect.Effect<
+    PurgedTransfer,
+    AuthenticatedRelayError,
+    AuthenticatedRequestPrincipal
+  >
   purgeExpired: Effect.Effect<PurgedExpiredTransfers, AuthenticatedRelayError>
 }>
 
@@ -112,45 +172,32 @@ export class AuthenticatedRelay extends Context.Service<
 export type InMemoryAuthenticatedRelayOptions = Readonly<{
   environment: TransferEnvironment
   transferLifetimeMs: number
+  cleanupIntervalMs: number
   clock: () => number
-  randomBytes: (byteLength: number) => Uint8Array
 }>
 
 const relayError = (
-  operation:
-    | 'Reserve'
-    | 'Publish'
-    | 'Claim'
-    | 'Acknowledge'
-    | 'Cancel'
-    | 'Purge'
-    | 'PurgeExpired',
+  operation: AuthenticatedRelayOperation,
   code: 'Unavailable' | 'InvalidRequest' | 'Conflict',
 ) => new AuthenticatedRelayError({ operation, code })
 
-const decodePrincipal = (
-  principal: AuthenticatedPrincipal,
-  operation:
-    | 'Reserve'
-    | 'Publish'
-    | 'Claim'
-    | 'Acknowledge'
-    | 'Cancel'
-    | 'Purge',
-) =>
-  S.decodeUnknownEffect(AuthenticatedPrincipalSchema)(principal).pipe(
-    Effect.mapError(() => relayError(operation, 'InvalidRequest')),
-  )
+const readAuthenticatedPrincipal = (
+  operation: AuthenticatedRelayOperation,
+): Effect.Effect<
+  AuthenticatedPrincipal,
+  AuthenticatedRelayError,
+  AuthenticatedRequestPrincipal
+> =>
+  Effect.gen(function* () {
+    const principal = yield* AuthenticatedRequestPrincipal
+    return yield* S.decodeUnknownEffect(AuthenticatedPrincipalSchema)(
+      principal,
+    ).pipe(Effect.mapError(() => relayError(operation, 'InvalidRequest')))
+  })
 
 const readClock = (
   options: InMemoryAuthenticatedRelayOptions,
-  operation:
-    | 'Reserve'
-    | 'Publish'
-    | 'Claim'
-    | 'Acknowledge'
-    | 'Cancel'
-    | 'PurgeExpired',
+  operation: AuthenticatedRelayOperation,
 ): Effect.Effect<number, AuthenticatedRelayError> =>
   Effect.try({
     try: () => {
@@ -163,25 +210,10 @@ const readClock = (
     catch: () => relayError(operation, 'Unavailable'),
   })
 
-const constantTimeBytesEqual = (
-  left: Uint8Array,
-  right: Uint8Array,
-): boolean => {
-  let difference = left.byteLength ^ right.byteLength
-  for (const [index, leftByte] of left.entries()) {
-    difference |= leftByte ^ (right.at(index) ?? 0)
-  }
-  return difference === 0
-}
-
-const constantTimeVerifierEqual = (left: string, right: string): boolean => {
-  const leftResult = Encoding.decodeBase64Url(left)
-  const rightResult = Encoding.decodeBase64Url(right)
-  if (Result.isFailure(leftResult) || Result.isFailure(rightResult)) {
-    return false
-  }
-  return constantTimeBytesEqual(leftResult.success, rightResult.success)
-}
+const isSamePrincipal = (
+  left: AuthenticatedPrincipal,
+  right: AuthenticatedPrincipal,
+): boolean => left.issuer === right.issuer && left.subject === right.subject
 
 const isSameCapsule = (
   left: EncryptedRelayCapsule,
@@ -196,28 +228,64 @@ const isSameCapsule = (
   left.ciphertext === right.ciphertext &&
   left.authenticationTag === right.authenticationTag
 
-/** Builds a deterministic in-memory relay while retaining the crypto service. */
+const verifierForState = (
+  state: StoredTransferState,
+  dummyClaimVerifier: TransferClaimVerifier,
+): TransferClaimVerifier =>
+  M.value(state).pipe(
+    M.tagsExhaustive({
+      Reserved: () => dummyClaimVerifier,
+      Ready: ready => ready.claimVerifier,
+      Claimed: claimed => claimed.claimVerifier,
+      Acknowledged: () => dummyClaimVerifier,
+      Cancelled: () => dummyClaimVerifier,
+    }),
+  )
+
+/** Builds a scoped in-memory relay with mandatory periodic expiry cleanup. */
 export const makeInMemoryAuthenticatedRelay = (
   options: InMemoryAuthenticatedRelayOptions,
-): Effect.Effect<AuthenticatedRelayService, never, VaultTransferCrypto> =>
+): Effect.Effect<
+  AuthenticatedRelayService,
+  AuthenticatedRelayError,
+  VaultTransferCrypto | HostTimingSafeEqual | Scope.Scope
+> =>
   Effect.gen(function* () {
-    const crypto = yield* VaultTransferCrypto
-    const transfers = new Map<string, StoredTransfer>()
+    const environment = yield* S.decodeUnknownEffect(TransferEnvironmentSchema)(
+      options.environment,
+    ).pipe(Effect.mapError(() => relayError('Reserve', 'InvalidRequest')))
+    if (
+      !Number.isSafeInteger(options.transferLifetimeMs) ||
+      options.transferLifetimeMs <= 0 ||
+      options.transferLifetimeMs > maximumTransferLifetimeMs ||
+      !Number.isSafeInteger(options.cleanupIntervalMs) ||
+      options.cleanupIntervalMs <= 0 ||
+      options.cleanupIntervalMs > options.transferLifetimeMs
+    ) {
+      return yield* Effect.fail(relayError('Reserve', 'InvalidRequest'))
+    }
 
-    const principalBinding = (
-      principal: AuthenticatedPrincipal,
-      operation:
-        | 'Reserve'
-        | 'Publish'
-        | 'Claim'
-        | 'Acknowledge'
-        | 'Cancel'
-        | 'Purge',
-    ): Effect.Effect<string, AuthenticatedRelayError> =>
-      deriveAuthenticatedPrincipalBinding(principal).pipe(
-        Effect.provideService(VaultTransferCrypto, crypto),
-        Effect.mapError(() => relayError(operation, 'Unavailable')),
+    const crypto = yield* VaultTransferCrypto
+    const timingSafeEqual = yield* HostTimingSafeEqual
+    const transfers = new Map<string, StoredTransfer>()
+    const dummyClaimVerifierBytes = yield* crypto
+      .randomBytes(claimVerifierByteLength)
+      .pipe(
+        Effect.flatMap(S.decodeUnknownEffect(ClaimVerifierBytes)),
+        Effect.mapError(() => relayError('Claim', 'Unavailable')),
       )
+    const dummyClaimVerifier = Encoding.encodeBase64Url(dummyClaimVerifierBytes)
+
+    const purgeExpiredAt = (now: number): number => {
+      let count = 0
+      for (const [transferId, transfer] of transfers.entries()) {
+        if (now >= transfer.reservation.serverExpiresAtMs) {
+          transfers.delete(transferId)
+          count += 1
+        }
+      }
+      return count
+    }
 
     const activeTransfer = (
       transferId: string,
@@ -234,149 +302,189 @@ export const makeInMemoryAuthenticatedRelay = (
       return transfer
     }
 
-    const allocateTransferId = (attemptsRemaining: number): string => {
-      if (attemptsRemaining === 0) {
-        throw new Error('Transfer ID allocation exhausted')
-      }
-      const random = options.randomBytes(transferIdByteLength)
-      if (random.byteLength !== transferIdByteLength) {
-        throw new Error('Invalid transfer ID random bytes')
-      }
-      const transferId = Encoding.encodeBase64Url(random)
-      if (transfers.has(transferId)) {
-        return allocateTransferId(attemptsRemaining - 1)
-      }
-      return transferId
-    }
+    const allocateTransferId = (
+      attemptsRemaining: number,
+    ): Effect.Effect<string, AuthenticatedRelayError> =>
+      Effect.gen(function* () {
+        if (attemptsRemaining === 0) {
+          return yield* Effect.fail(relayError('Reserve', 'Unavailable'))
+        }
+        const random = yield* crypto.randomBytes(transferIdByteLength).pipe(
+          Effect.flatMap(S.decodeUnknownEffect(TransferIdBytes)),
+          Effect.mapError(() => relayError('Reserve', 'Unavailable')),
+        )
+        const transferId = Encoding.encodeBase64Url(random)
+        if (transfers.has(transferId)) {
+          return yield* allocateTransferId(attemptsRemaining - 1)
+        }
+        return transferId
+      })
+
+    const allocatePrincipalBinding = (
+      operation: AuthenticatedRelayOperation,
+    ): Effect.Effect<string, AuthenticatedRelayError> =>
+      crypto.randomBytes(principalBindingByteLength).pipe(
+        Effect.flatMap(S.decodeUnknownEffect(PrincipalBindingBytes)),
+        Effect.map(Encoding.encodeBase64Url),
+        Effect.mapError(() => relayError(operation, 'Unavailable')),
+      )
+
+    const compareClaimVerifiers = (
+      expected: TransferClaimVerifier,
+      actual: TransferClaimVerifier,
+    ): Effect.Effect<boolean, AuthenticatedRelayError> =>
+      Effect.gen(function* () {
+        const expectedResult = Encoding.decodeBase64Url(expected)
+        const actualResult = Encoding.decodeBase64Url(actual)
+        if (
+          Result.isFailure(expectedResult) ||
+          Result.isFailure(actualResult)
+        ) {
+          return yield* Effect.fail(relayError('Claim', 'Unavailable'))
+        }
+        const expectedBytes = yield* S.decodeUnknownEffect(ClaimVerifierBytes)(
+          expectedResult.success,
+        ).pipe(Effect.mapError(() => relayError('Claim', 'Unavailable')))
+        const actualBytes = yield* S.decodeUnknownEffect(ClaimVerifierBytes)(
+          actualResult.success,
+        ).pipe(Effect.mapError(() => relayError('Claim', 'Unavailable')))
+        return yield* timingSafeEqual.compare(expectedBytes, actualBytes).pipe(
+          Effect.flatMap(S.decodeUnknownEffect(S.Boolean)),
+          Effect.mapError(() => relayError('Claim', 'Unavailable')),
+        )
+      })
+
+    const cleanupCycle = Effect.sleep(
+      Duration.millis(options.cleanupIntervalMs),
+    ).pipe(
+      Effect.andThen(
+        readClock(options, 'PurgeExpired').pipe(
+          Effect.tap(now =>
+            Effect.sync(() => {
+              purgeExpiredAt(now)
+            }),
+          ),
+          Effect.catch(() => Effect.void),
+        ),
+      ),
+    )
+    yield* Effect.forkScoped(Effect.forever(cleanupCycle))
 
     return {
-      reserve: (principal, request) =>
+      reserve: request =>
         Effect.gen(function* () {
-          const validatedPrincipal = yield* decodePrincipal(
-            principal,
-            'Reserve',
-          )
+          const owner = yield* readAuthenticatedPrincipal('Reserve')
           const validatedRequest = yield* S.decodeUnknownEffect(
             ReserveTransferRequestSchema,
           )(request).pipe(
             Effect.mapError(() => relayError('Reserve', 'InvalidRequest')),
           )
-          if (
-            !Number.isSafeInteger(options.transferLifetimeMs) ||
-            options.transferLifetimeMs <= 0
-          ) {
-            return yield* Effect.fail(relayError('Reserve', 'InvalidRequest'))
-          }
+          const transferId = yield* allocateTransferId(
+            transferIdAllocationAttempts,
+          )
+          const ownerBinding = yield* allocatePrincipalBinding('Reserve')
           const now = yield* readClock(options, 'Reserve')
           const serverExpiresAtMs = now + options.transferLifetimeMs
           if (!Number.isSafeInteger(serverExpiresAtMs)) {
             return yield* Effect.fail(relayError('Reserve', 'InvalidRequest'))
           }
-          const ownerBinding = yield* principalBinding(
-            validatedPrincipal,
-            'Reserve',
-          )
-          return yield* Effect.try({
-            try: () => {
-              const transferId = allocateTransferId(
-                transferIdAllocationAttempts,
-              )
-              const reservation = {
-                protocolVersion: transferProtocolVersion,
-                environment: options.environment,
-                transferId,
-                serverExpiresAtMs,
-                ownerBinding,
-              }
-              transfers.set(transferId, {
+          return yield* Effect.sync(() => {
+            purgeExpiredAt(now)
+            if (transfers.size >= maximumTransferCount) {
+              return Effect.fail(relayError('Reserve', 'Unavailable'))
+            }
+            const reservation = TransferReservationSchema.make({
+              protocolVersion: transferProtocolVersion,
+              environment,
+              transferId,
+              serverExpiresAtMs,
+              ownerBinding,
+            })
+            transfers.set(
+              transferId,
+              StoredTransfer.make({
                 reservation,
-                state: {
-                  _tag: 'Reserved',
+                owner,
+                state: ReservedState.make({
                   claimVerifier: validatedRequest.claimVerifier,
-                },
-              })
-              return ReservedTransfer.make({ reservation })
-            },
-            catch: () => relayError('Reserve', 'Unavailable'),
-          })
+                }),
+              }),
+            )
+            return Effect.succeed(ReservedTransfer.make({ reservation }))
+          }).pipe(Effect.flatten)
         }),
-      publish: (principal, capsule) =>
+      publish: capsule =>
         Effect.gen(function* () {
-          const validatedPrincipal = yield* decodePrincipal(
-            principal,
-            'Publish',
-          )
+          const owner = yield* readAuthenticatedPrincipal('Publish')
           const validatedCapsule = yield* S.decodeUnknownEffect(
             EncryptedRelayCapsuleSchema,
           )(capsule).pipe(
             Effect.mapError(() => relayError('Publish', 'InvalidRequest')),
           )
-          const ownerBinding = yield* principalBinding(
-            validatedPrincipal,
-            'Publish',
-          )
           const now = yield* readClock(options, 'Publish')
-          return yield* Effect.sync(() => {
-            const transfer = activeTransfer(validatedCapsule.transferId, now)
-            if (
-              transfer === undefined ||
-              transfer.reservation.ownerBinding !== ownerBinding
-            ) {
-              return Effect.fail(relayError('Publish', 'Unavailable'))
-            }
-            const reservation = transfer.reservation
-            if (
-              reservation.protocolVersion !==
-                validatedCapsule.protocolVersion ||
-              reservation.environment !== validatedCapsule.environment ||
-              reservation.transferId !== validatedCapsule.transferId ||
-              reservation.serverExpiresAtMs !==
-                validatedCapsule.serverExpiresAtMs ||
-              reservation.ownerBinding !== validatedCapsule.ownerBinding
-            ) {
-              return Effect.fail(relayError('Publish', 'InvalidRequest'))
-            }
-            if (transfer.state._tag === 'Reserved') {
-              transfers.set(validatedCapsule.transferId, {
-                reservation,
-                state: {
-                  _tag: 'Ready',
-                  claimVerifier: transfer.state.claimVerifier,
-                  capsule: validatedCapsule,
-                },
-              })
-              return Effect.succeed(
-                PublishedTransfer.make({
-                  transferId: reservation.transferId,
-                  serverExpiresAtMs: reservation.serverExpiresAtMs,
+          const transfer = activeTransfer(validatedCapsule.transferId, now)
+          if (
+            transfer === undefined ||
+            !isSamePrincipal(transfer.owner, owner)
+          ) {
+            return yield* Effect.fail(relayError('Publish', 'Unavailable'))
+          }
+          const reservation = transfer.reservation
+          if (
+            reservation.protocolVersion !== validatedCapsule.protocolVersion ||
+            reservation.environment !== validatedCapsule.environment ||
+            reservation.transferId !== validatedCapsule.transferId ||
+            reservation.serverExpiresAtMs !==
+              validatedCapsule.serverExpiresAtMs ||
+            reservation.ownerBinding !== validatedCapsule.ownerBinding
+          ) {
+            return yield* Effect.fail(relayError('Publish', 'InvalidRequest'))
+          }
+          return yield* M.value(transfer.state).pipe(
+            M.tagsExhaustive({
+              Reserved: state =>
+                Effect.sync(() => {
+                  transfers.set(
+                    validatedCapsule.transferId,
+                    StoredTransfer.make({
+                      reservation,
+                      owner: transfer.owner,
+                      state: ReadyState.make({
+                        claimVerifier: state.claimVerifier,
+                        capsule: validatedCapsule,
+                      }),
+                    }),
+                  )
+                  return PublishedTransfer.make({
+                    transferId: reservation.transferId,
+                    serverExpiresAtMs: reservation.serverExpiresAtMs,
+                  })
                 }),
-              )
-            }
-            if (
-              transfer.state._tag === 'Ready' &&
-              isSameCapsule(transfer.state.capsule, validatedCapsule)
-            ) {
-              return Effect.succeed(
-                PublishedTransfer.make({
-                  transferId: reservation.transferId,
-                  serverExpiresAtMs: reservation.serverExpiresAtMs,
-                }),
-              )
-            }
-            return Effect.fail(relayError('Publish', 'Conflict'))
-          }).pipe(Effect.flatten)
+              Ready: state => {
+                if (isSameCapsule(state.capsule, validatedCapsule)) {
+                  return Effect.succeed(
+                    PublishedTransfer.make({
+                      transferId: reservation.transferId,
+                      serverExpiresAtMs: reservation.serverExpiresAtMs,
+                    }),
+                  )
+                }
+                return Effect.fail(relayError('Publish', 'Conflict'))
+              },
+              Claimed: () => Effect.fail(relayError('Publish', 'Conflict')),
+              Acknowledged: () =>
+                Effect.fail(relayError('Publish', 'Conflict')),
+              Cancelled: () => Effect.fail(relayError('Publish', 'Conflict')),
+            }),
+          )
         }),
-      claim: (principal, claim) =>
+      claim: claim =>
         Effect.gen(function* () {
-          const validatedPrincipal = yield* decodePrincipal(principal, 'Claim')
+          const claimant = yield* readAuthenticatedPrincipal('Claim')
           const validatedClaim = yield* S.decodeUnknownEffect(
             TransferClaimSchema,
           )(claim).pipe(
             Effect.mapError(() => relayError('Claim', 'InvalidRequest')),
-          )
-          const claimantBinding = yield* principalBinding(
-            validatedPrincipal,
-            'Claim',
           )
           const claimVerifier = yield* deriveTransferClaimVerifier(
             validatedClaim.claimToken,
@@ -385,201 +493,231 @@ export const makeInMemoryAuthenticatedRelay = (
             Effect.mapError(() => relayError('Claim', 'Unavailable')),
           )
           const now = yield* readClock(options, 'Claim')
-          return yield* Effect.sync(
-            (): Effect.Effect<
-              TransferClaimOutcome,
-              AuthenticatedRelayError
-            > => {
-              const transfer = activeTransfer(validatedClaim.transferId, now)
-              if (transfer === undefined) {
-                return Effect.fail(relayError('Claim', 'Unavailable'))
-              }
-              if (transfer.state._tag === 'Ready') {
-                if (
-                  !constantTimeVerifierEqual(
-                    transfer.state.claimVerifier,
-                    claimVerifier,
-                  )
-                ) {
+          const transferBeforeComparison = activeTransfer(
+            validatedClaim.transferId,
+            now,
+          )
+          const expectedClaimVerifier =
+            transferBeforeComparison === undefined
+              ? dummyClaimVerifier
+              : verifierForState(
+                  transferBeforeComparison.state,
+                  dummyClaimVerifier,
+                )
+          const isVerifierMatch = yield* compareClaimVerifiers(
+            expectedClaimVerifier,
+            claimVerifier,
+          )
+          const transfer = activeTransfer(validatedClaim.transferId, now)
+          if (transfer === undefined) {
+            return yield* Effect.fail(relayError('Claim', 'Unavailable'))
+          }
+          return yield* M.value(transfer.state).pipe(
+            M.tagsExhaustive({
+              Reserved: () => Effect.fail(relayError('Claim', 'Unavailable')),
+              Ready: state => {
+                if (!isVerifierMatch) {
                   return Effect.fail(relayError('Claim', 'Unavailable'))
                 }
-                transfers.set(validatedClaim.transferId, {
-                  reservation: transfer.reservation,
-                  state: {
-                    _tag: 'Claimed',
-                    claimVerifier: transfer.state.claimVerifier,
-                    capsule: transfer.state.capsule,
-                    claimantBinding,
-                  },
-                })
-                return Effect.succeed(
-                  WonTransferClaim.make({
-                    capsule: transfer.state.capsule,
+                transfers.set(
+                  validatedClaim.transferId,
+                  StoredTransfer.make({
+                    reservation: transfer.reservation,
+                    owner: transfer.owner,
+                    state: ClaimedState.make({
+                      claimVerifier: state.claimVerifier,
+                      capsule: state.capsule,
+                      claimant,
+                    }),
                   }),
                 )
-              }
-              if (
-                transfer.state._tag === 'Claimed' &&
-                transfer.state.claimantBinding === claimantBinding &&
-                constantTimeVerifierEqual(
-                  transfer.state.claimVerifier,
-                  claimVerifier,
-                )
-              ) {
                 return Effect.succeed(
-                  RetriedWinningTransferClaim.make({
-                    capsule: transfer.state.capsule,
-                  }),
+                  WonTransferClaim.make({ capsule: state.capsule }),
                 )
-              }
-              return Effect.fail(relayError('Claim', 'Unavailable'))
-            },
-          ).pipe(Effect.flatten)
-        }),
-      acknowledge: (principal, reference) =>
-        Effect.gen(function* () {
-          const validatedPrincipal = yield* decodePrincipal(
-            principal,
-            'Acknowledge',
+              },
+              Claimed: state => {
+                if (
+                  isVerifierMatch &&
+                  isSamePrincipal(state.claimant, claimant)
+                ) {
+                  return Effect.succeed(
+                    RetriedWinningTransferClaim.make({
+                      capsule: state.capsule,
+                    }),
+                  )
+                }
+                return Effect.fail(relayError('Claim', 'Unavailable'))
+              },
+              Acknowledged: () =>
+                Effect.fail(relayError('Claim', 'Unavailable')),
+              Cancelled: () => Effect.fail(relayError('Claim', 'Unavailable')),
+            }),
           )
+        }),
+      acknowledge: reference =>
+        Effect.gen(function* () {
+          const claimant = yield* readAuthenticatedPrincipal('Acknowledge')
           const validatedReference = yield* S.decodeUnknownEffect(
             TransferReferenceSchema,
           )(reference).pipe(
             Effect.mapError(() => relayError('Acknowledge', 'InvalidRequest')),
           )
-          const claimantBinding = yield* principalBinding(
-            validatedPrincipal,
-            'Acknowledge',
-          )
           const now = yield* readClock(options, 'Acknowledge')
-          return yield* Effect.sync(() => {
-            const transfer = activeTransfer(validatedReference.transferId, now)
-            if (transfer === undefined) {
-              return Effect.fail(relayError('Acknowledge', 'Unavailable'))
-            }
-            if (
-              transfer.state._tag === 'Claimed' &&
-              transfer.state.claimantBinding === claimantBinding
-            ) {
-              transfers.set(validatedReference.transferId, {
-                reservation: transfer.reservation,
-                state: {
-                  _tag: 'Acknowledged',
-                  claimantBinding,
-                },
-              })
-              return Effect.succeed(
-                AcknowledgedTransfer.make({
-                  transferId: validatedReference.transferId,
-                }),
-              )
-            }
-            if (
-              transfer.state._tag === 'Acknowledged' &&
-              transfer.state.claimantBinding === claimantBinding
-            ) {
-              return Effect.succeed(
-                AcknowledgedTransfer.make({
-                  transferId: validatedReference.transferId,
-                }),
-              )
-            }
-            return Effect.fail(relayError('Acknowledge', 'Unavailable'))
-          }).pipe(Effect.flatten)
+          const transfer = activeTransfer(validatedReference.transferId, now)
+          if (transfer === undefined) {
+            return yield* Effect.fail(relayError('Acknowledge', 'Unavailable'))
+          }
+          return yield* M.value(transfer.state).pipe(
+            M.tagsExhaustive({
+              Reserved: () =>
+                Effect.fail(relayError('Acknowledge', 'Unavailable')),
+              Ready: () =>
+                Effect.fail(relayError('Acknowledge', 'Unavailable')),
+              Claimed: state => {
+                if (!isSamePrincipal(state.claimant, claimant)) {
+                  return Effect.fail(relayError('Acknowledge', 'Unavailable'))
+                }
+                transfers.set(
+                  validatedReference.transferId,
+                  StoredTransfer.make({
+                    reservation: transfer.reservation,
+                    owner: transfer.owner,
+                    state: AcknowledgedState.make({ claimant }),
+                  }),
+                )
+                return Effect.succeed(
+                  AcknowledgedTransfer.make({
+                    transferId: validatedReference.transferId,
+                  }),
+                )
+              },
+              Acknowledged: state => {
+                if (!isSamePrincipal(state.claimant, claimant)) {
+                  return Effect.fail(relayError('Acknowledge', 'Unavailable'))
+                }
+                return Effect.succeed(
+                  AcknowledgedTransfer.make({
+                    transferId: validatedReference.transferId,
+                  }),
+                )
+              },
+              Cancelled: () =>
+                Effect.fail(relayError('Acknowledge', 'Unavailable')),
+            }),
+          )
         }),
-      cancel: (principal, reference) =>
+      cancel: reference =>
         Effect.gen(function* () {
-          const validatedPrincipal = yield* decodePrincipal(principal, 'Cancel')
+          const owner = yield* readAuthenticatedPrincipal('Cancel')
           const validatedReference = yield* S.decodeUnknownEffect(
             TransferReferenceSchema,
           )(reference).pipe(
             Effect.mapError(() => relayError('Cancel', 'InvalidRequest')),
           )
-          const ownerBinding = yield* principalBinding(
-            validatedPrincipal,
-            'Cancel',
-          )
           const now = yield* readClock(options, 'Cancel')
-          return yield* Effect.sync(() => {
-            const transfer = activeTransfer(validatedReference.transferId, now)
-            if (
-              transfer === undefined ||
-              transfer.reservation.ownerBinding !== ownerBinding
-            ) {
-              return Effect.fail(relayError('Cancel', 'Unavailable'))
-            }
-            if (
-              transfer.state._tag === 'Reserved' ||
-              transfer.state._tag === 'Ready'
-            ) {
-              transfers.set(validatedReference.transferId, {
-                reservation: transfer.reservation,
-                state: { _tag: 'Cancelled' },
-              })
-              return Effect.succeed(
-                CancelledTransfer.make({
-                  transferId: validatedReference.transferId,
+          const transfer = activeTransfer(validatedReference.transferId, now)
+          if (
+            transfer === undefined ||
+            !isSamePrincipal(transfer.owner, owner)
+          ) {
+            return yield* Effect.fail(relayError('Cancel', 'Unavailable'))
+          }
+          return yield* M.value(transfer.state).pipe(
+            M.tagsExhaustive({
+              Reserved: () =>
+                Effect.sync(() => {
+                  transfers.set(
+                    validatedReference.transferId,
+                    StoredTransfer.make({
+                      reservation: transfer.reservation,
+                      owner: transfer.owner,
+                      state: CancelledState.make({}),
+                    }),
+                  )
+                  return CancelledTransfer.make({
+                    transferId: validatedReference.transferId,
+                  })
                 }),
-              )
-            }
-            if (transfer.state._tag === 'Cancelled') {
-              return Effect.succeed(
-                CancelledTransfer.make({
-                  transferId: validatedReference.transferId,
+              Ready: () =>
+                Effect.sync(() => {
+                  transfers.set(
+                    validatedReference.transferId,
+                    StoredTransfer.make({
+                      reservation: transfer.reservation,
+                      owner: transfer.owner,
+                      state: CancelledState.make({}),
+                    }),
+                  )
+                  return CancelledTransfer.make({
+                    transferId: validatedReference.transferId,
+                  })
                 }),
-              )
-            }
-            if (transfer.state._tag === 'Claimed') {
-              return Effect.fail(relayError('Cancel', 'Conflict'))
-            }
-            return Effect.fail(relayError('Cancel', 'Unavailable'))
-          }).pipe(Effect.flatten)
+              Claimed: () => Effect.fail(relayError('Cancel', 'Conflict')),
+              Acknowledged: () =>
+                Effect.fail(relayError('Cancel', 'Unavailable')),
+              Cancelled: () =>
+                Effect.succeed(
+                  CancelledTransfer.make({
+                    transferId: validatedReference.transferId,
+                  }),
+                ),
+            }),
+          )
         }),
-      purge: (principal, reference) =>
+      purge: reference =>
         Effect.gen(function* () {
-          const validatedPrincipal = yield* decodePrincipal(principal, 'Purge')
+          const owner = yield* readAuthenticatedPrincipal('Purge')
           const validatedReference = yield* S.decodeUnknownEffect(
             TransferReferenceSchema,
           )(reference).pipe(
             Effect.mapError(() => relayError('Purge', 'InvalidRequest')),
           )
-          const ownerBinding = yield* principalBinding(
-            validatedPrincipal,
-            'Purge',
-          )
-          return yield* Effect.sync(() => {
-            const transfer = transfers.get(validatedReference.transferId)
-            if (
-              transfer === undefined ||
-              transfer.reservation.ownerBinding !== ownerBinding
-            ) {
-              return Effect.fail(relayError('Purge', 'Unavailable'))
-            }
+          const now = yield* readClock(options, 'Purge')
+          const transfer = transfers.get(validatedReference.transferId)
+          if (
+            transfer === undefined ||
+            !isSamePrincipal(transfer.owner, owner)
+          ) {
+            return yield* Effect.fail(relayError('Purge', 'Unavailable'))
+          }
+          if (now >= transfer.reservation.serverExpiresAtMs) {
             transfers.delete(validatedReference.transferId)
-            return Effect.succeed(
-              PurgedTransfer.make({
-                transferId: validatedReference.transferId,
-              }),
-            )
-          }).pipe(Effect.flatten)
+            return PurgedTransfer.make({
+              transferId: validatedReference.transferId,
+            })
+          }
+          return yield* M.value(transfer.state).pipe(
+            M.tagsExhaustive({
+              Reserved: () => Effect.fail(relayError('Purge', 'Conflict')),
+              Ready: () => Effect.fail(relayError('Purge', 'Conflict')),
+              Claimed: () => Effect.fail(relayError('Purge', 'Conflict')),
+              Acknowledged: () =>
+                Effect.sync(() => {
+                  transfers.delete(validatedReference.transferId)
+                  return PurgedTransfer.make({
+                    transferId: validatedReference.transferId,
+                  })
+                }),
+              Cancelled: () =>
+                Effect.sync(() => {
+                  transfers.delete(validatedReference.transferId)
+                  return PurgedTransfer.make({
+                    transferId: validatedReference.transferId,
+                  })
+                }),
+            }),
+          )
         }),
       purgeExpired: Effect.gen(function* () {
         const now = yield* readClock(options, 'PurgeExpired')
-        return yield* Effect.sync(() => {
-          let count = 0
-          for (const [transferId, transfer] of transfers.entries()) {
-            if (now >= transfer.reservation.serverExpiresAtMs) {
-              transfers.delete(transferId)
-              count += 1
-            }
-          }
-          return PurgedExpiredTransfers.make({ count })
+        return PurgedExpiredTransfers.make({
+          count: purgeExpiredAt(now),
         })
       }),
     }
   })
 
-/** Provides the in-memory authenticated relay as an Effect Layer. */
+/** Provides the scoped in-memory authenticated relay as an Effect Layer. */
 export const makeInMemoryAuthenticatedRelayLayer = (
   options: InMemoryAuthenticatedRelayOptions,
 ) => Layer.effect(AuthenticatedRelay, makeInMemoryAuthenticatedRelay(options))

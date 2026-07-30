@@ -25,7 +25,10 @@ const NonceBase64Url = S.String.check(S.isPattern(/^[A-Za-z0-9_-]{16}$/u))
 const AuthenticationTagBase64Url = S.String.check(
   S.isPattern(/^[A-Za-z0-9_-]{22}$/u),
 )
-const CiphertextBase64Url = S.String.check(S.isBase64Url(), S.isNonEmpty())
+const CiphertextBase64Url = S.String.check(
+  S.isBase64Url(),
+  S.isLengthBetween(1, 87_382),
+)
 const TimestampMs = S.Int.check(S.isGreaterThanOrEqualTo(0))
 const Secret256Bits = S.Uint8Array.check(S.isLengthBetween(32, 32))
 

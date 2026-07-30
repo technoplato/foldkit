@@ -1,4 +1,4 @@
-import { Effect, Encoding, Exit, Redacted } from 'effect'
+import { Duration, Effect, Encoding, Exit, Redacted } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -10,6 +10,7 @@ import {
   openCanonicalWalletRecord,
   sealCanonicalWalletRecord,
 } from './crypto.js'
+import * as PublicVaultTransfer from './index.js'
 import {
   AuthenticatedPrincipal,
   EncryptedRelayCapsule,
@@ -21,6 +22,9 @@ import {
 } from './protocol.js'
 import {
   type AuthenticatedRelayService,
+  AuthenticatedRequestPrincipal,
+  HostTimingSafeEqual,
+  type HostTimingSafeEqualService,
   makeInMemoryAuthenticatedRelay,
 } from './relay.js'
 import {
@@ -69,41 +73,64 @@ const makeDeterministicCrypto = (seed: number): VaultTransferCryptoService => {
   }
 }
 
+const makeTestTimingSafeEqual = (
+  onCompare: () => void = () => {},
+): HostTimingSafeEqualService => ({
+  compare: (left, right) =>
+    Effect.sync(() => {
+      onCompare()
+      let difference = left.byteLength ^ right.byteLength
+      for (const [index, leftByte] of left.entries()) {
+        difference |= leftByte ^ (right.at(index) ?? 0)
+      }
+      return difference === 0
+    }),
+})
+
+const asPrincipal = (principal: AuthenticatedPrincipal) =>
+  Effect.provideService(AuthenticatedRequestPrincipal, principal)
+
 const makePublishedFixture = async (record: string = canonicalRecord) => {
   const clock = { nowMs: 10_000 }
   const crypto = makeDeterministicCrypto(7)
-  const relayRandomBytes = makeDeterministicRandomBytes(101)
   return Effect.runPromise(
-    Effect.gen(function* () {
-      const secrets = yield* generateTransferSecrets
-      const claimVerifier = yield* deriveTransferClaimVerifier(
-        secrets.claimToken,
-      )
-      const relay = yield* makeInMemoryAuthenticatedRelay({
-        environment: 'Development',
-        transferLifetimeMs: 1_000,
-        clock: () => clock.nowMs,
-        randomBytes: relayRandomBytes,
-      })
-      const reserved = yield* relay.reserve(owner, { claimVerifier })
-      const ticket = yield* makeTransferTicket(reserved.reservation, secrets)
-      const capsule = yield* sealCanonicalWalletRecord(
-        Redacted.make(record, { label: 'canonical-wallet-record' }),
-        ticket,
-        reserved.reservation,
-      )
-      const published = yield* relay.publish(owner, capsule)
-      return {
-        clock,
-        crypto,
-        relay,
-        secrets,
-        ticket,
-        capsule,
-        reserved,
-        published,
-      }
-    }).pipe(Effect.provideService(VaultTransferCrypto, crypto)),
+    Effect.scoped(
+      Effect.gen(function* () {
+        const secrets = yield* generateTransferSecrets
+        const claimVerifier = yield* deriveTransferClaimVerifier(
+          secrets.claimToken,
+        )
+        const relay = yield* makeInMemoryAuthenticatedRelay({
+          environment: 'Development',
+          transferLifetimeMs: 1_000,
+          cleanupIntervalMs: 1_000,
+          clock: () => clock.nowMs,
+        })
+        const reserved = yield* relay
+          .reserve({ claimVerifier })
+          .pipe(asPrincipal(owner))
+        const ticket = yield* makeTransferTicket(reserved.reservation, secrets)
+        const capsule = yield* sealCanonicalWalletRecord(
+          Redacted.make(record, { label: 'canonical-wallet-record' }),
+          ticket,
+          reserved.reservation,
+        )
+        const published = yield* relay.publish(capsule).pipe(asPrincipal(owner))
+        return {
+          clock,
+          crypto,
+          relay,
+          secrets,
+          ticket,
+          capsule,
+          reserved,
+          published,
+        }
+      }).pipe(
+        Effect.provideService(VaultTransferCrypto, crypto),
+        Effect.provideService(HostTimingSafeEqual, makeTestTimingSafeEqual()),
+      ),
+    ),
   )
 }
 
@@ -112,13 +139,14 @@ const runClaim = (
   principal: AuthenticatedPrincipal,
   ticket: TransferTicket,
 ) =>
-  relay.claim(
-    principal,
-    TransferClaim.make({
-      transferId: ticket.transferId,
-      claimToken: ticket.claimToken,
-    }),
-  )
+  relay
+    .claim(
+      TransferClaim.make({
+        transferId: ticket.transferId,
+        claimToken: ticket.claimToken,
+      }),
+    )
+    .pipe(asPrincipal(principal))
 
 const flipBase64UrlCharacter = (value: string): string =>
   `${value.startsWith('A') ? 'B' : 'A'}${value.slice(1)}`
@@ -171,6 +199,27 @@ describe('Wallet vault transfer ticket and cryptography', () => {
     )
     expect(Redacted.value(encoded)).not.toContain('http://')
     expect(Redacted.value(encoded)).not.toContain('https://')
+
+    const nonCanonicalPayload = Redacted.make(
+      `wallet-transfer-ticket.v1.${Encoding.encodeBase64Url(
+        JSON.stringify(
+          [
+            decoded.protocolVersion,
+            decoded.environment,
+            decoded.transferId,
+            Encoding.encodeBase64Url(Redacted.value(decoded.encryptionKey)),
+            Encoding.encodeBase64Url(Redacted.value(decoded.claimToken)),
+            decoded.expiresAtHintMs,
+          ],
+          undefined,
+          2,
+        ),
+      )}`,
+    )
+    const nonCanonicalError = await Effect.runPromise(
+      decodeTransferTicketFromQr(nonCanonicalPayload).pipe(Effect.flip),
+    )
+    expect(nonCanonicalError).toBeInstanceOf(TransferTicketError)
 
     const arbitraryUrlPayload = Redacted.make(
       `wallet-transfer-ticket.v1.${Encoding.encodeBase64Url(
@@ -252,6 +301,74 @@ describe('Wallet vault transfer ticket and cryptography', () => {
       fixture.capsule,
     )
   })
+
+  it('rejects oversized records and malformed cryptography adapter output', async () => {
+    const fixture = await makePublishedFixture()
+    const oversizedError = await Effect.runPromise(
+      sealCanonicalWalletRecord(
+        Redacted.make('x'.repeat(65_537), {
+          label: 'canonical-wallet-record',
+        }),
+        fixture.ticket,
+        fixture.reserved.reservation,
+      ).pipe(
+        Effect.provideService(VaultTransferCrypto, fixture.crypto),
+        Effect.flip,
+      ),
+    )
+    expect(oversizedError.code).toBe('InvalidEnvelope')
+
+    const malformedCrypto: VaultTransferCryptoService = {
+      ...fixture.crypto,
+      randomBytes: () => Effect.succeed(new Uint8Array(1)),
+    }
+    const malformedRandomError = await Effect.runPromise(
+      generateTransferSecrets.pipe(
+        Effect.provideService(VaultTransferCrypto, malformedCrypto),
+        Effect.flip,
+      ),
+    )
+    expect(malformedRandomError.code).toBe('Unavailable')
+
+    const malformedDecryptCrypto: VaultTransferCryptoService = {
+      ...fixture.crypto,
+      decryptAes256Gcm: () =>
+        Effect.succeed(
+          Redacted.make(new Uint8Array(0), {
+            label: 'wallet-transfer-plaintext',
+          }),
+        ),
+    }
+    const malformedDecryptError = await Effect.runPromise(
+      openCanonicalWalletRecord(fixture.ticket, fixture.capsule).pipe(
+        Effect.provideService(VaultTransferCrypto, malformedDecryptCrypto),
+        Effect.flip,
+      ),
+    )
+    expect(malformedDecryptError.code).toBe('InvalidEnvelope')
+
+    const malformedSealCrypto: VaultTransferCryptoService = {
+      ...fixture.crypto,
+      encryptAes256Gcm: () =>
+        Effect.succeed({
+          ciphertext: new Uint8Array(0),
+          authenticationTag: new Uint8Array(16),
+        }),
+    }
+    const malformedSealError = await Effect.runPromise(
+      sealCanonicalWalletRecord(
+        Redacted.make(canonicalRecord, {
+          label: 'canonical-wallet-record',
+        }),
+        fixture.ticket,
+        fixture.reserved.reservation,
+      ).pipe(
+        Effect.provideService(VaultTransferCrypto, malformedSealCrypto),
+        Effect.flip,
+      ),
+    )
+    expect(malformedSealError.code).toBe('Unavailable')
+  })
 })
 
 describe('in-memory authenticated relay', () => {
@@ -282,18 +399,96 @@ describe('in-memory authenticated relay', () => {
     expect(purged.count).toBe(1)
   })
 
+  it('registers scoped periodic cleanup and removes expired transfers', async () => {
+    const clock = { nowMs: 30_000 }
+    const crypto = makeDeterministicCrypto(31)
+    const remaining = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const secrets = yield* generateTransferSecrets
+          const claimVerifier = yield* deriveTransferClaimVerifier(
+            secrets.claimToken,
+          )
+          const relay = yield* makeInMemoryAuthenticatedRelay({
+            environment: 'Development',
+            transferLifetimeMs: 10,
+            cleanupIntervalMs: 1,
+            clock: () => clock.nowMs,
+          })
+          const reserved = yield* relay
+            .reserve({ claimVerifier })
+            .pipe(asPrincipal(owner))
+          clock.nowMs = reserved.reservation.serverExpiresAtMs
+          yield* Effect.sleep(Duration.millis(20))
+          const maintenance = yield* relay.purgeExpired
+          return maintenance.count
+        }).pipe(
+          Effect.provideService(VaultTransferCrypto, crypto),
+          Effect.provideService(HostTimingSafeEqual, makeTestTimingSafeEqual()),
+        ),
+      ),
+    )
+
+    expect(remaining).toBe(0)
+  })
+
+  it('allocates unlinkable owner bindings and reads expiry after randomness', async () => {
+    const clock = { nowMs: 100 }
+    const webCrypto = makeWebCryptoVaultTransferCrypto(globalThis.crypto)
+    const crypto: VaultTransferCryptoService = {
+      ...webCrypto,
+      randomBytes: byteLength =>
+        Effect.sync(() => {
+          clock.nowMs += 10
+          return makeDeterministicRandomBytes(clock.nowMs)(byteLength)
+        }),
+    }
+    const claimVerifier = Encoding.encodeBase64Url(new Uint8Array(32))
+    const reservations = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const relay = yield* makeInMemoryAuthenticatedRelay({
+            environment: 'Development',
+            transferLifetimeMs: 1_000,
+            cleanupIntervalMs: 1_000,
+            clock: () => clock.nowMs,
+          })
+          const first = yield* relay
+            .reserve({ claimVerifier })
+            .pipe(asPrincipal(owner))
+          const second = yield* relay
+            .reserve({ claimVerifier })
+            .pipe(asPrincipal(owner))
+          return { first, second }
+        }).pipe(
+          Effect.provideService(VaultTransferCrypto, crypto),
+          Effect.provideService(HostTimingSafeEqual, makeTestTimingSafeEqual()),
+        ),
+      ),
+    )
+
+    expect(reservations.first.reservation.ownerBinding).not.toBe(
+      reservations.second.reservation.ownerBinding,
+    )
+    expect(reservations.first.reservation.serverExpiresAtMs).toBe(1_130)
+  })
+
   it('isolates owner operations by the authenticated principal', async () => {
     const fixture = await makePublishedFixture()
     const reference = { transferId: fixture.ticket.transferId }
 
     const publishError = await Effect.runPromise(
-      fixture.relay.publish(otherOwner, fixture.capsule).pipe(Effect.flip),
+      fixture.relay
+        .publish(fixture.capsule)
+        .pipe(asPrincipal(otherOwner), Effect.flip),
     )
     const cancelError = await Effect.runPromise(
-      fixture.relay.cancel(otherOwner, reference).pipe(Effect.flip),
+      fixture.relay
+        .cancel(reference)
+        .pipe(asPrincipal(otherOwner), Effect.flip),
     )
     const purgeError = await Effect.runPromise(
-      fixture.relay.purge(otherOwner, reference).pipe(Effect.flip),
+      fixture.relay.purge(reference).pipe(asPrincipal(otherOwner), Effect.flip),
     )
 
     expect(publishError.code).toBe('Unavailable')
@@ -305,6 +500,66 @@ describe('in-memory authenticated relay', () => {
     expect(won._tag).toBe('WonTransferClaim')
   })
 
+  it('performs dummy host timing-safe comparisons for non-ready states', async () => {
+    const clock = { nowMs: 40_000 }
+    const crypto = makeDeterministicCrypto(43)
+    let comparisonCount = 0
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const secrets = yield* generateTransferSecrets
+          const claimVerifier = yield* deriveTransferClaimVerifier(
+            secrets.claimToken,
+          )
+          const relay = yield* makeInMemoryAuthenticatedRelay({
+            environment: 'Development',
+            transferLifetimeMs: 1_000,
+            cleanupIntervalMs: 1_000,
+            clock: () => clock.nowMs,
+          })
+          const reserved = yield* relay
+            .reserve({ claimVerifier })
+            .pipe(asPrincipal(owner))
+          const claim = TransferClaim.make({
+            transferId: reserved.reservation.transferId,
+            claimToken: secrets.claimToken,
+          })
+          const reservedError = yield* relay
+            .claim(claim)
+            .pipe(asPrincipal(claimantA), Effect.flip)
+          yield* relay
+            .cancel({ transferId: reserved.reservation.transferId })
+            .pipe(asPrincipal(owner))
+          const cancelledError = yield* relay
+            .claim(claim)
+            .pipe(asPrincipal(claimantA), Effect.flip)
+          const absentError = yield* relay
+            .claim(
+              TransferClaim.make({
+                transferId: 'AAAAAAAAAAAAAAAAAAAAAA',
+                claimToken: secrets.claimToken,
+              }),
+            )
+            .pipe(asPrincipal(claimantA), Effect.flip)
+          return { reservedError, cancelledError, absentError }
+        }).pipe(
+          Effect.provideService(VaultTransferCrypto, crypto),
+          Effect.provideService(
+            HostTimingSafeEqual,
+            makeTestTimingSafeEqual(() => {
+              comparisonCount += 1
+            }),
+          ),
+        ),
+      ),
+    )
+
+    expect(result.reservedError.code).toBe('Unavailable')
+    expect(result.cancelledError.code).toBe('Unavailable')
+    expect(result.absentError.code).toBe('Unavailable')
+    expect(comparisonCount).toBe(3)
+  })
+
   it('rejects a tampered claim token without revealing existence', async () => {
     const fixture = await makePublishedFixture()
     const tamperedToken = Uint8Array.from(
@@ -314,7 +569,6 @@ describe('in-memory authenticated relay', () => {
     const error = await Effect.runPromise(
       fixture.relay
         .claim(
-          claimantA,
           TransferClaim.make({
             transferId: fixture.ticket.transferId,
             claimToken: Redacted.make(tamperedToken, {
@@ -322,7 +576,7 @@ describe('in-memory authenticated relay', () => {
             }),
           }),
         )
-        .pipe(Effect.flip),
+        .pipe(asPrincipal(claimantA), Effect.flip),
     )
 
     expect(error.code).toBe('Unavailable')
@@ -360,31 +614,63 @@ describe('in-memory authenticated relay', () => {
     expect(loserError.code).toBe('Unavailable')
   })
 
+  it('prevents owner purge before acknowledgement so winner retry survives', async () => {
+    const fixture = await makePublishedFixture()
+    const reference = { transferId: fixture.ticket.transferId }
+    const readyPurgeError = await Effect.runPromise(
+      fixture.relay.purge(reference).pipe(asPrincipal(owner), Effect.flip),
+    )
+    const won = await Effect.runPromise(
+      runClaim(fixture.relay, claimantA, fixture.ticket),
+    )
+    const claimedPurgeError = await Effect.runPromise(
+      fixture.relay.purge(reference).pipe(asPrincipal(owner), Effect.flip),
+    )
+    const retry = await Effect.runPromise(
+      runClaim(fixture.relay, claimantA, fixture.ticket),
+    )
+    const acknowledged = await Effect.runPromise(
+      fixture.relay.acknowledge(reference).pipe(asPrincipal(claimantA)),
+    )
+    const purged = await Effect.runPromise(
+      fixture.relay.purge(reference).pipe(asPrincipal(owner)),
+    )
+
+    expect(readyPurgeError.code).toBe('Conflict')
+    expect(won._tag).toBe('WonTransferClaim')
+    expect(claimedPurgeError.code).toBe('Conflict')
+    expect(retry._tag).toBe('RetriedWinningTransferClaim')
+    expect(acknowledged._tag).toBe('AcknowledgedTransfer')
+    expect(purged._tag).toBe('PurgedTransfer')
+  })
+
   it('acknowledges idempotently, destroys claim access, and remains purgeable', async () => {
     const fixture = await makePublishedFixture()
     const reference = { transferId: fixture.ticket.transferId }
     await Effect.runPromise(runClaim(fixture.relay, claimantA, fixture.ticket))
 
     const acknowledged = await Effect.runPromise(
-      fixture.relay.acknowledge(claimantA, reference),
+      fixture.relay.acknowledge(reference).pipe(asPrincipal(claimantA)),
     )
     const acknowledgedAgain = await Effect.runPromise(
-      fixture.relay.acknowledge(claimantA, reference),
+      fixture.relay.acknowledge(reference).pipe(asPrincipal(claimantA)),
     )
     const claimError = await Effect.runPromise(
       runClaim(fixture.relay, claimantA, fixture.ticket).pipe(Effect.flip),
     )
     const otherClaimantError = await Effect.runPromise(
-      fixture.relay.acknowledge(claimantB, reference).pipe(Effect.flip),
+      fixture.relay
+        .acknowledge(reference)
+        .pipe(asPrincipal(claimantB), Effect.flip),
     )
     const cancelError = await Effect.runPromise(
-      fixture.relay.cancel(owner, reference).pipe(Effect.flip),
+      fixture.relay.cancel(reference).pipe(asPrincipal(owner), Effect.flip),
     )
     const purged = await Effect.runPromise(
-      fixture.relay.purge(owner, reference),
+      fixture.relay.purge(reference).pipe(asPrincipal(owner)),
     )
     const afterPurgeError = await Effect.runPromise(
-      fixture.relay.purge(owner, reference).pipe(Effect.flip),
+      fixture.relay.purge(reference).pipe(asPrincipal(owner), Effect.flip),
     )
 
     expect(acknowledged._tag).toBe('AcknowledgedTransfer')
@@ -401,19 +687,21 @@ describe('in-memory authenticated relay', () => {
     const reference = { transferId: fixture.ticket.transferId }
 
     const cancelled = await Effect.runPromise(
-      fixture.relay.cancel(owner, reference),
+      fixture.relay.cancel(reference).pipe(asPrincipal(owner)),
     )
     const cancelledAgain = await Effect.runPromise(
-      fixture.relay.cancel(owner, reference),
+      fixture.relay.cancel(reference).pipe(asPrincipal(owner)),
     )
     const claimError = await Effect.runPromise(
       runClaim(fixture.relay, claimantA, fixture.ticket).pipe(Effect.flip),
     )
     const publishError = await Effect.runPromise(
-      fixture.relay.publish(owner, fixture.capsule).pipe(Effect.flip),
+      fixture.relay
+        .publish(fixture.capsule)
+        .pipe(asPrincipal(owner), Effect.flip),
     )
     const purged = await Effect.runPromise(
-      fixture.relay.purge(owner, reference),
+      fixture.relay.purge(reference).pipe(asPrincipal(owner)),
     )
 
     expect(cancelled._tag).toBe('CancelledTransfer')
@@ -422,65 +710,116 @@ describe('in-memory authenticated relay', () => {
     expect(publishError.code).toBe('Conflict')
     expect(purged._tag).toBe('PurgedTransfer')
   })
+
+  it('enforces the active transfer count limit after cleaning expiry', async () => {
+    const crypto = makeWebCryptoVaultTransferCrypto(globalThis.crypto)
+    const claimVerifier = Encoding.encodeBase64Url(new Uint8Array(32))
+    const error = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const relay = yield* makeInMemoryAuthenticatedRelay({
+            environment: 'Development',
+            transferLifetimeMs: 1_000,
+            cleanupIntervalMs: 1_000,
+            clock: () => 50_000,
+          })
+          yield* Effect.forEach(
+            Array.from({ length: 256 }, (_, index) => index),
+            () => relay.reserve({ claimVerifier }).pipe(asPrincipal(owner)),
+            { concurrency: 1, discard: true },
+          )
+          return yield* relay
+            .reserve({ claimVerifier })
+            .pipe(asPrincipal(owner), Effect.flip)
+        }).pipe(
+          Effect.provideService(VaultTransferCrypto, crypto),
+          Effect.provideService(HostTimingSafeEqual, makeTestTimingSafeEqual()),
+        ),
+      ),
+    )
+
+    expect(error.code).toBe('Unavailable')
+  })
 })
 
 describe('secret leakage boundaries', () => {
+  it('exports only safe projections and sanitized outcomes from the package root', () => {
+    expect('TransferTicketPublicProjection' in PublicVaultTransfer).toBe(true)
+    expect('TransferTicket' in PublicVaultTransfer).toBe(false)
+    expect('TransferSecrets' in PublicVaultTransfer).toBe(false)
+    expect('TransferClaim' in PublicVaultTransfer).toBe(false)
+    expect('VaultTransferCrypto' in PublicVaultTransfer).toBe(false)
+    expect('AuthenticatedRelay' in PublicVaultTransfer).toBe(false)
+    expect('WalletTransferRecordPort' in PublicVaultTransfer).toBe(false)
+  })
+
   it('keeps sentinel material out of projections, outcomes, and errors', async () => {
     const keySentinel = 'encryption-key-sentinel-00000000'
     const tokenSentinel = 'claim-token-sentinel-00000000000'
     const recordSentinel = 'PRIVATE_WALLET_RECORD_SENTINEL'
     const crypto = makeDeterministicCrypto(29)
     const clock = { nowMs: 20_000 }
-    const relayRandomBytes = makeDeterministicRandomBytes(151)
 
     const values = await Effect.runPromise(
-      Effect.gen(function* () {
-        const secrets = TransferSecrets.make({
-          encryptionKey: Redacted.make(textEncoder.encode(keySentinel), {
-            label: 'wallet-transfer-encryption-key',
-          }),
-          claimToken: Redacted.make(textEncoder.encode(tokenSentinel), {
-            label: 'wallet-transfer-claim-token',
-          }),
-        })
-        const claimVerifier = yield* deriveTransferClaimVerifier(
-          secrets.claimToken,
-        )
-        const relay = yield* makeInMemoryAuthenticatedRelay({
-          environment: 'Development',
-          transferLifetimeMs: 1_000,
-          clock: () => clock.nowMs,
-          randomBytes: relayRandomBytes,
-        })
-        const reserved = yield* relay.reserve(owner, { claimVerifier })
-        const ticket = yield* makeTransferTicket(reserved.reservation, secrets)
-        const capsule = yield* sealCanonicalWalletRecord(
-          Redacted.make(recordSentinel, {
-            label: 'canonical-wallet-record',
-          }),
-          ticket,
-          reserved.reservation,
-        )
-        const published = yield* relay.publish(owner, capsule)
-        const qr = yield* encodeTransferTicketForQr(ticket)
-        const invalidClaim = TransferClaim.make({
-          transferId: ticket.transferId,
-          claimToken: Redacted.make(new Uint8Array(32), {
-            label: 'wallet-transfer-claim-token',
-          }),
-        })
-        const error = yield* relay
-          .claim(claimantA, invalidClaim)
-          .pipe(Effect.flip)
-        return {
-          ticket,
-          capsule,
-          reserved,
-          published,
-          qr,
-          error,
-        }
-      }).pipe(Effect.provideService(VaultTransferCrypto, crypto)),
+      Effect.scoped(
+        Effect.gen(function* () {
+          const secrets = TransferSecrets.make({
+            encryptionKey: Redacted.make(textEncoder.encode(keySentinel), {
+              label: 'wallet-transfer-encryption-key',
+            }),
+            claimToken: Redacted.make(textEncoder.encode(tokenSentinel), {
+              label: 'wallet-transfer-claim-token',
+            }),
+          })
+          const claimVerifier = yield* deriveTransferClaimVerifier(
+            secrets.claimToken,
+          )
+          const relay = yield* makeInMemoryAuthenticatedRelay({
+            environment: 'Development',
+            transferLifetimeMs: 1_000,
+            cleanupIntervalMs: 1_000,
+            clock: () => clock.nowMs,
+          })
+          const reserved = yield* relay
+            .reserve({ claimVerifier })
+            .pipe(asPrincipal(owner))
+          const ticket = yield* makeTransferTicket(
+            reserved.reservation,
+            secrets,
+          )
+          const capsule = yield* sealCanonicalWalletRecord(
+            Redacted.make(recordSentinel, {
+              label: 'canonical-wallet-record',
+            }),
+            ticket,
+            reserved.reservation,
+          )
+          const published = yield* relay
+            .publish(capsule)
+            .pipe(asPrincipal(owner))
+          const qr = yield* encodeTransferTicketForQr(ticket)
+          const invalidClaim = TransferClaim.make({
+            transferId: ticket.transferId,
+            claimToken: Redacted.make(new Uint8Array(32), {
+              label: 'wallet-transfer-claim-token',
+            }),
+          })
+          const error = yield* relay
+            .claim(invalidClaim)
+            .pipe(asPrincipal(claimantA), Effect.flip)
+          return {
+            ticket,
+            capsule,
+            reserved,
+            published,
+            qr,
+            error,
+          }
+        }).pipe(
+          Effect.provideService(VaultTransferCrypto, crypto),
+          Effect.provideService(HostTimingSafeEqual, makeTestTimingSafeEqual()),
+        ),
+      ),
     )
 
     const publicStrings = [
