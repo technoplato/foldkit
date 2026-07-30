@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:29:37 a.m. EDT — `a17359e73a29` feat(issues): add React host and history carrier
+
+- **Implementation commit:** `a17359e73a296124b9b1caccf823fdfb38956a4c`
+- **Change:** Add the reusable browser navigation carrier and live React Issue Tracker host.
+- **Details:**
+  - The shared React bindings now reconcile typed Program navigation with browser history in both directions, including replay-safe replacement. The Issue Tracker React client projects the same host-neutral destinations, observes Instant when configured, and renders list, detail, filing, and triage surfaces without host-owned business state.
+- **Files:**
+  - `examples/shared/react-bindings/src/programNavigationHistory.ts` — Reusable two-way typed Program to browser-history carrier.
+  - `examples/shared/react-bindings/src/programNavigationHistory.test.tsx` — Proves push and replay-safe replace behavior.
+  - `examples/issues/react-bindings/src/issues.ts` — Stable React actions and client factory over the shared Issue Tracker Program.
+  - `examples/issues/react/src/App.tsx` — Browser surface for typed list, detail, filing, and triage destinations.
+  - `examples/issues/react/src/client.ts` — Selects live Instant or deterministic resources.
+  - `pnpm-lock.yaml` — Registers the new workspace packages and dependencies reproducibly.
+- **User context (verbatim):**
+  > Build surfaces in react cli tui react native and foldkit just like every other example
+  > Go ahead and do those steps
+- **SpecStory:** unavailable — Unavailable: this task is running in Codex desktop and no verified SpecStory CLI capture URI was produced.
+
 ## July 30th, 2026 at 1:25:07 a.m. EDT — `11d08d2962e1` feat(issues): model the live tracker program
 
 - **Implementation commit:** `11d08d2962e1287bcc8b0556bb10d07f3264b929`
