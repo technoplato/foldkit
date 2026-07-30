@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:19:59 p.m. EDT — `4300cb903b89` feat(react-native-showcase): enable Wallet development builds
+
+- **Implementation commit:** `4300cb903b898f0d62498a472a52701e08ea2945`
+- **Change:** Enable Expo Wallet development builds and compatible browser resources
+- **Details:**
+  - Updated Expo and React Native to their expected patch releases, added expo-dev-client, and removed the unused native Picker dependency after Wallet selectors moved to buttons.
+  - Linked the existing Wallet web-client package into the showcase preparation graph so Expo web can use IndexedDB, Web Crypto, and browser clipboard resources instead of Expo SecureStore.
+  - Preserved the dependency supply-chain gate with exact temporary release-age exclusions and verified the final lock with a frozen install.
+- **Files:**
+  - `examples/react-native-showcase/package.json` — Declares the development client, compatible Expo runtime, browser Wallet package, and deterministic prerequisite build order.
+  - `pnpm-lock.yaml` — Locks the updated Expo and React Native graph while preserving the unrelated Issues React Native importer.
+  - `pnpm-workspace.yaml` — Allows the exact newly released Expo toolchain versions through the repository minimum-release-age policy.
+- **User context (verbatim):**
+  > Let's also build a, um, Build the expo development client and get that working as well.
+  > Also update Ava fix to use whatever you’ve just built here https://expodemo.knophy.com/showcase/wallet
+- **SpecStory:** unavailable — No SpecStory URI is available because this Codex desktop task was not captured by SpecStory.
+
 ## July 30th, 2026 at 1:17:23 p.m. EDT — `89e14e1c3005` feat(foldkit): add audio processing and event migrations
 
 - **Implementation commit:** `89e14e1c30050d4c72f99999b933211285e519ce`
