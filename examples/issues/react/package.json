@@ -1,0 +1,31 @@
+{
+  "name": "issues-react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite",
+    "prebuild": "pnpm --filter issues-react-bindings-example build",
+    "predev": "pnpm --filter issues-react-bindings-example build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/instant-tools": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "issues-core-example": "workspace:*",
+    "issues-react-bindings-example": "workspace:*",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "shared-react-bindings-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}
