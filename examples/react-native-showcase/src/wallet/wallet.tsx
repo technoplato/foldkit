@@ -1,5 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
-import { useEffect, useRef } from 'react'
+import { Image } from 'expo-image'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   Linking,
   Platform,
@@ -11,9 +12,12 @@ import {
 } from 'react-native'
 import {
   type Model,
+  type PortfolioSnapshot,
+  type ReceivingInstruction,
   type TransactionPreview,
   type TransactionState,
   type TransactionSubmission,
+  type WalletAccount,
   type WalletCreationState,
   type WalletNetworkMode,
   type WalletProfile,
@@ -46,6 +50,13 @@ import {
   walletDataSourceDetail,
   walletDataSourceLabel,
 } from 'wallet-core-example'
+import {
+  type ReceivingQrProjectionInput,
+  inspectingWalletRuntimeMode,
+  liveWalletRuntimeMode,
+  projectReceivingQr,
+  receivingQrUnavailableLabel,
+} from 'wallet-qr-example'
 import {
   type WalletInitialRoute,
   makeWalletReactClient,
@@ -237,10 +248,16 @@ const CopyAddressButton = ({
 
 /** Runs the shared Wallet React bindings through one React Native presenter. */
 export const WalletExample = ({
+  hostOrigin,
+  outerRuntimeMode,
   route,
-}: Readonly<{ route: WalletInitialRoute }>) => (
+}: Readonly<{
+  hostOrigin: ReceivingQrProjectionInput['hostOrigin']
+  outerRuntimeMode: ReceivingQrProjectionInput['runtimeMode']
+  route: WalletInitialRoute
+}>) => (
   <WalletProvider initialRoute={route} fallback={<StartingWallet />}>
-    <WalletScreen />
+    <WalletScreen hostOrigin={hostOrigin} outerRuntimeMode={outerRuntimeMode} />
   </WalletProvider>
 )
 
@@ -250,16 +267,35 @@ const StartingWallet = () => (
   </View>
 )
 
-const WalletScreen = () => {
+const WalletScreen = ({
+  hostOrigin,
+  outerRuntimeMode,
+}: Readonly<{
+  hostOrigin: ReceivingQrProjectionInput['hostOrigin']
+  outerRuntimeMode: ReceivingQrProjectionInput['runtimeMode']
+}>) => {
   const model = useWalletModel()
   const replay = useWalletReplay()
+  const runtimeMode =
+    replay.mode === 'Inspecting' ||
+    outerRuntimeMode._tag === 'InspectingWalletRuntimeMode'
+      ? inspectingWalletRuntimeMode
+      : liveWalletRuntimeMode
   return (
     <View style={styles.wallet}>
-      <WalletHome model={model} />
+      <WalletHome
+        hostOrigin={hostOrigin}
+        model={model}
+        runtimeMode={runtimeMode}
+      />
       <WalletHero model={model} />
       <SendMoney model={model} />
       <Activity model={model} />
-      <AccountTools model={model} />
+      <AccountTools
+        hostOrigin={hostOrigin}
+        model={model}
+        runtimeMode={runtimeMode}
+      />
       <ReplayControls label="Wallet replay" replay={replay} />
     </View>
   )
@@ -301,54 +337,151 @@ const NetworkModePicker = ({ model }: Readonly<{ model: Model }>) => {
 }
 
 const WalletProfileCard = ({
+  hostOrigin,
   model,
+  runtimeMode,
   wallet,
-}: Readonly<{ model: Model; wallet: WalletProfile }>) => (
-  <View style={styles.walletProfile}>
-    <View style={styles.headingRow}>
-      <View>
-        <Text style={styles.eyebrow}>Multi-chain wallet</Text>
-        <Text style={styles.walletProfileTitle}>{wallet.displayName}</Text>
+}: Readonly<{
+  hostOrigin: ReceivingQrProjectionInput['hostOrigin']
+  model: Model
+  runtimeMode: ReceivingQrProjectionInput['runtimeMode']
+  wallet: WalletProfile
+}>) => {
+  const portfolio =
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? model.portfolio.snapshot
+      : undefined
+  const networks = portfolio === undefined ? [] : portfolio.networks
+  return (
+    <View style={styles.walletProfile}>
+      <View style={styles.headingRow}>
+        <View>
+          <Text style={styles.eyebrow}>Multi-chain wallet</Text>
+          <Text style={styles.walletProfileTitle}>{wallet.displayName}</Text>
+        </View>
+        <Text style={styles.networkModePill}>{model.walletNetworkMode}</Text>
       </View>
-      <Text style={styles.networkModePill}>{model.walletNetworkMode}</Text>
-    </View>
-    <View style={styles.chainList}>
-      {Array.map(
-        activeWalletAccounts(
-          wallet,
-          model.portfolio._tag === 'LoadedPortfolio'
-            ? model.portfolio.snapshot.networks
-            : [],
-          model.walletNetworkMode,
-        ),
-        account => (
-          <View key={account.accountId} style={styles.chainRow}>
-            <View style={styles.chainIdentity}>
-              <Text style={styles.chainName}>{account.displayName}</Text>
-              <Text style={styles.mutedText}>{account.networkName}</Text>
-              <Text style={styles.chainBalance}>
-                {walletAccountBalanceLabel(model, account.accountId)}
-              </Text>
+      <View style={styles.chainList}>
+        {Array.map(
+          activeWalletAccounts(wallet, networks, model.walletNetworkMode),
+          account => (
+            <View key={account.accountId} style={styles.chainRow}>
+              <View style={styles.chainIdentity}>
+                <Text style={styles.chainName}>{account.displayName}</Text>
+                <Text style={styles.mutedText}>{account.networkName}</Text>
+                <Text style={styles.chainBalance}>
+                  {walletAccountBalanceLabel(model, account.accountId)}
+                </Text>
+              </View>
+              <View style={styles.chainAddressLine}>
+                <Text selectable style={styles.chainAddress}>
+                  {shortenedAddress(account.address)}
+                </Text>
+                <CopyAddressButton
+                  address={account.address}
+                  copyId={`profile:${wallet.walletId}:${account.accountId}`}
+                  model={model}
+                />
+              </View>
+              <Text style={styles.chainDetail}>{account.chainId}</Text>
+              {portfolio === undefined
+                ? null
+                : Array.map(
+                    Array.filter(
+                      portfolio.receivingInstructions,
+                      instruction =>
+                        instruction.accountId === account.accountId,
+                    ),
+                    instruction => (
+                      <ReceivingQr
+                        account={account}
+                        hostOrigin={hostOrigin}
+                        instruction={instruction}
+                        key={`${instruction.accountId}:${instruction.assetId}`}
+                        portfolio={portfolio}
+                        runtimeMode={runtimeMode}
+                      />
+                    ),
+                  )}
             </View>
-            <View style={styles.chainAddressLine}>
-              <Text selectable style={styles.chainAddress}>
-                {shortenedAddress(account.address)}
-              </Text>
-              <CopyAddressButton
-                address={account.address}
-                copyId={`profile:${wallet.walletId}:${account.accountId}`}
-                model={model}
-              />
-            </View>
-            <Text style={styles.chainDetail}>{account.chainId}</Text>
-          </View>
-        ),
-      )}
+          ),
+        )}
+      </View>
     </View>
-  </View>
-)
+  )
+}
 
-const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
+const ReceivingQr = ({
+  account,
+  hostOrigin,
+  instruction,
+  portfolio,
+  runtimeMode,
+}: Readonly<{
+  account: WalletAccount
+  hostOrigin: ReceivingQrProjectionInput['hostOrigin']
+  instruction: ReceivingInstruction
+  portfolio: PortfolioSnapshot
+  runtimeMode: ReceivingQrProjectionInput['runtimeMode']
+}>) => {
+  const projection = useMemo(
+    () =>
+      projectReceivingQr({
+        account,
+        hostOrigin,
+        instruction,
+        portfolio,
+        runtimeMode,
+      }),
+    [account, hostOrigin, instruction, portfolio, runtimeMode],
+  )
+  if (projection._tag === 'AvailableReceivingQr') {
+    return (
+      <View
+        accessibilityLabel={`Scannable receive QR for ${instruction.assetId}`}
+        style={styles.receiveQr}
+        testID={`wallet-receive-qr:${instruction.accountId}:${instruction.assetId}`}
+      >
+        <Text style={styles.receiveQrTitle}>Receive {instruction.assetId}</Text>
+        <Image
+          accessibilityLabel={`Receive ${instruction.assetId} QR code`}
+          accessible
+          contentFit="contain"
+          source={{ uri: projection.dataUrl }}
+          style={styles.receiveQrImage}
+        />
+        <Text selectable style={styles.codeText}>
+          {projection.payload}
+        </Text>
+      </View>
+    )
+  }
+  return (
+    <View
+      accessibilityLabel={`Receive QR unavailable for ${instruction.assetId}`}
+      style={styles.receiveQr}
+      testID={`wallet-receive-qr-unavailable:${instruction.accountId}:${instruction.assetId}`}
+    >
+      <Text style={styles.receiveQrTitle}>Receive {instruction.assetId}</Text>
+      <Text style={styles.receiveQrUnavailable}>
+        {receivingQrUnavailableLabel(projection.reason)}
+      </Text>
+      <Text selectable style={styles.codeText}>
+        {instruction.portableUri}
+      </Text>
+    </View>
+  )
+}
+
+const WalletHome = ({
+  hostOrigin,
+  model,
+  runtimeMode,
+}: Readonly<{
+  hostOrigin: ReceivingQrProjectionInput['hostOrigin']
+  model: Model
+  runtimeMode: ReceivingQrProjectionInput['runtimeMode']
+}>) => {
   const actions = useWalletActions()
   const profiles = (() => {
     if (model.walletProfileLoading._tag === 'LoadingWalletProfiles') {
@@ -393,8 +526,10 @@ const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
           <View style={styles.walletProfileList}>
             {Array.map(wallets, wallet => (
               <WalletProfileCard
+                hostOrigin={hostOrigin}
                 key={wallet.walletId}
                 model={model}
+                runtimeMode={runtimeMode}
                 wallet={wallet}
               />
             ))}
@@ -988,7 +1123,15 @@ const Activity = ({ model }: Readonly<{ model: Model }>) => {
   )
 }
 
-const AccountTools = ({ model }: Readonly<{ model: Model }>) => {
+const AccountTools = ({
+  hostOrigin,
+  model,
+  runtimeMode,
+}: Readonly<{
+  hostOrigin: ReceivingQrProjectionInput['hostOrigin']
+  model: Model
+  runtimeMode: ReceivingQrProjectionInput['runtimeMode']
+}>) => {
   const actions = useWalletActions()
   const maybeAccount = primaryWalletAccount(model)
   const maybeReceiving = primaryReceivingInstruction(model)
@@ -1032,16 +1175,16 @@ const AccountTools = ({ model }: Readonly<{ model: Model }>) => {
               model={model}
             />
           </View>
-          <View
-            accessibilityLabel={`Receiving QR payload: ${maybeReceiving.value.portableUri}`}
-            style={styles.receiveQrPayload}
-            testID={`wallet-receive-qr-payload:${maybeReceiving.value.accountId}:${maybeReceiving.value.assetId}`}
-          >
-            <Text style={styles.receiveQrTitle}>QR receive payload</Text>
-            <Text selectable style={styles.codeText}>
-              {maybeReceiving.value.portableUri}
-            </Text>
-          </View>
+          {Option.isSome(maybeAccount) &&
+          model.portfolio._tag === 'LoadedPortfolio' ? (
+            <ReceivingQr
+              account={maybeAccount.value}
+              hostOrigin={hostOrigin}
+              instruction={maybeReceiving.value}
+              portfolio={model.portfolio.snapshot}
+              runtimeMode={runtimeMode}
+            />
+          ) : null}
         </View>
       ) : null}
       <Text style={styles.mutedText}>Proof: {model.signature._tag}</Text>
@@ -1233,15 +1376,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   receiveBlock: { gap: 10 },
-  receiveQrPayload: {
+  receiveQr: {
+    alignItems: 'center',
     backgroundColor: '#100d09',
     borderColor: '#665237',
     borderRadius: 16,
     borderWidth: 1,
+    flexBasis: '100%',
     gap: 8,
     padding: 14,
+    width: '100%',
   },
+  receiveQrImage: { height: 220, width: 220 },
   receiveQrTitle: { color: '#f7dca5', fontSize: 14, fontWeight: '900' },
+  receiveQrUnavailable: {
+    color: '#e8aa4a',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
   balance: {
     color: '#f7dca5',
     fontSize: 64,

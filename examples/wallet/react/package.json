@@ -6,13 +6,16 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "dev": "vite",
-    "prebuild": "pnpm --filter wallet-react-bindings-example build && pnpm --filter wallet-web-client-example build",
-    "predev": "pnpm --filter wallet-react-bindings-example build && pnpm --filter wallet-web-client-example build",
-    "pretypecheck": "pnpm --filter wallet-react-bindings-example build && pnpm --filter wallet-web-client-example build",
+    "prebuild": "pnpm --filter wallet-react-bindings-example build && pnpm --filter wallet-web-client-example build && pnpm --filter wallet-simulated-client-example build && pnpm --filter wallet-qr-example build",
+    "predev": "pnpm --filter wallet-react-bindings-example build && pnpm --filter wallet-web-client-example build && pnpm --filter wallet-simulated-client-example build && pnpm --filter wallet-qr-example build",
+    "pretest": "pnpm --filter wallet-simulated-client-example build && pnpm --filter wallet-qr-example build",
+    "pretypecheck": "pnpm --filter wallet-react-bindings-example build && pnpm --filter wallet-web-client-example build && pnpm --filter wallet-simulated-client-example build && pnpm --filter wallet-qr-example build",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "wallet-core-example": "workspace:*",
+    "wallet-qr-example": "workspace:*",
     "wallet-react-bindings-example": "workspace:*",
     "wallet-web-client-example": "workspace:*",
     "react": "19.2.3",
@@ -26,6 +29,8 @@
     "prettier": "^3.8.4",
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9",
+    "wallet-simulated-client-example": "workspace:*"
   }
 }

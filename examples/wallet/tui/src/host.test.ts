@@ -3,26 +3,91 @@ import * as Runtime from 'foldkit/program-runtime'
 import { describe, expect, it } from 'vitest'
 import {
   ChangedTransferAmount,
+  LoadedPortfolio,
+  Model,
+  PortfolioSnapshot,
+  ReceivingInstruction,
   RequestedWalletCreation,
   SelectedSendNetwork,
   SelectedWalletNetworkMode,
   WalletProgram,
   activeWalletAccounts,
   availableSendNetworkSelections,
+  primaryReceivingInstruction,
   primaryWalletSuggestedTestTransferAmount,
   primaryWalletTestFundingMethod,
   sendNetworkSelectionLabel,
   walletAccountBalanceLabel,
 } from 'wallet-core-example'
+import {
+  freshWalletHostOrigin,
+  inspectingWalletRuntimeMode,
+  liveWalletRuntimeMode,
+  portableWalletRouteOrigin,
+} from 'wallet-qr-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import {
+  ReceivingQrViewport,
+  doesReceivingQrPanelFitOpenTui,
   interactionsForWalletOpenTui,
+  receivingQrPanelLines,
   walletNetworkModeAtIndex,
   walletOpenTuiProgram,
   walletOpenTuiSummary,
   walletSendNetworkSelectionAtIndex,
 } from './presentation.js'
+
+const largeReceivingViewport = ReceivingQrViewport.make({
+  columns: 240,
+  rows: 100,
+})
+const constrainedReceivingViewport = ReceivingQrViewport.make({
+  columns: 40,
+  rows: 10,
+})
+
+const scannableEthereumModel = (model: Model): Model => {
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    throw new Error('Expected a loaded Wallet portfolio')
+  }
+  const maybeInstruction = primaryReceivingInstruction(model)
+  if (Option.isNone(maybeInstruction)) {
+    throw new Error('Expected a selected receiving instruction')
+  }
+  const instruction = maybeInstruction.value
+  const maybeAccount = Array.findFirst(
+    model.portfolio.snapshot.accounts,
+    account => account.accountId === instruction.accountId,
+  )
+  if (
+    Option.isNone(maybeAccount) ||
+    maybeAccount.value.chainId !== 'ethereum'
+  ) {
+    throw new Error('Expected the selected Ethereum account')
+  }
+  const nextReceivingInstruction = ReceivingInstruction.make({
+    ...instruction,
+    portableUri: `ethereum:${maybeAccount.value.address}@11155111`,
+  })
+  const nextReceivingInstructions = Array.map(
+    model.portfolio.snapshot.receivingInstructions,
+    candidate =>
+      candidate.accountId === instruction.accountId &&
+      candidate.assetId === instruction.assetId
+        ? nextReceivingInstruction
+        : candidate,
+  )
+  const nextPortfolio = PortfolioSnapshot.make({
+    ...model.portfolio.snapshot,
+    dataSource: 'Testnet',
+    receivingInstructions: nextReceivingInstructions,
+  })
+  return Model.make({
+    ...model,
+    portfolio: LoadedPortfolio.make({ snapshot: nextPortfolio }),
+  })
+}
 
 describe('Wallet OpenTUI host', () => {
   it('consumes the exact canonical Wallet Program export', () => {
@@ -74,6 +139,109 @@ describe('Wallet OpenTUI host', () => {
       'History LoadedTransactionHistory',
     )
     expect(walletOpenTuiSummary(model)).toContain('0 wallets Testnet')
+
+    const fixtureReceivingLines = receivingQrPanelLines(
+      model,
+      freshWalletHostOrigin,
+      liveWalletRuntimeMode,
+      largeReceivingViewport,
+    )
+    expect(fixtureReceivingLines).toContain(
+      'Not a scannable QR. Fixture wallet addresses cannot receive funds.',
+    )
+    expect(Array.join(fixtureReceivingLines, '\n')).toContain(
+      'Payload: /wallet/receive/',
+    )
+    expect(Array.join(fixtureReceivingLines, '\n')).not.toContain('QR payload:')
+
+    const replayReceivingLines = receivingQrPanelLines(
+      model,
+      freshWalletHostOrigin,
+      inspectingWalletRuntimeMode,
+      largeReceivingViewport,
+    )
+    expect(replayReceivingLines).toContain(
+      'Not a scannable QR. Replay inspection cannot receive funds.',
+    )
+    expect(Array.join(replayReceivingLines, '\n')).not.toContain('QR payload:')
+
+    const portableReceivingLines = receivingQrPanelLines(
+      model,
+      portableWalletRouteOrigin,
+      liveWalletRuntimeMode,
+      largeReceivingViewport,
+    )
+    expect(portableReceivingLines).toContain(
+      'Not a scannable QR. Open this Wallet directly to receive funds.',
+    )
+    expect(Array.join(portableReceivingLines, '\n')).not.toContain(
+      'QR payload:',
+    )
+
+    const scannableModel = scannableEthereumModel(model)
+    const completeReceivingLines = receivingQrPanelLines(
+      scannableModel,
+      freshWalletHostOrigin,
+      liveWalletRuntimeMode,
+      largeReceivingViewport,
+    )
+    expect(Array.join(completeReceivingLines, '\n')).toContain(
+      'QR payload: ethereum:',
+    )
+    expect(Array.join(completeReceivingLines, '\n')).toContain('█')
+    expect(Array.join(completeReceivingLines, '\n')).not.toContain(
+      'Resize OpenTUI',
+    )
+
+    const constrainedReceivingLines = receivingQrPanelLines(
+      scannableModel,
+      freshWalletHostOrigin,
+      liveWalletRuntimeMode,
+      constrainedReceivingViewport,
+    )
+    expect(Array.join(constrainedReceivingLines, '\n')).toContain(
+      'Not a scannable QR. Resize OpenTUI',
+    )
+    expect(Array.join(constrainedReceivingLines, '\n')).toContain(
+      'Payload: ethereum:',
+    )
+    expect(Array.join(constrainedReceivingLines, '\n')).not.toContain(
+      'QR payload:',
+    )
+    expect(Array.join(constrainedReceivingLines, '\n')).not.toContain('█')
+
+    const expandedReceivingLines = receivingQrPanelLines(
+      scannableModel,
+      freshWalletHostOrigin,
+      liveWalletRuntimeMode,
+      largeReceivingViewport,
+    )
+    expect(Array.join(expandedReceivingLines, '\n')).toContain(
+      'QR payload: ethereum:',
+    )
+    expect(Array.join(expandedReceivingLines, '\n')).toContain('█')
+    expect(Array.join(expandedReceivingLines, '\n')).not.toContain(
+      'Resize OpenTUI',
+    )
+
+    expect(
+      doesReceivingQrPanelFitOpenTui(
+        ['Receiving'],
+        ReceivingQrViewport.make({ columns: 100, rows: 20 }),
+      ),
+    ).toBe(true)
+    expect(
+      doesReceivingQrPanelFitOpenTui(
+        ['Receiving'],
+        ReceivingQrViewport.make({ columns: 10, rows: 20 }),
+      ),
+    ).toBe(false)
+    expect(
+      doesReceivingQrPanelFitOpenTui(
+        ['Receiving'],
+        ReceivingQrViewport.make({ columns: 100, rows: 1 }),
+      ),
+    ).toBe(false)
   })
 
   it('rebinds selectors, summaries, and valid interactions across every simulated rail', async () => {

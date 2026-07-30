@@ -2616,6 +2616,9 @@ importers:
       expo-dev-client:
         specifier: ~57.0.10
         version: 57.0.10(expo@57.0.9)(react-native@0.86.2(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))
+      expo-image:
+        specifier: ~57.0.1
+        version: 57.0.1(expo@57.0.9)(react-native-web@0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
       expo-linking:
         specifier: ~57.0.3
         version: 57.0.4(expo@57.0.9)(react-native@0.86.2(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
@@ -2673,6 +2676,9 @@ importers:
       wallet-local-vault-example:
         specifier: workspace:*
         version: link:../wallet/local-vault
+      wallet-qr-example:
+        specifier: workspace:*
+        version: link:../wallet/qr
       wallet-react-bindings-example:
         specifier: workspace:*
         version: link:../wallet/react-bindings
@@ -3522,6 +3528,9 @@ importers:
       wallet-core-example:
         specifier: workspace:*
         version: link:../core
+      wallet-qr-example:
+        specifier: workspace:*
+        version: link:../qr
       wallet-simulated-client-example:
         specifier: workspace:*
         version: link:../simulated-client
@@ -3633,6 +3642,9 @@ importers:
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      wallet-qr-example:
+        specifier: workspace:*
+        version: link:../qr
 
   examples/wallet/node-client:
     dependencies:
@@ -3659,6 +3671,31 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  examples/wallet/qr:
+    dependencies:
+      '@nuintun/qrcode':
+        specifier: 5.0.3
+        version: 5.0.3
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      wallet-core-example:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
   examples/wallet/react:
     dependencies:
       react:
@@ -3670,6 +3707,9 @@ importers:
       wallet-core-example:
         specifier: workspace:*
         version: link:../core
+      wallet-qr-example:
+        specifier: workspace:*
+        version: link:../qr
       wallet-react-bindings-example:
         specifier: workspace:*
         version: link:../react-bindings
@@ -3701,6 +3741,12 @@ importers:
       vite:
         specifier: ^8.0.16
         version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      wallet-simulated-client-example:
+        specifier: workspace:*
+        version: link:../simulated-client
 
   examples/wallet/react-bindings:
     dependencies:
@@ -3809,6 +3855,9 @@ importers:
       wallet-node-client-example:
         specifier: workspace:*
         version: link:../node-client
+      wallet-qr-example:
+        specifier: workspace:*
+        version: link:../qr
       wallet-simulated-client-example:
         specifier: workspace:*
         version: link:../simulated-client
@@ -3935,6 +3984,9 @@ importers:
       wallet-node-client-example:
         specifier: workspace:*
         version: link:../node-client
+      wallet-qr-example:
+        specifier: workspace:*
+        version: link:../qr
       wallet-react-bindings-example:
         specifier: workspace:*
         version: link:../react-bindings
@@ -6078,6 +6130,9 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
+
+  '@nuintun/qrcode@5.0.3':
+    resolution: {integrity: sha512-eKxU05NO2A5ycOiAKu9XKaf5akfR0wJHgjBvy4Wgy2dOgBjMh58IHz8gvMwS2IBiqWq63ITntuzP/iuVA2wOHg==}
 
   '@opentui/core-darwin-arm64@0.4.5':
     resolution: {integrity: sha512-8KUG0oRidnR+oW1RSZJ72/PhZLl+qRRMk5U/mieF4c0SJ5V3tYACpBZAKzQfHNd1f7QzD8FHZct1lPpQgtmkWg==}
@@ -8739,6 +8794,17 @@ packages:
       expo: '*'
       react: '*'
       react-native: '*'
+
+  expo-image@57.0.1:
+    resolution: {integrity: sha512-EP0lisd2bUqtErry4weRcMW9bLMxtKsht/MLLK3/3do5u4ZMiJbWkY5zfYV+WYmeGab7x9G0sjbeFeEagYGjMw==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
+      react-native-web: '*'
+    peerDependenciesMeta:
+      react-native-web:
+        optional: true
 
   expo-json-utils@57.0.1:
     resolution: {integrity: sha512-cgTe1NqzQdYs/WN+3nIY5IZg8s0pb0xaTUbhYvxQDn137GbwRfHoGM2se3m3Vsl4Qu+B9G4RPEK5WJDEU2Do7g==}
@@ -13293,6 +13359,10 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
+  '@nuintun/qrcode@5.0.3':
+    dependencies:
+      tslib: 2.8.1
+
   '@opentui/core-darwin-arm64@0.4.5':
     optional: true
 
@@ -16084,6 +16154,15 @@ snapshots:
       fontfaceobserver: 2.3.0
       react: 19.2.3
       react-native: 0.86.2(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3)
+
+  expo-image@57.0.1(expo@57.0.9)(react-native-web@0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3):
+    dependencies:
+      expo: 57.0.9(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.8)(react-dom@19.2.3(react@19.2.3))(react-native-web@0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
+      react: 19.2.3
+      react-native: 0.86.2(@babel/core@7.29.7)(@types/react@19.2.17)(react@19.2.3)
+      sf-symbols-typescript: 2.2.0
+    optionalDependencies:
+      react-native-web: 0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
 
   expo-json-utils@57.0.1: {}
 

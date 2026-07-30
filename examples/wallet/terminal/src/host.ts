@@ -55,9 +55,23 @@ import {
   walletAccountBalanceLabel,
 } from 'wallet-core-example'
 import { MacOSLiveWalletResources } from 'wallet-node-client-example'
+import {
+  ReceivingQrHostOrigin,
+  freshWalletHostOrigin,
+  inspectingWalletRuntimeMode,
+  liveWalletRuntimeMode,
+  portableWalletRouteOrigin,
+  projectReceivingQr,
+  receivingQrTextLines,
+  receivingQrUnavailableLabel,
+} from 'wallet-qr-example'
 
 const clearScreen = '\u001b[2J\u001b[H'
 const observationTimeout = '8 seconds'
+const receivingTerminalFooterLines = [
+  '[r] Close receiving frame  [←/h] Previous replay frame  [→/l] Next replay frame  [v] Live',
+  '[q] Quit',
+]
 
 /** A native input action supported by the interactive Effect Terminal host. */
 export const WalletTerminalAction = S.Literals([
@@ -90,13 +104,23 @@ type WalletTerminalInputMode = typeof WalletTerminalInputMode.Type
 export const WalletTerminalSnapshot = S.Struct({
   model: Model,
   mode: S.Literals(['Live', 'Inspecting']),
+  hostOrigin: ReceivingQrHostOrigin,
+  columns: S.Int,
+  rows: S.Int,
   frame: S.Int,
   finalFrame: S.Int,
+  isReceivingVisible: S.Boolean,
   maybeNotice: S.Option(S.String),
   inputMode: WalletTerminalInputMode,
 })
 /** Render input for one Effect Terminal frame. */
 export type WalletTerminalSnapshot = typeof WalletTerminalSnapshot.Type
+
+/** The resize-listener boundary consumed by the interactive Terminal host. */
+export type WalletTerminalResizeSource = Readonly<{
+  on: (event: 'resize', listener: () => void) => unknown
+  off: (event: 'resize', listener: () => void) => unknown
+}>
 
 /** An interactive Wallet operation could not be completed. */
 export class WalletTerminalError extends Data.TaggedError(
@@ -160,6 +184,25 @@ export const actionForWalletTerminalInput = (
     M.orElse(() => replayActionForWalletTerminalInput(normalizedInput)),
   )
 }
+
+/** Observes native terminal resizes for the lifetime of the current scope. */
+export const makeWalletTerminalResizeEvents = (
+  source: WalletTerminalResizeSource,
+) =>
+  Effect.acquireRelease(
+    Effect.gen(function* () {
+      const events = yield* Queue.sliding<void>(1)
+      const resized = (): void => {
+        Queue.offerUnsafe(events, undefined)
+      }
+      source.on('resize', resized)
+      return { events, resized }
+    }),
+    ({ resized }) =>
+      Effect.sync(() => {
+        source.off('resize', resized)
+      }),
+  ).pipe(Effect.map(({ events }) => events))
 
 const modelLines = (model: Model): ReadonlyArray<string> => {
   const networks =
@@ -240,10 +283,123 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
   ]
 }
 
+const terminalFrameRequirements = (lines: ReadonlyArray<string>) => ({
+  columns: Array.reduce(lines, 0, (maximumWidth, line) =>
+    Math.max(maximumWidth, line.length),
+  ),
+  rows: Array.length(lines),
+})
+
+/** Reports whether every character in one Terminal frame will remain visible. */
+export const doesWalletTerminalFrameFit = (
+  lines: ReadonlyArray<string>,
+  columns: number,
+  rows: number,
+): boolean => {
+  const requirements = terminalFrameRequirements(lines)
+  return columns >= requirements.columns && rows >= requirements.rows
+}
+
+const receivingTerminalFrameLines = (
+  snapshot: WalletTerminalSnapshot,
+  bodyLines: ReadonlyArray<string>,
+): ReadonlyArray<string> => [
+  'Foldkit Wallet | Effect Terminal | Receive',
+  `${snapshot.mode} | frame ${snapshot.frame.toString()} of ${snapshot.finalFrame.toString()}`,
+  '',
+  ...bodyLines,
+  '',
+  ...receivingTerminalFooterLines,
+]
+
+const receivingBodyLines = (
+  snapshot: WalletTerminalSnapshot,
+): ReadonlyArray<string> => {
+  const maybeInstruction = primaryReceivingInstruction(snapshot.model)
+  if (Option.isNone(maybeInstruction)) {
+    return ['No receiving instruction is available for the selected network.']
+  }
+  const instruction = maybeInstruction.value
+  if (snapshot.model.portfolio._tag !== 'LoadedPortfolio') {
+    return [
+      `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+      'Not a scannable QR. The Wallet portfolio is not loaded.',
+      `Payload: ${instruction.portableUri}`,
+    ]
+  }
+  const portfolio = snapshot.model.portfolio.snapshot
+  const maybeAccount = Array.findFirst(
+    portfolio.accounts,
+    account => account.accountId === instruction.accountId,
+  )
+  if (Option.isNone(maybeAccount)) {
+    return [
+      `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+      'Not a scannable QR. The receiving account is inconsistent.',
+      `Payload: ${instruction.portableUri}`,
+    ]
+  }
+  const projection = projectReceivingQr({
+    account: maybeAccount.value,
+    hostOrigin: snapshot.hostOrigin,
+    instruction,
+    portfolio,
+    runtimeMode:
+      snapshot.mode === 'Live'
+        ? liveWalletRuntimeMode
+        : inspectingWalletRuntimeMode,
+  })
+  if (projection._tag === 'AvailableReceivingQr') {
+    const availableBodyLines = [
+      `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+      `QR payload: ${projection.payload}`,
+      ...receivingQrTextLines(projection),
+    ]
+    const availableFrameLines = receivingTerminalFrameLines(
+      snapshot,
+      availableBodyLines,
+    )
+    if (
+      doesWalletTerminalFrameFit(
+        availableFrameLines,
+        snapshot.columns,
+        snapshot.rows,
+      )
+    ) {
+      return availableBodyLines
+    }
+    const requirements = terminalFrameRequirements(availableFrameLines)
+    return [
+      `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+      `Not a scannable QR. Resize the terminal to at least ${requirements.columns.toString()} columns by ${requirements.rows.toString()} rows.`,
+      `Payload: ${projection.payload}`,
+    ]
+  }
+  return [
+    `Receive ${instruction.assetId}: ${instruction.destinationAddress}`,
+    receivingQrUnavailableLabel(projection.reason),
+    `Payload: ${instruction.portableUri}`,
+  ]
+}
+
+const renderReceivingWalletTerminal = (
+  snapshot: WalletTerminalSnapshot,
+): string =>
+  Array.join(
+    [
+      clearScreen,
+      ...receivingTerminalFrameLines(snapshot, receivingBodyLines(snapshot)),
+    ],
+    '\n',
+  )
+
 /** Renders one canonical Wallet Model for the Effect Terminal client. */
 export const renderWalletTerminal = (
   snapshot: WalletTerminalSnapshot,
 ): string => {
+  if (snapshot.isReceivingVisible) {
+    return renderReceivingWalletTerminal(snapshot)
+  }
   const noticeLines = Option.match(snapshot.maybeNotice, {
     onNone: () => Array.empty<string>(),
     onSome: notice => ['', notice],
@@ -315,15 +471,6 @@ const defaultChallenge = (
       }),
     }),
   )
-}
-
-const receivingNotice = (model: Model): string => {
-  const maybeInstruction = primaryReceivingInstruction(model)
-  if (Option.isSome(maybeInstruction)) {
-    return `Receive ${maybeInstruction.value.assetId}: ${maybeInstruction.value.destinationAddress} | ${maybeInstruction.value.portableUri}`
-  } else {
-    return 'No receiving instruction is available for the selected network.'
-  }
 }
 
 const waitForObservedTransaction = (
@@ -408,19 +555,27 @@ export const sendWalletTransaction = (
 
 type TerminalState = Readonly<{
   runtime: Runtime.ProgramRuntime<Model, Message>
+  hostOrigin: WalletTerminalSnapshot['hostOrigin']
+  isReceivingVisible: boolean
   maybeReplaySession: Option.Option<Runtime.ReplaySession<Model, Message>>
   maybeNotice: Option.Option<string>
   inputMode: WalletTerminalInputMode
 }>
 
 const snapshotForState = (state: TerminalState): WalletTerminalSnapshot => {
+  const columns = process.stdout.columns ?? 0
+  const rows = process.stdout.rows ?? 0
   if (Option.isSome(state.maybeReplaySession)) {
     const session = state.maybeReplaySession.value
     return {
       model: session.readModel(),
       mode: 'Inspecting',
+      hostOrigin: state.hostOrigin,
+      columns,
+      rows,
       frame: session.readFrame(),
       finalFrame: session.readTape().transitions.length,
+      isReceivingVisible: state.isReceivingVisible,
       maybeNotice: state.maybeNotice,
       inputMode: state.inputMode,
     }
@@ -429,8 +584,12 @@ const snapshotForState = (state: TerminalState): WalletTerminalSnapshot => {
   return {
     model: state.runtime.readModel(),
     mode: 'Live',
+    hostOrigin: state.hostOrigin,
+    columns,
+    rows,
     frame: tape.transitions.length,
     finalFrame: tape.transitions.length,
+    isReceivingVisible: state.isReceivingVisible,
     maybeNotice: state.maybeNotice,
     inputMode: state.inputMode,
   }
@@ -440,7 +599,7 @@ const runLiveAction = (
   state: TerminalState,
   action: Exclude<
     WalletTerminalAction,
-    'InspectPrevious' | 'InspectNext' | 'ReturnLive' | 'Quit'
+    'InspectPrevious' | 'InspectNext' | 'ReturnLive' | 'Receive' | 'Quit'
   >,
 ): Effect.Effect<
   TerminalState,
@@ -574,13 +733,6 @@ const runLiveAction = (
         inputMode: 'Recipient',
       }),
     ),
-    M.when('Receive', () =>
-      Effect.succeed({
-        ...state,
-        maybeReplaySession: Option.none(),
-        maybeNotice: Option.some(receivingNotice(state.runtime.readModel())),
-      }),
-    ),
     M.when('ReloadHistory', () =>
       Effect.map(
         state.runtime.run(RequestedTransactionHistoryReload.make({})),
@@ -612,21 +764,23 @@ const runLiveAction = (
         Option.isSome(maybeMethod) &&
         maybeMethod.value._tag === 'ExternalTestFundingMethod'
       ) {
+        const method = maybeMethod.value
         const maybeInstruction = primaryReceivingInstruction(model)
         if (Option.isNone(maybeInstruction)) {
           return Effect.succeed({
             ...state,
             maybeReplaySession: Option.none(),
             maybeNotice: Option.some(
-              `Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl}`,
+              `Open ${method.providerName}: ${method.providerUrl}`,
             ),
           })
         }
+        const instruction = maybeInstruction.value
         return Effect.map(
           state.runtime.run(
             RequestedClipboardCopy.make({
               request: clipboardCopyRequestForAddress(
-                maybeInstruction.value.destinationAddress,
+                instruction.destinationAddress,
                 'external-faucet',
               ),
             }),
@@ -635,7 +789,7 @@ const runLiveAction = (
             ...state,
             maybeReplaySession: Option.none(),
             maybeNotice: Option.some(
-              `Address copied. Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl} | ${maybeInstruction.value.destinationAddress}`,
+              `Address copied. Open ${method.providerName}: ${method.providerUrl} | ${instruction.destinationAddress}`,
             ),
           }),
         )
@@ -724,6 +878,13 @@ const runTerminalAction = (
   TerminalState,
   WalletTerminalError | Runtime.ReplayFrameError
 > => {
+  if (action === 'Receive') {
+    return Effect.succeed({
+      ...state,
+      isReceivingVisible: !state.isReceivingVisible,
+      maybeNotice: Option.none(),
+    })
+  }
   if (action === 'ReturnLive') {
     return Effect.succeed({
       ...state,
@@ -807,8 +968,34 @@ const runTransferInput = (
   return Effect.map(state.runtime.run(message), () => state)
 }
 
+type WalletTerminalEvent =
+  | Readonly<{
+      _tag: 'ReceivedTerminalInput'
+      input: Terminal.UserInput
+    }>
+  | Readonly<{ _tag: 'ResizedTerminal' }>
+
+const receivedTerminalInput = (
+  input: Terminal.UserInput,
+): WalletTerminalEvent => ({
+  _tag: 'ReceivedTerminalInput',
+  input,
+})
+
+const resizedTerminal: WalletTerminalEvent = { _tag: 'ResizedTerminal' }
+
+const takeWalletTerminalEvent = (
+  inputQueue: Queue.Dequeue<Terminal.UserInput, Cause.Done>,
+  resizeEvents: Queue.Dequeue<void>,
+) =>
+  Effect.raceFirst(
+    Queue.take(inputQueue).pipe(Effect.map(receivedTerminalInput)),
+    Queue.take(resizeEvents).pipe(Effect.as(resizedTerminal)),
+  )
+
 const runInputLoop = (
   inputQueue: Queue.Dequeue<Terminal.UserInput, Cause.Done>,
+  resizeEvents: Queue.Dequeue<void>,
   state: TerminalState,
   terminal: Terminal.Terminal,
 ): Effect.Effect<
@@ -818,8 +1005,18 @@ const runInputLoop = (
   | WalletTerminalError
   | Runtime.ReplayFrameError
 > =>
-  Queue.take(inputQueue).pipe(
-    Effect.flatMap(input => {
+  takeWalletTerminalEvent(inputQueue, resizeEvents).pipe(
+    Effect.flatMap(event => {
+      if (event._tag === 'ResizedTerminal') {
+        return terminal
+          .display(renderWalletTerminal(snapshotForState(state)))
+          .pipe(
+            Effect.flatMap(() =>
+              runInputLoop(inputQueue, resizeEvents, state, terminal),
+            ),
+          )
+      }
+      const input = event.input
       const keyName = input.key.name.toLowerCase()
       const isControlQuit =
         input.key.ctrl && (keyName === 'c' || keyName === 'd')
@@ -833,7 +1030,7 @@ const runInputLoop = (
               .display(renderWalletTerminal(snapshotForState(nextState)))
               .pipe(
                 Effect.flatMap(() =>
-                  runInputLoop(inputQueue, nextState, terminal),
+                  runInputLoop(inputQueue, resizeEvents, nextState, terminal),
                 ),
               ),
           ),
@@ -849,7 +1046,9 @@ const runInputLoop = (
         return terminal
           .display(renderWalletTerminal(snapshotForState(nextState)))
           .pipe(
-            Effect.flatMap(() => runInputLoop(inputQueue, nextState, terminal)),
+            Effect.flatMap(() =>
+              runInputLoop(inputQueue, resizeEvents, nextState, terminal),
+            ),
           )
       }
       const action = maybeAction.value
@@ -862,7 +1061,7 @@ const runInputLoop = (
             .display(renderWalletTerminal(snapshotForState(nextState)))
             .pipe(
               Effect.flatMap(() =>
-                runInputLoop(inputQueue, nextState, terminal),
+                runInputLoop(inputQueue, resizeEvents, nextState, terminal),
               ),
             ),
         ),
@@ -923,6 +1122,7 @@ export const runWalletTerminal = (
   Effect.scoped(
     Effect.gen(function* () {
       const terminal = yield* Terminal.Terminal
+      const resizeEvents = yield* makeWalletTerminalResizeEvents(process.stdout)
       const start = yield* startForCarrier(maybeCarrier)
       const runtime = yield* Runtime.makeProgramRuntime({
         program: WalletProgram,
@@ -932,13 +1132,17 @@ export const runWalletTerminal = (
       yield* runtime.initialization
       const state: TerminalState = {
         runtime,
+        hostOrigin: Option.isNone(maybeCarrier)
+          ? freshWalletHostOrigin
+          : portableWalletRouteOrigin,
+        isReceivingVisible: false,
         maybeReplaySession: Option.none(),
         maybeNotice: Option.none(),
         inputMode: 'Actions',
       }
       yield* terminal.display(renderWalletTerminal(snapshotForState(state)))
       const inputQueue = yield* terminal.readInput
-      yield* runInputLoop(inputQueue, state, terminal).pipe(
+      yield* runInputLoop(inputQueue, resizeEvents, state, terminal).pipe(
         Pull.catchDone(() => Effect.void),
       )
       yield* runtime.shutdown

@@ -3,6 +3,7 @@ import { Runtime } from 'foldkit'
 import * as Program from 'foldkit/program'
 import { describe, expect, test } from 'vitest'
 import { WalletProgram, initialModel } from 'wallet-core-example'
+import { portableWalletRouteOrigin } from 'wallet-qr-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import { makeWalletApplication } from './application.js'
@@ -36,6 +37,7 @@ describe('Wallet Foldkit route intake', () => {
     const application = makeWalletApplication(
       root,
       SimulatedWalletResources,
+      portableWalletRouteOrigin,
       start,
     )
     const fiber = Effect.runFork(application.start())
@@ -64,6 +66,7 @@ describe('Wallet Foldkit route intake', () => {
     const application = makeWalletApplication(
       root,
       SimulatedWalletResources,
+      portableWalletRouteOrigin,
       start,
     )
     const fiber = Effect.runFork(application.start())

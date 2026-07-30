@@ -36,6 +36,12 @@ import {
   walletDataSourceLabel,
 } from 'wallet-core-example'
 import {
+  type ReceivingQrHostOrigin,
+  type ReceivingQrRuntimeMode,
+  inspectingWalletRuntimeMode,
+  liveWalletRuntimeMode,
+} from 'wallet-qr-example'
+import {
   type WalletInitialRoute,
   initialWalletRoute,
   makeWalletReactClient,
@@ -44,6 +50,8 @@ import {
   makeWebWalletResources,
   walletDataSourceFromEnvironment,
 } from 'wallet-web-client-example'
+
+import { ReceivingQr } from './ReceivingQr.js'
 
 const walletDataSource = walletDataSourceFromEnvironment(
   import.meta.env['VITE_WALLET_DATA_SOURCE'],
@@ -194,9 +202,16 @@ const NetworkModePicker = ({ model }: Readonly<{ model: Model }>) => {
 }
 
 const WalletProfileCard = ({
+  hostOrigin,
   model,
+  runtimeMode,
   wallet,
-}: Readonly<{ model: Model; wallet: WalletProfile }>) => (
+}: Readonly<{
+  hostOrigin: ReceivingQrHostOrigin
+  model: Model
+  runtimeMode: ReceivingQrRuntimeMode
+  wallet: WalletProfile
+}>) => (
   <article
     aria-label={`${wallet.displayName} wallet`}
     className="wallet-profile"
@@ -218,13 +233,18 @@ const WalletProfileCard = ({
           model.walletNetworkMode,
         ),
         account => {
-          const maybeReceivingInstruction =
+          const maybePortfolio =
             model.portfolio._tag === 'LoadedPortfolio'
-              ? Array.findFirst(
-                  model.portfolio.snapshot.receivingInstructions,
-                  instruction => instruction.accountId === account.accountId,
-                )
+              ? Option.some(model.portfolio.snapshot)
               : Option.none()
+          const receivingInstructions = Option.match(maybePortfolio, {
+            onNone: () => [],
+            onSome: portfolio =>
+              Array.filter(
+                portfolio.receivingInstructions,
+                instruction => instruction.accountId === account.accountId,
+              ),
+          })
           return (
             <li key={account.accountId}>
               <div className="wallet-account-heading">
@@ -245,18 +265,20 @@ const WalletProfileCard = ({
                 />
               </div>
               <small>{account.chainId}</small>
-              {Option.isSome(maybeReceivingInstruction) ? (
-                <div
-                  aria-label={`${account.displayName} public receiving payload`}
-                  className="wallet-public-receiving"
-                  data-wallet-qr-value={
-                    maybeReceivingInstruction.value.portableUri
-                  }
-                >
-                  <span>Public receive</span>
-                  <code>{maybeReceivingInstruction.value.portableUri}</code>
-                </div>
-              ) : null}
+              {Option.match(maybePortfolio, {
+                onNone: () => null,
+                onSome: portfolio =>
+                  Array.map(receivingInstructions, instruction => (
+                    <ReceivingQr
+                      account={account}
+                      hostOrigin={hostOrigin}
+                      instruction={instruction}
+                      key={instruction.assetId}
+                      portfolio={portfolio}
+                      runtimeMode={runtimeMode}
+                    />
+                  )),
+              })}
             </li>
           )
         },
@@ -265,7 +287,15 @@ const WalletProfileCard = ({
   </article>
 )
 
-const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
+const WalletHome = ({
+  hostOrigin,
+  model,
+  runtimeMode,
+}: Readonly<{
+  hostOrigin: ReceivingQrHostOrigin
+  model: Model
+  runtimeMode: ReceivingQrRuntimeMode
+}>) => {
   const actions = useWalletActions()
   const profiles = (() => {
     if (model.walletProfileLoading._tag === 'LoadingWalletProfiles') {
@@ -309,8 +339,10 @@ const WalletHome = ({ model }: Readonly<{ model: Model }>) => {
           <div className="wallet-profile-list">
             {Array.map(wallets, wallet => (
               <WalletProfileCard
+                hostOrigin={hostOrigin}
                 key={wallet.walletId}
                 model={model}
+                runtimeMode={runtimeMode}
                 wallet={wallet}
               />
             ))}
@@ -993,12 +1025,21 @@ const AdvancedDetails = ({ model }: Readonly<{ model: Model }>) => (
   </details>
 )
 
-const WalletScreen = () => {
+const WalletScreen = ({
+  hostOrigin,
+}: Readonly<{ hostOrigin: ReceivingQrHostOrigin }>) => {
   const model = useWalletModel()
+  const replay = useWalletReplay()
+  const runtimeMode =
+    replay.mode === 'Live' ? liveWalletRuntimeMode : inspectingWalletRuntimeMode
   return (
     <main className="wallet-shell cardboard-surface">
       <div className="wallet-stack">
-        <WalletHome model={model} />
+        <WalletHome
+          hostOrigin={hostOrigin}
+          model={model}
+          runtimeMode={runtimeMode}
+        />
         <WalletHero model={model} />
         <SendMoney model={model} />
         <Activity model={model} />
@@ -1010,12 +1051,16 @@ const WalletScreen = () => {
 
 /** Renders one portable Wallet route through domain-only React hooks. */
 export const App = ({
+  hostOrigin,
   initialRoute = initialWalletRoute,
-}: Readonly<{ initialRoute?: WalletInitialRoute }>) => (
+}: Readonly<{
+  hostOrigin: ReceivingQrHostOrigin
+  initialRoute?: WalletInitialRoute
+}>) => (
   <WalletProvider
     fallback={<p>Starting Wallet…</p>}
     initialRoute={initialRoute}
   >
-    <WalletScreen />
+    <WalletScreen hostOrigin={hostOrigin} />
   </WalletProvider>
 )

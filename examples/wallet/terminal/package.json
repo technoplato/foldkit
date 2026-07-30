@@ -18,9 +18,9 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter wallet-node-client-example build && pnpm --filter wallet-simulated-client-example build",
+    "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter wallet-node-client-example build && pnpm --filter wallet-simulated-client-example build && pnpm --filter wallet-qr-example build",
     "pretest": "pnpm --filter wallet-cli-example build && pnpm --filter wallet-tui-example build",
-    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter wallet-node-client-example build && pnpm --filter wallet-simulated-client-example build && pnpm --filter wallet-cli-example build && pnpm --filter wallet-tui-example build",
+    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter wallet-node-client-example build && pnpm --filter wallet-simulated-client-example build && pnpm --filter wallet-qr-example build && pnpm --filter wallet-cli-example build && pnpm --filter wallet-tui-example build",
     "terminal": "node dist/entry.js",
     "test": "pnpm run build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -31,6 +31,7 @@
     "foldkit": "workspace:*",
     "wallet-core-example": "workspace:*",
     "wallet-node-client-example": "workspace:*",
+    "wallet-qr-example": "workspace:*",
     "wallet-simulated-client-example": "workspace:*"
   },
   "devDependencies": {

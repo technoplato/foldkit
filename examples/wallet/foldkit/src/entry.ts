@@ -1,6 +1,10 @@
 import { Effect } from 'effect'
 import { Runtime } from 'foldkit'
 import {
+  freshWalletHostOrigin,
+  portableWalletRouteOrigin,
+} from 'wallet-qr-example'
+import {
   makeWebWalletResources,
   walletDataSourceFromEnvironment,
 } from 'wallet-web-client-example'
@@ -31,6 +35,13 @@ const renderRouteError = (error: unknown): void => {
   root.replaceChildren(main)
 }
 
+const hostOrigin =
+  window.location.pathname === '/' &&
+  window.location.search === '' &&
+  window.location.hash === ''
+    ? freshWalletHostOrigin
+    : portableWalletRouteOrigin
+
 Effect.runPromise(
   walletFoldkitStartForLocation(
     window.location.pathname,
@@ -46,6 +57,7 @@ Effect.runPromise(
             import.meta.env['VITE_WALLET_DATA_SOURCE'],
           ),
         ),
+        hostOrigin,
         start,
       ),
     ),
