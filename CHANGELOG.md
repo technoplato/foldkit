@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 11:06:50 a.m. EDT — `7bd2ebc5368a` fix: render live issue evidence in React
+
+- **Implementation commit:** `7bd2ebc5368a2b15e84ffe88ae0e444af83b82f0`
+- **Change:** Rendered live Issue evidence in the public React detail host from the shared typed Program state.
+- **Details:**
+  - Passed the shared IssueLogsState into the React detail destination without adding a host-owned fetch or transport rule.
+  - Rendered issue references, ISO timestamps, log summaries, safe HTTPS viewer links, and contributing path relationship metadata.
+  - Added accessible loading, failure, and empty states plus focused tests for #041-shaped evidence and unsafe viewer URLs.
+  - Verified React tests, typecheck, production source build, shared core tests and typecheck, instant-tools tests and typecheck, and a credentialed 46-Issue live decode.
+- **Files:**
+  - `examples/issues/react/src/App.tsx` — Render shared live evidence/query state with safe links and accessible state handling.
+  - `examples/issues/react/src/App.test.tsx` — Prove #041-shaped row metadata, empty-state rendering, and unsafe-link rejection.
+  - `examples/issues/react/src/styles.css` — Present evidence queries and rows as readable, responsive detail content.
+  - `examples/issues/react/package.json` — Add the focused Vitest test entrypoint for the React Issue host.
+  - `pnpm-lock.yaml` — Lock the React Issue host Vitest development dependency.
+- **User context (verbatim):**
+  > the public React /issues/:id host must visibly render the live evidence/log rows already queried by the typed Issue Program, especially Issue #041.
+  > Preserve the one-program/many-runtimes contract: render from the shared typed detail model/query result, do not create a React-only fetch/query or duplicate business logic.
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 10:58:41 a.m. EDT — `339ae74e1f64` fix: decode live issue payloads
 
 - **Implementation commit:** `339ae74e1f64f525efae7edb5bcc006205c99976`
