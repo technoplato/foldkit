@@ -1,4 +1,4 @@
-import { Effect, Option, Ref } from 'effect'
+import { Array, Effect, Option, Ref, Stream } from 'effect'
 import { expect, expectTypeOf } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
@@ -11,6 +11,9 @@ import {
   IssueQuery,
   IssueSuccessCriterion,
   type IssueTrackerService,
+  LibraryProduct,
+  ProductCatalogEntry,
+  type ProductCatalogService,
   RepositoryAttachmentSource,
 } from '../issues/index.js'
 import { LogEvent, type LoggerService } from '../logging/index.js'
@@ -20,8 +23,10 @@ import {
   decodeIssueRecord,
   makeInstantEntityStore,
   makeInstantIssueRecord,
+  makeInstantProductRecord,
   makeIssueTracker,
   makeLogger,
+  makeProductCatalog,
 } from './instant.js'
 
 const ApplicationSchema = i.schema({
@@ -94,13 +99,40 @@ const makeStore = Effect.gen(function* () {
     ReadonlyArray<ReturnType<typeof makeInstantIssueRecord>>
   >([])
   const logs = yield* Ref.make<ReadonlyArray<unknown>>([])
+  const products = yield* Ref.make([
+    makeInstantProductRecord(
+      ProductCatalogEntry.make({
+        product: issue.product,
+        updatedAtMs: issue.updatedAtMs,
+      }),
+    ),
+    makeInstantProductRecord(
+      ProductCatalogEntry.make({
+        product: LibraryProduct.make({ id: 'foldkit', name: 'Foldkit' }),
+        updatedAtMs: issue.updatedAtMs,
+      }),
+    ),
+  ])
   const store: InstantEntityStoreService = {
     appendLog: record => Ref.update(logs, records => [...records, record]),
     fetchIssues: Ref.get(issues),
+    fetchProducts: Ref.get(products),
+    observeIssues: Stream.fromEffect(Ref.get(issues)),
+    observeIssue: issueId =>
+      Stream.fromEffect(
+        Ref.get(issues).pipe(
+          Effect.map(records =>
+            Array.findFirst(records, record => record.id === issueId),
+          ),
+        ),
+      ),
+    observeProducts: Stream.fromEffect(Ref.get(products)),
     saveIssue: record =>
       Ref.update(savedIssues, records => [...records, record]),
+    saveProduct: record =>
+      Ref.update(products, records => [...records, record]),
   }
-  return { issues, logs, savedIssues, store }
+  return { issues, logs, products, savedIssues, store }
 })
 
 describe('Instant adapter', () => {
@@ -153,6 +185,69 @@ describe('Instant adapter', () => {
 
       expect(issues).toEqual([issue])
     }),
+  )
+
+  it.effect(
+    'observes filtered Issue collections and one Issue by identity',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeStore
+        const issueTracker: IssueTrackerService = makeIssueTracker(store)
+        const query = IssueQuery.make({
+          limit: 100,
+          productId: Option.some('scribe'),
+          projectId: Option.some('transcript-ui'),
+          statuses: ['InProgress'],
+        })
+
+        expect(yield* Stream.runCollect(issueTracker.observe(query))).toEqual([
+          [issue],
+        ])
+        expect(
+          yield* Stream.runCollect(issueTracker.observeIssue(issue.id)),
+        ).toEqual([Option.some(issue)])
+        expect(
+          yield* Stream.runCollect(issueTracker.observeIssue('missing')),
+        ).toEqual([Option.none()])
+      }),
+  )
+
+  it.effect(
+    'persists and observes Applications and Libraries as products',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeStore
+        const productCatalog: ProductCatalogService = makeProductCatalog(store)
+        const application = ApplicationProduct.make({
+          id: 'issues',
+          name: 'Issues',
+        })
+
+        yield* productCatalog.save(
+          ProductCatalogEntry.make({
+            product: application,
+            updatedAtMs: issue.updatedAtMs,
+          }),
+        )
+
+        const products = yield* productCatalog.fetch
+        expect(products.map(product => product.product._tag)).toEqual([
+          'Application',
+          'Library',
+          'Application',
+        ])
+        expect(yield* Stream.runCollect(productCatalog.observe)).toEqual([
+          expect.arrayContaining([
+            expect.objectContaining({ product: issue.product }),
+            expect.objectContaining({
+              product: LibraryProduct.make({
+                id: 'foldkit',
+                name: 'Foldkit',
+              }),
+            }),
+          ]),
+        ])
+      }),
   )
 
   it.effect('persists structured Log Events through the separate Logger', () =>

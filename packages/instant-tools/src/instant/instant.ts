@@ -1,4 +1,14 @@
-import { Array, Data, Effect, Layer, Option, Schema as S } from 'effect'
+import {
+  Array,
+  Cause,
+  Data,
+  Effect,
+  Layer,
+  Option,
+  Queue,
+  Schema as S,
+  Stream,
+} from 'effect'
 
 import { InstantCoreDatabase, i } from '@instantdb/core'
 
@@ -8,6 +18,11 @@ import {
   IssueTracker,
   IssueTrackerError,
   type IssueTrackerService,
+  ProductCatalog,
+  ProductCatalogEntry,
+  ProductCatalogError,
+  type ProductCatalogService,
+  TrackedProduct,
 } from '../issues/index.js'
 import {
   LogEvent,
@@ -46,6 +61,16 @@ export const InstantLogRecord = S.Struct({
 /** A queryable InstantDB envelope for one lossless structured Log Event. */
 export type InstantLogRecord = typeof InstantLogRecord.Type
 
+/** A queryable InstantDB envelope for one first-class Application or Library. */
+export const InstantProductRecord = S.Struct({
+  id: S.String,
+  kind: S.Literals(['Application', 'Library']),
+  name: S.String,
+  updatedAtMs: S.Number,
+})
+/** A queryable InstantDB envelope for one first-class Application or Library. */
+export type InstantProductRecord = typeof InstantProductRecord.Type
+
 /** The entity definitions a host can compose into its application schema. */
 export const InstantToolsEntities = {
   instantToolsIssues: i.entity({
@@ -65,6 +90,11 @@ export const InstantToolsEntities = {
     payloadJson: i.string(),
     timestampMs: i.number().indexed(),
   }),
+  instantToolsProducts: i.entity({
+    kind: i.string().indexed(),
+    name: i.string().indexed(),
+    updatedAtMs: i.number().indexed(),
+  }),
 }
 
 /** A complete InstantDB schema for hosts using only the Instant Tools entities. */
@@ -82,7 +112,15 @@ export class InstantEntityStoreError extends Data.TaggedError(
   'InstantEntityStoreError',
 )<{
   readonly cause: unknown
-  readonly operation: 'AppendLog' | 'FetchIssues' | 'SaveIssue'
+  readonly operation:
+    | 'AppendLog'
+    | 'FetchIssues'
+    | 'FetchProducts'
+    | 'ObserveIssues'
+    | 'ObserveIssue'
+    | 'ObserveProducts'
+    | 'SaveIssue'
+    | 'SaveProduct'
 }> {}
 
 /** The minimal Instant entity capability consumed by both transport adapters. */
@@ -94,8 +132,26 @@ export type InstantEntityStoreService = Readonly<{
     ReadonlyArray<InstantIssueRecord>,
     InstantEntityStoreError
   >
+  fetchProducts: Effect.Effect<
+    ReadonlyArray<InstantProductRecord>,
+    InstantEntityStoreError
+  >
+  observeIssues: Stream.Stream<
+    ReadonlyArray<InstantIssueRecord>,
+    InstantEntityStoreError
+  >
+  observeIssue: (
+    issueId: string,
+  ) => Stream.Stream<Option.Option<InstantIssueRecord>, InstantEntityStoreError>
+  observeProducts: Stream.Stream<
+    ReadonlyArray<InstantProductRecord>,
+    InstantEntityStoreError
+  >
   saveIssue: (
     record: InstantIssueRecord,
+  ) => Effect.Effect<void, InstantEntityStoreError>
+  saveProduct: (
+    record: InstantProductRecord,
   ) => Effect.Effect<void, InstantEntityStoreError>
 }>
 
@@ -118,6 +174,30 @@ export const makeInstantIssueRecord = (issue: Issue): InstantIssueRecord =>
 /** Decodes one InstantDB Issue envelope into its portable domain value. */
 export const decodeIssueRecord = (record: InstantIssueRecord): Issue =>
   S.decodeUnknownSync(IssueJson)(record.payloadJson)
+
+/** Encodes one catalog entry into its queryable InstantDB envelope. */
+export const makeInstantProductRecord = (
+  entry: ProductCatalogEntry,
+): InstantProductRecord =>
+  InstantProductRecord.make({
+    id: entry.product.id,
+    kind: entry.product._tag,
+    name: entry.product.name,
+    updatedAtMs: entry.updatedAtMs,
+  })
+
+/** Decodes one InstantDB product envelope into its portable catalog entry. */
+export const decodeProductRecord = (
+  record: InstantProductRecord,
+): ProductCatalogEntry =>
+  ProductCatalogEntry.make({
+    product: S.decodeUnknownSync(TrackedProduct)({
+      _tag: record.kind,
+      id: record.id,
+      name: record.name,
+    }),
+    updatedAtMs: record.updatedAtMs,
+  })
 
 /** Encodes one structured Log Event into its queryable InstantDB envelope. */
 export const makeInstantLogRecord = (event: LogEvent): InstantLogRecord =>
@@ -181,6 +261,34 @@ export const makeIssueTracker = (
             }),
       ),
     ),
+  observe: query =>
+    store.observeIssues.pipe(
+      Stream.map(records => Array.map(records, decodeIssueRecord)),
+      Stream.map(issues =>
+        Array.take(
+          Array.filter(issues, issue => matchesQuery(issue, query)),
+          Math.max(0, query.limit),
+        ),
+      ),
+      Stream.mapError(
+        cause =>
+          new IssueTrackerError({
+            cause,
+            operation: 'Observe',
+          }),
+      ),
+    ),
+  observeIssue: issueId =>
+    store.observeIssue(issueId).pipe(
+      Stream.map(maybeRecord => Option.map(maybeRecord, decodeIssueRecord)),
+      Stream.mapError(
+        cause =>
+          new IssueTrackerError({
+            cause,
+            operation: 'ObserveIssue',
+          }),
+      ),
+    ),
   save: issue =>
     store.saveIssue(makeInstantIssueRecord(issue)).pipe(
       Effect.mapError(
@@ -191,6 +299,32 @@ export const makeIssueTracker = (
           }),
       ),
     ),
+})
+
+/** Adapts the low-level Instant entity capability to the product catalog. */
+export const makeProductCatalog = (
+  store: InstantEntityStoreService,
+): ProductCatalogService => ({
+  fetch: store.fetchProducts.pipe(
+    Effect.map(records => Array.map(records, decodeProductRecord)),
+    Effect.mapError(
+      cause => new ProductCatalogError({ cause, operation: 'Fetch' }),
+    ),
+  ),
+  observe: store.observeProducts.pipe(
+    Stream.map(records => Array.map(records, decodeProductRecord)),
+    Stream.mapError(
+      cause => new ProductCatalogError({ cause, operation: 'Observe' }),
+    ),
+  ),
+  save: entry =>
+    store
+      .saveProduct(makeInstantProductRecord(entry))
+      .pipe(
+        Effect.mapError(
+          cause => new ProductCatalogError({ cause, operation: 'Save' }),
+        ),
+      ),
 })
 
 /** Adapts the low-level Instant entity capability to the structured Logger. */
@@ -249,6 +383,155 @@ export const makeInstantEntityStore = (
         operation: 'FetchIssues',
       }),
   }),
+  fetchProducts: Effect.tryPromise({
+    try: async () => {
+      const response = await database.queryOnce({
+        instantToolsProducts: {},
+      })
+      return Array.map(response.data.instantToolsProducts, record =>
+        S.decodeUnknownSync(InstantProductRecord)(record),
+      )
+    },
+    catch: cause =>
+      new InstantEntityStoreError({
+        cause,
+        operation: 'FetchProducts',
+      }),
+  }),
+  observeIssues: Stream.callback<
+    ReadonlyArray<InstantIssueRecord>,
+    InstantEntityStoreError
+  >(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        database.subscribeQuery({ instantToolsIssues: {} }, response => {
+          if (response.error !== undefined) {
+            Queue.failCauseUnsafe(
+              queue,
+              Cause.fail(
+                new InstantEntityStoreError({
+                  cause: response.error,
+                  operation: 'ObserveIssues',
+                }),
+              ),
+            )
+          } else {
+            try {
+              Queue.offerUnsafe(
+                queue,
+                Array.map(response.data.instantToolsIssues, record =>
+                  S.decodeUnknownSync(InstantIssueRecord)(record),
+                ),
+              )
+            } catch (cause) {
+              Queue.failCauseUnsafe(
+                queue,
+                Cause.fail(
+                  new InstantEntityStoreError({
+                    cause,
+                    operation: 'ObserveIssues',
+                  }),
+                ),
+              )
+            }
+          }
+        }),
+      ),
+      unsubscribe => Effect.sync(unsubscribe),
+    ).pipe(Effect.flatMap(() => Effect.never)),
+  ),
+  observeIssue: issueId =>
+    Stream.callback<Option.Option<InstantIssueRecord>, InstantEntityStoreError>(
+      queue =>
+        Effect.acquireRelease(
+          Effect.sync(() =>
+            database.subscribeQuery(
+              {
+                instantToolsIssues: {
+                  $: { where: { id: issueId } },
+                },
+              },
+              response => {
+                if (response.error !== undefined) {
+                  Queue.failCauseUnsafe(
+                    queue,
+                    Cause.fail(
+                      new InstantEntityStoreError({
+                        cause: response.error,
+                        operation: 'ObserveIssue',
+                      }),
+                    ),
+                  )
+                } else {
+                  try {
+                    Queue.offerUnsafe(
+                      queue,
+                      Option.map(
+                        Array.head(response.data.instantToolsIssues),
+                        record =>
+                          S.decodeUnknownSync(InstantIssueRecord)(record),
+                      ),
+                    )
+                  } catch (cause) {
+                    Queue.failCauseUnsafe(
+                      queue,
+                      Cause.fail(
+                        new InstantEntityStoreError({
+                          cause,
+                          operation: 'ObserveIssue',
+                        }),
+                      ),
+                    )
+                  }
+                }
+              },
+            ),
+          ),
+          unsubscribe => Effect.sync(unsubscribe),
+        ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
+  observeProducts: Stream.callback<
+    ReadonlyArray<InstantProductRecord>,
+    InstantEntityStoreError
+  >(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        database.subscribeQuery({ instantToolsProducts: {} }, response => {
+          if (response.error !== undefined) {
+            Queue.failCauseUnsafe(
+              queue,
+              Cause.fail(
+                new InstantEntityStoreError({
+                  cause: response.error,
+                  operation: 'ObserveProducts',
+                }),
+              ),
+            )
+          } else {
+            try {
+              Queue.offerUnsafe(
+                queue,
+                Array.map(response.data.instantToolsProducts, record =>
+                  S.decodeUnknownSync(InstantProductRecord)(record),
+                ),
+              )
+            } catch (cause) {
+              Queue.failCauseUnsafe(
+                queue,
+                Cause.fail(
+                  new InstantEntityStoreError({
+                    cause,
+                    operation: 'ObserveProducts',
+                  }),
+                ),
+              )
+            }
+          }
+        }),
+      ),
+      unsubscribe => Effect.sync(unsubscribe),
+    ).pipe(Effect.flatMap(() => Effect.never)),
+  ),
   saveIssue: record =>
     Effect.tryPromise({
       try: () => {
@@ -279,15 +562,41 @@ export const makeInstantEntityStore = (
           operation: 'SaveIssue',
         }),
     }),
+  saveProduct: record =>
+    Effect.tryPromise({
+      try: () => {
+        const entity = database.tx.instantToolsProducts[record.id]
+        if (entity === undefined) {
+          return Promise.reject(
+            new Error('Instant product transaction entity was unavailable.'),
+          )
+        }
+        return database
+          .transact(
+            entity.update({
+              kind: record.kind,
+              name: record.name,
+              updatedAtMs: record.updatedAtMs,
+            }),
+          )
+          .then(() => undefined)
+      },
+      catch: cause =>
+        new InstantEntityStoreError({
+          cause,
+          operation: 'SaveProduct',
+        }),
+    }),
 })
 
-/** Provides both portable services from one host-initialized InstantDB client. */
+/** Provides all portable services from one host-initialized InstantDB client. */
 export const makeInstantToolsLayer = (
   database: InstantToolsDatabase,
-): Layer.Layer<IssueTracker | Logger> => {
+): Layer.Layer<IssueTracker | Logger | ProductCatalog> => {
   const store = makeInstantEntityStore(database)
-  return Layer.merge(
+  return Layer.mergeAll(
     Layer.succeed(IssueTracker, makeIssueTracker(store)),
     Layer.succeed(Logger, makeLogger(store)),
+    Layer.succeed(ProductCatalog, makeProductCatalog(store)),
   )
 }
