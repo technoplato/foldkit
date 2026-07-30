@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 12:01:38 a.m. EDT — `ab785b7a79f8` feat: add typed issue success criteria
+
+- **Implementation commit:** `ab785b7a79f8f1e9423b5c44cdeb2074713c5b51`
+- **Change:** Add portable issue success criteria to Foldkit Instant Tools
+- **Details:**
+  - Added stable criterion IDs, user-visible outcomes, and a shared evidence-kind vocabulary to the transport-neutral Effect Schema.
+  - Defaulted missing encoded and constructed criteria to an empty array so older Instant payloads and existing callers remain compatible.
+  - Verified the portable domain and Instant payload with nine tests plus the package typecheck.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Define the typed success-criterion schema and legacy-safe default.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Prove the encoded criterion shape and missing-field compatibility.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Prove criteria survive the lossless Instant payload adapter.
+  - `packages/instant-tools/README.md` — Show one host-neutral issue with typed success criteria.
+  - `.changeset/add-instant-tools.md` — Include typed criteria in the pending package release note.
+- **User context (verbatim):**
+  > make sure we add success criteria to the issues
+  > Swift and TypeScript, tools share. Awesome.
+- **SpecStory:** unavailable — Unavailable: this work ran in Codex desktop, and public SpecStory sharing was not authorized.
+
 ## July 29th, 2026 at 10:45:13 p.m. EDT — `364d81f08dbd` feat(instant-tools): add portable issue attachments
 
 - **Implementation commit:** `364d81f08dbd7c94e7dda269b0a89b46d1bd267f`
