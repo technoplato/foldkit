@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest'
 
 const tuiEntryPath = fileURLToPath(new URL('../dist/entry.js', import.meta.url))
 const isBunAvailable = spawnSync('bun', ['--version']).status === 0
+const processTimeoutMilliseconds = 12_000
+const testTimeoutMilliseconds = 15_000
+const readySignal = 'foldkit-wallet-tui-ready'
 
 describe('Wallet OpenTUI process', () => {
   it.skipIf(!isBunAvailable)(
@@ -15,31 +18,61 @@ describe('Wallet OpenTUI process', () => {
         const child = spawn('bun', ['run', tuiEntryPath], {
           env: {
             ...process.env,
+            FOLDKIT_WALLET_PROCESS_READY_SIGNAL: readySignal,
             FOLDKIT_WALLET_RESOURCES: 'simulated',
           },
           stdio: ['pipe', 'pipe', 'pipe'],
         })
         const stderrChunks: Array<Buffer> = []
-        child.stderr.on('data', chunk => stderrChunks.push(Buffer.from(chunk)))
+        let hasWrittenQuit = false
+        let isSettled = false
+        const clearProcessTimeout = () => clearTimeout(processTimeout)
+        const rejectOnce = (error: Error) => {
+          if (!isSettled) {
+            isSettled = true
+            clearProcessTimeout()
+            reject(error)
+          }
+        }
+        child.stderr.on('data', chunk => {
+          stderrChunks.push(Buffer.from(chunk))
+          const stderr = Buffer.concat(stderrChunks).toString('utf8')
+          if (!hasWrittenQuit && stderr.includes(readySignal)) {
+            hasWrittenQuit = true
+            child.stdin.end('q')
+          }
+        })
         child.stdout.resume()
-        const quitTimer = setTimeout(() => child.stdin.end('q'), 750)
-        const timeout = setTimeout(() => {
+        const processTimeout = setTimeout(() => {
           child.kill()
-          reject(new Error('OpenTUI process did not exit after q'))
-        }, 5_000)
-        child.on('error', reject)
+          rejectOnce(new Error('OpenTUI process did not exit after q'))
+        }, processTimeoutMilliseconds)
+        child.on('error', error => rejectOnce(error))
         child.on('close', code => {
-          clearTimeout(quitTimer)
-          clearTimeout(timeout)
-          resolve({
-            code,
-            stderr: Buffer.concat(stderrChunks).toString('utf8'),
-          })
+          if (!isSettled) {
+            isSettled = true
+            clearProcessTimeout()
+            if (!hasWrittenQuit) {
+              reject(
+                new Error(
+                  'OpenTUI process exited before rendering and accepting q',
+                ),
+              )
+            } else {
+              resolve({
+                code,
+                stderr: Buffer.concat(stderrChunks)
+                  .toString('utf8')
+                  .replace(readySignal, ''),
+              })
+            }
+          }
         })
       })
 
       expect(result.code, result.stderr).toBe(0)
       expect(result.stderr).toBe('')
     },
+    testTimeoutMilliseconds,
   )
 })

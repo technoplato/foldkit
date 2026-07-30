@@ -1,4 +1,4 @@
-import { Array, Effect, Option } from 'effect'
+import { Array, Effect, Fiber, Option, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   FirstTransactionWithRecipient,
@@ -15,6 +15,27 @@ import {
   simulatedPortfolio,
 } from './simulatedWallet.js'
 
+const distinctRecipientAddress = (
+  chainId: string,
+  networkId: string,
+): string => {
+  if (chainId === 'bitcoin') {
+    if (networkId === 'bitcoin:regtest') {
+      return 'bcrt1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'
+    } else if (networkId === 'bitcoin:mainnet') {
+      return 'bc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'
+    } else {
+      return 'tb1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'
+    }
+  } else if (chainId === 'ethereum') {
+    return '0x2222222222222222222222222222222222222222'
+  } else if (chainId === 'solana') {
+    return '8XSg97qfSE6n2J1aVfxyTLZgcV7R4sr1kPnCVTLMriYJ'
+  } else {
+    return `0x${'44'.repeat(32)}`
+  }
+}
+
 describe('SimulatedWalletResources', () => {
   it('identifies every simulated account and balance as fixture data', () => {
     expect(simulatedPortfolio.dataSource).toBe('Fixture')
@@ -30,10 +51,60 @@ describe('SimulatedWalletResources', () => {
 
     expect(portfolio).toEqual(simulatedPortfolio)
     expect(portfolio.chains).toHaveLength(4)
-    expect(portfolio.networks).toHaveLength(8)
-    expect(portfolio.assets).toHaveLength(8)
+    expect(portfolio.networks).toHaveLength(12)
+    expect(portfolio.assets).toHaveLength(12)
+    expect(portfolio.accounts).toHaveLength(12)
     expect(availableSendNetworkSelections(portfolio, 'Devnet')).toHaveLength(4)
     expect(availableSendNetworkSelections(portfolio, 'Testnet')).toHaveLength(4)
+    expect(availableSendNetworkSelections(portfolio, 'Live')).toHaveLength(4)
+    expect(
+      Array.map(
+        availableSendNetworkSelections(portfolio, 'Devnet'),
+        selection => selection.networkId,
+      ),
+    ).toStrictEqual([
+      'bitcoin:regtest',
+      'ethereum:localnet',
+      'solana:devnet',
+      'sui:devnet',
+    ])
+    expect(
+      Array.map(
+        availableSendNetworkSelections(portfolio, 'Testnet'),
+        selection => selection.networkId,
+      ),
+    ).toStrictEqual([
+      'bitcoin:testnet',
+      'ethereum:sepolia',
+      'solana:testnet',
+      'sui:testnet',
+    ])
+    expect(
+      Array.map(
+        availableSendNetworkSelections(portfolio, 'Live'),
+        selection => selection.networkId,
+      ),
+    ).toStrictEqual([
+      'bitcoin:mainnet',
+      'ethereum:mainnet',
+      'solana:mainnet-beta',
+      'sui:mainnet',
+    ])
+  })
+
+  it('makes test funding unavailable by contract on every simulated Live rail', () => {
+    const liveNetworks = Array.filter(
+      simulatedPortfolio.networks,
+      network => network.environment === 'Mainnet',
+    )
+
+    expect(liveNetworks).toHaveLength(4)
+    Array.forEach(liveNetworks, network => {
+      expect(network.testFundingMethod._tag).toBe(
+        'UnavailableTestFundingMethod',
+      )
+      expect(Array.contains(network.capabilities, 'TestFunding')).toBe(false)
+    })
   })
 
   it('executes the generic transfer workflow without chain-specific drafts', async () => {
@@ -74,12 +145,40 @@ describe('SimulatedWalletResources', () => {
     expect(result.transactionId).toContain('simulated-')
   })
 
-  it('previews, signs, and submits every chain in both network modes', async () => {
+  it('rejects a Bitcoin address whose prefix belongs to another network mode', async () => {
+    const validation = await Effect.runPromise(
+      WalletClient.pipe(
+        Effect.flatMap(client =>
+          client.validateTransfer(
+            TransferRequest.make({
+              transferId: 'cross-network-bitcoin-transfer',
+              accountId: 'simulated-bitcoin-mainnet-account',
+              assetId: 'bitcoin:mainnet:btc',
+              destinationAddress: 'tb1q2n0r7w3x8k9m4p6s5t2v7y9z3c8d4f6g0h2j5k',
+              atomicUnits: '1000',
+              maybeMessage: Option.none(),
+            }),
+          ),
+        ),
+        Effect.provide(SimulatedWalletResources),
+      ),
+    )
+
+    expect(validation._tag).toBe('RejectedTransfer')
+    if (validation._tag === 'RejectedTransfer') {
+      expect(validation.guidance.summary).toBe(
+        'That is not a valid Bitcoin address for this network mode.',
+      )
+    }
+  })
+
+  it('validates, previews, signs, submits, observes, and reloads history for all 12 simulated rails', async () => {
     const selections = [
       ...availableSendNetworkSelections(simulatedPortfolio, 'Devnet'),
       ...availableSendNetworkSelections(simulatedPortfolio, 'Testnet'),
+      ...availableSendNetworkSelections(simulatedPortfolio, 'Live'),
     ]
-    const transactionIds = await Effect.runPromise(
+    const results = await Effect.runPromise(
       Effect.gen(function* () {
         const client = yield* WalletClient
         const signer = yield* WalletSigner
@@ -91,11 +190,16 @@ describe('SimulatedWalletResources', () => {
                 candidate => candidate.accountId === selection.accountId,
               ),
             )
+            const destinationAddress = distinctRecipientAddress(
+              selection.chainId,
+              selection.networkId,
+            )
+            expect(destinationAddress).not.toBe(account.address)
             const request = TransferRequest.make({
               transferId: `transfer-${selection.networkId}`,
               accountId: selection.accountId,
               assetId: selection.assetId,
-              destinationAddress: account.address,
+              destinationAddress,
               atomicUnits: '1000',
               maybeMessage: Option.none(),
             })
@@ -117,17 +221,43 @@ describe('SimulatedWalletResources', () => {
             )
             const payload = yield* client.buildTransferPayload(preview)
             const signed = yield* signer.signTransaction(payload)
+            const observedFiber = yield* Effect.forkChild(
+              Stream.runHead(client.observeTransactions([selection.accountId])),
+            )
+            yield* Effect.yieldNow
             const submission = yield* client.submitTransaction(signed)
-            return submission.transactionId
+            const maybeObserved = yield* Fiber.join(observedFiber)
+            const history = yield* client.loadTransactionHistory({
+              accountId: selection.accountId,
+              networkId: selection.networkId,
+              maybeCursor: Option.none(),
+              limit: 2,
+            })
+            return {
+              selection,
+              signed,
+              submission,
+              maybeObserved,
+              history,
+            }
           }),
         )
       }).pipe(Effect.provide(SimulatedWalletResources)),
     )
 
-    expect(transactionIds).toHaveLength(8)
-    expect(Array.every(transactionIds, id => id.startsWith('simulated-'))).toBe(
-      true,
-    )
+    expect(results).toHaveLength(12)
+    Array.forEach(results, result => {
+      expect(result.signed.accountId).toBe(result.selection.accountId)
+      expect(result.signed.networkId).toBe(result.selection.networkId)
+      expect(result.submission.transactionId).toMatch(/^simulated-/)
+      expect(Option.getOrThrow(result.maybeObserved).transactionId).toBe(
+        result.submission.transactionId,
+      )
+      expect(result.history.records).toHaveLength(2)
+      expect(
+        Option.getOrThrow(Array.head(result.history.records)).transactionId,
+      ).toBe(result.submission.transactionId)
+    })
   })
 
   it('loads a finite page of normalized transaction history', async () => {

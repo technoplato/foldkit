@@ -1,7 +1,8 @@
-import { Array, Layer, Match as M, Option } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 import { useEffect, useRef } from 'react'
 import {
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -46,44 +47,25 @@ import {
   walletDataSourceLabel,
 } from 'wallet-core-example'
 import {
-  EthereumAnvilEndpoint,
-  LiveWalletClient,
-  liveWalletNetworksWithEthereumAnvilEndpoint,
-  makeLiveWalletClientLayer,
-} from 'wallet-live-client-example'
-import {
   type WalletInitialRoute,
   makeWalletReactClient,
 } from 'wallet-react-bindings-example'
+import { walletDataSourceFromEnvironment } from 'wallet-web-client-example'
 
 import { ReplayControls } from '../replayControls'
-import { ExpoWalletClipboard } from './walletClipboard'
-import { ExpoWalletResources } from './walletVault'
+import { makeWalletResourcesForPlatform } from './walletResources'
 
-const nativeLiveWalletClient = (() => {
-  const httpRpcUrl =
-    process.env['EXPO_PUBLIC_WALLET_ETHEREUM_ANVIL_HTTP_RPC_URL']
-  const webSocketRpcUrl =
-    process.env['EXPO_PUBLIC_WALLET_ETHEREUM_ANVIL_WS_RPC_URL']
-  if (httpRpcUrl === undefined || webSocketRpcUrl === undefined) {
-    return LiveWalletClient
-  } else {
-    return makeLiveWalletClientLayer(
-      liveWalletNetworksWithEthereumAnvilEndpoint(
-        EthereumAnvilEndpoint.make({ httpRpcUrl, webSocketRpcUrl }),
-      ),
-    )
-  }
-})()
+const walletResources = makeWalletResourcesForPlatform(
+  Platform.OS,
+  walletDataSourceFromEnvironment(
+    process.env['EXPO_PUBLIC_WALLET_DATA_SOURCE'],
+  ),
+  process.env['EXPO_PUBLIC_WALLET_ETHEREUM_ANVIL_HTTP_RPC_URL'],
+  process.env['EXPO_PUBLIC_WALLET_ETHEREUM_ANVIL_WS_RPC_URL'],
+)
 
 const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
-  makeWalletReactClient(
-    Layer.mergeAll(
-      nativeLiveWalletClient,
-      ExpoWalletResources,
-      ExpoWalletClipboard,
-    ),
-  )
+  makeWalletReactClient(walletResources)
 
 const maybePreviewForTransaction = (
   transaction: TransactionState,

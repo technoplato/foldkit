@@ -33,6 +33,7 @@ import {
   TransactionSubmission,
   TransferGuidance,
   type TransferRequest,
+  UnavailableTestFundingMethod,
   ValidatedRecipient,
   ValidatedTransfer,
   WalletAccount,
@@ -61,33 +62,43 @@ const fixedExpiresAt = fixedObservedAt + 5 * 60 * 1_000
 const bitcoinChainId = 'bitcoin'
 const bitcoinRegtestNetworkId = 'bitcoin:regtest'
 const bitcoinTestnetNetworkId = 'bitcoin:testnet'
+const bitcoinMainnetNetworkId = 'bitcoin:mainnet'
 const bitcoinRegtestAssetId = 'bitcoin:regtest:btc'
 const bitcoinTestnetAssetId = 'bitcoin:testnet:btc'
+const bitcoinMainnetAssetId = 'bitcoin:mainnet:btc'
 const bitcoinRegtestAccountId = 'simulated-bitcoin-regtest-account'
 const bitcoinTestnetAccountId = 'simulated-bitcoin-testnet-account'
+const bitcoinMainnetAccountId = 'simulated-bitcoin-mainnet-account'
 const ethereumChainId = 'ethereum'
 const ethereumLocalnetNetworkId = 'ethereum:localnet'
-const ethereumNetworkId = 'ethereum:sepolia'
+const ethereumSepoliaNetworkId = 'ethereum:sepolia'
+const ethereumMainnetNetworkId = 'ethereum:mainnet'
 const ethereumLocalnetAssetId = 'ethereum:localnet:eth'
-const ethereumEthAssetId = 'ethereum:sepolia:eth'
+const ethereumSepoliaAssetId = 'ethereum:sepolia:eth'
+const ethereumMainnetAssetId = 'ethereum:mainnet:eth'
 const ethereumLocalnetAccountId = 'simulated-ethereum-localnet-account'
-const ethereumAccountId = 'simulated-ethereum-account'
-const ethereumAddress = '0x1111111111111111111111111111111111111111'
+const ethereumSepoliaAccountId = 'simulated-ethereum-account'
+const ethereumMainnetAccountId = 'simulated-ethereum-mainnet-account'
 const solanaChainId = 'solana'
-const solanaNetworkId = 'solana:devnet'
+const solanaDevnetNetworkId = 'solana:devnet'
 const solanaTestnetNetworkId = 'solana:testnet'
-const solanaSolAssetId = 'solana:devnet:sol'
+const solanaMainnetNetworkId = 'solana:mainnet-beta'
+const solanaDevnetAssetId = 'solana:devnet:sol'
 const solanaTestnetAssetId = 'solana:testnet:sol'
-const solanaAccountId = 'simulated-solana-account'
+const solanaMainnetAssetId = 'solana:mainnet-beta:sol'
+const solanaDevnetAccountId = 'simulated-solana-account'
 const solanaTestnetAccountId = 'simulated-solana-testnet-account'
-const solanaAddress = '7XSg97qfSE6n2J1aVfxyTLZgcV7R4sr1kPnCVTLMriYJ'
+const solanaMainnetAccountId = 'simulated-solana-mainnet-account'
 const suiChainId = 'sui'
 const suiDevnetNetworkId = 'sui:devnet'
 const suiTestnetNetworkId = 'sui:testnet'
+const suiMainnetNetworkId = 'sui:mainnet'
 const suiDevnetAssetId = 'sui:devnet:sui'
 const suiTestnetAssetId = 'sui:testnet:sui'
+const suiMainnetAssetId = 'sui:mainnet:sui'
 const suiDevnetAccountId = 'simulated-sui-devnet-account'
 const suiTestnetAccountId = 'simulated-sui-testnet-account'
+const suiMainnetAccountId = 'simulated-sui-mainnet-account'
 
 const chains = [
   ChainDescriptor.make({ chainId: bitcoinChainId, displayName: 'Bitcoin' }),
@@ -103,7 +114,14 @@ const transferCapabilities: ReadonlyArray<WalletCapability> = [
   'TransactionObservation',
   'ChallengeSignature',
 ]
+const liveTransferCapabilities: ReadonlyArray<WalletCapability> = [
+  'Transfer',
+  'TransactionHistory',
+  'TransactionObservation',
+  'ChallengeSignature',
+]
 const adapterTestFundingMethod = AdapterTestFundingMethod.make({})
+const unavailableTestFundingMethod = UnavailableTestFundingMethod.make({})
 
 const networks = [
   NetworkDescriptor.make({
@@ -123,6 +141,14 @@ const networks = [
     testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
+    networkId: bitcoinMainnetNetworkId,
+    chainId: bitcoinChainId,
+    displayName: 'Bitcoin Mainnet',
+    environment: 'Mainnet',
+    capabilities: liveTransferCapabilities,
+    testFundingMethod: unavailableTestFundingMethod,
+  }),
+  NetworkDescriptor.make({
     networkId: ethereumLocalnetNetworkId,
     chainId: ethereumChainId,
     displayName: 'Ethereum Localnet',
@@ -131,7 +157,7 @@ const networks = [
     testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
-    networkId: ethereumNetworkId,
+    networkId: ethereumSepoliaNetworkId,
     chainId: ethereumChainId,
     displayName: 'Ethereum Sepolia',
     environment: 'Testnet',
@@ -139,7 +165,15 @@ const networks = [
     testFundingMethod: adapterTestFundingMethod,
   }),
   NetworkDescriptor.make({
-    networkId: solanaNetworkId,
+    networkId: ethereumMainnetNetworkId,
+    chainId: ethereumChainId,
+    displayName: 'Ethereum Mainnet',
+    environment: 'Mainnet',
+    capabilities: liveTransferCapabilities,
+    testFundingMethod: unavailableTestFundingMethod,
+  }),
+  NetworkDescriptor.make({
+    networkId: solanaDevnetNetworkId,
     chainId: solanaChainId,
     displayName: 'Solana Devnet',
     environment: 'Development',
@@ -153,6 +187,14 @@ const networks = [
     environment: 'Testnet',
     capabilities: transferCapabilities,
     testFundingMethod: adapterTestFundingMethod,
+  }),
+  NetworkDescriptor.make({
+    networkId: solanaMainnetNetworkId,
+    chainId: solanaChainId,
+    displayName: 'Solana Mainnet Beta',
+    environment: 'Mainnet',
+    capabilities: liveTransferCapabilities,
+    testFundingMethod: unavailableTestFundingMethod,
   }),
   NetworkDescriptor.make({
     networkId: suiDevnetNetworkId,
@@ -169,6 +211,14 @@ const networks = [
     environment: 'Testnet',
     capabilities: transferCapabilities,
     testFundingMethod: adapterTestFundingMethod,
+  }),
+  NetworkDescriptor.make({
+    networkId: suiMainnetNetworkId,
+    chainId: suiChainId,
+    displayName: 'Sui Mainnet',
+    environment: 'Mainnet',
+    capabilities: liveTransferCapabilities,
+    testFundingMethod: unavailableTestFundingMethod,
   }),
 ]
 
@@ -212,6 +262,15 @@ const assets = [
     8,
   ),
   nativeAsset(
+    bitcoinMainnetAssetId,
+    bitcoinMainnetNetworkId,
+    'Bitcoin',
+    'BTC',
+    'sat',
+    '1000',
+    8,
+  ),
+  nativeAsset(
     ethereumLocalnetAssetId,
     ethereumLocalnetNetworkId,
     'Local Ether',
@@ -221,8 +280,8 @@ const assets = [
     18,
   ),
   nativeAsset(
-    ethereumEthAssetId,
-    ethereumNetworkId,
+    ethereumSepoliaAssetId,
+    ethereumSepoliaNetworkId,
     'Sepolia Ether',
     'ETH',
     'wei',
@@ -230,8 +289,17 @@ const assets = [
     18,
   ),
   nativeAsset(
-    solanaSolAssetId,
-    solanaNetworkId,
+    ethereumMainnetAssetId,
+    ethereumMainnetNetworkId,
+    'Ether',
+    'ETH',
+    'wei',
+    '1',
+    18,
+  ),
+  nativeAsset(
+    solanaDevnetAssetId,
+    solanaDevnetNetworkId,
     'Devnet SOL',
     'SOL',
     'lamport',
@@ -242,6 +310,15 @@ const assets = [
     solanaTestnetAssetId,
     solanaTestnetNetworkId,
     'Testnet SOL',
+    'SOL',
+    'lamport',
+    '1',
+    9,
+  ),
+  nativeAsset(
+    solanaMainnetAssetId,
+    solanaMainnetNetworkId,
+    'SOL',
     'SOL',
     'lamport',
     '1',
@@ -260,6 +337,15 @@ const assets = [
     suiTestnetAssetId,
     suiTestnetNetworkId,
     'Testnet SUI',
+    'SUI',
+    'MIST',
+    '1',
+    9,
+  ),
+  nativeAsset(
+    suiMainnetAssetId,
+    suiMainnetNetworkId,
+    'SUI',
     'SUI',
     'MIST',
     '1',
@@ -314,6 +400,15 @@ const simulatedHoldings = [
     '5000000',
   ),
   simulatedHolding(
+    bitcoinMainnetAccountId,
+    bitcoinChainId,
+    bitcoinMainnetNetworkId,
+    'bc1q2n0r7w3x8k9m4p6s5t2v7y9z3c8d4f6g0h2j5k',
+    'Simulated Bitcoin Mainnet Account',
+    bitcoinMainnetAssetId,
+    '5000000',
+  ),
+  simulatedHolding(
     ethereumLocalnetAccountId,
     ethereumChainId,
     ethereumLocalnetNetworkId,
@@ -323,21 +418,30 @@ const simulatedHoldings = [
     '5000000000000000000',
   ),
   simulatedHolding(
-    ethereumAccountId,
+    ethereumSepoliaAccountId,
     ethereumChainId,
-    ethereumNetworkId,
-    ethereumAddress,
+    ethereumSepoliaNetworkId,
+    '0x1111111111111111111111111111111111111111',
     'Simulated Sepolia Account',
-    ethereumEthAssetId,
+    ethereumSepoliaAssetId,
     '2500000000000000000',
   ),
   simulatedHolding(
-    solanaAccountId,
+    ethereumMainnetAccountId,
+    ethereumChainId,
+    ethereumMainnetNetworkId,
+    '0x3333333333333333333333333333333333333333',
+    'Simulated Ethereum Mainnet Account',
+    ethereumMainnetAssetId,
+    '2500000000000000000',
+  ),
+  simulatedHolding(
+    solanaDevnetAccountId,
     solanaChainId,
-    solanaNetworkId,
-    solanaAddress,
+    solanaDevnetNetworkId,
+    '7XSg97qfSE6n2J1aVfxyTLZgcV7R4sr1kPnCVTLMriYJ',
     'Simulated Solana Devnet Account',
-    solanaSolAssetId,
+    solanaDevnetAssetId,
     '7200000000',
   ),
   simulatedHolding(
@@ -347,6 +451,15 @@ const simulatedHoldings = [
     '11111111111111111111111111111111',
     'Simulated Solana Testnet Account',
     solanaTestnetAssetId,
+    '7200000000',
+  ),
+  simulatedHolding(
+    solanaMainnetAccountId,
+    solanaChainId,
+    solanaMainnetNetworkId,
+    '9Zsg97qfSE6n2J1aVfxyTLZgcV7R4sr1kPnCVTLMriYJ',
+    'Simulated Solana Mainnet Account',
+    solanaMainnetAssetId,
     '7200000000',
   ),
   simulatedHolding(
@@ -365,6 +478,15 @@ const simulatedHoldings = [
     '0x2222222222222222222222222222222222222222222222222222222222222222',
     'Simulated Sui Testnet Account',
     suiTestnetAssetId,
+    '12000000000',
+  ),
+  simulatedHolding(
+    suiMainnetAccountId,
+    suiChainId,
+    suiMainnetNetworkId,
+    '0x3333333333333333333333333333333333333333333333333333333333333333',
+    'Simulated Sui Mainnet Account',
+    suiMainnetAssetId,
     '12000000000',
   ),
 ]
@@ -472,9 +594,19 @@ const isValidSimulatedAddress = (
     return false
   }
   if (maybeChainId.value === bitcoinChainId) {
-    return /^(bcrt1|tb1)[023456789acdefghjklmnpqrstuvwxyz]{20,}$/.test(
-      destinationAddress,
-    )
+    if (networkId === bitcoinRegtestNetworkId) {
+      return /^bcrt1[023456789acdefghjklmnpqrstuvwxyz]{20,}$/.test(
+        destinationAddress,
+      )
+    } else if (networkId === bitcoinMainnetNetworkId) {
+      return /^bc1[023456789acdefghjklmnpqrstuvwxyz]{20,}$/.test(
+        destinationAddress,
+      )
+    } else {
+      return /^tb1[023456789acdefghjklmnpqrstuvwxyz]{20,}$/.test(
+        destinationAddress,
+      )
+    }
   } else if (maybeChainId.value === ethereumChainId) {
     return /^0x[0-9a-fA-F]{40}$/.test(destinationAddress)
   } else if (maybeChainId.value === solanaChainId) {
@@ -493,7 +625,7 @@ const invalidAddressGuidance = (networkId: string) => {
     return TransferGuidance.make({
       summary: 'That is not a valid Bitcoin address for this network mode.',
       details: [
-        'Use a Bech32 Regtest or Testnet address for the selected rail.',
+        'Use a Bech32 address with the prefix required by the selected Bitcoin rail.',
       ],
     })
   } else if (chainId === ethereumChainId) {
