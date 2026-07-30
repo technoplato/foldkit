@@ -96,13 +96,13 @@ describe('issue domain', () => {
     )
   })
 
-  it('preserves new non-empty evidence labels without a decoder redeploy', () => {
+  it('accepts only explicitly enumerated success evidence', () => {
     expect(S.decodeUnknownSync(IssueSuccessEvidence)('Snapshot')).toBe(
       'Snapshot',
     )
-    expect(S.decodeUnknownSync(IssueSuccessEvidence)('FutureEvidence')).toBe(
-      'FutureEvidence',
-    )
+    expect(() =>
+      S.decodeUnknownSync(IssueSuccessEvidence)('FutureEvidence'),
+    ).toThrow()
     expect(() => S.decodeUnknownSync(IssueSuccessEvidence)('')).toThrow()
   })
 
