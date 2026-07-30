@@ -4,6 +4,42 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:56:22 p.m. EDT — `27b58513a2ef` feat: synchronize authenticated Program processors
+
+- **Implementation commit:** `27b58513a2efa1261fc04be3f8a6ac9485aee79c`
+- **Change:** Synchronize authenticated Foldkit Program Processors through an append-only InstantDB Message tape.
+- **Details:**
+  - Added strict-create proposals and accepted occurrences, subject-scoped stores, a Synced-only single-writer authority, exact provenance, monotonic recovery, durable pending proposals, inert replay, and reconnect handling.
+  - Modeled immutable effect requests and append-only placement generations with canonical Foldkit capabilities, transient Processor availability, exactly-once factual results, and linked artifact streams.
+  - Added 33 focused tests covering offline proposals, duplicate suppression, cursor commit safety, revocation, authority rotation, stale snapshots, malformed proposal isolation, effect generations, rooms, and artifact boundaries.
+- **Files:**
+  - `packages/instant/src/acceptanceAuthority/acceptanceAuthority.ts` — Implement fenced Synced-only acceptance, recovery, revocation, rejection isolation, and effect validation.
+  - `packages/instant/src/acceptanceAuthority/index.ts` — Export the acceptance authority.
+  - `packages/instant/src/acceptedOccurrenceCursor/acceptedOccurrenceCursor.ts` — Advance accepted order only after successful Message application.
+  - `packages/instant/src/artifactStream/artifactStream.ts` — Expose scoped resumable streams for linked large artifacts.
+  - `packages/instant/src/artifactStream/artifactStream.test.ts` — Verify stream offsets, ownership, failures, and artifact references.
+  - `packages/instant/src/artifactStream/index.ts` — Export artifact stream APIs.
+  - `packages/instant/src/inMemoryProgramStore/inMemoryProgramStore.ts` — Mirror strict append and placement behavior in deterministic tests.
+  - `packages/instant/src/index.ts` — Export the new public adapter modules.
+  - `packages/instant/src/instant.test.ts` — Verify durable schemas, stores, transactions, rooms, and isolation.
+  - `packages/instant/src/instantProgramStore/instantProgramStore.ts` — Adapt strict Instant transactions and fault-isolated live queries.
+  - `packages/instant/src/processorRoom/processorRoom.ts` — Carry transient Processor descriptors, availability, and activity.
+  - `packages/instant/src/processorRoom/index.ts` — Export Processor room APIs.
+  - `packages/instant/src/programStore/programStore.ts` — Define subject-scoped durable request and placement storage.
+  - `packages/instant/src/schema/schema.ts` — Define exact authenticated records, canonical effect values, and room data.
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.ts` — Bridge accepted Messages, offline proposals, reconnect, replay, and causal results.
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.test.ts` — Verify Processor and authority correctness and failure recovery.
+  - `packages/instant/src/sharedProgramProcessor/index.ts` — Export shared Program Processor APIs.
+  - `packages/instant/package.json` — Declare Foldkit as the canonical protocol peer and development dependency.
+  - `packages/instant/README.md` — Document authority, offline, placement, presence, stream, and credential boundaries.
+  - `.changeset/synchronize-instant-program-processors.md` — Record the public @foldkit/instant feature increment.
+  - `pnpm-lock.yaml` — Lock the package-local Foldkit development link without changing unrelated importers.
+- **User context (verbatim):**
+  > We wanna synchronize by sending messages, not by sharing snapshots of data, by the way
+  > press increment on either device, both devices receive the same.
+  > The phone executes it once and sends a result back is another factual message.
+- **SpecStory:** unavailable — No SpecStory URI is available because this Codex desktop task was not captured by SpecStory.
+
 ## July 30th, 2026 at 1:43:38 p.m. EDT — `c48be8548f6d` test(local-vault): prove Keychain restart restoration
 
 - **Implementation commit:** `c48be8548f6d0daf390924ccfe4f362f877078be`
