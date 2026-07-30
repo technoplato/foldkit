@@ -4,6 +4,41 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 10:30:25 a.m. EDT — `6498f383167b` feat(words): add progressive transcript player
+
+- **Implementation commit:** `6498f383167be4b6933094938f93e689c23f483a`
+- **Change:** Add a typed progressive transcript and audio player example
+- **Details:**
+  - Added a renderer-independent Model, Message, and update core with typed loading and playback failures, canonical recording routes, stale-request rejection, seeking, jumps, scrubbing, and active-word projection.
+  - Integrated same-origin version 1 data decoding, semantic validation, browser audio Commands and events, and scoped cleanup through Effect services and Foldkit Ports.
+  - Exposed mountWordsExample as progressive enhancement that validates before replacing native fallback, preserves host metadata, copies a page CSP nonce, and bundles as dist/words.js.
+  - Verified under Node v24.11.1 and pnpm 11.8.0 with Prettier, TypeScript, five test files and 22 tests, a Vite production build, a built-module export import, and diff integrity checks.
+- **Files:**
+  - `examples/words/package.json` — Define the private example package, pinned workspace dependencies, and verification scripts.
+  - `examples/words/tsconfig.json` — Typecheck the Words source and build and test configuration against repository settings.
+  - `examples/words/vite.config.ts` — Build the progressive-enhancement entry as dist/words.js with Foldkit branch identity.
+  - `examples/words/vitest.config.ts` — Run focused tests in a browser-compatible happy-dom environment.
+  - `examples/words/src/application.ts` — Construct the embedded Foldkit application with injected data and audio services.
+  - `examples/words/src/audioPlayer.ts` — Model browser audio control and event observation behind typed Effect boundaries.
+  - `examples/words/src/audioPlayer.test.ts` — Verify rejected playback and scoped event-listener cleanup.
+  - `examples/words/src/dataClient.ts` — Decode and semantically validate route-local version 1 payloads.
+  - `examples/words/src/dataClient.test.ts` — Verify valid, HTTP, invalid-schema, and route-mismatch data outcomes.
+  - `examples/words/src/index.ts` — Expose the Words example modules through one barrel.
+  - `examples/words/src/message.ts` — Define the complete typed Message and audio event vocabulary.
+  - `examples/words/src/model.ts` — Define route, data, playback, failure, and transcript Model schemas.
+  - `examples/words/src/program.ts` — Expose the portable Program and typed audio Port subscription.
+  - `examples/words/src/public.ts` — Provide the validated progressive mount API with CSP nonce propagation and fallback preservation.
+  - `examples/words/src/public.test.ts` — Verify valid mounting, nonce propagation, and strict invalid-payload fallback behavior.
+  - `examples/words/src/route.ts` — Parse canonical recording and segment-range routes and build same-origin data paths.
+  - `examples/words/src/route.test.ts` — Verify canonical route parsing, rejection, and data-path construction.
+  - `examples/words/src/styles.ts` — Provide scoped accessible player and transcript presentation.
+  - `examples/words/src/update.ts` — Implement pure loading and playback transitions plus typed Commands.
+  - `examples/words/src/update.test.ts` — Verify loading, stale responses, playback, seeking, scrubbing, jumps, endings, and failures.
+  - `examples/words/src/view.ts` — Render accessible controls, active words, statuses, and failures from the Model.
+- **User context (verbatim):**
+  > Independently rerun Words Prettier, typecheck, tests, build, import `examples/words/dist/words.js` and assert exported `mountWordsExample`
+- **SpecStory:** unavailable — This recovery was performed in Codex desktop; public SpecStory sharing was not authorized and no verified CLI capture URI is available. Provenance session: /Users/laptop/.codex/sessions/2026/07/30/rollout-2026-07-30T07-30-25-019fb2ca-3b4c-70d2-97c1-4a28b6328c41.jsonl.
+
 ## July 30th, 2026 at 10:28:29 a.m. EDT — `18ef08300fa0` chore: pin repository Node version
 
 - **Implementation commit:** `18ef08300fa0fa43d520688b5ccf4819fe2fbc2a`
