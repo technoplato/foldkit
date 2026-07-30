@@ -31,27 +31,30 @@ const walletRecordAccount = (walletId: string): string =>
 
 const loadKeychainItem = (
   entryFactory: MacOSKeychainEntryFactory,
+  service: string,
   account: string,
 ): Effect.Effect<Option.Option<string>, WalletVaultError> =>
   Effect.tryPromise({
-    try: () => entryFactory(keychainService, account).getPassword(),
+    try: () => entryFactory(service, account).getPassword(),
     catch: unavailableVaultError,
   }).pipe(Effect.map(Option.fromNullishOr))
 
 const saveKeychainItem = (
   entryFactory: MacOSKeychainEntryFactory,
+  service: string,
   account: string,
   value: string,
 ): Effect.Effect<void, WalletVaultError> =>
   Effect.tryPromise({
-    try: () => entryFactory(keychainService, account).setPassword(value),
+    try: () => entryFactory(service, account).setPassword(value),
     catch: unavailableVaultError,
   })
 
 const loadWalletIds = (
   entryFactory: MacOSKeychainEntryFactory,
+  service: string,
 ): Effect.Effect<ReadonlyArray<string>, WalletVaultError> =>
-  loadKeychainItem(entryFactory, walletIndexAccount).pipe(
+  loadKeychainItem(entryFactory, service, walletIndexAccount).pipe(
     Effect.flatMap(maybeIndex => {
       if (Option.isNone(maybeIndex)) {
         return Effect.succeed([])
@@ -79,17 +82,18 @@ const nativeKeychainEntryFactory: MacOSKeychainEntryFactory = (
 /** Builds Wallet record persistence backed by native macOS Keychain entries. */
 export const makeMacOSKeychainWalletVaultStorage = (
   entryFactory: MacOSKeychainEntryFactory,
+  service = keychainService,
 ): WalletVaultStorage => ({
-  loadRecords: loadWalletIds(entryFactory).pipe(
+  loadRecords: loadWalletIds(entryFactory, service).pipe(
     Effect.flatMap(walletIds =>
       Effect.forEach(walletIds, walletId =>
-        loadKeychainItem(entryFactory, walletRecordAccount(walletId)),
+        loadKeychainItem(entryFactory, service, walletRecordAccount(walletId)),
       ),
     ),
     Effect.map(Array_.getSomes),
   ),
   saveRecord: (walletId, record) =>
-    loadWalletIds(entryFactory).pipe(
+    loadWalletIds(entryFactory, service).pipe(
       Effect.flatMap(walletIds => {
         const nextWalletIds = Array_.contains(walletIds, walletId)
           ? walletIds
@@ -97,11 +101,17 @@ export const makeMacOSKeychainWalletVaultStorage = (
         const encodedIndex = S.encodeSync(WalletRecordIndexJson)(nextWalletIds)
         return saveKeychainItem(
           entryFactory,
+          service,
           walletRecordAccount(walletId),
           record,
         ).pipe(
           Effect.flatMap(() =>
-            saveKeychainItem(entryFactory, walletIndexAccount, encodedIndex),
+            saveKeychainItem(
+              entryFactory,
+              service,
+              walletIndexAccount,
+              encodedIndex,
+            ),
           ),
         )
       }),
