@@ -18,6 +18,11 @@ import {
   TriageInbox,
   type TriageInboxService,
 } from '@foldkit/instant-tools/issues'
+import {
+  IssueLogEvidence,
+  Logger,
+  type LoggerService,
+} from '@foldkit/instant-tools/logging'
 
 import { IssueIdentity, LiveIssueIdentity } from './issueIdentity.js'
 
@@ -30,23 +35,43 @@ const foldkit = ProductCatalogEntry.make({
   updatedAtMs: 1_753_800_000_000,
 })
 const seedIssue = Issue.make({
+  area: Option.none(),
   attachments: [],
+  claimantId: Option.none(),
+  complexity: Option.none(),
   createdAtMs: 1_753_800_000_000,
   details: 'Observe filtered collections and selected Issue detail.',
   id: 'issue-041',
+  issueType: Option.none(),
   mentions: [],
   priority: 'P2',
   product: foldkit.product,
   projectId: Option.some('instant-tools'),
+  reportedDate: Option.none(),
   sourceDocument: Option.none(),
   status: 'InProgress',
   successCriteria: [],
   title: 'Application-agnostic logging and issue tracking',
   updatedAtMs: 1_753_800_000_000,
+  viewerURL: Option.some('https://issues.knophy.com/issues/041'),
   workLog: [],
 })
 
 const staticIssues: ReadonlyArray<Issue> = [seedIssue]
+const staticIssueLogs = [
+  IssueLogEvidence.make({
+    category: 'issues',
+    contributingPaths: [],
+    issueID: '041',
+    level: 'Info',
+    logID: 'preview-log-041',
+    logNamespace: 'instantToolsLogs',
+    message: 'Issue #041 is available in the lightweight viewer.',
+    name: 'issue.preview.loaded',
+    timestampMs: 1_753_800_000_000,
+    viewerURL: 'https://issues.knophy.com/issues/041',
+  }),
+]
 const staticProducts: ReadonlyArray<ProductCatalogEntry> = [scribe, foldkit]
 const seedSegment = RecordingSegment.make({
   createdAtMs: 1_753_800_000_000,
@@ -97,9 +122,18 @@ const StaticTriageInbox: TriageInboxService = {
   saveSegment: () => Effect.void,
 }
 
+const StaticLogger: LoggerService = {
+  append: () => Effect.void,
+  observeIssue: issueId =>
+    Stream.succeed(
+      Array.filter(staticIssueLogs, evidence => evidence.issueID === issueId),
+    ),
+}
+
 /** Deterministic resources for previews, tests, and offline Clients. */
 export const StaticIssueTrackerResources = Layer.mergeAll(
   Layer.succeed(IssueTracker, StaticIssueTracker),
+  Layer.succeed(Logger, StaticLogger),
   Layer.succeed(ProductCatalog, StaticProductCatalog),
   Layer.succeed(TriageInbox, StaticTriageInbox),
   Layer.succeed(IssueIdentity, {

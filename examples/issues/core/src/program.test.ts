@@ -8,6 +8,7 @@ import {
   RecordingSegment,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
+import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { modelForNavigation } from './init.js'
 import {
@@ -15,6 +16,7 @@ import {
   ClickedOpenTriage,
   ClickedPromoteTriageCandidate,
   ObservedIssue,
+  ObservedIssueLogs,
   ObservedProducts,
   ObservedTriageCandidates,
   SelectedIssue,
@@ -26,6 +28,7 @@ import {
   IssueDetail,
   IssueList,
   LoadingIssue,
+  LoadingIssueLogs,
   TriageInbox,
 } from './model.js'
 import { destinationForModel, interactionsForModel } from './presentation.js'
@@ -38,19 +41,25 @@ const productEntry = ProductCatalogEntry.make({
   updatedAtMs: 1_000,
 })
 const issue = Issue.make({
+  area: Option.none(),
   attachments: [],
+  claimantId: Option.none(),
+  complexity: Option.none(),
   createdAtMs: 1_000,
   details: 'The transcript shifted sideways.',
   id: 'issue-021',
+  issueType: Option.none(),
   mentions: [],
   priority: 'P1',
   product,
   projectId: Option.none(),
+  reportedDate: Option.none(),
   sourceDocument: Option.none(),
   status: 'Open',
   successCriteria: [],
   title: 'Keep transcript aligned',
   updatedAtMs: 1_000,
+  viewerURL: Option.none(),
   workLog: [],
 })
 const segment = RecordingSegment.make({
@@ -96,6 +105,9 @@ describe('Issue Tracker Program', () => {
     expect(selected.issueDetail).toEqual(
       LoadingIssue.make({ issueId: issue.id }),
     )
+    expect(selected.issueLogs).toEqual(
+      LoadingIssueLogs.make({ issueId: issue.id }),
+    )
 
     const [observed] = update(
       selected,
@@ -117,6 +129,27 @@ describe('Issue Tracker Program', () => {
       }),
     )
     expect(ignored).toEqual(observed)
+
+    const evidence = IssueLogEvidence.make({
+      category: 'issues',
+      contributingPaths: [],
+      issueID: issue.id,
+      level: 'Info',
+      logID: 'log-021',
+      logNamespace: 'instantToolsLogs',
+      message: 'Investigating issue #021.',
+      name: 'issue.investigation.started',
+      timestampMs: 1_001,
+      viewerURL: 'https://issues.knophy.com/issues/021',
+    })
+    const [withEvidence] = update(
+      observed,
+      ObservedIssueLogs.make({ issueId: issue.id, logs: [evidence] }),
+    )
+    expect(withEvidence.issueLogs).toMatchObject({
+      _tag: 'LoadedIssueLogs',
+      logs: [evidence],
+    })
   })
 
   it('requires a first-class product and title before filing', () => {

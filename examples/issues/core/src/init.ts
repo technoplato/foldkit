@@ -11,6 +11,7 @@ import {
   Model,
   type Navigation,
   NotObservingIssue,
+  NotObservingIssueLogs,
 } from './model.js'
 
 /** Creates the stable initial Model for one navigation destination. */
@@ -24,6 +25,7 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     }),
     draftState: EditingIssueDraft.make({}),
     issueDetail: NotObservingIssue.make({}),
+    issueLogs: NotObservingIssueLogs.make({}),
     issues: LoadingIssues.make({}),
     navigation,
     products: LoadingProducts.make({}),

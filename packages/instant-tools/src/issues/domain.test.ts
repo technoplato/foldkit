@@ -40,10 +40,14 @@ const firstMention = IssueMention.make({
 
 const makeIssue = () =>
   Issue.make({
+    area: Option.none(),
     attachments: [],
+    claimantId: Option.none(),
+    complexity: Option.none(),
     createdAtMs: 1_753_800_000_000,
     details: '',
     id: 'issue-021',
+    issueType: Option.none(),
     mentions: [],
     priority: 'P4',
     product: ApplicationProduct.make({
@@ -51,6 +55,7 @@ const makeIssue = () =>
       name: 'Scribe',
     }),
     projectId: Option.some('transcript-ui'),
+    reportedDate: Option.none(),
     sourceDocument: Option.none(),
     status: 'InProgress',
     successCriteria: [
@@ -66,6 +71,7 @@ const makeIssue = () =>
     ],
     title: 'Put the full recording timestamp in the gutter',
     updatedAtMs: 1_753_800_000_000,
+    viewerURL: Option.none(),
     workLog: [],
   })
 
@@ -153,6 +159,7 @@ describe('issue domain', () => {
     expect(encoded.successCriteria).toEqual([
       {
         id: 'compact-initial-placement',
+        isSatisfied: false,
         outcome: 'The first transcript row starts at the top reading position.',
         requiredEvidence: [
           'FocusedTest',
@@ -175,5 +182,9 @@ describe('issue domain', () => {
     expect(S.decodeUnknownSync(Issue)(legacyPayload).successCriteria).toEqual(
       [],
     )
+    expect(
+      S.decodeUnknownSync(Issue)(legacyPayload).evidenceLogQueries,
+    ).toEqual([])
+    expect(S.decodeUnknownSync(Issue)(legacyPayload).nightlyEligible).toBe(true)
   })
 })

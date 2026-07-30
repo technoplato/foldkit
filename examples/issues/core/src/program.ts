@@ -5,6 +5,7 @@ import {
   ProductCatalog,
   TriageInbox,
 } from '@foldkit/instant-tools/issues'
+import { Logger } from '@foldkit/instant-tools/logging'
 
 import { init } from './init.js'
 import { IssueIdentity } from './issueIdentity.js'
@@ -16,6 +17,7 @@ import { restore, update } from './update.js'
 /** Every dependency required by the renderer-independent Issue Tracker. */
 export type IssueTrackerResources =
   | IssueTracker
+  | Logger
   | ProductCatalog
   | TriageInbox
   | IssueIdentity
@@ -27,7 +29,7 @@ export const IssueTrackerProgram: Program.Program<
   IssueTrackerResources
 > = Program.make({
   id: 'issues',
-  version: 1,
+  version: 2,
   Model,
   Message,
   init,

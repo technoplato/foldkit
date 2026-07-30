@@ -6,6 +6,7 @@ import {
   ProductCatalogEntry,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
+import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { Navigation } from './model.js'
 
@@ -34,6 +35,14 @@ export const ObservedIssue = S.TaggedStruct('ObservedIssue', {
   issueId: S.String,
 })
 export const FailedObserveIssue = S.TaggedStruct('FailedObserveIssue', {
+  issueId: S.String,
+  reason: S.String,
+})
+export const ObservedIssueLogs = S.TaggedStruct('ObservedIssueLogs', {
+  issueId: S.String,
+  logs: S.Array(IssueLogEvidence),
+})
+export const FailedObserveIssueLogs = S.TaggedStruct('FailedObserveIssueLogs', {
   issueId: S.String,
   reason: S.String,
 })
@@ -92,6 +101,8 @@ export const Message = S.Union([
   FailedObserveTriageCandidates,
   ObservedIssue,
   FailedObserveIssue,
+  ObservedIssueLogs,
+  FailedObserveIssueLogs,
   SelectedIssue,
   DismissedIssueDetail,
   ClickedFileIssue,

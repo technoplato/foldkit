@@ -5,6 +5,7 @@ import {
   ProductCatalogEntry,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
+import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 /** The live collection has not emitted its first snapshot. */
 export const LoadingIssues = S.TaggedStruct('LoadingIssues', {})
@@ -88,6 +89,32 @@ export const IssueDetailState = S.Union([
 /** Every selected-Issue observation state. */
 export type IssueDetailState = typeof IssueDetailState.Type
 
+/** No Issue log evidence destination is selected. */
+export const NotObservingIssueLogs = S.TaggedStruct('NotObservingIssueLogs', {})
+/** The selected Issue log query has not emitted yet. */
+export const LoadingIssueLogs = S.TaggedStruct('LoadingIssueLogs', {
+  issueId: S.String,
+})
+/** The selected Issue log query emitted its latest evidence rows. */
+export const LoadedIssueLogs = S.TaggedStruct('LoadedIssueLogs', {
+  issueId: S.String,
+  logs: S.Array(IssueLogEvidence),
+})
+/** The selected Issue log query failed. */
+export const FailedIssueLogs = S.TaggedStruct('FailedIssueLogs', {
+  issueId: S.String,
+  reason: S.String,
+})
+/** Every selected Issue log evidence state. */
+export const IssueLogsState = S.Union([
+  NotObservingIssueLogs,
+  LoadingIssueLogs,
+  LoadedIssueLogs,
+  FailedIssueLogs,
+])
+/** Every selected Issue log evidence state. */
+export type IssueLogsState = typeof IssueLogsState.Type
+
 /** The live Issue collection is visible. */
 export const IssueList = S.TaggedStruct('IssueList', {})
 /** One Issue detail is visible. */
@@ -140,6 +167,7 @@ export const Model = S.Struct({
   draft: IssueDraft,
   draftState: IssueDraftState,
   issueDetail: IssueDetailState,
+  issueLogs: IssueLogsState,
   issues: IssuesState,
   navigation: Navigation,
   products: ProductsState,

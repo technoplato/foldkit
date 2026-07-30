@@ -30,14 +30,18 @@ import {
   type TriageInboxService,
 } from '../issues/index.js'
 import {
+  IssueLogEvidence,
+  LogContributingPath,
   LogEvent,
   Logger,
   LoggerError,
   type LoggerService,
+  withInferredIssueReferences,
 } from '../logging/index.js'
 
 const IssueJson = S.fromJsonString(Issue)
 const LogEventJson = S.fromJsonString(LogEvent)
+const LogContributingPathsJson = S.fromJsonString(S.Array(LogContributingPath))
 const RecordingSegmentJson = S.fromJsonString(RecordingSegment)
 const TriageCandidateJson = S.fromJsonString(TriageCandidate)
 
@@ -46,6 +50,7 @@ export const InstantIssueRecord = S.Struct({
   attachmentCount: S.Number,
   attachmentIdsJson: S.String,
   id: S.String,
+  issueID: S.String,
   payloadJson: S.String,
   priority: S.String,
   productId: S.String,
@@ -60,6 +65,7 @@ export type InstantIssueRecord = typeof InstantIssueRecord.Type
 export const InstantLogRecord = S.Struct({
   category: S.String,
   id: S.String,
+  logID: S.String,
   level: S.String,
   name: S.String,
   payloadJson: S.String,
@@ -67,6 +73,23 @@ export const InstantLogRecord = S.Struct({
 })
 /** A queryable InstantDB envelope for one lossless structured Log Event. */
 export type InstantLogRecord = typeof InstantLogRecord.Type
+
+/** A denormalized, queryable link from one Log Event to one Issue. */
+export const InstantLogIssueLinkRecord = S.Struct({
+  category: S.String,
+  contributingPathsJSON: S.String,
+  id: S.String,
+  issueID: S.String,
+  level: S.String,
+  logID: S.String,
+  logNamespace: S.String,
+  message: S.String,
+  name: S.String,
+  timestampMs: S.Number,
+  viewerURL: S.String,
+})
+/** A denormalized, queryable link from one Log Event to one Issue. */
+export type InstantLogIssueLinkRecord = typeof InstantLogIssueLinkRecord.Type
 
 /** A queryable InstantDB envelope for one first-class Application or Library. */
 export const InstantProductRecord = S.Struct({
@@ -108,6 +131,7 @@ export const InstantToolsEntities = {
   instantToolsIssues: i.entity({
     attachmentCount: i.number().indexed(),
     attachmentIdsJson: i.string(),
+    issueID: i.string().unique().indexed(),
     payloadJson: i.string(),
     priority: i.string().indexed(),
     productId: i.string().indexed(),
@@ -118,9 +142,38 @@ export const InstantToolsEntities = {
   instantToolsLogs: i.entity({
     category: i.string().indexed(),
     level: i.string().indexed(),
+    logID: i.string().unique().indexed(),
     name: i.string().indexed(),
     payloadJson: i.string(),
     timestampMs: i.number().indexed(),
+  }),
+  instantToolsLogIssueLinks: i.entity({
+    category: i.string().indexed(),
+    contributingPathsJSON: i.string(),
+    issueID: i.string().indexed(),
+    level: i.string().indexed(),
+    logID: i.string().indexed(),
+    logNamespace: i.string().indexed(),
+    message: i.string(),
+    name: i.string().indexed(),
+    timestampMs: i.number().indexed(),
+    viewerURL: i.string(),
+  }),
+  instantToolsCorrections: i.entity({
+    agentScope: i.string().indexed(),
+    fingerprint: i.string().indexed(),
+    lastObservedAtMs: i.number().indexed(),
+    occurrenceCount: i.number().indexed(),
+    payloadJSON: i.string(),
+    status: i.string().indexed(),
+  }),
+  instantToolsPreferences: i.entity({
+    agentScope: i.string().indexed(),
+    fingerprint: i.string().indexed(),
+    lastObservedAtMs: i.number().indexed(),
+    occurrenceCount: i.number().indexed(),
+    payloadJSON: i.string(),
+    status: i.string().indexed(),
   }),
   instantToolsProducts: i.entity({
     kind: i.string().indexed(),
@@ -163,6 +216,7 @@ export class InstantEntityStoreError extends Data.TaggedError(
     | 'FetchProducts'
     | 'ObserveIssues'
     | 'ObserveIssue'
+    | 'ObserveIssueLogs'
     | 'ObserveProducts'
     | 'ObserveRecordingSegment'
     | 'ObserveTriageCandidates'
@@ -176,6 +230,7 @@ export class InstantEntityStoreError extends Data.TaggedError(
 export type InstantEntityStoreService = Readonly<{
   appendLog: (
     record: InstantLogRecord,
+    issueLinks: ReadonlyArray<InstantLogIssueLinkRecord>,
   ) => Effect.Effect<void, InstantEntityStoreError>
   fetchIssues: Effect.Effect<
     ReadonlyArray<InstantIssueRecord>,
@@ -192,6 +247,12 @@ export type InstantEntityStoreService = Readonly<{
   observeIssue: (
     issueId: string,
   ) => Stream.Stream<Option.Option<InstantIssueRecord>, InstantEntityStoreError>
+  observeIssueLogs: (
+    issueId: string,
+  ) => Stream.Stream<
+    ReadonlyArray<InstantLogIssueLinkRecord>,
+    InstantEntityStoreError
+  >
   observeProducts: Stream.Stream<
     ReadonlyArray<InstantProductRecord>,
     InstantEntityStoreError
@@ -228,6 +289,7 @@ export const makeInstantIssueRecord = (issue: Issue): InstantIssueRecord =>
       Array.map(issue.attachments, attachment => attachment.id),
     ),
     id: issue.id,
+    issueID: issue.id,
     payloadJson: S.encodeSync(IssueJson)(issue),
     priority: issue.priority,
     productId: issue.product.id,
@@ -306,6 +368,7 @@ export const makeInstantLogRecord = (event: LogEvent): InstantLogRecord =>
   InstantLogRecord.make({
     category: event.category,
     id: event.id,
+    logID: event.id,
     level: event.level,
     name: event.name,
     payloadJson: S.encodeSync(LogEventJson)(event),
@@ -315,6 +378,47 @@ export const makeInstantLogRecord = (event: LogEvent): InstantLogRecord =>
 /** Decodes one InstantDB Log envelope into its portable domain value. */
 export const decodeLogRecord = (record: InstantLogRecord): LogEvent =>
   S.decodeUnknownSync(LogEventJson)(record.payloadJson)
+
+/** Encodes one inferred Issue reference as a denormalized evidence row. */
+export const makeInstantLogIssueLinkRecords = (
+  event: LogEvent,
+): ReadonlyArray<InstantLogIssueLinkRecord> =>
+  Array.map(event.issueReferences, reference =>
+    InstantLogIssueLinkRecord.make({
+      category: event.category,
+      contributingPathsJSON: S.encodeSync(LogContributingPathsJson)(
+        event.contributingPaths,
+      ),
+      id: `instantToolsLogs-${event.id}-issue-${reference.issueID}`,
+      issueID: reference.issueID,
+      level: event.level,
+      logID: event.id,
+      logNamespace: 'instantToolsLogs',
+      message: event.message,
+      name: event.name,
+      timestampMs: event.timestampMs,
+      viewerURL: reference.viewerURL,
+    }),
+  )
+
+/** Decodes one queryable link row into Issue log evidence. */
+export const decodeLogIssueLinkRecord = (
+  record: InstantLogIssueLinkRecord,
+): IssueLogEvidence =>
+  IssueLogEvidence.make({
+    category: record.category,
+    contributingPaths: S.decodeUnknownSync(LogContributingPathsJson)(
+      record.contributingPathsJSON,
+    ),
+    issueID: record.issueID,
+    level: record.level,
+    logID: record.logID,
+    logNamespace: record.logNamespace,
+    message: record.message,
+    name: record.name,
+    timestampMs: record.timestampMs,
+    viewerURL: record.viewerURL,
+  })
 
 const matchesQuery = (issue: Issue, query: IssueQuery): boolean => {
   const matchesProduct = Option.match(query.productId, {
@@ -470,35 +574,68 @@ export const makeTriageInbox = (
 export const makeLogger = (
   store: InstantEntityStoreService,
 ): LoggerService => ({
-  append: event =>
-    store
-      .appendLog(makeInstantLogRecord(event))
-      .pipe(Effect.mapError(cause => new LoggerError({ cause }))),
+  append: event => {
+    const taggedEvent = withInferredIssueReferences(event)
+    return store
+      .appendLog(
+        makeInstantLogRecord(taggedEvent),
+        makeInstantLogIssueLinkRecords(taggedEvent),
+      )
+      .pipe(Effect.mapError(cause => new LoggerError({ cause })))
+  },
+  observeIssue: issueId =>
+    store.observeIssueLogs(issueId).pipe(
+      Stream.map(records => Array.map(records, decodeLogIssueLinkRecord)),
+      Stream.mapError(cause => new LoggerError({ cause })),
+    ),
 })
 
 /** Creates the low-level entity capability from a host-initialized database. */
 export const makeInstantEntityStore = (
   database: InstantToolsDatabase,
 ): InstantEntityStoreService => ({
-  appendLog: record =>
+  appendLog: (record, issueLinks) =>
     Effect.tryPromise({
       try: () => {
-        const entity = database.tx.instantToolsLogs[record.id]
+        const entity = database.tx.instantToolsLogs.lookup(
+          'logID',
+          record.logID,
+        )
         if (entity === undefined) {
           return Promise.reject(
             new Error('Instant log transaction entity was unavailable.'),
           )
         }
+        const logTransaction = entity.update({
+          category: record.category,
+          level: record.level,
+          logID: record.logID,
+          name: record.name,
+          payloadJson: record.payloadJson,
+          timestampMs: record.timestampMs,
+        })
+        const linkTransactions = Array.map(issueLinks, issueLink => {
+          const linkEntity = database.tx.instantToolsLogIssueLinks[issueLink.id]
+          if (linkEntity === undefined) {
+            throw new Error(
+              'Instant log Issue link transaction entity was unavailable.',
+            )
+          }
+          return linkEntity.update({
+            category: issueLink.category,
+            contributingPathsJSON: issueLink.contributingPathsJSON,
+            issueID: issueLink.issueID,
+            level: issueLink.level,
+            logID: issueLink.logID,
+            logNamespace: issueLink.logNamespace,
+            message: issueLink.message,
+            name: issueLink.name,
+            timestampMs: issueLink.timestampMs,
+            viewerURL: issueLink.viewerURL,
+          })
+        })
         return database
-          .transact(
-            entity.update({
-              category: record.category,
-              level: record.level,
-              name: record.name,
-              payloadJson: record.payloadJson,
-              timestampMs: record.timestampMs,
-            }),
-          )
+          .transact([logTransaction, ...linkTransactions])
           .then(() => undefined)
       },
       catch: cause =>
@@ -587,7 +724,7 @@ export const makeInstantEntityStore = (
             database.subscribeQuery(
               {
                 instantToolsIssues: {
-                  $: { where: { id: issueId } },
+                  $: { where: { issueID: issueId } },
                 },
               },
               response => {
@@ -628,6 +765,60 @@ export const makeInstantEntityStore = (
           ),
           unsubscribe => Effect.sync(unsubscribe),
         ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
+  observeIssueLogs: issueId =>
+    Stream.callback<
+      ReadonlyArray<InstantLogIssueLinkRecord>,
+      InstantEntityStoreError
+    >(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() =>
+          database.subscribeQuery(
+            {
+              instantToolsLogIssueLinks: {
+                $: {
+                  where: { issueID: issueId },
+                  order: { timestampMs: 'desc' },
+                  limit: 200,
+                },
+              },
+            },
+            response => {
+              if (response.error !== undefined) {
+                Queue.failCauseUnsafe(
+                  queue,
+                  Cause.fail(
+                    new InstantEntityStoreError({
+                      cause: response.error,
+                      operation: 'ObserveIssueLogs',
+                    }),
+                  ),
+                )
+              } else {
+                try {
+                  Queue.offerUnsafe(
+                    queue,
+                    Array.map(response.data.instantToolsLogIssueLinks, record =>
+                      S.decodeUnknownSync(InstantLogIssueLinkRecord)(record),
+                    ),
+                  )
+                } catch (cause) {
+                  Queue.failCauseUnsafe(
+                    queue,
+                    Cause.fail(
+                      new InstantEntityStoreError({
+                        cause,
+                        operation: 'ObserveIssueLogs',
+                      }),
+                    ),
+                  )
+                }
+              }
+            },
+          ),
+        ),
+        unsubscribe => Effect.sync(unsubscribe),
+      ).pipe(Effect.flatMap(() => Effect.never)),
     ),
   observeProducts: Stream.callback<
     ReadonlyArray<InstantProductRecord>,
@@ -775,7 +966,10 @@ export const makeInstantEntityStore = (
   saveIssue: record =>
     Effect.tryPromise({
       try: () => {
-        const entity = database.tx.instantToolsIssues[record.id]
+        const entity = database.tx.instantToolsIssues.lookup(
+          'issueID',
+          record.issueID,
+        )
         if (entity === undefined) {
           return Promise.reject(
             new Error('Instant Issue transaction entity was unavailable.'),
@@ -786,6 +980,7 @@ export const makeInstantEntityStore = (
             entity.update({
               attachmentCount: record.attachmentCount,
               attachmentIdsJson: record.attachmentIdsJson,
+              issueID: record.issueID,
               payloadJson: record.payloadJson,
               priority: record.priority,
               productId: record.productId,
