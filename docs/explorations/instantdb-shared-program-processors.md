@@ -2,9 +2,17 @@
 
 ## Status
 
-This is a Talk-layer exploration. It records current terminology, desired
-behavior, candidate policies, and unresolved decisions. It does not authorize
-an implementation or claim that the described InstantDB adapter exists.
+The first implementation slice now exists. Foldkit exposes Schema-defined
+Processor, capability, placement, Message-envelope, and effect-manifest
+contracts; `ProgramRuntime` can intercept manifested Commands through a shared
+scheduler; a transport-neutral Processor endpoint supports attached Clients;
+and `@foldkit/instant` persists proposals, accepted occurrences, projection
+checkpoints, and effect requests.
+
+Acceptance-authority election, authenticated or guest pairing, room presence,
+effect-request claiming, lifecycle placement, and a live two-device example
+remain design work. The current Instant package deliberately does not claim
+those behaviors.
 
 ## Goal
 
@@ -332,27 +340,24 @@ terminal result replaces them.
 
 ## Next design sequence
 
-1. Settle the placement algebra: cardinality, capability, affinity, and
-   unavailable behavior.
-2. Define the Message envelope and distinguish semantic provenance from
-   transport provenance.
-3. Define Processor presence, capability versioning, and compatibility
-   negotiation.
-4. Define accepted Message ordering and offline proposal behavior.
-5. Define projection partitions, versions, accepted positions, projector
-   leases, and rebuild rules.
-6. Define effect-manifest encoding and how the runtime keeps unselected
-   Commands inert.
-7. Define effect-request idempotency, claiming, retry, cancellation, and
-   terminal result rules.
-8. Define lifecycle placement, leases, fencing, takeover, and release.
-9. Define authenticated, guest, and QR pairing with expiry and revocation.
-10. Extend the Client Matrix with operating mode, Processor identity,
-    capability, and evidence axes.
-11. Prove one narrow flow as an observable core before adding InstantDB
-    adapters.
+The implemented version-one slice settles `One` cardinality, capability
+requirements, affinity, unavailable behavior, Message envelopes, effect
+manifests, inert scheduler handoff, proposal-versus-acceptance records,
+gap-buffered accepted ordering, and append-only projection checkpoints.
 
-The first unresolved decision is whether the four-part placement description is
-the right public vocabulary, especially whether `Every` is a legitimate
-Command cardinality or whether every shared presentation effect should stay a
-Client concern.
+1. Define Processor room presence, capability compatibility negotiation,
+   authentication, guest pairing, expiry, and revocation.
+2. Define the acceptance authority and its authorization, ordering,
+   idempotency, and rejection behavior.
+3. Define projector leases, fencing, digest verification, and rebuild rules.
+4. Define effect-request idempotency, claiming, retry, cancellation, and
+   terminal result rules.
+5. Define lifecycle placement, leases, fencing, takeover, and release.
+6. Extend the Client Matrix with operating mode, Processor identity,
+   capability, and evidence axes.
+7. Prove the accepted Message path with two authenticated or paired Clients,
+   offline proposal recovery, and a selected side effect.
+
+`Every` remains intentionally absent from the public placement Schema. Add it
+only if a concrete durable broadcast effect cannot be modeled as separate
+Client behavior.

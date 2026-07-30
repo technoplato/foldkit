@@ -75,6 +75,10 @@
       "types": "./dist/port/public.d.ts",
       "import": "./dist/port/public.js"
     },
+    "./processor": {
+      "types": "./dist/processor/public.d.ts",
+      "import": "./dist/processor/public.js"
+    },
     "./program": {
       "types": "./dist/program/public.d.ts",
       "import": "./dist/program/public.js"

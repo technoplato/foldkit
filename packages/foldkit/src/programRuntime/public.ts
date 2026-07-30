@@ -38,10 +38,15 @@ export {
   ReplayTapeStoreError,
 } from '../runtime/replayTapeStore.js'
 export {
+  InitializationCommandCause,
+  MessageCommandCause,
+} from '../runtime/programCommandScheduler.js'
+export {
   RuntimeDiagnostic,
   RuntimeFailureSource,
 } from '../runtime/runtimeDiagnostic.js'
 export {
+  fromAcceptedMessage,
   fromCommand,
   fromDevTools,
   fromHost,
@@ -54,7 +59,16 @@ export {
   retainAllTransitions,
   retainLatestTransitions,
 } from '../runtime/programJournal.js'
+export {
+  makeProgramProcessorEndpoint,
+  makeProgramProcessorSnapshotSchema,
+} from '../runtime/programProcessorEndpoint.js'
 
+export type {
+  ProgramCommandCause,
+  ProgramRuntimeCommandScheduler,
+  ScheduledProgramCommand,
+} from '../runtime/programCommandScheduler.js'
 export type {
   FreshStart,
   ModelStart,
@@ -69,6 +83,11 @@ export type {
   ReplayStart,
   SendOptions,
 } from '../runtime/programRuntime.js'
+export type {
+  ProgramProcessorEndpoint,
+  ProgramProcessorEndpointConfig,
+  ProgramProcessorSnapshot,
+} from '../runtime/programProcessorEndpoint.js'
 export type {
   ReplayController,
   ReplayControllerConfig,

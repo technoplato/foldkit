@@ -1,6 +1,7 @@
 import { Array, Function, HashMap, Option, Schema, pipe } from 'effect'
 
 import type { Ports } from '../port/port.js'
+import type { MessageEnvelope } from '../processor/processor.js'
 import type { Program } from '../program/program.js'
 import { type DiffResult, computeDiff } from './diff.js'
 
@@ -41,6 +42,11 @@ const NavigationTransitionSource = Schema.TaggedStruct('Navigation', {})
 /** A Message dispatched by DevTools. */
 const DevToolsTransitionSource = Schema.TaggedStruct('DevTools', {})
 
+/** A Message occurrence accepted by a shared Program transport. */
+const AcceptedMessageTransitionSource = Schema.TaggedStruct('AcceptedMessage', {
+  occurrenceId: Schema.String,
+})
+
 /** Provenance for a Message entering the shared Program runtime. */
 export const TransitionSource = Schema.Union([
   HostTransitionSource,
@@ -51,6 +57,7 @@ export const TransitionSource = Schema.Union([
   PortTransitionSource,
   NavigationTransitionSource,
   DevToolsTransitionSource,
+  AcceptedMessageTransitionSource,
 ])
 
 /** Provenance for a Message entering the shared Program runtime. */
@@ -66,6 +73,7 @@ export type CommandRecord = Readonly<{
 export type Transition<Model, Message> = Readonly<{
   sequence: number
   message: Message
+  envelope?: MessageEnvelope
   source: TransitionSource
   operationId?: number
   isOperationSettled: boolean
@@ -88,6 +96,7 @@ export type ProgramJournalSnapshot<Model, Message> = Readonly<{
 /** Input recorded after update has processed one Message. */
 export type RecordTransitionInput<Model, Message> = Readonly<{
   message: Message
+  envelope?: MessageEnvelope
   source: TransitionSource
   operationId?: number
   isOperationSettled: boolean
@@ -360,6 +369,7 @@ export const makeProgramJournal = <
     const transition: Transition<Model, Message> = {
       sequence: nextSequence,
       message: input.message,
+      ...(input.envelope === undefined ? {} : { envelope: input.envelope }),
       source: input.source,
       ...(input.operationId === undefined
         ? {}
@@ -440,3 +450,7 @@ export const fromNavigation = (): TransitionSource =>
 /** Constructs DevTools provenance for a Message. */
 export const fromDevTools = (): TransitionSource =>
   DevToolsTransitionSource.make({})
+
+/** Constructs accepted Message transport provenance. */
+export const fromAcceptedMessage = (occurrenceId: string): TransitionSource =>
+  AcceptedMessageTransitionSource.make({ occurrenceId })

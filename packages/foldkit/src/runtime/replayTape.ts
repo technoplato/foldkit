@@ -1,6 +1,8 @@
 import { Array, Data, Effect, Option, Schema, pipe } from 'effect'
 
 import type { Ports } from '../port/port.js'
+import { MessageEnvelope } from '../processor/processor.js'
+import type { MessageEnvelope as MessageEnvelopeType } from '../processor/processor.js'
 import type { Program } from '../program/program.js'
 import {
   type CommandRecord,
@@ -18,6 +20,7 @@ const EncodedCommandRecord = Schema.Struct({
 const EncodedReplayTransition = Schema.Struct({
   sequence: Schema.Int,
   message: Schema.Json,
+  envelope: Schema.optionalKey(MessageEnvelope),
   source: TransitionSource,
   operationId: Schema.optionalKey(Schema.Int),
   isOperationSettled: Schema.Boolean,
@@ -82,6 +85,7 @@ export const makeReplayTapeSchema = <
       Schema.Struct({
         sequence: Schema.Int,
         message: program.Message,
+        envelope: Schema.optionalKey(MessageEnvelope),
         source: TransitionSource,
         operationId: Schema.optionalKey(Schema.Int),
         isOperationSettled: Schema.Boolean,
@@ -110,6 +114,7 @@ type EncodedReplayTransition = typeof EncodedReplayTransition.Type
 export type ReplayTransition<Message> = Readonly<{
   sequence: number
   message: Message
+  envelope?: MessageEnvelopeType
   source: TransitionSource
   operationId?: number
   isOperationSettled: boolean
@@ -229,6 +234,9 @@ const encodeTransition = <Message>(
     return {
       sequence: transition.sequence,
       message,
+      ...(transition.envelope === undefined
+        ? {}
+        : { envelope: transition.envelope }),
       source: transition.source,
       ...(transition.operationId === undefined
         ? {}
@@ -244,6 +252,9 @@ const toReplayTransition = <Model, Message>(
 ): ReplayTransition<Message> => ({
   sequence: transition.sequence,
   message: transition.message,
+  ...(transition.envelope === undefined
+    ? {}
+    : { envelope: transition.envelope }),
   source: transition.source,
   ...(transition.operationId === undefined
     ? {}
@@ -461,6 +472,9 @@ const decodeTransition = <Message>(
     Effect.map(message => ({
       sequence: transition.sequence,
       message,
+      ...(transition.envelope === undefined
+        ? {}
+        : { envelope: transition.envelope }),
       source: transition.source,
       ...(transition.operationId === undefined
         ? {}

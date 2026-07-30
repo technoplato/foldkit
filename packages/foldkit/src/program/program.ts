@@ -1,5 +1,6 @@
 import type { Effect, Schema } from 'effect'
 
+import type { EffectManifest } from '../command/effectManifest.js'
 import type { ManagedResources } from '../managedResource/managedResource.js'
 import type { Ports } from '../port/port.js'
 import type { Subscriptions } from '../subscription/subscription.js'
@@ -19,6 +20,7 @@ export type ProgramCommand<Message, Resources = never> = Readonly<{
   name: string
   args?: Record<string, unknown>
   key?: string
+  effectManifest?: EffectManifest
   effect: Effect.Effect<Message, never, Resources>
 }>
 
