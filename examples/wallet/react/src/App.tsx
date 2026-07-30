@@ -14,19 +14,24 @@ import {
   clipboardCopyRequestForAddress,
   isPrimaryWalletBalanceUnavailable,
   isSameClipboardCopyRequest,
+  isTransferPreviewActionEnabled,
   makeWalletTestChallenge,
-  networkForId,
   primaryReceivingInstruction,
   primaryWalletAccount,
   primaryWalletAsset,
   primaryWalletBalance,
   primaryWalletNetwork,
+  primaryWalletSuggestedTestTransferAmount,
+  primaryWalletSuggestedTestTransferLabel,
   primaryWalletTestFundingMethod,
+  selectedNetworkHasCapability,
   sendNetworkSelectionIdentity,
   sendNetworkSelectionLabel,
   shortenedAddress,
   transferAmountInput,
+  transferPreviewReadinessLabel,
   transferRecipientInput,
+  walletAccountBalanceLabel,
   walletDataSourceDetail,
   walletDataSourceLabel,
 } from 'wallet-core-example'
@@ -106,26 +111,6 @@ const transferAmountFailure = (model: Model): Option.Option<string> => {
       M.when('MustBePositive', () => 'The amount must be greater than zero.'),
       M.exhaustive,
     ),
-  )
-}
-
-const selectedNetworkHasCapability = (
-  model: Model,
-  capability: 'TestFunding' | 'TransactionHistory',
-): boolean => {
-  if (
-    model.portfolio._tag !== 'LoadedPortfolio' ||
-    Option.isNone(model.maybeSendNetworkSelection)
-  ) {
-    return false
-  }
-  const maybeNetwork = networkForId(
-    model.portfolio.snapshot.networks,
-    model.maybeSendNetworkSelection.value.networkId,
-  )
-  return (
-    Option.isSome(maybeNetwork) &&
-    Array.contains(maybeNetwork.value.capabilities, capability)
   )
 }
 
@@ -212,7 +197,10 @@ const WalletProfileCard = ({
   model,
   wallet,
 }: Readonly<{ model: Model; wallet: WalletProfile }>) => (
-  <article className="wallet-profile">
+  <article
+    aria-label={`${wallet.displayName} wallet`}
+    className="wallet-profile"
+  >
     <div className="wallet-profile-heading">
       <div>
         <p className="cardboard-eyebrow">Multi-chain wallet</p>
@@ -229,23 +217,49 @@ const WalletProfileCard = ({
             : [],
           model.walletNetworkMode,
         ),
-        account => (
-          <li key={account.accountId}>
-            <div>
-              <strong>{account.displayName}</strong>
-              <span>{account.networkName}</span>
-            </div>
-            <div className="wallet-address-line">
-              <code>{shortenedAddress(account.address)}</code>
-              <CopyAddressButton
-                address={account.address}
-                copyId={`profile:${wallet.walletId}:${account.accountId}`}
-                model={model}
-              />
-            </div>
-            <small>{account.chainId}</small>
-          </li>
-        ),
+        account => {
+          const maybeReceivingInstruction =
+            model.portfolio._tag === 'LoadedPortfolio'
+              ? Array.findFirst(
+                  model.portfolio.snapshot.receivingInstructions,
+                  instruction => instruction.accountId === account.accountId,
+                )
+              : Option.none()
+          return (
+            <li key={account.accountId}>
+              <div className="wallet-account-heading">
+                <div>
+                  <strong>{account.displayName}</strong>
+                  <span>{account.networkName}</span>
+                </div>
+                <strong className="wallet-account-balance">
+                  {walletAccountBalanceLabel(model, account.accountId)}
+                </strong>
+              </div>
+              <div className="wallet-address-line">
+                <code>{shortenedAddress(account.address)}</code>
+                <CopyAddressButton
+                  address={account.address}
+                  copyId={`profile:${wallet.walletId}:${account.accountId}`}
+                  model={model}
+                />
+              </div>
+              <small>{account.chainId}</small>
+              {Option.isSome(maybeReceivingInstruction) ? (
+                <div
+                  aria-label={`${account.displayName} public receiving payload`}
+                  className="wallet-public-receiving"
+                  data-wallet-qr-value={
+                    maybeReceivingInstruction.value.portableUri
+                  }
+                >
+                  <span>Public receive</span>
+                  <code>{maybeReceivingInstruction.value.portableUri}</code>
+                </div>
+              ) : null}
+            </li>
+          )
+        },
       )}
     </ul>
   </article>
@@ -386,7 +400,7 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
       <div className="wallet-heading-row">
         <div>
           <p className="cardboard-eyebrow">{dataSourceLabel}</p>
-          <h1 className="cardboard-embossed">Portfolio</h1>
+          <h1>Portfolio</h1>
         </div>
         <button
           className="cardboard-button"
@@ -398,7 +412,7 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
       </div>
       <div className="wallet-balance">
         <p>Available balance</p>
-        <strong className="cardboard-embossed">{balanceLabel}</strong>
+        <strong>{balanceLabel}</strong>
         <div className="wallet-address-line">
           <small>{accountLabel}</small>
           {Option.isSome(maybeAccount) ? (
@@ -421,7 +435,7 @@ const WalletHero = ({ model }: Readonly<{ model: Model }>) => {
   )
 }
 
-const SendNetworkPicker = ({ model }: Readonly<{ model: Model }>) => {
+const SendNetworkButtons = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return null
@@ -435,38 +449,35 @@ const SendNetworkPicker = ({ model }: Readonly<{ model: Model }>) => {
     onNone: () => '',
     onSome: sendNetworkSelectionIdentity,
   })
-  return (
-    <label className="wallet-picker" htmlFor="wallet-asset">
-      <span>Cryptocurrency and network</span>
-      <select
-        className="wallet-select"
-        id="wallet-asset"
-        onChange={event => {
-          const nextValue = event.currentTarget.value
-          const maybeSelection = Array.findFirst(
-            selections,
-            selection => sendNetworkSelectionIdentity(selection) === nextValue,
-          )
-          if (Option.isSome(maybeSelection)) {
-            actions.selectedSendNetwork(maybeSelection.value)
-          }
-        }}
-        value={value}
-      >
-        {value === '' ? (
-          <option value="">Select a cryptocurrency</option>
-        ) : null}
-        {Array.map(selections, selection => (
-          <option
-            key={sendNetworkSelectionIdentity(selection)}
-            value={sendNetworkSelectionIdentity(selection)}
-          >
-            {sendNetworkSelectionLabel(portfolio, model.wallets, selection)}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
+  return Array.match(selections, {
+    onEmpty: () => (
+      <p className="wallet-validation" role="alert">
+        No transferable assets are available for this network mode.
+      </p>
+    ),
+    onNonEmpty: nonEmptySelections => (
+      <fieldset className="wallet-picker">
+        <legend>Cryptocurrency and network</legend>
+        <div className="wallet-rail-buttons">
+          {Array.map(nonEmptySelections, selection => {
+            const identity = sendNetworkSelectionIdentity(selection)
+            const isSelected = identity === value
+            return (
+              <button
+                aria-pressed={isSelected}
+                className={`wallet-rail-button${isSelected ? ' selected' : ''}`}
+                key={identity}
+                onClick={() => actions.selectedSendNetwork(selection)}
+                type="button"
+              >
+                {sendNetworkSelectionLabel(portfolio, model.wallets, selection)}
+              </button>
+            )
+          })}
+        </div>
+      </fieldset>
+    ),
+  })
 }
 
 const testFundingButtonLabel = (model: Model): string => {
@@ -481,7 +492,6 @@ const testFundingButtonLabel = (model: Model): string => {
 
 const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
-  const maybeBalance = primaryWalletBalance(model)
   const maybePreview = maybePreviewForTransaction(model.transaction)
   const recipientValue = transferRecipientInput(model.transferRecipient)
   const networkName = Option.match(primaryWalletNetwork(model), {
@@ -494,11 +504,18 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
     onSome: asset => `Amount in ${asset.symbol}`,
   })
   const maybeAmountFailure = transferAmountFailure(model)
+  const maybeSuggestedTestTransfer = Option.all({
+    amount: primaryWalletSuggestedTestTransferAmount(model),
+    label: primaryWalletSuggestedTestTransferLabel(model),
+  })
   const maybeExternalTestFunding = Option.flatMap(
     primaryWalletTestFundingMethod(model),
     method =>
       method._tag === 'ExternalTestFundingMethod'
-        ? Option.some(method)
+        ? Option.map(primaryReceivingInstruction(model), instruction => ({
+            instruction,
+            method,
+          }))
         : Option.none(),
   )
   const canRequestTestFunding = selectedNetworkHasCapability(
@@ -508,6 +525,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const isTestFundingDisabled =
     model.testFunding._tag === 'RequestingTestFunding' ||
     model.transferAmount._tag !== 'ValidTransferAmount'
+  const isTransferActionEnabled = isTransferPreviewActionEnabled(model)
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -531,9 +549,26 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           {transactionStatus(model.transaction)}
         </span>
       </div>
-      <SendNetworkPicker model={model} />
-      <label className="wallet-recipient" htmlFor="wallet-amount">
-        <span>{amountSymbol}</span>
+      <SendNetworkButtons model={model} />
+      <div className="wallet-recipient">
+        <div className="wallet-input-heading">
+          <label htmlFor="wallet-amount">{amountSymbol}</label>
+          {Option.isSome(maybeSuggestedTestTransfer) ? (
+            <button
+              aria-label={`Use small test amount: ${maybeSuggestedTestTransfer.value.label}`}
+              className="wallet-small-amount-button"
+              disabled={model.transaction._tag === 'SubmittingTransaction'}
+              onClick={() =>
+                actions.changedTransferAmount(
+                  maybeSuggestedTestTransfer.value.amount,
+                )
+              }
+              type="button"
+            >
+              Use small test amount
+            </button>
+          ) : null}
+        </div>
         <input
           autoComplete="off"
           disabled={model.transaction._tag === 'SubmittingTransaction'}
@@ -546,7 +581,12 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           type="text"
           value={transferAmountInput(model.transferAmount)}
         />
-      </label>
+        {Option.isSome(maybeSuggestedTestTransfer) ? (
+          <small className="wallet-small-amount-label">
+            {maybeSuggestedTestTransfer.value.label}
+          </small>
+        ) : null}
+      </div>
       {Option.isSome(maybeAmountFailure) ? (
         <p className="wallet-validation" role="alert">
           {maybeAmountFailure.value}
@@ -642,15 +682,24 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
         <div className="wallet-funding">
           <a
             className="cardboard-button"
-            href={maybeExternalTestFunding.value.providerUrl}
+            href={maybeExternalTestFunding.value.method.providerUrl}
+            onClick={() =>
+              actions.requestedClipboardCopy(
+                clipboardCopyRequestForAddress(
+                  maybeExternalTestFunding.value.instruction.destinationAddress,
+                  'external-faucet-address',
+                ),
+              )
+            }
             rel="noopener noreferrer"
             target="_blank"
           >
-            Open {maybeExternalTestFunding.value.providerName}
+            Copy address &amp; open{' '}
+            {maybeExternalTestFunding.value.method.providerName}
           </a>
           <span>
-            Copy this Wallet’s receiving address, then complete the
-            provider-owned faucet flow.
+            The selected receiving address is copied before the provider-owned
+            faucet opens.
           </span>
         </div>
       ) : null}
@@ -703,17 +752,11 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           <code>{model.transaction.submission.transactionId}</code>
         </div>
       ) : null}
-      <div className="wallet-action-row">
+      <div className="wallet-action-row wallet-send-action-row">
         <button
+          aria-describedby="wallet-send-readiness"
           className="cardboard-button primary"
-          disabled={
-            Option.isNone(maybeBalance) ||
-            model.transferAmount._tag !== 'ValidTransferAmount' ||
-            model.transferRecipient._tag === 'EmptyTransferRecipient' ||
-            model.transaction._tag === 'ValidatingTransfer' ||
-            model.transaction._tag === 'PreviewingTransaction' ||
-            model.transaction._tag === 'SubmittingTransaction'
-          }
+          disabled={!isTransferActionEnabled}
           onClick={
             model.transaction._tag === 'PreviewedTransaction'
               ? submitPreview
@@ -725,6 +768,13 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
             ? 'Confirm send'
             : 'Preview send'}
         </button>
+        <span
+          className="wallet-send-readiness"
+          id="wallet-send-readiness"
+          role="status"
+        >
+          {transferPreviewReadinessLabel(model)}
+        </span>
       </div>
     </section>
   )

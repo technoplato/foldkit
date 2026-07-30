@@ -3,6 +3,7 @@ import { Schema as S } from 'effect'
 import { ClipboardCopyRequest } from './clipboard.js'
 import {
   AddressBookEntry,
+  BalanceSnapshot,
   PortfolioSnapshot,
   SignatureProof,
   SigningChallenge,
@@ -110,6 +111,22 @@ export const FailedLoadWallet = S.TaggedStruct('FailedLoadWallet', {
   requestId: S.String,
   failure: WalletFailure,
 })
+/** A background portfolio load refreshed public balances without replacing UI state. */
+export const SucceededRefreshWalletBalances = S.TaggedStruct(
+  'SucceededRefreshWalletBalances',
+  {
+    walletIds: S.Array(S.String),
+    balanceSnapshot: BalanceSnapshot,
+  },
+)
+/** A background balance refresh failed without replacing the loaded portfolio. */
+export const FailedRefreshWalletBalances = S.TaggedStruct(
+  'FailedRefreshWalletBalances',
+  {
+    walletIds: S.Array(S.String),
+    failure: WalletFailure,
+  },
+)
 /** The host requested non-production funds for the current selection. */
 export const RequestedTestFunding = S.TaggedStruct('RequestedTestFunding', {})
 /** The RequestTestFunding Command received a public funding receipt. */
@@ -241,6 +258,8 @@ export const Message = S.Union([
   RequestedWalletRefresh,
   SucceededLoadWallet,
   FailedLoadWallet,
+  SucceededRefreshWalletBalances,
+  FailedRefreshWalletBalances,
   ChangedTransferRecipient,
   ChangedTransferAmount,
   RequestedTransferPreview,

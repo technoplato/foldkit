@@ -112,6 +112,12 @@ export const AssetKind = S.Union([NativeAsset, IssuedAsset])
 /** How an asset is represented on its configured network. */
 export type AssetKind = typeof AssetKind.Type
 
+/** An exact signed integer encoded in portable decimal notation. */
+export const AtomicUnits = S.TemplateLiteral([S.BigInt])
+/** An exact signed integer encoded in portable decimal notation. */
+export type AtomicUnits = typeof AtomicUnits.Type
+const oneAtomicUnit = S.decodeUnknownSync(AtomicUnits)('1')
+
 /** The number of decimal places used to render an exact asset amount. */
 export const AssetDecimalPlaces = S.Literals([
   0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
@@ -126,16 +132,19 @@ export const AssetDescriptor = S.Struct({
   networkId: NetworkId,
   displayName: S.String,
   symbol: S.String,
+  atomicUnitName: S.String.pipe(
+    S.withDecodingDefaultKey(Effect.succeed('atomic unit')),
+    S.withConstructorDefault(Effect.succeed('atomic unit')),
+  ),
+  suggestedTestTransferAtomicUnits: AtomicUnits.pipe(
+    S.withDecodingDefaultKey(Effect.succeed(oneAtomicUnit)),
+    S.withConstructorDefault(Effect.succeed(oneAtomicUnit)),
+  ),
   decimalPlaces: AssetDecimalPlaces,
   kind: AssetKind,
 })
 /** A normalized public description of one asset on one network. */
 export type AssetDescriptor = typeof AssetDescriptor.Type
-
-/** An exact signed integer encoded in portable decimal notation. */
-export const AtomicUnits = S.TemplateLiteral([S.BigInt])
-/** An exact signed integer encoded in portable decimal notation. */
-export type AtomicUnits = typeof AtomicUnits.Type
 
 /** An exact quantity that refers to one normalized asset. */
 export const AssetAmount = S.Struct({

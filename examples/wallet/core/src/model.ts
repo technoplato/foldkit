@@ -678,6 +678,7 @@ export type SignatureProof = typeof SignatureProof.Type
 /** A public wallet operation that can fail. */
 export const WalletOperation = S.Literals([
   'LoadPortfolio',
+  'RefreshBalances',
   'RequestTestFunding',
   'ValidateTransfer',
   'PreviewTransfer',

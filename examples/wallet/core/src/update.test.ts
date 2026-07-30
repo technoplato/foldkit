@@ -21,6 +21,7 @@ import {
   FailedCopyToClipboard,
   FailedLoadWallet,
   FailedObserveTransactions,
+  ObservedTransaction,
   RequestedClipboardCopy,
   RequestedTestFunding,
   RequestedTransactionHistoryReload,
@@ -31,6 +32,7 @@ import {
   SucceededLoadTransactionHistory,
   SucceededLoadWallet,
   SucceededLoadWalletProfiles,
+  SucceededRefreshWalletBalances,
   SucceededRequestTestFunding,
   SucceededValidateTransfer,
 } from './message.js'
@@ -45,6 +47,7 @@ import {
   SignedChallenge,
   TestFundingReceipt,
   TransactionHistoryPage,
+  TransactionRecord,
   TransferRequest,
   ValidatedRecipient,
   ValidatedTransfer,
@@ -53,6 +56,7 @@ import {
 import { SendNetworkSelection } from './sendNetworkSelection.js'
 import { makeWalletTestChallenge } from './signingChallenge.js'
 import { restore, update } from './update.js'
+import { WalletProfile } from './walletProfile.js'
 
 const chain = ChainDescriptor.make({ chainId: 'solana', displayName: 'Solana' })
 const network = NetworkDescriptor.make({
@@ -78,6 +82,12 @@ const account = {
   address: 'account-address',
   displayName: 'Account',
 }
+const wallet = WalletProfile.make({
+  walletId: 'wallet-1',
+  displayName: 'Wallet 1',
+  createdAt: 1,
+  accounts: [account],
+})
 const devnetNetwork = NetworkDescriptor.make({
   networkId: 'solana:development',
   chainId: chain.chainId,
@@ -564,7 +574,10 @@ describe('wallet update', () => {
   })
 
   it('models generic non-production funding from the selected asset amount', () => {
-    const [loadedModel] = finishPortfolioLoad(initialModel, portfolio)
+    const [loadedModel] = finishPortfolioLoad(
+      { ...initialModel, wallets: [wallet] },
+      portfolio,
+    )
     const [amountModel] = update(
       loadedModel,
       ChangedTransferAmount.make({ value: '2' }),
@@ -588,7 +601,7 @@ describe('wallet update', () => {
       }),
       maybeTransactionId: Option.some('transaction-1'),
     })
-    const [receivedModel] = update(
+    const [receivedModel, refreshCommands] = update(
       requestingModel,
       SucceededRequestTestFunding.make({ request, receipt }),
     )
@@ -597,6 +610,75 @@ describe('wallet update', () => {
     expect(request.atomicUnits).toBe('2000000000')
     expect(commands).toHaveLength(1)
     expect(receivedModel.testFunding._tag).toBe('ReceivedTestFunding')
+    expect(refreshCommands.map(command => command.name)).toEqual([
+      'RefreshWalletBalances',
+    ])
+  })
+
+  it('refreshes a loaded balance after a new confirmed observation', () => {
+    const [loadedModel] = finishPortfolioLoad(
+      { ...initialModel, wallets: [wallet] },
+      portfolio,
+    )
+    const transaction = TransactionRecord.make({
+      recordId: 'account-1:incoming-1:incoming',
+      transactionId: 'incoming-1',
+      accountId: account.accountId,
+      networkId: network.networkId,
+      direction: 'Incoming',
+      status: 'Confirmed',
+      amount: AssetAmount.make({
+        assetId: asset.assetId,
+        atomicUnits: '500',
+        observedAt: 2,
+      }),
+      counterpartyAddress: 'sender-address',
+      normalizedCounterpartyAddress: 'sender-address',
+      observedAt: 2,
+    })
+    const [observedModel, refreshCommands] = update(
+      loadedModel,
+      ObservedTransaction.make({ transaction }),
+    )
+    const refreshedSnapshot = BalanceSnapshot.make({
+      observedAt: 3,
+      balances: [
+        AccountBalance.make({
+          accountId: account.accountId,
+          amount: AssetAmount.make({
+            assetId: asset.assetId,
+            atomicUnits: '1500',
+            observedAt: 3,
+          }),
+        }),
+      ],
+    })
+    const [refreshedModel] = update(
+      observedModel,
+      SucceededRefreshWalletBalances.make({
+        walletIds: [wallet.walletId],
+        balanceSnapshot: refreshedSnapshot,
+      }),
+    )
+    const [, duplicateCommands] = update(
+      observedModel,
+      ObservedTransaction.make({ transaction }),
+    )
+
+    expect(refreshCommands.map(command => command.name)).toEqual([
+      'RefreshWalletBalances',
+    ])
+    expect(refreshedModel.portfolio).toMatchObject({
+      _tag: 'LoadedPortfolio',
+      snapshot: {
+        balanceSnapshot: {
+          observedAt: 3,
+          balances: [{ amount: { atomicUnits: '1500' } }],
+        },
+      },
+    })
+    expect(refreshedModel.transactions).toEqual(observedModel.transactions)
+    expect(duplicateCommands).toEqual([])
   })
 
   it('accepts the matching history page', () => {

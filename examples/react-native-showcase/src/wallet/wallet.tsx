@@ -1,4 +1,5 @@
 import { Array, Layer, Match as M, Option } from 'effect'
+import { useEffect, useRef } from 'react'
 import {
   Linking,
   Pressable,
@@ -23,6 +24,7 @@ import {
   clipboardCopyRequestForAddress,
   isPrimaryWalletBalanceUnavailable,
   isSameClipboardCopyRequest,
+  isTransferPreviewActionEnabled,
   makeWalletTestChallenge,
   networkForId,
   primaryReceivingInstruction,
@@ -30,12 +32,16 @@ import {
   primaryWalletAsset,
   primaryWalletBalance,
   primaryWalletNetwork,
+  primaryWalletSuggestedTestTransferAmount,
+  primaryWalletSuggestedTestTransferLabel,
   primaryWalletTestFundingMethod,
   sendNetworkSelectionIdentity,
   sendNetworkSelectionLabel,
   shortenedAddress,
   transferAmountInput,
+  transferPreviewReadinessLabel,
   transferRecipientInput,
+  walletAccountBalanceLabel,
   walletDataSourceDetail,
   walletDataSourceLabel,
 } from 'wallet-core-example'
@@ -49,8 +55,6 @@ import {
   type WalletInitialRoute,
   makeWalletReactClient,
 } from 'wallet-react-bindings-example'
-
-import { Picker } from '@react-native-picker/picker'
 
 import { ReplayControls } from '../replayControls'
 import { ExpoWalletClipboard } from './walletClipboard'
@@ -164,20 +168,11 @@ const selectedNetworkHasCapability = (
   )
 }
 
-const walletNetworkModeFromValue = (
-  value: string,
-  current: WalletNetworkMode,
-): WalletNetworkMode => {
-  if (value === 'Devnet') {
-    return 'Devnet'
-  } else if (value === 'Testnet') {
-    return 'Testnet'
-  } else if (value === 'Live') {
-    return 'Live'
-  } else {
-    return current
-  }
-}
+const walletNetworkModes: ReadonlyArray<WalletNetworkMode> = [
+  'Devnet',
+  'Testnet',
+  'Live',
+]
 
 const TransactionSubmissionConfirmation = ({
   submission,
@@ -291,24 +286,34 @@ const WalletScreen = () => {
 const NetworkModePicker = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
   return (
-    <View style={styles.pickerFrame}>
-      <Picker
-        accessibilityLabel="Wallet network mode"
-        dropdownIconColor="#f2b85f"
-        onValueChange={value => {
-          if (typeof value === 'string') {
-            actions.selectedWalletNetworkMode(
-              walletNetworkModeFromValue(value, model.walletNetworkMode),
-            )
-          }
-        }}
-        selectedValue={model.walletNetworkMode}
-        style={styles.picker}
-      >
-        <Picker.Item label="Devnet" value="Devnet" />
-        <Picker.Item label="Testnet" value="Testnet" />
-        <Picker.Item label="Live" value="Live" />
-      </Picker>
+    <View
+      accessibilityLabel="Wallet network mode"
+      style={styles.selectionButtons}
+    >
+      {Array.map(walletNetworkModes, networkMode => {
+        const isSelected = model.walletNetworkMode === networkMode
+        return (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: isSelected }}
+            key={networkMode}
+            onPress={() => actions.selectedWalletNetworkMode(networkMode)}
+            style={[
+              styles.selectionButton,
+              isSelected ? styles.selectedSelectionButton : undefined,
+            ]}
+          >
+            <Text
+              style={[
+                styles.selectionButtonText,
+                isSelected ? styles.selectedSelectionButtonText : undefined,
+              ]}
+            >
+              {networkMode}
+            </Text>
+          </Pressable>
+        )
+      })}
     </View>
   )
 }
@@ -339,6 +344,9 @@ const WalletProfileCard = ({
             <View style={styles.chainIdentity}>
               <Text style={styles.chainName}>{account.displayName}</Text>
               <Text style={styles.mutedText}>{account.networkName}</Text>
+              <Text style={styles.chainBalance}>
+                {walletAccountBalanceLabel(model, account.accountId)}
+              </Text>
             </View>
             <View style={styles.chainAddressLine}>
               <Text selectable style={styles.chainAddress}>
@@ -544,40 +552,35 @@ const SendNetworkPicker = ({ model }: Readonly<{ model: Model }>) => {
   return (
     <View style={styles.pickerField}>
       <Text style={styles.recipientLabel}>Cryptocurrency and network</Text>
-      <View style={styles.pickerFrame}>
-        <Picker
-          accessibilityLabel="Cryptocurrency and network"
-          dropdownIconColor="#f2b85f"
-          onValueChange={value => {
-            if (typeof value !== 'string') {
-              return
-            }
-            const maybeSelection = Array.findFirst(
-              selections,
-              selection => sendNetworkSelectionIdentity(selection) === value,
-            )
-            if (Option.isSome(maybeSelection)) {
-              actions.selectedSendNetwork(maybeSelection.value)
-            }
-          }}
-          selectedValue={selectedValue}
-          style={styles.picker}
-        >
-          {selectedValue === '' ? (
-            <Picker.Item label="Select a cryptocurrency" value="" />
-          ) : null}
-          {Array.map(selections, selection => (
-            <Picker.Item
-              key={sendNetworkSelectionIdentity(selection)}
-              label={sendNetworkSelectionLabel(
-                portfolio,
-                model.wallets,
-                selection,
-              )}
-              value={sendNetworkSelectionIdentity(selection)}
-            />
-          ))}
-        </Picker>
+      <View
+        accessibilityLabel="Cryptocurrency and network"
+        style={styles.selectionButtons}
+      >
+        {Array.map(selections, selection => {
+          const identity = sendNetworkSelectionIdentity(selection)
+          const isSelected = selectedValue === identity
+          return (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+              key={identity}
+              onPress={() => actions.selectedSendNetwork(selection)}
+              style={[
+                styles.sendSelectionButton,
+                isSelected ? styles.selectedSelectionButton : undefined,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.selectionButtonText,
+                  isSelected ? styles.selectedSelectionButtonText : undefined,
+                ]}
+              >
+                {sendNetworkSelectionLabel(portfolio, model.wallets, selection)}
+              </Text>
+            </Pressable>
+          )
+        })}
       </View>
     </View>
   )
@@ -593,15 +596,87 @@ const testFundingButtonLabel = (model: Model): string => {
   }
 }
 
+const ExternalTestFundingAction = ({
+  address,
+  accountId,
+  model,
+  providerName,
+  providerUrl,
+}: Readonly<{
+  address: string
+  accountId: string
+  model: Model
+  providerName: string
+  providerUrl: string
+}>) => {
+  const actions = useWalletActions()
+  const isWaitingToOpen = useRef(false)
+  const request = clipboardCopyRequestForAddress(
+    address,
+    `external-test-funding:${accountId}`,
+  )
+  const isCopying =
+    model.clipboardCopy._tag === 'CopyingToClipboard' &&
+    isSameClipboardCopyRequest(model.clipboardCopy.request, request)
+  const isCopied =
+    model.clipboardCopy._tag === 'CopiedToClipboard' &&
+    isSameClipboardCopyRequest(model.clipboardCopy.request, request)
+  const isFailed =
+    model.clipboardCopy._tag === 'FailedClipboardCopy' &&
+    isSameClipboardCopyRequest(model.clipboardCopy.request, request)
+  const maybeFailure = clipboardCopyFailureMessage(model.clipboardCopy, request)
+
+  useEffect(() => {
+    if (!isWaitingToOpen.current) {
+      return
+    }
+    if (isCopied) {
+      isWaitingToOpen.current = false
+      void Linking.openURL(providerUrl)
+    } else if (isFailed) {
+      isWaitingToOpen.current = false
+    }
+  }, [isCopied, isFailed, providerUrl])
+
+  return (
+    <View accessibilityLiveRegion="polite" style={styles.fundingRow}>
+      <WalletActionButton
+        isDisabled={isCopying}
+        label={
+          isCopying
+            ? 'Copying address…'
+            : `Copy address and open ${providerName}`
+        }
+        onPress={() => {
+          isWaitingToOpen.current = true
+          actions.requestedClipboardCopy(request)
+        }}
+      />
+      <Text style={styles.mutedText}>
+        The selected address is copied before the provider page opens.
+      </Text>
+      {Option.isSome(maybeFailure) ? (
+        <Text accessibilityRole="alert" style={styles.copyError}>
+          {maybeFailure.value}
+        </Text>
+      ) : null}
+    </View>
+  )
+}
+
 const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const actions = useWalletActions()
-  const maybeBalance = primaryWalletBalance(model)
+  const maybeAccount = primaryWalletAccount(model)
   const maybePreview = maybePreviewForTransaction(model.transaction)
   const networkName = Option.match(primaryWalletNetwork(model), {
     onNone: () => 'selected network',
     onSome: network => network.displayName,
   })
   const maybeAsset = primaryWalletAsset(model)
+  const maybeSuggestedTestTransferAmount =
+    primaryWalletSuggestedTestTransferAmount(model)
+  const maybeSuggestedTestTransferLabel =
+    primaryWalletSuggestedTestTransferLabel(model)
   const amountSymbol = Option.match(maybeAsset, {
     onNone: () => 'Amount',
     onSome: asset => `Amount in ${asset.symbol}`,
@@ -621,6 +696,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
   const isTestFundingDisabled =
     model.testFunding._tag === 'RequestingTestFunding' ||
     model.transferAmount._tag !== 'ValidTransferAmount'
+  const isTransferActionEnabled = isTransferPreviewActionEnabled(model)
 
   const submitPreview = (): void => {
     if (Option.isSome(maybePreview)) {
@@ -628,10 +704,6 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
     }
   }
 
-  const isBusy =
-    model.transaction._tag === 'ValidatingTransfer' ||
-    model.transaction._tag === 'PreviewingTransaction' ||
-    model.transaction._tag === 'SubmittingTransaction'
   return (
     <View style={styles.card}>
       <View style={styles.headingRow}>
@@ -663,6 +735,23 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           style={styles.recipientInput}
           value={transferAmountInput(model.transferAmount)}
         />
+        {Option.isSome(maybeSuggestedTestTransferAmount) &&
+        Option.isSome(maybeSuggestedTestTransferLabel) ? (
+          <View style={styles.testAmountRow}>
+            <WalletActionButton
+              isDisabled={model.transaction._tag === 'SubmittingTransaction'}
+              label="Use small test amount"
+              onPress={() =>
+                actions.changedTransferAmount(
+                  maybeSuggestedTestTransferAmount.value,
+                )
+              }
+            />
+            <Text style={styles.mutedText}>
+              {maybeSuggestedTestTransferLabel.value}
+            </Text>
+          </View>
+        ) : null}
         {Option.isSome(maybeAmountFailure) ? (
           <Text accessibilityRole="alert" style={styles.validationText}>
             {maybeAmountFailure.value}
@@ -745,19 +834,15 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           ) : null}
         </View>
       ) : null}
-      {Option.isSome(maybeExternalTestFunding) ? (
-        <View style={styles.fundingRow}>
-          <WalletActionButton
-            label={`Open ${maybeExternalTestFunding.value.providerName}`}
-            onPress={() =>
-              void Linking.openURL(maybeExternalTestFunding.value.providerUrl)
-            }
-          />
-          <Text style={styles.mutedText}>
-            Copy this Wallet’s receiving address, then complete the
-            provider-owned faucet flow.
-          </Text>
-        </View>
+      {Option.isSome(maybeExternalTestFunding) &&
+      Option.isSome(maybeAccount) ? (
+        <ExternalTestFundingAction
+          accountId={maybeAccount.value.accountId}
+          address={maybeAccount.value.address}
+          model={model}
+          providerName={maybeExternalTestFunding.value.providerName}
+          providerUrl={maybeExternalTestFunding.value.providerUrl}
+        />
       ) : null}
       {model.testFunding._tag === 'FailedTestFunding' ||
       model.testFunding._tag === 'UnavailableTestFunding' ? (
@@ -779,13 +864,18 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           submission={model.transaction.submission}
         />
       ) : null}
-      <WalletActionButton
-        isDisabled={
-          Option.isNone(maybeBalance) ||
-          model.transferAmount._tag !== 'ValidTransferAmount' ||
-          model.transferRecipient._tag === 'EmptyTransferRecipient' ||
-          isBusy
+      <Text
+        accessibilityLiveRegion="polite"
+        style={
+          isTransferActionEnabled
+            ? styles.readinessReady
+            : styles.readinessBlocked
         }
+      >
+        {transferPreviewReadinessLabel(model)}
+      </Text>
+      <WalletActionButton
+        isDisabled={!isTransferActionEnabled}
         isPrimary
         label={
           model.transaction._tag === 'PreviewedTransaction'
@@ -960,9 +1050,16 @@ const AccountTools = ({ model }: Readonly<{ model: Model }>) => {
               model={model}
             />
           </View>
-          <Text selectable style={styles.codeText}>
-            {maybeReceiving.value.portableUri}
-          </Text>
+          <View
+            accessibilityLabel={`Receiving QR payload: ${maybeReceiving.value.portableUri}`}
+            style={styles.receiveQrPayload}
+            testID={`wallet-receive-qr-payload:${maybeReceiving.value.accountId}:${maybeReceiving.value.assetId}`}
+          >
+            <Text style={styles.receiveQrTitle}>QR receive payload</Text>
+            <Text selectable style={styles.codeText}>
+              {maybeReceiving.value.portableUri}
+            </Text>
+          </View>
         </View>
       ) : null}
       <Text style={styles.mutedText}>Proof: {model.signature._tag}</Text>
@@ -1037,16 +1134,39 @@ const styles = StyleSheet.create({
   },
   networkExplanation: { gap: 3 },
   pickerField: { gap: 8 },
-  pickerFrame: {
+  selectionButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectionButton: {
     backgroundColor: '#100d09',
     borderColor: '#665237',
-    borderRadius: 13,
+    borderRadius: 999,
     borderWidth: 1,
-    flexGrow: 1,
-    minWidth: 220,
-    overflow: 'hidden',
+    minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
   },
-  picker: { color: '#f7dca5' },
+  sendSelectionButton: {
+    backgroundColor: '#100d09',
+    borderColor: '#665237',
+    borderRadius: 14,
+    borderWidth: 1,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  selectedSelectionButton: {
+    backgroundColor: '#f2b85f',
+    borderColor: '#f2b85f',
+  },
+  selectionButtonText: {
+    color: '#f7dca5',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  selectedSelectionButtonText: { color: '#17130d' },
   walletEmpty: {
     alignItems: 'center',
     backgroundColor: '#171109',
@@ -1068,7 +1188,6 @@ const styles = StyleSheet.create({
   },
   walletProfileTitle: {
     color: '#f7dca5',
-    fontFamily: 'serif',
     fontSize: 24,
     fontWeight: '900',
   },
@@ -1095,6 +1214,7 @@ const styles = StyleSheet.create({
   },
   chainIdentity: { flexGrow: 1, gap: 2 },
   chainName: { color: '#f7dca5', fontSize: 14, fontWeight: '900' },
+  chainBalance: { color: '#f2b85f', fontSize: 15, fontWeight: '900' },
   chainAddress: {
     color: '#f7dca5',
     fontFamily: 'monospace',
@@ -1115,20 +1235,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 2,
-    textShadowColor: '#000000',
-    textShadowOffset: { height: 2, width: 0 },
-    textShadowRadius: 3,
     textTransform: 'uppercase',
   },
   title: {
     color: '#f7dca5',
-    fontFamily: 'serif',
     fontSize: 52,
     fontWeight: '900',
     lineHeight: 56,
-    textShadowColor: '#7b481e',
-    textShadowOffset: { height: 4, width: 0 },
-    textShadowRadius: 5,
   },
   balanceBlock: { gap: 5, marginTop: 50 },
   addressLine: {
@@ -1137,20 +1250,24 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  receiveBlock: { gap: 8 },
+  receiveBlock: { gap: 10 },
+  receiveQrPayload: {
+    backgroundColor: '#100d09',
+    borderColor: '#665237',
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 8,
+    padding: 14,
+  },
+  receiveQrTitle: { color: '#f7dca5', fontSize: 14, fontWeight: '900' },
   balance: {
     color: '#f7dca5',
-    fontFamily: 'serif',
     fontSize: 64,
     fontWeight: '900',
     lineHeight: 70,
-    textShadowColor: '#7b481e',
-    textShadowOffset: { height: 4, width: 0 },
-    textShadowRadius: 5,
   },
   sectionTitle: {
     color: '#f7dca5',
-    fontFamily: 'serif',
     fontSize: 38,
     fontWeight: '900',
     lineHeight: 42,
@@ -1190,6 +1307,23 @@ const styles = StyleSheet.create({
   validationBlock: { gap: 5 },
   mutedText: { color: '#d3a861', fontSize: 13, lineHeight: 19 },
   helpText: { color: '#d3a861', fontSize: 16, lineHeight: 23 },
+  testAmountRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  readinessReady: {
+    color: '#9bd9a9',
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 20,
+  },
+  readinessBlocked: {
+    color: '#d3a861',
+    fontSize: 14,
+    lineHeight: 20,
+  },
   fundingRow: {
     alignItems: 'center',
     flexDirection: 'row',

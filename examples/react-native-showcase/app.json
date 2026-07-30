@@ -7,6 +7,12 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.knophy.foldkit.showcase.dev"
+    },
+    "android": {
+      "package": "com.knophy.foldkit.showcase.dev"
+    },
     "web": {
       "bundler": "metro"
     },

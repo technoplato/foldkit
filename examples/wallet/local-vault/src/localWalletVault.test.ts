@@ -39,6 +39,7 @@ import {
   makeLocalWalletResources,
   makeLocalWalletVault,
   makeMemoryWalletVaultStorage,
+  makePersistentLocalWalletResources,
   makePersistentLocalWalletVault,
 } from './localWalletVault.js'
 
@@ -48,6 +49,12 @@ const MigratedRecordEnvelopeJson = S.fromJsonString(MigratedRecordEnvelope)
 const walletCreationRequest = WalletCreationRequest.make({
   requestId: 'wallet-1',
   displayName: 'Wallet 1',
+  networks: liveWalletNetworkDescriptors,
+})
+
+const secondWalletCreationRequest = WalletCreationRequest.make({
+  requestId: 'wallet-2',
+  displayName: 'Wallet 2',
   networks: liveWalletNetworkDescriptors,
 })
 
@@ -198,6 +205,79 @@ describe('local Wallet vault', () => {
     expect(
       S.decodeUnknownSync(MigratedRecordEnvelopeJson)(storedRecord).version,
     ).toBe(2)
+  })
+
+  it('refreshes a running vault and signer after another vault adds a record', async () => {
+    const storage = makeMemoryWalletVaultStorage()
+    const primaryResources = makePersistentLocalWalletResources(
+      makeDeterministicRandomBytes(),
+      storage,
+    )
+    const secondaryVault = makePersistentLocalWalletVault(
+      makeDeterministicRandomBytes(),
+      storage,
+    )
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const vault = yield* WalletVault
+        const signer = yield* WalletSigner
+        const initiallyLoaded = yield* vault.loadWallets
+        const externallyCreated = yield* Effect.gen(function* () {
+          const externalVault = yield* WalletVault
+          return yield* externalVault.createWallet(secondWalletCreationRequest)
+        }).pipe(Effect.provide(secondaryVault))
+        const refreshed = yield* vault.loadWallets
+        const account = accountForNetwork(externallyCreated, 'solana:devnet')
+        const challenge = makeWalletTestChallenge(
+          'external-wallet-challenge',
+          account.accountId,
+        )
+        const proof = yield* signer.signChallenge(challenge)
+        return { initiallyLoaded, refreshed, proof, account }
+      }).pipe(Effect.provide(primaryResources)),
+    )
+
+    expect(result.initiallyLoaded).toStrictEqual([])
+    expect(result.refreshed).toStrictEqual([
+      expect.objectContaining({ walletId: 'wallet-2' }),
+    ])
+    expect(result.proof.accountId).toBe(result.account.accountId)
+  })
+
+  it('replaces the registry when a persisted record disappears', async () => {
+    const records = new Map<string, string>()
+    const storage: WalletVaultStorage = {
+      loadRecords: Effect.sync(() => Array_.fromIterable(records.values())),
+      saveRecord: (walletId, record) =>
+        Effect.sync(() => {
+          records.set(walletId, record)
+        }),
+    }
+    const wallets = await Effect.runPromise(
+      Effect.gen(function* () {
+        const vault = yield* WalletVault
+        yield* vault.createWallet(walletCreationRequest)
+        yield* vault.createWallet(secondWalletCreationRequest)
+        const beforeRemoval = yield* vault.loadWallets
+        yield* Effect.sync(() => {
+          records.delete(secondWalletCreationRequest.requestId)
+        })
+        const afterRemoval = yield* vault.loadWallets
+        return { beforeRemoval, afterRemoval }
+      }).pipe(
+        Effect.provide(
+          makePersistentLocalWalletVault(
+            makeDeterministicRandomBytes(),
+            storage,
+          ),
+        ),
+      ),
+    )
+
+    expect(wallets.beforeRemoval).toHaveLength(2)
+    expect(wallets.afterRemoval).toStrictEqual([
+      expect.objectContaining({ walletId: 'wallet-1' }),
+    ])
   })
 
   it('shares custody across vault, signer, and crypto services', async () => {
