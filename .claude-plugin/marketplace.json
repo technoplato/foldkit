@@ -7,7 +7,7 @@
     {
       "name": "foldkit-skills",
       "source": "./",
-      "description": "Skills for building Foldkit programs — generate complete apps from descriptions, with architecture conventions baked in."
+      "description": "Skills for building Foldkit Programs, including independent runtime instances, portable clients, and architecture conventions."
     }
   ]
 }

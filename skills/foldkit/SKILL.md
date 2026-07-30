@@ -25,6 +25,8 @@ the task:
 
 - `$foldkit-composable-architecture` for Program, update, Command, Submodel,
   OutMessage, Subscription, and lifecycle composition.
+- `$foldkit-program-runtimes` for running one portable Program as many independent
+  runtime instances, including identity, replay, isolation, sharing, and shutdown.
 - `$foldkit-schema-modeling` for Model, Message, domain unions, codecs,
   migrations, and invalid-state elimination.
 - `$foldkit-dependencies` for Effect Context services, Layers, deterministic

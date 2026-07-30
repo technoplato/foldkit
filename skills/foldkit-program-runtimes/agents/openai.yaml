@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit Program Runtimes'
+  short_description: 'Run one Program as independent runtime instances'
+  default_prompt: 'Use $foldkit-program-runtimes to design and verify independent instances of this portable Foldkit Program.'
