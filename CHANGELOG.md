@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 6:45:51 a.m. EDT — `5882e58a7cac` feat(skills): teach one Program many runtime instances
+
+- **Implementation commit:** `5882e58a7cac3925e65e14ad374f1aa9b4572b82`
+- **Change:** Make one portable Foldkit Program reusable across any number of independent runtimes.
+- **Details:**
+  - Distinguished Program protocol identity from host-owned runtime identity and documented each runtime's independent Model, journal, replay tape, Commands, Ports, Subscriptions, ManagedResources, Layer Scope, diagnostics, and shutdown.
+  - Defined multiple-instance host boundaries, explicit cross-runtime sharing through services, persistence, transports, or Ports, replay branching, and isolation evidence.
+  - Routed the new companion from the Foldkit umbrella and client-host skills and registered plugin version 0.10.31.
+- **Files:**
+  - `.claude-plugin/marketplace.json` — Describe independent Program runtimes in marketplace discovery.
+  - `.claude-plugin/plugin.json` — Register the runtime skill and bump the plugin version.
+  - `skills/foldkit-client-hosts/SKILL.md` — Route multi-instance Client work to the runtime companion.
+  - `skills/foldkit-program-runtimes/SKILL.md` — Document one-Program-many-runtimes architecture, lifecycle, sharing, and verification.
+  - `skills/foldkit-program-runtimes/agents/openai.yaml` — Expose the runtime skill in supporting interfaces.
+  - `skills/foldkit/SKILL.md` — Route Foldkit tasks to the new runtime companion.
+- **User context (verbatim):**
+  > We should have a subagent creating skills for foldkit though
+  > especially for how to think about foldkit as one program with as many runtimes as we’d like
+- **SpecStory:** unavailable — No durable SpecStory URI was available for this delegated Codex desktop task; public sharing was not authorized.
+
 ## July 30th, 2026 at 6:13:09 a.m. EDT — `80c1969ade21` feat(skills): add source-backed Foldkit companions
 
 - **Implementation commit:** `80c1969ade21ff69dc15fde3e43988f4c9f63ee1`
