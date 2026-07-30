@@ -24,6 +24,7 @@ import {
 import type { ManagedResourceConfig } from '../managedResource/managedResource.js'
 import { type Ports, __CurrentPortChannels } from '../port/port.js'
 import { type PortHandles, makePortRuntime } from '../port/runtime.js'
+import type { MessageEnvelope } from '../processor/processor.js'
 import type { Program, ProgramCommand } from '../program/program.js'
 import {
   type ProgramRouter,
@@ -35,11 +36,18 @@ import {
 } from '../program/route.js'
 import type { Subscriptions } from '../subscription/subscription.js'
 import {
+  InitializationCommandCause,
+  MessageCommandCause,
+  type ProgramRuntimeCommandScheduler,
+  type ScheduledProgramCommand,
+} from './programCommandScheduler.js'
+import {
   type CommandRecord,
   type ProgramJournalArchiveFactory,
   type ProgramJournalSnapshot,
   type Transition,
   type TransitionSource,
+  fromAcceptedMessage,
   fromCommand,
   fromHost,
   fromManagedResource,
@@ -88,6 +96,7 @@ type Operation = {
 type QueuedMessage<Message> = Readonly<{
   message: Message
   source: TransitionSource
+  maybeEnvelope: Option.Option<MessageEnvelope>
   maybeOperation: Option.Option<Operation>
 }>
 
@@ -153,11 +162,15 @@ export type ProgramRuntimeConfig<
   start?: ProgramStart<Model, Message>
   journal?: ProgramRuntimeJournalConfig<Model, Message>
   scheduling?: ProgramRuntimeScheduling
+  /** Intercepts manifested Commands for capability-driven shared execution. */
+  commandScheduler?: ProgramRuntimeCommandScheduler<Message>
 }>
 
 /** Options for sending a Message into the Program runtime. */
 export type SendOptions = Readonly<{
   actionName?: string
+  /** Accepted transport provenance preserved in the journal and replay tape. */
+  envelope?: MessageEnvelope
   source?: TransitionSource
 }>
 
@@ -226,7 +239,12 @@ export type ProgramRuntime<
   timeline: ProgramRuntimeTimeline
   /** Sends one Message without waiting for its finite Command chain. */
   send: (message: Message, options?: SendOptions) => void
-  /** Sends one Message and completes after its finite causal work completes. */
+  /**
+   * Sends one Message and completes after its local finite causal work.
+   *
+   * Manifested shared work is detached and returns later as an independently
+   * accepted Message occurrence.
+   */
   run: (message: Message, options?: SendOptions) => Effect.Effect<Model>
   /** Observes changed Models and returns an unsubscribe function. */
   observeModel: (listener: (model: Model) => void) => () => void
@@ -248,7 +266,7 @@ export type ProgramRuntime<
   failures: Stream.Stream<RuntimeFailure<Message>>
   /** Typed inbound and outbound handles for the Program's Ports. */
   ports: PortHandles<P>
-  /** Completes after the finite Command chain returned by init completes. */
+  /** Completes after the local finite Command chain returned by init. */
   initialization: Effect.Effect<Model>
   /** Stops Commands and Subscriptions and releases the shared resources Layer. */
   shutdown: Effect.Effect<void>
@@ -486,6 +504,9 @@ export const makeProgramRuntime = <
           )
           journal.record({
             message: transition.message,
+            ...(transition.envelope === undefined
+              ? {}
+              : { envelope: transition.envelope }),
             source: transition.source,
             ...(transition.operationId === undefined
               ? {}
@@ -699,7 +720,7 @@ export const makeProgramRuntime = <
       }
     }
 
-    const forkCommand = (
+    const forkLocalCommand = (
       command: ProgramCommand<Message, Resources | ManagedResourceServices>,
       maybeOperation: Option.Option<Operation>,
       maybeMessage: Option.Option<Message>,
@@ -735,6 +756,7 @@ export const makeProgramRuntime = <
                         {
                           message,
                           source: fromCommand(command.name),
+                          maybeEnvelope: Option.none(),
                           maybeOperation,
                         },
                         true,
@@ -753,9 +775,59 @@ export const makeProgramRuntime = <
       })
     }
 
+    const scheduleManifestedCommand = (
+      command: ProgramCommand<Message, Resources | ManagedResourceServices>,
+      commandIndex: number,
+      cause: ScheduledProgramCommand<Message>['cause'],
+      maybeMessage: Option.Option<Message>,
+    ): void => {
+      if (
+        config.commandScheduler === undefined ||
+        command.effectManifest === undefined
+      ) {
+        return
+      }
+
+      const commandScheduler = config.commandScheduler
+      const scheduledCommand: ScheduledProgramCommand<Message> = {
+        programId: config.program.id,
+        programVersion: config.program.version,
+        commandIndex,
+        name: command.name,
+        ...(command.args === undefined ? {} : { args: command.args }),
+        effectManifest: command.effectManifest,
+        cause,
+        execute: provideResources(command.effect),
+      }
+      queueMicrotask(() => {
+        if (isRuntimeDisposed || Option.isSome(maybeCrashCause)) {
+          return
+        }
+        Effect.runForkWith(runtimeContext)(
+          Effect.forkIn(runtimeScope)(
+            commandScheduler.schedule(scheduledCommand).pipe(
+              Effect.withSpan(`${command.name}.schedule`, {
+                attributes: command.args ?? {},
+              }),
+              Effect.catchCause(cause =>
+                Effect.sync(() =>
+                  crash(
+                    cause,
+                    commandFailureSource(command.name),
+                    maybeMessage,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        )
+      })
+    }
+
     const processMessage = ({
       message,
       source,
+      maybeEnvelope,
       maybeOperation,
     }: QueuedMessage<Message>): void => {
       try {
@@ -764,10 +836,17 @@ export const makeProgramRuntime = <
           currentModel,
           message,
         )
+        const localCommands =
+          config.commandScheduler === undefined
+            ? commands
+            : Array.filter(
+                commands,
+                command => command.effectManifest === undefined,
+              )
         const isOperationSettled = Option.match(maybeOperation, {
           onNone: () => true,
           onSome: operation =>
-            Array.isReadonlyArrayEmpty(commands) &&
+            Array.isReadonlyArrayEmpty(localCommands) &&
             operation.pendingWorkCount === 1,
         })
         if (currentModel !== nextModel) {
@@ -776,6 +855,9 @@ export const makeProgramRuntime = <
 
         journal.record({
           message,
+          ...(Option.isSome(maybeEnvelope)
+            ? { envelope: maybeEnvelope.value }
+            : {}),
           source,
           ...(Option.isSome(maybeOperation)
             ? { operationId: maybeOperation.value.id }
@@ -790,9 +872,24 @@ export const makeProgramRuntime = <
           notifyModelListeners(nextModel)
         }
 
-        for (const command of commands) {
-          forkCommand(command, maybeOperation, Option.some(message))
-        }
+        Array.forEach(commands, (command, commandIndex) => {
+          if (
+            config.commandScheduler !== undefined &&
+            command.effectManifest !== undefined
+          ) {
+            scheduleManifestedCommand(
+              command,
+              commandIndex,
+              MessageCommandCause.make({
+                envelope: maybeEnvelope,
+                source,
+              }),
+              Option.some(message),
+            )
+          } else {
+            forkLocalCommand(command, maybeOperation, Option.some(message))
+          }
+        })
       } catch (error) {
         crash(
           Cause.die(error),
@@ -880,9 +977,15 @@ export const makeProgramRuntime = <
     }
 
     const send = (message: Message, options?: SendOptions): void => {
+      const source =
+        options?.source ??
+        (options?.envelope === undefined
+          ? fromHost(options?.actionName)
+          : fromAcceptedMessage(options.envelope.occurrenceId))
       enqueueQueuedMessage({
         message,
-        source: options?.source ?? fromHost(options?.actionName),
+        source,
+        maybeEnvelope: Option.fromNullishOr(options?.envelope),
         maybeOperation: Option.none(),
       })
     }
@@ -935,9 +1038,15 @@ export const makeProgramRuntime = <
 
         const operation = makeOperation(nextOperationId, activeOperations)
         nextOperationId += 1
+        const source =
+          options?.source ??
+          (options?.envelope === undefined
+            ? fromHost(options?.actionName)
+            : fromAcceptedMessage(options.envelope.occurrenceId))
         enqueueQueuedMessage({
           message,
-          source: options?.source ?? fromHost(options?.actionName),
+          source,
+          maybeEnvelope: Option.fromNullishOr(options?.envelope),
           maybeOperation: Option.some(operation),
         })
         return Effect.andThen(
@@ -1043,6 +1152,7 @@ export const makeProgramRuntime = <
                 enqueueQueuedMessage({
                   message,
                   source: transitionSource,
+                  maybeEnvelope: Option.none(),
                   maybeOperation: Option.none(),
                 }),
               ),
@@ -1149,6 +1259,7 @@ export const makeProgramRuntime = <
             enqueueQueuedMessage({
               message: managedResource.onReleased(),
               source: fromManagedResource(name),
+              maybeEnvelope: Option.none(),
               maybeOperation: Option.none(),
             }),
           )
@@ -1212,6 +1323,7 @@ export const makeProgramRuntime = <
                 enqueueQueuedMessage({
                   message,
                   source: fromManagedResource(name),
+                  maybeEnvelope: Option.none(),
                   maybeOperation: Option.none(),
                 }),
               ),
@@ -1233,9 +1345,25 @@ export const makeProgramRuntime = <
     const initializationOperation = makeOperation(0, activeOperations)
     const maybeInitializationOperation = Option.some(initializationOperation)
     addOperationWork(maybeInitializationOperation)
-    for (const command of start.commands) {
-      forkCommand(command, maybeInitializationOperation, Option.none())
-    }
+    Array.forEach(start.commands, (command, commandIndex) => {
+      if (
+        config.commandScheduler !== undefined &&
+        command.effectManifest !== undefined
+      ) {
+        scheduleManifestedCommand(
+          command,
+          commandIndex,
+          InitializationCommandCause.make({
+            startupOccurrenceId: Option.fromNullishOr(
+              config.commandScheduler.startupOccurrenceId,
+            ),
+          }),
+          Option.none(),
+        )
+      } else {
+        forkLocalCommand(command, maybeInitializationOperation, Option.none())
+      }
+    })
     completeOperationWork(activeOperations, maybeInitializationOperation)
 
     isBootComplete = true

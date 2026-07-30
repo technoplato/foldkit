@@ -1,5 +1,7 @@
 import { Array, Effect, Function, Predicate, Schema } from 'effect'
 
+import type { EffectManifest } from './effectManifest.js'
+
 /** Type-level brand for CommandDefinition values. */
 /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
 export const CommandDefinitionTypeId: unique symbol = Symbol.for(
@@ -18,12 +20,14 @@ export type Command<T, E = never, R = never> = [T] extends [Schema.Top]
       name: string
       args?: Record<string, unknown>
       key?: string
+      effectManifest?: EffectManifest
       effect: Effect.Effect<Schema.Schema.Type<T>, E, R>
     }>
   : Readonly<{
       name: string
       args?: Record<string, unknown>
       key?: string
+      effectManifest?: EffectManifest
       effect: Effect.Effect<T, E, R>
     }>
 
@@ -47,6 +51,7 @@ type CommandWithMappers = Readonly<{
   args?: Record<string, unknown>
   key?: string
   interruptsKey?: string
+  effectManifest?: EffectManifest
   effect: Effect.Effect<unknown, unknown, unknown>
   messageMappers?: ReadonlyArray<MessageMapper>
 }>
@@ -188,6 +193,28 @@ export function define(name: string, ...rest: ReadonlyArray<unknown>): unknown {
   }
 }
 
+/** Attaches portable scheduling metadata to one Command instance. */
+export const withEffectManifest = <
+  const Name extends string,
+  Message,
+  Error,
+  Resources,
+>(
+  command: Readonly<{
+    name: Name
+    args?: Record<string, unknown>
+    key?: string
+    effect: Effect.Effect<Message, Error, Resources>
+  }>,
+  effectManifest: EffectManifest,
+): Readonly<{
+  name: Name
+  args?: Record<string, unknown>
+  key?: string
+  effectManifest: EffectManifest
+  effect: Effect.Effect<Message, Error, Resources>
+}> => ({ ...command, effectManifest })
+
 /** Transforms the Effect inside a Command while preserving its name, args, and
  *  message-mapping chain. Reach for this to adjust the Effect itself (provide a
  *  service, add a delay or retry), not to lift the result Message. Never use it
@@ -204,23 +231,27 @@ export const mapEffect: {
     command: Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<A, E1, R1>
     }>,
   ) => Readonly<{
     name: string
     args?: Record<string, unknown>
+    effectManifest?: EffectManifest
     effect: Effect.Effect<B, E2, R2>
   }>
   <A, E1, R1, B, E2, R2>(
     command: Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<A, E1, R1>
     }>,
     f: (effect: Effect.Effect<A, E1, R1>) => Effect.Effect<B, E2, R2>,
   ): Readonly<{
     name: string
     args?: Record<string, unknown>
+    effectManifest?: EffectManifest
     effect: Effect.Effect<B, E2, R2>
   }>
 } = Function.dual(
@@ -229,12 +260,14 @@ export const mapEffect: {
     command: Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<A, E1, R1>
     }>,
     f: (effect: Effect.Effect<A, E1, R1>) => Effect.Effect<B, E2, R2>,
   ): Readonly<{
     name: string
     args?: Record<string, unknown>
+    effectManifest?: EffectManifest
     effect: Effect.Effect<B, E2, R2>
   }> => ({ ...command, effect: f(command.effect) }),
 )
@@ -261,12 +294,14 @@ export const mapMessage: {
     command: Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<FromMessage, E, R>
     }>,
     f: (message: FromMessage) => ToMessage,
   ): Readonly<{
     name: string
     args?: Record<string, unknown>
+    effectManifest?: EffectManifest
     effect: Effect.Effect<ToMessage, E, R>
   }>
   <FromMessage, ToMessage>(
@@ -275,11 +310,13 @@ export const mapMessage: {
     command: Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<FromMessage, E, R>
     }>,
   ) => Readonly<{
     name: string
     args?: Record<string, unknown>
+    effectManifest?: EffectManifest
     effect: Effect.Effect<ToMessage, E, R>
   }>
 } = Function.dual(
@@ -288,12 +325,14 @@ export const mapMessage: {
     command: Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<FromMessage, E, R>
     }>,
     f: (message: FromMessage) => ToMessage,
   ): Readonly<{
     name: string
     args?: Record<string, unknown>
+    effectManifest?: EffectManifest
     effect: Effect.Effect<ToMessage, E, R>
   }> => {
     /* eslint-disable @typescript-eslint/consistent-type-assertions */
@@ -305,6 +344,7 @@ export const mapMessage: {
     } as unknown as Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<ToMessage, E, R>
     }>
     /* eslint-enable @typescript-eslint/consistent-type-assertions */
@@ -341,6 +381,7 @@ export const mapMessages: {
       Readonly<{
         name: string
         args?: Record<string, unknown>
+        effectManifest?: EffectManifest
         effect: Effect.Effect<FromMessage, E, R>
       }>
     >,
@@ -349,6 +390,7 @@ export const mapMessages: {
     Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<ToMessage, E, R>
     }>
   >
@@ -359,6 +401,7 @@ export const mapMessages: {
       Readonly<{
         name: string
         args?: Record<string, unknown>
+        effectManifest?: EffectManifest
         effect: Effect.Effect<FromMessage, E, R>
       }>
     >,
@@ -366,6 +409,7 @@ export const mapMessages: {
     Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<ToMessage, E, R>
     }>
   >
@@ -376,6 +420,7 @@ export const mapMessages: {
       Readonly<{
         name: string
         args?: Record<string, unknown>
+        effectManifest?: EffectManifest
         effect: Effect.Effect<FromMessage, E, R>
       }>
     >,
@@ -384,6 +429,7 @@ export const mapMessages: {
     Readonly<{
       name: string
       args?: Record<string, unknown>
+      effectManifest?: EffectManifest
       effect: Effect.Effect<ToMessage, E, R>
     }>
   > => Array.map(commands, command => mapMessage(command, f)),
