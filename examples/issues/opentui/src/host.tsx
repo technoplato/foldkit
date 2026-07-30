@@ -125,10 +125,19 @@ const DestinationView = ({ destination }: { destination: Destination }) =>
           <text content={draftState._tag} fg="#a8a29e" />
         </box>
       ),
-      TriageInboxDestination: () => (
+      TriageInboxDestination: ({ state }) => (
         <box border borderColor="#57534e" flexDirection="column" padding={1}>
           <text content="Triage inbox" fg="#fbbf24" />
-          <text content="Draft transcript candidates await promotion." />
+          {state._tag === 'LoadedTriageCandidates' ? (
+            Array.map(state.candidates, candidate => (
+              <text
+                content={`${candidate.id}  ${candidate.status}  ${candidate.suggestedTitle}`}
+                key={candidate.id}
+              />
+            ))
+          ) : (
+            <text content={state._tag} fg="#a8a29e" />
+          )}
         </box>
       ),
     }),

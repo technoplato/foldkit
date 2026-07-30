@@ -1,6 +1,10 @@
 import { Schema as S } from 'effect'
 
-import { Issue, ProductCatalogEntry } from '@foldkit/instant-tools/issues'
+import {
+  Issue,
+  ProductCatalogEntry,
+  TriageCandidate,
+} from '@foldkit/instant-tools/issues'
 
 /** The live collection has not emitted its first snapshot. */
 export const LoadingIssues = S.TaggedStruct('LoadingIssues', {})
@@ -35,6 +39,28 @@ export const ProductsState = S.Union([
 ])
 /** Every first-class product catalog state. */
 export type ProductsState = typeof ProductsState.Type
+
+/** Transcript-derived triage drafts have not emitted their first snapshot. */
+export const LoadingTriageCandidates = S.TaggedStruct(
+  'LoadingTriageCandidates',
+  {},
+)
+/** The latest transcript-derived triage drafts are available. */
+export const LoadedTriageCandidates = S.TaggedStruct('LoadedTriageCandidates', {
+  candidates: S.Array(TriageCandidate),
+})
+/** Transcript-derived triage observation failed. */
+export const FailedTriageCandidates = S.TaggedStruct('FailedTriageCandidates', {
+  reason: S.String,
+})
+/** Every transcript triage observation state. */
+export const TriageCandidatesState = S.Union([
+  LoadingTriageCandidates,
+  LoadedTriageCandidates,
+  FailedTriageCandidates,
+])
+/** Every transcript triage observation state. */
+export type TriageCandidatesState = typeof TriageCandidatesState.Type
 
 /** No individual Issue destination is being observed. */
 export const NotObservingIssue = S.TaggedStruct('NotObservingIssue', {})
@@ -117,6 +143,7 @@ export const Model = S.Struct({
   issues: IssuesState,
   navigation: Navigation,
   products: ProductsState,
+  triageCandidates: TriageCandidatesState,
 })
 /** The shared renderer-independent Issue Tracker Model. */
 export type Model = typeof Model.Type

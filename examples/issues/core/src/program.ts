@@ -1,6 +1,10 @@
 import * as Program from 'foldkit/program'
 
-import { IssueTracker, ProductCatalog } from '@foldkit/instant-tools/issues'
+import {
+  IssueTracker,
+  ProductCatalog,
+  TriageInbox,
+} from '@foldkit/instant-tools/issues'
 
 import { init } from './init.js'
 import { IssueIdentity } from './issueIdentity.js'
@@ -13,6 +17,7 @@ import { restore, update } from './update.js'
 export type IssueTrackerResources =
   | IssueTracker
   | ProductCatalog
+  | TriageInbox
   | IssueIdentity
 
 /** The canonical Issue Tracker Program shared by every Client. */

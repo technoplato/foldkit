@@ -67,7 +67,7 @@ const DestinationView = ({ destination }: { destination: Destination }) =>
       IssueListDestination: ({ state }) => <IssueList state={state} />,
       IssueDetailDestination: ({ state }) => <IssueDetail state={state} />,
       FileIssueDestination: props => <FileIssue {...props} />,
-      TriageInboxDestination: () => <TriageInbox />,
+      TriageInboxDestination: ({ state }) => <TriageInbox state={state} />,
     }),
   )
 
@@ -258,14 +258,69 @@ const FileIssue = ({
   )
 }
 
-const TriageInbox = () => (
-  <section>
-    <BackButton />
-    <p className="eyebrow">Drafts only</p>
-    <h2>Triage inbox</h2>
-    <p>
-      The local listener will place transcript-derived candidates here.
-      Candidates never become canonical Issues without promotion.
-    </p>
-  </section>
-)
+const TriageInbox = ({
+  state,
+}: {
+  state: Extract<Destination, { _tag: 'TriageInboxDestination' }>['state']
+}) => {
+  const actions = IssueTrackerClient.useActions()
+  return (
+    <section>
+      <BackButton />
+      <p className="eyebrow">Review required</p>
+      <h2>Triage inbox</h2>
+      <p>
+        Listener suggestions remain drafts until explicitly promoted to an
+        Issue.
+      </p>
+      {state._tag === 'LoadedTriageCandidates' ? (
+        <div className="issue-grid">
+          {Array.map(state.candidates, candidate => (
+            <article
+              className="issue-card"
+              id={candidate.segment.id}
+              key={candidate.id}
+            >
+              <span className="eyebrow">
+                {candidate.status} · {candidate.suggestedPriority}
+              </span>
+              <strong>{candidate.suggestedTitle}</strong>
+              <span>{candidate.segment.transcript}</span>
+              <span>
+                {candidate.product._tag} · {candidate.product.name} ·{' '}
+                {Math.round(candidate.segment.startMilliseconds / 1000)}s–
+                {Math.round(candidate.segment.endMilliseconds / 1000)}s
+              </span>
+              {Option.isSome(candidate.segment.publicUrl) ? (
+                <a href={candidate.segment.publicUrl.value}>Share segment</a>
+              ) : null}
+              {candidate.status === 'Draft' ? (
+                <nav aria-label={`Review ${candidate.id}`}>
+                  <button
+                    onClick={() =>
+                      actions.promotedTriageCandidate(candidate.id)
+                    }
+                    type="button"
+                  >
+                    Promote to Issue
+                  </button>
+                  <button
+                    className="secondary"
+                    onClick={() =>
+                      actions.dismissedTriageCandidate(candidate.id)
+                    }
+                    type="button"
+                  >
+                    Dismiss
+                  </button>
+                </nav>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p>{state._tag}</p>
+      )}
+    </section>
+  )
+}

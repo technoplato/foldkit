@@ -7,6 +7,7 @@ import {
   IssueList,
   LoadingIssues,
   LoadingProducts,
+  LoadingTriageCandidates,
   Model,
   type Navigation,
   NotObservingIssue,
@@ -26,6 +27,7 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     issues: LoadingIssues.make({}),
     navigation,
     products: LoadingProducts.make({}),
+    triageCandidates: LoadingTriageCandidates.make({}),
   })
 
 /** Creates the initial Issue Tracker Model and Commands. */

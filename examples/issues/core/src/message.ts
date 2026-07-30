@@ -4,6 +4,7 @@ import {
   Issue,
   IssuePriority,
   ProductCatalogEntry,
+  TriageCandidate,
 } from '@foldkit/instant-tools/issues'
 
 import { Navigation } from './model.js'
@@ -20,6 +21,14 @@ export const ObservedProducts = S.TaggedStruct('ObservedProducts', {
 export const FailedObserveProducts = S.TaggedStruct('FailedObserveProducts', {
   reason: S.String,
 })
+export const ObservedTriageCandidates = S.TaggedStruct(
+  'ObservedTriageCandidates',
+  { candidates: S.Array(TriageCandidate) },
+)
+export const FailedObserveTriageCandidates = S.TaggedStruct(
+  'FailedObserveTriageCandidates',
+  { reason: S.String },
+)
 export const ObservedIssue = S.TaggedStruct('ObservedIssue', {
   issue: S.Option(Issue),
   issueId: S.String,
@@ -34,6 +43,14 @@ export const SelectedIssue = S.TaggedStruct('SelectedIssue', {
 export const DismissedIssueDetail = S.TaggedStruct('DismissedIssueDetail', {})
 export const ClickedFileIssue = S.TaggedStruct('ClickedFileIssue', {})
 export const ClickedOpenTriage = S.TaggedStruct('ClickedOpenTriage', {})
+export const ClickedPromoteTriageCandidate = S.TaggedStruct(
+  'ClickedPromoteTriageCandidate',
+  { candidateId: S.String },
+)
+export const ClickedDismissTriageCandidate = S.TaggedStruct(
+  'ClickedDismissTriageCandidate',
+  { candidateId: S.String },
+)
 export const UpdatedIssueTitle = S.TaggedStruct('UpdatedIssueTitle', {
   value: S.String,
 })
@@ -53,6 +70,14 @@ export const SucceededSaveIssue = S.TaggedStruct('SucceededSaveIssue', {
 export const FailedSaveIssue = S.TaggedStruct('FailedSaveIssue', {
   reason: S.String,
 })
+export const SucceededReviewTriageCandidate = S.TaggedStruct(
+  'SucceededReviewTriageCandidate',
+  { candidate: TriageCandidate, issue: S.Option(Issue) },
+)
+export const FailedReviewTriageCandidate = S.TaggedStruct(
+  'FailedReviewTriageCandidate',
+  { reason: S.String },
+)
 export const OpenedNavigation = S.TaggedStruct('OpenedNavigation', {
   navigation: Navigation,
 })
@@ -63,12 +88,16 @@ export const Message = S.Union([
   FailedObserveIssues,
   ObservedProducts,
   FailedObserveProducts,
+  ObservedTriageCandidates,
+  FailedObserveTriageCandidates,
   ObservedIssue,
   FailedObserveIssue,
   SelectedIssue,
   DismissedIssueDetail,
   ClickedFileIssue,
   ClickedOpenTriage,
+  ClickedPromoteTriageCandidate,
+  ClickedDismissTriageCandidate,
   UpdatedIssueTitle,
   UpdatedIssueDetails,
   SelectedIssueProduct,
@@ -76,6 +105,8 @@ export const Message = S.Union([
   SubmittedIssue,
   SucceededSaveIssue,
   FailedSaveIssue,
+  SucceededReviewTriageCandidate,
+  FailedReviewTriageCandidate,
   OpenedNavigation,
 ])
 /** Every fact accepted by the Issue Tracker Program. */

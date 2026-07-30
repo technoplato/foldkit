@@ -7,6 +7,7 @@ import {
   type IssueDetailState,
   type IssueDraft,
   type IssuesState,
+  type TriageCandidatesState,
   destinationForModel,
   modelForNavigation,
   navigationToPath,
@@ -187,14 +188,7 @@ const DestinationView = ({ destination }: { destination: Destination }) =>
       IssueListDestination: ({ state }) => <IssueListView state={state} />,
       IssueDetailDestination: ({ state }) => <IssueDetailView state={state} />,
       FileIssueDestination: () => <FileIssueView />,
-      TriageInboxDestination: () => (
-        <View style={styles.card}>
-          <Text style={styles.heading}>Triage inbox</Text>
-          <Text style={styles.body}>
-            Transcript candidates remain drafts until explicitly promoted.
-          </Text>
-        </View>
-      ),
+      TriageInboxDestination: ({ state }) => <TriageInboxView state={state} />,
     }),
   )
 
@@ -239,6 +233,44 @@ const IssueDetailView = ({ state }: { state: IssueDetailState }) => {
       <Text style={styles.muted}>
         {issue.product._tag} · {issue.product.name} · {issue.status}
       </Text>
+    </View>
+  )
+}
+
+const TriageInboxView = ({ state }: { state: TriageCandidatesState }) => {
+  const actions = StaticIssueTrackerClient.useActions()
+  if (state._tag !== 'LoadedTriageCandidates') {
+    return <Text style={styles.muted}>{state._tag}</Text>
+  }
+  return (
+    <View style={styles.list}>
+      <Text style={styles.title}>Triage inbox</Text>
+      {Array.map(state.candidates, candidate => (
+        <View key={candidate.id} style={styles.card}>
+          <Text style={styles.eyebrow}>
+            {candidate.status} · {candidate.suggestedPriority}
+          </Text>
+          <Text style={styles.heading}>{candidate.suggestedTitle}</Text>
+          <Text style={styles.body}>{candidate.segment.transcript}</Text>
+          <Text style={styles.muted}>
+            {Math.round(candidate.segment.startMilliseconds / 1000)}s–
+            {Math.round(candidate.segment.endMilliseconds / 1000)}s
+          </Text>
+          {candidate.status === 'Draft' ? (
+            <View style={styles.actions}>
+              <Action
+                label="Promote"
+                onPress={() => actions.promotedTriageCandidate(candidate.id)}
+              />
+              <Action
+                label="Dismiss"
+                onPress={() => actions.dismissedTriageCandidate(candidate.id)}
+                secondary
+              />
+            </View>
+          ) : null}
+        </View>
+      ))}
     </View>
   )
 }

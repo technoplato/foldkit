@@ -160,10 +160,17 @@ export const formatDestination = (
         `State: ${draftState._tag}`,
         `Catalog: ${products._tag}`,
       ],
-      TriageInboxDestination: () => [
-        'Triage inbox',
-        'Transcript-derived candidates remain drafts until promoted.',
-      ],
+      TriageInboxDestination: ({ state }) =>
+        state._tag === 'LoadedTriageCandidates'
+          ? [
+              'Triage inbox',
+              ...Array.map(
+                state.candidates,
+                candidate =>
+                  `${candidate.id}  ${candidate.status}  ${candidate.suggestedTitle}  [${candidate.segment.startMilliseconds.toString()}-${candidate.segment.endMilliseconds.toString()}ms]`,
+              ),
+            ]
+          : ['Triage inbox', state._tag],
     }),
   )
 
