@@ -1,0 +1,32 @@
+{
+  "name": "issues-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "prebuild": "pnpm --filter issues-core-example build",
+    "predev": "pnpm --filter issues-core-example build",
+    "pretypecheck": "pnpm --filter issues-core-example build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/devtools": "workspace:*",
+    "@foldkit/instant-tools": "workspace:*",
+    "@foldkit/ui": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "@tailwindcss/vite": "^4.3.1",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "issues-core-example": "workspace:*",
+    "tailwindcss": "^4.3.1"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}

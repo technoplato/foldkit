@@ -1,0 +1,50 @@
+{
+  "name": "issues-react-native-example",
+  "private": true,
+  "version": "0.0.0",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "android": "expo start --android",
+    "export:android": "expo export --platform android --output-dir dist-android",
+    "export:ios": "expo export --platform ios --output-dir dist-ios",
+    "export:web": "expo export --platform web",
+    "ios": "expo start --ios",
+    "prepare-examples": "pnpm --filter issues-react-bindings-example build",
+    "preandroid": "pnpm run prepare-examples",
+    "preexport:android": "pnpm run prepare-examples",
+    "preexport:ios": "pnpm run prepare-examples",
+    "preexport:web": "pnpm run prepare-examples",
+    "preios": "pnpm run prepare-examples",
+    "prestart": "pnpm run prepare-examples",
+    "pretest": "pnpm run prepare-examples",
+    "pretypecheck": "pnpm run prepare-examples",
+    "start": "expo start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.7",
+    "@react-navigation/native": "^7.3.14",
+    "@react-navigation/native-stack": "^7.18.6",
+    "effect": "4.0.0-beta.97",
+    "expo": "^57.0.8",
+    "expo-linking": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "foldkit": "workspace:*",
+    "issues-core-example": "workspace:*",
+    "issues-react-bindings-example": "workspace:*",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-web": "~0.21.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "babel-preset-expo": "~57.0.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
