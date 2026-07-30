@@ -35,6 +35,14 @@ export const TrackedProduct = S.Union([ApplicationProduct, LibraryProduct])
 /** An application or library that owns Projects and Issues. */
 export type TrackedProduct = typeof TrackedProduct.Type
 
+/** One first-class application or library available as an Issue filing domain. */
+export const ProductCatalogEntry = S.Struct({
+  product: TrackedProduct,
+  updatedAtMs: S.Number,
+})
+/** One first-class application or library available as an Issue filing domain. */
+export type ProductCatalogEntry = typeof ProductCatalogEntry.Type
+
 /** The exact position in one Recording where an Issue was reported. */
 export const RecordingMention = S.Struct({
   endMilliseconds: S.OptionFromNullOr(S.Int),

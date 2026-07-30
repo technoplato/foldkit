@@ -4,11 +4,18 @@ Transport-neutral structured logging and issue tracking for Effect applications.
 
 The package keeps its portable domain separate from persistence:
 
-- `@foldkit/instant-tools/issues` defines Issue, Success Criterion, Attachment, Mention, work-log, reference, query, escalation, and `IssueTracker` service types.
+- `@foldkit/instant-tools/issues` defines Issue, Success Criterion, Attachment, Mention, work-log, reference, query, escalation, `IssueTracker`, and the first-class Application/Library `ProductCatalog` service types.
 - `@foldkit/instant-tools/logging` defines structured Log Events, source locations, levels, and the `Logger` service.
 - `@foldkit/instant-tools/instant` supplies queryable InstantDB envelopes and adapters for those services.
 
 Issue references are an algebraic data type that can link an Issue to an Agent, Commit, Media artifact, Project, exact Recording position, Release, or URI. Attachments preserve their content type, digest, capture time, and tagged durable source. A first unique Mention preserves the Issue's baseline priority. Each later unique Mention moves it one step toward P0; retries with the same Mention id are idempotent.
+
+`IssueTracker.observe(query)` emits live filtered collections, while
+`IssueTracker.observeIssue(id)` observes one detail destination without making
+the host filter a collection snapshot. `ProductCatalog` persists and observes
+Applications and Libraries as their own filing domains. Both services are
+transport-neutral Effect capabilities; the Instant adapter implements their
+streams with scoped `subscribeQuery` lifetimes.
 
 ## Install
 
@@ -72,6 +79,8 @@ import {
   IssueQuery,
   IssueSuccessCriterion,
   IssueTracker,
+  ProductCatalog,
+  ProductCatalogEntry,
 } from '@foldkit/instant-tools/issues'
 
 const issue = Issue.make({
@@ -102,6 +111,13 @@ const issue = Issue.make({
 
 const program = Effect.gen(function* () {
   const tracker = yield* IssueTracker
+  const products = yield* ProductCatalog
+  yield* products.save(
+    ProductCatalogEntry.make({
+      product: issue.product,
+      updatedAtMs: Date.now(),
+    }),
+  )
   yield* tracker.save(issue)
   return yield* tracker.fetch(
     IssueQuery.make({
