@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:44:48 a.m. EDT — `79e59b6e8954` feat(issues): add transcript triage listener
+
+- **Implementation commit:** `79e59b6e89540c9182fb31775cebe333e82222a3`
+- **Change:** Observe Scribe transcript segments as review-only Issue candidates across every host.
+- **Details:**
+  - The Program now observes triage candidates, exposes Promote and Dismiss Messages, and creates a canonical Issue only after promotion. The Mac listener follows the read-only Scribe primitive, ignores initial snapshots and partials, applies a conservative cue analyzer, persists exact shareable segment bounds, and never invokes Tuple. All clients project the observed triage state.
+- **Files:**
+  - `examples/issues/core/src/update.ts` — Review command creates recording-linked Issues only after explicit promotion.
+  - `examples/issues/core/src/subscription.ts` — Observes the shared Instant triage collection.
+  - `examples/issues/core/src/program.test.ts` — Proves candidates remain drafts until review and exposes state-valid actions.
+  - `examples/issues/listener/src/analysis.ts` — Conservative deterministic analysis with exact segment bounds and protected share links.
+  - `examples/issues/listener/src/listener.ts` — Follows new finalized Scribe projection events and saves drafts.
+  - `examples/issues/listener/support/com.knophy.foldkit-issues-listener.plist` — Machine listener service definition.
+  - `examples/issues/README.md` — Documents architecture, operation, Tuple inspiration, and first-release security weaknesses.
+  - `examples/issues/react/src/App.tsx` — Interactive live triage review and anchored segment links.
+- **User context (verbatim):**
+  > I refer to tuple for inspiration not usage
+  > This will help add to triage
+  > We also need to add sharing of segments from a longer recording
+- **SpecStory:** unavailable — Unavailable: this task is running in Codex desktop and no verified SpecStory CLI capture URI was produced.
+
 ## July 30th, 2026 at 1:37:56 a.m. EDT — `9f6385cba98d` feat(instant-tools): persist transcript triage drafts
 
 - **Implementation commit:** `9f6385cba98d1cbea44cb7337cfbe41bc348bb6b`
