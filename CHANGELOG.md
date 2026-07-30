@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:11:26 p.m. EDT — `2e46ee5f31ce` chore(instant-counter): scaffold authenticated demo
+
+- **Implementation commit:** `2e46ee5f31ced1d5733ab19f0c503ebcc6253537`
+- **Change:** Scaffold the authenticated Instant counter workspace
+- **Details:**
+  - Added a buildable browser shell and explicit headless entry point for the shared Program demo.
+  - Locked InstantDB core and server-only admin dependencies at 1.0.53 so the acceptance authority can stay outside public Clients.
+  - Kept credential values out of Git and reserved the root lockfile as a sequential shared-checkout dependency lane.
+- **Files:**
+  - `examples/instant-counter/package.json` — Defines the private browser and headless demo package and its pinned Instant dependencies.
+  - `examples/instant-counter/index.html` — Provides the browser entry document for the authenticated counter.
+  - `examples/instant-counter/src/entry.ts` — Provides the initial browser module boundary.
+  - `examples/instant-counter/src/headless/entry.ts` — Provides the explicit headless authority process boundary.
+  - `examples/instant-counter/src/styles.css` — Provides the initial host shell styling.
+  - `examples/instant-counter/tsconfig.json` — Constrains the example TypeScript build.
+  - `examples/instant-counter/vite.config.ts` — Enables the required Foldkit Vite transform.
+  - `pnpm-lock.yaml` — Locks the Instant counter importer and admin SDK dependency graph.
+- **User context (verbatim):**
+  > Let's authenticate with Google and authenticate with email.
+  > Please explicitly release only `examples/react-native-showcase/package.json` and `pnpm-lock.yaml` to Wallet for one sequential dependency commit while you continue package-local code.
+- **SpecStory:** unavailable — No SpecStory URI is available because this Codex desktop task was not captured by SpecStory.
+
 ## July 30th, 2026 at 12:51:47 p.m. EDT — `27165028d390` fix(instant-tools): accept legacy source documents
 
 - **Implementation commit:** `27165028d390ad9c364b6e1a3b624a875a1f0846`
