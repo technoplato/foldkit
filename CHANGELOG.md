@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 11:42:26 a.m. EDT — `834642f9d1b8` fix(issues): recover stale viewer failures
+
+- **Implementation commit:** `834642f9d1b883ad490bfcddd71b6e72ab7d8ad3`
+- **Change:** Recovered out-of-date public Issue viewer tabs from live-schema decoder failures.
+- **Details:**
+  - Preserved the IssueTracker operation and underlying decoder cause instead of collapsing every failure to the opaque IssueTrackerError tag.
+  - Added a browser-host Effect that performs one guarded automatic reload, refuses loops when session storage cannot record the attempt, and leaves an explicit latest-viewer reload action when the current deployment still fails.
+  - Reproduced the supplied failure with the retained 21d1e171 deployment against current Instant data, while the c3982350 public deployment rendered the live list and #041 detail successfully.
+- **Files:**
+  - `examples/issues/core/src/program.test.ts` — Require collection and detail failures to preserve operation-specific decoder evidence.
+  - `examples/issues/core/src/subscription.ts` — Format typed IssueTrackerError causes at the portable Program boundary.
+  - `examples/issues/react/src/App.test.tsx` — Verify the diagnostic and manual reload remain visible.
+  - `examples/issues/react/src/App.tsx` — Automatically recover one stale viewer attempt and render an actionable failure state.
+  - `examples/issues/react/src/styles.css` — Present the failure and long decoder detail readably.
+  - `examples/issues/react/src/viewerFailureRecovery.test.ts` — Prove reload, throttle, and storage-failure behavior.
+  - `examples/issues/react/src/viewerFailureRecovery.ts` — Implement the guarded Effect-based browser recovery.
+- **User context (verbatim):**
+  > can you diagnose and fix
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 11:31:17 a.m. EDT — `76bffcc32c33` docs: clarify materialized projections
 
 - **Implementation commit:** `76bffcc32c33b8bfebd2e160fae13f28bb4eff5c`
