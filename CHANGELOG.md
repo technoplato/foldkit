@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 29th, 2026 at 10:45:13 p.m. EDT — `364d81f08dbd` feat(instant-tools): add portable issue attachments
+
+- **Implementation commit:** `364d81f08dbd7c94e7dda269b0a89b46d1bd267f`
+- **Change:** Added cross-language issue attachments to Instant Tools
+- **Details:**
+  - Defined tagged attachment sources and media metadata in the portable Effect Schema, embedded attachments in issue payloads, added matching queryable Instant envelope fields, and verified round-trip persistence.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Added portable attachment kinds, tagged sources, and Issue attachments.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Verified screenshot attachment encoding and round-trip behavior.
+  - `packages/instant-tools/src/instant/instant.ts` — Persisted attachment counts and IDs in the Instant issue envelope.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Verified lossless attachment persistence.
+  - `packages/instant-tools/README.md` — Documented attachments and the shared machine credential boundary.
+  - `.changeset/add-instant-tools.md` — Included attachments in the pending public package release note.
+- **User context (verbatim):**
+  > any screenshots attached relevant to the user’s complaints should be attached to the issue as well.
+  > They should be the same schema.
+- **SpecStory:** unavailable — SpecStory URI unavailable: this task ran in Codex desktop and no verified CLI capture exists.
+
 ## July 29th, 2026 at 8:08:05 p.m. EDT — `3cf2da44fcdc` feat: add portable Instant Tools package
 
 - **Implementation commit:** `3cf2da44fcdcf2b3993e4271b74d9d5911fbbbbb`
