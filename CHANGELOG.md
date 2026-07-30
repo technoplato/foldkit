@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 11:59:50 a.m. EDT — `d6584291baba` fix(instant-tools): decode code review evidence
+
+- **Implementation commit:** `d6584291baba13a9819622d41d02cf771ceafd7b`
+- **Change:** Decoded CodeReview success evidence in the shared Instant issue schema.
+- **Details:**
+  - Added CodeReview to the Effect Schema literal set after the clean deployed viewer exposed the exact live path successCriteria[5].requiredEvidence[1].
+  - Added a focused regression test and verified instant-tools, Issue core, Issue React, typechecking, and the production build.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Keep the TypeScript wire decoder aligned with live Issue evidence.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Prove CodeReview round-trips through the typed Effect Schema.
+- **User context (verbatim):**
+  > can you diagnose and fix
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 11:42:26 a.m. EDT — `834642f9d1b8` fix(issues): recover stale viewer failures
 
 - **Implementation commit:** `834642f9d1b883ad490bfcddd71b6e72ab7d8ad3`
