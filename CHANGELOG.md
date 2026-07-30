@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 7:45:20 a.m. EDT — `aa2417af07b6` test(skills): verify independent Program runtimes
+
+- **Implementation commit:** `aa2417af07b6da5ec921cb3115b0569b2fc8e053`
+- **Change:** Align Foldkit skills with current APIs and prove one Program supports isolated runtimes
+- **Details:**
+  - Corrected Disclosure from stateful Submodel to stateless controlled render helper and replaced the nonexistent Layer.scoped recommendation with Layer.effect plus Effect.acquireRelease.
+  - Added a simultaneous-runtime regression that proves independent Models, Ports, journals, replay tapes, scoped resources, and shutdown behavior from one Program definition.
+- **Files:**
+  - `packages/foldkit/src/runtime/programRuntime.test.ts` — verifies two live instances remain isolated and independently release resources.
+  - `skills/foldkit/SKILL.md` — corrects the current UI component classification.
+  - `skills/foldkit-dependencies/SKILL.md` — documents the pinned Effect scoped-Layer idiom.
+- **User context (verbatim):**
+  > We should have a subagent creating skills for foldkit though and especially for how to think about foldkit as one program with as many runtimes as we’d like
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 7:25:15 a.m. EDT — `5108dd1453fa` feat(issues): link realtime log evidence
 
 - **Implementation commit:** `5108dd1453fa99a446a3c9ef712b7528f6ec05db`
