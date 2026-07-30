@@ -98,6 +98,272 @@ describe('makeProgramRuntime', () => {
   )
 
   it.effect(
+    'runs simultaneous instances of one Program with independent state, evidence, Ports, and resources',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          type RuntimeResourceShape = Readonly<{ id: number }>
+          class RuntimeResource extends Context.Service<
+            RuntimeResource,
+            RuntimeResourceShape
+          >()('ProgramRuntimeTest/RuntimeResource') {}
+
+          const ChangedStep = m('ChangedStep', { step: S.Number })
+          const RequestedIncrement = m('RequestedIncrement')
+          const CompletedReportCount = m('CompletedReportCount', {
+            resourceId: S.Number,
+          })
+          const Message = S.Union([
+            ChangedStep,
+            RequestedIncrement,
+            CompletedReportCount,
+          ])
+          type Message = typeof Message.Type
+          const Model = S.Struct({
+            count: S.Number,
+            step: S.Number,
+            resourceId: S.Option(S.Number),
+          })
+          type Model = typeof Model.Type
+          const ports = {
+            inbound: {
+              stepChanged: Port.inbound(S.NumberFromString.check(S.isFinite())),
+            },
+            outbound: { countChanged: Port.outbound(S.Number) },
+          }
+          const ReportCount = Command.define(
+            'ReportCount',
+            { count: S.Number },
+            CompletedReportCount,
+          )(({ count }) =>
+            Effect.gen(function* () {
+              const resource = yield* RuntimeResource
+              yield* Port.emit(ports.outbound.countChanged, count)
+              return CompletedReportCount({ resourceId: resource.id })
+            }),
+          )
+          const subscriptions = Subscription.make<Model, Message>()(_entry => ({
+            hostStep: Port.subscription(ports.inbound.stepChanged, step =>
+              ChangedStep({ step }),
+            ),
+          }))
+          type UpdateReturn = readonly [
+            Model,
+            ReadonlyArray<Command.Command<Message, never, RuntimeResource>>,
+          ]
+          const Program = make<
+            Model,
+            Message,
+            never,
+            RuntimeResource,
+            typeof ports
+          >({
+            id: 'simultaneous-counter',
+            version: 1,
+            Model,
+            Message,
+            init: () => [
+              Model.make({
+                count: 0,
+                step: 1,
+                resourceId: Option.none(),
+              }),
+              [],
+            ],
+            update: (model, message) =>
+              M.value(message).pipe(
+                M.withReturnType<UpdateReturn>(),
+                M.tagsExhaustive({
+                  ChangedStep: ({ step }) => [
+                    Model.make({ ...model, step }),
+                    [],
+                  ],
+                  RequestedIncrement: () => {
+                    const nextCount = model.count + model.step
+                    return [
+                      Model.make({ ...model, count: nextCount }),
+                      [ReportCount({ count: nextCount })],
+                    ]
+                  },
+                  CompletedReportCount: ({ resourceId }) => [
+                    Model.make({
+                      ...model,
+                      resourceId: Option.some(resourceId),
+                    }),
+                    [],
+                  ],
+                }),
+              ),
+            subscriptions,
+            ports,
+          })
+
+          const acquiredResourceIds: Array<number> = []
+          const releasedResourceIds: Array<number> = []
+          let nextResourceId = 0
+          const Resources = Layer.effect(
+            RuntimeResource,
+            Effect.acquireRelease(
+              Effect.sync(() => {
+                nextResourceId += 1
+                const resource = { id: nextResourceId }
+                acquiredResourceIds.push(resource.id)
+                return resource
+              }),
+              resource =>
+                Effect.sync(() => {
+                  releasedResourceIds.push(resource.id)
+                }),
+            ),
+          )
+
+          const runtimeA = yield* makeProgramRuntime({
+            program: Program,
+            resources: Resources,
+            journal: { now: () => 50 },
+          })
+          const runtimeB = yield* makeProgramRuntime({
+            program: Program,
+            resources: Resources,
+            journal: { now: () => 60 },
+          })
+          const outboundA: Array<number> = []
+          const outboundB: Array<number> = []
+          runtimeA.ports.countChanged.subscribe(count => {
+            outboundA.push(count)
+          })
+          runtimeB.ports.countChanged.subscribe(count => {
+            outboundB.push(count)
+          })
+
+          expect(acquiredResourceIds).toStrictEqual([1, 2])
+          expect(Exit.isSuccess(runtimeA.ports.stepChanged.send('2'))).toBe(
+            true,
+          )
+          expect(Exit.isSuccess(runtimeB.ports.stepChanged.send('5'))).toBe(
+            true,
+          )
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(runtimeA.readModel().step).toBe(2)
+              expect(runtimeB.readModel().step).toBe(5)
+            }),
+          )
+
+          expect(yield* runtimeA.run(RequestedIncrement())).toStrictEqual(
+            Model.make({
+              count: 2,
+              step: 2,
+              resourceId: Option.some(1),
+            }),
+          )
+          yield* runtimeB.run(RequestedIncrement())
+          expect(yield* runtimeB.run(RequestedIncrement())).toStrictEqual(
+            Model.make({
+              count: 10,
+              step: 5,
+              resourceId: Option.some(2),
+            }),
+          )
+          expect(runtimeA.readModel()).toStrictEqual(
+            Model.make({
+              count: 2,
+              step: 2,
+              resourceId: Option.some(1),
+            }),
+          )
+          expect(runtimeB.readModel()).toStrictEqual(
+            Model.make({
+              count: 10,
+              step: 5,
+              resourceId: Option.some(2),
+            }),
+          )
+          expect(outboundA).toStrictEqual([2])
+          expect(outboundB).toStrictEqual([5, 10])
+
+          const journalA = runtimeA.journal.read()
+          const journalB = runtimeB.journal.read()
+          expect(
+            journalA.transitions.map(transition => transition.message._tag),
+          ).toStrictEqual([
+            'ChangedStep',
+            'RequestedIncrement',
+            'CompletedReportCount',
+          ])
+          expect(
+            journalB.transitions.map(transition => transition.message._tag),
+          ).toStrictEqual([
+            'ChangedStep',
+            'RequestedIncrement',
+            'CompletedReportCount',
+            'RequestedIncrement',
+            'CompletedReportCount',
+          ])
+          const encodedTapeA = yield* runtimeA.replay.exportTape
+          const encodedTapeB = yield* runtimeB.replay.exportTape
+          const tapeA = yield* decodeReplayTape(Program, encodedTapeA)
+          const tapeB = yield* decodeReplayTape(Program, encodedTapeB)
+          expect(
+            tapeA.transitions.map(transition => transition.message._tag),
+          ).toStrictEqual([
+            'ChangedStep',
+            'RequestedIncrement',
+            'CompletedReportCount',
+          ])
+          expect(
+            tapeB.transitions.map(transition => transition.message._tag),
+          ).toStrictEqual([
+            'ChangedStep',
+            'RequestedIncrement',
+            'CompletedReportCount',
+            'RequestedIncrement',
+            'CompletedReportCount',
+          ])
+          expect(
+            tapeA.transitions.every(transition => transition.timestamp === 50),
+          ).toBe(true)
+          expect(
+            tapeB.transitions.every(transition => transition.timestamp === 60),
+          ).toBe(true)
+
+          yield* runtimeA.shutdown
+          expect(releasedResourceIds).toStrictEqual([1])
+          expect(Exit.isSuccess(runtimeB.ports.stepChanged.send('3'))).toBe(
+            true,
+          )
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(runtimeB.readModel().step).toBe(3)
+            }),
+          )
+          expect(yield* runtimeB.run(RequestedIncrement())).toStrictEqual(
+            Model.make({
+              count: 13,
+              step: 3,
+              resourceId: Option.some(2),
+            }),
+          )
+          expect(runtimeA.readModel()).toStrictEqual(
+            Model.make({
+              count: 2,
+              step: 2,
+              resourceId: Option.some(1),
+            }),
+          )
+          expect(outboundA).toStrictEqual([2])
+          expect(outboundB).toStrictEqual([5, 10, 13])
+          expect(runtimeA.journal.read().transitions).toHaveLength(3)
+          expect(runtimeB.journal.read().transitions).toHaveLength(8)
+          expect(releasedResourceIds).toStrictEqual([1])
+
+          yield* runtimeB.shutdown
+          expect(releasedResourceIds).toStrictEqual([1, 2])
+        }),
+      ),
+  )
+
+  it.effect(
     'records host runtime events beside Messages without turning them into transitions',
     () =>
       Effect.scoped(
