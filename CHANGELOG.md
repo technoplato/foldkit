@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:36:27 a.m. EDT — `886426c8f5c7` feat(issues): add CLI TUI native and Foldkit hosts
+
+- **Implementation commit:** `886426c8f5c76caaef7bba0d878dbb862e735a12`
+- **Change:** Add the Issue Tracker CLI, OpenTUI, Foldkit HTML, and React Native clients.
+- **Details:**
+  - All four hosts execute or project the same Issue Tracker Program. The CLI waits for subscription snapshots before resolving state-dependent tokens, OpenTUI exposes valid Messages and replay, Foldkit HTML observes the configured Instant app and reconciles URLs, and React Native reconciles typed Program navigation with a real native stack.
+- **Files:**
+  - `examples/issues/cli/src/host.ts` — Renderer-free one-shot Program execution with explicit observation settlement.
+  - `examples/issues/cli/src/host.test.ts` — Proves issue observation, route opening, and valid interaction tokens.
+  - `examples/issues/opentui/src/host.tsx` — OpenTUI React terminal projection and replay controls.
+  - `examples/issues/foldkit/src/view.ts` — Foldkit HTML list, detail, filing, and triage projection.
+  - `examples/issues/foldkit/src/entry.ts` — Live Instant selection plus two-way URL reconciliation.
+  - `examples/issues/react-native/src/App.tsx` — Expo surface with native stack reconciliation and functional filing controls.
+  - `examples/issues/react-native/src/navigationReconciliation.test.ts` — Proves Program-to-native push and pop decisions.
+  - `pnpm-lock.yaml` — Registers all new client workspaces reproducibly.
+- **User context (verbatim):**
+  > Build surfaces in react cli tui react native and foldkit just like every other example
+  > Go ahead and do those steps
+- **SpecStory:** unavailable — Unavailable: this task is running in Codex desktop and no verified SpecStory CLI capture URI was produced.
+
 ## July 30th, 2026 at 1:29:37 a.m. EDT — `a17359e73a29` feat(issues): add React host and history carrier
 
 - **Implementation commit:** `a17359e73a296124b9b1caccf823fdfb38956a4c`
