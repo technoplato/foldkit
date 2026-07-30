@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "types": ["node", "vite/client"]
+  },
+  "include": [
+    "instant.perms.ts",
+    "instant.schema.ts",
+    "src/**/*.ts",
+    "vite.config.ts"
+  ]
+}
