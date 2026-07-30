@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Foldkit Issues",
+    "slug": "foldkit-issues",
+    "scheme": "foldkit-issues",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": { "supportsTablet": true },
+    "android": { "edgeToEdgeEnabled": true },
+    "web": { "bundler": "metro" }
+  }
+}

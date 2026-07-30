@@ -1,0 +1,25 @@
+{
+  "name": "issues-opentui-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/entry.tsx",
+    "pretypecheck": "pnpm --filter issues-react-bindings-example build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opentui/core": "0.4.5",
+    "@opentui/react": "0.4.5",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "issues-core-example": "workspace:*",
+    "issues-react-bindings-example": "workspace:*",
+    "react": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "typescript": "^6.0.3"
+  }
+}
