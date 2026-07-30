@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 11:27:17 a.m. EDT — `c6fdb74d6b17` docs: define shared Program Processors
+
+- **Implementation commit:** `c6fdb74d6b174f6d2938c222e175ba1d75d65bc6`
+- **Change:** Define Client and Processor ownership for shared Programs
+- **Details:**
+  - Defined Client as the complete runnable adapter and Processor as one live Program occurrence across repository guidance, runtime skills, and Client Matrix contracts.
+  - Recorded the InstantDB architecture exploration for Message-authoritative synchronization, disposable projection checkpoints, provenance envelopes, portable effect manifests, capability-driven placement, lifecycle leases, offline compatibility, authentication, pairing, and non-captive terminals.
+  - Added a Foldkit-styled interactive review surface for the concrete placement policies and the first unresolved cardinality decision.
+- **Files:**
+  - `AGENTS.md` — Make Client and Processor first-class architecture terms for repository work.
+  - `skills/foldkit-client-hosts/SKILL.md` — Define how Clients host or reach one or more Processors.
+  - `skills/foldkit-program-runtimes/SKILL.md` — Name ProgramRuntime as the concrete API that realizes a Processor.
+  - `skills/generate-client-matrix/SKILL.md` — Add Processor identity and capability to matrix generation.
+  - `skills/generate-client-matrix/references/matrix-contract.md` — Extend the Client Matrix contract without collapsing renderer, host, platform, or Processor axes.
+  - `examples/client-matrix/README.md` — Distinguish current captive one-shot Clients from proposed non-captive attachment.
+  - `docs/explorations/instantdb-shared-program-processors.md` — Preserve the design vocabulary, Instant boundaries, policies, examples, migration rules, and next decisions.
+  - `.lavish/instantdb-program-processor-policies.html` — Provide an interactive review surface for the architecture and cardinality decision.
+- **User context (verbatim):**
+  > one client can host multiple processes, a headless client can host processes without rendering a human interface.
+  > We wanna synchronize by sending messages, not by sharing snapshots of data
+- **SpecStory:** unavailable — This Codex desktop session has no verified SpecStory capture URI.
+
 ## July 30th, 2026 at 11:24:18 a.m. EDT — `b89625859e25` fix: use valid UUIDs for issue log links
 
 - **Implementation commit:** `b89625859e25181bb68c3f721a3aa0c1ec405bb2`
