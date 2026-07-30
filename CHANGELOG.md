@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:17:23 p.m. EDT — `89e14e1c3005` feat(foldkit): add audio processing and event migrations
+
+- **Implementation commit:** `89e14e1c30050d4c72f99999b933211285e519ce`
+- **Change:** Add provider-neutral audio processing and Program-owned event migrations
+- **Details:**
+  - Defined seven finite audio, speech, music, lyrics, sound, translation, and acoustic capability contracts over content-addressed shared or local artifacts.
+  - Kept raw media, provider credentials, URLs, host errors, and provider payloads outside portable Messages by exposing only scoped artifact references and sanitized failure codes.
+  - Added immutable adjacent-version event registries that preserve original wire provenance and return typed construction, decoding, version, migration, and Program-scope failures.
+- **Files:**
+  - `packages/foldkit/src/processor/audio.ts` — Defines provider-neutral capability IDs, authenticated-session artifact references, finite processing arguments, outcomes, and sanitized failures.
+  - `packages/foldkit/src/processor/audio.test.ts` — Verifies capability identity, artifact immutability and scoping, finite pipeline Schemas, and failure sanitization.
+  - `packages/foldkit/src/processor/public.ts` — Publishes the Processor Audio namespace.
+  - `packages/foldkit/src/program/versionedEvent.ts` — Implements immutable Program-owned adjacent event migration registries and typed decoding failures.
+  - `packages/foldkit/src/program/versionedEvent.test.ts` — Verifies historical upgrades, chain validation, Program ownership, failure provenance, and current decoding.
+  - `packages/foldkit/src/program/program.ts` — Lets a renderer-free Program own its versioned event registry.
+  - `packages/foldkit/src/program/public.ts` — Publishes the versioned event construction, decoding, and error surface.
+  - `.changeset/add-versioned-audio-processing.md` — Records the new Foldkit minor API surface for release.
+- **User context (verbatim):**
+  > We also want things like transcription processing capabilities.
+  > we also need to start thinking about schema message schema type migrations as our message schema evolves, we need to be able to handle previous versions of messages and new versions of processors
+- **SpecStory:** unavailable — No SpecStory URI is available because this Codex desktop task was not captured by SpecStory.
+
 ## July 30th, 2026 at 1:11:26 p.m. EDT — `2e46ee5f31ce` chore(instant-counter): scaffold authenticated demo
 
 - **Implementation commit:** `2e46ee5f31ced1d5733ab19f0c503ebcc6253537`
