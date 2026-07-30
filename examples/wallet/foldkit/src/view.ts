@@ -31,19 +31,24 @@ import {
   clipboardCopyRequestForAddress,
   isPrimaryWalletBalanceUnavailable,
   isSameClipboardCopyRequest,
+  isTransferPreviewActionEnabled,
   makeWalletTestChallenge,
-  networkForId,
   primaryReceivingInstruction,
   primaryWalletAccount,
   primaryWalletAsset,
   primaryWalletBalance,
   primaryWalletNetwork,
+  primaryWalletSuggestedTestTransferAmount,
+  primaryWalletSuggestedTestTransferLabel,
   primaryWalletTestFundingMethod,
+  selectedNetworkHasCapability,
   sendNetworkSelectionIdentity,
   sendNetworkSelectionLabel,
   shortenedAddress,
   transferAmountInput,
+  transferPreviewReadinessLabel,
   transferRecipientInput,
+  walletAccountBalanceLabel,
   walletDataSourceDetail,
   walletDataSourceLabel,
 } from 'wallet-core-example'
@@ -108,26 +113,6 @@ const transferAmountFailure = (model: Model): Option.Option<string> => {
       M.when('MustBePositive', () => 'The amount must be greater than zero.'),
       M.exhaustive,
     ),
-  )
-}
-
-const selectedNetworkHasCapability = (
-  model: Model,
-  capability: 'TestFunding' | 'TransactionHistory',
-): boolean => {
-  if (
-    model.portfolio._tag !== 'LoadedPortfolio' ||
-    Option.isNone(model.maybeSendNetworkSelection)
-  ) {
-    return false
-  }
-  const maybeNetwork = networkForId(
-    model.portfolio.snapshot.networks,
-    model.maybeSendNetworkSelection.value.networkId,
-  )
-  return (
-    Option.isSome(maybeNetwork) &&
-    Array.contains(maybeNetwork.value.capabilities, capability)
   )
 }
 
@@ -220,7 +205,11 @@ const networkModePicker = (model: Model): Html => {
 const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
   const h = html<Message>()
   return h.article(
-    [h.Class('wallet-profile'), h.Key(wallet.walletId)],
+    [
+      h.Class('wallet-profile'),
+      h.Key(wallet.walletId),
+      h.AriaLabel(`${wallet.displayName} wallet`),
+    ],
     [
       h.div(
         [h.Class('wallet-profile-heading')],
@@ -245,15 +234,31 @@ const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
               : [],
             model.walletNetworkMode,
           ),
-          account =>
-            h.li(
+          account => {
+            const maybeReceivingInstruction =
+              model.portfolio._tag === 'LoadedPortfolio'
+                ? Array.findFirst(
+                    model.portfolio.snapshot.receivingInstructions,
+                    instruction => instruction.accountId === account.accountId,
+                  )
+                : Option.none()
+            return h.li(
               [h.Key(account.accountId)],
               [
                 h.div(
-                  [],
+                  [h.Class('wallet-account-heading')],
                   [
-                    h.strong([], [account.displayName]),
-                    h.span([], [account.networkName]),
+                    h.div(
+                      [],
+                      [
+                        h.strong([], [account.displayName]),
+                        h.span([], [account.networkName]),
+                      ],
+                    ),
+                    h.strong(
+                      [h.Class('wallet-account-balance')],
+                      [walletAccountBalanceLabel(model, account.accountId)],
+                    ),
                   ],
                 ),
                 h.div(
@@ -268,8 +273,30 @@ const walletProfileCard = (model: Model, wallet: WalletProfile): Html => {
                   ],
                 ),
                 h.small([], [account.chainId]),
+                ...Option.match(maybeReceivingInstruction, {
+                  onNone: () => [],
+                  onSome: instruction => [
+                    h.div(
+                      [
+                        h.Class('wallet-public-receiving'),
+                        h.AriaLabel(
+                          `${account.displayName} public receiving payload`,
+                        ),
+                        h.DataAttribute(
+                          'wallet-qr-value',
+                          instruction.portableUri,
+                        ),
+                      ],
+                      [
+                        h.span([], ['Public receive']),
+                        h.code([], [instruction.portableUri]),
+                      ],
+                    ),
+                  ],
+                }),
               ],
-            ),
+            )
+          },
         ),
       ),
     ],
@@ -438,7 +465,7 @@ const walletHero = (model: Model): Html => {
             [],
             [
               h.p([h.Class('cardboard-eyebrow')], [dataSourceLabel]),
-              h.h1([h.Class('cardboard-embossed')], ['Portfolio']),
+              h.h1([], ['Portfolio']),
             ],
           ),
           h.button(
@@ -455,7 +482,7 @@ const walletHero = (model: Model): Html => {
         [h.Class('wallet-balance')],
         [
           h.p([], ['Available balance']),
-          h.strong([h.Class('cardboard-embossed')], [balanceLabel]),
+          h.strong([], [balanceLabel]),
           h.div(
             [h.Class('wallet-address-line')],
             [
@@ -485,7 +512,7 @@ const walletHero = (model: Model): Html => {
   )
 }
 
-const sendNetworkPicker = (model: Model): Html => {
+const sendNetworkButtons = (model: Model): Html => {
   const h = html<Message>()
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return h.div([], [])
@@ -502,34 +529,34 @@ const sendNetworkPicker = (model: Model): Html => {
         ['No transferable assets are available for this network mode.'],
       ),
     onNonEmpty: nonEmptySelections => {
-      const selected = Option.getOrElse(model.maybeSendNetworkSelection, () =>
-        Array.headNonEmpty(nonEmptySelections),
-      )
-      return h.div(
+      const selectedIdentity = Option.match(model.maybeSendNetworkSelection, {
+        onNone: () => '',
+        onSome: sendNetworkSelectionIdentity,
+      })
+      return h.fieldset(
         [h.Class('wallet-picker')],
         [
-          h.label([h.For('wallet-asset')], ['Cryptocurrency and network']),
-          h.select(
-            [
-              h.Id('wallet-asset'),
-              h.Class('wallet-select'),
-              h.Value(sendNetworkSelectionIdentity(selected)),
-              h.OnChange(value => {
-                const maybeSelection = Array.findFirst(
-                  nonEmptySelections,
-                  selection =>
-                    sendNetworkSelectionIdentity(selection) === value,
-                )
-                return SelectedSendNetwork.make({
-                  selection: Option.getOrElse(maybeSelection, () =>
-                    Array.headNonEmpty(nonEmptySelections),
-                  ),
-                })
-              }),
-            ],
+          h.legend([], ['Cryptocurrency and network']),
+          h.div(
+            [h.Class('wallet-rail-buttons')],
             Array.map(nonEmptySelections, selection =>
-              h.option(
-                [h.Value(sendNetworkSelectionIdentity(selection))],
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Key(sendNetworkSelectionIdentity(selection)),
+                  h.Class(
+                    sendNetworkSelectionIdentity(selection) === selectedIdentity
+                      ? 'wallet-rail-button selected'
+                      : 'wallet-rail-button',
+                  ),
+                  h.AriaPressed(
+                    (
+                      sendNetworkSelectionIdentity(selection) ===
+                      selectedIdentity
+                    ).toString(),
+                  ),
+                  h.OnClick(SelectedSendNetwork.make({ selection })),
+                ],
                 [
                   sendNetworkSelectionLabel(
                     portfolio,
@@ -553,6 +580,8 @@ const sendButton = (model: Model): Html => {
       [
         h.Type('button'),
         h.Class('cardboard-button primary'),
+        h.AriaDescribedBy('wallet-send-readiness'),
+        h.Disabled(!isTransferPreviewActionEnabled(model)),
         h.OnClick(
           RequestedSignedTransactionSubmission.make({
             previewId: model.transaction.preview.previewId,
@@ -562,18 +591,14 @@ const sendButton = (model: Model): Html => {
       ['Confirm send'],
     )
   }
-  const isBusy =
-    model.transaction._tag === 'ValidatingTransfer' ||
-    model.transaction._tag === 'PreviewingTransaction' ||
-    model.transaction._tag === 'SubmittingTransaction'
-  if (
-    Option.isNone(primaryWalletBalance(model)) ||
-    model.transferAmount._tag !== 'ValidTransferAmount' ||
-    model.transferRecipient._tag === 'EmptyTransferRecipient' ||
-    isBusy
-  ) {
+  if (!isTransferPreviewActionEnabled(model)) {
     return h.button(
-      [h.Type('button'), h.Class('cardboard-button primary'), h.Disabled(true)],
+      [
+        h.Type('button'),
+        h.Class('cardboard-button primary'),
+        h.AriaDescribedBy('wallet-send-readiness'),
+        h.Disabled(true),
+      ],
       ['Preview send'],
     )
   }
@@ -581,6 +606,7 @@ const sendButton = (model: Model): Html => {
     [
       h.Type('button'),
       h.Class('cardboard-button primary'),
+      h.AriaDescribedBy('wallet-send-readiness'),
       h.OnClick(RequestedTransferPreview.make({})),
     ],
     ['Preview send'],
@@ -644,10 +670,42 @@ const sendMoney = (model: Model): Html => {
     onSome: asset => `Amount in ${asset.symbol}`,
   })
   const maybeAmountFailure = transferAmountFailure(model)
-  const amountField = h.label(
-    [h.Class('wallet-recipient'), h.For('wallet-amount')],
+  const maybeSuggestedTestTransfer = Option.all({
+    amount: primaryWalletSuggestedTestTransferAmount(model),
+    label: primaryWalletSuggestedTestTransferLabel(model),
+  })
+  const amountField = h.div(
+    [h.Class('wallet-recipient')],
     [
-      h.span([], [amountSymbol]),
+      h.div(
+        [h.Class('wallet-input-heading')],
+        [
+          h.label([h.For('wallet-amount')], [amountSymbol]),
+          ...Option.match(maybeSuggestedTestTransfer, {
+            onNone: () => [],
+            onSome: suggestedTestTransfer => [
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class('wallet-small-amount-button'),
+                  h.AriaLabel(
+                    `Use small test amount: ${suggestedTestTransfer.label}`,
+                  ),
+                  h.Disabled(
+                    model.transaction._tag === 'SubmittingTransaction',
+                  ),
+                  h.OnClick(
+                    ChangedTransferAmount.make({
+                      value: suggestedTestTransfer.amount,
+                    }),
+                  ),
+                ],
+                ['Use small test amount'],
+              ),
+            ],
+          }),
+        ],
+      ),
       h.input([
         h.Id('wallet-amount'),
         h.Type('text'),
@@ -656,6 +714,15 @@ const sendMoney = (model: Model): Html => {
         h.Disabled(model.transaction._tag === 'SubmittingTransaction'),
         h.OnInput(value => ChangedTransferAmount.make({ value })),
       ]),
+      ...Option.match(maybeSuggestedTestTransfer, {
+        onNone: () => [],
+        onSome: suggestedTestTransfer => [
+          h.small(
+            [h.Class('wallet-small-amount-label')],
+            [suggestedTestTransfer.label],
+          ),
+        ],
+      }),
     ],
   )
   const amountFailure = Option.match(maybeAmountFailure, {
@@ -770,7 +837,10 @@ const sendMoney = (model: Model): Html => {
     primaryWalletTestFundingMethod(model),
     method =>
       method._tag === 'ExternalTestFundingMethod'
-        ? Option.some(method)
+        ? Option.map(primaryReceivingInstruction(model), instruction => ({
+            instruction,
+            method,
+          }))
         : Option.none(),
   )
   const canRequestTestFunding = selectedNetworkHasCapability(
@@ -813,23 +883,31 @@ const sendMoney = (model: Model): Html => {
     : []
   const externalTestFunding = Option.match(maybeExternalTestFunding, {
     onNone: () => [],
-    onSome: method => [
+    onSome: externalTestFunding => [
       h.div(
         [h.Class('wallet-funding')],
         [
           h.a(
             [
               h.Class('cardboard-button'),
-              h.Href(method.providerUrl),
+              h.Href(externalTestFunding.method.providerUrl),
               h.Target('_blank'),
               h.Rel('noopener noreferrer'),
+              h.OnClick(
+                RequestedClipboardCopy.make({
+                  request: clipboardCopyRequestForAddress(
+                    externalTestFunding.instruction.destinationAddress,
+                    'external-faucet-address',
+                  ),
+                }),
+              ),
             ],
-            [`Open ${method.providerName}`],
+            [`Copy address & open ${externalTestFunding.method.providerName}`],
           ),
           h.span(
             [],
             [
-              'Copy this Wallet’s receiving address, then complete the provider-owned faucet flow.',
+              'The selected receiving address is copied before the provider-owned faucet opens.',
             ],
           ),
         ],
@@ -888,7 +966,7 @@ const sendMoney = (model: Model): Html => {
           ),
         ],
       ),
-      sendNetworkPicker(model),
+      sendNetworkButtons(model),
       amountField,
       ...amountFailure,
       recipientField,
@@ -899,7 +977,20 @@ const sendMoney = (model: Model): Html => {
       ...testFundingFailure,
       ...transactionFailure,
       ...confirmation,
-      h.div([h.Class('wallet-action-row')], [sendButton(model)]),
+      h.div(
+        [h.Class('wallet-action-row wallet-send-action-row')],
+        [
+          sendButton(model),
+          h.span(
+            [
+              h.Id('wallet-send-readiness'),
+              h.Class('wallet-send-readiness'),
+              h.Role('status'),
+            ],
+            [transferPreviewReadinessLabel(model)],
+          ),
+        ],
+      ),
     ],
   )
 }

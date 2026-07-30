@@ -39,6 +39,7 @@ describe('Wallet OpenTUI host', () => {
       'CreateWallet',
       'ToggleWalletNetwork',
       'SelectNextSendNetwork',
+      'UseSuggestedTestTransferAmount',
       'ShowReceivingInstruction',
       'ReloadWalletHistory',
       'PreviewWalletTransaction',
@@ -51,6 +52,12 @@ describe('Wallet OpenTUI host', () => {
       'Send simulated-ethereum-account · ETH · Ethereum Sepolia',
     )
     expect(walletOpenTuiSummary(model)).toContain('Transactions 1')
+    expect(walletOpenTuiSummary(model)).toContain(
+      'Observation ObservingTransactions',
+    )
+    expect(walletOpenTuiSummary(model)).toContain(
+      'History LoadedTransactionHistory',
+    )
     expect(walletOpenTuiSummary(model)).toContain('0 wallets Testnet')
   })
 })

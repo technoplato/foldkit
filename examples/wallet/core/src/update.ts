@@ -37,6 +37,7 @@ import {
   FailedLoadWallet,
   FailedLoadWalletProfiles,
   FailedPreviewTransaction,
+  FailedRefreshWalletBalances,
   FailedRequestTestFunding,
   FailedSignChallenge,
   FailedSubmitSignedTransaction,
@@ -48,6 +49,7 @@ import {
   SucceededLoadWallet,
   SucceededLoadWalletProfiles,
   SucceededPreviewTransaction,
+  SucceededRefreshWalletBalances,
   SucceededRequestTestFunding,
   SucceededSignChallenge,
   SucceededSubmitSignedTransaction,
@@ -188,6 +190,35 @@ export const LoadWallet = Command.define(
         FailedLoadWallet.make({
           requestId,
           failure: toNetworkFailure('LoadPortfolio', error),
+        }),
+      ),
+    ),
+  ),
+)
+
+/** Refreshes public balances without resetting selection, history, or observation. */
+export const RefreshWalletBalances = Command.define(
+  'RefreshWalletBalances',
+  { walletIds: S.Array(S.String), wallets: S.Array(WalletProfile) },
+  SucceededRefreshWalletBalances,
+  FailedRefreshWalletBalances,
+)(({ walletIds, wallets }) =>
+  WalletClient.pipe(
+    Effect.flatMap(client => client.loadPortfolio(wallets)),
+    Effect.flatMap(portfolio =>
+      isPortfolioSnapshotConsistent(portfolio) &&
+      doesPortfolioIncludeWalletProfiles(portfolio, wallets)
+        ? Effect.succeed(portfolio.balanceSnapshot)
+        : Effect.fail(new WalletClientError({ code: 'InvalidResponse' })),
+    ),
+    Effect.map(balanceSnapshot =>
+      SucceededRefreshWalletBalances.make({ walletIds, balanceSnapshot }),
+    ),
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedRefreshWalletBalances.make({
+          walletIds,
+          failure: toNetworkFailure('RefreshBalances', error),
         }),
       ),
     ),
@@ -500,6 +531,28 @@ const beginPortfolioLoad = (
     [LoadWallet({ requestId, wallets })],
   ]
 }
+
+const walletIds = (
+  wallets: ReadonlyArray<WalletProfile>,
+): ReadonlyArray<string> => Array_.map(wallets, wallet => wallet.walletId)
+
+const isSameWalletIds = (
+  left: ReadonlyArray<string>,
+  right: ReadonlyArray<string>,
+): boolean => Array_.join(left, '\u0000') === Array_.join(right, '\u0000')
+
+const refreshWalletBalanceCommands = (
+  model: Model,
+): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
+  model.portfolio._tag === 'LoadedPortfolio' &&
+  Array_.isReadonlyArrayNonEmpty(model.wallets)
+    ? [
+        RefreshWalletBalances({
+          walletIds: walletIds(model.wallets),
+          wallets: model.wallets,
+        }),
+      ]
+    : []
 
 const portfolioCommandsForRestore = (
   model: Model,
@@ -961,6 +1014,19 @@ const isTransactionInSelectedScope = (
   model.maybeSendNetworkSelection.value.accountId === transaction.accountId &&
   model.maybeSendNetworkSelection.value.networkId === transaction.networkId
 
+const hasExactTransactionRecord = (
+  transactions: ReadonlyArray<TransactionRecord>,
+  transaction: TransactionRecord,
+): boolean =>
+  Array_.some(
+    transactions,
+    candidate =>
+      candidate.recordId === transaction.recordId &&
+      candidate.status === transaction.status &&
+      candidate.observedAt === transaction.observedAt &&
+      candidate.amount.atomicUnits === transaction.amount.atomicUnits,
+  )
+
 /** Applies one Wallet Message and returns its finite Commands. */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
@@ -1327,6 +1393,32 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           [],
         ]
       },
+      SucceededRefreshWalletBalances: ({
+        walletIds: refreshedWalletIds,
+        balanceSnapshot,
+      }) => {
+        if (
+          model.portfolio._tag !== 'LoadedPortfolio' ||
+          !isSameWalletIds(walletIds(model.wallets), refreshedWalletIds) ||
+          balanceSnapshot.observedAt <
+            model.portfolio.snapshot.balanceSnapshot.observedAt
+        ) {
+          return [model, []]
+        }
+        return [
+          {
+            ...model,
+            portfolio: LoadedPortfolio.make({
+              snapshot: PortfolioSnapshot.make({
+                ...model.portfolio.snapshot,
+                balanceSnapshot,
+              }),
+            }),
+          },
+          [],
+        ]
+      },
+      FailedRefreshWalletBalances: () => [model, []],
       ChangedTransferRecipient: ({ value }) => [
         {
           ...model,
@@ -1398,7 +1490,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 ...model,
                 testFunding: ReceivedTestFunding.make({ request, receipt }),
               },
-              [],
+              refreshWalletBalanceCommands(model),
             ]
           : [model, []],
       FailedRequestTestFunding: ({ request, failure }) =>
@@ -1536,7 +1628,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 transaction,
               ]),
             },
-            [],
+            refreshWalletBalanceCommands(model),
           ]
         } else {
           return [model, []]
@@ -1652,18 +1744,26 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               [],
             ]
           : [model, []],
-      ObservedTransaction: ({ transaction }) =>
-        isTransactionInSelectedScope(model, transaction)
-          ? [
-              {
-                ...model,
-                transactions: mergeTransactionRecords(model.transactions, [
-                  transaction,
-                ]),
-              },
-              [],
-            ]
-          : [model, []],
+      ObservedTransaction: ({ transaction }) => {
+        if (!isTransactionInSelectedScope(model, transaction)) {
+          return [model, []]
+        }
+        const isNewObservation = !hasExactTransactionRecord(
+          model.transactions,
+          transaction,
+        )
+        return [
+          {
+            ...model,
+            transactions: mergeTransactionRecords(model.transactions, [
+              transaction,
+            ]),
+          },
+          isNewObservation && transaction.status !== 'Pending'
+            ? refreshWalletBalanceCommands(model)
+            : [],
+        ]
+      },
       FailedObserveTransactions: ({ accountIds, failure }) =>
         model.transactionObservation._tag === 'ObservingTransactions' &&
         Array_.join(model.transactionObservation.accountIds, '\u0000') ===

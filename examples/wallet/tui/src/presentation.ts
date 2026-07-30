@@ -2,6 +2,7 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 import {
   type Model,
   WalletProgram,
+  primaryWalletSuggestedTestTransferLabel,
   primaryWalletTestFundingMethod,
   selectedNetworkHasCapability,
   selectedSendNetworkLabel,
@@ -25,6 +26,11 @@ export const ToggleWalletNetwork = S.TaggedStruct('ToggleWalletNetwork', {
 export const SelectNextSendNetwork = S.TaggedStruct('SelectNextSendNetwork', {
   label: S.String,
 })
+/** Fills the amount field with the selected adapter's small test transfer. */
+export const UseSuggestedTestTransferAmount = S.TaggedStruct(
+  'UseSuggestedTestTransferAmount',
+  { label: S.String },
+)
 /** Shows the default public receiving instruction. */
 export const ShowReceivingInstruction = S.TaggedStruct(
   'ShowReceivingInstruction',
@@ -71,6 +77,7 @@ export const WalletOpenTuiInteraction = S.Union([
   CreateWallet,
   ToggleWalletNetwork,
   SelectNextSendNetwork,
+  UseSuggestedTestTransferAmount,
   ShowReceivingInstruction,
   ReloadWalletHistory,
   NextWalletHistoryPage,
@@ -122,6 +129,17 @@ export const interactionsForWalletOpenTui = (
           : [],
     },
   )
+  const suggestedTestTransfer = Option.match(
+    primaryWalletSuggestedTestTransferLabel(model),
+    {
+      onNone: () => [],
+      onSome: label => [
+        UseSuggestedTestTransferAmount.make({
+          label: `Use small test amount: ${label}`,
+        }),
+      ],
+    },
+  )
   return [
     ShowWallet.make({ label: 'Show public Wallet Model' }),
     CreateWallet.make({
@@ -131,6 +149,7 @@ export const interactionsForWalletOpenTui = (
       label: `Switch every wallet to ${toggledWalletNetworkMode(model.walletNetworkMode)}`,
     }),
     SelectNextSendNetwork.make({ label: 'Select next send network' }),
+    ...suggestedTestTransfer,
     ShowReceivingInstruction.make({ label: 'Show receiving instruction' }),
     ...history,
     ...nextHistoryPage,
@@ -167,6 +186,9 @@ export const walletOpenTuiSummary = (model: Model): string => {
       })}`,
       `Transaction ${model.transaction._tag}`,
       `Signature ${model.signature._tag}`,
+      `History ${model.transactionHistory._tag}`,
+      `Observation ${model.transactionObservation._tag}`,
+      `Funding ${model.testFunding._tag}`,
       `Transactions ${model.transactions.length.toString()}`,
     ],
     ' | ',

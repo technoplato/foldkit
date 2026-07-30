@@ -1,4 +1,4 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Match as M, Option, Schema as S } from 'effect'
 
 import {
   type ClipboardCopyRequest,
@@ -12,6 +12,7 @@ import {
   type TestFundingMethod,
   WalletCapability,
   assetForId,
+  displayAmountFromAtomicUnits,
   networkForId,
 } from './currency.js'
 import type {
@@ -92,6 +93,40 @@ export const assetAmountLabelForModel = (
   return Option.isSome(maybeAsset)
     ? assetAmountLabel(amount, maybeAsset.value)
     : `${amount.atomicUnits} ${amount.assetId}`
+}
+
+/** Labels every balance loaded for one public Wallet account. */
+export const walletAccountBalanceLabel = (
+  model: Model,
+  accountId: string,
+): string => {
+  if (model.portfolio._tag === 'LoadingPortfolio') {
+    return 'Loading…'
+  }
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return 'Unavailable'
+  }
+  const balances = Array.filter(
+    model.portfolio.snapshot.balanceSnapshot.balances,
+    balance => balance.accountId === accountId,
+  )
+  if (Array.isReadonlyArrayNonEmpty(balances)) {
+    return Array.join(
+      Array.map(balances, balance =>
+        assetAmountLabelForModel(model, balance.amount),
+      ),
+      ' · ',
+    )
+  }
+  if (
+    Array.contains(
+      model.portfolio.snapshot.balanceSnapshot.unavailableAccountIds,
+      accountId,
+    )
+  ) {
+    return 'Unavailable'
+  }
+  return '—'
 }
 
 /** Shortens a public address while preserving both identifying ends. */
@@ -248,6 +283,187 @@ export const primaryWalletAsset = (
         model.maybeSendNetworkSelection.value.assetId,
       )
     : Option.none()
+
+/** Selects the adapter-suggested display amount for a small test transfer. */
+export const primaryWalletSuggestedTestTransferAmount = (
+  model: Model,
+): Option.Option<string> =>
+  Option.map(primaryWalletAsset(model), asset =>
+    displayAmountFromAtomicUnits(
+      asset.suggestedTestTransferAtomicUnits,
+      asset.decimalPlaces,
+    ),
+  )
+
+/** Labels the selected asset's adapter-suggested small test transfer. */
+export const primaryWalletSuggestedTestTransferLabel = (
+  model: Model,
+): Option.Option<string> =>
+  Option.map(primaryWalletAsset(model), asset => {
+    const amount = displayAmountFromAtomicUnits(
+      asset.suggestedTestTransferAtomicUnits,
+      asset.decimalPlaces,
+    )
+    return `${amount} ${asset.symbol} · ${asset.suggestedTestTransferAtomicUnits} ${asset.atomicUnitName}`
+  })
+
+/** The portfolio is not yet available for a transfer preview. */
+export const WaitingForTransferPortfolio = S.TaggedStruct(
+  'WaitingForTransferPortfolio',
+  {},
+)
+/** No exact cryptocurrency, network, Wallet, account, and asset are selected. */
+export const MissingTransferNetwork = S.TaggedStruct(
+  'MissingTransferNetwork',
+  {},
+)
+/** The selected account balance request failed. */
+export const UnavailableTransferBalance = S.TaggedStruct(
+  'UnavailableTransferBalance',
+  {},
+)
+/** The selected account balance has not arrived yet. */
+export const WaitingForTransferBalance = S.TaggedStruct(
+  'WaitingForTransferBalance',
+  {},
+)
+/** A transfer amount has not been entered. */
+export const MissingTransferAmount = S.TaggedStruct('MissingTransferAmount', {})
+/** The entered transfer amount cannot be represented by the selected asset. */
+export const InvalidPreviewTransferAmount = S.TaggedStruct(
+  'InvalidPreviewTransferAmount',
+  {},
+)
+/** A recipient address has not been entered. */
+export const MissingTransferRecipient = S.TaggedStruct(
+  'MissingTransferRecipient',
+  {},
+)
+/** The selected adapter rejected the entered recipient address. */
+export const InvalidPreviewTransferRecipient = S.TaggedStruct(
+  'InvalidPreviewTransferRecipient',
+  {},
+)
+/** The selected adapter is validating the recipient address. */
+export const ValidatingPreviewTransfer = S.TaggedStruct(
+  'ValidatingPreviewTransfer',
+  {},
+)
+/** The selected adapter is preparing a transaction preview. */
+export const PreparingTransferPreview = S.TaggedStruct(
+  'PreparingTransferPreview',
+  {},
+)
+/** The signer and adapter are submitting the confirmed preview. */
+export const SubmittingPreviewedTransfer = S.TaggedStruct(
+  'SubmittingPreviewedTransfer',
+  {},
+)
+/** The transfer inputs are ready for adapter validation and preview. */
+export const ReadyToPreviewTransfer = S.TaggedStruct(
+  'ReadyToPreviewTransfer',
+  {},
+)
+/** The exact preview is ready for explicit signing and submission. */
+export const ReadyToSendPreviewedTransfer = S.TaggedStruct(
+  'ReadyToSendPreviewedTransfer',
+  {},
+)
+/** Derived readiness for the single transfer action rendered by every host. */
+export const TransferPreviewReadiness = S.Union([
+  WaitingForTransferPortfolio,
+  MissingTransferNetwork,
+  UnavailableTransferBalance,
+  WaitingForTransferBalance,
+  MissingTransferAmount,
+  InvalidPreviewTransferAmount,
+  MissingTransferRecipient,
+  InvalidPreviewTransferRecipient,
+  ValidatingPreviewTransfer,
+  PreparingTransferPreview,
+  SubmittingPreviewedTransfer,
+  ReadyToPreviewTransfer,
+  ReadyToSendPreviewedTransfer,
+])
+/** Derived readiness for the single transfer action rendered by every host. */
+export type TransferPreviewReadiness = typeof TransferPreviewReadiness.Type
+
+/** Derives the exact reason the shared transfer action is enabled or blocked. */
+export const transferPreviewReadiness = (
+  model: Model,
+): TransferPreviewReadiness => {
+  if (model.portfolio._tag !== 'LoadedPortfolio') {
+    return WaitingForTransferPortfolio.make({})
+  }
+  if (Option.isNone(model.maybeSendNetworkSelection)) {
+    return MissingTransferNetwork.make({})
+  }
+  if (Option.isNone(primaryWalletBalance(model))) {
+    return isPrimaryWalletBalanceUnavailable(model)
+      ? UnavailableTransferBalance.make({})
+      : WaitingForTransferBalance.make({})
+  }
+  if (model.transferAmount._tag === 'EmptyTransferAmount') {
+    return MissingTransferAmount.make({})
+  }
+  if (model.transferAmount._tag !== 'ValidTransferAmount') {
+    return InvalidPreviewTransferAmount.make({})
+  }
+  if (model.transferRecipient._tag === 'EmptyTransferRecipient') {
+    return MissingTransferRecipient.make({})
+  }
+  if (model.transferRecipient._tag === 'InvalidTransferRecipient') {
+    return InvalidPreviewTransferRecipient.make({})
+  }
+  if (model.transaction._tag === 'ValidatingTransfer') {
+    return ValidatingPreviewTransfer.make({})
+  }
+  if (model.transaction._tag === 'PreviewingTransaction') {
+    return PreparingTransferPreview.make({})
+  }
+  if (model.transaction._tag === 'SubmittingTransaction') {
+    return SubmittingPreviewedTransfer.make({})
+  }
+  if (model.transaction._tag === 'PreviewedTransaction') {
+    return ReadyToSendPreviewedTransfer.make({})
+  }
+  return ReadyToPreviewTransfer.make({})
+}
+
+/** Reports whether the current preview or send action can run. */
+export const isTransferPreviewActionEnabled = (model: Model): boolean => {
+  const readiness = transferPreviewReadiness(model)
+  return (
+    readiness._tag === 'ReadyToPreviewTransfer' ||
+    readiness._tag === 'ReadyToSendPreviewedTransfer'
+  )
+}
+
+/** Explains why the current transfer can or cannot be previewed. */
+export const transferPreviewReadinessLabel = (model: Model): string =>
+  M.value(transferPreviewReadiness(model)).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      WaitingForTransferPortfolio: () => 'Loading balances before preview.',
+      MissingTransferNetwork: () => 'Select a cryptocurrency and network.',
+      UnavailableTransferBalance: () =>
+        'Balance unavailable. Refresh the portfolio to retry.',
+      WaitingForTransferBalance: () =>
+        'Waiting for the selected account balance.',
+      MissingTransferAmount: () =>
+        'Enter an amount or use the small test amount.',
+      InvalidPreviewTransferAmount: () => 'Enter a valid positive amount.',
+      MissingTransferRecipient: () => 'Enter a recipient address.',
+      InvalidPreviewTransferRecipient: () =>
+        'Edit the recipient address before retrying.',
+      ValidatingPreviewTransfer: () => 'Validating the recipient.',
+      PreparingTransferPreview: () => 'Preparing the network preview.',
+      SubmittingPreviewedTransfer: () => 'Submitting the signed transaction.',
+      ReadyToPreviewTransfer: () => 'Ready to preview.',
+      ReadyToSendPreviewedTransfer: () =>
+        'Preview ready. Confirm to sign and send.',
+    }),
+  )
 
 /** Selects the primary account and asset's receiving instruction. */
 export const primaryReceivingInstruction = (

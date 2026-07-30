@@ -23,6 +23,7 @@ import {
   type Message,
   Model,
   RequestedChallengeSignature,
+  RequestedClipboardCopy,
   RequestedNextTransactionHistoryPage,
   RequestedSignedTransactionSubmission,
   RequestedTestFunding,
@@ -37,14 +38,21 @@ import {
   WalletProgram,
   type WalletResources,
   activeWalletAccounts,
+  assetAmountLabelForModel,
+  clipboardCopyRequestForAddress,
+  isTransferPreviewActionEnabled,
   nextSendNetworkSelection,
   parseWalletProgramRoute,
   primaryReceivingInstruction,
+  primaryWalletSuggestedTestTransferAmount,
+  primaryWalletSuggestedTestTransferLabel,
   primaryWalletTestFundingMethod,
   selectedSendNetworkLabel,
   toggledWalletNetworkMode,
   transferAmountInput,
+  transferPreviewReadinessLabel,
   transferRecipientInput,
+  walletAccountBalanceLabel,
 } from 'wallet-core-example'
 import { MacOSLiveWalletResources } from 'wallet-node-client-example'
 
@@ -57,6 +65,7 @@ export const WalletTerminalAction = S.Literals([
   'CreateWallet',
   'ToggleNetwork',
   'SelectNextSendNetwork',
+  'UseSuggestedTestAmount',
   'EditAmount',
   'EditRecipient',
   'Receive',
@@ -138,6 +147,7 @@ export const actionForWalletTerminalInput = (
     M.when('w', () => Option.some('CreateWallet')),
     M.when('t', () => Option.some('ToggleNetwork')),
     M.when('x', () => Option.some('SelectNextSendNetwork')),
+    M.when('u', () => Option.some('UseSuggestedTestAmount')),
     M.when('a', () => Option.some('EditAmount')),
     M.when('d', () => Option.some('EditRecipient')),
     M.when('r', () => Option.some('Receive')),
@@ -202,7 +212,7 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
     ...Array.map(
       activeWalletAccounts(wallet, networks, model.walletNetworkMode),
       account =>
-        `  ${account.chainId} | ${account.networkName} | ${account.address}`,
+        `  ${account.chainId} | ${account.networkName} | ${walletAccountBalanceLabel(model, account.accountId)} | ${account.address}`,
     ),
   ])
   return [
@@ -216,10 +226,17 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
     `Transaction: ${model.transaction._tag}`,
     `Amount: ${transferAmountInput(model.transferAmount)}`,
     `Recipient: ${transferRecipientInput(model.transferRecipient)}`,
+    `Send readiness: ${transferPreviewReadinessLabel(model)}`,
     ...transactionLines,
     ...addressValidationLines,
     `Signature: ${model.signature._tag}`,
+    `History: ${model.transactionHistory._tag} | Observation: ${model.transactionObservation._tag} | Funding: ${model.testFunding._tag} | Clipboard: ${model.clipboardCopy._tag}`,
     `Transactions: ${model.transactions.length.toString()}`,
+    ...Array.map(
+      Array.take(model.transactions, 6),
+      transaction =>
+        `  ${transaction.direction} | ${transaction.status} | ${assetAmountLabelForModel(model, transaction.amount)} | ${transaction.transactionId}`,
+    ),
   ]
 }
 
@@ -255,7 +272,7 @@ export const renderWalletTerminal = (
       ...inputLines,
       '',
       '[s] Show  [w] Create wallet  [t] Cycle Devnet/Testnet/Live  [x] Next send network',
-      '[a] Edit amount  [d] Edit recipient  [p] Preview  [n] Send',
+      '[a] Edit amount  [u] Use small test amount  [d] Edit recipient  [p] Preview  [n] Send',
       '[r] Receive  [y] Reload history  [g] Next history page',
       '[f] Request test funds  [c] Sign challenge',
       '[←/h] Previous replay frame  [→/l] Next replay frame  [v] Live',
@@ -513,6 +530,34 @@ const runLiveAction = (
         }),
       )
     }),
+    M.when('UseSuggestedTestAmount', () => {
+      const model = state.runtime.readModel()
+      const maybeAmount = primaryWalletSuggestedTestTransferAmount(model)
+      const maybeLabel = primaryWalletSuggestedTestTransferLabel(model)
+      if (Option.isNone(maybeAmount)) {
+        return Effect.succeed({
+          ...state,
+          maybeNotice: Option.some(
+            'No adapter-suggested test amount is available.',
+          ),
+        })
+      }
+      return Effect.map(
+        state.runtime.run(
+          ChangedTransferAmount.make({ value: maybeAmount.value }),
+        ),
+        () => ({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(
+            `Small test amount selected: ${Option.getOrElse(
+              maybeLabel,
+              () => maybeAmount.value,
+            )}.`,
+          ),
+        }),
+      )
+    }),
     M.when('EditAmount', () =>
       Effect.succeed({
         ...state,
@@ -568,15 +613,32 @@ const runLiveAction = (
         maybeMethod.value._tag === 'ExternalTestFundingMethod'
       ) {
         const maybeInstruction = primaryReceivingInstruction(model)
-        return Effect.succeed({
-          ...state,
-          maybeReplaySession: Option.none(),
-          maybeNotice: Option.some(
-            Option.isSome(maybeInstruction)
-              ? `Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl} | Receiving address: ${maybeInstruction.value.destinationAddress}`
-              : `Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl}`,
+        if (Option.isNone(maybeInstruction)) {
+          return Effect.succeed({
+            ...state,
+            maybeReplaySession: Option.none(),
+            maybeNotice: Option.some(
+              `Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl}`,
+            ),
+          })
+        }
+        return Effect.map(
+          state.runtime.run(
+            RequestedClipboardCopy.make({
+              request: clipboardCopyRequestForAddress(
+                maybeInstruction.value.destinationAddress,
+                'external-faucet',
+              ),
+            }),
           ),
-        })
+          () => ({
+            ...state,
+            maybeReplaySession: Option.none(),
+            maybeNotice: Option.some(
+              `Address copied. Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl} | ${maybeInstruction.value.destinationAddress}`,
+            ),
+          }),
+        )
       }
       if (
         Option.isNone(maybeMethod) ||
@@ -601,20 +663,28 @@ const runLiveAction = (
         }),
       )
     }),
-    M.when('Preview', () =>
-      Effect.map(
+    M.when('Preview', () => {
+      const model = state.runtime.readModel()
+      if (!isTransferPreviewActionEnabled(model)) {
+        return Effect.succeed({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(transferPreviewReadinessLabel(model)),
+        })
+      }
+      return Effect.map(
         state.runtime.run(RequestedTransferPreview.make({})),
-        model => ({
+        nextModel => ({
           ...state,
           maybeReplaySession: Option.none(),
           maybeNotice: Option.some(
-            model.transaction._tag === 'PreviewedTransaction'
+            nextModel.transaction._tag === 'PreviewedTransaction'
               ? 'The transfer preview is ready to send.'
-              : `Preview settled: ${model.transaction._tag}.`,
+              : `Preview failed to settle: ${nextModel.transaction._tag}.`,
           ),
         }),
-      ),
-    ),
+      )
+    }),
     M.when('Send', () =>
       Effect.map(sendWalletTransaction(state.runtime), model => ({
         ...state,

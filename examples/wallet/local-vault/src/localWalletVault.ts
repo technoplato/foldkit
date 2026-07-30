@@ -7,6 +7,7 @@ import {
   Order,
   Redacted,
   Schema as S,
+  Semaphore,
 } from 'effect'
 import { getAddress, verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -844,60 +845,81 @@ const makeLocalWalletServices = (
   Effect.gen(function* () {
     const accountById = new Map<string, LocalWalletAccountCustody>()
     const walletByRequestId = new Map<string, WalletProfile>()
+    const registrySemaphore = yield* Semaphore.make(1)
 
-    const registerWallet = (loaded: LoadedLocalWallet): void => {
-      walletByRequestId.set(loaded.wallet.walletId, loaded.wallet)
-      for (const account of loaded.accounts) {
-        accountById.set(account.profile.accountId, account)
-      }
-    }
-
-    const loadRecords = yield* Effect.cached(
-      storage.loadRecords.pipe(
-        Effect.flatMap(records =>
-          Effect.forEach(records, encoded =>
-            Effect.try({
-              try: () => {
-                const decoded = decodeStoredRecord(encoded)
-                return {
-                  ...decoded,
-                  loaded: loadedWalletForRecord(decoded.record),
-                }
-              },
-              catch: error =>
-                error instanceof WalletVaultError
-                  ? error
-                  : invalidKeyMaterial(),
-            }).pipe(
-              Effect.flatMap(decoded => {
-                if (decoded.isMigration) {
-                  return storage
-                    .saveRecord(
-                      decoded.loaded.wallet.walletId,
-                      encodeStoredRecord(decoded.record),
-                    )
-                    .pipe(Effect.as(decoded.loaded))
-                } else {
-                  return Effect.succeed(decoded.loaded)
-                }
-              }),
-            ),
+    const refreshRegistryUnsafe = storage.loadRecords.pipe(
+      Effect.flatMap(records =>
+        Effect.forEach(records, encoded =>
+          Effect.try({
+            try: () => {
+              const decoded = decodeStoredRecord(encoded)
+              return {
+                ...decoded,
+                loaded: loadedWalletForRecord(decoded.record),
+              }
+            },
+            catch: error =>
+              error instanceof WalletVaultError ? error : invalidKeyMaterial(),
+          }).pipe(
+            Effect.flatMap(decoded => {
+              if (decoded.isMigration) {
+                return storage
+                  .saveRecord(
+                    decoded.loaded.wallet.walletId,
+                    encodeStoredRecord(decoded.record),
+                  )
+                  .pipe(Effect.as(decoded.loaded))
+              } else {
+                return Effect.succeed(decoded.loaded)
+              }
+            }),
           ),
         ),
-        Effect.flatMap(wallets =>
-          Effect.sync(() => {
-            for (const wallet of wallets) {
-              registerWallet(wallet)
+      ),
+      Effect.flatMap(wallets =>
+        Effect.try({
+          try: () => {
+            const nextAccountById = new Map<string, LocalWalletAccountCustody>()
+            const nextWalletByRequestId = new Map<string, WalletProfile>()
+            for (const loaded of wallets) {
+              if (nextWalletByRequestId.has(loaded.wallet.walletId)) {
+                throw invalidKeyMaterial()
+              }
+              nextWalletByRequestId.set(loaded.wallet.walletId, loaded.wallet)
+              for (const account of loaded.accounts) {
+                if (nextAccountById.has(account.profile.accountId)) {
+                  throw invalidKeyMaterial()
+                }
+                nextAccountById.set(account.profile.accountId, account)
+              }
             }
-          }),
-        ),
+            accountById.clear()
+            walletByRequestId.clear()
+            for (const [accountId, account] of nextAccountById) {
+              accountById.set(accountId, account)
+            }
+            for (const [requestId, wallet] of nextWalletByRequestId) {
+              walletByRequestId.set(requestId, wallet)
+            }
+          },
+          catch: error =>
+            error instanceof WalletVaultError ? error : invalidKeyMaterial(),
+        }),
       ),
     )
+
+    const refreshRegistry = registrySemaphore.withPermit(refreshRegistryUnsafe)
+
+    const walletSnapshot = (): ReadonlyArray<WalletProfile> =>
+      Array_.sort(
+        Array_.fromIterable(walletByRequestId.values()),
+        walletCreatedAtOrder,
+      )
 
     const accountForSigner = (
       accountId: string,
     ): Effect.Effect<LocalWalletAccountCustody, WalletSignerError> =>
-      loadRecords.pipe(
+      refreshRegistry.pipe(
         Effect.mapError(unavailableSigner),
         Effect.flatMap(() => {
           const account = accountById.get(accountId)
@@ -910,46 +932,48 @@ const makeLocalWalletServices = (
       )
 
     const vault = WalletVault.of({
-      loadWallets: loadRecords.pipe(
-        Effect.map(() =>
-          Array_.sort(
-            Array_.fromIterable(walletByRequestId.values()),
-            walletCreatedAtOrder,
-          ),
-        ),
-      ),
+      loadWallets: refreshRegistry.pipe(Effect.map(walletSnapshot)),
       createWallet: request =>
-        loadRecords.pipe(
-          Effect.flatMap(() => {
-            const existingWallet = walletByRequestId.get(request.requestId)
-            if (existingWallet !== undefined) {
-              return Effect.succeed(existingWallet)
-            }
-            return Effect.try({
-              try: () => createStoredRecord(request, randomBytes),
-              catch: error =>
-                error instanceof WalletVaultError ? error : unavailableVault(),
-            }).pipe(
-              Effect.flatMap(record => {
-                const loaded = loadedWalletForRecord(record)
-                return Effect.uninterruptible(
-                  storage
-                    .saveRecord(
-                      loaded.wallet.walletId,
-                      encodeStoredRecord(record),
-                    )
-                    .pipe(
-                      Effect.flatMap(() =>
-                        Effect.sync(() => {
-                          registerWallet(loaded)
-                          return loaded.wallet
+        registrySemaphore.withPermit(
+          refreshRegistryUnsafe.pipe(
+            Effect.flatMap(() => {
+              const existingWallet = walletByRequestId.get(request.requestId)
+              if (existingWallet !== undefined) {
+                return Effect.succeed(existingWallet)
+              }
+              return Effect.try({
+                try: () => createStoredRecord(request, randomBytes),
+                catch: error =>
+                  error instanceof WalletVaultError
+                    ? error
+                    : unavailableVault(),
+              }).pipe(
+                Effect.flatMap(record => {
+                  const loaded = loadedWalletForRecord(record)
+                  return Effect.uninterruptible(
+                    storage
+                      .saveRecord(
+                        loaded.wallet.walletId,
+                        encodeStoredRecord(record),
+                      )
+                      .pipe(
+                        Effect.flatMap(() => refreshRegistryUnsafe),
+                        Effect.flatMap(() => {
+                          const storedWallet = walletByRequestId.get(
+                            request.requestId,
+                          )
+                          if (storedWallet === undefined) {
+                            return Effect.fail(unavailableVault())
+                          } else {
+                            return Effect.succeed(storedWallet)
+                          }
                         }),
                       ),
-                    ),
-                )
-              }),
-            )
-          }),
+                  )
+                }),
+              )
+            }),
+          ),
         ),
     })
 
@@ -970,7 +994,7 @@ const makeLocalWalletServices = (
 
     const crypto = WalletCrypto.of({
       verifySignatureProof: (challenge, proof) =>
-        loadRecords.pipe(
+        refreshRegistry.pipe(
           Effect.mapError(unavailableCrypto),
           Effect.flatMap(() => {
             const account = accountById.get(challenge.accountId)

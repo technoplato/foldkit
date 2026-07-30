@@ -177,6 +177,8 @@ const nativeAsset = (
   networkId: string,
   displayName: string,
   symbol: string,
+  atomicUnitName: string,
+  suggestedTestTransferAtomicUnits: (typeof AssetAmount.Type)['atomicUnits'],
   decimalPlaces: 8 | 9 | 18,
 ) =>
   AssetDescriptor.make({
@@ -184,6 +186,8 @@ const nativeAsset = (
     networkId,
     displayName,
     symbol,
+    atomicUnitName,
+    suggestedTestTransferAtomicUnits,
     decimalPlaces,
     kind: NativeAsset.make({}),
   })
@@ -194,6 +198,8 @@ const assets = [
     bitcoinRegtestNetworkId,
     'Regtest Bitcoin',
     'BTC',
+    'sat',
+    '1000',
     8,
   ),
   nativeAsset(
@@ -201,6 +207,8 @@ const assets = [
     bitcoinTestnetNetworkId,
     'Testnet Bitcoin',
     'BTC',
+    'sat',
+    '1000',
     8,
   ),
   nativeAsset(
@@ -208,6 +216,8 @@ const assets = [
     ethereumLocalnetNetworkId,
     'Local Ether',
     'ETH',
+    'wei',
+    '1',
     18,
   ),
   nativeAsset(
@@ -215,18 +225,46 @@ const assets = [
     ethereumNetworkId,
     'Sepolia Ether',
     'ETH',
+    'wei',
+    '1',
     18,
   ),
-  nativeAsset(solanaSolAssetId, solanaNetworkId, 'Devnet SOL', 'SOL', 9),
+  nativeAsset(
+    solanaSolAssetId,
+    solanaNetworkId,
+    'Devnet SOL',
+    'SOL',
+    'lamport',
+    '1',
+    9,
+  ),
   nativeAsset(
     solanaTestnetAssetId,
     solanaTestnetNetworkId,
     'Testnet SOL',
     'SOL',
+    'lamport',
+    '1',
     9,
   ),
-  nativeAsset(suiDevnetAssetId, suiDevnetNetworkId, 'Devnet SUI', 'SUI', 9),
-  nativeAsset(suiTestnetAssetId, suiTestnetNetworkId, 'Testnet SUI', 'SUI', 9),
+  nativeAsset(
+    suiDevnetAssetId,
+    suiDevnetNetworkId,
+    'Devnet SUI',
+    'SUI',
+    'MIST',
+    '1',
+    9,
+  ),
+  nativeAsset(
+    suiTestnetAssetId,
+    suiTestnetNetworkId,
+    'Testnet SUI',
+    'SUI',
+    'MIST',
+    '1',
+    9,
+  ),
 ]
 
 const amount = (
