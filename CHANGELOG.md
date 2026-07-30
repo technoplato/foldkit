@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:20:54 a.m. EDT — `d1b3d9860553` feat(instant-tools): observe issues and filing domains
+
+- **Implementation commit:** `d1b3d986055301e4c261748dd77bdd94f7a6e843`
+- **Change:** Observe Issue collections and individual Issues while cataloging Applications and Libraries as first-class filing domains.
+- **Details:**
+  - Added scoped Instant subscribeQuery streams, a dedicated single-Issue query, the ProductCatalog Effect service, Instant product entities and envelopes, tests, and package guidance.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Defines catalog entries around the existing tagged Application and Library domain.
+  - `packages/instant-tools/src/issues/issueTracker.ts` — Exposes collection and detail observation as transport-neutral Effect Streams.
+  - `packages/instant-tools/src/issues/productCatalog.ts` — Defines the controlled ProductCatalog dependency.
+  - `packages/instant-tools/src/instant/instant.ts` — Implements scoped Instant subscriptions and product persistence.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Proves live collection, detail, and product behavior.
+  - `packages/instant-tools/README.md` — Documents the live APIs and filing catalog.
+- **User context (verbatim):**
+  > Single instant app is fine for now
+  > make sure we have applications/libraries as domains to file against
+- **SpecStory:** unavailable — SpecStory URI unavailable because this Codex desktop task was not captured by SpecStory.
+
 ## July 30th, 2026 at 12:01:38 a.m. EDT — `ab785b7a79f8` feat: add typed issue success criteria
 
 - **Implementation commit:** `ab785b7a79f8f1e9423b5c44cdeb2074713c5b51`
