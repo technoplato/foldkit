@@ -1,4 +1,4 @@
-import { Array, Match as M, Schema as S } from 'effect'
+import { Array, Effect, Match as M, Schema as S } from 'effect'
 
 /** The urgency of an Issue, ordered from immediate P0 to eventual P4. */
 export const IssuePriority = S.Literals(['P0', 'P1', 'P2', 'P3', 'P4'])
@@ -170,6 +170,34 @@ export const IssueWorkLogEntry = S.Struct({
 /** One dated unit of work associated with an Issue. */
 export type IssueWorkLogEntry = typeof IssueWorkLogEntry.Type
 
+/** A kind of proof required to demonstrate that an Issue outcome succeeded. */
+export const IssueSuccessEvidence = S.Literals([
+  'Accessibility',
+  'BuildProvenance',
+  'FocusedTest',
+  'Log',
+  'Persistence',
+  'PhysicalDeviceInteraction',
+  'SimulatorInteraction',
+  'VisualComparison',
+])
+/** A kind of proof required to demonstrate that an Issue outcome succeeded. */
+export type IssueSuccessEvidence = typeof IssueSuccessEvidence.Type
+
+/** One independently checkable user-visible outcome and its required proof. */
+export const IssueSuccessCriterion = S.Struct({
+  id: S.String,
+  outcome: S.String,
+  requiredEvidence: S.Array(IssueSuccessEvidence),
+})
+/** One independently checkable user-visible outcome and its required proof. */
+export type IssueSuccessCriterion = typeof IssueSuccessCriterion.Type
+
+const IssueSuccessCriteria = S.Array(IssueSuccessCriterion).pipe(
+  S.withDecodingDefaultKey(Effect.succeed([])),
+  S.withConstructorDefault(Effect.succeed([])),
+)
+
 /** A lossless human-readable source document imported into the Issue tracker. */
 export const IssueSourceDocument = S.Struct({
   body: S.String,
@@ -191,6 +219,7 @@ export const Issue = S.Struct({
   projectId: S.OptionFromNullOr(S.String),
   sourceDocument: S.OptionFromNullOr(IssueSourceDocument),
   status: IssueStatus,
+  successCriteria: IssueSuccessCriteria,
   title: S.String,
   updatedAtMs: S.Number,
   workLog: S.Array(IssueWorkLogEntry),
