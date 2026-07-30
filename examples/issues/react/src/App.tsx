@@ -4,6 +4,7 @@ import {
   type Destination,
   FileIssueDestination,
   type IssueDetailState,
+  type IssueLogsState,
   type IssuesState,
   destinationForModel,
   modelForNavigation,
@@ -13,7 +14,11 @@ import {
 import { type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { useProgramNavigationHistory } from 'shared-react-bindings-example'
 
-import { IssuePriority } from '@foldkit/instant-tools/issues'
+import {
+  type IssueLogEvidenceQuery,
+  IssuePriority,
+} from '@foldkit/instant-tools/issues'
+import { type IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { IssueTrackerClient } from './client.js'
 
@@ -55,17 +60,28 @@ const IssueTrackerScreen = () => {
           Live Applications, Libraries, Issues, and transcript-backed triage.
         </p>
       </header>
-      <DestinationView destination={destinationForModel(model)} />
+      <DestinationView
+        destination={destinationForModel(model)}
+        issueLogs={model.issueLogs}
+      />
     </main>
   )
 }
 
-const DestinationView = ({ destination }: { destination: Destination }) =>
+const DestinationView = ({
+  destination,
+  issueLogs,
+}: {
+  destination: Destination
+  issueLogs: IssueLogsState
+}) =>
   M.value(destination).pipe(
     M.withReturnType<ReactNode>(),
     M.tagsExhaustive({
       IssueListDestination: ({ state }) => <IssueList state={state} />,
-      IssueDetailDestination: ({ state }) => <IssueDetail state={state} />,
+      IssueDetailDestination: ({ state }) => (
+        <IssueDetail logsState={issueLogs} state={state} />
+      ),
       FileIssueDestination: props => <FileIssue {...props} />,
       TriageInboxDestination: ({ state }) => <TriageInbox state={state} />,
     }),
@@ -135,7 +151,125 @@ const BackButton = () => {
   )
 }
 
-const IssueDetail = ({ state }: { state: IssueDetailState }) => {
+const safeViewerURL = (value: string): Option.Option<string> => {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' ? Option.some(url.href) : Option.none()
+  } catch {
+    return Option.none()
+  }
+}
+
+const SafeViewerLink = ({ href, label }: { href: string; label: string }) => {
+  const maybeHref = safeViewerURL(href)
+  return Option.isSome(maybeHref) ? (
+    <a
+      aria-label={label + ' (opens in a new tab)'}
+      href={maybeHref.value}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {label}
+    </a>
+  ) : null
+}
+
+const IssueEvidenceRow = ({ log }: { log: IssueLogEvidence }) => {
+  const maybeViewerURL = safeViewerURL(log.viewerURL)
+  const timestamp = new Date(log.timestampMs).toISOString()
+  const issueReference = 'Issue #' + log.issueID
+  return (
+    <article
+      className="evidence-row"
+      data-log-id={log.logNamespace + ':' + log.logID}
+    >
+      <p className="evidence-meta">
+        {Option.isSome(maybeViewerURL) ? (
+          <a
+            aria-label={
+              'Open ' + issueReference + ' evidence viewer in a new tab'
+            }
+            href={maybeViewerURL.value}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {issueReference}
+          </a>
+        ) : (
+          <span>{issueReference}</span>
+        )}
+        <span>{log.level}</span>
+        <code>{log.name}</code>
+        <time dateTime={timestamp}>{timestamp}</time>
+      </p>
+      <p>{log.message}</p>
+      {Array.isReadonlyArrayEmpty(log.contributingPaths) ? null : (
+        <ul
+          aria-label={'Evidence paths for ' + issueReference}
+          className="evidence-paths"
+        >
+          {Array.map(log.contributingPaths, path => (
+            <li key={path.relationship + ':' + path.path}>
+              <strong>{path.relationship}</strong>
+              <span> · </span>
+              <code>{path.path}</code>
+              {Option.isSome(path.reason) ? (
+                <>
+                  <span> · </span>
+                  <span>{path.reason.value}</span>
+                </>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </article>
+  )
+}
+
+/** Renders the shared live Issue log observation without owning transport. */
+export const IssueEvidenceRows = ({
+  state,
+}: {
+  state: IssueLogsState
+}): ReactNode =>
+  M.value(state).pipe(
+    M.withReturnType<ReactNode>(),
+    M.tagsExhaustive({
+      NotObservingIssueLogs: () => null,
+      LoadingIssueLogs: () => <p aria-live="polite">Loading tagged logs…</p>,
+      FailedIssueLogs: ({ reason }) => <p role="alert">{reason}</p>,
+      LoadedIssueLogs: ({ logs }) =>
+        Array.isReadonlyArrayEmpty(logs) ? (
+          <p>No logs have been tagged with this Issue yet.</p>
+        ) : (
+          <div className="evidence-list">
+            {Array.map(logs, log => (
+              <IssueEvidenceRow
+                key={log.logNamespace + ':' + log.logID}
+                log={log}
+              />
+            ))}
+          </div>
+        ),
+    }),
+  )
+
+const EvidenceQuery = ({ query }: { query: IssueLogEvidenceQuery }) => (
+  <details className="evidence-query">
+    <summary>{query.label}</summary>
+    <pre>{query.instantQueryJSON}</pre>
+    <SafeViewerLink href={query.viewerURL} label="Open saved evidence query" />
+  </details>
+)
+
+const IssueDetail = ({
+  logsState,
+  state,
+}: {
+  logsState: IssueLogsState
+  state: IssueDetailState
+}) => {
   if (state._tag === 'LoadingIssue') {
     return (
       <section>
@@ -177,6 +311,17 @@ const IssueDetail = ({ state }: { state: IssueDetailState }) => {
         <dt>Status</dt>
         <dd>{issue.status}</dd>
       </dl>
+      <section
+        aria-labelledby="evidence-logs-heading"
+        className="evidence-section"
+        id="evidence-logs"
+      >
+        <h3 id="evidence-logs-heading">Evidence logs</h3>
+        {Array.map(issue.evidenceLogQueries, query => (
+          <EvidenceQuery key={query.id} query={query} />
+        ))}
+        <IssueEvidenceRows state={logsState} />
+      </section>
     </article>
   )
 }
