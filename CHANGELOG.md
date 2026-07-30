@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 2:00:12 p.m. EDT — `cbce8b28750f` fix(live-client): reject unfunded network transfers
+
+- **Implementation commit:** `cbce8b28750f16522d8f682bf250707f72fe267d`
+- **Change:** Reject unfunded Ethereum and Sui transfers with actionable Wallet errors.
+- **Details:**
+  - Mapped viem typed insufficient-funds cause chains to Rejected across Ethereum preview, payload rebuild, and submission while leaving genuine transport failures Unavailable.
+  - Rejected zero-balance Sui transfers before simulation or payload rebuild and rejected failed Sui simulations before exposing a quote.
+  - Added focused regression tests for zero balances, typed gas-estimation rejection, failed simulation, and transport-error preservation.
+- **Files:**
+  - `examples/wallet/live-client/src/ethereum.ts` — Preserve typed insufficient-funds semantics throughout the Ethereum send lifecycle.
+  - `examples/wallet/live-client/src/ethereum.test.ts` — Prove zero-balance, typed rejection, and transport-unavailable behavior.
+  - `examples/wallet/live-client/src/sui.ts` — Reject unfunded transfers and failed simulations before quoting or rebuilding.
+  - `examples/wallet/live-client/src/sui.test.ts` — Prove zero-balance and failed-simulation rejection.
+- **User context (verbatim):**
+  > The preview send button is grayed out for both of these addresses on both testnet and DevNet for Ethereum.
+  > Make sure sending works too across all chains and network modes and modalities please
+- **SpecStory:** unavailable — Unavailable: this work was performed in Codex desktop, whose GUI task capture is not documented by SpecStory.
+
 ## July 30th, 2026 at 1:56:22 p.m. EDT — `27b58513a2ef` feat: synchronize authenticated Program processors
 
 - **Implementation commit:** `27b58513a2efa1261fc04be3f8a6ac9485aee79c`
