@@ -1,0 +1,28 @@
+{
+  "name": "instant-counter-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "headless": "tsx src/headless/entry.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@instantdb/admin": "1.0.53",
+    "@instantdb/core": "1.0.53",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}

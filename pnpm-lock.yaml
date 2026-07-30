@@ -1810,6 +1810,46 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  examples/instant-counter:
+    dependencies:
+      '@foldkit/instant':
+        specifier: workspace:*
+        version: link:../../packages/instant
+      '@instantdb/admin':
+        specifier: 1.0.53
+        version: 1.0.53
+      '@instantdb/core':
+        specifier: 1.0.53
+        version: 1.0.53
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      foldkit:
+        specifier: workspace:*
+        version: link:../../packages/foldkit
+    devDependencies:
+      '@foldkit/vite-plugin':
+        specifier: workspace:*
+        version: link:../../packages/vite-plugin-foldkit
+      '@types/node':
+        specifier: ^25.9.3
+        version: 25.9.3
+      prettier:
+        specifier: ^3.8.4
+        version: 3.8.4
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
   examples/interrupting-commands:
     dependencies:
       '@effect/platform-browser':
@@ -5710,11 +5750,21 @@ packages:
       '@types/node':
         optional: true
 
+  '@instantdb/admin@1.0.53':
+    resolution: {integrity: sha512-0DaQtHAPs7jWZQkZ49xNTsdDbubkS/6X83eAqg2wu2ymY+zFazPSmSozvXf5M5cZovEOuZvNfYk7j0RbCTaLrg==}
+
   '@instantdb/core@1.0.53':
     resolution: {integrity: sha512-T49dAzoBi5p8gaLULA/MYRKRs5+H6UxgfpWuKPsCMj0RwcqrEoSckSAyBLOQKpyCo6kfvJcX8kjLiA52nXI7Ig==}
 
+  '@instantdb/eventsource@4.1.0-2':
+    resolution: {integrity: sha512-k2uzhsRzdD7hzV3fv+eoCRNeluZcj4pDfUKKAhvIS6xshc7zHkaM9/m3vxBgaYoNVmvOyaGp84TcHG0/Bp7k4g==}
+    engines: {node: '>=20.0.0'}
+
   '@instantdb/version@1.0.53':
     resolution: {integrity: sha512-N9L9XKPyES/jrwl6VpsQtGpeOzRxjBbEGIoNuhFW+pRgGMgbCdhwP2Isob0b5P8w3XUr7le+rBxy7zhJH3kAiA==}
+
+  '@instantdb/webhooks@1.0.53':
+    resolution: {integrity: sha512-QUOmMET9Bvqnkx12v/RJZGlwOTH5cAGQwQa1KM1Oyb9wkPRU9oWD6IPDS9FJWsxuadJJHPHo7Ws57bvrIugJjg==}
 
   '@internationalized/date@3.12.2':
     resolution: {integrity: sha512-FY1Y+H64NDs+HAF6omlnWxm3mEpfgaCSWtL5l551ZZfImA+kGjPFgrnJrGjH6lfmLL0g8Z/mBu1R3kufeCp6Jw==}
@@ -8114,6 +8164,10 @@ packages:
   cookie@0.7.2:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
+
+  cookie@1.1.1:
+    resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
+    engines: {node: '>=18'}
 
   core-js-compat@3.49.0:
     resolution: {integrity: sha512-VQXt1jr9cBz03b331DFDCCP90b3fanciLkgiOoy8SBHy06gNf+vQ1A3WFLqG7I8TipYIKeYK9wxd0tUrvHcOZA==}
@@ -12506,13 +12560,30 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.9.3
 
+  '@instantdb/admin@1.0.53':
+    dependencies:
+      '@instantdb/core': 1.0.53
+      '@instantdb/eventsource': 4.1.0-2
+      '@instantdb/version': 1.0.53
+      '@instantdb/webhooks': 1.0.53
+      cookie: 1.1.1
+      uuid: 11.1.1
+
   '@instantdb/core@1.0.53':
     dependencies:
       '@instantdb/version': 1.0.53
       mutative: 1.3.0
       uuid: 11.1.1
 
+  '@instantdb/eventsource@4.1.0-2':
+    dependencies:
+      eventsource-parser: 3.1.0
+
   '@instantdb/version@1.0.53': {}
+
+  '@instantdb/webhooks@1.0.53':
+    dependencies:
+      '@instantdb/core': 1.0.53
 
   '@internationalized/date@3.12.2':
     dependencies:
@@ -14866,6 +14937,8 @@ snapshots:
   cookie-signature@1.2.2: {}
 
   cookie@0.7.2: {}
+
+  cookie@1.1.1: {}
 
   core-js-compat@3.49.0:
     dependencies:
