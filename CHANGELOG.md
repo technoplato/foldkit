@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 10:31:39 a.m. EDT — `89b4350e26b5` chore(words): lock workspace dependencies
+
+- **Implementation commit:** `89b4350e26b510aee13ee25e1a1600d6adefd866`
+- **Change:** Record the Words workspace dependency resolutions
+- **Details:**
+  - Added only the examples/words importer with the exact runtime and development dependency specifiers from its committed package manifest.
+  - Re-inspected the complete 28-line lockfile diff and confirmed it contains no package snapshot or unrelated workspace importer changes.
+  - Validated all 120 workspace projects under Node v24.11.1 and pnpm 11.8.0 with a frozen lockfile-only no-scripts install; pnpm reported Already up to date.
+- **Files:**
+  - `pnpm-lock.yaml` — Make the Words example reproducible in frozen workspace installs without changing any existing dependency resolution.
+- **User context (verbatim):**
+  > Please take ownership of the remaining `pnpm-lock.yaml` diff as a necessary Words dependency-metadata follow-up.
+- **SpecStory:** unavailable — This recovery follow-up was performed in Codex desktop; public SpecStory sharing was not authorized and no verified CLI capture URI is available. Source implementation session: /Users/laptop/.codex/sessions/2026/07/30/rollout-2026-07-30T07-30-25-019fb2ca-3b4c-70d2-97c1-4a28b6328c41.jsonl.
+
 ## July 30th, 2026 at 10:30:25 a.m. EDT — `6498f383167b` feat(words): add progressive transcript player
 
 - **Implementation commit:** `6498f383167be4b6933094938f93e689c23f483a`
