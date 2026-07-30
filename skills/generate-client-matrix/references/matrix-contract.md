@@ -5,6 +5,13 @@
 Use `Client` as the umbrella term for one runnable Program adapter. Do not use
 `medium` as a catch-all.
 
+Use `Processor` for one running occurrence of the Program. A Processor consumes
+Messages, is realized by one live or replay `ProgramRuntime`, and advertises
+capabilities. One Client may host several Processors, including several
+occurrences on one machine. A headless Client may host Processors with its
+renderer axis set to `none`, while a one-shot Client may address a longer-lived
+Processor and print only its current snapshot.
+
 | Axis                | Meaning                               | Examples                                                            |
 | ------------------- | ------------------------------------- | ------------------------------------------------------------------- |
 | Interaction surface | How a person or caller interacts      | Graphical, Terminal UI, line terminal, one-shot CLI, server request |
@@ -13,8 +20,9 @@ Use `Client` as the umbrella term for one runnable Program adapter. Do not use
 | Host                | Composition and launch owner          | Vite app, Expo app, Effect Platform process, server process         |
 | URI carrier         | Host wrapper around the portable path | HTTPS URL, custom-scheme URL, command-line argument, request URL    |
 
-Expo is a host and toolchain. React Native is a renderer and runtime. iOS,
-Android, web, and Node are platforms. GUI and TUI are interaction surfaces.
+Expo is a host and toolchain. React Native is a renderer and framework
+environment. iOS, Android, web, and Node are platforms. GUI and TUI are
+interaction surfaces.
 
 ## Portable route laws
 
@@ -35,6 +43,8 @@ one canonical ordering and spelling.
 Every matrix cell carries:
 
 - canonical Program identity and version;
+- Processor identity, runtime mode, and advertised capabilities when execution
+  behavior is claimed;
 - state, replay frame, or domain intent identity;
 - portable relative URI;
 - complete client carrier or reproducible launch command;

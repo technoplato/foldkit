@@ -1,0 +1,1197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Foldkit | Shared Program Processors</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family:
+          'ABC Favorit',
+          ui-sans-serif,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        --cream: #f8f7fb;
+        --paper: #ffffff;
+        --gray-50: #f5f4f8;
+        --gray-100: #eeedf2;
+        --gray-200: #e0dfe6;
+        --gray-300: #cdcbd4;
+        --gray-500: #716e7e;
+        --gray-600: #534f60;
+        --gray-700: #3e3a4a;
+        --gray-800: #2a2833;
+        --gray-950: #13121a;
+        --accent-100: #e8f5d0;
+        --accent-300: #a3d154;
+        --accent-500: #82b536;
+        --accent-700: #416812;
+        --blue-100: #e8f2ff;
+        --blue-600: #245ea8;
+        --violet-100: #f2ecff;
+        --violet-600: #7350b6;
+        --amber-100: #fff4d5;
+        --amber-700: #815c00;
+        --red-100: #ffebeb;
+        --red-600: #a33b3b;
+        --mono:
+          'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        --shadow: 0 1.2rem 3.5rem rgba(30, 28, 33, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+        min-width: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        width: 100%;
+        min-height: 100svh;
+        margin: 0;
+        overflow-x: hidden;
+        background:
+          radial-gradient(circle at 90% 2%, #e8f5d0 0, transparent 24rem),
+          var(--cream);
+        color: var(--gray-800);
+        font-weight: 350;
+        line-height: 1.55;
+      }
+
+      button,
+      textarea,
+      input {
+        font: inherit;
+      }
+
+      code,
+      .mono {
+        font-family: var(--mono);
+        font-size: 0.9em;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .shell {
+        width: min(100% - 2rem, 76rem);
+        margin: 0 auto;
+        padding: 1rem 0 5rem;
+      }
+
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.85rem 0;
+        border-bottom: 1px solid var(--gray-200);
+        font-family: var(--mono);
+        font-size: 0.76rem;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+
+      .mark {
+        display: grid;
+        width: 1.65rem;
+        aspect-ratio: 1;
+        place-items: center;
+        border-radius: 0.45rem;
+        background: var(--gray-950);
+        color: var(--accent-300);
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        border: 1px solid var(--gray-200);
+        border-radius: 999px;
+        padding: 0.35rem 0.65rem;
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--gray-600);
+      }
+
+      .status::before {
+        width: 0.5rem;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background: var(--accent-500);
+        content: '';
+      }
+
+      .hero {
+        display: grid;
+        gap: 2rem;
+        padding: clamp(3rem, 8vw, 6rem) 0 3rem;
+      }
+
+      .kicker {
+        margin: 0 0 0.85rem;
+        color: var(--accent-700);
+        font-family: var(--mono);
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        overflow-wrap: anywhere;
+      }
+
+      h1 {
+        max-width: 13ch;
+        margin: 0;
+        color: var(--gray-950);
+        font-size: clamp(3rem, 9vw, 6.5rem);
+        font-weight: 350;
+        letter-spacing: -0.065em;
+        line-height: 0.92;
+      }
+
+      .lede {
+        max-width: 42rem;
+        margin: 1.5rem 0 0;
+        color: var(--gray-600);
+        font-size: clamp(1.1rem, 2vw, 1.42rem);
+      }
+
+      .thesis {
+        align-self: end;
+        border-left: 0.3rem solid var(--accent-500);
+        padding: 1.1rem 1.2rem;
+        background: var(--paper);
+        box-shadow: var(--shadow);
+      }
+
+      .thesis strong {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: var(--gray-950);
+        font-family: var(--mono);
+        font-size: 0.76rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .thesis p {
+        margin: 0;
+      }
+
+      section {
+        scroll-margin-top: 1rem;
+      }
+
+      .section {
+        padding: 3rem 0;
+        border-top: 1px solid var(--gray-200);
+      }
+
+      .section-heading {
+        display: grid;
+        gap: 0.85rem;
+        margin-bottom: 1.5rem;
+      }
+
+      h2 {
+        max-width: 18ch;
+        margin: 0;
+        color: var(--gray-950);
+        font-size: clamp(2rem, 5vw, 3.5rem);
+        font-weight: 350;
+        letter-spacing: -0.045em;
+        line-height: 1;
+      }
+
+      .section-heading p {
+        max-width: 46rem;
+        margin: 0;
+        color: var(--gray-600);
+      }
+
+      .term-grid,
+      .boundary-grid,
+      .mode-grid,
+      .next-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.8rem;
+      }
+
+      .card {
+        border: 1px solid var(--gray-200);
+        border-radius: 0.85rem;
+        padding: 1.1rem;
+        background: rgba(255, 255, 255, 0.86);
+      }
+
+      .card h3 {
+        margin: 0 0 0.5rem;
+        color: var(--gray-950);
+        font-family: var(--mono);
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .card p {
+        margin: 0;
+        color: var(--gray-600);
+        font-size: 0.94rem;
+      }
+
+      .card.processor {
+        border-color: var(--accent-300);
+        background: var(--accent-100);
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.65rem;
+        margin-top: 1.5rem;
+      }
+
+      .flow-node {
+        position: relative;
+        display: grid;
+        gap: 0.35rem;
+        border: 1px solid var(--gray-200);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        background: var(--paper);
+      }
+
+      .flow-node strong {
+        color: var(--gray-950);
+        font-family: var(--mono);
+        font-size: 0.82rem;
+      }
+
+      .flow-node span {
+        color: var(--gray-600);
+        font-size: 0.9rem;
+      }
+
+      .flow-node.shared {
+        border-color: var(--blue-600);
+        background: var(--blue-100);
+      }
+
+      .flow-node.local {
+        border-color: var(--violet-600);
+        background: var(--violet-100);
+      }
+
+      .flow-node.result {
+        border-color: var(--accent-500);
+        background: var(--accent-100);
+      }
+
+      .rule {
+        display: grid;
+        gap: 0.8rem;
+        margin-top: 1.2rem;
+        border-radius: 0.9rem;
+        padding: 1.2rem;
+        background: var(--gray-950);
+        color: var(--gray-100);
+      }
+
+      .rule strong {
+        color: var(--accent-300);
+        font-family: var(--mono);
+        font-size: 0.78rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .rule p {
+        margin: 0;
+      }
+
+      .boundary {
+        border-top: 0.3rem solid var(--gray-300);
+      }
+
+      .boundary.message {
+        border-top-color: var(--blue-600);
+      }
+
+      .boundary.envelope {
+        border-top-color: var(--gray-600);
+      }
+
+      .boundary.request {
+        border-top-color: var(--violet-600);
+      }
+
+      .boundary.secure {
+        border-top-color: var(--red-600);
+      }
+
+      .boundary ul,
+      .policy-list {
+        margin: 0.8rem 0 0;
+        padding-left: 1.15rem;
+        color: var(--gray-600);
+        font-size: 0.9rem;
+      }
+
+      .boundary li + li,
+      .policy-list li + li {
+        margin-top: 0.3rem;
+      }
+
+      .policy-axis {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.65rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .axis {
+        border-left: 0.22rem solid var(--accent-500);
+        padding: 0.7rem 0.85rem;
+        background: var(--paper);
+      }
+
+      .axis strong {
+        display: block;
+        color: var(--gray-950);
+        font-family: var(--mono);
+        font-size: 0.78rem;
+      }
+
+      .axis span {
+        display: block;
+        margin-top: 0.25rem;
+        color: var(--gray-600);
+        font-size: 0.88rem;
+      }
+
+      .table-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+        border: 1px solid var(--gray-200);
+        border-radius: 0.85rem;
+        background: var(--paper);
+      }
+
+      table {
+        width: 100%;
+        min-width: 52rem;
+        border-collapse: collapse;
+        font-size: 0.86rem;
+      }
+
+      th,
+      td {
+        padding: 0.85rem 0.9rem;
+        border-bottom: 1px solid var(--gray-200);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--gray-50);
+        color: var(--gray-600);
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      td:first-child {
+        color: var(--gray-950);
+        font-weight: 500;
+      }
+
+      .pill {
+        display: inline-block;
+        max-width: 100%;
+        border-radius: 999px;
+        padding: 0.16rem 0.48rem;
+        background: var(--gray-100);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        overflow-wrap: anywhere;
+      }
+
+      .terminal-strip {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.55rem;
+        border-radius: 0.9rem;
+        padding: 1rem;
+        background: var(--gray-950);
+        color: var(--gray-100);
+        font-family: var(--mono);
+        font-size: 0.8rem;
+      }
+
+      .terminal-step {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.65rem;
+        align-items: start;
+      }
+
+      .terminal-step b {
+        display: grid;
+        width: 1.55rem;
+        aspect-ratio: 1;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--accent-500);
+        color: var(--gray-950);
+      }
+
+      .terminal-step p {
+        margin: 0;
+      }
+
+      .terminal-step small {
+        display: block;
+        margin-top: 0.15rem;
+        color: var(--gray-300);
+      }
+
+      .step-number {
+        display: grid;
+        width: 2rem;
+        aspect-ratio: 1;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--accent-100);
+        color: var(--accent-700);
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+
+      .next-card {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.75rem;
+        align-items: start;
+      }
+
+      .next-card h3 {
+        margin-bottom: 0.25rem;
+      }
+
+      .decision {
+        display: grid;
+        gap: 1.25rem;
+        border: 1px solid var(--accent-300);
+        border-radius: 1rem;
+        padding: clamp(1.2rem, 4vw, 2rem);
+        background: linear-gradient(145deg, var(--paper), var(--accent-100));
+        box-shadow: var(--shadow);
+      }
+
+      .decision h2 {
+        padding-bottom: 0.08em;
+        line-height: 1.08;
+      }
+
+      .choice-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.65rem;
+      }
+
+      .choice {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.65rem;
+        align-items: start;
+        border: 1px solid var(--gray-200);
+        border-radius: 0.75rem;
+        padding: 0.85rem;
+        background: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+      }
+
+      .choice:has(input:checked) {
+        border-color: var(--accent-500);
+        box-shadow: 0 0 0 0.15rem rgba(130, 181, 54, 0.18);
+      }
+
+      .choice input {
+        margin-top: 0.2rem;
+        accent-color: var(--accent-700);
+      }
+
+      .choice strong {
+        display: block;
+        color: var(--gray-950);
+      }
+
+      .choice small {
+        display: block;
+        margin-top: 0.2rem;
+        color: var(--gray-600);
+      }
+
+      label[for='decision-notes'] {
+        color: var(--gray-950);
+        font-family: var(--mono);
+        font-size: 0.76rem;
+        font-weight: 600;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 7rem;
+        resize: vertical;
+        border: 1px solid var(--gray-300);
+        border-radius: 0.75rem;
+        padding: 0.85rem;
+        background: var(--paper);
+        color: var(--gray-950);
+      }
+
+      textarea:focus,
+      button:focus-visible {
+        outline: 0.2rem solid var(--accent-300);
+        outline-offset: 0.15rem;
+      }
+
+      .queue-button {
+        width: 100%;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.9rem 1rem;
+        background: var(--gray-950);
+        color: var(--accent-100);
+        font-family: var(--mono);
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .footnote {
+        margin: 1rem 0 0;
+        color: var(--gray-500);
+        font-size: 0.82rem;
+      }
+
+      @media (min-width: 44rem) {
+        .hero {
+          grid-template-columns: minmax(0, 1.55fr) minmax(16rem, 0.75fr);
+        }
+
+        .section-heading {
+          grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+          align-items: end;
+        }
+
+        .term-grid,
+        .mode-grid,
+        .next-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .boundary-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .policy-axis {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .choice-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      @media (min-width: 62rem) {
+        .flow {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          align-items: stretch;
+        }
+
+        .mode-grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="mark" aria-hidden="true">F</span>
+          <span>Foldkit architecture lab</span>
+        </div>
+        <span class="status">Talk layer · no implementation yet</span>
+      </header>
+
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="kicker">InstantDB shared Programs</p>
+          <h1 id="page-title">Messages travel. Effects find a Processor.</h1>
+          <p class="lede">
+            Synchronize immutable facts, derive the Model everywhere, and place
+            side effects according to capability. A Client remains a runnable
+            adapter. A Processor is one live Program occurrence.
+          </p>
+        </div>
+        <aside class="thesis">
+          <strong>Proposed invariant</strong>
+          <p>
+            The Message history is authoritative. Model snapshots are disposable
+            local checkpoints, never shared domain truth.
+          </p>
+        </aside>
+      </section>
+
+      <section class="section" id="terms">
+        <div class="section-heading">
+          <h2>Keep the nouns separate.</h2>
+          <p>
+            This resolves the ambiguity in “one app on one device.” One Client
+            can host several Processors. A headless Client can host Processors
+            without presenting any human interface.
+          </p>
+        </div>
+        <div class="term-grid">
+          <article class="card">
+            <h3>Program</h3>
+            <p>
+              Portable Model, Message, update, Commands, lifecycle definitions,
+              routes, versions, and migrations.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Client</h3>
+            <p>
+              One complete runnable adapter. It owns interaction, renderer,
+              platform Layers, URI carrier, and launch behavior.
+            </p>
+          </article>
+          <article class="card processor">
+            <h3>Processor</h3>
+            <p>
+              One running Program occurrence. It consumes Messages and
+              advertises the capabilities its Layers can perform.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Host</h3>
+            <p>
+              The composition and lifecycle owner that launches, finds, and
+              supervises Clients and Processors.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="flow">
+        <div class="section-heading">
+          <h2>The durable effect loop.</h2>
+          <p>
+            A Foldkit Command is currently an executable local Effect closure.
+            It is not a network payload. Durable or movable work gains a
+            separate versioned request contract.
+          </p>
+        </div>
+        <div class="flow" aria-label="Distributed effect lifecycle">
+          <article class="flow-node shared">
+            <strong>1 · Requested fact</strong>
+            <span><code>ClickedScanCheck</code> joins the Message tape.</span>
+          </article>
+          <article class="flow-node local">
+            <strong>2 · Local update</strong>
+            <span
+              >Every Processor derives the same next Model and effect
+              manifest.</span
+            >
+          </article>
+          <article class="flow-node shared">
+            <strong>3 · Effect request</strong>
+            <span
+              >The manifest yields capability, policy, and idempotency
+              data.</span
+            >
+          </article>
+          <article class="flow-node local">
+            <strong>4 · Capable Processor</strong>
+            <span
+              >The selected Processor runs its local Effect. Others keep it
+              inert.</span
+            >
+          </article>
+          <article class="flow-node result">
+            <strong>5 · Result fact</strong>
+            <span><code>SucceededCaptureCheck</code> rejoins the tape.</span>
+          </article>
+        </div>
+        <aside class="rule">
+          <strong>Required runtime seam</strong>
+          <p>
+            Today every ProgramRuntime executes every Command returned by
+            update. Shared Program mode needs a scheduler interception point and
+            a Schema-defined effect manifest. An opaque Effect closure cannot be
+            serialized or reverse-engineered into a durable request.
+          </p>
+          <p>
+            Delivery is at least once with authority-side idempotency. Duplicate
+            occurrence IDs are rejected before journal admission. If a stale
+            result is accepted, every Processor applies it and update
+            deterministically leaves the Model unchanged.
+          </p>
+        </aside>
+      </section>
+
+      <section class="section" id="boundaries">
+        <div class="section-heading">
+          <h2>Four data boundaries.</h2>
+          <p>
+            Provenance matters, but not all provenance belongs inside the domain
+            Message. Keep delivery mechanics from becoming a second hidden input
+            to update.
+          </p>
+        </div>
+        <div class="boundary-grid">
+          <article class="card boundary message">
+            <h3>Domain Message</h3>
+            <p>Only facts update needs.</p>
+            <ul>
+              <li>Past-tense event and payload</li>
+              <li>Entity, session, and request IDs</li>
+              <li>Sanitized success or failure</li>
+              <li>Semantic origin only when behavior changes</li>
+            </ul>
+          </article>
+          <article class="card boundary envelope">
+            <h3>Transport envelope</h3>
+            <p>Ordering, authentication, audit, and delivery provenance.</p>
+            <ul>
+              <li>
+                Occurrence, actor, origin Client, device installation, ingress
+                Processor, and session IDs
+              </li>
+              <li>Program, event, and envelope versions</li>
+              <li>Causation, sequence, timestamps, digests</li>
+              <li>Auth, signature, attempt, lease, and trace data</li>
+            </ul>
+          </article>
+          <article class="card boundary request">
+            <h3>Durable effect request</h3>
+            <p>
+              A movable, survivable request derived from an effect manifest.
+            </p>
+            <ul>
+              <li>Effect and request format versions</li>
+              <li>Stable request ID and idempotency key</li>
+              <li>Capability, affinity, and unavailable policy</li>
+              <li>Public arguments or content addresses</li>
+            </ul>
+          </article>
+          <article class="card boundary secure">
+            <h3>Processor Layer</h3>
+            <p>
+              The Client Host supplies it. Live handles and secrets stay local.
+            </p>
+            <ul>
+              <li>Private keys and provider credentials</li>
+              <li>Camera and microphone handles</li>
+              <li>Filesystem bookmarks and refresh tokens</li>
+              <li>Raw protected material behind opaque grants</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="policies">
+        <div class="section-heading">
+          <h2>Placement is capability-driven.</h2>
+          <p>
+            Authentication decides whether a Message is admitted. Placement
+            decides which capable Processor performs its resulting effect.
+            Renderer and device brand are not authorization lists.
+          </p>
+        </div>
+        <div class="policy-axis">
+          <div class="axis">
+            <strong>Cardinality</strong>
+            <span><code>One</code>, possibly <code>Every</code></span>
+          </div>
+          <div class="axis">
+            <strong>Capability</strong>
+            <span>ID plus minimum version</span>
+          </div>
+          <div class="axis">
+            <strong>Affinity</strong>
+            <span>Origin Client, ingress, exact, previous, or any</span>
+          </div>
+          <div class="axis">
+            <strong>Unavailable</strong>
+            <span>Wait, fallback, fail, or ignore</span>
+          </div>
+        </div>
+        <div
+          class="table-wrap"
+          tabindex="0"
+          aria-label="Concrete policy examples"
+        >
+          <table>
+            <thead>
+              <tr>
+                <th>Use case</th>
+                <th>Capability</th>
+                <th>Affinity</th>
+                <th>Unavailable</th>
+                <th>Why</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Check capture from banking website</td>
+                <td><span class="pill">Camera.Capture</span></td>
+                <td>Origin Client, then any capable</td>
+                <td>Use capable phone</td>
+                <td>
+                  The browser originates the intent; the paired phone owns the
+                  camera.
+                </td>
+              </tr>
+              <tr>
+                <td>Hearing-aid pairing</td>
+                <td><span class="pill">Bluetooth.LowEnergy.Pair</span></td>
+                <td>Exact patient phone</td>
+                <td>Wait</td>
+                <td>
+                  Permission and hardware must remain on the patient’s device.
+                </td>
+              </tr>
+              <tr>
+                <td>Haptic feedback</td>
+                <td><span class="pill">Haptics.Pulse</span></td>
+                <td>Origin Client</td>
+                <td>Ignore</td>
+                <td>A Mac key press should not vibrate an unrelated phone.</td>
+              </tr>
+              <tr>
+                <td>Copy receipt</td>
+                <td><span class="pill">Clipboard.Write</span></td>
+                <td>Origin Client or selected Mac</td>
+                <td>Fail or ignore</td>
+                <td>
+                  The destination clipboard changes the meaning of the action.
+                </td>
+              </tr>
+              <tr>
+                <td>Bank transfer</td>
+                <td><span class="pill">Banking.SWIFT.Write</span></td>
+                <td>Any trusted authority</td>
+                <td>Wait or fail</td>
+                <td>
+                  Only secure Processors advertise the capability; request IDs
+                  prevent duplicates.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="instant">
+        <div class="section-heading">
+          <h2>Use each Instant primitive for one job.</h2>
+          <p>
+            Durable facts and ephemeral coordination have different failure
+            semantics. Keeping them separate protects offline convergence.
+          </p>
+        </div>
+        <div class="mode-grid">
+          <article class="card">
+            <h3>Entities + live queries</h3>
+            <p>
+              Durable Message occurrences, membership, effect requests, results,
+              revocation, and materialized projection checkpoints.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Rooms + presence</h3>
+            <p>
+              Connected Processor identity, liveness, roles, capabilities,
+              protocol ranges, and last-applied positions. Product-visible
+              availability still enters the Model through accepted Messages.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Topics</h3>
+            <p>
+              Transient hints and cursors only. Never the only copy of a Message
+              or effect request.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Streams</h3>
+            <p>
+              Resumable media and artifact bytes, linked from a durable Message
+              or result. Not the structured multi-writer journal.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="terminal">
+        <div class="section-heading">
+          <h2>A terminal can leave the Processor running.</h2>
+          <p>
+            Snapshot-based terminal interaction does not require snapshot-based
+            execution. Timers, microphone capture, and other long-lived sources
+            belong to Subscriptions or ManagedResources owned by a headless
+            Processor.
+          </p>
+        </div>
+        <div class="terminal-strip">
+          <div class="terminal-step">
+            <b>1</b>
+            <p>
+              One-shot terminal Client connects
+              <small>It does not create or own the long-lived scope.</small>
+            </p>
+          </div>
+          <div class="terminal-step">
+            <b>2</b>
+            <p>
+              Client sends a canonical Message
+              <small
+                >The Processor runs finite Commands and keeps lifecycle sources
+                active.</small
+              >
+            </p>
+          </div>
+          <div class="terminal-step">
+            <b>3</b>
+            <p>
+              Client prints the current Model
+              <small
+                >It may observe intermediate Models before choosing its
+                snapshot.</small
+              >
+            </p>
+          </div>
+          <div class="terminal-step">
+            <b>4</b>
+            <p>
+              Client disconnects
+              <small>The Processor survives with zero connected Clients.</small>
+            </p>
+          </div>
+        </div>
+        <aside class="rule">
+          <strong>Lifecycle placement is separate</strong>
+          <p>
+            Shared timers, microphone Subscriptions, and ManagedResources also
+            need capability, affinity, cardinality, a durable lease or fencing
+            token, takeover, release, and reconnect rules. Otherwise every
+            Processor can acquire the same source or emit duplicate Messages.
+          </p>
+        </aside>
+      </section>
+
+      <section class="section" id="next">
+        <div class="section-heading">
+          <h2>Recommended design order.</h2>
+          <p>
+            Settle semantics before choosing the final Instant schema. This
+            gives us a small vertical proof with falsifiable behavior.
+          </p>
+        </div>
+        <div class="next-grid">
+          <article class="card next-card">
+            <span class="step-number">1</span>
+            <div>
+              <h3>Placement algebra</h3>
+              <p>
+                Settle cardinality, capability, affinity, and unavailable
+                behavior.
+              </p>
+            </div>
+          </article>
+          <article class="card next-card">
+            <span class="step-number">2</span>
+            <div>
+              <h3>Message envelope</h3>
+              <p>
+                Separate semantic provenance from transport and audit
+                provenance.
+              </p>
+            </div>
+          </article>
+          <article class="card next-card">
+            <span class="step-number">3</span>
+            <div>
+              <h3>Ordering + offline proposals</h3>
+              <p>
+                Define admission, conflicts, actor sequence, and explicit
+                incompatibility.
+              </p>
+            </div>
+          </article>
+          <article class="card next-card">
+            <span class="step-number">4</span>
+            <div>
+              <h3>Pairing + capabilities</h3>
+              <p>
+                Define QR grants, guest scope, expiry, revocation, and
+                negotiation.
+              </p>
+            </div>
+          </article>
+          <article class="card next-card">
+            <span class="step-number">5</span>
+            <div>
+              <h3>Effect lifecycle</h3>
+              <p>
+                Define claiming, leases, retries, cancellation, and terminal
+                results.
+              </p>
+            </div>
+          </article>
+          <article class="card next-card">
+            <span class="step-number">6</span>
+            <div>
+              <h3>Narrow observable proof</h3>
+              <p>
+                Prove one remote-control flow before building the full Instant
+                adapter.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="decision">
+        <form
+          class="decision"
+          data-lavish-question="distributed-command-cardinality"
+          onsubmit="
+            event.preventDefault()
+            const data = new FormData(event.currentTarget)
+            const answer = data.get('cardinality')
+            const notes = String(data.get('notes') || '').trim()
+            const prompt =
+              'For Foldkit distributed Command placement, my decision is: ' +
+              answer +
+              (notes ? '. Context: ' + notes : '') +
+              '. Continue the InstantDB architecture design from that decision.'
+            window.lavish?.queuePrompt(prompt, {
+              tag: 'foldkit-instantdb',
+              text: 'Command cardinality: ' + answer,
+              element: event.currentTarget,
+              data: { answer, notes },
+              queueKey: 'distributed-command-cardinality',
+            })
+          "
+        >
+          <div>
+            <p class="kicker">Decision 01</p>
+            <h2>Should a distributed Command support <code>Every</code>?</h2>
+            <p>
+              My recommendation is to start with <code>One</code>. Effects that
+              merely change presentation on every Client remain local Client
+              behavior. Add <code>Every</code> only when each execution and each
+              outcome must be durable Program truth.
+            </p>
+          </div>
+          <div class="choice-grid">
+            <label class="choice">
+              <input
+                type="radio"
+                name="cardinality"
+                value="Start with One only"
+                checked
+              />
+              <span>
+                <strong>Start with One only</strong>
+                <small
+                  >Recommended. Keep all-Client presentation effects
+                  local.</small
+                >
+              </span>
+            </label>
+            <label class="choice">
+              <input
+                type="radio"
+                name="cardinality"
+                value="Support Every now"
+              />
+              <span>
+                <strong>Support Every now</strong>
+                <small
+                  >Record execution and results for every matching
+                  Processor.</small
+                >
+              </span>
+            </label>
+            <label class="choice">
+              <input
+                type="radio"
+                name="cardinality"
+                value="Define a separate broadcast primitive"
+              />
+              <span>
+                <strong>Separate broadcast primitive</strong>
+                <small
+                  >Keep Command cardinality One but model distributed fan-out
+                  explicitly.</small
+                >
+              </span>
+            </label>
+          </div>
+          <div>
+            <label for="decision-notes">Optional context</label>
+            <textarea
+              id="decision-notes"
+              name="notes"
+              placeholder="What should happen for sound, haptics, notifications, or other effects on multiple Processors?"
+            ></textarea>
+          </div>
+          <button class="queue-button" type="submit">
+            Queue this decision for Codex
+          </button>
+        </form>
+        <p class="footnote">
+          This review surface reflects the Talk-layer exploration. It does not
+          claim the InstantDB adapter or distributed Processor runtime exists.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

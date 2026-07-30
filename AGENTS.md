@@ -7,7 +7,8 @@ Repo-local `skills/foldkit`, `skills/generate-program`, and `skills/audit-progra
 ## Project Conventions
 
 - "Foldkit" is always capitalized in prose. The only exception is the npm package name (`foldkit`) and import paths.
-- In prose, capitalize architecture types: Model, Message, Command, Subscription, Mount, ManagedResource, CustomElement, Submodel, OutMessage. Keep lowercase for plain functions: view, update, init.
+- In prose, capitalize architecture types: Model, Message, Command, Subscription, Mount, ManagedResource, CustomElement, Submodel, OutMessage, Client, and Processor. Keep lowercase for plain functions: view, update, init.
+- A Client is one complete runnable Program adapter. A Processor is one running Program occurrence that consumes Messages and advertises capabilities. One Client can host multiple Processors, including in a headless process with no human-facing renderer.
 - Always use Schema types, full names like `Message`, and `withReturnType`. Do not use plain TypeScript types, `Msg`, `as const`, or type casting as substitutes.
 - Foldkit is tightly coupled to Effect-TS. Do not suggest solutions outside the Effect ecosystem. Check existing features in `create-foldkit-app` before suggesting new ones.
 - Push back on any direction that violates Elm Architecture principles: unidirectional data flow, Messages as facts, Model as single source of truth, and side effects confined to Commands. Flag the issue and propose the idiomatic Foldkit approach.

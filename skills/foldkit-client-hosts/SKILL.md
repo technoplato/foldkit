@@ -9,6 +9,13 @@ Keep one canonical Program and make each runnable adapter a Client. A Client
 owns presentation, input translation, platform Layers, URI carrier, and launch
 behavior. It does not own a second copy of domain truth.
 
+Call each running Program occurrence inside or reached through a Client a
+Processor. A Processor consumes Messages, is realized by one live or replay
+`ProgramRuntime`, and advertises the capabilities its Layers can perform. One
+Client may host several Processors. A headless Client may host Processors without
+rendering a human interface, and a one-shot Client may attach to a longer-lived
+Processor.
+
 Use `$foldkit-program-runtimes` when a Client launches multiple instances or the
 task depends on runtime identity, isolation, replay ownership, or shutdown.
 
@@ -22,8 +29,8 @@ task depends on runtime identity, isolation, replay ownership, or shutdown.
    translate input into canonical Messages.
 4. Use `Runtime.makeFoldkitApplication` for a Foldkit DOM Client. Use the
    Program runtime surface for non-Foldkit renderers and process hosts. Follow
-   an existing client in `examples/` instead of inventing a second store. One
-   Client may launch multiple independent runtimes from the same Program.
+   an existing client in `examples/` instead of inventing a second store. Give
+   every Processor a host-owned identity and an explicit capability set.
 5. Use typed Ports for embedding and host communication. Keep the port protocol
    Schema-defined and dispose the embedded runtime with its host lifecycle.
 6. Wrap portable relative state, replay, or intent routes in client-owned

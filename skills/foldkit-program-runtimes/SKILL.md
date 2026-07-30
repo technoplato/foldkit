@@ -13,11 +13,17 @@ A Program is a reusable definition. A Program runtime is one execution of that
 definition. Do not treat a Program as a singleton. The same Program can back as
 many simultaneous runtimes as the product needs.
 
+Call one running Program occurrence a Processor. Processor is the architectural
+role; ProgramRuntime is the Foldkit runtime API that realizes it. A Processor
+consumes Messages and advertises the capabilities supplied by its Layers. One
+Client may own several Processors on the same machine, and a headless Client may
+keep Processors alive without presenting a live interface.
+
 ## Keep the identities distinct
 
 - `Program.id` identifies the portable Program protocol and replay
   compatibility. It is not a runtime-instance identifier.
-- Give each launched runtime a host-owned identity when the host needs to
+- Give each Processor a host-owned identity when the host needs to
   address, display, supervise, or collect evidence for instances separately.
   Keep that key outside the Program Model unless runtime identity is itself
   product truth.
@@ -50,7 +56,7 @@ explicit shared capability carries the result elsewhere.
 2. Call `Runtime.makeProgramRuntime({ program, resources, start })` once for
    each desired instance. Use `Runtime.fresh()`, `Runtime.fromModel(model)`, or
    `Runtime.fromReplay(tape)` for that instance's starting point.
-3. Keep each returned `ProgramRuntime` under a host-owned key. Route input to
+3. Keep each returned `ProgramRuntime` under a Processor key. Route input to
    that handle's `send` or `run`, render its `readModel()` value, and subscribe
    with `observeModel` when the host needs push updates.
 4. Let every Client translate native input into canonical Messages and render
@@ -92,10 +98,11 @@ When instances must interact, choose an explicit boundary:
 - a dedicated coordinator Program when coordination is product behavior with its
   own Model and Messages.
 
-Specify identity, ordering, conflicts, retries, offline behavior, and ownership
-in that protocol. Do not synchronize by reading another runtime's Model,
-mutating module globals, passing runtime handles through Model, or duplicating
-domain state inside a renderer.
+Specify Processor identity, Message ordering, conflicts, retries, offline
+behavior, capability advertisement, and effect ownership in that protocol. Do
+not synchronize by reading another runtime's Model, mutating module globals,
+passing runtime handles through Model, or duplicating domain state inside a
+renderer.
 
 If several runtimes intentionally share one physical resource, make that sharing
 visible in a parent-owned service or transport and define its lifetime. Merely
