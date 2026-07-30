@@ -22,6 +22,7 @@ import {
 import { LogEvent, type LoggerService } from '../logging/index.js'
 import {
   type InstantEntityStoreService,
+  type InstantLogIssueLinkRecord,
   InstantToolsEntities,
   decodeIssueRecord,
   makeInstantEntityStore,
@@ -49,6 +50,7 @@ const adaptApplicationDatabase = (
 ) => makeInstantEntityStore(database)
 
 const issue = Issue.make({
+  area: Option.none(),
   attachments: [
     IssueAttachment.make({
       byteCount: Option.some(334_048),
@@ -66,13 +68,17 @@ const issue = Issue.make({
       }),
     }),
   ],
+  claimantId: Option.none(),
+  complexity: Option.none(),
   createdAtMs: 1_753_800_000_000,
   details: '',
   id: 'issue-021',
+  issueType: Option.none(),
   mentions: [],
   priority: 'P1',
   product: ApplicationProduct.make({ id: 'scribe', name: 'Scribe' }),
   projectId: Option.some('transcript-ui'),
+  reportedDate: Option.none(),
   sourceDocument: Option.none(),
   status: 'InProgress',
   successCriteria: [
@@ -84,6 +90,7 @@ const issue = Issue.make({
   ],
   title: 'Put the full recording timestamp in the gutter',
   updatedAtMs: 1_753_825_157_000,
+  viewerURL: Option.none(),
   workLog: [],
 })
 
@@ -127,6 +134,9 @@ const makeStore = Effect.gen(function* () {
     ReadonlyArray<ReturnType<typeof makeInstantIssueRecord>>
   >([])
   const logs = yield* Ref.make<ReadonlyArray<unknown>>([])
+  const logIssueLinks = yield* Ref.make<
+    ReadonlyArray<InstantLogIssueLinkRecord>
+  >([])
   const recordingSegments = yield* Ref.make([
     makeInstantRecordingSegmentRecord(segment),
   ])
@@ -148,7 +158,11 @@ const makeStore = Effect.gen(function* () {
     ),
   ])
   const store: InstantEntityStoreService = {
-    appendLog: record => Ref.update(logs, records => [...records, record]),
+    appendLog: (record, issueLinks) =>
+      Effect.all([
+        Ref.update(logs, records => [...records, record]),
+        Ref.update(logIssueLinks, records => [...records, ...issueLinks]),
+      ]).pipe(Effect.asVoid),
     fetchIssues: Ref.get(issues),
     fetchProducts: Ref.get(products),
     observeIssues: Stream.fromEffect(Ref.get(issues)),
@@ -157,6 +171,14 @@ const makeStore = Effect.gen(function* () {
         Ref.get(issues).pipe(
           Effect.map(records =>
             Array.findFirst(records, record => record.id === issueId),
+          ),
+        ),
+      ),
+    observeIssueLogs: issueId =>
+      Stream.fromEffect(
+        Ref.get(logIssueLinks).pipe(
+          Effect.map(records =>
+            Array.filter(records, record => record.issueID === issueId),
           ),
         ),
       ),
@@ -182,6 +204,7 @@ const makeStore = Effect.gen(function* () {
   return {
     issues,
     logs,
+    logIssueLinks,
     products,
     recordingSegments,
     savedIssues,
@@ -307,12 +330,21 @@ describe('Instant adapter', () => {
 
   it.effect('persists structured Log Events through the separate Logger', () =>
     Effect.gen(function* () {
-      const { logs, store } = yield* makeStore
+      const { logIssueLinks, logs, store } = yield* makeStore
       const logger: LoggerService = makeLogger(store)
 
       yield* logger.append(event)
 
       expect(yield* Ref.get(logs)).toHaveLength(1)
+      expect(yield* Ref.get(logIssueLinks)).toEqual([
+        expect.objectContaining({
+          issueID: '023',
+          viewerURL: 'https://issues.knophy.com/issues/023',
+        }),
+      ])
+      expect(yield* Stream.runCollect(logger.observeIssue('023'))).toEqual([
+        [expect.objectContaining({ issueID: '023', logID: 'log-001' })],
+      ])
     }),
   )
 

@@ -11,9 +11,14 @@ export const IssueStatus = S.Literals([
   'Backlog',
   'Blocked',
   'Closed',
+  'FeedbackRequested',
+  'Fixed',
   'InProgress',
   'Open',
+  'PartiallyDone',
+  'Regressed',
   'Resolved',
+  'VerificationNeeded',
   'Verified',
 ])
 /** The workflow state of an Issue without imposing one project-management service. */
@@ -232,6 +237,10 @@ export type IssueSuccessEvidence = typeof IssueSuccessEvidence.Type
 /** One independently checkable user-visible outcome and its required proof. */
 export const IssueSuccessCriterion = S.Struct({
   id: S.String,
+  isSatisfied: S.Boolean.pipe(
+    S.withDecodingDefaultKey(Effect.succeed(false)),
+    S.withConstructorDefault(Effect.succeed(false)),
+  ),
   outcome: S.String,
   requiredEvidence: S.Array(IssueSuccessEvidence),
 })
@@ -241,6 +250,34 @@ export type IssueSuccessCriterion = typeof IssueSuccessCriterion.Type
 const IssueSuccessCriteria = S.Array(IssueSuccessCriterion).pipe(
   S.withDecodingDefaultKey(Effect.succeed([])),
   S.withConstructorDefault(Effect.succeed([])),
+)
+
+/** A stable Instant query embedded in an Issue for direct log evidence retrieval. */
+export const IssueLogEvidenceQuery = S.Struct({
+  id: S.String,
+  instantQueryJSON: S.String,
+  issueID: S.String,
+  label: S.String,
+  viewerURL: S.String,
+})
+/** A stable Instant query embedded in an Issue for direct log evidence retrieval. */
+export type IssueLogEvidenceQuery = typeof IssueLogEvidenceQuery.Type
+
+const IssueLogEvidenceQueries = S.Array(IssueLogEvidenceQuery).pipe(
+  S.withDecodingDefaultKey(Effect.succeed([])),
+  S.withConstructorDefault(Effect.succeed([])),
+)
+
+/** A coarse estimate used to keep unattended repair work bounded. */
+export const IssueComplexity = S.Literals(['Small', 'Moderate', 'Large'])
+/** A coarse estimate used to keep unattended repair work bounded. */
+export type IssueComplexity = typeof IssueComplexity.Type
+
+const OptionalIssueString = S.OptionFromNullOr(S.String).pipe(
+  S.withDecodingDefaultKey(Effect.succeed(null)),
+)
+const OptionalIssueComplexity = S.OptionFromNullOr(IssueComplexity).pipe(
+  S.withDecodingDefaultKey(Effect.succeed(null)),
 )
 
 /** A lossless human-readable source document imported into the Issue tracker. */
@@ -254,19 +291,30 @@ export type IssueSourceDocument = typeof IssueSourceDocument.Type
 
 /** A transport-independent Issue with durable evidence and work history. */
 export const Issue = S.Struct({
+  area: OptionalIssueString,
   attachments: S.Array(IssueAttachment),
+  claimantId: OptionalIssueString,
+  complexity: OptionalIssueComplexity,
   createdAtMs: S.Number,
   details: S.String,
+  evidenceLogQueries: IssueLogEvidenceQueries,
   id: S.String,
+  issueType: OptionalIssueString,
   mentions: S.Array(IssueMention),
+  nightlyEligible: S.Boolean.pipe(
+    S.withDecodingDefaultKey(Effect.succeed(true)),
+    S.withConstructorDefault(Effect.succeed(true)),
+  ),
   priority: IssuePriority,
   product: TrackedProduct,
   projectId: S.OptionFromNullOr(S.String),
+  reportedDate: OptionalIssueString,
   sourceDocument: S.OptionFromNullOr(IssueSourceDocument),
   status: IssueStatus,
   successCriteria: IssueSuccessCriteria,
   title: S.String,
   updatedAtMs: S.Number,
+  viewerURL: OptionalIssueString,
   workLog: S.Array(IssueWorkLogEntry),
 })
 /** A transport-independent Issue with durable evidence and work history. */

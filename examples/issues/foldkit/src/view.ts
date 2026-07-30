@@ -6,6 +6,7 @@ import {
   type Destination,
   DismissedIssueDetail,
   type IssueDetailState,
+  type IssueLogsState,
   type IssuesState,
   type Message,
   type Model,
@@ -91,7 +92,60 @@ const issueList = (state: IssuesState): Html => {
   )
 }
 
-const issueDetail = (state: IssueDetailState): Html => {
+const issueLogEvidence = (state: IssueLogsState): Html => {
+  const h = html<Message>()
+  return M.value(state).pipe(
+    M.withReturnType<Html>(),
+    M.tagsExhaustive({
+      NotObservingIssueLogs: () => h.empty,
+      LoadingIssueLogs: () => h.p([], ['Loading tagged logs…']),
+      FailedIssueLogs: ({ reason }) =>
+        h.p([h.Role('alert'), h.Class('text-red-700')], [reason]),
+      LoadedIssueLogs: ({ logs }) =>
+        Array.isReadonlyArrayEmpty(logs)
+          ? h.p(
+              [h.Class('text-sm text-stone-500')],
+              ['No logs have been tagged with this Issue yet.'],
+            )
+          : h.div(
+              [h.Class('grid gap-3')],
+              Array.map(logs, log =>
+                h.article(
+                  [
+                    h.Key(`${log.logNamespace}:${log.logID}`),
+                    h.Class(
+                      'grid gap-1 rounded-xl border border-stone-200 p-4',
+                    ),
+                  ],
+                  [
+                    h.p(
+                      [h.Class('font-mono text-xs text-amber-700')],
+                      [`${log.level} · ${log.name} · ${log.timestampMs}`],
+                    ),
+                    h.p([], [log.message]),
+                    Array.isReadonlyArrayEmpty(log.contributingPaths)
+                      ? h.empty
+                      : h.ul(
+                          [h.Class('text-xs text-stone-500')],
+                          Array.map(log.contributingPaths, path =>
+                            h.li(
+                              [h.Key(`${path.relationship}:${path.path}`)],
+                              [`${path.relationship}: ${path.path}`],
+                            ),
+                          ),
+                        ),
+                  ],
+                ),
+              ),
+            ),
+    }),
+  )
+}
+
+const issueDetail = (
+  state: IssueDetailState,
+  logsState: IssueLogsState,
+): Html => {
   const h = html<Message>()
   const back = button('← All issues', DismissedIssueDetail.make({}), true)
   return M.value(state).pipe(
@@ -116,6 +170,25 @@ const issueDetail = (state: IssueDetailState): Html => {
                 h.p(
                   [h.Class('font-mono text-xs text-amber-700')],
                   [`${observed.priority} · ${observed.id}`],
+                ),
+                h.section(
+                  [h.Id('evidence-logs'), h.Class('grid gap-3')],
+                  [
+                    h.h3([h.Class('text-xl font-semibold')], ['Evidence logs']),
+                    ...Array.map(observed.evidenceLogQueries, query =>
+                      h.details(
+                        [h.Key(query.id)],
+                        [
+                          h.summary([], [query.label]),
+                          h.pre(
+                            [h.Class('overflow-x-auto text-xs')],
+                            [query.instantQueryJSON],
+                          ),
+                        ],
+                      ),
+                    ),
+                    issueLogEvidence(logsState),
+                  ],
                 ),
                 h.h2([h.Class('text-3xl font-semibold')], [observed.title]),
                 h.p([h.Class('leading-7 text-stone-700')], [observed.details]),
@@ -224,7 +297,7 @@ const fileIssue = (model: Model): Html => {
                 [model.draftState.reason],
               )
             : h.empty,
-          Button.view({
+          Button.view<Message>({
             type: 'submit',
             isDisabled: model.draftState._tag === 'SavingIssueDraft',
             toView: attributes =>
@@ -249,7 +322,8 @@ const destinationView = (destination: Destination, model: Model): Html => {
     M.withReturnType<Html>(),
     M.tagsExhaustive({
       IssueListDestination: ({ state }) => issueList(state),
-      IssueDetailDestination: ({ state }) => issueDetail(state),
+      IssueDetailDestination: ({ state }) =>
+        issueDetail(state, model.issueLogs),
       FileIssueDestination: () => fileIssue(model),
       TriageInboxDestination: ({ state }) =>
         h.section(

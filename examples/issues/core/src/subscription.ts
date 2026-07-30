@@ -7,21 +7,24 @@ import {
   ProductCatalog,
   TriageInbox,
 } from '@foldkit/instant-tools/issues'
+import { Logger } from '@foldkit/instant-tools/logging'
 
 import {
   FailedObserveIssue,
+  FailedObserveIssueLogs,
   FailedObserveIssues,
   FailedObserveProducts,
   FailedObserveTriageCandidates,
   type Message,
   ObservedIssue,
+  ObservedIssueLogs,
   ObservedIssues,
   ObservedProducts,
   ObservedTriageCandidates,
 } from './message.js'
 import { type Model } from './model.js'
 
-type Resources = IssueTracker | ProductCatalog | TriageInbox
+type Resources = IssueTracker | Logger | ProductCatalog | TriageInbox
 
 /** Observes the Issue collection, filing catalog, and selected Issue. */
 export const subscriptions = Subscription.make<Model, Message, Resources>()(
@@ -109,6 +112,40 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
                   Stream.catch(error =>
                     Stream.make(
                       FailedObserveIssue.make({
+                        issueId,
+                        reason: String(error),
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        },
+      },
+    ),
+    selectedIssueLogs: entry(
+      { maybeIssueId: S.Option(S.String) },
+      {
+        modelToDependencies: model => ({
+          maybeIssueId:
+            model.navigation._tag === 'IssueDetail'
+              ? Option.some(model.navigation.issueId)
+              : Option.none(),
+        }),
+        dependenciesToStream: ({ maybeIssueId }) => {
+          if (Option.isNone(maybeIssueId)) {
+            return Stream.empty
+          }
+          const issueId = maybeIssueId.value
+          return Stream.unwrap(
+            Logger.pipe(
+              Effect.map(logger =>
+                logger.observeIssue(issueId).pipe(
+                  Stream.map(logs => ObservedIssueLogs.make({ issueId, logs })),
+                  Stream.catch(error =>
+                    Stream.make(
+                      FailedObserveIssueLogs.make({
                         issueId,
                         reason: String(error),
                       }),

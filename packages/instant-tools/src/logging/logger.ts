@@ -1,6 +1,6 @@
-import { Context, Data, Effect } from 'effect'
+import { Context, Data, Effect, Stream } from 'effect'
 
-import type { LogEvent } from './domain.js'
+import type { IssueLogEvidence, LogEvent } from './domain.js'
 
 /** A structured Log Event could not be persisted by its configured transport. */
 export class LoggerError extends Data.TaggedError('LoggerError')<{
@@ -10,6 +10,9 @@ export class LoggerError extends Data.TaggedError('LoggerError')<{
 /** The side-effecting capability required to append structured Log Events. */
 export type LoggerService = Readonly<{
   append: (event: LogEvent) => Effect.Effect<void, LoggerError>
+  observeIssue: (
+    issueId: string,
+  ) => Stream.Stream<ReadonlyArray<IssueLogEvidence>, LoggerError>
 }>
 
 /** An injected structured Logger whose implementation is selected by the host. */

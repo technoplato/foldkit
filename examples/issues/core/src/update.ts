@@ -13,6 +13,7 @@ import {
   TriageInbox as TriageInboxServiceTag,
   UriReference,
 } from '@foldkit/instant-tools/issues'
+import { Logger } from '@foldkit/instant-tools/logging'
 
 import { IssueIdentity } from './issueIdentity.js'
 import {
@@ -26,6 +27,7 @@ import {
   EditingIssueDraft,
   FailedIssue,
   FailedIssueDraft,
+  FailedIssueLogs,
   FailedIssues,
   FailedProducts,
   FailedTriageCandidates,
@@ -34,13 +36,16 @@ import {
   IssueDraft,
   IssueList,
   LoadedIssue,
+  LoadedIssueLogs,
   LoadedIssues,
   LoadedProducts,
   LoadedTriageCandidates,
   LoadingIssue,
+  LoadingIssueLogs,
   Model,
   type Navigation,
   NotObservingIssue,
+  NotObservingIssueLogs,
   SavingIssueDraft,
   TriageInbox,
 } from './model.js'
@@ -64,19 +69,25 @@ export const SaveIssue = Command.define(
     const tracker = yield* IssueTracker
     const { id, nowMs } = yield* identity.next
     const issue = Issue.make({
+      area: Option.none(),
       attachments: [],
+      claimantId: Option.none(),
+      complexity: Option.none(),
       createdAtMs: nowMs,
       details,
       id,
+      issueType: Option.none(),
       mentions: [],
       priority,
       product,
       projectId: Option.none(),
+      reportedDate: Option.none(),
       sourceDocument: Option.none(),
       status: 'Open',
       successCriteria: [],
       title,
       updatedAtMs: nowMs,
+      viewerURL: Option.some(`https://issues.knophy.com/issues/${id}`),
       workLog: [],
     })
     yield* tracker.save(issue)
@@ -124,10 +135,14 @@ export const ReviewTriageCandidate = Command.define(
       }),
     })
     const issue = Issue.make({
+      area: Option.none(),
       attachments: [],
+      claimantId: Option.none(),
+      complexity: Option.none(),
       createdAtMs: nowMs,
       details: candidate.suggestedDetails,
       id,
+      issueType: Option.none(),
       mentions: [
         IssueMention.make({
           capturedAtMs: candidate.createdAtMs,
@@ -145,11 +160,13 @@ export const ReviewTriageCandidate = Command.define(
       priority: candidate.suggestedPriority,
       product: candidate.product,
       projectId: Option.none(),
+      reportedDate: Option.none(),
       sourceDocument: Option.none(),
       status: 'Open',
       successCriteria: [],
       title: candidate.suggestedTitle,
       updatedAtMs: nowMs,
+      viewerURL: Option.some(`https://issues.knophy.com/issues/${id}`),
       workLog: [],
     })
     yield* tracker.save(issue)
@@ -169,6 +186,7 @@ export const ReviewTriageCandidate = Command.define(
 
 type Resources =
   | IssueTracker
+  | Logger
   | ProductCatalog
   | TriageInboxServiceTag
   | IssueIdentity
@@ -184,6 +202,10 @@ const withNavigation = (model: Model, navigation: Navigation): Model =>
       navigation._tag === 'IssueDetail'
         ? LoadingIssue.make({ issueId: navigation.issueId })
         : NotObservingIssue.make({}),
+    issueLogs:
+      navigation._tag === 'IssueDetail'
+        ? LoadingIssueLogs.make({ issueId: navigation.issueId })
+        : NotObservingIssueLogs.make({}),
     navigation,
   })
 
@@ -347,6 +369,28 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Model.make({
           ...model,
           issueDetail: FailedIssue.make({ issueId, reason }),
+        }),
+        [],
+      ],
+      ObservedIssueLogs: ({ issueId, logs }) => {
+        if (
+          model.navigation._tag !== 'IssueDetail' ||
+          model.navigation.issueId !== issueId
+        ) {
+          return [model, []]
+        }
+        return [
+          Model.make({
+            ...model,
+            issueLogs: LoadedIssueLogs.make({ issueId, logs }),
+          }),
+          [],
+        ]
+      },
+      FailedObserveIssueLogs: ({ issueId, reason }) => [
+        Model.make({
+          ...model,
+          issueLogs: FailedIssueLogs.make({ issueId, reason }),
         }),
         [],
       ],
