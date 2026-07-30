@@ -17,9 +17,10 @@ not `@tca/dependencies` or Swift property wrappers.
    Keep update pure and keep platform APIs out of Model.
 3. Let the Effect requirement flow through `Command.Command`,
    `Program.Program`, or the application type. Do not erase it with casts.
-4. Build live implementations with `Layer.succeed`, `Layer.effect`,
-   `Layer.scoped`, or composed Layers. Let the runnable client provide the
-   complete Layer to the runtime.
+4. Build live implementations with `Layer.succeed`, `Layer.effect`, or composed
+   Layers. For scoped acquisition, pass `Effect.acquireRelease(...)` to
+   `Layer.effect`. Let the runnable client provide the complete Layer to the
+   runtime.
 5. Use a different Layer for web, Node, React Native, tests, previews, or
    simulated clients while preserving the same Program protocol.
 6. In tests, provide deterministic in-memory Layers. Assert emitted Commands
