@@ -9,6 +9,15 @@ import {
 import { ListenerAnalysisConfig } from './analysis.js'
 import { runListener } from './listener.js'
 
+process.stdout.write(
+  `${JSON.stringify({
+    event: 'build-provenance',
+    value:
+      process.env['ISSUES_BUILD_PROVENANCE'] ??
+      'development build without embedded provenance',
+  })}\n`,
+)
+
 const required = (name: string): string => {
   const value = process.env[name]
   if (value === undefined || value === '') {
