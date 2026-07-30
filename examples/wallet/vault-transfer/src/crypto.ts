@@ -9,7 +9,6 @@ import {
 } from 'effect'
 
 import {
-  AuthenticatedPrincipal,
   EncryptedRelayCapsule,
   TransferClaimToken,
   type TransferClaimVerifier,
@@ -17,19 +16,37 @@ import {
   TransferReservation,
   TransferSecrets,
   TransferTicket,
-  transferProtocolVersion,
 } from './protocol.js'
 
 const aes256KeyByteLength = 32
 const aesGcmNonceByteLength = 12
 const aesGcmAuthenticationTagByteLength = 16
 const sha256ByteLength = 32
+const maximumCanonicalWalletRecordByteLength = 65_536
 const textEncoder = new TextEncoder()
 const strictTextDecoder = new TextDecoder('utf-8', { fatal: true })
 const CanonicalWalletRecord = S.Redacted(S.String.check(S.isNonEmpty()), {
   label: 'canonical-wallet-record',
   disallowJsonEncode: true,
 })
+const Sha256Digest = S.Uint8Array.check(
+  S.isLengthBetween(sha256ByteLength, sha256ByteLength),
+)
+const Aes256KeyBytes = S.Uint8Array.check(
+  S.isLengthBetween(aes256KeyByteLength, aes256KeyByteLength),
+)
+const AesGcmNonceBytes = S.Uint8Array.check(
+  S.isLengthBetween(aesGcmNonceByteLength, aesGcmNonceByteLength),
+)
+const CanonicalWalletRecordBytes = S.Redacted(
+  S.Uint8Array.check(
+    S.isLengthBetween(1, maximumCanonicalWalletRecordByteLength),
+  ),
+  {
+    label: 'wallet-transfer-plaintext',
+    disallowJsonEncode: true,
+  },
+)
 
 /** Secret or public bytes accepted by the SHA-256 adapter boundary. */
 export type Sha256Input = Uint8Array | Redacted.Redacted<Uint8Array>
@@ -53,7 +70,9 @@ export type Aes256GcmDecryptRequest = Readonly<{
 
 /** Expo Crypto compatible sealed bytes with ciphertext and tag kept separate. */
 export const Aes256GcmSealedBytes = S.Struct({
-  ciphertext: S.Uint8Array,
+  ciphertext: S.Uint8Array.check(
+    S.isLengthBetween(1, maximumCanonicalWalletRecordByteLength),
+  ),
   authenticationTag: S.Uint8Array.check(
     S.isLengthBetween(
       aesGcmAuthenticationTagByteLength,
@@ -259,14 +278,18 @@ export const generateTransferSecrets: Effect.Effect<
   VaultTransferCrypto
 > = Effect.gen(function* () {
   const crypto = yield* VaultTransferCrypto
-  const encryptionKey = yield* crypto.randomBytes(aes256KeyByteLength)
-  const claimToken = yield* crypto.randomBytes(sha256ByteLength)
-  if (
-    encryptionKey.byteLength !== aes256KeyByteLength ||
-    claimToken.byteLength !== sha256ByteLength
-  ) {
-    return yield* Effect.fail(cryptoUnavailable())
-  }
+  const encryptionKey = yield* crypto
+    .randomBytes(aes256KeyByteLength)
+    .pipe(
+      Effect.flatMap(S.decodeUnknownEffect(Aes256KeyBytes)),
+      Effect.mapError(cryptoUnavailable),
+    )
+  const claimToken = yield* crypto
+    .randomBytes(sha256ByteLength)
+    .pipe(
+      Effect.flatMap(S.decodeUnknownEffect(Sha256Digest)),
+      Effect.mapError(cryptoUnavailable),
+    )
   return TransferSecrets.make({
     encryptionKey: Redacted.make(encryptionKey, {
       label: 'wallet-transfer-encryption-key',
@@ -290,34 +313,12 @@ export const deriveTransferClaimVerifier = (
       claimToken,
     ).pipe(Effect.mapError(invalidKeyMaterial))
     const crypto = yield* VaultTransferCrypto
-    const digest = yield* crypto.sha256(validatedToken)
-    if (digest.byteLength !== sha256ByteLength) {
-      return yield* Effect.fail(cryptoUnavailable())
-    }
-    return Encoding.encodeBase64Url(digest)
-  })
-
-/** Derives the opaque owner or claimant binding from a trusted principal. */
-export const deriveAuthenticatedPrincipalBinding = (
-  principal: AuthenticatedPrincipal,
-): Effect.Effect<string, TransferCryptoError, VaultTransferCrypto> =>
-  Effect.gen(function* () {
-    const validatedPrincipal = yield* S.decodeUnknownEffect(
-      AuthenticatedPrincipal,
-    )(principal).pipe(Effect.mapError(invalidEnvelope))
-    const crypto = yield* VaultTransferCrypto
-    const digest = yield* crypto.sha256(
-      textEncoder.encode(
-        JSON.stringify([
-          transferProtocolVersion,
-          validatedPrincipal.issuer,
-          validatedPrincipal.subject,
-        ]),
-      ),
-    )
-    if (digest.byteLength !== sha256ByteLength) {
-      return yield* Effect.fail(cryptoUnavailable())
-    }
+    const digest = yield* crypto
+      .sha256(validatedToken)
+      .pipe(
+        Effect.flatMap(S.decodeUnknownEffect(Sha256Digest)),
+        Effect.mapError(cryptoUnavailable),
+      )
     return Encoding.encodeBase64Url(digest)
   })
 
@@ -342,17 +343,19 @@ const decodeCapsuleBytes = (
     ) {
       return yield* Effect.fail(invalidEnvelope())
     }
-    if (
-      nonceResult.success.byteLength !== aesGcmNonceByteLength ||
-      ciphertextResult.success.byteLength === 0 ||
-      tagResult.success.byteLength !== aesGcmAuthenticationTagByteLength
-    ) {
-      return yield* Effect.fail(invalidEnvelope())
-    }
+    const nonce = yield* S.decodeUnknownEffect(AesGcmNonceBytes)(
+      nonceResult.success,
+    ).pipe(Effect.mapError(invalidEnvelope))
+    const ciphertext = yield* S.decodeUnknownEffect(
+      Aes256GcmSealedBytes.fields.ciphertext,
+    )(ciphertextResult.success).pipe(Effect.mapError(invalidEnvelope))
+    const authenticationTag = yield* S.decodeUnknownEffect(
+      Aes256GcmSealedBytes.fields.authenticationTag,
+    )(tagResult.success).pipe(Effect.mapError(invalidEnvelope))
     return {
-      nonce: nonceResult.success,
-      ciphertext: ciphertextResult.success,
-      authenticationTag: tagResult.success,
+      nonce,
+      ciphertext,
+      authenticationTag,
     }
   })
 
@@ -386,32 +389,49 @@ export const sealCanonicalWalletRecord = (
       return yield* Effect.fail(invalidEnvelope())
     }
     const crypto = yield* VaultTransferCrypto
-    const nonce = yield* crypto.randomBytes(aesGcmNonceByteLength)
-    if (nonce.byteLength !== aesGcmNonceByteLength) {
-      return yield* Effect.fail(cryptoUnavailable())
-    }
+    const nonce = yield* crypto
+      .randomBytes(aesGcmNonceByteLength)
+      .pipe(
+        Effect.flatMap(S.decodeUnknownEffect(AesGcmNonceBytes)),
+        Effect.mapError(cryptoUnavailable),
+      )
     const plaintext = Redacted.make(
       textEncoder.encode(Redacted.value(validatedRecord)),
       { label: 'wallet-transfer-plaintext' },
     )
-    const sealed = yield* crypto.encryptAes256Gcm({
-      key: validatedTicket.encryptionKey,
-      nonce,
-      additionalAuthenticatedData:
-        canonicalTransferAdditionalAuthenticatedData(validatedReservation),
-      plaintext,
-    })
-    Redacted.wipeUnsafe(plaintext)
-    return {
-      protocolVersion: validatedReservation.protocolVersion,
-      environment: validatedReservation.environment,
-      transferId: validatedReservation.transferId,
-      serverExpiresAtMs: validatedReservation.serverExpiresAtMs,
-      ownerBinding: validatedReservation.ownerBinding,
-      nonce: Encoding.encodeBase64Url(nonce),
-      ciphertext: Encoding.encodeBase64Url(sealed.ciphertext),
-      authenticationTag: Encoding.encodeBase64Url(sealed.authenticationTag),
-    }
+    return yield* Effect.gen(function* () {
+      const validatedPlaintext = yield* S.decodeUnknownEffect(
+        CanonicalWalletRecordBytes,
+      )(plaintext).pipe(Effect.mapError(invalidEnvelope))
+      const sealed = yield* crypto
+        .encryptAes256Gcm({
+          key: validatedTicket.encryptionKey,
+          nonce,
+          additionalAuthenticatedData:
+            canonicalTransferAdditionalAuthenticatedData(validatedReservation),
+          plaintext: validatedPlaintext,
+        })
+        .pipe(
+          Effect.flatMap(S.decodeUnknownEffect(Aes256GcmSealedBytes)),
+          Effect.mapError(cryptoUnavailable),
+        )
+      return yield* S.decodeUnknownEffect(EncryptedRelayCapsule)({
+        protocolVersion: validatedReservation.protocolVersion,
+        environment: validatedReservation.environment,
+        transferId: validatedReservation.transferId,
+        serverExpiresAtMs: validatedReservation.serverExpiresAtMs,
+        ownerBinding: validatedReservation.ownerBinding,
+        nonce: Encoding.encodeBase64Url(nonce),
+        ciphertext: Encoding.encodeBase64Url(sealed.ciphertext),
+        authenticationTag: Encoding.encodeBase64Url(sealed.authenticationTag),
+      }).pipe(Effect.mapError(invalidEnvelope))
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          Redacted.wipeUnsafe(plaintext)
+        }),
+      ),
+    )
   })
 
 /** Opens a fully validated capsule and returns one Redacted canonical record. */
@@ -448,13 +468,25 @@ export const openCanonicalWalletRecord = (
       ciphertext: bytes.ciphertext,
       authenticationTag: bytes.authenticationTag,
     })
-    const record = yield* Effect.try({
-      try: () => strictTextDecoder.decode(Redacted.value(plaintext)),
-      catch: invalidEnvelope,
-    })
-    Redacted.wipeUnsafe(plaintext)
-    if (record.length === 0) {
-      return yield* Effect.fail(invalidEnvelope())
-    }
-    return Redacted.make(record, { label: 'canonical-wallet-record' })
+    return yield* Effect.gen(function* () {
+      const validatedPlaintext = yield* S.decodeUnknownEffect(
+        CanonicalWalletRecordBytes,
+      )(plaintext).pipe(Effect.mapError(invalidEnvelope))
+      const record = yield* Effect.try({
+        try: () => strictTextDecoder.decode(Redacted.value(validatedPlaintext)),
+        catch: invalidEnvelope,
+      })
+      if (record.length === 0) {
+        return yield* Effect.fail(invalidEnvelope())
+      }
+      return Redacted.make(record, { label: 'canonical-wallet-record' })
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          if (Redacted.isRedacted(plaintext)) {
+            Redacted.wipeUnsafe(plaintext)
+          }
+        }),
+      ),
+    )
   })
