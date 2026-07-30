@@ -140,12 +140,12 @@ describe('Processor protocol contracts', () => {
       ],
     })
 
-    expect(
-      supportsEffectVersion(processor, 'Audio.Speech.Transcribe', 1),
-    ).toBe(true)
-    expect(
-      supportsEffectVersion(processor, 'Audio.Speech.Transcribe', 3),
-    ).toBe(false)
+    expect(supportsEffectVersion(processor, 'Audio.Speech.Transcribe', 1)).toBe(
+      true,
+    )
+    expect(supportsEffectVersion(processor, 'Audio.Speech.Transcribe', 3)).toBe(
+      false,
+    )
     expect(supportsEffectVersion(phone, 'Audio.Speech.Transcribe', 1)).toBe(
       false,
     )

@@ -81,12 +81,12 @@ describe('EffectManifest', () => {
       ),
     ).toStrictEqual(nextManifest)
     expect(permitsResultEvent(manifest, 'AnyHistoricalResult', 0)).toBe(true)
-    expect(
-      permitsResultEvent(nextManifest, 'SucceededSubmitTransfer', 0),
-    ).toBe(true)
-    expect(
-      permitsResultEvent(nextManifest, 'SucceededSubmitTransfer', 3),
-    ).toBe(false)
+    expect(permitsResultEvent(nextManifest, 'SucceededSubmitTransfer', 0)).toBe(
+      true,
+    )
+    expect(permitsResultEvent(nextManifest, 'SucceededSubmitTransfer', 3)).toBe(
+      false,
+    )
     expect(permitsResultEvent(nextManifest, 'UnexpectedResult', 1)).toBe(false)
   })
 
