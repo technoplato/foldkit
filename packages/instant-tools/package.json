@@ -38,6 +38,9 @@
     "@instantdb/core": "1.0.53",
     "effect": "4.0.0-beta.97"
   },
+  "dependencies": {
+    "uuid": "14.0.1"
+  },
   "devDependencies": {
     "@effect/vitest": "4.0.0-beta.97",
     "@instantdb/core": "1.0.53",

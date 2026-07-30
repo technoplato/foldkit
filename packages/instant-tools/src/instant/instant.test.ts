@@ -2,7 +2,12 @@ import { Array, Effect, Option, Ref, Stream } from 'effect'
 import { expect, expectTypeOf } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
-import { InstantCoreDatabase, i } from '@instantdb/core'
+import {
+  InstantCoreDatabase,
+  i,
+  txInit,
+  validateTransactions,
+} from '@instantdb/core'
 
 import {
   ApplicationProduct,
@@ -19,14 +24,20 @@ import {
   TriageCandidate,
   type TriageInboxService,
 } from '../issues/index.js'
-import { LogEvent, type LoggerService } from '../logging/index.js'
+import {
+  IssueLogReference,
+  LogEvent,
+  type LoggerService,
+} from '../logging/index.js'
 import {
   type InstantEntityStoreService,
   type InstantLogIssueLinkRecord,
   InstantToolsEntities,
+  InstantToolsSchema,
   decodeIssueRecord,
   makeInstantEntityStore,
   makeInstantIssueRecord,
+  makeInstantLogIssueLinkRecords,
   makeInstantProductRecord,
   makeInstantRecordingSegmentRecord,
   makeInstantTriageCandidateRecord,
@@ -387,6 +398,56 @@ describe('Instant adapter', () => {
       ])
     }),
   )
+
+  it('encodes deterministic UUID identities for log Issue links', () => {
+    const linkedEvent = LogEvent.make({
+      ...event,
+      issueReferences: [
+        IssueLogReference.make({
+          issueID: '023',
+          viewerURL: 'https://issues.knophy.com/issues/023',
+        }),
+        IssueLogReference.make({
+          issueID: '041',
+          viewerURL: 'https://issues.knophy.com/issues/041',
+        }),
+      ],
+    })
+    const records = makeInstantLogIssueLinkRecords(linkedEvent)
+    const repeatedRecords = makeInstantLogIssueLinkRecords(linkedEvent)
+    const recordIDs = Array.map(records, record => record.id)
+
+    expect(recordIDs).toEqual([
+      'a7574838-430c-5805-85fe-e41c6120365c',
+      'd2db75c9-e061-554c-af6f-b12322b34183',
+    ])
+    expect(Array.map(repeatedRecords, record => record.id)).toEqual(recordIDs)
+    expect(new Set(recordIDs).size).toBe(2)
+
+    const transaction = txInit<typeof InstantToolsSchema>()
+    const linkTransactions = Array.map(records, record => {
+      const linkEntity = transaction.instantToolsLogIssueLinks[record.id]
+      if (linkEntity === undefined) {
+        throw new Error('Expected an Instant log Issue link transaction.')
+      }
+      return linkEntity.update({
+        category: record.category,
+        contributingPathsJSON: record.contributingPathsJSON,
+        issueID: record.issueID,
+        level: record.level,
+        logID: record.logID,
+        logNamespace: record.logNamespace,
+        message: record.message,
+        name: record.name,
+        timestampMs: record.timestampMs,
+        viewerURL: record.viewerURL,
+      })
+    })
+
+    expect(() =>
+      validateTransactions(linkTransactions, InstantToolsSchema),
+    ).not.toThrow()
+  })
 
   it.effect(
     'persists and observes transcript candidates and shareable segments',

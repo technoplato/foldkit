@@ -9,6 +9,7 @@ import {
   Schema as S,
   Stream,
 } from 'effect'
+import { v5 as uuidV5 } from 'uuid'
 
 import { InstantCoreDatabase, i } from '@instantdb/core'
 
@@ -379,6 +380,12 @@ export const makeInstantLogRecord = (event: LogEvent): InstantLogRecord =>
 export const decodeLogRecord = (record: InstantLogRecord): LogEvent =>
   S.decodeUnknownSync(LogEventJson)(record.payloadJson)
 
+/** Derives one stable Instant entity UUID for a Log Event and Issue pair. */
+export const makeInstantLogIssueLinkID = (
+  logID: string,
+  issueID: string,
+): string => uuidV5(`instantToolsLogs/${logID}/issues/${issueID}`, uuidV5.URL)
+
 /** Encodes one inferred Issue reference as a denormalized evidence row. */
 export const makeInstantLogIssueLinkRecords = (
   event: LogEvent,
@@ -389,7 +396,7 @@ export const makeInstantLogIssueLinkRecords = (
       contributingPathsJSON: S.encodeSync(LogContributingPathsJson)(
         event.contributingPaths,
       ),
-      id: `instantToolsLogs-${event.id}-issue-${reference.issueID}`,
+      id: makeInstantLogIssueLinkID(event.id, reference.issueID),
       issueID: reference.issueID,
       level: event.level,
       logID: event.id,
