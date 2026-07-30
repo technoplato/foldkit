@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 2:46:46 p.m. EDT — `2e192f8d9ce7` fix(instant-tools): close evidence labels
+
+- **Implementation commit:** `2e192f8d9ce77b8e280522f158045d56d5b67260`
+- **Change:** Restore closed issue evidence labels in TypeScript
+- **Details:**
+  - IssueSuccessEvidence now accepts exactly the eleven labels present in the shared Swift and TypeScript wire contract; Snapshot remains explicit while FutureEvidence and empty strings fail decoding.
+  - KnownIssueSuccessEvidence remains as a compatibility alias to the same closed schema rather than a second permissive contract.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Restore the canonical Effect Schema to an explicit literal union.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Replace the permissive future-label assertion with a closed-enum rejection regression.
+- **User context (verbatim):**
+  > these should be a closed enum
+- **SpecStory:** unavailable — Codex desktop task; no durable SpecStory URI is available.
+
 ## July 30th, 2026 at 2:00:12 p.m. EDT — `cbce8b28750f` fix(live-client): reject unfunded network transfers
 
 - **Implementation commit:** `cbce8b28750f16522d8f682bf250707f72fe267d`
