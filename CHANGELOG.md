@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 12:42:22 p.m. EDT — `a334bbab37f8` fix(instant-tools): preserve evolving evidence labels
+
+- **Implementation commit:** `a334bbab37f82ed6a6af9b6e7080a77629723466`
+- **Change:** Made Issue success-evidence decoding forward-compatible across live schema evolution.
+- **Details:**
+  - Reproduced the clean 849987d2 public deployment rejecting the newly introduced Snapshot label after earlier Research and CodeReview additions.
+  - Kept a typed known-label schema for first-class client semantics while decoding every non-empty wire label losslessly, so a new evidence kind cannot take down the complete Issue list.
+  - Verified 23 instant-tools tests, instant-tools typecheck, eight Issue core tests, seven Issue React tests, React typecheck, formatting, and the production build.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Separate known evidence semantics from the forward-compatible non-empty wire label.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Prove Snapshot and arbitrary future labels decode while empty labels remain invalid.
+- **User context (verbatim):**
+  > why are you still active what was going on?
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 12:31:50 p.m. EDT — `8b58ccd0ff43` feat: improve Wallet usability and live refresh
 
 - **Implementation commit:** `8b58ccd0ff43f9092c61d6e19fb714c83e9b77f6`
