@@ -4,6 +4,53 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 2:53:11 p.m. EDT — `2f070db85b71` feat: add fail-closed Wallet receive QR codes
+
+- **Implementation commit:** `2f070db85b7154bfea7c14f080bb75c519feadaa`
+- **Change:** Added deterministic fail-closed receiving QR projection across every Wallet client without placing receive payloads in Foldkit Model, Message, or replay state.
+- **Details:**
+  - Encoded each adapter's exact ReceivingInstruction at level H with a four-module quiet zone and a bounded successful-result cache.
+  - Suppressed QR presentation for fixture data, replay inspection, portable routes, inconsistent instructions, and undersized terminal viewports.
+  - Verified React, Foldkit, Expo, Terminal, OpenTUI, and all twelve chain-network receiving rails; corrected the Sui conformance fixture to match its typed simulation status.
+  - Added expo-image 57.0.1 for native GIF rendering and kept the lock diff limited to Wallet dependencies.
+- **Files:**
+  - `examples/react-native-showcase/package.json` — Declare the shared QR package and native GIF renderer.
+  - `examples/react-native-showcase/src/App.tsx` — Propagate the outer replay boundary into the nested Wallet host.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Render every active account QR with correct fresh-route and replay classification.
+  - `examples/wallet/foldkit/package.json` — Build and test against the shared QR package.
+  - `examples/wallet/foldkit/src/application.ts` — Pass host provenance into the Foldkit Wallet view.
+  - `examples/wallet/foldkit/src/entry.ts` — Classify canonical entry as a fresh host origin.
+  - `examples/wallet/foldkit/src/route.test.ts` — Cover the receiving route boundary.
+  - `examples/wallet/foldkit/src/scene.test.ts` — Verify fresh, replay, fixture, and portable QR behavior.
+  - `examples/wallet/foldkit/src/view.ts` — Render exact receiving QR images and unavailable reasons.
+  - `examples/wallet/local-vault/package.json` — Include QR build and conformance dependencies.
+  - `examples/wallet/local-vault/src/liveNetworkAdapter.conformance.test.ts` — Prove exact QR projection across all twelve live network rows.
+  - `examples/wallet/qr/package.json` — Define the reusable QR package and pinned encoder dependency.
+  - `examples/wallet/qr/src/index.ts` — Expose the shared receiving QR contract.
+  - `examples/wallet/qr/src/receivingQr.test.ts` — Cover decoding, spoof rejection, fail-closed provenance, caching, and dimensions.
+  - `examples/wallet/qr/src/receivingQr.ts` — Implement Schema-backed projection, strict carrier validation, encoding, and terminal rendering.
+  - `examples/wallet/qr/tsconfig.build.json` — Configure distributable QR compilation.
+  - `examples/wallet/qr/tsconfig.json` — Configure QR source and test typechecking.
+  - `examples/wallet/react/package.json` — Add QR and focused React test dependencies.
+  - `examples/wallet/react/src/App.tsx` — Render account QR projections in the React Wallet screen.
+  - `examples/wallet/react/src/ReceivingQr.test.tsx` — Verify visible exact payloads and unavailable reasons.
+  - `examples/wallet/react/src/ReceivingQr.tsx` — Provide the reusable React receiving QR component.
+  - `examples/wallet/react/src/main.tsx` — Classify browser route provenance before rendering.
+  - `examples/wallet/react/src/styles.css` — Style readable QR cards without clipping or embossed text.
+  - `examples/wallet/terminal/package.json` — Build and test against the QR package.
+  - `examples/wallet/terminal/src/host.test.ts` — Cover QR toggling, resize transitions, and fail-closed output.
+  - `examples/wallet/terminal/src/host.ts` — Add a resize-reactive receiving frame with exact payload fallback.
+  - `examples/wallet/tui/package.json` — Build and test against the QR package.
+  - `examples/wallet/tui/src/entry.tsx` — Pass host provenance into the OpenTUI renderer.
+  - `examples/wallet/tui/src/host.test.ts` — Cover close controls, viewport transitions, and unavailable states.
+  - `examples/wallet/tui/src/host.tsx` — Render a live dimension-aware OpenTUI receiving panel.
+  - `examples/wallet/tui/src/presentation.ts` — Project terminal QR fit and explicit resize requirements.
+  - `pnpm-lock.yaml` — Lock the encoder, native image renderer, and six Wallet QR consumers without unrelated drift.
+- **User context (verbatim):**
+  > And then I'd like to also, um, expose QR codes.
+  > for each account in the wallet.
+- **SpecStory:** unavailable — Codex desktop GUI capture is not documented by SpecStory, so no durable URI is available.
+
 ## July 30th, 2026 at 2:46:46 p.m. EDT — `2e192f8d9ce7` fix(instant-tools): close evidence labels
 
 - **Implementation commit:** `2e192f8d9ce77b8e280522f158045d56d5b67260`
