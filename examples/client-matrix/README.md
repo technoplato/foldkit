@@ -25,6 +25,16 @@ captured client:
 - **Host:** Vite, Expo, or Effect Platform.
 - **URI carrier:** HTTPS URL, custom-scheme URL, or command-line argument.
 
+A **Processor** is one running occurrence of the Program that consumes Messages
+and advertises the capabilities supplied by its Layers. A Client can host
+multiple Processors, including multiple occurrences on one machine. A headless
+Client can host Processors without rendering a human interface. The current
+one-shot examples create a temporary captive Processor and shut it down when
+the command exits. A proposed non-captive one-shot Client instead addresses a
+longer-lived Processor and prints its current snapshot. Processor identity and
+capability are separate matrix axes from renderer, platform, host, and URI
+carrier.
+
 The React and Foldkit captures open their public browser clients in an
 interactive iframe inside the selected cell. The live client starts from that
 cell's exact portable URI and can navigate independently until **Return to

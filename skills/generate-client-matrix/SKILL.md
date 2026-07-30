@@ -17,8 +17,9 @@ editing a matrix.
 1. Identify the exact shared Program and its exported Model, Message, init,
    update, restore, and Subscription definitions. Every compared client must
    consume those definitions rather than reimplementing the domain.
-2. Inventory each runnable Client. Record its interaction surface, renderer,
-   platform, host, and URI carrier separately.
+2. Inventory each runnable Client and every Processor it hosts or reaches.
+   Record interaction surface, renderer, platform, host, URI carrier, Processor
+   identity, and advertised capabilities separately.
 3. Derive state and replay paths from the Program router. Derive domain intent
    paths from a domain-owned parser-printer. Never hand-build a path in the
    matrix when a canonical printer exists.
@@ -38,6 +39,9 @@ editing a matrix.
 ## Architecture boundaries
 
 - Call the complete runnable adapter a **Client**.
+- Call one running Program occurrence a **Processor**. A Client may host several
+  Processors, including Processors hosted by headless Clients whose renderer
+  axis is `none`.
 - A Message is a fact. URL parsing may create startup input or a Message, but
   it must never execute a side effect directly.
 - update owns Model transitions and produces Commands. Replays use inert Layers
@@ -51,10 +55,11 @@ editing a matrix.
 
 ## Evidence requirements
 
-For each cell, show the exact portable URI, exact client carrier or reproducible
-command, image when visual output exists, evidence level, and any limitation.
-Link or embed a live client only when the target is actually running and accepts
-that route. Otherwise keep the capture static and explain the missing seam.
+For each cell, show the exact portable URI, exact Client carrier or reproducible
+command, Processor identity and capabilities when execution matters, image when
+visual output exists, evidence level, and any limitation. Link or embed a live
+Client only when the target is actually running and accepts that route.
+Otherwise keep the capture static and explain the missing seam.
 
 Finish by reporting focused tests, typechecks, builds, visual inspection, and
 the highest device validation level reached.
