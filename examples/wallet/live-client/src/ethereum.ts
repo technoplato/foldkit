@@ -9,7 +9,9 @@ import {
   Stream,
 } from 'effect'
 import {
+  BaseError,
   type Transaction as EthereumRpcTransaction,
+  InsufficientFundsError,
   createPublicClient,
   defineChain,
   getAddress,
@@ -111,6 +113,20 @@ const unsupported = () =>
 
 const clientError = (error: unknown): WalletClientError =>
   error instanceof WalletClientError ? error : unavailable()
+
+const transactionClientError = (error: unknown): WalletClientError => {
+  if (error instanceof WalletClientError) {
+    return error
+  } else if (
+    error instanceof BaseError &&
+    error.walk(candidate => candidate instanceof InsufficientFundsError) !==
+      null
+  ) {
+    return rejected()
+  } else {
+    return unavailable()
+  }
+}
 
 const assetAmount = (
   configuration: EthereumLiveNetwork,
@@ -484,8 +500,11 @@ export const makeEthereumLiveAdapter = (
           const destination = getAddress(transfer.recipient.address)
           const atomicUnits = BigInt(transfer.request.atomicUnits)
           const observedAt = Date.now()
-          const [balance, fees, gas] = await Promise.all([
-            publicClient.getBalance({ address: source }),
+          const balance = await publicClient.getBalance({ address: source })
+          if (balance <= atomicUnits) {
+            throw rejected()
+          }
+          const [fees, gas] = await Promise.all([
             publicClient.estimateFeesPerGas({ type: 'eip1559' }),
             publicClient.estimateGas({
               account: source,
@@ -509,8 +528,7 @@ export const makeEthereumLiveAdapter = (
             expiresAt: observedAt + quoteLifetimeMilliseconds,
           })
         },
-        catch: error =>
-          error instanceof WalletClientError ? error : unavailable(),
+        catch: transactionClientError,
       }),
     buildTransferPayload: (account, preview) =>
       Effect.tryPromise({
@@ -549,8 +567,7 @@ export const makeEthereumLiveAdapter = (
             S.encodeSync(EthereumPreparedPayloadJson)(payload),
           )
         },
-        catch: error =>
-          error instanceof WalletClientError ? error : unavailable(),
+        catch: transactionClientError,
       }),
     submitTransaction: (account, transaction) => {
       if (
@@ -584,7 +601,7 @@ export const makeEthereumLiveAdapter = (
                 ),
               })
             },
-            catch: unavailable,
+            catch: transactionClientError,
           }),
         ),
       )

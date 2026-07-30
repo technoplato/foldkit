@@ -483,27 +483,31 @@ export const makeSuiLiveAdapter = (
       return Effect.tryPromise({
         try: async () => {
           const observedAt = Date.now()
+          const balanceResponse = await client.getBalance({
+            owner: account.account.address,
+          })
+          const balance = BigInt(balanceResponse.balance.balance)
+          if (balance <= atomicUnits) {
+            throw rejected()
+          }
           const transaction = makeTransferTransaction(
             normalizeSuiAddress(account.account.address),
             transfer.recipient.address,
             atomicUnits,
           )
-          const [balanceResponse, simulation] = await Promise.all([
-            client.getBalance({ owner: account.account.address }),
-            client.simulateTransaction({
-              transaction,
-              include: { effects: true },
-            }),
-          ])
+          const simulation = await client.simulateTransaction({
+            transaction,
+            include: { effects: true },
+          })
           if (
             simulation.$kind !== 'Transaction' ||
-            simulation.Transaction.effects === undefined
+            simulation.Transaction.effects === undefined ||
+            !simulation.Transaction.effects.status.success
           ) {
             throw rejected()
           }
           const fee = gasFee(simulation.Transaction.effects)
-          const resultingBalance =
-            BigInt(balanceResponse.balance.balance) - atomicUnits - fee
+          const resultingBalance = balance - atomicUnits - fee
           if (resultingBalance < 0n) {
             throw rejected()
           }
@@ -532,6 +536,12 @@ export const makeSuiLiveAdapter = (
         try: async () => {
           const atomicUnits = BigInt(preview.transfer.request.atomicUnits)
           if (atomicUnits <= 0n) {
+            throw rejected()
+          }
+          const balanceResponse = await client.getBalance({
+            owner: account.account.address,
+          })
+          if (BigInt(balanceResponse.balance.balance) <= atomicUnits) {
             throw rejected()
           }
           const transaction = makeTransferTransaction(
