@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit Sharing'
+  short_description: 'Persist and synchronize portable Model state'
+  default_prompt: 'Use $foldkit-sharing to persist and synchronize this Foldkit state across clients.'

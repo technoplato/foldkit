@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit Client Hosts'
+  short_description: 'Adapt one Program to multiple clients'
+  default_prompt: 'Use $foldkit-client-hosts to run this portable Foldkit Program in another client.'

@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit Composable Architecture'
+  short_description: 'Compose Foldkit Programs and Submodels'
+  default_prompt: 'Use $foldkit-composable-architecture to model this feature as a Foldkit Program.'

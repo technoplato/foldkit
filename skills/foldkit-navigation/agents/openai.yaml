@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit Navigation'
+  short_description: 'Build typed routes and portable URI laws'
+  default_prompt: 'Use $foldkit-navigation to model and test these Foldkit routes.'

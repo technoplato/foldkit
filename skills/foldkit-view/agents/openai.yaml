@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit View'
+  short_description: 'Build pure accessible Foldkit views'
+  default_prompt: 'Use $foldkit-view to implement this Foldkit interface as a pure accessible view.'

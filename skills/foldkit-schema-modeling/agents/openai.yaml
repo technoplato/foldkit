@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Foldkit Schema Modeling'
+  short_description: 'Model valid Foldkit state and Messages'
+  default_prompt: 'Use $foldkit-schema-modeling to make this Foldkit domain invalid-state resistant.'
