@@ -22,7 +22,12 @@ import {
   ProductCatalogEntry,
   ProductCatalogError,
   type ProductCatalogService,
+  RecordingSegment,
   TrackedProduct,
+  TriageCandidate,
+  TriageInbox,
+  TriageInboxError,
+  type TriageInboxService,
 } from '../issues/index.js'
 import {
   LogEvent,
@@ -33,6 +38,8 @@ import {
 
 const IssueJson = S.fromJsonString(Issue)
 const LogEventJson = S.fromJsonString(LogEvent)
+const RecordingSegmentJson = S.fromJsonString(RecordingSegment)
+const TriageCandidateJson = S.fromJsonString(TriageCandidate)
 
 /** A queryable InstantDB envelope for one lossless portable Issue payload. */
 export const InstantIssueRecord = S.Struct({
@@ -71,6 +78,31 @@ export const InstantProductRecord = S.Struct({
 /** A queryable InstantDB envelope for one first-class Application or Library. */
 export type InstantProductRecord = typeof InstantProductRecord.Type
 
+/** A queryable InstantDB envelope for one shareable Recording segment. */
+export const InstantRecordingSegmentRecord = S.Struct({
+  endMilliseconds: S.Number,
+  id: S.String,
+  payloadJson: S.String,
+  recordingId: S.String,
+  startMilliseconds: S.Number,
+})
+/** A queryable InstantDB envelope for one shareable Recording segment. */
+export type InstantRecordingSegmentRecord =
+  typeof InstantRecordingSegmentRecord.Type
+
+/** A queryable InstantDB envelope for one transcript-derived draft. */
+export const InstantTriageCandidateRecord = S.Struct({
+  id: S.String,
+  payloadJson: S.String,
+  productId: S.String,
+  recordingId: S.String,
+  status: S.String,
+  updatedAtMs: S.Number,
+})
+/** A queryable InstantDB envelope for one transcript-derived draft. */
+export type InstantTriageCandidateRecord =
+  typeof InstantTriageCandidateRecord.Type
+
 /** The entity definitions a host can compose into its application schema. */
 export const InstantToolsEntities = {
   instantToolsIssues: i.entity({
@@ -93,6 +125,19 @@ export const InstantToolsEntities = {
   instantToolsProducts: i.entity({
     kind: i.string().indexed(),
     name: i.string().indexed(),
+    updatedAtMs: i.number().indexed(),
+  }),
+  instantToolsRecordingSegments: i.entity({
+    endMilliseconds: i.number().indexed(),
+    payloadJson: i.string(),
+    recordingId: i.string().indexed(),
+    startMilliseconds: i.number().indexed(),
+  }),
+  instantToolsTriageCandidates: i.entity({
+    payloadJson: i.string(),
+    productId: i.string().indexed(),
+    recordingId: i.string().indexed(),
+    status: i.string().indexed(),
     updatedAtMs: i.number().indexed(),
   }),
 }
@@ -119,8 +164,12 @@ export class InstantEntityStoreError extends Data.TaggedError(
     | 'ObserveIssues'
     | 'ObserveIssue'
     | 'ObserveProducts'
+    | 'ObserveRecordingSegment'
+    | 'ObserveTriageCandidates'
     | 'SaveIssue'
     | 'SaveProduct'
+    | 'SaveRecordingSegment'
+    | 'SaveTriageCandidate'
 }> {}
 
 /** The minimal Instant entity capability consumed by both transport adapters. */
@@ -147,11 +196,27 @@ export type InstantEntityStoreService = Readonly<{
     ReadonlyArray<InstantProductRecord>,
     InstantEntityStoreError
   >
+  observeRecordingSegment: (
+    segmentId: string,
+  ) => Stream.Stream<
+    Option.Option<InstantRecordingSegmentRecord>,
+    InstantEntityStoreError
+  >
+  observeTriageCandidates: Stream.Stream<
+    ReadonlyArray<InstantTriageCandidateRecord>,
+    InstantEntityStoreError
+  >
   saveIssue: (
     record: InstantIssueRecord,
   ) => Effect.Effect<void, InstantEntityStoreError>
   saveProduct: (
     record: InstantProductRecord,
+  ) => Effect.Effect<void, InstantEntityStoreError>
+  saveRecordingSegment: (
+    record: InstantRecordingSegmentRecord,
+  ) => Effect.Effect<void, InstantEntityStoreError>
+  saveTriageCandidate: (
+    record: InstantTriageCandidateRecord,
   ) => Effect.Effect<void, InstantEntityStoreError>
 }>
 
@@ -198,6 +263,43 @@ export const decodeProductRecord = (
     }),
     updatedAtMs: record.updatedAtMs,
   })
+
+/** Encodes one shareable Recording segment into its Instant envelope. */
+export const makeInstantRecordingSegmentRecord = (
+  segment: RecordingSegment,
+): InstantRecordingSegmentRecord =>
+  InstantRecordingSegmentRecord.make({
+    endMilliseconds: segment.endMilliseconds,
+    id: segment.id,
+    payloadJson: S.encodeSync(RecordingSegmentJson)(segment),
+    recordingId: segment.recordingId,
+    startMilliseconds: segment.startMilliseconds,
+  })
+
+/** Decodes one Instant Recording segment envelope. */
+export const decodeRecordingSegmentRecord = (
+  record: InstantRecordingSegmentRecord,
+): RecordingSegment =>
+  S.decodeUnknownSync(RecordingSegmentJson)(record.payloadJson)
+
+/** Encodes one transcript-derived triage draft into its Instant envelope. */
+export const makeInstantTriageCandidateRecord = (
+  candidate: TriageCandidate,
+): InstantTriageCandidateRecord =>
+  InstantTriageCandidateRecord.make({
+    id: candidate.id,
+    payloadJson: S.encodeSync(TriageCandidateJson)(candidate),
+    productId: candidate.product.id,
+    recordingId: candidate.segment.recordingId,
+    status: candidate.status,
+    updatedAtMs: candidate.updatedAtMs,
+  })
+
+/** Decodes one Instant triage draft envelope. */
+export const decodeTriageCandidateRecord = (
+  record: InstantTriageCandidateRecord,
+): TriageCandidate =>
+  S.decodeUnknownSync(TriageCandidateJson)(record.payloadJson)
 
 /** Encodes one structured Log Event into its queryable InstantDB envelope. */
 export const makeInstantLogRecord = (event: LogEvent): InstantLogRecord =>
@@ -323,6 +425,43 @@ export const makeProductCatalog = (
       .pipe(
         Effect.mapError(
           cause => new ProductCatalogError({ cause, operation: 'Save' }),
+        ),
+      ),
+})
+
+/** Adapts the low-level Instant entity capability to transcript triage. */
+export const makeTriageInbox = (
+  store: InstantEntityStoreService,
+): TriageInboxService => ({
+  observeCandidates: store.observeTriageCandidates.pipe(
+    Stream.map(records => Array.map(records, decodeTriageCandidateRecord)),
+    Stream.mapError(
+      cause => new TriageInboxError({ cause, operation: 'ObserveCandidates' }),
+    ),
+  ),
+  observeSegment: segmentId =>
+    store.observeRecordingSegment(segmentId).pipe(
+      Stream.map(maybeRecord =>
+        Option.map(maybeRecord, decodeRecordingSegmentRecord),
+      ),
+      Stream.mapError(
+        cause => new TriageInboxError({ cause, operation: 'ObserveSegment' }),
+      ),
+    ),
+  saveCandidate: candidate =>
+    store
+      .saveTriageCandidate(makeInstantTriageCandidateRecord(candidate))
+      .pipe(
+        Effect.mapError(
+          cause => new TriageInboxError({ cause, operation: 'SaveCandidate' }),
+        ),
+      ),
+  saveSegment: segment =>
+    store
+      .saveRecordingSegment(makeInstantRecordingSegmentRecord(segment))
+      .pipe(
+        Effect.mapError(
+          cause => new TriageInboxError({ cause, operation: 'SaveSegment' }),
         ),
       ),
 })
@@ -532,6 +671,107 @@ export const makeInstantEntityStore = (
       unsubscribe => Effect.sync(unsubscribe),
     ).pipe(Effect.flatMap(() => Effect.never)),
   ),
+  observeRecordingSegment: segmentId =>
+    Stream.callback<
+      Option.Option<InstantRecordingSegmentRecord>,
+      InstantEntityStoreError
+    >(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() =>
+          database.subscribeQuery(
+            {
+              instantToolsRecordingSegments: {
+                $: { where: { id: segmentId } },
+              },
+            },
+            response => {
+              if (response.error !== undefined) {
+                Queue.failCauseUnsafe(
+                  queue,
+                  Cause.fail(
+                    new InstantEntityStoreError({
+                      cause: response.error,
+                      operation: 'ObserveRecordingSegment',
+                    }),
+                  ),
+                )
+              } else {
+                try {
+                  Queue.offerUnsafe(
+                    queue,
+                    Option.map(
+                      Array.head(response.data.instantToolsRecordingSegments),
+                      record =>
+                        S.decodeUnknownSync(InstantRecordingSegmentRecord)(
+                          record,
+                        ),
+                    ),
+                  )
+                } catch (cause) {
+                  Queue.failCauseUnsafe(
+                    queue,
+                    Cause.fail(
+                      new InstantEntityStoreError({
+                        cause,
+                        operation: 'ObserveRecordingSegment',
+                      }),
+                    ),
+                  )
+                }
+              }
+            },
+          ),
+        ),
+        unsubscribe => Effect.sync(unsubscribe),
+      ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
+  observeTriageCandidates: Stream.callback<
+    ReadonlyArray<InstantTriageCandidateRecord>,
+    InstantEntityStoreError
+  >(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        database.subscribeQuery(
+          { instantToolsTriageCandidates: {} },
+          response => {
+            if (response.error !== undefined) {
+              Queue.failCauseUnsafe(
+                queue,
+                Cause.fail(
+                  new InstantEntityStoreError({
+                    cause: response.error,
+                    operation: 'ObserveTriageCandidates',
+                  }),
+                ),
+              )
+            } else {
+              try {
+                Queue.offerUnsafe(
+                  queue,
+                  Array.map(
+                    response.data.instantToolsTriageCandidates,
+                    record =>
+                      S.decodeUnknownSync(InstantTriageCandidateRecord)(record),
+                  ),
+                )
+              } catch (cause) {
+                Queue.failCauseUnsafe(
+                  queue,
+                  Cause.fail(
+                    new InstantEntityStoreError({
+                      cause,
+                      operation: 'ObserveTriageCandidates',
+                    }),
+                  ),
+                )
+              }
+            }
+          },
+        ),
+      ),
+      unsubscribe => Effect.sync(unsubscribe),
+    ).pipe(Effect.flatMap(() => Effect.never)),
+  ),
   saveIssue: record =>
     Effect.tryPromise({
       try: () => {
@@ -587,16 +827,74 @@ export const makeInstantEntityStore = (
           operation: 'SaveProduct',
         }),
     }),
+  saveRecordingSegment: record =>
+    Effect.tryPromise({
+      try: () => {
+        const entity = database.tx.instantToolsRecordingSegments[record.id]
+        if (entity === undefined) {
+          return Promise.reject(
+            new Error(
+              'Instant Recording segment transaction entity was unavailable.',
+            ),
+          )
+        }
+        return database
+          .transact(
+            entity.update({
+              endMilliseconds: record.endMilliseconds,
+              payloadJson: record.payloadJson,
+              recordingId: record.recordingId,
+              startMilliseconds: record.startMilliseconds,
+            }),
+          )
+          .then(() => undefined)
+      },
+      catch: cause =>
+        new InstantEntityStoreError({
+          cause,
+          operation: 'SaveRecordingSegment',
+        }),
+    }),
+  saveTriageCandidate: record =>
+    Effect.tryPromise({
+      try: () => {
+        const entity = database.tx.instantToolsTriageCandidates[record.id]
+        if (entity === undefined) {
+          return Promise.reject(
+            new Error(
+              'Instant triage candidate transaction entity was unavailable.',
+            ),
+          )
+        }
+        return database
+          .transact(
+            entity.update({
+              payloadJson: record.payloadJson,
+              productId: record.productId,
+              recordingId: record.recordingId,
+              status: record.status,
+              updatedAtMs: record.updatedAtMs,
+            }),
+          )
+          .then(() => undefined)
+      },
+      catch: cause =>
+        new InstantEntityStoreError({
+          cause,
+          operation: 'SaveTriageCandidate',
+        }),
+    }),
 })
 
 /** Provides all portable services from one host-initialized InstantDB client. */
 export const makeInstantToolsLayer = (
   database: InstantToolsDatabase,
-): Layer.Layer<IssueTracker | Logger | ProductCatalog> => {
+): Layer.Layer<IssueTracker | Logger | ProductCatalog | TriageInbox> => {
   const store = makeInstantEntityStore(database)
   return Layer.mergeAll(
     Layer.succeed(IssueTracker, makeIssueTracker(store)),
     Layer.succeed(Logger, makeLogger(store)),
     Layer.succeed(ProductCatalog, makeProductCatalog(store)),
+    Layer.succeed(TriageInbox, makeTriageInbox(store)),
   )
 }
