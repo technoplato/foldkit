@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:25:07 a.m. EDT — `11d08d2962e1` feat(issues): model the live tracker program
+
+- **Implementation commit:** `11d08d2962e1287bcc8b0556bb10d07f3264b929`
+- **Change:** Model the live Issue Tracker as one renderer-independent Foldkit Program with typed navigation and first-class filing.
+- **Details:**
+  - Added mutually exclusive list, detail, filing, and triage destinations; live collection, catalog, and selected-Issue Subscriptions; controlled save identity; canonical routes; host-neutral destinations and interactions; deterministic resources; and focused tests.
+- **Files:**
+  - `examples/issues/core/src/model.ts` — Defines the typed navigation, remote observation, and filing state machines.
+  - `examples/issues/core/src/subscription.ts` — Owns live Issue, Product, and individual-Issue streams.
+  - `examples/issues/core/src/update.ts` — Applies filing and navigation Messages and emits the save Command.
+  - `examples/issues/core/src/route.ts` — Defines canonical portable route parser-printers.
+  - `examples/issues/core/src/presentation.ts` — Projects one host-neutral destination and interaction set.
+  - `examples/issues/core/src/program.test.ts` — Proves route, navigation, observation, and filing behavior.
+  - `examples/issues/README.md` — Documents the Client matrix and CF-only security limitation.
+- **User context (verbatim):**
+  > Your plan for our program and first class entities looks great
+  > Go ahead and do those steps
+- **SpecStory:** unavailable — SpecStory URI unavailable because this Codex desktop task was not captured by SpecStory.
+
 ## July 30th, 2026 at 1:20:54 a.m. EDT — `d1b3d9860553` feat(instant-tools): observe issues and filing domains
 
 - **Implementation commit:** `d1b3d986055301e4c261748dd77bdd94f7a6e843`
