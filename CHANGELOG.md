@@ -4,6 +4,85 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 3:17:03 p.m. EDT — `3cbb0f0231f6` feat: synchronize authenticated Counter processors
+
+- **Implementation commit:** `3cbb0f0231f638e3f5661567cd7129a58d4f45ea`
+- **Change:** Synchronize authenticated Counter Processors through an accepted InstantDB Message tape.
+- **Details:**
+  - Embedded the canonical counter-core-example Program by source identity while keeping authentication, session, transport, replay, presence, and pending-proposal state in coordinator and host adapters.
+  - Added email magic-code and Google OAuth browser authentication, trusted headless session materialization and acceptance, deterministic provenance and ordering, offline outbox recovery, inert replay, capability-driven effect placement, and factual results.
+  - Hardened effect-result request, kind, Processor, placement-generation, causation, and idempotency bindings; isolated malformed room peers; added default-deny permissions, protocol migrations, public-environment scrubbing, and a production precached application shell.
+- **Files:**
+  - `.changeset/isolate-malformed-processor-presence.md` — Record package release intent for the Instant room hardening.
+  - `examples/counter/core/src/init.ts` — Expose and verify the canonical Counter restore path shared by every host.
+  - `examples/counter/core/src/program.ts` — Expose and verify the canonical Counter restore path shared by every host.
+  - `examples/counter/core/src/update.test.ts` — Expose and verify the canonical Counter restore path shared by every host.
+  - `examples/instant-counter/README.md` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/instant.perms.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/instant.schema.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/package.json` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/public/instant-counter-sw.js` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/scripts/with-public-instant-env` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/client/auth.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/client/browserApp.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/client/browserCapabilities.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/client/database.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/client/localState.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/client/localState.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/client/processor.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/client/view.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/domain/effect.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/domain/message.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/domain/model.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/domain/program.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/domain/program.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/domain/wire.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/domain/wire.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/entry.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/adminStore.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/authority.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/capabilities.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/capabilities.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/database.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/database.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/entry.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/localState.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/localState.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/placement.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/placement.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/placementLifecycle.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/placementLifecycle.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/placementSupervisor.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/sessionMaterializer.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/headless/sessionMaterializer.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/shared/identity.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/shared/identity.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/shared/presence.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/shared/presence.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/shared/publicEnvironment.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/shared/sessionClaim.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/shared/sessionClaim.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/shared/sessionValidation.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/shared/sessionValidation.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/styles.css` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/transport/codec.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/transport/codec.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/transport/effectScheduler.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/transport/effectScheduler.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/transport/session.test.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/src/transport/session.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `examples/instant-counter/vite.config.ts` — Complete authenticated browser and headless demo, protocol, acceptance evidence, or operator documentation.
+  - `packages/instant/src/acceptanceAuthority/acceptanceAuthority.ts` — Bind authoritative effect context or isolate malformed transient room participants.
+  - `packages/instant/src/processorRoom/processorRoom.test.ts` — Bind authoritative effect context or isolate malformed transient room participants.
+  - `packages/instant/src/processorRoom/processorRoom.ts` — Bind authoritative effect context or isolate malformed transient room participants.
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.ts` — Bind authoritative effect context or isolate malformed transient room participants.
+  - `pnpm-lock.yaml` — Link the canonical Counter workspace dependency reproducibly.
+- **User context (verbatim):**
+  > press increment on either device, both devices receive the same.
+  > The Instant demo must import and execute the existing canonical plain Counter Program
+  > The phone executes it once and sends a result back is another factual message.
+- **SpecStory:** unavailable — Unavailable: this task ran in Codex desktop, which does not produce a SpecStory CLI capture.
+
 ## July 30th, 2026 at 2:53:11 p.m. EDT — `2f070db85b71` feat: add fail-closed Wallet receive QR codes
 
 - **Implementation commit:** `2f070db85b7154bfea7c14f080bb75c519feadaa`
