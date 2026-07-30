@@ -241,6 +241,7 @@ export type IssueWorkLogEntry = typeof IssueWorkLogEntry.Type
 export const IssueSuccessEvidence = S.Literals([
   'Accessibility',
   'BuildProvenance',
+  'CodeReview',
   'FocusedTest',
   'Log',
   'Persistence',

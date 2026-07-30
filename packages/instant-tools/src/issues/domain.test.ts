@@ -89,6 +89,12 @@ describe('issue domain', () => {
     )
   })
 
+  it('preserves code review as live success evidence', () => {
+    expect(S.decodeUnknownSync(IssueSuccessEvidence)('CodeReview')).toBe(
+      'CodeReview',
+    )
+  })
+
   it('defaults missing legacy attachment metadata to none', () => {
     const attachment = S.decodeUnknownSync(IssueAttachment)({
       contentType: 'image/png',
