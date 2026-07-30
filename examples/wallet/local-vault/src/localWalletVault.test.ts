@@ -35,16 +35,15 @@ import * as Bitcoin from '@scure/btc-signer'
 import { pubECDSA } from '@scure/btc-signer/utils.js'
 
 import {
+  LocalWalletTransferRecordPort,
   type WalletVaultStorage,
+  localWalletVaultOwnerKey,
   makeLocalWalletResources,
   makeLocalWalletVault,
   makeMemoryWalletVaultStorage,
   makePersistentLocalWalletResources,
   makePersistentLocalWalletVault,
 } from './localWalletVault.js'
-
-const MigratedRecordEnvelope = S.Struct({ version: S.Number })
-const MigratedRecordEnvelopeJson = S.fromJsonString(MigratedRecordEnvelope)
 
 const walletCreationRequest = WalletCreationRequest.make({
   requestId: 'wallet-1',
@@ -129,7 +128,7 @@ describe('local Wallet vault', () => {
   })
 
   it('restores the same profiles and addresses through a reconstructed vault', async () => {
-    const storage = makeMemoryWalletVaultStorage()
+    const storage = makeMemoryWalletVaultStorage(localWalletVaultOwnerKey)
     const first = await Effect.runPromise(
       Effect.gen(function* () {
         const vault = yield* WalletVault
@@ -160,7 +159,116 @@ describe('local Wallet vault', () => {
     expect(restored).toStrictEqual([first])
   })
 
-  it('migrates legacy four-key records into exact-network accounts', async () => {
+  it('imports one canonical record and refreshes signing custody for every restored account', async () => {
+    const sourceStorage = makeMemoryWalletVaultStorage(localWalletVaultOwnerKey)
+    const source = await Effect.runPromise(
+      Effect.gen(function* () {
+        const vault = yield* WalletVault
+        const transfer = yield* LocalWalletTransferRecordPort
+        const wallet = yield* vault.createWallet(walletCreationRequest)
+        const record = yield* transfer.exportCanonicalRecord(wallet.walletId)
+        return { wallet, record }
+      }).pipe(
+        Effect.provide(
+          makePersistentLocalWalletResources(
+            makeDeterministicRandomBytes(),
+            sourceStorage,
+          ),
+        ),
+      ),
+    )
+    const targetStorage = makeMemoryWalletVaultStorage(localWalletVaultOwnerKey)
+    const restored = await Effect.runPromise(
+      Effect.gen(function* () {
+        const transfer = yield* LocalWalletTransferRecordPort
+        const vault = yield* WalletVault
+        const signer = yield* WalletSigner
+        const crypto = yield* WalletCrypto
+        yield* transfer.importCanonicalRecord(source.record)
+        yield* transfer.importCanonicalRecord(source.record)
+        const wallets = yield* vault.loadWallets
+        const verifications = yield* Effect.forEach(
+          source.wallet.accounts,
+          account => {
+            const challenge = makeWalletTestChallenge(
+              `restored:${account.accountId}`,
+              account.accountId,
+            )
+            return signer
+              .signChallenge(challenge)
+              .pipe(
+                Effect.flatMap(proof =>
+                  crypto.verifySignatureProof(challenge, proof),
+                ),
+              )
+          },
+        )
+        return { wallets, verifications }
+      }).pipe(
+        Effect.provide(
+          makePersistentLocalWalletResources(
+            makeDeterministicRandomBytes(),
+            targetStorage,
+          ),
+        ),
+      ),
+    )
+
+    expect(restored.wallets).toStrictEqual([source.wallet])
+    expect(Array_.every(restored.verifications, Boolean)).toBe(true)
+    expect(String(source.record)).not.toContain('privateKeyHex')
+    expect(JSON.stringify(source.record)).not.toContain('privateKeyHex')
+  })
+
+  it('rejects invalid versions and same-id custody collisions without changing the target Wallet', async () => {
+    const source = await Effect.runPromise(
+      Effect.gen(function* () {
+        const vault = yield* WalletVault
+        const transfer = yield* LocalWalletTransferRecordPort
+        const wallet = yield* vault.createWallet(walletCreationRequest)
+        return yield* transfer.exportCanonicalRecord(wallet.walletId)
+      }).pipe(
+        Effect.provide(
+          makePersistentLocalWalletResources(
+            makeDeterministicRandomBytes(),
+            makeMemoryWalletVaultStorage(localWalletVaultOwnerKey),
+          ),
+        ),
+      ),
+    )
+    const targetStorage = makeMemoryWalletVaultStorage(localWalletVaultOwnerKey)
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const vault = yield* WalletVault
+        const transfer = yield* LocalWalletTransferRecordPort
+        const existing = yield* vault.createWallet(walletCreationRequest)
+        const invalidVersion = Redacted.make(
+          Redacted.value(source).replace('"version":2', '"version":3'),
+        )
+        const invalidVersionFailure = yield* transfer
+          .importCanonicalRecord(invalidVersion)
+          .pipe(Effect.flip)
+        const collision = yield* transfer
+          .importCanonicalRecord(source)
+          .pipe(Effect.flip)
+        const wallets = yield* vault.loadWallets
+        return { existing, invalidVersionFailure, collision, wallets }
+      }).pipe(
+        Effect.provide(
+          makePersistentLocalWalletResources(
+            byteCount => new Uint8Array(byteCount).fill(9),
+            targetStorage,
+          ),
+        ),
+      ),
+    )
+
+    expect(result.invalidVersionFailure.code).toBe('InvalidRecord')
+    expect(result.collision.code).toBe('Conflict')
+    expect(result.wallets).toStrictEqual([result.existing])
+  })
+
+  it('loads legacy four-key records into exact-network accounts without overwriting custody', async () => {
     let storedRecord = JSON.stringify({
       request: { requestId: 'legacy-wallet', displayName: 'Legacy Wallet' },
       createdAt: 1,
@@ -171,6 +279,7 @@ describe('local Wallet vault', () => {
     })
     let saveCount = 0
     const storage: WalletVaultStorage = {
+      ownerKey: localWalletVaultOwnerKey,
       loadRecords: Effect.sync(() => [storedRecord]),
       saveRecord: (walletId, nextRecord) =>
         Effect.sync(() => {
@@ -201,14 +310,11 @@ describe('local Wallet vault', () => {
     expect(maybeWallet.value.accounts).toHaveLength(
       liveWalletNetworkDescriptors.length,
     )
-    expect(saveCount).toBe(1)
-    expect(
-      S.decodeUnknownSync(MigratedRecordEnvelopeJson)(storedRecord).version,
-    ).toBe(2)
+    expect(saveCount).toBe(0)
   })
 
   it('refreshes a running vault and signer after another vault adds a record', async () => {
-    const storage = makeMemoryWalletVaultStorage()
+    const storage = makeMemoryWalletVaultStorage(localWalletVaultOwnerKey)
     const primaryResources = makePersistentLocalWalletResources(
       makeDeterministicRandomBytes(),
       storage,
@@ -247,6 +353,7 @@ describe('local Wallet vault', () => {
   it('replaces the registry when a persisted record disappears', async () => {
     const records = new Map<string, string>()
     const storage: WalletVaultStorage = {
+      ownerKey: localWalletVaultOwnerKey,
       loadRecords: Effect.sync(() => Array_.fromIterable(records.values())),
       saveRecord: (walletId, record) =>
         Effect.sync(() => {
@@ -459,6 +566,7 @@ describe('local Wallet vault', () => {
     const TestWalletVault = makePersistentLocalWalletVault(
       makeDeterministicRandomBytes(),
       {
+        ownerKey: localWalletVaultOwnerKey,
         loadRecords: Effect.succeed([]),
         saveRecord: () =>
           Effect.fail(new Error('unavailable')).pipe(

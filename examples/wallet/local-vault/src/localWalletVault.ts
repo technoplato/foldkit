@@ -1,5 +1,7 @@
 import {
   Array as Array_,
+  Context,
+  Data,
   Effect,
   Layer,
   Match as M,
@@ -12,6 +14,7 @@ import {
 import { getAddress, verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import {
+  NetworkDescriptor,
   SignatureProof,
   type SignedTransaction,
   type SigningChallenge,
@@ -71,14 +74,58 @@ import {
 /** A host-provided source of cryptographically secure random bytes. */
 export type WalletRandomBytes = (byteCount: number) => Uint8Array
 
+/** A host-verified owner partition for sensitive local Wallet custody. */
+export const WalletVaultOwnerKey = S.Union([
+  S.Literals(['Local']),
+  S.String.check(S.isPattern(/^[A-Za-z0-9_-]{43}$/u)),
+])
+/** A host-verified owner partition for sensitive local Wallet custody. */
+export type WalletVaultOwnerKey = typeof WalletVaultOwnerKey.Type
+
+/** The explicit owner partition for unauthenticated local-only custody. */
+export const localWalletVaultOwnerKey = WalletVaultOwnerKey.make('Local')
+
+/** A sanitized host-storage failure containing no record or native cause. */
+export class WalletVaultStorageError extends Data.TaggedError(
+  'WalletVaultStorageError',
+)<{
+  readonly code: 'Unavailable' | 'InvalidRecord' | 'Conflict'
+}> {}
+
+type WalletVaultStorageFailure = WalletVaultError | WalletVaultStorageError
+
 /** Opaque record persistence supplied by the browser, native, or test host. */
 export type WalletVaultStorage = Readonly<{
-  loadRecords: Effect.Effect<ReadonlyArray<string>, WalletVaultError>
+  ownerKey: WalletVaultOwnerKey
+  loadRecords: Effect.Effect<ReadonlyArray<string>, WalletVaultStorageFailure>
   saveRecord: (
     walletId: string,
     record: string,
-  ) => Effect.Effect<void, WalletVaultError>
+  ) => Effect.Effect<void, WalletVaultStorageFailure>
 }>
+
+/** A sanitized host-owned Wallet transfer failure. */
+export class WalletTransferRecordPortError extends Data.TaggedError(
+  'WalletTransferRecordPortError',
+)<{
+  readonly code: 'Unavailable' | 'InvalidRecord' | 'Conflict'
+}> {}
+
+/** An opaque host-owned boundary for one canonical sensitive Wallet record. */
+export type WalletTransferRecordPort = Readonly<{
+  exportCanonicalRecord: (
+    walletId: string,
+  ) => Effect.Effect<Redacted.Redacted<string>, WalletTransferRecordPortError>
+  importCanonicalRecord: (
+    record: Redacted.Redacted<string>,
+  ) => Effect.Effect<void, WalletTransferRecordPortError>
+}>
+
+/** The injected host-owned boundary for canonical sensitive Wallet records. */
+export class LocalWalletTransferRecordPort extends Context.Service<
+  LocalWalletTransferRecordPort,
+  WalletTransferRecordPort
+>()('Wallet/LocalWalletTransferRecordPort') {}
 
 type LocalWalletAccountCustody = Readonly<{
   profile: WalletProfileAccount
@@ -95,21 +142,36 @@ type LocalWalletServices = Readonly<{
   vault: WalletVaultService
   signer: WalletSignerService
   crypto: WalletCryptoService
+  transfer: WalletTransferRecordPort
 }>
 
-const StoredWalletChainKey = S.Struct({
-  chainId: S.String,
-  privateKeyHex: S.String,
-})
-type StoredWalletChainKey = typeof StoredWalletChainKey.Type
+/** Sensitive record definitions reserved for host-owned transfer adapters. */
+export namespace LocalWalletTransferInternal {
+  /** One encoded private key scoped to its blockchain family. */
+  export const StoredWalletChainKey = S.Struct({
+    chainId: S.String,
+    privateKeyHex: S.String,
+  })
+  /** One encoded private key scoped to its blockchain family. */
+  export type StoredWalletChainKey = typeof StoredWalletChainKey.Type
 
-const StoredWalletRecord = S.Struct({
-  version: S.Literals([2]),
-  request: WalletCreationRequest,
-  createdAt: S.Number,
-  keys: S.Array(StoredWalletChainKey),
-})
-type StoredWalletRecord = typeof StoredWalletRecord.Type
+  /** The canonical sensitive record persisted for one local Wallet. */
+  export const StoredWalletRecord = S.Struct({
+    version: S.Literals([2]),
+    request: WalletCreationRequest,
+    createdAt: S.Number,
+    keys: S.Array(StoredWalletChainKey),
+  })
+  /** The canonical sensitive record persisted for one local Wallet. */
+  export type StoredWalletRecord = typeof StoredWalletRecord.Type
+
+  /** The canonical JSON codec for one sensitive local Wallet record. */
+  export const StoredWalletRecordJson = S.fromJsonString(StoredWalletRecord)
+}
+
+const StoredWalletChainKey = LocalWalletTransferInternal.StoredWalletChainKey
+type StoredWalletRecord = LocalWalletTransferInternal.StoredWalletRecord
+const StoredWalletRecord = LocalWalletTransferInternal.StoredWalletRecord
 
 const LegacyWalletCreationRequest = S.Struct({
   requestId: S.String,
@@ -132,16 +194,65 @@ const StoredWalletRecordDocument = S.Union([
 const StoredWalletRecordDocumentJson = S.fromJsonString(
   StoredWalletRecordDocument,
 )
-const StoredWalletRecordJson = S.fromJsonString(StoredWalletRecord)
+const StoredWalletRecordJson =
+  LocalWalletTransferInternal.StoredWalletRecordJson
+const NetworkDescriptorJson = S.fromJsonString(NetworkDescriptor)
 
 const requiredPrivateKeyByteCount = 32
 const requiredChallengeByteCount = 32
 const storedWalletRecordVersion = 2
+const requiredTransferChainIds: ReadonlyArray<string> = [
+  'bitcoin',
+  'ethereum',
+  'solana',
+  'sui',
+]
 
 const invalidKeyMaterial = () =>
   new WalletVaultError({ code: 'InvalidKeyMaterial' })
 
 const unavailableVault = () => new WalletVaultError({ code: 'Unavailable' })
+
+const storageConflict = () => new WalletVaultStorageError({ code: 'Conflict' })
+
+const unavailableTransfer = () =>
+  new WalletTransferRecordPortError({ code: 'Unavailable' })
+
+const invalidTransferRecord = () =>
+  new WalletTransferRecordPortError({ code: 'InvalidRecord' })
+
+const transferConflict = () =>
+  new WalletTransferRecordPortError({ code: 'Conflict' })
+
+const walletVaultErrorForStorageFailure = (
+  error: WalletVaultStorageFailure,
+): WalletVaultError => {
+  if (error instanceof WalletVaultError) {
+    return error
+  } else if (error.code === 'Unavailable') {
+    return unavailableVault()
+  } else {
+    return invalidKeyMaterial()
+  }
+}
+
+const transferErrorForStorageFailure = (
+  error: WalletVaultStorageFailure,
+): WalletTransferRecordPortError => {
+  if (error instanceof WalletVaultError) {
+    return error.code === 'Unavailable'
+      ? unavailableTransfer()
+      : invalidTransferRecord()
+  } else {
+    return M.value(error.code).pipe(
+      M.withReturnType<WalletTransferRecordPortError>(),
+      M.when('Unavailable', unavailableTransfer),
+      M.when('InvalidRecord', invalidTransferRecord),
+      M.when('Conflict', transferConflict),
+      M.exhaustive,
+    )
+  }
+}
 
 const unsupportedAccount = () =>
   new WalletSignerError({ code: 'UnsupportedAccount' })
@@ -317,14 +428,11 @@ const createStoredRecord = (
   request: WalletCreationRequest,
   randomBytes: WalletRandomBytes,
 ): StoredWalletRecord => {
-  const chainIds = Array_.dedupe(
-    Array_.map(request.networks, network => network.chainId),
-  )
   return StoredWalletRecord.make({
     version: storedWalletRecordVersion,
     request,
     createdAt: Date.now(),
-    keys: Array_.map(chainIds, chainId =>
+    keys: Array_.map(requiredTransferChainIds, chainId =>
       StoredWalletChainKey.make({
         chainId,
         privateKeyHex: hex.encode(
@@ -382,6 +490,87 @@ const loadedWalletForRecord = (
     }),
     accounts,
   }
+}
+
+const canonicalTransferRecord = (
+  record: StoredWalletRecord,
+): StoredWalletRecord => {
+  if (Array_.length(record.keys) !== Array_.length(requiredTransferChainIds)) {
+    throw invalidKeyMaterial()
+  }
+  const privateKeyHexByChainId = new Map<string, string>()
+  for (const key of record.keys) {
+    if (
+      !Array_.contains(requiredTransferChainIds, key.chainId) ||
+      privateKeyHexByChainId.has(key.chainId)
+    ) {
+      throw invalidKeyMaterial()
+    }
+    privateKeyHexByChainId.set(
+      key.chainId,
+      hex.encode(decodePrivateKeyForChain(key.chainId, key.privateKeyHex)),
+    )
+  }
+  const networkIds = Array_.map(
+    record.request.networks,
+    network => network.networkId,
+  )
+  if (
+    Option.isNone(Array_.head(networkIds)) ||
+    Array_.length(Array_.dedupe(networkIds)) !== Array_.length(networkIds)
+  ) {
+    throw invalidKeyMaterial()
+  }
+  for (const network of record.request.networks) {
+    const configuration = configurationForNetwork(
+      network.networkId,
+      network.chainId,
+    )
+    if (
+      S.encodeSync(NetworkDescriptorJson)(network) !==
+      S.encodeSync(NetworkDescriptorJson)(configuration.network)
+    ) {
+      throw invalidKeyMaterial()
+    }
+  }
+  for (const chainId of requiredTransferChainIds) {
+    if (
+      !Array_.some(
+        record.request.networks,
+        network => network.chainId === chainId,
+      )
+    ) {
+      throw invalidKeyMaterial()
+    }
+  }
+  const canonicalNetworks = Array_.filter(
+    liveWalletNetworkDescriptors,
+    network => Array_.contains(networkIds, network.networkId),
+  )
+  if (
+    Array_.length(canonicalNetworks) !== Array_.length(record.request.networks)
+  ) {
+    throw invalidKeyMaterial()
+  }
+  const canonicalKeys = Array_.map(requiredTransferChainIds, chainId => {
+    const privateKeyHex = privateKeyHexByChainId.get(chainId)
+    if (privateKeyHex === undefined) {
+      throw invalidKeyMaterial()
+    }
+    return StoredWalletChainKey.make({ chainId, privateKeyHex })
+  })
+  const canonicalRecord = StoredWalletRecord.make({
+    version: storedWalletRecordVersion,
+    request: WalletCreationRequest.make({
+      requestId: record.request.requestId,
+      displayName: record.request.displayName,
+      networks: canonicalNetworks,
+    }),
+    createdAt: record.createdAt,
+    keys: canonicalKeys,
+  })
+  loadedWalletForRecord(canonicalRecord)
+  return canonicalRecord
 }
 
 const walletCreatedAtOrder = Order.mapInput(
@@ -848,32 +1037,17 @@ const makeLocalWalletServices = (
     const registrySemaphore = yield* Semaphore.make(1)
 
     const refreshRegistryUnsafe = storage.loadRecords.pipe(
+      Effect.mapError(walletVaultErrorForStorageFailure),
       Effect.flatMap(records =>
         Effect.forEach(records, encoded =>
           Effect.try({
             try: () => {
               const decoded = decodeStoredRecord(encoded)
-              return {
-                ...decoded,
-                loaded: loadedWalletForRecord(decoded.record),
-              }
+              return loadedWalletForRecord(decoded.record)
             },
             catch: error =>
               error instanceof WalletVaultError ? error : invalidKeyMaterial(),
-          }).pipe(
-            Effect.flatMap(decoded => {
-              if (decoded.isMigration) {
-                return storage
-                  .saveRecord(
-                    decoded.loaded.wallet.walletId,
-                    encodeStoredRecord(decoded.record),
-                  )
-                  .pipe(Effect.as(decoded.loaded))
-              } else {
-                return Effect.succeed(decoded.loaded)
-              }
-            }),
-          ),
+          }),
         ),
       ),
       Effect.flatMap(wallets =>
@@ -907,6 +1081,141 @@ const makeLocalWalletServices = (
         }),
       ),
     )
+
+    const exportCanonicalRecord = (
+      walletId: string,
+    ): Effect.Effect<
+      Redacted.Redacted<string>,
+      WalletTransferRecordPortError
+    > =>
+      registrySemaphore.withPermit(
+        storage.loadRecords.pipe(
+          Effect.mapError(transferErrorForStorageFailure),
+          Effect.flatMap(records =>
+            Effect.try({
+              try: () => {
+                const matchingRecords = Array_.flatMap(records, encoded => {
+                  const decoded = decodeStoredRecord(encoded)
+                  loadedWalletForRecord(decoded.record)
+                  if (decoded.record.request.requestId === walletId) {
+                    return [decoded.record]
+                  } else {
+                    return []
+                  }
+                })
+                if (Array_.length(matchingRecords) !== 1) {
+                  throw invalidTransferRecord()
+                }
+                const maybeRecord = Array_.head(matchingRecords)
+                if (Option.isNone(maybeRecord)) {
+                  throw invalidTransferRecord()
+                }
+                return Redacted.make(
+                  encodeStoredRecord(
+                    canonicalTransferRecord(maybeRecord.value),
+                  ),
+                )
+              },
+              catch: error =>
+                error instanceof WalletTransferRecordPortError
+                  ? error
+                  : invalidTransferRecord(),
+            }),
+          ),
+        ),
+      )
+
+    const importCanonicalRecord = (
+      redactedRecord: Redacted.Redacted<string>,
+    ): Effect.Effect<void, WalletTransferRecordPortError> =>
+      registrySemaphore.withPermit(
+        Effect.try({
+          try: () => {
+            const encoded = Redacted.value(redactedRecord)
+            const record = S.decodeUnknownSync(StoredWalletRecordJson)(encoded)
+            const canonicalRecord = canonicalTransferRecord(record)
+            const canonicalEncoded = encodeStoredRecord(canonicalRecord)
+            if (encoded !== canonicalEncoded) {
+              throw invalidTransferRecord()
+            }
+            return {
+              encoded: canonicalEncoded,
+              record: canonicalRecord,
+            }
+          },
+          catch: error =>
+            error instanceof WalletTransferRecordPortError
+              ? error
+              : invalidTransferRecord(),
+        }).pipe(
+          Effect.flatMap(imported =>
+            storage.loadRecords.pipe(
+              Effect.mapError(transferErrorForStorageFailure),
+              Effect.flatMap(records =>
+                Effect.try({
+                  try: () => {
+                    const matchingRecords = Array_.flatMap(records, encoded => {
+                      const decoded = decodeStoredRecord(encoded)
+                      loadedWalletForRecord(decoded.record)
+                      if (
+                        decoded.record.request.requestId ===
+                        imported.record.request.requestId
+                      ) {
+                        return [decoded.record]
+                      } else {
+                        return []
+                      }
+                    })
+                    if (Option.isNone(Array_.head(matchingRecords))) {
+                      return false
+                    } else if (Array_.length(matchingRecords) !== 1) {
+                      throw invalidTransferRecord()
+                    }
+                    const maybeExisting = Array_.head(matchingRecords)
+                    if (Option.isNone(maybeExisting)) {
+                      throw invalidTransferRecord()
+                    }
+                    const existingEncoded = encodeStoredRecord(
+                      canonicalTransferRecord(maybeExisting.value),
+                    )
+                    if (existingEncoded === imported.encoded) {
+                      return true
+                    } else {
+                      throw transferConflict()
+                    }
+                  },
+                  catch: error => {
+                    if (error instanceof WalletTransferRecordPortError) {
+                      return error
+                    } else {
+                      return invalidTransferRecord()
+                    }
+                  },
+                }),
+              ),
+              Effect.flatMap(isExisting => {
+                const persist = isExisting
+                  ? Effect.void
+                  : storage
+                      .saveRecord(
+                        imported.record.request.requestId,
+                        imported.encoded,
+                      )
+                      .pipe(Effect.mapError(transferErrorForStorageFailure))
+                return Effect.uninterruptible(
+                  persist.pipe(
+                    Effect.flatMap(() =>
+                      refreshRegistryUnsafe.pipe(
+                        Effect.mapError(transferErrorForStorageFailure),
+                      ),
+                    ),
+                  ),
+                )
+              }),
+            ),
+          ),
+        ),
+      )
 
     const refreshRegistry = registrySemaphore.withPermit(refreshRegistryUnsafe)
 
@@ -957,6 +1266,7 @@ const makeLocalWalletServices = (
                         encodeStoredRecord(record),
                       )
                       .pipe(
+                        Effect.mapError(walletVaultErrorForStorageFailure),
                         Effect.flatMap(() => refreshRegistryUnsafe),
                         Effect.flatMap(() => {
                           const storedWallet = walletByRequestId.get(
@@ -1007,14 +1317,21 @@ const makeLocalWalletServices = (
         ),
     })
 
-    return { vault, signer, crypto }
+    const transfer = LocalWalletTransferRecordPort.of({
+      exportCanonicalRecord,
+      importCanonicalRecord,
+    })
+
+    return { vault, signer, crypto, transfer }
   })
 
-/** Builds persistent Wallet vault, signer, and crypto Layers over one registry. */
+/** Builds persistent Wallet custody and transfer Layers over one registry. */
 export const makePersistentLocalWalletResources = (
   randomBytes: WalletRandomBytes,
   storage: WalletVaultStorage,
-): Layer.Layer<WalletVault | WalletSigner | WalletCrypto> =>
+): Layer.Layer<
+  WalletVault | WalletSigner | WalletCrypto | LocalWalletTransferRecordPort
+> =>
   Layer.unwrap(
     makeLocalWalletServices(randomBytes, storage).pipe(
       Effect.map(services =>
@@ -1022,6 +1339,7 @@ export const makePersistentLocalWalletResources = (
           Layer.succeed(WalletVault, services.vault),
           Layer.succeed(WalletSigner, services.signer),
           Layer.succeed(WalletCrypto, services.crypto),
+          Layer.succeed(LocalWalletTransferRecordPort, services.transfer),
         ),
       ),
     ),
@@ -1039,31 +1357,46 @@ export const makePersistentLocalWalletVault = (
   )
 
 /** Creates process-local record storage for tests and ephemeral hosts. */
-export const makeMemoryWalletVaultStorage = (): WalletVaultStorage => {
+export const makeMemoryWalletVaultStorage = (
+  ownerKey: WalletVaultOwnerKey,
+): WalletVaultStorage => {
   const records = new Map<string, string>()
   return {
+    ownerKey,
     loadRecords: Effect.sync(() => Array_.fromIterable(records.values())),
-    saveRecord: (walletId, record) =>
-      Effect.sync(() => {
+    saveRecord: (walletId, record) => {
+      const existing = records.get(walletId)
+      if (existing === undefined) {
         records.set(walletId, record)
-      }),
+        return Effect.void
+      } else if (existing === record) {
+        return Effect.void
+      } else {
+        return Effect.fail(storageConflict())
+      }
+    },
   }
 }
 
-/** Builds in-memory Wallet vault, signer, and crypto Layers. */
+/** Builds in-memory Wallet custody and transfer Layers. */
 export const makeLocalWalletResources = (
   randomBytes: WalletRandomBytes,
-): Layer.Layer<WalletVault | WalletSigner | WalletCrypto> =>
+): Layer.Layer<
+  WalletVault | WalletSigner | WalletCrypto | LocalWalletTransferRecordPort
+> =>
   makePersistentLocalWalletResources(
     randomBytes,
-    makeMemoryWalletVaultStorage(),
+    makeMemoryWalletVaultStorage(localWalletVaultOwnerKey),
   )
 
 /** Builds an in-memory Wallet vault around a platform entropy source. */
 export const makeLocalWalletVault = (
   randomBytes: WalletRandomBytes,
 ): Layer.Layer<WalletVault> =>
-  makePersistentLocalWalletVault(randomBytes, makeMemoryWalletVaultStorage())
+  makePersistentLocalWalletVault(
+    randomBytes,
+    makeMemoryWalletVaultStorage(localWalletVaultOwnerKey),
+  )
 
 const defaultRandomBytes: WalletRandomBytes = byteCount => {
   const bytes = new Uint8Array(byteCount)
