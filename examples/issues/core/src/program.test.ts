@@ -5,13 +5,18 @@ import {
   ApplicationProduct,
   Issue,
   ProductCatalogEntry,
+  RecordingSegment,
+  TriageCandidate,
 } from '@foldkit/instant-tools/issues'
 
 import { modelForNavigation } from './init.js'
 import {
   ClickedFileIssue,
+  ClickedOpenTriage,
+  ClickedPromoteTriageCandidate,
   ObservedIssue,
   ObservedProducts,
+  ObservedTriageCandidates,
   SelectedIssue,
   SubmittedIssue,
   UpdatedIssueTitle,
@@ -23,7 +28,7 @@ import {
   LoadingIssue,
   TriageInbox,
 } from './model.js'
-import { destinationForModel } from './presentation.js'
+import { destinationForModel, interactionsForModel } from './presentation.js'
 import { navigationToPath, pathToNavigation } from './route.js'
 import { update } from './update.js'
 
@@ -47,6 +52,26 @@ const issue = Issue.make({
   title: 'Keep transcript aligned',
   updatedAtMs: 1_000,
   workLog: [],
+})
+const segment = RecordingSegment.make({
+  createdAtMs: 1_000,
+  endMilliseconds: 9_000,
+  id: 'segment-001',
+  publicUrl: Option.some('/segments/segment-001'),
+  recordingId: 'recording-001',
+  startMilliseconds: 4_000,
+  transcript: 'The transcript shifted sideways.',
+})
+const candidate = TriageCandidate.make({
+  createdAtMs: 1_000,
+  id: 'candidate-001',
+  product,
+  segment,
+  status: 'Draft',
+  suggestedDetails: segment.transcript,
+  suggestedPriority: 'P1',
+  suggestedTitle: 'Keep transcript aligned',
+  updatedAtMs: 1_000,
 })
 
 describe('Issue Tracker Program', () => {
@@ -116,5 +141,27 @@ describe('Issue Tracker Program', () => {
     expect(saving.draftState._tag).toBe('SavingIssueDraft')
     expect(commands).toHaveLength(1)
     expect(commands[0]?.name).toBe('SaveIssue')
+  })
+
+  it('keeps transcript candidates as drafts until a review Message', () => {
+    const initial = modelForNavigation(IssueList.make({}))
+    const [observed] = update(
+      initial,
+      ObservedTriageCandidates.make({ candidates: [candidate] }),
+    )
+    const [triage] = update(observed, ClickedOpenTriage.make({}))
+    expect(interactionsForModel(triage).map(action => action.token)).toEqual([
+      'back',
+      'promote:candidate-001',
+      'dismiss:candidate-001',
+    ])
+
+    const [reviewing, commands] = update(
+      triage,
+      ClickedPromoteTriageCandidate.make({ candidateId: candidate.id }),
+    )
+    expect(reviewing).toEqual(triage)
+    expect(commands).toHaveLength(1)
+    expect(commands[0]?.name).toBe('ReviewTriageCandidate')
   })
 })

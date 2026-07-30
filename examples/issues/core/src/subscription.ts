@@ -5,20 +5,23 @@ import {
   IssueQuery,
   IssueTracker,
   ProductCatalog,
+  TriageInbox,
 } from '@foldkit/instant-tools/issues'
 
 import {
   FailedObserveIssue,
   FailedObserveIssues,
   FailedObserveProducts,
+  FailedObserveTriageCandidates,
   type Message,
   ObservedIssue,
   ObservedIssues,
   ObservedProducts,
+  ObservedTriageCandidates,
 } from './message.js'
 import { type Model } from './model.js'
 
-type Resources = IssueTracker | ProductCatalog
+type Resources = IssueTracker | ProductCatalog | TriageInbox
 
 /** Observes the Issue collection, filing catalog, and selected Issue. */
 export const subscriptions = Subscription.make<Model, Message, Resources>()(
@@ -57,6 +60,26 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
               Stream.catch(error =>
                 Stream.make(
                   FailedObserveProducts.make({ reason: String(error) }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+    triageCandidates: Subscription.persistent(
+      Stream.unwrap(
+        TriageInbox.pipe(
+          Effect.map(inbox =>
+            inbox.observeCandidates.pipe(
+              Stream.map(candidates =>
+                ObservedTriageCandidates.make({ candidates }),
+              ),
+              Stream.catch(error =>
+                Stream.make(
+                  FailedObserveTriageCandidates.make({
+                    reason: String(error),
+                  }),
                 ),
               ),
             ),

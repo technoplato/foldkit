@@ -3,8 +3,10 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 import { Issue } from '@foldkit/instant-tools/issues'
 
 import {
+  ClickedDismissTriageCandidate,
   ClickedFileIssue,
   ClickedOpenTriage,
+  ClickedPromoteTriageCandidate,
   DismissedIssueDetail,
   Message,
   SelectedIssue,
@@ -17,6 +19,7 @@ import {
   IssuesState,
   type Model,
   ProductsState,
+  TriageCandidatesState,
 } from './model.js'
 
 /** Presents the live Issue collection to a host. */
@@ -35,10 +38,9 @@ export const FileIssueDestination = S.TaggedStruct('FileIssueDestination', {
   products: ProductsState,
 })
 /** Presents transcript-derived draft candidates. */
-export const TriageInboxDestination = S.TaggedStruct(
-  'TriageInboxDestination',
-  {},
-)
+export const TriageInboxDestination = S.TaggedStruct('TriageInboxDestination', {
+  state: TriageCandidatesState,
+})
 /** Every host-neutral Issue Tracker destination. */
 export const Destination = S.Union([
   IssueListDestination,
@@ -81,7 +83,8 @@ export const destinationForModel = (model: Model): Destination =>
           draftState: model.draftState,
           products: model.products,
         }),
-      TriageInbox: () => TriageInboxDestination.make({}),
+      TriageInbox: () =>
+        TriageInboxDestination.make({ state: model.triageCandidates }),
     }),
   )
 
@@ -118,6 +121,28 @@ export const interactionsForModel = (
       ],
       TriageInbox: () => [
         interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
+        ...(model.triageCandidates._tag === 'LoadedTriageCandidates'
+          ? Array.flatMap(model.triageCandidates.candidates, candidate =>
+              candidate.status === 'Draft'
+                ? [
+                    interaction(
+                      `promote:${candidate.id}`,
+                      `Promote ${candidate.id}`,
+                      ClickedPromoteTriageCandidate.make({
+                        candidateId: candidate.id,
+                      }),
+                    ),
+                    interaction(
+                      `dismiss:${candidate.id}`,
+                      `Dismiss ${candidate.id}`,
+                      ClickedDismissTriageCandidate.make({
+                        candidateId: candidate.id,
+                      }),
+                    ),
+                  ]
+                : [],
+            )
+          : []),
       ],
     }),
   )

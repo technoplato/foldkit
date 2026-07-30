@@ -1,6 +1,8 @@
 import { Array, Match as M, Option, Schema as S } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
 import {
+  ClickedDismissTriageCandidate,
+  ClickedPromoteTriageCandidate,
   type Destination,
   DismissedIssueDetail,
   type IssueDetailState,
@@ -249,7 +251,7 @@ const destinationView = (destination: Destination, model: Model): Html => {
       IssueListDestination: ({ state }) => issueList(state),
       IssueDetailDestination: ({ state }) => issueDetail(state),
       FileIssueDestination: () => fileIssue(model),
-      TriageInboxDestination: () =>
+      TriageInboxDestination: ({ state }) =>
         h.section(
           [h.Class('grid gap-4 rounded-3xl bg-white p-7 shadow-sm')],
           [
@@ -259,6 +261,58 @@ const destinationView = (destination: Destination, model: Model): Html => {
               [],
               ['Transcript-derived candidates remain drafts until promoted.'],
             ),
+            state._tag === 'LoadedTriageCandidates'
+              ? h.div(
+                  [h.Class('grid gap-3')],
+                  Array.map(state.candidates, candidate =>
+                    h.article(
+                      [
+                        h.Id(candidate.segment.id),
+                        h.Key(candidate.id),
+                        h.Class(
+                          'grid gap-3 rounded-2xl border border-stone-200 p-5',
+                        ),
+                      ],
+                      [
+                        h.p(
+                          [h.Class('font-mono text-xs text-amber-700')],
+                          [
+                            `${candidate.status} · ${candidate.suggestedPriority}`,
+                          ],
+                        ),
+                        h.strong([], [candidate.suggestedTitle]),
+                        h.p([], [candidate.segment.transcript]),
+                        Option.isSome(candidate.segment.publicUrl)
+                          ? h.a(
+                              [h.Href(candidate.segment.publicUrl.value)],
+                              ['Share segment'],
+                            )
+                          : h.empty,
+                        candidate.status === 'Draft'
+                          ? h.div(
+                              [h.Class('flex gap-2')],
+                              [
+                                button(
+                                  'Promote to Issue',
+                                  ClickedPromoteTriageCandidate.make({
+                                    candidateId: candidate.id,
+                                  }),
+                                ),
+                                button(
+                                  'Dismiss',
+                                  ClickedDismissTriageCandidate.make({
+                                    candidateId: candidate.id,
+                                  }),
+                                  true,
+                                ),
+                              ],
+                            )
+                          : h.empty,
+                      ],
+                    ),
+                  ),
+                )
+              : h.p([], [state._tag]),
           ],
         ),
     }),

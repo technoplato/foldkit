@@ -1,8 +1,10 @@
 import { type Layer } from 'effect'
 import { Program } from 'foldkit'
 import {
+  ClickedDismissTriageCandidate,
   ClickedFileIssue,
   ClickedOpenTriage,
+  ClickedPromoteTriageCandidate,
   DismissedIssueDetail,
   FileIssue,
   type Interaction,
@@ -29,6 +31,7 @@ import { type IssuePriority } from '@foldkit/instant-tools/issues'
 export type IssueTrackerActions = Readonly<{
   clickedFileIssue: () => void
   clickedOpenTriage: () => void
+  dismissedTriageCandidate: (candidateId: string) => void
   dismissedDestination: () => void
   openedNavigation: (navigation: Navigation) => void
   performed: (interaction: Interaction) => void
@@ -36,6 +39,7 @@ export type IssueTrackerActions = Readonly<{
   selectedPriority: (priority: IssuePriority) => void
   selectedProduct: (productId: string) => void
   submittedIssue: () => void
+  promotedTriageCandidate: (candidateId: string) => void
   updatedDetails: (value: string) => void
   updatedTitle: (value: string) => void
 }>
@@ -60,6 +64,8 @@ export const makeIssueTrackerReactClient = (
     createActions: enqueueMessage => ({
       clickedFileIssue: () => enqueueMessage(ClickedFileIssue.make({})),
       clickedOpenTriage: () => enqueueMessage(ClickedOpenTriage.make({})),
+      dismissedTriageCandidate: candidateId =>
+        enqueueMessage(ClickedDismissTriageCandidate.make({ candidateId })),
       dismissedDestination: () => enqueueMessage(DismissedIssueDetail.make({})),
       openedNavigation: navigation =>
         enqueueMessage(OpenedNavigation.make({ navigation })),
@@ -70,6 +76,8 @@ export const makeIssueTrackerReactClient = (
       selectedProduct: productId =>
         enqueueMessage(SelectedIssueProduct.make({ productId })),
       submittedIssue: () => enqueueMessage(SubmittedIssue.make({})),
+      promotedTriageCandidate: candidateId =>
+        enqueueMessage(ClickedPromoteTriageCandidate.make({ candidateId })),
       updatedDetails: value =>
         enqueueMessage(UpdatedIssueDetails.make({ value })),
       updatedTitle: value => enqueueMessage(UpdatedIssueTitle.make({ value })),

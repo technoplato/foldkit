@@ -1,21 +1,34 @@
-import { Array, Effect, Match as M, Option } from 'effect'
+import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
 import { Command } from 'foldkit'
 
 import {
   Issue,
+  IssueMention,
   IssueTracker,
   ProductCatalog,
+  RecordingMention,
+  RecordingReference,
   TrackedProduct,
+  TriageCandidate,
+  TriageInbox as TriageInboxServiceTag,
+  UriReference,
 } from '@foldkit/instant-tools/issues'
 
 import { IssueIdentity } from './issueIdentity.js'
-import { FailedSaveIssue, type Message, SucceededSaveIssue } from './message.js'
+import {
+  FailedReviewTriageCandidate,
+  FailedSaveIssue,
+  type Message,
+  SucceededReviewTriageCandidate,
+  SucceededSaveIssue,
+} from './message.js'
 import {
   EditingIssueDraft,
   FailedIssue,
   FailedIssueDraft,
   FailedIssues,
   FailedProducts,
+  FailedTriageCandidates,
   FileIssue,
   IssueDetail,
   IssueDraft,
@@ -23,6 +36,7 @@ import {
   LoadedIssue,
   LoadedIssues,
   LoadedProducts,
+  LoadedTriageCandidates,
   LoadingIssue,
   Model,
   type Navigation,
@@ -74,7 +88,90 @@ export const SaveIssue = Command.define(
   ),
 )
 
-type Resources = IssueTracker | ProductCatalog | IssueIdentity
+/** Applies an explicit human review decision to one transcript draft. */
+export const ReviewTriageCandidate = Command.define(
+  'ReviewTriageCandidate',
+  {
+    candidate: TriageCandidate,
+    decision: S.Literals(['Dismiss', 'Promote']),
+  },
+  SucceededReviewTriageCandidate,
+  FailedReviewTriageCandidate,
+)(({ candidate, decision }) =>
+  Effect.gen(function* () {
+    const identity = yield* IssueIdentity
+    const inbox = yield* TriageInboxServiceTag
+    const { id, nowMs } = yield* identity.next
+    const reviewed = TriageCandidate.make({
+      ...candidate,
+      status: decision === 'Promote' ? 'Promoted' : 'Dismissed',
+      updatedAtMs: nowMs,
+    })
+    if (decision === 'Dismiss') {
+      yield* inbox.saveCandidate(reviewed)
+      return SucceededReviewTriageCandidate.make({
+        candidate: reviewed,
+        issue: Option.none(),
+      })
+    }
+    const tracker = yield* IssueTracker
+    const source = RecordingReference.make({
+      recording: RecordingMention.make({
+        endMilliseconds: Option.some(candidate.segment.endMilliseconds),
+        recordingId: candidate.segment.recordingId,
+        screenshotIds: [],
+        startMilliseconds: candidate.segment.startMilliseconds,
+      }),
+    })
+    const issue = Issue.make({
+      attachments: [],
+      createdAtMs: nowMs,
+      details: candidate.suggestedDetails,
+      id,
+      mentions: [
+        IssueMention.make({
+          capturedAtMs: candidate.createdAtMs,
+          directQuote: Option.some(candidate.segment.transcript),
+          id: `mention-${id}`,
+          issueId: id,
+          related: Option.match(candidate.segment.publicUrl, {
+            onNone: () => [],
+            onSome: value => [UriReference.make({ value })],
+          }),
+          reporter: Option.none(),
+          source,
+        }),
+      ],
+      priority: candidate.suggestedPriority,
+      product: candidate.product,
+      projectId: Option.none(),
+      sourceDocument: Option.none(),
+      status: 'Open',
+      successCriteria: [],
+      title: candidate.suggestedTitle,
+      updatedAtMs: nowMs,
+      workLog: [],
+    })
+    yield* tracker.save(issue)
+    yield* inbox.saveCandidate(reviewed)
+    return SucceededReviewTriageCandidate.make({
+      candidate: reviewed,
+      issue: Option.some(issue),
+    })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedReviewTriageCandidate.make({ reason: String(error) }),
+      ),
+    ),
+  ),
+)
+
+type Resources =
+  | IssueTracker
+  | ProductCatalog
+  | TriageInboxServiceTag
+  | IssueIdentity
 type UpdateReturn = readonly [
   Model,
   ReadonlyArray<Command.Command<Message, never, Resources>>,
@@ -153,6 +250,25 @@ const updateDraft = (
   [],
 ]
 
+const reviewTriageCandidate = (
+  model: Model,
+  candidateId: string,
+  decision: 'Dismiss' | 'Promote',
+): UpdateReturn => {
+  if (model.triageCandidates._tag !== 'LoadedTriageCandidates') {
+    return [model, []]
+  }
+  const maybeCandidate = Array.findFirst(
+    model.triageCandidates.candidates,
+    candidate => candidate.id === candidateId && candidate.status === 'Draft',
+  )
+  if (Option.isNone(maybeCandidate)) return [model, []]
+  return [
+    model,
+    [ReviewTriageCandidate({ candidate: maybeCandidate.value, decision })],
+  ]
+}
+
 /** Restores destination-specific observation state from a Model snapshot. */
 export const restore = (model: Model): UpdateReturn => [
   withNavigation(model, model.navigation),
@@ -198,6 +314,20 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Model.make({ ...model, products: FailedProducts.make({ reason }) }),
         [],
       ],
+      ObservedTriageCandidates: ({ candidates }) => [
+        Model.make({
+          ...model,
+          triageCandidates: LoadedTriageCandidates.make({ candidates }),
+        }),
+        [],
+      ],
+      FailedObserveTriageCandidates: ({ reason }) => [
+        Model.make({
+          ...model,
+          triageCandidates: FailedTriageCandidates.make({ reason }),
+        }),
+        [],
+      ],
       ObservedIssue: ({ issue, issueId }) => {
         if (
           model.navigation._tag !== 'IssueDetail' ||
@@ -233,6 +363,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         withNavigation(model, TriageInbox.make({})),
         [],
       ],
+      ClickedPromoteTriageCandidate: ({ candidateId }) =>
+        reviewTriageCandidate(model, candidateId, 'Promote'),
+      ClickedDismissTriageCandidate: ({ candidateId }) =>
+        reviewTriageCandidate(model, candidateId, 'Dismiss'),
       UpdatedIssueTitle: ({ value }) =>
         updateDraft(model, draft =>
           IssueDraft.make({ ...draft, title: value }),
@@ -254,6 +388,37 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Model.make({
           ...model,
           draftState: FailedIssueDraft.make({ reason }),
+        }),
+        [],
+      ],
+      SucceededReviewTriageCandidate: ({ candidate, issue }) => {
+        const nextCandidates =
+          model.triageCandidates._tag === 'LoadedTriageCandidates'
+            ? Array.map(model.triageCandidates.candidates, current =>
+                current.id === candidate.id ? candidate : current,
+              )
+            : []
+        const nextModel = Model.make({
+          ...model,
+          triageCandidates: LoadedTriageCandidates.make({
+            candidates: nextCandidates,
+          }),
+        })
+        return Option.match(issue, {
+          onNone: () => [nextModel, []],
+          onSome: promoted => [
+            withNavigation(
+              nextModel,
+              IssueDetail.make({ issueId: promoted.id }),
+            ),
+            [],
+          ],
+        })
+      },
+      FailedReviewTriageCandidate: ({ reason }) => [
+        Model.make({
+          ...model,
+          triageCandidates: FailedTriageCandidates.make({ reason }),
         }),
         [],
       ],

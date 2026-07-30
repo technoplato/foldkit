@@ -13,6 +13,10 @@ import {
   ProductCatalog,
   ProductCatalogEntry,
   type ProductCatalogService,
+  RecordingSegment,
+  TriageCandidate,
+  TriageInbox,
+  type TriageInboxService,
 } from '@foldkit/instant-tools/issues'
 
 import { IssueIdentity, LiveIssueIdentity } from './issueIdentity.js'
@@ -44,6 +48,28 @@ const seedIssue = Issue.make({
 
 const staticIssues: ReadonlyArray<Issue> = [seedIssue]
 const staticProducts: ReadonlyArray<ProductCatalogEntry> = [scribe, foldkit]
+const seedSegment = RecordingSegment.make({
+  createdAtMs: 1_753_800_000_000,
+  endMilliseconds: 49_000,
+  id: 'segment-preview',
+  publicUrl: Option.some('/segments/segment-preview'),
+  recordingId: 'recording-preview',
+  startMilliseconds: 42_000,
+  transcript: 'The issue list should update while I am looking at it.',
+})
+const staticTriageCandidates: ReadonlyArray<TriageCandidate> = [
+  TriageCandidate.make({
+    createdAtMs: 1_753_800_000_000,
+    id: 'candidate-preview',
+    product: foldkit.product,
+    segment: seedSegment,
+    status: 'Draft',
+    suggestedDetails: seedSegment.transcript,
+    suggestedPriority: 'P2',
+    suggestedTitle: 'Keep the visible issue list live',
+    updatedAtMs: 1_753_800_000_000,
+  }),
+]
 
 const StaticIssueTracker: IssueTrackerService = {
   fetch: query => Effect.succeed(Array.take(staticIssues, query.limit)),
@@ -61,10 +87,21 @@ const StaticProductCatalog: ProductCatalogService = {
   save: () => Effect.void,
 }
 
+const StaticTriageInbox: TriageInboxService = {
+  observeCandidates: Stream.succeed(staticTriageCandidates),
+  observeSegment: segmentId =>
+    Stream.succeed(
+      segmentId === seedSegment.id ? Option.some(seedSegment) : Option.none(),
+    ),
+  saveCandidate: () => Effect.void,
+  saveSegment: () => Effect.void,
+}
+
 /** Deterministic resources for previews, tests, and offline Clients. */
 export const StaticIssueTrackerResources = Layer.mergeAll(
   Layer.succeed(IssueTracker, StaticIssueTracker),
   Layer.succeed(ProductCatalog, StaticProductCatalog),
+  Layer.succeed(TriageInbox, StaticTriageInbox),
   Layer.succeed(IssueIdentity, {
     next: Effect.succeed({ id: 'issue-preview', nowMs: 1_753_800_100_000 }),
   }),
