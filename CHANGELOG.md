@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 8:16:08 a.m. EDT — `dc11ef570681` fix: decode live issue states safely
+
+- **Implementation commit:** `dc11ef5706814700983fe2cb26623a034b04de97`
+- **Change:** Keep realtime Issue observation live across evolved workflow states
+- **Details:**
+  - Accept the Planned state already persisted by the typed Instant tracker so one valid feature does not terminate the collection subscription.
+  - Convert collection and detail payload decode failures into IssueTrackerError values, allowing the Program to render an explicit failure instead of remaining on Observing Issues.
+  - Verified sixteen Instant Tools tests, seven Issue Program tests, and the Instant Tools typecheck.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Align the portable workflow status vocabulary with the live typed tracker.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Lock Planned decoding into the Issue domain contract.
+  - `packages/instant-tools/src/instant/instant.ts` — Move observed payload decoding onto the typed Effect failure channel.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Prove malformed collection and detail payloads fail explicitly rather than defecting.
+- **User context (verbatim):**
+  > Just hangs loading
+- **SpecStory:** unavailable — This work was performed in Codex desktop and no verified SpecStory CLI capture URI exists.
+
 ## July 30th, 2026 at 7:45:20 a.m. EDT — `aa2417af07b6` test(skills): verify independent Program runtimes
 
 - **Implementation commit:** `aa2417af07b6da5ec921cb3115b0569b2fc8e053`
