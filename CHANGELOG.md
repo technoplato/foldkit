@@ -4,6 +4,39 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 6:13:09 a.m. EDT — `80c1969ade21` feat(skills): add source-backed Foldkit companions
+
+- **Implementation commit:** `80c1969ade21ff69dc15fde3e43988f4c9f63ee1`
+- **Change:** Add a Foldkit-native Point-Free-inspired skill family
+- **Details:**
+  - Established that ts-pfw targets a separate @tca runtime and may inform organization but not Foldkit API guidance.
+  - Added eight concise companion skills grounded in current Foldkit source, tests, and examples, plus UI metadata and plugin packaging at version 0.10.30.
+  - Validated all nine Foldkit skills, ran deterministic alignment checks, and forward-tested real persistence, navigation, testing, and multi-client guidance.
+- **Files:**
+  - `.claude-plugin/plugin.json` — Publish the complete Foldkit skill family and bump the plugin version.
+  - `skills/foldkit/SKILL.md` — Route Foldkit tasks to the correct native companion instead of ts-pfw APIs.
+  - `skills/foldkit/agents/openai.yaml` — Expose the umbrella skill in supporting interfaces.
+  - `skills/foldkit-composable-architecture/SKILL.md` — Document Program, update, Command, Submodel, and lifecycle composition.
+  - `skills/foldkit-composable-architecture/agents/openai.yaml` — Expose composable-architecture guidance in supporting interfaces.
+  - `skills/foldkit-schema-modeling/SKILL.md` — Document Effect Schema domain and protocol modeling.
+  - `skills/foldkit-schema-modeling/agents/openai.yaml` — Expose Schema modeling guidance in supporting interfaces.
+  - `skills/foldkit-dependencies/SKILL.md` — Document Effect Context and Layer dependency injection.
+  - `skills/foldkit-dependencies/agents/openai.yaml` — Expose dependency guidance in supporting interfaces.
+  - `skills/foldkit-sharing/SKILL.md` — Document explicit persistence and synchronization through Foldkit seams.
+  - `skills/foldkit-sharing/agents/openai.yaml` — Expose sharing guidance in supporting interfaces.
+  - `skills/foldkit-navigation/SKILL.md` — Document typed routes, Program routers, carriers, and route laws.
+  - `skills/foldkit-navigation/agents/openai.yaml` — Expose navigation guidance in supporting interfaces.
+  - `skills/foldkit-testing/SKILL.md` — Document update, Story, Scene, Layer, route, and replay testing.
+  - `skills/foldkit-testing/agents/openai.yaml` — Expose testing guidance in supporting interfaces.
+  - `skills/foldkit-view/SKILL.md` — Document pure accessible views and lifecycle boundaries.
+  - `skills/foldkit-view/agents/openai.yaml` — Expose view guidance in supporting interfaces.
+  - `skills/foldkit-client-hosts/SKILL.md` — Document portable Program and multi-client host boundaries.
+  - `skills/foldkit-client-hosts/agents/openai.yaml` — Expose client-host guidance in supporting interfaces.
+- **User context (verbatim):**
+  > Does foldkit have skills? It should based on our examples and source be mirrored off of pfw skills.
+  > Fire off subagent 5.6 xhi to build those skills
+- **SpecStory:** unavailable — No durable SpecStory URI was available for this delegated Codex task; public sharing was not authorized.
+
 ## July 30th, 2026 at 1:46:01 a.m. EDT — `a923bd37062a` feat(issues): log release build provenance
 
 - **Implementation commit:** `a923bd37062a0bd6acd7601ee9febb80da3a2c15`
