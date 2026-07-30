@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 12:47:37 p.m. EDT — `cfffc135a2b0` style(foldkit): format effect protocol contracts
+
+- **Implementation commit:** `cfffc135a2b037eef8cefce08205c79c8ecf086f`
+- **Change:** Applied the repository formatter to the portable effect protocol checkpoint.
+- **Details:**
+  - Normalized only the four late Foldkit formatter deltas; no protocol behavior or tests changed.
+- **Files:**
+  - `packages/foldkit/src/command/effectManifest.ts` — Apply canonical line wrapping to result-range validation.
+  - `packages/foldkit/src/command/effectManifest.test.ts` — Apply canonical line wrapping to result-permission assertions.
+  - `packages/foldkit/src/processor/processor.ts` — Apply canonical line wrapping to effect-support validation.
+  - `packages/foldkit/src/processor/processor.test.ts` — Apply canonical line wrapping to effect-support assertions.
+- **User context (verbatim):**
+  > So let's expand that effect manifest, please.
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 12:46:31 p.m. EDT — `c07f7e7e2504` feat(foldkit): version portable effect protocols
 
 - **Implementation commit:** `c07f7e7e2504bb875ab51095ab725cc56a2e43f7`
