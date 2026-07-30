@@ -16,7 +16,8 @@ export const ResultEventRange = Schema.Struct({
       ? undefined
       : {
           path: ['maximumVersion'],
-          issue: 'maximumVersion must be greater than or equal to minimumVersion',
+          issue:
+            'maximumVersion must be greater than or equal to minimumVersion',
         },
   ),
 )
