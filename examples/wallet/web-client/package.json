@@ -15,9 +15,9 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "prebuild": "pnpm --filter wallet-remote-example build && pnpm --filter wallet-simulated-client-example build",
-    "pretest": "pnpm --filter wallet-remote-example build && pnpm --filter wallet-simulated-client-example build",
-    "pretypecheck": "pnpm --filter wallet-remote-example build && pnpm --filter wallet-simulated-client-example build",
+    "prebuild": "pnpm --filter wallet-live-client-example build && pnpm --filter wallet-local-vault-example build && pnpm --filter wallet-remote-example build && pnpm --filter wallet-simulated-client-example build",
+    "pretest": "pnpm --filter wallet-live-client-example build && pnpm --filter wallet-local-vault-example build && pnpm --filter wallet-remote-example build && pnpm --filter wallet-simulated-client-example build",
+    "pretypecheck": "pnpm --filter wallet-live-client-example build && pnpm --filter wallet-local-vault-example build && pnpm --filter wallet-remote-example build && pnpm --filter wallet-simulated-client-example build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -25,6 +25,7 @@
     "@effect/platform-browser": "4.0.0-beta.97",
     "effect": "4.0.0-beta.97",
     "wallet-core-example": "workspace:*",
+    "wallet-live-client-example": "workspace:*",
     "wallet-local-vault-example": "workspace:*",
     "wallet-remote-example": "workspace:*",
     "wallet-simulated-client-example": "workspace:*"

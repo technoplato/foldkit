@@ -1,4 +1,4 @@
-import { Array, Option, Schema as S } from 'effect'
+import { Array, Effect, Option, Schema as S } from 'effect'
 
 /** A stable identifier for one blockchain family. */
 export const ChainId = S.String
@@ -33,15 +33,61 @@ export const NetworkEnvironment = S.Literals([
 /** The deployment environment represented by one configured network. */
 export type NetworkEnvironment = typeof NetworkEnvironment.Type
 
+/** A non-production environment where test funding may be requested. */
+export const TestFundingEnvironment = S.Literals([
+  'Testnet',
+  'Development',
+  'Local',
+])
+/** A non-production environment where test funding may be requested. */
+export type TestFundingEnvironment = typeof TestFundingEnvironment.Type
+
 /** A chain-agnostic Wallet capability advertised by an adapter. */
 export const WalletCapability = S.Literals([
   'Transfer',
+  'TestFunding',
+  'ExternalTestFunding',
   'TransactionHistory',
   'TransactionObservation',
   'ChallengeSignature',
 ])
 /** A chain-agnostic Wallet capability advertised by an adapter. */
 export type WalletCapability = typeof WalletCapability.Type
+
+/** No test-funding path exists for this network. */
+export const UnavailableTestFundingMethod = S.TaggedStruct(
+  'UnavailableTestFundingMethod',
+  {},
+)
+/** The selected adapter can request test funds directly. */
+export const AdapterTestFundingMethod = S.TaggedStruct(
+  'AdapterTestFundingMethod',
+  {},
+)
+/** A human must complete a real provider-owned faucet flow. */
+export const ExternalTestFundingMethod = S.TaggedStruct(
+  'ExternalTestFundingMethod',
+  {
+    providerName: S.String,
+    providerUrl: S.String,
+  },
+)
+const NetworkTestFundingMethod = S.Union([
+  UnavailableTestFundingMethod,
+  AdapterTestFundingMethod,
+  ExternalTestFundingMethod,
+]).pipe(
+  S.withDecodingDefaultKey(
+    Effect.succeed(UnavailableTestFundingMethod.make({})),
+  ),
+  S.withConstructorDefault(
+    Effect.succeed(UnavailableTestFundingMethod.make({})),
+  ),
+)
+/** How test funds are acquired for one normalized network. */
+export const TestFundingMethod = NetworkTestFundingMethod
+/** How test funds are acquired for one normalized network. */
+export type TestFundingMethod = typeof TestFundingMethod.Type
 
 /** A normalized public description of one configured network. */
 export const NetworkDescriptor = S.Struct({
@@ -50,6 +96,7 @@ export const NetworkDescriptor = S.Struct({
   displayName: S.String,
   environment: NetworkEnvironment,
   capabilities: S.Array(WalletCapability),
+  testFundingMethod: NetworkTestFundingMethod,
 })
 /** A normalized public description of one configured network. */
 export type NetworkDescriptor = typeof NetworkDescriptor.Type
@@ -98,6 +145,87 @@ export const AssetAmount = S.Struct({
 })
 /** An exact quantity that refers to one normalized asset. */
 export type AssetAmount = typeof AssetAmount.Type
+
+/** Why a user-entered display amount could not become exact atomic units. */
+export const AssetDisplayAmountFailureCode = S.Literals([
+  'InvalidFormat',
+  'TooManyDecimalPlaces',
+  'MustBePositive',
+])
+/** Why a user-entered display amount could not become exact atomic units. */
+export type AssetDisplayAmountFailureCode =
+  typeof AssetDisplayAmountFailureCode.Type
+
+/** A display amount could not be represented as positive exact atomic units. */
+export const InvalidAssetDisplayAmount = S.TaggedStruct(
+  'InvalidAssetDisplayAmount',
+  { code: AssetDisplayAmountFailureCode },
+)
+/** A display amount was converted to positive exact atomic units. */
+export const ConvertedAssetDisplayAmount = S.TaggedStruct(
+  'ConvertedAssetDisplayAmount',
+  { atomicUnits: AtomicUnits },
+)
+/** The exact result of converting a user-entered display amount. */
+export const AssetDisplayAmountConversion = S.Union([
+  InvalidAssetDisplayAmount,
+  ConvertedAssetDisplayAmount,
+])
+/** The exact result of converting a user-entered display amount. */
+export type AssetDisplayAmountConversion =
+  typeof AssetDisplayAmountConversion.Type
+
+const unsignedDisplayAmountPattern = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/
+
+/** Converts a positive decimal display amount without floating-point math. */
+export const convertDisplayAmountToAtomicUnits = (
+  displayAmount: string,
+  decimalPlaces: AssetDecimalPlaces,
+): AssetDisplayAmountConversion => {
+  const normalizedDisplayAmount = displayAmount.trim()
+  if (!unsignedDisplayAmountPattern.test(normalizedDisplayAmount)) {
+    return InvalidAssetDisplayAmount.make({ code: 'InvalidFormat' })
+  }
+  const parts = normalizedDisplayAmount.split('.')
+  const wholeUnits = Option.getOrElse(Array.head(parts), () => '0')
+  const fractionalUnits = Option.getOrElse(Array.get(parts, 1), () => '')
+  if (fractionalUnits.length > decimalPlaces) {
+    return InvalidAssetDisplayAmount.make({ code: 'TooManyDecimalPlaces' })
+  }
+  const paddedFractionalUnits = fractionalUnits.padEnd(decimalPlaces, '0')
+  const unnormalizedAtomicUnits = `${wholeUnits}${paddedFractionalUnits}`
+  const normalizedAtomicUnits = unnormalizedAtomicUnits.replace(
+    /^0+(?=[0-9])/,
+    '',
+  )
+  if (BigInt(normalizedAtomicUnits) <= 0n) {
+    return InvalidAssetDisplayAmount.make({ code: 'MustBePositive' })
+  }
+  return ConvertedAssetDisplayAmount.make({
+    atomicUnits: S.decodeUnknownSync(AtomicUnits)(normalizedAtomicUnits),
+  })
+}
+
+/** Formats exact atomic units as a canonical decimal display amount. */
+export const displayAmountFromAtomicUnits = (
+  atomicUnits: AtomicUnits,
+  decimalPlaces: AssetDecimalPlaces,
+): string => {
+  const isNegative = atomicUnits.startsWith('-')
+  const unsignedAtomicUnits = isNegative ? atomicUnits.slice(1) : atomicUnits
+  const paddedAtomicUnits = unsignedAtomicUnits.padStart(decimalPlaces + 1, '0')
+  const wholeUnits =
+    decimalPlaces === 0
+      ? paddedAtomicUnits
+      : paddedAtomicUnits.slice(0, -decimalPlaces)
+  const fractionalUnits =
+    decimalPlaces === 0
+      ? ''
+      : paddedAtomicUnits.slice(-decimalPlaces).replace(/0+$/, '')
+  const displayAmount =
+    fractionalUnits === '' ? wholeUnits : `${wholeUnits}.${fractionalUnits}`
+  return `${isNegative ? '-' : ''}${displayAmount}`
+}
 
 /** Finds one normalized chain descriptor by its stable identifier. */
 export const chainForId = (

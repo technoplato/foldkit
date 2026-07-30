@@ -1,86 +1,43 @@
-import { Array, Match as M, Schema as S } from 'effect'
+import { Array, Match as M, Option, Schema as S } from 'effect'
 
-/** One network family included in every created Wallet profile. */
-export const WalletChain = S.Literals(['Bitcoin', 'Ethereum', 'Solana', 'Sui'])
-/** One network family included in every created Wallet profile. */
-export type WalletChain = typeof WalletChain.Type
+import {
+  ChainId,
+  NetworkDescriptor,
+  type NetworkEnvironment,
+  NetworkId,
+} from './currency.js'
 
-/** The global non-production network mode shared by every Wallet profile. */
-export const WalletNetworkMode = S.Literals(['Devnet', 'Testnet'])
-/** The global non-production network mode shared by every Wallet profile. */
+/** The global network environment selected across the Wallet UI. */
+export const WalletNetworkMode = S.Literals(['Devnet', 'Testnet', 'Live'])
+/** The global network environment selected across the Wallet UI. */
 export type WalletNetworkMode = typeof WalletNetworkMode.Type
 
-/** A supported Bitcoin receiving-address format. */
-export const BitcoinAddressType = S.Literals(['NativeSegwit', 'Taproot'])
-/** A supported Bitcoin receiving-address format. */
-export type BitcoinAddressType = typeof BitcoinAddressType.Type
-
-/** Both public Bitcoin address formats derived for one network mode. */
-export const BitcoinAddressSet = S.Struct({
-  nativeSegwitAddress: S.String,
-  taprootAddress: S.String,
-})
-/** Both public Bitcoin address formats derived for one network mode. */
-export type BitcoinAddressSet = typeof BitcoinAddressSet.Type
-
-/** The public Bitcoin account in one created Wallet. */
-export const BitcoinWalletAccount = S.TaggedStruct('BitcoinWalletAccount', {
+/** One exact public network account persisted in a Wallet profile. */
+export const WalletProfileAccount = S.Struct({
   accountId: S.String,
-  devnetAddresses: BitcoinAddressSet,
-  testnetAddresses: BitcoinAddressSet,
-  preferredAddressType: BitcoinAddressType,
-})
-/** The public Bitcoin account in one created Wallet. */
-export type BitcoinWalletAccount = typeof BitcoinWalletAccount.Type
-
-/** The public Ethereum account in one created Wallet. */
-export const EthereumWalletAccount = S.TaggedStruct('EthereumWalletAccount', {
-  accountId: S.String,
+  chainId: ChainId,
+  networkId: NetworkId,
   address: S.String,
+  displayName: S.String,
 })
-/** The public Ethereum account in one created Wallet. */
-export type EthereumWalletAccount = typeof EthereumWalletAccount.Type
+/** One exact public network account persisted in a Wallet profile. */
+export type WalletProfileAccount = typeof WalletProfileAccount.Type
 
-/** The public Solana account in one created Wallet. */
-export const SolanaWalletAccount = S.TaggedStruct('SolanaWalletAccount', {
-  accountId: S.String,
-  address: S.String,
-})
-/** The public Solana account in one created Wallet. */
-export type SolanaWalletAccount = typeof SolanaWalletAccount.Type
-
-/** The public Sui account in one created Wallet. */
-export const SuiWalletAccount = S.TaggedStruct('SuiWalletAccount', {
-  accountId: S.String,
-  address: S.String,
-})
-/** The public Sui account in one created Wallet. */
-export type SuiWalletAccount = typeof SuiWalletAccount.Type
-
-/** Exactly one public account for every chain supported by a Wallet profile. */
-export const WalletProfileAccounts = S.Struct({
-  bitcoin: BitcoinWalletAccount,
-  ethereum: EthereumWalletAccount,
-  solana: SolanaWalletAccount,
-  sui: SuiWalletAccount,
-})
-/** Exactly one public account for every chain supported by a Wallet profile. */
-export type WalletProfileAccounts = typeof WalletProfileAccounts.Type
-
-/** One public multi-chain Wallet profile safe to journal and replay. */
+/** One public multi-network Wallet profile safe to journal and replay. */
 export const WalletProfile = S.Struct({
   walletId: S.String,
   displayName: S.String,
   createdAt: S.Number,
-  accounts: WalletProfileAccounts,
+  accounts: S.Array(WalletProfileAccount),
 })
-/** One public multi-chain Wallet profile safe to journal and replay. */
+/** One public multi-network Wallet profile safe to journal and replay. */
 export type WalletProfile = typeof WalletProfile.Type
 
 /** The idempotent public request passed to an injected Wallet vault. */
 export const WalletCreationRequest = S.Struct({
   requestId: S.String,
   displayName: S.String,
+  networks: S.Array(NetworkDescriptor),
 })
 /** The idempotent public request passed to an injected Wallet vault. */
 export type WalletCreationRequest = typeof WalletCreationRequest.Type
@@ -123,110 +80,101 @@ export const WalletProfileLoadingState = S.Union([
 /** The finite lifecycle for restoring persisted Wallet profiles. */
 export type WalletProfileLoadingState = typeof WalletProfileLoadingState.Type
 
-/** One chain account projected through the globally selected network mode. */
+/** One persisted account projected through its loaded network descriptor. */
 export const ActiveWalletAccount = S.Struct({
   accountId: S.String,
-  chain: WalletChain,
+  chainId: ChainId,
+  networkId: NetworkId,
   networkMode: WalletNetworkMode,
   networkName: S.String,
   address: S.String,
-  detail: S.String,
+  displayName: S.String,
 })
-/** One chain account projected through the globally selected network mode. */
+/** One persisted account projected through its loaded network descriptor. */
 export type ActiveWalletAccount = typeof ActiveWalletAccount.Type
 
-const bitcoinAddress = (
-  account: BitcoinWalletAccount,
-  networkMode: WalletNetworkMode,
-): string => {
-  const addresses =
-    networkMode === 'Devnet'
-      ? account.devnetAddresses
-      : account.testnetAddresses
-  if (account.preferredAddressType === 'NativeSegwit') {
-    return addresses.nativeSegwitAddress
-  } else {
-    return addresses.taprootAddress
-  }
-}
+/** Finds the persisted Wallet profile that owns one exact account. */
+export const walletProfileForAccountId = (
+  wallets: ReadonlyArray<WalletProfile>,
+  accountId: string,
+): Option.Option<WalletProfile> =>
+  Array.findFirst(wallets, wallet =>
+    Array.some(wallet.accounts, account => account.accountId === accountId),
+  )
 
-/** Returns the human-readable network selected for one chain and global mode. */
-export const walletNetworkName = (
-  chain: WalletChain,
+/** Reports whether one network belongs to the selected global Wallet mode. */
+export const isNetworkEnvironmentInWalletMode = (
+  environment: NetworkEnvironment,
   networkMode: WalletNetworkMode,
-): string =>
-  M.value(chain).pipe(
-    M.withReturnType<string>(),
-    M.when('Bitcoin', () =>
-      networkMode === 'Devnet' ? 'Bitcoin Regtest' : 'Bitcoin Testnet',
+): boolean =>
+  M.value(networkMode).pipe(
+    M.withReturnType<boolean>(),
+    M.when(
+      'Devnet',
+      () => environment === 'Development' || environment === 'Local',
     ),
-    M.when('Ethereum', () =>
-      networkMode === 'Devnet' ? 'Ethereum Localnet' : 'Ethereum Sepolia',
-    ),
-    M.when('Solana', () =>
-      networkMode === 'Devnet' ? 'Solana Devnet' : 'Solana Testnet',
-    ),
-    M.when('Sui', () =>
-      networkMode === 'Devnet' ? 'Sui Devnet' : 'Sui Testnet',
-    ),
+    M.when('Testnet', () => environment === 'Testnet'),
+    M.when('Live', () => environment === 'Mainnet'),
     M.exhaustive,
   )
 
-/** Projects every account in one Wallet through the globally selected mode. */
+/** Projects every persisted account available in one global network mode. */
 export const activeWalletAccounts = (
   wallet: WalletProfile,
+  networks: ReadonlyArray<NetworkDescriptor>,
   networkMode: WalletNetworkMode,
-): ReadonlyArray<ActiveWalletAccount> => [
-  ActiveWalletAccount.make({
-    accountId: wallet.accounts.bitcoin.accountId,
-    chain: 'Bitcoin',
-    networkMode,
-    networkName: walletNetworkName('Bitcoin', networkMode),
-    address: bitcoinAddress(wallet.accounts.bitcoin, networkMode),
-    detail:
-      wallet.accounts.bitcoin.preferredAddressType === 'NativeSegwit'
-        ? 'Native Segwit preferred · Taproot enabled'
-        : 'Taproot preferred · Native Segwit enabled',
-  }),
-  ActiveWalletAccount.make({
-    accountId: wallet.accounts.ethereum.accountId,
-    chain: 'Ethereum',
-    networkMode,
-    networkName: walletNetworkName('Ethereum', networkMode),
-    address: wallet.accounts.ethereum.address,
-    detail: 'EVM account',
-  }),
-  ActiveWalletAccount.make({
-    accountId: wallet.accounts.solana.accountId,
-    chain: 'Solana',
-    networkMode,
-    networkName: walletNetworkName('Solana', networkMode),
-    address: wallet.accounts.solana.address,
-    detail: 'Ed25519 account',
-  }),
-  ActiveWalletAccount.make({
-    accountId: wallet.accounts.sui.accountId,
-    chain: 'Sui',
-    networkMode,
-    networkName: walletNetworkName('Sui', networkMode),
-    address: wallet.accounts.sui.address,
-    detail: 'Ed25519 account',
-  }),
-]
+): ReadonlyArray<ActiveWalletAccount> =>
+  Array.flatMap(wallet.accounts, account => {
+    const maybeNetwork = Array.findFirst(
+      networks,
+      network =>
+        network.networkId === account.networkId &&
+        network.chainId === account.chainId,
+    )
+    if (
+      Option.isNone(maybeNetwork) ||
+      !isNetworkEnvironmentInWalletMode(
+        maybeNetwork.value.environment,
+        networkMode,
+      )
+    ) {
+      return []
+    }
+    return [
+      ActiveWalletAccount.make({
+        accountId: account.accountId,
+        chainId: account.chainId,
+        networkId: account.networkId,
+        networkMode,
+        networkName: maybeNetwork.value.displayName,
+        address: account.address,
+        displayName: account.displayName,
+      }),
+    ]
+  })
 
-/** Produces the other global Wallet network mode. */
+/** Selects the next global Wallet network mode. */
 export const toggledWalletNetworkMode = (
   networkMode: WalletNetworkMode,
-): WalletNetworkMode => (networkMode === 'Devnet' ? 'Testnet' : 'Devnet')
+): WalletNetworkMode =>
+  M.value(networkMode).pipe(
+    M.withReturnType<WalletNetworkMode>(),
+    M.when('Devnet', () => 'Testnet'),
+    M.when('Testnet', () => 'Live'),
+    M.when('Live', () => 'Devnet'),
+    M.exhaustive,
+  )
 
 /** Creates the next stable, replayable Wallet creation request. */
 export const nextWalletCreationRequest = (
   wallets: ReadonlyArray<WalletProfile>,
+  networks: ReadonlyArray<NetworkDescriptor>,
 ): WalletCreationRequest => {
-  const nextWalletNumber = wallets.length + 1
+  const nextWalletNumber = Array.length(wallets) + 1
   return WalletCreationRequest.make({
     requestId: `wallet-${nextWalletNumber.toString()}`,
     displayName: `Wallet ${nextWalletNumber.toString()}`,
+    networks,
   })
 }
 

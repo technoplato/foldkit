@@ -6,16 +6,45 @@ import {
   availableSendNetworkSelections,
   walletIntentRouter,
 } from 'wallet-core-example'
-import { simulatedPortfolio } from 'wallet-simulated-client-example'
+import {
+  SimulatedWalletResources,
+  simulatedPortfolio,
+} from 'wallet-simulated-client-example'
 
 import {
+  WalletChallengeInput,
   WalletCliOperation,
+  WalletTestFundingInput,
   WalletTransferInput,
-  defaultWalletChallengeInput,
-  defaultWalletTransferInput,
   executeWalletCli,
   walletCliProgram,
 } from './host.js'
+
+const walletTransferFixture = WalletTransferInput.make({
+  transferId: 'cli-transfer',
+  networkMode: 'Testnet',
+  chainId: 'ethereum',
+  networkId: 'ethereum:sepolia',
+  accountId: 'simulated-ethereum-account',
+  assetId: 'ethereum:sepolia:eth',
+  destinationAddress: '0x2222222222222222222222222222222222222222',
+  atomicUnits: '1000000000000000',
+  maybeMessage: Option.none(),
+})
+
+const walletChallengeFixture = WalletChallengeInput.make({
+  challengeId: 'cli-challenge',
+  accountId: 'simulated-ethereum-account',
+  algorithm: 'keccak256',
+  domain: 'wallet.example/access/v1',
+  digest: '0x434a8d65ff6dedb682353c0b64080d079094c7bc538c6bf29c5049c4dca72e22',
+  encoding: 'hex',
+})
+
+const executeSimulatedWalletCli = (
+  operation: WalletCliOperation,
+  maybeCarrier = Option.none<string>(),
+) => executeWalletCli(operation, maybeCarrier, SimulatedWalletResources)
 
 describe('raw Wallet CLI host', () => {
   it('consumes the exact canonical Wallet Program export', () => {
@@ -24,18 +53,18 @@ describe('raw Wallet CLI host', () => {
 
   it('awaits preview and challenge Command results', async () => {
     const preview = await Effect.runPromise(
-      executeWalletCli(
+      executeSimulatedWalletCli(
         WalletCliOperation.make({
           _tag: 'Preview',
-          input: defaultWalletTransferInput,
+          maybeInput: Option.some(walletTransferFixture),
         }),
       ),
     )
     const signature = await Effect.runPromise(
-      executeWalletCli(
+      executeSimulatedWalletCli(
         WalletCliOperation.make({
           _tag: 'SignChallenge',
-          input: defaultWalletChallengeInput,
+          input: walletChallengeFixture,
         }),
       ),
     )
@@ -48,7 +77,7 @@ describe('raw Wallet CLI host', () => {
 
   it('creates all four chain accounts in one selected mode', async () => {
     const execution = await Effect.runPromise(
-      executeWalletCli(
+      executeSimulatedWalletCli(
         WalletCliOperation.make({
           _tag: 'CreateWallet',
           networkMode: 'Devnet',
@@ -64,10 +93,10 @@ describe('raw Wallet CLI host', () => {
 
   it('observes the transaction emitted by simulated submission', async () => {
     const execution = await Effect.runPromise(
-      executeWalletCli(
+      executeSimulatedWalletCli(
         WalletCliOperation.make({
           _tag: 'Send',
-          input: defaultWalletTransferInput,
+          maybeInput: Option.some(walletTransferFixture),
         }),
       ),
     )
@@ -76,6 +105,43 @@ describe('raw Wallet CLI host', () => {
     expect(execution.model.transactions.length).toBeGreaterThan(0)
     expect(execution.summary).toContain('Observed: yes')
     expect(execution.summary).not.toContain('Etherscan')
+  })
+
+  it('reloads and advances cursor-based transaction history', async () => {
+    const reloaded = await Effect.runPromise(
+      executeSimulatedWalletCli(WalletCliOperation.make({ _tag: 'History' })),
+    )
+    const nextPage = await Effect.runPromise(
+      executeSimulatedWalletCli(
+        WalletCliOperation.make({ _tag: 'NextHistoryPage' }),
+      ),
+    )
+
+    expect(reloaded.summary).toContain('History: loaded')
+    expect(reloaded.progress).toContain('RequestedTransactionHistoryReload')
+    expect(nextPage.summary).toContain('History: loaded')
+    expect(nextPage.progress).toContain('RequestedNextTransactionHistoryPage')
+  })
+
+  it('requests capability-gated test funding for an exact rail', async () => {
+    const execution = await Effect.runPromise(
+      executeSimulatedWalletCli(
+        WalletCliOperation.make({
+          _tag: 'RequestTestFunding',
+          input: WalletTestFundingInput.make({
+            networkMode: 'Testnet',
+            chainId: 'ethereum',
+            networkId: 'ethereum:sepolia',
+            accountId: 'simulated-ethereum-account',
+            assetId: 'ethereum:sepolia:eth',
+            maybeDisplayAmount: Option.some('0.01'),
+          }),
+        }),
+      ),
+    )
+
+    expect(execution.model.testFunding._tag).toBe('ReceivedTestFunding')
+    expect(execution.summary).toContain('Test funding accepted')
   })
 
   it('sends every chain in both modes from a deep link and reads every property back', async () => {
@@ -98,10 +164,10 @@ describe('raw Wallet CLI host', () => {
             destinationAddress: account.address,
           })
           const path = yield* walletIntentRouter.print(intent)
-          const execution = yield* executeWalletCli(
+          const execution = yield* executeSimulatedWalletCli(
             WalletCliOperation.make({
               _tag: 'Send',
-              input: defaultWalletTransferInput,
+              maybeInput: Option.none(),
             }),
             Option.some(`foldkit://showcase${path}`),
           )
@@ -131,14 +197,16 @@ describe('raw Wallet CLI host', () => {
 
   it('prints the shared network-specific address guidance', async () => {
     const failure = await Effect.runPromise(
-      executeWalletCli(
+      executeSimulatedWalletCli(
         WalletCliOperation.make({
           _tag: 'Preview',
-          input: WalletTransferInput.make({
-            ...defaultWalletTransferInput,
-            destinationAddress:
-              '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
-          }),
+          maybeInput: Option.some(
+            WalletTransferInput.make({
+              ...walletTransferFixture,
+              destinationAddress:
+                '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+            }),
+          ),
         }),
       ).pipe(Effect.flip),
     )
@@ -155,15 +223,15 @@ describe('raw Wallet CLI host', () => {
 
   it('inspects the portable replay path without executing historical Commands', async () => {
     const preview = await Effect.runPromise(
-      executeWalletCli(
+      executeSimulatedWalletCli(
         WalletCliOperation.make({
           _tag: 'Preview',
-          input: defaultWalletTransferInput,
+          maybeInput: Option.some(walletTransferFixture),
         }),
       ),
     )
     const replay = await Effect.runPromise(
-      executeWalletCli(
+      executeSimulatedWalletCli(
         WalletCliOperation.make({
           _tag: 'InspectReplay',
           maybeFrame: Option.none(),

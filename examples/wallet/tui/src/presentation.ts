@@ -1,5 +1,12 @@
 import { Array, Match as M, Option, Schema as S } from 'effect'
-import { type Model, WalletProgram } from 'wallet-core-example'
+import {
+  type Model,
+  WalletProgram,
+  primaryWalletTestFundingMethod,
+  selectedNetworkHasCapability,
+  selectedSendNetworkLabel,
+  toggledWalletNetworkMode,
+} from 'wallet-core-example'
 
 /** Shows the current Wallet Model without sending a Message. */
 export const ShowWallet = S.TaggedStruct('ShowWallet', {
@@ -9,7 +16,7 @@ export const ShowWallet = S.TaggedStruct('ShowWallet', {
 export const CreateWallet = S.TaggedStruct('CreateWallet', {
   label: S.String,
 })
-/** Switches every Wallet account between Devnet and Testnet together. */
+/** Selects the next global Wallet network mode. */
 export const ToggleWalletNetwork = S.TaggedStruct('ToggleWalletNetwork', {
   label: S.String,
 })
@@ -23,7 +30,20 @@ export const ShowReceivingInstruction = S.TaggedStruct(
   'ShowReceivingInstruction',
   { label: S.String },
 )
-/** Composes the deterministic simulated transaction preview. */
+/** Reloads the first page of transaction history. */
+export const ReloadWalletHistory = S.TaggedStruct('ReloadWalletHistory', {
+  label: S.String,
+})
+/** Loads the next available page of transaction history. */
+export const NextWalletHistoryPage = S.TaggedStruct('NextWalletHistoryPage', {
+  label: S.String,
+})
+/** Requests test funds for the selected rail and valid amount. */
+export const RequestWalletTestFunding = S.TaggedStruct(
+  'RequestWalletTestFunding',
+  { label: S.String },
+)
+/** Composes a transaction preview for the selected network. */
 export const PreviewWalletTransaction = S.TaggedStruct(
   'PreviewWalletTransaction',
   { label: S.String },
@@ -52,6 +72,9 @@ export const WalletOpenTuiInteraction = S.Union([
   ToggleWalletNetwork,
   SelectNextSendNetwork,
   ShowReceivingInstruction,
+  ReloadWalletHistory,
+  NextWalletHistoryPage,
+  RequestWalletTestFunding,
   PreviewWalletTransaction,
   SendWalletTransaction,
   SignWalletChallenge,
@@ -72,17 +95,48 @@ export const interactionsForWalletOpenTui = (
     model.transaction._tag === 'PreviewedTransaction'
       ? [SendWalletTransaction.make({ label: 'Send previewed transaction' })]
       : []
+  const history = selectedNetworkHasCapability(model, 'TransactionHistory')
+    ? [ReloadWalletHistory.make({ label: 'Reload transaction history' })]
+    : []
+  const nextHistoryPage =
+    model.transactionHistory._tag === 'LoadedTransactionHistory' &&
+    Option.isSome(model.transactionHistory.maybeNextCursor)
+      ? [NextWalletHistoryPage.make({ label: 'Load next history page' })]
+      : []
+  const adapterTestFunding =
+    selectedNetworkHasCapability(model, 'TestFunding') &&
+    model.transferAmount._tag === 'ValidTransferAmount'
+      ? [RequestWalletTestFunding.make({ label: 'Request test funds' })]
+      : []
+  const externalTestFunding = Option.match(
+    primaryWalletTestFundingMethod(model),
+    {
+      onNone: () => [],
+      onSome: method =>
+        method._tag === 'ExternalTestFundingMethod'
+          ? [
+              RequestWalletTestFunding.make({
+                label: `Open ${method.providerName}`,
+              }),
+            ]
+          : [],
+    },
+  )
   return [
     ShowWallet.make({ label: 'Show public Wallet Model' }),
     CreateWallet.make({
       label: 'Create Bitcoin, Ethereum, Solana, and Sui wallet',
     }),
     ToggleWalletNetwork.make({
-      label: `Switch every wallet to ${model.walletNetworkMode === 'Devnet' ? 'Testnet' : 'Devnet'}`,
+      label: `Switch every wallet to ${toggledWalletNetworkMode(model.walletNetworkMode)}`,
     }),
     SelectNextSendNetwork.make({ label: 'Select next send network' }),
     ShowReceivingInstruction.make({ label: 'Show receiving instruction' }),
-    PreviewWalletTransaction.make({ label: 'Preview simulated transfer' }),
+    ...history,
+    ...nextHistoryPage,
+    ...adapterTestFunding,
+    ...externalTestFunding,
+    PreviewWalletTransaction.make({ label: 'Preview transfer' }),
     ...send,
     SignWalletChallenge.make({ label: 'Sign access challenge' }),
     ShowWalletStatePath.make({ label: 'Show portable state path' }),
@@ -95,11 +149,12 @@ export const walletOpenTuiSummary = (model: Model): string => {
   const portfolio = M.value(model.portfolio).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
+      WaitingForWalletProfiles: () => 'Portfolio waiting for wallet profiles',
       LoadingPortfolio: () => 'Portfolio loading',
       FailedPortfolio: ({ failure }) =>
         `Portfolio failed: ${failure.operation}/${failure.code}`,
       LoadedPortfolio: ({ snapshot }) =>
-        `${snapshot.accounts.length.toString()} accounts | ${snapshot.balanceSnapshot.balances.length.toString()} balances`,
+        `${snapshot.accounts.length.toString()} accounts | ${snapshot.balanceSnapshot.balances.length.toString()} balances | ${snapshot.balanceSnapshot.unavailableAccountIds.length.toString()} unavailable`,
     }),
   )
   return Array.join(
@@ -108,7 +163,7 @@ export const walletOpenTuiSummary = (model: Model): string => {
       `${model.wallets.length.toString()} wallets ${model.walletNetworkMode}`,
       `Send ${Option.match(model.maybeSendNetworkSelection, {
         onNone: () => 'unavailable',
-        onSome: selection => selection.networkId,
+        onSome: () => selectedSendNetworkLabel(model),
       })}`,
       `Transaction ${model.transaction._tag}`,
       `Signature ${model.signature._tag}`,

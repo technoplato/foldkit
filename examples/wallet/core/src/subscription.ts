@@ -1,4 +1,4 @@
-import { Array as Array_, Effect, Schema as S, Stream } from 'effect'
+import { Array as Array_, Effect, Option, Schema as S, Stream } from 'effect'
 import { Subscription } from 'foldkit'
 
 import {
@@ -19,13 +19,14 @@ export const subscriptions = Subscription.make<Model, Message, WalletClient>()(
       },
       {
         modelToDependencies: model => ({
-          accountIds:
+          accountIds: Array_.getSomes([
             model.portfolio._tag === 'LoadedPortfolio'
-              ? Array_.map(
-                  model.portfolio.snapshot.accounts,
-                  account => account.accountId,
+              ? Option.map(
+                  model.maybeSendNetworkSelection,
+                  selection => selection.accountId,
                 )
-              : [],
+              : Option.none(),
+          ]),
           isEnabled:
             model.transactionObservation._tag === 'ObservingTransactions',
         }),
@@ -46,6 +47,7 @@ export const subscriptions = Subscription.make<Model, Message, WalletClient>()(
                         Stream.catch(error =>
                           Stream.make(
                             FailedObserveTransactions.make({
+                              accountIds: observedAccountIds,
                               failure: NetworkFailure.make({
                                 operation: 'ObserveTransactions',
                                 code: error.code,

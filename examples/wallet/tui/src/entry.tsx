@@ -1,11 +1,18 @@
 import { Array, Data, Effect, Option, pipe } from 'effect'
 import { parseWalletProgramRoute } from 'wallet-core-example'
+import { MacOSLiveWalletResources } from 'wallet-node-client-example'
 import { type WalletInitialRoute } from 'wallet-react-bindings-example'
+import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import { CliRenderEvents, createCliRenderer } from '@opentui/core'
 import { createRoot } from '@opentui/react'
 
 import { App } from './host.js'
+
+const walletResources =
+  process.env['FOLDKIT_WALLET_RESOURCES'] === 'simulated'
+    ? SimulatedWalletResources
+    : MacOSLiveWalletResources
 
 class WalletOpenTuiCarrierError extends Data.TaggedError(
   'WalletOpenTuiCarrierError',
@@ -64,8 +71,12 @@ renderer.once(CliRenderEvents.DESTROY, () => root.unmount())
 
 if (Option.isSome(maybeInitialRoute)) {
   root.render(
-    <App initialRoute={maybeInitialRoute.value} renderer={renderer} />,
+    <App
+      initialRoute={maybeInitialRoute.value}
+      renderer={renderer}
+      resources={walletResources}
+    />,
   )
 } else {
-  root.render(<App renderer={renderer} />)
+  root.render(<App renderer={renderer} resources={walletResources} />)
 }

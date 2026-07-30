@@ -29,6 +29,7 @@ import {
   AssetDescriptor,
   AtomicUnits,
   ChainDescriptor,
+  ExternalTestFundingMethod,
   IssuedAsset,
   NativeAsset,
   NetworkDescriptor,
@@ -38,7 +39,7 @@ import {
   SignatureProof as SignatureProofSchema,
   type SignedTransaction,
   type SigningChallenge,
-  TransactionHistoryPage,
+  type TestFundingRequest,
   type TransactionPayload,
   type TransactionPreview,
   TransactionQuote,
@@ -127,6 +128,8 @@ type EthereumPreparedPayload = typeof EthereumPreparedPayload.Type
 const toClientError = () => new WalletClientError({ code: 'Unavailable' })
 const invalidClientResponse = () =>
   new WalletClientError({ code: 'InvalidResponse' })
+const unsupportedClientCapability = () =>
+  new WalletClientError({ code: 'UnsupportedCapability' })
 const isThirtyTwoByteHex = (value: string): boolean =>
   /^(?:0x)?[0-9a-fA-F]{64}$/.test(value)
 
@@ -147,7 +150,17 @@ const ethereumNetwork = NetworkDescriptor.make({
   chainId: ethereumChainId,
   displayName: 'Ethereum Sepolia',
   environment: 'Testnet',
-  capabilities: ['Transfer', 'TransactionObservation', 'ChallengeSignature'],
+  capabilities: [
+    'Transfer',
+    'ExternalTestFunding',
+    'TransactionObservation',
+    'ChallengeSignature',
+  ],
+  testFundingMethod: ExternalTestFundingMethod.make({
+    providerName: 'Google Cloud Web3 Sepolia Faucet',
+    providerUrl:
+      'https://cloud.google.com/application/web3/faucet/ethereum/sepolia',
+  }),
 })
 const ethAsset = AssetDescriptor.make({
   assetId: ethereumEthAssetId,
@@ -229,6 +242,7 @@ const makeEthereumTransport = Effect.gen(function* () {
   })
   const account = WalletAccount.make({
     accountId: config.accountId,
+    chainId: ethereumChainId,
     networkId: ethereumNetworkId,
     address: accountAddress,
     displayName: config.displayName,
@@ -683,13 +697,9 @@ const makeEthereumTransport = Effect.gen(function* () {
     previewTransfer,
     buildTransferPayload,
     submitTransaction,
-    loadTransactionHistory: () =>
-      Effect.succeed(
-        TransactionHistoryPage.make({
-          records: [],
-          maybeNextCursor: Option.none(),
-        }),
-      ),
+    requestTestFunding: (_request: TestFundingRequest) =>
+      Effect.fail(unsupportedClientCapability()),
+    loadTransactionHistory: () => Effect.fail(unsupportedClientCapability()),
     observeTransactions,
     verifySignatureProof: (
       challenge: SigningChallenge,

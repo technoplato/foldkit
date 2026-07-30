@@ -1,21 +1,23 @@
-import { Array, Match as M, Option } from 'effect'
-import { type ReactNode, useState } from 'react'
+import { Array, Layer, Match as M, Option, Schema as S } from 'effect'
+import { type ReactNode, useMemo, useState } from 'react'
 import {
   DomainSeparatedDigest,
   type Model,
   SigningChallenge,
+  type WalletResources,
   activeWalletAccounts,
-  demoTransferAtomicUnitsForSelection,
   nextSendNetworkSelection,
   primaryReceivingInstruction,
+  primaryWalletTestFundingMethod,
   toggledWalletNetworkMode,
+  transferAmountInput,
+  transferRecipientInput,
 } from 'wallet-core-example'
+import { MacOSLiveWalletResources } from 'wallet-node-client-example'
 import {
   type WalletInitialRoute,
-  WalletTransferComposition,
   makeWalletReactClient,
 } from 'wallet-react-bindings-example'
-import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 
 import { type CliRenderer, type SelectOption } from '@opentui/core'
 import { useKeyboard } from '@opentui/react'
@@ -25,59 +27,40 @@ import {
   walletOpenTuiSummary,
 } from './presentation.js'
 
-const { WalletProvider, useWalletActions, useWalletModel, useWalletReplay } =
-  makeWalletReactClient(SimulatedWalletResources)
-
 export * from './presentation.js'
 
-const defaultAccountId = 'simulated-ethereum-account'
-const defaultTransferComposition = (
+type WalletReactClient = ReturnType<typeof makeWalletReactClient>
+
+const WalletOpenTuiFocus = S.Literals(['Amount', 'Recipient', 'Operations'])
+type WalletOpenTuiFocus = typeof WalletOpenTuiFocus.Type
+
+const defaultChallenge = (
   model: Model,
-): Option.Option<WalletTransferComposition> => {
+): Option.Option<typeof SigningChallenge.Type> => {
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return Option.none()
   }
-  if (Option.isNone(model.maybeSendNetworkSelection)) {
-    return Option.none()
-  }
-  const selection = model.maybeSendNetworkSelection.value
-  const maybeAccount = Array.findFirst(
-    model.portfolio.snapshot.accounts,
-    account => account.accountId === selection.accountId,
-  )
-  const maybeBalance = Array.findFirst(
-    model.portfolio.snapshot.balanceSnapshot.balances,
-    balance =>
-      balance.accountId === selection.accountId &&
-      balance.amount.assetId === selection.assetId,
-  )
-  if (Option.isNone(maybeAccount) || Option.isNone(maybeBalance)) {
-    return Option.none()
-  }
-  return Option.some(
-    WalletTransferComposition.make({
-      transferId: 'opentui-transfer',
-      accountId: selection.accountId,
-      assetId: selection.assetId,
-      destinationAddress: maybeAccount.value.address,
-      atomicUnits: demoTransferAtomicUnitsForSelection(selection),
-      maybeMessage: Option.none(),
+  const maybeSelection = model.maybeSendNetworkSelection
+  const maybeAccount = Option.isSome(maybeSelection)
+    ? Array.findFirst(
+        model.portfolio.snapshot.accounts,
+        account => account.accountId === maybeSelection.value.accountId,
+      )
+    : Array.head(model.portfolio.snapshot.accounts)
+  return Option.map(maybeAccount, account =>
+    SigningChallenge.make({
+      challengeId: 'opentui-challenge',
+      accountId: account.accountId,
+      digest: DomainSeparatedDigest.make({
+        algorithm: 'keccak256',
+        domain: 'wallet.example/access/v1',
+        digest:
+          '0x434a8d65ff6dedb682353c0b64080d079094c7bc538c6bf29c5049c4dca72e22',
+        encoding: 'hex',
+      }),
     }),
   )
 }
-
-const defaultChallenge = (): typeof SigningChallenge.Type =>
-  SigningChallenge.make({
-    challengeId: 'opentui-challenge',
-    accountId: defaultAccountId,
-    digest: DomainSeparatedDigest.make({
-      algorithm: 'keccak256',
-      domain: 'wallet.example/access/v1',
-      digest:
-        '0x434a8d65ff6dedb682353c0b64080d079094c7bc538c6bf29c5049c4dca72e22',
-      encoding: 'hex',
-    }),
-  })
 
 const explorerStatus = (model: Model): string => {
   if (model.transaction._tag !== 'SubmittedTransaction') {
@@ -88,7 +71,7 @@ const explorerStatus = (model: Model): string => {
   if (Option.isSome(maybeConfirmation)) {
     return `Confirm on ${maybeConfirmation.value.label}: ${maybeConfirmation.value.url}`
   } else {
-    return 'Explorer: unavailable for simulated submissions'
+    return 'Explorer: unavailable for this submission'
   }
 }
 
@@ -96,11 +79,20 @@ const explorerStatus = (model: Model): string => {
 export const App = ({
   initialRoute,
   renderer,
+  resources = MacOSLiveWalletResources,
 }: Readonly<{
   initialRoute?: WalletInitialRoute
   renderer: CliRenderer
+  resources?: Layer.Layer<WalletResources>
 }>) => {
-  const content = <WalletTerminal renderer={renderer} />
+  const walletClient = useMemo(
+    () => makeWalletReactClient(resources),
+    [resources],
+  )
+  const WalletProvider = walletClient.WalletProvider
+  const content = (
+    <WalletTerminal renderer={renderer} walletClient={walletClient} />
+  )
   if (initialRoute === undefined) {
     return (
       <WalletProvider fallback={<text fg="#a8a29e">Starting Wallet…</text>}>
@@ -118,11 +110,18 @@ export const App = ({
   )
 }
 
-const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
-  const model = useWalletModel()
-  const actions = useWalletActions()
-  const replay = useWalletReplay()
+const WalletTerminal = ({
+  renderer,
+  walletClient,
+}: Readonly<{
+  renderer: CliRenderer
+  walletClient: WalletReactClient
+}>) => {
+  const model = walletClient.useWalletModel()
+  const actions = walletClient.useWalletActions()
+  const replay = walletClient.useWalletReplay()
   const [maybeNotice, setNotice] = useState(Option.none<string>())
+  const [focus, setFocus] = useState<WalletOpenTuiFocus>('Operations')
   const interactions = interactionsForWalletOpenTui(model)
   const options: Array<SelectOption> = Array.map(interactions, interaction => ({
     name: interaction.label,
@@ -130,13 +129,19 @@ const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
   }))
 
   useKeyboard(key => {
-    if (key.name === 'q') {
+    if (key.name === 'f2') {
+      setFocus('Amount')
+    } else if (key.name === 'f3') {
+      setFocus('Recipient')
+    } else if (key.name === 'f4') {
+      setFocus('Operations')
+    } else if (focus === 'Operations' && key.name === 'q') {
       renderer.destroy()
-    } else if (key.name === 'left') {
+    } else if (focus === 'Operations' && key.name === 'left') {
       replay.stepBackward()
-    } else if (key.name === 'right') {
+    } else if (focus === 'Operations' && key.name === 'right') {
       replay.stepForward()
-    } else if (key.name === 'i') {
+    } else if (focus === 'Operations' && key.name === 'i') {
       replay.inspect()
     }
   })
@@ -203,14 +208,43 @@ const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
             ),
           )
         },
-        PreviewWalletTransaction: () => {
-          const maybeComposition = defaultTransferComposition(model)
-          if (Option.isSome(maybeComposition)) {
-            setNotice(Option.some('Previewing simulated transfer…'))
-            actions.composedTransfer(maybeComposition.value)
+        ReloadWalletHistory: () => {
+          setNotice(Option.some('Reloading transaction history…'))
+          actions.requestedTransactionHistoryReload()
+        },
+        NextWalletHistoryPage: () => {
+          setNotice(Option.some('Loading the next transaction history page…'))
+          actions.requestedNextTransactionHistoryPage()
+        },
+        RequestWalletTestFunding: () => {
+          const maybeMethod = primaryWalletTestFundingMethod(model)
+          if (
+            Option.isSome(maybeMethod) &&
+            maybeMethod.value._tag === 'ExternalTestFundingMethod'
+          ) {
+            const maybeInstruction = primaryReceivingInstruction(model)
+            setNotice(
+              Option.some(
+                Option.isSome(maybeInstruction)
+                  ? `Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl} | Receiving address: ${maybeInstruction.value.destinationAddress}`
+                  : `Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl}`,
+              ),
+            )
+          } else if (
+            Option.isSome(maybeMethod) &&
+            maybeMethod.value._tag === 'AdapterTestFundingMethod'
+          ) {
+            setNotice(Option.some('Requesting test funds…'))
+            actions.requestedTestFunding()
           } else {
-            setNotice(Option.some('The simulated account is not loaded.'))
+            setNotice(
+              Option.some('Test funding is unavailable for this network.'),
+            )
           }
+        },
+        PreviewWalletTransaction: () => {
+          setNotice(Option.some('Validating and previewing the transfer…'))
+          actions.requestedTransferPreview()
         },
         SendWalletTransaction: () => {
           if (model.transaction._tag === 'PreviewedTransaction') {
@@ -218,11 +252,18 @@ const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
             actions.requestedSignedTransactionSubmission(
               model.transaction.preview.previewId,
             )
+          } else {
+            setNotice(Option.some('No prepared transfer preview is available.'))
           }
         },
         SignWalletChallenge: () => {
-          setNotice(Option.some('Signing challenge…'))
-          actions.requestedChallengeSignature(defaultChallenge())
+          const maybeChallenge = defaultChallenge(model)
+          if (Option.isSome(maybeChallenge)) {
+            setNotice(Option.some('Signing challenge…'))
+            actions.requestedChallengeSignature(maybeChallenge.value)
+          } else {
+            setNotice(Option.some('No Wallet account is available.'))
+          }
         },
         ShowWalletStatePath: () => showPath(replay.statePath, 'State path'),
         ShowWalletReplayPath: () => showPath(replay.replayPath, 'Replay path'),
@@ -254,7 +295,7 @@ const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
           height={1}
         />
         <text
-          content="Left/right inspect replay. i inspects current frame. Enter runs. q quits."
+          content="F2 amount. F3 recipient. F4 operations. Left/right replay. Enter runs. q quits."
           fg="#6ee7b7"
           height={1}
         />
@@ -266,13 +307,43 @@ const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
         border
         borderColor="#36534a"
         flexDirection="column"
+        height={7}
+        padding={1}
+        title="Transfer draft"
+      >
+        <text content="Amount" fg="#a8a29e" height={1} />
+        <input
+          focused={focus === 'Amount'}
+          onInput={actions.changedTransferAmount}
+          onSubmit={() => setFocus('Recipient')}
+          placeholder="0.00"
+          value={transferAmountInput(model.transferAmount)}
+        />
+        <text content="Recipient" fg="#a8a29e" height={1} />
+        <input
+          focused={focus === 'Recipient'}
+          onInput={actions.changedTransferRecipient}
+          onSubmit={() => {
+            setNotice(Option.some('Validating and previewing the transfer…'))
+            actions.requestedTransferPreview()
+            setFocus('Operations')
+          }}
+          placeholder="Recipient address"
+          value={transferRecipientInput(model.transferRecipient)}
+        />
+      </box>
+
+      <box
+        border
+        borderColor="#36534a"
+        flexDirection="column"
         flexGrow={1}
         minHeight={8}
         padding={1}
         title="Wallet operations"
       >
         <select
-          focused
+          focused={focus === 'Operations'}
           height="100%"
           onSelect={selectedInteraction}
           options={options}
@@ -292,60 +363,69 @@ const WalletTerminal = ({ renderer }: Readonly<{ renderer: CliRenderer }>) => {
   )
 }
 
-const WalletModelView = ({ model }: Readonly<{ model: Model }>) => (
-  <box
-    border
-    borderColor="#36534a"
-    flexDirection="column"
-    height={12}
-    padding={1}
-    title="Canonical Wallet Model"
-  >
-    <PortfolioView model={model} />
-    <text
-      content={`Wallets: ${model.wallets.length.toString()} | ${model.walletNetworkMode} | ${model.walletCreation._tag}`}
-      height={1}
-    />
-    {Array.flatMap(model.wallets, wallet =>
-      Array.map(
-        activeWalletAccounts(wallet, model.walletNetworkMode),
-        account => (
-          <text
-            content={`${wallet.displayName} · ${account.chain} · ${account.networkName} · ${account.address}`}
-            height={1}
-            key={account.accountId}
-          />
+const WalletModelView = ({ model }: Readonly<{ model: Model }>) => {
+  const networks =
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? model.portfolio.snapshot.networks
+      : []
+  return (
+    <box
+      border
+      borderColor="#36534a"
+      flexDirection="column"
+      height={12}
+      padding={1}
+      title="Canonical Wallet Model"
+    >
+      <PortfolioView model={model} />
+      <text
+        content={`Wallets: ${model.wallets.length.toString()} | ${model.walletNetworkMode} | ${model.walletCreation._tag}`}
+        height={1}
+      />
+      {Array.flatMap(model.wallets, wallet =>
+        Array.map(
+          activeWalletAccounts(wallet, networks, model.walletNetworkMode),
+          account => (
+            <text
+              content={`${wallet.displayName} · ${account.chainId} · ${account.networkName} · ${account.address}`}
+              height={1}
+              key={account.accountId}
+            />
+          ),
         ),
-      ),
-    )}
-    <text content={`Transaction: ${model.transaction._tag}`} height={1} />
-    <text
-      content={
-        model.transferRecipient._tag === 'InvalidTransferRecipient'
-          ? Array.join(
-              [
-                model.transferRecipient.guidance.summary,
-                ...model.transferRecipient.guidance.details,
-              ],
-              ' ',
-            )
-          : 'Recipient address: ready for validation'
-      }
-      height={2}
-    />
-    <text content={explorerStatus(model)} height={1} />
-    <text content={`Signature: ${model.signature._tag}`} height={1} />
-    <text
-      content={`Transactions: ${model.transactions.length.toString()}`}
-      height={1}
-    />
-  </box>
-)
+      )}
+      <text content={`Transaction: ${model.transaction._tag}`} height={1} />
+      <text
+        content={
+          model.transferRecipient._tag === 'InvalidTransferRecipient'
+            ? Array.join(
+                [
+                  model.transferRecipient.guidance.summary,
+                  ...model.transferRecipient.guidance.details,
+                ],
+                ' ',
+              )
+            : 'Recipient address: ready for validation'
+        }
+        height={2}
+      />
+      <text content={explorerStatus(model)} height={1} />
+      <text content={`Signature: ${model.signature._tag}`} height={1} />
+      <text
+        content={`Transactions: ${model.transactions.length.toString()}`}
+        height={1}
+      />
+    </box>
+  )
+}
 
 const PortfolioView = ({ model }: Readonly<{ model: Model }>): ReactNode =>
   M.value(model.portfolio).pipe(
     M.withReturnType<ReactNode>(),
     M.tagsExhaustive({
+      WaitingForWalletProfiles: () => (
+        <text content="Waiting for secure wallet profiles…" height={1} />
+      ),
       LoadingPortfolio: () => <text content="Loading portfolio…" height={1} />,
       FailedPortfolio: ({ failure }) => (
         <text

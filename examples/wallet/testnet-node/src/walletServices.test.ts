@@ -2,6 +2,7 @@ import { Effect, Layer, Option, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
   AccountBalance,
+  AdapterTestFundingMethod,
   AssetAmount,
   AssetDescriptor,
   ChainDescriptor,
@@ -9,12 +10,15 @@ import {
   NetworkDescriptor,
   ReceivingInstruction,
   SignatureProof,
+  TestFundingReceipt,
   TransactionHistoryPage,
   TransactionQuote,
   TransferRequest,
+  UnavailableTestFundingMethod,
   ValidatedRecipient,
   ValidatedTransfer,
   WalletAccount,
+  type WalletCapability,
   WalletClient,
   WalletSigner,
   makeSignedTransaction,
@@ -40,9 +44,7 @@ const makeTransport = (
   networkId: string,
   assetId: string,
   accountId: string,
-  capabilities: ReadonlyArray<
-    'Transfer' | 'TransactionHistory' | 'TransactionObservation'
-  >,
+  capabilities: ReadonlyArray<WalletCapability>,
 ): ChainTransportService => {
   const chain = ChainDescriptor.make({ chainId, displayName: chainId })
   const network = NetworkDescriptor.make({
@@ -51,6 +53,9 @@ const makeTransport = (
     displayName: networkId,
     environment: 'Testnet',
     capabilities,
+    testFundingMethod: capabilities.includes('TestFunding')
+      ? AdapterTestFundingMethod.make({})
+      : UnavailableTestFundingMethod.make({}),
   })
   const asset = AssetDescriptor.make({
     assetId,
@@ -62,6 +67,7 @@ const makeTransport = (
   })
   const account = WalletAccount.make({
     accountId,
+    chainId,
     networkId,
     address: `${accountId}-address`,
     displayName: accountId,
@@ -125,6 +131,16 @@ const makeTransport = (
         submittedAt: 1,
         maybeExplorerConfirmation: Option.none(),
       }),
+    requestTestFunding: request =>
+      Effect.succeed(
+        TestFundingReceipt.make({
+          requestId: request.requestId,
+          fundingId: `${networkId}-funding`,
+          acceptedAt: 1,
+          amount: { ...amount, atomicUnits: request.atomicUnits },
+          maybeTransactionId: Option.some(`${networkId}-funding`),
+        }),
+      ),
     loadTransactionHistory: () =>
       Effect.succeed(
         TransactionHistoryPage.make({
@@ -201,7 +217,7 @@ describe('normalized Wallet service composition', () => {
   it('merges adapter catalogs into one normalized portfolio', async () => {
     const portfolio = await Effect.runPromise(
       WalletClient.pipe(
-        Effect.flatMap(client => client.loadPortfolio),
+        Effect.flatMap(client => client.loadPortfolio([])),
         Effect.provide(NetworkTestLive),
       ),
     )

@@ -5,6 +5,8 @@ import {
   PortfolioSnapshot,
   SignatureProof,
   SigningChallenge,
+  TestFundingReceipt,
+  TestFundingRequest,
   TransactionHistoryPage,
   TransactionHistoryQuery,
   TransactionPreview,
@@ -14,11 +16,13 @@ import {
   TransferRequest,
   TransferValidation,
   ValidatedTransfer,
+  WalletProfile,
 } from 'wallet-core-example'
 
 /** Operations exposed by the deliberately unauthenticated testnet bridge. */
 export const WalletRemoteOperation = S.Literals([
   'LoadPortfolio',
+  'RequestTestFunding',
   'ValidateTransfer',
   'PreviewTransfer',
   'BuildTransferPayload',
@@ -45,6 +49,7 @@ export class WalletRemoteError extends S.TaggedErrorClass<WalletRemoteError>()(
       'UnsupportedAccount',
       'InvalidPayload',
       'VerificationFailed',
+      'UnsupportedCapability',
     ]),
   },
 ) {}
@@ -69,8 +74,15 @@ export type SignedTransactionHandle = typeof SignedTransactionHandle.Type
 
 /** Loads the public portfolio exposed by the testnet bridge. */
 export const loadPortfolioRpc = Rpc.make('WalletLoadPortfolio', {
-  payload: S.Struct({}),
+  payload: S.Struct({ wallets: S.Array(WalletProfile) }),
   success: PortfolioSnapshot,
+  error: WalletRemoteError,
+})
+
+/** Requests non-production funds from one supported server adapter. */
+export const requestTestFundingRpc = Rpc.make('WalletRequestTestFunding', {
+  payload: S.Struct({ request: TestFundingRequest }),
+  success: TestFundingReceipt,
   error: WalletRemoteError,
 })
 
@@ -147,6 +159,7 @@ export const observeTransactionsRpc = Rpc.make('WalletObserveTransactions', {
 /** The typed public protocol implemented by the testnet bridge. */
 export const WalletRpcs = RpcGroup.make(
   loadPortfolioRpc,
+  requestTestFundingRpc,
   validateTransferRpc,
   previewTransferRpc,
   buildTransferPayloadRpc,

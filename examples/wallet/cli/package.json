@@ -18,8 +18,8 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
-    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter wallet-simulated-client-example build",
+    "prebuild": "pnpm --filter wallet-core-example build && pnpm --filter wallet-node-client-example build && pnpm --filter wallet-simulated-client-example build",
+    "pretypecheck": "pnpm --filter wallet-core-example build && pnpm --filter wallet-node-client-example build && pnpm --filter wallet-simulated-client-example build",
     "test": "pnpm run build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "wallet": "node dist/entry.js"
@@ -29,6 +29,7 @@
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
     "wallet-core-example": "workspace:*",
+    "wallet-node-client-example": "workspace:*",
     "wallet-simulated-client-example": "workspace:*"
   },
   "devDependencies": {

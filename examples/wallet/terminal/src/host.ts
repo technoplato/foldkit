@@ -4,6 +4,7 @@ import {
   Data,
   Deferred,
   Effect,
+  Layer,
   Match as M,
   Option,
   PlatformError,
@@ -15,12 +16,18 @@ import {
 import * as Program from 'foldkit/program'
 import * as Runtime from 'foldkit/program-runtime'
 import {
+  ChangedTransferAmount,
+  ChangedTransferRecipient,
   ComposedTransfer,
   DomainSeparatedDigest,
   type Message,
   Model,
   RequestedChallengeSignature,
+  RequestedNextTransactionHistoryPage,
   RequestedSignedTransactionSubmission,
+  RequestedTestFunding,
+  RequestedTransactionHistoryReload,
+  RequestedTransferPreview,
   RequestedWalletCreation,
   SelectedSendNetwork,
   SelectedWalletNetworkMode,
@@ -28,18 +35,21 @@ import {
   TransferRequest,
   WalletIntentRouteError,
   WalletProgram,
+  type WalletResources,
   activeWalletAccounts,
-  demoTransferAtomicUnitsForSelection,
   nextSendNetworkSelection,
   parseWalletProgramRoute,
   primaryReceivingInstruction,
+  primaryWalletTestFundingMethod,
+  selectedSendNetworkLabel,
   toggledWalletNetworkMode,
+  transferAmountInput,
+  transferRecipientInput,
 } from 'wallet-core-example'
-import { SimulatedWalletResources } from 'wallet-simulated-client-example'
+import { MacOSLiveWalletResources } from 'wallet-node-client-example'
 
 const clearScreen = '\u001b[2J\u001b[H'
-const defaultAccountId = 'simulated-ethereum-account'
-const observationTimeout = '2 seconds'
+const observationTimeout = '8 seconds'
 
 /** A native input action supported by the interactive Effect Terminal host. */
 export const WalletTerminalAction = S.Literals([
@@ -47,7 +57,12 @@ export const WalletTerminalAction = S.Literals([
   'CreateWallet',
   'ToggleNetwork',
   'SelectNextSendNetwork',
+  'EditAmount',
+  'EditRecipient',
   'Receive',
+  'ReloadHistory',
+  'NextHistoryPage',
+  'RequestTestFunding',
   'Preview',
   'Send',
   'SignChallenge',
@@ -59,6 +74,9 @@ export const WalletTerminalAction = S.Literals([
 /** A native input action supported by the interactive Effect Terminal host. */
 export type WalletTerminalAction = typeof WalletTerminalAction.Type
 
+const WalletTerminalInputMode = S.Literals(['Actions', 'Amount', 'Recipient'])
+type WalletTerminalInputMode = typeof WalletTerminalInputMode.Type
+
 /** Render input for one Effect Terminal frame. */
 export const WalletTerminalSnapshot = S.Struct({
   model: Model,
@@ -66,6 +84,7 @@ export const WalletTerminalSnapshot = S.Struct({
   frame: S.Int,
   finalFrame: S.Int,
   maybeNotice: S.Option(S.String),
+  inputMode: WalletTerminalInputMode,
 })
 /** Render input for one Effect Terminal frame. */
 export type WalletTerminalSnapshot = typeof WalletTerminalSnapshot.Type
@@ -77,6 +96,20 @@ export class WalletTerminalError extends Data.TaggedError(
 
 /** The exact Program object consumed by the Effect Terminal host. */
 export const walletTerminalProgram: typeof WalletProgram = WalletProgram
+
+const replayActionForWalletTerminalInput = (
+  input: string,
+): Option.Option<WalletTerminalAction> =>
+  M.value(input).pipe(
+    M.withReturnType<Option.Option<WalletTerminalAction>>(),
+    M.when('left', () => Option.some('InspectPrevious')),
+    M.when('h', () => Option.some('InspectPrevious')),
+    M.when('right', () => Option.some('InspectNext')),
+    M.when('l', () => Option.some('InspectNext')),
+    M.when('v', () => Option.some('ReturnLive')),
+    M.when('q', () => Option.some('Quit')),
+    M.orElse(() => Option.none()),
+  )
 
 const relativeRouteForCarrier = (
   carrier: string,
@@ -97,40 +130,52 @@ const relativeRouteForCarrier = (
 /** Maps native terminal input to one discoverable Wallet action. */
 export const actionForWalletTerminalInput = (
   input: string,
-): Option.Option<WalletTerminalAction> =>
-  M.value(input.toLowerCase()).pipe(
+): Option.Option<WalletTerminalAction> => {
+  const normalizedInput = input.toLowerCase()
+  return M.value(normalizedInput).pipe(
     M.withReturnType<Option.Option<WalletTerminalAction>>(),
     M.when('s', () => Option.some('Show')),
     M.when('w', () => Option.some('CreateWallet')),
     M.when('t', () => Option.some('ToggleNetwork')),
     M.when('x', () => Option.some('SelectNextSendNetwork')),
+    M.when('a', () => Option.some('EditAmount')),
+    M.when('d', () => Option.some('EditRecipient')),
     M.when('r', () => Option.some('Receive')),
+    M.when('y', () => Option.some('ReloadHistory')),
+    M.when('g', () => Option.some('NextHistoryPage')),
+    M.when('f', () => Option.some('RequestTestFunding')),
     M.when('p', () => Option.some('Preview')),
     M.when('n', () => Option.some('Send')),
     M.when('c', () => Option.some('SignChallenge')),
-    M.when('left', () => Option.some('InspectPrevious')),
-    M.when('h', () => Option.some('InspectPrevious')),
-    M.when('right', () => Option.some('InspectNext')),
-    M.when('l', () => Option.some('InspectNext')),
-    M.when('v', () => Option.some('ReturnLive')),
-    M.when('q', () => Option.some('Quit')),
-    M.orElse(() => Option.none()),
+    M.orElse(() => replayActionForWalletTerminalInput(normalizedInput)),
   )
+}
 
 const modelLines = (model: Model): ReadonlyArray<string> => {
+  const networks =
+    model.portfolio._tag === 'LoadedPortfolio'
+      ? model.portfolio.snapshot.networks
+      : []
   const portfolioLines = M.value(model.portfolio).pipe(
     M.withReturnType<ReadonlyArray<string>>(),
     M.tagsExhaustive({
+      WaitingForWalletProfiles: () => [
+        'Portfolio: waiting for wallet profiles',
+      ],
       LoadingPortfolio: () => ['Portfolio: loading'],
       FailedPortfolio: ({ failure }) => [
         `Portfolio: failed ${failure.operation}/${failure.code}`,
       ],
       LoadedPortfolio: ({ snapshot }) => [
-        `Portfolio: ${snapshot.accounts.length.toString()} accounts`,
+        `Portfolio: ${snapshot.accounts.length.toString()} accounts | ${snapshot.balanceSnapshot.unavailableAccountIds.length.toString()} balances unavailable`,
         ...Array.map(
           snapshot.balanceSnapshot.balances,
           balance =>
             `${balance.accountId} | ${balance.amount.assetId} ${balance.amount.atomicUnits}`,
+        ),
+        ...Array.map(
+          snapshot.balanceSnapshot.unavailableAccountIds,
+          accountId => `${accountId} | balance unavailable, refresh to retry`,
         ),
       ],
     }),
@@ -155,9 +200,9 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
   const walletLines = Array.flatMap(model.wallets, wallet => [
     `${wallet.displayName} | ${model.walletNetworkMode}`,
     ...Array.map(
-      activeWalletAccounts(wallet, model.walletNetworkMode),
+      activeWalletAccounts(wallet, networks, model.walletNetworkMode),
       account =>
-        `  ${account.chain} | ${account.networkName} | ${account.address}`,
+        `  ${account.chainId} | ${account.networkName} | ${account.address}`,
     ),
   ])
   return [
@@ -165,10 +210,12 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
     `Wallets: ${model.wallets.length.toString()} | ${model.walletNetworkMode}`,
     `Send network: ${Option.match(model.maybeSendNetworkSelection, {
       onNone: () => 'unavailable',
-      onSome: selection => `${selection.chainId} | ${selection.networkId}`,
+      onSome: () => selectedSendNetworkLabel(model),
     })}`,
     ...walletLines,
     `Transaction: ${model.transaction._tag}`,
+    `Amount: ${transferAmountInput(model.transferAmount)}`,
+    `Recipient: ${transferRecipientInput(model.transferRecipient)}`,
     ...transactionLines,
     ...addressValidationLines,
     `Signature: ${model.signature._tag}`,
@@ -184,6 +231,19 @@ export const renderWalletTerminal = (
     onNone: () => Array.empty<string>(),
     onSome: notice => ['', notice],
   })
+  const inputLines = M.value(snapshot.inputMode).pipe(
+    M.withReturnType<ReadonlyArray<string>>(),
+    M.when('Actions', () => []),
+    M.when('Amount', () => [
+      '',
+      'Editing amount. Type, Backspace, then Enter to finish.',
+    ]),
+    M.when('Recipient', () => [
+      '',
+      'Editing recipient. Type or paste, Backspace, then Enter to finish.',
+    ]),
+    M.exhaustive,
+  )
   return Array.join(
     [
       clearScreen,
@@ -192,9 +252,12 @@ export const renderWalletTerminal = (
       '',
       ...modelLines(snapshot.model),
       ...noticeLines,
+      ...inputLines,
       '',
-      '[s] Show  [w] Create wallet  [t] Toggle Devnet/Testnet  [x] Next send network',
-      '[r] Receive  [p] Preview  [n] Send  [c] Sign challenge',
+      '[s] Show  [w] Create wallet  [t] Cycle Devnet/Testnet/Live  [x] Next send network',
+      '[a] Edit amount  [d] Edit recipient  [p] Preview  [n] Send',
+      '[r] Receive  [y] Reload history  [g] Next history page',
+      '[f] Request test funds  [c] Sign challenge',
       '[←/h] Previous replay frame  [→/l] Next replay frame  [v] Live',
       '[q] Quit',
     ],
@@ -202,61 +265,40 @@ export const renderWalletTerminal = (
   )
 }
 
-const defaultTransferRequest = (
+const defaultChallenge = (
   model: Model,
-): Effect.Effect<typeof TransferRequest.Type, WalletTerminalError> => {
+): Effect.Effect<typeof SigningChallenge.Type, WalletTerminalError> => {
   if (model.portfolio._tag !== 'LoadedPortfolio') {
     return Effect.fail(
       new WalletTerminalError({ message: 'Wallet portfolio is not loaded' }),
     )
   }
-  if (Option.isNone(model.maybeSendNetworkSelection)) {
+  const maybeSelection = model.maybeSendNetworkSelection
+  const maybeAccount = Option.isSome(maybeSelection)
+    ? Array.findFirst(
+        model.portfolio.snapshot.accounts,
+        account => account.accountId === maybeSelection.value.accountId,
+      )
+    : Array.head(model.portfolio.snapshot.accounts)
+  if (Option.isNone(maybeAccount)) {
     return Effect.fail(
-      new WalletTerminalError({ message: 'No send network is selected' }),
-    )
-  }
-  const selection = model.maybeSendNetworkSelection.value
-  const maybeAccount = Array.findFirst(
-    model.portfolio.snapshot.accounts,
-    account => account.accountId === selection.accountId,
-  )
-  const maybeBalance = Array.findFirst(
-    model.portfolio.snapshot.balanceSnapshot.balances,
-    balance =>
-      balance.accountId === selection.accountId &&
-      balance.amount.assetId === selection.assetId,
-  )
-  if (Option.isNone(maybeAccount) || Option.isNone(maybeBalance)) {
-    return Effect.fail(
-      new WalletTerminalError({
-        message: 'The selected simulated account is unavailable',
-      }),
+      new WalletTerminalError({ message: 'No Wallet account is available' }),
     )
   }
   return Effect.succeed(
-    TransferRequest.make({
-      transferId: `terminal-transfer-${selection.networkId}`,
-      accountId: selection.accountId,
-      assetId: selection.assetId,
-      destinationAddress: maybeAccount.value.address,
-      atomicUnits: demoTransferAtomicUnitsForSelection(selection),
-      maybeMessage: Option.none(),
+    SigningChallenge.make({
+      challengeId: 'terminal-challenge',
+      accountId: maybeAccount.value.accountId,
+      digest: DomainSeparatedDigest.make({
+        algorithm: 'keccak256',
+        domain: 'wallet.example/access/v1',
+        digest:
+          '0x434a8d65ff6dedb682353c0b64080d079094c7bc538c6bf29c5049c4dca72e22',
+        encoding: 'hex',
+      }),
     }),
   )
 }
-
-const defaultChallenge = (): typeof SigningChallenge.Type =>
-  SigningChallenge.make({
-    challengeId: 'terminal-challenge',
-    accountId: defaultAccountId,
-    digest: DomainSeparatedDigest.make({
-      algorithm: 'keccak256',
-      domain: 'wallet.example/access/v1',
-      digest:
-        '0x434a8d65ff6dedb682353c0b64080d079094c7bc538c6bf29c5049c4dca72e22',
-      encoding: 'hex',
-    }),
-  })
 
 const receivingNotice = (model: Model): string => {
   const maybeInstruction = primaryReceivingInstruction(model)
@@ -270,22 +312,28 @@ const receivingNotice = (model: Model): string => {
 const waitForObservedTransaction = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   transactionId: string,
+  observationStartFrame: number,
 ): Effect.Effect<Model, WalletTerminalError> => {
-  const containsTransaction = (model: Model): boolean =>
+  const hasObservedTransaction = (): boolean =>
     Array.some(
-      model.transactions,
-      transaction => transaction.transactionId === transactionId,
+      Array.drop(runtime.replay.readTape().transitions, observationStartFrame),
+      transition =>
+        transition.message._tag === 'ObservedTransaction' &&
+        transition.message.transaction.transactionId === transactionId,
     )
-  if (containsTransaction(runtime.readModel())) {
+  if (hasObservedTransaction()) {
     return Effect.succeed(runtime.readModel())
   }
   return Effect.gen(function* () {
     const observedModel = yield* Deferred.make<Model>()
     const stopObserving = runtime.observeModel(model => {
-      if (containsTransaction(model)) {
+      if (hasObservedTransaction()) {
         Deferred.doneUnsafe(observedModel, Effect.succeed(model))
       }
     })
+    if (hasObservedTransaction()) {
+      Deferred.doneUnsafe(observedModel, Effect.succeed(runtime.readModel()))
+    }
     const maybeObserved = yield* Deferred.await(observedModel).pipe(
       Effect.timeoutOption(observationTimeout),
       Effect.ensuring(Effect.sync(stopObserving)),
@@ -302,20 +350,26 @@ const waitForObservedTransaction = (
   })
 }
 
-/** Runs the deterministic send path for tests and interactive input. */
-export const sendSimulatedWalletTransaction = (
+/** Submits a prepared route preview or an explicitly supplied transfer request. */
+export const sendWalletTransaction = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
+  maybeRequest = Option.none<typeof TransferRequest.Type>(),
 ): Effect.Effect<Model, WalletTerminalError> =>
   Effect.gen(function* () {
-    const request = yield* defaultTransferRequest(runtime.readModel())
-    const previewed = yield* runtime.run(ComposedTransfer.make({ request }))
+    const previewed = Option.isSome(maybeRequest)
+      ? yield* runtime.run(
+          ComposedTransfer.make({ request: maybeRequest.value }),
+        )
+      : runtime.readModel()
     if (previewed.transaction._tag !== 'PreviewedTransaction') {
       return yield* Effect.fail(
         new WalletTerminalError({
-          message: `Preview did not settle: ${previewed.transaction._tag}`,
+          message:
+            'No prepared transfer is available. Open the terminal with a Foldkit send-intent URI.',
         }),
       )
     }
+    const observationStartFrame = runtime.replay.readTape().transitions.length
     const submitted = yield* runtime.run(
       RequestedSignedTransactionSubmission.make({
         previewId: previewed.transaction.preview.previewId,
@@ -331,6 +385,7 @@ export const sendSimulatedWalletTransaction = (
     return yield* waitForObservedTransaction(
       runtime,
       submitted.transaction.submission.transactionId,
+      observationStartFrame,
     )
   })
 
@@ -338,6 +393,7 @@ type TerminalState = Readonly<{
   runtime: Runtime.ProgramRuntime<Model, Message>
   maybeReplaySession: Option.Option<Runtime.ReplaySession<Model, Message>>
   maybeNotice: Option.Option<string>
+  inputMode: WalletTerminalInputMode
 }>
 
 const snapshotForState = (state: TerminalState): WalletTerminalSnapshot => {
@@ -349,6 +405,7 @@ const snapshotForState = (state: TerminalState): WalletTerminalSnapshot => {
       frame: session.readFrame(),
       finalFrame: session.readTape().transitions.length,
       maybeNotice: state.maybeNotice,
+      inputMode: state.inputMode,
     }
   }
   const tape = state.runtime.replay.readTape()
@@ -358,6 +415,7 @@ const snapshotForState = (state: TerminalState): WalletTerminalSnapshot => {
     frame: tape.transitions.length,
     finalFrame: tape.transitions.length,
     maybeNotice: state.maybeNotice,
+    inputMode: state.inputMode,
   }
 }
 
@@ -455,6 +513,22 @@ const runLiveAction = (
         }),
       )
     }),
+    M.when('EditAmount', () =>
+      Effect.succeed({
+        ...state,
+        maybeReplaySession: Option.none(),
+        maybeNotice: Option.some('Editing the selected transfer amount.'),
+        inputMode: 'Amount',
+      }),
+    ),
+    M.when('EditRecipient', () =>
+      Effect.succeed({
+        ...state,
+        maybeReplaySession: Option.none(),
+        maybeNotice: Option.some('Editing the selected transfer recipient.'),
+        inputMode: 'Recipient',
+      }),
+    ),
     M.when('Receive', () =>
       Effect.succeed({
         ...state,
@@ -462,23 +536,87 @@ const runLiveAction = (
         maybeNotice: Option.some(receivingNotice(state.runtime.readModel())),
       }),
     ),
-    M.when('Preview', () =>
-      Effect.gen(function* () {
-        const request = yield* defaultTransferRequest(state.runtime.readModel())
-        const model = yield* state.runtime.run(
-          ComposedTransfer.make({ request }),
-        )
-        return {
+    M.when('ReloadHistory', () =>
+      Effect.map(
+        state.runtime.run(RequestedTransactionHistoryReload.make({})),
+        model => ({
           ...state,
           maybeReplaySession: Option.none(),
           maybeNotice: Option.some(
-            `Preview settled: ${model.transaction._tag}`,
+            `History reload settled: ${model.transactionHistory._tag}.`,
           ),
-        }
-      }),
+        }),
+      ),
+    ),
+    M.when('NextHistoryPage', () =>
+      Effect.map(
+        state.runtime.run(RequestedNextTransactionHistoryPage.make({})),
+        model => ({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(
+            `Next history page settled: ${model.transactionHistory._tag}.`,
+          ),
+        }),
+      ),
+    ),
+    M.when('RequestTestFunding', () => {
+      const model = state.runtime.readModel()
+      const maybeMethod = primaryWalletTestFundingMethod(model)
+      if (
+        Option.isSome(maybeMethod) &&
+        maybeMethod.value._tag === 'ExternalTestFundingMethod'
+      ) {
+        const maybeInstruction = primaryReceivingInstruction(model)
+        return Effect.succeed({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(
+            Option.isSome(maybeInstruction)
+              ? `Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl} | Receiving address: ${maybeInstruction.value.destinationAddress}`
+              : `Open ${maybeMethod.value.providerName}: ${maybeMethod.value.providerUrl}`,
+          ),
+        })
+      }
+      if (
+        Option.isNone(maybeMethod) ||
+        maybeMethod.value._tag !== 'AdapterTestFundingMethod'
+      ) {
+        return Effect.succeed({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(
+            'Test funding is unavailable for this network.',
+          ),
+        })
+      }
+      return Effect.map(
+        state.runtime.run(RequestedTestFunding.make({})),
+        nextModel => ({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(
+            `Test funding settled: ${nextModel.testFunding._tag}.`,
+          ),
+        }),
+      )
+    }),
+    M.when('Preview', () =>
+      Effect.map(
+        state.runtime.run(RequestedTransferPreview.make({})),
+        model => ({
+          ...state,
+          maybeReplaySession: Option.none(),
+          maybeNotice: Option.some(
+            model.transaction._tag === 'PreviewedTransaction'
+              ? 'The transfer preview is ready to send.'
+              : `Preview settled: ${model.transaction._tag}.`,
+          ),
+        }),
+      ),
     ),
     M.when('Send', () =>
-      Effect.map(sendSimulatedWalletTransaction(state.runtime), model => ({
+      Effect.map(sendWalletTransaction(state.runtime), model => ({
         ...state,
         maybeReplaySession: Option.none(),
         maybeNotice: Option.some(
@@ -492,18 +630,19 @@ const runLiveAction = (
       })),
     ),
     M.when('SignChallenge', () =>
-      Effect.map(
-        state.runtime.run(
-          RequestedChallengeSignature.make({ challenge: defaultChallenge() }),
-        ),
-        model => ({
+      Effect.gen(function* () {
+        const challenge = yield* defaultChallenge(state.runtime.readModel())
+        const model = yield* state.runtime.run(
+          RequestedChallengeSignature.make({ challenge }),
+        )
+        return {
           ...state,
           maybeReplaySession: Option.none(),
           maybeNotice: Option.some(
             `Signature settled: ${model.signature._tag}`,
           ),
-        }),
-      ),
+        }
+      }),
     ),
     M.exhaustive,
   )
@@ -557,6 +696,47 @@ const runTerminalAction = (
   return runLiveAction(state, action)
 }
 
+const runTransferInput = (
+  state: TerminalState,
+  input: Terminal.UserInput,
+): Effect.Effect<TerminalState> => {
+  const keyName = input.key.name.toLowerCase()
+  if (keyName === 'enter' || keyName === 'return') {
+    return Effect.succeed({
+      ...state,
+      inputMode: 'Actions',
+      maybeNotice: Option.some('Transfer field editing finished.'),
+    })
+  }
+  if (keyName === 'escape') {
+    return Effect.succeed({
+      ...state,
+      inputMode: 'Actions',
+      maybeNotice: Option.some('Returned to Wallet actions.'),
+    })
+  }
+  const model = state.runtime.readModel()
+  const currentValue =
+    state.inputMode === 'Amount'
+      ? transferAmountInput(model.transferAmount)
+      : transferRecipientInput(model.transferRecipient)
+  const nextValue =
+    keyName === 'backspace'
+      ? currentValue.slice(0, -1)
+      : Option.match(input.input, {
+          onNone: () => currentValue,
+          onSome: value => currentValue + value,
+        })
+  if (nextValue === currentValue) {
+    return Effect.succeed(state)
+  }
+  const message =
+    state.inputMode === 'Amount'
+      ? ChangedTransferAmount.make({ value: nextValue })
+      : ChangedTransferRecipient.make({ value: nextValue })
+  return Effect.map(state.runtime.run(message), () => state)
+}
+
 const runInputLoop = (
   inputQueue: Queue.Dequeue<Terminal.UserInput, Cause.Done>,
   state: TerminalState,
@@ -571,13 +751,26 @@ const runInputLoop = (
   Queue.take(inputQueue).pipe(
     Effect.flatMap(input => {
       const keyName = input.key.name.toLowerCase()
-      const key = Option.getOrElse(input.input, () => keyName).toLowerCase()
       const isControlQuit =
         input.key.ctrl && (keyName === 'c' || keyName === 'd')
-      const maybeAction = actionForWalletTerminalInput(key)
       if (isControlQuit) {
         return Effect.void
       }
+      if (state.inputMode !== 'Actions') {
+        return runTransferInput(state, input).pipe(
+          Effect.flatMap(nextState =>
+            terminal
+              .display(renderWalletTerminal(snapshotForState(nextState)))
+              .pipe(
+                Effect.flatMap(() =>
+                  runInputLoop(inputQueue, nextState, terminal),
+                ),
+              ),
+          ),
+        )
+      }
+      const key = Option.getOrElse(input.input, () => keyName).toLowerCase()
+      const maybeAction = actionForWalletTerminalInput(key)
       if (Option.isNone(maybeAction)) {
         const nextState = {
           ...state,
@@ -645,6 +838,7 @@ const startForCarrier = (
 /** Runs the interactive Effect Terminal client over an optional portable path. */
 export const runWalletTerminal = (
   maybeCarrier = Option.none<string>(),
+  resources: Layer.Layer<WalletResources> = MacOSLiveWalletResources,
 ): Effect.Effect<
   void,
   | PlatformError.PlatformError
@@ -662,7 +856,7 @@ export const runWalletTerminal = (
       const start = yield* startForCarrier(maybeCarrier)
       const runtime = yield* Runtime.makeProgramRuntime({
         program: WalletProgram,
-        resources: SimulatedWalletResources,
+        resources,
         start,
       })
       yield* runtime.initialization
@@ -670,6 +864,7 @@ export const runWalletTerminal = (
         runtime,
         maybeReplaySession: Option.none(),
         maybeNotice: Option.none(),
+        inputMode: 'Actions',
       }
       yield* terminal.display(renderWalletTerminal(snapshotForState(state)))
       const inputQueue = yield* terminal.readInput

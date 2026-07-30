@@ -6,6 +6,8 @@ import {
   PortfolioSnapshot,
   SignatureProof,
   SigningChallenge,
+  TestFundingReceipt,
+  TestFundingRequest,
   TransactionHistoryPage,
   TransactionHistoryQuery,
   TransactionPreview,
@@ -84,6 +86,10 @@ export const ChangedTransferRecipient = S.TaggedStruct(
   'ChangedTransferRecipient',
   { value: S.String },
 )
+/** The host changed the user-entered display amount for the selected asset. */
+export const ChangedTransferAmount = S.TaggedStruct('ChangedTransferAmount', {
+  value: S.String,
+})
 /** The host requested a preview for the current transfer recipient. */
 export const RequestedTransferPreview = S.TaggedStruct(
   'RequestedTransferPreview',
@@ -96,12 +102,26 @@ export const RequestedWalletRefresh = S.TaggedStruct(
 )
 /** The LoadWallet Command loaded normalized public wallet data. */
 export const SucceededLoadWallet = S.TaggedStruct('SucceededLoadWallet', {
+  requestId: S.String,
   portfolio: PortfolioSnapshot,
 })
 /** The LoadWallet Command failed with a sanitized failure. */
 export const FailedLoadWallet = S.TaggedStruct('FailedLoadWallet', {
+  requestId: S.String,
   failure: WalletFailure,
 })
+/** The host requested non-production funds for the current selection. */
+export const RequestedTestFunding = S.TaggedStruct('RequestedTestFunding', {})
+/** The RequestTestFunding Command received a public funding receipt. */
+export const SucceededRequestTestFunding = S.TaggedStruct(
+  'SucceededRequestTestFunding',
+  { request: TestFundingRequest, receipt: TestFundingReceipt },
+)
+/** The RequestTestFunding Command failed without exposing a host cause. */
+export const FailedRequestTestFunding = S.TaggedStruct(
+  'FailedRequestTestFunding',
+  { request: TestFundingRequest, failure: WalletFailure },
+)
 /** The host imported a complete public address book. */
 export const ImportedAddressBookEntries = S.TaggedStruct(
   'ImportedAddressBookEntries',
@@ -171,6 +191,11 @@ export const FailedSignChallenge = S.TaggedStruct('FailedSignChallenge', {
   failure: WalletFailure,
 })
 /** The host requested the next available transaction-history page. */
+export const RequestedTransactionHistoryReload = S.TaggedStruct(
+  'RequestedTransactionHistoryReload',
+  {},
+)
+/** The host requested the next available transaction-history page. */
 export const RequestedNextTransactionHistoryPage = S.TaggedStruct(
   'RequestedNextTransactionHistoryPage',
   {},
@@ -192,7 +217,7 @@ export const ObservedTransaction = S.TaggedStruct('ObservedTransaction', {
 /** A live network Subscription failed with a sanitized failure. */
 export const FailedObserveTransactions = S.TaggedStruct(
   'FailedObserveTransactions',
-  { failure: WalletFailure },
+  { accountIds: S.Array(S.String), failure: WalletFailure },
 )
 /** The host resumed live transaction observation after a failure. */
 export const ResumedTransactionObservation = S.TaggedStruct(
@@ -217,7 +242,11 @@ export const Message = S.Union([
   SucceededLoadWallet,
   FailedLoadWallet,
   ChangedTransferRecipient,
+  ChangedTransferAmount,
   RequestedTransferPreview,
+  RequestedTestFunding,
+  SucceededRequestTestFunding,
+  FailedRequestTestFunding,
   ImportedAddressBookEntries,
   AddedAddressBookEntry,
   RemovedAddressBookEntry,
@@ -232,6 +261,7 @@ export const Message = S.Union([
   RequestedChallengeSignature,
   SucceededSignChallenge,
   FailedSignChallenge,
+  RequestedTransactionHistoryReload,
   RequestedNextTransactionHistoryPage,
   SucceededLoadTransactionHistory,
   FailedLoadTransactionHistory,

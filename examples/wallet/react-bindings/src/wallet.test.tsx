@@ -48,7 +48,7 @@ const request = TransferRequest.make({
   assetId: balance.amount.assetId,
   destinationAddress: '0x2222222222222222222222222222222222222222',
   atomicUnits: '100000000000000000',
-  maybeMessage: Option.some('React demo transfer'),
+  maybeMessage: Option.some('React transfer test'),
 })
 
 describe('Wallet React bindings', () => {
@@ -68,13 +68,17 @@ describe('Wallet React bindings', () => {
     const actions = result.current.actions
     expect(Object.keys(actions).sort()).toStrictEqual([
       'addedAddressBookEntry',
+      'changedTransferAmount',
       'changedTransferRecipient',
       'composedTransfer',
       'importedAddressBookEntries',
       'removedAddressBookEntry',
       'requestedChallengeSignature',
       'requestedClipboardCopy',
+      'requestedNextTransactionHistoryPage',
       'requestedSignedTransactionSubmission',
+      'requestedTestFunding',
+      'requestedTransactionHistoryReload',
       'requestedTransferPreview',
       'requestedWalletCreation',
       'requestedWalletProfilesReload',

@@ -1,4 +1,4 @@
-const encodedBuildProvenance = process.env.EXPO_PUBLIC_BUILD_PROVENANCE
+const encodedBuildProvenance = process.env['EXPO_PUBLIC_BUILD_PROVENANCE']
 
 /** Logs the build identity embedded by the reproducible Expo build. */
 export const logBuildProvenance = (): void => {

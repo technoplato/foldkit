@@ -2,34 +2,71 @@ import { Array, Option, Schema as S } from 'effect'
 
 import {
   AssetId,
-  type AtomicUnits,
   ChainId,
-  type NetworkEnvironment,
   NetworkId,
+  assetForId,
+  networkForId,
 } from './currency.js'
 import type { PortfolioSnapshot } from './model.js'
-import type { WalletNetworkMode } from './walletProfile.js'
+import {
+  WalletNetworkMode,
+  type WalletProfile,
+  isNetworkEnvironmentInWalletMode,
+  walletProfileForAccountId,
+} from './walletProfile.js'
 
-/** One exact account, network, and native asset selected for sending. */
+/** One exact account, network, and transferable asset selected for sending. */
 export const SendNetworkSelection = S.Struct({
-  networkMode: S.Literals(['Devnet', 'Testnet']),
+  networkMode: WalletNetworkMode,
   chainId: ChainId,
   networkId: NetworkId,
   accountId: S.String,
   assetId: AssetId,
 })
-/** One exact account, network, and native asset selected for sending. */
+/** One exact account, network, and transferable asset selected for sending. */
 export type SendNetworkSelection = typeof SendNetworkSelection.Type
 
-const isNetworkInMode = (
-  environment: NetworkEnvironment,
-  networkMode: WalletNetworkMode,
-): boolean =>
-  networkMode === 'Devnet'
-    ? environment === 'Development' || environment === 'Local'
-    : environment === 'Testnet'
+/** Encodes one exact selection for stable host option values and view identity. */
+export const sendNetworkSelectionIdentity = (
+  selection: SendNetworkSelection,
+): string =>
+  `${encodeURIComponent(selection.networkMode)}|${encodeURIComponent(
+    selection.chainId,
+  )}|${encodeURIComponent(selection.networkId)}|${encodeURIComponent(
+    selection.accountId,
+  )}|${encodeURIComponent(selection.assetId)}`
 
-/** Projects every native transfer rail available in one global network mode. */
+/** Formats one exact Wallet, cryptocurrency, and network selection. */
+export const sendNetworkSelectionLabel = (
+  portfolio: PortfolioSnapshot,
+  wallets: ReadonlyArray<WalletProfile>,
+  selection: SendNetworkSelection,
+): string => {
+  const walletName = Option.match(
+    walletProfileForAccountId(wallets, selection.accountId),
+    {
+      onNone: () => selection.accountId,
+      onSome: wallet => wallet.displayName,
+    },
+  )
+  const assetName = Option.match(
+    assetForId(portfolio.assets, selection.assetId),
+    {
+      onNone: () => selection.assetId,
+      onSome: asset => asset.symbol,
+    },
+  )
+  const networkName = Option.match(
+    networkForId(portfolio.networks, selection.networkId),
+    {
+      onNone: () => selection.networkId,
+      onSome: network => network.displayName,
+    },
+  )
+  return `${walletName} · ${assetName} · ${networkName}`
+}
+
+/** Projects every transfer rail available in one global network mode. */
 export const availableSendNetworkSelections = (
   portfolio: PortfolioSnapshot,
   networkMode: WalletNetworkMode,
@@ -38,7 +75,7 @@ export const availableSendNetworkSelections = (
     const isTransferNetwork = Array.contains(network.capabilities, 'Transfer')
     if (
       !isTransferNetwork ||
-      !isNetworkInMode(network.environment, networkMode)
+      !isNetworkEnvironmentInWalletMode(network.environment, networkMode)
     ) {
       return []
     }
@@ -46,32 +83,20 @@ export const availableSendNetworkSelections = (
       portfolio.accounts,
       account => account.networkId === network.networkId,
     )
-    const nativeAssets = Array.filter(
+    const assets = Array.filter(
       portfolio.assets,
-      asset =>
-        asset.networkId === network.networkId &&
-        asset.kind._tag === 'NativeAsset',
+      asset => asset.networkId === network.networkId,
     )
     return Array.flatMap(accounts, account =>
-      Array.flatMap(nativeAssets, asset => {
-        const hasBalance = Array.some(
-          portfolio.balanceSnapshot.balances,
-          balance =>
-            balance.accountId === account.accountId &&
-            balance.amount.assetId === asset.assetId,
-        )
-        return hasBalance
-          ? [
-              SendNetworkSelection.make({
-                networkMode,
-                chainId: network.chainId,
-                networkId: network.networkId,
-                accountId: account.accountId,
-                assetId: asset.assetId,
-              }),
-            ]
-          : []
-      }),
+      Array.map(assets, asset =>
+        SendNetworkSelection.make({
+          networkMode,
+          chainId: network.chainId,
+          networkId: network.networkId,
+          accountId: account.accountId,
+          assetId: asset.assetId,
+        }),
+      ),
     )
   })
 
@@ -96,14 +121,43 @@ export const resolveSendNetworkSelection = (
     candidate => isSameSendNetworkSelection(candidate, selection),
   )
 
-/** Selects a rail for one mode while preserving the selected chain when possible. */
+/** Selects a rail for one mode while preserving the selected Wallet and chain when possible. */
 export const selectSendNetworkForMode = (
   portfolio: PortfolioSnapshot,
+  wallets: ReadonlyArray<WalletProfile>,
   maybeCurrent: Option.Option<SendNetworkSelection>,
   networkMode: WalletNetworkMode,
 ): Option.Option<SendNetworkSelection> => {
   const selections = availableSendNetworkSelections(portfolio, networkMode)
   if (Option.isSome(maybeCurrent)) {
+    const maybeWallet = walletProfileForAccountId(
+      wallets,
+      maybeCurrent.value.accountId,
+    )
+    const maybeMatchingWalletAndChain = Array.findFirst(
+      selections,
+      selection =>
+        selection.chainId === maybeCurrent.value.chainId &&
+        Option.isSome(maybeWallet) &&
+        Array.some(
+          maybeWallet.value.accounts,
+          account => account.accountId === selection.accountId,
+        ),
+    )
+    if (Option.isSome(maybeMatchingWalletAndChain)) {
+      return maybeMatchingWalletAndChain
+    }
+    if (Option.isSome(maybeWallet)) {
+      const maybeMatchingWallet = Array.findFirst(selections, selection =>
+        Array.some(
+          maybeWallet.value.accounts,
+          account => account.accountId === selection.accountId,
+        ),
+      )
+      if (Option.isSome(maybeMatchingWallet)) {
+        return maybeMatchingWallet
+      }
+    }
     const maybeMatchingChain = Array.findFirst(
       selections,
       selection => selection.chainId === maybeCurrent.value.chainId,
@@ -141,17 +195,4 @@ export const nextSendNetworkSelection = (
     selections,
     (maybeCurrentIndex.value + 1) % Array.length(selections),
   )
-}
-
-/** Returns a small demonstrative native-asset amount for one send rail. */
-export const demoTransferAtomicUnitsForSelection = (
-  selection: SendNetworkSelection,
-): AtomicUnits => {
-  if (selection.chainId === 'bitcoin') {
-    return '10000'
-  } else if (selection.chainId === 'ethereum') {
-    return '10000000000000'
-  } else {
-    return '1000000'
-  }
 }

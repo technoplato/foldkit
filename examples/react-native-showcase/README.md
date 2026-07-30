@@ -104,10 +104,19 @@ separate tapes allow a Multiple Counters recording to run in React, Expo, CLI, o
 without requiring the Showcase Program.
 
 The Wallet screen is one React Native presenter used unchanged on Expo Web, iOS, and
-Android. Its hooks come from `wallet-react-bindings-example`, whose default client
-uses deterministic simulated Wallet Layers. Platform wallet implementations remain
-outside the presenter and can replace that composition seam without adding platform
-or DOM branches to the component.
+Android. Its hooks come from `wallet-react-bindings-example`. The showcase composes
+real Bitcoin, Ethereum, Solana, and Sui networking with encrypted Expo SecureStore
+custody outside the presenter, without adding platform or DOM branches to the
+component.
+
+Anvil defaults to loopback for simulators running on the developer Mac. A physical
+device can use host-reachable endpoints without changing the Program or normalized
+network identity:
+
+```text
+EXPO_PUBLIC_WALLET_ETHEREUM_ANVIL_HTTP_RPC_URL=http://<host>:8545
+EXPO_PUBLIC_WALLET_ETHEREUM_ANVIL_WS_RPC_URL=ws://<host>:8545
+```
 
 `Share state` prints the current Model as the Program's canonical relative state path.
 `Share replay` prints the current typed tape and selected frame. The carrier adds the

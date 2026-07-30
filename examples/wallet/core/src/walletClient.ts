@@ -6,6 +6,8 @@ import {
   type PortfolioSnapshot,
   type SignatureProof,
   type SigningChallenge,
+  type TestFundingReceipt,
+  type TestFundingRequest,
   type TransactionHistoryPage,
   type TransactionHistoryQuery,
   type TransactionPreview,
@@ -16,6 +18,7 @@ import {
   type TransferValidation,
   type ValidatedTransfer,
 } from './model.js'
+import type { WalletProfile } from './walletProfile.js'
 import { WalletVault } from './walletVault.js'
 
 /** An opaque transaction payload protected from logging and replay. */
@@ -62,7 +65,11 @@ export const makeSignedTransaction = (
 
 /** A sanitized networking failure that contains no host cause. */
 export class WalletClientError extends Data.TaggedError('WalletClientError')<{
-  readonly code: 'Unavailable' | 'Rejected' | 'InvalidResponse'
+  readonly code:
+    | 'Unavailable'
+    | 'Rejected'
+    | 'InvalidResponse'
+    | 'UnsupportedCapability'
 }> {}
 
 /** A sanitized signing failure that contains no key or host cause. */
@@ -77,7 +84,12 @@ export class WalletCryptoError extends Data.TaggedError('WalletCryptoError')<{
 
 /** Chain-agnostic networking capabilities implemented by host Layers. */
 export type WalletClientService = Readonly<{
-  loadPortfolio: Effect.Effect<PortfolioSnapshot, WalletClientError>
+  loadPortfolio: (
+    wallets: ReadonlyArray<WalletProfile>,
+  ) => Effect.Effect<PortfolioSnapshot, WalletClientError>
+  requestTestFunding: (
+    request: TestFundingRequest,
+  ) => Effect.Effect<TestFundingReceipt, WalletClientError>
   validateTransfer: (
     request: TransferRequest,
   ) => Effect.Effect<TransferValidation, WalletClientError>

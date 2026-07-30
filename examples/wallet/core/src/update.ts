@@ -1,4 +1,10 @@
-import { Array as Array_, Effect, Match as M, Option } from 'effect'
+import {
+  Array as Array_,
+  Effect,
+  Match as M,
+  Option,
+  Schema as S,
+} from 'effect'
 import { Command } from 'foldkit'
 
 import {
@@ -6,9 +12,18 @@ import {
   CopiedToClipboard,
   CopyingToClipboard,
   FailedClipboardCopy,
+  IdleClipboardCopy,
   WalletClipboard,
   isSameClipboardCopyRequest,
 } from './clipboard.js'
+import {
+  AssetAmount,
+  type AssetDescriptor,
+  type NetworkId,
+  assetForId,
+  displayAmountFromAtomicUnits,
+  networkForId,
+} from './currency.js'
 import {
   AppliedWalletIntent,
   NoWalletIntent,
@@ -22,6 +37,7 @@ import {
   FailedLoadWallet,
   FailedLoadWalletProfiles,
   FailedPreviewTransaction,
+  FailedRequestTestFunding,
   FailedSignChallenge,
   FailedSubmitSignedTransaction,
   FailedValidateTransfer,
@@ -32,6 +48,7 @@ import {
   SucceededLoadWallet,
   SucceededLoadWalletProfiles,
   SucceededPreviewTransaction,
+  SucceededRequestTestFunding,
   SucceededSignChallenge,
   SucceededSubmitSignedTransaction,
   SucceededValidateTransfer,
@@ -41,14 +58,17 @@ import {
   AddressFamiliarity,
   CryptoFailure,
   EditingTransferRecipient,
+  EmptyTransferAmount,
   EmptyTransferRecipient,
   FailedChallengeSignature,
   FailedPortfolio,
+  FailedTestFunding,
   FailedTransactionHistory,
   FailedTransactionObservation,
   FailedTransactionPreview,
   FailedTransactionSubmission,
   FailedTransferValidation,
+  IdleSignature,
   IdleTransaction,
   InvalidTransfer,
   InvalidTransferRecipient,
@@ -58,37 +78,54 @@ import {
   LoadingTransactionHistory,
   type Model,
   NetworkFailure,
+  NotLoadedTransactionHistory,
   ObservingTransactions,
   PortfolioSnapshot,
   PreviewedTransaction,
   PreviewingTransaction,
+  ReadyToRequestTestFunding,
+  ReceivedTestFunding,
   RecipientHistory,
+  RequestingTestFunding,
   type SignatureProof,
+  type SignatureState,
   SignedChallenge,
   SigningChallenge,
   SigningChallengeState,
   SigningFailure,
   SubmittedTransaction,
   SubmittingTransaction,
+  TestFundingRequest,
+  type TestFundingState,
   TransactionHistoryQuery,
+  type TransactionHistoryState,
   TransactionPreview,
+  TransactionRecord,
+  type TransactionState,
+  type TransactionSubmission,
   TransferRequest,
+  UnavailableTestFunding,
   ValidTransferRecipient,
   ValidatedTransfer,
   ValidatingTransfer,
   WaitingForAccounts,
+  WaitingForWalletProfiles,
   type WalletFailure,
   type WalletOperation,
+  doesPortfolioIncludeWalletProfiles,
   familiarityForRecipient,
   isPortfolioSnapshotConsistent,
+  isTransactionSubmissionConsistent,
+  maximumTransactionHistoryPageSize,
   mergeTransactionRecords,
   recipientHistoryForTransfer,
   transactionPreviewFromQuote,
+  transferAmountFromInput,
   transferRecipientFromInput,
   transferRecipientInput,
 } from './model.js'
 import {
-  demoTransferAtomicUnitsForSelection,
+  type SendNetworkSelection,
   resolveSendNetworkSelection,
   selectSendNetworkForMode,
 } from './sendNetworkSelection.js'
@@ -109,12 +146,11 @@ import {
   LoadingWalletProfiles,
   ReadyToCreateWallet,
   WalletCreationRequest,
+  WalletProfile,
   nextWalletCreationRequest,
   upsertWalletProfile,
 } from './walletProfile.js'
 import { WalletVault } from './walletVault.js'
-
-const transactionHistoryPageSize = 50
 
 const toNetworkFailure = (
   operation: WalletOperation,
@@ -134,21 +170,53 @@ const toCryptoFailure = (
 /** Loads normalized public wallet data through the injected WalletClient. */
 export const LoadWallet = Command.define(
   'LoadWallet',
+  { requestId: S.String, wallets: S.Array(WalletProfile) },
   SucceededLoadWallet,
   FailedLoadWallet,
-)(
+)(({ requestId, wallets }) =>
   WalletClient.pipe(
-    Effect.flatMap(client => client.loadPortfolio),
+    Effect.flatMap(client => client.loadPortfolio(wallets)),
     Effect.flatMap(portfolio =>
-      isPortfolioSnapshotConsistent(portfolio)
+      isPortfolioSnapshotConsistent(portfolio) &&
+      doesPortfolioIncludeWalletProfiles(portfolio, wallets)
         ? Effect.succeed(portfolio)
         : Effect.fail(new WalletClientError({ code: 'InvalidResponse' })),
     ),
-    Effect.map(portfolio => SucceededLoadWallet.make({ portfolio })),
+    Effect.map(portfolio => SucceededLoadWallet.make({ requestId, portfolio })),
     Effect.catch(error =>
       Effect.succeed(
         FailedLoadWallet.make({
+          requestId,
           failure: toNetworkFailure('LoadPortfolio', error),
+        }),
+      ),
+    ),
+  ),
+)
+
+/** Requests non-production funds through the selected injected adapter. */
+export const RequestTestFunding = Command.define(
+  'RequestTestFunding',
+  { request: TestFundingRequest },
+  SucceededRequestTestFunding,
+  FailedRequestTestFunding,
+)(({ request }) =>
+  WalletClient.pipe(
+    Effect.flatMap(client => client.requestTestFunding(request)),
+    Effect.flatMap(receipt =>
+      receipt.requestId === request.requestId &&
+      receipt.amount.assetId === request.assetId
+        ? Effect.succeed(receipt)
+        : Effect.fail(new WalletClientError({ code: 'InvalidResponse' })),
+    ),
+    Effect.map(receipt =>
+      SucceededRequestTestFunding.make({ request, receipt }),
+    ),
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedRequestTestFunding.make({
+          request,
+          failure: toNetworkFailure('RequestTestFunding', error),
         }),
       ),
     ),
@@ -291,6 +359,14 @@ export const SignAndSubmitTransaction = Command.define(
       .pipe(
         Effect.mapError(error => toNetworkFailure('SubmitTransaction', error)),
       )
+    if (!isTransactionSubmissionConsistent(preview, submission)) {
+      return yield* Effect.fail(
+        NetworkFailure.make({
+          operation: 'SubmitTransaction',
+          code: 'InvalidResponse',
+        }),
+      )
+    }
     return SucceededSubmitSignedTransaction.make({ submission })
   }).pipe(
     Effect.catch(failure =>
@@ -306,8 +382,28 @@ export const LoadTransactionHistory = Command.define(
   SucceededLoadTransactionHistory,
   FailedLoadTransactionHistory,
 )(({ query }) =>
-  WalletClient.pipe(
-    Effect.flatMap(client => client.loadTransactionHistory(query)),
+  Effect.gen(function* () {
+    if (query.limit <= 0 || query.limit > maximumTransactionHistoryPageSize) {
+      return yield* Effect.fail(
+        new WalletClientError({ code: 'InvalidResponse' }),
+      )
+    }
+    const client = yield* WalletClient
+    const page = yield* client.loadTransactionHistory(query)
+    if (
+      !Array_.every(
+        page.records,
+        record =>
+          record.accountId === query.accountId &&
+          record.networkId === query.networkId,
+      )
+    ) {
+      return yield* Effect.fail(
+        new WalletClientError({ code: 'InvalidResponse' }),
+      )
+    }
+    return page
+  }).pipe(
     Effect.map(page => SucceededLoadTransactionHistory.make({ query, page })),
     Effect.catch(error =>
       Effect.succeed(
@@ -359,28 +455,71 @@ type UpdateReturn = readonly [
 ]
 
 const historyQuery = (
-  accountIds: ReadonlyArray<string>,
+  accountId: string,
+  networkId: NetworkId,
   maybeCursor: Option.Option<string>,
 ): TransactionHistoryQuery => ({
-  accountIds,
+  accountId,
+  networkId,
   maybeCursor,
-  limit: transactionHistoryPageSize,
+  limit: maximumTransactionHistoryPageSize,
 })
 
-const accountIdsFromPortfolio = (
-  portfolio: PortfolioSnapshot,
+const accountIdsForSelection = (
+  maybeSelection: Option.Option<SendNetworkSelection>,
 ): ReadonlyArray<string> =>
-  Array_.map(portfolio.accounts, account => account.accountId)
+  Option.match(maybeSelection, {
+    onNone: () => [],
+    onSome: selection => [selection.accountId],
+  })
+
+const transactionObservationForSelection = (
+  maybeSelection: Option.Option<SendNetworkSelection>,
+) =>
+  Array_.match(accountIdsForSelection(maybeSelection), {
+    onEmpty: () => WaitingForAccounts.make({}),
+    onNonEmpty: accountIds => ObservingTransactions.make({ accountIds }),
+  })
 
 const accountIdsFromModel = (model: Model): ReadonlyArray<string> =>
   model.portfolio._tag === 'LoadedPortfolio'
-    ? accountIdsFromPortfolio(model.portfolio.snapshot)
+    ? accountIdsForSelection(model.maybeSendNetworkSelection)
     : []
+
+const beginPortfolioLoad = (
+  model: Model,
+  wallets: ReadonlyArray<WalletProfile>,
+): UpdateReturn => {
+  const requestId = `portfolio-${model.nextPortfolioRequestNumber.toString()}`
+  return [
+    {
+      ...model,
+      portfolio: LoadingPortfolio.make({ requestId }),
+      nextPortfolioRequestNumber: model.nextPortfolioRequestNumber + 1,
+    },
+    [LoadWallet({ requestId, wallets })],
+  ]
+}
 
 const portfolioCommandsForRestore = (
   model: Model,
 ): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
-  model.portfolio._tag === 'LoadingPortfolio' ? [LoadWallet()] : []
+  model.portfolio._tag === 'LoadingPortfolio' &&
+  model.walletProfileLoading._tag === 'LoadedWalletProfiles'
+    ? [
+        LoadWallet({
+          requestId: model.portfolio.requestId,
+          wallets: model.wallets,
+        }),
+      ]
+    : []
+
+const testFundingCommandsForRestore = (
+  model: Model,
+): ReadonlyArray<Command.Command<Message, never, WalletResources>> =>
+  model.testFunding._tag === 'RequestingTestFunding'
+    ? [RequestTestFunding({ request: model.testFunding.request })]
+    : []
 
 const transactionCommandsForRestore = (
   model: Model,
@@ -437,6 +576,15 @@ const historyCommandsForRestore = (
     ? [LoadTransactionHistory({ query: model.transactionHistory.query })]
     : []
 
+const commandsAfterPortfolioHydration = (
+  model: Model,
+): ReadonlyArray<Command.Command<Message, never, WalletResources>> => [
+  ...testFundingCommandsForRestore(model),
+  ...transactionCommandsForRestore(model),
+  ...signatureCommandsForRestore(model),
+  ...historyCommandsForRestore(model),
+]
+
 const modelForClipboardRestore = (model: Model): Model =>
   model.clipboardCopy._tag === 'CopyingToClipboard'
     ? {
@@ -448,18 +596,103 @@ const modelForClipboardRestore = (model: Model): Model =>
       }
     : model
 
+const modelForPortfolioRestore = (model: Model): Model => {
+  if (model.walletProfileLoading._tag !== 'LoadedWalletProfiles') {
+    return model
+  }
+  if (model.portfolio._tag === 'LoadingPortfolio') {
+    return {
+      ...model,
+      transactionObservation: WaitingForAccounts.make({}),
+    }
+  }
+  return {
+    ...model,
+    portfolio: LoadingPortfolio.make({
+      requestId: `portfolio-${model.nextPortfolioRequestNumber.toString()}`,
+    }),
+    nextPortfolioRequestNumber: model.nextPortfolioRequestNumber + 1,
+    transactionObservation: WaitingForAccounts.make({}),
+  }
+}
+
+const testFundingAfterPortfolioFailure = (
+  testFunding: TestFundingState,
+  failure: WalletFailure,
+): TestFundingState => {
+  if (testFunding._tag === 'RequestingTestFunding') {
+    return FailedTestFunding.make({ request: testFunding.request, failure })
+  } else {
+    return testFunding
+  }
+}
+
+const transactionAfterPortfolioFailure = (
+  transaction: TransactionState,
+  failure: WalletFailure,
+): TransactionState => {
+  if (transaction._tag === 'ValidatingTransfer') {
+    return FailedTransferValidation.make({
+      request: transaction.request,
+      failure,
+    })
+  } else if (transaction._tag === 'PreviewingTransaction') {
+    return FailedTransactionPreview.make({
+      transfer: transaction.transfer,
+      failure,
+    })
+  } else if (transaction._tag === 'SubmittingTransaction') {
+    return FailedTransactionSubmission.make({
+      preview: transaction.preview,
+      failure,
+    })
+  } else {
+    return transaction
+  }
+}
+
+const signatureAfterPortfolioFailure = (
+  signature: SignatureState,
+  failure: WalletFailure,
+): SignatureState => {
+  if (signature._tag === 'SigningChallengeState') {
+    return FailedChallengeSignature.make({
+      challenge: signature.challenge,
+      failure,
+    })
+  } else {
+    return signature
+  }
+}
+
+const historyAfterPortfolioFailure = (
+  transactionHistory: TransactionHistoryState,
+  failure: WalletFailure,
+): TransactionHistoryState => {
+  if (transactionHistory._tag === 'LoadingTransactionHistory') {
+    return FailedTransactionHistory.make({
+      query: transactionHistory.query,
+      failure,
+    })
+  } else {
+    return transactionHistory
+  }
+}
+
 /** Restarts finite work represented by a restored Wallet Model. */
-export const restore = (model: Model): UpdateReturn => [
-  modelForClipboardRestore(model),
-  [
-    ...walletProfileCommandsForRestore(model),
-    ...walletCreationCommandsForRestore(model),
-    ...portfolioCommandsForRestore(model),
-    ...transactionCommandsForRestore(model),
-    ...signatureCommandsForRestore(model),
-    ...historyCommandsForRestore(model),
-  ],
-]
+export const restore = (model: Model): UpdateReturn => {
+  const restoredModel = modelForPortfolioRestore(
+    modelForClipboardRestore(model),
+  )
+  return [
+    restoredModel,
+    [
+      ...walletProfileCommandsForRestore(restoredModel),
+      ...walletCreationCommandsForRestore(restoredModel),
+      ...portfolioCommandsForRestore(restoredModel),
+    ],
+  ]
+}
 
 const replaceAddressBookEntry = (
   model: Model,
@@ -478,6 +711,7 @@ const replaceAddressBookEntry = (
 const transferRequestForIntent = (
   portfolio: PortfolioSnapshot,
   intent: WalletIntent,
+  transferId: string,
 ): Option.Option<TransferRequest> => {
   const maybeSelection = resolveSendNetworkSelection(portfolio, intent.source)
   if (Option.isNone(maybeSelection)) {
@@ -498,14 +732,16 @@ const transferRequestForIntent = (
   ) {
     return Option.none()
   } else {
-    return Option.some({
-      transferId: 'wallet-intent-transfer',
-      accountId: intent.source.accountId,
-      assetId: intent.source.assetId,
-      destinationAddress: intent.destinationAddress,
-      atomicUnits: intent.atomicUnits,
-      maybeMessage: Option.none(),
-    })
+    return Option.some(
+      TransferRequest.make({
+        transferId,
+        accountId: intent.source.accountId,
+        assetId: intent.source.assetId,
+        destinationAddress: intent.destinationAddress,
+        atomicUnits: intent.atomicUnits,
+        maybeMessage: Option.none(),
+      }),
+    )
   }
 }
 
@@ -516,6 +752,9 @@ const transferRequestForRecipient = (
     return Option.none()
   }
   if (Option.isNone(model.maybeSendNetworkSelection)) {
+    return Option.none()
+  }
+  if (model.transferAmount._tag !== 'ValidTransferAmount') {
     return Option.none()
   }
   const destinationAddress = transferRecipientInput(model.transferRecipient)
@@ -531,23 +770,16 @@ const transferRequestForRecipient = (
   if (Option.isNone(maybeAccount)) {
     return Option.none()
   }
-  const maybeBalance = Array_.findFirst(
-    portfolio.balanceSnapshot.balances,
-    balance =>
-      balance.accountId === selection.accountId &&
-      balance.amount.assetId === selection.assetId,
+  return Option.some(
+    TransferRequest.make({
+      transferId: `transfer-${model.nextTransferRequestNumber.toString()}`,
+      accountId: selection.accountId,
+      assetId: selection.assetId,
+      destinationAddress,
+      atomicUnits: model.transferAmount.atomicUnits,
+      maybeMessage: Option.none(),
+    }),
   )
-  if (Option.isNone(maybeBalance)) {
-    return Option.none()
-  }
-  return Option.some({
-    transferId: 'wallet-demo-transfer',
-    accountId: selection.accountId,
-    assetId: selection.assetId,
-    destinationAddress,
-    atomicUnits: demoTransferAtomicUnitsForSelection(selection),
-    maybeMessage: Option.some('Shared Wallet testnet transfer'),
-  })
 }
 
 const validateTransfer = (
@@ -607,7 +839,127 @@ const isSameHistoryQuery = (
   Option.getOrUndefined(left.maybeCursor) ===
     Option.getOrUndefined(right.maybeCursor) &&
   left.limit === right.limit &&
-  Array_.join(left.accountIds, '|') === Array_.join(right.accountIds, '|')
+  left.accountId === right.accountId &&
+  left.networkId === right.networkId
+
+const historyStateAndCommands = (
+  portfolio: PortfolioSnapshot,
+  maybeSelection: Option.Option<SendNetworkSelection>,
+  maybeCursor: Option.Option<string>,
+): readonly [
+  TransactionHistoryState,
+  ReadonlyArray<Command.Command<Message, never, WalletResources>>,
+] => {
+  if (Option.isNone(maybeSelection)) {
+    return [NotLoadedTransactionHistory.make({}), []]
+  }
+  const selection = maybeSelection.value
+  const query = historyQuery(
+    selection.accountId,
+    selection.networkId,
+    maybeCursor,
+  )
+  const maybeNetwork = networkForId(portfolio.networks, selection.networkId)
+  if (
+    Option.isNone(maybeNetwork) ||
+    !Array_.contains(maybeNetwork.value.capabilities, 'TransactionHistory')
+  ) {
+    return [
+      FailedTransactionHistory.make({
+        query,
+        failure: NetworkFailure.make({
+          operation: 'LoadTransactionHistory',
+          code: 'UnsupportedCapability',
+        }),
+      }),
+      [],
+    ]
+  }
+  return [
+    LoadingTransactionHistory.make({ query }),
+    [LoadTransactionHistory({ query })],
+  ]
+}
+
+const selectedAsset = (model: Model): Option.Option<AssetDescriptor> => {
+  if (
+    model.portfolio._tag !== 'LoadedPortfolio' ||
+    Option.isNone(model.maybeSendNetworkSelection)
+  ) {
+    return Option.none()
+  }
+  return assetForId(
+    model.portfolio.snapshot.assets,
+    model.maybeSendNetworkSelection.value.assetId,
+  )
+}
+
+const testFundingRequestForModel = (
+  model: Model,
+): Option.Option<TestFundingRequest> => {
+  if (
+    model.portfolio._tag !== 'LoadedPortfolio' ||
+    Option.isNone(model.maybeSendNetworkSelection) ||
+    model.transferAmount._tag !== 'ValidTransferAmount'
+  ) {
+    return Option.none()
+  }
+  const selection = model.maybeSendNetworkSelection.value
+  const maybeNetwork = networkForId(
+    model.portfolio.snapshot.networks,
+    selection.networkId,
+  )
+  if (
+    Option.isNone(maybeNetwork) ||
+    maybeNetwork.value.environment === 'Mainnet' ||
+    !Array_.contains(maybeNetwork.value.capabilities, 'TestFunding')
+  ) {
+    return Option.none()
+  }
+  return Option.some(
+    TestFundingRequest.make({
+      requestId: `test-funding-${model.nextTestFundingRequestNumber.toString()}`,
+      accountId: selection.accountId,
+      chainId: selection.chainId,
+      networkId: selection.networkId,
+      environment: maybeNetwork.value.environment,
+      assetId: selection.assetId,
+      atomicUnits: model.transferAmount.atomicUnits,
+    }),
+  )
+}
+
+const pendingTransactionRecord = (
+  preview: TransactionPreview,
+  submission: TransactionSubmission,
+): TransactionRecord => {
+  const request = preview.transfer.request
+  const recipient = preview.transfer.recipient
+  return TransactionRecord.make({
+    recordId: `${request.accountId}:${submission.transactionId}:outgoing`,
+    transactionId: submission.transactionId,
+    accountId: request.accountId,
+    networkId: recipient.networkId,
+    direction: 'Outgoing',
+    status: 'Pending',
+    amount: AssetAmount.make({
+      assetId: request.assetId,
+      atomicUnits: request.atomicUnits,
+      observedAt: submission.submittedAt,
+    }),
+    counterpartyAddress: recipient.address,
+    normalizedCounterpartyAddress: recipient.normalizedAddress,
+    observedAt: submission.submittedAt,
+  })
+}
+
+const isTransactionInSelectedScope = (
+  model: Model,
+  transaction: TransactionRecord,
+): boolean =>
+  Option.isSome(model.maybeSendNetworkSelection) &&
+  model.maybeSendNetworkSelection.value.accountId === transaction.accountId &&
+  model.maybeSendNetworkSelection.value.networkId === transaction.networkId
 
 /** Applies one Wallet Message and returns its finite Commands. */
 export const update = (model: Model, message: Message): UpdateReturn =>
@@ -618,6 +970,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         {
           ...model,
           walletProfileLoading: LoadingWalletProfiles.make({}),
+          portfolio: WaitingForWalletProfiles.make({}),
+          transactionObservation: WaitingForAccounts.make({}),
+          transactionHistory: NotLoadedTransactionHistory.make({}),
         },
         [LoadWalletProfiles()],
       ],
@@ -625,14 +980,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         if (model.walletProfileLoading._tag !== 'LoadingWalletProfiles') {
           return [model, []]
         }
-        return [
+        return beginPortfolioLoad(
           {
             ...model,
             wallets,
             walletProfileLoading: LoadedWalletProfiles.make({}),
           },
-          [],
-        ]
+          wallets,
+        )
       },
       FailedLoadWalletProfiles: ({ code }) => {
         if (model.walletProfileLoading._tag !== 'LoadingWalletProfiles') {
@@ -642,6 +997,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           {
             ...model,
             walletProfileLoading: FailedWalletProfileLoading.make({ code }),
+            portfolio: WaitingForWalletProfiles.make({}),
           },
           [],
         ]
@@ -651,20 +1007,38 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           model.portfolio._tag === 'LoadedPortfolio'
             ? selectSendNetworkForMode(
                 model.portfolio.snapshot,
+                model.wallets,
                 model.maybeSendNetworkSelection,
                 networkMode,
               )
             : Option.none()
+        const [transactionHistory, historyCommands] =
+          model.portfolio._tag === 'LoadedPortfolio'
+            ? historyStateAndCommands(
+                model.portfolio.snapshot,
+                maybeSendNetworkSelection,
+                Option.none(),
+              )
+            : [NotLoadedTransactionHistory.make({}), []]
         return [
           {
             ...model,
             walletNetworkMode: networkMode,
             maybeSendNetworkSelection,
+            clipboardCopy: IdleClipboardCopy.make({}),
+            transactionObservation: transactionObservationForSelection(
+              maybeSendNetworkSelection,
+            ),
             walletIntent: NoWalletIntent.make({}),
             transferRecipient: EmptyTransferRecipient.make({}),
+            transferAmount: EmptyTransferAmount.make({}),
+            testFunding: ReadyToRequestTestFunding.make({}),
             transaction: IdleTransaction.make({}),
+            signature: IdleSignature.make({}),
+            transactionHistory,
+            transactions: [],
           },
-          [],
+          historyCommands,
         ]
       },
       SelectedSendNetwork: ({ selection }) => {
@@ -678,26 +1052,43 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         if (Option.isNone(maybeSelection)) {
           return [model, []]
         }
+        const [transactionHistory, historyCommands] = historyStateAndCommands(
+          model.portfolio.snapshot,
+          maybeSelection,
+          Option.none(),
+        )
         return [
           {
             ...model,
             walletNetworkMode: selection.networkMode,
             maybeSendNetworkSelection: maybeSelection,
+            clipboardCopy: IdleClipboardCopy.make({}),
+            transactionObservation:
+              transactionObservationForSelection(maybeSelection),
             walletIntent: NoWalletIntent.make({}),
             transferRecipient: EmptyTransferRecipient.make({}),
+            transferAmount: EmptyTransferAmount.make({}),
+            testFunding: ReadyToRequestTestFunding.make({}),
             transaction: IdleTransaction.make({}),
+            signature: IdleSignature.make({}),
+            transactionHistory,
+            transactions: [],
           },
-          [],
+          historyCommands,
         ]
       },
       RequestedWalletCreation: () => {
         if (
           model.walletProfileLoading._tag !== 'LoadedWalletProfiles' ||
+          model.portfolio._tag !== 'LoadedPortfolio' ||
           model.walletCreation._tag === 'CreatingWallet'
         ) {
           return [model, []]
         }
-        const request = nextWalletCreationRequest(model.wallets)
+        const request = nextWalletCreationRequest(
+          model.wallets,
+          model.portfolio.snapshot.networks,
+        )
         return [
           {
             ...model,
@@ -713,14 +1104,17 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ) {
           return [model, []]
         }
-        return [
+        const wallets = upsertWalletProfile(model.wallets, wallet)
+        return beginPortfolioLoad(
           {
             ...model,
-            wallets: upsertWalletProfile(model.wallets, wallet),
+            wallets,
             walletCreation: ReadyToCreateWallet.make({}),
+            transactionObservation: WaitingForAccounts.make({}),
+            transactionHistory: NotLoadedTransactionHistory.make({}),
           },
-          [],
-        ]
+          wallets,
+        )
       },
       FailedCreateWallet: ({ request, code }) => {
         if (
@@ -766,46 +1160,104 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               [],
             ]
           : [model, []],
-      RequestedWalletRefresh: () => [
-        {
-          ...model,
-          portfolio: LoadingPortfolio.make({}),
-          transactionObservation: WaitingForAccounts.make({}),
-        },
-        [LoadWallet()],
-      ],
-      SucceededLoadWallet: ({ portfolio }) => {
-        const accountIds = accountIdsFromPortfolio(portfolio)
-        const query = historyQuery(accountIds, Option.none())
-        const maybeSendNetworkSelection = selectSendNetworkForMode(
+      RequestedWalletRefresh: () => {
+        if (
+          model.walletProfileLoading._tag !== 'LoadedWalletProfiles' ||
+          model.portfolio._tag === 'LoadingPortfolio'
+        ) {
+          return [model, []]
+        }
+        return beginPortfolioLoad(
+          {
+            ...model,
+            transactionObservation: WaitingForAccounts.make({}),
+            transactionHistory: NotLoadedTransactionHistory.make({}),
+          },
+          model.wallets,
+        )
+      },
+      SucceededLoadWallet: ({ requestId, portfolio }) => {
+        if (
+          model.portfolio._tag !== 'LoadingPortfolio' ||
+          model.portfolio.requestId !== requestId
+        ) {
+          return [model, []]
+        }
+        const maybeDefaultSelection = selectSendNetworkForMode(
           portfolio,
+          model.wallets,
           model.maybeSendNetworkSelection,
           model.walletNetworkMode,
         )
-        const nextModel: Model = {
-          ...model,
-          portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
-          maybeSendNetworkSelection,
-          transactionObservation: ObservingTransactions.make({ accountIds }),
-          transactionHistory: LoadingTransactionHistory.make({ query }),
-        }
-        const historyCommand = LoadTransactionHistory({ query })
         if (model.walletIntent._tag !== 'PendingWalletIntent') {
-          return [nextModel, [historyCommand]]
+          const hydratedModel = {
+            ...model,
+            portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
+            maybeSendNetworkSelection: maybeDefaultSelection,
+            transactionObservation: transactionObservationForSelection(
+              maybeDefaultSelection,
+            ),
+          }
+          const resumedCommands = commandsAfterPortfolioHydration(hydratedModel)
+          if (Array_.isReadonlyArrayNonEmpty(resumedCommands)) {
+            return [hydratedModel, resumedCommands]
+          }
+          const [transactionHistory, historyCommands] = historyStateAndCommands(
+            portfolio,
+            maybeDefaultSelection,
+            Option.none(),
+          )
+          return [
+            {
+              ...hydratedModel,
+              transactionHistory,
+              transactions: [],
+            },
+            historyCommands,
+          ]
         }
         const intent = model.walletIntent.intent
         const maybeIntentSelection = resolveSendNetworkSelection(
           portfolio,
           intent.source,
         )
-        const maybeRequest = transferRequestForIntent(portfolio, intent)
+        const maybeAsset = assetForId(portfolio.assets, intent.source.assetId)
+        const transferAmount = Option.match(maybeAsset, {
+          onNone: () => EmptyTransferAmount.make({}),
+          onSome: asset =>
+            transferAmountFromInput(
+              displayAmountFromAtomicUnits(
+                intent.atomicUnits,
+                asset.decimalPlaces,
+              ),
+              maybeAsset,
+            ),
+        })
+        const maybeRequest = transferRequestForIntent(
+          portfolio,
+          intent,
+          `transfer-${model.nextTransferRequestNumber.toString()}`,
+        )
         if (
           Option.isNone(maybeIntentSelection) ||
-          Option.isNone(maybeRequest)
+          Option.isNone(maybeRequest) ||
+          transferAmount._tag !== 'ValidTransferAmount'
         ) {
+          const [transactionHistory, historyCommands] = historyStateAndCommands(
+            portfolio,
+            maybeDefaultSelection,
+            Option.none(),
+          )
           return [
             {
-              ...nextModel,
+              ...model,
+              portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
+              maybeSendNetworkSelection: maybeDefaultSelection,
+              transactionObservation: transactionObservationForSelection(
+                maybeDefaultSelection,
+              ),
+              transactionHistory,
+              transactions: [],
               walletIntent: RejectedWalletIntent.make({
                 intent,
                 reason:
@@ -814,33 +1266,67 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               transferRecipient: transferRecipientFromInput(
                 intent.destinationAddress,
               ),
+              transferAmount,
             },
-            [historyCommand],
+            historyCommands,
           ]
         }
         const request = maybeRequest.value
+        const [transactionHistory, historyCommands] = historyStateAndCommands(
+          portfolio,
+          maybeIntentSelection,
+          Option.none(),
+        )
         return [
           {
-            ...nextModel,
+            ...model,
+            portfolio: LoadedPortfolio.make({ snapshot: portfolio }),
             walletNetworkMode: intent.source.networkMode,
             maybeSendNetworkSelection: maybeIntentSelection,
+            transactionObservation:
+              transactionObservationForSelection(maybeIntentSelection),
+            transactionHistory,
+            transactions: [],
             walletIntent: AppliedWalletIntent.make({ intent }),
             transferRecipient: EditingTransferRecipient.make({
               value: request.destinationAddress,
             }),
+            transferAmount,
+            nextTransferRequestNumber: model.nextTransferRequestNumber + 1,
             transaction: ValidatingTransfer.make({ request }),
           },
-          [historyCommand, ValidateTransfer({ request })],
+          [...historyCommands, ValidateTransfer({ request })],
         ]
       },
-      FailedLoadWallet: ({ failure }) => [
-        {
-          ...model,
-          portfolio: FailedPortfolio.make({ failure }),
-          transactionObservation: WaitingForAccounts.make({}),
-        },
-        [],
-      ],
+      FailedLoadWallet: ({ requestId, failure }) => {
+        if (
+          model.portfolio._tag !== 'LoadingPortfolio' ||
+          model.portfolio.requestId !== requestId
+        ) {
+          return [model, []]
+        }
+        return [
+          {
+            ...model,
+            portfolio: FailedPortfolio.make({ failure }),
+            transactionObservation: WaitingForAccounts.make({}),
+            testFunding: testFundingAfterPortfolioFailure(
+              model.testFunding,
+              failure,
+            ),
+            transaction: transactionAfterPortfolioFailure(
+              model.transaction,
+              failure,
+            ),
+            signature: signatureAfterPortfolioFailure(model.signature, failure),
+            transactionHistory: historyAfterPortfolioFailure(
+              model.transactionHistory,
+              failure,
+            ),
+          },
+          [],
+        ]
+      },
       ChangedTransferRecipient: ({ value }) => [
         {
           ...model,
@@ -850,12 +1336,82 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         },
         [],
       ],
+      ChangedTransferAmount: ({ value }) => [
+        {
+          ...model,
+          walletIntent: NoWalletIntent.make({}),
+          transferAmount: transferAmountFromInput(value, selectedAsset(model)),
+          testFunding: ReadyToRequestTestFunding.make({}),
+          transaction: IdleTransaction.make({}),
+        },
+        [],
+      ],
       RequestedTransferPreview: () => {
         const maybeRequest = transferRequestForRecipient(model)
-        return Option.isSome(maybeRequest)
-          ? validateTransfer(model, maybeRequest.value)
-          : [model, []]
+        if (Option.isNone(maybeRequest)) {
+          return [model, []]
+        }
+        return validateTransfer(
+          {
+            ...model,
+            nextTransferRequestNumber: model.nextTransferRequestNumber + 1,
+          },
+          maybeRequest.value,
+        )
       },
+      RequestedTestFunding: () => {
+        if (model.transferAmount._tag !== 'ValidTransferAmount') {
+          return [model, []]
+        }
+        const maybeRequest = testFundingRequestForModel(model)
+        if (Option.isNone(maybeRequest)) {
+          return [
+            {
+              ...model,
+              testFunding: UnavailableTestFunding.make({
+                failure: NetworkFailure.make({
+                  operation: 'RequestTestFunding',
+                  code: 'UnsupportedCapability',
+                }),
+              }),
+            },
+            [],
+          ]
+        }
+        const request = maybeRequest.value
+        return [
+          {
+            ...model,
+            testFunding: RequestingTestFunding.make({ request }),
+            nextTestFundingRequestNumber:
+              model.nextTestFundingRequestNumber + 1,
+          },
+          [RequestTestFunding({ request })],
+        ]
+      },
+      SucceededRequestTestFunding: ({ request, receipt }) =>
+        model.testFunding._tag === 'RequestingTestFunding' &&
+        model.testFunding.request.requestId === request.requestId &&
+        receipt.requestId === request.requestId
+          ? [
+              {
+                ...model,
+                testFunding: ReceivedTestFunding.make({ request, receipt }),
+              },
+              [],
+            ]
+          : [model, []],
+      FailedRequestTestFunding: ({ request, failure }) =>
+        model.testFunding._tag === 'RequestingTestFunding' &&
+        model.testFunding.request.requestId === request.requestId
+          ? [
+              {
+                ...model,
+                testFunding: FailedTestFunding.make({ request, failure }),
+              },
+              [],
+            ]
+          : [model, []],
       ImportedAddressBookEntries: ({ entries }) => [
         { ...model, addressBookEntries: entries },
         [],
@@ -965,6 +1521,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           model.transaction._tag === 'SubmittingTransaction' &&
           model.transaction.preview.previewId === submission.previewId
         ) {
+          const transaction = pendingTransactionRecord(
+            model.transaction.preview,
+            submission,
+          )
           return [
             {
               ...model,
@@ -972,6 +1532,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 preview: model.transaction.preview,
                 submission,
               }),
+              transactions: mergeTransactionRecords(model.transactions, [
+                transaction,
+              ]),
             },
             [],
           ]
@@ -1032,6 +1595,17 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               [],
             ]
           : [model, []],
+      RequestedTransactionHistoryReload: () => {
+        if (model.portfolio._tag !== 'LoadedPortfolio') {
+          return [model, []]
+        }
+        const [transactionHistory, commands] = historyStateAndCommands(
+          model.portfolio.snapshot,
+          model.maybeSendNetworkSelection,
+          Option.none(),
+        )
+        return [{ ...model, transactionHistory }, commands]
+      },
       RequestedNextTransactionHistoryPage: () => {
         if (
           model.portfolio._tag !== 'LoadedPortfolio' ||
@@ -1040,17 +1614,12 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ) {
           return [model, []]
         }
-        const query = historyQuery(
-          accountIdsFromPortfolio(model.portfolio.snapshot),
+        const [transactionHistory, commands] = historyStateAndCommands(
+          model.portfolio.snapshot,
+          model.maybeSendNetworkSelection,
           model.transactionHistory.maybeNextCursor,
         )
-        return [
-          {
-            ...model,
-            transactionHistory: LoadingTransactionHistory.make({ query }),
-          },
-          [LoadTransactionHistory({ query })],
-        ]
+        return [{ ...model, transactionHistory }, commands]
       },
       SucceededLoadTransactionHistory: ({ query, page }) =>
         model.transactionHistory._tag === 'LoadingTransactionHistory' &&
@@ -1083,24 +1652,32 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               [],
             ]
           : [model, []],
-      ObservedTransaction: ({ transaction }) => [
-        {
-          ...model,
-          transactions: mergeTransactionRecords(model.transactions, [
-            transaction,
-          ]),
-        },
-        [],
-      ],
-      FailedObserveTransactions: ({ failure }) => [
-        {
-          ...model,
-          transactionObservation: FailedTransactionObservation.make({
-            failure,
-          }),
-        },
-        [],
-      ],
+      ObservedTransaction: ({ transaction }) =>
+        isTransactionInSelectedScope(model, transaction)
+          ? [
+              {
+                ...model,
+                transactions: mergeTransactionRecords(model.transactions, [
+                  transaction,
+                ]),
+              },
+              [],
+            ]
+          : [model, []],
+      FailedObserveTransactions: ({ accountIds, failure }) =>
+        model.transactionObservation._tag === 'ObservingTransactions' &&
+        Array_.join(model.transactionObservation.accountIds, '\u0000') ===
+          Array_.join(accountIds, '\u0000')
+          ? [
+              {
+                ...model,
+                transactionObservation: FailedTransactionObservation.make({
+                  failure,
+                }),
+              },
+              [],
+            ]
+          : [model, []],
       ResumedTransactionObservation: () => {
         const accountIds = accountIdsFromModel(model)
         return Array_.match(accountIds, {

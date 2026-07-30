@@ -42,6 +42,11 @@ The normalized public catalog contains:
 - balances, receiving instructions, transfers, and transaction records that
   refer to those stable identifiers instead of repeating chain-specific data.
 
+A persisted `WalletProfile` contains one `WalletProfileAccount` per configured
+network. That account is the same public identity used by networking, signing,
+history, observation, receiving, and secure storage. A transport must not
+substitute a fixed demo account for a restored profile.
+
 Descriptors carry portable display facts such as a name, symbol, decimal
 precision, and network environment. They do not carry SDK clients, RPC
 handles, private keys, ABI values, or chain-specific executable payloads.
@@ -105,7 +110,8 @@ returning a portable success fact.
 
 Wallet core consumes one host-provided service surface:
 
-- load the normalized portfolio catalog;
+- load the normalized portfolio catalog for restored Wallet profiles;
+- request test funding when an exact non-Mainnet network advertises it;
 - validate a recipient for an account and asset;
 - preview a transfer;
 - build a protected transfer payload;
@@ -125,6 +131,49 @@ Transport and custody remain separate dependencies. A read-only host can
 provide networking and history without signing authority. A remote signer can
 provide custody without exposing a chain SDK or key material to the Program.
 
+### Network modes and test funding
+
+The Program has the closed presentation modes `Devnet`, `Testnet`, and `Live`.
+They project open adapter-owned network environments as follows:
+
+- `Devnet` includes Development and Local networks;
+- `Testnet` includes Testnet networks;
+- `Live` includes Mainnet networks.
+
+This mode union controls presentation only. It does not enumerate chains or
+network IDs. Adapters still own the catalog and capabilities.
+
+Test funding is a nested method on a network descriptor. An
+`AdapterTestFundingMethod` advertises the `TestFunding` capability. One generic
+request names the account, chain, network, environment, asset, exact atomic
+amount, and idempotency ID, and the adapter returns a public receipt or typed
+failure. An `ExternalTestFundingMethod` instead advertises
+`ExternalTestFunding` plus a provider name and URL. Presenters expose the exact
+selected receiving address for the provider-owned authentication or CAPTCHA
+flow without claiming that funds were accepted. Mainnet cannot advertise
+either capability or method. A screen never invents faucet success, balance
+data, or a transaction identifier.
+
+### Custody follows normalized accounts
+
+`WalletVault`, `WalletSigner`, and `WalletCrypto` share one host-owned custody
+registry outside Model. Wallet creation generates one key per chain and derives
+one account per requested network. Each protected transaction payload carries
+only its account ID, network ID, and redacted adapter encoding.
+
+Before signing, custody validates the registered account, selected network,
+source identity, and adapter-specific payload facts. Bitcoin additionally
+validates every PSBT input script. Ethereum validates the EIP-1559 chain and
+source account. Solana validates the fee payer and source. Sui validates the
+transaction sender. This preserves one generic Program without weakening the
+boundary between networking and private keys.
+
+Browser custody stores encrypted records and a non-extractable WebCrypto key in
+origin-local IndexedDB. React Native uses Expo SecureStore. macOS hosts use a
+native Keychain binding rather than placing records in process arguments. Each
+host implements the same `WalletVaultStorage` boundary, so persistence choices
+never enter the Program.
+
 ### Address validation
 
 `viem` and `@solana/addresses` were previously imported by Wallet core to
@@ -142,7 +191,7 @@ Base58, Bech32, a checksum, an RPC lookup, or another chain rule.
 Historical loading and live observation are distinct operations:
 
 - `LoadTransactionHistory` is a finite Command that requests a cursor-based
-  page for normalized account IDs;
+  page of 1 to 50 records for normalized account IDs;
 - `ObserveTransactions` is a persistent Subscription that emits new or changed
   transaction facts.
 
@@ -187,6 +236,18 @@ Normalization does not move business behavior into services.
 - live transaction changes remain Subscriptions.
 - Layers perform chain, provider, custody, and cryptographic effects.
 
+Finite portfolio loads carry a request identity in the loading state, Command,
+and completion Message. update ignores a completion that does not match the
+active request, so profile restoration and refresh cannot apply stale network
+data after a newer load begins.
+
+Runtime restoration first rehydrates live account resources through that
+portfolio load. Only its matching success resumes in-flight funding,
+validation, preview, submission, signature, and history Commands represented by
+the Model. A load failure converts those finite states to typed failures. It
+does not leave them spinning or start account-dependent work against an empty
+adapter registry.
+
 Adapters return facts to the Program. They do not mutate Model, dispatch hidden
 Messages, or retain a second visible Wallet state.
 
@@ -205,10 +266,15 @@ Messages, or retain a second visible Wallet state.
 6. Update simulated, remote, Node test-network, React, React Native, Foldkit,
    CLI, Effect Terminal, and OpenTUI consumers.
 7. Build Bitcoin and Sui adapters against this boundary without widening core.
+8. Persist the same normalized accounts in browser, Expo secure storage, and
+   macOS Keychain custody.
+9. Add generic test funding, live observation, and cursor history controls to
+   every presenter.
 
-During migration, compilation failures in hosts are intentional evidence of a
-stale chain-specific assumption. Compatibility aliases must not preserve the
-old closed-union architecture.
+This migration is complete for the Wallet example. Compatibility aliases must
+not preserve the old closed-union architecture. The older fixed-account
+`testnet-node` and remote bridge remain restricted compatibility examples and
+must reject restored profiles they do not actually own.
 
 ## Consequences
 

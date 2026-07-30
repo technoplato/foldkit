@@ -23,8 +23,8 @@
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "dev": "bun run src/entry.tsx",
-    "prebuild": "pnpm --filter wallet-react-bindings-example build",
-    "pretypecheck": "pnpm --filter wallet-react-bindings-example build",
+    "prebuild": "pnpm --filter wallet-node-client-example build && pnpm --filter wallet-react-bindings-example build && pnpm --filter wallet-simulated-client-example build",
+    "pretypecheck": "pnpm --filter wallet-node-client-example build && pnpm --filter wallet-react-bindings-example build && pnpm --filter wallet-simulated-client-example build",
     "test": "pnpm run build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -35,6 +35,7 @@
     "foldkit": "workspace:*",
     "react": "19.2.3",
     "wallet-core-example": "workspace:*",
+    "wallet-node-client-example": "workspace:*",
     "wallet-react-bindings-example": "workspace:*",
     "wallet-simulated-client-example": "workspace:*"
   },

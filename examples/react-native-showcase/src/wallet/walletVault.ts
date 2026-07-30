@@ -1,8 +1,11 @@
 import { Layer } from 'effect'
 import * as Crypto from 'expo-crypto'
 import * as SecureStore from 'expo-secure-store'
-import { WalletVault } from 'wallet-core-example'
-import { makePersistentLocalWalletVault } from 'wallet-local-vault-example'
+import { WalletCrypto, WalletSigner, WalletVault } from 'wallet-core-example'
+import {
+  makePersistentLocalWalletResources,
+  makePersistentLocalWalletVault,
+} from 'wallet-local-vault-example'
 
 import {
   type ExpoSecureStoreClient,
@@ -30,3 +33,11 @@ export const ExpoWalletVault: Layer.Layer<WalletVault> =
     byteCount => Crypto.getRandomBytes(byteCount),
     makeExpoWalletVaultStorage(ExpoSecureStore),
   )
+
+/** Persistent native Wallet vault, signer, and crypto services. */
+export const ExpoWalletResources: Layer.Layer<
+  WalletVault | WalletSigner | WalletCrypto
+> = makePersistentLocalWalletResources(
+  byteCount => Crypto.getRandomBytes(byteCount),
+  makeExpoWalletVaultStorage(ExpoSecureStore),
+)
