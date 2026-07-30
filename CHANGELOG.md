@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 7:25:15 a.m. EDT — `5108dd1453fa` feat(issues): link realtime log evidence
+
+- **Implementation commit:** `5108dd1453fa99a446a3c9ef712b7528f6ec05db`
+- **Change:** Link typed issues to realtime log evidence in the Foldkit viewer
+- **Details:**
+  - Expanded the portable issue and logging contracts with deterministic viewer URLs, embedded evidence queries, immediate issue-reference inference, denormalized Instant log links, and ergonomic suspected/contributing/ruled-out paths.
+  - Made the single Issue Tracker Program subscribe to a selected issue and its newest 200 server-filtered evidence rows, then render those rows across the Foldkit web runtime without moving domain behavior into the view.
+  - Verified 14 instant-tools tests, 7 issue-program tests, viewer typechecking, and a production Vite build.
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — Align Instant adapters with the realtime tracker schema and server-filtered evidence links.
+  - `examples/issues/core/src/subscription.ts` — Model selected-issue and issue-log observation once in the portable Program.
+  - `examples/issues/foldkit/src/view.ts` — Render embedded Instant evidence queries, live log rows, and contributing-path relationships.
+- **User context (verbatim):**
+  > evidence log instant queries in issues
+  > issues #s should be tagged in logs
+  > Paths that we think may be contributing to an issue should be marked as such ergonomically in our logging api
+- **SpecStory:** unavailable — Unavailable: this work ran in Codex desktop and no verified SpecStory URI was produced.
+
 ## July 30th, 2026 at 6:45:51 a.m. EDT — `5882e58a7cac` feat(skills): teach one Program many runtime instances
 
 - **Implementation commit:** `5882e58a7cac3925e65e14ad374f1aa9b4572b82`
