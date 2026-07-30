@@ -4,6 +4,36 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:32:25 p.m. EDT — `4f7a74d5cb6f` feat: complete Wallet network conformance
+
+- **Implementation commit:** `4f7a74d5cb6f0b4edf1d76d064497675b06281af`
+- **Change:** Complete the Wallet network conformance and OpenTUI matrix checkpoint
+- **Details:**
+  - Separated Expo Web and native resource modules so browser Wallet custody uses IndexedDB and Web Crypto without importing Expo SecureStore, while native composition retains every required service.
+  - Expanded deterministic Fixture coverage to Bitcoin, Ethereum, Solana, and Sui across Devnet, Testnet, and Live, with exact Wallet and cryptocurrency selector mappings, visible data-source labeling, balances, history, observation, and funding states.
+  - Proved distinct-recipient validation, preview, local signing, submission, exact observed and paginated history correlation, and fail-closed funding semantics for all twelve live adapter rails without broadcasting an external transaction.
+  - Replaced the OpenTUI process delay with a rendered-frame handshake and proved that the process accepted q before a clean teardown.
+- **Files:**
+  - `examples/react-native-showcase/src/environment.d.ts` — Types the Wallet data-source environment selector used by Expo.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Selects platform-specific Wallet resources for Expo web and native hosts.
+  - `examples/react-native-showcase/src/wallet/walletResourceGraph.ts` — Composes a complete explicit Wallet client, custody, crypto, signer, and clipboard graph.
+  - `examples/react-native-showcase/src/wallet/walletResources.ts` — Provides the non-Metro web fallback export without native custody imports.
+  - `examples/react-native-showcase/src/wallet/walletResources.web.ts` — Builds the browser-only Wallet resource graph.
+  - `examples/react-native-showcase/src/wallet/walletResources.native.ts` — Builds the Expo SecureStore and native clipboard resource graph.
+  - `examples/react-native-showcase/src/wallet/walletResources.test.ts` — Proves all twelve browser rails and complete native graph composition.
+  - `examples/wallet/local-vault/src/liveNetworkAdapter.conformance.test.ts` — Exercises every live adapter rail with deterministic transports, real local signing, pagination, observation, and funding safety.
+  - `examples/wallet/simulated-client/src/simulatedWallet.ts` — Adds all twelve deterministic Fixture rails and keeps Mainnet test funding unavailable.
+  - `examples/wallet/simulated-client/src/simulatedWallet.test.ts` — Proves distinct-recipient send lifecycles with an observer subscribed before submission.
+  - `examples/wallet/tui/src/entry.tsx` — Emits an opt-in rendered-frame signal for process acceptance testing.
+  - `examples/wallet/tui/src/host.tsx` — Uses exact selector-index helpers for network mode and Wallet/cryptocurrency selection.
+  - `examples/wallet/tui/src/host.test.ts` — Drives every selector mapping and verifies dynamic state for all twelve rails.
+  - `examples/wallet/tui/src/presentation.ts` — Defines selector mappings and visibly labels Fixture data in OpenTUI summaries.
+  - `examples/wallet/tui/src/process.integration.test.ts` — Waits for a rendered frame, sends q, and rejects early or hung process exits.
+- **User context (verbatim):**
+  > Make sure sending works too across all chains and network modes and modalities please and use the matrix skill to document images
+  > The next proper acceptance pass should fix OpenTUI’s missing selectors and visible history/observation/funding panels, run a full simulated TUI matrix
+- **SpecStory:** unavailable — No SpecStory URI is available because this Codex desktop task was not captured by SpecStory.
+
 ## July 30th, 2026 at 1:19:59 p.m. EDT — `4300cb903b89` feat(react-native-showcase): enable Wallet development builds
 
 - **Implementation commit:** `4300cb903b898f0d62498a472a52701e08ea2945`
