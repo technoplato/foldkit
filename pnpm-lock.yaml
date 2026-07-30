@@ -3929,6 +3929,27 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/instant-tools:
+    devDependencies:
+      '@effect/vitest':
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97(effect@4.0.0-beta.97)(vitest@4.1.9)
+      '@instantdb/core':
+        specifier: 1.0.53
+        version: 1.0.53
+      effect:
+        specifier: 4.0.0-beta.97
+        version: 4.0.0-beta.97
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-v8@4.1.9)(happy-dom@20.10.4)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/markdown:
     dependencies:
       remark-directive:
@@ -5250,6 +5271,12 @@ packages:
     peerDependenciesMeta:
       '@types/node':
         optional: true
+
+  '@instantdb/core@1.0.53':
+    resolution: {integrity: sha512-T49dAzoBi5p8gaLULA/MYRKRs5+H6UxgfpWuKPsCMj0RwcqrEoSckSAyBLOQKpyCo6kfvJcX8kjLiA52nXI7Ig==}
+
+  '@instantdb/version@1.0.53':
+    resolution: {integrity: sha512-N9L9XKPyES/jrwl6VpsQtGpeOzRxjBbEGIoNuhFW+pRgGMgbCdhwP2Isob0b5P8w3XUr7le+rBxy7zhJH3kAiA==}
 
   '@internationalized/date@3.12.2':
     resolution: {integrity: sha512-FY1Y+H64NDs+HAF6omlnWxm3mEpfgaCSWtL5l551ZZfImA+kGjPFgrnJrGjH6lfmLL0g8Z/mBu1R3kufeCp6Jw==}
@@ -9180,6 +9207,10 @@ packages:
   murmurhash-js@1.0.0:
     resolution: {integrity: sha512-TvmkNhkv8yct0SVBSy+o8wYzXjE4Zz3PCesbfs8HiCXXdcTuocApFv11UWlNFWKYsP2okqrhb7JNlSm9InBhIw==}
 
+  mutative@1.3.0:
+    resolution: {integrity: sha512-8MJj6URmOZAV70dpFe1YnSppRTKC4DsMkXQiBDFayLcDI4ljGokHxmpqaBQuDWa4iAxWaJJ1PS8vAmbntjjKmQ==}
+    engines: {node: '>=14.0'}
+
   nanoid@3.3.12:
     resolution: {integrity: sha512-ZB9RH/39qpq5Vu6Y+NmUaFhQR6pp+M2Xt76XBnEwDaGcVAqhlvxrl3B2bKS5D3NH3QR76v3aSrKaF/Kiy7lEtQ==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -10346,6 +10377,10 @@ packages:
   utils-merge@1.0.1:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
+
+  uuid@11.1.1:
+    resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
+    hasBin: true
 
   uuid@14.0.1:
     resolution: {integrity: sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew==}
@@ -11945,6 +11980,14 @@ snapshots:
       iconv-lite: 0.7.2
     optionalDependencies:
       '@types/node': 25.9.3
+
+  '@instantdb/core@1.0.53':
+    dependencies:
+      '@instantdb/version': 1.0.53
+      mutative: 1.3.0
+      uuid: 11.1.1
+
+  '@instantdb/version@1.0.53': {}
 
   '@internationalized/date@3.12.2':
     dependencies:
@@ -16250,6 +16293,8 @@ snapshots:
 
   murmurhash-js@1.0.0: {}
 
+  mutative@1.3.0: {}
+
   nanoid@3.3.12: {}
 
   natural-compare@1.4.0: {}
@@ -17548,6 +17593,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@11.1.1: {}
 
   uuid@14.0.1: {}
 
