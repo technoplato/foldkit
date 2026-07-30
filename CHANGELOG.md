@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 12:51:47 p.m. EDT — `27165028d390` fix(instant-tools): accept legacy source documents
+
+- **Implementation commit:** `27165028d390ad9c364b6e1a3b624a875a1f0846`
+- **Change:** Accept legacy source documents without a location
+- **Details:**
+  - Fresh public Chrome reached current Instant data but issue #054 omitted the optional sourceDocument.location key. The TypeScript decoder now defaults that missing key to None, matching Swift decodeIfPresent behavior, with a focused regression.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Make the optional source-document location key decode-compatible when absent.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Prove legacy source documents without location decode successfully.
+- **User context (verbatim):**
+  > can you diagnose and fix
+- **SpecStory:** unavailable — Codex desktop task; no durable SpecStory URI is available.
+
 ## July 30th, 2026 at 12:47:37 p.m. EDT — `cfffc135a2b0` style(foldkit): format effect protocol contracts
 
 - **Implementation commit:** `cfffc135a2b037eef8cefce08205c79c8ecf086f`
