@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 1:43:38 p.m. EDT — `c48be8548f6d` test(local-vault): prove Keychain restart restoration
+
+- **Implementation commit:** `c48be8548f6d0daf390924ccfe4f362f877078be`
+- **Change:** Prove native Wallet restoration across macOS process restarts.
+- **Details:**
+  - Added an opt-in Darwin integration test that creates a 12-account Wallet in one Node process, exits, restores the exact public profile in a second process, and rejects private-key fields in observable output.
+  - Made the Keychain storage factory accept an isolated service namespace so the test touches and removes only per-run credentials while production Clients keep the shared default namespace.
+  - Verified the final test through a locally launched GUI security session because the remote Codex shell cannot write the login Keychain; the normal local-vault suite remains noninteractive by skipping this gate unless explicitly enabled.
+- **Files:**
+  - `examples/wallet/local-vault/src/macosKeychainWalletVaultStorage.ts` — Allow isolated native Keychain namespaces without changing the production default.
+  - `examples/wallet/local-vault/src/macosKeychainWalletVaultStorage.integration.test.ts` — Exercise real Keychain creation, process termination, restoration, public-profile equality, and exact cleanup.
+- **User context (verbatim):**
+  > prove actual Keychain restart restoration
+  > Consume the same Secure storage somehow.
+- **SpecStory:** unavailable — Unavailable: this work was performed in Codex desktop, whose GUI task capture is not documented by SpecStory.
+
 ## July 30th, 2026 at 1:32:25 p.m. EDT — `4f7a74d5cb6f` feat: complete Wallet network conformance
 
 - **Implementation commit:** `4f7a74d5cb6f0b4edf1d76d064497675b06281af`
