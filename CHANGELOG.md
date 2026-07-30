@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 12:12:00 p.m. EDT — `47d207abe621` feat: add shared Program Processors
+
+- **Implementation commit:** `47d207abe6217423f8e26dd14f2b1b5abfe80904`
+- **Change:** Implemented the first shared Program Processor and InstantDB synchronization slice.
+- **Details:**
+  - Added versioned Processor identity, capability placement, Message envelopes, and effect manifests with One cardinality.
+  - Intercepted manifested Commands without executing or locally admitting their result Messages, while preserving existing local Command behavior.
+  - Added durable InstantDB proposals, accepted occurrences, projection checkpoints, effect requests, ordered gap buffering, and an in-memory store.
+  - Added an initialized attachment endpoint so long-lived headless Processors survive zero connected Clients.
+- **Files:**
+  - `packages/foldkit/src/processor/processor.ts` — Define portable Processor identity, capability, provenance, and deterministic placement contracts.
+  - `packages/foldkit/src/runtime/programRuntime.ts` — Intercept manifested Commands and preserve accepted Message envelopes through the live runtime.
+  - `packages/foldkit/src/runtime/programProcessorEndpoint.ts` — Expose one long-lived Processor to attached Clients without transferring lifecycle ownership.
+  - `packages/instant/src/instantProgramStore/instantProgramStore.ts` — Persist and observe the durable InstantDB protocol through an Effect-native adapter.
+  - `packages/instant/src/acceptedOccurrenceCursor/acceptedOccurrenceCursor.ts` — Deduplicate, validate, buffer, and emit accepted occurrences in contiguous order.
+  - `docs/explorations/instantdb-shared-program-processors.md` — Record what the first implementation settles and what authentication, pairing, claiming, and lifecycle work remains.
+- **User context (verbatim):**
+  > Go ahead and build this out while I review the architecture, and I'll provide any feedback as I read through.
+  > We wanna synchronize by sending messages, not by sharing snapshots of data
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 11:59:50 a.m. EDT — `d6584291baba` fix(instant-tools): decode code review evidence
 
 - **Implementation commit:** `d6584291baba13a9819622d41d02cf771ceafd7b`
