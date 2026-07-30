@@ -1,13 +1,34 @@
 import { Array, Match as M, Option, Schema as S } from 'effect'
 import {
   type Model,
+  type SendNetworkSelection,
+  type WalletNetworkMode,
   WalletProgram,
   primaryWalletSuggestedTestTransferLabel,
   primaryWalletTestFundingMethod,
   selectedNetworkHasCapability,
   selectedSendNetworkLabel,
   toggledWalletNetworkMode,
+  walletDataSourceLabel,
 } from 'wallet-core-example'
+
+/** Network modes in the exact order exposed by the OpenTUI selector. */
+export const walletNetworkModes: ReadonlyArray<WalletNetworkMode> = [
+  'Devnet',
+  'Testnet',
+  'Live',
+]
+
+/** Resolves one OpenTUI network-mode selector index without a sentinel. */
+export const walletNetworkModeAtIndex = (
+  index: number,
+): Option.Option<WalletNetworkMode> => Array.get(walletNetworkModes, index)
+
+/** Resolves one OpenTUI Wallet-and-cryptocurrency selector index. */
+export const walletSendNetworkSelectionAtIndex = (
+  selections: ReadonlyArray<SendNetworkSelection>,
+  index: number,
+): Option.Option<SendNetworkSelection> => Array.get(selections, index)
 
 /** Shows the current Wallet Model without sending a Message. */
 export const ShowWallet = S.TaggedStruct('ShowWallet', {
@@ -173,7 +194,7 @@ export const walletOpenTuiSummary = (model: Model): string => {
       FailedPortfolio: ({ failure }) =>
         `Portfolio failed: ${failure.operation}/${failure.code}`,
       LoadedPortfolio: ({ snapshot }) =>
-        `${snapshot.accounts.length.toString()} accounts | ${snapshot.balanceSnapshot.balances.length.toString()} balances | ${snapshot.balanceSnapshot.unavailableAccountIds.length.toString()} unavailable`,
+        `${walletDataSourceLabel(snapshot.dataSource)} data | ${snapshot.accounts.length.toString()} accounts | ${snapshot.balanceSnapshot.balances.length.toString()} balances | ${snapshot.balanceSnapshot.unavailableAccountIds.length.toString()} unavailable`,
     }),
   )
   return Array.join(

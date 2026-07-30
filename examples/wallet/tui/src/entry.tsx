@@ -68,6 +68,12 @@ const renderer = await createCliRenderer({
 })
 const root = createRoot(renderer)
 renderer.once(CliRenderEvents.DESTROY, () => root.unmount())
+const processReadySignal = process.env['FOLDKIT_WALLET_PROCESS_READY_SIGNAL']
+if (processReadySignal !== undefined) {
+  renderer.once(CliRenderEvents.FRAME, () => {
+    process.stderr.write(processReadySignal)
+  })
+}
 
 if (Option.isSome(maybeInitialRoute)) {
   root.render(

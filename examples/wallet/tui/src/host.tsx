@@ -4,7 +4,6 @@ import {
   DomainSeparatedDigest,
   type Model,
   SigningChallenge,
-  type WalletNetworkMode,
   type WalletResources,
   activeWalletAccounts,
   assetAmountLabelForModel,
@@ -34,7 +33,10 @@ import { useKeyboard } from '@opentui/react'
 
 import {
   interactionsForWalletOpenTui,
+  walletNetworkModeAtIndex,
+  walletNetworkModes,
   walletOpenTuiSummary,
+  walletSendNetworkSelectionAtIndex,
 } from './presentation.js'
 
 export * from './presentation.js'
@@ -50,11 +52,6 @@ const WalletOpenTuiFocus = S.Literals([
 ])
 type WalletOpenTuiFocus = typeof WalletOpenTuiFocus.Type
 
-const walletNetworkModes: ReadonlyArray<WalletNetworkMode> = [
-  'Devnet',
-  'Testnet',
-  'Live',
-]
 const walletNetworkModeOptions: Array<SelectOption> = Array.map(
   walletNetworkModes,
   networkMode => ({
@@ -409,7 +406,7 @@ const WalletTerminal = ({
             focused={focus === 'Mode'}
             height="100%"
             onSelect={index => {
-              const maybeMode = Array.get(walletNetworkModes, index)
+              const maybeMode = walletNetworkModeAtIndex(index)
               if (Option.isSome(maybeMode)) {
                 actions.selectedWalletNetworkMode(maybeMode.value)
                 setFocus('SendNetwork')
@@ -433,7 +430,10 @@ const WalletTerminal = ({
             focused={focus === 'SendNetwork'}
             height="100%"
             onSelect={index => {
-              const maybeSelection = Array.get(sendNetworkSelections, index)
+              const maybeSelection = walletSendNetworkSelectionAtIndex(
+                sendNetworkSelections,
+                index,
+              )
               if (Option.isSome(maybeSelection)) {
                 actions.selectedSendNetwork(maybeSelection.value)
                 setFocus('Amount')
