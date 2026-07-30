@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 10:28:29 a.m. EDT — `18ef08300fa0` chore: pin repository Node version
+
+- **Implementation commit:** `18ef08300fa0fa43d520688b5ccf4819fe2fbc2a`
+- **Change:** Pin the repository Node selector to 22.14.0
+- **Details:**
+  - Added the FNM-compatible .node-version value that selects Node v22.14.0 and resolves the repository-pinned Corepack pnpm 11.8.0.
+  - Re-verified the selected Node and pnpm versions independently before committing.
+- **Files:**
+  - `.node-version` — Select Node 22.14.0 when entering the repository so Corepack resolves pnpm 11.8.0.
+- **User context (verbatim):**
+  > Main already verified `.node-version` 22.14.0 -> Node v22.14.0/pnpm 11.8.0
+- **SpecStory:** unavailable — This recovery was performed in Codex desktop; public SpecStory sharing was not authorized and no verified CLI capture URI is available. Provenance session: /Users/laptop/.codex/sessions/2026/07/29/rollout-2026-07-29T13-37-39-019faef4-14ba-77a3-980d-b91765825bde.jsonl.
+
 ## July 30th, 2026 at 10:04:53 a.m. EDT — `88b2219b6906` feat: complete multichain Wallet workflows
 
 - **Implementation commit:** `88b2219b69064a216e5ad6dc1967063b53c3fc2b`
