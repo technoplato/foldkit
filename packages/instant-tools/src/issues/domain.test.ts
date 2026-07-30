@@ -7,6 +7,7 @@ import {
   IssueAttachment,
   IssueMention,
   type IssuePriority,
+  IssueSuccessCriterion,
   MediaReference,
   RecordingMention,
   RecordingReference,
@@ -52,6 +53,17 @@ const makeIssue = () =>
     projectId: Option.some('transcript-ui'),
     sourceDocument: Option.none(),
     status: 'InProgress',
+    successCriteria: [
+      IssueSuccessCriterion.make({
+        id: 'compact-initial-placement',
+        outcome: 'The first transcript row starts at the top reading position.',
+        requiredEvidence: [
+          'FocusedTest',
+          'SimulatorInteraction',
+          'PhysicalDeviceInteraction',
+        ],
+      }),
+    ],
     title: 'Put the full recording timestamp in the gutter',
     updatedAtMs: 1_753_800_000_000,
     workLog: [],
@@ -138,8 +150,30 @@ describe('issue domain', () => {
         },
       },
     ])
+    expect(encoded.successCriteria).toEqual([
+      {
+        id: 'compact-initial-placement',
+        outcome: 'The first transcript row starts at the top reading position.',
+        requiredEvidence: [
+          'FocusedTest',
+          'SimulatorInteraction',
+          'PhysicalDeviceInteraction',
+        ],
+      },
+    ])
     expect(
       Option.map(Array.head(decoded.mentions), mention => mention.source._tag),
     ).toEqual(Option.some('Recording'))
+  })
+
+  it('defaults missing legacy success criteria to an empty collection', () => {
+    const issue = makeIssue()
+    const encoded = S.encodeUnknownSync(Issue)(issue)
+    const legacyPayload: Record<string, unknown> = { ...encoded }
+    delete legacyPayload['successCriteria']
+
+    expect(S.decodeUnknownSync(Issue)(legacyPayload).successCriteria).toEqual(
+      [],
+    )
   })
 })

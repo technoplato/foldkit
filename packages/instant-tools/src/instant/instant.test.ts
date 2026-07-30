@@ -9,6 +9,7 @@ import {
   Issue,
   IssueAttachment,
   IssueQuery,
+  IssueSuccessCriterion,
   type IssueTrackerService,
   RepositoryAttachmentSource,
 } from '../issues/index.js'
@@ -63,6 +64,13 @@ const issue = Issue.make({
   projectId: Option.some('transcript-ui'),
   sourceDocument: Option.none(),
   status: 'InProgress',
+  successCriteria: [
+    IssueSuccessCriterion.make({
+      id: 'compact-initial-placement',
+      outcome: 'The first transcript row starts at the top reading position.',
+      requiredEvidence: ['FocusedTest', 'PhysicalDeviceInteraction'],
+    }),
+  ],
   title: 'Put the full recording timestamp in the gutter',
   updatedAtMs: 1_753_825_157_000,
   workLog: [],

@@ -4,7 +4,7 @@ Transport-neutral structured logging and issue tracking for Effect applications.
 
 The package keeps its portable domain separate from persistence:
 
-- `@foldkit/instant-tools/issues` defines Issue, Attachment, Mention, work-log, reference, query, escalation, and `IssueTracker` service types.
+- `@foldkit/instant-tools/issues` defines Issue, Success Criterion, Attachment, Mention, work-log, reference, query, escalation, and `IssueTracker` service types.
 - `@foldkit/instant-tools/logging` defines structured Log Events, source locations, levels, and the `Logger` service.
 - `@foldkit/instant-tools/instant` supplies queryable InstantDB envelopes and adapters for those services.
 
@@ -70,6 +70,7 @@ import {
   ApplicationProduct,
   Issue,
   IssueQuery,
+  IssueSuccessCriterion,
   IssueTracker,
 } from '@foldkit/instant-tools/issues'
 
@@ -87,6 +88,13 @@ const issue = Issue.make({
   projectId: Option.some('transcript-ui'),
   sourceDocument: Option.none(),
   status: 'InProgress',
+  successCriteria: [
+    IssueSuccessCriterion.make({
+      id: 'timestamp-in-gutter',
+      outcome: 'The full recording timestamp appears in the right gutter.',
+      requiredEvidence: ['FocusedTest', 'PhysicalDeviceInteraction'],
+    }),
+  ],
   title: 'Put the full recording timestamp in the gutter',
   updatedAtMs: Date.now(),
   workLog: [],
