@@ -21,6 +21,8 @@ const LogEventJson = S.fromJsonString(LogEvent)
 
 /** A queryable InstantDB envelope for one lossless portable Issue payload. */
 export const InstantIssueRecord = S.Struct({
+  attachmentCount: S.Number,
+  attachmentIdsJson: S.String,
   id: S.String,
   payloadJson: S.String,
   priority: S.String,
@@ -47,6 +49,8 @@ export type InstantLogRecord = typeof InstantLogRecord.Type
 /** The entity definitions a host can compose into its application schema. */
 export const InstantToolsEntities = {
   instantToolsIssues: i.entity({
+    attachmentCount: i.number().indexed(),
+    attachmentIdsJson: i.string(),
     payloadJson: i.string(),
     priority: i.string().indexed(),
     productId: i.string().indexed(),
@@ -98,6 +102,10 @@ export type InstantEntityStoreService = Readonly<{
 /** Encodes one portable Issue into its queryable InstantDB envelope. */
 export const makeInstantIssueRecord = (issue: Issue): InstantIssueRecord =>
   InstantIssueRecord.make({
+    attachmentCount: Array.length(issue.attachments),
+    attachmentIdsJson: JSON.stringify(
+      Array.map(issue.attachments, attachment => attachment.id),
+    ),
     id: issue.id,
     payloadJson: S.encodeSync(IssueJson)(issue),
     priority: issue.priority,
@@ -253,6 +261,8 @@ export const makeInstantEntityStore = (
         return database
           .transact(
             entity.update({
+              attachmentCount: record.attachmentCount,
+              attachmentIdsJson: record.attachmentIdsJson,
               payloadJson: record.payloadJson,
               priority: record.priority,
               productId: record.productId,

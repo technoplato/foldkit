@@ -4,11 +4,13 @@ import { describe, expect, it } from 'vitest'
 import {
   ApplicationProduct,
   Issue,
+  IssueAttachment,
   IssueMention,
   type IssuePriority,
   MediaReference,
   RecordingMention,
   RecordingReference,
+  RepositoryAttachmentSource,
   escalatePriority,
   registerMention,
 } from './domain.js'
@@ -37,6 +39,7 @@ const firstMention = IssueMention.make({
 
 const makeIssue = () =>
   Issue.make({
+    attachments: [],
     createdAtMs: 1_753_800_000_000,
     details: '',
     id: 'issue-021',
@@ -95,11 +98,46 @@ describe('issue domain', () => {
   })
 
   it('round-trips exact recording, quote, and screenshot evidence through Schema', () => {
-    const issue = registerMention(makeIssue(), firstMention).issue
+    const attachment = IssueAttachment.make({
+      byteCount: Option.some(334_048),
+      capturedAtMs: Option.some(1_753_842_697_000),
+      contentType: 'image/png',
+      fileName: '2026-07-29-excessive-initial-vertical-offset.png',
+      id: 'attachment-042-1',
+      issueId: 'issue-021',
+      kind: 'Screenshot',
+      sha256: Option.some(
+        '28da2c5f4e14e976f3c04f56684ecf2778e88c488d0b9090117814e4a7ee9b83',
+      ),
+      source: RepositoryAttachmentSource.make({
+        path: 'issues/attachments/042/2026-07-29-excessive-initial-vertical-offset.png',
+      }),
+    })
+    const issue = Issue.make({
+      ...registerMention(makeIssue(), firstMention).issue,
+      attachments: [attachment],
+    })
     const encoded = S.encodeUnknownSync(Issue)(issue)
     const decoded = S.decodeUnknownSync(Issue)(encoded)
 
     expect(decoded).toEqual(issue)
+    expect(encoded.attachments).toEqual([
+      {
+        byteCount: 334_048,
+        capturedAtMs: 1_753_842_697_000,
+        contentType: 'image/png',
+        fileName: '2026-07-29-excessive-initial-vertical-offset.png',
+        id: 'attachment-042-1',
+        issueId: 'issue-021',
+        kind: 'Screenshot',
+        sha256:
+          '28da2c5f4e14e976f3c04f56684ecf2778e88c488d0b9090117814e4a7ee9b83',
+        source: {
+          _tag: 'Repository',
+          path: 'issues/attachments/042/2026-07-29-excessive-initial-vertical-offset.png',
+        },
+      },
+    ])
     expect(
       Option.map(Array.head(decoded.mentions), mention => mention.source._tag),
     ).toEqual(Option.some('Recording'))
