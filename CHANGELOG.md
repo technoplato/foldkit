@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 10:58:41 a.m. EDT — `339ae74e1f64` fix: decode live issue payloads
+
+- **Implementation commit:** `339ae74e1f64f525efae7edb5bcc006205c99976`
+- **Change:** Made Issue payload decoding match the live anonymous data contract so collection and detail subscriptions can render or report failures.
+- **Details:**
+  - Accepted the live Research success-evidence literal while retaining every existing typed value.
+  - Defaulted omitted legacy optional attachment, Mention, and work-log metadata to None during decoding.
+  - Added tests proving live compatibility and typed collection/detail failure delivery to visible program state.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Accept the live evidence vocabulary and decode omitted legacy optional metadata as None.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Lock the live Research value and nested legacy payload compatibility into focused Schema tests.
+  - `examples/issues/core/src/program.test.ts` — Prove collection and detail observation failures reach visible Failure model states.
+- **User context (verbatim):**
+  > I strongly suspect `VerificationNeeded` remains unsupported even though `Planned` was added—verify, do not assume.
+  > Add focused failing tests first for every live unsupported value and for collection/detail decode failure delivery; make the smallest source fix.
+- **SpecStory:** unavailable — Codex desktop task; no verified SpecStory CLI capture URI is available.
+
 ## July 30th, 2026 at 10:31:39 a.m. EDT — `89b4350e26b5` chore(words): lock workspace dependencies
 
 - **Implementation commit:** `89b4350e26b510aee13ee25e1a1600d6adefd866`
