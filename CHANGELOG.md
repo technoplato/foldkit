@@ -4,6 +4,36 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 3:23:57 p.m. EDT — `976eed1cd52a` feat: checkpoint Wallet vault transfer foundation
+
+- **Implementation commit:** `976eed1cd52ab0c5e1bce3a0f9bcc3470a2b692a`
+- **Change:** Checkpoint the audited Wallet vault-transfer foundation without treating it as release-ready.
+- **Details:**
+  - Added Schema-backed canonical Wallet record export and import, owner-partitioned local custody, and an in-memory encrypted single-claim transfer protocol.
+  - This is a WIP checkpoint only. It is not safe to expose, deploy, or use for credentials until authenticated principal binding, secret carrier encapsulation, relay purge and idempotency, Keychain crash and cross-process safety, subset Wallet export, and server and Expo adapters are resolved.
+  - Verification passed: frozen workspace install; vault-transfer and local-vault TypeScript checks; 10 transfer tests; 21 local-vault tests; targeted Prettier and oxlint; and Git diff checks.
+  - The native Keychain integration was not run because it touches the real macOS Keychain and remains an opt-in sequential restart check.
+- **Files:**
+  - `examples/wallet/local-vault/src/localWalletVault.ts` — Add owner-partitioned canonical Wallet record export and import boundaries.
+  - `examples/wallet/local-vault/src/localWalletVault.test.ts` — Exercise canonical export, import, ownership, retry, and collision behavior.
+  - `examples/wallet/local-vault/src/macosKeychainWalletVaultStorage.ts` — Partition Keychain records by opaque owner and introduce immutable-record visibility semantics.
+  - `examples/wallet/local-vault/src/macosKeychainWalletVaultStorage.test.ts` — Cover owner isolation, visibility, retry, collision, and failure handling.
+  - `examples/wallet/local-vault/src/macosKeychainWalletVaultStorage.integration.test.ts` — Carry explicit local ownership through the opt-in restart integration path.
+  - `examples/wallet/vault-transfer/package.json` — Declare the isolated Wallet transfer foundation package and checks.
+  - `examples/wallet/vault-transfer/tsconfig.json` — Typecheck the package source and tests.
+  - `examples/wallet/vault-transfer/tsconfig.build.json` — Define production declaration and JavaScript output.
+  - `examples/wallet/vault-transfer/src/index.ts` — Expose the initial transfer package surface for review.
+  - `examples/wallet/vault-transfer/src/protocol.ts` — Model transfer tickets, reservations, capsules, claims, and failures with Schema.
+  - `examples/wallet/vault-transfer/src/crypto.ts` — Provide the audited Web Crypto encryption and verifier foundation.
+  - `examples/wallet/vault-transfer/src/ticket.ts` — Encode and decode the QR transfer ticket foundation.
+  - `examples/wallet/vault-transfer/src/relay.ts` — Implement the in-memory reserve, publish, claim, acknowledge, cancel, and purge foundation.
+  - `examples/wallet/vault-transfer/src/recordPort.ts` — Bridge canonical local Wallet records to the transfer package.
+  - `examples/wallet/vault-transfer/src/vaultTransfer.test.ts` — Exercise the initial encrypted relay and ticket lifecycle.
+  - `pnpm-lock.yaml` — Register the new Wallet vault-transfer workspace importer reproducibly.
+- **User context (verbatim):**
+  > I'd like to share the credentials and private keys amongst all the different things, but in a secure way.
+- **SpecStory:** unavailable — Codex desktop GUI capture is not documented by SpecStory, so no durable URI is available.
+
 ## July 30th, 2026 at 3:17:03 p.m. EDT — `3cbb0f0231f6` feat: synchronize authenticated Counter processors
 
 - **Implementation commit:** `3cbb0f0231f638e3f5661567cd7129a58d4f45ea`
