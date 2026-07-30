@@ -1,9 +1,12 @@
-import { Option } from 'effect'
+import { Effect, Option, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
   ApplicationProduct,
   Issue,
+  IssueTracker,
+  IssueTrackerError,
+  type IssueTrackerService,
   ProductCatalogEntry,
   RecordingSegment,
   TriageCandidate,
@@ -32,7 +35,9 @@ import {
   TriageInbox,
 } from './model.js'
 import { destinationForModel, interactionsForModel } from './presentation.js'
+import { StaticIssueTrackerResources } from './resources.js'
 import { navigationToPath, pathToNavigation } from './route.js'
+import { subscriptions } from './subscription.js'
 import { update } from './update.js'
 
 const product = ApplicationProduct.make({ id: 'scribe', name: 'Scribe' })
@@ -150,6 +155,72 @@ describe('Issue Tracker Program', () => {
       _tag: 'LoadedIssueLogs',
       logs: [evidence],
     })
+  })
+
+  it('delivers collection and detail decode failures to visible state', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const failingIssueTracker: IssueTrackerService = {
+          fetch: () => Effect.succeed([]),
+          observe: () =>
+            Stream.fail(
+              new IssueTrackerError({
+                cause: new Error('Issue collection payload failed to decode.'),
+                operation: 'Observe',
+              }),
+            ),
+          observeIssue: () =>
+            Stream.fail(
+              new IssueTrackerError({
+                cause: new Error('Issue detail payload failed to decode.'),
+                operation: 'ObserveIssue',
+              }),
+            ),
+          save: () => Effect.void,
+        }
+
+        const maybeCollectionFailure = yield* subscriptions.issues
+          .dependenciesToStream({})
+          .pipe(
+            Stream.runHead,
+            Effect.provideService(IssueTracker, failingIssueTracker),
+            Effect.provide(StaticIssueTrackerResources),
+          )
+        const collectionFailure = Option.getOrThrow(maybeCollectionFailure)
+        expect(collectionFailure).toMatchObject({
+          _tag: 'FailedObserveIssues',
+        })
+        const [failedList] = update(
+          modelForNavigation(IssueList.make({})),
+          collectionFailure,
+        )
+        expect(destinationForModel(failedList)).toMatchObject({
+          _tag: 'IssueListDestination',
+          state: { _tag: 'FailedIssues' },
+        })
+
+        const maybeDetailFailure = yield* subscriptions.selectedIssue
+          .dependenciesToStream({ maybeIssueId: Option.some(issue.id) })
+          .pipe(
+            Stream.runHead,
+            Effect.provideService(IssueTracker, failingIssueTracker),
+            Effect.provide(StaticIssueTrackerResources),
+          )
+        const detailFailure = Option.getOrThrow(maybeDetailFailure)
+        expect(detailFailure).toMatchObject({
+          _tag: 'FailedObserveIssue',
+          issueId: issue.id,
+        })
+        const [failedDetail] = update(
+          modelForNavigation(IssueDetail.make({ issueId: issue.id })),
+          detailFailure,
+        )
+        expect(destinationForModel(failedDetail)).toMatchObject({
+          _tag: 'IssueDetailDestination',
+          state: { _tag: 'FailedIssue' },
+        })
+      }),
+    )
   })
 
   it('requires a first-class product and title before filing', () => {
