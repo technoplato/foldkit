@@ -182,14 +182,20 @@ export type IssueAttachmentSource = typeof IssueAttachmentSource.Type
 
 /** One immutable media artifact attached to an Issue. */
 export const IssueAttachment = S.Struct({
-  byteCount: S.OptionFromNullOr(S.Int),
-  capturedAtMs: S.OptionFromNullOr(S.Number),
+  byteCount: S.OptionFromNullOr(S.Int).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+  capturedAtMs: S.OptionFromNullOr(S.Number).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
   contentType: S.String,
   fileName: S.String,
   id: S.String,
   issueId: S.String,
   kind: IssueAttachmentKind,
-  sha256: S.OptionFromNullOr(S.String),
+  sha256: S.OptionFromNullOr(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
   source: IssueAttachmentSource,
 })
 /** One immutable media artifact attached to an Issue. */
@@ -198,11 +204,15 @@ export type IssueAttachment = typeof IssueAttachment.Type
 /** One user or Agent report of an Issue. */
 export const IssueMention = S.Struct({
   capturedAtMs: S.Number,
-  directQuote: S.OptionFromNullOr(S.String),
+  directQuote: S.OptionFromNullOr(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
   id: S.String,
   issueId: S.String,
   related: S.Array(IssueReference),
-  reporter: S.OptionFromNullOr(IssueReference),
+  reporter: S.OptionFromNullOr(IssueReference).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
   source: IssueReference,
 })
 /** One user or Agent report of an Issue. */
@@ -210,9 +220,15 @@ export type IssueMention = typeof IssueMention.Type
 
 /** One dated unit of work associated with an Issue. */
 export const IssueWorkLogEntry = S.Struct({
-  agentId: S.OptionFromNullOr(S.String),
-  commitSha: S.OptionFromNullOr(S.String),
-  durationSeconds: S.OptionFromNullOr(S.Int),
+  agentId: S.OptionFromNullOr(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+  commitSha: S.OptionFromNullOr(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
+  durationSeconds: S.OptionFromNullOr(S.Int).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
   id: S.String,
   occurredAtMs: S.Number,
   state: S.OptionFromNullOr(S.String),
@@ -229,6 +245,7 @@ export const IssueSuccessEvidence = S.Literals([
   'Log',
   'Persistence',
   'PhysicalDeviceInteraction',
+  'Research',
   'SimulatorInteraction',
   'VisualComparison',
 ])

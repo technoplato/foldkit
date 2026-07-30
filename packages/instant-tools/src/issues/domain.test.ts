@@ -9,6 +9,8 @@ import {
   type IssuePriority,
   IssueStatus,
   IssueSuccessCriterion,
+  IssueSuccessEvidence,
+  IssueWorkLogEntry,
   MediaReference,
   RecordingMention,
   RecordingReference,
@@ -79,6 +81,63 @@ const makeIssue = () =>
 describe('issue domain', () => {
   it('preserves planned feature workflow state', () => {
     expect(S.decodeUnknownSync(IssueStatus)('Planned')).toBe('Planned')
+  })
+
+  it('preserves research as live success evidence', () => {
+    expect(S.decodeUnknownSync(IssueSuccessEvidence)('Research')).toBe(
+      'Research',
+    )
+  })
+
+  it('defaults missing legacy attachment metadata to none', () => {
+    const attachment = S.decodeUnknownSync(IssueAttachment)({
+      contentType: 'image/png',
+      fileName: 'issue-capture.png',
+      id: 'attachment-legacy',
+      issueId: 'issue-legacy',
+      kind: 'Screenshot',
+      source: RepositoryAttachmentSource.make({
+        path: 'recordings/issue-capture.png',
+      }),
+    })
+
+    expect(attachment.byteCount).toEqual(Option.none())
+    expect(attachment.capturedAtMs).toEqual(Option.none())
+    expect(attachment.sha256).toEqual(Option.none())
+  })
+
+  it('defaults missing legacy Mention metadata to none', () => {
+    const mention = S.decodeUnknownSync(IssueMention)({
+      capturedAtMs: 1_753_825_157_000,
+      id: 'mention-legacy',
+      issueId: 'issue-legacy',
+      related: [],
+      source: {
+        _tag: 'Recording',
+        recording: {
+          endMilliseconds: null,
+          recordingId: 'recording-legacy',
+          screenshotIds: [],
+          startMilliseconds: 0,
+        },
+      },
+    })
+
+    expect(mention.directQuote).toEqual(Option.none())
+    expect(mention.reporter).toEqual(Option.none())
+  })
+
+  it('defaults missing legacy work-log metadata to none', () => {
+    const entry = S.decodeUnknownSync(IssueWorkLogEntry)({
+      id: 'work-log-legacy',
+      occurredAtMs: 1_753_825_157_000,
+      state: 'Addressing',
+      summary: 'Investigated the issue.',
+    })
+
+    expect(entry.agentId).toEqual(Option.none())
+    expect(entry.commitSha).toEqual(Option.none())
+    expect(entry.durationSeconds).toEqual(Option.none())
   })
 
   it('escalates one step toward P0 and saturates there', () => {
