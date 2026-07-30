@@ -28,6 +28,7 @@ import {
 } from '../programStore/index.js'
 import {
   type InstantAcceptedMessageOccurrenceRecord,
+  type InstantEffectRequestRecord,
   InstantMessageProposalRecord,
   type InstantMessageProposalRecord as InstantMessageProposalRecordType,
 } from '../schema/index.js'
@@ -161,6 +162,7 @@ export type SharedProgramMessageCodec<Message, Envelope> = Readonly<{
       acceptedAtMs: number
       acceptedSequence: number
       acceptingProcessorId: string
+      effectRequest?: InstantEffectRequestRecord | undefined
     }>,
   ) => Effect.Effect<string, SharedProgramCodecError>
   decodeAccepted: (

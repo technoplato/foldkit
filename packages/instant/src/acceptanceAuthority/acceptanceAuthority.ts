@@ -225,6 +225,7 @@ export type AcceptEnvelopeInput = Readonly<{
   acceptedAtMs: number
   acceptedSequence: number
   acceptingProcessorId: string
+  effectRequest?: InstantEffectRequestRecord | undefined
 }>
 
 /** Configuration for one explicitly single-writer acceptance authority. */
@@ -1008,12 +1009,17 @@ export const makeAcceptanceAuthority = ({
           }
 
           yield* validateEffectResult(state, proposal)
+          const maybeEffectRequest =
+            proposal.effectRequestId === null
+              ? Option.none<InstantEffectRequestRecord>()
+              : HashMap.get(state.effectRequestsById, proposal.effectRequestId)
           const acceptedAtMs = now()
           const acceptedSequence = state.nextAcceptedSequence
           const envelopeJson = yield* acceptEnvelope(proposal, {
             acceptedAtMs,
             acceptedSequence,
             acceptingProcessorId: currentSession.authorityProcessorId,
+            effectRequest: Option.getOrUndefined(maybeEffectRequest),
           }).pipe(
             Effect.mapError(
               cause =>

@@ -8,6 +8,7 @@ import {
   Model,
   init,
   initialCount,
+  restore,
   update,
 } from './index.js'
 
@@ -19,6 +20,12 @@ describe('update', () => {
 
     expect(model).toEqual(Model.make({ count: initialCount }))
     expect(commands).toEqual([])
+  })
+
+  test('restore preserves the canonical Model and produces no Commands', () => {
+    const model = Model.make({ count: 42 })
+
+    expect(restore(model)).toStrictEqual([model, []])
   })
 
   test('ClickedIncrement adds one to the count', () => {

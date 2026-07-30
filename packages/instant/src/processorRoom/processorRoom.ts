@@ -1,4 +1,13 @@
-import { Cause, Data, Effect, Queue, Schema as S, Scope, Stream } from 'effect'
+import {
+  Array,
+  Cause,
+  Data,
+  Effect,
+  Queue,
+  Schema as S,
+  Scope,
+  Stream,
+} from 'effect'
 
 import {
   InstantProcessorActivity,
@@ -27,6 +36,16 @@ export type ProcessorRoomService = Readonly<{
     presence: InstantProcessorPresenceType,
   ) => Effect.Effect<void, ProcessorRoomError>
 }>
+
+/** Decodes valid transient peers without letting one malformed peer hide the room. */
+export const decodeProcessorRoomParticipants = (
+  participants: ReadonlyArray<unknown>,
+): ReadonlyArray<InstantProcessorPresenceType> =>
+  Array.getSomes(
+    Array.map(participants, participant =>
+      S.decodeUnknownOption(InstantProcessorPresence)(participant),
+    ),
+  )
 
 /** Joins a high-entropy session room without making its presence authoritative. */
 export const makeProcessorRoom = (
@@ -61,31 +80,15 @@ export const makeProcessorRoom = (
                   ),
                 )
               } else {
-                try {
-                  const peers = Object.values(response.peers)
-                  const participants =
-                    response.user === undefined
-                      ? peers
-                      : [response.user, ...peers]
-                  Queue.offerUnsafe(
-                    queue,
-                    participants.map(participant =>
-                      S.decodeUnknownSync(InstantProcessorPresence)(
-                        participant,
-                      ),
-                    ),
-                  )
-                } catch (cause) {
-                  Queue.failCauseUnsafe(
-                    queue,
-                    Cause.fail(
-                      new ProcessorRoomError({
-                        cause,
-                        operation: 'ObservePresence',
-                      }),
-                    ),
-                  )
-                }
+                const peers = Object.values(response.peers)
+                const participants =
+                  response.user === undefined
+                    ? peers
+                    : [response.user, ...peers]
+                Queue.offerUnsafe(
+                  queue,
+                  decodeProcessorRoomParticipants(participants),
+                )
               }
             }),
           ),

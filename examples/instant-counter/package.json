@@ -4,15 +4,25 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite",
+    "prebuild": "pnpm --filter counter-core-example build",
+    "build": "./scripts/with-public-instant-env vite build",
+    "predev": "pnpm --filter counter-core-example build",
+    "dev": "./scripts/with-public-instant-env vite",
+    "preheadless": "pnpm --filter counter-core-example build",
     "headless": "tsx src/headless/entry.ts",
+    "instant:perms": "npx instant-cli@1.0.53 push perms --yes --package core",
+    "instant:schema": "npx instant-cli@1.0.53 push schema --yes --package core",
+    "preview": "./scripts/with-public-instant-env vite preview --host localhost --port 5173 --strictPort",
+    "pretest": "pnpm --filter counter-core-example build",
+    "test": "vitest run",
+    "pretypecheck": "pnpm --filter counter-core-example build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@foldkit/instant": "workspace:*",
     "@instantdb/admin": "1.0.53",
     "@instantdb/core": "1.0.53",
+    "counter-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*"
   },
