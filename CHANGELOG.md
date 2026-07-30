@@ -4,6 +4,34 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 10:04:53 a.m. EDT — `88b2219b6906` feat: complete multichain Wallet workflows
+
+- **Implementation commit:** `88b2219b69064a216e5ad6dc1967063b53c3fc2b`
+- **Change:** Completed the multichain Wallet workflow matrix through the generic Foldkit contract.
+- **Details:**
+  - Implemented 12 profile-backed Bitcoin, Ethereum, Solana, and Sui rails across Devnet, Testnet, and Live with adapter-owned funding, cursor history, observation, and signed submission.
+  - Added encrypted IndexedDB, Expo SecureStore, and native macOS Keychain custody behind one Wallet vault boundary.
+  - Updated React, Foldkit, React Native, CLI, Terminal, and OpenTUI presenters for dynamic Wallet, cryptocurrency, mode, receive, fund, history, preview, and send workflows.
+  - Captured two-browser Sepolia and Sui transaction evidence and documented unavailable provider and Mainnet lanes without placeholder success.
+- **Files:**
+  - `examples/wallet/core/src/program.ts` — portable generic Wallet Program and service contract
+  - `examples/wallet/live-client/src/catalog.ts` — 12 executable chain and network rails
+  - `examples/wallet/local-vault/src/localWalletVault.ts` — chain-specific signing behind portable custody
+  - `examples/wallet/react/src/App.tsx` — dynamic browser Wallet controls and workflows
+  - `examples/wallet/foldkit/src/view.ts` — dynamic Foldkit Wallet controls and workflows
+  - `examples/wallet/cli/src/host.ts` — one-shot funding, history, preview, and send commands
+  - `examples/wallet/terminal/src/host.ts` — interactive terminal Wallet workflows
+  - `examples/wallet/tui/src/host.tsx` — interactive OpenTUI Wallet workflows
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — native Wallet and cryptocurrency selection
+  - `examples/wallet/VERIFICATION_MATRIX.md` — rail, modality, transaction, and image evidence
+  - `docs/adr/0005-normalized-wallet-chain-adapters.md` — durable chain-neutral architecture and capability decisions
+  - `pnpm-lock.yaml` — reproducible Wallet client, keyring, and picker dependencies
+- **User context (verbatim):**
+  > Audit the wallets screens and make them fully work for each cryptocurrency we support.
+  > No placeholder data.
+  > Make sure sending works too across all chains and network modes and modalities please and use the matrix skill to document images
+- **SpecStory:** unavailable — Unavailable: this Codex desktop task has no verified SpecStory CLI capture URI.
+
 ## July 30th, 2026 at 8:16:08 a.m. EDT — `dc11ef570681` fix: decode live issue states safely
 
 - **Implementation commit:** `dc11ef5706814700983fe2cb26623a034b04de97`
