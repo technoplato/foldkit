@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 11:31:17 a.m. EDT — `76bffcc32c33` docs: clarify materialized projections
+
+- **Implementation commit:** `76bffcc32c33b8bfebd2e160fae13f28bb4eff5c`
+- **Change:** Keep materialized entity projections fast, offline, and disposable
+- **Details:**
+  - Defined projection versions, accepted Message positions, content digests, tail folding, explicit offline proposals, projector leases and fencing, rebuild rules, and the ban on direct domain writes to projection entities.
+  - Updated the visual review surface so materialized checkpoints explicitly name their projection version and accepted Message position.
+- **Files:**
+  - `docs/explorations/instantdb-shared-program-processors.md` — Make shared materialized entities a performance projection over the Message journal rather than a second source of truth.
+  - `.lavish/instantdb-program-processor-policies.html` — Expose the rebuildable projection checkpoint rule in the architecture review.
+- **User context (verbatim):**
+  > having snapshots of the different entities in our schema materialized would be nice and performant
+- **SpecStory:** unavailable — This Codex desktop session has no verified SpecStory capture URI.
+
 ## July 30th, 2026 at 11:27:17 a.m. EDT — `c6fdb74d6b17` docs: define shared Program Processors
 
 - **Implementation commit:** `c6fdb74d6b174f6d2938c222e175ba1d75d65bc6`
