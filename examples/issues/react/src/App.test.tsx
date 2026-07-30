@@ -7,7 +7,7 @@ import {
   contributingPath,
 } from '@foldkit/instant-tools/logging'
 
-import { IssueEvidenceRows } from './App.js'
+import { IssueEvidenceRows, IssueFailure } from './App.js'
 
 const evidence = IssueLogEvidence.make({
   category: 'issues',
@@ -75,5 +75,19 @@ describe('Issue evidence rows', () => {
 
     expect(html).toContain('Issue #041')
     expect(html).not.toContain('javascript:')
+  })
+})
+
+describe('Issue failure recovery', () => {
+  it('renders the diagnostic reason and an explicit latest-viewer reload', () => {
+    const html = renderToStaticMarkup(
+      <IssueFailure reason="Observe: Issue collection payload failed to decode." />,
+    )
+
+    expect(html).toContain('The live Issue data could not be read.')
+    expect(html).toContain(
+      'Observe: Issue collection payload failed to decode.',
+    )
+    expect(html).toContain('Reload latest viewer')
   })
 })

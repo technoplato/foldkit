@@ -4,6 +4,7 @@ import { Subscription } from 'foldkit'
 import {
   IssueQuery,
   IssueTracker,
+  type IssueTrackerError,
   ProductCatalog,
   TriageInbox,
 } from '@foldkit/instant-tools/issues'
@@ -26,6 +27,12 @@ import { type Model } from './model.js'
 
 type Resources = IssueTracker | Logger | ProductCatalog | TriageInbox
 
+const issueTrackerFailureReason = (error: IssueTrackerError): string => {
+  const cause =
+    error.cause instanceof Error ? error.cause.message : String(error.cause)
+  return `${error.operation}: ${cause}`
+}
+
 /** Observes the Issue collection, filing catalog, and selected Issue. */
 export const subscriptions = Subscription.make<Model, Message, Resources>()(
   entry => ({
@@ -46,7 +53,9 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
                 Stream.map(issues => ObservedIssues.make({ issues })),
                 Stream.catch(error =>
                   Stream.make(
-                    FailedObserveIssues.make({ reason: String(error) }),
+                    FailedObserveIssues.make({
+                      reason: issueTrackerFailureReason(error),
+                    }),
                   ),
                 ),
               ),
@@ -113,7 +122,7 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
                     Stream.make(
                       FailedObserveIssue.make({
                         issueId,
-                        reason: String(error),
+                        reason: issueTrackerFailureReason(error),
                       }),
                     ),
                   ),
