@@ -53,6 +53,43 @@ export const RecordingMention = S.Struct({
 /** The exact position in one Recording where an Issue was reported. */
 export type RecordingMention = typeof RecordingMention.Type
 
+/** One independently shareable excerpt from a longer Recording. */
+export const RecordingSegment = S.Struct({
+  createdAtMs: S.Number,
+  endMilliseconds: S.Int,
+  id: S.String,
+  publicUrl: S.OptionFromNullOr(S.String),
+  recordingId: S.String,
+  startMilliseconds: S.Int,
+  transcript: S.String,
+})
+/** One independently shareable excerpt from a longer Recording. */
+export type RecordingSegment = typeof RecordingSegment.Type
+
+/** The review state of a transcript-derived Issue candidate. */
+export const TriageCandidateStatus = S.Literals([
+  'Draft',
+  'Dismissed',
+  'Promoted',
+])
+/** The review state of a transcript-derived Issue candidate. */
+export type TriageCandidateStatus = typeof TriageCandidateStatus.Type
+
+/** A transcript-derived draft that cannot become an Issue without promotion. */
+export const TriageCandidate = S.Struct({
+  createdAtMs: S.Number,
+  id: S.String,
+  product: TrackedProduct,
+  segment: RecordingSegment,
+  status: TriageCandidateStatus,
+  suggestedDetails: S.String,
+  suggestedPriority: IssuePriority,
+  suggestedTitle: S.String,
+  updatedAtMs: S.Number,
+})
+/** A transcript-derived draft that cannot become an Issue without promotion. */
+export type TriageCandidate = typeof TriageCandidate.Type
+
 /** A reference to an Agent. */
 export const AgentReference = S.TaggedStruct('Agent', {
   id: S.String,

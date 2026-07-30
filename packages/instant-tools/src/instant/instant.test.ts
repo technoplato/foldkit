@@ -14,7 +14,10 @@ import {
   LibraryProduct,
   ProductCatalogEntry,
   type ProductCatalogService,
+  RecordingSegment,
   RepositoryAttachmentSource,
+  TriageCandidate,
+  type TriageInboxService,
 } from '../issues/index.js'
 import { LogEvent, type LoggerService } from '../logging/index.js'
 import {
@@ -24,9 +27,12 @@ import {
   makeInstantEntityStore,
   makeInstantIssueRecord,
   makeInstantProductRecord,
+  makeInstantRecordingSegmentRecord,
+  makeInstantTriageCandidateRecord,
   makeIssueTracker,
   makeLogger,
   makeProductCatalog,
+  makeTriageInbox,
 } from './instant.js'
 
 const ApplicationSchema = i.schema({
@@ -93,12 +99,40 @@ const event = LogEvent.make({
   timestampMs: 1_753_825_167_000,
 })
 
+const segment = RecordingSegment.make({
+  createdAtMs: 1_753_825_157_000,
+  endMilliseconds: 49_000,
+  id: 'segment-001',
+  publicUrl: Option.some('/segments/segment-001'),
+  recordingId: 'recording-001',
+  startMilliseconds: 42_000,
+  transcript: 'The transcript gutter is hiding the recording time.',
+})
+
+const candidate = TriageCandidate.make({
+  createdAtMs: 1_753_825_157_000,
+  id: 'candidate-001',
+  product: issue.product,
+  segment,
+  status: 'Draft',
+  suggestedDetails: segment.transcript,
+  suggestedPriority: 'P2',
+  suggestedTitle: 'Transcript gutter hides recording time',
+  updatedAtMs: 1_753_825_157_000,
+})
+
 const makeStore = Effect.gen(function* () {
   const issues = yield* Ref.make([makeInstantIssueRecord(issue)])
   const savedIssues = yield* Ref.make<
     ReadonlyArray<ReturnType<typeof makeInstantIssueRecord>>
   >([])
   const logs = yield* Ref.make<ReadonlyArray<unknown>>([])
+  const recordingSegments = yield* Ref.make([
+    makeInstantRecordingSegmentRecord(segment),
+  ])
+  const triageCandidates = yield* Ref.make([
+    makeInstantTriageCandidateRecord(candidate),
+  ])
   const products = yield* Ref.make([
     makeInstantProductRecord(
       ProductCatalogEntry.make({
@@ -127,12 +161,33 @@ const makeStore = Effect.gen(function* () {
         ),
       ),
     observeProducts: Stream.fromEffect(Ref.get(products)),
+    observeRecordingSegment: segmentId =>
+      Stream.fromEffect(
+        Ref.get(recordingSegments).pipe(
+          Effect.map(records =>
+            Array.findFirst(records, record => record.id === segmentId),
+          ),
+        ),
+      ),
+    observeTriageCandidates: Stream.fromEffect(Ref.get(triageCandidates)),
     saveIssue: record =>
       Ref.update(savedIssues, records => [...records, record]),
     saveProduct: record =>
       Ref.update(products, records => [...records, record]),
+    saveRecordingSegment: record =>
+      Ref.update(recordingSegments, records => [...records, record]),
+    saveTriageCandidate: record =>
+      Ref.update(triageCandidates, records => [...records, record]),
   }
-  return { issues, logs, products, savedIssues, store }
+  return {
+    issues,
+    logs,
+    products,
+    recordingSegments,
+    savedIssues,
+    store,
+    triageCandidates,
+  }
 })
 
 describe('Instant adapter', () => {
@@ -259,5 +314,26 @@ describe('Instant adapter', () => {
 
       expect(yield* Ref.get(logs)).toHaveLength(1)
     }),
+  )
+
+  it.effect(
+    'persists and observes transcript candidates and shareable segments',
+    () =>
+      Effect.gen(function* () {
+        const { recordingSegments, store, triageCandidates } = yield* makeStore
+        const inbox: TriageInboxService = makeTriageInbox(store)
+
+        yield* inbox.saveSegment(segment)
+        yield* inbox.saveCandidate(candidate)
+
+        expect(yield* Stream.runCollect(inbox.observeCandidates)).toEqual([
+          [candidate, candidate],
+        ])
+        expect(
+          yield* Stream.runCollect(inbox.observeSegment(segment.id)),
+        ).toEqual([Option.some(segment)])
+        expect(yield* Ref.get(recordingSegments)).toHaveLength(2)
+        expect(yield* Ref.get(triageCandidates)).toHaveLength(2)
+      }),
   )
 })
