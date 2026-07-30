@@ -4,6 +4,48 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 30th, 2026 at 12:31:50 p.m. EDT — `8b58ccd0ff43` feat: improve Wallet usability and live refresh
+
+- **Implementation commit:** `8b58ccd0ff43f9092c61d6e19fb714c83e9b77f6`
+- **Change:** Checkpointed shared Wallet usability, explicit transfer readiness, live balance refresh, and cross-client local-vault discovery across the current web, native, Terminal, and OpenTUI hosts.
+- **Details:**
+  - Asset adapters now declare atomic-unit names and safe small test-transfer amounts, including wei for Ethereum, sats for Bitcoin, lamports for Solana, and MIST for Sui.
+  - Confirmed funding, sends, and observed transactions trigger a balance-only portfolio refresh without discarding history, observation, or selection state.
+  - Persistent local vault services refresh shared storage before reads and signing so running Mac clients can discover Wallets created through another client.
+  - React, Foldkit, React Native, Terminal, and OpenTUI show per-account balances, explicit transfer readiness, button-based send rails, and faucet address-copy behavior.
+  - WIP checkpoint blocker: the OpenTUI source typecheck passes and its unit tests pass, but the process quit integration test timed out at five seconds. QR rendering, Expo native builds, portable credential sync, and the full network/client matrix remain unverified.
+- **Files:**
+  - `examples/react-native-showcase/.gitignore` — Keeps generated native development-client projects out of source control.
+  - `examples/react-native-showcase/app.json` — Defines stable native application identifiers for a later clean Expo development-client build.
+  - `examples/react-native-showcase/package.json` — Adds explicit Expo development-client and native run commands without adding deferred dependencies.
+  - `examples/react-native-showcase/src/wallet/wallet.tsx` — Applies balances, rail buttons, test amounts, readiness, faucet copy behavior, and receiving payloads to React Native.
+  - `examples/wallet/core/src/currency.ts` — Models adapter-owned atomic-unit metadata and suggested test-transfer quantities.
+  - `examples/wallet/core/src/message.ts` — Adds explicit success and failure facts for background balance refreshes.
+  - `examples/wallet/core/src/model.ts` — Tracks balance-refresh work as a typed Wallet operation.
+  - `examples/wallet/core/src/presentation.ts` — Centralizes balance labels, test amounts, and typed transfer-preview readiness for every host.
+  - `examples/wallet/core/src/update.test.ts` — Covers post-funding and observation refreshes, balance merging, and duplicate suppression.
+  - `examples/wallet/core/src/update.ts` — Refreshes balance snapshots after confirmed Wallet activity while preserving the rest of the portfolio.
+  - `examples/wallet/foldkit/src/scene.test.ts` — Exercises balance, rail, test-amount, readiness, receiving-payload, and dynamic selection behavior.
+  - `examples/wallet/foldkit/src/view.ts` — Applies the shared Wallet usability and transfer-readiness contract to the Foldkit host.
+  - `examples/wallet/live-client/src/catalog.ts` — Declares real-chain atomic-unit names and safe suggested test-transfer quantities.
+  - `examples/wallet/local-vault/src/localWalletVault.test.ts` — Proves running vault and signer refresh plus stale-record removal for shared storage.
+  - `examples/wallet/local-vault/src/localWalletVault.ts` — Replaces permanently cached storage with serialized, atomic registry refreshes.
+  - `examples/wallet/node-client/src/index.ts` — Implements sanitized macOS clipboard writes through pbcopy for public Wallet addresses.
+  - `examples/wallet/react/src/App.tsx` — Applies shared balances, rail buttons, readiness, faucet copy behavior, and receiving payloads to React.
+  - `examples/wallet/react/src/styles.css` — Removes embossed styling and styles the new controls and receiving payload surfaces.
+  - `examples/wallet/simulated-client/src/simulatedWallet.ts` — Mirrors chain atomic-unit and test-transfer metadata in the deterministic client.
+  - `examples/wallet/terminal/src/host.ts` — Shows balance, activity, funding, observation, clipboard, and explicit transfer readiness in Terminal.
+  - `examples/wallet/tui/src/host.test.ts` — Covers the newly exposed OpenTUI interactions and status summaries.
+  - `examples/wallet/tui/src/host.tsx` — Adds direct mode and rail selectors, transfer inputs, balances, activity, funding, observation, and faucet copy behavior.
+  - `examples/wallet/tui/src/presentation.ts` — Exposes small-test-amount interaction and visible Wallet status summaries to OpenTUI.
+  - `package.json` — Adds root commands for starting and running the deferred Expo development client.
+- **User context (verbatim):**
+  > show the balance next to the wallet
+  > turn the drop down for sending into buttons
+  > Have the open faucet button copy the wallet's address?
+  > The preview send button is grayed out
+- **SpecStory:** unavailable — This work ran in Codex desktop, and no verified SpecStory capture or durable public URI is available for this GUI task.
+
 ## July 30th, 2026 at 12:12:00 p.m. EDT — `47d207abe621` feat: add shared Program Processors
 
 - **Implementation commit:** `47d207abe6217423f8e26dd14f2b1b5abfe80904`
