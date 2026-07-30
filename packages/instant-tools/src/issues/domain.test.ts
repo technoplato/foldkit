@@ -7,6 +7,7 @@ import {
   IssueAttachment,
   IssueMention,
   type IssuePriority,
+  IssueSourceDocument,
   IssueStatus,
   IssueSuccessCriterion,
   IssueSuccessEvidence,
@@ -120,6 +121,15 @@ describe('issue domain', () => {
     expect(attachment.byteCount).toEqual(Option.none())
     expect(attachment.capturedAtMs).toEqual(Option.none())
     expect(attachment.sha256).toEqual(Option.none())
+  })
+
+  it('defaults a missing legacy source-document location to none', () => {
+    const sourceDocument = S.decodeUnknownSync(IssueSourceDocument)({
+      body: '# Image analysis',
+      format: 'Markdown',
+    })
+
+    expect(sourceDocument.location).toEqual(Option.none())
   })
 
   it('defaults missing legacy Mention metadata to none', () => {

@@ -314,7 +314,9 @@ const OptionalIssueComplexity = S.OptionFromNullOr(IssueComplexity).pipe(
 export const IssueSourceDocument = S.Struct({
   body: S.String,
   format: S.Literal('Markdown'),
-  location: S.OptionFromNullOr(S.String),
+  location: S.OptionFromNullOr(S.String).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+  ),
 })
 /** A lossless human-readable source document imported into the Issue tracker. */
 export type IssueSourceDocument = typeof IssueSourceDocument.Type
