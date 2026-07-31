@@ -1,5 +1,6 @@
 import { Context, Data, Effect, Match as M, Option } from 'effect'
-import { Command, Processor } from 'foldkit'
+import * as Command from 'foldkit/command'
+import * as Processor from 'foldkit/processor'
 
 import {
   type EffectRequestKind,

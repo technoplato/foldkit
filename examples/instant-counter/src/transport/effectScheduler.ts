@@ -7,7 +7,8 @@ import {
   Schema as S,
   Stream,
 } from 'effect'
-import { Command, Runtime } from 'foldkit'
+import * as Command from 'foldkit/command'
+import * as Runtime from 'foldkit/program-runtime'
 
 import {
   type EffectResultProposalInput,

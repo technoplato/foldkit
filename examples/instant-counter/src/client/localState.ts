@@ -1,14 +1,22 @@
 import { Effect, Option, Record, Schema as S } from 'effect'
 
+import type {
+  ActorSequenceRegistry,
+  AttemptedEffectRegistry,
+  ClientIdentity,
+} from '../processorClient/index.js'
 import { randomId } from '../transport/session.js'
 
-const ClientIdentity = S.Struct({
+export type {
+  ActorSequenceRegistry,
+  AttemptedEffectRegistry,
+  ClientIdentity,
+} from '../processorClient/index.js'
+
+const StoredClientIdentity = S.Struct({
   clientId: S.String,
   deviceId: S.String,
 })
-
-/** Stable, non-secret identifiers persisted for one browser installation. */
-export type ClientIdentity = typeof ClientIdentity.Type
 
 const clientIdKey = 'foldkit.instant-counter.client-id.v1'
 const deviceIdKey = 'foldkit.instant-counter.device-id.v1'
@@ -35,16 +43,11 @@ export const loadClientIdentity = (
   clientStorage: Storage = sessionStorage,
   deviceStorage: Storage = localStorage,
 ): ClientIdentity => {
-  return ClientIdentity.make({
+  return StoredClientIdentity.make({
     clientId: loadIdentifier(clientStorage, clientIdKey),
     deviceId: loadIdentifier(deviceStorage, deviceIdKey),
   })
 }
-
-/** Provides a durable at-most-once claim for one local effect request. */
-export type AttemptedEffectRegistry = Readonly<{
-  claim: (idempotencyKey: string) => boolean
-}>
 
 const readAttemptedEffectIds = (storage: Storage): ReadonlyArray<string> => {
   const encoded = storage.getItem(attemptedEffectsKey)
@@ -76,11 +79,6 @@ export const makeAttemptedEffectRegistry = (
     return true
   },
 })
-
-/** A durable per-Client actor sequence that survives browser reloads. */
-export type ActorSequenceRegistry = Readonly<{
-  next: (sessionId: string) => Effect.Effect<number>
-}>
 
 const readActorSequences = (storage: Storage): ActorSequences => {
   const encoded = storage.getItem(actorSequencesKey)

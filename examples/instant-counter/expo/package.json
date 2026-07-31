@@ -1,0 +1,51 @@
+{
+  "name": "instant-counter-expo-example",
+  "private": true,
+  "version": "0.0.0",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "dev-client": "../scripts/with-public-instant-env expo start --dev-client --lan",
+    "export:android": "../scripts/with-public-instant-env expo export --platform android --output-dir dist-android",
+    "export:ios": "../scripts/with-public-instant-env expo export --platform ios --output-dir dist-ios",
+    "predev-client": "pnpm run prepare-shared",
+    "preexport:android": "pnpm run prepare-shared",
+    "preexport:ios": "pnpm run prepare-shared",
+    "prerun:android": "pnpm run prepare-shared",
+    "prerun:ios": "pnpm run prepare-shared",
+    "prestart": "pnpm run prepare-shared",
+    "pretest": "pnpm run prepare-shared",
+    "pretypecheck": "pnpm run prepare-shared",
+    "prepare-shared": "pnpm --filter foldkit build && pnpm --filter @foldkit/instant build && pnpm --filter counter-core-example build && pnpm --filter instant-counter-example build:shared",
+    "run:android": "../scripts/with-public-instant-env expo run:android",
+    "run:ios": "../scripts/with-public-instant-env expo run:ios",
+    "start": "../scripts/with-public-instant-env expo start --dev-client --lan",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "@instantdb/react-native": "1.0.53",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "12.0.1",
+    "counter-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "expo": "~57.0.9",
+    "expo-crypto": "~57.0.1",
+    "expo-dev-client": "~57.0.10",
+    "expo-status-bar": "~57.0.1",
+    "foldkit": "workspace:*",
+    "instant-counter-example": "workspace:*",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-get-random-values": "~1.11.0"
+  },
+  "devDependencies": {
+    "@babel/plugin-transform-object-rest-spread": "^7.29.7",
+    "@types/react": "^19.2.17",
+    "babel-preset-expo": "~57.0.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

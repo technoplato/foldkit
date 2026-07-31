@@ -1,5 +1,5 @@
 import { Array } from 'effect'
-import { Processor } from 'foldkit'
+import * as Processor from 'foldkit/processor'
 
 import {
   InstantProcessorPresence,

@@ -9,6 +9,7 @@
     "instant.perms.ts",
     "instant.schema.ts",
     "src/**/*.ts",
-    "vite.config.ts"
+    "vite.config.ts",
+    "vitest.config.ts"
   ]
 }

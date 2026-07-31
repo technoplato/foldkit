@@ -1,12 +1,14 @@
-import { Array, Option, Schema as S } from 'effect'
+import { Array, Data, Option, Schema as S } from 'effect'
 
 import { InstantProgramSessionRecord } from '@foldkit/instant'
 import { id } from '@instantdb/core'
 
 import type { InstantCounterDatabase } from '../../instant.schema.js'
 import {
+  type Sha256HexDigest,
   authorityProcessorId,
   deriveSessionId,
+  deriveSessionIdWithDigest,
   isProcessorRoomId,
   programId,
   programVersion,
@@ -56,24 +58,44 @@ export const programSessionIdentityFromRecord = (
 }
 
 type ProgramSessionObservation = Readonly<{
+  cancel: () => void
   maybeCachedIdentity: Option.Option<ProgramSessionIdentity>
   session: Promise<ProgramSessionIdentity>
+}>
+
+/** Claiming or observing one authenticated Program session failed. */
+export class ProgramSessionError extends Data.TaggedError(
+  'ProgramSessionError',
+)<{
+  readonly cause: unknown
+  readonly operation: 'ClaimSession' | 'DeriveSessionId' | 'ObserveSession'
+}> {}
+
+/** Options for cancellable, platform-independent Program session selection. */
+export type EnsureProgramSessionOptions = Readonly<{
+  digest?: Sha256HexDigest
+  signal?: AbortSignal
 }>
 
 const observeProgramSession = (
   database: InstantCounterDatabase,
   sessionId: string,
   subjectId: string,
+  signal: AbortSignal | undefined,
 ): ProgramSessionObservation => {
   let isSubscribing = true
   let maybeCachedIdentity: Option.Option<ProgramSessionIdentity> = Option.none()
+  let cancel = (): void => {}
   const session = new Promise<ProgramSessionIdentity>((resolve, reject) => {
     let unsubscribe: (() => void) | undefined
     let isSettled = false
 
     const close = (): void => {
-      if (unsubscribe !== undefined) {
-        unsubscribe()
+      signal?.removeEventListener('abort', abort)
+      const closeSubscription = unsubscribe
+      unsubscribe = undefined
+      if (closeSubscription !== undefined) {
+        closeSubscription()
       }
     }
     const succeed = (identity: ProgramSessionIdentity): void => {
@@ -86,13 +108,24 @@ const observeProgramSession = (
         resolve(identity)
       }
     }
-    const fail = (message: string): void => {
+    const fail = (cause: unknown): void => {
       if (!isSettled) {
         isSettled = true
         close()
-        reject(new Error(message))
+        reject(
+          cause instanceof ProgramSessionError
+            ? cause
+            : new ProgramSessionError({
+                cause,
+                operation: 'ObserveSession',
+              }),
+        )
       }
     }
+    const abort = (): void => {
+      fail(new Error('Program session observation was cancelled.'))
+    }
+    cancel = close
 
     unsubscribe = database.subscribeQuery(
       {
@@ -106,7 +139,7 @@ const observeProgramSession = (
       },
       payload => {
         if (payload.error !== undefined) {
-          fail('Unable to observe the authenticated Program session.')
+          fail(payload.error)
         } else {
           const sessions = Array.getSomes(
             Array.map(payload.data.foldkitProgramSessions, record =>
@@ -121,7 +154,7 @@ const observeProgramSession = (
               session.isRevoked,
           )
           if (Option.isSome(maybeRevokedSession)) {
-            fail('The authenticated Program session has been revoked.')
+            fail(new Error('The authenticated Program session was revoked.'))
           } else {
             const maybeIdentity = Array.head(
               Array.getSomes(
@@ -144,25 +177,59 @@ const observeProgramSession = (
     if (isSettled) {
       close()
     }
+    if (!isSettled) {
+      if (signal?.aborted === true) {
+        abort()
+      } else {
+        signal?.addEventListener('abort', abort, { once: true })
+      }
+    }
   })
   isSubscribing = false
-  return { maybeCachedIdentity, session }
+  return {
+    cancel,
+    maybeCachedIdentity,
+    session,
+  }
 }
 
 /** Claims and joins the headless-materialized session for one authenticated subject. */
 export const ensureProgramSession = async (
   database: InstantCounterDatabase,
   subjectId: string,
+  options: EnsureProgramSessionOptions = {},
 ): Promise<ProgramSessionIdentity> => {
-  const sessionId = await deriveSessionId(subjectId)
-  const observation = observeProgramSession(database, sessionId, subjectId)
-  if (Option.isSome(observation.maybeCachedIdentity)) {
-    return observation.maybeCachedIdentity.value
+  let sessionId: string
+  try {
+    if (options.digest === undefined) {
+      sessionId = await deriveSessionId(subjectId)
+    } else {
+      sessionId = await deriveSessionIdWithDigest(subjectId, options.digest)
+    }
+  } catch (cause) {
+    throw new ProgramSessionError({ cause, operation: 'DeriveSessionId' })
   }
-  const claimedSession = ensureSessionClaim(database, subjectId).then(
-    () => observation.session,
+  const observation = observeProgramSession(
+    database,
+    sessionId,
+    subjectId,
+    options.signal,
   )
-  return Promise.race([observation.session, claimedSession])
+  try {
+    if (Option.isSome(observation.maybeCachedIdentity)) {
+      return observation.maybeCachedIdentity.value
+    }
+    const claimedSession = ensureSessionClaim(database, subjectId, {
+      signal: options.signal,
+    })
+      .catch(cause => {
+        throw new ProgramSessionError({ cause, operation: 'ClaimSession' })
+      })
+      .then(() => observation.session)
+    return await Promise.race([observation.session, claimedSession])
+  } finally {
+    observation.cancel()
+  }
 }
 
 /** Creates an opaque random identifier for one Client, Processor, or proposal. */
