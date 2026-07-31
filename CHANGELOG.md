@@ -4,6 +4,39 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 31st, 2026 at 12:24:18 p.m. EDT — `5050a8dfb808` fix: harden authenticated Counter synchronization
+
+- **Implementation commit:** `5050a8dfb808825649db7bd8fef2924f80b0b7ab`
+- **Change:** Harden authenticated Counter synchronization and verify it live.
+- **Details:**
+  - Added repeatable authenticated live acceptance across two isolated Mac Chrome Clients, including contiguous exactly-once acceptance, reconnect recovery, authority restart, replay isolation, malformed-proposal rejection, owner-only claim refresh, and cross-subject isolation.
+  - Serialized shared Processor transport teardown so in-flight accepted applications drain once, lifecycle waiters complete with their Scope, and stale append or persistence failures cannot replace a completed disconnect.
+  - Verified the deployed Instant Schema and permissions are idempotent, completed the live remote acceptance, and independently confirmed all seven synthetic fixture entity families were empty after cleanup.
+- **Files:**
+  - `.changeset/drain-instant-processor-transports.md` — Declares the shared transport lifecycle fix as a patch release.
+  - `examples/instant-counter/README.md` — Documents the security boundary, live acceptance proof, cleanup behavior, and physical-device and Google limitations.
+  - `examples/instant-counter/instant.perms.ts` — Allows an authenticated owner to refresh only claimedAtMs without reassigning claim ownership.
+  - `examples/instant-counter/package.json` — Adds the live acceptance command and Playwright dependency.
+  - `examples/instant-counter/src/acceptance/browserProbe.ts` — Runs typed authenticated public-client permission probes in isolated browser contexts.
+  - `examples/instant-counter/src/acceptance/liveAcceptance.ts` — Orchestrates the remote two-Client acceptance, adversarial probes, restart, reconnect, and fail-complete cleanup.
+  - `examples/instant-counter/src/acceptance/protocol.ts` — Defines Schema-validated acceptance requests and results.
+  - `examples/instant-counter/src/client/browserApp.ts` — Waits for transport disconnection before presenting a detached snapshot and disabling execution.
+  - `examples/instant-counter/src/client/view.ts` — Exposes stable acceptance state attributes without changing Program state.
+  - `examples/instant-counter/src/headless/authority.ts` — Restricts acceptance authority observation to explicitly selected subjects.
+  - `examples/instant-counter/src/headless/entry.ts` — Threads the optional subject scope through both headless services.
+  - `examples/instant-counter/src/headless/sessionMaterializer.ts` — Restricts acceptance materialization to explicitly selected subjects.
+  - `examples/instant-counter/src/headless/subjectScope.ts` — Models all-subject and acceptance-only headless scopes as a Schema union.
+  - `examples/instant-counter/src/headless/subjectScope.test.ts` — Verifies default, selected, empty, and malformed subject scopes.
+  - `examples/instant-counter/src/shared/permissions.test.ts` — Locks the owner-only claim refresh rule in a focused test.
+  - `examples/instant-counter/src/shared/sessionClaim.ts` — Refreshes only claimedAtMs on an existing subject-owned claim.
+  - `examples/instant-counter/src/shared/sessionClaim.test.ts` — Updates the transaction expectation for the restricted claim refresh.
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.ts` — Implements serialized, generation-aware, Scope-safe shared Processor lifecycle teardown.
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.test.ts` — Covers adversarial duplicate callbacks, interrupted waiters, Scope closure, blocked flushes, and stale failures.
+  - `pnpm-lock.yaml` — Locks the acceptance browser dependency.
+- **User context (verbatim):**
+  > I open a counter on one device, I authenticate through InstantDB, and my messages sync and we reuse the same core counter program.
+- **SpecStory:** unavailable — No durable SpecStory URI is available for this Codex desktop GUI task; no synchronized capture was found, and public sharing was not authorized.
+
 ## July 30th, 2026 at 3:48:04 p.m. EDT — `87bdfdc76138` fix(vault-transfer): harden authenticated Wallet handoff
 
 - **Implementation commit:** `87bdfdc761386b8bb5c778614ffc984fc348440f`
