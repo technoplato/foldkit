@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 31st, 2026 at 4:06:00 p.m. EDT — `a4292a8a5d28` docs: add Foldkit planning foundation
+
+- **Implementation commit:** `a4292a8a5d2800c442cbd145e6fbd6a5f32b2f9d`
+- **Change:** Add the Foldkit engineering, product, system, and execution planning drafts.
+- **Details:**
+  - Establish a reviewable governing baseline for Program portability, Processor capability placement, schema validation, replay safety, release readiness, and future implementation sequencing.
+- **Files:**
+  - `CONSTITUTION.md` — Defines the engineering laws and governance rules that protect Foldkit architecture.
+  - `PRD.md` — Defines product vision, audiences, requirements, horizons, success metrics, and non-goals.
+  - `SRS.md` — Defines system behavior, quality attributes, trust boundaries, and release evidence.
+  - `gpt-pro-suggested-next-tasks.md` — Captures an ordered, checkable plan for converging the repository toward release readiness.
+- **User context (verbatim):**
+  > commit those dirty docs
+- **SpecStory:** unavailable — No durable SpecStory URI is available for this Codex desktop GUI task; public sharing was not authorized.
+
 ## July 31st, 2026 at 3:54:13 p.m. EDT — `1f310b268d24` feat: expose complete Wallet client matrix
 
 - **Implementation commit:** `1f310b268d2422c1adab160f0f0c346009a24b9a`
