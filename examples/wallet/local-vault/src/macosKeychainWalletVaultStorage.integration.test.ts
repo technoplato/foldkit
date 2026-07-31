@@ -1,5 +1,5 @@
 import { Schema as S } from 'effect'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -39,11 +39,10 @@ import {
   liveWalletNetworkDescriptors,
 } from ${JSON.stringify(liveClientModuleUrl)}
 import {
-  localWalletVaultOwnerKey,
   makePersistentLocalWalletVault,
 } from ${JSON.stringify(localVaultModuleUrl)}
 import {
-  makeMacOSKeychainWalletVaultStorage,
+  makeLocalMacOSKeychainWalletVaultStorage,
 } from ${JSON.stringify(keychainStorageModuleUrl)}
 import { AsyncEntry } from '@napi-rs/keyring'
 
@@ -60,9 +59,8 @@ const randomBytes = byteCount => {
   globalThis.crypto.getRandomValues(bytes)
   return bytes
 }
-const storage = makeMacOSKeychainWalletVaultStorage(
+const storage = makeLocalMacOSKeychainWalletVaultStorage(
   entryFactory,
-  localWalletVaultOwnerKey,
   service,
 )
 const vaultLayer = makePersistentLocalWalletVault(randomBytes, storage)
@@ -116,6 +114,63 @@ const runChild = (
   return S.decodeUnknownSync(S.fromJsonString(ChildResult))(result.stdout)
 }
 
+const runChildAsync = (
+  action: 'Create' | 'Load',
+  service: string,
+  walletId: string,
+): Promise<ChildResult> =>
+  new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        childProgram,
+        action,
+        service,
+        walletId,
+      ],
+      {
+        cwd: packageRoot,
+        env: process.env,
+      },
+    )
+    let stdout = ''
+    let stderr = ''
+    const timeout = setTimeout(() => {
+      child.kill()
+      reject(new Error('Keychain concurrency child timed out'))
+    }, 30_000)
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', chunk => {
+      stdout += chunk
+    })
+    child.stderr.on('data', chunk => {
+      stderr += chunk
+    })
+    child.once('error', error => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+    child.once('close', status => {
+      clearTimeout(timeout)
+      if (status === 0) {
+        try {
+          resolve(S.decodeUnknownSync(S.fromJsonString(ChildResult))(stdout))
+        } catch (error) {
+          reject(error)
+        }
+      } else {
+        reject(
+          new Error(
+            `Keychain concurrency child failed with status ${String(status)}: ${stderr}`,
+          ),
+        )
+      }
+    })
+  })
+
 const deleteCredential = async (
   service: string,
   account: string,
@@ -148,6 +203,37 @@ describe.skipIf(!isEnabled)('macOS Keychain Wallet process restoration', () => {
       expect(JSON.stringify(restoredWallets)).not.toContain('keys')
     } finally {
       await deleteCredential(service, walletRecordAccount(walletId))
+      await deleteCredential(service, walletIndexAccount)
+    }
+  })
+
+  it('serializes simultaneous custody writes from separate processes', async () => {
+    const runId = randomUUID()
+    const service = `com.foldkit.wallet.concurrent-proof.${runId}`
+    const firstWalletId = `keychain-concurrent-a-${runId}`
+    const secondWalletId = `keychain-concurrent-b-${runId}`
+
+    try {
+      const [first, second] = await Promise.all([
+        runChildAsync('Create', service, firstWalletId),
+        runChildAsync('Create', service, secondWalletId),
+      ])
+      const restored = runChild('Load', service, firstWalletId)
+      const restoredWallets = S.decodeUnknownSync(S.Array(WalletProfile))(
+        restored.result,
+      )
+      const restoredWalletIds = Array.from(
+        restoredWallets,
+        wallet => wallet.walletId,
+      ).sort()
+
+      expect(first.processId).not.toBe(second.processId)
+      expect(restoredWalletIds).toStrictEqual(
+        [firstWalletId, secondWalletId].sort(),
+      )
+    } finally {
+      await deleteCredential(service, walletRecordAccount(firstWalletId))
+      await deleteCredential(service, walletRecordAccount(secondWalletId))
       await deleteCredential(service, walletIndexAccount)
     }
   })

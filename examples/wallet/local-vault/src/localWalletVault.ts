@@ -74,16 +74,24 @@ import {
 /** A host-provided source of cryptographically secure random bytes. */
 export type WalletRandomBytes = (byteCount: number) => Uint8Array
 
-/** A host-verified owner partition for sensitive local Wallet custody. */
+/** A host-derived owner partition for sensitive local Wallet custody. */
 export const WalletVaultOwnerKey = S.Union([
   S.Literals(['Local']),
   S.String.check(S.isPattern(/^[A-Za-z0-9_-]{43}$/u)),
 ])
-/** A host-verified owner partition for sensitive local Wallet custody. */
+/** A host-derived owner partition for sensitive local Wallet custody. */
 export type WalletVaultOwnerKey = typeof WalletVaultOwnerKey.Type
 
 /** The explicit owner partition for unauthenticated local-only custody. */
 export const localWalletVaultOwnerKey = WalletVaultOwnerKey.make('Local')
+
+/** The concurrency guarantee supplied by one Wallet storage host. */
+export const WalletVaultStorageCustody = S.Literals([
+  'ProcessLocal',
+  'CrossProcessSingleWriter',
+])
+/** The concurrency guarantee supplied by one Wallet storage host. */
+export type WalletVaultStorageCustody = typeof WalletVaultStorageCustody.Type
 
 /** A sanitized host-storage failure containing no record or native cause. */
 export class WalletVaultStorageError extends Data.TaggedError(
@@ -92,13 +100,34 @@ export class WalletVaultStorageError extends Data.TaggedError(
   readonly code: 'Unavailable' | 'InvalidRecord' | 'Conflict'
 }> {}
 
+/** Validates an opaque owner partition after host authentication. */
+export const makeWalletVaultOwnerPartitionKey = (
+  ownerKey: unknown,
+): WalletVaultOwnerKey => {
+  try {
+    const validatedOwnerKey = S.decodeUnknownSync(WalletVaultOwnerKey)(ownerKey)
+    if (validatedOwnerKey === 'Local') {
+      throw new WalletVaultStorageError({ code: 'InvalidRecord' })
+    } else {
+      return validatedOwnerKey
+    }
+  } catch {
+    throw new WalletVaultStorageError({ code: 'InvalidRecord' })
+  }
+}
+
 type WalletVaultStorageFailure = WalletVaultError | WalletVaultStorageError
 
 /** Opaque record persistence supplied by the browser, native, or test host. */
 export type WalletVaultStorage = Readonly<{
   ownerKey: WalletVaultOwnerKey
+  custody: WalletVaultStorageCustody
   loadRecords: Effect.Effect<ReadonlyArray<string>, WalletVaultStorageFailure>
-  saveRecord: (
+  prepareRecord: (
+    walletId: string,
+    createRecord: () => string,
+  ) => Effect.Effect<string, WalletVaultStorageFailure>
+  commitPreparedRecord: (
     walletId: string,
     record: string,
   ) => Effect.Effect<void, WalletVaultStorageFailure>
@@ -197,6 +226,7 @@ const StoredWalletRecordDocumentJson = S.fromJsonString(
 const StoredWalletRecordJson =
   LocalWalletTransferInternal.StoredWalletRecordJson
 const NetworkDescriptorJson = S.fromJsonString(NetworkDescriptor)
+const WalletCreationRequestJson = S.fromJsonString(WalletCreationRequest)
 
 const requiredPrivateKeyByteCount = 32
 const requiredChallengeByteCount = 32
@@ -214,6 +244,9 @@ const invalidKeyMaterial = () =>
 const unavailableVault = () => new WalletVaultError({ code: 'Unavailable' })
 
 const storageConflict = () => new WalletVaultStorageError({ code: 'Conflict' })
+
+const invalidStorageRecord = () =>
+  new WalletVaultStorageError({ code: 'InvalidRecord' })
 
 const unavailableTransfer = () =>
   new WalletTransferRecordPortError({ code: 'Unavailable' })
@@ -404,22 +437,24 @@ const normalizedStoredRecord = (
     ],
   })
 
-const decodeStoredRecord = (
-  encoded: string,
-): Readonly<{ record: StoredWalletRecord; isMigration: boolean }> => {
+const decodeStoredRecord = (encoded: string): StoredWalletRecord => {
   try {
     const document = S.decodeUnknownSync(StoredWalletRecordDocumentJson)(
       encoded,
     )
     if ('version' in document) {
-      return { record: document, isMigration: false }
+      return document
     } else {
-      return { record: normalizedStoredRecord(document), isMigration: true }
+      return normalizedStoredRecord(document)
     }
   } catch {
     throw invalidKeyMaterial()
   }
 }
+
+/** Returns the public Wallet identifier bound to one opaque stored record. */
+export const walletIdForStoredWalletRecord = (encoded: string): string =>
+  decodeStoredRecord(encoded).request.requestId
 
 const encodeStoredRecord = (record: StoredWalletRecord): string =>
   S.encodeSync(StoredWalletRecordJson)(record)
@@ -428,11 +463,17 @@ const createStoredRecord = (
   request: WalletCreationRequest,
   randomBytes: WalletRandomBytes,
 ): StoredWalletRecord => {
+  const requestedChainIds = Array_.filter(requiredTransferChainIds, chainId =>
+    Array_.some(request.networks, network => network.chainId === chainId),
+  )
+  if (Option.isNone(Array_.head(requestedChainIds))) {
+    throw invalidKeyMaterial()
+  }
   return StoredWalletRecord.make({
     version: storedWalletRecordVersion,
     request,
     createdAt: Date.now(),
-    keys: Array_.map(requiredTransferChainIds, chainId =>
+    keys: Array_.map(requestedChainIds, chainId =>
       StoredWalletChainKey.make({
         chainId,
         privateKeyHex: hex.encode(
@@ -441,6 +482,21 @@ const createStoredRecord = (
       }),
     ),
   })
+}
+
+const preparedRecordForRequest = (
+  encoded: string,
+  request: WalletCreationRequest,
+): StoredWalletRecord => {
+  const record = decodeStoredRecord(encoded)
+  if (
+    S.encodeSync(WalletCreationRequestJson)(record.request) !==
+    S.encodeSync(WalletCreationRequestJson)(request)
+  ) {
+    throw invalidKeyMaterial()
+  }
+  loadedWalletForRecord(record)
+  return record
 }
 
 const loadedWalletForRecord = (
@@ -495,9 +551,6 @@ const loadedWalletForRecord = (
 const canonicalTransferRecord = (
   record: StoredWalletRecord,
 ): StoredWalletRecord => {
-  if (Array_.length(record.keys) !== Array_.length(requiredTransferChainIds)) {
-    throw invalidKeyMaterial()
-  }
   const privateKeyHexByChainId = new Map<string, string>()
   for (const key of record.keys) {
     if (
@@ -533,16 +586,6 @@ const canonicalTransferRecord = (
       throw invalidKeyMaterial()
     }
   }
-  for (const chainId of requiredTransferChainIds) {
-    if (
-      !Array_.some(
-        record.request.networks,
-        network => network.chainId === chainId,
-      )
-    ) {
-      throw invalidKeyMaterial()
-    }
-  }
   const canonicalNetworks = Array_.filter(
     liveWalletNetworkDescriptors,
     network => Array_.contains(networkIds, network.networkId),
@@ -552,7 +595,10 @@ const canonicalTransferRecord = (
   ) {
     throw invalidKeyMaterial()
   }
-  const canonicalKeys = Array_.map(requiredTransferChainIds, chainId => {
+  const canonicalChainIds = Array_.filter(requiredTransferChainIds, chainId =>
+    Array_.some(canonicalNetworks, network => network.chainId === chainId),
+  )
+  const canonicalKeys = Array_.map(canonicalChainIds, chainId => {
     const privateKeyHex = privateKeyHexByChainId.get(chainId)
     if (privateKeyHex === undefined) {
       throw invalidKeyMaterial()
@@ -1030,8 +1076,13 @@ const verifyProofForAccount = (
 const makeLocalWalletServices = (
   randomBytes: WalletRandomBytes,
   storage: WalletVaultStorage,
-): Effect.Effect<LocalWalletServices> =>
-  Effect.gen(function* () {
+): Effect.Effect<LocalWalletServices> => {
+  try {
+    S.decodeUnknownSync(WalletVaultOwnerKey)(storage.ownerKey)
+  } catch {
+    throw new WalletVaultStorageError({ code: 'InvalidRecord' })
+  }
+  return Effect.gen(function* () {
     const accountById = new Map<string, LocalWalletAccountCustody>()
     const walletByRequestId = new Map<string, WalletProfile>()
     const registrySemaphore = yield* Semaphore.make(1)
@@ -1042,8 +1093,8 @@ const makeLocalWalletServices = (
         Effect.forEach(records, encoded =>
           Effect.try({
             try: () => {
-              const decoded = decodeStoredRecord(encoded)
-              return loadedWalletForRecord(decoded.record)
+              const record = decodeStoredRecord(encoded)
+              return loadedWalletForRecord(record)
             },
             catch: error =>
               error instanceof WalletVaultError ? error : invalidKeyMaterial(),
@@ -1095,10 +1146,10 @@ const makeLocalWalletServices = (
             Effect.try({
               try: () => {
                 const matchingRecords = Array_.flatMap(records, encoded => {
-                  const decoded = decodeStoredRecord(encoded)
-                  loadedWalletForRecord(decoded.record)
-                  if (decoded.record.request.requestId === walletId) {
-                    return [decoded.record]
+                  const record = decodeStoredRecord(encoded)
+                  loadedWalletForRecord(record)
+                  if (record.request.requestId === walletId) {
+                    return [record]
                   } else {
                     return []
                   }
@@ -1155,13 +1206,13 @@ const makeLocalWalletServices = (
                 Effect.try({
                   try: () => {
                     const matchingRecords = Array_.flatMap(records, encoded => {
-                      const decoded = decodeStoredRecord(encoded)
-                      loadedWalletForRecord(decoded.record)
+                      const record = decodeStoredRecord(encoded)
+                      loadedWalletForRecord(record)
                       if (
-                        decoded.record.request.requestId ===
+                        record.request.requestId ===
                         imported.record.request.requestId
                       ) {
-                        return [decoded.record]
+                        return [record]
                       } else {
                         return []
                       }
@@ -1197,11 +1248,27 @@ const makeLocalWalletServices = (
                 const persist = isExisting
                   ? Effect.void
                   : storage
-                      .saveRecord(
+                      .prepareRecord(
                         imported.record.request.requestId,
-                        imported.encoded,
+                        () => imported.encoded,
                       )
-                      .pipe(Effect.mapError(transferErrorForStorageFailure))
+                      .pipe(
+                        Effect.mapError(transferErrorForStorageFailure),
+                        Effect.flatMap(preparedRecord => {
+                          if (preparedRecord !== imported.encoded) {
+                            return Effect.fail(transferConflict())
+                          } else {
+                            return storage
+                              .commitPreparedRecord(
+                                imported.record.request.requestId,
+                                preparedRecord,
+                              )
+                              .pipe(
+                                Effect.mapError(transferErrorForStorageFailure),
+                              )
+                          }
+                        }),
+                      )
                 return Effect.uninterruptible(
                   persist.pipe(
                     Effect.flatMap(() =>
@@ -1246,42 +1313,52 @@ const makeLocalWalletServices = (
         registrySemaphore.withPermit(
           refreshRegistryUnsafe.pipe(
             Effect.flatMap(() => {
-              const existingWallet = walletByRequestId.get(request.requestId)
-              if (existingWallet !== undefined) {
-                return Effect.succeed(existingWallet)
-              }
-              return Effect.try({
-                try: () => createStoredRecord(request, randomBytes),
-                catch: error =>
-                  error instanceof WalletVaultError
-                    ? error
-                    : unavailableVault(),
-              }).pipe(
-                Effect.flatMap(record => {
-                  const loaded = loadedWalletForRecord(record)
-                  return Effect.uninterruptible(
-                    storage
-                      .saveRecord(
-                        loaded.wallet.walletId,
-                        encodeStoredRecord(record),
-                      )
-                      .pipe(
-                        Effect.mapError(walletVaultErrorForStorageFailure),
-                        Effect.flatMap(() => refreshRegistryUnsafe),
-                        Effect.flatMap(() => {
-                          const storedWallet = walletByRequestId.get(
-                            request.requestId,
-                          )
-                          if (storedWallet === undefined) {
-                            return Effect.fail(unavailableVault())
-                          } else {
-                            return Effect.succeed(storedWallet)
-                          }
-                        }),
-                      ),
-                  )
-                }),
-              )
+              return storage
+                .prepareRecord(request.requestId, () =>
+                  encodeStoredRecord(createStoredRecord(request, randomBytes)),
+                )
+                .pipe(
+                  Effect.mapError(walletVaultErrorForStorageFailure),
+                  Effect.flatMap(preparedRecord =>
+                    Effect.try({
+                      try: () => ({
+                        preparedRecord,
+                        record: preparedRecordForRequest(
+                          preparedRecord,
+                          request,
+                        ),
+                      }),
+                      catch: error =>
+                        error instanceof WalletVaultError
+                          ? error
+                          : unavailableVault(),
+                    }),
+                  ),
+                  Effect.flatMap(({ preparedRecord, record }) => {
+                    const loaded = loadedWalletForRecord(record)
+                    return Effect.uninterruptible(
+                      storage
+                        .commitPreparedRecord(
+                          loaded.wallet.walletId,
+                          preparedRecord,
+                        )
+                        .pipe(
+                          Effect.mapError(walletVaultErrorForStorageFailure),
+                          Effect.flatMap(() => refreshRegistryUnsafe),
+                          Effect.flatMap(() => {
+                            const storedWallet = walletByRequestId.get(
+                              request.requestId,
+                            )
+                            if (storedWallet === undefined) {
+                              return Effect.fail(unavailableVault())
+                            } else {
+                              return Effect.succeed(storedWallet)
+                            }
+                          }),
+                        ),
+                    )
+                  }),
+                )
             }),
           ),
         ),
@@ -1324,6 +1401,7 @@ const makeLocalWalletServices = (
 
     return { vault, signer, crypto, transfer }
   })
+}
 
 /** Builds persistent Wallet custody and transfer Layers over one registry. */
 export const makePersistentLocalWalletResources = (
@@ -1358,25 +1436,66 @@ export const makePersistentLocalWalletVault = (
 
 /** Creates process-local record storage for tests and ephemeral hosts. */
 export const makeMemoryWalletVaultStorage = (
-  ownerKey: WalletVaultOwnerKey,
+  ownerKey: unknown,
 ): WalletVaultStorage => {
-  const records = new Map<string, string>()
+  let validatedOwnerKey: WalletVaultOwnerKey
+  try {
+    validatedOwnerKey = S.decodeUnknownSync(WalletVaultOwnerKey)(ownerKey)
+  } catch {
+    throw new WalletVaultStorageError({ code: 'InvalidRecord' })
+  }
+  const preparedRecords = new Map<string, string>()
+  const visibleWalletIds = new Set<string>()
   return {
-    ownerKey,
-    loadRecords: Effect.sync(() => Array_.fromIterable(records.values())),
-    saveRecord: (walletId, record) => {
-      const existing = records.get(walletId)
-      if (existing === undefined) {
-        records.set(walletId, record)
-        return Effect.void
-      } else if (existing === record) {
-        return Effect.void
-      } else {
-        return Effect.fail(storageConflict())
-      }
-    },
+    ownerKey: validatedOwnerKey,
+    custody: WalletVaultStorageCustody.make('ProcessLocal'),
+    loadRecords: Effect.sync(() =>
+      Array_.flatMap(Array_.fromIterable(visibleWalletIds), walletId => {
+        const record = preparedRecords.get(walletId)
+        return record === undefined ? [] : [record]
+      }),
+    ),
+    prepareRecord: (walletId, createRecord) =>
+      Effect.suspend(() => {
+        const existing = preparedRecords.get(walletId)
+        if (existing !== undefined) {
+          return Effect.succeed(existing)
+        }
+        return Effect.try({
+          try: () => {
+            const record = createRecord()
+            preparedRecords.set(walletId, record)
+            return record
+          },
+          catch: invalidStorageRecord,
+        })
+      }),
+    commitPreparedRecord: (walletId, record) =>
+      Effect.suspend(() => {
+        const existing = preparedRecords.get(walletId)
+        if (existing === undefined) {
+          return Effect.fail(
+            new WalletVaultStorageError({ code: 'InvalidRecord' }),
+          )
+        } else if (existing !== record) {
+          return Effect.fail(storageConflict())
+        } else {
+          visibleWalletIds.add(walletId)
+          return Effect.void
+        }
+      }),
   }
 }
+
+/** Creates process-local record storage for an unauthenticated local owner. */
+export const makeLocalMemoryWalletVaultStorage = (): WalletVaultStorage =>
+  makeMemoryWalletVaultStorage(localWalletVaultOwnerKey)
+
+/** Creates process-local record storage for one host-derived owner partition. */
+export const makeOwnerPartitionMemoryWalletVaultStorage = (
+  ownerKey: unknown,
+): WalletVaultStorage =>
+  makeMemoryWalletVaultStorage(makeWalletVaultOwnerPartitionKey(ownerKey))
 
 /** Builds in-memory Wallet custody and transfer Layers. */
 export const makeLocalWalletResources = (
@@ -1386,7 +1505,7 @@ export const makeLocalWalletResources = (
 > =>
   makePersistentLocalWalletResources(
     randomBytes,
-    makeMemoryWalletVaultStorage(localWalletVaultOwnerKey),
+    makeLocalMemoryWalletVaultStorage(),
   )
 
 /** Builds an in-memory Wallet vault around a platform entropy source. */
@@ -1395,7 +1514,7 @@ export const makeLocalWalletVault = (
 ): Layer.Layer<WalletVault> =>
   makePersistentLocalWalletVault(
     randomBytes,
-    makeMemoryWalletVaultStorage(localWalletVaultOwnerKey),
+    makeLocalMemoryWalletVaultStorage(),
   )
 
 const defaultRandomBytes: WalletRandomBytes = byteCount => {

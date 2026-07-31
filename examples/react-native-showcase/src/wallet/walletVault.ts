@@ -25,6 +25,8 @@ const ExpoSecureStore: ExpoSecureStoreClient = {
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
       keychainService: walletKeychainService,
     }),
+  digestKey: value =>
+    Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value),
 }
 
 /** Persistent native Wallet vault backed by iOS Keychain or Android Keystore. */
