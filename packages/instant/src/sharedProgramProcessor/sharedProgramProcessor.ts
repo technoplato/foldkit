@@ -8,6 +8,7 @@ import {
   HashSet,
   Match as M,
   Option,
+  Order,
   Schema as S,
   Scope,
   Semaphore,
@@ -33,6 +34,8 @@ import {
   type InstantEffectRequestRecord,
   InstantMessageProposalRecord,
   type InstantMessageProposalRecord as InstantMessageProposalRecordType,
+  type InstantMessageProposalResolutionRecord,
+  isInstantMessageProposalKindValid,
 } from '../schema/index.js'
 
 const Detached = S.TaggedStruct('Detached', {})
@@ -53,9 +56,9 @@ const InspectingReplay = S.TaggedStruct('Inspecting', {
   frame: S.Int,
 })
 
-/** Whether the shell displays the live accepted Model or an inert replay frame. */
+/** Whether the shell displays the projected live Model or an inert replay frame. */
 export const SharedProgramReplayMode = S.Union([LiveReplay, InspectingReplay])
-/** Whether the shell displays the live accepted Model or an inert replay frame. */
+/** Whether the shell displays the projected live Model or an inert replay frame. */
 export type SharedProgramReplayMode = typeof SharedProgramReplayMode.Type
 
 /** How far one local proposal has progressed without implying acceptance. */
@@ -109,6 +112,7 @@ export type SharedProgramProcessorSnapshot<Model> = Readonly<{
 /** The subset of a live Foldkit ProgramRuntime consumed by this adapter. */
 export type SharedProgramRuntime<Model, Message, Envelope, ReplayError> =
   Readonly<{
+    project: (model: Model, messages: ReadonlyArray<Message>) => Model
     readModel: () => Model
     replay: Readonly<{
       inspect: (frame: number) => Effect.Effect<Model, ReplayError>
@@ -156,6 +160,12 @@ export type DecodedAcceptedProgramMessage<Message, Envelope> = Readonly<{
   message: Message
 }>
 
+/** A decoded proposed Message and its locally validated provenance envelope. */
+export type DecodedProposedProgramMessage<Message, Envelope> = Readonly<{
+  envelope: Envelope
+  message: Message
+}>
+
 /** Schema-backed encoding and decoding at the Program Message protocol boundary. */
 export type SharedProgramMessageCodec<Message, Envelope> = Readonly<{
   acceptEnvelope: (
@@ -171,6 +181,12 @@ export type SharedProgramMessageCodec<Message, Envelope> = Readonly<{
     occurrence: InstantAcceptedMessageOccurrenceRecord,
   ) => Effect.Effect<
     DecodedAcceptedProgramMessage<Message, Envelope>,
+    SharedProgramCodecError
+  >
+  decodeProposed: (
+    proposal: InstantMessageProposalRecordType,
+  ) => Effect.Effect<
+    DecodedProposedProgramMessage<Message, Envelope>,
     SharedProgramCodecError
   >
   encodeProposed: (
@@ -201,6 +217,10 @@ export type SchemaProgramMessageCodecConfig<Message, Envelope> = Readonly<{
     envelope: Envelope,
     proposal: InstantMessageProposalRecordType,
   ) => Effect.Effect<void, unknown>
+  validateAcceptedEnvelope: (
+    envelope: Envelope,
+    occurrence: InstantAcceptedMessageOccurrenceRecord,
+  ) => Effect.Effect<void, unknown>
 }>
 
 /** A Message or provenance envelope failed its Program-owned Schema. */
@@ -208,7 +228,11 @@ export class SharedProgramCodecError extends Data.TaggedError(
   'SharedProgramCodecError',
 )<{
   readonly cause: unknown
-  readonly operation: 'AcceptEnvelope' | 'DecodeAccepted' | 'EncodeProposed'
+  readonly operation:
+    | 'AcceptEnvelope'
+    | 'DecodeAccepted'
+    | 'DecodeProposed'
+    | 'EncodeProposed'
 }> {}
 
 /** An accepted occurrence escaped the Processor's authenticated Program scope. */
@@ -216,6 +240,16 @@ export class SharedProgramScopeMismatch extends Data.TaggedError(
   'SharedProgramScopeMismatch',
 )<{
   readonly occurrenceId: string
+}> {}
+
+/** A terminal record was not written by the Program session's sequencer. */
+export class SharedProgramAdmissionSequencerMismatch extends Data.TaggedError(
+  'SharedProgramAdmissionSequencerMismatch',
+)<{
+  readonly actualProcessorId: string
+  readonly expectedProcessorId: string
+  readonly recordId: string
+  readonly recordKind: 'AcceptedOccurrence' | 'ProposalResolution'
 }> {}
 
 /** Inert replay inspection failed without dispatching a historical Message. */
@@ -242,6 +276,7 @@ export type SharedProgramProposalError =
 export type SharedProgramProcessorError =
   | AcceptedOccurrenceCursorError
   | ProgramStoreError
+  | SharedProgramAdmissionSequencerMismatch
   | SharedProgramCodecError
   | SharedProgramReplayError
   | SharedProgramScopeMismatch
@@ -253,6 +288,7 @@ export type SharedProgramProcessorConfig<
   Envelope,
   ReplayError,
 > = Readonly<{
+  admissionSequencerProcessorId: string
   actorId: string
   clientId: string
   codec: SharedProgramMessageCodec<Message, Envelope>
@@ -286,7 +322,10 @@ export type EffectResultProposalInput = CorrelatedProposalInput &
     effectRequestId: string
   }>
 
-/** A live Processor bridge that mutates its Model only from accepted occurrences. */
+/**
+ * A live Processor bridge whose runtime Model advances only from accepted
+ * occurrences while its live display projects this Client's pending Messages.
+ */
 export type SharedProgramProcessorService<Model, Message> = Readonly<{
   connect: Effect.Effect<void, SharedProgramProcessorError>
   disconnect: Effect.Effect<void>
@@ -326,6 +365,7 @@ export const makeSchemaProgramMessageCodec = <Message, Envelope>({
   envelopeVersion,
   eventMetadata,
   makeProposedEnvelope,
+  validateAcceptedEnvelope,
   validateProposedEnvelope,
 }: SchemaProgramMessageCodecConfig<
   Message,
@@ -333,29 +373,61 @@ export const makeSchemaProgramMessageCodec = <Message, Envelope>({
 >): SharedProgramMessageCodec<Message, Envelope> => {
   const EnvelopeJson = S.fromJsonString(Envelope)
   const MessageJson = S.fromJsonString(Message)
+  const decodeProposedRecord = (
+    proposal: InstantMessageProposalRecordType,
+    operation: 'AcceptEnvelope' | 'DecodeProposed',
+  ): Effect.Effect<
+    DecodedProposedProgramMessage<Message, Envelope>,
+    SharedProgramCodecError
+  > =>
+    Effect.gen(function* () {
+      const decoded = yield* Effect.try({
+        try: () => ({
+          envelope: S.decodeUnknownSync(EnvelopeJson)(proposal.envelopeJson),
+          message: S.decodeUnknownSync(MessageJson)(proposal.payloadJson),
+        }),
+        catch: cause =>
+          new SharedProgramCodecError({
+            cause,
+            operation,
+          }),
+      })
+      yield* validateProposedEnvelope(decoded.envelope, proposal).pipe(
+        Effect.mapError(
+          cause =>
+            new SharedProgramCodecError({
+              cause,
+              operation,
+            }),
+        ),
+      )
+      yield* Effect.try({
+        try: () => {
+          const metadata = eventMetadata(decoded.message)
+          if (
+            metadata.eventId !== proposal.eventId ||
+            metadata.eventVersion !== proposal.eventVersion
+          ) {
+            throw new Error(
+              'Proposed Message metadata does not match its proposal.',
+            )
+          }
+        },
+        catch: cause =>
+          new SharedProgramCodecError({
+            cause,
+            operation,
+          }),
+      })
+      return decoded
+    })
   return {
     acceptEnvelope: (proposal, input) =>
       Effect.gen(function* () {
-        const envelope = yield* Effect.try({
-          try: () => S.decodeUnknownSync(EnvelopeJson)(proposal.envelopeJson),
-          catch: cause =>
-            new SharedProgramCodecError({
-              cause,
-              operation: 'AcceptEnvelope',
-            }),
-        })
-        yield* validateProposedEnvelope(envelope, proposal).pipe(
-          Effect.mapError(
-            cause =>
-              new SharedProgramCodecError({
-                cause,
-                operation: 'AcceptEnvelope',
-              }),
-          ),
-        )
+        const decoded = yield* decodeProposedRecord(proposal, 'AcceptEnvelope')
         return yield* Effect.try({
           try: () =>
-            S.encodeSync(EnvelopeJson)(acceptEnvelope(envelope, input)),
+            S.encodeSync(EnvelopeJson)(acceptEnvelope(decoded.envelope, input)),
           catch: cause =>
             new SharedProgramCodecError({
               cause,
@@ -364,17 +436,51 @@ export const makeSchemaProgramMessageCodec = <Message, Envelope>({
         })
       }),
     decodeAccepted: occurrence =>
-      Effect.try({
-        try: () => ({
-          envelope: S.decodeUnknownSync(EnvelopeJson)(occurrence.envelopeJson),
-          message: S.decodeUnknownSync(MessageJson)(occurrence.payloadJson),
-        }),
-        catch: cause =>
-          new SharedProgramCodecError({
-            cause,
-            operation: 'DecodeAccepted',
+      Effect.gen(function* () {
+        const decoded = yield* Effect.try({
+          try: () => ({
+            envelope: S.decodeUnknownSync(EnvelopeJson)(
+              occurrence.envelopeJson,
+            ),
+            message: S.decodeUnknownSync(MessageJson)(occurrence.payloadJson),
           }),
+          catch: cause =>
+            new SharedProgramCodecError({
+              cause,
+              operation: 'DecodeAccepted',
+            }),
+        })
+        yield* validateAcceptedEnvelope(decoded.envelope, occurrence).pipe(
+          Effect.mapError(
+            cause =>
+              new SharedProgramCodecError({
+                cause,
+                operation: 'DecodeAccepted',
+              }),
+          ),
+        )
+        yield* Effect.try({
+          try: () => {
+            const metadata = eventMetadata(decoded.message)
+            if (
+              metadata.eventId !== occurrence.eventId ||
+              metadata.eventVersion !== occurrence.eventVersion
+            ) {
+              throw new Error(
+                'Accepted Message metadata does not match its occurrence.',
+              )
+            }
+          },
+          catch: cause =>
+            new SharedProgramCodecError({
+              cause,
+              operation: 'DecodeAccepted',
+            }),
+        })
+        return decoded
       }),
+    decodeProposed: proposal =>
+      decodeProposedRecord(proposal, 'DecodeProposed'),
     encodeProposed: (message, input) =>
       Effect.try({
         try: () => {
@@ -397,6 +503,31 @@ export const makeSchemaProgramMessageCodec = <Message, Envelope>({
       }),
   }
 }
+
+const pendingProposalOrder = Order.combine(
+  Order.mapInput(
+    Order.Number,
+    (pending: PendingProgramProposal) => pending.proposal.actorSequence,
+  ),
+  Order.mapInput(
+    Order.String,
+    (pending: PendingProgramProposal) => pending.proposal.proposalId,
+  ),
+)
+
+const pendingProposalsForProjection = (
+  pendingProposals: ReadonlyArray<PendingProgramProposal>,
+): ReadonlyArray<PendingProgramProposal> =>
+  Array.dedupeWith(
+    Array.sort(pendingProposals, pendingProposalOrder),
+    (left, right) =>
+      left.proposal.proposalId === right.proposal.proposalId ||
+      (left.proposal.proposalKind === 'EffectResult' &&
+        right.proposal.proposalKind === 'EffectResult' &&
+        left.proposal.effectIdempotencyKey !== null &&
+        left.proposal.effectIdempotencyKey ===
+          right.proposal.effectIdempotencyKey),
+  )
 
 const persistenceFromOutcome = (
   outcome: ProgramStoreTransactionOutcome,
@@ -447,6 +578,7 @@ export const makeSharedProgramProcessor = <
   Envelope,
   ReplayError,
 >({
+  admissionSequencerProcessorId,
   actorId,
   clientId,
   codec,
@@ -510,10 +642,14 @@ export const makeSharedProgramProcessor = <
         generation: 0,
       })
     const transportCallbackSemaphore = yield* Semaphore.make(1)
+    const projectionSemaphore = yield* Semaphore.make(1)
     const acceptedEffectIdempotencyKeys = yield* SynchronizedRef.make(
       HashSet.empty<string>(),
     )
     const acceptedProposalIds = yield* SynchronizedRef.make(
+      HashSet.empty<string>(),
+    )
+    const rejectedProposalIds = yield* SynchronizedRef.make(
       HashSet.empty<string>(),
     )
     const initialModel = S.decodeUnknownSync(Model)(runtime.readModel())
@@ -532,6 +668,58 @@ export const makeSharedProgramProcessor = <
       subjectId,
     })
 
+    const projectPendingModel = (
+      acceptedModel: Model,
+      pendingProposals: ReadonlyArray<PendingProgramProposal>,
+    ): Effect.Effect<Model> =>
+      Effect.forEach(
+        pendingProposalsForProjection(pendingProposals),
+        pending =>
+          isInstantMessageProposalKindValid(pending.proposal)
+            ? codec.decodeProposed(pending.proposal).pipe(
+                Effect.match({
+                  onFailure: () => Option.none<Message>(),
+                  onSuccess: decoded => Option.some(decoded.message),
+                }),
+              )
+            : Effect.succeed(Option.none<Message>()),
+        { concurrency: 1 },
+      ).pipe(
+        Effect.map(Array.getSomes),
+        Effect.map(messages => runtime.project(acceptedModel, messages)),
+      )
+
+    const withLiveProjection = (
+      snapshot: SharedProgramProcessorSnapshot<Model>,
+    ): Effect.Effect<SharedProgramProcessorSnapshot<Model>> => {
+      if (snapshot.replayMode._tag === 'Inspecting') {
+        return Effect.succeed(snapshot)
+      } else {
+        return projectPendingModel(
+          snapshot.acceptedModel,
+          snapshot.pendingProposals,
+        ).pipe(
+          Effect.map(displayedModel => ({
+            ...snapshot,
+            displayedModel,
+          })),
+        )
+      }
+    }
+
+    const updateProjectedSnapshot = (
+      update: (
+        snapshot: SharedProgramProcessorSnapshot<Model>,
+      ) => SharedProgramProcessorSnapshot<Model>,
+    ): Effect.Effect<void> =>
+      projectionSemaphore.withPermit(
+        SubscriptionRef.modifyEffect(snapshotRef, snapshot =>
+          withLiveProjection(update(snapshot)).pipe(
+            Effect.map(nextSnapshot => Tuple.make(undefined, nextSnapshot)),
+          ),
+        ),
+      )
+
     const setConnection = (
       connection: SharedProgramConnection,
     ): Effect.Effect<void> =>
@@ -549,9 +737,12 @@ export const makeSharedProgramProcessor = <
         }),
       )
 
-    const runAcceptedOccurrence = (
+    const decodeAcceptedOccurrence = (
       occurrence: InstantAcceptedMessageOccurrenceRecord,
-    ): Effect.Effect<Model, SharedProgramProcessorError> => {
+    ): Effect.Effect<
+      DecodedAcceptedProgramMessage<Message, Envelope>,
+      SharedProgramProcessorError
+    > => {
       if (
         occurrence.programId !== programId ||
         occurrence.programVersion !== programVersion ||
@@ -564,51 +755,62 @@ export const makeSharedProgramProcessor = <
           }),
         )
       }
-      return Effect.gen(function* () {
-        const decoded = yield* codec.decodeAccepted(occurrence)
-        return yield* runtime.run(decoded.message, {
-          envelope: decoded.envelope,
-        })
-      })
+      if (occurrence.acceptingProcessorId !== admissionSequencerProcessorId) {
+        return Effect.fail(
+          new SharedProgramAdmissionSequencerMismatch({
+            actualProcessorId: occurrence.acceptingProcessorId,
+            expectedProcessorId: admissionSequencerProcessorId,
+            recordId: occurrence.occurrenceId,
+            recordKind: 'AcceptedOccurrence',
+          }),
+        )
+      }
+      return codec.decodeAccepted(occurrence)
     }
+
+    const runAcceptedOccurrence = (
+      occurrence: InstantAcceptedMessageOccurrenceRecord,
+    ): Effect.Effect<Model, SharedProgramProcessorError> =>
+      Effect.flatMap(decodeAcceptedOccurrence(occurrence), decoded =>
+        runtime.run(decoded.message, {
+          envelope: decoded.envelope,
+        }),
+      )
 
     const commitAppliedOccurrence = (
       occurrence: InstantAcceptedMessageOccurrenceRecord,
       acceptedModel: Model,
     ): Effect.Effect<void, AcceptedOccurrenceCursorError> =>
-      Effect.gen(function* () {
-        yield* cursor.commit(occurrence)
-        yield* SynchronizedRef.update(acceptedProposalIds, proposalIds =>
-          HashSet.add(proposalIds, occurrence.proposalId),
-        )
-        if (
-          occurrence.proposalKind === 'EffectResult' &&
-          occurrence.effectIdempotencyKey !== null
-        ) {
-          const effectIdempotencyKey = occurrence.effectIdempotencyKey
-          yield* SynchronizedRef.update(
-            acceptedEffectIdempotencyKeys,
-            acceptedKeys => HashSet.add(acceptedKeys, effectIdempotencyKey),
+      projectionSemaphore.withPermit(
+        Effect.gen(function* () {
+          yield* cursor.commit(occurrence)
+          yield* SynchronizedRef.update(acceptedProposalIds, proposalIds =>
+            HashSet.add(proposalIds, occurrence.proposalId),
           )
-        }
-        yield* SubscriptionRef.update(snapshotRef, snapshot => {
-          const nextSnapshot = removeAcceptedProposal(snapshot, occurrence)
-          if (snapshot.replayMode._tag === 'Live') {
-            return {
-              ...nextSnapshot,
-              acceptedModel,
-              acceptedSequence: occurrence.acceptedSequence,
-              displayedModel: acceptedModel,
-            }
-          } else {
-            return {
-              ...nextSnapshot,
-              acceptedModel,
-              acceptedSequence: occurrence.acceptedSequence,
-            }
+          if (
+            occurrence.proposalKind === 'EffectResult' &&
+            occurrence.effectIdempotencyKey !== null
+          ) {
+            const effectIdempotencyKey = occurrence.effectIdempotencyKey
+            yield* SynchronizedRef.update(
+              acceptedEffectIdempotencyKeys,
+              acceptedKeys => HashSet.add(acceptedKeys, effectIdempotencyKey),
+            )
           }
-        })
-      })
+          yield* SubscriptionRef.modifyEffect(snapshotRef, snapshot => {
+            const nextSnapshot = removeAcceptedProposal(snapshot, occurrence)
+            return withLiveProjection({
+              ...nextSnapshot,
+              acceptedModel,
+              acceptedSequence: occurrence.acceptedSequence,
+            }).pipe(
+              Effect.map(projectedSnapshot =>
+                Tuple.make(undefined, projectedSnapshot),
+              ),
+            )
+          })
+        }),
+      )
 
     const drainStagedOccurrences: Effect.Effect<
       void,
@@ -631,10 +833,43 @@ export const makeSharedProgramProcessor = <
       ),
     )
 
+    const recoverCheckpointedAcceptedIdentities = (
+      occurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
+    ): Effect.Effect<void, SharedProgramProcessorError> =>
+      projectionSemaphore.withPermit(
+        Effect.forEach(
+          Array.filter(
+            occurrences,
+            occurrence =>
+              occurrence.acceptedSequence <= throughAcceptedSequence,
+          ),
+          occurrence =>
+            Effect.gen(function* () {
+              yield* decodeAcceptedOccurrence(occurrence)
+              yield* SynchronizedRef.update(acceptedProposalIds, proposalIds =>
+                HashSet.add(proposalIds, occurrence.proposalId),
+              )
+              if (
+                occurrence.proposalKind === 'EffectResult' &&
+                occurrence.effectIdempotencyKey !== null
+              ) {
+                const effectIdempotencyKey = occurrence.effectIdempotencyKey
+                yield* SynchronizedRef.update(
+                  acceptedEffectIdempotencyKeys,
+                  acceptedKeys =>
+                    HashSet.add(acceptedKeys, effectIdempotencyKey),
+                )
+              }
+            }),
+          { concurrency: 1, discard: true },
+        ),
+      )
+
     const ingestSnapshot = (
       occurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
     ): Effect.Effect<void, SharedProgramProcessorError> =>
       Effect.gen(function* () {
+        yield* recoverCheckpointedAcceptedIdentities(occurrences)
         yield* cursor.stage(occurrences)
         yield* drainStagedOccurrences
       })
@@ -642,43 +877,120 @@ export const makeSharedProgramProcessor = <
     const recoverClientProposals = (
       proposals: ReadonlyArray<InstantMessageProposalRecordType>,
     ): Effect.Effect<void> =>
-      Effect.gen(function* () {
-        const acceptedIds = yield* SynchronizedRef.get(acceptedProposalIds)
-        const acceptedEffectKeys = yield* SynchronizedRef.get(
-          acceptedEffectIdempotencyKeys,
-        )
-        const recoverable = Array.filter(
-          proposals,
-          proposal =>
-            proposal.clientId === clientId &&
-            !HashSet.has(acceptedIds, proposal.proposalId) &&
-            (proposal.proposalKind !== 'EffectResult' ||
-              proposal.effectIdempotencyKey === null ||
-              !HashSet.has(acceptedEffectKeys, proposal.effectIdempotencyKey)),
-        )
-        yield* SubscriptionRef.update(snapshotRef, snapshot => ({
-          ...snapshot,
-          pendingProposals: Array.reduce(
-            recoverable,
-            snapshot.pendingProposals,
-            (pendingProposals, proposal) => {
+      projectionSemaphore.withPermit(
+        Effect.gen(function* () {
+          const acceptedIds = yield* SynchronizedRef.get(acceptedProposalIds)
+          const acceptedEffectKeys = yield* SynchronizedRef.get(
+            acceptedEffectIdempotencyKeys,
+          )
+          const rejectedIds = yield* SynchronizedRef.get(rejectedProposalIds)
+          const recoverable = Array.filter(
+            proposals,
+            proposal =>
+              proposal.clientId === clientId &&
+              proposal.programId === programId &&
+              proposal.programVersion === programVersion &&
+              proposal.sessionId === sessionId &&
+              proposal.subjectId === subjectId &&
+              !HashSet.has(acceptedIds, proposal.proposalId) &&
+              !HashSet.has(rejectedIds, proposal.proposalId) &&
+              (proposal.proposalKind !== 'EffectResult' ||
+                proposal.effectIdempotencyKey === null ||
+                !HashSet.has(
+                  acceptedEffectKeys,
+                  proposal.effectIdempotencyKey,
+                )),
+          )
+          const observedProposalIds = HashSet.fromIterable(
+            Array.map(recoverable, proposal => proposal.proposalId),
+          )
+          yield* SubscriptionRef.modifyEffect(snapshotRef, snapshot => {
+            const localProposals = Array.filter(
+              snapshot.pendingProposals,
+              pending =>
+                pending.persistence === 'Local' &&
+                !HashSet.has(
+                  observedProposalIds,
+                  pending.proposal.proposalId,
+                ) &&
+                !HashSet.has(acceptedIds, pending.proposal.proposalId) &&
+                !HashSet.has(rejectedIds, pending.proposal.proposalId),
+            )
+            const observedProposals = Array.map(recoverable, proposal => {
               const maybeExisting = Array.findFirst(
-                pendingProposals,
+                snapshot.pendingProposals,
                 pending => pending.proposal.proposalId === proposal.proposalId,
               )
-              return Option.isSome(maybeExisting)
-                ? pendingProposals
-                : [
-                    ...pendingProposals,
-                    PendingProgramProposal.make({
-                      persistence: 'Enqueued',
-                      proposal,
+              return PendingProgramProposal.make({
+                persistence: Option.match(maybeExisting, {
+                  onNone: () => 'Enqueued',
+                  onSome: pending => pending.persistence,
+                }),
+                proposal,
+              })
+            })
+            return withLiveProjection({
+              ...snapshot,
+              pendingProposals: Array.sort(
+                [...localProposals, ...observedProposals],
+                pendingProposalOrder,
+              ),
+            }).pipe(
+              Effect.map(nextSnapshot => Tuple.make(undefined, nextSnapshot)),
+            )
+          })
+        }),
+      )
+
+    const recoverProposalResolutions = (
+      resolutions: ReadonlyArray<InstantMessageProposalResolutionRecord>,
+    ): Effect.Effect<void, SharedProgramAdmissionSequencerMismatch> =>
+      projectionSemaphore.withPermit(
+        Effect.gen(function* () {
+          const relevant = Array.filter(
+            resolutions,
+            resolution =>
+              resolution.programId === programId &&
+              resolution.programVersion === programVersion &&
+              resolution.sessionId === sessionId &&
+              resolution.subjectId === subjectId,
+          )
+          yield* Effect.forEach(
+            relevant,
+            resolution =>
+              resolution.rejectingProcessorId === admissionSequencerProcessorId
+                ? Effect.void
+                : Effect.fail(
+                    new SharedProgramAdmissionSequencerMismatch({
+                      actualProcessorId: resolution.rejectingProcessorId,
+                      expectedProcessorId: admissionSequencerProcessorId,
+                      recordId: resolution.id,
+                      recordKind: 'ProposalResolution',
                     }),
-                  ]
-            },
-          ),
-        }))
-      })
+                  ),
+            { discard: true },
+          )
+          const nextRejectedIds = yield* SynchronizedRef.updateAndGet(
+            rejectedProposalIds,
+            rejectedIds =>
+              Array.reduce(relevant, rejectedIds, (proposalIds, resolution) =>
+                HashSet.add(proposalIds, resolution.proposalId),
+              ),
+          )
+          yield* SubscriptionRef.modifyEffect(snapshotRef, snapshot =>
+            withLiveProjection({
+              ...snapshot,
+              pendingProposals: Array.filter(
+                snapshot.pendingProposals,
+                pending =>
+                  !HashSet.has(nextRejectedIds, pending.proposal.proposalId),
+              ),
+            }).pipe(
+              Effect.map(nextSnapshot => Tuple.make(undefined, nextSnapshot)),
+            ),
+          )
+        }),
+      )
 
     const whenTransportActive = <Error, Requirements>(
       generation: number,
@@ -710,7 +1022,18 @@ export const makeSharedProgramProcessor = <
     ): Effect.Effect<boolean> =>
       store.appendMessageProposal(pending.proposal).pipe(
         Effect.matchEffect({
-          onFailure: () => Effect.succeed(false),
+          onFailure: error =>
+            error._tag === 'ProgramStoreProposalMutationRejected'
+              ? updateProjectedSnapshot(snapshot => ({
+                  ...snapshot,
+                  pendingProposals: Array.filter(
+                    snapshot.pendingProposals,
+                    candidate =>
+                      candidate.proposal.proposalId !==
+                      pending.proposal.proposalId,
+                  ),
+                })).pipe(Effect.as(false))
+              : Effect.succeed(false),
           onSuccess: outcome =>
             SubscriptionRef.update(snapshotRef, snapshot =>
               updatePendingPersistence(
@@ -985,6 +1308,10 @@ export const makeSharedProgramProcessor = <
                   void,
                   SharedProgramProcessorError
                 >()
+                const resolutionsInitialized = yield* Deferred.make<
+                  void,
+                  SharedProgramProcessorError
+                >()
                 const transportExited = yield* Deferred.make<
                   never,
                   SharedProgramProcessorError
@@ -992,6 +1319,8 @@ export const makeSharedProgramProcessor = <
                 const isFirstAcceptedSnapshot =
                   yield* SynchronizedRef.make(true)
                 const isFirstProposalSnapshot =
+                  yield* SynchronizedRef.make(true)
+                const isFirstResolutionSnapshot =
                   yield* SynchronizedRef.make(true)
                 const observeAccepted = Stream.runForEach(
                   store.observeAcceptedMessageOccurrences({
@@ -1059,22 +1388,33 @@ export const makeSharedProgramProcessor = <
                     subjectId,
                   }),
                   proposals =>
-                    whenTransportActive(
-                      generation,
-                      Effect.gen(function* () {
-                        yield* recoverClientProposals(proposals)
-                        const isFirst = yield* SynchronizedRef.getAndSet(
-                          isFirstProposalSnapshot,
-                          false,
+                    Effect.gen(function* () {
+                      const isFirst = yield* SynchronizedRef.getAndSet(
+                        isFirstProposalSnapshot,
+                        false,
+                      )
+                      if (isFirst) {
+                        yield* Effect.all(
+                          [
+                            Deferred.await(acceptedInitialized),
+                            Deferred.await(resolutionsInitialized),
+                          ],
+                          { concurrency: 'unbounded', discard: true },
                         )
-                        if (isFirst) {
-                          yield* Deferred.succeed(
-                            proposalsInitialized,
-                            undefined,
-                          )
-                        }
-                      }),
-                    ).pipe(Effect.asVoid),
+                      }
+                      yield* whenTransportActive(
+                        generation,
+                        Effect.gen(function* () {
+                          yield* recoverClientProposals(proposals)
+                          if (isFirst) {
+                            yield* Deferred.succeed(
+                              proposalsInitialized,
+                              undefined,
+                            )
+                          }
+                        }),
+                      )
+                    }).pipe(Effect.asVoid),
                 ).pipe(
                   Effect.andThen(Effect.never),
                   Effect.onExit(exit =>
@@ -1086,8 +1426,46 @@ export const makeSharedProgramProcessor = <
                     }),
                   ),
                 )
+                const observeResolutions = Stream.runForEach(
+                  store.observeMessageProposalResolutions({
+                    sessionId,
+                    subjectId,
+                  }),
+                  resolutions =>
+                    whenTransportActive(
+                      generation,
+                      Effect.gen(function* () {
+                        yield* recoverProposalResolutions(resolutions)
+                        const isFirst = yield* SynchronizedRef.getAndSet(
+                          isFirstResolutionSnapshot,
+                          false,
+                        )
+                        if (isFirst) {
+                          yield* Deferred.succeed(
+                            resolutionsInitialized,
+                            undefined,
+                          )
+                        }
+                      }),
+                    ).pipe(Effect.asVoid),
+                ).pipe(
+                  Effect.andThen(Effect.never),
+                  Effect.onExit(exit =>
+                    Effect.gen(function* () {
+                      yield* Deferred.done(transportExited, exit)
+                      if (Exit.isFailure(exit)) {
+                        yield* Deferred.done(resolutionsInitialized, exit)
+                      }
+                    }),
+                  ),
+                )
                 const observerFibers = yield* Effect.forEach(
-                  [observeAccepted, observeConnection, observeProposals],
+                  [
+                    observeAccepted,
+                    observeConnection,
+                    observeProposals,
+                    observeResolutions,
+                  ],
                   observer => Effect.forkIn(observer, scope),
                 )
                 const lifecycle: ActiveTransportLifecycle = {
@@ -1101,6 +1479,7 @@ export const makeSharedProgramProcessor = <
                     Deferred.await(acceptedInitialized),
                     Deferred.await(connectionInitialized),
                     Deferred.await(proposalsInitialized),
+                    Deferred.await(resolutionsInitialized),
                   ],
                   {
                     concurrency: 'unbounded',
@@ -1174,17 +1553,39 @@ export const makeSharedProgramProcessor = <
 
     const appendPending = (
       proposal: InstantMessageProposalRecordType,
-    ): Effect.Effect<void> =>
-      SubscriptionRef.update(snapshotRef, snapshot => ({
-        ...snapshot,
-        pendingProposals: [
-          ...snapshot.pendingProposals,
-          PendingProgramProposal.make({
-            persistence: 'Local',
-            proposal,
-          }),
-        ],
-      }))
+    ): Effect.Effect<boolean> =>
+      projectionSemaphore.withPermit(
+        Effect.gen(function* () {
+          const acceptedKeys = yield* SynchronizedRef.get(
+            acceptedEffectIdempotencyKeys,
+          )
+          if (
+            proposal.proposalKind === 'EffectResult' &&
+            proposal.effectIdempotencyKey !== null &&
+            HashSet.has(acceptedKeys, proposal.effectIdempotencyKey)
+          ) {
+            return false
+          }
+          yield* SubscriptionRef.modifyEffect(snapshotRef, snapshot =>
+            withLiveProjection({
+              ...snapshot,
+              pendingProposals: Array.sort(
+                [
+                  ...snapshot.pendingProposals,
+                  PendingProgramProposal.make({
+                    persistence: 'Local',
+                    proposal,
+                  }),
+                ],
+                pendingProposalOrder,
+              ),
+            }).pipe(
+              Effect.map(nextSnapshot => Tuple.make(undefined, nextSnapshot)),
+            ),
+          )
+          return true
+        }),
+      )
 
     const proposeWithKind = (
       message: Message,
@@ -1266,16 +1667,8 @@ export const makeSharedProgramProcessor = <
           sessionId,
           subjectId,
         })
-        const acceptedKeys = yield* SynchronizedRef.get(
-          acceptedEffectIdempotencyKeys,
-        )
-        const isAcceptedEffectResult = Option.match(effectResult, {
-          onNone: () => false,
-          onSome: result =>
-            HashSet.has(acceptedKeys, result.effectIdempotencyKey),
-        })
-        if (!isAcceptedEffectResult) {
-          yield* appendPending(proposal)
+        const didAppend = yield* appendPending(proposal)
+        if (didAppend) {
           const lifecycle = yield* SynchronizedRef.get(transportLifecycleRef)
           const maybeTransportGeneration =
             lifecycle._tag === 'Active'
@@ -1300,26 +1693,27 @@ export const makeSharedProgramProcessor = <
     const inspectReplay = (
       frame: number,
     ): Effect.Effect<void, SharedProgramReplayError> =>
-      runtime.replay.inspect(frame).pipe(
-        Effect.mapError(
-          cause =>
-            new SharedProgramReplayError({
-              cause,
-              frame,
-            }),
-        ),
-        Effect.flatMap(displayedModel =>
-          SubscriptionRef.update(snapshotRef, snapshot => ({
-            ...snapshot,
-            displayedModel,
-            replayMode: InspectingReplay.make({ frame }),
-          })),
+      projectionSemaphore.withPermit(
+        runtime.replay.inspect(frame).pipe(
+          Effect.mapError(
+            cause =>
+              new SharedProgramReplayError({
+                cause,
+                frame,
+              }),
+          ),
+          Effect.flatMap(displayedModel =>
+            SubscriptionRef.update(snapshotRef, snapshot => ({
+              ...snapshot,
+              displayedModel,
+              replayMode: InspectingReplay.make({ frame }),
+            })),
+          ),
         ),
       )
 
-    const returnLive = SubscriptionRef.update(snapshotRef, snapshot => ({
+    const returnLive = updateProjectedSnapshot(snapshot => ({
       ...snapshot,
-      displayedModel: snapshot.acceptedModel,
       replayMode: LiveReplay.make({}),
     }))
 

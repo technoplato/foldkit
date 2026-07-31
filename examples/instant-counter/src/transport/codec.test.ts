@@ -191,6 +191,49 @@ const accept = (
   })
 
 describe('Instant counter Message codec', () => {
+  it('decodes a valid proposed Message through the versioned Program registry', async () => {
+    const proposal = await makeProposal()
+
+    const decoded = await Effect.runPromise(codec.decodeProposed(proposal))
+
+    expect(decoded.message).toStrictEqual(ClickedIncrement())
+    expect(decoded.envelope.occurrenceId).toBe(proposal.occurrenceId)
+  })
+
+  it('projects every schema-valid Message without a per-Message allowlist', async () => {
+    const proposal = await makeProposal()
+    const malformed = InstantMessageProposalRecord.make({
+      ...proposal,
+      payloadJson: S.encodeSync(JsonString)([]),
+    })
+    const authorityOwned = await makeProposal(
+      AssignedEffect({
+        kind: 'DeviceTimer',
+        processorId: 'processor-browser',
+        requestId: 'timer-1',
+      }),
+    )
+
+    const malformedError = await Effect.runPromise(
+      Effect.flip(codec.decodeProposed(malformed)),
+    )
+    const decodedAuthorityOwned = await Effect.runPromise(
+      codec.decodeProposed(authorityOwned),
+    )
+
+    expect(malformedError).toMatchObject({
+      _tag: 'SharedProgramCodecError',
+      operation: 'DecodeProposed',
+    })
+    expect(decodedAuthorityOwned.message).toStrictEqual(
+      AssignedEffect({
+        kind: 'DeviceTimer',
+        processorId: 'processor-browser',
+        requestId: 'timer-1',
+      }),
+    )
+  })
+
   it('preserves causal provenance and stamps only acceptance fields', async () => {
     const proposal = await makeProposal()
     const acceptedJson = await Effect.runPromise(accept(proposal))
@@ -287,7 +330,7 @@ describe('Instant counter Message codec', () => {
     expect(decoded.message).toStrictEqual(ClickedIncrement())
   })
 
-  it('rejects authority-owned placement facts from an authenticated Client', async () => {
+  it('admits every ordinary schema-valid Message without a tag allowlist', async () => {
     const proposal = await makeProposal(
       AssignedEffect({
         kind: 'DeviceTimer',
@@ -295,12 +338,10 @@ describe('Instant counter Message codec', () => {
         requestId: 'timer-1',
       }),
     )
-    const error = await Effect.runPromise(Effect.flip(accept(proposal)))
+    const acceptedJson = await Effect.runPromise(accept(proposal))
+    const accepted = S.decodeUnknownSync(EnvelopeJson)(acceptedJson)
 
-    expect(error).toMatchObject({
-      _tag: 'SharedProgramCodecError',
-      operation: 'AcceptEnvelope',
-    })
+    expect(accepted.acceptedSequence).toStrictEqual(Option.some(1))
   })
 
   it('accepts a browser effect result from its authenticated assigned Processor', async () => {

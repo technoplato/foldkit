@@ -38,14 +38,14 @@ class MemoryStorage implements Storage {
 }
 
 describe('browser local protocol state', () => {
-  it('keeps a device identity across Clients but isolates Client identity by tab', () => {
+  it('keeps one Client identity across reloads and isolates browser profiles', () => {
     const deviceStorage = new MemoryStorage()
-    const firstTab = new MemoryStorage()
-    const secondTab = new MemoryStorage()
+    const firstProfile = new MemoryStorage()
+    const secondProfile = new MemoryStorage()
 
-    const firstClient = loadClientIdentity(firstTab, deviceStorage)
-    const reloadedClient = loadClientIdentity(firstTab, deviceStorage)
-    const secondClient = loadClientIdentity(secondTab, deviceStorage)
+    const firstClient = loadClientIdentity(firstProfile, deviceStorage)
+    const reloadedClient = loadClientIdentity(firstProfile, deviceStorage)
+    const secondClient = loadClientIdentity(secondProfile, deviceStorage)
 
     expect(reloadedClient).toStrictEqual(firstClient)
     expect(secondClient.deviceId).toBe(firstClient.deviceId)

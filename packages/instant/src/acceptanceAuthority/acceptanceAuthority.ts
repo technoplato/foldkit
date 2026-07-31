@@ -4,6 +4,7 @@ import {
   Effect,
   HashMap,
   HashSet,
+  Match as M,
   Option,
   Order,
   Schema as S,
@@ -11,6 +12,7 @@ import {
   SynchronizedRef,
   Tuple,
 } from 'effect'
+import { Processor } from 'foldkit'
 
 import { makeAcceptedOccurrencePositionKey } from '../acceptedOccurrenceCursor/index.js'
 import type {
@@ -24,8 +26,25 @@ import {
   type InstantEffectPlacementRecord as InstantEffectPlacementRecordType,
   type InstantEffectRequestRecord,
   type InstantMessageProposalRecord,
+  InstantMessageProposalRejectionReason,
+  InstantMessageProposalResolutionRecord,
+  type InstantMessageProposalResolutionRecord as InstantMessageProposalResolutionRecordType,
   type InstantProgramSessionRecord,
+  isInstantMessageProposalKindValid,
 } from '../schema/index.js'
+
+/** The portable admission-sequencing role. Advertising it grants no store authority. */
+export const AdmissionSequencerCapability = Processor.Capability.make({
+  id: Processor.CapabilityId.make(['Foldkit', 'Admission', 'Sequence']),
+  version: 1,
+})
+
+/** The portable placement requirement for the admission sequencer role. */
+export const AdmissionSequencerCapabilityRequirement =
+  Processor.CapabilityRequirement.make({
+    id: AdmissionSequencerCapability.id,
+    minimumVersion: 1,
+  })
 
 const acceptedOccurrenceJson = S.fromJsonString(
   InstantAcceptedMessageOccurrenceRecord,
@@ -180,6 +199,23 @@ export class AcceptanceAuthorityWriteNotSynced extends Data.TaggedError(
   readonly occurrenceId: string
 }> {}
 
+/** Instant retained a terminal rejection locally instead of synchronizing it. */
+export class AdmissionSequencerResolutionWriteNotSynced extends Data.TaggedError(
+  'AdmissionSequencerResolutionWriteNotSynced',
+)<{
+  readonly clientId: string
+  readonly proposalId: string
+}> {}
+
+/** A terminal rejection did not come from the session's designated sequencer. */
+export class AdmissionSequencerResolutionProcessorMismatch extends Data.TaggedError(
+  'AdmissionSequencerResolutionProcessorMismatch',
+)<{
+  readonly actualProcessorId: string
+  readonly expectedProcessorId: string
+  readonly proposalId: string
+}> {}
+
 /** An effect placement history reused a generation with different contents. */
 export class AcceptanceAuthorityPlacementConflict extends Data.TaggedError(
   'AcceptanceAuthorityPlacementConflict',
@@ -198,6 +234,8 @@ export class AcceptanceAuthorityEnvelopeError extends Data.TaggedError(
 
 /** A deterministic acceptance authority operation failed. */
 export type AcceptanceAuthorityError =
+  | AdmissionSequencerResolutionProcessorMismatch
+  | AdmissionSequencerResolutionWriteNotSynced
   | AcceptanceAuthorityChanged
   | AcceptanceAuthorityEffectResultMismatch
   | AcceptanceAuthorityEnvelopeError
@@ -212,6 +250,9 @@ export type AcceptanceAuthorityError =
   | AcceptanceAuthorityWriteNotSynced
   | ProgramStoreError
 
+/** A portable admission sequencer operation failed. */
+export type AdmissionSequencerError = AcceptanceAuthorityError
+
 /** A semantically invalid proposal reported without terminating authority intake. */
 export type AcceptanceAuthorityProposalRejection =
   | AcceptanceAuthorityEffectResultMismatch
@@ -219,6 +260,53 @@ export type AcceptanceAuthorityProposalRejection =
   | AcceptanceAuthorityIdentityConflict
   | AcceptanceAuthorityProposalKindMismatch
   | AcceptanceAuthorityScopeMismatch
+
+/** A semantically invalid proposal rejected by a portable admission sequencer. */
+export type AdmissionSequencerProposalRejection =
+  AcceptanceAuthorityProposalRejection
+
+/** Maps an internal rejection to the safe reason persisted for every Processor. */
+export const messageProposalRejectionReason = (
+  rejection: AdmissionSequencerProposalRejection,
+): InstantMessageProposalRejectionReason =>
+  M.value(rejection).pipe(
+    M.tagsExhaustive({
+      AcceptanceAuthorityEffectResultMismatch: () =>
+        InstantMessageProposalRejectionReason.make('EffectResultMismatch'),
+      AcceptanceAuthorityEnvelopeError: () =>
+        InstantMessageProposalRejectionReason.make('EnvelopeInvalid'),
+      AcceptanceAuthorityIdentityConflict: () =>
+        InstantMessageProposalRejectionReason.make('IdentityConflict'),
+      AcceptanceAuthorityProposalKindMismatch: () =>
+        InstantMessageProposalRejectionReason.make('ProposalKindMismatch'),
+      AcceptanceAuthorityScopeMismatch: () =>
+        InstantMessageProposalRejectionReason.make('ScopeMismatch'),
+    }),
+  )
+
+/** Constructs the immutable terminal rejection for one Message proposal. */
+export const makeMessageProposalRejectionResolution = ({
+  proposal,
+  rejectedAtMs,
+  rejection,
+  session,
+}: Readonly<{
+  proposal: InstantMessageProposalRecord
+  rejectedAtMs: number
+  rejection: AdmissionSequencerProposalRejection
+  session: InstantProgramSessionRecord
+}>): InstantMessageProposalResolutionRecordType =>
+  InstantMessageProposalResolutionRecord.make({
+    id: proposal.proposalId,
+    programId: session.programId,
+    programVersion: session.programVersion,
+    proposalId: proposal.proposalId,
+    rejectedAtMs,
+    rejectingProcessorId: session.authorityProcessorId,
+    rejectionReason: messageProposalRejectionReason(rejection),
+    sessionId: session.sessionId,
+    subjectId: session.subjectId,
+  })
 
 /** Values supplied while converting proposed provenance into accepted provenance. */
 export type AcceptEnvelopeInput = Readonly<{
@@ -228,8 +316,8 @@ export type AcceptEnvelopeInput = Readonly<{
   effectRequest?: InstantEffectRequestRecord | undefined
 }>
 
-/** Configuration for one explicitly single-writer acceptance authority. */
-export type AcceptanceAuthorityConfig = Readonly<{
+/** Configuration for the portable single-writer admission sequencer role. */
+export type AdmissionSequencerConfig = Readonly<{
   acceptEnvelope: (
     proposal: InstantMessageProposalRecord,
     input: AcceptEnvelopeInput,
@@ -243,8 +331,11 @@ export type AcceptanceAuthorityConfig = Readonly<{
   store: ProgramStoreService
 }>
 
-/** The single authority that deterministically admits proposals for one session. */
-export type AcceptanceAuthorityService = Readonly<{
+/** Compatibility name for admission sequencer configuration. */
+export type AcceptanceAuthorityConfig = AdmissionSequencerConfig
+
+/** A portable role that orders and admits proposals without owning Program execution. */
+export type AdmissionSequencerService = Readonly<{
   admit: (
     proposal: InstantMessageProposalRecord,
   ) => Effect.Effect<
@@ -265,6 +356,9 @@ export type AcceptanceAuthorityService = Readonly<{
   ) => Effect.Effect<void, AcceptanceAuthorityScopeMismatch>
   run: Effect.Effect<never, AcceptanceAuthorityError>
 }>
+
+/** Compatibility name for the portable admission sequencer service. */
+export type AcceptanceAuthorityService = AdmissionSequencerService
 
 const emptyAuthorityState = (): AuthorityState => ({
   acceptedByEffectIdempotencyKey: HashMap.empty(),
@@ -312,22 +406,7 @@ const scopeMismatch = (
 const validateProposalKind = (
   proposal: InstantMessageProposalRecord,
 ): Effect.Effect<void, AcceptanceAuthorityProposalKindMismatch> => {
-  const hasCompleteEffectFields =
-    proposal.effectAssignmentGeneration !== null &&
-    proposal.effectCancellationGeneration !== null &&
-    proposal.effectIdempotencyKey !== null &&
-    proposal.effectRequestId !== null &&
-    proposal.executorProcessorId !== null
-  const hasNoEffectFields =
-    proposal.effectAssignmentGeneration === null &&
-    proposal.effectCancellationGeneration === null &&
-    proposal.effectIdempotencyKey === null &&
-    proposal.effectRequestId === null &&
-    proposal.executorProcessorId === null
-  if (
-    (proposal.proposalKind === 'Message' && hasNoEffectFields) ||
-    (proposal.proposalKind === 'EffectResult' && hasCompleteEffectFields)
-  ) {
+  if (isInstantMessageProposalKindValid(proposal)) {
     return Effect.void
   } else {
     return Effect.fail(
@@ -842,20 +921,23 @@ const isProposalRejection = (
   error._tag === 'AcceptanceAuthorityProposalKindMismatch' ||
   error._tag === 'AcceptanceAuthorityScopeMismatch'
 
-/** Creates a recoverable, explicitly single-writer acceptance authority. */
-export const makeAcceptanceAuthority = ({
+/** Creates a portable sequencer for ordering and admission, not Program execution. */
+export const makeAdmissionSequencer = ({
   acceptEnvelope,
   now,
   onProposalRejected = () => Effect.void,
   session,
   store,
-}: AcceptanceAuthorityConfig): Effect.Effect<AcceptanceAuthorityService> =>
+}: AdmissionSequencerConfig): Effect.Effect<AdmissionSequencerService> =>
   Effect.gen(function* () {
     const stateRef = yield* SynchronizedRef.make<AuthorityState>({
       ...emptyAuthorityState(),
       maybeCurrentSession: Option.some(session),
     })
     const unsyncedAcceptedOccurrenceIds = yield* SynchronizedRef.make(
+      HashSet.empty<string>(),
+    )
+    const synchronizedResolutionProposalIdsRef = yield* SynchronizedRef.make(
       HashSet.empty<string>(),
     )
 
@@ -1094,6 +1176,36 @@ export const makeAcceptanceAuthority = ({
         }),
       )
 
+    const rejectProposal = (
+      proposal: InstantMessageProposalRecord,
+      rejection: AdmissionSequencerProposalRejection,
+    ): Effect.Effect<
+      void,
+      AdmissionSequencerResolutionWriteNotSynced | ProgramStoreError
+    > =>
+      Effect.gen(function* () {
+        const resolution = makeMessageProposalRejectionResolution({
+          proposal,
+          rejectedAtMs: now(),
+          rejection,
+          session,
+        })
+        const outcome = yield* store.appendMessageProposalResolution(resolution)
+        if (outcome._tag === 'Enqueued') {
+          return yield* Effect.fail(
+            new AdmissionSequencerResolutionWriteNotSynced({
+              clientId: outcome.clientId,
+              proposalId: proposal.proposalId,
+            }),
+          )
+        }
+        yield* SynchronizedRef.update(
+          synchronizedResolutionProposalIdsRef,
+          proposalIds => HashSet.add(proposalIds, proposal.proposalId),
+        )
+        yield* onProposalRejected(proposal, rejection)
+      })
+
     const scope = {
       sessionId: session.sessionId,
       subjectId: session.subjectId,
@@ -1106,7 +1218,10 @@ export const makeAcceptanceAuthority = ({
         ),
         Stream.zipLatest(
           store.observeEffectPlacements(scope),
-          store.observeMessageProposals(scope),
+          Stream.zipLatest(
+            store.observeMessageProposals(scope),
+            store.observeMessageProposalResolutions(scope),
+          ),
         ),
       ),
       Stream.zipLatest(
@@ -1117,7 +1232,10 @@ export const makeAcceptanceAuthority = ({
     const run = Stream.runForEach(
       snapshots,
       ([
-        [[occurrences, effectRequests], [effectPlacements, proposals]],
+        [
+          [occurrences, effectRequests],
+          [effectPlacements, [proposals, proposalResolutions]],
+        ],
         [sessions, connectionStatus],
       ]) =>
         Effect.gen(function* () {
@@ -1131,11 +1249,52 @@ export const makeAcceptanceAuthority = ({
           yield* recoverEffectRequests(effectRequests)
           yield* recoverEffectPlacements(effectPlacements)
           yield* Effect.forEach(
+            proposalResolutions,
+            (
+              resolution,
+            ): Effect.Effect<
+              void,
+              | AcceptanceAuthorityScopeMismatch
+              | AdmissionSequencerResolutionProcessorMismatch
+            > => {
+              const maybeScopeMismatch = scopeMismatch(session, resolution)
+              if (Option.isSome(maybeScopeMismatch)) {
+                return Effect.fail(maybeScopeMismatch.value)
+              } else if (
+                resolution.rejectingProcessorId !== session.authorityProcessorId
+              ) {
+                return Effect.fail(
+                  new AdmissionSequencerResolutionProcessorMismatch({
+                    actualProcessorId: resolution.rejectingProcessorId,
+                    expectedProcessorId: session.authorityProcessorId,
+                    proposalId: resolution.proposalId,
+                  }),
+                )
+              } else {
+                return Effect.void
+              }
+            },
+            { discard: true },
+          )
+          const synchronizedResolutionProposalIds = yield* SynchronizedRef.get(
+            synchronizedResolutionProposalIdsRef,
+          )
+          const resolvedProposalIds = Array.reduce(
+            proposalResolutions,
+            synchronizedResolutionProposalIds,
+            (nextProposalIds, resolution) =>
+              HashSet.add(nextProposalIds, resolution.proposalId),
+          )
+          const unresolvedProposals = Array.filter(
             Array.sort(proposals, proposalOrder),
+            proposal => !HashSet.has(resolvedProposalIds, proposal.proposalId),
+          )
+          yield* Effect.forEach(
+            unresolvedProposals,
             proposal =>
               admit(proposal).pipe(
                 Effect.catchIf(isProposalRejection, rejection =>
-                  onProposalRejected(proposal, rejection),
+                  rejectProposal(proposal, rejection),
                 ),
               ),
             {
@@ -1154,3 +1313,6 @@ export const makeAcceptanceAuthority = ({
       run,
     }
   })
+
+/** Compatibility constructor for the portable admission sequencer. */
+export const makeAcceptanceAuthority = makeAdmissionSequencer

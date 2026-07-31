@@ -109,47 +109,19 @@ const assertEnvelopeMatchesProposal = (
   }
 }
 
-const assertMessageAuthority = (
+const assertAcceptedMessageProvenance = (
   message: Message,
   envelope: Processor.MessageEnvelope,
   proposal: import('@foldkit/instant').InstantMessageProposalRecord,
-  acceptingProcessorId: string,
   effectRequest: InstantEffectRequestRecord | undefined,
 ): void => {
-  if (
-    message._tag === 'ClickedDecrement' ||
-    message._tag === 'ClickedIncrement' ||
-    message._tag === 'ClickedReset' ||
-    message._tag === 'RequestedEffect'
-  ) {
-    if (
-      envelope.actor._tag !== 'Authenticated' ||
-      proposal.proposalKind !== 'Message'
-    ) {
-      throw new Error(
-        'A user-originated domain Message requires an authenticated actor.',
-      )
-    }
+  if (proposal.proposalKind === 'Message') {
     return
   }
-  if (
-    message._tag === 'AssignedEffect' ||
-    message._tag === 'WaitedForEffectProcessor' ||
-    message._tag === 'RejectedEffect'
-  ) {
-    if (
-      envelope.actor._tag !== 'System' ||
-      envelope.actor.processorId !== acceptingProcessorId ||
-      proposal.proposalKind !== 'Message'
-    ) {
-      throw new Error(
-        'An effect placement fact requires the current acceptance authority.',
-      )
-    }
-    return
+  if (message._tag !== 'SucceededEffect' && message._tag !== 'FailedEffect') {
+    throw new Error('An effect result requires a result Message.')
   }
   if (
-    proposal.proposalKind !== 'EffectResult' ||
     proposal.executorProcessorId === null ||
     effectRequest === undefined ||
     effectRequest.effectId !== effectIdForKind(message.kind) ||
@@ -251,22 +223,22 @@ export const makeMessageCodec = (
         envelope: proposed.envelopeWire,
         payload: proposed.payloadWire,
       }).pipe(
-        Effect.mapError(
-          cause =>
+        Effect.catchCause(cause =>
+          Effect.fail(
             new SharedProgramCodecError({
               cause,
               operation: 'AcceptEnvelope',
             }),
+          ),
         ),
       )
       return yield* Effect.try({
         try: () => {
           assertEnvelopeMatchesProposal(proposed.envelope, proposal)
-          assertMessageAuthority(
+          assertAcceptedMessageProvenance(
             decoded.message,
             proposed.envelope,
             proposal,
-            input.acceptingProcessorId,
             input.effectRequest,
           )
           return S.encodeSync(EnvelopeJson)(
@@ -307,12 +279,13 @@ export const makeMessageCodec = (
         envelope,
         payload,
       }).pipe(
-        Effect.mapError(
-          cause =>
+        Effect.catchCause(cause =>
+          Effect.fail(
             new SharedProgramCodecError({
               cause,
               operation: 'DecodeAccepted',
             }),
+          ),
         ),
       )
       yield* Effect.try({
@@ -322,6 +295,50 @@ export const makeMessageCodec = (
           new SharedProgramCodecError({
             cause,
             operation: 'DecodeAccepted',
+          }),
+      })
+      return {
+        envelope: decoded.envelope,
+        message: decoded.message,
+      }
+    }),
+  decodeProposed: proposal =>
+    Effect.gen(function* () {
+      const envelope = yield* Effect.try({
+        try: () => S.decodeUnknownSync(JsonString)(proposal.envelopeJson),
+        catch: cause =>
+          new SharedProgramCodecError({
+            cause,
+            operation: 'DecodeProposed',
+          }),
+      })
+      const payload = yield* Effect.try({
+        try: () => S.decodeUnknownSync(JsonString)(proposal.payloadJson),
+        catch: cause =>
+          new SharedProgramCodecError({
+            cause,
+            operation: 'DecodeProposed',
+          }),
+      })
+      const decoded = yield* Program.decodeVersionedEvent(EventRegistry, {
+        envelope,
+        payload,
+      }).pipe(
+        Effect.catchCause(cause =>
+          Effect.fail(
+            new SharedProgramCodecError({
+              cause,
+              operation: 'DecodeProposed',
+            }),
+          ),
+        ),
+      )
+      yield* Effect.try({
+        try: () => assertEnvelopeMatchesProposal(decoded.envelope, proposal),
+        catch: cause =>
+          new SharedProgramCodecError({
+            cause,
+            operation: 'DecodeProposed',
           }),
       })
       return {

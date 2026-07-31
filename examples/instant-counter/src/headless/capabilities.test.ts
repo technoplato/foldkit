@@ -2,6 +2,8 @@ import { Array, Option } from 'effect'
 import { Processor } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
+import { AdmissionSequencerCapability } from '@foldkit/instant'
+
 import { commandForEffect } from '../domain/effect.js'
 import {
   RequestedEffect,
@@ -20,7 +22,7 @@ const placementFor = (request: RequestedEffectType): Processor.Placement => {
 }
 
 describe('headless Processor capabilities', () => {
-  it('is selected for background timers but does not claim device, camera, or audio capabilities', () => {
+  it('advertises admission sequencing and timers without claiming device, camera, or audio capabilities', () => {
     const descriptor = headlessProcessorDescriptor(
       'headless-client',
       'headless-processor',
@@ -62,6 +64,9 @@ describe('headless Processor capabilities', () => {
         Array.contains(capability.id, 'Audio'),
       ),
     ).toBe(false)
+    expect(
+      Array.contains(descriptor.capabilities, AdmissionSequencerCapability),
+    ).toBe(true)
     expect(
       Array.some(descriptor.capabilities, capability =>
         Array.contains(capability.id, 'Device'),

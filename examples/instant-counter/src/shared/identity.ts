@@ -44,9 +44,12 @@ const browserSha256HexDigest: Sha256HexDigest = async value => {
 export const deriveSessionId = (subjectId: string): Promise<string> =>
   deriveSessionIdWithDigest(subjectId, browserSha256HexDigest)
 
-/** Derives the stable authority Processor identifier for one Program session. */
-export const authorityProcessorId = (sessionId: string): string =>
+/** Derives the stable admission sequencer Processor identifier for one session. */
+export const admissionSequencerProcessorId = (sessionId: string): string =>
   `authority:${sessionId}`
+
+/** Compatibility alias for the persisted pre-release session field name. */
+export const authorityProcessorId = admissionSequencerProcessorId
 
 /** Recognizes one high-entropy room identifier minted by the trusted headless host. */
 export const isProcessorRoomId = (value: string): boolean => {

@@ -15,6 +15,7 @@ import {
   ProgramStoreConnectionStatus,
   type ProgramStoreConnectionStatus as ProgramStoreConnectionStatusType,
   ProgramStoreError,
+  ProgramStoreProposalMutationRejected,
   type ProgramStoreService,
   type ProgramStoreTransactionOutcome,
   enqueuedTransactionOutcome,
@@ -25,6 +26,7 @@ import {
   InstantEffectPlacementRecord,
   InstantEffectRequestRecord,
   InstantMessageProposalRecord,
+  InstantMessageProposalResolutionRecord,
   type InstantProgramDatabase,
   InstantProgramSessionRecord,
   InstantProjectionCheckpointRecord,
@@ -123,6 +125,29 @@ export const makeInstantMessageProposalTransaction = (
     programVersion: record.programVersion,
     proposalId: record.proposalId,
     proposalKind: record.proposalKind,
+    sessionId: record.sessionId,
+    subjectId: record.subjectId,
+  })
+}
+
+/** Creates the strict append for one terminal Message proposal rejection. */
+export const makeInstantMessageProposalResolutionTransaction = (
+  transactions: InstantProgramDatabase['tx'],
+  record: InstantMessageProposalResolutionRecord,
+) => {
+  const entity = transactions.foldkitMessageProposalResolutions[record.id]
+  if (entity === undefined) {
+    throw new Error(
+      'Expected a Foldkit Message proposal resolution transaction entity.',
+    )
+  }
+  return entity.create({
+    programId: record.programId,
+    programVersion: record.programVersion,
+    proposalId: record.proposalId,
+    rejectedAtMs: record.rejectedAtMs,
+    rejectingProcessorId: record.rejectingProcessorId,
+    rejectionReason: record.rejectionReason,
     sessionId: record.sessionId,
     subjectId: record.subjectId,
   })
@@ -327,15 +352,49 @@ export const makeInstantProgramStore = (
         }),
     }),
   appendMessageProposal: record =>
-    Effect.tryPromise({
-      try: () =>
-        database
-          .transact(makeInstantMessageProposalTransaction(database.tx, record))
-          .then(decodeProgramStoreTransactionOutcome),
+    Effect.try({
+      try: () => makeInstantMessageProposalTransaction(database.tx, record),
       catch: cause =>
         new ProgramStoreError({
           cause,
           operation: 'AppendMessageProposal',
+        }),
+    }).pipe(
+      Effect.flatMap(transaction =>
+        Effect.tryPromise({
+          try: () => database.transact(transaction),
+          catch: cause =>
+            new ProgramStoreProposalMutationRejected({
+              cause,
+            }),
+        }),
+      ),
+      Effect.flatMap(result =>
+        Effect.try({
+          try: () => decodeProgramStoreTransactionOutcome(result),
+          catch: cause =>
+            new ProgramStoreError({
+              cause,
+              operation: 'AppendMessageProposal',
+            }),
+        }),
+      ),
+    ),
+  appendMessageProposalResolution: record =>
+    Effect.tryPromise({
+      try: () =>
+        database
+          .transact(
+            makeInstantMessageProposalResolutionTransaction(
+              database.tx,
+              record,
+            ),
+          )
+          .then(decodeProgramStoreTransactionOutcome),
+      catch: cause =>
+        new ProgramStoreError({
+          cause,
+          operation: 'AppendMessageProposalResolution',
         }),
     }),
   appendProjectionCheckpoint: record =>
@@ -641,6 +700,68 @@ export const makeInstantProgramStore = (
                       new ProgramStoreError({
                         cause,
                         operation: 'ObserveMessageProposals',
+                      }),
+                    ),
+                  )
+                }
+              }
+            },
+          ),
+        ),
+        unsubscribe => Effect.sync(unsubscribe),
+      ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
+  observeMessageProposalResolutions: scope =>
+    Stream.callback<
+      ReadonlyArray<InstantMessageProposalResolutionRecord>,
+      ProgramStoreError
+    >(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() =>
+          database.subscribeQuery(
+            {
+              foldkitMessageProposalResolutions: {
+                $: {
+                  where: {
+                    and: [
+                      { sessionId: scope.sessionId },
+                      { subjectId: scope.subjectId },
+                    ],
+                  },
+                  order: { rejectedAtMs: 'asc' },
+                },
+              },
+            },
+            response => {
+              if (response.error !== undefined) {
+                Queue.failCauseUnsafe(
+                  queue,
+                  Cause.fail(
+                    new ProgramStoreError({
+                      cause: response.error,
+                      operation: 'ObserveMessageProposalResolutions',
+                    }),
+                  ),
+                )
+              } else {
+                try {
+                  Queue.offerUnsafe(
+                    queue,
+                    Array.map(
+                      response.data.foldkitMessageProposalResolutions,
+                      record =>
+                        S.decodeUnknownSync(
+                          InstantMessageProposalResolutionRecord,
+                        )(record),
+                    ),
+                  )
+                } catch (cause) {
+                  Queue.failCauseUnsafe(
+                    queue,
+                    Cause.fail(
+                      new ProgramStoreError({
+                        cause,
+                        operation: 'ObserveMessageProposalResolutions',
                       }),
                     ),
                   )

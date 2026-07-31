@@ -231,6 +231,11 @@ export type ProgramRuntime<
   mode: 'Live'
   /** Returns the current immutable Model synchronously. */
   readModel: () => Model
+  /**
+   * Projects Messages from an arbitrary Model without mutating this runtime,
+   * recording transitions, or executing Commands.
+   */
+  project: (model: Model, messages: ReadonlyArray<Message>) => Model
   /** Universal transition publication with a configurable retained archive. */
   journal: ProgramRuntimeJournal<Model, Message>
   /** Universal inert inspection, tape, and route semantics. */
@@ -577,6 +582,11 @@ export const makeProgramRuntime = <
     let maybeCancelDeferredDrain = Option.none<() => void>()
 
     const readModel = (): Model => liveModel
+    const project = (model: Model, messages: ReadonlyArray<Message>): Model =>
+      Array.reduce(messages, model, (currentModel, message) => {
+        const [nextModel] = config.program.update(currentModel, message)
+        return nextModel
+      })
 
     const readRuntimeEvents = (): ReadonlyArray<ProgramRuntimeEvent> => {
       const snapshot = journal.read()
@@ -1413,6 +1423,7 @@ export const makeProgramRuntime = <
     return {
       mode: 'Live',
       readModel,
+      project,
       journal: {
         read: journal.read,
         observe: journal.observe,

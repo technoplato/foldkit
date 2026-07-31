@@ -22,22 +22,27 @@ type TestLease = Readonly<{
 
 const makeSnapshot = (
   subjectId: string,
-  count: number,
+  acceptedCount: number,
+  displayedCount: number,
   acceptedSequence: number,
   replayFrame?: number,
 ): CounterProcessorSnapshot => {
-  const model = InstantCounterModel.make({
-    counter: Counter.Model.make({ count }),
+  const acceptedModel = InstantCounterModel.make({
+    counter: Counter.Model.make({ count: acceptedCount }),
+    effects: [],
+  })
+  const displayedModel = InstantCounterModel.make({
+    counter: Counter.Model.make({ count: displayedCount }),
     effects: [],
   })
   return {
-    acceptedModel: model,
+    acceptedModel,
     acceptedSequence,
     connection: {
       _tag: 'Attached',
       transportStatus: 'authenticated',
     },
-    displayedModel: model,
+    displayedModel,
     pendingProposals: [],
     programId: 'instant-counter',
     programVersion: 1,
@@ -57,7 +62,7 @@ const makeTestLease = (
 ): TestLease => {
   const messages: Array<Message> = []
   let listener: ((snapshot: CounterProcessorSnapshot) => void) | null = null
-  const initialSnapshot = makeSnapshot(subjectId, 7, 3)
+  const initialSnapshot = makeSnapshot(subjectId, 7, 7, 3)
   return {
     emit: snapshot => {
       listener?.(snapshot)
@@ -154,7 +159,7 @@ describe('native counter controller', () => {
     await harness.controller.increment()
     await harness.controller.decrement()
     await harness.controller.reset()
-    lease.emit(makeSnapshot('subject-a', 41, 9, 4))
+    lease.emit(makeSnapshot('subject-a', 41, 41, 9, 4))
 
     expect(lease.messages.map(message => message._tag)).toStrictEqual([
       'ClickedIncrement',
@@ -168,6 +173,80 @@ describe('native counter controller', () => {
       pendingCount: 0,
       processorConnection: 'Attached · authenticated',
     })
+  })
+
+  it('renders the optimistic Model while accepted sequence remains unchanged', async () => {
+    const harness = makeHarness()
+    await signIn(harness.controller)
+    const lease = harness.leases.get('subject-a')
+    expect(lease).toBeDefined()
+    if (lease === undefined) {
+      return
+    }
+
+    lease.emit(makeSnapshot('subject-a', 7, 8, 3))
+
+    expect(harness.controller.getSnapshot()).toMatchObject({
+      acceptedSequence: 3,
+      count: 8,
+      displayedSequence: 3,
+    })
+  })
+
+  it('activates cached state while connection startup is pending and reports failure safely', async () => {
+    const trace: Array<string> = []
+    const connection = Promise.withResolvers<void>()
+    const testLease = makeTestLease('subject-a', trace)
+    const controller = new NativeCounterController({
+      authentication: {
+        sendMagicCode: () => Promise.resolve(),
+        signInWithMagicCode: () => Promise.resolve(),
+        signOut: () => Promise.resolve(),
+      },
+      processorGateway: {
+        allocate: () =>
+          Promise.resolve({
+            ...testLease.lease,
+            connect: () => {
+              trace.push('connect')
+              return connection.promise
+            },
+          }),
+      },
+    })
+
+    await signIn(controller)
+
+    expect(controller.getSnapshot()).toMatchObject({
+      count: 7,
+      isActionFenceOpen: true,
+      processorLifecycle: { _tag: 'ReadyProcessor' },
+    })
+    expect(trace).toContain('connect')
+    expect(trace).not.toContain('publish-unavailable')
+
+    const expectedNotice =
+      'The cached accepted Model is available, but the Processor could not connect. Reconnect when transport is available.'
+    const failureObserved = Promise.withResolvers<void>()
+    const unsubscribe = controller.subscribe(() => {
+      if (
+        Option.getOrUndefined(controller.getSnapshot().maybeNotice) ===
+        expectedNotice
+      ) {
+        failureObserved.resolve()
+      }
+    })
+    connection.reject(new Error('secret-token=do-not-render-this-value'))
+    await failureObserved.promise
+    unsubscribe()
+
+    const notice = Option.getOrElse(
+      controller.getSnapshot().maybeNotice,
+      () => '',
+    )
+    expect(notice).toBe(expectedNotice)
+    expect(notice).not.toContain('secret-token')
+    await controller.dispose()
   })
 
   it('aborts an in-flight startup and ignores its late allocation', async () => {

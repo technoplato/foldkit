@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 
-import { runHeadlessAuthority } from './authority.js'
+import { runHeadlessAdmissionSequencer } from './authority.js'
 import { makeHeadlessDatabases } from './database.js'
 import {
   headlessStatePathFromEnvironment,
@@ -17,12 +17,12 @@ const program = Effect.scoped(
     )
     const subjectScope = headlessSubjectScopeFromEnvironment()
     process.stdout.write(
-      'Foldkit Instant headless authority is observing authenticated sessions.\n',
+      'Foldkit Instant headless admission sequencer is observing authenticated sessions.\n',
     )
     return yield* Effect.all(
       [
         runSessionMaterializer(databases.admin, subjectScope),
-        runHeadlessAuthority({ databases, localState, subjectScope }),
+        runHeadlessAdmissionSequencer({ databases, localState, subjectScope }),
       ],
       { concurrency: 'unbounded', discard: true },
     )
@@ -31,7 +31,7 @@ const program = Effect.scoped(
 
 void Effect.runPromise(program).catch(() => {
   process.stderr.write(
-    'Foldkit Instant headless authority stopped after a sanitized fatal error.\n',
+    'Foldkit Instant headless admission sequencer stopped after a sanitized fatal error.\n',
   )
   process.exitCode = 1
 })

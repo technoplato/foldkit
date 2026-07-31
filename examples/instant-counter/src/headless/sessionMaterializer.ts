@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto'
 import { InstantProgramSessionRecord } from '@foldkit/instant'
 
 import {
-  authorityProcessorId,
+  admissionSequencerProcessorId,
   deriveSessionId,
   isProcessorRoomId,
   processorRoomIdPrefix,
@@ -72,7 +72,7 @@ export const makeProgramSessionForClaim = async (
 ): Promise<InstantProgramSessionRecord> => {
   const sessionId = await deriveSessionId(claim.subjectId)
   return InstantProgramSessionRecord.make({
-    authorityProcessorId: authorityProcessorId(sessionId),
+    authorityProcessorId: admissionSequencerProcessorId(sessionId),
     createdAtMs: input.createdAtMs,
     id: input.entityId,
     isRevoked: false,
@@ -91,7 +91,7 @@ export const isCanonicalProgramSessionForClaim = async (
 ): Promise<boolean> => {
   const sessionId = await deriveSessionId(claim.subjectId)
   return (
-    session.authorityProcessorId === authorityProcessorId(sessionId) &&
+    session.authorityProcessorId === admissionSequencerProcessorId(sessionId) &&
     isProcessorRoomId(session.processorRoomId) &&
     session.programId === programId &&
     session.programVersion === programVersion &&

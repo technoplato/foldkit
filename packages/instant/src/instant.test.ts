@@ -14,6 +14,7 @@ import { describe, it } from '@effect/vitest'
 import {
   InstantCoreDatabase,
   i,
+  init as initInstant,
   txInit,
   validateTransactions,
 } from '@instantdb/core'
@@ -25,6 +26,7 @@ import {
   InstantEffectPlacementRecord,
   InstantEffectRequestRecord,
   InstantMessageProposalRecord,
+  InstantMessageProposalResolutionRecord,
   InstantProcessorActivity,
   InstantProcessorPresence,
   InstantProgramEntities,
@@ -32,6 +34,8 @@ import {
   InstantProgramSessionRecord,
   InstantProjectionCheckpointRecord,
   type ProgramStoreConnectionStatus,
+  ProgramStoreError,
+  ProgramStoreProposalMutationRejected,
   decodeProgramStoreTransactionOutcome,
   enqueuedTransactionOutcome,
   makeAcceptedOccurrenceCursor,
@@ -43,6 +47,7 @@ import {
   makeInstantEffectPlacementPositionKey,
   makeInstantEffectPlacementTransaction,
   makeInstantEffectRequestTransaction,
+  makeInstantMessageProposalResolutionTransaction,
   makeInstantMessageProposalTransaction,
   makeInstantProgramSessionTransaction,
   makeInstantProgramStore,
@@ -88,6 +93,18 @@ const secondMessageProposal = InstantMessageProposalRecord.make({
   id: '11111111-1111-4111-8111-111111111112',
   occurrenceId: '11111111-1111-4111-8111-111111111112',
   proposalId: '11111111-1111-4111-8111-111111111112',
+})
+
+const messageProposalResolution = InstantMessageProposalResolutionRecord.make({
+  id: messageProposal.proposalId,
+  programId: messageProposal.programId,
+  programVersion: messageProposal.programVersion,
+  proposalId: messageProposal.proposalId,
+  rejectedAtMs: 1_753_825_200_000,
+  rejectingProcessorId: 'processor-authority',
+  rejectionReason: 'ProposalKindMismatch',
+  sessionId,
+  subjectId,
 })
 
 const makeAcceptedMessageOccurrence = (
@@ -244,6 +261,9 @@ const adaptApplicationDatabase = (
 describe('@foldkit/instant', () => {
   it('round trips every durable record through its wire Schema', () => {
     const proposalJson = S.fromJsonString(InstantMessageProposalRecord)
+    const proposalResolutionJson = S.fromJsonString(
+      InstantMessageProposalResolutionRecord,
+    )
     const occurrenceJson = S.fromJsonString(
       InstantAcceptedMessageOccurrenceRecord,
     )
@@ -256,6 +276,11 @@ describe('@foldkit/instant', () => {
         S.encodeSync(proposalJson)(messageProposal),
       ),
     ).toEqual(messageProposal)
+    expect(
+      S.decodeUnknownSync(proposalResolutionJson)(
+        S.encodeSync(proposalResolutionJson)(messageProposalResolution),
+      ),
+    ).toEqual(messageProposalResolution)
     expect(
       S.decodeUnknownSync(occurrenceJson)(
         S.encodeSync(occurrenceJson)(firstOccurrence),
@@ -327,6 +352,111 @@ describe('@foldkit/instant', () => {
           clientId: 'offline-client',
         })
       }),
+  )
+
+  it.effect(
+    'does not report a synchronized proposal outcome decode failure as an Instant rollback',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const database = yield* Effect.acquireRelease(
+            Effect.sync(() =>
+              initInstant({
+                appId: '00000000-0000-0000-0000-000000000001',
+                schema: InstantProgramSchema,
+              }),
+            ),
+            database => Effect.sync(() => database.shutdown()),
+          )
+          const decodeFailure = new Error(
+            'The synchronized transaction outcome was malformed.',
+          )
+          vi.spyOn(database, 'transact').mockResolvedValue({
+            clientId: 'instant-client',
+            get status(): never {
+              throw decodeFailure
+            },
+          })
+          const store = makeInstantProgramStore(database)
+
+          const failure = yield* Effect.flip(
+            store.appendMessageProposal(messageProposal),
+          )
+
+          expect(failure).toBeInstanceOf(ProgramStoreError)
+          expect(failure).not.toBeInstanceOf(
+            ProgramStoreProposalMutationRejected,
+          )
+        }),
+      ),
+  )
+
+  it.effect(
+    'reports only a rejected Instant proposal transaction as a mutation rollback',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const database = yield* Effect.acquireRelease(
+            Effect.sync(() =>
+              initInstant({
+                appId: '00000000-0000-0000-0000-000000000002',
+                schema: InstantProgramSchema,
+              }),
+            ),
+            database => Effect.sync(() => database.shutdown()),
+          )
+          const rejection = new Error(
+            'Instant rejected and rolled back the transaction.',
+          )
+          vi.spyOn(database, 'transact').mockRejectedValue(rejection)
+          const store = makeInstantProgramStore(database)
+
+          const failure = yield* Effect.flip(
+            store.appendMessageProposal(messageProposal),
+          )
+
+          expect(failure).toEqual(
+            new ProgramStoreProposalMutationRejected({ cause: rejection }),
+          )
+        }),
+      ),
+  )
+
+  it.effect(
+    'does not report proposal transaction construction failure as an Instant rollback',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const database = yield* Effect.acquireRelease(
+            Effect.sync(() =>
+              initInstant({
+                appId: '00000000-0000-0000-0000-000000000003',
+                schema: InstantProgramSchema,
+              }),
+            ),
+            database => Effect.sync(() => database.shutdown()),
+          )
+          const constructionFailure = new Error(
+            'The proposal transaction could not be constructed.',
+          )
+          Object.defineProperty(database, 'tx', {
+            configurable: true,
+            get: () => {
+              throw constructionFailure
+            },
+          })
+          const store = makeInstantProgramStore(database)
+
+          const failure = yield* Effect.flip(
+            store.appendMessageProposal(messageProposal),
+          )
+
+          expect(failure).toBeInstanceOf(ProgramStoreError)
+          expect(failure).not.toBeInstanceOf(
+            ProgramStoreProposalMutationRejected,
+          )
+        }),
+      ),
   )
 
   it.effect(
@@ -440,6 +570,10 @@ describe('@foldkit/instant', () => {
     const transactions = txInit<typeof InstantProgramSchema>()
     const chunks = [
       makeInstantMessageProposalTransaction(transactions, messageProposal),
+      makeInstantMessageProposalResolutionTransaction(
+        transactions,
+        messageProposalResolution,
+      ),
       makeInstantAcceptedMessageOccurrenceTransaction(
         transactions,
         firstOccurrence,
@@ -463,6 +597,7 @@ describe('@foldkit/instant', () => {
         ),
       ),
     ).toEqual([
+      ['create'],
       ['create'],
       ['create'],
       ['create'],

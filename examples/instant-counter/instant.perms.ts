@@ -51,6 +51,14 @@ export default {
       view: ownsRecord,
     },
   },
+  foldkitMessageProposalResolutions: {
+    allow: {
+      create: 'false',
+      delete: 'false',
+      update: 'false',
+      view: ownsRecord,
+    },
+  },
   foldkitProgramSessions: {
     allow: {
       create: 'false',

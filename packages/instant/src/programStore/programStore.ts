@@ -5,6 +5,7 @@ import {
   type InstantEffectPlacementRecord,
   type InstantEffectRequestRecord,
   type InstantMessageProposalRecord,
+  type InstantMessageProposalResolutionRecord,
   type InstantProgramSessionRecord,
   type InstantProjectionCheckpointRecord,
 } from '../schema/index.js'
@@ -65,14 +66,23 @@ export class ProgramStoreError extends Data.TaggedError('ProgramStoreError')<{
     | 'AppendEffectPlacement'
     | 'AppendEffectRequest'
     | 'AppendMessageProposal'
+    | 'AppendMessageProposalResolution'
     | 'AppendProgramSession'
     | 'AppendProjectionCheckpoint'
     | 'ObserveAcceptedMessageOccurrences'
     | 'ObserveEffectPlacements'
     | 'ObserveEffectRequests'
     | 'ObserveMessageProposals'
+    | 'ObserveMessageProposalResolutions'
     | 'ObserveProgramSessions'
     | 'ObserveProjectionCheckpoints'
+}> {}
+
+/** Instant rejected and rolled back one locally optimistic proposal mutation. */
+export class ProgramStoreProposalMutationRejected extends Data.TaggedError(
+  'ProgramStoreProposalMutationRejected',
+)<{
+  readonly cause: unknown
 }> {}
 
 /** The transport-neutral durable storage capability required by Program synchronization. */
@@ -88,6 +98,12 @@ export type ProgramStoreService = Readonly<{
   ) => Effect.Effect<ProgramStoreTransactionOutcome, ProgramStoreError>
   appendMessageProposal: (
     record: InstantMessageProposalRecord,
+  ) => Effect.Effect<
+    ProgramStoreTransactionOutcome,
+    ProgramStoreError | ProgramStoreProposalMutationRejected
+  >
+  appendMessageProposalResolution: (
+    record: InstantMessageProposalResolutionRecord,
   ) => Effect.Effect<ProgramStoreTransactionOutcome, ProgramStoreError>
   appendProgramSession: (
     record: InstantProgramSessionRecord,
@@ -118,6 +134,12 @@ export type ProgramStoreService = Readonly<{
     scope: ProgramStoreScope,
   ) => Stream.Stream<
     ReadonlyArray<InstantMessageProposalRecord>,
+    ProgramStoreError
+  >
+  observeMessageProposalResolutions: (
+    scope: ProgramStoreScope,
+  ) => Stream.Stream<
+    ReadonlyArray<InstantMessageProposalResolutionRecord>,
     ProgramStoreError
   >
   observeProgramSessions: (

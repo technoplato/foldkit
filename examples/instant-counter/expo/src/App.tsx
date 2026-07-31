@@ -180,10 +180,10 @@ export const App = () => {
         >
           <View style={styles.hero}>
             <Text style={styles.eyebrow}>FOLDKIT · INSTANT</Text>
-            <Text style={styles.title}>Accepted Counter</Text>
+            <Text style={styles.title}>Shared Counter</Text>
             <Text style={styles.subtitle}>
-              Native proposals become visible only after the shared authority
-              accepts them.
+              Valid native proposals project immediately. Every Processor then
+              converges on the accepted Instant tape.
             </Text>
           </View>
 

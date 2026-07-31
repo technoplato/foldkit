@@ -6,7 +6,7 @@ import { id } from '@instantdb/core'
 import type { InstantCounterDatabase } from '../../instant.schema.js'
 import {
   type Sha256HexDigest,
-  authorityProcessorId,
+  admissionSequencerProcessorId,
   deriveSessionId,
   deriveSessionIdWithDigest,
   isProcessorRoomId,
@@ -35,7 +35,7 @@ export const programSessionIdentityFromRecord = (
   subjectId: string,
 ): Option.Option<ProgramSessionIdentity> => {
   if (
-    record.authorityProcessorId === authorityProcessorId(sessionId) &&
+    record.authorityProcessorId === admissionSequencerProcessorId(sessionId) &&
     !record.isRevoked &&
     isProcessorRoomId(record.processorRoomId) &&
     record.programId === programId &&

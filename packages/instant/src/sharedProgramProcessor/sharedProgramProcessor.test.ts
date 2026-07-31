@@ -28,9 +28,12 @@ import {
   InstantEffectPlacementRecord,
   InstantEffectRequestRecord,
   InstantMessageProposalRecord,
+  InstantMessageProposalResolutionRecord,
   InstantProgramSessionRecord,
   ProgramStoreError,
+  ProgramStoreProposalMutationRejected,
   type ProgramStoreService,
+  SharedProgramAdmissionSequencerMismatch,
   SharedProgramCodecError,
   type SharedProgramMessageCodec,
   type SharedProgramRuntime,
@@ -45,7 +48,8 @@ import {
 } from '../index.js'
 
 const Incremented = S.TaggedStruct('Incremented', {})
-const Message = S.Union([Incremented])
+const ResetCounter = S.TaggedStruct('ResetCounter', {})
+const Message = S.Union([Incremented, ResetCounter])
 type Message = typeof Message.Type
 
 const Model = S.Struct({ count: S.Int })
@@ -103,10 +107,16 @@ const codec = makeSchemaProgramMessageCodec({
       acceptingProcessorId: input.acceptingProcessorId,
     }),
   envelopeVersion: 1,
-  eventMetadata: () => ({
-    eventId: 'counter.incremented',
-    eventVersion: 1,
-  }),
+  eventMetadata: message =>
+    message._tag === 'Incremented'
+      ? {
+          eventId: 'counter.incremented',
+          eventVersion: 1,
+        }
+      : {
+          eventId: 'counter.reset',
+          eventVersion: 1,
+        },
   makeProposedEnvelope: (_message, input) =>
     Envelope.make({
       acceptedAtMs: null,
@@ -114,26 +124,43 @@ const codec = makeSchemaProgramMessageCodec({
       acceptingProcessorId: null,
       occurrenceId: input.occurrenceId,
     }),
+  validateAcceptedEnvelope: (envelope, occurrence) =>
+    envelope.occurrenceId === occurrence.occurrenceId &&
+    envelope.acceptedAtMs === occurrence.acceptedAtMs &&
+    envelope.acceptedSequence === occurrence.acceptedSequence &&
+    envelope.acceptingProcessorId === occurrence.acceptingProcessorId
+      ? Effect.void
+      : Effect.fail(new Error('Accepted envelope provenance mismatch.')),
   validateProposedEnvelope: (envelope, proposal) =>
     envelope.occurrenceId === proposal.occurrenceId
       ? Effect.void
       : Effect.fail(new Error('Envelope occurrence provenance mismatch.')),
 })
 
-const makeRuntime = (): Effect.Effect<
+const makeRuntime = (
+  initialCount = 0,
+): Effect.Effect<
   Readonly<{
     appliedEnvelopes: SubscriptionRef.SubscriptionRef<ReadonlyArray<Envelope>>
     runtime: SharedProgramRuntime<Model, Message, Envelope, never>
   }>
 > =>
   Effect.gen(function* () {
-    const model = yield* SubscriptionRef.make(Model.make({ count: 0 }))
+    const model = yield* SubscriptionRef.make(
+      Model.make({ count: initialCount }),
+    )
     const appliedEnvelopes = yield* SubscriptionRef.make<
       ReadonlyArray<Envelope>
     >([])
     return {
       appliedEnvelopes,
       runtime: {
+        project: (currentModel, messages) =>
+          Array.reduce(messages, currentModel, (model, message) =>
+            Model.make({
+              count: message._tag === 'Incremented' ? model.count + 1 : 0,
+            }),
+          ),
         readModel: () => Effect.runSync(SubscriptionRef.get(model)),
         replay: {
           inspect: frame => Effect.succeed(Model.make({ count: frame })),
@@ -145,7 +172,9 @@ const makeRuntime = (): Effect.Effect<
               Array.append(options.envelope),
             )
             return yield* SubscriptionRef.updateAndGet(model, current =>
-              Model.make({ count: current.count + 1 }),
+              Model.make({
+                count: _message._tag === 'Incremented' ? current.count + 1 : 0,
+              }),
             )
           }),
       },
@@ -205,6 +234,8 @@ const makeProcessor = (
   store: ProgramStoreService,
   runtime: SharedProgramRuntime<Model, Message, Envelope, never>,
   processorCodec: SharedProgramMessageCodec<Message, Envelope> = codec,
+  processorClientId: string = clientId,
+  throughAcceptedSequence = 0,
 ) => {
   const ids = ['occurrence-001', 'occurrence-002', 'occurrence-003']
   const nextId = SubscriptionRef.make(0)
@@ -212,8 +243,9 @@ const makeProcessor = (
   return Effect.flatMap(nextId, idRef =>
     Effect.flatMap(nextSequence, sequenceRef =>
       makeSharedProgramProcessor({
+        admissionSequencerProcessorId: authorityProcessorId,
         actorId: subjectId,
-        clientId,
+        clientId: processorClientId,
         codec: processorCodec,
         makeId: () => {
           const index = Effect.runSync(
@@ -238,6 +270,7 @@ const makeProcessor = (
         sessionId,
         store,
         subjectId,
+        throughAcceptedSequence,
       }),
     ),
   )
@@ -332,12 +365,12 @@ const makeEffectPlacement = (
 
 describe('shared Program Processor', () => {
   it.effect(
-    'keeps offline proposals pending without mutating the accepted Model',
+    'projects offline proposals without mutating the accepted runtime Model',
     () =>
       Effect.scoped(
         Effect.gen(function* () {
           const store = yield* makeInMemoryProgramStore()
-          const { runtime } = yield* makeRuntime()
+          const { appliedEnvelopes, runtime } = yield* makeRuntime()
           const processor = yield* makeProcessor(store, runtime)
 
           yield* processor.propose(Incremented.make({}))
@@ -347,9 +380,278 @@ describe('shared Program Processor', () => {
           )
 
           expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
+          expect(snapshot.pendingProposals).toHaveLength(1)
+          expect(yield* SubscriptionRef.get(appliedEnvelopes)).toEqual([])
+          expect(Option.getOrThrow(proposals)).toHaveLength(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'rebases noncommutative local Messages in actor order without double application',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime(5)
+          const processor = yield* makeProcessor(store, runtime)
+          const incrementProposal = yield* processor.propose(
+            Incremented.make({}),
+          )
+          const resetProposal = yield* processor.propose(ResetCounter.make({}))
+
+          expect((yield* processor.readSnapshot).displayedModel).toEqual({
+            count: 0,
+          })
+
+          const remoteStore = yield* makeInMemoryProgramStore()
+          const { runtime: remoteRuntime } = yield* makeRuntime()
+          const remoteProcessor = yield* makeProcessor(
+            remoteStore,
+            remoteRuntime,
+            codec,
+            'client-remote',
+          )
+          yield* remoteProcessor.propose(Incremented.make({}))
+          yield* remoteProcessor.propose(Incremented.make({}))
+          const remoteProposal = yield* remoteProcessor.propose(
+            Incremented.make({}),
+          )
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(remoteProposal, 1),
+          )
+          yield* processor.connect
+
+          const remotelyRebased = yield* processor.readSnapshot
+          expect(remotelyRebased.acceptedModel).toEqual({ count: 6 })
+          expect(remotelyRebased.displayedModel).toEqual({ count: 0 })
+          expect(remotelyRebased.pendingProposals).toHaveLength(2)
+
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(incrementProposal, 2),
+          )
+          yield* Stream.runHead(
+            Stream.filter(
+              processor.snapshots,
+              snapshot => snapshot.acceptedSequence === 2,
+            ),
+          )
+          const incrementAccepted = yield* processor.readSnapshot
+          expect(incrementAccepted.acceptedModel).toEqual({ count: 7 })
+          expect(incrementAccepted.displayedModel).toEqual({ count: 0 })
+          expect(incrementAccepted.pendingProposals).toHaveLength(1)
+
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(resetProposal, 3),
+          )
+          yield* Stream.runHead(
+            Stream.filter(
+              processor.snapshots,
+              snapshot => snapshot.acceptedSequence === 3,
+            ),
+          )
+          const converged = yield* processor.readSnapshot
+          expect(converged.acceptedModel).toEqual({ count: 0 })
+          expect(converged.displayedModel).toEqual({ count: 0 })
+          expect(converged.pendingProposals).toEqual([])
+        }),
+      ),
+  )
+
+  it.effect(
+    'rejects malformed or metadata-divergent generic codec records before admission',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const proposal = yield* processor.propose(Incremented.make({}))
+          const malformed = InstantMessageProposalRecord.make({
+            ...proposal,
+            payloadJson: '{}',
+          })
+          const divergent = InstantMessageProposalRecord.make({
+            ...proposal,
+            eventId: 'counter.divergent',
+          })
+
+          expect(
+            yield* Effect.flip(
+              codec.acceptEnvelope(malformed, {
+                acceptedAtMs: 1_753_825_100_001,
+                acceptedSequence: 1,
+                acceptingProcessorId: authorityProcessorId,
+              }),
+            ),
+          ).toBeInstanceOf(SharedProgramCodecError)
+          expect(
+            yield* Effect.flip(
+              codec.acceptEnvelope(divergent, {
+                acceptedAtMs: 1_753_825_100_001,
+                acceptedSequence: 1,
+                acceptingProcessorId: authorityProcessorId,
+              }),
+            ),
+          ).toBeInstanceOf(SharedProgramCodecError)
+
+          const occurrence = yield* makeOccurrence(proposal, 1)
+          const forgedOccurrence = InstantAcceptedMessageOccurrenceRecord.make({
+            ...occurrence,
+            eventId: 'counter.divergent',
+          })
+          expect(
+            yield* Effect.flip(codec.decodeAccepted(forgedOccurrence)),
+          ).toBeInstanceOf(SharedProgramCodecError)
+        }),
+      ),
+  )
+
+  it.effect(
+    'quarantines an invalid proposed payload without stopping observation',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const rejectingCodec: SharedProgramMessageCodec<Message, Envelope> = {
+            ...codec,
+            decodeProposed: () =>
+              Effect.fail(
+                new SharedProgramCodecError({
+                  cause: new Error('Invalid local proposal.'),
+                  operation: 'DecodeProposed',
+                }),
+              ),
+          }
+          const processor = yield* makeProcessor(store, runtime, rejectingCodec)
+
+          yield* processor.propose(Incremented.make({}))
+          yield* processor.connect
+
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
           expect(snapshot.displayedModel).toEqual({ count: 0 })
           expect(snapshot.pendingProposals).toHaveLength(1)
-          expect(Option.getOrThrow(proposals)).toHaveLength(1)
+          expect(snapshot.connection).toEqual({
+            _tag: 'Attached',
+            transportStatus: 'authenticated',
+          })
+        }),
+      ),
+  )
+
+  it.effect(
+    'does not project proposals outside its scope or with invalid kind fields',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const generatorStore = yield* makeInMemoryProgramStore()
+          const { runtime: generatorRuntime } = yield* makeRuntime()
+          const generator = yield* makeProcessor(
+            generatorStore,
+            generatorRuntime,
+          )
+          const proposal = yield* generator.propose(Incremented.make({}))
+          const foreignProposal = InstantMessageProposalRecord.make({
+            ...proposal,
+            proposalId: 'proposal-foreign',
+            sessionId: 'session-other',
+            subjectId: 'subject-other',
+          })
+          const invalidKindProposal = InstantMessageProposalRecord.make({
+            ...proposal,
+            effectAssignmentGeneration: 1,
+            effectCancellationGeneration: 0,
+            effectIdempotencyKey: 'unexpected-effect-key',
+            effectRequestId: 'unexpected-effect-request',
+            executorProcessorId: processorId,
+          })
+          const baseStore = yield* makeInMemoryProgramStore()
+          const store: ProgramStoreService = {
+            ...baseStore,
+            observeMessageProposals: () =>
+              Stream.make([foreignProposal, invalidKindProposal]).pipe(
+                Stream.concat(Stream.never),
+              ),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+
+          yield* processor.connect
+
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.displayedModel).toEqual({ count: 0 })
+          expect(snapshot.pendingProposals).toEqual([
+            {
+              persistence: 'Enqueued',
+              proposal: invalidKindProposal,
+            },
+          ])
+        }),
+      ),
+  )
+
+  it.effect(
+    'rejects accepted occurrences not written by the session sequencer',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const proposal = yield* processor.propose(Incremented.make({}))
+          const occurrence = yield* makeOccurrence(proposal, 1)
+          yield* store.appendAcceptedMessageOccurrence(
+            InstantAcceptedMessageOccurrenceRecord.make({
+              ...occurrence,
+              acceptingProcessorId: 'processor-not-the-sequencer',
+            }),
+          )
+
+          expect(yield* Effect.flip(processor.connect)).toBeInstanceOf(
+            SharedProgramAdmissionSequencerMismatch,
+          )
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.acceptedSequence).toBe(0)
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
+        }),
+      ),
+  )
+
+  it.effect(
+    'rejects proposal resolutions not written by the session sequencer',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const proposal = yield* processor.propose(Incremented.make({}))
+          yield* store.appendMessageProposalResolution(
+            InstantMessageProposalResolutionRecord.make({
+              id: proposal.proposalId,
+              programId,
+              programVersion,
+              proposalId: proposal.proposalId,
+              rejectedAtMs: 1_753_825_100_002,
+              rejectingProcessorId: 'processor-not-the-sequencer',
+              rejectionReason: 'EnvelopeInvalid',
+              sessionId,
+              subjectId,
+            }),
+          )
+
+          expect(yield* Effect.flip(processor.connect)).toBeInstanceOf(
+            SharedProgramAdmissionSequencerMismatch,
+          )
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
+          expect(snapshot.pendingProposals).toHaveLength(1)
         }),
       ),
   )
@@ -378,12 +680,314 @@ describe('shared Program Processor', () => {
 
           const snapshot = yield* processor.readSnapshot
           expect(snapshot.acceptedModel).toEqual({ count: 1 })
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
           expect(snapshot.connection).toEqual({
             _tag: 'Attached',
             transportStatus: 'authenticated',
           })
           expect(snapshot.pendingProposals).toEqual([])
           expect(yield* SubscriptionRef.get(appliedEnvelopes)).toHaveLength(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'does not re-project proposals already covered by a restored checkpoint',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime: generatorRuntime } = yield* makeRuntime()
+          const generator = yield* makeProcessor(store, generatorRuntime)
+          const firstProposal = yield* generator.propose(Incremented.make({}))
+          const secondProposal = yield* generator.propose(Incremented.make({}))
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(firstProposal, 1),
+          )
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(secondProposal, 2),
+          )
+          const { appliedEnvelopes, runtime } = yield* makeRuntime(1)
+          const restored = yield* makeProcessor(
+            store,
+            runtime,
+            codec,
+            clientId,
+            1,
+          )
+
+          yield* restored.connect
+
+          const snapshot = yield* restored.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 2 })
+          expect(snapshot.acceptedSequence).toBe(2)
+          expect(snapshot.displayedModel).toEqual({ count: 2 })
+          expect(snapshot.pendingProposals).toEqual([])
+          expect(yield* SubscriptionRef.get(appliedEnvelopes)).toHaveLength(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'suppresses a proposal snapshot that arrives after its accepted occurrence',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const generatorStore = yield* makeInMemoryProgramStore()
+          const { runtime: generatorRuntime } = yield* makeRuntime()
+          const generator = yield* makeProcessor(
+            generatorStore,
+            generatorRuntime,
+          )
+          const proposal = yield* generator.propose(Incremented.make({}))
+          const occurrence = yield* makeOccurrence(proposal, 1)
+          const acceptedAllowed = yield* Deferred.make<void>()
+          const proposalsAllowed = yield* Deferred.make<void>()
+          const baseStore = yield* makeInMemoryProgramStore()
+          const store: ProgramStoreService = {
+            ...baseStore,
+            observeAcceptedMessageOccurrences: () =>
+              Stream.fromEffect(
+                Deferred.await(acceptedAllowed).pipe(Effect.as([occurrence])),
+              ).pipe(Stream.concat(Stream.never)),
+            observeMessageProposals: () =>
+              Stream.fromEffect(
+                Deferred.await(proposalsAllowed).pipe(Effect.as([proposal])),
+              ).pipe(Stream.concat(Stream.never)),
+          }
+          const { appliedEnvelopes, runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const connected = yield* Effect.forkChild(processor.connect)
+          const acceptedApplied = yield* Effect.forkChild(
+            Stream.runHead(
+              Stream.filter(
+                SubscriptionRef.changes(appliedEnvelopes),
+                Array.isReadonlyArrayNonEmpty,
+              ),
+            ),
+          )
+
+          yield* Deferred.succeed(acceptedAllowed, undefined)
+          yield* Fiber.join(acceptedApplied)
+          yield* Deferred.succeed(proposalsAllowed, undefined)
+          yield* Fiber.join(connected)
+
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 1 })
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
+          expect(snapshot.pendingProposals).toEqual([])
+          expect(yield* SubscriptionRef.get(appliedEnvelopes)).toHaveLength(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'rolls back a projected proposal removed from the exact snapshot',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseStore = yield* makeInMemoryProgramStore()
+          const proposals = yield* SubscriptionRef.make<
+            ReadonlyArray<InstantMessageProposalRecord>
+          >([])
+          const store: ProgramStoreService = {
+            ...baseStore,
+            observeMessageProposals: () => SubscriptionRef.changes(proposals),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          yield* processor.connect
+          const proposal = yield* processor.propose(Incremented.make({}))
+          yield* SubscriptionRef.set(proposals, [proposal])
+          yield* Stream.runHead(
+            Stream.filter(processor.snapshots, snapshot =>
+              Array.isReadonlyArrayNonEmpty(snapshot.pendingProposals),
+            ),
+          )
+          expect((yield* processor.readSnapshot).displayedModel).toEqual({
+            count: 1,
+          })
+          const rolledBack = yield* Effect.forkChild(
+            Stream.runHead(
+              Stream.filter(processor.snapshots, snapshot =>
+                Array.isReadonlyArrayEmpty(snapshot.pendingProposals),
+              ),
+            ),
+          )
+
+          yield* SubscriptionRef.set(proposals, [])
+          yield* Fiber.join(rolledBack)
+
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.displayedModel).toEqual({ count: 0 })
+          expect(snapshot.pendingProposals).toEqual([])
+        }),
+      ),
+  )
+
+  it.effect('rolls back and suppresses a durably rejected proposal', () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const store = yield* makeInMemoryProgramStore()
+        const { runtime } = yield* makeRuntime()
+        const processor = yield* makeProcessor(store, runtime)
+        yield* processor.connect
+        const proposal = yield* processor.propose(Incremented.make({}))
+        expect((yield* processor.readSnapshot).displayedModel).toEqual({
+          count: 1,
+        })
+        const rolledBack = yield* Effect.forkChild(
+          Stream.runHead(
+            Stream.filter(processor.snapshots, snapshot =>
+              Array.isReadonlyArrayEmpty(snapshot.pendingProposals),
+            ),
+          ),
+        )
+
+        yield* store.appendMessageProposalResolution(
+          InstantMessageProposalResolutionRecord.make({
+            id: proposal.proposalId,
+            programId,
+            programVersion,
+            proposalId: proposal.proposalId,
+            rejectedAtMs: 1_753_825_100_002,
+            rejectingProcessorId: authorityProcessorId,
+            rejectionReason: 'EnvelopeInvalid',
+            sessionId,
+            subjectId,
+          }),
+        )
+        yield* Fiber.join(rolledBack)
+
+        const rejectedSnapshot = yield* processor.readSnapshot
+        expect(rejectedSnapshot.acceptedModel).toEqual({ count: 0 })
+        expect(rejectedSnapshot.displayedModel).toEqual({ count: 0 })
+        expect(rejectedSnapshot.pendingProposals).toEqual([])
+
+        yield* processor.disconnect
+        yield* processor.connect
+
+        const reconnectedSnapshot = yield* processor.readSnapshot
+        expect(reconnectedSnapshot.displayedModel).toEqual({ count: 0 })
+        expect(reconnectedSnapshot.pendingProposals).toEqual([])
+      }),
+    ),
+  )
+
+  it.effect(
+    'suppresses a proposal snapshot that arrives after its rejection',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const generatorStore = yield* makeInMemoryProgramStore()
+          const { runtime: generatorRuntime } = yield* makeRuntime()
+          const generator = yield* makeProcessor(
+            generatorStore,
+            generatorRuntime,
+          )
+          const proposal = yield* generator.propose(Incremented.make({}))
+          const resolution = InstantMessageProposalResolutionRecord.make({
+            id: proposal.proposalId,
+            programId,
+            programVersion,
+            proposalId: proposal.proposalId,
+            rejectedAtMs: 1_753_825_100_002,
+            rejectingProcessorId: authorityProcessorId,
+            rejectionReason: 'EnvelopeInvalid',
+            sessionId,
+            subjectId,
+          })
+          const proposalsAllowed = yield* Deferred.make<void>()
+          const resolutionEmitted = yield* Deferred.make<void>()
+          const baseStore = yield* makeInMemoryProgramStore()
+          const store: ProgramStoreService = {
+            ...baseStore,
+            observeMessageProposals: () =>
+              Stream.fromEffect(
+                Deferred.await(proposalsAllowed).pipe(Effect.as([proposal])),
+              ).pipe(Stream.concat(Stream.never)),
+            observeMessageProposalResolutions: () =>
+              Stream.fromEffect(
+                Deferred.succeed(resolutionEmitted, undefined).pipe(
+                  Effect.as([resolution]),
+                ),
+              ).pipe(Stream.concat(Stream.never)),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const connected = yield* Effect.forkChild(processor.connect)
+
+          yield* Deferred.await(resolutionEmitted)
+          yield* Effect.yieldNow
+          yield* Deferred.succeed(proposalsAllowed, undefined)
+          yield* Fiber.join(connected)
+
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.displayedModel).toEqual({ count: 0 })
+          expect(snapshot.pendingProposals).toEqual([])
+        }),
+      ),
+  )
+
+  it.effect(
+    'waits for initial rejection state before restoring a proposal snapshot',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const generatorStore = yield* makeInMemoryProgramStore()
+          const { runtime: generatorRuntime } = yield* makeRuntime()
+          const generator = yield* makeProcessor(
+            generatorStore,
+            generatorRuntime,
+          )
+          const proposal = yield* generator.propose(Incremented.make({}))
+          const resolution = InstantMessageProposalResolutionRecord.make({
+            id: proposal.proposalId,
+            programId,
+            programVersion,
+            proposalId: proposal.proposalId,
+            rejectedAtMs: 1_753_825_100_002,
+            rejectingProcessorId: authorityProcessorId,
+            rejectionReason: 'EnvelopeInvalid',
+            sessionId,
+            subjectId,
+          })
+          const proposalEmitted = yield* Deferred.make<void>()
+          const resolutionsAllowed = yield* Deferred.make<void>()
+          const baseStore = yield* makeInMemoryProgramStore()
+          const store: ProgramStoreService = {
+            ...baseStore,
+            observeMessageProposals: () =>
+              Stream.fromEffect(
+                Deferred.succeed(proposalEmitted, undefined).pipe(
+                  Effect.as([proposal]),
+                ),
+              ).pipe(Stream.concat(Stream.never)),
+            observeMessageProposalResolutions: () =>
+              Stream.fromEffect(
+                Deferred.await(resolutionsAllowed).pipe(
+                  Effect.as([resolution]),
+                ),
+              ).pipe(Stream.concat(Stream.never)),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const connected = yield* Effect.forkChild(processor.connect)
+
+          yield* Deferred.await(proposalEmitted)
+          yield* Effect.yieldNow
+          const initializing = yield* processor.readSnapshot
+          expect(initializing.displayedModel).toEqual({ count: 0 })
+          expect(initializing.pendingProposals).toEqual([])
+
+          yield* Deferred.succeed(resolutionsAllowed, undefined)
+          yield* Fiber.join(connected)
+
+          const connectedSnapshot = yield* processor.readSnapshot
+          expect(connectedSnapshot.displayedModel).toEqual({ count: 0 })
+          expect(connectedSnapshot.pendingProposals).toEqual([])
         }),
       ),
   )
@@ -405,9 +1009,10 @@ describe('shared Program Processor', () => {
         yield* store.appendAcceptedMessageOccurrence(third)
         yield* processor.connect
 
-        expect((yield* processor.readSnapshot).acceptedModel).toEqual({
-          count: 1,
-        })
+        const bufferedGap = yield* processor.readSnapshot
+        expect(bufferedGap.acceptedModel).toEqual({ count: 1 })
+        expect(bufferedGap.displayedModel).toEqual({ count: 3 })
+        expect(bufferedGap.pendingProposals).toHaveLength(2)
 
         yield* processor.inspectReplay(9)
         yield* store.appendAcceptedMessageOccurrence(second)
@@ -422,9 +1027,15 @@ describe('shared Program Processor', () => {
         expect(inspecting.displayedModel).toEqual({ count: 9 })
         expect(yield* SubscriptionRef.get(appliedEnvelopes)).toHaveLength(3)
 
+        yield* processor.propose(Incremented.make({}))
+        const inspectingWithPending = yield* processor.readSnapshot
+        expect(inspectingWithPending.acceptedModel).toEqual({ count: 3 })
+        expect(inspectingWithPending.displayedModel).toEqual({ count: 9 })
+        expect(inspectingWithPending.pendingProposals).toHaveLength(1)
+
         yield* processor.returnLive
         expect((yield* processor.readSnapshot).displayedModel).toEqual({
-          count: 3,
+          count: 4,
         })
 
         yield* processor.disconnect
@@ -507,6 +1118,10 @@ describe('shared Program Processor', () => {
           const runStarted = yield* Deferred.make<void>()
           const runtime: SharedProgramRuntime<Model, Message, Envelope, never> =
             {
+              project: (currentModel, messages) =>
+                Model.make({
+                  count: currentModel.count + Array.length(messages),
+                }),
               readModel: () => Effect.runSync(SubscriptionRef.get(model)),
               replay: {
                 inspect: frame => Effect.succeed(Model.make({ count: frame })),
@@ -675,6 +1290,9 @@ describe('shared Program Processor', () => {
           expect(
             (yield* processor.readSnapshot).pendingProposals,
           ).toMatchObject([{ persistence: 'Local' }])
+          expect((yield* processor.readSnapshot).displayedModel).toEqual({
+            count: 1,
+          })
 
           yield* SubscriptionRef.set(isAppendBlocked, true)
           yield* SubscriptionRef.set(connectionStatus, 'authenticated')
@@ -796,6 +1414,118 @@ describe('shared Program Processor', () => {
   )
 
   it.effect(
+    'does not append an effect-result retry that races with acceptance',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const encodeRetryStarted = yield* Deferred.make<void>()
+          const encodeRetryAllowed = yield* Deferred.make<void>()
+          const encodeCount = yield* SubscriptionRef.make(0)
+          const racingCodec: SharedProgramMessageCodec<Message, Envelope> = {
+            ...codec,
+            encodeProposed: (message, input) =>
+              SubscriptionRef.updateAndGet(
+                encodeCount,
+                count => count + 1,
+              ).pipe(
+                Effect.flatMap(count => {
+                  if (count === 2) {
+                    return Deferred.succeed(encodeRetryStarted, undefined).pipe(
+                      Effect.andThen(Deferred.await(encodeRetryAllowed)),
+                      Effect.andThen(codec.encodeProposed(message, input)),
+                    )
+                  } else {
+                    return codec.encodeProposed(message, input)
+                  }
+                }),
+              ),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime, racingCodec)
+          const request = makeEffectRequest()
+          const placement = makeEffectPlacement(
+            request,
+            'AssignedPreferred',
+            processorId,
+          )
+          const resultInput = {
+            effectAssignmentGeneration: placement.assignmentGeneration,
+            effectCancellationGeneration: placement.cancellationGeneration,
+            effectIdempotencyKey: request.idempotencyKey,
+            effectRequestId: request.requestId,
+            maybeCausationOccurrenceId: Option.some(request.causalOccurrenceId),
+            maybeCorrelationId: Option.some(sessionId),
+          }
+          const firstResult = yield* processor.proposeEffectResult(
+            Incremented.make({}),
+            resultInput,
+          )
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(firstResult, 1),
+          )
+          const retry = yield* Effect.forkChild(
+            processor.proposeEffectResult(Incremented.make({}), resultInput),
+          )
+          yield* Deferred.await(encodeRetryStarted)
+
+          yield* processor.connect
+          yield* Deferred.succeed(encodeRetryAllowed, undefined)
+          yield* Fiber.join(retry)
+
+          const snapshot = yield* processor.readSnapshot
+          const proposals = yield* Stream.runHead(
+            store.observeMessageProposals({ sessionId, subjectId }),
+          )
+          expect(snapshot.acceptedModel).toEqual({ count: 1 })
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
+          expect(snapshot.pendingProposals).toEqual([])
+          expect(Option.getOrThrow(proposals)).toHaveLength(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'projects unresolved effect-result aliases only once per idempotency key',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const request = makeEffectRequest()
+          const placement = makeEffectPlacement(
+            request,
+            'AssignedPreferred',
+            processorId,
+          )
+          const resultInput = {
+            effectAssignmentGeneration: placement.assignmentGeneration,
+            effectCancellationGeneration: placement.cancellationGeneration,
+            effectIdempotencyKey: request.idempotencyKey,
+            effectRequestId: request.requestId,
+            maybeCausationOccurrenceId: Option.some(request.causalOccurrenceId),
+            maybeCorrelationId: Option.some(sessionId),
+          }
+
+          yield* processor.proposeEffectResult(
+            Incremented.make({}),
+            resultInput,
+          )
+          yield* processor.proposeEffectResult(
+            Incremented.make({}),
+            resultInput,
+          )
+
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
+          expect(snapshot.pendingProposals).toHaveLength(2)
+        }),
+      ),
+  )
+
+  it.effect(
     'recovers this Client durable proposals without re-creating them',
     () =>
       Effect.scoped(
@@ -812,14 +1542,45 @@ describe('shared Program Processor', () => {
 
           yield* recoveredProcessor.connect
 
-          expect(
-            (yield* recoveredProcessor.readSnapshot).pendingProposals,
-          ).toEqual([
+          const snapshot = yield* recoveredProcessor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
+          expect(snapshot.pendingProposals).toEqual([
             {
               persistence: 'Enqueued',
               proposal,
             },
           ])
+        }),
+      ),
+  )
+
+  it.effect(
+    'does not project durable proposals created by a different Client',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime: originatingRuntime } = yield* makeRuntime()
+          const originatingProcessor = yield* makeProcessor(
+            store,
+            originatingRuntime,
+          )
+          yield* originatingProcessor.propose(Incremented.make({}))
+          const { runtime: otherRuntime } = yield* makeRuntime()
+          const otherProcessor = yield* makeProcessor(
+            store,
+            otherRuntime,
+            codec,
+            'client-native',
+          )
+
+          yield* otherProcessor.connect
+
+          const snapshot = yield* otherProcessor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.displayedModel).toEqual({ count: 0 })
+          expect(snapshot.pendingProposals).toEqual([])
         }),
       ),
   )
@@ -861,14 +1622,15 @@ describe('shared Program Processor', () => {
             SharedProgramCodecError,
           )
           expect((yield* processor.readSnapshot).acceptedSequence).toBe(0)
-          expect((yield* processor.readSnapshot).pendingProposals).toHaveLength(
-            1,
-          )
+          const failedSnapshot = yield* processor.readSnapshot
+          expect(failedSnapshot.displayedModel).toEqual({ count: 1 })
+          expect(failedSnapshot.pendingProposals).toHaveLength(1)
 
           yield* processor.connect
 
           const snapshot = yield* processor.readSnapshot
           expect(snapshot.acceptedSequence).toBe(1)
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
           expect(snapshot.pendingProposals).toEqual([])
           expect(yield* SubscriptionRef.get(appliedEnvelopes)).toHaveLength(1)
           expect(yield* SubscriptionRef.get(decodeAttempts)).toBe(2)
@@ -925,8 +1687,55 @@ describe('shared Program Processor', () => {
           expect(
             (yield* processor.readSnapshot).pendingProposals,
           ).toMatchObject([{ persistence: 'Synced' }])
+          expect((yield* processor.readSnapshot).displayedModel).toEqual({
+            count: 1,
+          })
         }),
       ),
+  )
+
+  it.effect('rolls back projection after Instant rejects its mutation', () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const baseStore = yield* makeInMemoryProgramStore()
+        const rejectAppend = yield* Deferred.make<void>()
+        const store: ProgramStoreService = {
+          ...baseStore,
+          appendMessageProposal: () =>
+            Deferred.await(rejectAppend).pipe(
+              Effect.andThen(
+                Effect.fail(
+                  new ProgramStoreProposalMutationRejected({
+                    cause: new Error('Instant rejected the mutation.'),
+                  }),
+                ),
+              ),
+            ),
+        }
+        const { runtime } = yield* makeRuntime()
+        const processor = yield* makeProcessor(store, runtime)
+        const proposalFiber = yield* Effect.forkChild(
+          processor.propose(Incremented.make({})),
+        )
+        yield* Stream.runHead(
+          Stream.filter(
+            processor.snapshots,
+            snapshot => snapshot.displayedModel.count === 1,
+          ),
+        )
+
+        expect((yield* processor.readSnapshot).displayedModel).toEqual({
+          count: 1,
+        })
+        yield* Deferred.succeed(rejectAppend, undefined)
+        yield* Fiber.join(proposalFiber)
+
+        const rolledBack = yield* processor.readSnapshot
+        expect(rolledBack.acceptedModel).toEqual({ count: 0 })
+        expect(rolledBack.displayedModel).toEqual({ count: 0 })
+        expect(rolledBack.pendingProposals).toEqual([])
+      }),
+    ),
   )
 })
 
@@ -1483,8 +2292,8 @@ describe('acceptance authority', () => {
             effectIdempotencyKey: failedRequest.idempotencyKey,
             effectRequestId: failedRequest.requestId,
             envelopeJson: makeProposedEnvelopeJson('effect-result-failed'),
-            eventId: 'counter.failed',
-            eventVersion: 2,
+            eventId: 'counter.incremented',
+            eventVersion: 1,
             id: 'effect-result-failed',
             occurrenceId: 'effect-result-failed',
             proposalId: 'effect-result-failed',

@@ -1,4 +1,14 @@
-import { Array as Array_, Option, Schema as S } from 'effect'
+import {
+  Array as Array_,
+  Data,
+  Effect,
+  Exit,
+  Match as M,
+  Option,
+  Schema as S,
+  Scope,
+  Stream,
+} from 'effect'
 import {
   ClickedDecrement,
   ClickedIncrement,
@@ -7,7 +17,13 @@ import {
   type Model,
 } from 'instant-counter-example/domain'
 
-import type { SharedProgramProcessorSnapshot } from '@foldkit/instant'
+import {
+  type SharedProgramProcessorSnapshot,
+  type SubjectScopedProgram,
+  type SubjectScopedProgramAllocationContext,
+  type SubjectScopedProgramSnapshot,
+  makeSubjectScopedProgram,
+} from '@foldkit/instant'
 
 /** Instant is restoring persisted authentication. */
 export const RestoringAuthentication = S.TaggedStruct(
@@ -148,11 +164,31 @@ export type NativeCounterControllerDependencies = Readonly<{
 }>
 
 type ActiveProcessor = Readonly<{
-  detach: () => Promise<void>
   generation: number
   lease: CounterProcessorLease
   subjectId: string
 }>
+
+class NativeProcessorLifecycleError extends Data.TaggedError(
+  'NativeProcessorLifecycleError',
+)<{
+  readonly cause: unknown
+  readonly operation:
+    | 'AllocateProcessor'
+    | 'ConnectProcessor'
+    | 'ObserveProcessor'
+    | 'PublishAvailability'
+    | 'ReadSnapshot'
+    | 'SignOut'
+}> {}
+
+type NativeSubjectProgram = SubjectScopedProgram<
+  CounterProcessorLease,
+  CounterProcessorSnapshot,
+  NativeProcessorLifecycleError,
+  never,
+  NativeProcessorLifecycleError
+>
 
 const initialViewState = (): NativeCounterViewState => ({
   acceptedSequence: 0,
@@ -169,10 +205,17 @@ const initialViewState = (): NativeCounterViewState => ({
 
 const subjectForAuthentication = (
   authentication: Authentication,
-): string | null =>
-  authentication._tag === 'SignedInAuthentication'
-    ? authentication.subjectId
-    : null
+): Option.Option<string> =>
+  M.value(authentication).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tagsExhaustive({
+      FailedAuthentication: () => Option.none(),
+      RestoringAuthentication: () => Option.none(),
+      SignedInAuthentication: signedIn => Option.some(signedIn.subjectId),
+      SignedOutAuthentication: () => Option.none(),
+      SigningOutAuthentication: () => Option.none(),
+    }),
+  )
 
 const processorConnectionLabel = (
   snapshot: CounterProcessorSnapshot,
@@ -201,6 +244,34 @@ const withProcessorSnapshot = (
   processorConnection: processorConnectionLabel(snapshot),
 })
 
+const withoutProcessorSnapshot = (
+  state: NativeCounterViewState,
+): NativeCounterViewState => ({
+  ...state,
+  acceptedSequence: 0,
+  count: 0,
+  displayedSequence: 0,
+  pendingCount: 0,
+  processorConnection: 'Detached',
+})
+
+const preservesExplicitConnectionLifecycle = (
+  lifecycle: ProcessorLifecycle,
+): boolean =>
+  M.value(lifecycle).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      DisconnectedProcessor: () => true,
+      DisconnectingProcessor: () => true,
+      FailedProcessor: () => false,
+      IdleProcessor: () => false,
+      ReadyProcessor: () => false,
+      ReconnectingProcessor: () => true,
+      StartingProcessor: () => false,
+      StoppingProcessor: () => true,
+    }),
+  )
+
 const runCleanupStep = async (step: () => Promise<void>): Promise<boolean> => {
   try {
     await step()
@@ -210,14 +281,110 @@ const runCleanupStep = async (step: () => Promise<void>): Promise<boolean> => {
   }
 }
 
+const cleanupStep = (step: () => Promise<void>): Effect.Effect<void> =>
+  Effect.promise(() => runCleanupStep(step)).pipe(Effect.asVoid)
+
+const backgroundStartupSchedulingDelayMilliseconds = 0
+
+const allocateSubjectProcessor = (
+  processorGateway: CounterProcessorGateway,
+  context: SubjectScopedProgramAllocationContext<CounterProcessorSnapshot>,
+  connectionStartupFailed: (generation: number, subjectId: string) => void,
+  synchronizeSubjectProgram: () => void,
+): Effect.Effect<
+  CounterProcessorLease,
+  NativeProcessorLifecycleError,
+  Scope.Scope
+> =>
+  Effect.gen(function* () {
+    const abortController = new AbortController()
+    yield* Effect.addFinalizer(() => Effect.sync(() => abortController.abort()))
+    const lease = yield* Effect.acquireRelease(
+      Effect.tryPromise({
+        try: () =>
+          processorGateway.allocate(context.subjectId, abortController.signal),
+        catch: cause =>
+          new NativeProcessorLifecycleError({
+            cause,
+            operation: 'AllocateProcessor',
+          }),
+      }),
+      lease => cleanupStep(lease.release),
+    )
+    if (abortController.signal.aborted) {
+      return yield* Effect.fail(
+        new NativeProcessorLifecycleError({
+          cause: 'The authenticated subject changed during allocation.',
+          operation: 'AllocateProcessor',
+        }),
+      )
+    }
+    const detach = yield* Effect.try({
+      try: () =>
+        lease.observe(snapshot => {
+          Effect.runSync(context.publishProgramSnapshot(snapshot))
+          synchronizeSubjectProgram()
+        }),
+      catch: cause =>
+        new NativeProcessorLifecycleError({
+          cause,
+          operation: 'ObserveProcessor',
+        }),
+    })
+    yield* Effect.addFinalizer(() => cleanupStep(detach))
+    yield* Effect.addFinalizer(() => cleanupStep(lease.disconnect))
+    yield* Effect.addFinalizer(() => cleanupStep(lease.publishUnavailable))
+    const initialSnapshot = yield* Effect.tryPromise({
+      try: lease.readSnapshot,
+      catch: cause =>
+        new NativeProcessorLifecycleError({
+          cause,
+          operation: 'ReadSnapshot',
+        }),
+    })
+    yield* context.publishProgramSnapshot(initialSnapshot)
+    synchronizeSubjectProgram()
+    const subjectScope = yield* Effect.scope
+    yield* Effect.forkIn(
+      Effect.gen(function* () {
+        yield* Effect.tryPromise({
+          try: lease.connect,
+          catch: cause =>
+            new NativeProcessorLifecycleError({
+              cause,
+              operation: 'ConnectProcessor',
+            }),
+        })
+        yield* Effect.tryPromise({
+          try: lease.publishUnavailable,
+          catch: cause =>
+            new NativeProcessorLifecycleError({
+              cause,
+              operation: 'PublishAvailability',
+            }),
+        })
+      }).pipe(
+        Effect.catch(() =>
+          Effect.sync(() =>
+            connectionStartupFailed(context.generation, context.subjectId),
+          ),
+        ),
+      ),
+      subjectScope,
+    )
+    yield* Effect.sleep(backgroundStartupSchedulingDelayMilliseconds)
+    return lease
+  })
+
 /** Owns authenticated Processor replacement, proposals, and native teardown. */
 export class NativeCounterController {
   readonly #authentication: NativeAuthenticationClient
   readonly #listeners = new Set<() => void>()
   readonly #processorGateway: CounterProcessorGateway
-  #activeProcessor: ActiveProcessor | null = null
-  #generation = 0
-  #startupAbortController: AbortController | null = null
+  readonly #scope: Scope.Closeable
+  readonly #subjectProgram: NativeSubjectProgram
+  #maybeConnectionStartupFailureGeneration = Option.none<number>()
+  #subjectTransition: Promise<void> = Promise.resolve()
   #transition: Promise<void> = Promise.resolve()
   #viewState = initialViewState()
 
@@ -227,6 +394,42 @@ export class NativeCounterController {
   }: NativeCounterControllerDependencies) {
     this.#authentication = authentication
     this.#processorGateway = processorGateway
+    this.#scope = Scope.makeUnsafe()
+    this.#subjectProgram = Effect.runSync(
+      makeSubjectScopedProgram<
+        CounterProcessorLease,
+        CounterProcessorSnapshot,
+        NativeProcessorLifecycleError,
+        never,
+        NativeProcessorLifecycleError
+      >({
+        allocateProgram: context =>
+          allocateSubjectProcessor(
+            this.#processorGateway,
+            context,
+            (generation, subjectId) =>
+              this.#connectionStartupFailed(generation, subjectId),
+            () => this.#synchronizeSubjectProgram(),
+          ),
+        signOut: () =>
+          Effect.tryPromise({
+            try: this.#authentication.signOut,
+            catch: cause =>
+              new NativeProcessorLifecycleError({
+                cause,
+                operation: 'SignOut',
+              }),
+          }),
+      }).pipe(Scope.provide(this.#scope)),
+    )
+    Effect.runSync(
+      Effect.forkIn(
+        Stream.runForEach(this.#subjectProgram.snapshots, snapshot =>
+          Effect.sync(() => this.#subjectProgramChanged(snapshot)),
+        ),
+        this.#scope,
+      ),
+    )
   }
 
   /** Returns the current atomic view state for useSyncExternalStore. */
@@ -242,47 +445,23 @@ export class NativeCounterController {
 
   /** Waits until every currently queued lifecycle transition has settled. */
   settled(): Promise<void> {
-    return this.#transition
+    return Promise.all([this.#subjectTransition, this.#transition]).then(
+      () => undefined,
+    )
   }
 
   /** Reconciles one token-redacted authentication observation. */
   authenticationChanged(authentication: Authentication): void {
-    const previousSubject = subjectForAuthentication(
-      this.#viewState.authentication,
-    )
     const nextSubject = subjectForAuthentication(authentication)
     this.#setViewState({ ...this.#viewState, authentication })
-    if (previousSubject === nextSubject) {
-      return
-    }
-
-    this.#generation += 1
-    const generation = this.#generation
-    this.#fenceActions()
-    this.#startupAbortController?.abort()
-    this.#startupAbortController = null
-    this.#clearCounterPresentation()
-
-    if (nextSubject === null) {
-      this.#setViewState({
-        ...this.#viewState,
-        processorLifecycle: IdleProcessor.make({}),
-      })
-      void this.#enqueue(() => this.#replaceProcessor(null, generation, null))
-    } else {
-      const abortController = new AbortController()
-      this.#startupAbortController = abortController
-      this.#setViewState({
-        ...this.#viewState,
-        maybeNotice: Option.some('Restoring the accepted counter tape.'),
-        processorLifecycle: StartingProcessor.make({
-          subjectId: nextSubject,
-        }),
-      })
-      void this.#enqueue(() =>
-        this.#replaceProcessor(nextSubject, generation, abortController),
-      )
-    }
+    this.#synchronizeSubjectProgram()
+    const transition = Effect.runPromise(
+      this.#subjectProgram.reconcileAuthenticatedSubject(nextSubject),
+    )
+      .then(() => this.#synchronizeSubjectProgram())
+      .catch(() => this.#synchronizeSubjectProgram())
+    this.#synchronizeSubjectProgram()
+    this.#trackSubjectTransition(transition)
   }
 
   /** Records the current native Instant transport status. */
@@ -307,11 +486,16 @@ export class NativeCounterController {
 
   /** Disconnects the active Processor while retaining its accepted Model. */
   disconnect(): Promise<void> {
-    const activeProcessor = this.#activeProcessor
-    if (activeProcessor === null || !this.#viewState.isActionFenceOpen) {
+    const maybeActiveProcessor = this.#readActiveProcessor()
+    if (
+      Option.isNone(maybeActiveProcessor) ||
+      !this.#viewState.isActionFenceOpen
+    ) {
       this.#setNotice('No connected Processor is ready to disconnect.')
       return Promise.resolve()
     }
+    const activeProcessor = maybeActiveProcessor.value
+    this.#maybeConnectionStartupFailureGeneration = Option.none()
     this.#fenceActions()
     this.#setViewState({
       ...this.#viewState,
@@ -326,10 +510,7 @@ export class NativeCounterController {
       const isDisconnectSuccessful = await runCleanupStep(
         activeProcessor.lease.disconnect,
       )
-      if (
-        this.#activeProcessor !== activeProcessor ||
-        activeProcessor.generation !== this.#generation
-      ) {
+      if (!this.#isCurrentActiveProcessor(activeProcessor)) {
         return
       }
       if (isPublishSuccessful && isDisconnectSuccessful) {
@@ -358,14 +539,15 @@ export class NativeCounterController {
 
   /** Reconnects by publishing unavailable, disconnecting, and connecting anew. */
   reconnect(): Promise<void> {
-    const activeProcessor = this.#activeProcessor
+    const maybeActiveProcessor = this.#readActiveProcessor()
     if (
-      activeProcessor === null ||
+      Option.isNone(maybeActiveProcessor) ||
       this.#viewState.processorLifecycle._tag !== 'DisconnectedProcessor'
     ) {
       this.#setNotice('No disconnected Processor is ready to reconnect.')
       return Promise.resolve()
     }
+    const activeProcessor = maybeActiveProcessor.value
     this.#setViewState({
       ...this.#viewState,
       maybeNotice: Option.some('Reconnecting the accepted counter tape.'),
@@ -386,10 +568,7 @@ export class NativeCounterController {
       const isFinalPublishSuccessful = await runCleanupStep(
         activeProcessor.lease.publishUnavailable,
       )
-      if (
-        this.#activeProcessor !== activeProcessor ||
-        activeProcessor.generation !== this.#generation
-      ) {
+      if (!this.#isCurrentActiveProcessor(activeProcessor)) {
         return
       }
       const isReconnectSuccessful =
@@ -397,6 +576,9 @@ export class NativeCounterController {
         isDisconnectSuccessful &&
         isConnectSuccessful &&
         isFinalPublishSuccessful
+      if (isReconnectSuccessful) {
+        this.#maybeConnectionStartupFailureGeneration = Option.none()
+      }
       this.#setViewState({
         ...this.#viewState,
         isActionFenceOpen: isReconnectSuccessful,
@@ -447,54 +629,47 @@ export class NativeCounterController {
   /** Releases the Processor completely before invalidating Instant auth. */
   signOut(): Promise<void> {
     const authentication = this.#viewState.authentication
-    const subjectId = subjectForAuthentication(authentication)
-    if (subjectId === null) {
+    const maybeSubjectId = subjectForAuthentication(authentication)
+    if (Option.isNone(maybeSubjectId)) {
       return Promise.resolve()
     }
-    this.#generation += 1
     this.#fenceActions()
-    this.#startupAbortController?.abort()
-    this.#startupAbortController = null
     this.#setViewState({
       ...this.#viewState,
       authentication: SigningOutAuthentication.make({}),
       maybeNotice: Option.some('Signing out and closing this Processor.'),
-      processorLifecycle: StoppingProcessor.make({ subjectId }),
+      processorLifecycle: StoppingProcessor.make({
+        subjectId: maybeSubjectId.value,
+      }),
     })
-    return this.#enqueue(async () => {
-      const isReleaseClean = await this.#releaseActiveProcessor()
-      try {
-        await this.#authentication.signOut()
+    const transition = Effect.runPromise(this.#subjectProgram.signOut)
+      .then(() => {
         this.#clearCounterPresentation()
         this.#setViewState({
           ...this.#viewState,
-          maybeNotice: isReleaseClean
-            ? Option.none()
-            : Option.some(
-                'Signed out after one local Processor cleanup step failed.',
-              ),
+          maybeNotice: Option.none(),
           processorLifecycle: IdleProcessor.make({}),
         })
-      } catch {
+      })
+      .catch(() => {
         this.#setViewState({
           ...this.#viewState,
           maybeNotice: Option.some('Instant could not complete sign out.'),
           processorLifecycle: IdleProcessor.make({}),
         })
         this.authenticationChanged(authentication)
-      }
-    })
+      })
+    this.#trackSubjectTransition(transition)
+    return transition
   }
 
   /** Fences actions and releases native resources without signing out. */
   dispose(): Promise<void> {
-    this.#generation += 1
     this.#fenceActions()
-    this.#startupAbortController?.abort()
-    this.#startupAbortController = null
-    return this.#enqueue(async () => {
-      await this.#releaseActiveProcessor()
-    })
+    this.#clearCounterPresentation()
+    const transition = Effect.runPromise(Scope.close(this.#scope, Exit.void))
+    this.#trackSubjectTransition(transition)
+    return transition
   }
 
   #enqueue(operation: () => Promise<void>): Promise<void> {
@@ -503,132 +678,198 @@ export class NativeCounterController {
     return queued
   }
 
-  async #replaceProcessor(
-    subjectId: string | null,
-    generation: number,
-    abortController: AbortController | null,
-  ): Promise<void> {
-    await this.#releaseActiveProcessor()
+  #trackSubjectTransition(transition: Promise<void>): void {
+    const settledTransition = transition.catch(() => undefined)
+    this.#subjectTransition = Promise.all([
+      this.#subjectTransition,
+      settledTransition,
+    ]).then(() => undefined)
+  }
+
+  #readActiveProcessor(): Option.Option<ActiveProcessor> {
+    const snapshot = Effect.runSync(this.#subjectProgram.read)
+    return Option.map(snapshot.maybeActiveProgram, activeProgram => ({
+      generation: activeProgram.generation,
+      lease: activeProgram.program,
+      subjectId: activeProgram.subjectId,
+    }))
+  }
+
+  #isCurrentActiveProcessor(activeProcessor: ActiveProcessor): boolean {
+    const maybeCurrentProcessor = this.#readActiveProcessor()
+    return (
+      Option.isSome(maybeCurrentProcessor) &&
+      maybeCurrentProcessor.value.generation === activeProcessor.generation &&
+      maybeCurrentProcessor.value.lease === activeProcessor.lease
+    )
+  }
+
+  #synchronizeSubjectProgram(): void {
+    this.#subjectProgramChanged(Effect.runSync(this.#subjectProgram.read))
+  }
+
+  #connectionStartupFailed(generation: number, subjectId: string): void {
+    const snapshot = Effect.runSync(this.#subjectProgram.read)
     if (
-      subjectId === null ||
-      generation !== this.#generation ||
-      abortController === null ||
-      abortController.signal.aborted
+      this.#viewState.authentication._tag !== 'SignedInAuthentication' ||
+      this.#viewState.authentication.subjectId !== subjectId ||
+      snapshot.lifecycle._tag === 'InactiveSubjectScopedProgram' ||
+      snapshot.lifecycle.generation !== generation
     ) {
       return
     }
+    this.#maybeConnectionStartupFailureGeneration = Option.some(generation)
+    this.#subjectProgramChanged(snapshot)
+  }
 
-    try {
-      const lease = await this.#processorGateway.allocate(
-        subjectId,
-        abortController.signal,
-      )
-      if (generation !== this.#generation || abortController.signal.aborted) {
-        await this.#releaseLease(lease, () => Promise.resolve())
-        return
-      }
-      const detach = lease.observe(snapshot => {
-        if (
-          generation === this.#generation &&
-          subjectForAuthentication(this.#viewState.authentication) === subjectId
-        ) {
-          this.#setViewState(withProcessorSnapshot(this.#viewState, snapshot))
-        }
-      })
-      const activeProcessor: ActiveProcessor = {
-        detach,
-        generation,
-        lease,
-        subjectId,
-      }
-      this.#activeProcessor = activeProcessor
-      const snapshot = await lease.readSnapshot()
-      if (
-        this.#activeProcessor === activeProcessor &&
-        activeProcessor.generation === this.#generation
-      ) {
-        this.#setViewState(withProcessorSnapshot(this.#viewState, snapshot))
-      }
-      await lease.connect()
-      await lease.publishUnavailable()
-      if (
-        this.#activeProcessor !== activeProcessor ||
-        generation !== this.#generation ||
-        abortController.signal.aborted
-      ) {
-        if (this.#activeProcessor === activeProcessor) {
-          this.#activeProcessor = null
-        }
-        await this.#releaseLease(lease, detach)
-        return
-      }
-      this.#startupAbortController = null
+  #isAuthenticatedSubject(subjectId: string): boolean {
+    return (
+      this.#viewState.authentication._tag === 'SignedInAuthentication' &&
+      this.#viewState.authentication.subjectId === subjectId
+    )
+  }
+
+  #showAuthenticationTarget(): void {
+    this.#maybeConnectionStartupFailureGeneration = Option.none()
+    if (this.#viewState.authentication._tag === 'SignedInAuthentication') {
       this.#setViewState({
-        ...this.#viewState,
-        isActionFenceOpen: true,
-        maybeNotice: Option.none(),
-        processorLifecycle: ReadyProcessor.make({ subjectId }),
+        ...withoutProcessorSnapshot(this.#viewState),
+        isActionFenceOpen: false,
+        maybeNotice: Option.some('Restoring the accepted counter tape.'),
+        processorLifecycle: StartingProcessor.make({
+          subjectId: this.#viewState.authentication.subjectId,
+        }),
       })
-    } catch {
-      if (generation === this.#generation && !abortController.signal.aborted) {
-        await this.#releaseActiveProcessor()
-        this.#setViewState({
-          ...this.#viewState,
-          maybeNotice: Option.some(
-            'The Processor could not start. Confirm the shared schema, permissions, and authority.',
-          ),
-          processorLifecycle: FailedProcessor.make({
-            reason: 'Processor startup failed.',
-            subjectId,
-          }),
-        })
-      }
+    } else {
+      const isSigningOut =
+        this.#viewState.authentication._tag === 'SigningOutAuthentication'
+      this.#setViewState({
+        ...withoutProcessorSnapshot(this.#viewState),
+        isActionFenceOpen: false,
+        maybeNotice: isSigningOut ? this.#viewState.maybeNotice : Option.none(),
+        processorLifecycle: isSigningOut
+          ? this.#viewState.processorLifecycle
+          : IdleProcessor.make({}),
+      })
     }
   }
 
+  #subjectProgramChanged(
+    snapshot: SubjectScopedProgramSnapshot<
+      CounterProcessorLease,
+      CounterProcessorSnapshot
+    >,
+  ): void {
+    M.value(snapshot.lifecycle).pipe(
+      M.withReturnType<void>(),
+      M.tagsExhaustive({
+        ActiveSubjectScopedProgram: active => {
+          if (!this.#isAuthenticatedSubject(active.subjectId)) {
+            this.#showAuthenticationTarget()
+            return
+          }
+          const maybeActiveProgram = snapshot.maybeActiveProgram
+          if (Option.isNone(maybeActiveProgram)) {
+            return
+          }
+          const nextViewState = Option.isSome(
+            maybeActiveProgram.value.maybeProgramSnapshot,
+          )
+            ? withProcessorSnapshot(
+                this.#viewState,
+                maybeActiveProgram.value.maybeProgramSnapshot.value,
+              )
+            : this.#viewState
+          if (
+            preservesExplicitConnectionLifecycle(
+              nextViewState.processorLifecycle,
+            )
+          ) {
+            this.#setViewState(nextViewState)
+          } else {
+            const maybeNotice =
+              Option.isSome(this.#maybeConnectionStartupFailureGeneration) &&
+              this.#maybeConnectionStartupFailureGeneration.value ===
+                active.generation
+                ? Option.some(
+                    'The cached accepted Model is available, but the Processor could not connect. Reconnect when transport is available.',
+                  )
+                : Option.none()
+            this.#setViewState({
+              ...nextViewState,
+              isActionFenceOpen: true,
+              maybeNotice,
+              processorLifecycle: ReadyProcessor.make({
+                subjectId: active.subjectId,
+              }),
+            })
+          }
+        },
+        AllocatingSubjectScopedProgram: allocating => {
+          if (!this.#isAuthenticatedSubject(allocating.subjectId)) {
+            this.#showAuthenticationTarget()
+            return
+          }
+          if (
+            Option.isSome(this.#maybeConnectionStartupFailureGeneration) &&
+            this.#maybeConnectionStartupFailureGeneration.value !==
+              allocating.generation
+          ) {
+            this.#maybeConnectionStartupFailureGeneration = Option.none()
+          }
+          this.#setViewState({
+            ...withoutProcessorSnapshot(this.#viewState),
+            isActionFenceOpen: false,
+            maybeNotice: Option.some('Restoring the accepted counter tape.'),
+            processorLifecycle: StartingProcessor.make({
+              subjectId: allocating.subjectId,
+            }),
+          })
+        },
+        FailedSubjectScopedProgram: failed => {
+          if (!this.#isAuthenticatedSubject(failed.subjectId)) {
+            this.#showAuthenticationTarget()
+            return
+          }
+          this.#maybeConnectionStartupFailureGeneration = Option.none()
+          this.#setViewState({
+            ...withoutProcessorSnapshot(this.#viewState),
+            isActionFenceOpen: false,
+            maybeNotice: Option.some(
+              'The Processor could not start. Confirm the shared schema and permissions, and that the admission sequencer is running.',
+            ),
+            processorLifecycle: FailedProcessor.make({
+              reason: 'Processor startup failed.',
+              subjectId: failed.subjectId,
+            }),
+          })
+        },
+        InactiveSubjectScopedProgram: () => {
+          this.#showAuthenticationTarget()
+        },
+      }),
+    )
+  }
+
   async #propose(message: Message): Promise<void> {
-    const activeProcessor = this.#activeProcessor
-    if (activeProcessor === null || !this.#viewState.isActionFenceOpen) {
+    const maybeActiveProcessor = this.#readActiveProcessor()
+    if (
+      Option.isNone(maybeActiveProcessor) ||
+      !this.#viewState.isActionFenceOpen
+    ) {
       this.#setNotice('No connected Processor is ready for counter actions.')
       return
     }
+    const activeProcessor = maybeActiveProcessor.value
     try {
       await activeProcessor.lease.propose(message)
     } catch {
-      if (
-        this.#activeProcessor === activeProcessor &&
-        activeProcessor.generation === this.#generation
-      ) {
+      if (this.#isCurrentActiveProcessor(activeProcessor)) {
         this.#setNotice(
           'The counter proposal could not be written. The accepted count is unchanged.',
         )
       }
     }
-  }
-
-  async #releaseActiveProcessor(): Promise<boolean> {
-    const activeProcessor = this.#activeProcessor
-    this.#activeProcessor = null
-    if (activeProcessor === null) {
-      return true
-    }
-    return this.#releaseLease(activeProcessor.lease, activeProcessor.detach)
-  }
-
-  async #releaseLease(
-    lease: CounterProcessorLease,
-    detach: () => Promise<void>,
-  ): Promise<boolean> {
-    const isPublishSuccessful = await runCleanupStep(lease.publishUnavailable)
-    const isDisconnectSuccessful = await runCleanupStep(lease.disconnect)
-    const isDetachSuccessful = await runCleanupStep(detach)
-    const isReleaseSuccessful = await runCleanupStep(lease.release)
-    return (
-      isPublishSuccessful &&
-      isDisconnectSuccessful &&
-      isDetachSuccessful &&
-      isReleaseSuccessful
-    )
   }
 
   #fenceActions(): void {
@@ -641,14 +882,7 @@ export class NativeCounterController {
   }
 
   #clearCounterPresentation(): void {
-    this.#setViewState({
-      ...this.#viewState,
-      acceptedSequence: 0,
-      count: 0,
-      displayedSequence: 0,
-      pendingCount: 0,
-      processorConnection: 'Detached',
-    })
+    this.#setViewState(withoutProcessorSnapshot(this.#viewState))
   }
 
   #setNotice(notice: string): void {
