@@ -4,6 +4,7 @@ import {
   type SendNetworkSelection,
   type WalletNetworkMode,
   WalletProgram,
+  assetAmountLabelForModel,
   primaryReceivingInstruction,
   primaryWalletSuggestedTestTransferLabel,
   primaryWalletTestFundingMethod,
@@ -72,6 +73,100 @@ export const walletSendNetworkSelectionAtIndex = (
   selections: ReadonlyArray<SendNetworkSelection>,
   index: number,
 ): Option.Option<SendNetworkSelection> => Array.get(selections, index)
+
+/** Projects the two selectors that bind OpenTUI to the canonical Wallet Model. */
+export const walletOpenTuiSelectorLines = (
+  model: Model,
+): ReadonlyArray<string> => [
+  `Network mode: ${model.walletNetworkMode} (Devnet | Testnet | Live)`,
+  `Wallet and cryptocurrency: ${Option.isSome(model.maybeSendNetworkSelection) ? selectedSendNetworkLabel(model) : 'unavailable'}`,
+]
+
+const selectedFundingMethodLabel = (model: Model): string => {
+  const maybeMethod = primaryWalletTestFundingMethod(model)
+  if (Option.isNone(maybeMethod)) {
+    return 'No funding method for the selected rail'
+  }
+  return M.value(maybeMethod.value).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      UnavailableTestFundingMethod: () => 'Unavailable on this production rail',
+      AdapterTestFundingMethod: () => 'Adapter request available',
+      ExternalTestFundingMethod: method =>
+        `External ${method.providerName}: ${method.providerUrl}`,
+    }),
+  )
+}
+
+/** Projects test-funding state for a separate OpenTUI panel. */
+export const walletOpenTuiFundingPanelLines = (
+  model: Model,
+): ReadonlyArray<string> => {
+  const status = M.value(model.testFunding).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      ReadyToRequestTestFunding: () => 'Ready to request',
+      RequestingTestFunding: ({ request }) =>
+        `Requesting ${request.atomicUnits} atomic units`,
+      ReceivedTestFunding: ({ receipt }) =>
+        `Received ${assetAmountLabelForModel(model, receipt.amount)}`,
+      UnavailableTestFunding: ({ failure }) =>
+        `Unavailable: ${failure.operation}/${failure.code}`,
+      FailedTestFunding: ({ failure }) =>
+        `Failed: ${failure.operation}/${failure.code}`,
+    }),
+  )
+  return [`Status: ${status}`, `Method: ${selectedFundingMethodLabel(model)}`]
+}
+
+/** Projects paginated transaction-history state for a separate OpenTUI panel. */
+export const walletOpenTuiHistoryPanelLines = (
+  model: Model,
+): ReadonlyArray<string> => {
+  const status = M.value(model.transactionHistory).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      NotLoadedTransactionHistory: () => 'Not loaded',
+      LoadingTransactionHistory: ({ query }) =>
+        `Loading ${query.networkId} after ${Option.getOrElse(query.maybeCursor, () => 'start')}`,
+      LoadedTransactionHistory: ({ maybeNextCursor }) =>
+        Option.isSome(maybeNextCursor)
+          ? `Loaded; next cursor ${maybeNextCursor.value}`
+          : 'Loaded; final page',
+      FailedTransactionHistory: ({ failure }) =>
+        `Failed: ${failure.operation}/${failure.code}`,
+    }),
+  )
+  return [
+    `Status: ${status}`,
+    `Visible normalized records: ${model.transactions.length.toString()}`,
+  ]
+}
+
+/** Projects live transaction-observation state for a separate OpenTUI panel. */
+export const walletOpenTuiObservationPanelLines = (
+  model: Model,
+): ReadonlyArray<string> => {
+  const status = M.value(model.transactionObservation).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      WaitingForAccounts: () => 'Waiting for public accounts',
+      ObservingTransactions: ({ accountIds }) => {
+        const accountCount = accountIds.length
+        return `Live for ${accountCount.toString()} ${accountCount === 1 ? 'account' : 'accounts'}`
+      },
+      FailedTransactionObservation: ({ failure }) =>
+        `Failed: ${failure.operation}/${failure.code}`,
+    }),
+  )
+  const maybeLatest = Array.head(model.transactions)
+  return [
+    `Status: ${status}`,
+    Option.isSome(maybeLatest)
+      ? `Latest: ${maybeLatest.value.status} ${maybeLatest.value.transactionId}`
+      : 'Latest: no observed transactions',
+  ]
+}
 
 /** Shows the current Wallet Model without sending a Message. */
 export const ShowWallet = S.TaggedStruct('ShowWallet', {

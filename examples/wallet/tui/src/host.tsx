@@ -6,7 +6,6 @@ import {
   SigningChallenge,
   type WalletResources,
   activeWalletAccounts,
-  assetAmountLabelForModel,
   availableSendNetworkSelections,
   clipboardCopyRequestForAddress,
   isTransferPreviewActionEnabled,
@@ -43,6 +42,10 @@ import {
   receivingQrPanelLines,
   walletNetworkModeAtIndex,
   walletNetworkModes,
+  walletOpenTuiFundingPanelLines,
+  walletOpenTuiHistoryPanelLines,
+  walletOpenTuiObservationPanelLines,
+  walletOpenTuiSelectorLines,
   walletOpenTuiSummary,
   walletSendNetworkSelectionAtIndex,
 } from './presentation.js'
@@ -215,6 +218,7 @@ const WalletTerminal = ({
         ),
     }),
   )
+  const selectorLines = walletOpenTuiSelectorLines(model)
 
   useKeyboard(key => {
     if (isReceivingPanelVisible) {
@@ -453,9 +457,14 @@ const WalletTerminal = ({
           title="Network mode"
           width="30%"
         >
+          <text
+            content={Option.getOrElse(Array.head(selectorLines), () => '')}
+            fg="#6ee7b7"
+            height={1}
+          />
           <select
             focused={focus === 'Mode'}
-            height="100%"
+            flexGrow={1}
             onSelect={index => {
               const maybeMode = walletNetworkModeAtIndex(index)
               if (Option.isSome(maybeMode)) {
@@ -477,9 +486,14 @@ const WalletTerminal = ({
           title="Wallet and cryptocurrency"
           width="70%"
         >
+          <text
+            content={Option.getOrElse(Array.get(selectorLines, 1), () => '')}
+            fg="#6ee7b7"
+            height={1}
+          />
           <select
             focused={focus === 'SendNetwork'}
-            height="100%"
+            flexGrow={1}
             onSelect={index => {
               const maybeSelection = walletSendNetworkSelectionAtIndex(
                 sendNetworkSelections,
@@ -501,6 +515,7 @@ const WalletTerminal = ({
       </box>
 
       <WalletModelView model={model} />
+      <WalletActivityView model={model} />
 
       <box
         border
@@ -619,20 +634,48 @@ const WalletModelView = ({ model }: Readonly<{ model: Model }>) => {
       />
       <text content={explorerStatus(model)} height={1} />
       <text content={`Signature: ${model.signature._tag}`} height={1} />
-      <text
-        content={`History: ${model.transactionHistory._tag} | Observation: ${model.transactionObservation._tag} | Funding: ${model.testFunding._tag} | Clipboard: ${model.clipboardCopy._tag}`}
-        height={1}
-      />
-      {Array.map(Array.take(model.transactions, 4), transaction => (
-        <text
-          content={`${transaction.direction} · ${transaction.status} · ${assetAmountLabelForModel(model, transaction.amount)} · ${transaction.transactionId}`}
-          height={1}
-          key={transaction.recordId}
-        />
-      ))}
+      <text content={`Clipboard: ${model.clipboardCopy._tag}`} height={1} />
     </box>
   )
 }
+
+const WalletActivityView = ({ model }: Readonly<{ model: Model }>) => (
+  <box flexDirection="row" gap={1} height={7}>
+    <WalletActivityPanel
+      lines={walletOpenTuiFundingPanelLines(model)}
+      title="Test funding"
+    />
+    <WalletActivityPanel
+      lines={walletOpenTuiHistoryPanelLines(model)}
+      title="Paginated history"
+    />
+    <WalletActivityPanel
+      lines={walletOpenTuiObservationPanelLines(model)}
+      title="Live observation"
+    />
+  </box>
+)
+
+const WalletActivityPanel = ({
+  lines,
+  title,
+}: Readonly<{
+  lines: ReadonlyArray<string>
+  title: string
+}>) => (
+  <box
+    border
+    borderColor="#36534a"
+    flexDirection="column"
+    padding={1}
+    title={title}
+    width="33%"
+  >
+    {Array.map(lines, line => (
+      <text content={line} height={1} key={line} />
+    ))}
+  </box>
+)
 
 const PortfolioView = ({ model }: Readonly<{ model: Model }>): ReactNode =>
   M.value(model.portfolio).pipe(

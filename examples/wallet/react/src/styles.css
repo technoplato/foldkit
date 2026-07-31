@@ -243,6 +243,11 @@ select {
   justify-content: flex-start;
 }
 
+.wallet-shell .cardboard-eyebrow,
+.wallet-shell .cardboard-button.primary {
+  text-shadow: none;
+}
+
 .wallet-copy-button {
   flex: none;
   min-height: 2rem;

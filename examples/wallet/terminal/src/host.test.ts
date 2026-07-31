@@ -25,7 +25,11 @@ import {
   makeWalletTerminalResizeEvents,
   renderWalletTerminal,
   sendWalletTransaction,
+  walletTerminalFundingLines,
+  walletTerminalHistoryLines,
+  walletTerminalObservationLines,
   walletTerminalProgram,
+  walletTerminalSelectorLines,
 } from './host.js'
 
 const scannableEthereumModel = (model: Model): Model => {
@@ -105,8 +109,38 @@ describe('Wallet Effect Terminal host', () => {
     })
 
     expect(screen).toContain('[s] Show')
+    expect(screen).toContain('Selectors')
     expect(screen).toContain(
-      'Send network: simulated-ethereum-account · ETH · Ethereum Sepolia',
+      'Network mode selector: Testnet (Devnet | Testnet | Live)',
+    )
+    expect(screen).toContain(
+      'Wallet and cryptocurrency selector: simulated-ethereum-account · ETH · Ethereum Sepolia',
+    )
+    expect(screen).toContain('Test funding')
+    expect(screen).toContain('Paginated history')
+    expect(screen).toContain('Live observation')
+    expect(walletTerminalSelectorLines(model)).toStrictEqual([
+      'Network mode selector: Testnet (Devnet | Testnet | Live)',
+      'Wallet and cryptocurrency selector: simulated-ethereum-account · ETH · Ethereum Sepolia',
+    ])
+    expect(walletTerminalFundingLines(model)).toStrictEqual([
+      'Status: Ready to request',
+      'Method: Adapter request available',
+    ])
+    expect(walletTerminalHistoryLines(model)).toEqual(
+      expect.arrayContaining([
+        'Status: Loaded; final page',
+        'Visible normalized records: 1',
+      ]),
+    )
+    expect(Array.join(walletTerminalHistoryLines(model), '\n')).toContain(
+      'Incoming | Confirmed |',
+    )
+    expect(walletTerminalObservationLines(model)).toContain(
+      'Status: Live for 1 account',
+    )
+    expect(Array.join(walletTerminalObservationLines(model), '\n')).toContain(
+      'Latest: Confirmed simulated-history-',
     )
     expect(screen).toContain('[w] Create wallet')
     expect(screen).toContain('[t] Cycle Devnet/Testnet/Live')

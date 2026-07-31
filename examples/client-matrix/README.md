@@ -6,11 +6,11 @@ The Client Matrix is a Foldkit Program with three complementary comparisons:
   and route parser-printer. It compares those modes across eight real client
   surfaces. Every cell shows the client carrier and a checked-in capture of that
   client rendering the same canonical application state.
-- Wallet audits the `wallet@8` Program identity, one exact state route, one exact
+- Wallet audits the current `WalletProgram` identity, one exact state route, one exact
   settled replay route, and the carrier and evidence boundary for React,
   Foldkit, raw CLI, Effect Terminal, OpenTUI, Expo Web, Expo iOS, Expo Android,
   and a future server host.
-- Wallet intents cover ETH, SOL, and USD over Devnet, Testnet, and Live modes.
+- Wallet intents cover BTC, ETH, SOL, and SUI over Devnet, Testnet, and Live modes.
   The Wallet core prints one global relative path for each intent. The matrix
   shows its exact carrier across the same clients and a future server.
 
@@ -68,7 +68,7 @@ It distinguishes route implementation from Program reuse:
   be different semantics and is not substituted silently.
 - No future server host, endpoint, or ReplayTapeStore is claimed.
 
-The Wallet route strings are exact outputs of the shared `wallet@8` Program
+The Wallet route strings are exact outputs of the shared `WalletProgram`
 router over a small public Model and a one-transition settled replay tape. The
 carrier strings use `<portable-wallet-route>` and `<expo-web-origin>` as explicit
 substitution points. They are not deployment claims. Source inspection and
@@ -76,7 +76,7 @@ focused-test evidence are labeled independently, and no physical iOS or Android
 behavior is implied.
 
 Wallet intent paths are exact outputs of
-`examples/wallet/core/src/intent.ts`. The parser-printer covers all eight native
+`examples/wallet/core/src/intent.ts`. The parser-printer covers all twelve native
 asset and network-mode combinations for Bitcoin, Ethereum, Solana, and Sui.
 Every example uses deterministic test money. No Mainnet rail silently falls
 back to a Devnet or Testnet Layer.
