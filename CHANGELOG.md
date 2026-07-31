@@ -4,6 +4,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 31st, 2026 at 5:06:10 p.m. EDT — `67033c50ba70` feat: add optimistic Instant Program synchronization
+
+- **Implementation commit:** `67033c50ba70057965669b277804cce4c4e4891f`
+- **Change:** Make Instant Program synchronization optimistic and framework-owned
+- **Details:**
+  - Added pure, Command-inert Program Message projection and deterministic accepted-plus-pending Client rebasing with offline persistence and no double application.
+  - Defined the session-designated admission sequencer as a portable capability, enforced terminal provenance, added durable rejection resolutions, and limited rollback to rejected Instant transactions.
+  - Moved authenticated-subject replacement, stale-generation fencing, Scope teardown, and sign-out ordering into a renderer-neutral framework lifecycle used by browser and Expo clients.
+  - Deployed the resolution schema and default-deny permissions, then passed real Instant acceptance with two authenticated browser Clients, sequencer restart, malformed input rejection, replay, and cleanup.
+- **Files:**
+  - `packages/foldkit/src/runtime/programRuntime.ts` — expose pure Program projection without Commands or journal mutation
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.ts` — rebase accepted state with originating Client proposals
+  - `packages/instant/src/acceptanceAuthority/acceptanceAuthority.ts` — sequence generic Program Messages and persist validated terminal resolutions
+  - `packages/instant/src/instantProgramStore/instantProgramStore.ts` — classify Instant rollback separately from local transaction errors
+  - `packages/instant/src/subjectScopedProgram/subjectScopedProgram.ts` — own authenticated subject replacement and sign-out lifecycle
+  - `examples/instant-counter/src/client/browserApp.ts` — consume framework-owned subject lifecycle and optimistic snapshots
+  - `examples/instant-counter/expo/src/controller.ts` — consume framework-owned subject lifecycle on native clients
+  - `examples/instant-counter/src/acceptance/liveAcceptance.ts` — prove optimism and convergence against real Instant
+  - `examples/instant-counter/instant.perms.ts` — deny client mutation of terminal rejection records
+  - `.changeset/project-instant-program-messages.md` — record the non-breaking Foldkit and Instant feature additions
+- **User context (verbatim):**
+  > we aren't optimistically updating
+  > Sign out or subject replacement seems like it should be handled at the framework layer
+  > who is authority to uh reject messages?
+  > I explicitly want every program to be able to run on any processor
+- **SpecStory:** unavailable — Unavailable: this work ran in Codex desktop, and no verified SpecStory GUI capture exists.
+
 ## July 31st, 2026 at 4:06:00 p.m. EDT — `a4292a8a5d28` docs: add Foldkit planning foundation
 
 - **Implementation commit:** `a4292a8a5d2800c442cbd145e6fbd6a5f32b2f9d`
