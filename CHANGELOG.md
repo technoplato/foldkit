@@ -4,6 +4,60 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 31st, 2026 at 1:16:49 p.m. EDT — `c481c54f30f7` feat(instant-counter): add native Expo client
+
+- **Implementation commit:** `c481c54f30f78d4bd4973698b63dbb37e8d9ba71`
+- **Change:** Add a native Expo Dev Client for the authenticated Instant Counter without forking its Program.
+- **Details:**
+  - Extracted one host-neutral authenticated Processor factory so browser and native adapters execute the same canonical Counter Program over the same accepted Instant Message tape.
+  - Added an Expo SDK 57 and React Native 0.86 host with the complete Instant schema, email magic-code authentication, AsyncStorage-backed identity and actor sequences, Expo Crypto session derivation, and no advertised effect capabilities.
+  - Made browser and native startup, subject replacement, disconnect, reconnect, sign-out, and disposal cancellation-safe while publishing unavailability before transport and Scope teardown.
+  - Verification passed: frozen workspace install, shared and Expo TypeScript checks, 58 browser/shared tests, 13 native host tests, focused oxlint, Prettier, and staged diff checks. Device acceptance remains a separate evidence lane.
+- **Files:**
+  - `examples/instant-counter/expo/.gitignore` — Excludes generated Expo, native-project, export, and dependency artifacts.
+  - `examples/instant-counter/expo/App.tsx` — Exposes the native application entrypoint.
+  - `examples/instant-counter/expo/README.md` — Documents the Dev Client architecture, credential boundary, lifecycle, provenance, and verification limits.
+  - `examples/instant-counter/expo/app.json` — Defines the distinct native identity, Dev Client plugin, and iPhone and iPad support.
+  - `examples/instant-counter/expo/babel.config.js` — Preserves spec-correct object spread semantics for Effect under Metro.
+  - `examples/instant-counter/expo/package.json` — Pins Expo, React Native, and Instant native dependencies and wraps build and start commands with public configuration scrubbing.
+  - `examples/instant-counter/expo/src/App.tsx` — Renders native magic-code authentication, accepted Counter state, proposals, transport status, and reconnect controls.
+  - `examples/instant-counter/expo/src/buildProvenance.ts` — Logs embedded clean-build provenance or an explicit development-build absence.
+  - `examples/instant-counter/expo/src/controller.test.ts` — Verifies canonical proposals, accepted snapshot rendering, cancellation, sign-out ordering, reconnect, subject replacement, and sanitized errors.
+  - `examples/instant-counter/expo/src/controller.ts` — Owns explicit native authentication and Processor lifecycle transitions with generation fencing.
+  - `examples/instant-counter/expo/src/environment.d.ts` — Declares the public Expo configuration and provenance environment boundary.
+  - `examples/instant-counter/expo/src/localState.test.ts` — Verifies stable identity, serialized actor sequences, and corrupt-record recovery.
+  - `examples/instant-counter/expo/src/localState.ts` — Persists non-secret Client identity and per-session actor sequences in AsyncStorage.
+  - `examples/instant-counter/expo/src/nativeDatabase.ts` — Initializes the React Native Instant wrapper with the complete application schema.
+  - `examples/instant-counter/expo/src/nativeHost.test.ts` — Locks the capability-free native Processor descriptor and sanitized unsupported executor.
+  - `examples/instant-counter/expo/src/nativeHost.ts` — Adapts the native host without advertising unavailable physical effects.
+  - `examples/instant-counter/expo/src/processorGateway.ts` — Binds native storage, Expo Crypto, Instant Core, and the shared Processor factory.
+  - `examples/instant-counter/expo/tsconfig.json` — Applies strict Expo TypeScript checks.
+  - `examples/instant-counter/expo/vitest.config.ts` — Scopes deterministic native host tests.
+  - `examples/instant-counter/package.json` — Publishes private workspace export boundaries and a compiled shared build for Metro.
+  - `examples/instant-counter/src/client/browserApp.ts` — Cancels stale startup and releases browser Processor resources before sign-out.
+  - `examples/instant-counter/src/client/localState.ts` — Reuses host-neutral identity and registry contracts in browser storage.
+  - `examples/instant-counter/src/client/processor.ts` — Reduces the browser adapter to the shared host-neutral Processor factory.
+  - `examples/instant-counter/src/domain/effect.ts` — Uses Metro-safe Foldkit leaf imports.
+  - `examples/instant-counter/src/domain/index.ts` — Exposes the canonical native-consumable domain barrel.
+  - `examples/instant-counter/src/domain/program.ts` — Uses the portable Foldkit Program leaf import.
+  - `examples/instant-counter/src/domain/wire.ts` — Uses portable Processor and Program types through leaf imports.
+  - `examples/instant-counter/src/processorClient/index.ts` — Exposes the shared Processor and session-digest boundary.
+  - `examples/instant-counter/src/processorClient/processorClient.ts` — Implements the host-neutral authenticated Processor allocation and observers.
+  - `examples/instant-counter/src/shared/identity.test.ts` — Verifies platform-injected lowercase SHA-256 session identity.
+  - `examples/instant-counter/src/shared/identity.ts` — Adds a platform-owned SHA-256 boundary while preserving stable private sessions.
+  - `examples/instant-counter/src/shared/presence.ts` — Uses the portable Processor leaf import.
+  - `examples/instant-counter/src/shared/sessionClaim.ts` — Cancels pending claim observation when startup or authentication is fenced.
+  - `examples/instant-counter/src/transport/codec.ts` — Uses Metro-safe Foldkit leaf imports.
+  - `examples/instant-counter/src/transport/effectScheduler.ts` — Uses portable Command and Runtime leaf imports.
+  - `examples/instant-counter/src/transport/session.ts` — Adds typed, cancellable, platform-independent Program session selection.
+  - `examples/instant-counter/tsconfig.build.json` — Emits the native-consumable shared JavaScript and declarations.
+  - `examples/instant-counter/tsconfig.json` — Includes the scoped parent Vitest configuration in typechecking.
+  - `examples/instant-counter/vitest.config.ts` — Prevents nested Expo tests from being double-discovered by the browser package.
+  - `pnpm-lock.yaml` — Locks the standalone Expo workspace and exact Instant React Native peer graph.
+- **User context (verbatim):**
+  > I open a counter on one device, I authenticate through InstantDB, and my messages sync and we reuse the same core counter program.
+- **SpecStory:** unavailable — No durable SpecStory URI is available for this delegated Codex desktop GUI task; no synchronized capture was found, and public sharing was not authorized.
+
 ## July 31st, 2026 at 12:24:18 p.m. EDT — `5050a8dfb808` fix: harden authenticated Counter synchronization
 
 - **Implementation commit:** `5050a8dfb808825649db7bd8fef2924f80b0b7ab`
