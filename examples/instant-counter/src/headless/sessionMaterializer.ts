@@ -21,6 +21,10 @@ import {
 } from '../shared/identity.js'
 import { InstantCounterSessionClaim } from '../shared/sessionClaim.js'
 import type { HeadlessInstantDatabase } from './adminStore.js'
+import {
+  type HeadlessSubjectScope,
+  includesHeadlessSubject,
+} from './subjectScope.js'
 
 type ClosableSubscription = Readonly<{ close: () => void }>
 
@@ -214,10 +218,13 @@ const materializeSessionClaim = async (
 /** Materializes one canonical Program session for every authenticated claim. */
 export const runSessionMaterializer = (
   database: HeadlessInstantDatabase,
+  subjectScope: HeadlessSubjectScope,
 ): Effect.Effect<never, unknown> =>
   Stream.runForEach(observeSessionClaims(database), claims =>
     Effect.forEach(
-      claims,
+      Array.filter(claims, claim =>
+        includesHeadlessSubject(subjectScope, claim.subjectId),
+      ),
       claim =>
         Effect.tryPromise({
           try: () => materializeSessionClaim(database, claim),

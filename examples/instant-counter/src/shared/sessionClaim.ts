@@ -33,7 +33,7 @@ export const makeSessionClaimTransaction = (
 ) => {
   return transactions.instantCounterSessionClaims
     .lookup('subjectId', subjectId)
-    .update({ claimedAtMs, subjectId })
+    .update({ claimedAtMs })
 }
 
 const readSessionClaim = (

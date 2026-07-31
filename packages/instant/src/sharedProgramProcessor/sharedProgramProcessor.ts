@@ -3,12 +3,14 @@ import {
   Data,
   Deferred,
   Effect,
+  Exit,
   Fiber,
   HashSet,
   Match as M,
   Option,
   Schema as S,
   Scope,
+  Semaphore,
   Stream,
   SubscriptionRef,
   SynchronizedRef,
@@ -477,10 +479,37 @@ export const makeSharedProgramProcessor = <
       sessionId,
       throughAcceptedSequence,
     )
-    const transportFiberRef = yield* SynchronizedRef.make<
-      Option.Option<Fiber.Fiber<never, SharedProgramProcessorError>>
-    >(Option.none())
-    const transportGenerationRef = yield* SynchronizedRef.make(0)
+    type ActiveTransportLifecycle = Readonly<{
+      _tag: 'Active'
+      generation: number
+      initialized: Deferred.Deferred<void, SharedProgramProcessorError>
+      observerFibers: ReadonlyArray<
+        Fiber.Fiber<never, SharedProgramProcessorError>
+      >
+    }>
+    type DisconnectingTransportLifecycle = Readonly<{
+      _tag: 'Disconnecting'
+      completed: Deferred.Deferred<void>
+      connection: SharedProgramConnection
+      generation: number
+      initialized: Deferred.Deferred<void, SharedProgramProcessorError>
+      observerFibers: ReadonlyArray<
+        Fiber.Fiber<never, SharedProgramProcessorError>
+      >
+    }>
+    type TransportLifecycle =
+      | ActiveTransportLifecycle
+      | DisconnectingTransportLifecycle
+      | Readonly<{
+          _tag: 'Disconnected'
+          generation: number
+        }>
+    const transportLifecycleRef =
+      yield* SynchronizedRef.make<TransportLifecycle>({
+        _tag: 'Disconnected',
+        generation: 0,
+      })
+    const transportCallbackSemaphore = yield* Semaphore.make(1)
     const acceptedEffectIdempotencyKeys = yield* SynchronizedRef.make(
       HashSet.empty<string>(),
     )
@@ -651,17 +680,37 @@ export const makeSharedProgramProcessor = <
         }))
       })
 
+    const whenTransportActive = <Error, Requirements>(
+      generation: number,
+      effect: Effect.Effect<void, Error, Requirements>,
+    ): Effect.Effect<boolean, Error, Requirements> =>
+      transportCallbackSemaphore.withPermit(
+        Effect.gen(function* () {
+          const lifecycle = yield* SynchronizedRef.get(transportLifecycleRef)
+          if (
+            lifecycle._tag === 'Active' &&
+            lifecycle.generation === generation
+          ) {
+            yield* effect
+            return true
+          } else {
+            return false
+          }
+        }),
+      )
+
+    const setTransportErrored = setConnection(
+      Attached.make({
+        transportStatus: 'errored',
+      }),
+    )
+
     const persistPending = (
       pending: PendingProgramProposal,
-    ): Effect.Effect<void> =>
+    ): Effect.Effect<boolean> =>
       store.appendMessageProposal(pending.proposal).pipe(
         Effect.matchEffect({
-          onFailure: () =>
-            setConnection(
-              Attached.make({
-                transportStatus: 'errored',
-              }),
-            ),
+          onFailure: () => Effect.succeed(false),
           onSuccess: outcome =>
             SubscriptionRef.update(snapshotRef, snapshot =>
               updatePendingPersistence(
@@ -669,180 +718,458 @@ export const makeSharedProgramProcessor = <
                 pending.proposal.proposalId,
                 persistenceFromOutcome(outcome),
               ),
-            ),
+            ).pipe(Effect.as(true)),
         }),
       )
 
-    const flushPending = SubscriptionRef.get(snapshotRef).pipe(
-      Effect.flatMap(snapshot =>
-        Effect.forEach(
-          Array.filter(
-            snapshot.pendingProposals,
-            pending => pending.persistence === 'Local',
-          ),
-          persistPending,
-          {
-            concurrency: 1,
-            discard: true,
-          },
-        ),
-      ),
-    )
-
-    const connect: Effect.Effect<void, SharedProgramProcessorError> =
-      SynchronizedRef.modifyEffect(transportFiberRef, maybeFiber => {
-        if (Option.isSome(maybeFiber)) {
-          return Effect.succeed(Tuple.make(undefined, maybeFiber))
-        }
-        return Effect.gen(function* () {
-          const transportGeneration = yield* SynchronizedRef.updateAndGet(
-            transportGenerationRef,
-            generation => generation + 1,
-          )
-          yield* setConnection(
-            Attached.make({
-              transportStatus: 'unknown',
-            }),
-          )
-          const acceptedInitialized = yield* Deferred.make<
-            void,
-            SharedProgramProcessorError
-          >()
-          const connectionInitialized = yield* Deferred.make<void>()
-          const proposalsInitialized = yield* Deferred.make<
-            void,
-            SharedProgramProcessorError
-          >()
-          const isFirstAcceptedSnapshot = yield* SynchronizedRef.make(true)
-          const isFirstProposalSnapshot = yield* SynchronizedRef.make(true)
-          const observeAccepted = Stream.runForEach(
-            store.observeAcceptedMessageOccurrences({
-              sessionId,
-              subjectId,
-            }),
-            occurrences =>
-              Effect.gen(function* () {
-                const activeGeneration = yield* SynchronizedRef.get(
-                  transportGenerationRef,
-                )
-                if (activeGeneration === transportGeneration) {
-                  yield* ingestSnapshot(occurrences)
-                }
-                const isFirst = yield* SynchronizedRef.getAndSet(
-                  isFirstAcceptedSnapshot,
-                  false,
-                )
-                if (isFirst) {
-                  yield* Deferred.succeed(acceptedInitialized, undefined)
-                }
-              }),
-          )
-          const observeProposals = Stream.runForEach(
-            store.observeMessageProposals({
-              sessionId,
-              subjectId,
-            }),
-            proposals =>
-              Effect.gen(function* () {
-                const activeGeneration = yield* SynchronizedRef.get(
-                  transportGenerationRef,
-                )
-                if (activeGeneration === transportGeneration) {
-                  yield* recoverClientProposals(proposals)
-                }
-                const isFirst = yield* SynchronizedRef.getAndSet(
-                  isFirstProposalSnapshot,
-                  false,
-                )
-                if (isFirst) {
-                  yield* Deferred.succeed(proposalsInitialized, undefined)
-                }
-              }),
-          )
-          const observeConnection = Stream.runForEach(
-            store.observeConnectionStatus,
-            transportStatus =>
-              Effect.gen(function* () {
-                const activeGeneration = yield* SynchronizedRef.get(
-                  transportGenerationRef,
-                )
-                if (activeGeneration === transportGeneration) {
-                  yield* setTransportStatus(transportStatus)
-                  if (transportStatus === 'authenticated') {
-                    yield* flushPending
-                  }
-                }
-                yield* Deferred.succeed(connectionInitialized, undefined)
-              }),
-          )
-          const observe = Effect.all(
-            [observeAccepted, observeConnection, observeProposals],
+    const flushPending = (generation: number): Effect.Effect<void> =>
+      SubscriptionRef.get(snapshotRef).pipe(
+        Effect.flatMap(snapshot =>
+          Effect.forEach(
+            Array.filter(
+              snapshot.pendingProposals,
+              pending => pending.persistence === 'Local',
+            ),
+            pending =>
+              persistPending(pending).pipe(
+                Effect.flatMap(didPersist =>
+                  didPersist
+                    ? Effect.void
+                    : Effect.gen(function* () {
+                        const lifecycle = yield* SynchronizedRef.get(
+                          transportLifecycleRef,
+                        )
+                        if (
+                          lifecycle._tag === 'Active' &&
+                          lifecycle.generation === generation
+                        ) {
+                          yield* setTransportErrored
+                        }
+                      }),
+                ),
+              ),
             {
-              concurrency: 'unbounded',
+              concurrency: 1,
               discard: true,
             },
-          ).pipe(
-            Effect.matchEffect({
-              onFailure: error =>
-                Effect.gen(function* () {
-                  const activeGeneration = yield* SynchronizedRef.get(
-                    transportGenerationRef,
-                  )
-                  if (activeGeneration === transportGeneration) {
-                    yield* setConnection(
+          ),
+        ),
+      )
+
+    type TransportTeardownPlan =
+      | Readonly<{
+          _tag: 'AlreadyDisconnected'
+        }>
+      | Readonly<{
+          _tag: 'AwaitingTeardown'
+          completed: Deferred.Deferred<void>
+          initialized: Deferred.Deferred<void, SharedProgramProcessorError>
+        }>
+      | Readonly<{
+          _tag: 'StartedTeardown'
+          completed: Deferred.Deferred<void>
+          lifecycle: ActiveTransportLifecycle
+        }>
+
+    const transportTeardownResult = (
+      plan: TransportTeardownPlan,
+      lifecycle: TransportLifecycle,
+    ): readonly [TransportTeardownPlan, TransportLifecycle] =>
+      Tuple.make(plan, lifecycle)
+
+    const disconnectedTransportLifecycle = (
+      generation: number,
+    ): TransportLifecycle => ({
+      _tag: 'Disconnected',
+      generation,
+    })
+
+    const runTransportTeardown = (
+      lifecycle: ActiveTransportLifecycle,
+      completed: Deferred.Deferred<void>,
+    ): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        yield* transportCallbackSemaphore.withPermit(
+          Effect.gen(function* () {
+            yield* Effect.forEach(
+              lifecycle.observerFibers,
+              fiber => Effect.forkIn(Fiber.interrupt(fiber), scope),
+              { discard: true },
+            )
+            yield* SynchronizedRef.modifyEffect(
+              transportLifecycleRef,
+              currentLifecycle => {
+                if (
+                  currentLifecycle._tag === 'Disconnecting' &&
+                  currentLifecycle.generation === lifecycle.generation &&
+                  currentLifecycle.completed === completed
+                ) {
+                  return Effect.gen(function* () {
+                    yield* setConnection(currentLifecycle.connection)
+                    yield* Deferred.succeed(completed, undefined)
+                    return Tuple.make(
+                      undefined,
+                      disconnectedTransportLifecycle(lifecycle.generation),
+                    )
+                  })
+                } else {
+                  return Effect.succeed(Tuple.make(undefined, currentLifecycle))
+                }
+              },
+            )
+          }),
+        )
+      })
+
+    const initiateTransportTeardown = (
+      maybeExpectedGeneration: Option.Option<number>,
+      connection: SharedProgramConnection,
+    ): Effect.Effect<Option.Option<Deferred.Deferred<void>>> =>
+      Effect.uninterruptible(
+        SynchronizedRef.modifyEffect(
+          transportLifecycleRef,
+          currentLifecycle => {
+            if (currentLifecycle._tag === 'Active') {
+              if (
+                Option.isSome(maybeExpectedGeneration) &&
+                maybeExpectedGeneration.value !== currentLifecycle.generation
+              ) {
+                return Effect.succeed(
+                  transportTeardownResult(
+                    { _tag: 'AlreadyDisconnected' },
+                    currentLifecycle,
+                  ),
+                )
+              }
+              return Effect.gen(function* () {
+                const completed = yield* Deferred.make<void>()
+                yield* setConnection(connection)
+                return transportTeardownResult(
+                  {
+                    _tag: 'StartedTeardown',
+                    completed,
+                    lifecycle: currentLifecycle,
+                  },
+                  {
+                    _tag: 'Disconnecting',
+                    completed,
+                    connection,
+                    generation: currentLifecycle.generation,
+                    initialized: currentLifecycle.initialized,
+                    observerFibers: currentLifecycle.observerFibers,
+                  },
+                )
+              })
+            } else if (currentLifecycle._tag === 'Disconnecting') {
+              const isExplicitDisconnect = Option.isNone(
+                maybeExpectedGeneration,
+              )
+              if (isExplicitDisconnect) {
+                return setConnection(connection).pipe(
+                  Effect.as(
+                    transportTeardownResult(
+                      {
+                        _tag: 'AwaitingTeardown',
+                        completed: currentLifecycle.completed,
+                        initialized: currentLifecycle.initialized,
+                      },
+                      {
+                        ...currentLifecycle,
+                        connection,
+                      },
+                    ),
+                  ),
+                )
+              } else {
+                return Effect.succeed(
+                  transportTeardownResult(
+                    {
+                      _tag: 'AwaitingTeardown',
+                      completed: currentLifecycle.completed,
+                      initialized: currentLifecycle.initialized,
+                    },
+                    currentLifecycle,
+                  ),
+                )
+              }
+            } else if (Option.isNone(maybeExpectedGeneration)) {
+              return setConnection(connection).pipe(
+                Effect.as(
+                  transportTeardownResult(
+                    { _tag: 'AlreadyDisconnected' },
+                    currentLifecycle,
+                  ),
+                ),
+              )
+            } else {
+              return Effect.succeed(
+                transportTeardownResult(
+                  { _tag: 'AlreadyDisconnected' },
+                  currentLifecycle,
+                ),
+              )
+            }
+          },
+        ).pipe(
+          Effect.flatMap(plan => {
+            if (plan._tag === 'StartedTeardown') {
+              return Effect.gen(function* () {
+                const teardownFiber = yield* Effect.forkIn(
+                  runTransportTeardown(plan.lifecycle, plan.completed),
+                  scope,
+                )
+                yield* Effect.sync(() => {
+                  teardownFiber.addObserver(exit => {
+                    Deferred.doneUnsafe(plan.completed, exit)
+                  })
+                })
+                if (Option.isNone(maybeExpectedGeneration)) {
+                  yield* Deferred.interrupt(plan.lifecycle.initialized)
+                }
+                return Option.some(plan.completed)
+              })
+            } else if (plan._tag === 'AwaitingTeardown') {
+              return Effect.gen(function* () {
+                if (Option.isNone(maybeExpectedGeneration)) {
+                  yield* Deferred.interrupt(plan.initialized)
+                }
+                return Option.some(plan.completed)
+              })
+            } else {
+              return Effect.succeed(Option.none())
+            }
+          }),
+        ),
+      )
+
+    const connect: Effect.Effect<void, SharedProgramProcessorError> =
+      Effect.suspend(() =>
+        Effect.uninterruptible(
+          SynchronizedRef.modifyEffect(
+            transportLifecycleRef,
+            currentLifecycle => {
+              if (currentLifecycle._tag === 'Active') {
+                return Effect.succeed(
+                  Tuple.make(
+                    Deferred.await(currentLifecycle.initialized),
+                    currentLifecycle,
+                  ),
+                )
+              } else if (currentLifecycle._tag === 'Disconnecting') {
+                return Effect.succeed(
+                  Tuple.make(
+                    Deferred.await(currentLifecycle.completed).pipe(
+                      Effect.andThen(connect),
+                    ),
+                    currentLifecycle,
+                  ),
+                )
+              }
+              return Effect.gen(function* () {
+                const generation = currentLifecycle.generation + 1
+                const initialized = yield* Deferred.make<
+                  void,
+                  SharedProgramProcessorError
+                >()
+                yield* setConnection(
+                  Attached.make({
+                    transportStatus: 'unknown',
+                  }),
+                )
+                const acceptedInitialized = yield* Deferred.make<
+                  void,
+                  SharedProgramProcessorError
+                >()
+                const connectionInitialized = yield* Deferred.make<void>()
+                const proposalsInitialized = yield* Deferred.make<
+                  void,
+                  SharedProgramProcessorError
+                >()
+                const transportExited = yield* Deferred.make<
+                  never,
+                  SharedProgramProcessorError
+                >()
+                const isFirstAcceptedSnapshot =
+                  yield* SynchronizedRef.make(true)
+                const isFirstProposalSnapshot =
+                  yield* SynchronizedRef.make(true)
+                const observeAccepted = Stream.runForEach(
+                  store.observeAcceptedMessageOccurrences({
+                    sessionId,
+                    subjectId,
+                  }),
+                  occurrences =>
+                    whenTransportActive(
+                      generation,
+                      Effect.gen(function* () {
+                        yield* ingestSnapshot(occurrences)
+                        const isFirst = yield* SynchronizedRef.getAndSet(
+                          isFirstAcceptedSnapshot,
+                          false,
+                        )
+                        if (isFirst) {
+                          yield* Deferred.succeed(
+                            acceptedInitialized,
+                            undefined,
+                          )
+                        }
+                      }),
+                    ).pipe(Effect.asVoid),
+                ).pipe(
+                  Effect.andThen(Effect.never),
+                  Effect.onExit(exit =>
+                    Effect.gen(function* () {
+                      yield* Deferred.done(transportExited, exit)
+                      if (Exit.isFailure(exit)) {
+                        yield* Deferred.done(acceptedInitialized, exit)
+                      }
+                    }),
+                  ),
+                )
+                const observeConnection = Stream.runForEach(
+                  store.observeConnectionStatus,
+                  transportStatus =>
+                    whenTransportActive(
+                      generation,
+                      Effect.gen(function* () {
+                        yield* setTransportStatus(transportStatus)
+                        if (transportStatus === 'authenticated') {
+                          yield* flushPending(generation)
+                        }
+                        yield* Deferred.succeed(
+                          connectionInitialized,
+                          undefined,
+                        )
+                      }),
+                    ).pipe(Effect.asVoid),
+                ).pipe(
+                  Effect.andThen(Effect.never),
+                  Effect.onExit(exit =>
+                    Effect.gen(function* () {
+                      yield* Deferred.done(transportExited, exit)
+                      if (Exit.isFailure(exit)) {
+                        yield* Deferred.interrupt(connectionInitialized)
+                      }
+                    }),
+                  ),
+                )
+                const observeProposals = Stream.runForEach(
+                  store.observeMessageProposals({
+                    sessionId,
+                    subjectId,
+                  }),
+                  proposals =>
+                    whenTransportActive(
+                      generation,
+                      Effect.gen(function* () {
+                        yield* recoverClientProposals(proposals)
+                        const isFirst = yield* SynchronizedRef.getAndSet(
+                          isFirstProposalSnapshot,
+                          false,
+                        )
+                        if (isFirst) {
+                          yield* Deferred.succeed(
+                            proposalsInitialized,
+                            undefined,
+                          )
+                        }
+                      }),
+                    ).pipe(Effect.asVoid),
+                ).pipe(
+                  Effect.andThen(Effect.never),
+                  Effect.onExit(exit =>
+                    Effect.gen(function* () {
+                      yield* Deferred.done(transportExited, exit)
+                      if (Exit.isFailure(exit)) {
+                        yield* Deferred.done(proposalsInitialized, exit)
+                      }
+                    }),
+                  ),
+                )
+                const observerFibers = yield* Effect.forEach(
+                  [observeAccepted, observeConnection, observeProposals],
+                  observer => Effect.forkIn(observer, scope),
+                )
+                const lifecycle: ActiveTransportLifecycle = {
+                  _tag: 'Active',
+                  generation,
+                  initialized,
+                  observerFibers,
+                }
+                const initialize = Effect.all(
+                  [
+                    Deferred.await(acceptedInitialized),
+                    Deferred.await(connectionInitialized),
+                    Deferred.await(proposalsInitialized),
+                  ],
+                  {
+                    concurrency: 'unbounded',
+                    discard: true,
+                  },
+                ).pipe(
+                  Effect.andThen(
+                    Effect.gen(function* () {
+                      const isActive = yield* whenTransportActive(
+                        generation,
+                        flushPending(generation),
+                      )
+                      if (!isActive) {
+                        return yield* Effect.interrupt
+                      }
+                    }),
+                  ),
+                )
+                const supervise = Effect.gen(function* () {
+                  const initializationExit = yield* Effect.exit(initialize)
+                  if (Exit.isFailure(initializationExit)) {
+                    const maybeCompleted = yield* initiateTransportTeardown(
+                      Option.some(generation),
+                      Attached.make({
+                        transportStatus: 'errored',
+                      }),
+                    )
+                    if (Option.isSome(maybeCompleted)) {
+                      yield* Deferred.await(maybeCompleted.value)
+                    }
+                    yield* Deferred.done(initialized, initializationExit)
+                  } else {
+                    yield* Deferred.done(initialized, initializationExit)
+                    yield* Effect.exit(Deferred.await(transportExited))
+                    yield* initiateTransportTeardown(
+                      Option.some(generation),
                       Attached.make({
                         transportStatus: 'errored',
                       }),
                     )
                   }
-                  yield* Deferred.fail(acceptedInitialized, error)
-                  yield* Deferred.fail(proposalsInitialized, error)
-                  return yield* Effect.fail(error)
-                }),
-              onSuccess: () => Effect.never,
-            }),
-            Effect.onExit(() =>
-              Effect.gen(function* () {
-                const activeGeneration = yield* SynchronizedRef.get(
-                  transportGenerationRef,
+                })
+                yield* Effect.uninterruptible(
+                  Effect.flatMap(Effect.forkIn(supervise, scope), fiber =>
+                    Effect.sync(() => {
+                      fiber.addObserver(exit => {
+                        Deferred.doneUnsafe(initialized, exit)
+                      })
+                    }),
+                  ),
                 )
-                if (activeGeneration === transportGeneration) {
-                  yield* SynchronizedRef.set(transportFiberRef, Option.none())
-                }
-              }),
-            ),
-          )
-          const fiber = yield* Effect.forkIn(observe, scope)
-          yield* Effect.all(
-            [
-              Deferred.await(acceptedInitialized),
-              Deferred.await(connectionInitialized),
-              Deferred.await(proposalsInitialized),
-            ],
-            {
-              concurrency: 'unbounded',
-              discard: true,
+                return Tuple.make(Deferred.await(initialized), lifecycle)
+              })
             },
-          )
-          yield* flushPending
-          return Tuple.make(undefined, Option.some(fiber))
-        })
-      })
+          ),
+        ).pipe(Effect.flatten),
+      )
 
-    const disconnect: Effect.Effect<void> = SynchronizedRef.modifyEffect(
-      transportFiberRef,
-      maybeFiber =>
-        Effect.gen(function* () {
-          yield* SynchronizedRef.update(
-            transportGenerationRef,
-            generation => generation + 1,
-          )
-          if (Option.isSome(maybeFiber)) {
-            yield* Fiber.interrupt(maybeFiber.value)
-          }
-          yield* setConnection(Detached.make({}))
-          return Tuple.make(undefined, Option.none())
-        }),
+    const disconnect: Effect.Effect<void> = initiateTransportTeardown(
+      Option.none(),
+      Detached.make({}),
+    ).pipe(
+      Effect.flatMap(maybeCompleted => {
+        if (Option.isSome(maybeCompleted)) {
+          return Deferred.await(maybeCompleted.value)
+        } else {
+          return Effect.void
+        }
+      }),
     )
 
     const appendPending = (
@@ -949,12 +1276,23 @@ export const makeSharedProgramProcessor = <
         })
         if (!isAcceptedEffectResult) {
           yield* appendPending(proposal)
-          yield* persistPending(
+          const lifecycle = yield* SynchronizedRef.get(transportLifecycleRef)
+          const maybeTransportGeneration =
+            lifecycle._tag === 'Active'
+              ? Option.some(lifecycle.generation)
+              : Option.none()
+          const didPersist = yield* persistPending(
             PendingProgramProposal.make({
               persistence: 'Local',
               proposal,
             }),
           )
+          if (!didPersist && Option.isSome(maybeTransportGeneration)) {
+            yield* whenTransportActive(
+              maybeTransportGeneration.value,
+              setTransportErrored,
+            )
+          }
         }
         return proposal
       })

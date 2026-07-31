@@ -7,6 +7,7 @@ import {
   makeHeadlessLocalState,
 } from './localState.js'
 import { runSessionMaterializer } from './sessionMaterializer.js'
+import { headlessSubjectScopeFromEnvironment } from './subjectScope.js'
 
 const program = Effect.scoped(
   Effect.gen(function* () {
@@ -14,13 +15,14 @@ const program = Effect.scoped(
     const localState = yield* makeHeadlessLocalState(
       headlessStatePathFromEnvironment(),
     )
+    const subjectScope = headlessSubjectScopeFromEnvironment()
     process.stdout.write(
       'Foldkit Instant headless authority is observing authenticated sessions.\n',
     )
     return yield* Effect.all(
       [
-        runSessionMaterializer(databases.admin),
-        runHeadlessAuthority({ databases, localState }),
+        runSessionMaterializer(databases.admin, subjectScope),
+        runHeadlessAuthority({ databases, localState, subjectScope }),
       ],
       { concurrency: 'unbounded', discard: true },
     )

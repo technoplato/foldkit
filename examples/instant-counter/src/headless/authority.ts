@@ -36,6 +36,10 @@ import {
 import type { HeadlessDatabases } from './database.js'
 import type { HeadlessLocalState } from './localState.js'
 import { runEffectPlacementSupervisor } from './placementSupervisor.js'
+import {
+  type HeadlessSubjectScope,
+  includesHeadlessSubject,
+} from './subjectScope.js'
 
 const heartbeatInterval = '10 seconds'
 const restartDelay = Duration.seconds(2)
@@ -44,6 +48,7 @@ const restartDelay = Duration.seconds(2)
 export type HeadlessAuthorityConfig = Readonly<{
   databases: HeadlessDatabases
   localState: HeadlessLocalState
+  subjectScope: HeadlessSubjectScope
 }>
 
 const reportRejectedProposal = (): Effect.Effect<void> =>
@@ -206,8 +211,11 @@ export const runHeadlessAuthority = (
       observeAllProgramSessions(config.databases.admin),
       sessions =>
         Effect.gen(function* () {
+          const selectedSessions = Array.filter(sessions, session =>
+            includesHeadlessSubject(config.subjectScope, session.subjectId),
+          )
           const maybeValidSessions = yield* Effect.forEach(
-            sessions,
+            selectedSessions,
             session =>
               validateProgramSession(session).pipe(
                 Effect.match({

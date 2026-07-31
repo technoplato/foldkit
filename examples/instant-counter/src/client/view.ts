@@ -307,7 +307,13 @@ const programView = (input: BrowserViewInput): string => {
       : 'Signed in'
 
   return `
-    <main class="program-shell">
+    <main
+      class="program-shell"
+      data-accepted-sequence="${snapshot.acceptedSequence.toString()}"
+      data-displayed-frame="${currentFrame.toString()}"
+      data-pending-proposals="${snapshot.pendingProposals.length.toString()}"
+      data-replay-mode="${isLive ? 'Live' : 'Replay'}"
+    >
       <header class="topbar">
         <div>
           <p class="eyebrow">Foldkit Program | Accepted Messages</p>
@@ -323,7 +329,7 @@ const programView = (input: BrowserViewInput): string => {
       ${notice(input.maybeNotice)}
 
       <section class="counter-card">
-        <div class="count">${model.counter.count.toString()}</div>
+        <div class="count" data-counter-count="${model.counter.count.toString()}">${model.counter.count.toString()}</div>
         <div class="counter-actions">
           <button data-action="decrement" aria-label="Decrement">−</button>
           <button data-action="reset">Reset</button>
