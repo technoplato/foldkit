@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 31st, 2026 at 3:53:20 p.m. EDT — `4edc03ecc32e` fix: harden Wallet storage recovery
+
+- **Implementation commit:** `4edc03ecc32e1b7cf232ac4beb366bb743959521`
+- **Change:** Harden Wallet custody persistence and crash recovery across local hosts.
+- **Details:**
+  - Wallet creation and transfer imports now persist exact immutable prepared bytes before visibility, validate retries against the complete request, preserve legacy retry bytes, generate only requested chain keys, and fail closed on collisions.
+  - macOS Keychain storage partitions records by a host-derived owner key and serializes one service-owner partition through a stable permission-restricted per-user lock. The owner partition is a namespace supplied after trusted host authentication; it does not authenticate a caller.
+  - Browser storage uses a non-extractable Web Crypto key, owner-and-Wallet-bound AES-GCM v2 records, atomic prepared and committed IndexedDB stores, legacy slot validation, blocked-upgrade recovery, version-change reopening, and permanent InvalidRecord classification.
+  - Expo SecureStore uses owner-partitioned, SHA-256-derived record keys and exact prepared/commit recovery while retaining safe local v1 compatibility.
+  - Focused verification passed: local-vault typecheck and 84 tests with four opt-in tests skipped, browser-vault typecheck and 12 tests, Expo typecheck and seven storage tests, targeted formatting, oxlint, and diff checks. The real macOS Keychain opt-in was attempted but the SSH audit session returned User interaction is not allowed; real IndexedDB transaction and cross-tab browser acceptance remains pending.
+- **Files:**
+  - `examples/wallet/local-vault/src/localWalletVault.ts` — Define exact two-phase custody persistence, request collision validation, subset-chain keys, owner partitions, and legacy retry preservation.
+  - `examples/wallet/local-vault/src/localWalletVault.test.ts` — Cover crash recovery, request collisions, subset custody, owner partition validation, and legacy exact-byte retries.
+  - `examples/wallet/local-vault/src/macosKeychainWalletVaultStorage.ts` — Serialize Keychain persistence within and across processes using a stable per-user lock namespace.
+  - `examples/wallet/local-vault/src/macosKeychainWalletVaultStorage.test.ts` — Exercise Keychain record/index durability, collisions, partitions, and injected write failures.
+  - `examples/wallet/local-vault/src/macosKeychainWalletVaultStorage.integration.test.ts` — Define opt-in real Keychain restart and concurrent-process acceptance.
+  - `examples/wallet/web-client/src/webWalletVault.ts` — Encrypt and bind browser custody while making IndexedDB prepare/commit and connection recovery explicit.
+  - `examples/wallet/web-client/src/webWalletVault.test.ts` — Cover encryption, tampering, orphan recovery, legacy slot binding, retries, and sanitized errors.
+  - `examples/react-native-showcase/src/wallet/walletVaultStorage.ts` — Persist Expo custody through owner-partitioned hashed SecureStore keys and two-phase visibility.
+  - `examples/react-native-showcase/src/wallet/walletVault.ts` — Supply Expo Crypto SHA-256 to the SecureStore adapter.
+  - `examples/react-native-showcase/src/wallet/walletVault.test.ts` — Cover Expo recovery, collisions, unsafe identifiers, owner partitions, and v1 compatibility.
+- **User context (verbatim):**
+  > For sending, persisting wallet To Local secure storage.
+  > I'd like to share the credentials and private keys amongst all the different things, but in a secure way.
+- **SpecStory:** unavailable — This task ran in the Codex desktop GUI; SpecStory does not document GUI capture, and no verified durable session URI is available.
+
 ## July 31st, 2026 at 2:28:02 p.m. EDT — `5c896d5c5231` fix: replay current Instant connection status
 
 - **Implementation commit:** `5c896d5c5231170e252ac0258eb61d73fe91f94d`
