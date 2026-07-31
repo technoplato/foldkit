@@ -3,9 +3,25 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "exports": {
+    "./domain": {
+      "types": "./dist/src/domain/index.d.ts",
+      "import": "./dist/src/domain/index.js"
+    },
+    "./processor-client": {
+      "types": "./dist/src/processorClient/index.d.ts",
+      "import": "./dist/src/processorClient/index.js"
+    },
+    "./schema": {
+      "types": "./dist/instant.schema.d.ts",
+      "import": "./dist/instant.schema.js"
+    }
+  },
   "scripts": {
     "preacceptance:live": "pnpm --filter @foldkit/instant build && pnpm --filter counter-core-example build",
     "acceptance:live": "tsx src/acceptance/liveAcceptance.ts",
+    "build:shared": "pnpm run clean:shared && tsc -p tsconfig.build.json",
+    "clean:shared": "rimraf dist",
     "prebuild": "pnpm --filter counter-core-example build",
     "build": "./scripts/with-public-instant-env vite build",
     "predev": "pnpm --filter counter-core-example build",
@@ -33,6 +49,7 @@
     "@types/node": "^25.9.3",
     "prettier": "^3.8.4",
     "playwright": "^1.61.0",
+    "rimraf": "^6.1.3",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",

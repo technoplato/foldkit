@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": false,
+    "outDir": "./dist"
+  },
+  "include": [
+    "instant.schema.ts",
+    "src/domain/**/*.ts",
+    "src/processorClient/**/*.ts",
+    "src/shared/identity.ts",
+    "src/shared/presence.ts",
+    "src/shared/sessionClaim.ts",
+    "src/transport/**/*.ts"
+  ],
+  "exclude": ["src/**/*.test.ts"]
+}

@@ -17,15 +17,32 @@ export const processorRoomIdPrefix = `${sessionIdPrefix}room:`
 
 const toHex = (value: number): string => value.toString(16).padStart(2, '0')
 
-/** Derives one non-secret stable session identifier for an authenticated subject. */
-export const deriveSessionId = async (subjectId: string): Promise<string> => {
-  const input = new TextEncoder().encode(
-    `${programId}:v${programVersion}:${subjectId}`,
-  )
+/** Computes one lowercase SHA-256 digest for a UTF-8 string. */
+export type Sha256HexDigest = (value: string) => Promise<string>
+
+/** Derives one session identifier with a platform-owned SHA-256 implementation. */
+export const deriveSessionIdWithDigest = async (
+  subjectId: string,
+  digest: Sha256HexDigest,
+): Promise<string> => {
+  const value = `${programId}:v${programVersion}:${subjectId}`
+  const sha256Hex = await digest(value)
+  if (!/^[0-9a-f]{64}$/.test(sha256Hex)) {
+    throw new Error('The session identifier digest was not lowercase SHA-256.')
+  }
+  return `${sessionIdPrefix}${sha256Hex}`
+}
+
+const browserSha256HexDigest: Sha256HexDigest = async value => {
+  const input = new TextEncoder().encode(value)
   const digest = await crypto.subtle.digest('SHA-256', input)
   const bytes = Array.fromIterable(new Uint8Array(digest))
-  return `${sessionIdPrefix}${Array.join(Array.map(bytes, toHex), '')}`
+  return Array.join(Array.map(bytes, toHex), '')
 }
+
+/** Derives one non-secret stable session identifier for an authenticated subject. */
+export const deriveSessionId = (subjectId: string): Promise<string> =>
+  deriveSessionIdWithDigest(subjectId, browserSha256HexDigest)
 
 /** Derives the stable authority Processor identifier for one Program session. */
 export const authorityProcessorId = (sessionId: string): string =>

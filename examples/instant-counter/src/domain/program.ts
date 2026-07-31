@@ -3,7 +3,7 @@ import {
   CounterProgram,
 } from 'counter-core-example'
 import { Array, Match as M, Option } from 'effect'
-import { Program } from 'foldkit'
+import * as Program from 'foldkit/program'
 
 import { type EffectExecutor, commandForEffect } from './effect.js'
 import {

@@ -59,6 +59,7 @@ export class BrowserApp {
   #maybeSentEmail = Option.none<string>()
   #presence: ReadonlyArray<Processor.Descriptor> = []
   #processorLease: ProcessorLease | null = null
+  #processorStartupController: AbortController | null = null
   #snapshot: SharedProgramProcessorSnapshot<Model> | null = null
   #unsubscribeAuthentication: (() => void) | null = null
   #unsubscribeConnection: (() => void) | null = null
@@ -145,15 +146,23 @@ export class BrowserApp {
       'Restoring the cached accepted tape for this subject.',
     )
     this.#render()
+    const startupController = new AbortController()
+    this.#processorStartupController = startupController
     try {
-      const allocation = await allocateBrowserProcessor({
-        actorSequences: this.#actorSequences,
-        attemptRegistry: this.#attemptRegistry,
-        database: this.#database,
-        identity: this.#identity,
-        subjectId,
-      })
-      if (generation !== this.#generation) {
+      const allocation = await allocateBrowserProcessor(
+        {
+          actorSequences: this.#actorSequences,
+          attemptRegistry: this.#attemptRegistry,
+          database: this.#database,
+          identity: this.#identity,
+          subjectId,
+        },
+        startupController.signal,
+      )
+      if (this.#processorStartupController === startupController) {
+        this.#processorStartupController = null
+      }
+      if (generation !== this.#generation || startupController.signal.aborted) {
         await allocation.release()
         return
       }
@@ -187,7 +196,13 @@ export class BrowserApp {
         allocation.processor.publishEffectExecutorAvailability(true),
       )
     } catch {
-      if (generation === this.#generation) {
+      if (this.#processorStartupController === startupController) {
+        this.#processorStartupController = null
+      }
+      if (
+        generation === this.#generation &&
+        !startupController.signal.aborted
+      ) {
         this.#maybeNotice = Option.some(
           'The Processor could not start. Confirm the Instant schema, permissions, and headless authority are running.',
         )
@@ -197,6 +212,8 @@ export class BrowserApp {
   }
 
   async #releaseProcessor(): Promise<void> {
+    this.#processorStartupController?.abort()
+    this.#processorStartupController = null
     const lease = this.#processorLease
     this.#processorLease = null
     this.#snapshot = null
@@ -204,9 +221,13 @@ export class BrowserApp {
     if (lease === null) {
       return
     }
-    await lease.detachPresence()
-    await lease.detachSnapshots()
-    await Effect.runPromise(lease.processor.shared.disconnect)
+    await Effect.runPromise(
+      lease.processor.publishEffectExecutorAvailability(false),
+    ).catch(() => undefined)
+    await Effect.runPromise(lease.processor.shared.disconnect).catch(
+      () => undefined,
+    )
+    await Promise.allSettled([lease.detachPresence(), lease.detachSnapshots()])
     await lease.release()
   }
 
@@ -268,7 +289,10 @@ export class BrowserApp {
     if (lease !== null) {
       this.#maybeNotice = Option.some('Disconnecting this Model…')
       this.#render()
-      void Effect.runPromise(lease.processor.shared.disconnect)
+      void Effect.runPromise(
+        lease.processor.publishEffectExecutorAvailability(false),
+      )
+        .then(() => Effect.runPromise(lease.processor.shared.disconnect))
         .then(() => Effect.runPromise(lease.processor.shared.readSnapshot))
         .then(snapshot => {
           if (this.#processorLease === lease) {
@@ -276,9 +300,6 @@ export class BrowserApp {
             this.#maybeNotice = Option.none()
             this.#render()
           }
-          return Effect.runPromise(
-            lease.processor.publishEffectExecutorAvailability(false),
-          )
         })
         .catch(() => {
           if (this.#processorLease === lease) {
@@ -338,11 +359,16 @@ export class BrowserApp {
   }
 
   #signOut(): void {
+    this.#generation += 1
     this.#maybeSentEmail = Option.none()
-    void signOut(this.#database).catch(() => {
-      this.#maybeNotice = Option.some('Instant could not complete sign out.')
-      this.#render()
-    })
+    this.#maybeNotice = Option.some('Signing out and closing this Processor…')
+    this.#render()
+    void this.#releaseProcessor()
+      .then(() => signOut(this.#database))
+      .catch(() => {
+        this.#maybeNotice = Option.some('Instant could not complete sign out.')
+        this.#render()
+      })
   }
 
   #render(): void {

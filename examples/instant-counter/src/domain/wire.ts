@@ -1,5 +1,5 @@
 import { Effect, Match as M, Schema as S } from 'effect'
-import { Program } from 'foldkit'
+import * as Program from 'foldkit/program'
 
 import {
   AssignedEffect,

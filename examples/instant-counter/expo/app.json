@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Foldkit Instant Counter",
+    "slug": "foldkit-instant-counter",
+    "scheme": "foldkit-instant-counter",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.knophy.foldkit.instantcounter.dev",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.knophy.foldkit.instantcounter.dev"
+    },
+    "plugins": ["expo-dev-client"]
+  }
+}

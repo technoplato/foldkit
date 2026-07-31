@@ -1,5 +1,6 @@
 import { Effect, Option, Schema as S } from 'effect'
-import { Processor, Program } from 'foldkit'
+import * as Processor from 'foldkit/processor'
+import * as Program from 'foldkit/program'
 
 import {
   type InstantEffectRequestRecord,

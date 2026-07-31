@@ -39,14 +39,18 @@ export const makeSessionClaimTransaction = (
 const readSessionClaim = (
   database: InstantCounterDatabase,
   subjectId: string,
+  signal: AbortSignal | undefined,
 ): Promise<Option.Option<InstantCounterSessionClaim>> =>
   new Promise((resolve, reject) => {
     let unsubscribe: (() => void) | undefined
     let isSettled = false
 
     const close = (): void => {
-      if (unsubscribe !== undefined) {
-        unsubscribe()
+      signal?.removeEventListener('abort', abort)
+      const closeSubscription = unsubscribe
+      unsubscribe = undefined
+      if (closeSubscription !== undefined) {
+        closeSubscription()
       }
     }
     const succeed = (
@@ -58,14 +62,22 @@ const readSessionClaim = (
         resolve(maybeClaim)
       }
     }
-    const fail = (): void => {
+    const fail = (cause: unknown): void => {
       if (!isSettled) {
         isSettled = true
         close()
-        reject(new Error('Unable to read the authenticated session claim.'))
+        reject(cause)
       }
     }
+    const abort = (): void => {
+      fail(new Error('The authenticated session claim was cancelled.'))
+    }
 
+    if (signal?.aborted === true) {
+      abort()
+      return
+    }
+    signal?.addEventListener('abort', abort, { once: true })
     unsubscribe = database.subscribeQuery(
       {
         instantCounterSessionClaims: {
@@ -74,7 +86,7 @@ const readSessionClaim = (
       },
       payload => {
         if (payload.error !== undefined) {
-          fail()
+          fail(new Error('Unable to read the authenticated session claim.'))
         } else {
           succeed(
             decodeSessionClaimForSubject(
@@ -90,22 +102,42 @@ const readSessionClaim = (
     }
   })
 
-/** Ensures the browser has submitted exactly one own-subject session claim. */
+/** Options for one cancellable authenticated session claim. */
+export type EnsureSessionClaimOptions = Readonly<{
+  now?: () => number
+  signal?: AbortSignal | undefined
+}>
+
+const ensureSessionClaimWasNotCancelled = (
+  signal: AbortSignal | undefined,
+): void => {
+  if (signal?.aborted === true) {
+    throw new Error('The authenticated session claim was cancelled.')
+  }
+}
+
+/** Ensures one authenticated Client has submitted its own session claim. */
 export const ensureSessionClaim = async (
   database: InstantCounterDatabase,
   subjectId: string,
-  now: () => number = Date.now,
+  options: EnsureSessionClaimOptions = {},
 ): Promise<void> => {
-  const maybeClaim = await readSessionClaim(database, subjectId)
+  const maybeClaim = await readSessionClaim(database, subjectId, options.signal)
   if (Option.isSome(maybeClaim)) {
     return
   }
+  ensureSessionClaimWasNotCancelled(options.signal)
 
   try {
     await database.transact(
-      makeSessionClaimTransaction(database.tx, subjectId, now()),
+      makeSessionClaimTransaction(
+        database.tx,
+        subjectId,
+        (options.now ?? Date.now)(),
+      ),
     )
   } catch {
+    ensureSessionClaimWasNotCancelled(options.signal)
     try {
       const existing = await database.queryOnce({
         instantCounterSessionClaims: {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   deriveSessionId,
+  deriveSessionIdWithDigest,
   isProcessorRoomId,
   processorRoomIdPrefix,
 } from './identity.js'
@@ -21,6 +22,17 @@ describe('deriveSessionId', () => {
     const second = await deriveSessionId('subject-2')
 
     expect(first).not.toBe(second)
+  })
+
+  it('accepts a platform-owned lowercase SHA-256 implementation', async () => {
+    const digest = 'a'.repeat(64)
+
+    await expect(
+      deriveSessionIdWithDigest('subject-1', async () => digest),
+    ).resolves.toBe(`instant-counter:v1:${digest}`)
+    await expect(
+      deriveSessionIdWithDigest('subject-1', async () => digest.toUpperCase()),
+    ).rejects.toThrow('lowercase SHA-256')
   })
 
   it('recognizes only versioned room identifiers minted from random UUIDs', () => {
