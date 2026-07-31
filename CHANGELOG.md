@@ -4,6 +4,34 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 31st, 2026 at 3:54:13 p.m. EDT — `1f310b268d24` feat: expose complete Wallet client matrix
+
+- **Implementation commit:** `1f310b268d2422c1adab160f0f0c346009a24b9a`
+- **Change:** Expose the complete typed Wallet Client matrix and terminal activity surfaces.
+- **Details:**
+  - OpenTUI and Effect Terminal now show explicit Devnet, Testnet, and Live mode selection, Wallet-and-cryptocurrency selection, test-funding status, paginated history, and live observation as separate visible panels driven by the shared Wallet Model.
+  - Focused simulated send-and-observe coverage exercises Bitcoin, Ethereum, Solana, and Sui across all twelve network-mode rails. The matrix identifies actual network execution as Unverified and does not equate simulation with a public-chain broadcast.
+  - The Schema-backed matrix now records Client surface, renderer, platform, host, URI carrier, Processor runtime mode, capability evidence, exact portable routes, and per-client capture status. Reserved captures remain explicitly Missing until real client images are checked in.
+  - Wallet controls no longer inherit the embossed text shadow.
+  - Verification passed: client-matrix core 11 tests, typecheck, and build; Foldkit matrix four tests, typecheck, and production build; OpenTUI four focused host tests and build; Effect Terminal build and all five tests under Node 24.11.1; targeted Prettier, oxlint, and diff checks. The full OpenTUI process test is blocked by the installed Bun 1.2.5 TextDecoder rejecting gb2312, so no live OpenTUI process or image is claimed in this increment.
+- **Files:**
+  - `examples/client-matrix/README.md` — Describe the current WalletProgram identity, twelve rails, and evidence boundary.
+  - `examples/client-matrix/core/src/matrix.test.ts` — Prove complete Wallet rows, carriers, metadata, evidence labels, and twelve-rail coverage.
+  - `examples/client-matrix/core/src/wallet.ts` — Model exact Client, Processor, carrier, capability, and capture evidence with Effect Schema.
+  - `examples/client-matrix/core/src/walletIntent.ts` — Define all twelve native-asset network rails and distinguish simulation from actual-network evidence.
+  - `examples/client-matrix/foldkit/src/scene.test.ts` — Verify the rendered Wallet matrix exposes its typed evidence.
+  - `examples/client-matrix/foldkit/src/view.ts` — Render Client taxonomy, Processor metadata, missing captures, routes, and network evidence.
+  - `examples/wallet/tui/src/presentation.ts` — Project selectors and separate funding, history, and observation panels from the canonical Model.
+  - `examples/wallet/tui/src/host.tsx` — Render the Wallet selectors and activity panels in OpenTUI.
+  - `examples/wallet/tui/src/host.test.ts` — Exercise simulated send and observation across all twelve Wallet rails.
+  - `examples/wallet/terminal/src/host.ts` — Expose selectors and separate funding, history, and observation sections in line-terminal output.
+  - `examples/wallet/terminal/src/host.test.ts` — Verify terminal projections and twelve-rail simulated behavior.
+  - `examples/wallet/react/src/styles.css` — Remove embossed text shadows from Wallet controls.
+- **User context (verbatim):**
+  > Make sure sending works too across all chains and network modes and modalities please and use the matrix skill to document images.
+  > The next proper acceptance pass should fix OpenTUI’s missing selectors and visible history/observation/funding panels, run a full simulated TUI matrix
+- **SpecStory:** unavailable — This task ran in the Codex desktop GUI; SpecStory does not document GUI capture, and no verified durable session URI is available.
+
 ## July 31st, 2026 at 3:53:20 p.m. EDT — `4edc03ecc32e` fix: harden Wallet storage recovery
 
 - **Implementation commit:** `4edc03ecc32e1b7cf232ac4beb366bb743959521`
