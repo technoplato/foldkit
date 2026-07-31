@@ -19,16 +19,41 @@ export const WalletIntentClientSupport = S.Literals([
 /** Host intake support for the shared Wallet intent codec. */
 export type WalletIntentClientSupport = typeof WalletIntentClientSupport.Type
 
+/** The strongest evidence for one Client's Wallet intent intake. */
+export const WalletIntentCarrierEvidence = S.Literals([
+  'FocusedTest',
+  'SourceInspection',
+  'NoEvidence',
+])
+/** The strongest evidence for one Client's Wallet intent intake. */
+export type WalletIntentCarrierEvidence =
+  typeof WalletIntentCarrierEvidence.Type
+
 /** Execution support represented by one normalized Wallet intent example. */
 export const WalletIntentSupport = S.Literals(['Implemented', 'Unsupported'])
 /** Execution support represented by one normalized Wallet intent example. */
 export type WalletIntentSupport = typeof WalletIntentSupport.Type
 
+/** Evidence for execution against the named external blockchain network. */
+export const WalletIntentNetworkEvidence = S.Literals([
+  'Verified',
+  'Unverified',
+  'Unsupported',
+])
+/** Evidence for execution against the named external blockchain network. */
+export type WalletIntentNetworkEvidence =
+  typeof WalletIntentNetworkEvidence.Type
+
 /** Network capability metadata for one normalized Wallet intent example. */
 export const WalletIntentCapability = S.Struct({
   support: WalletIntentSupport,
+  networkId: S.String,
   network: S.String,
+  simulationEvidence: S.Literal('FocusedTest'),
+  actualNetworkEvidence: WalletIntentNetworkEvidence,
+  evidence: S.Array(S.String),
   reason: S.String,
+  limitation: S.String,
 })
 /** Network capability metadata for one normalized Wallet intent example. */
 export type WalletIntentCapability = typeof WalletIntentCapability.Type
@@ -50,6 +75,8 @@ export const WalletIntentCarrier = S.Struct({
   clientId: WalletClientId,
   support: WalletIntentClientSupport,
   carrier: S.String,
+  evidenceLevel: WalletIntentCarrierEvidence,
+  evidence: S.Array(S.String),
   limitation: S.String,
 })
 /** One host carrier for a portable Wallet intent. */
@@ -57,6 +84,7 @@ export type WalletIntentCarrier = typeof WalletIntentCarrier.Type
 
 const bitcoinRegtestDestination = 'bcrt1q2n0r7w3x8k9m4p6s5t2v7y9z3c8d4f6g0h2j5k'
 const bitcoinTestnetDestination = 'tb1q2n0r7w3x8k9m4p6s5t2v7y9z3c8d4f6g0h2j5k'
+const bitcoinMainnetDestination = 'bc1q2n0r7w3x8k9m4p6s5t2v7y9z3c8d4f6g0h2j5k'
 const ethereumDestination = '0xF0135cBe737572885131c6831B1E061e679E7933'
 const solanaDestination = '7XSg97qfSE6n2J1aVfxyTLZgcV7R4sr1kPnCVTLMriYJ'
 const suiDestination =
@@ -78,12 +106,28 @@ const makeIntentDefinition = (
     capability,
   })
 
-const implementedCapability = (network: string): WalletIntentCapability =>
+const implementedCapability = (
+  networkId: string,
+  network: string,
+  networkMode: WalletNetworkMode,
+): WalletIntentCapability =>
   WalletIntentCapability.make({
     support: 'Implemented',
+    networkId,
     network,
+    simulationEvidence: 'FocusedTest',
+    actualNetworkEvidence: 'Unverified',
+    evidence: [
+      'examples/wallet/simulated-client/src/simulatedWallet.test.ts',
+      'examples/wallet/tui/src/host.test.ts',
+      'examples/wallet/terminal/src/host.test.ts',
+    ],
     reason:
-      'The deterministic adapter validates, previews, signs, submits, and observes this native-asset transfer.',
+      'The deterministic adapter validates, previews, signs, submits, observes, and paginates this native-asset transfer.',
+    limitation:
+      networkMode === 'Live'
+        ? 'Simulation is verified. No real Mainnet transaction was authorized, broadcast, or observed, so actual-network execution remains unverified.'
+        : 'Simulation is verified. A simulated result is not proof of the configured live RPC, faucet, or public-network transaction path.',
   })
 
 const sendIntent = (
@@ -107,7 +151,7 @@ const sendIntent = (
     destinationAddress,
   })
 
-/** Native-asset intent examples for every chain in both network modes. */
+/** Native-asset intent examples for every chain and Wallet network mode. */
 export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
   makeIntentDefinition(
     'btc-devnet',
@@ -122,7 +166,7 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
       '10000',
       bitcoinRegtestDestination,
     ),
-    implementedCapability('Bitcoin Regtest'),
+    implementedCapability('bitcoin:regtest', 'Bitcoin Regtest', 'Devnet'),
   ),
   makeIntentDefinition(
     'btc-testnet',
@@ -137,7 +181,22 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
       '10000',
       bitcoinTestnetDestination,
     ),
-    implementedCapability('Bitcoin Testnet'),
+    implementedCapability('bitcoin:testnet', 'Bitcoin Testnet', 'Testnet'),
+  ),
+  makeIntentDefinition(
+    'btc-live',
+    'BTC | Live',
+    'Ten thousand satoshis on Bitcoin Mainnet.',
+    sendIntent(
+      'Live',
+      'bitcoin',
+      'bitcoin:mainnet',
+      'simulated-bitcoin-mainnet-account',
+      'bitcoin:mainnet:btc',
+      '10000',
+      bitcoinMainnetDestination,
+    ),
+    implementedCapability('bitcoin:mainnet', 'Bitcoin Mainnet', 'Live'),
   ),
   makeIntentDefinition(
     'eth-devnet',
@@ -152,7 +211,7 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
       '10000000000000',
       ethereumDestination,
     ),
-    implementedCapability('Ethereum Localnet'),
+    implementedCapability('ethereum:localnet', 'Ethereum Localnet', 'Devnet'),
   ),
   makeIntentDefinition(
     'eth-testnet',
@@ -167,7 +226,22 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
       '10000000000000',
       ethereumDestination,
     ),
-    implementedCapability('Ethereum Sepolia'),
+    implementedCapability('ethereum:sepolia', 'Ethereum Sepolia', 'Testnet'),
+  ),
+  makeIntentDefinition(
+    'eth-live',
+    'ETH | Live',
+    'A small ETH transfer on Ethereum Mainnet.',
+    sendIntent(
+      'Live',
+      'ethereum',
+      'ethereum:mainnet',
+      'simulated-ethereum-mainnet-account',
+      'ethereum:mainnet:eth',
+      '10000000000000',
+      ethereumDestination,
+    ),
+    implementedCapability('ethereum:mainnet', 'Ethereum Mainnet', 'Live'),
   ),
   makeIntentDefinition(
     'sol-devnet',
@@ -182,7 +256,7 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
       '1000000',
       solanaDestination,
     ),
-    implementedCapability('Solana Devnet'),
+    implementedCapability('solana:devnet', 'Solana Devnet', 'Devnet'),
   ),
   makeIntentDefinition(
     'sol-testnet',
@@ -197,7 +271,22 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
       '1000000',
       solanaDestination,
     ),
-    implementedCapability('Solana Testnet'),
+    implementedCapability('solana:testnet', 'Solana Testnet', 'Testnet'),
+  ),
+  makeIntentDefinition(
+    'sol-live',
+    'SOL | Live',
+    'One milli-SOL on Solana Mainnet Beta.',
+    sendIntent(
+      'Live',
+      'solana',
+      'solana:mainnet-beta',
+      'simulated-solana-mainnet-account',
+      'solana:mainnet-beta:sol',
+      '1000000',
+      solanaDestination,
+    ),
+    implementedCapability('solana:mainnet-beta', 'Solana Mainnet Beta', 'Live'),
   ),
   makeIntentDefinition(
     'sui-devnet',
@@ -212,7 +301,7 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
       '1000000',
       suiDestination,
     ),
-    implementedCapability('Sui Devnet'),
+    implementedCapability('sui:devnet', 'Sui Devnet', 'Devnet'),
   ),
   makeIntentDefinition(
     'sui-testnet',
@@ -227,9 +316,41 @@ export const walletIntentDefinitions: ReadonlyArray<WalletIntentDefinition> = [
       '1000000',
       suiDestination,
     ),
-    implementedCapability('Sui Testnet'),
+    implementedCapability('sui:testnet', 'Sui Testnet', 'Testnet'),
+  ),
+  makeIntentDefinition(
+    'sui-live',
+    'SUI | Live',
+    'One milli-SUI on Sui Mainnet.',
+    sendIntent(
+      'Live',
+      'sui',
+      'sui:mainnet',
+      'simulated-sui-mainnet-account',
+      'sui:mainnet:sui',
+      '1000000',
+      suiDestination,
+    ),
+    implementedCapability('sui:mainnet', 'Sui Mainnet', 'Live'),
   ),
 ]
+
+const intentCarrier = (
+  clientId: WalletClientId,
+  support: WalletIntentClientSupport,
+  carrier: string,
+  evidenceLevel: WalletIntentCarrierEvidence,
+  evidence: ReadonlyArray<string>,
+  limitation: string,
+): WalletIntentCarrier =>
+  WalletIntentCarrier.make({
+    clientId,
+    support,
+    carrier,
+    evidenceLevel,
+    evidence,
+    limitation,
+  })
 
 /** Wraps one portable Wallet intent in a client-owned carrier. */
 export const walletIntentCarrierForClient = (
@@ -239,75 +360,102 @@ export const walletIntentCarrierForClient = (
   M.value(clientId).pipe(
     M.withReturnType<WalletIntentCarrier>(),
     M.when('ReactWeb', () =>
-      WalletIntentCarrier.make({
+      intentCarrier(
         clientId,
-        support: 'Active',
-        carrier: `<react-wallet-origin>${portableRoute}`,
-        limitation:
-          'Opening the carrier loads the wallet and previews the transfer without submitting it.',
-      }),
+        'Active',
+        `<react-wallet-origin>${portableRoute}`,
+        'FocusedTest',
+        [
+          'examples/wallet/react-bindings/src/walletRoute.ts',
+          'examples/wallet/react-bindings/src/wallet.test.tsx',
+        ],
+        'Opening the carrier loads the wallet and previews the transfer without submitting it.',
+      ),
     ),
     M.when('FoldkitView', () =>
-      WalletIntentCarrier.make({
+      intentCarrier(
         clientId,
-        support: 'Active',
-        carrier: `<foldkit-wallet-origin>${portableRoute}`,
-        limitation:
-          'Opening the carrier loads the wallet and previews the transfer without submitting it.',
-      }),
+        'Active',
+        `<foldkit-wallet-origin>${portableRoute}`,
+        'FocusedTest',
+        [
+          'examples/wallet/foldkit/src/route.ts',
+          'examples/wallet/foldkit/src/route.test.ts',
+        ],
+        'Opening the carrier loads the wallet and previews the transfer without submitting it.',
+      ),
     ),
     M.when('RawCli', () =>
-      WalletIntentCarrier.make({
+      intentCarrier(
         clientId,
-        support: 'Active',
-        carrier: `pnpm demo:wallet send --uri '${portableRoute}'`,
-        limitation:
-          'The CLI submits the preview through deterministic resources, observes the transaction, and prints every intent property.',
-      }),
+        'Active',
+        `pnpm demo:wallet send --uri '${portableRoute}'`,
+        'FocusedTest',
+        [
+          'examples/wallet/cli/src/host.ts',
+          'examples/wallet/cli/src/host.test.ts',
+        ],
+        'The CLI submits the preview through deterministic resources, observes the transaction, and prints every intent property.',
+      ),
     ),
     M.when('EffectTerminal', () =>
-      WalletIntentCarrier.make({
+      intentCarrier(
         clientId,
-        support: 'Active',
-        carrier: `pnpm --filter wallet-terminal-example terminal -- '${portableRoute}'`,
-        limitation:
-          'The terminal starts from the intent preview. Submission remains a separate native input action.',
-      }),
+        'Active',
+        `pnpm --filter wallet-terminal-example terminal -- '${portableRoute}'`,
+        'SourceInspection',
+        [
+          'examples/wallet/terminal/src/entry.ts',
+          'examples/wallet/terminal/src/host.ts',
+        ],
+        'The terminal starts from the intent preview. Submission remains a separate native input action.',
+      ),
     ),
     M.when('OpenTui', () =>
-      WalletIntentCarrier.make({
+      intentCarrier(
         clientId,
-        support: 'Active',
-        carrier: `pnpm --filter wallet-tui-example dev -- '${portableRoute}'`,
-        limitation:
-          'The TUI starts from the intent preview. Submission remains a separate native interaction.',
-      }),
+        'Active',
+        `pnpm --filter wallet-tui-example dev -- '${portableRoute}'`,
+        'SourceInspection',
+        [
+          'examples/wallet/tui/src/entry.tsx',
+          'examples/wallet/tui/src/host.tsx',
+        ],
+        'The TUI starts from the intent preview. Submission remains a separate native interaction.',
+      ),
     ),
     M.when('ExpoWeb', () =>
-      WalletIntentCarrier.make({
+      intentCarrier(
         clientId,
-        support: 'Active',
-        carrier: `<expo-web-origin>${portableRoute}`,
-        limitation:
-          'Opening the carrier selects Wallet, loads it, and previews the transfer without submitting it.',
-      }),
+        'Active',
+        `<expo-web-origin>${portableRoute}`,
+        'FocusedTest',
+        [
+          'examples/react-native-showcase/src/App.tsx',
+          'examples/react-native-showcase/src/wallet/walletProgram.test.ts',
+        ],
+        'Opening the carrier selects Wallet, loads it, and previews the transfer without submitting it.',
+      ),
     ),
     M.whenOr('ExpoIos', 'ExpoAndroid', () =>
-      WalletIntentCarrier.make({
+      intentCarrier(
         clientId,
-        support: 'Active',
-        carrier: `foldkit://showcase${portableRoute}`,
-        limitation:
-          'Opening the carrier selects Wallet, loads it, and previews the transfer without submitting it.',
-      }),
+        'Active',
+        `foldkit://showcase${portableRoute}`,
+        'SourceInspection',
+        ['examples/react-native-showcase/src/App.tsx'],
+        'Source wiring is present, but no physical iOS or Android intent intake is claimed.',
+      ),
     ),
     M.when('FutureServer', () =>
-      WalletIntentCarrier.make({
+      intentCarrier(
         clientId,
-        support: 'Planned',
-        carrier: `<wallet-server-origin>${portableRoute}`,
-        limitation: 'No server host or execution policy exists.',
-      }),
+        'Planned',
+        `<wallet-server-origin>${portableRoute}`,
+        'NoEvidence',
+        [],
+        'No server host, Processor, carrier endpoint, or execution policy exists.',
+      ),
     ),
     M.exhaustive,
   )

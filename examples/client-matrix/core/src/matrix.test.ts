@@ -1,5 +1,6 @@
-import { Array, Option } from 'effect'
+import { Array, Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { walletIntentRouter } from 'wallet-core-example'
 
 import {
   capabilityForCardboardMode,
@@ -150,7 +151,7 @@ describe('Client Matrix core', () => {
   it('covers both Wallet route modes across every required client', () => {
     expect(walletProgramIdentity).toStrictEqual({
       id: 'wallet',
-      version: 7,
+      version: 10,
       source: 'examples/wallet/core/src/program.ts',
     })
     expect(Array.map(walletRoutes, route => route.mode)).toStrictEqual([
@@ -205,7 +206,7 @@ describe('Client Matrix core', () => {
       expect(replayTape).toMatchObject({
         formatVersion: 1,
         programId: 'wallet',
-        programVersion: 7,
+        programVersion: 10,
       })
       expect(replayTape.transitions).toHaveLength(1)
       const maybeTransition = Array.head(replayTape.transitions)
@@ -267,12 +268,35 @@ describe('Client Matrix core', () => {
     ).toStrictEqual([
       'btc-devnet',
       'btc-testnet',
+      'btc-live',
       'eth-devnet',
       'eth-testnet',
+      'eth-live',
       'sol-devnet',
       'sol-testnet',
+      'sol-live',
       'sui-devnet',
       'sui-testnet',
+      'sui-live',
+    ])
+    expect(
+      Array.map(
+        walletIntentDefinitions,
+        definition => definition.capability.networkId,
+      ),
+    ).toStrictEqual([
+      'bitcoin:regtest',
+      'bitcoin:testnet',
+      'bitcoin:mainnet',
+      'ethereum:localnet',
+      'ethereum:sepolia',
+      'ethereum:mainnet',
+      'solana:devnet',
+      'solana:testnet',
+      'solana:mainnet-beta',
+      'sui:devnet',
+      'sui:testnet',
+      'sui:mainnet',
     ])
     expect(
       Array.every(walletIntentDefinitions, definition =>
@@ -285,6 +309,23 @@ describe('Client Matrix core', () => {
         definition => definition.capability.support === 'Implemented',
       ),
     ).toBe(true)
+    expect(
+      Array.every(
+        walletIntentDefinitions,
+        definition =>
+          definition.capability.simulationEvidence === 'FocusedTest' &&
+          definition.capability.actualNetworkEvidence === 'Unverified',
+      ),
+    ).toBe(true)
+    Array.forEach(walletIntentDefinitions, definition => {
+      const parsed = Effect.runSync(
+        walletIntentRouter.parse(definition.portableRoute),
+      )
+      expect(parsed).toStrictEqual(definition.intent)
+      expect(Effect.runSync(walletIntentRouter.print(parsed))).toBe(
+        definition.portableRoute,
+      )
+    })
 
     const maybeEthTestnet = Array.findFirst(
       walletIntentDefinitions,
@@ -298,6 +339,80 @@ describe('Client Matrix core', () => {
           maybeEthTestnet.value.portableRoute,
         ).carrier,
       ).toBe(`foldkit://showcase${maybeEthTestnet.value.portableRoute}`)
+    }
+  })
+
+  it('records exact Wallet Client axes and missing capture evidence without fabricating artifacts', () => {
+    expect(walletClients).toStrictEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          clientId: 'OpenTui',
+          surface: 'TerminalUI',
+          renderer: 'OpenTuiReact',
+          platform: 'Node',
+          host: 'EffectPlatform',
+          carrier: 'CommandLineArgument',
+        }),
+        expect.objectContaining({
+          clientId: 'ExpoIos',
+          surface: 'Graphical',
+          renderer: 'ReactNative',
+          platform: 'Ios',
+          host: 'Expo',
+          carrier: 'CustomSchemeUrl',
+        }),
+        expect.objectContaining({
+          clientId: 'FutureServer',
+          surface: 'ServerRequest',
+          renderer: 'None',
+          platform: 'Server',
+          host: 'ServerProcess',
+          carrier: 'None',
+        }),
+      ]),
+    )
+    const runnableClients = Array.filter(
+      walletClients,
+      client => client.clientId !== 'FutureServer',
+    )
+    const stateRoute = Option.getOrThrow(
+      Array.findFirst(walletRoutes, route => route.mode === 'StateRoute'),
+    )
+    expect(
+      Array.every(
+        runnableClients,
+        client =>
+          client.processor.status !== 'NoHost' &&
+          Option.isNone(client.processor.maybeDescriptor),
+      ),
+    ).toBe(true)
+    expect(
+      Array.every(
+        runnableClients,
+        client =>
+          client.capture.status === 'Missing' &&
+          Option.isSome(client.capture.maybePath) &&
+          Option.isNone(client.capture.maybeDimensions) &&
+          Option.isNone(client.capture.maybeEvidenceDate) &&
+          client.capture.portableRoute === stateRoute.portableRoute,
+      ),
+    ).toBe(true)
+    expect(
+      Array.dedupe(
+        Array.getSomes(
+          Array.map(runnableClients, client => client.capture.maybePath),
+        ),
+      ),
+    ).toHaveLength(Array.length(runnableClients))
+    const maybeServer = Array.findFirst(
+      walletClients,
+      client => client.clientId === 'FutureServer',
+    )
+    expect(Option.isSome(maybeServer)).toBe(true)
+    if (Option.isSome(maybeServer)) {
+      expect(maybeServer.value.processor.status).toBe('NoHost')
+      expect(maybeServer.value.capture.status).toBe('Unsupported')
+      expect(Option.isNone(maybeServer.value.capture.maybePath)).toBe(true)
     }
   })
 })

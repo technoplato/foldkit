@@ -1,12 +1,16 @@
-import { Array, Effect, Option } from 'effect'
+import { Array, Deferred, Effect, Option } from 'effect'
 import * as Runtime from 'foldkit/program-runtime'
 import { describe, expect, it } from 'vitest'
 import {
   ChangedTransferAmount,
+  ChangedTransferRecipient,
   LoadedPortfolio,
+  type Message,
   Model,
   PortfolioSnapshot,
   ReceivingInstruction,
+  RequestedSignedTransactionSubmission,
+  RequestedTransferPreview,
   RequestedWalletCreation,
   SelectedSendNetwork,
   SelectedWalletNetworkMode,
@@ -33,7 +37,12 @@ import {
   interactionsForWalletOpenTui,
   receivingQrPanelLines,
   walletNetworkModeAtIndex,
+  walletNetworkModes,
+  walletOpenTuiFundingPanelLines,
+  walletOpenTuiHistoryPanelLines,
+  walletOpenTuiObservationPanelLines,
   walletOpenTuiProgram,
+  walletOpenTuiSelectorLines,
   walletOpenTuiSummary,
   walletSendNetworkSelectionAtIndex,
 } from './presentation.js'
@@ -46,6 +55,38 @@ const constrainedReceivingViewport = ReceivingQrViewport.make({
   columns: 40,
   rows: 10,
 })
+
+const waitForObservedTransaction = (
+  runtime: Runtime.ProgramRuntime<Model, Message>,
+  transactionId: string,
+): Effect.Effect<Model> => {
+  const hasTransaction = (model: Model): boolean =>
+    Array.some(
+      model.transactions,
+      transaction => transaction.transactionId === transactionId,
+    )
+  if (hasTransaction(runtime.readModel())) {
+    return Effect.succeed(runtime.readModel())
+  }
+  return Effect.gen(function* () {
+    const observed = yield* Deferred.make<Model>()
+    const stopObserving = runtime.observeModel(model => {
+      if (hasTransaction(model)) {
+        Deferred.doneUnsafe(observed, Effect.succeed(model))
+      }
+    })
+    const maybeObserved = yield* Deferred.await(observed).pipe(
+      Effect.timeoutOption('2 seconds'),
+      Effect.ensuring(Effect.sync(stopObserving)),
+    )
+    if (Option.isSome(maybeObserved)) {
+      return maybeObserved.value
+    }
+    return yield* Effect.die(
+      `Expected simulated observation for ${transactionId}`,
+    )
+  })
+}
 
 const scannableEthereumModel = (model: Model): Model => {
   if (model.portfolio._tag !== 'LoadedPortfolio') {
@@ -139,6 +180,24 @@ describe('Wallet OpenTUI host', () => {
       'History LoadedTransactionHistory',
     )
     expect(walletOpenTuiSummary(model)).toContain('0 wallets Testnet')
+    expect(walletOpenTuiSelectorLines(model)).toStrictEqual([
+      'Network mode: Testnet (Devnet | Testnet | Live)',
+      'Wallet and cryptocurrency: simulated-ethereum-account · ETH · Ethereum Sepolia',
+    ])
+    expect(walletOpenTuiFundingPanelLines(model)).toStrictEqual([
+      'Status: Ready to request',
+      'Method: Adapter request available',
+    ])
+    expect(walletOpenTuiHistoryPanelLines(model)).toStrictEqual([
+      'Status: Loaded; final page',
+      'Visible normalized records: 1',
+    ])
+    expect(walletOpenTuiObservationPanelLines(model)).toContain(
+      'Status: Live for 1 account',
+    )
+    expect(
+      Array.join(walletOpenTuiObservationPanelLines(model), '\n'),
+    ).toContain('Latest: Confirmed simulated-history-')
 
     const fixtureReceivingLines = receivingQrPanelLines(
       model,
@@ -341,6 +400,11 @@ describe('Wallet OpenTUI host', () => {
                         interactionsForWalletOpenTui(readyModel),
                         interaction => interaction._tag,
                       ),
+                      selectorLines: walletOpenTuiSelectorLines(readyModel),
+                      fundingLines: walletOpenTuiFundingPanelLines(readyModel),
+                      historyLines: walletOpenTuiHistoryPanelLines(readyModel),
+                      observationLines:
+                        walletOpenTuiObservationPanelLines(readyModel),
                       fundingMethod: Option.getOrThrow(
                         primaryWalletTestFundingMethod(readyModel),
                       )._tag,
@@ -378,6 +442,13 @@ describe('Wallet OpenTUI host', () => {
       expect(row.summary).toContain('Observation ObservingTransactions')
       expect(row.summary).toContain('History LoadedTransactionHistory')
       expect(row.summary).toContain('Funding ReadyToRequestTestFunding')
+      expect(row.selectorLines).toStrictEqual([
+        `Network mode: ${row.networkMode} (Devnet | Testnet | Live)`,
+        `Wallet and cryptocurrency: ${row.selectedLabel}`,
+      ])
+      expect(row.fundingLines).toContain('Status: Ready to request')
+      expect(row.historyLines).toContain('Status: Loaded; final page')
+      expect(row.observationLines).toContain('Status: Live for 1 account')
       expect(row.history).toBe('LoadedTransactionHistory')
       expect(row.observation).toBe('ObservingTransactions')
       expect(row.interactionTags).toContain('UseSuggestedTestTransferAmount')
@@ -391,6 +462,113 @@ describe('Wallet OpenTUI host', () => {
         expect(row.fundingMethod).toBe('AdapterTestFundingMethod')
         expect(row.interactionTags).toContain('RequestWalletTestFunding')
       }
+    })
+  })
+
+  it('previews, sends, and observes every simulated Devnet, Testnet, and Live rail', async () => {
+    const rows = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* Runtime.makeProgramRuntime({
+            program: WalletProgram,
+            resources: SimulatedWalletResources,
+          })
+          yield* runtime.initialization
+          yield* runtime.run(RequestedWalletCreation.make({}))
+          const results = yield* Effect.forEach(
+            walletNetworkModes,
+            networkMode =>
+              Effect.gen(function* () {
+                const modeModel = yield* runtime.run(
+                  SelectedWalletNetworkMode.make({ networkMode }),
+                )
+                if (modeModel.portfolio._tag !== 'LoadedPortfolio') {
+                  return yield* Effect.die(
+                    `Expected a loaded ${networkMode} portfolio`,
+                  )
+                }
+                const selections = availableSendNetworkSelections(
+                  modeModel.portfolio.snapshot,
+                  networkMode,
+                )
+                return yield* Effect.forEach(selections, selection =>
+                  Effect.gen(function* () {
+                    const selectedModel = yield* runtime.run(
+                      SelectedSendNetwork.make({ selection }),
+                    )
+                    if (selectedModel.portfolio._tag !== 'LoadedPortfolio') {
+                      return yield* Effect.die(
+                        `Expected ${selection.networkId} to stay loaded`,
+                      )
+                    }
+                    const account = Option.getOrThrow(
+                      Array.findFirst(
+                        selectedModel.portfolio.snapshot.accounts,
+                        candidate =>
+                          candidate.accountId === selection.accountId,
+                      ),
+                    )
+                    const amount = Option.getOrThrow(
+                      primaryWalletSuggestedTestTransferAmount(selectedModel),
+                    )
+                    yield* runtime.run(
+                      ChangedTransferRecipient.make({
+                        value: account.address,
+                      }),
+                    )
+                    yield* runtime.run(
+                      ChangedTransferAmount.make({ value: amount }),
+                    )
+                    const previewed = yield* runtime.run(
+                      RequestedTransferPreview.make({}),
+                    )
+                    if (previewed.transaction._tag !== 'PreviewedTransaction') {
+                      return yield* Effect.die(
+                        `Expected ${selection.networkId} preview, got ${previewed.transaction._tag}`,
+                      )
+                    }
+                    const submitted = yield* runtime.run(
+                      RequestedSignedTransactionSubmission.make({
+                        previewId: previewed.transaction.preview.previewId,
+                      }),
+                    )
+                    if (submitted.transaction._tag !== 'SubmittedTransaction') {
+                      return yield* Effect.die(
+                        `Expected ${selection.networkId} submission, got ${submitted.transaction._tag}`,
+                      )
+                    }
+                    const observed = yield* waitForObservedTransaction(
+                      runtime,
+                      submitted.transaction.submission.transactionId,
+                    )
+                    return {
+                      networkMode,
+                      networkId: selection.networkId,
+                      transactionId:
+                        submitted.transaction.submission.transactionId,
+                      historyLines: walletOpenTuiHistoryPanelLines(observed),
+                      observationLines:
+                        walletOpenTuiObservationPanelLines(observed),
+                    }
+                  }),
+                )
+              }),
+          )
+          yield* runtime.shutdown
+          return Array.flatten(results)
+        }),
+      ),
+    )
+
+    expect(rows).toHaveLength(12)
+    expect(Array.dedupe(Array.map(rows, row => row.networkId))).toHaveLength(12)
+    expect(
+      Array.dedupe(Array.map(rows, row => row.transactionId)),
+    ).toHaveLength(12)
+    Array.forEach(rows, row => {
+      expect(row.transactionId).toMatch(/^simulated-/)
+      expect(row.historyLines).toContain('Status: Loaded; final page')
+      expect(row.observationLines).toContain('Status: Live for 1 account')
     })
   })
 })

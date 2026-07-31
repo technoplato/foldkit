@@ -94,13 +94,13 @@ describe('Client Matrix Foldkit view', () => {
     Scene.scene(
       { update, view },
       Scene.with(initialModel()),
-      Scene.expect(Scene.text('wallet@8')).toExist(),
+      Scene.expect(Scene.text('wallet@10')).toExist(),
       Scene.expect(
         Scene.text('/wallet/state?model=<encoded Wallet Model>'),
       ).toExist(),
       Scene.expect(
         Scene.text(
-          '/wallet/replay?tape=<encoded wallet@8 ReplayTape>&frame=<frame>',
+          '/wallet/replay?tape=<encoded wallet@10 ReplayTape>&frame=<frame>',
         ),
       ).toExist(),
       Scene.expect(
@@ -113,6 +113,15 @@ describe('Client Matrix Foldkit view', () => {
       Scene.expect(Scene.text('No host evidence')).toExist(),
       Scene.expect(Scene.text('Send money from any client')).toExist(),
       Scene.expect(Scene.text('ETH | Testnet')).toExist(),
+      Scene.expect(Scene.text('BTC | Live')).toExist(),
+      Scene.expect(Scene.text('Actual network Unverified')).toExist(),
+      Scene.expect(
+        Scene.text('Processor descriptor: HostedUnadvertised'),
+      ).toExist(),
+      Scene.expect(
+        Scene.text('/captures/wallet/state/open-tui.webp'),
+      ).toExist(),
+      Scene.expect(Scene.text('Missing Screenshot')).toExist(),
       Scene.expect(
         Scene.text(
           'foldkit://showcase/wallet/intent/send?mode=Testnet&chain=ethereum&network=ethereum%3Asepolia&account=simulated-ethereum-account',

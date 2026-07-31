@@ -204,6 +204,108 @@ export const makeWalletTerminalResizeEvents = (
       }),
   ).pipe(Effect.map(({ events }) => events))
 
+/** Projects the two terminal selectors bound to the canonical Wallet Model. */
+export const walletTerminalSelectorLines = (
+  model: Model,
+): ReadonlyArray<string> => [
+  `Network mode selector: ${model.walletNetworkMode} (Devnet | Testnet | Live)`,
+  `Wallet and cryptocurrency selector: ${Option.isSome(model.maybeSendNetworkSelection) ? selectedSendNetworkLabel(model) : 'unavailable'}`,
+]
+
+const selectedTerminalFundingMethodLabel = (model: Model): string => {
+  const maybeMethod = primaryWalletTestFundingMethod(model)
+  if (Option.isNone(maybeMethod)) {
+    return 'No funding method for the selected rail'
+  }
+  return M.value(maybeMethod.value).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      UnavailableTestFundingMethod: () => 'Unavailable on this production rail',
+      AdapterTestFundingMethod: () => 'Adapter request available',
+      ExternalTestFundingMethod: method =>
+        `External ${method.providerName}: ${method.providerUrl}`,
+    }),
+  )
+}
+
+/** Projects test-funding state for the terminal funding panel. */
+export const walletTerminalFundingLines = (
+  model: Model,
+): ReadonlyArray<string> => {
+  const status = M.value(model.testFunding).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      ReadyToRequestTestFunding: () => 'Ready to request',
+      RequestingTestFunding: ({ request }) =>
+        `Requesting ${request.atomicUnits} atomic units`,
+      ReceivedTestFunding: ({ receipt }) =>
+        `Received ${assetAmountLabelForModel(model, receipt.amount)}`,
+      UnavailableTestFunding: ({ failure }) =>
+        `Unavailable: ${failure.operation}/${failure.code}`,
+      FailedTestFunding: ({ failure }) =>
+        `Failed: ${failure.operation}/${failure.code}`,
+    }),
+  )
+  return [
+    `Status: ${status}`,
+    `Method: ${selectedTerminalFundingMethodLabel(model)}`,
+  ]
+}
+
+/** Projects paginated transaction-history state for the terminal history panel. */
+export const walletTerminalHistoryLines = (
+  model: Model,
+): ReadonlyArray<string> => {
+  const status = M.value(model.transactionHistory).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      NotLoadedTransactionHistory: () => 'Not loaded',
+      LoadingTransactionHistory: ({ query }) =>
+        `Loading ${query.networkId} after ${Option.getOrElse(query.maybeCursor, () => 'start')}`,
+      LoadedTransactionHistory: ({ maybeNextCursor }) =>
+        Option.isSome(maybeNextCursor)
+          ? `Loaded; next cursor ${maybeNextCursor.value}`
+          : 'Loaded; final page',
+      FailedTransactionHistory: ({ failure }) =>
+        `Failed: ${failure.operation}/${failure.code}`,
+    }),
+  )
+  return [
+    `Status: ${status}`,
+    `Visible normalized records: ${model.transactions.length.toString()}`,
+    ...Array.map(
+      Array.take(model.transactions, 6),
+      transaction =>
+        `${transaction.direction} | ${transaction.status} | ${assetAmountLabelForModel(model, transaction.amount)} | ${transaction.transactionId}`,
+    ),
+  ]
+}
+
+/** Projects live transaction-observation state for the terminal observation panel. */
+export const walletTerminalObservationLines = (
+  model: Model,
+): ReadonlyArray<string> => {
+  const status = M.value(model.transactionObservation).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      WaitingForAccounts: () => 'Waiting for public accounts',
+      ObservingTransactions: ({ accountIds }) => {
+        const accountCount = accountIds.length
+        return `Live for ${accountCount.toString()} ${accountCount === 1 ? 'account' : 'accounts'}`
+      },
+      FailedTransactionObservation: ({ failure }) =>
+        `Failed: ${failure.operation}/${failure.code}`,
+    }),
+  )
+  const maybeLatest = Array.head(model.transactions)
+  return [
+    `Status: ${status}`,
+    Option.isSome(maybeLatest)
+      ? `Latest: ${maybeLatest.value.status} ${maybeLatest.value.transactionId}`
+      : 'Latest: no observed transactions',
+  ]
+}
+
 const modelLines = (model: Model): ReadonlyArray<string> => {
   const networks =
     model.portfolio._tag === 'LoadedPortfolio'
@@ -261,10 +363,9 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
   return [
     ...portfolioLines,
     `Wallets: ${model.wallets.length.toString()} | ${model.walletNetworkMode}`,
-    `Send network: ${Option.match(model.maybeSendNetworkSelection, {
-      onNone: () => 'unavailable',
-      onSome: () => selectedSendNetworkLabel(model),
-    })}`,
+    '',
+    'Selectors',
+    ...walletTerminalSelectorLines(model),
     ...walletLines,
     `Transaction: ${model.transaction._tag}`,
     `Amount: ${transferAmountInput(model.transferAmount)}`,
@@ -273,13 +374,16 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
     ...transactionLines,
     ...addressValidationLines,
     `Signature: ${model.signature._tag}`,
-    `History: ${model.transactionHistory._tag} | Observation: ${model.transactionObservation._tag} | Funding: ${model.testFunding._tag} | Clipboard: ${model.clipboardCopy._tag}`,
-    `Transactions: ${model.transactions.length.toString()}`,
-    ...Array.map(
-      Array.take(model.transactions, 6),
-      transaction =>
-        `  ${transaction.direction} | ${transaction.status} | ${assetAmountLabelForModel(model, transaction.amount)} | ${transaction.transactionId}`,
-    ),
+    `Clipboard: ${model.clipboardCopy._tag}`,
+    '',
+    'Test funding',
+    ...walletTerminalFundingLines(model),
+    '',
+    'Paginated history',
+    ...walletTerminalHistoryLines(model),
+    '',
+    'Live observation',
+    ...walletTerminalObservationLines(model),
   ]
 }
 

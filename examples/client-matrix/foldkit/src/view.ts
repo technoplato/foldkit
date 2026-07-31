@@ -1083,6 +1083,7 @@ const walletSupportLabel = (support: WalletRouteSupport): string =>
     M.when('AdapterReady', () => 'Adapter ready'),
     M.when('ProgramOnly', () => 'Program only'),
     M.when('Planned', () => 'Planned'),
+    M.when('Unsupported', () => 'Unsupported'),
     M.exhaustive,
   )
 
@@ -1114,6 +1115,11 @@ const walletSupportClass = (support: WalletRouteSupport): string =>
       () =>
         'inline-flex rounded-full border border-stone-600 bg-stone-800 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-stone-400',
     ),
+    M.when(
+      'Unsupported',
+      () =>
+        'inline-flex rounded-full border border-red-400/40 bg-red-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-red-200',
+    ),
     M.exhaustive,
   )
 
@@ -1121,7 +1127,12 @@ const walletEvidenceLabel = (level: WalletEvidenceLevel): string =>
   M.value(level).pipe(
     M.withReturnType<string>(),
     M.when('FocusedTest', () => 'Focused test'),
+    M.when('AutomatedCapture', () => 'Automated capture'),
     M.when('SourceInspection', () => 'Source inspection'),
+    M.when('Simulator', () => 'Simulator'),
+    M.when('Emulator', () => 'Emulator'),
+    M.when('PhysicalDevice', () => 'Physical device'),
+    M.when('NoEvidence', () => 'Unverified'),
     M.when('NoHost', () => 'No host evidence'),
     M.exhaustive,
   )
@@ -1175,6 +1186,176 @@ const walletRouteCard = (route: WalletRouteDefinition): Html => {
           ),
         ],
       ),
+    ],
+  )
+}
+
+const walletProcessorEvidence = (client: WalletClientDefinition): Html => {
+  const h = html<Message>()
+  const processor = client.processor
+  const descriptor = Option.isSome(processor.maybeDescriptor)
+    ? [
+        h.code(
+          [h.Class('block break-all text-[0.68rem] text-cyan-200')],
+          [`Processor ${processor.maybeDescriptor.value.processorId}`],
+        ),
+        ...Array.map(
+          processor.maybeDescriptor.value.capabilities,
+          advertisedCapability =>
+            h.code(
+              [
+                h.Key(
+                  `${Array.join(advertisedCapability.id, '/')}:${advertisedCapability.version.toString()}`,
+                ),
+                h.Class(
+                  'block break-all text-[0.65rem] leading-5 text-stone-500',
+                ),
+              ],
+              [
+                `${Array.join(advertisedCapability.id, ' / ')} v${advertisedCapability.version.toString()}`,
+              ],
+            ),
+        ),
+      ]
+    : [
+        h.p(
+          [h.Class('text-xs font-semibold text-amber-200')],
+          [`Processor descriptor: ${processor.status}`],
+        ),
+        h.p(
+          [h.Class('text-[0.68rem] leading-5 text-stone-500')],
+          ['Advertised capabilities: none'],
+        ),
+      ]
+  return h.div(
+    [h.Class('min-w-0 space-y-1')],
+    [
+      h.p(
+        [
+          h.Class(
+            'text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-stone-500',
+          ),
+        ],
+        ['Processor'],
+      ),
+      ...descriptor,
+      h.p(
+        [h.Class('break-words text-[0.68rem] leading-5 text-stone-400')],
+        [
+          `Runtime modes: ${Array.isReadonlyArrayNonEmpty(processor.runtimeModes) ? Array.join(processor.runtimeModes, ', ') : 'none'}`,
+        ],
+      ),
+      h.p(
+        [h.Class('break-words text-[0.68rem] leading-5 text-stone-500')],
+        [processor.limitation],
+      ),
+    ],
+  )
+}
+
+const walletCaptureEvidence = (client: WalletClientDefinition): Html => {
+  const h = html<Message>()
+  const capture = client.capture
+  const dimensionsLabel = Option.isSome(capture.maybeDimensions)
+    ? `${capture.maybeDimensions.value.width.toString()} × ${capture.maybeDimensions.value.height.toString()}`
+    : 'unverified'
+  const evidenceDateLabel = Option.isSome(capture.maybeEvidenceDate)
+    ? capture.maybeEvidenceDate.value
+    : 'unverified'
+  const maybeImage =
+    capture.status === 'CheckedIn' &&
+    capture.kind === 'Screenshot' &&
+    Option.isSome(capture.maybePath)
+      ? [
+          h.img([
+            h.Src(capture.maybePath.value),
+            h.Alt(`${client.title} Wallet state capture`),
+            h.Loading('lazy'),
+            h.Width('640'),
+            h.Height('400'),
+            h.Class(
+              'mt-2 aspect-[8/5] w-full rounded-xl border border-stone-800 bg-stone-950 object-cover object-top',
+            ),
+          ]),
+        ]
+      : []
+  return h.div(
+    [h.Class('min-w-0 space-y-1')],
+    [
+      h.p(
+        [
+          h.Class(
+            'text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-stone-500',
+          ),
+        ],
+        ['Capture evidence'],
+      ),
+      h.p(
+        [
+          h.Class(
+            capture.status === 'CheckedIn'
+              ? 'text-xs font-semibold text-emerald-200'
+              : 'text-xs font-semibold text-amber-200',
+          ),
+        ],
+        [`${capture.status} ${capture.kind}`],
+      ),
+      h.p(
+        [h.Class('text-[0.68rem] leading-5 text-stone-500')],
+        [
+          `${capture.routeMode} | dimensions ${dimensionsLabel} | evidence date ${evidenceDateLabel}`,
+        ],
+      ),
+      h.details(
+        [h.Class('rounded-lg border border-stone-800 bg-stone-950 p-2')],
+        [
+          h.summary(
+            [
+              h.Class(
+                'cursor-pointer text-[0.68rem] font-semibold text-violet-200',
+              ),
+            ],
+            ['Exact capture route'],
+          ),
+          h.code(
+            [
+              h.Class(
+                'mt-2 block max-h-24 overflow-auto whitespace-pre-wrap break-all text-[0.62rem] leading-5 text-stone-500',
+              ),
+            ],
+            [capture.portableRoute],
+          ),
+        ],
+      ),
+      ...(Option.isSome(capture.maybePath)
+        ? [
+            h.code(
+              [
+                h.Class(
+                  'block break-all text-[0.68rem] leading-5 text-violet-200',
+                ),
+              ],
+              [capture.maybePath.value],
+            ),
+          ]
+        : []),
+      ...(Option.isSome(capture.maybeCaptureCommand)
+        ? [
+            h.code(
+              [
+                h.Class(
+                  'block break-all text-[0.65rem] leading-5 text-stone-500',
+                ),
+              ],
+              [capture.maybeCaptureCommand.value],
+            ),
+          ]
+        : []),
+      h.p(
+        [h.Class('break-words text-[0.68rem] leading-5 text-stone-500')],
+        [capture.limitation],
+      ),
+      ...maybeImage,
     ],
   )
 }
@@ -1236,7 +1417,15 @@ const walletClientCarrier = (client: WalletClientDefinition): Html => {
       )
     }
   }
-  return h.div([h.Class('grid min-w-72 gap-3')], [...launch(), routeCarrier()])
+  return h.div(
+    [h.Class('grid min-w-72 gap-4')],
+    [
+      ...launch(),
+      routeCarrier(),
+      walletProcessorEvidence(client),
+      walletCaptureEvidence(client),
+    ],
+  )
 }
 
 const walletCapabilityView = (capability: WalletRouteCapability): Html => {
@@ -1306,6 +1495,16 @@ const walletClientHeading = (client: WalletClientDefinition): Html => {
       h.p(
         [h.Class('text-xs font-normal leading-5 text-stone-500')],
         [client.description],
+      ),
+      h.code(
+        [
+          h.Class(
+            'block break-words text-[0.65rem] font-normal leading-5 text-stone-500',
+          ),
+        ],
+        [
+          `${client.surface} | ${client.renderer} | ${client.platform} | ${client.host} | ${client.carrier}`,
+        ],
       ),
     ],
   )
@@ -1414,6 +1613,29 @@ const walletIntentCapabilityClass = (
     ? 'inline-flex rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-emerald-200'
     : 'inline-flex rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber-200'
 
+const walletActualNetworkEvidenceClass = (
+  definition: WalletIntentDefinition,
+): string =>
+  M.value(definition.capability.actualNetworkEvidence).pipe(
+    M.withReturnType<string>(),
+    M.when(
+      'Verified',
+      () =>
+        'inline-flex rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-emerald-200',
+    ),
+    M.when(
+      'Unverified',
+      () =>
+        'inline-flex rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber-200',
+    ),
+    M.when(
+      'Unsupported',
+      () =>
+        'inline-flex rounded-full border border-red-400/40 bg-red-400/10 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-red-200',
+    ),
+    M.exhaustive,
+  )
+
 const walletIntentCard = (definition: WalletIntentDefinition): Html => {
   const h = html<Message>()
   return h.article(
@@ -1451,7 +1673,40 @@ const walletIntentCard = (definition: WalletIntentDefinition): Html => {
       ),
       h.p(
         [h.Class('mt-3 text-xs leading-5 text-stone-500')],
-        [`${definition.capability.network}. ${definition.capability.reason}`],
+        [
+          `${definition.capability.network} (${definition.capability.networkId}). ${definition.capability.reason}`,
+        ],
+      ),
+      h.div(
+        [h.Class('mt-3 flex flex-wrap items-center gap-2')],
+        [
+          h.span(
+            [h.Class(walletActualNetworkEvidenceClass(definition))],
+            [`Actual network ${definition.capability.actualNetworkEvidence}`],
+          ),
+          h.span(
+            [h.Class('text-[0.68rem] font-medium text-stone-500')],
+            [`Simulation ${definition.capability.simulationEvidence}`],
+          ),
+        ],
+      ),
+      h.p(
+        [h.Class('mt-3 text-xs leading-5 text-amber-100')],
+        [definition.capability.limitation],
+      ),
+      h.div(
+        [h.Class('mt-3 space-y-1')],
+        Array.map(definition.capability.evidence, source =>
+          h.code(
+            [
+              h.Key(source),
+              h.Class(
+                'block break-all text-[0.65rem] leading-5 text-stone-500',
+              ),
+            ],
+            [source],
+          ),
+        ),
       ),
     ],
   )
@@ -1502,8 +1757,26 @@ const walletIntentCarrierRow = (carrier: WalletIntentCarrier): Html => {
             [carrier.support],
           ),
           h.p(
+            [h.Class('mt-2 text-[0.68rem] font-medium text-stone-500')],
+            [`Evidence: ${carrier.evidenceLevel}`],
+          ),
+          h.p(
             [h.Class('mt-3 max-w-xl text-xs leading-5 text-stone-400')],
             [carrier.limitation],
+          ),
+          h.div(
+            [h.Class('mt-3 space-y-1')],
+            Array.map(carrier.evidence, source =>
+              h.code(
+                [
+                  h.Key(source),
+                  h.Class(
+                    'block break-all text-[0.65rem] leading-5 text-stone-500',
+                  ),
+                ],
+                [source],
+              ),
+            ),
           ),
         ],
       ),
@@ -1595,7 +1868,7 @@ const walletIntentAudit = (): Html => {
                   h.p(
                     [h.Class('max-w-4xl text-sm leading-6 text-stone-400')],
                     [
-                      'The Wallet core owns one parser-printer for the global relative path. Each client owns only its origin, custom scheme, or command-line wrapper. Every native Bitcoin, Ethereum, Solana, and Sui rail is represented in both Devnet and Testnet modes. Parsing an intent never performs a side effect. It enters the Program as startup input, and update decides the resulting Commands.',
+                      'The Wallet core owns one parser-printer for the global relative path. Each Client owns only its origin, custom scheme, or command-line wrapper. All twelve native Bitcoin, Ethereum, Solana, and Sui rails are represented across Devnet, Testnet, and Live. Simulation and actual-network evidence are labeled separately. Parsing an intent never performs a side effect. It enters the Program as startup input, and update decides the resulting Commands.',
                     ],
                   ),
                 ],
