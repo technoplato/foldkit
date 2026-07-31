@@ -1,6 +1,8 @@
 import { Duration, Effect, Layer, Match as M, Option } from 'effect'
 import { Processor } from 'foldkit'
 
+import { AdmissionSequencerCapability } from '@foldkit/instant'
+
 import {
   EffectExecutionError,
   EffectExecutor,
@@ -25,7 +27,7 @@ export const headlessProcessorDescriptor = (
   processorId: string,
 ): Processor.Descriptor =>
   Processor.Descriptor.make({
-    capabilities: [timerCapability],
+    capabilities: [AdmissionSequencerCapability, timerCapability],
     clientId,
     effectSupport: [timerEffectSupport],
     processorId,

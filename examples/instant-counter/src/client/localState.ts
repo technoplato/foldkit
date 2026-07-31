@@ -40,7 +40,7 @@ const loadIdentifier = (storage: Storage, key: string): string => {
 
 /** Loads or creates stable non-secret Client and device identifiers. */
 export const loadClientIdentity = (
-  clientStorage: Storage = sessionStorage,
+  clientStorage: Storage = localStorage,
   deviceStorage: Storage = localStorage,
 ): ClientIdentity => {
   return StoredClientIdentity.make({
@@ -95,7 +95,7 @@ const readActorSequences = (storage: Storage): ActorSequences => {
 
 /** Creates the actor sequence registry for one browser Client. */
 export const makeActorSequenceRegistry = (
-  storage: Storage = sessionStorage,
+  storage: Storage = localStorage,
 ): ActorSequenceRegistry => ({
   next: sessionId =>
     Effect.sync(() => {

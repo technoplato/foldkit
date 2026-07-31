@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto'
 
 import {
   type InstantProgramSessionRecord,
-  makeAcceptanceAuthority,
+  makeAdmissionSequencer,
   makeProcessorRoom,
   makeSharedProgramProcessor,
 } from '@foldkit/instant'
@@ -44,8 +44,8 @@ import {
 const heartbeatInterval = '10 seconds'
 const restartDelay = Duration.seconds(2)
 
-/** Inputs for the long-lived renderer-free acceptance authority. */
-export type HeadlessAuthorityConfig = Readonly<{
+/** Inputs for the long-lived renderer-free admission sequencer Processor. */
+export type HeadlessAdmissionSequencerConfig = Readonly<{
   databases: HeadlessDatabases
   localState: HeadlessLocalState
   subjectScope: HeadlessSubjectScope
@@ -54,13 +54,13 @@ export type HeadlessAuthorityConfig = Readonly<{
 const reportRejectedProposal = (): Effect.Effect<void> =>
   Effect.sync(() => {
     process.stderr.write(
-      'Foldkit Instant ignored one invalid Message proposal.\n',
+      'Foldkit Instant rejected one invalid Message proposal.\n',
     )
   })
 
-const runSessionAuthority = (
+const runSessionAdmissionSequencer = (
   session: InstantProgramSessionRecord,
-  config: HeadlessAuthorityConfig,
+  config: HeadlessAdmissionSequencerConfig,
 ) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -97,6 +97,7 @@ const runSessionAuthority = (
         actor: Processor.SystemActor.make({ processorId }),
       })
       const shared = yield* makeSharedProgramProcessor({
+        admissionSequencerProcessorId: session.authorityProcessorId,
         actorId: processorId,
         clientId: config.localState.identity.clientId,
         codec,
@@ -154,7 +155,7 @@ const runSessionAuthority = (
         ),
         Effect.repeat(Schedule.spaced(heartbeatInterval)),
       )
-      const authority = yield* makeAcceptanceAuthority({
+      const admissionSequencer = yield* makeAdmissionSequencer({
         acceptEnvelope: codec.acceptEnvelope,
         now: Date.now,
         onProposalRejected: reportRejectedProposal,
@@ -164,7 +165,7 @@ const runSessionAuthority = (
 
       return yield* Effect.all(
         [
-          authority.run,
+          admissionSequencer.run,
           runEffectPlacementSupervisor({
             codec,
             processor: shared,
@@ -179,17 +180,17 @@ const runSessionAuthority = (
     }),
   )
 
-const resilientSessionAuthority = (
+const resilientSessionAdmissionSequencer = (
   session: InstantProgramSessionRecord,
-  config: HeadlessAuthorityConfig,
+  config: HeadlessAdmissionSequencerConfig,
 ): Effect.Effect<never> =>
   Effect.forever(
-    runSessionAuthority(session, config).pipe(
+    runSessionAdmissionSequencer(session, config).pipe(
       Effect.catchCause(() =>
         Effect.andThen(
           Effect.sync(() => {
             process.stderr.write(
-              'Foldkit Instant restarted one Program session authority.\n',
+              'Foldkit Instant restarted one Program session admission sequencer.\n',
             )
           }),
           Effect.sleep(restartDelay),
@@ -198,9 +199,9 @@ const resilientSessionAuthority = (
     ),
   )
 
-/** Supervises one isolated authority Processor for every valid active session. */
-export const runHeadlessAuthority = (
-  config: HeadlessAuthorityConfig,
+/** Supervises one isolated admission sequencer Processor per active session. */
+export const runHeadlessAdmissionSequencer = (
+  config: HeadlessAdmissionSequencerConfig,
 ): Effect.Effect<never, unknown, Scope.Scope> =>
   Effect.gen(function* () {
     const scope = yield* Effect.scope
@@ -253,7 +254,7 @@ export const runHeadlessAuthority = (
               Effect.gen(function* () {
                 if (!sessionFibers.has(session.sessionId)) {
                   const fiber = yield* Effect.forkIn(
-                    resilientSessionAuthority(session, config),
+                    resilientSessionAdmissionSequencer(session, config),
                     scope,
                   )
                   sessionFibers.set(session.sessionId, fiber)

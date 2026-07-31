@@ -227,7 +227,7 @@ const authenticationView = (input: BrowserViewInput): string => {
       <section class="auth-card">
         <p class="eyebrow">Foldkit Program | InstantDB</p>
         <h1>One counter, every Processor</h1>
-        <p class="lede">Sign in on two devices. Actions become accepted Messages, then every Foldkit runtime reduces the same ordered tape.</p>
+        <p class="lede">Sign in on two devices. Your Client projects each valid action immediately, then every Foldkit runtime converges on the same accepted tape.</p>
         ${notice(input.maybeNotice)}
         ${form}
         <div class="or"><span>or</span></div>
@@ -287,7 +287,7 @@ const programView = (input: BrowserViewInput): string => {
     Array.map(
       snapshot.pendingProposals,
       pendingProposal =>
-        `<li><strong>${escapeHtml(pendingProposal.proposal.eventId)}</strong><span>${pendingProposal.persistence}. It is not accepted yet.</span></li>`,
+        `<li><strong>${escapeHtml(pendingProposal.proposal.eventId)}</strong><span>${pendingProposal.persistence}. Projected on this Client, but not accepted yet.</span></li>`,
     ),
     '',
   )
@@ -316,7 +316,7 @@ const programView = (input: BrowserViewInput): string => {
     >
       <header class="topbar">
         <div>
-          <p class="eyebrow">Foldkit Program | Accepted Messages</p>
+          <p class="eyebrow">Foldkit Program | Projected and accepted Messages</p>
           <h1>Instant counter</h1>
         </div>
         <div class="session-actions">
@@ -335,13 +335,13 @@ const programView = (input: BrowserViewInput): string => {
           <button data-action="reset">Reset</button>
           <button data-action="increment" aria-label="Increment">+</button>
         </div>
-        <p>Frame ${currentFrame.toString()} of ${snapshot.acceptedSequence.toString()} · ${isLive ? 'Live accepted Model' : 'Inert historical Model'}</p>
+        <p>${isLive ? `Accepted sequence ${snapshot.acceptedSequence.toString()} · Live projected Model` : `Frame ${currentFrame.toString()} of ${snapshot.acceptedSequence.toString()} · Inert historical Model`}</p>
       </section>
 
       <section class="replay-bar ${isLive ? '' : 'inspecting'}">
         <div>
           <strong>${isLive ? 'Live mode' : 'Replay inspection'}</strong>
-          <span>${isLive ? 'New accepted Messages update the screen.' : 'Historical Commands are inert. Live sync continues behind this view.'}</span>
+          <span>${isLive ? 'Valid local proposals project immediately. Acceptance rebases the remaining outbox without running a Command twice.' : 'Historical Commands are inert. Live sync and optimistic rebasing continue behind this view.'}</span>
         </div>
         <div class="replay-actions">
           <button data-action="inspect" data-frame="${previousFrame.toString()}" ${currentFrame === 0 ? 'disabled' : ''}>Previous</button>

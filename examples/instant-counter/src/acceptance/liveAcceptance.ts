@@ -34,9 +34,10 @@ import {
 } from './protocol.js'
 
 const acceptanceOrigin = 'http://localhost:5173'
-const authorityReadyMessage =
-  'Foldkit Instant headless authority is observing authenticated sessions.'
-const rejectionMessage = 'Foldkit Instant ignored one invalid Message proposal.'
+const sequencerReadyMessage =
+  'Foldkit Instant headless admission sequencer is observing authenticated sessions.'
+const rejectionMessage =
+  'Foldkit Instant rejected one invalid Message proposal.'
 const pollIntervalMs = 100
 const processExitTimeoutMs = 5_000
 const readinessTimeoutMs = 60_000
@@ -99,7 +100,7 @@ type ExpectedPageState = Readonly<Partial<PageState>>
 type LiveAcceptanceEvidence = Readonly<{
   acceptedEventIds: ReadonlyArray<string>
   acceptedSequences: ReadonlyArray<number>
-  authorityRestartAcceptedExactlyOnce: boolean
+  sequencerRestartAcceptedExactlyOnce: boolean
   sameSubjectBrowserClients: number
   clientsConverged: boolean
   claimRefreshPreservedOwnership: boolean
@@ -108,6 +109,7 @@ type LiveAcceptanceEvidence = Readonly<{
   differentSubjectCouldRead: boolean
   malformedProposalAccepted: boolean
   malformedProposalReachedInbox: boolean
+  malformedProposalResolvedDurably: boolean
   physicalDevices: number
   replayRemainedInert: boolean
   sanitizedRejectionReported: boolean
@@ -499,6 +501,9 @@ const queryProposalState = async (
     foldkitMessageProposals: {
       $: { where: { proposalId } },
     },
+    foldkitMessageProposalResolutions: {
+      $: { where: { proposalId } },
+    },
   })
 
 const querySubjectState = async (
@@ -515,6 +520,12 @@ const querySubjectState = async (
     foldkitMessageProposals: {
       $: {
         order: { createdAtMs: 'asc' },
+        where: { subjectId },
+      },
+    },
+    foldkitMessageProposalResolutions: {
+      $: {
+        order: { rejectedAtMs: 'asc' },
         where: { subjectId },
       },
     },
@@ -542,6 +553,7 @@ const deleteSubjectData = async (
     foldkitEffectPlacements: { $: { where: { subjectId } } },
     foldkitEffectRequests: { $: { where: { subjectId } } },
     foldkitMessageProposals: { $: { where: { subjectId } } },
+    foldkitMessageProposalResolutions: { $: { where: { subjectId } } },
     foldkitProgramSessions: { $: { where: { subjectId } } },
     foldkitProjectionCheckpoints: { $: { where: { subjectId } } },
     instantCounterSessionClaims: { $: { where: { subjectId } } },
@@ -572,6 +584,15 @@ const deleteSubjectData = async (
       const entity = database.tx.foldkitMessageProposals[record.id]
       if (entity === undefined) {
         return fail('A Message proposal cleanup transaction was unavailable.')
+      }
+      return entity.delete()
+    }),
+    ...Array.map(records.foldkitMessageProposalResolutions, record => {
+      const entity = database.tx.foldkitMessageProposalResolutions[record.id]
+      if (entity === undefined) {
+        return fail(
+          'A Message proposal resolution cleanup transaction was unavailable.',
+        )
       }
       return entity.delete()
     }),
@@ -677,10 +698,10 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
     try {
       await waitFor(
         acceptanceProgress,
-        'the headless authority process to start',
+        'the headless admission sequencer process to start',
         () =>
           captured.child.exitCode === null &&
-          captured.hasStdout(authorityReadyMessage),
+          captured.hasStdout(sequencerReadyMessage),
         readinessTimeoutMs,
       )
       return captured
@@ -695,7 +716,7 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
     const primaryUser = await ensureSyntheticUser(database, primaryEmail)
     const otherUser = await ensureSyntheticUser(database, otherEmail)
     const selectedSubjectIds = [primaryUser.id, otherUser.id]
-    acceptanceProgress.advance('headless authority startup')
+    acceptanceProgress.advance('headless admission sequencer startup')
     headless = await startHeadless(selectedSubjectIds)
     acceptanceProgress.advance('browser Client origin startup')
     vite = startCapturedProcess(
@@ -883,7 +904,7 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
       displayedFrame: 3,
     })
 
-    acceptanceProgress.advance('authority stop and restart recovery')
+    acceptanceProgress.advance('admission sequencer stop and restart recovery')
     const beforeAuthorityStop = await querySubjectState(
       database,
       primaryUser.id,
@@ -897,13 +918,19 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
     await primaryPage.getByRole('button', { name: 'Increment' }).click()
     await waitForPageState(acceptanceProgress, primaryPage, {
       acceptedSequence: 3,
-      count: 1,
+      count: 2,
       displayedFrame: 3,
       pendingProposals: 1,
     })
+    await waitForPageState(acceptanceProgress, otherPage, {
+      acceptedSequence: 3,
+      count: 1,
+      displayedFrame: 3,
+      pendingProposals: 0,
+    })
     await waitFor(
       acceptanceProgress,
-      'the authority-stopped proposal to reach the raw inbox',
+      'the admission-sequencer-stopped proposal to reach the raw inbox',
       async () => {
         const subjectState = await querySubjectState(database, primaryUser.id)
         return (
@@ -927,7 +954,9 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
       proposal => !previousProposalIds.has(proposal.proposalId),
     )
     if (Option.isNone(maybePendingProposal)) {
-      return fail('The authority-stopped proposal could not be identified.')
+      return fail(
+        'The admission-sequencer-stopped proposal could not be identified.',
+      )
     }
     const stoppedAuthorityProposalId = maybePendingProposal.value.proposalId
     headless = await startHeadless(selectedSubjectIds)
@@ -948,11 +977,11 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
       database,
       stoppedAuthorityProposalId,
     )
-    const authorityRestartAcceptedExactlyOnce =
+    const sequencerRestartAcceptedExactlyOnce =
       restartedProposalState.foldkitAcceptedMessageOccurrences.length === 1
     assert(
-      authorityRestartAcceptedExactlyOnce,
-      'The authority restart did not accept the pending proposal exactly once.',
+      sequencerRestartAcceptedExactlyOnce,
+      'The admission sequencer restart did not accept the pending proposal exactly once.',
     )
 
     acceptanceProgress.advance('malformed proposal rejection')
@@ -1002,16 +1031,33 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
     )
     await waitFor(
       acceptanceProgress,
-      'the sanitized authority rejection',
+      'the sanitized admission rejection',
       () => headless?.hasStderr(rejectionMessage) ?? false,
+    )
+    await waitFor(
+      acceptanceProgress,
+      'the durable malformed proposal resolution',
+      async () => {
+        const state = await queryProposalState(database, malformedId)
+        return state.foldkitMessageProposalResolutions.length === 1
+      },
     )
     const malformedState = await queryProposalState(database, malformedId)
     const malformedProposalReachedInbox =
       malformedState.foldkitMessageProposals.length === 1
     const malformedProposalAccepted =
       malformedState.foldkitAcceptedMessageOccurrences.length !== 0
+    const maybeMalformedResolution = Array.head(
+      malformedState.foldkitMessageProposalResolutions,
+    )
+    const malformedProposalResolvedDurably =
+      malformedState.foldkitMessageProposalResolutions.length === 1 &&
+      Option.isSome(maybeMalformedResolution) &&
+      maybeMalformedResolution.value.rejectionReason === 'EnvelopeInvalid'
     assert(
-      malformedProposalReachedInbox && !malformedProposalAccepted,
+      malformedProposalReachedInbox &&
+        !malformedProposalAccepted &&
+        malformedProposalResolvedDurably,
       'The malformed proposal crossed the accepted Message boundary.',
     )
     await Promise.all([
@@ -1019,11 +1065,13 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
         acceptedSequence: 4,
         count: 2,
         displayedFrame: 4,
+        pendingProposals: 0,
       }),
       waitForPageState(acceptanceProgress, otherPage, {
         acceptedSequence: 4,
         count: 2,
         displayedFrame: 4,
+        pendingProposals: 0,
       }),
     ])
     await otherPage.getByRole('button', { name: 'Decrement' }).click()
@@ -1042,7 +1090,7 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
     assert(
       headless.child.pid === postRestartAuthorityProcessId &&
         headless.child.exitCode === null,
-      'The malformed proposal terminated or replaced the live authority process.',
+      'The malformed proposal terminated or replaced the live admission sequencer process.',
     )
 
     acceptanceProgress.advance('inert replay inspection')
@@ -1149,7 +1197,7 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
     return {
       acceptedEventIds,
       acceptedSequences,
-      authorityRestartAcceptedExactlyOnce,
+      sequencerRestartAcceptedExactlyOnce,
       claimRefreshPreservedOwnership: true,
       claimSubjectCouldBeReassigned: false,
       clientsConverged: true,
@@ -1157,6 +1205,7 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
       differentSubjectCouldRead: false,
       malformedProposalAccepted,
       malformedProposalReachedInbox,
+      malformedProposalResolvedDurably,
       physicalDevices: 0,
       replayRemainedInert: true,
       sameSubjectBrowserClients: 2,

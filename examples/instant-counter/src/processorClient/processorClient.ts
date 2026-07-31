@@ -148,6 +148,7 @@ export const makeClientProcessor = ({
     })
     yield* runtime.initialization
     const shared = yield* makeSharedProgramProcessor({
+      admissionSequencerProcessorId: session.authorityProcessorId,
       actorId: subjectId,
       clientId: identity.clientId,
       codec: makeMessageCodec({

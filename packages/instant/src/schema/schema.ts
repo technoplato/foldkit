@@ -41,7 +41,7 @@ export const InstantPermittedResultEvents = S.NonEmptyArray(
 export type InstantPermittedResultEvents =
   typeof InstantPermittedResultEvents.Type
 
-/** The authenticated owner and single acceptance authority for one Program session. */
+/** Routing and fencing data for one authenticated Program session. */
 export const InstantProgramSessionRecord = S.Struct({
   authorityProcessorId: S.String,
   createdAtMs: S.Int,
@@ -53,7 +53,7 @@ export const InstantProgramSessionRecord = S.Struct({
   sessionId: S.String,
   subjectId: S.String,
 })
-/** The authenticated owner and single acceptance authority for one Program session. */
+/** Routing and fencing data for one authenticated Program session. */
 export type InstantProgramSessionRecord =
   typeof InstantProgramSessionRecord.Type
 
@@ -90,7 +90,66 @@ export const InstantMessageProposalRecord = S.Struct({
 export type InstantMessageProposalRecord =
   typeof InstantMessageProposalRecord.Type
 
-/** One globally ordered Message occurrence admitted by an acceptance authority. */
+/** Returns whether a proposal carries exactly the fields required by its kind. */
+export const isInstantMessageProposalKindValid = (
+  proposal: InstantMessageProposalRecord,
+): boolean => {
+  const hasCompleteEffectFields =
+    proposal.effectAssignmentGeneration !== null &&
+    proposal.effectCancellationGeneration !== null &&
+    proposal.effectIdempotencyKey !== null &&
+    proposal.effectRequestId !== null &&
+    proposal.executorProcessorId !== null
+  const hasNoEffectFields =
+    proposal.effectAssignmentGeneration === null &&
+    proposal.effectCancellationGeneration === null &&
+    proposal.effectIdempotencyKey === null &&
+    proposal.effectRequestId === null &&
+    proposal.executorProcessorId === null
+  return (
+    (proposal.proposalKind === 'Message' && hasNoEffectFields) ||
+    (proposal.proposalKind === 'EffectResult' && hasCompleteEffectFields)
+  )
+}
+
+/** A safe terminal reason why an admission sequencer rejected a proposal. */
+export const InstantMessageProposalRejectionReason = S.Literals([
+  'EffectResultMismatch',
+  'EnvelopeInvalid',
+  'IdentityConflict',
+  'ProposalKindMismatch',
+  'ScopeMismatch',
+])
+/** A safe terminal reason why an admission sequencer rejected a proposal. */
+export type InstantMessageProposalRejectionReason =
+  typeof InstantMessageProposalRejectionReason.Type
+
+/** The durable terminal rejection of one Message proposal. */
+export const InstantMessageProposalResolutionRecord = S.Struct({
+  id: S.String,
+  programId: S.String,
+  programVersion: S.Int,
+  proposalId: S.String,
+  rejectedAtMs: S.Int,
+  rejectingProcessorId: S.String,
+  rejectionReason: InstantMessageProposalRejectionReason,
+  sessionId: S.String,
+  subjectId: S.String,
+}).check(
+  S.makeFilter(resolution =>
+    resolution.id === resolution.proposalId
+      ? undefined
+      : {
+          path: ['id'],
+          issue: 'A proposal resolution id must equal its proposal id.',
+        },
+  ),
+)
+/** The durable terminal rejection of one Message proposal. */
+export type InstantMessageProposalResolutionRecord =
+  typeof InstantMessageProposalResolutionRecord.Type
+
+/** One globally ordered Message occurrence admitted by an admission sequencer. */
 export const InstantAcceptedMessageOccurrenceRecord = S.Struct({
   acceptedAtMs: S.Int,
   acceptedSequence: NonNegativeInteger,
@@ -124,7 +183,7 @@ export const InstantAcceptedMessageOccurrenceRecord = S.Struct({
   sessionId: S.String,
   subjectId: S.String,
 })
-/** One globally ordered Message occurrence admitted by an acceptance authority. */
+/** One globally ordered Message occurrence admitted by an admission sequencer. */
 export type InstantAcceptedMessageOccurrenceRecord =
   typeof InstantAcceptedMessageOccurrenceRecord.Type
 
@@ -371,6 +430,16 @@ export const InstantProgramEntities = {
     programVersion: i.number(),
     proposalId: i.string().unique().indexed(),
     proposalKind: i.string().indexed(),
+    sessionId: i.string().indexed(),
+    subjectId: i.string().indexed(),
+  }),
+  foldkitMessageProposalResolutions: i.entity({
+    programId: i.string().indexed(),
+    programVersion: i.number(),
+    proposalId: i.string().unique().indexed(),
+    rejectedAtMs: i.number().indexed(),
+    rejectingProcessorId: i.string().indexed(),
+    rejectionReason: i.string().indexed(),
     sessionId: i.string().indexed(),
     subjectId: i.string().indexed(),
   }),

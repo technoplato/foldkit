@@ -1,7 +1,14 @@
-import { Effect, Option } from 'effect'
+import { Effect, Exit, Option, Ref, Scope, Stream } from 'effect'
 import { Processor } from 'foldkit'
 
-import type { SharedProgramProcessorSnapshot } from '@foldkit/instant'
+import {
+  type SharedProgramProcessorSnapshot,
+  type SubjectScopedProgram,
+  type SubjectScopedProgramActive,
+  type SubjectScopedProgramAllocationContext,
+  type SubjectScopedProgramSnapshot,
+  makeSubjectScopedProgram,
+} from '@foldkit/instant'
 import type { ConnectionStatus } from '@instantdb/core'
 
 import type { InstantCounterDatabase } from '../../instant.schema.js'
@@ -37,12 +44,20 @@ import {
 } from './processor.js'
 import { type BrowserViewActions, renderBrowserView } from './view.js'
 
-type ProcessorLease = Readonly<{
-  detachPresence: () => Promise<void>
-  detachSnapshots: () => Promise<void>
-  processor: BrowserProcessor
-  release: () => Promise<void>
+type BrowserProgramSnapshot = Readonly<{
+  presence: ReadonlyArray<Processor.Descriptor>
+  shared: SharedProgramProcessorSnapshot<Model>
 }>
+
+type BrowserSubjectProgram = SubjectScopedProgram<
+  BrowserProcessor,
+  BrowserProgramSnapshot
+>
+
+type BrowserSubjectProgramSnapshot = SubjectScopedProgramSnapshot<
+  BrowserProcessor,
+  BrowserProgramSnapshot
+>
 
 /** Owns the token-redacted browser shell around one real Foldkit Processor. */
 export class BrowserApp {
@@ -54,13 +69,11 @@ export class BrowserApp {
   readonly #root: HTMLElement
   #authentication: Authentication = LoadingAuthentication.make({})
   #connectionStatus: ConnectionStatus = 'connecting'
-  #generation = 0
   #maybeNotice = Option.none<string>()
   #maybeSentEmail = Option.none<string>()
-  #presence: ReadonlyArray<Processor.Descriptor> = []
-  #processorLease: ProcessorLease | null = null
-  #processorStartupController: AbortController | null = null
-  #snapshot: SharedProgramProcessorSnapshot<Model> | null = null
+  #subjectProgram: BrowserSubjectProgram | null = null
+  #subjectProgramScope: Scope.Closeable | null = null
+  #subjectProgramSnapshot: BrowserSubjectProgramSnapshot | null = null
   #unsubscribeAuthentication: (() => void) | null = null
   #unsubscribeConnection: (() => void) | null = null
 
@@ -90,26 +103,15 @@ export class BrowserApp {
 
   /** Starts authentication, connectivity, and Processor lifecycle observation. */
   start(): void {
+    this.#startSubjectProgram()
     this.#unsubscribeAuthentication = observeAuthentication(
       this.#database,
       authentication => {
-        const previousSubject =
-          this.#authentication._tag === 'SignedIn'
-            ? this.#authentication.subjectId
-            : null
         this.#authentication = authentication
-        const nextSubject =
-          authentication._tag === 'SignedIn' ? authentication.subjectId : null
-        if (
-          authentication._tag === 'SignedIn' ||
-          previousSubject !== nextSubject
-        ) {
+        if (authentication._tag !== 'LoadingAuthentication') {
           this.#maybeSentEmail = Option.none()
         }
-        if (nextSubject !== previousSubject) {
-          this.#generation += 1
-          void this.#replaceProcessor(nextSubject, this.#generation)
-        }
+        this.#reconcileAuthentication(authentication)
         this.#render()
       },
     )
@@ -122,130 +124,194 @@ export class BrowserApp {
     this.#render()
   }
 
-  /** Stops observers and releases the signed-in Processor. */
+  /** Stops observers and closes the authenticated-subject Program Scope. */
   stop(): void {
-    this.#generation += 1
     this.#unsubscribeAuthentication?.()
     this.#unsubscribeAuthentication = null
     this.#unsubscribeConnection?.()
     this.#unsubscribeConnection = null
-    void this.#releaseProcessor()
+    const subjectProgramScope = this.#subjectProgramScope
+    this.#subjectProgram = null
+    this.#subjectProgramScope = null
+    this.#subjectProgramSnapshot = null
+    if (subjectProgramScope !== null) {
+      void Effect.runPromise(Scope.close(subjectProgramScope, Exit.void))
+    }
   }
 
-  async #replaceProcessor(
-    subjectId: string | null,
-    generation: number,
-  ): Promise<void> {
-    await this.#releaseProcessor()
-    if (subjectId === null || generation !== this.#generation) {
+  #startSubjectProgram(): void {
+    const subjectProgramScope = Effect.runSync(Scope.make())
+    const subjectProgram = Effect.runSync(
+      Effect.provideService(
+        makeSubjectScopedProgram<BrowserProcessor, BrowserProgramSnapshot>({
+          allocateProgram: context => this.#allocateSubjectProgram(context),
+          signOut: () => Effect.promise(() => signOut(this.#database)),
+        }),
+        Scope.Scope,
+        subjectProgramScope,
+      ),
+    )
+    this.#subjectProgramScope = subjectProgramScope
+    this.#subjectProgram = subjectProgram
+    this.#subjectProgramSnapshot = Effect.runSync(subjectProgram.read)
+    Effect.runSync(
+      Effect.forkIn(
+        Stream.runForEach(subjectProgram.snapshots, snapshot =>
+          Effect.sync(() => this.#receiveSubjectProgramSnapshot(snapshot)),
+        ),
+        subjectProgramScope,
+      ),
+    )
+  }
+
+  #allocateSubjectProgram(
+    context: SubjectScopedProgramAllocationContext<BrowserProgramSnapshot>,
+  ): Effect.Effect<BrowserProcessor, never, Scope.Scope> {
+    const app = this
+    return Effect.gen(function* () {
+      const allocation = yield* Effect.acquireRelease(
+        Effect.promise(signal =>
+          allocateBrowserProcessor(
+            {
+              actorSequences: app.#actorSequences,
+              attemptRegistry: app.#attemptRegistry,
+              database: app.#database,
+              identity: app.#identity,
+              subjectId: context.subjectId,
+            },
+            signal,
+          ),
+        ),
+        allocation => Effect.promise(() => allocation.release()),
+      )
+      const processor = allocation.processor
+      const initialSharedSnapshot = yield* processor.shared.readSnapshot
+      const programSnapshotRef = yield* Ref.make<BrowserProgramSnapshot>({
+        presence: [],
+        shared: initialSharedSnapshot,
+      })
+      const publishSharedSnapshot = (
+        shared: SharedProgramProcessorSnapshot<Model>,
+      ): Effect.Effect<void> =>
+        Ref.updateAndGet(programSnapshotRef, programSnapshot => ({
+          ...programSnapshot,
+          shared,
+        })).pipe(Effect.flatMap(context.publishProgramSnapshot))
+      const publishPresence = (
+        presence: ReadonlyArray<Processor.Descriptor>,
+      ): Effect.Effect<void> =>
+        Ref.updateAndGet(programSnapshotRef, programSnapshot => ({
+          ...programSnapshot,
+          presence,
+        })).pipe(Effect.flatMap(context.publishProgramSnapshot))
+
+      yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          observeProcessorSnapshots(processor, snapshot => {
+            Effect.runSync(publishSharedSnapshot(snapshot))
+          }),
+        ),
+        detachSnapshots => Effect.promise(() => detachSnapshots()),
+      )
+      yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          observeProcessorPresence(processor, presence => {
+            Effect.runSync(publishPresence(decodeProcessorPresence(presence)))
+          }),
+        ),
+        detachPresence => Effect.promise(() => detachPresence()),
+      )
+      yield* Effect.addFinalizer(() => processor.shared.disconnect)
+      yield* Effect.addFinalizer(() =>
+        processor.publishEffectExecutorAvailability(false),
+      )
+      yield* Ref.get(programSnapshotRef).pipe(
+        Effect.flatMap(context.publishProgramSnapshot),
+      )
+      const subjectScope = yield* Effect.scope
+      yield* Effect.forkIn(
+        Effect.gen(function* () {
+          yield* processor.shared.connect
+          yield* processor.publishEffectExecutorAvailability(true)
+        }).pipe(Effect.catch(() => Effect.void)),
+        subjectScope,
+      )
+      return processor
+    })
+  }
+
+  #reconcileAuthentication(authentication: Authentication): void {
+    const subjectProgram = this.#subjectProgram
+    const subjectProgramScope = this.#subjectProgramScope
+    if (subjectProgram === null || subjectProgramScope === null) {
       return
     }
-    this.#snapshot = null
-    this.#presence = []
-    this.#maybeNotice = Option.some(
-      'Restoring the cached accepted tape for this subject.',
+    const maybeSubjectId =
+      authentication._tag === 'SignedIn'
+        ? Option.some(authentication.subjectId)
+        : Option.none()
+    Effect.runSync(
+      Effect.forkIn(
+        subjectProgram
+          .reconcileAuthenticatedSubject(maybeSubjectId)
+          .pipe(Effect.catchCause(() => Effect.void)),
+        subjectProgramScope,
+      ),
     )
-    this.#render()
-    const startupController = new AbortController()
-    this.#processorStartupController = startupController
-    try {
-      const allocation = await allocateBrowserProcessor(
-        {
-          actorSequences: this.#actorSequences,
-          attemptRegistry: this.#attemptRegistry,
-          database: this.#database,
-          identity: this.#identity,
-          subjectId,
-        },
-        startupController.signal,
+    this.#subjectProgramSnapshot = Effect.runSync(subjectProgram.read)
+  }
+
+  #receiveSubjectProgramSnapshot(
+    snapshot: BrowserSubjectProgramSnapshot,
+  ): void {
+    const previousLifecycle = this.#subjectProgramSnapshot?.lifecycle
+    this.#subjectProgramSnapshot = snapshot
+    if (snapshot.lifecycle._tag === 'AllocatingSubjectScopedProgram') {
+      this.#maybeNotice = Option.some(
+        'Restoring the cached accepted tape for this subject.',
       )
-      if (this.#processorStartupController === startupController) {
-        this.#processorStartupController = null
-      }
-      if (generation !== this.#generation || startupController.signal.aborted) {
-        await allocation.release()
-        return
-      }
-      const detachSnapshots = observeProcessorSnapshots(
-        allocation.processor,
-        snapshot => {
-          this.#snapshot = snapshot
-          this.#render()
-        },
+    } else if (snapshot.lifecycle._tag === 'FailedSubjectScopedProgram') {
+      this.#maybeNotice = Option.some(
+        'The Processor could not start. Confirm the Instant schema, permissions, and headless admission sequencer are running.',
       )
-      const detachPresence = observeProcessorPresence(
-        allocation.processor,
-        presence => {
-          this.#presence = decodeProcessorPresence(presence)
-          this.#render()
-        },
-      )
-      this.#processorLease = {
-        detachPresence,
-        detachSnapshots,
-        processor: allocation.processor,
-        release: allocation.release,
-      }
-      this.#snapshot = await Effect.runPromise(
-        allocation.processor.shared.readSnapshot,
-      )
+    } else if (
+      snapshot.lifecycle._tag === 'ActiveSubjectScopedProgram' &&
+      previousLifecycle?._tag === 'AllocatingSubjectScopedProgram'
+    ) {
       this.#maybeNotice = Option.none()
-      this.#render()
-      await Effect.runPromise(allocation.processor.shared.connect)
-      await Effect.runPromise(
-        allocation.processor.publishEffectExecutorAvailability(true),
-      )
-    } catch {
-      if (this.#processorStartupController === startupController) {
-        this.#processorStartupController = null
-      }
-      if (
-        generation === this.#generation &&
-        !startupController.signal.aborted
-      ) {
-        this.#maybeNotice = Option.some(
-          'The Processor could not start. Confirm the Instant schema, permissions, and headless authority are running.',
-        )
-        this.#render()
-      }
     }
+    this.#render()
   }
 
-  async #releaseProcessor(): Promise<void> {
-    this.#processorStartupController?.abort()
-    this.#processorStartupController = null
-    const lease = this.#processorLease
-    this.#processorLease = null
-    this.#snapshot = null
-    this.#presence = []
-    if (lease === null) {
-      return
+  #activeSubjectProgram(): SubjectScopedProgramActive<
+    BrowserProcessor,
+    BrowserProgramSnapshot
+  > | null {
+    const subjectProgramSnapshot = this.#subjectProgramSnapshot
+    if (
+      subjectProgramSnapshot === null ||
+      Option.isNone(subjectProgramSnapshot.maybeActiveProgram)
+    ) {
+      return null
     }
-    await Effect.runPromise(
-      lease.processor.publishEffectExecutorAvailability(false),
-    ).catch(() => undefined)
-    await Effect.runPromise(lease.processor.shared.disconnect).catch(
-      () => undefined,
-    )
-    await Promise.allSettled([lease.detachPresence(), lease.detachSnapshots()])
-    await lease.release()
+    return subjectProgramSnapshot.maybeActiveProgram.value
   }
 
   #propose(message: import('../domain/message.js').Message): void {
-    const lease = this.#processorLease
-    if (lease === null) {
+    const activeSubjectProgram = this.#activeSubjectProgram()
+    if (activeSubjectProgram === null) {
       this.#maybeNotice = Option.some('No Processor is running yet.')
       this.#render()
       return
     }
-    void Effect.runPromise(lease.processor.shared.propose(message)).catch(
-      () => {
-        this.#maybeNotice = Option.some(
-          'The Message remains local because its proposal could not be written yet.',
-        )
-        this.#render()
-      },
-    )
+    void Effect.runPromise(
+      activeSubjectProgram.program.shared.propose(message),
+    ).catch(() => {
+      this.#maybeNotice = Option.some(
+        'The Message remains local because its proposal could not be written yet.',
+      )
+      this.#render()
+    })
   }
 
   #proposeEffect(kind: EffectRequestKind): void {
@@ -263,71 +329,73 @@ export class BrowserApp {
   }
 
   #inspectReplay(frame: number): void {
-    const lease = this.#processorLease
-    if (lease === null) {
+    const activeSubjectProgram = this.#activeSubjectProgram()
+    if (activeSubjectProgram === null) {
       return
     }
-    void Effect.runPromise(lease.processor.shared.inspectReplay(frame)).catch(
-      () => {
-        this.#maybeNotice = Option.some(
-          `Replay frame ${frame.toString()} is unavailable.`,
-        )
-        this.#render()
-      },
-    )
+    void Effect.runPromise(
+      activeSubjectProgram.program.shared.inspectReplay(frame),
+    ).catch(() => {
+      this.#maybeNotice = Option.some(
+        `Replay frame ${frame.toString()} is unavailable.`,
+      )
+      this.#render()
+    })
   }
 
   #returnLive(): void {
-    const lease = this.#processorLease
-    if (lease !== null) {
-      void Effect.runPromise(lease.processor.shared.returnLive)
+    const activeSubjectProgram = this.#activeSubjectProgram()
+    if (activeSubjectProgram !== null) {
+      void Effect.runPromise(activeSubjectProgram.program.shared.returnLive)
     }
   }
 
   #disconnect(): void {
-    const lease = this.#processorLease
-    if (lease !== null) {
-      this.#maybeNotice = Option.some('Disconnecting this Model…')
-      this.#render()
-      void Effect.runPromise(
-        lease.processor.publishEffectExecutorAvailability(false),
-      )
-        .then(() => Effect.runPromise(lease.processor.shared.disconnect))
-        .then(() => Effect.runPromise(lease.processor.shared.readSnapshot))
-        .then(snapshot => {
-          if (this.#processorLease === lease) {
-            this.#snapshot = snapshot
-            this.#maybeNotice = Option.none()
-            this.#render()
-          }
-        })
-        .catch(() => {
-          if (this.#processorLease === lease) {
-            this.#maybeNotice = Option.some(
-              'This Model could not disconnect from the live accepted tape.',
-            )
-            this.#render()
-          }
-        })
+    const activeSubjectProgram = this.#activeSubjectProgram()
+    if (activeSubjectProgram === null) {
+      return
     }
+    const processor = activeSubjectProgram.program
+    this.#maybeNotice = Option.some('Disconnecting this Model…')
+    this.#render()
+    void Effect.runPromise(processor.publishEffectExecutorAvailability(false))
+      .then(() => Effect.runPromise(processor.shared.disconnect))
+      .then(() => {
+        if (this.#activeSubjectProgram()?.program === processor) {
+          this.#maybeNotice = Option.none()
+          this.#render()
+        }
+      })
+      .catch(() => {
+        if (this.#activeSubjectProgram()?.program === processor) {
+          this.#maybeNotice = Option.some(
+            'This Model could not disconnect from the live accepted tape.',
+          )
+          this.#render()
+        }
+      })
   }
 
   #connect(): void {
-    const lease = this.#processorLease
-    if (lease !== null) {
-      void Effect.runPromise(
-        Effect.gen(function* () {
-          yield* lease.processor.shared.disconnect
-          yield* lease.processor.shared.connect
-          yield* lease.processor.publishEffectExecutorAvailability(true)
-        }),
-      ).catch(() => {
+    const activeSubjectProgram = this.#activeSubjectProgram()
+    if (activeSubjectProgram === null) {
+      return
+    }
+    const processor = activeSubjectProgram.program
+    void Effect.runPromise(
+      Effect.gen(function* () {
+        yield* processor.shared.disconnect
+        yield* processor.shared.connect
+        yield* processor.publishEffectExecutorAvailability(true)
+      }),
+    ).catch(() => {
+      if (this.#activeSubjectProgram()?.program === processor) {
         this.#maybeNotice = Option.some(
           'Reconnect failed. The cached accepted Model is still available.',
         )
         this.#render()
-      })
-    }
+      }
+    })
   }
 
   #sendMagicCode(email: string): void {
@@ -359,29 +427,36 @@ export class BrowserApp {
   }
 
   #signOut(): void {
-    this.#generation += 1
+    const subjectProgram = this.#subjectProgram
+    if (subjectProgram === null) {
+      return
+    }
     this.#maybeSentEmail = Option.none()
     this.#maybeNotice = Option.some('Signing out and closing this Processor…')
     this.#render()
-    void this.#releaseProcessor()
-      .then(() => signOut(this.#database))
-      .catch(() => {
-        this.#maybeNotice = Option.some('Instant could not complete sign out.')
-        this.#render()
-      })
+    void Effect.runPromise(subjectProgram.signOut).catch(() => {
+      this.#maybeNotice = Option.some('Instant could not complete sign out.')
+      this.#render()
+    })
   }
 
   #render(): void {
+    const activeSubjectProgram = this.#activeSubjectProgram()
+    const maybeProgramSnapshot = activeSubjectProgram?.maybeProgramSnapshot
+    const programSnapshot =
+      maybeProgramSnapshot === undefined || Option.isNone(maybeProgramSnapshot)
+        ? null
+        : maybeProgramSnapshot.value
     renderBrowserView(
       this.#root,
       {
         authentication: this.#authentication,
         connectionStatus: this.#connectionStatus,
-        localDescriptor: this.#processorLease?.processor.descriptor ?? null,
+        localDescriptor: activeSubjectProgram?.program.descriptor ?? null,
         maybeNotice: this.#maybeNotice,
         maybeSentEmail: this.#maybeSentEmail,
-        presence: this.#presence,
-        snapshot: this.#snapshot,
+        presence: programSnapshot?.presence ?? [],
+        snapshot: programSnapshot?.shared ?? null,
       },
       this.#actions,
     )

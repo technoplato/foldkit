@@ -55,6 +55,62 @@ const BasicProgram = make({
 })
 
 describe('makeProgramRuntime', () => {
+  it.effect(
+    'projects Messages without mutating the runtime or executing Commands',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const executeCommand = vi.fn()
+          const ProjectedProgram = make({
+            id: 'projected-counter',
+            version: 1,
+            Model: BasicModel,
+            Message: BasicMessage,
+            init: () => [BasicModel.make({ count: 0 }), []],
+            update: (model, message) =>
+              M.value(message).pipe(
+                M.withReturnType<
+                  readonly [
+                    BasicModel,
+                    ReadonlyArray<Command.Command<BasicMessage>>,
+                  ]
+                >(),
+                M.tagsExhaustive({
+                  Incremented: () => [
+                    BasicModel.make({ count: model.count + 1 }),
+                    [
+                      {
+                        name: 'CompleteProjectedIncrement',
+                        effect: Effect.sync(() => {
+                          executeCommand()
+                          return KeptModel()
+                        }),
+                      },
+                    ],
+                  ],
+                  KeptModel: () => [model, []],
+                }),
+              ),
+          })
+          const runtime = yield* makeProgramRuntime({
+            program: ProjectedProgram,
+            resources: Layer.empty,
+          })
+          yield* runtime.initialization
+
+          const projectedModel = runtime.project(
+            BasicModel.make({ count: 5 }),
+            [Incremented(), Incremented()],
+          )
+
+          expect(projectedModel).toStrictEqual({ count: 7 })
+          expect(runtime.readModel()).toStrictEqual({ count: 0 })
+          expect(runtime.journal.read().transitions).toStrictEqual([])
+          expect(executeCommand).not.toHaveBeenCalled()
+        }),
+      ),
+  )
+
   it.effect('runs and journals one Program independently of a renderer', () =>
     Effect.scoped(
       Effect.gen(function* () {

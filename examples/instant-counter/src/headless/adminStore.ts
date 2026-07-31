@@ -5,6 +5,7 @@ import {
   InstantEffectPlacementRecord,
   InstantEffectRequestRecord,
   InstantMessageProposalRecord,
+  InstantMessageProposalResolutionRecord,
   InstantProgramSessionRecord,
   InstantProjectionCheckpointRecord,
   ProgramStore,
@@ -13,6 +14,7 @@ import {
   makeInstantAcceptedMessageOccurrenceTransaction,
   makeInstantEffectPlacementTransaction,
   makeInstantEffectRequestTransaction,
+  makeInstantMessageProposalResolutionTransaction,
   makeInstantMessageProposalTransaction,
   makeInstantProgramSessionTransaction,
   makeInstantProjectionCheckpointTransaction,
@@ -122,6 +124,13 @@ const decodeMessageProposals = (
     }),
   )
 
+const decodeMessageProposalResolutions = (
+  records: ReadonlyArray<unknown>,
+): ReadonlyArray<InstantMessageProposalResolutionRecord> =>
+  Array.map(records, record =>
+    S.decodeUnknownSync(InstantMessageProposalResolutionRecord)(record),
+  )
+
 /** Observes every authenticated Program session managed by this demo app. */
 export const observeAllProgramSessions = (
   database: HeadlessInstantDatabase,
@@ -216,6 +225,23 @@ export const makeAdminProgramStore = (
           new ProgramStoreError({
             cause,
             operation: 'AppendMessageProposal',
+          }),
+      }),
+    appendMessageProposalResolution: record =>
+      Effect.tryPromise({
+        try: () =>
+          database
+            .transact(
+              makeInstantMessageProposalResolutionTransaction(
+                database.tx,
+                record,
+              ),
+            )
+            .then(() => syncedTransactionOutcome('headless-admin')),
+        catch: cause =>
+          new ProgramStoreError({
+            cause,
+            operation: 'AppendMessageProposalResolution',
           }),
       }),
     appendProgramSession: record =>
@@ -363,6 +389,39 @@ export const makeAdminProgramStore = (
               try {
                 publish(
                   decodeMessageProposals(payload.data.foldkitMessageProposals),
+                )
+              } catch (cause) {
+                fail(cause)
+              }
+            }
+          },
+        ),
+      ),
+    observeMessageProposalResolutions: scope =>
+      observeAdminQuery('ObserveMessageProposalResolutions', (publish, fail) =>
+        database.subscribeQuery(
+          {
+            foldkitMessageProposalResolutions: {
+              $: {
+                where: {
+                  and: [
+                    { sessionId: scope.sessionId },
+                    { subjectId: scope.subjectId },
+                  ],
+                },
+                order: { rejectedAtMs: 'asc' },
+              },
+            },
+          },
+          payload => {
+            if (payload.type === 'error') {
+              fail(payload.error)
+            } else {
+              try {
+                publish(
+                  decodeMessageProposalResolutions(
+                    payload.data.foldkitMessageProposalResolutions,
+                  ),
                 )
               } catch (cause) {
                 fail(cause)

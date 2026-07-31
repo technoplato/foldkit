@@ -3,7 +3,7 @@ import { Data, Effect } from 'effect'
 import type { InstantProgramSessionRecord } from '@foldkit/instant'
 
 import {
-  authorityProcessorId,
+  admissionSequencerProcessorId,
   deriveSessionId,
   isProcessorRoomId,
   programId,
@@ -29,7 +29,8 @@ export const validateProgramSession = (
         !session.isRevoked &&
         session.sessionId === sessionId &&
         isProcessorRoomId(session.processorRoomId) &&
-        session.authorityProcessorId === authorityProcessorId(sessionId)
+        session.authorityProcessorId ===
+          admissionSequencerProcessorId(sessionId)
       ) {
         return Effect.succeed(session)
       }

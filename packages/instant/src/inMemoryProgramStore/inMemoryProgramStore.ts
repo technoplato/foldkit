@@ -25,6 +25,7 @@ import {
   InstantEffectPlacementRecord,
   InstantEffectRequestRecord,
   InstantMessageProposalRecord,
+  InstantMessageProposalResolutionRecord,
   InstantProgramSessionRecord,
   InstantProjectionCheckpointRecord,
 } from '../schema/index.js'
@@ -41,6 +42,9 @@ const acceptedMessageOccurrenceJson = S.fromJsonString(
 const effectRequestJson = S.fromJsonString(InstantEffectRequestRecord)
 const effectPlacementJson = S.fromJsonString(InstantEffectPlacementRecord)
 const messageProposalJson = S.fromJsonString(InstantMessageProposalRecord)
+const messageProposalResolutionJson = S.fromJsonString(
+  InstantMessageProposalResolutionRecord,
+)
 const programSessionJson = S.fromJsonString(InstantProgramSessionRecord)
 const projectionCheckpointJson = S.fromJsonString(
   InstantProjectionCheckpointRecord,
@@ -87,6 +91,17 @@ const messageProposalOrder = Order.combine(
   Order.mapInput(
     Order.String,
     (record: InstantMessageProposalRecord) => record.proposalId,
+  ),
+)
+
+const messageProposalResolutionOrder = Order.combine(
+  Order.mapInput(
+    Order.Number,
+    (record: InstantMessageProposalResolutionRecord) => record.rejectedAtMs,
+  ),
+  Order.mapInput(
+    Order.String,
+    (record: InstantMessageProposalResolutionRecord) => record.proposalId,
   ),
 )
 
@@ -202,6 +217,9 @@ export const makeInMemoryProgramStore = (
     const messageProposals = yield* SubscriptionRef.make<
       ReadonlyArray<InstantMessageProposalRecord>
     >([])
+    const messageProposalResolutions = yield* SubscriptionRef.make<
+      ReadonlyArray<InstantMessageProposalResolutionRecord>
+    >([])
     const programSessions = yield* SubscriptionRef.make<
       ReadonlyArray<InstantProgramSessionRecord>
     >([])
@@ -242,6 +260,14 @@ export const makeInMemoryProgramStore = (
           outcome,
           'AppendMessageProposal',
         ),
+      appendMessageProposalResolution: record =>
+        appendRecord(
+          messageProposalResolutions,
+          record,
+          S.encodeSync(messageProposalResolutionJson),
+          outcome,
+          'AppendMessageProposalResolution',
+        ),
       appendProgramSession: record =>
         putRecord(
           programSessions,
@@ -271,6 +297,12 @@ export const makeInMemoryProgramStore = (
         observeSessionRecords(effectRequests, scope, effectRequestOrder),
       observeMessageProposals: scope =>
         observeSessionRecords(messageProposals, scope, messageProposalOrder),
+      observeMessageProposalResolutions: scope =>
+        observeSessionRecords(
+          messageProposalResolutions,
+          scope,
+          messageProposalResolutionOrder,
+        ),
       observeProgramSessions: scope =>
         observeSessionRecords(programSessions, scope, programSessionOrder),
       observeProjectionCheckpoints: scope =>
