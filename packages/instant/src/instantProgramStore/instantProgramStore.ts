@@ -12,6 +12,8 @@ import {
 
 import {
   ProgramStore,
+  ProgramStoreConnectionStatus,
+  type ProgramStoreConnectionStatus as ProgramStoreConnectionStatusType,
   ProgramStoreError,
   type ProgramStoreService,
   type ProgramStoreTransactionOutcome,
@@ -42,6 +44,33 @@ const CompatibleTransactionResult = S.Union([
   ClientTransactionResult,
   EventTransactionResult,
 ])
+
+/** Observes the current Instant connection state and all later transitions. */
+export const makeInstantConnectionStatusStream = (
+  source: Readonly<{
+    current: () => ProgramStoreConnectionStatusType
+    subscribe: (
+      listener: (status: ProgramStoreConnectionStatusType) => void,
+    ) => () => void
+  }>,
+): Stream.Stream<ProgramStoreConnectionStatusType> =>
+  Stream.callback(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        source.subscribe(status => {
+          Queue.offerUnsafe(queue, status)
+        }),
+      ),
+      unsubscribe => Effect.sync(unsubscribe),
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          Queue.offerUnsafe(queue, source.current())
+        }),
+      ),
+      Effect.flatMap(() => Effect.never),
+    ),
+  )
 
 /** Decodes both documented and shipped InstantDB transaction correlation fields. */
 export const decodeProgramStoreTransactionOutcome = (
@@ -410,16 +439,13 @@ export const makeInstantProgramStore = (
         unsubscribe => Effect.sync(unsubscribe),
       ).pipe(Effect.flatMap(() => Effect.never)),
     ),
-  observeConnectionStatus: Stream.callback(queue =>
-    Effect.acquireRelease(
-      Effect.sync(() =>
-        database.subscribeConnectionStatus(status => {
-          Queue.offerUnsafe(queue, status)
-        }),
+  observeConnectionStatus: makeInstantConnectionStatusStream({
+    current: () =>
+      S.decodeUnknownSync(ProgramStoreConnectionStatus)(
+        database._reactor.status,
       ),
-      unsubscribe => Effect.sync(unsubscribe),
-    ).pipe(Effect.flatMap(() => Effect.never)),
-  ),
+    subscribe: listener => database.subscribeConnectionStatus(listener),
+  }),
   observeEffectPlacements: scope =>
     Stream.callback<
       ReadonlyArray<InstantEffectPlacementRecord>,

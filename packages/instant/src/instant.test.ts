@@ -8,7 +8,7 @@ import {
   Stream,
 } from 'effect'
 import { Command, Processor } from 'foldkit'
-import { expect, expectTypeOf } from 'vitest'
+import { expect, expectTypeOf, vi } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
 import {
@@ -31,6 +31,7 @@ import {
   InstantProgramSchema,
   InstantProgramSessionRecord,
   InstantProjectionCheckpointRecord,
+  type ProgramStoreConnectionStatus,
   decodeProgramStoreTransactionOutcome,
   enqueuedTransactionOutcome,
   makeAcceptedOccurrenceCursor,
@@ -38,6 +39,7 @@ import {
   makeInMemoryProgramStore,
   makeInstantAcceptedMessageOccurrenceTransaction,
   makeInstantCapabilityIdIndex,
+  makeInstantConnectionStatusStream,
   makeInstantEffectPlacementPositionKey,
   makeInstantEffectPlacementTransaction,
   makeInstantEffectRequestTransaction,
@@ -324,6 +326,45 @@ describe('@foldkit/instant', () => {
           _tag: 'Enqueued',
           clientId: 'offline-client',
         })
+      }),
+  )
+
+  it.effect(
+    'seeds late connection observers and forwards later transitions',
+    () =>
+      Effect.gen(function* () {
+        const listeners = new Set<
+          (status: ProgramStoreConnectionStatus) => void
+        >()
+        const seeded = yield* Latch.make()
+        const unsubscribe = vi.fn()
+        const statusesFiber = yield* Effect.forkChild(
+          Stream.runCollect(
+            Stream.take(
+              Stream.tap(
+                makeInstantConnectionStatusStream({
+                  current: () => 'authenticated',
+                  subscribe: listener => {
+                    listeners.add(listener)
+                    return unsubscribe
+                  },
+                }),
+                () => seeded.open,
+              ),
+              2,
+            ),
+          ),
+        )
+
+        yield* seeded.await
+        const listener = Option.getOrThrow(
+          Array.head(Array.fromIterable(listeners)),
+        )
+        listener('closed')
+        const statuses = yield* Fiber.join(statusesFiber)
+
+        expect(statuses).toEqual(['authenticated', 'closed'])
+        expect(unsubscribe).toHaveBeenCalledOnce()
       }),
   )
 
