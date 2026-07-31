@@ -266,12 +266,28 @@ export class BrowserApp {
   #disconnect(): void {
     const lease = this.#processorLease
     if (lease !== null) {
-      void Effect.runPromise(
-        Effect.andThen(
-          lease.processor.shared.disconnect,
-          lease.processor.publishEffectExecutorAvailability(false),
-        ),
-      )
+      this.#maybeNotice = Option.some('Disconnecting this Model…')
+      this.#render()
+      void Effect.runPromise(lease.processor.shared.disconnect)
+        .then(() => Effect.runPromise(lease.processor.shared.readSnapshot))
+        .then(snapshot => {
+          if (this.#processorLease === lease) {
+            this.#snapshot = snapshot
+            this.#maybeNotice = Option.none()
+            this.#render()
+          }
+          return Effect.runPromise(
+            lease.processor.publishEffectExecutorAvailability(false),
+          )
+        })
+        .catch(() => {
+          if (this.#processorLease === lease) {
+            this.#maybeNotice = Option.some(
+              'This Model could not disconnect from the live accepted tape.',
+            )
+            this.#render()
+          }
+        })
     }
   }
 

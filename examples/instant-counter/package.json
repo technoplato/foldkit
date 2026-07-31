@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "preacceptance:live": "pnpm --filter @foldkit/instant build && pnpm --filter counter-core-example build",
+    "acceptance:live": "tsx src/acceptance/liveAcceptance.ts",
     "prebuild": "pnpm --filter counter-core-example build",
     "build": "./scripts/with-public-instant-env vite build",
     "predev": "pnpm --filter counter-core-example build",
@@ -30,6 +32,7 @@
     "@foldkit/vite-plugin": "workspace:*",
     "@types/node": "^25.9.3",
     "prettier": "^3.8.4",
+    "playwright": "^1.61.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",

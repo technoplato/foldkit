@@ -1,9 +1,12 @@
 import {
   Array,
+  Deferred,
   Effect,
+  Exit,
   Fiber,
   Option,
   Schema as S,
+  Scope,
   Stream,
   SubscriptionRef,
 } from 'effect'
@@ -75,6 +78,7 @@ const authorityProcessorId = 'processor-authority'
 const clientId = 'client-browser'
 const processorId = 'processor-browser'
 const originDeviceId = 'device-browser'
+const lifecycleSchedulingBarrierMs = 10
 
 const session = InstantProgramSessionRecord.make({
   authorityProcessorId,
@@ -444,6 +448,293 @@ describe('shared Program Processor', () => {
         })
       }),
     ),
+  )
+
+  it.effect('scope closure waits for detached subscription releases', () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const releaseAllowed = yield* Deferred.make<void>()
+        const releaseFinished = yield* Deferred.make<void>()
+        const releaseStarted = yield* Deferred.make<void>()
+        const baseStore = yield* makeInMemoryProgramStore()
+        const store: ProgramStoreService = {
+          ...baseStore,
+          observeAcceptedMessageOccurrences: scope =>
+            baseStore.observeAcceptedMessageOccurrences(scope).pipe(
+              Stream.ensuring(
+                Effect.gen(function* () {
+                  yield* Deferred.succeed(releaseStarted, undefined)
+                  yield* Deferred.await(releaseAllowed).pipe(
+                    Effect.uninterruptible,
+                  )
+                  yield* Deferred.succeed(releaseFinished, undefined)
+                }),
+              ),
+            ),
+        }
+        const { runtime } = yield* makeRuntime()
+        const scopedProcessor = Effect.scoped(
+          Effect.gen(function* () {
+            const processor = yield* makeProcessor(store, runtime)
+            yield* processor.connect
+            yield* processor.disconnect.pipe(Effect.timeout('1 second'))
+            expect((yield* processor.readSnapshot).connection).toEqual({
+              _tag: 'Detached',
+            })
+          }),
+        )
+        const scopeFiber = yield* Effect.forkChild(scopedProcessor)
+
+        yield* Deferred.await(releaseStarted)
+        expect(scopeFiber.pollUnsafe()).toBeUndefined()
+
+        yield* Deferred.succeed(releaseAllowed, undefined)
+        yield* Fiber.join(scopeFiber).pipe(Effect.timeout('1 second'))
+        expect(yield* Deferred.isDone(releaseFinished)).toBe(true)
+      }),
+    ),
+  )
+
+  it.effect(
+    'waits for an accepted application before starting a replacement transport',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const appliedCount = yield* SubscriptionRef.make(0)
+          const model = yield* SubscriptionRef.make(Model.make({ count: 0 }))
+          const runAllowed = yield* Deferred.make<void>()
+          const runStarted = yield* Deferred.make<void>()
+          const runtime: SharedProgramRuntime<Model, Message, Envelope, never> =
+            {
+              readModel: () => Effect.runSync(SubscriptionRef.get(model)),
+              replay: {
+                inspect: frame => Effect.succeed(Model.make({ count: frame })),
+              },
+              run: () =>
+                Effect.gen(function* () {
+                  yield* SubscriptionRef.update(
+                    appliedCount,
+                    count => count + 1,
+                  )
+                  yield* Deferred.succeed(runStarted, undefined)
+                  yield* Deferred.await(runAllowed).pipe(Effect.uninterruptible)
+                  return yield* SubscriptionRef.updateAndGet(model, current =>
+                    Model.make({ count: current.count + 1 }),
+                  )
+                }),
+            }
+          const processor = yield* makeProcessor(store, runtime)
+          const proposal = yield* processor.propose(Incremented.make({}))
+          const occurrence = yield* makeOccurrence(proposal, 1)
+          yield* store.appendAcceptedMessageOccurrence(occurrence)
+
+          const firstConnectFiber = yield* Effect.forkChild(processor.connect)
+          yield* Deferred.await(runStarted)
+          const disconnectFiber = yield* Effect.forkChild(processor.disconnect)
+          yield* Stream.runHead(
+            Stream.filter(
+              processor.snapshots,
+              snapshot => snapshot.connection._tag === 'Detached',
+            ),
+          )
+          const secondConnectFiber = yield* Effect.forkChild(processor.connect)
+          expect(secondConnectFiber.pollUnsafe()).toBeUndefined()
+          expect(yield* SubscriptionRef.get(appliedCount)).toBe(1)
+          yield* Effect.promise(
+            () =>
+              new Promise(resolve => {
+                setTimeout(resolve, lifecycleSchedulingBarrierMs)
+              }),
+          )
+
+          yield* Deferred.succeed(runAllowed, undefined)
+          yield* Fiber.join(disconnectFiber).pipe(Effect.timeout('1 second'))
+          const firstConnectExit = yield* Fiber.await(firstConnectFiber)
+          expect(Exit.isFailure(firstConnectExit)).toBe(true)
+          yield* Fiber.join(secondConnectFiber).pipe(Effect.timeout('1 second'))
+
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 1 })
+          expect(snapshot.acceptedSequence).toBe(1)
+          expect(yield* SubscriptionRef.get(appliedCount)).toBe(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'keeps shared initialization alive when one connect caller is interrupted',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseStore = yield* makeInMemoryProgramStore()
+          const store: ProgramStoreService = {
+            ...baseStore,
+            observeConnectionStatus: Stream.never,
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const firstConnectFiber = yield* Effect.forkChild(processor.connect)
+          yield* Stream.runHead(
+            Stream.filter(
+              processor.snapshots,
+              snapshot => snapshot.connection._tag === 'Attached',
+            ),
+          )
+          const secondConnectFiber = yield* Effect.forkChild(processor.connect)
+          yield* Effect.yieldNow
+
+          yield* Fiber.interrupt(firstConnectFiber).pipe(
+            Effect.timeout('1 second'),
+          )
+          expect(secondConnectFiber.pollUnsafe()).toBeUndefined()
+          expect((yield* processor.readSnapshot).connection._tag).toBe(
+            'Attached',
+          )
+
+          yield* processor.disconnect.pipe(Effect.timeout('1 second'))
+          const secondConnectExit = yield* Fiber.await(secondConnectFiber)
+          expect(Exit.isFailure(secondConnectExit)).toBe(true)
+          expect((yield* processor.readSnapshot).connection).toEqual({
+            _tag: 'Detached',
+          })
+        }),
+      ),
+  )
+
+  it.effect('completes a connect waiter when its allocation Scope closes', () =>
+    Effect.gen(function* () {
+      const baseStore = yield* makeInMemoryProgramStore()
+      const store: ProgramStoreService = {
+        ...baseStore,
+        observeConnectionStatus: Stream.never,
+      }
+      const { runtime } = yield* makeRuntime()
+      const processorScope = yield* Scope.make()
+      const processor = yield* makeProcessor(store, runtime).pipe(
+        Effect.provideService(Scope.Scope, processorScope),
+      )
+      const connectFiber = yield* Effect.forkChild(processor.connect)
+      yield* Stream.runHead(
+        Stream.filter(
+          processor.snapshots,
+          snapshot => snapshot.connection._tag === 'Attached',
+        ),
+      )
+
+      yield* Scope.close(processorScope, Exit.void)
+      const connectExit = yield* Fiber.await(connectFiber)
+      expect(Exit.isFailure(connectExit)).toBe(true)
+    }),
+  )
+
+  it.effect(
+    'keeps a completed disconnect terminal after an authenticated flush fails',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseStore = yield* makeInMemoryProgramStore()
+          const appendAllowed = yield* Deferred.make<void>()
+          const blockedAppendStarted = yield* Deferred.make<void>()
+          const connectionStatus = yield* SubscriptionRef.make<
+            'authenticated' | 'closed'
+          >('closed')
+          const isAppendBlocked = yield* SubscriptionRef.make(false)
+          const store: ProgramStoreService = {
+            ...baseStore,
+            appendMessageProposal: () =>
+              SubscriptionRef.get(isAppendBlocked).pipe(
+                Effect.flatMap(isBlocked => {
+                  if (isBlocked) {
+                    return Effect.gen(function* () {
+                      yield* Deferred.succeed(blockedAppendStarted, undefined)
+                      yield* Deferred.await(appendAllowed)
+                      return yield* Effect.fail(
+                        new ProgramStoreError({
+                          cause: new Error('Temporary append failure.'),
+                          operation: 'AppendMessageProposal',
+                        }),
+                      )
+                    })
+                  } else {
+                    return Effect.fail(
+                      new ProgramStoreError({
+                        cause: new Error('Temporary append failure.'),
+                        operation: 'AppendMessageProposal',
+                      }),
+                    )
+                  }
+                }),
+              ),
+            observeConnectionStatus: SubscriptionRef.changes(connectionStatus),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          yield* processor.connect
+          yield* processor.propose(Incremented.make({}))
+          expect(
+            (yield* processor.readSnapshot).pendingProposals,
+          ).toMatchObject([{ persistence: 'Local' }])
+
+          yield* SubscriptionRef.set(isAppendBlocked, true)
+          yield* SubscriptionRef.set(connectionStatus, 'authenticated')
+          yield* Deferred.await(blockedAppendStarted)
+          const disconnectFiber = yield* Effect.forkChild(processor.disconnect)
+          yield* Stream.runHead(
+            Stream.filter(
+              processor.snapshots,
+              snapshot => snapshot.connection._tag === 'Detached',
+            ),
+          )
+          yield* Deferred.succeed(appendAllowed, undefined)
+          yield* Fiber.join(disconnectFiber)
+
+          expect((yield* processor.readSnapshot).connection).toEqual({
+            _tag: 'Detached',
+          })
+        }),
+      ),
+  )
+
+  it.effect(
+    'ignores a stale direct proposal append failure after disconnect',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseStore = yield* makeInMemoryProgramStore()
+          const appendAllowed = yield* Deferred.make<void>()
+          const appendStarted = yield* Deferred.make<void>()
+          const store: ProgramStoreService = {
+            ...baseStore,
+            appendMessageProposal: () =>
+              Effect.gen(function* () {
+                yield* Deferred.succeed(appendStarted, undefined)
+                yield* Deferred.await(appendAllowed)
+                return yield* Effect.fail(
+                  new ProgramStoreError({
+                    cause: new Error('Temporary append failure.'),
+                    operation: 'AppendMessageProposal',
+                  }),
+                )
+              }),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          yield* processor.connect
+          const proposalFiber = yield* Effect.forkChild(
+            processor.propose(Incremented.make({})),
+          )
+          yield* Deferred.await(appendStarted)
+
+          yield* processor.disconnect
+          yield* Deferred.succeed(appendAllowed, undefined)
+          yield* Fiber.join(proposalFiber)
+
+          expect((yield* processor.readSnapshot).connection).toEqual({
+            _tag: 'Detached',
+          })
+        }),
+      ),
   )
 
   it.effect(

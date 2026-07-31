@@ -3,6 +3,10 @@ const targetsCounter =
   "data.programId == 'instant-counter' && data.programVersion == 1"
 const proposesAsSubject =
   ownsRecord + ' && ' + targetsCounter + ' && data.actorId == auth.id'
+const refreshesOwnClaim =
+  ownsRecord +
+  ' && auth.id == newData.subjectId' +
+  " && request.modifiedFields.all(field, field in ['claimedAtMs'])"
 
 export default {
   $default: {
@@ -67,7 +71,7 @@ export default {
     allow: {
       create: ownsRecord,
       delete: 'false',
-      update: 'false',
+      update: refreshesOwnClaim,
       view: ownsRecord,
     },
   },

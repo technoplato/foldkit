@@ -8,17 +8,17 @@ Every Processor rebuilds the same coordinator Model from the same globally order
 
 The event registry decodes current families and the explicitly supported v0 one-step increment, decrement, and reset family before reduction. A historical payload outside that declared v0 contract is rejected instead of being silently approximated by multiple canonical Counter Messages.
 
-The browser Client supports Instant email magic codes and Google OAuth. Signing in as the same Instant user on two devices selects the same private Program session without putting the subject or session identifier in the URL.
+The browser Client supports Instant email magic codes and Google OAuth. Signing in as the same Instant user on two Clients selects the same private Program session without putting the subject or session identifier in the URL.
 
 ## Security boundary
 
-The browser receives only `VITE_INSTANT_APP_ID`. Instant owns its refresh token internally. Foldkit Models, Messages, envelopes, replay tape, presence, and effect arguments never retain an Instant refresh token, admin token, email magic code, OAuth authorization code, private key, or executable closure.
+The browser receives only the public `VITE_INSTANT_APP_ID`. `scripts/with-public-instant-env` removes `INSTANT_APP_ADMIN_TOKEN` and `INSTANT_CLI_AUTH_TOKEN` before Vite starts, including production builds and previews. Instant owns its refresh token internally. Foldkit Models, Messages, envelopes, replay tape, presence, and effect arguments never retain an Instant refresh token, admin token, email magic code, OAuth authorization code, private key, or executable closure.
 
 During a Google callback, Instant Core temporarily receives the OAuth authorization code in the browser query string and scrubs it during initialization. This example does not copy that code into Foldkit state. It does not claim that unrelated browser, proxy, or server logs redact the callback URL.
 
-`INSTANT_APP_ADMIN_TOKEN` is only available to the headless authority process. Never expose it through a Vite environment variable.
+`INSTANT_APP_ADMIN_TOKEN` is trusted-process configuration for the headless authority and automated acceptance orchestrator. `INSTANT_CLI_AUTH_TOKEN` is for trusted Instant CLI commands. Never expose either through a Vite environment variable. The live-acceptance runner gives Vite only the public app identifier and gives the scoped headless child only the app identifier, admin token, disposable state path, and synthetic-subject allowlist. It does not forward the CLI token to either child.
 
-The included Instant permissions are default-deny. Authenticated subjects can create and read only their own session claim, propose Messages, and read their own materialized Program session. Browser Clients cannot create Program sessions, accepted occurrences, checkpoints, placements, or effect-request rows. The trusted authority derives and materializes the Program session, including a random high-entropy room identifier, then writes accepted records.
+The included Instant permissions are default-deny. Authenticated subjects can create, read, and refresh only their own session claim, propose Messages, and read their own materialized Program session. The claim is uniquely keyed by `subjectId`; an owned refresh updates only `claimedAtMs`, and the owner cannot reassign its `subjectId`. Browser Clients cannot create Program sessions, accepted occurrences, checkpoints, placements, or effect-request rows. The trusted authority derives and materializes the Program session, including a random high-entropy room identifier, then writes accepted records.
 
 Client, device, and Processor identifiers are subject-authenticated and caller-asserted provenance. The acceptance codec proves internal consistency and the permissions prove the authenticated subject. This demo does not claim hardware-backed device attestation. The random room identifier is a transient bearer boundary for routing hints, not durable acceptance authority.
 
@@ -38,16 +38,40 @@ From the repository root:
   pnpm --dir examples/instant-counter instant:perms
 ```
 
-The persistent demo app is configured with the Google client name `foldkit-google-web` and the localhost website origin used by Vite. Email magic codes need no provider secret.
+These commands push the local Schema and permissions to the persistent app selected by the credential wrapper. They are idempotent: rerunning them against matching remote definitions is expected to succeed without changing fixture data or creating another app. Push the corresponding remote definition after a local change, and run both before acceptance when either may have drifted. The remote permissions must include owner-only session-claim updates so an authenticated Client can refresh its unique claim without granting another subject access. `acceptance:live` exercises the deployed shape and rules, but does not push or independently diff them.
 
-## Run the localhost acceptance experiment
+The persistent demo app is configured with the Google client name `foldkit-google-web` and the localhost website origin used by Vite. That configuration is managed and checked separately from `acceptance:live`; the command neither inspects it nor exercises the Google redirect. Email magic codes need no provider secret.
+
+## Run live acceptance
+
+Run the automated authenticated acceptance from the repository root. It requires the Google Chrome channel installed on the Mac. Do not start another headless authority or a server on `localhost:5173` while it runs because the acceptance process owns both:
+
+```sh
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter acceptance:live
+```
+
+The successful JSON report proves all of the following against the persistent remote app:
+
+1. Two isolated headless Mac Chrome contexts authenticate as the same Instant subject with ephemeral email magic codes. They converge on the same private accepted Message tape, which finishes with exactly six accepted occurrences at contiguous sequences 1 through 6.
+2. One Client detaches its Processor through the UI while the other advances the Program. The detached Client remains on its prior Model, then catches up from the accepted tape after reconnecting. This is not a physical network-loss test.
+3. A proposal reaches the raw inbox while the authority is stopped and remains pending. Restarting the authority accepts that proposal exactly once and both Clients converge.
+4. An authenticated public Client can place a deliberately malformed proposal in its own raw inbox, but the authority reports a sanitized rejection and does not accept it. The same authority process survives, then accepts a later valid proposal.
+5. A Client can remain on an inert historical replay frame while another accepted Message advances the live Program, then return to the current accepted Model.
+6. The authenticated browser can refresh only its own claim's `claimedAtMs`. An attempted `subjectId` reassignment is rejected, the original claim remains unchanged apart from the permitted refresh time, and no forbidden-subject claim appears.
+7. A separately authenticated subject can read neither the first subject's Program session nor its accepted tape. Its attempted foreign-subject proposal is rejected specifically by the deployed permissions and creates neither a raw proposal nor an accepted occurrence.
+
+This automated run reports `physicalDevices: 0`. Its two accepted Clients are isolated Chrome contexts on the Mac, not physical devices. Google coverage is outside this command: the persistent app is configured separately with a Google development client and localhost origin, while `acceptance:live` neither verifies that configuration nor exercises the Google redirect flow. The runner uses email magic-code authentication. The Instant Admin API generates the ephemeral codes, so real inbox delivery and manual code entry are also outside this run.
+
+The runner creates two unique synthetic Instant users before starting a headless authority restricted to those subject identifiers. It also creates a random nonexistent subject identifier for the hostile claim-reassignment probe and a dedicated temporary headless-state directory. Its `finally` teardown attempts every cleanup tier even if another cleanup fails: all browser contexts, Vite and the headless authority, both synthetic users and all seven subject-owned entity families, the forbidden-subject probe data, and the temporary directory. The report emits `testFixturesRemoved: true` only after every cleanup resolves. It does not perform a second post-cleanup absence query, and the acceptance-only subject allowlist prevents its headless process from materializing or accepting unrelated shared-app data.
+
+## Run the localhost demo manually
 
 Start the headless acceptance authority:
 
 ```sh
 /Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
-  examples/instant-counter/node_modules/.bin/tsx \
-  examples/instant-counter/src/headless/entry.ts
+  pnpm --dir examples/instant-counter headless
 ```
 
 Set `FOLDKIT_INSTANT_COUNTER_HEADLESS_STATE_PATH` inside the wrapper child when an acceptance run needs a disposable non-secret actor-sequence and effect-attempt file. Put it in a dedicated directory created with `mktemp -d`, not directly under a shared directory such as `/tmp`. If it is absent, the process uses `~/.config/foldkit-instant-counter/headless-state.json`.
@@ -64,7 +88,7 @@ Open the Vite URL in two isolated browser contexts on the development laptop and
 
 The persistent demo app currently registers the Google OAuth origin for `localhost:5173`. That does not establish physical-phone acceptance because a phone cannot use the laptop's localhost origin. A physical two-device run needs a reachable HTTPS development origin registered with Instant and the Google OAuth client. Email magic-code authentication can then use that same reachable origin. Until that origin is configured and tested, this walkthrough claims localhost multi-Client acceptance only.
 
-## Acceptance walkthrough
+## Manual acceptance walkthrough
 
 1. Press increment on either Client. The originating proposal appears as local, enqueued, or synced until the authority accepts it. Both Clients then show the same accepted count once, with no duplicate reduction.
 2. Disconnect one Client. Continue changing the counter from the other. Reconnect the first Client and confirm it catches up from the accepted Message tape.

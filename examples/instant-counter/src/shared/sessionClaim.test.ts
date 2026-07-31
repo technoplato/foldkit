@@ -31,7 +31,6 @@ describe('InstantCounterSessionClaim', () => {
         ['subjectId', 'subject-1'],
         {
           claimedAtMs: 1_753_825_100_000,
-          subjectId: 'subject-1',
         },
       ],
     ])
