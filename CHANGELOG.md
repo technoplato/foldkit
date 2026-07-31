@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 31st, 2026 at 2:28:02 p.m. EDT — `5c896d5c5231` fix: replay current Instant connection status
+
+- **Implementation commit:** `5c896d5c5231170e252ac0258eb61d73fe91f94d`
+- **Change:** Replay the live Instant connection status to late Program Store observers.
+- **Details:**
+  - Subscribe before reading the reactor state so authenticated Processors can start after Instant has already connected, while registering cleanup before status decoding can fail.
+  - Added regression coverage for initial status seeding, later transition forwarding, and unsubscribe finalization.
+  - Verified the fix in the Android Expo Dev Client: authenticated startup reached Ready, disconnect preserved the cached Model, explicit reconnect caught the missing accepted sequence, and sign-out plus re-login restored the same accepted tape.
+- **Files:**
+  - `.changeset/replay-instant-connection-status.md` — Declares the late connection observer repair as a patch release for @foldkit/instant.
+  - `packages/instant/src/instant.test.ts` — Locks current-status replay, later transitions, and subscription cleanup.
+  - `packages/instant/src/instantProgramStore/instantProgramStore.ts` — Seeds observers from the current Instant reactor state after installing a cancellation-safe subscription.
+- **User context (verbatim):**
+  > I open a counter on one device, I authenticate through InstantDB, and my messages sync and we reuse the same core counter program.
+- **SpecStory:** unavailable — No durable SpecStory URI is available for this delegated Codex desktop GUI task; no synchronized capture was found, and public sharing was not authorized.
+
 ## July 31st, 2026 at 1:16:49 p.m. EDT — `c481c54f30f7` feat(instant-counter): add native Expo client
 
 - **Implementation commit:** `c481c54f30f78d4bd4973698b63dbb37e8d9ba71`
