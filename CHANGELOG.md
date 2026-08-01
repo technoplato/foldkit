@@ -4,6 +4,34 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 4:02:05 a.m. EDT — `46825a1c8d04` feat(instant): harden protocol-v2 session routing
+
+- **Implementation commit:** `46825a1c8d04c780613b1ad2a8f4096a1510e3be`
+- **Change:** Hardened protocol-v2 routing, admission, terminal durability, and optimistic/offline settlement for synchronized Program Processors.
+- **Details:**
+  - Accepted occurrences now freeze audience, Message category, policy generation, and complete session policy for Mirror, SharedDomain, and Follow projection.
+  - Only a server-confirmed authority store may sequence or place effects; optimistic Client stores cannot satisfy the authority capability.
+  - Rejected or forged aliases never advance actor sequence state, including after restart, and resolutions defer safely when Instant query snapshots arrive before their proposals.
+  - Effect-result routing inherits its accepted causal occurrence, while canonical placement rows use Instant entity UUIDs and separate logical position keys.
+- **Files:**
+  - `.changeset/make-instant-mirror-explicit.md` — Documents full persisted synchronization-mode routing.
+  - `.changeset/project-instant-program-messages.md` — Documents durable optimistic and offline proposal settlement.
+  - `packages/instant/README.md` — Explains protocol-v2 mode and routing behavior.
+  - `packages/instant/src/acceptanceAuthority/acceptanceAuthority.ts` — Enforces server-confirmed sequencing, terminal integrity, and accepted-only sequence high-water state.
+  - `packages/instant/src/acceptanceAuthority/acceptanceAuthority.test.ts` — Covers routing, restart, forged aliases, terminal conflicts, and query skew.
+  - `packages/instant/src/inMemoryProgramStore/inMemoryProgramStore.ts` — Provides separate in-memory Client and authority store capabilities.
+  - `packages/instant/src/instant.test.ts` — Pins public schemas, transactions, and authority-store separation.
+  - `packages/instant/src/instantProgramStore/instantProgramStore.ts` — Keeps ordinary Instant Client stores structurally non-authoritative.
+  - `packages/instant/src/programStore/programStore.ts` — Defines server-confirmed authority observations and append operations.
+  - `packages/instant/src/schema/schema.ts` — Adds protocol-v2 routing, policy, terminal, idempotency, and placement invariants.
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.ts` — Rebases optimistic state and defers exact terminal joins across independent query snapshots.
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.test.ts` — Verifies routing modes, offline optimism, and resolution-before-proposal liveness.
+- **User context (verbatim):**
+  > Who is the authority? How is that defined?
+  > Why would instant remove a rollback of proposal?
+  > being a sync engine we should work offline. So that's another requirement.
+- **SpecStory:** unavailable — Codex desktop task; SpecStory CLI capture is unavailable for this session.
+
 ## August 1st, 2026 at 4:00:37 a.m. EDT — `ed2eaeb19034` feat(foldkit): bind Message admission to Programs
 
 - **Implementation commit:** `ed2eaeb19034ac518db259ed3c735d8f357950e5`
