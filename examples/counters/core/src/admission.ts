@@ -8,6 +8,7 @@ import {
   MismatchedInteractionInvocationOccurrenceIdError,
   interactionAdmissionLimits,
 } from 'foldkit/interaction-graph'
+import { makeMessageAdmission } from 'foldkit/program'
 
 import { MultipleCountersInteractionAdmission } from './interactionGraph.js'
 import type { Message } from './message.js'
@@ -16,6 +17,7 @@ import {
   type NavigationCarrierResolutionError,
   resolveNavigationCarrier,
 } from './navigationCarrier.js'
+import { MultipleCountersProgram } from './program.js'
 
 const NavigationCarrierDestinationUri = S.String.check(
   S.isLengthBetween(1, interactionAdmissionLimits.destinationUriLength),
@@ -133,9 +135,16 @@ export const resolveMultipleCountersAdmissionClaim = (
 }
 
 /** The portable Program-owned definition used by authenticated authorities. */
-export const MultipleCountersMessageAdmission = {
+export const MultipleCountersMessageAdmission = makeMessageAdmission<
+  Model,
+  Message,
+  MultipleCountersAdmissionClaim,
+  InvalidMultipleCountersAdmissionClaimError,
+  MultipleCountersAdmissionError
+>({
+  program: MultipleCountersProgram,
   Claim: MultipleCountersAdmissionClaim,
   decodeClaim: decodeMultipleCountersAdmissionClaim,
   occurrenceId: multipleCountersAdmissionOccurrenceId,
   resolve: resolveMultipleCountersAdmissionClaim,
-}
+})

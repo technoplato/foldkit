@@ -1,4 +1,5 @@
 export { make } from './program.js'
+export { makeMessageAdmission } from './messageAdmission.js'
 export {
   makeDestinationRouter,
   makeRouter,
@@ -37,6 +38,8 @@ export type {
   ProgramSynchronization,
   ResourcesOf,
 } from './program.js'
+
+export type { MessageAdmissionDefinition } from './messageAdmission.js'
 
 export type {
   DecodedVersionedEvent,
