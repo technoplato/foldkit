@@ -19,6 +19,7 @@ import {
   MultipleCountersInteractionGraph,
   activatedInteraction,
   interactionIdentitySourceForOccurrence,
+  interactionMessageCategory,
   interactionProjectionForModel,
 } from './interactionGraph.js'
 import {
@@ -97,6 +98,22 @@ const resolvedMessage = (
 }
 
 describe('Multiple Counters InteractionGraph', () => {
+  it('categorizes projected domain and navigation interactions for Client capabilities', () => {
+    const [model] = init()
+    const projection = projectionSuccess(model)
+
+    expect(
+      interactionMessageCategory(
+        actionForToken(projection, 'IncrementCounter').descriptor,
+      ),
+    ).toBe('Domain')
+    expect(
+      interactionMessageCategory(
+        actionForToken(projection, 'OpenCounter').descriptor,
+      ),
+    ).toBe('Navigation')
+  })
+
   it('projects list actions beside ordered stable Counter Submodel sources', () => {
     const [model] = init()
     const projection = projectionSuccess(model)

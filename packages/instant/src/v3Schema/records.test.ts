@@ -141,6 +141,7 @@ const ordinaryProposal = InstantV3OrdinaryMessageProposalRecord.make({
     makeInstantV3MessageProposalActorSequencePositionKey(
       sessionId,
       proposalCommon.actorId,
+      proposalCommon.clientId,
       proposalCommon.actorSequence,
     ),
   id: rowIds.ordinaryProposal,
@@ -197,6 +198,7 @@ const effectProposal = InstantV3EffectResultProposalRecord.make({
     makeInstantV3MessageProposalActorSequencePositionKey(
       sessionId,
       proposalCommon.actorId,
+      proposalCommon.clientId,
       proposalCommon.actorSequence,
     ),
   effectIdempotencyPositionKey:
@@ -296,6 +298,7 @@ const acceptedOccurrence = InstantV3AcceptedMessageOccurrenceRecord.make({
   actorSequencePositionKey: makeInstantV3AcceptedActorSequencePositionKey(
     sessionId,
     ordinaryProposal.actorId,
+    ordinaryProposal.clientId,
     ordinaryProposal.actorSequence,
   ),
   audience,
@@ -800,6 +803,7 @@ describe('protocol-v3 record invariants', () => {
         makeInstantV3MessageProposalActorSequencePositionKey(
           otherSessionId,
           ordinaryProposal.actorId,
+          ordinaryProposal.clientId,
           ordinaryProposal.actorSequence,
         ),
       id: '00000000-0000-4000-8000-000000000012',
@@ -849,6 +853,40 @@ describe('protocol-v3 record invariants', () => {
         }),
       ),
     ).toBe(true)
+  })
+
+  it('separates equal actor sequences emitted by different Clients', () => {
+    const otherClientId = 'B'.repeat(44)
+    expect(
+      makeInstantV3MessageProposalActorSequencePositionKey(
+        sessionId,
+        ordinaryProposal.actorId,
+        clientId,
+        ordinaryProposal.actorSequence,
+      ),
+    ).not.toBe(
+      makeInstantV3MessageProposalActorSequencePositionKey(
+        sessionId,
+        ordinaryProposal.actorId,
+        otherClientId,
+        ordinaryProposal.actorSequence,
+      ),
+    )
+    expect(
+      makeInstantV3AcceptedActorSequencePositionKey(
+        sessionId,
+        ordinaryProposal.actorId,
+        clientId,
+        ordinaryProposal.actorSequence,
+      ),
+    ).not.toBe(
+      makeInstantV3AcceptedActorSequencePositionKey(
+        sessionId,
+        ordinaryProposal.actorId,
+        otherClientId,
+        ordinaryProposal.actorSequence,
+      ),
+    )
   })
 
   it('uniques every persisted scoped alias while leaving its raw semantic input reusable', () => {

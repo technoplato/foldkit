@@ -8,6 +8,19 @@ export {
   run,
 } from './runtime.js'
 
+export {
+  AttachedFoldkitRendererDefect,
+  AttachedFoldkitRendererOperation,
+  makeAttachedFoldkitApplication,
+} from './attachedRenderer.js'
+
+export type {
+  AttachedFoldkitApplication,
+  AttachedFoldkitApplicationConfig,
+  AttachedFoldkitProgram,
+  AttachedProgramModelSource,
+} from './attachedRenderer.js'
+
 export { makeHostRuntime } from './hostRuntime.js'
 export * from '../programRuntime/public.js'
 

@@ -1,4 +1,4 @@
-import { Effect, Option, Schema as S, Stream } from 'effect'
+import { Deferred, Effect, Fiber, Option, Schema as S, Stream } from 'effect'
 import { Command, Processor, Synchronization } from 'foldkit'
 import { expect, expectTypeOf } from 'vitest'
 
@@ -6,6 +6,7 @@ import { describe, it } from '@effect/vitest'
 
 import {
   V3OriginPolicyDecisionLifecycleConflict,
+  V3ProgramAuthorityCriticalSectionExpired,
   type V3ProgramAuthorityStoreService,
   V3ProgramSessionLifecycleConflict,
   V3ProgramStoreAcceptedMessageOccurrenceMismatch,
@@ -256,6 +257,7 @@ const ordinaryProposal = InstantV3OrdinaryMessageProposalRecord.make({
     makeInstantV3MessageProposalActorSequencePositionKey(
       sessionId,
       'actor-1',
+      clientId,
       1,
     ),
   causationOccurrenceId: null,
@@ -289,6 +291,7 @@ const otherSessionProposal = InstantV3OrdinaryMessageProposalRecord.make({
     makeInstantV3MessageProposalActorSequencePositionKey(
       otherSessionId,
       ordinaryProposal.actorId,
+      ordinaryProposal.clientId,
       ordinaryProposal.actorSequence,
     ),
   id: '00000000-0000-4000-8000-000000000101',
@@ -321,6 +324,7 @@ const effectResultProposal = InstantV3EffectResultProposalRecord.make({
     makeInstantV3MessageProposalActorSequencePositionKey(
       sessionId,
       'actor-2',
+      clientId,
       2,
     ),
   causalAcceptedSequence: 1,
@@ -407,6 +411,7 @@ const acceptedOccurrence =
     actorSequencePositionKey: makeInstantV3AcceptedActorSequencePositionKey(
       sessionId,
       ordinaryProposal.actorId,
+      ordinaryProposal.clientId,
       ordinaryProposal.actorSequence,
     ),
     audience,
@@ -484,6 +489,7 @@ const secondAcceptedOccurrence =
     actorSequencePositionKey: makeInstantV3AcceptedActorSequencePositionKey(
       sessionId,
       acceptedOccurrence.actorId,
+      acceptedOccurrence.clientId,
       acceptedOccurrence.actorSequence + 1,
     ),
     admissionOccurrenceId: 'occurrence-ordinary-2',
@@ -530,6 +536,7 @@ const conflictingAcceptedSequence =
     actorSequencePositionKey: makeInstantV3AcceptedActorSequencePositionKey(
       sessionId,
       secondAcceptedOccurrence.actorId,
+      secondAcceptedOccurrence.clientId,
       secondAcceptedOccurrence.actorSequence + 1,
     ),
     admissionOccurrenceId: 'occurrence-ordinary-3',
@@ -1005,6 +1012,65 @@ const conflictingProjectionCheckpoint =
   })
 
 describe('protocol-v3 in-memory Client boundary', () => {
+  it.effect('expires a retained authority critical section', () =>
+    Effect.gen(function* () {
+      const stores = yield* makeV3InMemoryProgramStores()
+      const retained = yield* stores.authority.coordinator.withCriticalSection(
+        section => Effect.succeed(section),
+      )
+      const failure = yield* Effect.flip(
+        retained.appendServerConfirmedProgramSession(initialProgramSession),
+      )
+
+      expect(failure).toBeInstanceOf(V3ProgramAuthorityCriticalSectionExpired)
+      expect(failure).toMatchObject({ operation: 'AppendProgramSession' })
+      expect((yield* stores.readSnapshot).programSessions).toEqual([])
+    }),
+  )
+
+  it.effect(
+    'serializes every public authority mutation behind the shared coordinator',
+    () =>
+      Effect.gen(function* () {
+        const stores = yield* makeV3InMemoryProgramStores()
+        const coordinatorEntered = yield* Deferred.make<void>()
+        const releaseCoordinator = yield* Deferred.make<void>()
+        const mutationStarted = yield* Deferred.make<void>()
+        const coordinatorFiber = yield* Effect.forkChild(
+          stores.authority.coordinator.withCriticalSection(section =>
+            Effect.gen(function* () {
+              const snapshot = yield* section.readServerConfirmedSnapshot(scope)
+              expect(snapshot.programSessions).toEqual([])
+              yield* Deferred.succeed(coordinatorEntered, undefined)
+              yield* Deferred.await(releaseCoordinator)
+            }),
+          ),
+        )
+        yield* Deferred.await(coordinatorEntered)
+        const mutationFiber = yield* Effect.forkChild(
+          Effect.gen(function* () {
+            yield* Deferred.succeed(mutationStarted, undefined)
+            return yield* stores.authority.appendServerConfirmedProgramSession(
+              initialProgramSession,
+            )
+          }),
+        )
+        yield* Deferred.await(mutationStarted)
+        yield* Effect.yieldNow
+
+        expect(mutationFiber.pollUnsafe()).toBeUndefined()
+        expect(stores.authority.coordinator.capability).toEqual({
+          _tag: 'ExclusiveAuthorityCoordinator',
+          protocolVersion: 3,
+        })
+
+        yield* Deferred.succeed(releaseCoordinator, undefined)
+        yield* Fiber.join(coordinatorFiber)
+        const outcome = yield* Fiber.join(mutationFiber)
+        expect(outcome.disposition).toBe('Appended')
+      }),
+  )
+
   it.effect(
     'keeps authority capability, writes, and observations off the ordinary Client',
     () =>

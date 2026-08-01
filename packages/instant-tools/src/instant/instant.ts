@@ -492,14 +492,13 @@ export const makeIssueTracker = (
           Math.max(0, query.limit),
         ),
       ),
-      Stream.mapError(
-        cause =>
-          cause instanceof IssueTrackerError
-            ? cause
-            : new IssueTrackerError({
-                cause,
-                operation: 'Observe',
-              }),
+      Stream.mapError(cause =>
+        cause instanceof IssueTrackerError
+          ? cause
+          : new IssueTrackerError({
+              cause,
+              operation: 'Observe',
+            }),
       ),
     ),
   observeIssue: issueId =>
@@ -514,14 +513,13 @@ export const makeIssueTracker = (
             }),
         }),
       ),
-      Stream.mapError(
-        cause =>
-          cause instanceof IssueTrackerError
-            ? cause
-            : new IssueTrackerError({
-                cause,
-                operation: 'ObserveIssue',
-              }),
+      Stream.mapError(cause =>
+        cause instanceof IssueTrackerError
+          ? cause
+          : new IssueTrackerError({
+              cause,
+              operation: 'ObserveIssue',
+            }),
       ),
     ),
   save: issue =>

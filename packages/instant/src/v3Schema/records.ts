@@ -106,10 +106,11 @@ export const makeInstantV3MessageProposalOccurrencePositionKey = (
     occurrenceId,
   ])
 
-/** Derives a proposal actor sequence scoped to one exact protocol-v3 session epoch. */
+/** Derives a proposal actor sequence scoped to one exact Client and session epoch. */
 export const makeInstantV3MessageProposalActorSequencePositionKey = (
   sessionId: string,
   actorId: string,
+  clientId: string,
   actorSequence: number,
 ): InstantV3CompositeKey =>
   makeInstantV3TaggedPositionKey([
@@ -117,6 +118,7 @@ export const makeInstantV3MessageProposalActorSequencePositionKey = (
     sessionId,
     'ActorSequence',
     actorId,
+    clientId,
     actorSequence,
   ])
 
@@ -544,6 +546,7 @@ export const InstantV3OrdinaryMessageProposalRecord = S.Struct({
         makeInstantV3MessageProposalActorSequencePositionKey(
           proposal.sessionId,
           proposal.actorId,
+          proposal.clientId,
           proposal.actorSequence,
         ) &&
       proposal.messageIdempotencyPositionKey ===
@@ -591,6 +594,7 @@ export const InstantV3EffectResultProposalRecord = S.Struct({
         makeInstantV3MessageProposalActorSequencePositionKey(
           proposal.sessionId,
           proposal.actorId,
+          proposal.clientId,
           proposal.actorSequence,
         ) &&
       proposal.effectIdempotencyPositionKey ===
@@ -667,10 +671,11 @@ export const makeInstantV3AcceptedProposalPositionKey = (
     proposalId,
   ])
 
-/** Derives an accepted actor sequence scoped to one exact protocol-v3 session epoch. */
+/** Derives an accepted actor sequence scoped to one exact Client and session epoch. */
 export const makeInstantV3AcceptedActorSequencePositionKey = (
   sessionId: string,
   actorId: string,
+  clientId: string,
   actorSequence: number,
 ): InstantV3CompositeKey =>
   makeInstantV3TaggedPositionKey([
@@ -678,6 +683,7 @@ export const makeInstantV3AcceptedActorSequencePositionKey = (
     sessionId,
     'ActorSequence',
     actorId,
+    clientId,
     actorSequence,
   ])
 
@@ -758,6 +764,7 @@ const acceptedOccurrenceFilter = (
     actorSequence: number
     actorSequencePositionKey: string
     appSubjectDigest: string
+    clientId: string
     occurrenceId: string
     occurrencePositionKey: string
     positionKey: string
@@ -790,6 +797,7 @@ const acceptedOccurrenceFilter = (
     makeInstantV3AcceptedActorSequencePositionKey(
       occurrence.sessionId,
       occurrence.actorId,
+      occurrence.clientId,
       occurrence.actorSequence,
     )
     ? undefined

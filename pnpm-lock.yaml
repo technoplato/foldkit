@@ -1827,9 +1827,15 @@ importers:
       '@instantdb/core':
         specifier: 1.0.53
         version: 1.0.53
+      '@noble/hashes':
+        specifier: 2.2.0
+        version: 2.2.0
       counter-core-example:
         specifier: workspace:*
         version: link:../counter/core
+      counters-core-example:
+        specifier: workspace:*
+        version: link:../counters/core
       effect:
         specifier: 4.0.0-beta.97
         version: 4.0.0-beta.97
@@ -1843,6 +1849,12 @@ importers:
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3
+      fake-indexeddb:
+        specifier: 6.2.4
+        version: 6.2.4
+      happy-dom:
+        specifier: ^20.10.4
+        version: 20.10.4
       playwright:
         specifier: ^1.61.0
         version: 1.61.0
@@ -9073,6 +9085,10 @@ packages:
 
   extendable-error@0.1.7:
     resolution: {integrity: sha512-UOiS2in6/Q0FK0R0q6UY9vYpQ21mr/Qn1KOnte7vsACuNJf514WvCCUHSRCPcgjPT2bAhNIJdlE6bVap1GKmeg==}
+
+  fake-indexeddb@6.2.4:
+    resolution: {integrity: sha512-INKeIKEtSViN4yVtEWEUqbsqmaIy7Ls+MfU0yxQVXg67pOJ/sH1ZxcVrP8XrKULUFohcPD9gnmym+qBfEybACw==}
+    engines: {node: '>=18'}
 
   fast-base64-decode@1.0.0:
     resolution: {integrity: sha512-qwaScUgUGBYeDNRnbc/KyllVU88Jk1pRHPStuF/lO7B0/RTRLj7U0lkdTAutlBblY08rwZDff6tNU9cjv6j//Q==}
@@ -16759,6 +16775,8 @@ snapshots:
   extend@3.0.2: {}
 
   extendable-error@0.1.7: {}
+
+  fake-indexeddb@6.2.4: {}
 
   fast-base64-decode@1.0.0: {}
 

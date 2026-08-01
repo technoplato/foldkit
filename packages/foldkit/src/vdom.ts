@@ -120,13 +120,29 @@ export const __patchVNode = (
   nextVNode: VNode | null,
   container: HTMLElement,
   seen?: Set<object>,
+  observer?: Readonly<{
+    prepared: (vnode: VNode) => void
+    patched: (vnode: VNode) => void
+  }>,
 ): VNode => {
   const dedupedVNode = Predicate.isNotNull(nextVNode)
     ? dedupeSharedVNodes(nextVNode, seen)
     : h('!')
+  observer?.prepared(dedupedVNode)
 
-  return Option.match(maybeCurrentVNode, {
+  const patchedVNode = Option.match(maybeCurrentVNode, {
     onNone: () => patch(toVNode(container), dedupedVNode),
     onSome: currentVNode => patch(currentVNode, dedupedVNode),
   })
+  observer?.patched(patchedVNode)
+  return patchedVNode
+}
+
+/** @internal Runs destroy hooks once across overlapping committed and attempted trees. */
+export const __destroyVNodeForest = (vnodes: ReadonlyArray<VNode>): void => {
+  const destroyedElements = new Set<Node>()
+  const destroyedVnodes = new Set<VNode>()
+  for (const vnode of vnodes) {
+    patch.destroy(vnode, destroyedElements, destroyedVnodes)
+  }
 }

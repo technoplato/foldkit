@@ -76,6 +76,7 @@ const splitBoundary = (boundaryId: BoundaryId): ReadonlyArray<string> =>
  *  outer lazy correctly captures ids contributed by inner lazies it
  *  wraps. */
 export type BoundaryRegistry = {
+  isDispatchEnabled: boolean
   readonly wraps: Map<BoundaryId, WrapDescriptor>
   readonly boundaryDispatches: WeakMap<
     DispatchSync,
@@ -89,13 +90,70 @@ export type BoundaryRegistry = {
   readonly dedupeSeen: Set<object>
 }
 
+/** Internal rollback state captured before one top-level view construction. */
+export type BoundaryRegistryCheckpoint = Readonly<{
+  dedupeSeen: ReadonlySet<object>
+  lazyTrackingStack: ReadonlyArray<ReadonlyMap<BoundaryId, string>>
+  seenThisRender: ReadonlyMap<BoundaryId, string>
+  wraps: ReadonlyMap<BoundaryId, WrapDescriptor>
+}>
+
 export const createBoundaryRegistry = (): BoundaryRegistry => ({
+  isDispatchEnabled: true,
   wraps: new Map(),
   boundaryDispatches: new WeakMap(),
   seenThisRender: new Map(),
   lazyTrackingStack: [],
   dedupeSeen: new Set(),
 })
+
+/** Prevents live DOM retained after a terminal renderer defect from dispatching. */
+export const disableBoundaryDispatch = (registry: BoundaryRegistry): void => {
+  registry.isDispatchEnabled = false
+}
+
+/** Captures the mutable boundary state that one failed view may change. */
+export const checkpointBoundaryRegistry = (
+  registry: BoundaryRegistry,
+): BoundaryRegistryCheckpoint => ({
+  dedupeSeen: new Set(registry.dedupeSeen),
+  lazyTrackingStack: registry.lazyTrackingStack.map(
+    tracked => new Map(tracked),
+  ),
+  seenThisRender: new Map(registry.seenThisRender),
+  wraps: new Map(registry.wraps),
+})
+
+/** Restores the last committed boundary state after view construction fails. */
+export const restoreBoundaryRegistry = (
+  registry: BoundaryRegistry,
+  checkpoint: BoundaryRegistryCheckpoint,
+): void => {
+  registry.wraps.clear()
+  checkpoint.wraps.forEach((descriptor, boundaryId) => {
+    registry.wraps.set(boundaryId, descriptor)
+  })
+  registry.seenThisRender.clear()
+  checkpoint.seenThisRender.forEach((callSite, boundaryId) => {
+    registry.seenThisRender.set(boundaryId, callSite)
+  })
+  registry.lazyTrackingStack.splice(0)
+  checkpoint.lazyTrackingStack.forEach(tracked => {
+    registry.lazyTrackingStack.push(new Map(tracked))
+  })
+  registry.dedupeSeen.clear()
+  checkpoint.dedupeSeen.forEach(vnode => {
+    registry.dedupeSeen.add(vnode)
+  })
+}
+
+/** Clears every strongly held boundary descriptor and per-render tracker. */
+export const clearBoundaryRegistry = (registry: BoundaryRegistry): void => {
+  registry.wraps.clear()
+  registry.seenThisRender.clear()
+  registry.lazyTrackingStack.splice(0)
+  registry.dedupeSeen.clear()
+}
 
 const captureCallSite = (): string => {
   const stack = new Error().stack ?? ''
@@ -239,6 +297,9 @@ const dispatchAcrossBoundary = (
   message: unknown,
   source?: Parameters<DispatchSync>[1],
 ): void => {
+  if (!registry.isDispatchEnabled) {
+    return
+  }
   let wrapped = message
   const parts = splitBoundary(boundaryId)
   for (let depth = parts.length; depth > 0; depth--) {

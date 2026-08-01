@@ -5,6 +5,7 @@ import {
   Option,
   Order,
   Schema as S,
+  Semaphore,
   Stream,
   SubscriptionRef,
   Tuple,
@@ -16,6 +17,9 @@ import {
   V3OriginPolicyDecisionLifecycleConflict,
   type V3OriginPolicyDecisionLifecycleConflictReason,
   type V3OriginPolicyStoreScope,
+  V3ProgramAuthorityCoordinatorCapability,
+  type V3ProgramAuthorityMutationService,
+  V3ProgramAuthoritySnapshot,
   V3ProgramAuthorityStore,
   V3ProgramAuthorityStoreCapability,
   type V3ProgramAuthorityStoreService,
@@ -34,6 +38,7 @@ import {
   type V3ProgramStoreTransactionOutcome,
   type V3ProgramStoreWriteDisposition,
   findV3ProgramStoreAcceptedMessageOccurrenceMismatch,
+  makeV3ProgramAuthorityCriticalSectionInvocation,
   v3ServerConfirmedTransactionOutcome,
 } from '../v3ProgramStore/index.js'
 import {
@@ -318,6 +323,53 @@ const originPolicyScopeMatches = (
   record.instantAppId === scope.instantAppId &&
   record.protocolVersion === scope.protocolVersion &&
   record.subjectId === scope.subjectId
+
+const authoritySnapshotForScope = (
+  snapshot: V3InMemoryProgramStoreSnapshot,
+  scope: V3ProgramStoreScope,
+): V3ProgramAuthoritySnapshot =>
+  V3ProgramAuthoritySnapshot.make({
+    acceptedMessageOccurrences: pipe(
+      snapshot.acceptedMessageOccurrences,
+      Array.filter(record => scopeMatches(record, scope)),
+      Array.sort(acceptedMessageOccurrenceOrder),
+    ),
+    effectPlacements: pipe(
+      snapshot.effectPlacements,
+      Array.filter(record => scopeMatches(record, scope)),
+      Array.sort(effectPlacementOrder),
+    ),
+    effectRequests: pipe(
+      snapshot.effectRequests,
+      Array.filter(record => scopeMatches(record, scope)),
+      Array.sort(effectRequestOrder),
+    ),
+    messageProposalResolutions: pipe(
+      snapshot.messageProposalResolutions,
+      Array.filter(record => scopeMatches(record, scope)),
+      Array.sort(messageProposalResolutionOrder),
+    ),
+    messageProposals: pipe(
+      snapshot.messageProposals,
+      Array.filter(record => scopeMatches(record, scope)),
+      Array.sort(messageProposalOrder),
+    ),
+    originPolicyDecisions: pipe(
+      snapshot.originPolicyDecisions,
+      Array.filter(
+        record =>
+          record.instantAppId === scope.instantAppId &&
+          record.protocolVersion === scope.protocolVersion &&
+          record.subjectId === scope.subjectId,
+      ),
+      Array.sort(originPolicyDecisionOrder),
+    ),
+    programSessions: pipe(
+      snapshot.programSessions,
+      Array.filter(record => scopeMatches(record, scope)),
+      Array.sort(programSessionObservationOrder),
+    ),
+  })
 
 const observeOriginPolicyRecords = <
   Record extends V3OriginPolicyScopedIdentifiedRecord,
@@ -745,6 +797,7 @@ const serverOutcome =
 
 const makeStoreServices = (
   ref: SubscriptionRef.SubscriptionRef<V3InMemoryProgramStoreSnapshot>,
+  authoritySemaphore: Semaphore.Semaphore,
 ): Readonly<{
   authority: V3ProgramAuthorityStoreService
   client: V3ProgramStoreService
@@ -988,16 +1041,7 @@ const makeStoreServices = (
       validateAppend: noAppendConflict,
     })
 
-  const client = V3ProgramStore.of({
-    appendMessageProposal,
-    appendOriginEnrollmentClaim,
-    observations,
-  })
-
-  const authority = V3ProgramAuthorityStore.of({
-    authorityCapability: V3ProgramAuthorityStoreCapability.make({
-      protocolVersion: 3,
-    }),
+  const authorityMutations: V3ProgramAuthorityMutationService = {
     appendServerConfirmedAcceptedMessageOccurrence:
       appendAcceptedMessageOccurrence,
     appendServerConfirmedEffectPlacement: record =>
@@ -1084,6 +1128,80 @@ const makeStoreServices = (
         }),
         validateAppend: noAppendConflict,
       }),
+  }
+
+  const criticalSection = {
+    ...authorityMutations,
+    readServerConfirmedSnapshot: (scope: V3ProgramStoreScope) =>
+      SubscriptionRef.get(ref).pipe(
+        Effect.map(snapshot => authoritySnapshotForScope(snapshot, scope)),
+      ),
+  }
+
+  const serializeAuthorityMutation = <Success, Error, Requirements>(
+    effect: Effect.Effect<Success, Error, Requirements>,
+  ): Effect.Effect<Success, Error, Requirements> =>
+    authoritySemaphore.withPermit(effect)
+
+  const client = V3ProgramStore.of({
+    appendMessageProposal,
+    appendOriginEnrollmentClaim,
+    observations,
+  })
+
+  const authority = V3ProgramAuthorityStore.of({
+    authorityCapability: V3ProgramAuthorityStoreCapability.make({
+      protocolVersion: 3,
+    }),
+    appendServerConfirmedAcceptedMessageOccurrence: transaction =>
+      serializeAuthorityMutation(
+        authorityMutations.appendServerConfirmedAcceptedMessageOccurrence(
+          transaction,
+        ),
+      ),
+    appendServerConfirmedEffectPlacement: record =>
+      serializeAuthorityMutation(
+        authorityMutations.appendServerConfirmedEffectPlacement(record),
+      ),
+    appendServerConfirmedEffectRequest: record =>
+      serializeAuthorityMutation(
+        authorityMutations.appendServerConfirmedEffectRequest(record),
+      ),
+    appendServerConfirmedRejectedMessageProposalResolution: record =>
+      serializeAuthorityMutation(
+        authorityMutations.appendServerConfirmedRejectedMessageProposalResolution(
+          record,
+        ),
+      ),
+    appendServerConfirmedOriginPolicyDecision: record =>
+      serializeAuthorityMutation(
+        authorityMutations.appendServerConfirmedOriginPolicyDecision(record),
+      ),
+    appendServerConfirmedProgramSession: record =>
+      serializeAuthorityMutation(
+        authorityMutations.appendServerConfirmedProgramSession(record),
+      ),
+    appendServerConfirmedProjectionCheckpoint: record =>
+      serializeAuthorityMutation(
+        authorityMutations.appendServerConfirmedProjectionCheckpoint(record),
+      ),
+    coordinator: {
+      capability: V3ProgramAuthorityCoordinatorCapability.make({
+        protocolVersion: 3,
+      }),
+      withCriticalSection: use =>
+        authoritySemaphore.withPermit(
+          Effect.gen(function* () {
+            const invocation =
+              yield* makeV3ProgramAuthorityCriticalSectionInvocation(
+                criticalSection,
+              )
+            return yield* Effect.suspend(() => use(invocation.section)).pipe(
+              Effect.ensuring(invocation.expire),
+            )
+          }),
+        ),
+    },
     serverConfirmed: observations,
   })
 
@@ -1103,7 +1221,8 @@ export const makeV3InMemoryProgramStores = (
 ): Effect.Effect<V3InMemoryProgramStores, V3ProgramStoreAppendError> =>
   Effect.gen(function* () {
     const ref = yield* SubscriptionRef.make(emptyV3InMemoryProgramStoreSnapshot)
-    const stores = makeStoreServices(ref)
+    const authoritySemaphore = yield* Semaphore.make(1)
+    const stores = makeStoreServices(ref, authoritySemaphore)
     const orderedAcceptedMessageOccurrences = Array.sort(
       initialSnapshot.acceptedMessageOccurrences,
       acceptedMessageOccurrenceOrder,

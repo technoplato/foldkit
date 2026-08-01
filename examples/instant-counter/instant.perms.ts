@@ -1,12 +1,43 @@
 const ownsRecord = 'auth.id != null && auth.id == data.subjectId'
-const targetsCounter =
-  "data.programId == 'instant-counter' && data.programVersion == 1"
-const proposesAsSubject =
-  ownsRecord + ' && ' + targetsCounter + ' && data.actorId == auth.id'
+const targetsMultipleCounters =
+  "data.programId == 'multiple-counters' && data.programVersion == 2"
+const createsV2OrdinaryProposal =
+  ownsRecord +
+  ' && ' +
+  targetsMultipleCounters +
+  " && data.protocolVersion == 2 && data.proposalKind == 'Message' && data.actorId == auth.id"
+const createsV3OrdinaryProposal =
+  ownsRecord +
+  ' && ' +
+  targetsMultipleCounters +
+  " && data.protocolVersion == 3 && data.proposalKind == 'OrdinaryMessage' && data.actorId == auth.id"
+const createsOwnV3EnrollmentClaim =
+  ownsRecord + ' && data.protocolVersion == 3 && data.claimedAtMs >= 0'
+const requestedModeMatchesTag =
+  "((data.requestedModeTag == 'Mirror' && data.requestedMode._tag == 'Mirror') || " +
+  "(data.requestedModeTag == 'SharedDomain' && data.requestedMode._tag == 'SharedDomain') || " +
+  "(data.requestedModeTag == 'Follow' && data.requestedMode._tag == 'Follow'))"
+const createsOwnPolicyRequest =
+  ownsRecord +
+  ' && ' +
+  targetsMultipleCounters +
+  ' && data.protocolVersion == 3 && data.requesterId == auth.id' +
+  ' && data.expectedLifecycleGeneration >= 1 && data.expectedPolicyGeneration >= 0' +
+  ' && data.requestedAtMs >= 0 && ' +
+  requestedModeMatchesTag
 const refreshesOwnClaim =
   ownsRecord +
   ' && auth.id == newData.subjectId' +
   " && request.modifiedFields.all(field, field in ['claimedAtMs'])"
+
+const authorityOwned = {
+  allow: {
+    create: 'false',
+    delete: 'false',
+    update: 'false',
+    view: ownsRecord,
+  },
+}
 
 export default {
   $default: {
@@ -19,67 +50,57 @@ export default {
       create: 'false',
     },
   },
-  foldkitAcceptedMessageOccurrences: {
-    allow: {
-      create: 'false',
-      delete: 'false',
-      update: 'false',
-      view: ownsRecord,
-    },
-  },
-  foldkitEffectRequests: {
-    allow: {
-      create: 'false',
-      delete: 'false',
-      update: 'false',
-      view: ownsRecord,
-    },
-  },
-  foldkitEffectPlacements: {
-    allow: {
-      create: 'false',
-      delete: 'false',
-      update: 'false',
-      view: ownsRecord,
-    },
-  },
+  foldkitAcceptedMessageOccurrences: authorityOwned,
+  foldkitEffectPlacements: authorityOwned,
+  foldkitEffectRequests: authorityOwned,
+  foldkitMessageProposalResolutions: authorityOwned,
   foldkitMessageProposals: {
     allow: {
-      create: proposesAsSubject,
+      create: createsV2OrdinaryProposal,
       delete: 'false',
       update: 'false',
       view: ownsRecord,
     },
   },
-  foldkitMessageProposalResolutions: {
+  foldkitProgramSessions: authorityOwned,
+  foldkitProjectionCheckpoints: authorityOwned,
+  foldkitV3AcceptedMessageOccurrences: authorityOwned,
+  foldkitV3EffectPlacements: authorityOwned,
+  foldkitV3EffectRequests: authorityOwned,
+  foldkitV3MessageProposalResolutions: authorityOwned,
+  foldkitV3MessageProposals: {
     allow: {
-      create: 'false',
+      create: createsV3OrdinaryProposal,
       delete: 'false',
       update: 'false',
       view: ownsRecord,
     },
   },
-  foldkitProgramSessions: {
+  foldkitV3OriginEnrollmentClaims: {
     allow: {
-      create: 'false',
+      create: createsOwnV3EnrollmentClaim,
       delete: 'false',
       update: 'false',
       view: ownsRecord,
     },
   },
-  foldkitProjectionCheckpoints: {
-    allow: {
-      create: 'false',
-      delete: 'false',
-      update: 'false',
-      view: ownsRecord,
-    },
-  },
+  foldkitV3OriginPolicyDecisions: authorityOwned,
+  foldkitV3ProgramSessions: authorityOwned,
+  foldkitV3ProjectionCheckpoints: authorityOwned,
   instantCounterSessionClaims: {
     allow: {
       create: ownsRecord,
       delete: 'false',
       update: refreshesOwnClaim,
+      view: ownsRecord,
+    },
+  },
+  multipleCountersV3PolicyRequestResolutions: authorityOwned,
+  multipleCountersV3PolicyRequests: {
+    allow: {
+      create: createsOwnPolicyRequest,
+      delete: 'false',
+      update: 'false',
       view: ownsRecord,
     },
   },

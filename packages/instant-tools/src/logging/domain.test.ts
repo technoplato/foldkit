@@ -2,12 +2,12 @@ import { Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
-  contributingPath,
   IssueLogReference,
   LogContributingPath,
   LogEvent,
-  ruledOutPath,
   SourceLocation,
+  contributingPath,
+  ruledOutPath,
   suspectedPath,
   withInferredIssueReferences,
 } from './domain.js'
@@ -76,7 +76,9 @@ describe('logging domain', () => {
   })
 
   it('marks source paths with ergonomic relationships and optional reasons', () => {
-    expect(suspectedPath('Sources/Recording.swift', 'route may diverge')).toEqual(
+    expect(
+      suspectedPath('Sources/Recording.swift', 'route may diverge'),
+    ).toEqual(
       LogContributingPath.make({
         path: 'Sources/Recording.swift',
         reason: Option.some('route may diverge'),

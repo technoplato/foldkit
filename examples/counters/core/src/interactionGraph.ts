@@ -1,5 +1,6 @@
 import * as Counter from 'counter-core-example'
 import { Array, Match as M, Option } from 'effect'
+import { Synchronization } from 'foldkit'
 import {
   ActivatedInteraction,
   Available,
@@ -42,6 +43,7 @@ import {
 } from './presentation.js'
 import { MultipleCountersProgram } from './program.js'
 import { navigationTargetToPath, navigationToPath } from './route.js'
+import { messageCategory } from './synchronization.js'
 
 /** Schema constructors for the Multiple Counters interaction graph. */
 export const MultipleCountersInteractionSchemas = makeSchemas(Interaction)
@@ -161,6 +163,22 @@ const sourceForInteraction = (interaction: Interaction): InteractionSource =>
       OpenDeleteCounterInteraction: ({ counterId }) => counterSource(counterId),
       DeleteCounterInteraction: ({ counterId, detailPresentationId }) =>
         detailSource(counterId, detailPresentationId),
+    }),
+  )
+
+/** Returns the Program-owned synchronization category of an interaction result. */
+export const interactionMessageCategory = (
+  interaction: Interaction,
+): Synchronization.MessageCategory =>
+  M.value(interaction).pipe(
+    M.withReturnType<Synchronization.MessageCategory>(),
+    M.tagsExhaustive({
+      AddCounterInteraction: () => 'Domain',
+      DeleteCounterInteraction: () => 'Navigation',
+      OpenDeleteCounterInteraction: () => 'Navigation',
+      SelectCounterInteraction: () => 'Navigation',
+      SendMessageInteraction: ({ message }) => messageCategory(message),
+      ShowCounterFactInteraction: () => 'Navigation',
     }),
   )
 
