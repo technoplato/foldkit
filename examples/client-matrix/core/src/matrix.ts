@@ -135,20 +135,32 @@ export const navigationForScreenMode = (mode: ScreenMode): Navigation =>
       CounterDetail.make({
         counterId: 'counter-1',
         maybeMode: Option.none(),
+        presentationId: 'detail-matrix-detail',
       }),
     ),
     M.when('Fact', () =>
       CounterDetail.make({
         counterId: 'counter-1',
         maybeMode: Option.some(
-          CounterFactAlert.make({ status: LoadingCounterFact.make({}) }),
+          CounterFactAlert.make({
+            detailPresentationId: 'detail-matrix-fact',
+            requestId: 'fact-matrix-fact',
+            status: LoadingCounterFact.make({}),
+          }),
         ),
+        presentationId: 'detail-matrix-fact',
       }),
     ),
     M.when('DeleteConfirmation', () =>
       CounterDetail.make({
         counterId: 'counter-1',
-        maybeMode: Option.some(DeleteCounterConfirmation.make({})),
+        maybeMode: Option.some(
+          DeleteCounterConfirmation.make({
+            confirmationId: 'delete-matrix-delete',
+            detailPresentationId: 'detail-matrix-delete',
+          }),
+        ),
+        presentationId: 'detail-matrix-delete',
       }),
     ),
     M.exhaustive,

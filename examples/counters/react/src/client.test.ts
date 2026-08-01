@@ -12,6 +12,7 @@ import {
 } from 'counters-core-example'
 import {
   type MultipleCountersAction,
+  MultipleCountersProgramRouteProvider,
   MultipleCountersProvider,
   resolveMultipleCountersAction,
   resolveMultipleCountersNavigation,
@@ -21,7 +22,7 @@ import {
   useMultipleCountersResolutionError,
 } from 'counters-react-bindings-example'
 import { Array, Option, Result } from 'effect'
-import { InteractionGraph } from 'foldkit'
+import { InteractionGraph, Program } from 'foldkit'
 import { type ReactNode, createElement } from 'react'
 import { describe, expect, it } from 'vitest'
 
@@ -48,6 +49,32 @@ const actionForToken = (
 }
 
 describe('Multiple Counters React Client boundary', () => {
+  it('opens explicit Program state routes without a private navigation boot', () => {
+    const [listModel] = init()
+    const [detailModel] = update(
+      listModel,
+      SelectedCounter({
+        counterId: 'counter-1',
+        detailPresentationId: 'detail-react-route',
+      }),
+    )
+    const wrapper = ({ children }: Readonly<{ children: ReactNode }>) =>
+      createElement(MultipleCountersProgramRouteProvider, {
+        children,
+        initialRoute: Program.state(detailModel),
+      })
+    const client = renderHook(
+      () => ({
+        model: useMultipleCountersModel(),
+        replay: useMultipleCountersReplay(),
+      }),
+      { wrapper },
+    )
+
+    expect(client.result.current.model.navigation._tag).toBe('CounterDetail')
+    expect(client.result.current.replay.transitions).toHaveLength(0)
+  })
+
   it('preserves invalid, noncanonical, missing, and overlong carrier failures', () => {
     const [model] = init()
     const overlongCarrier = `/${'x'.repeat(
