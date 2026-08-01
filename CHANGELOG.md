@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 12:07:13 a.m. EDT — `7ed3fd21fbd7` feat: add TUI design skill
+
+- **Implementation commit:** `7ed3fd21fbd7f79354f63389d9c5308e2550a8ee`
+- **Change:** Added a concise repository skill for designing keyboard-first TUIs.
+- **Details:**
+  - Make each entity the interaction surface by placing its common actions beside it, keeping focus and raw keys Client-local, and deriving semantic actions from Program state.
+  - Require realistic ASCII mockups or real captures before implementation and verify documented keys in the running TUI.
+- **Files:**
+  - `.agents/skills/design-tuis/SKILL.md` — Defines the TUI design workflow, interaction rules, architecture boundary, example, and audit checklist.
+  - `.agents/skills/design-tuis/agents/openai.yaml` — Registers concise skill-list metadata and an invocation prompt.
+- **User context (verbatim):**
+  > co-locate things you can do to an entity nearby the entity
+  > rendering things out of how they will actually look
+- **SpecStory:** unavailable — Codex desktop task; no durable SpecStory URI is available.
+
 ## August 1st, 2026 at 12:04:11 a.m. EDT — `27b73e43624e` feat(instant)!: require explicit Mirror session policy
 
 - **Implementation commit:** `27b73e43624e7b198d9ca05732f1cafa050fe42d`
