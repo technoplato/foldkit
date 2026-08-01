@@ -23,6 +23,13 @@ Built on [Effect](https://effect.website/). Architected like [Elm](https://guide
 > [!NOTE]
 > Foldkit is pre-1.0. The core API is stable, but breaking changes may occur in minor releases. See the [changelog](./packages/foldkit/CHANGELOG.md) for details.
 
+> [!IMPORTANT]
+> **Technoplato View Layer Separation Proposal & Explorations**
+>
+> This branch presents Technoplato's proposal and explorations into decoupling Foldkit's view layer from its core domain logic. By isolating pure `core` business logic (`Model`, `Message`, `update`, `init`, Commands, Subscriptions, Managed Resources) from HTML rendering, a single Foldkit Program can be mounted across web views (Foldkit virtual DOM and React), mobile applications (React Native / Expo), non-captive terminal UIs (Effect Terminal and OpenTUI), and headless background Processors.
+>
+> This work also includes explorations into real-time database synchronization via InstantDB (`@foldkit/instant`), multi-chain cryptocurrency wallets (`examples/wallet`), and protocol replayability. We are publicizing these additions to demonstrate how Foldkit can power arbitrary framework-agnostic business logic everywhere and to share these proposals with the upstream Foldkit maintainer and community.
+
 ## Who It's For
 
 Foldkit is for developers who want to build their product with confidence instead of fighting their architecture. If you want a single pattern that scales from a counter to a multiplayer game without complexity creep, this is it.
@@ -31,7 +38,7 @@ It's not incremental. Inside a Foldkit program there's no escape hatch from Effe
 
 ## Built on Effect
 
-Every Foldkit application is an [Effect](https://effect.website/) program. Your Model is a [Schema](https://effect.website/docs/schema/introduction/). Side effects are values you return, not callbacks you fire — the runtime handles when and how. If you already know Effect, Foldkit feels natural. If you're new to Effect, Foldkit is a great way to immerse yourself in it.
+Every Foldkit application is an [Effect](https://effect.website/) program. Your Model is a [Schema](https://effect.website/docs/schema/introduction/). Side effects are values you return, not callbacks you fire. The runtime handles when and how. If you already know Effect, Foldkit feels natural. If you're new to Effect, Foldkit is a great way to immerse yourself in it.
 
 ## Coming from React?
 
@@ -164,6 +171,113 @@ Runtime.run(application)
 
 Source: [shared core](https://github.com/foldkit/foldkit/tree/main/examples/counter/core/src), [Foldkit client](https://github.com/foldkit/foldkit/tree/main/examples/counter/foldkit/src), [CLI client](https://github.com/foldkit/foldkit/tree/main/examples/counter/cli/src), [TUI client](https://github.com/foldkit/foldkit/tree/main/examples/counter/tui/src), [React bindings](https://github.com/foldkit/foldkit/tree/main/examples/counter/react-bindings/src), [React client](https://github.com/foldkit/foldkit/tree/main/examples/counter/react/src), [React Native client](https://github.com/foldkit/foldkit/tree/main/examples/counter/react-native/src)
 
+---
+
+## Technoplato Proposal | View Layer Separation & Multi-Client Architecture
+
+In this branch, Technoplato proposes decoupling Foldkit's view layer from core program definitions to enable framework-agnostic business logic that runs across any renderer.
+
+### Core Concepts
+
+- **Framework-Agnostic Core Program**: Pure `core` modules house Model, Message, update function, init function, Commands, Subscriptions, and Managed Resources with zero Snabbdom, HTML, or DOM dependencies.
+- **Client**: One complete runnable Program adapter. A Client binds a core Program to a renderer or execution environment (Foldkit virtual DOM, React, React Native, terminal UI, or headless CLI).
+- **Processor**: One running Program occurrence that consumes Messages and advertises capabilities. A single Client can host multiple Processors simultaneously, including headless background processes.
+
+### Multi-Client Presenters
+
+- **Foldkit Virtual DOM (`foldkit`)**: Standard Snabbdom virtual DOM web presenter.
+- **React Presenter (`react` / `@foldkit/react-bindings`)**: React hooks and component views bound to Foldkit state subscription and message dispatch without breaking unidirectional flow.
+- **React Native (`react-native` / Expo)**: Mobile presentation for iOS and Android powered by the exact same core Program.
+- **Non-Captive Terminal & TUI (`cli`, `terminal`, `tui`)**: Interactive terminal clients built with Effect Terminal and OpenTUI, operating side-by-side with web browser windows.
+
+### View-Agnostic Counter Structure
+
+#### Pure Core Program (`examples/counter/core/src/main.ts`)
+
+```ts
+import { Match as M, Schema as S } from 'effect'
+import { Command, Runtime } from 'foldkit'
+import { m } from 'foldkit/message'
+
+export const Model = S.Struct({ count: S.Number })
+export type Model = typeof Model.Type
+
+export const ClickedDecrement = m('ClickedDecrement')
+export const ClickedIncrement = m('ClickedIncrement')
+export const ClickedReset = m('ClickedReset')
+
+export const Message = S.Union([
+  ClickedDecrement,
+  ClickedIncrement,
+  ClickedReset,
+])
+export type Message = typeof Message.Type
+
+export const update = (model: Model, message: Message) =>
+  M.value(message).pipe(
+    M.withReturnType<
+      readonly [Model, ReadonlyArray<Command.Command<Message>>]
+    >(),
+    M.tagsExhaustive({
+      ClickedDecrement: () => [{ count: model.count - 1 }, []],
+      ClickedIncrement: () => [{ count: model.count + 1 }, []],
+      ClickedReset: () => [{ count: 0 }, []],
+    }),
+  )
+
+export const init: Runtime.ApplicationInit<Model, Message> = () => [
+  { count: 0 },
+  [],
+]
+```
+
+#### React Adapter Component (`examples/counter/react/src/App.tsx`)
+
+```tsx
+import React from 'react'
+
+import {
+  ClickedDecrement,
+  ClickedIncrement,
+  ClickedReset,
+} from '../core/src/main'
+import { useFoldkit } from './react-bindings'
+
+export const CounterApp = () => {
+  const { model, dispatch } = useFoldkit()
+
+  return (
+    <div>
+      <h1>Count: {model.count}</h1>
+      <button onClick={() => dispatch(ClickedDecrement())}>-</button>
+      <button onClick={() => dispatch(ClickedReset())}>Reset</button>
+      <button onClick={() => dispatch(ClickedIncrement())}>+</button>
+    </div>
+  )
+}
+```
+
+---
+
+## Technoplato Explorations | InstantDB Sync & Cryptocurrency Wallets
+
+### InstantDB Synchronization Engine (`packages/instant` & `packages/instant-tools`)
+
+A real-time database synchronization engine that connects InstantDB reactive queries directly to Foldkit Model state and translates domain state updates into InstantDB transactions.
+
+- Demonstrations include `instant-counter`, `cardboard` (a collaborative infinite canvas), and `words` (a multiplayer word game).
+
+### Cryptocurrency & Multi-Chain Wallet Domain (`examples/wallet`)
+
+A portable multi-chain crypto wallet Program supporting Bitcoin, Ethereum, Solana, and Sui:
+
+- **Portable Core**: Shared Model, Messages, update function, and Commands across all supported chains.
+- **Injected Secure Custody**: Injected `WalletVault` manages keys outside the Model (IndexedDB AES-GCM for web, `expo-secure-store` for React Native, macOS Keychain for CLI/TUI).
+- **Intent Router**: Canonical `walletIntentRouter` decodes deep-link intents into pending state.
+- **Multi-Renderer Presenters**: Simultaneously runnable across React, Foldkit virtual DOM, React Native, Effect Terminal, OpenTUI, and raw CLI commands.
+
+---
+
 ## What Ships With Foldkit
 
 Foldkit is a complete system, not a collection of libraries you stitch together.
@@ -175,27 +289,35 @@ Foldkit is a complete system, not a collection of libraries you stitch together.
 - **Managed Resources**: Model-driven lifecycle for long-lived browser resources like WebSockets, AudioContext, and RTCPeerConnection. Acquire on state change, release on cleanup.
 - **Submodels**: A self-contained Model, Messages, update function, and view that a parent embeds in its own, wrapping child Messages in a `Got*Message` envelope. Reach for one to encapsulate a unit the parent shouldn't see inside, or to split a grown app into feature areas like Settings and Dashboard.
 - **OutMessage**: A typed channel for a child Submodel to emit domain events up to its parent, so the parent reacts to meaningful facts instead of internal child Messages.
-- **Embedding**: Run a Foldkit program inside a host application with `Runtime.embed`. The host starts the runtime, pushes data in and receives values out through Schema-typed Ports, and calls `dispose` for a complete teardown. The handle is the whole boundary; the host never reads the Model or dispatches Messages.
-- **UI Components**: Accessible, keyboard-friendly primitives in the `@foldkit/ui` package: Button, Checkbox, Combobox, Dialog, Disclosure, DragAndDrop, Fieldset, Input, Listbox, Menu, Popover, RadioGroup, Select, Switch, Tabs, Textarea, and Transition. Stateful components are Submodels that own their interaction state while your Model owns the value; stateless components are render helpers you call directly with a typed `ViewConfig`.
+- **Embedding**: Run a Foldkit program inside a host application with `Runtime.embed`. The host starts the runtime, pushes data in and receives values out through Schema-typed Ports, and calls `dispose` for a complete teardown. The handle is the whole boundary. The host never reads the Model or dispatches Messages.
+- **UI Components**: Accessible, keyboard-friendly primitives in the `@foldkit/ui` package: Button, Checkbox, Combobox, Dialog, Disclosure, DragAndDrop, Fieldset, Input, Listbox, Menu, Popover, RadioGroup, Select, Switch, Tabs, Textarea, and Transition. Stateful components are Submodels that own their interaction state while your Model owns the value. Stateless components are render helpers you call directly with a typed `ViewConfig`.
+- **InstantDB Integration**: Optional real-time database synchronization via `@foldkit/instant` (Technoplato exploration).
 - **Field Validation**: Per-field validation state modeled as a discriminated union. Define rules as data, apply them in update, and the Model tracks the result.
 - **Virtual DOM**: Declarative views powered by [Snabbdom](https://github.com/snabbdom/snabbdom), with lazy memoization and fast, keyed diffing. Views are plain functions of your Model.
 - **DevTools**: Opt-in in-browser overlay (the `@foldkit/devtools` package) for inspecting Messages, Model state, and Commands. Time-travel mode rewinds your UI to any past Model, Inspect mode browses snapshots without pausing, and Submodel drill-in filtering scopes the Message list to any nested module.
 - **DevTools MCP**: Expose a running Foldkit app to AI agents over the Model Context Protocol. Agents read the current Model, list and inspect Message history, rewind the UI to any past Model, and dispatch Messages into the runtime. The runtime's own Message Schema is published as JSON Schema so the agent discovers exactly what it can dispatch, and every payload is validated against the Schema before it reaches your update function. One command sets it up: `npx @foldkit/devtools-mcp init`.
 - **Crash View and Reporting**: Configure `crash.view` to render a custom fallback UI when the update loop throws. A `crash.report` callback fires first with the error, Model, and triggering Message, so you can ship it straight to Sentry or your logger.
 - **Story Testing**: Exercise the update function directly. Send Messages, resolve Commands inline with `Story.Command.resolve` and `Story.Command.resolveAll`, and assert with focused helpers: `Story.model`, `Story.Command.expectHas`, `Story.Command.expectExact`, `Story.Command.expectNone`, and `Story.expectOutMessage`. No mocking libraries, no fake timers.
-- **Scene Testing**: Drive your app the way a user does. Scene renders your real view, then clicks buttons, types into inputs, presses keys, and asserts on what's on screen — with accessible locators and Vitest matchers, no browser required.
+- **Scene Testing**: Drive your app the way a user does. Scene renders your real view, then clicks buttons, types into inputs, presses keys, and asserts on what's on screen; with accessible locators and Vitest matchers, no browser required.
 - **Slow Warnings**: Foldkit warns in development when update, view, patch, or Subscription dependency extraction exceeds its default threshold. Configure `slow` on `makeApplication` with `measuredPhases`, `thresholdOverrides`, and `onSlow` to state what is measured, which budgets change, and where warning contexts go.
 - **HMR**: Vite plugin with state-preserving hot module replacement. Change your view, keep your state.
 
 ## Correctness You (And Your LLM) Can See
 
-Every state change flows through one update function. Every side effect is declared explicitly — in Commands, Mount Effects, Subscription streams, and Managed Resource lifecycles. You don't have to hold a mental model of what runs when — you can point at it.
+Every state change flows through one update function. Every side effect is declared explicitly: in Commands, Mount Effects, Subscription streams, and Managed Resource lifecycles. You don't have to hold a mental model of what runs when; you can point at it.
 
 This is what makes Foldkit unusually AI-friendly. The same property that makes the code easy for humans to reason about makes it easy for LLMs to generate and review. The architecture makes correctness visible, whether the reader is a person or an LLM.
 
 ## Examples
 
-- **[Counter](https://foldkit.dev/example-apps/counter)**: Increment/decrement with reset
+- **[Counter](https://foldkit.dev/example-apps/counter)**: Increment/decrement with reset (with core, Foldkit, React, React Native, CLI, and TUI clients in `examples/counter`)
+- **[Multi-Chain Wallet](examples/wallet)**: Technoplato exploration powering Bitcoin, Ethereum, Solana, and Sui across web, React Native, CLI, and TUI
+- **[Instant Counter](examples/instant-counter)**: Technoplato exploration of real-time state synchronization via InstantDB
+- **[Cardboard](examples/cardboard)**: Technoplato collaborative canvas built over InstantDB
+- **[Words](examples/words)**: Technoplato multiplayer word game over InstantDB
+- **[Client Matrix](examples/client-matrix)**: Running multiple Processors simultaneously in a single Client
+- **[Terminal Portal](examples/counter-terminal-portal)**: Bridging terminal input and web output through shared Processors
+- **[Staked Access Protocol](examples/staked-access)**: Signed cryptographic claims bound to state transitions
 - **[Counters](https://foldkit.dev/example-apps/counters)**: A dynamic list of Counter Submodels with per-instance routing
 - **[Todo](https://foldkit.dev/example-apps/todo)**: CRUD operations with localStorage persistence
 - **[Stopwatch](https://foldkit.dev/example-apps/stopwatch)**: Timer with start/stop/reset
@@ -239,6 +361,11 @@ pnpm dev:libs
 
 # Run an example (in a separate terminal)
 pnpm dev:example:counter
+
+# Run Technoplato multi-client explorations
+pnpm demo:wallet:tui
+pnpm dev:example:wallet:react
+pnpm dev:example:instant-counter
 ```
 
 External reference repositories under `repos/` are vendored in as git subtrees, so they come down with the clone. Each is pinned to the release tag matching the version this repo depends on, not a moving branch, so the reference source always matches what installs and compiles. Refresh `repos/effect-smol` from the `effect@<version>` tag that matches `package.json`, and re-pin it whenever the `effect` dependency is bumped:
