@@ -9,14 +9,17 @@ import {
 } from 'effect'
 
 import type { Ports } from '../port/port.js'
+import { ClientId, ProcessorId } from '../processor/processor.js'
 import type { Program, ProgramSchema } from '../program/program.js'
 import {
   type InteractionAction,
+  InteractionAdmissionOccurrence,
   type InteractionEditableText,
   type InteractionGroup,
   type InteractionId,
   type InteractionNode,
   InteractionOccurrence,
+  InteractionOccurrenceId,
   type InteractionProjection,
   type InteractionReference,
   type InteractionSelection,
@@ -97,6 +100,88 @@ export class DuplicateInteractionChoiceError extends Data.TaggedError(
   readonly interactionId: InteractionId
 }> {}
 
+/** A claim named an interaction source owned by another Program. */
+export class ForeignInteractionClaimProgramError extends Data.TaggedError(
+  'ForeignInteractionClaimProgramError',
+)<{
+  readonly actualProgramId: string
+  readonly expectedProgramId: string
+  readonly reference: InteractionReference
+}> {}
+
+/** A claim named a destination other than the Program's current destination. */
+export class StaleInteractionDestinationError extends Data.TaggedError(
+  'StaleInteractionDestinationError',
+)<{
+  readonly actualDestinationUri: string
+  readonly expectedDestinationUri: string
+  readonly reference: InteractionReference
+}> {}
+
+/** A claim named an interaction absent from the Program's current projection. */
+export class MissingInteractionReferenceError extends Data.TaggedError(
+  'MissingInteractionReferenceError',
+)<{ readonly reference: InteractionReference }> {}
+
+/** A claim named an interaction the Program currently marks unavailable. */
+export class UnavailableInteractionError extends Data.TaggedError(
+  'UnavailableInteractionError',
+)<{
+  readonly code: string
+  readonly reason: string
+  readonly reference: InteractionReference
+}> {}
+
+/** A claim kind did not match the referenced interaction node kind. */
+export class InteractionOccurrenceKindMismatchError extends Data.TaggedError(
+  'InteractionOccurrenceKindMismatchError',
+)<{
+  readonly actualOccurrenceTag: (typeof InteractionOccurrence.Type)['_tag']
+  readonly expectedOccurrenceTag: (typeof InteractionOccurrence.Type)['_tag']
+  readonly reference: InteractionReference
+}> {}
+
+/** A selection claim named a choice absent from the current selection. */
+export class MissingInteractionSelectionChoiceError extends Data.TaggedError(
+  'MissingInteractionSelectionChoiceError',
+)<{
+  readonly choiceId: string
+  readonly reference: InteractionReference
+}> {}
+
+/** A selection claim named a choice the Program currently marks unavailable. */
+export class UnavailableInteractionSelectionChoiceError extends Data.TaggedError(
+  'UnavailableInteractionSelectionChoiceError',
+)<{
+  readonly choiceId: string
+  readonly code: string
+  readonly reason: string
+  readonly reference: InteractionReference
+}> {}
+
+/** The Program declined to produce a Message for an otherwise current claim. */
+export class InteractionResolverDeclinedError extends Data.TaggedError(
+  'InteractionResolverDeclinedError',
+)<{ readonly reference: InteractionReference }> {}
+
+/** Authenticated invocation facts did not satisfy their authority-boundary Schema. */
+export class InvalidInteractionInvocationFactsError extends Data.TaggedError(
+  'InvalidInteractionInvocationFactsError',
+)<{ readonly cause: unknown }> {}
+
+/** An interaction claim did not carry its authenticated occurrence identity. */
+export class MismatchedInteractionInvocationOccurrenceIdError extends Data.TaggedError(
+  'MismatchedInteractionInvocationOccurrenceIdError',
+)<{
+  readonly authenticatedOccurrenceId: string
+  readonly claimedOccurrenceId: string
+}> {}
+
+/** A Program admission-context callback threw before returning its context. */
+export class InteractionInvocationContextDefectError extends Data.TaggedError(
+  'InteractionInvocationContextDefectError',
+)<{ readonly cause: unknown }> {}
+
 /** Every typed failure produced while projecting or resolving interactions. */
 export type InteractionGraphError =
   | InvalidInteractionProjectionError
@@ -110,6 +195,42 @@ export type InteractionGraphError =
   | MissingPrimaryInteractionError
   | InvalidSelectedInteractionChoiceError
   | DuplicateInteractionChoiceError
+
+/** Every expected current-state rejection of a well-formed interaction claim. */
+export type InteractionClaimError =
+  | ForeignInteractionClaimProgramError
+  | StaleInteractionDestinationError
+  | MissingInteractionReferenceError
+  | UnavailableInteractionError
+  | InteractionOccurrenceKindMismatchError
+  | MissingInteractionSelectionChoiceError
+  | UnavailableInteractionSelectionChoiceError
+  | InteractionResolverDeclinedError
+
+/** Every typed failure produced at an authenticated interaction-admission boundary. */
+export type InteractionAdmissionError =
+  | InteractionGraphError
+  | InteractionClaimError
+  | InvalidInteractionInvocationFactsError
+  | MismatchedInteractionInvocationOccurrenceIdError
+  | InteractionInvocationContextDefectError
+
+const InvocationFactIdentity = S.String.check(
+  S.isLengthBetween(1, 128),
+  S.isPattern(/^[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
+)
+
+/** Authenticated transport facts available to deterministic Program admission. */
+export const InteractionInvocationFacts = S.Struct({
+  occurrenceId: InteractionOccurrenceId,
+  actorId: InvocationFactIdentity,
+  clientId: ClientId,
+  originatingProcessorId: ProcessorId,
+  sessionId: InvocationFactIdentity,
+  subjectId: InvocationFactIdentity,
+})
+/** Authenticated transport facts available to deterministic Program admission. */
+export type InteractionInvocationFacts = typeof InteractionInvocationFacts.Type
 
 /** Formats any valid Program Model through its declared Schema. */
 export const formatProgramModel = <Model>(
@@ -329,42 +450,111 @@ const validateProjection = <Descriptor>(
   return Result.succeed(projection)
 }
 
-const pairOccurrence = <Descriptor>(
+const expectedOccurrenceTag = <Descriptor>(
+  node:
+    | InteractionAction<Descriptor>
+    | InteractionEditableText<Descriptor>
+    | InteractionSelection<Descriptor>,
+): (typeof InteractionOccurrence.Type)['_tag'] =>
+  M.value(node).pipe(
+    M.withReturnType<(typeof InteractionOccurrence.Type)['_tag']>(),
+    M.tagsExhaustive({
+      InteractionAction: () => 'ActivatedInteraction',
+      InteractionEditableText: () => 'ChangedInteractionText',
+      InteractionSelection: () => 'SelectedInteractionChoice',
+    }),
+  )
+
+const occurrenceKindMismatch = <Descriptor>(
   node:
     | InteractionAction<Descriptor>
     | InteractionEditableText<Descriptor>
     | InteractionSelection<Descriptor>,
   occurrence: typeof InteractionOccurrence.Type,
-): Option.Option<ResolvedInteractionOccurrence<Descriptor>> =>
+): InteractionOccurrenceKindMismatchError =>
+  new InteractionOccurrenceKindMismatchError({
+    actualOccurrenceTag: occurrence._tag,
+    expectedOccurrenceTag: expectedOccurrenceTag(node),
+    reference: occurrence.reference,
+  })
+
+const pairOccurrenceForAdmission = <Descriptor>(
+  node:
+    | InteractionAction<Descriptor>
+    | InteractionEditableText<Descriptor>
+    | InteractionSelection<Descriptor>,
+  occurrence: typeof InteractionOccurrence.Type,
+): Result.Result<
+  ResolvedInteractionOccurrence<Descriptor>,
+  InteractionClaimError
+> =>
   M.value(occurrence).pipe(
     M.withReturnType<
-      Option.Option<ResolvedInteractionOccurrence<Descriptor>>
+      Result.Result<
+        ResolvedInteractionOccurrence<Descriptor>,
+        InteractionClaimError
+      >
     >(),
     M.tagsExhaustive({
-      ActivatedInteraction: occurrence =>
-        node._tag === 'InteractionAction'
-          ? Option.some({ node, occurrence })
-          : Option.none(),
-      ChangedInteractionText: occurrence =>
-        node._tag === 'InteractionEditableText'
-          ? Option.some({ node, occurrence })
-          : Option.none(),
+      ActivatedInteraction: occurrence => {
+        if (node._tag === 'InteractionAction') {
+          return Result.succeed({ node, occurrence })
+        } else {
+          return Result.fail(occurrenceKindMismatch(node, occurrence))
+        }
+      },
+      ChangedInteractionText: occurrence => {
+        if (node._tag === 'InteractionEditableText') {
+          return Result.succeed({ node, occurrence })
+        } else {
+          return Result.fail(occurrenceKindMismatch(node, occurrence))
+        }
+      },
       SelectedInteractionChoice: occurrence => {
         if (node._tag !== 'InteractionSelection') {
-          return Option.none()
+          return Result.fail(occurrenceKindMismatch(node, occurrence))
         }
         const maybeChoice = Array.findFirst(
           node.choices,
-          choice =>
-            choice.id === occurrence.choiceId &&
-            choice.availability._tag === 'Available',
+          choice => choice.id === occurrence.choiceId,
         )
-        return Option.isSome(maybeChoice)
-          ? Option.some({ node, occurrence })
-          : Option.none()
+        if (Option.isNone(maybeChoice)) {
+          return Result.fail(
+            new MissingInteractionSelectionChoiceError({
+              choiceId: occurrence.choiceId,
+              reference: occurrence.reference,
+            }),
+          )
+        }
+        if (maybeChoice.value.availability._tag === 'Unavailable') {
+          return Result.fail(
+            new UnavailableInteractionSelectionChoiceError({
+              choiceId: occurrence.choiceId,
+              code: maybeChoice.value.availability.code,
+              reason: maybeChoice.value.availability.reason,
+              reference: occurrence.reference,
+            }),
+          )
+        }
+        return Result.succeed({ node, occurrence })
       },
     }),
   )
+
+const claimErrorTags = new Set([
+  'ForeignInteractionClaimProgramError',
+  'StaleInteractionDestinationError',
+  'MissingInteractionReferenceError',
+  'UnavailableInteractionError',
+  'InteractionOccurrenceKindMismatchError',
+  'MissingInteractionSelectionChoiceError',
+  'UnavailableInteractionSelectionChoiceError',
+  'InteractionResolverDeclinedError',
+])
+
+const isInteractionClaimError = (
+  error: InteractionClaimError | InteractionGraphError,
+): error is InteractionClaimError => claimErrorTags.has(error._tag)
 
 /** A standalone renderer-free semantic interaction graph for one Program. */
 export type InteractionGraph<
@@ -388,7 +578,129 @@ export type InteractionGraph<
     occurrence: unknown,
     context: InvocationContext,
   ) => Result.Result<Option.Option<Message>, InteractionGraphError>
+  /**
+   * Resolves a trusted local occurrence with an already-derived context.
+   * Network authorities use `InteractionAdmissionDefinition.resolve`.
+   */
+  resolveWithContext: (
+    model: Model,
+    occurrence: unknown,
+    context: InvocationContext,
+  ) => Result.Result<Message, InteractionClaimError | InteractionGraphError>
 }>
+
+/** A Program InteractionGraph paired with deterministic authenticated context. */
+export type InteractionAdmissionDefinition<
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  InvocationContext,
+  Descriptor,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+> = Readonly<{
+  /** The Program-owned graph used for both Client and authority resolution. */
+  graph: InteractionGraph<
+    Model,
+    Message,
+    Descriptor,
+    InvocationContext,
+    Resources,
+    ManagedResourceServices,
+    P
+  >
+  /** Resolves one bounded claim from its matching authenticated invocation facts. */
+  resolve: (
+    model: Model,
+    occurrence: unknown,
+    invocationFacts: unknown,
+  ) => Result.Result<Message, InteractionAdmissionError>
+}>
+
+/** Defines deterministic authenticated context for one Program InteractionGraph. */
+export const makeAdmission = <
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  InvocationContext,
+  Descriptor,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+>(
+  definition: Readonly<{
+    graph: InteractionGraph<
+      Model,
+      Message,
+      Descriptor,
+      InvocationContext,
+      Resources,
+      ManagedResourceServices,
+      P
+    >
+    contextForInvocation: (
+      facts: InteractionInvocationFacts,
+    ) => InvocationContext
+  }>,
+): InteractionAdmissionDefinition<
+  Model,
+  Message,
+  InvocationContext,
+  Descriptor,
+  Resources,
+  ManagedResourceServices,
+  P
+> => {
+  const resolve = (
+    model: Model,
+    occurrence: unknown,
+    invocationFacts: unknown,
+  ): Result.Result<Message, InteractionAdmissionError> => {
+    const parsedInvocationFacts = SchemaParser.decodeUnknownResult(
+      InteractionInvocationFacts,
+    )(invocationFacts)
+    if (Result.isFailure(parsedInvocationFacts)) {
+      return Result.fail(
+        new InvalidInteractionInvocationFactsError({
+          cause: parsedInvocationFacts.failure,
+        }),
+      )
+    }
+    const parsedOccurrence = SchemaParser.decodeUnknownResult(
+      InteractionAdmissionOccurrence,
+    )(occurrence)
+    if (Result.isFailure(parsedOccurrence)) {
+      return Result.fail(
+        new InvalidInteractionOccurrenceError({
+          cause: parsedOccurrence.failure,
+        }),
+      )
+    }
+    if (
+      parsedOccurrence.success.occurrenceId !==
+      parsedInvocationFacts.success.occurrenceId
+    ) {
+      return Result.fail(
+        new MismatchedInteractionInvocationOccurrenceIdError({
+          authenticatedOccurrenceId: parsedInvocationFacts.success.occurrenceId,
+          claimedOccurrenceId: parsedOccurrence.success.occurrenceId,
+        }),
+      )
+    }
+    const context = Result.try({
+      try: () => definition.contextForInvocation(parsedInvocationFacts.success),
+      catch: cause => new InteractionInvocationContextDefectError({ cause }),
+    })
+    if (Result.isFailure(context)) {
+      return Result.fail(context.failure)
+    }
+    return definition.graph.resolveWithContext(
+      model,
+      parsedOccurrence.success,
+      context.success,
+    )
+  }
+  return { graph: definition.graph, resolve }
+}
 
 /** Defines a Schema-backed interaction graph without changing Program generics. */
 export const make = <
@@ -459,11 +771,11 @@ export const make = <
     }
     return validateProjection(definition.program.id, parsed.success)
   }
-  const resolve = (
+  const resolveWithContext = (
     model: Model,
     occurrence: unknown,
     context: InvocationContext,
-  ): Result.Result<Option.Option<Message>, InteractionGraphError> => {
+  ): Result.Result<Message, InteractionClaimError | InteractionGraphError> => {
     const parsedOccurrence = SchemaParser.decodeUnknownResult(
       InteractionOccurrence,
     )(occurrence)
@@ -479,33 +791,63 @@ export const make = <
       return Result.fail(projected.failure)
     }
     if (
+      parsedOccurrence.success.reference.interactionId.source.programId !==
+      definition.program.id
+    ) {
+      return Result.fail(
+        new ForeignInteractionClaimProgramError({
+          actualProgramId:
+            parsedOccurrence.success.reference.interactionId.source.programId,
+          expectedProgramId: definition.program.id,
+          reference: parsedOccurrence.success.reference,
+        }),
+      )
+    }
+    if (
       parsedOccurrence.success.reference.destinationUri !==
       projected.success.destinationUri
     ) {
-      return Result.succeed(Option.none())
+      return Result.fail(
+        new StaleInteractionDestinationError({
+          actualDestinationUri:
+            parsedOccurrence.success.reference.destinationUri,
+          expectedDestinationUri: projected.success.destinationUri,
+          reference: parsedOccurrence.success.reference,
+        }),
+      )
     }
     const maybeNode = findInteractionNode(
       projected.success.root,
       parsedOccurrence.success.reference,
     )
-    if (
-      Option.isNone(maybeNode) ||
-      maybeNode.value.availability._tag === 'Unavailable'
-    ) {
-      return Result.succeed(Option.none())
+    if (Option.isNone(maybeNode)) {
+      return Result.fail(
+        new MissingInteractionReferenceError({
+          reference: parsedOccurrence.success.reference,
+        }),
+      )
     }
-    const maybeResolved = pairOccurrence(
+    if (maybeNode.value.availability._tag === 'Unavailable') {
+      return Result.fail(
+        new UnavailableInteractionError({
+          code: maybeNode.value.availability.code,
+          reason: maybeNode.value.availability.reason,
+          reference: parsedOccurrence.success.reference,
+        }),
+      )
+    }
+    const resolved = pairOccurrenceForAdmission(
       maybeNode.value,
       parsedOccurrence.success,
     )
-    if (Option.isNone(maybeResolved)) {
-      return Result.succeed(Option.none())
+    if (Result.isFailure(resolved)) {
+      return Result.fail(resolved.failure)
     }
     const resolvedMessage = Result.try({
       try: () =>
         definition.messageForOccurrence({
           model,
-          resolved: maybeResolved.value,
+          resolved: resolved.success,
           context,
         }),
       catch: cause => new InteractionResolverDefectError({ cause }),
@@ -515,7 +857,11 @@ export const make = <
     }
     const maybeMessage = resolvedMessage.success
     if (Option.isNone(maybeMessage)) {
-      return Result.succeed(Option.none())
+      return Result.fail(
+        new InteractionResolverDeclinedError({
+          reference: parsedOccurrence.success.reference,
+        }),
+      )
     }
     const encodedMessage = SchemaParser.encodeUnknownResult(
       definition.program.Message,
@@ -533,7 +879,22 @@ export const make = <
         new InvalidInteractionMessageError({ cause: parsedMessage.failure }),
       )
     }
-    return Result.succeed(Option.some(parsedMessage.success))
+    return Result.succeed(parsedMessage.success)
+  }
+  const resolve = (
+    model: Model,
+    occurrence: unknown,
+    context: InvocationContext,
+  ): Result.Result<Option.Option<Message>, InteractionGraphError> => {
+    const resolved = resolveWithContext(model, occurrence, context)
+    if (Result.isSuccess(resolved)) {
+      return Result.succeed(Option.some(resolved.success))
+    }
+    if (isInteractionClaimError(resolved.failure)) {
+      return Result.succeed(Option.none())
+    } else {
+      return Result.fail(resolved.failure)
+    }
   }
   return {
     program: definition.program,
@@ -542,5 +903,6 @@ export const make = <
     InteractionOccurrence,
     project,
     resolve,
+    resolveWithContext,
   }
 }

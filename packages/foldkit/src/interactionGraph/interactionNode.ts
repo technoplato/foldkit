@@ -145,10 +145,91 @@ export type InteractionProjection<Descriptor> = Readonly<{
   root: InteractionGroup<Descriptor>
 }>
 
+/** A bounded canonical identity for one claimed interaction occurrence. */
+export const InteractionOccurrenceId = S.String.check(
+  S.isLengthBetween(1, 64),
+  S.isPattern(/^[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
+)
+/** A bounded canonical identity for one claimed interaction occurrence. */
+export type InteractionOccurrenceId = typeof InteractionOccurrenceId.Type
+
+/** Upper bounds applied before an untrusted interaction claim reaches Program resolution. */
+export const interactionAdmissionLimits = Object.freeze({
+  destinationUriLength: 2_048,
+  editableTextLength: 65_536,
+  interactionPathDepth: 32,
+  interactionSourceComponentLength: 128,
+  interactionTokenLength: 128,
+  selectionChoiceIdLength: 128,
+})
+
+const AdmissionInteractionSourceComponent = S.String.check(
+  S.isLengthBetween(
+    1,
+    interactionAdmissionLimits.interactionSourceComponentLength,
+  ),
+)
+const AdmissionInteractionPathSegment = S.Struct({
+  submodelId: AdmissionInteractionSourceComponent,
+  instanceId: AdmissionInteractionSourceComponent,
+})
+const AdmissionInteractionSource = S.Struct({
+  programId: AdmissionInteractionSourceComponent,
+  instancePath: S.Array(AdmissionInteractionPathSegment).check(
+    S.isLengthBetween(0, interactionAdmissionLimits.interactionPathDepth),
+  ),
+})
+const AdmissionInteractionId = S.Struct({
+  source: AdmissionInteractionSource,
+  token: S.String.check(
+    S.isLengthBetween(1, interactionAdmissionLimits.interactionTokenLength),
+  ),
+})
+const AdmissionInteractionReference = S.Struct({
+  destinationUri: S.String.check(
+    S.isLengthBetween(1, interactionAdmissionLimits.destinationUriLength),
+  ),
+  interactionId: AdmissionInteractionId,
+})
+const AdmissionActivatedInteraction = S.TaggedStruct('ActivatedInteraction', {
+  reference: AdmissionInteractionReference,
+  occurrenceId: InteractionOccurrenceId,
+})
+const AdmissionChangedInteractionText = S.TaggedStruct(
+  'ChangedInteractionText',
+  {
+    reference: AdmissionInteractionReference,
+    occurrenceId: InteractionOccurrenceId,
+    value: S.String.check(
+      S.isLengthBetween(0, interactionAdmissionLimits.editableTextLength),
+    ),
+  },
+)
+const AdmissionSelectedInteractionChoice = S.TaggedStruct(
+  'SelectedInteractionChoice',
+  {
+    reference: AdmissionInteractionReference,
+    occurrenceId: InteractionOccurrenceId,
+    choiceId: S.String.check(
+      S.isLengthBetween(1, interactionAdmissionLimits.selectionChoiceIdLength),
+    ),
+  },
+)
+
+/** A bounded interaction occurrence safe to decode at an authority boundary. */
+export const InteractionAdmissionOccurrence = S.Union([
+  AdmissionActivatedInteraction,
+  AdmissionChangedInteractionText,
+  AdmissionSelectedInteractionChoice,
+])
+/** A bounded interaction occurrence safe to decode at an authority boundary. */
+export type InteractionAdmissionOccurrence =
+  typeof InteractionAdmissionOccurrence.Type
+
 /** A Client claims that one currently projected action was activated. */
 export const ActivatedInteraction = S.TaggedStruct('ActivatedInteraction', {
   reference: InteractionReference,
-  occurrenceId: S.NonEmptyString,
+  occurrenceId: InteractionOccurrenceId,
 })
 /** A Client claims that one currently projected action was activated. */
 export type ActivatedInteraction = typeof ActivatedInteraction.Type
@@ -156,7 +237,7 @@ export type ActivatedInteraction = typeof ActivatedInteraction.Type
 /** A Client claims that one currently projected editable value changed. */
 export const ChangedInteractionText = S.TaggedStruct('ChangedInteractionText', {
   reference: InteractionReference,
-  occurrenceId: S.NonEmptyString,
+  occurrenceId: InteractionOccurrenceId,
   value: S.String,
 })
 /** A Client claims that one currently projected editable value changed. */
@@ -167,7 +248,7 @@ export const SelectedInteractionChoice = S.TaggedStruct(
   'SelectedInteractionChoice',
   {
     reference: InteractionReference,
-    occurrenceId: S.NonEmptyString,
+    occurrenceId: InteractionOccurrenceId,
     choiceId: S.NonEmptyString,
   },
 )
