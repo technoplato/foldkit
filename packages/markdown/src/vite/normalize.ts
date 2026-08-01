@@ -79,7 +79,7 @@ const UNSUPPORTED_GUIDANCE: Readonly<Record<string, string>> = {
     'Reference-style link definitions are not supported. Use inline links (`[text](url)`).',
   footnoteReference: 'Footnotes are not supported.',
   footnoteDefinition: 'Footnotes are not supported.',
-  yaml: 'Frontmatter is not supported. Keep document metadata in application code, for example a typed post registry.',
+  yaml: 'Frontmatter is not supported without a `frontmatter` schema in the markdown plugin options. Pass one to enable it, or keep document metadata in application code.',
   'leaf directive label':
     'Leaf directive labels (`::Name[label]`) are not supported. Pass information through attributes (`::Name{label="..."}`) instead.',
 }

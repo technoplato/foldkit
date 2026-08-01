@@ -28,7 +28,7 @@ import {
   examples,
   findBySlug,
 } from '../page/example/meta'
-import { coreArchitectureRouter, homeRouter } from '../route'
+import { blogRouter, coreArchitectureRouter, homeRouter } from '../route'
 import { betaTag, emailSignupContentView, skipNavLink } from './shared'
 import { themeSelector } from './themeSelector'
 
@@ -68,6 +68,15 @@ const landingHeaderView = (model: Model, h: HtmlBuilder<Message>) =>
       h.nav(
         [h.AriaLabel('Main'), h.Class('flex items-center gap-3')],
         [
+          h.a(
+            [
+              h.Href(blogRouter()),
+              h.Class(
+                'hidden sm:inline-block text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition mr-1',
+              ),
+            ],
+            ['Blog'],
+          ),
           h.div(
             [h.Class('hidden md:flex')],
             [themeSelector(model.themePreference, h)],

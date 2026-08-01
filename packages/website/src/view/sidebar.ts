@@ -21,7 +21,12 @@ import {
   type Message,
   ToggledSidebarGroup,
 } from '../message'
-import { ExampleDetailRoute, apiModuleRouter, homeRouter } from '../route'
+import {
+  ExampleDetailRoute,
+  apiModuleRouter,
+  blogRouter,
+  homeRouter,
+} from '../route'
 import { type GroupKey, type SidebarGroups } from '../sidebarStorage'
 import { betaTag, iconLink } from './shared'
 
@@ -237,14 +242,8 @@ export const sidebarView = (model: Model, h: HtmlBuilder<Message>): Html => {
     model.sidebarGroups,
     h,
   ])
-  const mobileNavLinks = lazyMobileNavLinks(computeNavLinks, [
-    'mobile',
-    model.route,
-    model.sidebarGroups,
-    h,
-  ])
 
-  const desktopSidebar = h.aside(
+  return h.aside(
     [
       h.AriaLabel('Documentation sidebar'),
       h.Class(
@@ -261,6 +260,28 @@ export const sidebarView = (model: Model, h: HtmlBuilder<Message>): Html => {
         [desktopNavLinks],
       ),
     ],
+  )
+}
+
+export const mobileMenuView = (model: Model, h: HtmlBuilder<Message>): Html => {
+  const mobileNavLinks = lazyMobileNavLinks(computeNavLinks, [
+    'mobile',
+    model.route,
+    model.sidebarGroups,
+    h,
+  ])
+
+  const blogLink = h.a(
+    [
+      h.Href(blogRouter()),
+      h.Class(
+        'block px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400 border-b border-gray-300 dark:border-gray-800',
+      ),
+      ...(model.route._tag === 'Blog' || model.route._tag === 'BlogPost'
+        ? [h.AriaCurrent('page')]
+        : []),
+    ],
+    ['Blog'],
   )
 
   const mobileMenuContent = (
@@ -310,7 +331,7 @@ export const sidebarView = (model: Model, h: HtmlBuilder<Message>): Html => {
             h.Tabindex(-1),
             h.Autofocus(true),
           ],
-          [mobileNavLinks],
+          [blogLink, mobileNavLinks],
         ),
         h.div(
           [
@@ -333,7 +354,7 @@ export const sidebarView = (model: Model, h: HtmlBuilder<Message>): Html => {
       ],
     )
 
-  const mobileMenu = h.submodel({
+  return h.submodel({
     slotId: model.mobileMenuDialog.id,
     model: model.mobileMenuDialog,
     view: Dialog.view,
@@ -359,6 +380,4 @@ export const sidebarView = (model: Model, h: HtmlBuilder<Message>): Html => {
     },
     toParentMessage: message => GotMobileMenuDialogMessage({ message }),
   })
-
-  return h.div([], [desktopSidebar, mobileMenu])
 }

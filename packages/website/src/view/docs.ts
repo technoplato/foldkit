@@ -28,11 +28,11 @@ import {
 } from '../message'
 import * as Page from '../page'
 import { defaultRenderHeadingLink } from '../prose'
-import { type DocsRoute, homeRouter } from '../route'
+import { type DocsRoute, blogRouter, homeRouter } from '../route'
 import * as Search from '../search'
 import { defaultRenderCopyButton } from './codeBlock'
 import { betaTag, emailFormView, iconLink, skipNavLink } from './shared'
-import { sidebarView } from './sidebar'
+import { mobileMenuView, sidebarView } from './sidebar'
 import {
   mobileTableOfContentsView,
   tableOfContentsView,
@@ -51,7 +51,7 @@ const searchKeyboardWarmupSelector = `#${Search.KEYBOARD_WARMUP_INPUT_ID}`
 
 // DOCS HEADER
 
-const docsHeaderView = (model: Model, h: HtmlBuilder<Message>) =>
+export const docsHeaderView = (model: Model, h: HtmlBuilder<Message>) =>
   h.header(
     [
       h.Class(
@@ -80,6 +80,15 @@ const docsHeaderView = (model: Model, h: HtmlBuilder<Message>) =>
       h.div(
         [h.Class('flex items-center gap-3 md:gap-8')],
         [
+          h.a(
+            [
+              h.Href(blogRouter()),
+              h.Class(
+                'hidden md:inline-block text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition',
+              ),
+            ],
+            ['Blog'],
+          ),
           h.button(
             [
               h.Class(
@@ -152,7 +161,7 @@ const docsHeaderView = (model: Model, h: HtmlBuilder<Message>) =>
 
 // DOCS FOOTER
 
-const docsFooterView = (
+export const docsFooterView = (
   emailField: Field<string>,
   emailSubscriptionStatus: EmailSubscriptionStatus,
   currentYear: number,
@@ -1086,6 +1095,7 @@ export const docsView = (
         [h.Class('flex flex-1 pt-[var(--header-height)] md:pl-64')],
         [
           sidebarView(model, h),
+          mobileMenuView(model, h),
           h.main(
             [
               h.Id('main-content'),

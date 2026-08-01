@@ -113,6 +113,11 @@ export const AiMcpRoute = r('AiMcp')
 
 export const NewsletterRoute = r('Newsletter')
 
+export const BlogRoute = r('Blog')
+export type BlogRoute = typeof BlogRoute.Type
+export const BlogPostRoute = r('BlogPost', { postSlug: S.String })
+export type BlogPostRoute = typeof BlogPostRoute.Type
+
 export const NotFoundRoute = r('NotFound', { path: S.String })
 
 export const DocsRoute = S.Union([
@@ -209,6 +214,8 @@ export type DocsRoute = typeof DocsRoute.Type
 export const AppRoute = S.Union([
   HomeRoute,
   NewsletterRoute,
+  BlogRoute,
+  BlogPostRoute,
   PlaygroundRoute,
   DocsRoute,
 ])
@@ -561,10 +568,20 @@ const docsParser = oneOf(
 
 export const newsletterRouter = page('newsletter', NewsletterRoute)
 
+export const blogRouter = page('blog', BlogRoute)
+export const blogPostRouter = pipe(
+  literal('blog'),
+  slash(string('postSlug')),
+  mapTo(BlogPostRoute),
+)
+
+const blogParser = oneOf(blogPostRouter, blogRouter)
+
 export const routeParser = oneOf(
   docsParser,
   apiModuleRouter,
   newsletterRouter,
+  blogParser,
   playgroundRouter,
   homeRouter,
 )
