@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 9:30:17 a.m. EDT — `dc6e090f9a92` wip: save in-flight work streams as watermark at Aug 1, 9:30 AM
+
+- **Implementation commit:** `dc6e090f9a92b0785d1c0cc6502ba307cfb29e47`
+- **Change:** Save all in-flight work streams as watermark at Aug 1, 9:30 AM
+- **Details:**
+  - Saved work in progress across foldkit attached renderers, instant protocol-v3 acceptance authority and program stores, and instant-counter v3 demo components.
+- **Files:**
+  - `packages/foldkit/src/runtime/attachedRenderer.ts` — Adds attached renderer for externally owned Program Models and typed Client input.
+  - `packages/instant/src/v3AcceptanceAuthority/v3AcceptanceAuthority.ts` — Establishes protocol-v3 acceptance authority.
+  - `examples/instant-counter/src/v3Demo/browser/app.ts` — Adds browser client entry and navigation projection for v3 demo.
+- **User context (verbatim):**
+  > Commit all of the in-flight work here right now. Tag it is work in progress mentioned in the commit August 1st, 9:30 a.m., and we are committing all the work in progress.
+- **SpecStory:** unavailable — Unavailable: work performed in desktop AI environment.
+
 ## August 1st, 2026 at 5:50:45 a.m. EDT — `1fbc41a54780` fix: preserve Multiple Counters carrier routes
 
 - **Implementation commit:** `1fbc41a5478095176dbd6635dd7c004c68c227c4`
