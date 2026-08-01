@@ -11,8 +11,7 @@ Project every Schema-valid unresolved Message for the originating Client over
 the accepted Model, preserve offline proposals, and deterministically rebase
 after acceptance or durable rejection without double application. Validate
 accepted and rejected terminal records against the session-designated admission
-sequencer, deduplicate effect-result aliases, and roll back when Instant removes
-a rejected optimistic mutation.
+sequencer and deduplicate effect-result aliases through durable identities.
 
 Add durable proposal rejection records, the portable admission-sequencer
 capability, and a renderer-neutral authenticated-subject lifecycle that closes

@@ -7,7 +7,7 @@ import {
   Schema as S,
   Stream,
 } from 'effect'
-import { Command, Processor } from 'foldkit'
+import { Command, Processor, Synchronization } from 'foldkit'
 import { expect, expectTypeOf, vi } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
@@ -33,11 +33,14 @@ import {
   InstantProgramSchema,
   InstantProgramSessionRecord,
   InstantProjectionCheckpointRecord,
+  type ProgramAuthorityStoreService,
   type ProgramStoreConnectionStatus,
   ProgramStoreError,
   ProgramStoreProposalMutationRejected,
+  type ProgramStoreService,
   decodeProgramStoreTransactionOutcome,
   enqueuedTransactionOutcome,
+  instantProgramProtocolVersion,
   makeAcceptedOccurrenceCursor,
   makeAcceptedOccurrencePositionKey,
   makeInMemoryProgramStore,
@@ -47,6 +50,7 @@ import {
   makeInstantEffectPlacementPositionKey,
   makeInstantEffectPlacementTransaction,
   makeInstantEffectRequestTransaction,
+  makeInstantMessageIdempotencyKey,
   makeInstantMessageProposalResolutionTransaction,
   makeInstantMessageProposalTransaction,
   makeInstantProgramSessionTransaction,
@@ -56,6 +60,11 @@ import {
 
 const sessionId = 'session-001'
 const subjectId = 'user-001'
+
+const mirrorPolicy = Synchronization.SessionPolicy.make({
+  generation: 0,
+  mode: Synchronization.Mirror.make({}),
+})
 
 const messageProposal = InstantMessageProposalRecord.make({
   actorId: 'user-001',
@@ -74,14 +83,19 @@ const messageProposal = InstantMessageProposalRecord.make({
   eventVersion: 2,
   executorProcessorId: null,
   id: '11111111-1111-4111-8111-111111111111',
+  messageCategory: 'Domain',
+  messageIdempotencyKey: null,
   occurrenceId: '11111111-1111-4111-8111-111111111111',
   originDeviceId: 'device-phone',
   originatingProcessorId: 'processor-phone',
   payloadJson: '{"_tag":"AdjustedCounter","amount":1}',
   programId: 'counter',
+  protocolVersion: instantProgramProtocolVersion,
   programVersion: 3,
   proposalId: '11111111-1111-4111-8111-111111111111',
   proposalKind: 'Message',
+  proposedAudience: Synchronization.SessionAudience.make({}),
+  policyGeneration: mirrorPolicy.generation,
   sessionId,
   subjectId,
 })
@@ -96,8 +110,12 @@ const secondMessageProposal = InstantMessageProposalRecord.make({
 })
 
 const messageProposalResolution = InstantMessageProposalResolutionRecord.make({
+  actorId: messageProposal.actorId,
+  actorSequence: messageProposal.actorSequence,
+  clientId: messageProposal.clientId,
   id: messageProposal.proposalId,
   programId: messageProposal.programId,
+  protocolVersion: messageProposal.protocolVersion,
   programVersion: messageProposal.programVersion,
   proposalId: messageProposal.proposalId,
   rejectedAtMs: 1_753_825_200_000,
@@ -117,6 +135,7 @@ const makeAcceptedMessageOccurrence = (
     acceptingProcessorId: 'processor-authority',
     actorId: 'user-001',
     actorSequence: acceptedSequence,
+    audience: Synchronization.SessionAudience.make({}),
     causationId: `proposal-${acceptedSequence}`,
     clientId: 'client-001',
     correlationId: sessionId,
@@ -131,16 +150,21 @@ const makeAcceptedMessageOccurrence = (
     eventVersion: 2,
     executorProcessorId: null,
     id: occurrenceId,
+    messageCategory: 'Domain',
+    messageIdempotencyKey: null,
     occurrenceId,
     originDeviceId: 'device-phone',
     originatingProcessorId: 'processor-phone',
     payloadJson: `{"_tag":"AdjustedCounter","amount":${acceptedSequence}}`,
     positionKey: makeAcceptedOccurrencePositionKey(sessionId, acceptedSequence),
     programId: 'counter',
+    protocolVersion: instantProgramProtocolVersion,
     programVersion: 3,
     proposedEnvelopeJson: '{"protocol":"foldkit-message"}',
     proposalId: `proposal-${acceptedSequence}`,
     proposalKind: 'Message',
+    policyGeneration: mirrorPolicy.generation,
+    sessionPolicy: mirrorPolicy,
     sessionId,
     subjectId,
   })
@@ -165,6 +189,7 @@ const projectionCheckpoint = InstantProjectionCheckpointRecord.make({
   modelDigest: 'sha256:model-003',
   modelJson: '{"count":3}',
   programId: 'counter',
+  protocolVersion: instantProgramProtocolVersion,
   programVersion: 3,
   projectionId: 'counter-model',
   projectionVersion: 1,
@@ -180,7 +205,10 @@ const effectCapability = Processor.CapabilityRequirement.make({
 })
 
 const effectRequest = InstantEffectRequestRecord.make({
+  causalAudience: firstOccurrence.audience,
+  causalMessageCategory: firstOccurrence.messageCategory,
   causalOccurrenceId: firstOccurrence.occurrenceId,
+  causalPolicyGeneration: firstOccurrence.policyGeneration,
   effectId: 'persist-counter',
   effectVersion: 1,
   id: '44444444-4444-4444-8444-444444444444',
@@ -195,6 +223,7 @@ const effectRequest = InstantEffectRequestRecord.make({
     version: 1,
   }),
   programId: 'counter',
+  protocolVersion: instantProgramProtocolVersion,
   programVersion: 3,
   publicArguments: { amount: 1 },
   permittedResultEvents: [
@@ -227,6 +256,7 @@ const effectPlacement = InstantEffectPlacementRecord.make({
     0,
   ),
   programId: 'counter',
+  protocolVersion: instantProgramProtocolVersion,
   programVersion: 3,
   requestId: effectRequest.requestId,
   sessionId,
@@ -240,8 +270,10 @@ const programSession = InstantProgramSessionRecord.make({
   isRevoked: false,
   processorRoomId: 'room-4ec724f1c3584d679b8a3b88f470e372',
   programId: 'counter',
+  protocolVersion: instantProgramProtocolVersion,
   programVersion: 3,
   sessionId,
+  sessionPolicy: mirrorPolicy,
   subjectId,
 })
 
@@ -259,6 +291,55 @@ const adaptApplicationDatabase = (
 ) => makeInstantProgramStore(database)
 
 describe('@foldkit/instant', () => {
+  it.effect(
+    'keeps optimistic stores structurally and operationally outside the authority contract',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          expectTypeOf<ProgramStoreService>().not.toMatchTypeOf<ProgramAuthorityStoreService>()
+          expectTypeOf(
+            makeInstantProgramStore,
+          ).returns.not.toMatchTypeOf<ProgramAuthorityStoreService>()
+
+          const database = yield* Effect.acquireRelease(
+            Effect.sync(() =>
+              initInstant({
+                appId: '00000000-0000-0000-0000-000000000099',
+                schema: InstantProgramSchema,
+              }),
+            ),
+            database => Effect.sync(() => database.shutdown()),
+          )
+          const store = makeInstantProgramStore(database)
+
+          expect(store).not.toHaveProperty('serverConfirmed')
+          expect(store).not.toHaveProperty(
+            'appendServerConfirmedAcceptedMessageOccurrence',
+          )
+          expect(store).not.toHaveProperty(
+            'appendServerConfirmedMessageProposalResolution',
+          )
+        }),
+      ),
+  )
+
+  it('validates globally unique ordinary-Message identities at the public constructor', () => {
+    expect(
+      makeInstantMessageIdempotencyKey('request-uuid:assignment-1:cancel-0'),
+    ).toBe('request-uuid:assignment-1:cancel-0')
+    expect(() => makeInstantMessageIdempotencyKey('')).toThrow()
+    expect(() => makeInstantMessageIdempotencyKey('x'.repeat(513))).toThrow()
+  })
+
+  it('rejects an invalid effect-placement entity UUID', () => {
+    expect(() =>
+      InstantEffectPlacementRecord.make({
+        ...effectPlacement,
+        id: 'noncanonical-placement-entity-id',
+      }),
+    ).toThrow()
+  })
+
   it('round trips every durable record through its wire Schema', () => {
     const proposalJson = S.fromJsonString(InstantMessageProposalRecord)
     const proposalResolutionJson = S.fromJsonString(
@@ -270,6 +351,7 @@ describe('@foldkit/instant', () => {
     const checkpointJson = S.fromJsonString(InstantProjectionCheckpointRecord)
     const effectRequestJson = S.fromJsonString(InstantEffectRequestRecord)
     const effectPlacementJson = S.fromJsonString(InstantEffectPlacementRecord)
+    const programSessionJson = S.fromJsonString(InstantProgramSessionRecord)
 
     expect(
       S.decodeUnknownSync(proposalJson)(
@@ -301,6 +383,26 @@ describe('@foldkit/instant', () => {
         S.encodeSync(effectPlacementJson)(effectPlacement),
       ),
     ).toEqual(effectPlacement)
+    expect(
+      S.decodeUnknownSync(programSessionJson)(
+        S.encodeSync(programSessionJson)(programSession),
+      ),
+    ).toEqual(programSession)
+  })
+
+  it('strictly rejects protocol-v1 durable records', () => {
+    expect(() =>
+      S.decodeUnknownSync(InstantProgramSessionRecord)({
+        ...programSession,
+        protocolVersion: 1,
+      }),
+    ).toThrow()
+    expect(() =>
+      S.decodeUnknownSync(InstantMessageProposalRecord)({
+        ...messageProposal,
+        protocolVersion: 1,
+      }),
+    ).toThrow()
   })
 
   it.effect(

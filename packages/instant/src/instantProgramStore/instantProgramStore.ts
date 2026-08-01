@@ -117,14 +117,19 @@ export const makeInstantMessageProposalTransaction = (
     eventId: record.eventId,
     eventVersion: record.eventVersion,
     executorProcessorId: record.executorProcessorId,
+    messageCategory: record.messageCategory,
+    messageIdempotencyKey: record.messageIdempotencyKey,
     occurrenceId: record.occurrenceId,
     originDeviceId: record.originDeviceId,
     originatingProcessorId: record.originatingProcessorId,
     payloadJson: record.payloadJson,
     programId: record.programId,
     programVersion: record.programVersion,
+    protocolVersion: record.protocolVersion,
     proposalId: record.proposalId,
     proposalKind: record.proposalKind,
+    proposedAudience: record.proposedAudience,
+    policyGeneration: record.policyGeneration,
     sessionId: record.sessionId,
     subjectId: record.subjectId,
   })
@@ -142,8 +147,12 @@ export const makeInstantMessageProposalResolutionTransaction = (
     )
   }
   return entity.create({
+    actorId: record.actorId,
+    actorSequence: record.actorSequence,
+    clientId: record.clientId,
     programId: record.programId,
     programVersion: record.programVersion,
+    protocolVersion: record.protocolVersion,
     proposalId: record.proposalId,
     rejectedAtMs: record.rejectedAtMs,
     rejectingProcessorId: record.rejectingProcessorId,
@@ -183,6 +192,8 @@ export const makeInstantAcceptedMessageOccurrenceTransaction = (
     eventId: record.eventId,
     eventVersion: record.eventVersion,
     executorProcessorId: record.executorProcessorId,
+    messageCategory: record.messageCategory,
+    messageIdempotencyKey: record.messageIdempotencyKey,
     occurrenceId: record.occurrenceId,
     originDeviceId: record.originDeviceId,
     originatingProcessorId: record.originatingProcessorId,
@@ -190,9 +201,13 @@ export const makeInstantAcceptedMessageOccurrenceTransaction = (
     positionKey: record.positionKey,
     programId: record.programId,
     programVersion: record.programVersion,
+    protocolVersion: record.protocolVersion,
     proposedEnvelopeJson: record.proposedEnvelopeJson,
     proposalId: record.proposalId,
     proposalKind: record.proposalKind,
+    audience: record.audience,
+    policyGeneration: record.policyGeneration,
+    sessionPolicy: record.sessionPolicy,
     sessionId: record.sessionId,
     subjectId: record.subjectId,
   })
@@ -216,6 +231,7 @@ export const makeInstantProjectionCheckpointTransaction = (
     modelJson: record.modelJson,
     programId: record.programId,
     programVersion: record.programVersion,
+    protocolVersion: record.protocolVersion,
     projectionId: record.projectionId,
     projectionVersion: record.projectionVersion,
     projectorProcessorId: record.projectorProcessorId,
@@ -235,7 +251,10 @@ export const makeInstantEffectRequestTransaction = (
     throw new Error('Expected a Foldkit effect request transaction entity.')
   }
   return entity.create({
+    causalAudience: record.causalAudience,
+    causalMessageCategory: record.causalMessageCategory,
     causalOccurrenceId: record.causalOccurrenceId,
+    causalPolicyGeneration: record.causalPolicyGeneration,
     effectId: record.effectId,
     effectVersion: record.effectVersion,
     idempotencyKey: record.idempotencyKey,
@@ -244,6 +263,7 @@ export const makeInstantEffectRequestTransaction = (
     placement: record.placement,
     programId: record.programId,
     programVersion: record.programVersion,
+    protocolVersion: record.protocolVersion,
     publicArguments: record.publicArguments,
     permittedResultEvents: record.permittedResultEvents,
     requestId: record.requestId,
@@ -273,6 +293,7 @@ export const makeInstantEffectPlacementTransaction = (
     positionKey: record.positionKey,
     programId: record.programId,
     programVersion: record.programVersion,
+    protocolVersion: record.protocolVersion,
     requestId: record.requestId,
     sessionId: record.sessionId,
     subjectId: record.subjectId,
@@ -295,7 +316,9 @@ export const makeInstantProgramSessionTransaction = (
     processorRoomId: record.processorRoomId,
     programId: record.programId,
     programVersion: record.programVersion,
+    protocolVersion: record.protocolVersion,
     sessionId: record.sessionId,
+    sessionPolicy: record.sessionPolicy,
     subjectId: record.subjectId,
   })
 }
@@ -477,6 +500,8 @@ export const makeInstantProgramStore = (
                           effectRequestId: record.effectRequestId ?? null,
                           executorProcessorId:
                             record.executorProcessorId ?? null,
+                          messageIdempotencyKey:
+                            record.messageIdempotencyKey ?? null,
                         }),
                     ),
                   )
@@ -680,6 +705,8 @@ export const makeInstantProgramStore = (
                           effectRequestId: record.effectRequestId ?? null,
                           executorProcessorId:
                             record.executorProcessorId ?? null,
+                          messageIdempotencyKey:
+                            record.messageIdempotencyKey ?? null,
                         }
                         const maybeProposal = S.decodeUnknownOption(
                           InstantMessageProposalRecord,

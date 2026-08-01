@@ -1,11 +1,22 @@
-import { Schema as S } from 'effect'
-import { Command, Processor } from 'foldkit'
+import { Option, Schema as S } from 'effect'
+import { Command, Processor, Synchronization } from 'foldkit'
 
 import { InstantCoreDatabase, i } from '@instantdb/core'
 
 const HighEntropyRoomId = S.String.check(S.isMinLength(32))
 const NonNegativeInteger = S.Int.check(S.isGreaterThanOrEqualTo(0))
 const CapabilityIdJson = S.fromJsonString(Processor.CapabilityId)
+const InstantEntityId = S.String.check(S.isUUID(4))
+const MaximumMessageIdempotencyKeyLength = 512
+
+/** The only authenticated shared Program wire protocol supported by this build. */
+export const InstantProgramProtocolVersion = S.Literal(2)
+/** The only authenticated shared Program wire protocol supported by this build. */
+export type InstantProgramProtocolVersion =
+  typeof InstantProgramProtocolVersion.Type
+/** The current authenticated shared Program wire protocol version. */
+export const instantProgramProtocolVersion =
+  InstantProgramProtocolVersion.make(2)
 
 /** The kinds of Message proposal accepted through the shared Program intake path. */
 export const InstantMessageProposalKind = S.Literals([
@@ -14,6 +25,23 @@ export const InstantMessageProposalKind = S.Literals([
 ])
 /** The kinds of Message proposal accepted through the shared Program intake path. */
 export type InstantMessageProposalKind = typeof InstantMessageProposalKind.Type
+
+/** A bounded durable identity for one semantically idempotent ordinary Message. */
+export const InstantMessageIdempotencyKey = S.String.check(
+  S.isLengthBetween(1, MaximumMessageIdempotencyKeyLength),
+).annotate({
+  description:
+    'A 1-512 character caller-generated identity that is globally unique across every Program, subject, and session in one Instant database and is reused only for the same semantic ordinary Message.',
+  identifier: 'InstantMessageIdempotencyKey',
+})
+/** A bounded durable identity for one semantically idempotent ordinary Message. */
+export type InstantMessageIdempotencyKey =
+  typeof InstantMessageIdempotencyKey.Type
+
+/** Validates one caller-generated globally unique ordinary-Message identity. */
+export const makeInstantMessageIdempotencyKey = (
+  value: string,
+): InstantMessageIdempotencyKey => InstantMessageIdempotencyKey.make(value)
 
 /** The durable outcome of capability-driven Processor placement. */
 export const InstantEffectPlacementStatus = S.Literals([
@@ -50,14 +78,21 @@ export const InstantProgramSessionRecord = S.Struct({
   processorRoomId: HighEntropyRoomId,
   programId: S.String,
   programVersion: S.Int,
+  protocolVersion: InstantProgramProtocolVersion,
   sessionId: S.String,
+  sessionPolicy: Synchronization.SessionPolicy,
   subjectId: S.String,
 })
 /** Routing and fencing data for one authenticated Program session. */
 export type InstantProgramSessionRecord =
   typeof InstantProgramSessionRecord.Type
 
-/** A durable, offline-capable request to admit one Message occurrence. */
+/**
+ * A durable, offline-capable request to admit one Message occurrence.
+ * `actorSequence` is a monotonic provenance nonce per actor and Client. Instant's
+ * ordered outbox preserves normal delivery, while admission permits holes and
+ * never waits for a missing nonce.
+ */
 export const InstantMessageProposalRecord = S.Struct({
   actorId: S.String,
   actorSequence: NonNegativeInteger,
@@ -75,14 +110,19 @@ export const InstantMessageProposalRecord = S.Struct({
   eventVersion: S.Int,
   executorProcessorId: S.NullOr(S.String),
   id: S.String,
+  messageCategory: Synchronization.MessageCategory,
+  messageIdempotencyKey: S.NullOr(InstantMessageIdempotencyKey),
   occurrenceId: S.String,
   originDeviceId: S.String,
   originatingProcessorId: S.String,
   payloadJson: S.String,
   programId: S.String,
   programVersion: S.Int,
+  protocolVersion: InstantProgramProtocolVersion,
   proposalId: S.String,
   proposalKind: InstantMessageProposalKind,
+  proposedAudience: Synchronization.Audience,
+  policyGeneration: NonNegativeInteger,
   sessionId: S.String,
   subjectId: S.String,
 })
@@ -108,17 +148,22 @@ export const isInstantMessageProposalKindValid = (
     proposal.executorProcessorId === null
   return (
     (proposal.proposalKind === 'Message' && hasNoEffectFields) ||
-    (proposal.proposalKind === 'EffectResult' && hasCompleteEffectFields)
+    (proposal.proposalKind === 'EffectResult' &&
+      hasCompleteEffectFields &&
+      proposal.messageIdempotencyKey === null)
   )
 }
 
 /** A safe terminal reason why an admission sequencer rejected a proposal. */
 export const InstantMessageProposalRejectionReason = S.Literals([
+  'DuplicateEffectResult',
+  'DuplicateMessage',
   'EffectResultMismatch',
   'EnvelopeInvalid',
   'IdentityConflict',
   'ProposalKindMismatch',
   'ScopeMismatch',
+  'SynchronizationPolicyMismatch',
 ])
 /** A safe terminal reason why an admission sequencer rejected a proposal. */
 export type InstantMessageProposalRejectionReason =
@@ -126,9 +171,13 @@ export type InstantMessageProposalRejectionReason =
 
 /** The durable terminal rejection of one Message proposal. */
 export const InstantMessageProposalResolutionRecord = S.Struct({
+  actorId: S.String,
+  actorSequence: NonNegativeInteger,
+  clientId: S.String,
   id: S.String,
   programId: S.String,
   programVersion: S.Int,
+  protocolVersion: InstantProgramProtocolVersion,
   proposalId: S.String,
   rejectedAtMs: S.Int,
   rejectingProcessorId: S.String,
@@ -156,6 +205,7 @@ export const InstantAcceptedMessageOccurrenceRecord = S.Struct({
   acceptingProcessorId: S.String,
   actorId: S.String,
   actorSequence: NonNegativeInteger,
+  audience: Synchronization.Audience,
   causationId: S.NullOr(S.String),
   clientId: S.String,
   correlationId: S.NullOr(S.String),
@@ -170,6 +220,8 @@ export const InstantAcceptedMessageOccurrenceRecord = S.Struct({
   eventVersion: S.Int,
   executorProcessorId: S.NullOr(S.String),
   id: S.String,
+  messageCategory: Synchronization.MessageCategory,
+  messageIdempotencyKey: S.NullOr(InstantMessageIdempotencyKey),
   occurrenceId: S.String,
   originDeviceId: S.String,
   originatingProcessorId: S.String,
@@ -177,15 +229,73 @@ export const InstantAcceptedMessageOccurrenceRecord = S.Struct({
   positionKey: S.String,
   programId: S.String,
   programVersion: S.Int,
+  protocolVersion: InstantProgramProtocolVersion,
   proposedEnvelopeJson: S.String,
   proposalId: S.String,
   proposalKind: InstantMessageProposalKind,
+  policyGeneration: NonNegativeInteger,
+  sessionPolicy: Synchronization.SessionPolicy,
   sessionId: S.String,
   subjectId: S.String,
 })
 /** One globally ordered Message occurrence admitted by an admission sequencer. */
 export type InstantAcceptedMessageOccurrenceRecord =
   typeof InstantAcceptedMessageOccurrenceRecord.Type
+
+/** Why an accepted occurrence is not a canonical durable protocol-v2 row. */
+export const InstantAcceptedMessageOccurrenceValidationIssue = S.Literals([
+  'AcceptedSequence',
+  'OccurrenceIdentity',
+  'PositionKey',
+  'ProposalKind',
+])
+/** Why an accepted occurrence is not a canonical durable protocol-v2 row. */
+export type InstantAcceptedMessageOccurrenceValidationIssue =
+  typeof InstantAcceptedMessageOccurrenceValidationIssue.Type
+
+/** Returns the first semantic protocol-v2 violation in an accepted occurrence. */
+export const instantAcceptedMessageOccurrenceValidationIssue = (
+  occurrence: InstantAcceptedMessageOccurrenceRecord,
+): Option.Option<InstantAcceptedMessageOccurrenceValidationIssue> => {
+  if (occurrence.acceptedSequence < 1) {
+    return Option.some('AcceptedSequence')
+  } else if (occurrence.id !== occurrence.occurrenceId) {
+    return Option.some('OccurrenceIdentity')
+  } else if (
+    occurrence.positionKey !==
+    `${occurrence.sessionId}:${occurrence.acceptedSequence}`
+  ) {
+    return Option.some('PositionKey')
+  }
+  const hasCompleteEffectFields =
+    occurrence.effectAssignmentGeneration !== null &&
+    occurrence.effectCancellationGeneration !== null &&
+    occurrence.effectIdempotencyKey !== null &&
+    occurrence.effectRequestId !== null &&
+    occurrence.executorProcessorId !== null
+  const hasNoEffectFields =
+    occurrence.effectAssignmentGeneration === null &&
+    occurrence.effectCancellationGeneration === null &&
+    occurrence.effectIdempotencyKey === null &&
+    occurrence.effectRequestId === null &&
+    occurrence.executorProcessorId === null
+  if (
+    (occurrence.proposalKind === 'Message' && hasNoEffectFields) ||
+    (occurrence.proposalKind === 'EffectResult' &&
+      hasCompleteEffectFields &&
+      occurrence.messageIdempotencyKey === null)
+  ) {
+    return Option.none()
+  } else {
+    return Option.some('ProposalKind')
+  }
+}
+
+/** Returns whether an accepted occurrence is semantically canonical protocol v2. */
+export const isInstantAcceptedMessageOccurrenceValid = (
+  occurrence: InstantAcceptedMessageOccurrenceRecord,
+): boolean =>
+  Option.isNone(instantAcceptedMessageOccurrenceValidationIssue(occurrence))
 
 /** An append-only materialized Model checkpoint derived from accepted Messages. */
 export const InstantProjectionCheckpointRecord = S.Struct({
@@ -196,6 +306,7 @@ export const InstantProjectionCheckpointRecord = S.Struct({
   modelJson: S.String,
   programId: S.String,
   programVersion: S.Int,
+  protocolVersion: InstantProgramProtocolVersion,
   projectionId: S.String,
   projectionVersion: S.Int,
   projectorProcessorId: S.String,
@@ -209,7 +320,10 @@ export type InstantProjectionCheckpointRecord =
 
 /** A durable request for one capable Processor to perform a Program effect. */
 export const InstantEffectRequestRecord = S.Struct({
+  causalAudience: Synchronization.Audience,
+  causalMessageCategory: Synchronization.MessageCategory,
   causalOccurrenceId: S.String,
+  causalPolicyGeneration: NonNegativeInteger,
   effectId: S.String,
   effectVersion: S.Int,
   id: S.String,
@@ -219,6 +333,7 @@ export const InstantEffectRequestRecord = S.Struct({
   placement: Processor.Placement,
   programId: S.String,
   programVersion: S.Int,
+  protocolVersion: InstantProgramProtocolVersion,
   publicArguments: S.Record(S.String, S.Json),
   permittedResultEvents: S.NonEmptyArray(Command.ResultEventRange),
   requestId: S.String,
@@ -249,12 +364,13 @@ export const InstantEffectPlacementRecord = S.Struct({
   assignmentGeneration: NonNegativeInteger,
   cancellationGeneration: NonNegativeInteger,
   decidedAtMs: S.Int,
-  id: S.String,
+  id: InstantEntityId,
   placementDecision: Processor.PlacementDecision,
   placementStatus: InstantEffectPlacementStatus,
   positionKey: S.String,
   programId: S.String,
   programVersion: S.Int,
+  protocolVersion: InstantProgramProtocolVersion,
   requestId: S.String,
   sessionId: S.String,
   subjectId: S.String,
@@ -291,7 +407,7 @@ export const makeInstantCapabilityIdIndex = (
   capabilityId: Processor.CapabilityId,
 ): string => S.encodeSync(CapabilityIdJson)(capabilityId)
 
-/** Derives the unique append-only position for one effect placement generation. */
+/** Derives the logical identity for one placement generation, separate from its Instant entity UUID. */
 export const makeInstantEffectPlacementPositionKey = (
   requestId: string,
   assignmentGeneration: number,
@@ -348,6 +464,7 @@ export const InstantProgramEntities = {
     acceptingProcessorId: i.string().indexed(),
     actorId: i.string().indexed(),
     actorSequence: i.number().indexed(),
+    audience: i.json(),
     causationId: i.string().indexed().optional(),
     clientId: i.string().indexed(),
     correlationId: i.string().indexed().optional(),
@@ -361,6 +478,8 @@ export const InstantProgramEntities = {
     eventId: i.string().indexed(),
     eventVersion: i.number(),
     executorProcessorId: i.string().indexed().optional(),
+    messageCategory: i.string().indexed(),
+    messageIdempotencyKey: i.string().unique().indexed().optional(),
     occurrenceId: i.string().unique().indexed(),
     originDeviceId: i.string().indexed(),
     originatingProcessorId: i.string().indexed(),
@@ -368,14 +487,20 @@ export const InstantProgramEntities = {
     positionKey: i.string().unique().indexed(),
     programId: i.string().indexed(),
     programVersion: i.number(),
+    protocolVersion: i.number().indexed(),
     proposedEnvelopeJson: i.string(),
-    proposalId: i.string().indexed(),
+    proposalId: i.string().unique().indexed(),
     proposalKind: i.string().indexed(),
+    policyGeneration: i.number().indexed(),
+    sessionPolicy: i.json(),
     sessionId: i.string().indexed(),
     subjectId: i.string().indexed(),
   }),
   foldkitEffectRequests: i.entity({
+    causalAudience: i.json(),
+    causalMessageCategory: i.string().indexed(),
     causalOccurrenceId: i.string().indexed(),
+    causalPolicyGeneration: i.number().indexed(),
     effectId: i.string().indexed(),
     effectVersion: i.number(),
     idempotencyKey: i.string().unique().indexed(),
@@ -384,6 +509,7 @@ export const InstantProgramEntities = {
     placement: i.json(),
     programId: i.string().indexed(),
     programVersion: i.number(),
+    protocolVersion: i.number().indexed(),
     publicArguments: i.json(),
     permittedResultEvents: i.json(),
     requestId: i.string().unique().indexed(),
@@ -402,6 +528,7 @@ export const InstantProgramEntities = {
     positionKey: i.string().unique().indexed(),
     programId: i.string().indexed(),
     programVersion: i.number(),
+    protocolVersion: i.number().indexed(),
     requestId: i.string().indexed(),
     sessionId: i.string().indexed(),
     subjectId: i.string().indexed(),
@@ -422,20 +549,29 @@ export const InstantProgramEntities = {
     eventId: i.string().indexed(),
     eventVersion: i.number(),
     executorProcessorId: i.string().indexed().optional(),
+    messageCategory: i.string().indexed(),
+    messageIdempotencyKey: i.string().indexed().optional(),
     occurrenceId: i.string().unique().indexed(),
     originDeviceId: i.string().indexed(),
     originatingProcessorId: i.string().indexed(),
     payloadJson: i.string(),
     programId: i.string().indexed(),
     programVersion: i.number(),
+    protocolVersion: i.number().indexed(),
     proposalId: i.string().unique().indexed(),
     proposalKind: i.string().indexed(),
+    proposedAudience: i.json(),
+    policyGeneration: i.number().indexed(),
     sessionId: i.string().indexed(),
     subjectId: i.string().indexed(),
   }),
   foldkitMessageProposalResolutions: i.entity({
+    actorId: i.string().indexed(),
+    actorSequence: i.number().indexed(),
+    clientId: i.string().indexed(),
     programId: i.string().indexed(),
     programVersion: i.number(),
+    protocolVersion: i.number().indexed(),
     proposalId: i.string().unique().indexed(),
     rejectedAtMs: i.number().indexed(),
     rejectingProcessorId: i.string().indexed(),
@@ -450,7 +586,9 @@ export const InstantProgramEntities = {
     processorRoomId: i.string().unique().indexed(),
     programId: i.string().indexed(),
     programVersion: i.number(),
+    protocolVersion: i.number().indexed(),
     sessionId: i.string().unique().indexed(),
+    sessionPolicy: i.json(),
     subjectId: i.string().indexed(),
   }),
   foldkitProjectionCheckpoints: i.entity({
@@ -460,6 +598,7 @@ export const InstantProgramEntities = {
     modelJson: i.string(),
     programId: i.string().indexed(),
     programVersion: i.number(),
+    protocolVersion: i.number().indexed(),
     projectionId: i.string().indexed(),
     projectionVersion: i.number(),
     projectorProcessorId: i.string().indexed(),
