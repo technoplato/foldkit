@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 3:20:45 a.m. EDT — `4471d3e93b76` feat(counters): add authenticated message admission claims
+
+- **Implementation commit:** `4471d3e93b76b0f0c4487686b628ce195598ae5d`
+- **Change:** Make Multiple Counters admission Program-owned and strictly typed
+- **Details:**
+  - Added a bounded union for semantic interaction occurrences and canonical navigation carriers, with no raw Message variant.
+  - Exposed strict unknown-field rejection and typed malformed-fact handling before current-Model resolution.
+  - Pinned stale presentation identity, canonical URI, occurrence authentication, deterministic resolution, and invocation-fact independence with 45 passing core tests.
+- **Files:**
+  - `examples/counters/core/src/admission.ts` — defines strict claim decoding and deterministic Program-owned resolution
+  - `examples/counters/core/src/admission.test.ts` — proves adversarial and valid admission behavior
+  - `examples/counters/core/src/index.ts` — exports the admission surface
+- **User context (verbatim):**
+  > How does a message opt in?
+  > bad messages won't make it in
+- **SpecStory:** unavailable — Unavailable: this work was performed in Codex desktop, which does not provide a verified SpecStory capture URI.
+
 ## August 1st, 2026 at 2:26:53 a.m. EDT — `cc9ef1db86d8` feat(foldkit): bind semantic interaction admission
 
 - **Implementation commit:** `cc9ef1db86d81e52a72b2398dc7b31418b7b43bd`
