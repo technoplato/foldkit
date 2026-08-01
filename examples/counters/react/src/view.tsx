@@ -1,27 +1,27 @@
 import {
   type CounterFactStatus,
   type CounterRow,
-  type Navigation,
+  type Model,
   navigationToPath,
-  urlToNavigation,
 } from 'counters-core-example'
 import {
   useMultipleCountersActions,
   useMultipleCountersReplay,
 } from 'counters-react-bindings-example'
-import { Array, Match as M, Option } from 'effect'
-import { fromString } from 'foldkit/url'
+import { Array, Match as M, Option, Result } from 'effect'
 import { type ChangeEvent, type ReactNode, useEffect, useRef } from 'react'
 
 /** Projects navigation Model changes to browser history and re-enters opened history entries as Messages. */
-export const useNavigationHistory = (navigation: Navigation): void => {
+export const useNavigationHistory = (model: Model): void => {
   const actions = useMultipleCountersActions()
   const replay = useMultipleCountersReplay()
   const isReconcilingHistoryEntry = useRef(false)
+  const previousProgramPath = useRef(navigationToPath(model.navigation))
 
   useEffect(() => {
-    const nextPath = navigationToPath(navigation)
-    if (window.location.pathname !== nextPath) {
+    const nextPath = navigationToPath(model.navigation)
+    const didProgramNavigationChange = previousProgramPath.current !== nextPath
+    if (didProgramNavigationChange && window.location.pathname !== nextPath) {
       const nextUrl = `${nextPath}${window.location.search}`
       if (isReconcilingHistoryEntry.current || replay.mode === 'Inspecting') {
         window.history.replaceState({}, '', nextUrl)
@@ -29,32 +29,21 @@ export const useNavigationHistory = (navigation: Navigation): void => {
         window.history.pushState({}, '', nextUrl)
       }
     }
+    previousProgramPath.current = nextPath
     isReconcilingHistoryEntry.current = false
-  }, [navigation, replay.mode])
+  }, [model.navigation, replay.mode])
 
   useEffect(() => {
     const openedHistoryEntry = () => {
-      const maybeUrl = fromString(window.location.href)
-      if (Option.isSome(maybeUrl)) {
-        const openedNavigation = urlToNavigation(maybeUrl.value)
-        const nextPath = navigationToPath(openedNavigation)
-        const currentPath = navigationToPath(navigation)
-        if (window.location.pathname !== nextPath) {
-          window.history.replaceState(
-            {},
-            '',
-            `${nextPath}${window.location.search}`,
-          )
-        }
-        if (currentPath !== nextPath) {
-          isReconcilingHistoryEntry.current = true
-          actions.openedNavigation(openedNavigation)
-        }
+      isReconcilingHistoryEntry.current = true
+      const resolved = actions.openedNavigation(window.location.pathname)
+      if (Result.isFailure(resolved)) {
+        isReconcilingHistoryEntry.current = false
       }
     }
     window.addEventListener('popstate', openedHistoryEntry)
     return () => window.removeEventListener('popstate', openedHistoryEntry)
-  }, [actions, navigation])
+  }, [actions])
 }
 
 /** Renders the counter list with actual domain controls. */

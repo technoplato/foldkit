@@ -1,11 +1,8 @@
-import {
-  type Destination,
-  type Navigation,
-  destinationForModel,
-} from 'counters-core-example'
+import { type Destination, destinationForModel } from 'counters-core-example'
 import {
   MultipleCountersProvider,
   useMultipleCountersModel,
+  useMultipleCountersResolutionError,
 } from 'counters-react-bindings-example'
 import { Match as M, Option, Schema as S } from 'effect'
 import { type ReactNode } from 'react'
@@ -24,17 +21,17 @@ export const Presenter = S.Literals(['ReactA', 'ReactB'])
 /** The two React presentation adapters included in this comparison. */
 export type Presenter = typeof Presenter.Type
 
-/** Runs the selected React host from one URL-derived navigation destination. */
+/** Runs the selected React host from one canonical Program destination URI. */
 export const App = ({
-  initialNavigation,
+  initialDestinationUri,
   presenter,
 }: Readonly<{
-  initialNavigation: Navigation
+  initialDestinationUri: string
   presenter: Presenter
 }>) => (
   <MultipleCountersProvider
     fallback={<LoadingScreen />}
-    flags={initialNavigation}
+    initialDestinationUri={initialDestinationUri}
   >
     <MultipleCountersScreen presenter={presenter} />
   </MultipleCountersProvider>
@@ -48,12 +45,13 @@ const LoadingScreen = () => (
 
 const MultipleCountersScreen = ({ presenter }: { presenter: Presenter }) => {
   const model = useMultipleCountersModel()
+  const maybeResolutionError = useMultipleCountersResolutionError()
   const destination = destinationForModel(model)
   const isReplayControlInPresentation = replayControlIsInPresentation(
     destination,
     presenter,
   )
-  useNavigationHistory(model.navigation)
+  useNavigationHistory(model)
 
   return (
     <main className="min-h-screen bg-stone-950 px-5 py-12 text-stone-100">
@@ -78,6 +76,16 @@ const MultipleCountersScreen = ({ presenter }: { presenter: Presenter }) => {
             </PresenterLink>
           </nav>
         </header>
+
+        {Option.isSome(maybeResolutionError) ? (
+          <output
+            aria-live="assertive"
+            className="text-sm text-red-300"
+            role="alert"
+          >
+            {maybeResolutionError.value._tag}
+          </output>
+        ) : null}
 
         <DestinationView destination={destination} presenter={presenter} />
       </section>

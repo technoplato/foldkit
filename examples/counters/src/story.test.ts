@@ -32,12 +32,30 @@ describe('Multiple Counters update', () => {
   })
 
   test('cannot open a fact alert over delete confirmation', () => {
+    const detailPresentationId = 'detail-story'
     Story.story(
       update,
       Story.with(modelForNavigation(CounterList.make({}))),
-      Story.message(SelectedCounter({ counterId: 'counter-1' })),
-      Story.message(ClickedDeleteCounter()),
-      Story.message(ClickedShowCounterFact()),
+      Story.message(
+        SelectedCounter({
+          counterId: 'counter-1',
+          detailPresentationId,
+        }),
+      ),
+      Story.message(
+        ClickedDeleteCounter({
+          confirmationId: 'delete-story',
+          counterId: 'counter-1',
+          detailPresentationId,
+        }),
+      ),
+      Story.message(
+        ClickedShowCounterFact({
+          counterId: 'counter-1',
+          detailPresentationId,
+          requestId: 'fact-story',
+        }),
+      ),
       Story.model(model => {
         expect(model.navigation).toMatchObject({
           _tag: 'CounterDetail',
