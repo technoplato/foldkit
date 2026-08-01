@@ -1,4 +1,4 @@
-import { CounterList, pathToNavigation } from 'counters-core-example'
+import { pathToNavigationTarget } from 'counters-core-example'
 import { Array, Option, pipe } from 'effect'
 
 import { createCliRenderer } from '@opentui/core'
@@ -16,10 +16,8 @@ const maybeCarrier = pipe(
   Array.dropWhile(argument => argument === '--'),
   Array.head,
 )
-const initialNavigation = Option.isSome(maybeCarrier)
-  ? pathToNavigation(maybeCarrier.value)
-  : CounterList.make({})
+const maybeInitialTarget = Option.map(maybeCarrier, pathToNavigationTarget)
 
 createRoot(renderer).render(
-  <App initialNavigation={initialNavigation} renderer={renderer} />,
+  <App maybeInitialTarget={maybeInitialTarget} renderer={renderer} />,
 )

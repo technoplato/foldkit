@@ -5,20 +5,23 @@
   "type": "module",
   "scripts": {
     "dev": "bun run src/entry.tsx",
-    "pretypecheck": "pnpm --filter counters-react-bindings-example build",
+    "test": "vitest run --exclude src/clientComponent.test.tsx && bun node_modules/vitest/vitest.mjs run src/clientComponent.test.tsx",
+    "pretypecheck": "pnpm --filter counters-core-example build && pnpm --filter shared-react-bindings-example build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@opentui/core": "0.4.5",
     "@opentui/react": "0.4.5",
     "counters-core-example": "workspace:*",
-    "counters-react-bindings-example": "workspace:*",
     "effect": "4.0.0-beta.97",
-    "react": "19.2.3"
+    "foldkit": "workspace:*",
+    "react": "19.2.3",
+    "shared-react-bindings-example": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
     "@types/react": "^19.2.17",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   }
 }

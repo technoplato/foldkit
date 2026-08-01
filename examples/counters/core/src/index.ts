@@ -1,5 +1,6 @@
 export * from './counterFactClient.js'
 export * from './init.js'
+export * from './interactionGraph.js'
 export * from './message.js'
 export * from './model.js'
 export * from './presentation.js'
