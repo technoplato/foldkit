@@ -1,10 +1,13 @@
 import * as Counter from 'counter-core-example'
 import { Array as Array_, Option } from 'effect'
+import { Synchronization } from 'foldkit'
 import {
   Model as InstantCounterModel,
   type Message,
 } from 'instant-counter-example/domain'
 import { describe, expect, it } from 'vitest'
+
+import { instantProgramProtocolVersion } from '@foldkit/instant'
 
 import {
   type CounterProcessorLease,
@@ -46,12 +49,14 @@ const makeSnapshot = (
     pendingProposals: [],
     programId: 'instant-counter',
     programVersion: 1,
+    protocolVersion: instantProgramProtocolVersion,
     replayMode:
       replayFrame === undefined
         ? { _tag: 'Live' }
         : { _tag: 'Inspecting', frame: replayFrame },
     sessionId: `session-${subjectId}`,
     subjectId,
+    synchronizationPolicy: Synchronization.legacyMirrorSessionPolicy(),
   }
 }
 

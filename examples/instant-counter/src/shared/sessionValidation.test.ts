@@ -1,4 +1,5 @@
 import { Effect } from 'effect'
+import * as Synchronization from 'foldkit/synchronization'
 import { describe, expect, it } from 'vitest'
 
 import { InstantProgramSessionRecord } from '@foldkit/instant'
@@ -6,6 +7,8 @@ import { InstantProgramSessionRecord } from '@foldkit/instant'
 import {
   authorityProcessorId,
   deriveSessionId,
+  instantCounterProtocolVersion,
+  instantCounterSessionPolicy,
   processorRoomIdPrefix,
 } from './identity.js'
 import { validateProgramSession } from './sessionValidation.js'
@@ -20,7 +23,9 @@ const makeSession = async () => {
     processorRoomId: `${processorRoomIdPrefix}27b74a38-c286-4f1e-8183-fae1e13a6639`,
     programId: 'instant-counter',
     programVersion: 1,
+    protocolVersion: instantCounterProtocolVersion,
     sessionId,
+    sessionPolicy: instantCounterSessionPolicy,
     subjectId: 'subject-1',
   })
 }
@@ -62,6 +67,21 @@ describe('headless Program session validation', () => {
 
     expect(
       await Effect.runPromise(Effect.flip(validateProgramSession(revoked))),
+    ).toMatchObject({
+      _tag: 'InvalidProgramSession',
+      sessionId: session.sessionId,
+    })
+  })
+
+  it('quarantines a session whose explicit policy drifted from Mirror', async () => {
+    const session = await makeSession()
+    const drifted = InstantProgramSessionRecord.make({
+      ...session,
+      sessionPolicy: Synchronization.defaultSessionPolicy(),
+    })
+
+    expect(
+      await Effect.runPromise(Effect.flip(validateProgramSession(drifted))),
     ).toMatchObject({
       _tag: 'InvalidProgramSession',
       sessionId: session.sessionId,

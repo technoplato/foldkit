@@ -8,9 +8,10 @@ import {
   InstantMessageProposalResolutionRecord,
   InstantProgramSessionRecord,
   InstantProjectionCheckpointRecord,
+  ProgramAuthorityStore,
+  type ProgramAuthorityStoreService,
   ProgramStore,
   ProgramStoreError,
-  type ProgramStoreService,
   makeInstantAcceptedMessageOccurrenceTransaction,
   makeInstantEffectPlacementTransaction,
   makeInstantEffectRequestTransaction,
@@ -168,8 +169,8 @@ export const observeAllProgramSessions = (
 /** Adapts the trusted Instant admin client to Foldkit's ProgramStore contract. */
 export const makeAdminProgramStore = (
   database: HeadlessInstantDatabase,
-): ProgramStoreService =>
-  ProgramStore.of({
+): ProgramAuthorityStoreService => {
+  const store = ProgramStore.of({
     appendAcceptedMessageOccurrence: record =>
       Effect.tryPromise({
         try: () =>
@@ -502,3 +503,71 @@ export const makeAdminProgramStore = (
         ),
       ),
   })
+  return ProgramAuthorityStore.of({
+    ...store,
+    appendServerConfirmedAcceptedMessageOccurrence: record =>
+      Effect.flatMap(store.appendAcceptedMessageOccurrence(record), outcome =>
+        outcome._tag === 'Synced'
+          ? Effect.succeed(outcome)
+          : Effect.fail(
+              new ProgramStoreError({
+                cause: new Error(
+                  'The Instant admin store returned an optimistic accepted write.',
+                ),
+                operation: 'AppendAcceptedMessageOccurrence',
+              }),
+            ),
+      ),
+    appendServerConfirmedEffectPlacement: record =>
+      Effect.flatMap(store.appendEffectPlacement(record), outcome =>
+        outcome._tag === 'Synced'
+          ? Effect.succeed(outcome)
+          : Effect.fail(
+              new ProgramStoreError({
+                cause: new Error(
+                  'The Instant admin store returned an optimistic placement write.',
+                ),
+                operation: 'AppendEffectPlacement',
+              }),
+            ),
+      ),
+    appendServerConfirmedEffectRequest: record =>
+      Effect.flatMap(store.appendEffectRequest(record), outcome =>
+        outcome._tag === 'Synced'
+          ? Effect.succeed(outcome)
+          : Effect.fail(
+              new ProgramStoreError({
+                cause: new Error(
+                  'The Instant admin store returned an optimistic effect-request write.',
+                ),
+                operation: 'AppendEffectRequest',
+              }),
+            ),
+      ),
+    appendServerConfirmedMessageProposalResolution: record =>
+      Effect.flatMap(store.appendMessageProposalResolution(record), outcome =>
+        outcome._tag === 'Synced'
+          ? Effect.succeed(outcome)
+          : Effect.fail(
+              new ProgramStoreError({
+                cause: new Error(
+                  'The Instant admin store returned an optimistic resolution write.',
+                ),
+                operation: 'AppendMessageProposalResolution',
+              }),
+            ),
+      ),
+    serverConfirmed: {
+      observeAcceptedMessageOccurrences:
+        store.observeAcceptedMessageOccurrences,
+      observeConnectionStatus: store.observeConnectionStatus,
+      observeEffectPlacements: store.observeEffectPlacements,
+      observeEffectRequests: store.observeEffectRequests,
+      observeMessageProposals: store.observeMessageProposals,
+      observeMessageProposalResolutions:
+        store.observeMessageProposalResolutions,
+      observeProgramSessions: store.observeProgramSessions,
+      observeProjectionCheckpoints: store.observeProjectionCheckpoints,
+    },
+  })
+}

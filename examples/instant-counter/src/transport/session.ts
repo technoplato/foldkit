@@ -1,4 +1,5 @@
 import { Array, Data, Option, Schema as S } from 'effect'
+import * as Synchronization from 'foldkit/synchronization'
 
 import { InstantProgramSessionRecord } from '@foldkit/instant'
 import { id } from '@instantdb/core'
@@ -9,6 +10,8 @@ import {
   admissionSequencerProcessorId,
   deriveSessionId,
   deriveSessionIdWithDigest,
+  instantCounterProtocolVersion,
+  isInstantCounterSessionPolicy,
   isProcessorRoomId,
   programId,
   programVersion,
@@ -21,7 +24,9 @@ export const ProgramSessionIdentity = S.Struct({
   processorRoomId: S.String,
   programId: S.String,
   programVersion: S.Int,
+  protocolVersion: S.Literal(instantCounterProtocolVersion),
   sessionId: S.String,
+  sessionPolicy: Synchronization.SessionPolicy,
   subjectId: S.String,
 })
 
@@ -40,7 +45,9 @@ export const programSessionIdentityFromRecord = (
     isProcessorRoomId(record.processorRoomId) &&
     record.programId === programId &&
     record.programVersion === programVersion &&
+    record.protocolVersion === instantCounterProtocolVersion &&
     record.sessionId === sessionId &&
+    isInstantCounterSessionPolicy(record.sessionPolicy) &&
     record.subjectId === subjectId
   ) {
     return Option.some(
@@ -49,7 +56,9 @@ export const programSessionIdentityFromRecord = (
         processorRoomId: record.processorRoomId,
         programId: record.programId,
         programVersion: record.programVersion,
+        protocolVersion: record.protocolVersion,
         sessionId: record.sessionId,
+        sessionPolicy: record.sessionPolicy,
         subjectId: record.subjectId,
       }),
     )

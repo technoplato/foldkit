@@ -1,6 +1,8 @@
 import { Processor } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
+import { instantProgramProtocolVersion } from '@foldkit/instant'
+
 import {
   decodeProcessorPresence,
   isEffectExecutorAvailable,
@@ -14,8 +16,8 @@ const descriptor = (processorId: string): Processor.Descriptor =>
     effectSupport: [],
     processorId,
     protocol: Processor.ProtocolRange.make({
-      maximumVersion: 1,
-      minimumVersion: 1,
+      maximumVersion: instantProgramProtocolVersion,
+      minimumVersion: instantProgramProtocolVersion,
     }),
   })
 

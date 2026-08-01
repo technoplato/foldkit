@@ -2,6 +2,8 @@ import { Option } from 'effect'
 import { Processor } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
+import { instantProgramProtocolVersion } from '@foldkit/instant'
+
 import { commandForEffect } from '../domain/effect.js'
 import { RequestedEffect } from '../domain/message.js'
 import { replanEffectPlacement } from './placementLifecycle.js'
@@ -27,8 +29,8 @@ const cameraDescriptor = (
     ],
     processorId,
     protocol: Processor.ProtocolRange.make({
-      maximumVersion: 1,
-      minimumVersion: 1,
+      maximumVersion: instantProgramProtocolVersion,
+      minimumVersion: instantProgramProtocolVersion,
     }),
   })
 
@@ -130,5 +132,35 @@ describe('effect placement lifecycle', () => {
       }),
     ).toStrictEqual(Option.none())
     expect(phone.processorId).not.toBe(alternate.processorId)
+  })
+
+  it('keeps the request waiting for an effect-capable protocol-v2 Processor', () => {
+    const legacyProcessor = Processor.Descriptor.make({
+      ...cameraDescriptor('client-legacy', 'processor-legacy'),
+      protocol: Processor.ProtocolRange.make({
+        maximumVersion: 1,
+        minimumVersion: 1,
+      }),
+    })
+
+    expect(
+      replanEffectPlacement({
+        ingressProcessorId: 'processor-authority',
+        manifest: cameraManifest(),
+        maybeCurrent: Option.none(),
+        originClientId: 'client-browser',
+        previousAssignments: new Map(),
+        processors: [legacyProcessor],
+      }),
+    ).toStrictEqual(
+      Option.some({
+        assignmentGeneration: 1,
+        cancellationGeneration: 0,
+        decision: {
+          _tag: 'Waiting',
+          reason: 'NoCapableProcessor',
+        },
+      }),
+    )
   })
 })

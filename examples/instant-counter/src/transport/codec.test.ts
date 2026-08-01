@@ -1,5 +1,5 @@
 import { Effect, Option, Schema as S } from 'effect'
-import { Processor } from 'foldkit'
+import { Processor, Synchronization } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -7,6 +7,7 @@ import {
   type InstantEffectRequestRecord,
   InstantMessageProposalRecord,
   InstantProgramSessionRecord,
+  instantProgramProtocolVersion,
 } from '@foldkit/instant'
 
 import {
@@ -17,7 +18,9 @@ import {
   RequestedEffect,
   SucceededEffect,
 } from '../domain/message.js'
+import { InstantCounterSynchronization } from '../domain/program.js'
 import { makeEffectRequestRecord } from '../headless/placement.js'
+import { instantCounterSessionPolicy } from '../shared/identity.js'
 import { makeMessageCodec } from './codec.js'
 
 const EnvelopeJson = S.fromJsonString(Processor.MessageEnvelope)
@@ -50,9 +53,13 @@ const session = InstantProgramSessionRecord.make({
   processorRoomId: 'room-4ec724f1c3584d679b8a3b88f470e372',
   programId: input.programId,
   programVersion: input.programVersion,
+  protocolVersion: instantProgramProtocolVersion,
   sessionId: input.sessionId,
+  sessionPolicy: instantCounterSessionPolicy,
   subjectId: input.subjectId,
 })
+
+const causalAudience = Synchronization.SessionAudience.make({})
 
 const effectRequest = makeEffectRequestRecord(
   session,
@@ -62,7 +69,10 @@ const effectRequest = makeEffectRequestRecord(
     requestId: 'effect-request-1',
   }),
   {
+    causalAudience,
+    causalMessageCategory: 'Domain',
     causalOccurrenceId: 'occurrence-cause',
+    causalPolicyGeneration: session.sessionPolicy.generation,
     ingressProcessorId: 'processor-authority',
     originClientId: input.clientId,
     originatingProcessorId: input.originatingProcessorId,
@@ -72,6 +82,7 @@ const effectRequest = makeEffectRequestRecord(
 
 const makeProposal = async (message: Message = ClickedIncrement()) => {
   const encoded = await Effect.runPromise(codec.encodeProposed(message, input))
+  const messageCategory = InstantCounterSynchronization.messageCategory(message)
   return InstantMessageProposalRecord.make({
     actorId: 'subject-1',
     actorSequence: input.actorSequence,
@@ -89,14 +100,19 @@ const makeProposal = async (message: Message = ClickedIncrement()) => {
     eventVersion: encoded.eventVersion,
     executorProcessorId: null,
     id: input.occurrenceId,
+    messageCategory,
+    messageIdempotencyKey: null,
     occurrenceId: input.occurrenceId,
     originDeviceId: 'device-1',
     originatingProcessorId: input.originatingProcessorId,
     payloadJson: encoded.payloadJson,
     programId: input.programId,
     programVersion: input.programVersion,
+    protocolVersion: instantProgramProtocolVersion,
     proposalId: input.occurrenceId,
     proposalKind: 'Message',
+    proposedAudience: causalAudience,
+    policyGeneration: session.sessionPolicy.generation,
     sessionId: input.sessionId,
     subjectId: input.subjectId,
   })
@@ -113,6 +129,7 @@ const makeAcceptedOccurrence = async (
     acceptingProcessorId: 'processor-authority',
     actorId: proposal.actorId,
     actorSequence: proposal.actorSequence,
+    audience: proposal.proposedAudience,
     causationId: proposal.causationOccurrenceId,
     clientId: proposal.clientId,
     correlationId: proposal.correlationId,
@@ -127,6 +144,8 @@ const makeAcceptedOccurrence = async (
     eventVersion: proposal.eventVersion,
     executorProcessorId: proposal.executorProcessorId,
     id: proposal.occurrenceId,
+    messageCategory: proposal.messageCategory,
+    messageIdempotencyKey: proposal.messageIdempotencyKey,
     occurrenceId: proposal.occurrenceId,
     originDeviceId: proposal.originDeviceId,
     originatingProcessorId: proposal.originatingProcessorId,
@@ -134,10 +153,13 @@ const makeAcceptedOccurrence = async (
     positionKey: 'session-1:1',
     programId: proposal.programId,
     programVersion: proposal.programVersion,
+    protocolVersion: proposal.protocolVersion,
     proposedEnvelopeJson: proposal.envelopeJson,
     proposalId: proposal.proposalId,
     proposalKind: proposal.proposalKind,
+    policyGeneration: proposal.policyGeneration,
     sessionId: proposal.sessionId,
+    sessionPolicy: session.sessionPolicy,
     subjectId: proposal.subjectId,
   })
 }

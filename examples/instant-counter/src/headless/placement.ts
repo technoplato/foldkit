@@ -1,5 +1,5 @@
 import { Array, Data, Match as M, Option } from 'effect'
-import { Processor } from 'foldkit'
+import { Processor, Synchronization } from 'foldkit'
 
 import {
   InstantEffectPlacementRecord,
@@ -8,6 +8,7 @@ import {
   makeInstantCapabilityIdIndex,
   makeInstantEffectPlacementPositionKey,
 } from '@foldkit/instant'
+import { id as makeInstantEntityId } from '@instantdb/core'
 
 import { commandForEffect } from '../domain/effect.js'
 import {
@@ -17,10 +18,14 @@ import {
   type RequestedEffect,
   WaitedForEffectProcessor,
 } from '../domain/message.js'
+import { supportsInstantProgramProtocol } from './placementLifecycle.js'
 
 /** Provenance retained while placing one accepted effect request. */
 export type EffectPlacementOrigin = Readonly<{
+  causalAudience: Synchronization.Audience
+  causalMessageCategory: Synchronization.MessageCategory
   causalOccurrenceId: string
+  causalPolicyGeneration: number
   ingressProcessorId: string
   originClientId: string
   originatingProcessorId: string
@@ -112,7 +117,10 @@ export const makeEffectRequestRecord = (
   const manifest = maybeManifest.value
 
   return InstantEffectRequestRecord.make({
+    causalAudience: origin.causalAudience,
+    causalMessageCategory: origin.causalMessageCategory,
     causalOccurrenceId: origin.causalOccurrenceId,
+    causalPolicyGeneration: origin.causalPolicyGeneration,
     effectId: manifest.id,
     effectVersion: manifest.version,
     id: request.requestId,
@@ -121,6 +129,7 @@ export const makeEffectRequestRecord = (
     originatingProcessorId: origin.originatingProcessorId,
     placement: manifest.placement,
     programId: session.programId,
+    protocolVersion: session.protocolVersion,
     programVersion: session.programVersion,
     publicArguments: manifest.publicArguments,
     permittedResultEvents: manifest.permittedResultEvents,
@@ -152,11 +161,12 @@ export const makeEffectPlacementRecord = (
     assignmentGeneration,
     cancellationGeneration,
     decidedAtMs: now,
-    id: positionKey,
+    id: makeInstantEntityId(),
     placementDecision: decision,
     placementStatus: decision._tag,
     positionKey,
     programId: request.programId,
+    protocolVersion: request.protocolVersion,
     programVersion: request.programVersion,
     requestId: request.requestId,
     sessionId: request.sessionId,
@@ -180,8 +190,11 @@ export const planEffectPlacement = (
       requestId: request.requestId,
     })
   }
-  const supportedProcessors = Array.filter(processors, processor =>
-    Processor.supportsEffectVersion(processor, manifest.id, manifest.version),
+  const supportedProcessors = Array.filter(
+    processors,
+    processor =>
+      supportsInstantProgramProtocol(processor) &&
+      Processor.supportsEffectVersion(processor, manifest.id, manifest.version),
   )
   const decision = Processor.selectProcessor(manifest.placement, {
     maybeIngressProcessorId: Option.some(origin.ingressProcessorId),

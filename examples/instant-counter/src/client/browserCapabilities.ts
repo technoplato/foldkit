@@ -1,6 +1,8 @@
 import { Array, Duration, Effect, Layer, Match as M, Option } from 'effect'
 import { Processor } from 'foldkit'
 
+import { instantProgramProtocolVersion } from '@foldkit/instant'
+
 import {
   EffectExecutionError,
   EffectExecutor,
@@ -73,8 +75,8 @@ export const browserProcessorDescriptor = (
     effectSupport: Array.map(supportedKinds(), effectSupport),
     processorId,
     protocol: Processor.ProtocolRange.make({
-      maximumVersion: 1,
-      minimumVersion: 1,
+      maximumVersion: instantProgramProtocolVersion,
+      minimumVersion: instantProgramProtocolVersion,
     }),
   })
 
