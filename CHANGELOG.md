@@ -4,6 +4,31 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## July 31st, 2026 at 11:54:49 p.m. EDT — `3d0a52547120` feat(foldkit): model synchronized Program session modes
+
+- **Implementation commit:** `3d0a52547120871201bc0c3db55bcfe16a0af6f6`
+- **Change:** Define transport-neutral synchronized Program session modes and their delivery laws.
+- **Details:**
+  - Added Schema-backed Mirror, SharedDomain, and Follow policies, including explicit observe-only versus remote-control followers and frozen Processor audiences.
+  - Made Programs own the exhaustive Domain versus Navigation classifier while keeping ProgramRuntime, renderer Clients, and Instant transport free of mode-specific decisions.
+  - Recorded sequencing authority, authorization, replay, checkpoint, effect-result, URI, capability, and follow catch-up boundaries in an accepted architecture decision.
+- **Files:**
+  - `.changeset/add-synchronized-session-modes.md` — Record the public Foldkit synchronization API addition.
+  - `docs/adr/0004-synchronized-program-session-modes.md` — Define the accepted architecture and rollout laws for synchronized Program sessions.
+  - `packages/foldkit/package.json` — Expose the new synchronization public subpath.
+  - `packages/foldkit/src/index.ts` — Export synchronization from the root Foldkit API.
+  - `packages/foldkit/src/program/program.ts` — Let a Program classify Messages and project its shared domain Model.
+  - `packages/foldkit/src/program/public.ts` — Publish the Program synchronization contract.
+  - `packages/foldkit/src/synchronization/index.ts` — Provide the synchronization module barrel.
+  - `packages/foldkit/src/synchronization/public.ts` — Publish the synchronization types and constructors.
+  - `packages/foldkit/src/synchronization/synchronization.test.ts` — Prove mode routing, frozen audiences, validation, and defaults.
+  - `packages/foldkit/src/synchronization/synchronization.ts` — Implement mode policy validation and audience resolution.
+- **User context (verbatim):**
+  > Mirror mode.
+  > Shared domain is by default
+  > Framework level session should choose the mode: instant transports authenticated schema valid messages.
+- **SpecStory:** unavailable — Unavailable: this work ran in Codex desktop, and no verified SpecStory GUI capture exists.
+
 ## July 31st, 2026 at 5:06:10 p.m. EDT — `67033c50ba70` feat: add optimistic Instant Program synchronization
 
 - **Implementation commit:** `67033c50ba70057965669b277804cce4c4e4891f`
