@@ -2,8 +2,11 @@ import * as Counter from 'counter-core-example'
 import { Array, Option, Result } from 'effect'
 import {
   type InteractionAction,
+  InteractionInvocationFacts,
   type InteractionProjection,
   InteractionReference,
+  MismatchedInteractionInvocationOccurrenceIdError,
+  MissingInteractionReferenceError,
   interactionIdKey,
   interactionNodes,
   interactiveNodes,
@@ -12,8 +15,10 @@ import { describe, expect, it } from 'vitest'
 
 import { init } from './init.js'
 import {
+  MultipleCountersInteractionAdmission,
   MultipleCountersInteractionGraph,
   activatedInteraction,
+  interactionIdentitySourceForOccurrence,
   interactionProjectionForModel,
 } from './interactionGraph.js'
 import {
@@ -37,6 +42,16 @@ const identitySource: InteractionIdentitySource = {
   counterId: () => 'counter-generated-1',
   deleteCounterConfirmationId: () => 'delete-generated-1',
 }
+
+const invocationFacts = (occurrenceId: string) =>
+  InteractionInvocationFacts.make({
+    occurrenceId,
+    actorId: 'actor-1',
+    clientId: 'client-1',
+    originatingProcessorId: 'processor-1',
+    sessionId: 'session-1',
+    subjectId: 'subject-1',
+  })
 
 const projectionSuccess = (
   model: Model,
@@ -67,11 +82,13 @@ const actionForToken = (
 const resolvedMessage = (
   model: Model,
   action: InteractionAction<Interaction>,
+  occurrenceId = 'occurrence-test',
 ) => {
+  const context = interactionIdentitySourceForOccurrence(occurrenceId)
   const result = MultipleCountersInteractionGraph.resolve(
     model,
-    activatedInteraction(action.reference, 'occurrence-test'),
-    identitySource,
+    activatedInteraction(action.reference, occurrenceId),
+    context,
   )
   if (Result.isFailure(result)) {
     throw new Error(JSON.stringify(result.failure, null, 2))
@@ -172,21 +189,36 @@ describe('Multiple Counters InteractionGraph', () => {
     ).toStrictEqual([{ submodelId: 'Counter', instanceId: 'counter-1' }])
   })
 
-  it('allocates fresh ids only while resolving a typed occurrence', () => {
+  it('derives invocation ids only from the claimed occurrence identity', () => {
     const [model] = init()
     const projection = interactionProjectionForModel(model)
     const add = actionForToken(projection, 'AddCounter')
     const open = actionForToken(projection, 'OpenCounter')
 
     expect(resolvedMessage(model, add)).toStrictEqual(
-      Option.some(ClickedAddCounter({ counterId: 'counter-generated-1' })),
+      Option.some(ClickedAddCounter({ counterId: 'counter-occurrence-test' })),
     )
     expect(resolvedMessage(model, open)).toStrictEqual(
       Option.some(
         SelectedCounter({
           counterId: 'counter-1',
-          detailPresentationId: 'detail-generated-1',
+          detailPresentationId: 'detail-occurrence-test',
         }),
+      ),
+    )
+    expect(
+      resolvedMessage(model, add, 'actor:segment_with_symbols'),
+    ).toStrictEqual(
+      Option.some(
+        ClickedAddCounter({
+          counterId: 'counter-actor:segment_with_symbols',
+        }),
+      ),
+    )
+    const maximumOccurrenceId = 'o'.repeat(64)
+    expect(resolvedMessage(model, add, maximumOccurrenceId)).toStrictEqual(
+      Option.some(
+        ClickedAddCounter({ counterId: `counter-${maximumOccurrenceId}` }),
       ),
     )
   })
@@ -204,16 +236,54 @@ describe('Multiple Counters InteractionGraph', () => {
     expect(nextModel.navigation).toMatchObject({
       _tag: 'CounterDetail',
       counterId: 'counter-1',
-      presentationId: 'detail-generated-1',
+      presentationId: 'detail-occurrence-test',
       maybeMode: {
         _tag: 'Some',
         value: {
           _tag: 'DeleteCounterConfirmation',
-          confirmationId: 'delete-generated-1',
-          detailPresentationId: 'detail-generated-1',
+          confirmationId: 'delete-occurrence-test',
+          detailPresentationId: 'detail-occurrence-test',
         },
       },
     })
+  })
+
+  it('lets a Client and authority derive the identical canonical Message', () => {
+    const [model] = init()
+    const add = actionForToken(projectionSuccess(model), 'AddCounter')
+    const facts = invocationFacts('occurrence-shared-proof')
+    const occurrence = activatedInteraction(add.reference, facts.occurrenceId)
+    const clientMessage = MultipleCountersInteractionAdmission.resolve(
+      model,
+      occurrence,
+      facts,
+    )
+    const authorityMessage = MultipleCountersInteractionAdmission.resolve(
+      model,
+      occurrence,
+      facts,
+    )
+
+    expect(clientMessage).toStrictEqual(authorityMessage)
+    expect(clientMessage).toStrictEqual(
+      Result.succeed(
+        ClickedAddCounter({ counterId: 'counter-occurrence-shared-proof' }),
+      ),
+    )
+    expect(
+      MultipleCountersInteractionAdmission.resolve(
+        model,
+        activatedInteraction(add.reference, 'occurrence-claimed-b'),
+        facts,
+      ),
+    ).toStrictEqual(
+      Result.fail(
+        new MismatchedInteractionInvocationOccurrenceIdError({
+          authenticatedOccurrenceId: 'occurrence-shared-proof',
+          claimedOccurrenceId: 'occurrence-claimed-b',
+        }),
+      ),
+    )
   })
 
   it('rejects a same-URI confirmation claim from a replaced modal occurrence', () => {
@@ -263,6 +333,12 @@ describe('Multiple Counters InteractionGraph', () => {
       activatedInteraction(oldConfirm.reference, 'occurrence-stale'),
       identitySource,
     )
+    const detailedStaleResult =
+      MultipleCountersInteractionGraph.resolveWithContext(
+        newDeleteModel,
+        activatedInteraction(oldConfirm.reference, 'occurrence-stale'),
+        identitySource,
+      )
 
     expect(oldConfirm.reference.destinationUri).toBe(
       currentConfirm.reference.destinationUri,
@@ -274,6 +350,13 @@ describe('Multiple Counters InteractionGraph', () => {
     if (Result.isSuccess(staleResult)) {
       expect(staleResult.success).toStrictEqual(Option.none())
     }
+    expect(detailedStaleResult).toStrictEqual(
+      Result.fail(
+        new MissingInteractionReferenceError({
+          reference: oldConfirm.reference,
+        }),
+      ),
+    )
     expect(resolvedMessage(newDeleteModel, currentConfirm)).toStrictEqual(
       Option.some(
         ConfirmedDeleteCounter({

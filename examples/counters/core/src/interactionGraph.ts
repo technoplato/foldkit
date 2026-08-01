@@ -6,13 +6,16 @@ import {
   type InteractionAction,
   type InteractionGroup,
   InteractionId,
+  type InteractionInvocationFacts,
   type InteractionNode,
+  type InteractionOccurrenceId,
   InteractionPathSegment,
   type InteractionProjection,
   InteractionReference,
   InteractionSource,
   type ResolvedInteractionOccurrence,
   make,
+  makeAdmission,
   makeSchemas,
 } from 'foldkit/interaction-graph'
 
@@ -537,17 +540,34 @@ export const MultipleCountersInteractionGraph = make({
       : Option.none(),
 })
 
+/** Pairs the Multiple Counters graph with authenticated deterministic context. */
+export const MultipleCountersInteractionAdmission = makeAdmission({
+  graph: MultipleCountersInteractionGraph,
+  contextForInvocation: (facts: InteractionInvocationFacts) =>
+    interactionIdentitySourceForOccurrence(facts.occurrenceId),
+})
+
 /** Creates a Schema-backed activation claim for a current interaction reference. */
 export const activatedInteraction = (
   interactionReference: InteractionReference,
-  occurrenceId: string,
+  occurrenceId: InteractionOccurrenceId,
 ): ActivatedInteraction =>
   ActivatedInteraction.make({
     reference: interactionReference,
     occurrenceId,
   })
 
-/** Derives all Multiple Counters invocation identities from one Client source. */
+/** Derives every invocation identity from one canonical occurrence identity. */
+export const interactionIdentitySourceForOccurrence = (
+  occurrenceId: InteractionOccurrenceId,
+): InteractionIdentitySource => ({
+  counterDetailPresentationId: () => `detail-${occurrenceId}`,
+  counterFactRequestId: () => `fact-${occurrenceId}`,
+  counterId: () => `counter-${occurrenceId}`,
+  deleteCounterConfirmationId: () => `delete-${occurrenceId}`,
+})
+
+/** Adapts a local identity generator for non-interaction navigation openings. */
 export const makeInteractionIdentitySource = (
   nextIdentity: () => string,
 ): InteractionIdentitySource => ({

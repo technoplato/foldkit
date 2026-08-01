@@ -6,7 +6,7 @@ import { Array, Option, Schema as S } from 'effect'
 /** A stable, bounded identity for one Counter Submodel. */
 export const CounterId = S.String.check(
   S.isLengthBetween(9, 80),
-  S.isPattern(/^counter-[A-Za-z0-9][A-Za-z0-9-]*$/u),
+  S.isPattern(/^counter-[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
 )
 /** A stable, bounded identity for one Counter Submodel. */
 export type CounterId = typeof CounterId.Type
@@ -14,7 +14,7 @@ export type CounterId = typeof CounterId.Type
 /** A transient identity for one presentation of a Counter detail. */
 export const CounterDetailPresentationId = S.String.check(
   S.isLengthBetween(8, 112),
-  S.isPattern(/^detail-[A-Za-z0-9][A-Za-z0-9-]*$/u),
+  S.isPattern(/^detail-[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
 )
 /** A transient identity for one presentation of a Counter detail. */
 export type CounterDetailPresentationId =
@@ -23,7 +23,7 @@ export type CounterDetailPresentationId =
 /** A stable identity for one counter-fact request generation. */
 export const CounterFactRequestId = S.String.check(
   S.isLengthBetween(6, 112),
-  S.isPattern(/^fact-[A-Za-z0-9][A-Za-z0-9-]*$/u),
+  S.isPattern(/^fact-[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
 )
 /** A stable identity for one counter-fact request generation. */
 export type CounterFactRequestId = typeof CounterFactRequestId.Type
@@ -31,7 +31,7 @@ export type CounterFactRequestId = typeof CounterFactRequestId.Type
 /** A stable identity for one delete-confirmation generation. */
 export const DeleteCounterConfirmationId = S.String.check(
   S.isLengthBetween(8, 112),
-  S.isPattern(/^delete-[A-Za-z0-9][A-Za-z0-9-]*$/u),
+  S.isPattern(/^delete-[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
 )
 /** A stable identity for one delete-confirmation generation. */
 export type DeleteCounterConfirmationId =

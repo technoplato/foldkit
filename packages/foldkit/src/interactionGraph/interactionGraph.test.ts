@@ -1,19 +1,34 @@
-import { Option, Result, Schema as S } from 'effect'
+import { Array, Option, Result, Schema as S } from 'effect'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import * as Program from '../program/program.js'
 import {
+  ForeignInteractionClaimProgramError,
+  InteractionInvocationContextDefectError,
+  InteractionInvocationFacts,
+  InteractionOccurrenceKindMismatchError,
+  InteractionResolverDeclinedError,
+  InvalidInteractionInvocationFactsError,
+  InvalidInteractionOccurrenceError,
+  MismatchedInteractionInvocationOccurrenceIdError,
+  MissingInteractionReferenceError,
+  MissingInteractionSelectionChoiceError,
+  StaleInteractionDestinationError,
+  UnavailableInteractionError,
+  UnavailableInteractionSelectionChoiceError,
   formatProgramModel,
   interactionIdKey,
   interactionReferenceKey,
   interactionSourceKey,
   make,
+  makeAdmission,
 } from './interactionGraph.js'
 import {
   ActivatedInteraction,
   Available,
   ChangedInteractionText,
   CleanInteractionText,
+  InteractionAdmissionOccurrence,
   InteractionId,
   InteractionPathSegment,
   InteractionReference,
@@ -21,6 +36,7 @@ import {
   type ResolvedInteractionOccurrence,
   SelectedInteractionChoice,
   Unavailable,
+  interactionAdmissionLimits,
   makeSchemas,
 } from './interactionNode.js'
 
@@ -127,6 +143,13 @@ const resultSuccess = <A, E>(result: Result.Result<A, E>): A => {
     throw new Error(JSON.stringify(result.failure, null, 2))
   }
   return result.success
+}
+
+const resultFailure = <A, E>(result: Result.Result<A, E>): E => {
+  if (Result.isSuccess(result)) {
+    throw new Error(JSON.stringify(result.success, null, 2))
+  }
+  return result.failure
 }
 
 describe('InteractionGraph', () => {
@@ -252,6 +275,128 @@ describe('InteractionGraph', () => {
         ),
       ),
     ).toStrictEqual(Option.none())
+  })
+
+  it('distinguishes current-state admission claim failures', () => {
+    const enabledModel = Model.make({ isEnabled: true, step: 1, total: 0 })
+    const disabledModel = Model.make({ isEnabled: false, step: 1, total: 0 })
+    const currentReference = reference('/counter', 'Increment')
+    const staleReference = reference('/counter/history', 'Increment')
+    const missingReference = reference('/counter', 'Missing')
+    const foreignSource = InteractionSource.make({
+      programId: 'foreign-program',
+      instancePath: [],
+    })
+    const foreignReference = reference('/counter', 'Increment', foreignSource)
+
+    expect(
+      resultFailure(
+        Graph.resolveWithContext(
+          enabledModel,
+          ActivatedInteraction.make({
+            reference: foreignReference,
+            occurrenceId: 'occurrence-foreign',
+          }),
+          undefined,
+        ),
+      ),
+    ).toStrictEqual(
+      new ForeignInteractionClaimProgramError({
+        actualProgramId: 'foreign-program',
+        expectedProgramId: TestProgram.id,
+        reference: foreignReference,
+      }),
+    )
+    expect(
+      resultFailure(
+        Graph.resolveWithContext(
+          enabledModel,
+          ActivatedInteraction.make({
+            reference: staleReference,
+            occurrenceId: 'occurrence-stale-destination',
+          }),
+          undefined,
+        ),
+      ),
+    ).toStrictEqual(
+      new StaleInteractionDestinationError({
+        actualDestinationUri: '/counter/history',
+        expectedDestinationUri: '/counter',
+        reference: staleReference,
+      }),
+    )
+    expect(
+      resultFailure(
+        Graph.resolveWithContext(
+          enabledModel,
+          ActivatedInteraction.make({
+            reference: missingReference,
+            occurrenceId: 'occurrence-missing-detail',
+          }),
+          undefined,
+        ),
+      ),
+    ).toStrictEqual(
+      new MissingInteractionReferenceError({ reference: missingReference }),
+    )
+    expect(
+      resultFailure(
+        Graph.resolveWithContext(
+          disabledModel,
+          ActivatedInteraction.make({
+            reference: currentReference,
+            occurrenceId: 'occurrence-unavailable-detail',
+          }),
+          undefined,
+        ),
+      ),
+    ).toStrictEqual(
+      new UnavailableInteractionError({
+        code: 'Disabled',
+        reason: 'Increment is disabled',
+        reference: currentReference,
+      }),
+    )
+    expect(
+      resultFailure(
+        Graph.resolveWithContext(
+          enabledModel,
+          ChangedInteractionText.make({
+            reference: currentReference,
+            occurrenceId: 'occurrence-kind-detail',
+            value: '2',
+          }),
+          undefined,
+        ),
+      ),
+    ).toStrictEqual(
+      new InteractionOccurrenceKindMismatchError({
+        actualOccurrenceTag: 'ChangedInteractionText',
+        expectedOccurrenceTag: 'ActivatedInteraction',
+        reference: currentReference,
+      }),
+    )
+
+    const DecliningGraph = make({
+      program: TestProgram,
+      Descriptor,
+      projectionForModel: model => projection(model),
+      messageForOccurrence: () => Option.none(),
+    })
+    expect(
+      resultFailure(
+        DecliningGraph.resolveWithContext(
+          enabledModel,
+          ActivatedInteraction.make({
+            reference: currentReference,
+            occurrenceId: 'occurrence-declined',
+          }),
+          undefined,
+        ),
+      ),
+    ).toStrictEqual(
+      new InteractionResolverDeclinedError({ reference: currentReference }),
+    )
   })
 
   it('resolves changed editable text with the current Model and invocation context', () => {
@@ -454,6 +599,36 @@ describe('InteractionGraph', () => {
         ),
       ),
     ).toStrictEqual(Option.none())
+    expect(
+      resultFailure(
+        SelectionGraph.resolveWithContext(
+          model,
+          selected('Missing', 'occurrence-choice-missing-detail'),
+          undefined,
+        ),
+      ),
+    ).toStrictEqual(
+      new MissingInteractionSelectionChoiceError({
+        choiceId: 'Missing',
+        reference: selectionReference,
+      }),
+    )
+    expect(
+      resultFailure(
+        SelectionGraph.resolveWithContext(
+          model,
+          selected('Two', 'occurrence-choice-unavailable-detail'),
+          undefined,
+        ),
+      ),
+    ).toStrictEqual(
+      new UnavailableInteractionSelectionChoiceError({
+        choiceId: 'Two',
+        code: 'UnavailableStep',
+        reason: 'Two is unavailable',
+        reference: selectionReference,
+      }),
+    )
 
     const InvalidSelectionGraph = make({
       program: TestProgram,
@@ -531,6 +706,24 @@ describe('InteractionGraph', () => {
         'InteractionProjectionDefectError',
       )
     }
+    const foreignSource = InteractionSource.make({
+      programId: 'foreign-program',
+      instancePath: [],
+    })
+    const foreignResolveResult = ProjectionDefectGraph.resolve(
+      model,
+      ActivatedInteraction.make({
+        reference: reference('/counter', 'Increment', foreignSource),
+        occurrenceId: 'occurrence-foreign-defect',
+      }),
+      undefined,
+    )
+    expect(Result.isFailure(foreignResolveResult)).toBe(true)
+    if (Result.isFailure(foreignResolveResult)) {
+      expect(foreignResolveResult.failure._tag).toBe(
+        'InteractionProjectionDefectError',
+      )
+    }
 
     const ResolverDefectGraph = make({
       program: TestProgram,
@@ -598,6 +791,254 @@ describe('InteractionGraph', () => {
         ),
       ),
     ).toEqualTypeOf<Option.Option<typeof Message.Type>>()
+  })
+
+  it('binds bounded authenticated facts to exactly one occurrence', () => {
+    const facts = InteractionInvocationFacts.make({
+      occurrenceId: 'occurrence-admission',
+      actorId: 'actor-1',
+      clientId: 'client-1',
+      originatingProcessorId: 'processor-1',
+      sessionId: 'session-1',
+      subjectId: 'subject-1',
+    })
+    const Admission = makeAdmission({
+      graph: Graph,
+      contextForInvocation: () => undefined,
+    })
+    const model = Model.make({ isEnabled: true, step: 1, total: 0 })
+    const currentReference = reference('/counter', 'Increment')
+    const occurrence = ActivatedInteraction.make({
+      reference: currentReference,
+      occurrenceId: facts.occurrenceId,
+    })
+
+    expect(Admission.resolve(model, occurrence, facts)).toStrictEqual(
+      Result.succeed(Incremented.make({ amount: 1, receipt: 'interaction' })),
+    )
+    expect(
+      Admission.resolve(
+        model,
+        ActivatedInteraction.make({
+          reference: currentReference,
+          occurrenceId: 'occurrence-claimed-b',
+        }),
+        facts,
+      ),
+    ).toStrictEqual(
+      Result.fail(
+        new MismatchedInteractionInvocationOccurrenceIdError({
+          authenticatedOccurrenceId: 'occurrence-admission',
+          claimedOccurrenceId: 'occurrence-claimed-b',
+        }),
+      ),
+    )
+    const invalidFacts = Admission.resolve(model, occurrence, {
+      ...facts,
+      clientId: 'not canonical',
+    })
+    expect(Result.isFailure(invalidFacts)).toBe(true)
+    if (Result.isFailure(invalidFacts)) {
+      expect(invalidFacts.failure).toBeInstanceOf(
+        InvalidInteractionInvocationFactsError,
+      )
+    }
+    const DefectAdmission = makeAdmission({
+      graph: Graph,
+      contextForInvocation: () => {
+        throw new Error('context defect')
+      },
+    })
+    const contextDefect = DefectAdmission.resolve(model, occurrence, facts)
+    expect(Result.isFailure(contextDefect)).toBe(true)
+    if (Result.isFailure(contextDefect)) {
+      expect(contextDefect.failure).toBeInstanceOf(
+        InteractionInvocationContextDefectError,
+      )
+    }
+    expect(Object.keys(facts).sort()).toStrictEqual([
+      'actorId',
+      'clientId',
+      'occurrenceId',
+      'originatingProcessorId',
+      'sessionId',
+      'subjectId',
+    ])
+    expect('contextForInvocation' in Admission).toBe(false)
+    expect(() =>
+      S.decodeUnknownSync(InteractionInvocationFacts)({
+        ...facts,
+        occurrenceId: 'x'.repeat(65),
+      }),
+    ).toThrow()
+    expect(() =>
+      S.decodeUnknownSync(InteractionInvocationFacts)({
+        ...facts,
+        clientId: 'not canonical',
+      }),
+    ).toThrow()
+  })
+
+  it('bounds every untrusted occurrence component before authority resolution', () => {
+    const limits = interactionAdmissionLimits
+    const maximumPathSegment = {
+      submodelId: 's'.repeat(limits.interactionSourceComponentLength),
+      instanceId: 'i'.repeat(limits.interactionSourceComponentLength),
+    }
+    const maximumPath = Array.makeBy(
+      limits.interactionPathDepth,
+      () => maximumPathSegment,
+    )
+    const maximumReference = {
+      destinationUri: `/${'u'.repeat(limits.destinationUriLength - 1)}`,
+      interactionId: {
+        source: {
+          programId: 'p'.repeat(limits.interactionSourceComponentLength),
+          instancePath: maximumPath,
+        },
+        token: 't'.repeat(limits.interactionTokenLength),
+      },
+    }
+    const maximumActivation = {
+      _tag: 'ActivatedInteraction',
+      reference: maximumReference,
+      occurrenceId: 'o'.repeat(64),
+    }
+    const maximumTextChange = {
+      _tag: 'ChangedInteractionText',
+      reference: maximumReference,
+      occurrenceId: 'occurrence-maximum-text',
+      value: 'v'.repeat(limits.editableTextLength),
+    }
+    const maximumSelection = {
+      _tag: 'SelectedInteractionChoice',
+      reference: maximumReference,
+      occurrenceId: 'occurrence-maximum-choice',
+      choiceId: 'c'.repeat(limits.selectionChoiceIdLength),
+    }
+
+    expect(() =>
+      S.decodeUnknownSync(InteractionAdmissionOccurrence)(maximumActivation),
+    ).not.toThrow()
+    expect(() =>
+      S.decodeUnknownSync(InteractionAdmissionOccurrence)(maximumTextChange),
+    ).not.toThrow()
+    expect(() =>
+      S.decodeUnknownSync(InteractionAdmissionOccurrence)(maximumSelection),
+    ).not.toThrow()
+
+    const overlongDestination = {
+      ...maximumActivation,
+      reference: {
+        ...maximumReference,
+        destinationUri: `/${'u'.repeat(limits.destinationUriLength)}`,
+      },
+    }
+    const overlongProgram = {
+      ...maximumActivation,
+      reference: {
+        ...maximumReference,
+        interactionId: {
+          ...maximumReference.interactionId,
+          source: {
+            ...maximumReference.interactionId.source,
+            programId: 'p'.repeat(limits.interactionSourceComponentLength + 1),
+          },
+        },
+      },
+    }
+    const overlongPathSegment = {
+      ...maximumActivation,
+      reference: {
+        ...maximumReference,
+        interactionId: {
+          ...maximumReference.interactionId,
+          source: {
+            ...maximumReference.interactionId.source,
+            instancePath: [
+              {
+                ...maximumPathSegment,
+                submodelId: 's'.repeat(
+                  limits.interactionSourceComponentLength + 1,
+                ),
+              },
+            ],
+          },
+        },
+      },
+    }
+    const overdeepPath = {
+      ...maximumActivation,
+      reference: {
+        ...maximumReference,
+        interactionId: {
+          ...maximumReference.interactionId,
+          source: {
+            ...maximumReference.interactionId.source,
+            instancePath: Array.makeBy(
+              limits.interactionPathDepth + 1,
+              () => maximumPathSegment,
+            ),
+          },
+        },
+      },
+    }
+    const overlongToken = {
+      ...maximumActivation,
+      reference: {
+        ...maximumReference,
+        interactionId: {
+          ...maximumReference.interactionId,
+          token: 't'.repeat(limits.interactionTokenLength + 1),
+        },
+      },
+    }
+    const overlongText = {
+      ...maximumTextChange,
+      value: 'v'.repeat(limits.editableTextLength + 1),
+    }
+    const overlongChoice = {
+      ...maximumSelection,
+      choiceId: 'c'.repeat(limits.selectionChoiceIdLength + 1),
+    }
+    const overLimitClaims = [
+      overlongDestination,
+      overlongProgram,
+      overlongPathSegment,
+      overdeepPath,
+      overlongToken,
+      overlongText,
+      overlongChoice,
+    ]
+    for (const claim of overLimitClaims) {
+      expect(() =>
+        S.decodeUnknownSync(InteractionAdmissionOccurrence)(claim),
+      ).toThrow()
+    }
+
+    const facts = InteractionInvocationFacts.make({
+      occurrenceId: maximumActivation.occurrenceId,
+      actorId: 'actor-1',
+      clientId: 'client-1',
+      originatingProcessorId: 'processor-1',
+      sessionId: 'session-1',
+      subjectId: 'subject-1',
+    })
+    const Admission = makeAdmission({
+      graph: Graph,
+      contextForInvocation: () => undefined,
+    })
+    const invalidClaim = Admission.resolve(
+      Model.make({ isEnabled: true, step: 1, total: 0 }),
+      overlongDestination,
+      facts,
+    )
+    expect(Result.isFailure(invalidClaim)).toBe(true)
+    if (Result.isFailure(invalidClaim)) {
+      expect(invalidClaim.failure).toBeInstanceOf(
+        InvalidInteractionOccurrenceError,
+      )
+    }
   })
 
   it('returns typed failures for invalid occurrence claims and graph invariants', () => {
