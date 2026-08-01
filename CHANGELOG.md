@@ -4,6 +4,48 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 4:03:11 a.m. EDT — `37b0c0ad4a62` feat(instant-counter): supervise protocol-v2 sessions
+
+- **Implementation commit:** `37b0c0ad4a622f54b8368aaf62e0cb3069e36e84`
+- **Change:** Upgraded the Instant Counter host to materialize, admit, place, validate, and migrate protocol-v2 authenticated Program sessions.
+- **Details:**
+  - The headless authority now supervises server-confirmed admission and capability-driven effect placement while Clients remain ordinary optimistic stores.
+  - Session materialization and validation pin the protocol and synchronization policy; effect requests and results retain frozen causal routing.
+  - A fail-closed migration plans only complete legacy routing datasets and requires an external writer freeze before applying batches.
+- **Files:**
+  - `examples/instant-counter/expo/src/controller.test.ts` — Pins Expo protocol-v2 Processor construction.
+  - `examples/instant-counter/src/acceptance/liveAcceptance.ts` — Exercises live protocol-v2 accepted routing and terminal records.
+  - `examples/instant-counter/src/client/browserCapabilities.ts` — Advertises the browser Processor protocol range.
+  - `examples/instant-counter/src/headless/adminStore.ts` — Adapts the privileged Instant database to the authority-only store contract.
+  - `examples/instant-counter/src/headless/authority.test.ts` — Verifies authority wiring rejects non-authoritative stores.
+  - `examples/instant-counter/src/headless/authority.ts` — Runs admission, placement, presence, and connection supervision for each session.
+  - `examples/instant-counter/src/headless/capabilities.ts` — Advertises the headless authority and execution capabilities.
+  - `examples/instant-counter/src/headless/entry.ts` — Exposes the migration and authority host commands.
+  - `examples/instant-counter/src/headless/legacyRoutingMigration.test.ts` — Covers complete, partial, contradictory, and repeat migration datasets.
+  - `examples/instant-counter/src/headless/legacyRoutingMigration.ts` — Plans and applies the fail-closed protocol-v2 routing migration.
+  - `examples/instant-counter/src/headless/placement.test.ts` — Pins initial placement routing and Instant entity identities.
+  - `examples/instant-counter/src/headless/placement.ts` — Builds causal effect requests and append-only placement generations.
+  - `examples/instant-counter/src/headless/placementLifecycle.test.ts` — Covers protocol-aware replanning across Processor availability.
+  - `examples/instant-counter/src/headless/placementLifecycle.ts` — Filters and replans placements using Processor protocol capability.
+  - `examples/instant-counter/src/headless/placementSupervisor.test.ts` — Verifies durable request, placement, and fact reconciliation.
+  - `examples/instant-counter/src/headless/placementSupervisor.ts` — Supervises server-confirmed capability-driven effect processing.
+  - `examples/instant-counter/src/headless/sessionMaterializer.test.ts` — Covers immutable session identity and policy materialization.
+  - `examples/instant-counter/src/headless/sessionMaterializer.ts` — Creates and validates protocol-v2 session rows.
+  - `examples/instant-counter/src/processorClient/processorClient.ts` — Passes the session protocol into Client Processor construction.
+  - `examples/instant-counter/src/shared/identity.ts` — Defines protocol-versioned session and room identities.
+  - `examples/instant-counter/src/shared/presence.test.ts` — Pins protocol-v2 presence descriptors.
+  - `examples/instant-counter/src/shared/sessionValidation.test.ts` — Covers protocol and policy session validation.
+  - `examples/instant-counter/src/shared/sessionValidation.ts` — Rejects incompatible session protocol rows.
+  - `examples/instant-counter/src/transport/codec.test.ts` — Pins protocol-v2 routing fields across the Message codec.
+  - `examples/instant-counter/src/transport/effectScheduler.test.ts` — Verifies routed effect results against durable placements.
+  - `examples/instant-counter/src/transport/session.test.ts` — Covers protocol-versioned Client session construction.
+  - `examples/instant-counter/src/transport/session.ts` — Constructs shared Processors with the session protocol and policy.
+- **User context (verbatim):**
+  > I explicitly want every program to be able to run on any processor, and some processors just have different capabilities.
+  > Why would instant remove a rollback of proposal?
+  > being a sync engine we should work offline. So that's another requirement.
+- **SpecStory:** unavailable — Codex desktop task; SpecStory CLI capture is unavailable for this session.
+
 ## August 1st, 2026 at 4:02:05 a.m. EDT — `46825a1c8d04` feat(instant): harden protocol-v2 session routing
 
 - **Implementation commit:** `46825a1c8d04c780613b1ad2a8f4096a1510e3be`
