@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 12:33:45 a.m. EDT — `44eb549b1728` feat(counters)!: model synchronization-safe navigation
+
+- **Implementation commit:** `44eb549b1728d7252afbd8f872b92909686f73d3`
+- **Change:** Model Multiple Counters navigation and interactions for synchronized sessions.
+- **Details:**
+  - Made list, detail, fact, and delete-confirmation destinations Program-owned state with canonical parser-printer paths that exclude session mode, Processor capabilities, and transient presentation identities.
+  - Added stable Counter identities, permanent retirement, occurrence-correlated modal anchors, deterministic fact restoration, and an explicit incompatible v2 session and replay boundary.
+  - Classified every Message as Domain or Navigation, registered every wire family, and proved 21 laws including stale-reference rejection and Domain convergence across divergent navigation.
+- **Files:**
+  - `examples/counters/core/src/counterFactClient.ts` — Expose deterministic fact derivation without scheduling a duplicated side effect.
+  - `examples/counters/core/src/index.ts` — Export the complete portable Program contract.
+  - `examples/counters/core/src/init.ts` — Initialize stable rows and retired identity state.
+  - `examples/counters/core/src/message.ts` — Define Schema-backed semantic navigation targets, transient openings, and occurrence-correlated Messages.
+  - `examples/counters/core/src/model.ts` — Model domain identity invariants and mutually exclusive Program-owned navigation modes.
+  - `examples/counters/core/src/presentation.ts` — Project renderer-neutral destinations and source-local semantic interactions.
+  - `examples/counters/core/src/program.test.ts` — Prove URI, schema, interaction, replay, and synchronization laws.
+  - `examples/counters/core/src/program.ts` — Publish Program version 2 with synchronization and wire metadata.
+  - `examples/counters/core/src/route.ts` — Parse and print canonical semantic destinations across host carriers.
+  - `examples/counters/core/src/synchronization.ts` — Classify Domain and Navigation Messages through the Program contract.
+  - `examples/counters/core/src/update.ts` — Apply deterministic domain and navigation transitions with stale occurrence guards.
+  - `examples/counters/core/src/wire.ts` — Encode every current Message through a versioned event registry.
+- **User context (verbatim):**
+  > Open counter two on the phone and the Mac and iPad also show counter two.
+  > the delete prompt modal, like that's going to look different on everything.
+- **SpecStory:** unavailable — Unavailable: this work ran in Codex desktop, and no verified SpecStory GUI capture exists.
+
 ## August 1st, 2026 at 12:31:58 a.m. EDT — `456f119294fd` docs: define showcase composition and invocation provenance
 
 - **Implementation commit:** `456f119294fdc51e881f74506ca1d5f656fe6a15`
