@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 5:50:45 a.m. EDT — `1fbc41a54780` fix: preserve Multiple Counters carrier routes
+
+- **Implementation commit:** `1fbc41a5478095176dbd6635dd7c004c68c227c4`
+- **Change:** Restored the Expo Multiple Counters carrier boundary without reintroducing Client-owned navigation state.
+- **Details:**
+  - Canonical /counters destinations now remount the strict Provider, which starts from the canonical list Model and enqueues exactly one Program-owned navigation Message.
+  - Explicit /multiple-counters state and replay routes use a separately named inspection Client that retains semantic actions and exposes no raw Message sender.
+  - Updated the Client matrix presentation identities and example Vite aliases to the current InteractionGraph contract.
+- **Files:**
+  - `examples/client-matrix/core/src/matrix.ts` — Supplies stable detail, fact, and delete presentation identities for every matrix mode.
+  - `examples/counters/react-bindings/src/counters.tsx` — Adds the explicit inspection-only Program route Provider and Client.
+  - `examples/counters/react/src/client.test.ts` — Proves a Program state route opens without a private navigation boot Message.
+  - `examples/react-native-showcase/src/App.tsx` — Separates canonical destination carriers from explicit state and replay routes in Expo.
+  - `examples/vite.aliases.ts` — Resolves the public InteractionGraph entry point in example Vite builds.
+- **User context (verbatim):**
+  > make sure the navigation is set up purely through the core program
+  > each URI in each mode of each URI needs to be mapped out explicitly
+  > React native via iOS, React, and FoldKit.
+- **SpecStory:** unavailable — Unavailable: this work was performed in the Codex desktop app, whose GUI task is not captured by SpecStory.
+
 ## August 1st, 2026 at 5:42:14 a.m. EDT — `0eb4b293a6d9` feat(instant): establish protocol-v3 trust and storage
 
 - **Implementation commit:** `0eb4b293a6d97a53a3e8dd4d1b837979e8590d9f`
