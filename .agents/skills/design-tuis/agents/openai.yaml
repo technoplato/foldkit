@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Design TUIs'
+  short_description: 'Design keyboard-first terminal interfaces'
+  default_prompt: 'Use $design-tuis to design or audit a keyboard-first terminal interface.'
