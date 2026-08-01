@@ -4,6 +4,7 @@ import type { EffectManifest } from '../command/effectManifest.js'
 import type { ManagedResources } from '../managedResource/managedResource.js'
 import type { Ports } from '../port/port.js'
 import type { Subscriptions } from '../subscription/subscription.js'
+import type { MessageCategory } from '../synchronization/synchronization.js'
 import type { VersionedEventRegistry } from './versionedEvent.js'
 
 /** A Schema usable by a portable Foldkit Program without codec services. */
@@ -23,6 +24,12 @@ export type ProgramCommand<Message, Resources = never> = Readonly<{
   key?: string
   effectManifest?: EffectManifest
   effect: Effect.Effect<Message, never, Resources>
+}>
+
+/** Program-owned classification and domain projection for synchronized sessions. */
+export type ProgramSynchronization<Model, Message> = Readonly<{
+  messageCategory: (message: Message) => MessageCategory
+  projectDomain: (model: Model) => unknown
 }>
 
 /**
@@ -74,6 +81,7 @@ export type Program<
   managedResources?: ManagedResources<Model, Message, ManagedResourceServices>
   ports?: P
   migrations?: ReadonlyArray<Migration>
+  synchronization?: ProgramSynchronization<Model, Message>
   versionedEvents?: VersionedEventRegistry<Message>
 }>
 

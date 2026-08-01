@@ -135,6 +135,10 @@
       "types": "./dist/subscription/public.d.ts",
       "import": "./dist/subscription/public.js"
     },
+    "./synchronization": {
+      "types": "./dist/synchronization/public.d.ts",
+      "import": "./dist/synchronization/public.js"
+    },
     "./test": {
       "types": "./dist/test/public.d.ts",
       "import": "./dist/test/public.js"
