@@ -19,7 +19,7 @@ import * as Counters from 'counters-core-example'
 import {
   MultipleCountersClient,
   type MultipleCountersInitialRoute,
-  initialMultipleCountersRoute,
+  MultipleCountersProgramRouteClient,
 } from 'counters-react-bindings-example'
 import { Array, Effect, Exit, Match as M, Option } from 'effect'
 import { StatusBar } from 'expo-status-bar'
@@ -123,6 +123,27 @@ type ShowcaseInitialization = Readonly<{
   initialWalletHostOrigin: ReceivingQrProjectionInput['hostOrigin']
   revision: number
 }>
+
+type MultipleCountersShowcaseRoute =
+  | Readonly<{
+      _tag: 'Destination'
+      destinationUri: string
+    }>
+  | Readonly<{
+      _tag: 'ProgramRoute'
+      route: MultipleCountersInitialRoute
+    }>
+
+const multipleCountersDestination = (
+  destinationUri: string,
+): MultipleCountersShowcaseRoute => ({
+  _tag: 'Destination',
+  destinationUri,
+})
+
+const multipleCountersProgramRoute = (
+  route: MultipleCountersInitialRoute,
+): MultipleCountersShowcaseRoute => ({ _tag: 'ProgramRoute', route })
 
 const resolveShowcaseProgramRoute = (
   path: string,
@@ -243,7 +264,7 @@ const ShowcaseScreen = ({
   const replay = useShowcaseReplay()
   const [counterRoute, setCounterRoute] = useState(initialCounterRoute)
   const [countersRoute, setCountersRoute] = useState(
-    initialMultipleCountersRoute,
+    multipleCountersDestination('/counters'),
   )
   const [calculatorRoute, setCalculatorRoute] = useState(initialCalculatorRoute)
   const [cardboardRoute, setCardboardRoute] = useState<CardboardInitialRoute>(
@@ -303,16 +324,9 @@ const ShowcaseScreen = ({
       }
 
       if (path === '/counters' || path.startsWith('/counters/')) {
-        const maybeUrl = fromString(`https://showcase.invalid${path}`)
-        if (
-          Option.isSome(maybeUrl) &&
-          (isInitial || model.navigation._tag !== 'MultipleCountersScene')
-        ) {
-          const navigation = Counters.urlToNavigation(maybeUrl.value)
+        if (isInitial || model.navigation._tag !== 'MultipleCountersScene') {
           isReconcilingCarrier.current = true
-          setCountersRoute(
-            Program.state(Counters.modelForNavigation(navigation)),
-          )
+          setCountersRoute(multipleCountersDestination(path))
           actions.openedNavigation(Showcase.MultipleCountersScene.make({}))
           setRouteRevision(revision => revision + 1)
         }
@@ -329,7 +343,7 @@ const ShowcaseScreen = ({
         return selectRoute(
           Showcase.MultipleCountersScene.make({}),
           resolveInlineRoute(countersRouter.parse(path)),
-          setCountersRoute,
+          route => setCountersRoute(multipleCountersProgramRoute(route)),
         )
       } else if (path.startsWith('/calculator/')) {
         return selectRoute(
@@ -1174,11 +1188,24 @@ const CounterScreen = () => {
 
 const CountersExample = ({
   route,
-}: Readonly<{ route: MultipleCountersInitialRoute }>) => (
-  <MultipleCountersClient.Provider initialRoute={route}>
-    <CountersScreen />
-  </MultipleCountersClient.Provider>
-)
+}: Readonly<{ route: MultipleCountersShowcaseRoute }>) =>
+  M.value(route).pipe(
+    M.withReturnType<ReactNode>(),
+    M.tagsExhaustive({
+      Destination: ({ destinationUri }) => (
+        <MultipleCountersClient.Provider initialDestinationUri={destinationUri}>
+          <CountersScreen />
+        </MultipleCountersClient.Provider>
+      ),
+      ProgramRoute: ({ route: initialRoute }) => (
+        <MultipleCountersProgramRouteClient.Provider
+          initialRoute={initialRoute}
+        >
+          <CountersScreen />
+        </MultipleCountersProgramRouteClient.Provider>
+      ),
+    }),
+  )
 
 const CountersScreen = () => {
   const model = MultipleCountersClient.useModel()
@@ -1242,16 +1269,9 @@ const useCountersNavigationCarrier = (
       if (path !== '/counters' && !path.startsWith('/counters/')) {
         return
       }
-      const maybeUrl = fromString(`https://showcase.invalid${path}`)
-      if (Option.isSome(maybeUrl)) {
-        const nextNavigation = Counters.urlToNavigation(maybeUrl.value)
-        if (
-          Counters.navigationToPath(nextNavigation) !==
-          Counters.navigationToPath(navigation)
-        ) {
-          isReconcilingCarrier.current = true
-          actions.openedNavigation(nextNavigation)
-        }
+      if (path !== Counters.navigationToPath(navigation)) {
+        isReconcilingCarrier.current = true
+        actions.openedNavigation(path)
       }
     }
     const openUrl = ({ url }: Readonly<{ url: string }>): void => {

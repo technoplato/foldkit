@@ -415,11 +415,39 @@ export const MultipleCountersProvider = ({
   </MultipleCountersRuntimeClient.Provider>
 )
 
+/** Provides an explicit state or replay route for inspection-oriented hosts. */
+export const MultipleCountersProgramRouteProvider = ({
+  children,
+  fallback,
+  initialRoute,
+}: Readonly<{
+  children: ReactNode
+  fallback?: ReactNode
+  initialRoute: MultipleCountersInitialRoute
+}>) => (
+  <MultipleCountersRuntimeClient.Provider
+    initialRoute={initialRoute}
+    fallback={fallback}
+  >
+    <MultipleCountersResolutionProvider>
+      {children}
+    </MultipleCountersResolutionProvider>
+  </MultipleCountersRuntimeClient.Provider>
+)
+
 /** The canonical React and React Native client for Multiple Counters. */
 export const MultipleCountersClient = {
   ...MultipleCountersRuntimeClient,
   Provider: MultipleCountersProvider,
   useActions: useResolvedMultipleCountersActions,
+}
+
+/** An inspection Client for explicit Program state and replay routes. */
+export const MultipleCountersProgramRouteClient = {
+  Provider: MultipleCountersProgramRouteProvider,
+  useActions: useResolvedMultipleCountersActions,
+  useModel: MultipleCountersRuntimeClient.useModel,
+  useReplay: MultipleCountersRuntimeClient.useReplay,
 }
 
 /** Reads the current immutable Multiple Counters Model. */
