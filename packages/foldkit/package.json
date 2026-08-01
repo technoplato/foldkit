@@ -55,6 +55,10 @@
       "types": "./dist/http/public.d.ts",
       "import": "./dist/http/public.js"
     },
+    "./interaction-graph": {
+      "types": "./dist/interactionGraph/public.d.ts",
+      "import": "./dist/interactionGraph/public.js"
+    },
     "./managedResource": {
       "types": "./dist/managedResource/public.d.ts",
       "import": "./dist/managedResource/public.js"
