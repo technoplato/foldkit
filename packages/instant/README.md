@@ -21,6 +21,15 @@ calling the same Program update function without executing Commands, rebases
 that projection after every accepted or rejected terminal outcome, applies each
 accepted Message exactly once, and keeps replay inspection inert.
 
+Every shared Processor selects a framework `Synchronization.SessionPolicy` and
+supplies its Program-owned synchronization metadata. The selected policy is
+visible in the portable Processor snapshot. Protocol version 1 supports
+`Mirror` explicitly: Domain and Navigation Messages both project optimistically
+and apply from the accepted tape on every Processor. `SharedDomain` and `Follow`
+fail construction with a typed error until protocol version 2 persists each
+accepted occurrence's frozen audience and policy generation. The adapter never
+silently treats a partitioned mode as Mirror.
+
 There is no per-Message optimism allowlist. A Message participates when it is
 part of the Program's Message Schema, its versioned codec validates the wire
 record, and the Program update function handles it. Malformed payloads and

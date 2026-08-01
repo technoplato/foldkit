@@ -10,7 +10,7 @@ import {
   Stream,
   SubscriptionRef,
 } from 'effect'
-import { Command, Processor } from 'foldkit'
+import { Command, Processor, type Program, Synchronization } from 'foldkit'
 import { expect } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
@@ -37,6 +37,7 @@ import {
   SharedProgramCodecError,
   type SharedProgramMessageCodec,
   type SharedProgramRuntime,
+  SharedProgramSynchronizationModeUnsupported,
   enqueuedTransactionOutcome,
   makeAcceptanceAuthority,
   makeAcceptedOccurrencePositionKey,
@@ -45,15 +46,39 @@ import {
   makeInstantEffectPlacementPositionKey,
   makeSchemaProgramMessageCodec,
   makeSharedProgramProcessor,
+  makeSharedProgramProcessorSnapshotSchema,
 } from '../index.js'
 
 const Incremented = S.TaggedStruct('Incremented', {})
 const ResetCounter = S.TaggedStruct('ResetCounter', {})
-const Message = S.Union([Incremented, ResetCounter])
+const SelectedCounter = S.TaggedStruct('SelectedCounter', {
+  counterId: S.String,
+})
+const Message = S.Union([Incremented, ResetCounter, SelectedCounter])
 type Message = typeof Message.Type
 
 const Model = S.Struct({ count: S.Int })
 type Model = typeof Model.Type
+
+const programSynchronization: Program.ProgramSynchronization<Model, Message> = {
+  messageCategory: () => 'Domain',
+  projectDomain: model => model,
+}
+
+const mirrorPolicy = Synchronization.SessionPolicy.make({
+  generation: 0,
+  mode: Synchronization.Mirror.make({}),
+})
+
+const nextCount = (count: number, message: Message): number => {
+  if (message._tag === 'Incremented') {
+    return count + 1
+  } else if (message._tag === 'ResetCounter') {
+    return 0
+  } else {
+    return count
+  }
+}
 
 const Envelope = S.Struct({
   acceptedAtMs: S.NullOr(S.Int),
@@ -107,16 +132,24 @@ const codec = makeSchemaProgramMessageCodec({
       acceptingProcessorId: input.acceptingProcessorId,
     }),
   envelopeVersion: 1,
-  eventMetadata: message =>
-    message._tag === 'Incremented'
-      ? {
-          eventId: 'counter.incremented',
-          eventVersion: 1,
-        }
-      : {
-          eventId: 'counter.reset',
-          eventVersion: 1,
-        },
+  eventMetadata: message => {
+    if (message._tag === 'Incremented') {
+      return {
+        eventId: 'counter.incremented',
+        eventVersion: 1,
+      }
+    } else if (message._tag === 'ResetCounter') {
+      return {
+        eventId: 'counter.reset',
+        eventVersion: 1,
+      }
+    } else {
+      return {
+        eventId: 'counter.selected',
+        eventVersion: 1,
+      }
+    }
+  },
   makeProposedEnvelope: (_message, input) =>
     Envelope.make({
       acceptedAtMs: null,
@@ -158,7 +191,7 @@ const makeRuntime = (
         project: (currentModel, messages) =>
           Array.reduce(messages, currentModel, (model, message) =>
             Model.make({
-              count: message._tag === 'Incremented' ? model.count + 1 : 0,
+              count: nextCount(model.count, message),
             }),
           ),
         readModel: () => Effect.runSync(SubscriptionRef.get(model)),
@@ -173,7 +206,7 @@ const makeRuntime = (
             )
             return yield* SubscriptionRef.updateAndGet(model, current =>
               Model.make({
-                count: _message._tag === 'Incremented' ? current.count + 1 : 0,
+                count: nextCount(current.count, _message),
               }),
             )
           }),
@@ -236,6 +269,11 @@ const makeProcessor = (
   processorCodec: SharedProgramMessageCodec<Message, Envelope> = codec,
   processorClientId: string = clientId,
   throughAcceptedSequence = 0,
+  synchronization: Program.ProgramSynchronization<
+    Model,
+    Message
+  > = programSynchronization,
+  synchronizationPolicy: Synchronization.SessionPolicy = mirrorPolicy,
 ) => {
   const ids = ['occurrence-001', 'occurrence-002', 'occurrence-003']
   const nextId = SubscriptionRef.make(0)
@@ -270,6 +308,8 @@ const makeProcessor = (
         sessionId,
         store,
         subjectId,
+        synchronization,
+        synchronizationPolicy,
         throughAcceptedSequence,
       }),
     ),
@@ -364,6 +404,152 @@ const makeEffectPlacement = (
 }
 
 describe('shared Program Processor', () => {
+  it.effect(
+    'requires explicit Mirror policy and exposes it through the portable snapshot',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+
+          const snapshot = yield* processor.readSnapshot
+          const portableSnapshot = S.decodeUnknownSync(
+            makeSharedProgramProcessorSnapshotSchema(Model),
+          )(snapshot)
+
+          expect(snapshot.synchronizationPolicy).toEqual(mirrorPolicy)
+          expect(portableSnapshot.synchronizationPolicy).toEqual(mirrorPolicy)
+        }),
+      ),
+  )
+
+  it.effect('classifies navigation while Mirror projects and applies it', () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const classifications = yield* SubscriptionRef.make<
+          ReadonlyArray<Synchronization.MessageCategory>
+        >([])
+        const navigationSynchronization: Program.ProgramSynchronization<
+          Model,
+          Message
+        > = {
+          messageCategory: message => {
+            const category =
+              message._tag === 'SelectedCounter' ? 'Navigation' : 'Domain'
+            Effect.runSync(
+              SubscriptionRef.update(classifications, categories =>
+                Array.append(categories, category),
+              ),
+            )
+            return category
+          },
+          projectDomain: model => model,
+        }
+        const store = yield* makeInMemoryProgramStore()
+        const { appliedEnvelopes, runtime } = yield* makeRuntime()
+        const processor = yield* makeProcessor(
+          store,
+          runtime,
+          codec,
+          clientId,
+          0,
+          navigationSynchronization,
+        )
+        const proposal = yield* processor.propose(
+          SelectedCounter.make({ counterId: 'counter-002' }),
+        )
+
+        expect((yield* processor.readSnapshot).pendingProposals).toHaveLength(1)
+
+        yield* store.appendAcceptedMessageOccurrence(
+          yield* makeOccurrence(proposal, 1),
+        )
+        yield* processor.connect
+
+        const snapshot = yield* processor.readSnapshot
+        const observedClassifications =
+          yield* SubscriptionRef.get(classifications)
+        expect(snapshot.acceptedSequence).toBe(1)
+        expect(snapshot.pendingProposals).toEqual([])
+        expect(yield* SubscriptionRef.get(appliedEnvelopes)).toHaveLength(1)
+        expect(observedClassifications).toContain('Navigation')
+        expect(
+          observedClassifications.every(
+            classification => classification === 'Navigation',
+          ),
+        ).toBe(true)
+      }),
+    ),
+  )
+
+  it.effect(
+    'rejects SharedDomain and Follow until accepted occurrences persist audiences',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const sharedDomainPolicy = Synchronization.SessionPolicy.make({
+            generation: 1,
+            mode: Synchronization.SharedDomain.make({}),
+          })
+          const followPolicy = Synchronization.SessionPolicy.make({
+            generation: 2,
+            mode: Synchronization.Follow.make({
+              followers: [
+                Synchronization.Follower.make({
+                  control: 'Observe',
+                  processorId: 'processor-follower',
+                }),
+              ],
+              leaderProcessorId: processorId,
+            }),
+          })
+
+          const sharedDomainError = yield* Effect.flip(
+            makeProcessor(
+              store,
+              runtime,
+              codec,
+              clientId,
+              0,
+              programSynchronization,
+              sharedDomainPolicy,
+            ),
+          )
+          const followError = yield* Effect.flip(
+            makeProcessor(
+              store,
+              runtime,
+              codec,
+              clientId,
+              0,
+              programSynchronization,
+              followPolicy,
+            ),
+          )
+
+          expect(sharedDomainError).toBeInstanceOf(
+            SharedProgramSynchronizationModeUnsupported,
+          )
+          expect(sharedDomainError).toMatchObject({
+            mode: 'SharedDomain',
+            requiredProtocolVersion: 2,
+            supportedProtocolVersion: 1,
+          })
+          expect(followError).toBeInstanceOf(
+            SharedProgramSynchronizationModeUnsupported,
+          )
+          expect(followError).toMatchObject({
+            mode: 'Follow',
+            requiredProtocolVersion: 2,
+            supportedProtocolVersion: 1,
+          })
+        }),
+      ),
+  )
+
   it.effect(
     'projects offline proposals without mutating the accepted runtime Model',
     () =>
