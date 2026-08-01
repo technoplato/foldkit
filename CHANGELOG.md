@@ -4,6 +4,31 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 2:26:53 a.m. EDT — `cc9ef1db86d8` feat(foldkit): bind semantic interaction admission
+
+- **Implementation commit:** `cc9ef1db86d81e52a72b2398dc7b31418b7b43bd`
+- **Change:** Bound authenticated semantic interaction admission to the current Program Model.
+- **Details:**
+  - Added an authority-facing resolver that Schema-decodes bounded invocation facts and occurrence claims, requires their occurrence identities to match, derives Program context internally, and preserves typed projection, claim, context, and Message failures.
+  - Bound destination URIs, source paths, tokens, choices, editable text, and occurrence identities before graph lookup so malformed authenticated input cannot force unbounded key construction or traversal.
+  - Derived Multiple Counters domain and presentation identities deterministically from the admitted occurrence, aligned their canonical grammar, and resolved every Program-owned navigation carrier without uncaught defects.
+  - Verified 21 focused Foldkit tests, 34 Multiple Counters core tests, package builds and typechecks, OpenTUI compatibility, scoped formatting and linting, and an independent P0-P2 review.
+- **Files:**
+  - `.changeset/admit-semantic-interactions.md` — Announces the public Foldkit admission API.
+  - `packages/foldkit/src/interactionGraph/interactionGraph.ts` — Binds authenticated facts to bounded claims and resolves typed current-state failures.
+  - `packages/foldkit/src/interactionGraph/interactionGraph.test.ts` — Proves fact binding, bounds, defects, stale claims, and selection failures.
+  - `packages/foldkit/src/interactionGraph/interactionNode.ts` — Defines bounded occurrence identities and the authority-boundary claim Schema.
+  - `examples/counters/core/src/index.ts` — Exports the Program-owned navigation carrier.
+  - `examples/counters/core/src/interactionGraph.ts` — Derives canonical Messages and identities from authenticated occurrences.
+  - `examples/counters/core/src/interactionGraph.test.ts` — Proves Client and authority Message equivalence and occurrence binding.
+  - `examples/counters/core/src/model.ts` — Aligns Counter and presentation identity grammars with canonical occurrences.
+  - `examples/counters/core/src/navigationCarrier.ts` — Resolves canonical URI targets into typed deterministic navigation Messages.
+  - `examples/counters/core/src/navigationCarrier.test.ts` — Proves all URI modes, identity round trips, bounds, and typed rejection.
+- **User context (verbatim):**
+  > How does a message opt in?
+  > Again, who is authority to uh reject messages?
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this work ran in the Codex desktop app, whose GUI task capture is not documented by SpecStory.
+
 ## August 1st, 2026 at 1:54:07 a.m. EDT — `e1bb646bbd46` fix(foldkit): bound processor session contracts
 
 - **Implementation commit:** `e1bb646bbd46c33be9f6e2482d28f75d558022bc`
