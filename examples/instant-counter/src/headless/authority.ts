@@ -1,9 +1,11 @@
 import {
   Array,
+  Cause,
   Duration,
   Effect,
   Fiber,
   Option,
+  Schema as S,
   Schedule,
   Scope,
   Stream,
@@ -46,6 +48,26 @@ import {
 
 const heartbeatInterval = '10 seconds'
 const restartDelay = Duration.seconds(2)
+const sessionPolicyEquivalence = S.toEquivalence(Synchronization.SessionPolicy)
+
+/** One running scoped admission sequencer and its immutable identity fence. */
+export type RunningSessionAdmissionSequencer = Readonly<{
+  fiber: Fiber.Fiber<never, never>
+  session: InstantProgramSessionRecord
+}>
+
+/** Canonical identity that fences one running admission sequencer Scope. */
+export type AdmissionSequencerIdentity = Readonly<{
+  authorityProcessorId: string
+  isRevoked: boolean
+  processorRoomId: string
+  programId: string
+  programVersion: number
+  protocolVersion: number
+  sessionId: string
+  sessionPolicy: Synchronization.SessionPolicy
+  subjectId: string
+}>
 
 /** Inputs for the long-lived renderer-free admission sequencer Processor. */
 export type HeadlessAdmissionSequencerConfig = Readonly<{
@@ -114,12 +136,13 @@ const runSessionAdmissionSequencer = (
         originatingProcessorId: processorId,
         programId,
         programVersion,
+        protocolVersion: session.protocolVersion,
         runtime,
         sessionId: session.sessionId,
         store,
         subjectId: session.subjectId,
         synchronization: InstantCounterSynchronization,
-        synchronizationPolicy: Synchronization.legacyMirrorSessionPolicy(),
+        synchronizationPolicy: session.sessionPolicy,
       })
       scheduler.attach(shared)
       yield* shared.connect
@@ -162,6 +185,17 @@ const runSessionAdmissionSequencer = (
       )
       const admissionSequencer = yield* makeAdmissionSequencer({
         acceptEnvelope: codec.acceptEnvelope,
+        decodeAcceptedMessage: occurrence =>
+          Effect.map(
+            codec.decodeAccepted(occurrence),
+            decoded => decoded.message,
+          ),
+        decodeProposedMessage: proposal =>
+          Effect.map(
+            codec.decodeProposed(proposal),
+            decoded => decoded.message,
+          ),
+        messageCategory: InstantCounterSynchronization.messageCategory,
         now: Date.now,
         onProposalRejected: reportRejectedProposal,
         session,
@@ -191,18 +225,58 @@ const resilientSessionAdmissionSequencer = (
 ): Effect.Effect<never> =>
   Effect.forever(
     runSessionAdmissionSequencer(session, config).pipe(
-      Effect.catchCause(() =>
-        Effect.andThen(
+      Effect.catchCause(cause => {
+        if (Cause.hasInterruptsOnly(cause)) {
+          return Effect.interrupt
+        }
+        return Effect.andThen(
           Effect.sync(() => {
             process.stderr.write(
               'Foldkit Instant restarted one Program session admission sequencer.\n',
             )
           }),
           Effect.sleep(restartDelay),
-        ),
-      ),
+        )
+      }),
     ),
   )
+
+/** Returns whether one running sequencer still has the exact trusted identity. */
+export const hasSameAdmissionSequencerIdentity = (
+  current: AdmissionSequencerIdentity,
+  next: AdmissionSequencerIdentity,
+): boolean =>
+  current.authorityProcessorId === next.authorityProcessorId &&
+  current.isRevoked === next.isRevoked &&
+  current.processorRoomId === next.processorRoomId &&
+  current.programId === next.programId &&
+  current.programVersion === next.programVersion &&
+  current.protocolVersion === next.protocolVersion &&
+  current.sessionId === next.sessionId &&
+  sessionPolicyEquivalence(current.sessionPolicy, next.sessionPolicy) &&
+  current.subjectId === next.subjectId
+
+/** Closes a stale sequencer Scope completely before starting its replacement. */
+export const replaceSessionAdmissionSequencer = <R>(
+  running: RunningSessionAdmissionSequencer | undefined,
+  session: InstantProgramSessionRecord,
+  start: (
+    session: InstantProgramSessionRecord,
+  ) => Effect.Effect<Fiber.Fiber<never, never>, never, R>,
+): Effect.Effect<RunningSessionAdmissionSequencer, never, R> =>
+  Effect.gen(function* () {
+    if (
+      running !== undefined &&
+      hasSameAdmissionSequencerIdentity(running.session, session)
+    ) {
+      return running
+    }
+    if (running !== undefined) {
+      yield* Fiber.interrupt(running.fiber)
+    }
+    const fiber = yield* start(session)
+    return { fiber, session }
+  })
 
 /** Supervises one isolated admission sequencer Processor per active session. */
 export const runHeadlessAdmissionSequencer = (
@@ -210,7 +284,7 @@ export const runHeadlessAdmissionSequencer = (
 ): Effect.Effect<never, unknown, Scope.Scope> =>
   Effect.gen(function* () {
     const scope = yield* Effect.scope
-    const sessionFibers = new Map<string, Fiber.Fiber<never, never>>()
+    const runningSessions = new Map<string, RunningSessionAdmissionSequencer>()
     const quarantinedSessionIds = new Set<string>()
 
     return yield* Stream.runForEach(
@@ -247,23 +321,27 @@ export const runHeadlessAdmissionSequencer = (
             Array.map(activeSessions, session => session.sessionId),
           )
 
-          for (const [sessionId, fiber] of sessionFibers) {
+          for (const [sessionId, running] of runningSessions) {
             if (!activeSessionIds.has(sessionId)) {
-              yield* Fiber.interrupt(fiber)
-              sessionFibers.delete(sessionId)
+              yield* Fiber.interrupt(running.fiber)
+              runningSessions.delete(sessionId)
             }
           }
           yield* Effect.forEach(
             activeSessions,
             session =>
               Effect.gen(function* () {
-                if (!sessionFibers.has(session.sessionId)) {
-                  const fiber = yield* Effect.forkIn(
-                    resilientSessionAdmissionSequencer(session, config),
-                    scope,
-                  )
-                  sessionFibers.set(session.sessionId, fiber)
-                }
+                const running = runningSessions.get(session.sessionId)
+                const nextRunning = yield* replaceSessionAdmissionSequencer(
+                  running,
+                  session,
+                  nextSession =>
+                    Effect.forkIn(
+                      resilientSessionAdmissionSequencer(nextSession, config),
+                      scope,
+                    ),
+                )
+                runningSessions.set(session.sessionId, nextRunning)
               }),
             { concurrency: 1, discard: true },
           )

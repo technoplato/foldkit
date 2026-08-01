@@ -1,4 +1,7 @@
-import { Array } from 'effect'
+import { Array, Schema as S } from 'effect'
+import * as Synchronization from 'foldkit/synchronization'
+
+import { instantProgramProtocolVersion } from '@foldkit/instant'
 
 /** The stable Google OAuth client configured for the Foldkit Instant demo app. */
 export const googleClientName = 'foldkit-google-web'
@@ -8,6 +11,20 @@ export const programId = 'instant-counter'
 
 /** The current Instant counter Program version. */
 export const programVersion = 1
+
+/** The durable Instant protocol version required by this demo. */
+export const instantCounterProtocolVersion = instantProgramProtocolVersion
+
+/** The explicit Mirror policy retained by the current single-counter demo. */
+export const instantCounterSessionPolicy =
+  Synchronization.legacyMirrorSessionPolicy()
+
+const sessionPolicyEquivalence = S.toEquivalence(Synchronization.SessionPolicy)
+
+/** Returns whether a persisted policy is the demo's exact selected policy. */
+export const isInstantCounterSessionPolicy = (
+  policy: Synchronization.SessionPolicy,
+): boolean => sessionPolicyEquivalence(policy, instantCounterSessionPolicy)
 
 /** The stable prefix for versioned Program session identifiers. */
 export const sessionIdPrefix = `${programId}:v${programVersion}:`

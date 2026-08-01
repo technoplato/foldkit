@@ -1,10 +1,11 @@
 import { Deferred, Effect, Option, Stream } from 'effect'
-import { Processor, Runtime } from 'foldkit'
+import { Processor, Runtime, Synchronization } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import {
   InstantProgramSessionRecord,
   type ProcessorRoomService,
+  instantProgramProtocolVersion,
   makeInMemoryProgramStore,
 } from '@foldkit/instant'
 
@@ -28,9 +29,13 @@ const session = InstantProgramSessionRecord.make({
   processorRoomId: 'room-4ec724f1c3584d679b8a3b88f470e372',
   programId: 'instant-counter',
   programVersion: 1,
+  protocolVersion: instantProgramProtocolVersion,
   sessionId: 'session-1',
+  sessionPolicy: Synchronization.legacyMirrorSessionPolicy(),
   subjectId: 'subject-1',
 })
+
+const causalAudience = Synchronization.SessionAudience.make({})
 
 const room: ProcessorRoomService = {
   observePresence: Stream.never,
@@ -71,7 +76,10 @@ describe('delegated effect scheduler', () => {
           session,
           requestMessage,
           {
+            causalAudience,
+            causalMessageCategory: 'Domain',
             causalOccurrenceId: acceptedEnvelope.occurrenceId,
+            causalPolicyGeneration: session.sessionPolicy.generation,
             ingressProcessorId: acceptedEnvelope.ingressProcessorId,
             originClientId: acceptedEnvelope.originClientId,
             originatingProcessorId: 'processor-browser',
@@ -176,7 +184,10 @@ describe('delegated effect scheduler', () => {
           session,
           requestMessage,
           {
+            causalAudience,
+            causalMessageCategory: 'Domain',
             causalOccurrenceId: acceptedEnvelope.occurrenceId,
+            causalPolicyGeneration: session.sessionPolicy.generation,
             ingressProcessorId: acceptedEnvelope.ingressProcessorId,
             originClientId: acceptedEnvelope.originClientId,
             originatingProcessorId: 'processor-browser',

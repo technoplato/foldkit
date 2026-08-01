@@ -463,6 +463,10 @@ const decodeProposal = (record: {
   effectIdempotencyKey?: string
   effectRequestId?: string
   executorProcessorId?: string
+  messageCategory: unknown
+  policyGeneration: unknown
+  protocolVersion: unknown
+  proposedAudience: unknown
 }): InstantMessageProposalRecordType =>
   S.decodeUnknownSync(InstantMessageProposalRecord)({
     ...record,
@@ -1003,9 +1007,12 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
       actorSequence: baseProposal.actorSequence + 1_000_000,
       createdAtMs: Date.now(),
       id: malformedId,
+      messageCategory: baseProposal.messageCategory,
       occurrenceId: malformedId,
       payloadJson: '{',
+      policyGeneration: baseProposal.policyGeneration,
       proposalId: malformedId,
+      proposedAudience: baseProposal.proposedAudience,
     })
     headless.clearStderr()
     const malformedResponse = await runBrowserProbe(
@@ -1143,8 +1150,11 @@ const runAcceptance = async (): Promise<LiveAcceptanceEvidence> => {
       actorId: otherUser.id,
       createdAtMs: Date.now(),
       id: foreignProposalId,
+      messageCategory: baseProposal.messageCategory,
       occurrenceId: foreignProposalId,
+      policyGeneration: baseProposal.policyGeneration,
       proposalId: foreignProposalId,
+      proposedAudience: baseProposal.proposedAudience,
       sessionId: maybeSession.value.sessionId,
       subjectId: primaryUser.id,
     })

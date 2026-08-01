@@ -5,6 +5,8 @@ import type { InstantProgramSessionRecord } from '@foldkit/instant'
 import {
   admissionSequencerProcessorId,
   deriveSessionId,
+  instantCounterProtocolVersion,
+  isInstantCounterSessionPolicy,
   isProcessorRoomId,
   programId,
   programVersion,
@@ -26,8 +28,10 @@ export const validateProgramSession = (
       if (
         session.programId === programId &&
         session.programVersion === programVersion &&
+        session.protocolVersion === instantCounterProtocolVersion &&
         !session.isRevoked &&
         session.sessionId === sessionId &&
+        isInstantCounterSessionPolicy(session.sessionPolicy) &&
         isProcessorRoomId(session.processorRoomId) &&
         session.authorityProcessorId ===
           admissionSequencerProcessorId(sessionId)

@@ -1,13 +1,21 @@
 import { Option } from 'effect'
-import { Processor } from 'foldkit'
+import { Processor, Synchronization } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
-import { InstantProgramSessionRecord } from '@foldkit/instant'
+import {
+  InstantProgramSessionRecord,
+  instantProgramProtocolVersion,
+} from '@foldkit/instant'
 
 import { effectIdForKind } from '../domain/effect.js'
 import { RequestedEffect } from '../domain/message.js'
 import { headlessProcessorDescriptor } from './capabilities.js'
-import { planEffectPlacement } from './placement.js'
+import { type EffectPlacementOrigin, planEffectPlacement } from './placement.js'
+
+const mirrorPolicy = Synchronization.SessionPolicy.make({
+  generation: 0,
+  mode: Synchronization.Mirror.make({}),
+})
 
 const session = InstantProgramSessionRecord.make({
   authorityProcessorId: 'processor-authority',
@@ -16,13 +24,18 @@ const session = InstantProgramSessionRecord.make({
   isRevoked: false,
   processorRoomId: 'room-4ec724f1c3584d679b8a3b88f470e372',
   programId: 'instant-counter',
+  protocolVersion: instantProgramProtocolVersion,
   programVersion: 1,
   sessionId: 'session-1',
+  sessionPolicy: mirrorPolicy,
   subjectId: 'subject-1',
 })
 
-const origin = {
+const origin: EffectPlacementOrigin = {
+  causalAudience: Synchronization.SessionAudience.make({}),
+  causalMessageCategory: 'Domain',
   causalOccurrenceId: 'occurrence-1',
+  causalPolicyGeneration: 0,
   ingressProcessorId: 'processor-authority',
   originClientId: 'client-browser',
   originatingProcessorId: 'processor-browser',
@@ -53,7 +66,10 @@ describe('effect placement planning', () => {
       requestId: 'timer-1',
     })
     expect(plan.request).toMatchObject({
+      causalAudience: origin.causalAudience,
+      causalMessageCategory: origin.causalMessageCategory,
       causalOccurrenceId: 'occurrence-1',
+      causalPolicyGeneration: origin.causalPolicyGeneration,
       idempotencyKey: 'session-1:timer-1',
       originatingProcessorId: 'processor-browser',
       requestId: 'timer-1',
@@ -89,8 +105,8 @@ describe('effect placement planning', () => {
       ],
       processorId: 'processor-origin',
       protocol: Processor.ProtocolRange.make({
-        maximumVersion: 1,
-        minimumVersion: 1,
+        maximumVersion: instantProgramProtocolVersion,
+        minimumVersion: instantProgramProtocolVersion,
       }),
     })
     const plan = planEffectPlacement(

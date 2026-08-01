@@ -1,7 +1,6 @@
 import { Effect, Exit, Fiber, Layer, Schedule, Scope, Stream } from 'effect'
 import * as Processor from 'foldkit/processor'
 import * as Runtime from 'foldkit/program-runtime'
-import * as Synchronization from 'foldkit/synchronization'
 
 import {
   type InstantProcessorPresence as InstantProcessorPresenceType,
@@ -169,12 +168,13 @@ export const makeClientProcessor = ({
       originatingProcessorId: processorId,
       programId,
       programVersion,
+      protocolVersion: session.protocolVersion,
       runtime,
       sessionId: session.sessionId,
       store,
       subjectId,
       synchronization: InstantCounterSynchronization,
-      synchronizationPolicy: Synchronization.legacyMirrorSessionPolicy(),
+      synchronizationPolicy: session.sessionPolicy,
     })
     scheduler.attach(shared)
 

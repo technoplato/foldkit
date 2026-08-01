@@ -14,6 +14,9 @@ import { InstantProgramSessionRecord } from '@foldkit/instant'
 import {
   admissionSequencerProcessorId,
   deriveSessionId,
+  instantCounterProtocolVersion,
+  instantCounterSessionPolicy,
+  isInstantCounterSessionPolicy,
   isProcessorRoomId,
   processorRoomIdPrefix,
   programId,
@@ -27,6 +30,59 @@ import {
 } from './subjectScope.js'
 
 type ClosableSubscription = Readonly<{ close: () => void }>
+
+const LegacyInstantCounterProgramSessionRecord = S.Struct({
+  authorityProcessorId: S.String,
+  createdAtMs: S.Int,
+  id: S.String,
+  isRevoked: S.Boolean,
+  processorRoomId: S.String,
+  programId: S.String,
+  programVersion: S.Int,
+  sessionId: S.String,
+  subjectId: S.String,
+})
+
+type ProgramSessionMaterializationRecord =
+  | Readonly<{
+      _tag: 'Current'
+      session: InstantProgramSessionRecord
+    }>
+  | Readonly<{
+      _tag: 'LegacyMirrorV1'
+      session: InstantProgramSessionRecord
+    }>
+
+/** Decodes either a current session or the exact legacy Mirror v1 row. */
+export const decodeProgramSessionForMaterialization = (
+  record: unknown,
+): Option.Option<ProgramSessionMaterializationRecord> => {
+  const maybeCurrent = S.decodeUnknownOption(InstantProgramSessionRecord, {
+    onExcessProperty: 'error',
+  })(record)
+  if (Option.isSome(maybeCurrent)) {
+    return Option.some({ _tag: 'Current', session: maybeCurrent.value })
+  }
+  const maybeLegacy = S.decodeUnknownOption(
+    LegacyInstantCounterProgramSessionRecord,
+    { onExcessProperty: 'error' },
+  )(record)
+  if (
+    Option.isSome(maybeLegacy) &&
+    maybeLegacy.value.programId === programId &&
+    maybeLegacy.value.programVersion === programVersion
+  ) {
+    return Option.some({
+      _tag: 'LegacyMirrorV1',
+      session: InstantProgramSessionRecord.make({
+        ...maybeLegacy.value,
+        protocolVersion: instantCounterProtocolVersion,
+        sessionPolicy: instantCounterSessionPolicy,
+      }),
+    })
+  }
+  return Option.none()
+}
 
 const observeSessionClaims = (
   database: HeadlessInstantDatabase,
@@ -79,13 +135,14 @@ export const makeProgramSessionForClaim = async (
     processorRoomId: `${processorRoomIdPrefix}${input.roomEntropy}`,
     programId,
     programVersion,
+    protocolVersion: instantCounterProtocolVersion,
     sessionId,
+    sessionPolicy: instantCounterSessionPolicy,
     subjectId: claim.subjectId,
   })
 }
 
-/** Checks whether a persisted session is canonical for one authenticated claim. */
-export const isCanonicalProgramSessionForClaim = async (
+const hasCanonicalProgramSessionIdentityForClaim = async (
   session: InstantProgramSessionRecord,
   claim: InstantCounterSessionClaim,
 ): Promise<boolean> => {
@@ -95,16 +152,25 @@ export const isCanonicalProgramSessionForClaim = async (
     isProcessorRoomId(session.processorRoomId) &&
     session.programId === programId &&
     session.programVersion === programVersion &&
+    session.protocolVersion === instantCounterProtocolVersion &&
     session.sessionId === sessionId &&
     session.subjectId === claim.subjectId
   )
 }
 
+/** Checks whether a persisted session is canonical for one authenticated claim. */
+export const isCanonicalProgramSessionForClaim = async (
+  session: InstantProgramSessionRecord,
+  claim: InstantCounterSessionClaim,
+): Promise<boolean> =>
+  (await hasCanonicalProgramSessionIdentityForClaim(session, claim)) &&
+  isInstantCounterSessionPolicy(session.sessionPolicy)
+
 const queryProgramSessions = async (
   database: HeadlessInstantDatabase,
   sessionId: string,
   subjectId: string,
-): Promise<ReadonlyArray<InstantProgramSessionRecord>> => {
+): Promise<ReadonlyArray<ProgramSessionMaterializationRecord>> => {
   const result = await database.query({
     foldkitProgramSessions: {
       $: {
@@ -116,7 +182,7 @@ const queryProgramSessions = async (
   })
   return Array.getSomes(
     Array.map(result.foldkitProgramSessions, session =>
-      S.decodeUnknownOption(InstantProgramSessionRecord)(session),
+      decodeProgramSessionForMaterialization(session),
     ),
   )
 }
@@ -128,7 +194,9 @@ const programSessionFields = (session: InstantProgramSessionRecord) => ({
   processorRoomId: session.processorRoomId,
   programId: session.programId,
   programVersion: session.programVersion,
+  protocolVersion: session.protocolVersion,
   sessionId: session.sessionId,
+  sessionPolicy: session.sessionPolicy,
   subjectId: session.subjectId,
 })
 
@@ -168,8 +236,26 @@ const materializeSessionClaim = async (
   )
   const maybeExistingSession = Array.head(existingSessions)
   if (Option.isSome(maybeExistingSession)) {
-    const existingSession = maybeExistingSession.value
-    if (await isCanonicalProgramSessionForClaim(existingSession, claim)) {
+    const existing = maybeExistingSession.value
+    const existingSession = existing.session
+    const hasCanonicalIdentity =
+      await hasCanonicalProgramSessionIdentityForClaim(existingSession, claim)
+    if (
+      existing._tag === 'Current' &&
+      hasCanonicalIdentity &&
+      isInstantCounterSessionPolicy(existingSession.sessionPolicy)
+    ) {
+      return
+    }
+    if (hasCanonicalIdentity) {
+      await repairProgramSession(
+        database,
+        InstantProgramSessionRecord.make({
+          ...existingSession,
+          protocolVersion: instantCounterProtocolVersion,
+          sessionPolicy: instantCounterSessionPolicy,
+        }),
+      )
       return
     }
     const repairedSession = await makeProgramSessionForClaim(claim, {
@@ -201,15 +287,30 @@ const materializeSessionClaim = async (
       claim.subjectId,
     )
     const maybeWinningSession = Array.head(winningSessions)
+    if (Option.isNone(maybeWinningSession)) {
+      throw new Error(
+        'Unable to materialize the authenticated Program session.',
+      )
+    }
+    const winningSession = maybeWinningSession.value.session
     if (
-      Option.isNone(maybeWinningSession) ||
-      !(await isCanonicalProgramSessionForClaim(
-        maybeWinningSession.value,
-        claim,
-      ))
+      !(await hasCanonicalProgramSessionIdentityForClaim(winningSession, claim))
     ) {
       throw new Error(
         'Unable to materialize the authenticated Program session.',
+      )
+    }
+    if (
+      maybeWinningSession.value._tag === 'LegacyMirrorV1' ||
+      !isInstantCounterSessionPolicy(winningSession.sessionPolicy)
+    ) {
+      await repairProgramSession(
+        database,
+        InstantProgramSessionRecord.make({
+          ...winningSession,
+          protocolVersion: instantCounterProtocolVersion,
+          sessionPolicy: instantCounterSessionPolicy,
+        }),
       )
     }
   }

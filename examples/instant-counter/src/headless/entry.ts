@@ -2,6 +2,7 @@ import { Effect } from 'effect'
 
 import { runHeadlessAdmissionSequencer } from './authority.js'
 import { makeHeadlessDatabases } from './database.js'
+import { runLegacyRoutingMigration } from './legacyRoutingMigration.js'
 import {
   headlessStatePathFromEnvironment,
   makeHeadlessLocalState,
@@ -12,6 +13,10 @@ import { headlessSubjectScopeFromEnvironment } from './subjectScope.js'
 const program = Effect.scoped(
   Effect.gen(function* () {
     const databases = yield* makeHeadlessDatabases()
+    const migrationCounts = yield* runLegacyRoutingMigration(databases.admin)
+    process.stdout.write(
+      `Foldkit Instant legacy routing preflight completed: ${migrationCounts.acceptedOccurrences.toString()} accepted Message occurrences, ${migrationCounts.messageProposals.toString()} Message proposals, ${migrationCounts.messageProposalResolutions.toString()} proposal resolutions, ${migrationCounts.effectRequests.toString()} effect requests, ${migrationCounts.effectPlacements.toString()} effect placements, and ${migrationCounts.projectionCheckpoints.toString()} projection checkpoints upgraded.\n`,
+    )
     const localState = yield* makeHeadlessLocalState(
       headlessStatePathFromEnvironment(),
     )

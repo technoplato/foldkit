@@ -1,6 +1,8 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Command, Processor } from 'foldkit'
 
+import { instantProgramProtocolVersion } from '@foldkit/instant'
+
 /** One previously appended placement generation for an effect request. */
 export type PlacementGeneration = Readonly<{
   assignmentGeneration: number
@@ -25,12 +27,22 @@ const isAssigned = (
 ): decision is Processor.AssignedPreferred | Processor.AssignedFallback =>
   decision._tag === 'AssignedPreferred' || decision._tag === 'AssignedFallback'
 
+/** Returns whether a Processor can participate in this protocol-v2 session. */
+export const supportsInstantProgramProtocol = (
+  processor: Processor.Descriptor,
+): boolean =>
+  processor.protocol.minimumVersion <= instantProgramProtocolVersion &&
+  processor.protocol.maximumVersion >= instantProgramProtocolVersion
+
 const eligibleProcessors = (
   manifest: Command.EffectManifest,
   processors: ReadonlyArray<Processor.Descriptor>,
 ): ReadonlyArray<Processor.Descriptor> =>
-  Array.filter(processors, processor =>
-    Processor.supportsEffectVersion(processor, manifest.id, manifest.version),
+  Array.filter(
+    processors,
+    processor =>
+      supportsInstantProgramProtocol(processor) &&
+      Processor.supportsEffectVersion(processor, manifest.id, manifest.version),
   )
 
 /** Produces the next append-only placement generation when liveness changes it. */
