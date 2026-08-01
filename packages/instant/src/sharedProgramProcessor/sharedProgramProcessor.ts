@@ -17,6 +17,7 @@ import {
   SynchronizedRef,
   Tuple,
 } from 'effect'
+import { type Program, Synchronization } from 'foldkit'
 
 import {
   type AcceptedOccurrenceCursorError,
@@ -93,6 +94,7 @@ export const makeSharedProgramProcessorSnapshotSchema = <Model>(
     replayMode: SharedProgramReplayMode,
     sessionId: S.String,
     subjectId: S.String,
+    synchronizationPolicy: Synchronization.SessionPolicy,
   })
 
 /** One atomic shell view of live accepted state, pending proposals, and replay. */
@@ -107,6 +109,7 @@ export type SharedProgramProcessorSnapshot<Model> = Readonly<{
   replayMode: SharedProgramReplayMode
   sessionId: string
   subjectId: string
+  synchronizationPolicy: Synchronization.SessionPolicy
 }>
 
 /** The subset of a live Foldkit ProgramRuntime consumed by this adapter. */
@@ -267,6 +270,22 @@ export class SharedProgramActorSequenceError extends Data.TaggedError(
   readonly cause: unknown
 }> {}
 
+/**
+ * The selected session mode requires a persisted audience protocol not yet
+ * available.
+ */
+export class SharedProgramSynchronizationModeUnsupported extends Data.TaggedError(
+  'SharedProgramSynchronizationModeUnsupported',
+)<{
+  readonly mode: Exclude<Synchronization.Mode['_tag'], 'Mirror'>
+  readonly requiredProtocolVersion: 2
+  readonly supportedProtocolVersion: 1
+}> {}
+
+/** A shared Program Processor could not be constructed safely. */
+export type SharedProgramProcessorConstructionError =
+  SharedProgramSynchronizationModeUnsupported
+
 /** A local Message could not be converted into a durable proposal. */
 export type SharedProgramProposalError =
   | SharedProgramActorSequenceError
@@ -304,6 +323,8 @@ export type SharedProgramProcessorConfig<
   sessionId: string
   store: ProgramStoreService
   subjectId: string
+  synchronization: Program.ProgramSynchronization<Model, Message>
+  synchronizationPolicy: Synchronization.SessionPolicy
   throughAcceptedSequence?: number
 }>
 
@@ -594,6 +615,8 @@ export const makeSharedProgramProcessor = <
   sessionId,
   store,
   subjectId,
+  synchronization,
+  synchronizationPolicy,
   throughAcceptedSequence = 0,
 }: SharedProgramProcessorConfig<
   Model,
@@ -602,10 +625,19 @@ export const makeSharedProgramProcessor = <
   ReplayError
 >): Effect.Effect<
   SharedProgramProcessorService<Model, Message>,
-  never,
+  SharedProgramProcessorConstructionError,
   Scope.Scope
 > =>
   Effect.gen(function* () {
+    if (synchronizationPolicy.mode._tag !== 'Mirror') {
+      return yield* Effect.fail(
+        new SharedProgramSynchronizationModeUnsupported({
+          mode: synchronizationPolicy.mode._tag,
+          requiredProtocolVersion: 2,
+          supportedProtocolVersion: 1,
+        }),
+      )
+    }
     const scope = yield* Effect.scope
     const cursor = yield* makeAcceptedOccurrenceCursor(
       sessionId,
@@ -666,7 +698,13 @@ export const makeSharedProgramProcessor = <
       replayMode: LiveReplay.make({}),
       sessionId,
       subjectId,
+      synchronizationPolicy,
     })
+
+    const classifyMessage = (message: Message): Message => {
+      synchronization.messageCategory(message)
+      return message
+    }
 
     const projectPendingModel = (
       acceptedModel: Model,
@@ -679,7 +717,8 @@ export const makeSharedProgramProcessor = <
             ? codec.decodeProposed(pending.proposal).pipe(
                 Effect.match({
                   onFailure: () => Option.none<Message>(),
-                  onSuccess: decoded => Option.some(decoded.message),
+                  onSuccess: decoded =>
+                    Option.some(classifyMessage(decoded.message)),
                 }),
               )
             : Effect.succeed(Option.none<Message>()),
@@ -765,7 +804,12 @@ export const makeSharedProgramProcessor = <
           }),
         )
       }
-      return codec.decodeAccepted(occurrence)
+      return codec.decodeAccepted(occurrence).pipe(
+        Effect.map(decoded => ({
+          ...decoded,
+          message: classifyMessage(decoded.message),
+        })),
+      )
     }
 
     const runAcceptedOccurrence = (
@@ -1596,6 +1640,7 @@ export const makeSharedProgramProcessor = <
       SharedProgramProposalError
     > =>
       Effect.gen(function* () {
+        classifyMessage(message)
         const actorSequence = yield* nextActorSequence.pipe(
           Effect.mapError(
             cause =>
