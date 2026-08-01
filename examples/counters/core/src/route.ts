@@ -4,18 +4,18 @@ import { literal, r, slash, string } from 'foldkit/route'
 import { type Url, fromString } from 'foldkit/url'
 
 import {
-  CounterDetail,
-  CounterFactAlert,
-  CounterList,
-  DeleteCounterConfirmation,
-  LoadingCounterFact,
-  type Navigation,
-} from './model.js'
+  CounterDetailTarget,
+  CounterFactTarget,
+  CounterListTarget,
+  DeleteCounterTarget,
+  type NavigationTarget,
+} from './message.js'
+import { CounterId, type Navigation } from './model.js'
 
 const CounterListRoute = r('CounterListRoute')
-const CounterDetailRoute = r('CounterDetailRoute', { counterId: S.String })
-const CounterFactRoute = r('CounterFactRoute', { counterId: S.String })
-const DeleteCounterRoute = r('DeleteCounterRoute', { counterId: S.String })
+const CounterDetailRoute = r('CounterDetailRoute', { counterId: CounterId })
+const CounterFactRoute = r('CounterFactRoute', { counterId: CounterId })
+const DeleteCounterRoute = r('DeleteCounterRoute', { counterId: CounterId })
 const NotFoundRoute = r('NotFoundRoute', { path: S.String })
 
 const counterListRouter = pipe(
@@ -48,43 +48,55 @@ const routeParser = Route.oneOf(
 )
 
 const urlToRoute = Route.parseUrlWithFallback(routeParser, NotFoundRoute)
+const absoluteCarrierPattern = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//u
 
-/** Parses a host URL into navigation state through Foldkit's route parser. */
-export const urlToNavigation = (url: Url): Navigation =>
+/** Parses a host URL into a semantic target with no transient identities. */
+export const urlToNavigationTarget = (url: Url): NavigationTarget =>
   M.value(urlToRoute(url)).pipe(
-    M.withReturnType<Navigation>(),
+    M.withReturnType<NavigationTarget>(),
     M.tagsExhaustive({
-      CounterListRoute: () => CounterList.make({}),
+      CounterListRoute: () => CounterListTarget.make({}),
       CounterDetailRoute: ({ counterId }) =>
-        CounterDetail.make({ counterId, maybeMode: Option.none() }),
+        CounterDetailTarget.make({ counterId }),
       CounterFactRoute: ({ counterId }) =>
-        CounterDetail.make({
-          counterId,
-          maybeMode: Option.some(
-            CounterFactAlert.make({ status: LoadingCounterFact.make({}) }),
-          ),
-        }),
+        CounterFactTarget.make({ counterId }),
       DeleteCounterRoute: ({ counterId }) =>
-        CounterDetail.make({
-          counterId,
-          maybeMode: Option.some(DeleteCounterConfirmation.make({})),
-        }),
-      NotFoundRoute: () => CounterList.make({}),
+        DeleteCounterTarget.make({ counterId }),
+      NotFoundRoute: () => CounterListTarget.make({}),
     }),
   )
 
-/** Parses a portable relative path or a host carrier into navigation state. */
-export const pathToNavigation = (pathOrCarrier: string): Navigation => {
-  const carrier = pathOrCarrier.includes('://')
+/** Parses a relative path or host carrier into a semantic navigation target. */
+export const pathToNavigationTarget = (
+  pathOrCarrier: string,
+): NavigationTarget => {
+  const relativePath = pathOrCarrier.startsWith('/')
     ? pathOrCarrier
-    : `https://counters.invalid${pathOrCarrier.startsWith('/') ? pathOrCarrier : `/${pathOrCarrier}`}`
+    : `/${pathOrCarrier}`
+  const carrier = absoluteCarrierPattern.test(pathOrCarrier)
+    ? pathOrCarrier
+    : `https://counters.invalid${relativePath}`
   const maybeUrl = fromString(carrier)
   return Option.isSome(maybeUrl)
-    ? urlToNavigation(maybeUrl.value)
-    : CounterList.make({})
+    ? urlToNavigationTarget(maybeUrl.value)
+    : CounterListTarget.make({})
 }
 
-/** Prints navigation state as a URL projection with no replay events. */
+/** Prints a semantic target without adding transient presentation identities. */
+export const navigationTargetToPath = (target: NavigationTarget): string =>
+  M.value(target).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      CounterListTarget: () => counterListRouter(),
+      CounterDetailTarget: ({ counterId }) =>
+        counterDetailRouter({ counterId }),
+      CounterFactTarget: ({ counterId }) => counterFactRouter({ counterId }),
+      DeleteCounterTarget: ({ counterId }) =>
+        deleteCounterRouter({ counterId }),
+    }),
+  )
+
+/** Prints current navigation state as its semantic URL projection. */
 export const navigationToPath = (navigation: Navigation): string =>
   M.value(navigation).pipe(
     M.withReturnType<string>(),

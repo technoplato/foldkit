@@ -1,17 +1,8 @@
 import * as Counter from 'counter-core-example'
-import { Option } from 'effect'
 import { type Command } from 'foldkit'
 
 import { type Message } from './message.js'
-import {
-  CounterDetail,
-  CounterFactAlert,
-  CounterList,
-  CounterRow,
-  LoadingCounterFact,
-  Model,
-  type Navigation,
-} from './model.js'
+import { CounterList, CounterRow, Model, type Navigation } from './model.js'
 
 const initialRows = [
   CounterRow.make({
@@ -27,18 +18,9 @@ const initialRows = [
 /** Creates the stable initial Model for a projected navigation destination. */
 export const modelForNavigation = (navigation: Navigation): Model =>
   Model.make({
+    retiredCounterIds: [],
     rows: initialRows,
-    nextCounterNumber: 3,
     navigation,
-  })
-
-/** Creates a loading fact destination for an initial URL projection. */
-export const loadingFactNavigation = (counterId: string): Navigation =>
-  CounterDetail.make({
-    counterId,
-    maybeMode: Option.some(
-      CounterFactAlert.make({ status: LoadingCounterFact.make({}) }),
-    ),
   })
 
 /** Creates the initial Multiple Counters Model and Commands. */

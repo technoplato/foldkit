@@ -1,60 +1,44 @@
 import * as Counter from 'counter-core-example'
-import { Array, Effect, Match as M, Option } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 
-import { CounterFactClient } from './counterFactClient.js'
+import { counterFactForNumber } from './counterFactClient.js'
 import {
-  FailedFetchCounterFact,
   GotCounterMessage,
   type Message,
-  SucceededFetchCounterFact,
+  type NavigationOpening,
 } from './message.js'
 import {
   CounterDetail,
+  type CounterDetailPresentationId,
   CounterFactAlert,
+  type CounterFactRequestId,
+  type CounterId,
   CounterList,
   CounterRow,
   DeleteCounterConfirmation,
-  FailedCounterFact,
+  type DeleteCounterConfirmationId,
   LoadedCounterFact,
-  LoadingCounterFact,
   Model,
   type Navigation,
+  maximumCounterCount,
+  maximumCounterIdentityCount,
 } from './model.js'
-
-// COMMAND
-
-/** Fetches one fact for a specific Counter Submodel value. */
-export const FetchCounterFact = Command.define(
-  'FetchCounterFact',
-  { counterId: CounterRow.fields.id, number: Counter.Model.fields.count },
-  SucceededFetchCounterFact,
-  FailedFetchCounterFact,
-)(({ counterId, number }) =>
-  Effect.flatMap(CounterFactClient, client =>
-    client.fetch(number).pipe(
-      Effect.map(fact => SucceededFetchCounterFact({ counterId, fact })),
-      Effect.catch(error =>
-        Effect.succeed(
-          FailedFetchCounterFact({ counterId, reason: error.reason }),
-        ),
-      ),
-    ),
-  ),
-)
 
 type UpdateReturn = readonly [
   Model,
-  ReadonlyArray<Command.Command<Message, never, CounterFactClient>>,
+  ReadonlyArray<Command.Command<Message, never, never>>,
 ]
 
-const findCounter = (model: Model, counterId: string) =>
+const findCounter = (model: Model, counterId: CounterId) =>
   Array.findFirst(model.rows, row => row.id === counterId)
 
 const listNavigation = () => CounterList.make({})
 
-const detailNavigation = (counterId: string) =>
-  CounterDetail.make({ counterId, maybeMode: Option.none() })
+const detailNavigation = (
+  counterId: CounterId,
+  presentationId: CounterDetailPresentationId,
+) => CounterDetail.make({ counterId, maybeMode: Option.none(), presentationId })
 
 const withNavigation = (model: Model, navigation: Navigation): Model =>
   Model.make({ ...model, navigation })
@@ -73,43 +57,126 @@ const normalizeNavigation = (
   }
 }
 
-const fetchForNavigation = (
+const factNavigation = (
   model: Model,
-  navigation: Navigation,
-): ReadonlyArray<Command.Command<Message, never, CounterFactClient>> => {
-  if (navigation._tag !== 'CounterDetail') {
-    return []
-  }
-  if (Option.isNone(navigation.maybeMode)) {
-    return []
-  }
-  if (navigation.maybeMode.value._tag !== 'CounterFactAlert') {
-    return []
-  }
-  if (navigation.maybeMode.value.status._tag !== 'LoadingCounterFact') {
-    return []
-  }
-  const maybeCounter = findCounter(model, navigation.counterId)
+  counterId: CounterId,
+  detailPresentationId: CounterDetailPresentationId,
+  requestId: CounterFactRequestId,
+): Navigation => {
+  const maybeCounter = findCounter(model, counterId)
   if (Option.isNone(maybeCounter)) {
-    return []
+    return listNavigation()
   }
-  return [
-    FetchCounterFact({
-      counterId: navigation.counterId,
-      number: maybeCounter.value.counter.count,
-    }),
-  ]
+  return CounterDetail.make({
+    counterId,
+    maybeMode: Option.some(
+      CounterFactAlert.make({
+        detailPresentationId,
+        requestId,
+        status: LoadedCounterFact.make({
+          fact: counterFactForNumber(maybeCounter.value.counter.count),
+        }),
+      }),
+    ),
+    presentationId: detailPresentationId,
+  })
 }
 
-const openNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
-  const nextNavigation = normalizeNavigation(model, navigation)
-  const nextModel = withNavigation(model, nextNavigation)
-  return [nextModel, fetchForNavigation(nextModel, nextNavigation)]
+const restoreNavigation = (model: Model): Navigation => {
+  const nextNavigation = normalizeNavigation(model, model.navigation)
+  if (
+    nextNavigation._tag !== 'CounterDetail' ||
+    Option.isNone(nextNavigation.maybeMode) ||
+    nextNavigation.maybeMode.value._tag !== 'CounterFactAlert' ||
+    nextNavigation.maybeMode.value.status._tag === 'LoadedCounterFact'
+  ) {
+    return nextNavigation
+  }
+  return factNavigation(
+    model,
+    nextNavigation.counterId,
+    nextNavigation.presentationId,
+    nextNavigation.maybeMode.value.requestId,
+  )
+}
+
+const deleteNavigation = (
+  model: Model,
+  counterId: CounterId,
+  confirmationId: DeleteCounterConfirmationId,
+  detailPresentationId: CounterDetailPresentationId,
+): Navigation => {
+  if (Option.isNone(findCounter(model, counterId))) {
+    return listNavigation()
+  }
+  return CounterDetail.make({
+    counterId,
+    maybeMode: Option.some(
+      DeleteCounterConfirmation.make({
+        confirmationId,
+        detailPresentationId,
+      }),
+    ),
+    presentationId: detailPresentationId,
+  })
+}
+
+const navigationForOpening = (
+  model: Model,
+  opening: NavigationOpening,
+): Navigation =>
+  M.value(opening).pipe(
+    M.withReturnType<Navigation>(),
+    M.tagsExhaustive({
+      CounterListOpening: () => listNavigation(),
+      CounterDetailOpening: ({ presentationId, target }) =>
+        normalizeNavigation(
+          model,
+          detailNavigation(target.counterId, presentationId),
+        ),
+      CounterFactOpening: ({ presentationId, requestId, target }) =>
+        factNavigation(model, target.counterId, presentationId, requestId),
+      DeleteCounterOpening: ({ confirmationId, presentationId, target }) =>
+        deleteNavigation(
+          model,
+          target.counterId,
+          confirmationId,
+          presentationId,
+        ),
+    }),
+  )
+
+const openNavigation = (
+  model: Model,
+  opening: NavigationOpening,
+): UpdateReturn => [
+  withNavigation(model, navigationForOpening(model, opening)),
+  [],
+]
+
+const addCounter = (model: Model, counterId: CounterId): UpdateReturn => {
+  if (
+    Option.isSome(findCounter(model, counterId)) ||
+    Array.contains(model.retiredCounterIds, counterId) ||
+    Array.length(model.rows) >= maximumCounterCount ||
+    Array.length(model.rows) + Array.length(model.retiredCounterIds) >=
+      maximumCounterIdentityCount
+  ) {
+    return [model, []]
+  }
+  const nextRows = Array.append(
+    model.rows,
+    CounterRow.make({
+      id: counterId,
+      counter: Counter.Model.make({ count: Counter.initialCount }),
+    }),
+  )
+  return [Model.make({ ...model, rows: nextRows }), []]
 }
 
 const updateCounter = (
   model: Model,
-  counterId: string,
+  counterId: CounterId,
   message: Counter.Message,
 ): UpdateReturn => {
   const maybeCounter = findCounter(model, counterId)
@@ -137,126 +204,164 @@ const updateCounter = (
   ]
 }
 
-const showCounterFact = (model: Model): UpdateReturn => {
-  const navigation = model.navigation
-  if (navigation._tag !== 'CounterDetail') {
+const selectCounter = (
+  model: Model,
+  counterId: CounterId,
+  detailPresentationId: CounterDetailPresentationId,
+): UpdateReturn => {
+  if (Option.isSome(findCounter(model, counterId))) {
+    return [
+      withNavigation(model, detailNavigation(counterId, detailPresentationId)),
+      [],
+    ]
+  } else {
     return [model, []]
   }
-  if (Option.isSome(navigation.maybeMode)) {
-    return [model, []]
-  }
-  const maybeCounter = findCounter(model, navigation.counterId)
-  if (Option.isNone(maybeCounter)) {
-    return [model, []]
-  }
-
-  const nextNavigation = CounterDetail.make({
-    counterId: navigation.counterId,
-    maybeMode: Option.some(
-      CounterFactAlert.make({ status: LoadingCounterFact.make({}) }),
-    ),
-  })
-  return [
-    withNavigation(model, nextNavigation),
-    [
-      FetchCounterFact({
-        counterId: navigation.counterId,
-        number: maybeCounter.value.counter.count,
-      }),
-    ],
-  ]
 }
 
-const finishCounterFact = (
+const dismissCounterDetail = (
   model: Model,
-  counterId: string,
-  status: typeof LoadedCounterFact.Type | typeof FailedCounterFact.Type,
+  counterId: CounterId,
+  detailPresentationId: CounterDetailPresentationId,
+): UpdateReturn => {
+  if (
+    model.navigation._tag === 'CounterDetail' &&
+    model.navigation.counterId === counterId &&
+    model.navigation.presentationId === detailPresentationId
+  ) {
+    return [withNavigation(model, listNavigation()), []]
+  } else {
+    return [model, []]
+  }
+}
+
+const showCounterFact = (
+  model: Model,
+  counterId: CounterId,
+  detailPresentationId: CounterDetailPresentationId,
+  requestId: CounterFactRequestId,
 ): UpdateReturn => {
   const navigation = model.navigation
   if (
     navigation._tag !== 'CounterDetail' ||
     navigation.counterId !== counterId ||
-    Option.isNone(navigation.maybeMode) ||
-    navigation.maybeMode.value._tag !== 'CounterFactAlert'
-  ) {
-    return [model, []]
-  }
-
-  const nextNavigation = CounterDetail.make({
-    counterId,
-    maybeMode: Option.some(CounterFactAlert.make({ status })),
-  })
-  return [withNavigation(model, nextNavigation), []]
-}
-
-const dismissFact = (model: Model): UpdateReturn => {
-  const navigation = model.navigation
-  if (
-    navigation._tag !== 'CounterDetail' ||
-    Option.isNone(navigation.maybeMode) ||
-    navigation.maybeMode.value._tag !== 'CounterFactAlert'
-  ) {
-    return [model, []]
-  }
-  return [withNavigation(model, detailNavigation(navigation.counterId)), []]
-}
-
-const showDeleteConfirmation = (model: Model): UpdateReturn => {
-  const navigation = model.navigation
-  if (
-    navigation._tag !== 'CounterDetail' ||
+    navigation.presentationId !== detailPresentationId ||
     Option.isSome(navigation.maybeMode)
   ) {
     return [model, []]
   }
-  const nextNavigation = CounterDetail.make({
-    counterId: navigation.counterId,
-    maybeMode: Option.some(DeleteCounterConfirmation.make({})),
-  })
-  return [withNavigation(model, nextNavigation), []]
+  return [
+    withNavigation(
+      model,
+      factNavigation(model, counterId, detailPresentationId, requestId),
+    ),
+    [],
+  ]
 }
 
-const cancelDelete = (model: Model): UpdateReturn => {
+const dismissFact = (
+  model: Model,
+  counterId: CounterId,
+  detailPresentationId: CounterDetailPresentationId,
+  requestId: CounterFactRequestId,
+): UpdateReturn => {
   const navigation = model.navigation
   if (
     navigation._tag !== 'CounterDetail' ||
+    navigation.counterId !== counterId ||
+    navigation.presentationId !== detailPresentationId ||
     Option.isNone(navigation.maybeMode) ||
-    navigation.maybeMode.value._tag !== 'DeleteCounterConfirmation'
+    navigation.maybeMode.value._tag !== 'CounterFactAlert' ||
+    navigation.maybeMode.value.detailPresentationId !== detailPresentationId ||
+    navigation.maybeMode.value.requestId !== requestId
   ) {
     return [model, []]
   }
-  return [withNavigation(model, detailNavigation(navigation.counterId)), []]
+  return [
+    withNavigation(model, detailNavigation(counterId, detailPresentationId)),
+    [],
+  ]
 }
 
-const confirmDelete = (model: Model): UpdateReturn => {
+const showDeleteConfirmation = (
+  model: Model,
+  counterId: CounterId,
+  confirmationId: DeleteCounterConfirmationId,
+  detailPresentationId: CounterDetailPresentationId,
+): UpdateReturn => {
+  const navigation = model.navigation
+  if (Option.isNone(findCounter(model, counterId))) {
+    return [model, []]
+  }
+  if (navigation._tag === 'CounterDetail') {
+    if (
+      navigation.counterId !== counterId ||
+      navigation.presentationId !== detailPresentationId ||
+      Option.isSome(navigation.maybeMode)
+    ) {
+      return [model, []]
+    }
+  }
+  return [
+    withNavigation(
+      model,
+      deleteNavigation(model, counterId, confirmationId, detailPresentationId),
+    ),
+    [],
+  ]
+}
+
+const cancelDelete = (
+  model: Model,
+  counterId: CounterId,
+  confirmationId: DeleteCounterConfirmationId,
+  detailPresentationId: CounterDetailPresentationId,
+): UpdateReturn => {
   const navigation = model.navigation
   if (
     navigation._tag !== 'CounterDetail' ||
+    navigation.counterId !== counterId ||
+    navigation.presentationId !== detailPresentationId ||
     Option.isNone(navigation.maybeMode) ||
-    navigation.maybeMode.value._tag !== 'DeleteCounterConfirmation'
+    navigation.maybeMode.value._tag !== 'DeleteCounterConfirmation' ||
+    navigation.maybeMode.value.detailPresentationId !== detailPresentationId ||
+    navigation.maybeMode.value.confirmationId !== confirmationId
   ) {
     return [model, []]
   }
-  const nextRows = Array.filter(
-    model.rows,
-    row => row.id !== navigation.counterId,
-  )
+  return [
+    withNavigation(model, detailNavigation(counterId, detailPresentationId)),
+    [],
+  ]
+}
+
+const confirmDelete = (model: Model, counterId: CounterId): UpdateReturn => {
+  if (Option.isNone(findCounter(model, counterId))) {
+    return [model, []]
+  }
+  const nextRetiredCounterIds = Array.append(model.retiredCounterIds, counterId)
+  const nextRows = Array.filter(model.rows, row => row.id !== counterId)
+  const nextNavigation =
+    model.navigation._tag === 'CounterDetail' &&
+    model.navigation.counterId === counterId
+      ? listNavigation()
+      : model.navigation
   return [
     Model.make({
       ...model,
+      retiredCounterIds: nextRetiredCounterIds,
       rows: nextRows,
-      navigation: listNavigation(),
+      navigation: nextNavigation,
     }),
     [],
   ]
 }
 
-/** Restores pending destination work when a host starts from a Model. */
-export const restore = (model: Model): UpdateReturn => {
-  const nextNavigation = normalizeNavigation(model, model.navigation)
-  const nextModel = withNavigation(model, nextNavigation)
-  return [nextModel, fetchForNavigation(nextModel, nextNavigation)]
-}
+/** Restores a valid semantic destination without scheduling duplicate work. */
+export const restore = (model: Model): UpdateReturn => [
+  withNavigation(model, restoreNavigation(model)),
+  [],
+]
 
 // UPDATE
 
@@ -265,46 +370,42 @@ export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
-      ClickedAddCounter: () => {
-        const counterId = `counter-${model.nextCounterNumber.toString()}`
-        const nextRows = Array.append(
-          model.rows,
-          CounterRow.make({
-            id: counterId,
-            counter: Counter.Model.make({ count: Counter.initialCount }),
-          }),
-        )
-        return [
-          Model.make({
-            ...model,
-            rows: nextRows,
-            nextCounterNumber: model.nextCounterNumber + 1,
-          }),
-          [],
-        ]
-      },
+      ClickedAddCounter: ({ counterId }) => addCounter(model, counterId),
       GotCounterMessage: ({ counterId, message: childMessage }) =>
         updateCounter(model, counterId, childMessage),
-      SelectedCounter: ({ counterId }) => {
-        if (Option.isSome(findCounter(model, counterId))) {
-          return [withNavigation(model, detailNavigation(counterId)), []]
-        } else {
-          return [model, []]
-        }
-      },
-      DismissedCounterDetail: () => [
-        withNavigation(model, listNavigation()),
-        [],
-      ],
-      ClickedShowCounterFact: () => showCounterFact(model),
-      SucceededFetchCounterFact: ({ counterId, fact }) =>
-        finishCounterFact(model, counterId, LoadedCounterFact.make({ fact })),
-      FailedFetchCounterFact: ({ counterId, reason }) =>
-        finishCounterFact(model, counterId, FailedCounterFact.make({ reason })),
-      DismissedCounterFactAlert: () => dismissFact(model),
-      ClickedDeleteCounter: () => showDeleteConfirmation(model),
-      CancelledDeleteCounter: () => cancelDelete(model),
-      ConfirmedDeleteCounter: () => confirmDelete(model),
-      OpenedNavigation: ({ navigation }) => openNavigation(model, navigation),
+      SelectedCounter: ({ counterId, detailPresentationId }) =>
+        selectCounter(model, counterId, detailPresentationId),
+      DismissedCounterDetail: ({ counterId, detailPresentationId }) =>
+        dismissCounterDetail(model, counterId, detailPresentationId),
+      ClickedShowCounterFact: ({
+        counterId,
+        detailPresentationId,
+        requestId,
+      }) => showCounterFact(model, counterId, detailPresentationId, requestId),
+      DismissedCounterFactAlert: ({
+        counterId,
+        detailPresentationId,
+        requestId,
+      }) => dismissFact(model, counterId, detailPresentationId, requestId),
+      ClickedDeleteCounter: ({
+        confirmationId,
+        counterId,
+        detailPresentationId,
+      }) =>
+        showDeleteConfirmation(
+          model,
+          counterId,
+          confirmationId,
+          detailPresentationId,
+        ),
+      CancelledDeleteCounter: ({
+        confirmationId,
+        counterId,
+        detailPresentationId,
+      }) =>
+        cancelDelete(model, counterId, confirmationId, detailPresentationId),
+      ConfirmedDeleteCounter: ({ counterId }) =>
+        confirmDelete(model, counterId),
+      OpenedNavigation: ({ opening }) => openNavigation(model, opening),
     }),
   )
