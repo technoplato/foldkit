@@ -9,9 +9,21 @@ import {
   Schema as S,
 } from 'effect'
 
+import { ProcessorId } from '../processor/processor.js'
+
 const NonNegativeGeneration = S.Int.check(S.isGreaterThanOrEqualTo(0))
-const ProcessorIds = S.Array(S.String)
-  .check(S.isMinLength(1))
+const MaximumTargetedProcessors = 256
+const isCanonicalOrder = <A>(
+  values: ReadonlyArray<A>,
+  order: Order.Order<A>,
+): boolean =>
+  Array.every(
+    Array.zip(values, Array.sort(values, order)),
+    ([value, sortedValue]) => value === sortedValue,
+  )
+
+const ProcessorIds = S.Array(ProcessorId)
+  .check(S.isMinLength(1), S.isMaxLength(MaximumTargetedProcessors))
   .check(
     S.makeFilter(processorIds =>
       HashSet.size(HashSet.fromIterable(processorIds)) ===
@@ -20,6 +32,16 @@ const ProcessorIds = S.Array(S.String)
         : {
             path: ['processorIds'],
             issue: 'Processor ids must be unique',
+          },
+    ),
+  )
+  .check(
+    S.makeFilter(processorIds =>
+      isCanonicalOrder(processorIds, Order.String)
+        ? undefined
+        : {
+            path: ['processorIds'],
+            issue: 'Processor ids must use canonical lexicographic order',
           },
     ),
   )
@@ -54,13 +76,13 @@ export type FollowControl = typeof FollowControl.Type
 /** One Processor following another Processor's semantic navigation. */
 export const Follower = S.Struct({
   control: FollowControl,
-  processorId: S.String,
+  processorId: ProcessorId,
 })
 /** One Processor following another Processor's semantic navigation. */
 export type Follower = typeof Follower.Type
 
 const Followers = S.Array(Follower)
-  .check(S.isMinLength(1))
+  .check(S.isMinLength(1), S.isMaxLength(MaximumTargetedProcessors))
   .check(
     S.makeFilter(followers => {
       const processorIds = Array.map(
@@ -76,11 +98,24 @@ const Followers = S.Array(Follower)
           }
     }),
   )
+  .check(
+    S.makeFilter(followers =>
+      isCanonicalOrder(
+        followers,
+        Order.mapInput(Order.String, follower => follower.processorId),
+      )
+        ? undefined
+        : {
+            path: ['followers'],
+            issue: 'Followers must use canonical Processor id order',
+          },
+    ),
+  )
 
 /** Selected Processors follow one leader while all other navigation stays independent. */
 export const Follow = S.TaggedStruct('Follow', {
   followers: Followers,
-  leaderProcessorId: S.String,
+  leaderProcessorId: ProcessorId,
 }).check(
   S.makeFilter(mode =>
     Array.some(
@@ -119,7 +154,7 @@ export class MissingProgramSynchronization extends Data.TaggedError(
 /** A read-only follower attempted to originate followed navigation. */
 export const ReadOnlyFollowerRejected = S.TaggedStruct(
   'ReadOnlyFollowerRejected',
-  { leaderProcessorId: S.String, processorId: S.String },
+  { leaderProcessorId: ProcessorId, processorId: ProcessorId },
 )
 
 /** A Message was routed to a frozen audience or rejected by session policy. */

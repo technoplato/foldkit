@@ -129,6 +129,44 @@ describe('Program synchronization policy', () => {
     expect(S.decodeUnknownOption(Follow)(selfFollow)._tag).toBe('None')
   })
 
+  it('rejects noncanonical and unbounded Processor audiences', () => {
+    expect(
+      S.decodeUnknownOption(ProcessorAudience)({
+        _tag: 'ProcessorAudience',
+        processorIds: ['processor-mac', 'processor-ipad'],
+      })._tag,
+    ).toBe('None')
+    expect(
+      S.decodeUnknownOption(ProcessorAudience)({
+        _tag: 'ProcessorAudience',
+        processorIds: globalThis.Array.from(
+          { length: 257 },
+          (_, index) => `processor-${index.toString().padStart(3, '0')}`,
+        ),
+      })._tag,
+    ).toBe('None')
+  })
+
+  it('rejects noncanonical follower order and Processor ids', () => {
+    expect(
+      S.decodeUnknownOption(Follow)({
+        _tag: 'Follow',
+        followers: [
+          { control: 'Observe', processorId: 'processor-iphone' },
+          { control: 'Observe', processorId: 'processor-ipad' },
+        ],
+        leaderProcessorId: 'processor-mac',
+      })._tag,
+    ).toBe('None')
+    expect(
+      S.decodeUnknownOption(Follow)({
+        _tag: 'Follow',
+        followers: [{ control: 'Observe', processorId: 'processor.with.dots' }],
+        leaderProcessorId: 'processor-mac',
+      })._tag,
+    ).toBe('None')
+  })
+
   it('defaults new sessions to SharedDomain while preserving legacy Mirror semantics', () => {
     expect(defaultSessionPolicy()).toStrictEqual(
       SessionPolicy.make({ generation: 0, mode: SharedDomain.make({}) }),

@@ -15,6 +15,7 @@ import {
   MessageEnvelope,
   OriginClient,
   Placement,
+  ProtocolRange,
   SystemActor,
   Waiting,
   selectProcessor,
@@ -185,6 +186,42 @@ describe('Processor protocol contracts', () => {
         id: 'Audio.Speech.Transcribe',
         minimumVersion: 2,
         maximumVersion: 1,
+      }),
+    ).toThrow()
+  })
+
+  it('rejects inverted protocol ranges', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(ProtocolRange)({
+        minimumVersion: 2,
+        maximumVersion: 1,
+      }),
+    ).toThrow()
+  })
+
+  it('rejects noncanonical or unbounded transport identities', () => {
+    expect(
+      Schema.decodeUnknownSync(Descriptor)({
+        ...phone,
+        processorId: `authority:instant-counter:v1:${'a'.repeat(64)}`,
+      }).processorId,
+    ).toBe(`authority:instant-counter:v1:${'a'.repeat(64)}`)
+    expect(() =>
+      Schema.decodeUnknownSync(Descriptor)({
+        ...phone,
+        processorId: 'processor.with.dots',
+      }),
+    ).toThrow()
+    expect(() =>
+      Schema.decodeUnknownSync(Descriptor)({
+        ...phone,
+        processorId: 'processor::browser',
+      }),
+    ).toThrow()
+    expect(() =>
+      Schema.decodeUnknownSync(Descriptor)({
+        ...phone,
+        clientId: 'c'.repeat(129),
       }),
     ).toThrow()
   })

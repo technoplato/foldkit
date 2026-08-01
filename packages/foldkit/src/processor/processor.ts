@@ -2,6 +2,38 @@ import { Array, Option, Order, Schema } from 'effect'
 
 const PositiveVersion = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))
 const NonNegativeVersion = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const MaximumIdentityLength = 128
+const CanonicalIdentity = Schema.String.check(
+  Schema.isLengthBetween(1, MaximumIdentityLength),
+  Schema.isPattern(/^[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
+)
+
+/** A canonical Processor occurrence identifier in the Processor namespace. */
+export const ProcessorId = CanonicalIdentity.annotate({
+  identifier: 'ProcessorId',
+  description:
+    'A 1-128 character identifier of colon-delimited base64url-form segments whose generator must provide collision-resistant uniqueness in the Processor namespace.',
+})
+/** A canonical Processor occurrence identifier in the Processor namespace. */
+export type ProcessorId = typeof ProcessorId.Type
+
+/** A canonical Client occurrence identifier in the Client namespace. */
+export const ClientId = CanonicalIdentity.annotate({
+  identifier: 'ClientId',
+  description:
+    'A 1-128 character identifier of colon-delimited base64url-form segments whose generator must provide collision-resistant uniqueness in the Client namespace.',
+})
+/** A canonical Client occurrence identifier in the Client namespace. */
+export type ClientId = typeof ClientId.Type
+
+/** A canonical installation identifier in the Device namespace. */
+export const DeviceId = CanonicalIdentity.annotate({
+  identifier: 'DeviceId',
+  description:
+    'A 1-128 character identifier of colon-delimited base64url-form segments whose generator must provide collision-resistant uniqueness in the Device namespace.',
+})
+/** A canonical installation identifier in the Device namespace. */
+export type DeviceId = typeof DeviceId.Type
 
 /** A stable, nested capability identifier such as Banking / SWIFT / Write. */
 export const CapabilityId = Schema.NonEmptyArray(Schema.String)
@@ -31,7 +63,17 @@ export type CapabilityRequirement = typeof CapabilityRequirement.Type
 export const ProtocolRange = Schema.Struct({
   minimumVersion: PositiveVersion,
   maximumVersion: PositiveVersion,
-})
+}).check(
+  Schema.makeFilter(range =>
+    range.minimumVersion <= range.maximumVersion
+      ? undefined
+      : {
+          path: ['maximumVersion'],
+          issue:
+            'maximumVersion must be greater than or equal to minimumVersion',
+        },
+  ),
+)
 
 /** The shared-Program protocol range understood by one Processor. */
 export type ProtocolRange = typeof ProtocolRange.Type
@@ -58,8 +100,8 @@ export type EffectSupportRange = typeof EffectSupportRange.Type
 
 /** Transport-neutral identity and advertised capabilities for one Processor. */
 export const Descriptor = Schema.Struct({
-  processorId: Schema.String,
-  clientId: Schema.String,
+  processorId: ProcessorId,
+  clientId: ClientId,
   protocol: ProtocolRange,
   capabilities: Schema.Array(Capability),
   effectSupport: Schema.optionalKey(Schema.Array(EffectSupportRange)),
@@ -82,7 +124,7 @@ export type IngressProcessor = typeof IngressProcessor.Type
 
 /** Require one specifically identified capable Processor. */
 export const SpecificProcessor = Schema.TaggedStruct('Processor', {
-  processorId: Schema.String,
+  processorId: ProcessorId,
 })
 
 /** Require one specifically identified capable Processor. */
@@ -156,7 +198,7 @@ export type GuestActor = typeof GuestActor.Type
 
 /** A trusted system actor acting through one Processor. */
 export const SystemActor = Schema.TaggedStruct('System', {
-  processorId: Schema.String,
+  processorId: ProcessorId,
 })
 
 /** A trusted system actor acting through one Processor. */
@@ -177,9 +219,9 @@ export const MessageEnvelope = Schema.Struct({
   eventId: Schema.String,
   eventVersion: NonNegativeVersion,
   actor: Actor,
-  originClientId: Schema.String,
-  originDeviceId: Schema.String,
-  ingressProcessorId: Schema.String,
+  originClientId: ClientId,
+  originDeviceId: DeviceId,
+  ingressProcessorId: ProcessorId,
   sessionId: Schema.String,
   originSequence: Schema.Int,
   acceptedSequence: Schema.OptionFromNullOr(Schema.Int),
@@ -204,7 +246,7 @@ export type UnavailableReason = typeof UnavailableReason.Type
 
 /** A Processor was selected through the requested affinity. */
 export const AssignedPreferred = Schema.TaggedStruct('AssignedPreferred', {
-  processorId: Schema.String,
+  processorId: ProcessorId,
 })
 
 /** A Processor was selected through the requested affinity. */
@@ -212,7 +254,7 @@ export type AssignedPreferred = typeof AssignedPreferred.Type
 
 /** A Processor was selected through the allowed capable fallback. */
 export const AssignedFallback = Schema.TaggedStruct('AssignedFallback', {
-  processorId: Schema.String,
+  processorId: ProcessorId,
 })
 
 /** A Processor was selected through the allowed capable fallback. */
