@@ -4,6 +4,47 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 1:40:24 a.m. EDT — `455650ab918a` feat(foldkit): add schema-backed interaction graphs
+
+- **Implementation commit:** `455650ab918a8fbf939a72be13c9af01ccd6eb7c`
+- **Change:** Added Schema-backed semantic InteractionGraph APIs and proved them in the keyboard-first Multiple Counters OpenTUI Client.
+- **Details:**
+  - Defined URI-independent Program and Submodel semantic identities, ordered structural nodes, typed occurrences, stale-reference resolution, and typed projection or callback failures.
+  - Kept raw keys, focus, browsing, and editing modes Client-local while resolving activations back to canonical Program Messages.
+  - Booted deep-link carriers by recording OpenedNavigation through the normal Program tape, preserved semantic child order, and reconciled focus after render.
+  - Verified package typechecks and builds, 61 focused tests, task-scoped formatting and linting, an independent P0-P2 review, and a real PTY interaction pass through focus, increment, detail, fact, deletion, and exit.
+- **Files:**
+  - `.changeset/add-interaction-graph.md` — Record the public Foldkit InteractionGraph API addition for release.
+  - `packages/foldkit/package.json` — Expose the interaction-graph package subpath.
+  - `packages/foldkit/src/index.ts` — Export InteractionGraph from the root Foldkit API.
+  - `packages/foldkit/src/interactionGraph/index.ts` — Provide the InteractionGraph module barrel.
+  - `packages/foldkit/src/interactionGraph/public.ts` — Publish the InteractionGraph API surface.
+  - `packages/foldkit/src/interactionGraph/interactionNode.ts` — Define Schema-backed semantic sources, identities, references, nodes, and occurrences.
+  - `packages/foldkit/src/interactionGraph/interactionGraph.ts` — Project current Models and safely resolve fresh semantic occurrences to canonical Messages.
+  - `packages/foldkit/src/interactionGraph/interactionGraph.test.ts` — Prove schema validation, source identity, staleness, availability, and typed failure laws.
+  - `packages/foldkit/src/interactionGraph/navigator.ts` — Implement Client-local focus, browsing, editing, reconciliation, and occurrence construction.
+  - `packages/foldkit/src/interactionGraph/navigator.test.ts` — Prove navigator focus and mode transitions without Program state leakage.
+  - `examples/counters/core/src/index.ts` — Export the canonical Counter InteractionGraph proof surface.
+  - `examples/counters/core/src/interactionGraph.ts` — Project list, detail, fact, and delete modes with semantic-owner identities.
+  - `examples/counters/core/src/interactionGraph.test.ts` — Prove source identity reuse across destinations, stale references, and canonical Messages.
+  - `examples/counters/opentui/package.json` — Add the OpenTUI renderer test and runtime dependencies.
+  - `examples/counters/opentui/vitest.config.ts` — Separate Node logic tests from the native OpenTUI renderer component test.
+  - `examples/counters/opentui/src/client.tsx` — Host the local Counter Program and enqueue URI boot Messages through the normal runtime.
+  - `examples/counters/opentui/src/client.test.ts` — Prove carrier targets become recorded navigation Messages exactly once.
+  - `examples/counters/opentui/src/clientComponent.test.tsx` — Prove equivalent carrier rerenders preserve the booted Client.
+  - `examples/counters/opentui/src/entry.tsx` — Parse the carrier and launch the InteractionGraph-backed Client.
+  - `examples/counters/opentui/src/host.tsx` — Render the ordered semantic tree and apply normalized Client-local keyboard navigation.
+  - `examples/counters/opentui/src/input.ts` — Map OpenTUI keys, including Vim navigation, into renderer-local intents.
+  - `examples/counters/opentui/src/input.test.ts` — Prove key normalization without encoding Program branching.
+  - `examples/counters/opentui/src/interactionPresentation.ts` — Derive local actions, help, focus visibility, and presentation from the semantic tree.
+  - `examples/counters/opentui/src/interactionPresentation.test.ts` — Prove ordered rendering, locality, replay restrictions, and focus-follow behavior.
+  - `pnpm-lock.yaml` — Lock the OpenTUI package importer dependencies reproducibly.
+- **User context (verbatim):**
+  > The program should produce semantic affordances, not widgets.
+  > Vim bindings belong entirely in the Open2E input adapter.
+  > every durable destination is URI addressable
+- **SpecStory:** unavailable — Unavailable: this task ran in Codex desktop and no verified SpecStory CLI capture URI exists.
+
 ## August 1st, 2026 at 12:33:45 a.m. EDT — `44eb549b1728` feat(counters)!: model synchronization-safe navigation
 
 - **Implementation commit:** `44eb549b1728d7252afbd8f872b92909686f73d3`
