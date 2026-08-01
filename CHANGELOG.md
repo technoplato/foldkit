@@ -4,6 +4,39 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 5:42:14 a.m. EDT — `0eb4b293a6d9` feat(instant): establish protocol-v3 trust and storage
+
+- **Implementation commit:** `0eb4b293a6d97a53a3e8dd4d1b837979e8590d9f`
+- **Change:** Established a clean protocol-v3 trust and storage foundation for authenticated, replayable Program sessions.
+- **Details:**
+  - Bound every durable v3 identity to an exact app subject, Program version, session epoch, origin policy, and immutable position.
+  - Added strict P-256 Device-to-Client-to-Processor proof chains with separate ordinary Message and EffectResult domains, bounded canonical JSON, and typed hostile-input rejection.
+  - Separated ordinary Client writes from server-confirmed authority writes, with atomic Accepted guards, deterministic replay, monotonic session and origin-policy revocation, and typed conflicts.
+- **Files:**
+  - `.changeset/add-instant-v3-foundation.md` — Announces the independent protocol-v3 foundation.
+  - `packages/instant/package.json` — Adds the audited P-256 and SHA-256 implementation dependencies.
+  - `packages/instant/src/index.ts` — Exports the v3 Schema, proof, store, and in-memory APIs.
+  - `packages/instant/src/originProof/index.ts` — Publishes the origin-proof module.
+  - `packages/instant/src/originProof/originProof.test.ts` — Proves signed-field completeness, domain separation, hostile-input containment, and certificate scope.
+  - `packages/instant/src/originProof/originProof.ts` — Defines deterministic Device, Client, Processor, ordinary Message, and EffectResult proof chains.
+  - `packages/instant/src/v3InMemoryProgramStore/index.ts` — Publishes the deterministic in-memory v3 store.
+  - `packages/instant/src/v3InMemoryProgramStore/v3InMemoryProgramStore.test.ts` — Covers atomic terminals, replay, lifecycle fencing, conflicts, and observation order.
+  - `packages/instant/src/v3InMemoryProgramStore/v3InMemoryProgramStore.ts` — Implements separated Client and authority stores with deterministic reconstruction.
+  - `packages/instant/src/v3ProgramStore/index.ts` — Publishes the v3 store contract.
+  - `packages/instant/src/v3ProgramStore/v3ProgramStore.ts` — Defines Client and authority capabilities, atomic transactions, and typed lifecycle errors.
+  - `packages/instant/src/v3Schema/entities.ts` — Declares independent Instant entities and physical uniqueness constraints.
+  - `packages/instant/src/v3Schema/identity.test.ts` — Pins canonical identities, bounds, and deeply nested input rejection.
+  - `packages/instant/src/v3Schema/identity.ts` — Defines bounded canonical JSON, composite keys, and session identity parsing.
+  - `packages/instant/src/v3Schema/index.ts` — Publishes v3 identities, records, and entities.
+  - `packages/instant/src/v3Schema/records.test.ts` — Proves strict record variants, canonical aliases, and lifecycle row constraints.
+  - `packages/instant/src/v3Schema/records.ts` — Defines proposal, terminal, session, policy, effect, and checkpoint records.
+  - `pnpm-lock.yaml` — Locks the audited origin-proof dependencies for reproducible installs.
+- **User context (verbatim):**
+  > Who is the authority? How is that defined?
+  > Sign out or subject replacement seems like it should be handled at the framework layer, not at the client level.
+  > I explicitly want every program to be able to run on any processor, and some processors just have different capabilities.
+- **SpecStory:** unavailable — Unavailable: this work was performed in the Codex desktop app, whose GUI task is not captured by SpecStory.
+
 ## August 1st, 2026 at 4:47:12 a.m. EDT — `fd092f13b610` feat(counters): drive browser clients from Program interactions
 
 - **Implementation commit:** `fd092f13b6105c97d4967d485bb29abffcc86843`
