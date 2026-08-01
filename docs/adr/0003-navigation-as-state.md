@@ -283,3 +283,37 @@ The matrix's client list is deliberately an example-owned evidence registry. Fol
 core should own Program routes, parser-printer laws, restoration, replay, and runtime
 observation. It should not own localhost ports, shell commands, Expo Go delimiters,
 simulator identities, screenshots, or a global registry of every application client.
+
+## Showcase Shell Composition Follow-Up | 2026-08-01
+
+The Showcase is a small shell Program, not a parent that absorbs every demonstration's
+Model and Message union. It owns the selected demonstration, Back, and portable
+showcase destinations. Its current scene-selection Messages are pointer-specific and
+should evolve into semantic selection facts. Each selected demonstration remains an
+independent Program. The Client mounts it with a separate Processor and runtime,
+supplied Resources, resolved route, and replay tape.
+
+Foldkit currently has three distinct composition patterns:
+
+1. Manual parent-Program composition embeds child Model and update behavior into one
+   Program. The parent wraps child Messages, calls child update, and maps returned
+   Commands into the parent Message space. `h.submodel` separately composes the child
+   view and Message boundary. Multiple Counters is the canonical example.
+2. `ProgramDestinationRouter` composes several Programs' typed route parser-printers.
+   It selects a portable destination but does not embed a child runtime.
+3. A Client can host multiple Processors. The Expo Showcase observes the shell
+   Processor and mounts the selected child Processor independently. This is Client
+   runtime composition, not Program embedding.
+
+There is no general `embedProgram` primitive. A unified parent Model or replay tape
+should be introduced only when the application requires one atomic workflow. Copying
+child Messages into the Showcase tape would weaken child portability and is not an
+acceptable substitute.
+
+The OpenTUI Showcase should therefore extend `showcase-core-example` and add an
+OpenTUI Client. The Program should own semantic demonstration interactions and
+destinations. The Client owns terminal layout, focus, scrolling, raw keys, and child
+Processor mounting. Pointer-specific legacy Messages such as `TappedCounterButton`
+should evolve toward semantic selection facts shared by every Client. ADR 0006 defines
+the target design for recording invocation provenance without entering the semantic
+Message.

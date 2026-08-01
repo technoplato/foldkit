@@ -49,6 +49,13 @@ the canonical Messages produced by interactions. Let the TUI Client own focus,
 selection, editing mode, and raw-key translation. Never journal or synchronize
 raw keys such as `PressedJ`.
 
+Map pointer, keyboard, touch, accessibility, automation, and agent activations
+to the same semantic Message. Preserve how and by whom an interaction was
+invoked through typed occurrence provenance when that runtime surface is
+available, not as another Program Message or a different Message variant for
+each Client. Do not imply that current provenance can distinguish or attest an
+origin it does not yet model.
+
 Derive valid interactions from the current Model, then group them by the entity
 or region they target. Do not replace a typed interaction projection with a
 duplicated key-to-Message switch.
