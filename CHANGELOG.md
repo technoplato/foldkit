@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 4:05:12 a.m. EDT — `7852a9893c9a` feat(counters): drive text Clients from Program interactions
+
+- **Implementation commit:** `7852a9893c9abfbfb7c5298bb16b308534d88968`
+- **Change:** Moved the local CLI and terminal Clients onto canonical Program navigation carriers and current semantic InteractionGraph resolution.
+- **Details:**
+  - Default and explicit carriers now enter through exactly one Program-owned OpenedNavigation Message, with strict typed failures for invalid, noncanonical, or missing destinations.
+  - Numeric terminal and named CLI actions resolve occurrence-qualified interactions against the current Model while raw keys and terminal focus remain Client-local.
+  - Journal and replay-tape tests prove the same canonical Messages are recorded once through normal runtime execution.
+- **Files:**
+  - `examples/counters/cli/src/entry.ts` — Exposes strict canonical destination URI input.
+  - `examples/counters/cli/src/host.test.ts` — Pins one-Message boot and semantic action execution.
+  - `examples/counters/cli/src/host.ts` — Resolves carriers and current Program interaction occurrences.
+  - `examples/counters/cli/src/process.integration.test.ts` — Covers default and explicit real CLI process behavior.
+  - `examples/counters/terminal/src/host.test.ts` — Verifies carrier boot, numeric selection, typed failures, journal, and tape.
+  - `examples/counters/terminal/src/host.ts` — Maps Client-local terminal input to current semantic Program interactions.
+- **User context (verbatim):**
+  > I want to be able to use it and run it on OpenTUI via the CLI, actually, too, just a non-captive CLI.
+  > where each URI in each mode of each URI needs to be mapped out explicitly
+- **SpecStory:** unavailable — Codex desktop task; SpecStory CLI capture is unavailable for this session.
+
 ## August 1st, 2026 at 4:03:11 a.m. EDT — `37b0c0ad4a62` feat(instant-counter): supervise protocol-v2 sessions
 
 - **Implementation commit:** `37b0c0ad4a622f54b8368aaf62e0cb3069e36e84`
