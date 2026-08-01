@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 12:07:53 a.m. EDT — `22a1baea2ab4` feat(instant-counter): declare explicit Mirror synchronization
+
+- **Implementation commit:** `22a1baea2ab4ce9e01e00d5fc62e22ef448dff42`
+- **Change:** Declare and select explicit Mirror synchronization in the authenticated Instant Counter.
+- **Details:**
+  - Classify the current counter and effect lifecycle Message union as one shared Domain projection.
+  - Supply the legacy Mirror framework policy to both interactive Client Processors and the headless admission-sequencer Processor.
+  - Expose the adapter construction error at the Client allocation boundary instead of hiding unsupported session modes.
+- **Files:**
+  - `examples/instant-counter/src/domain/program.ts` — Define the Program-owned synchronization classifier and domain projection.
+  - `examples/instant-counter/src/headless/authority.ts` — Select explicit legacy Mirror for the headless session Processor.
+  - `examples/instant-counter/src/processorClient/processorClient.ts` — Select explicit legacy Mirror for authenticated browser and Expo Processors.
+- **User context (verbatim):**
+  > Mirror mode.
+  > Framework level session should choose the mode: instant transports authenticated schema valid messages.
+- **SpecStory:** unavailable — Unavailable: this work ran in Codex desktop, and no verified SpecStory GUI capture exists.
+
 ## August 1st, 2026 at 12:07:13 a.m. EDT — `7ed3fd21fbd7` feat: add TUI design skill
 
 - **Implementation commit:** `7ed3fd21fbd7f79354f63389d9c5308e2550a8ee`
