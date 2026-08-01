@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { pathToNavigation } from 'counters-core-example'
-import { Effect, Option } from 'effect'
+import { Effect } from 'effect'
 import { Argument, Command, Flag } from 'effect/unstable/cli'
 
 import { NodeRuntime, NodeServices } from '@effect/platform-node'
@@ -12,7 +11,7 @@ const verboseFlag = Flag.boolean('verbose').pipe(
 )
 
 const uriFlag = Flag.string('uri').pipe(
-  Flag.withDescription('Portable Multiple Counters state to open'),
+  Flag.withDescription('Canonical Multiple Counters destination URI to open'),
   Flag.optional,
 )
 
@@ -23,15 +22,13 @@ const actionsArgument = Argument.string('action').pipe(
 const show = Command.make(
   'show',
   { isVerbose: verboseFlag, uri: uriFlag },
-  ({ isVerbose, uri }) =>
-    runCounters([], isVerbose, Option.map(uri, pathToNavigation)),
+  ({ isVerbose, uri }) => runCounters([], isVerbose, uri),
 ).pipe(Command.withDescription('Print one Multiple Counters screen'))
 
 const run = Command.make(
   'run',
   { actions: actionsArgument, isVerbose: verboseFlag, uri: uriFlag },
-  ({ actions, isVerbose, uri }) =>
-    runCounters(actions, isVerbose, Option.map(uri, pathToNavigation)),
+  ({ actions, isVerbose, uri }) => runCounters(actions, isVerbose, uri),
 ).pipe(
   Command.withDescription(
     'Run valid state-dependent actions and print the final screen',
