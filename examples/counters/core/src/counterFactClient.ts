@@ -30,7 +30,8 @@ const factTemplates: ReadonlyArray<(number: number) => string> = [
     `${number.toString()} was supplied by the shared Multiple Counters Program.`,
 ]
 
-const staticFact = (number: number): CounterFact => {
+/** Derives the example fact deterministically without a duplicated Command. */
+export const counterFactForNumber = (number: number): CounterFact => {
   const index = Math.abs(number) % factTemplates.length
   const maybeTemplate = Array.get(factTemplates, index)
   if (Option.isNone(maybeTemplate)) {
@@ -42,5 +43,5 @@ const staticFact = (number: number): CounterFact => {
 
 /** A deterministic fact Layer shared by the example hosts. */
 export const StaticCounterFactClient = Layer.succeed(CounterFactClient, {
-  fetch: number => Effect.succeed(staticFact(number)),
+  fetch: number => Effect.succeed(counterFactForNumber(number)),
 })
