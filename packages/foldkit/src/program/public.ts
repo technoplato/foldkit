@@ -34,6 +34,7 @@ export type {
   Program,
   ProgramCommand,
   ProgramSchema,
+  ProgramSynchronization,
   ResourcesOf,
 } from './program.js'
 
