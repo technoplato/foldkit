@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 1:43:57 a.m. EDT — `4b22f3d408bc` feat: own authenticated Program session lifecycles
+
+- **Implementation commit:** `4b22f3d408bc68d3f6e3748d3b56a08767536344`
+- **Change:** Moved authenticated Program session ownership into the Instant framework adapter.
+- **Details:**
+  - Added a long-lived subject observer with independently replaceable Program allocation Scopes, full session-record equivalence, and generation fencing for late work.
+  - Revocation, authenticated absence, validation failure, allocation failure, subject replacement, refresh, shutdown, and sign-out now close framework-owned resources deterministically; transport unavailability preserves the active allocation.
+  - Focused lifecycle tests cover identical-session no-ops, replacement of every canonical session field, allocation retry, stale observer and snapshot callbacks, subject replacement, and close-before-sign-out ordering.
+- **Files:**
+  - `packages/instant/src/sessionScopedProgram/sessionScopedProgram.ts` — Defines the renderer-neutral authenticated subject and Program allocation lifecycle.
+  - `packages/instant/src/sessionScopedProgram/sessionScopedProgram.test.ts` — Proves replacement, failure, retry, transport, freshness, and sign-out invariants.
+  - `packages/instant/src/sessionScopedProgram/index.ts` — Exports the lifecycle module barrel.
+  - `packages/instant/src/index.ts` — Publishes the session-scoped lifecycle from @foldkit/instant.
+- **User context (verbatim):**
+  > Sign out or subject replacement seems like it should be handled at the framework layer, not at the client level.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this work ran in the Codex desktop app, whose GUI task capture is not documented by SpecStory.
+
 ## August 1st, 2026 at 1:40:24 a.m. EDT — `455650ab918a` feat(foldkit): add schema-backed interaction graphs
 
 - **Implementation commit:** `455650ab918a8fbf939a72be13c9af01ccd6eb7c`
