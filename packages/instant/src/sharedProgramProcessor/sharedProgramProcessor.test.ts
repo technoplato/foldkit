@@ -17,30 +17,43 @@ import { describe, it } from '@effect/vitest'
 
 import {
   AcceptanceAuthorityChanged,
+  type AcceptanceAuthorityConfig,
   AcceptanceAuthorityEffectResultMismatch,
   AcceptanceAuthorityIdentityConflict,
   AcceptanceAuthorityProcessorMismatch,
   AcceptanceAuthorityProposalKindMismatch,
   AcceptanceAuthorityScopeMismatch,
   AcceptanceAuthoritySessionRevoked,
-  AcceptanceAuthorityWriteNotSynced,
   InstantAcceptedMessageOccurrenceRecord,
+  InstantAcceptedMessageOccurrenceValidationIssue,
   InstantEffectPlacementRecord,
   InstantEffectRequestRecord,
   InstantMessageProposalRecord,
   InstantMessageProposalResolutionRecord,
   InstantProgramSessionRecord,
+  ProgramAuthorityStore,
+  type ProgramAuthorityStoreService,
   ProgramStoreError,
   ProgramStoreProposalMutationRejected,
   type ProgramStoreService,
+  SharedProgramAcceptedEffectResultDuplicate,
+  SharedProgramAcceptedMessageDuplicate,
+  SharedProgramAcceptedOccurrenceInvalid,
+  SharedProgramAcceptedPolicyHistoryMismatch,
+  SharedProgramAcceptedRoutingMismatch,
   SharedProgramAdmissionSequencerMismatch,
+  SharedProgramCausalRoutingMissing,
   SharedProgramCodecError,
+  SharedProgramMessageCategoryError,
   type SharedProgramMessageCodec,
+  SharedProgramMessageIdempotencyKeyInvalid,
+  SharedProgramProposalResolutionMismatch,
+  SharedProgramProposalResolutionScopeMismatch,
   type SharedProgramRuntime,
-  SharedProgramSynchronizationModeUnsupported,
   enqueuedTransactionOutcome,
-  makeAcceptanceAuthority,
+  instantProgramProtocolVersion,
   makeAcceptedOccurrencePositionKey,
+  makeAcceptanceAuthority as makeBaseAcceptanceAuthority,
   makeInMemoryProgramStore,
   makeInstantCapabilityIdIndex,
   makeInstantEffectPlacementPositionKey,
@@ -60,15 +73,51 @@ type Message = typeof Message.Type
 const Model = S.Struct({ count: S.Int })
 type Model = typeof Model.Type
 
+const SynchronizedModel = S.Struct({
+  count: S.Int,
+  maybeSelectedCounterId: S.Option(S.String),
+})
+type SynchronizedModel = typeof SynchronizedModel.Type
+
 const programSynchronization: Program.ProgramSynchronization<Model, Message> = {
   messageCategory: () => 'Domain',
   projectDomain: model => model,
+}
+
+const navigationSynchronization: Program.ProgramSynchronization<
+  SynchronizedModel,
+  Message
+> = {
+  messageCategory: message =>
+    message._tag === 'SelectedCounter' ? 'Navigation' : 'Domain',
+  projectDomain: model => ({ count: model.count }),
 }
 
 const mirrorPolicy = Synchronization.SessionPolicy.make({
   generation: 0,
   mode: Synchronization.Mirror.make({}),
 })
+
+const sharedDomainPolicy = Synchronization.SessionPolicy.make({
+  generation: 1,
+  mode: Synchronization.SharedDomain.make({}),
+})
+
+const makeFollowPolicy = (
+  control: Synchronization.FollowControl,
+): Synchronization.SessionPolicy =>
+  Synchronization.SessionPolicy.make({
+    generation: 2,
+    mode: Synchronization.Follow.make({
+      followers: [
+        Synchronization.Follower.make({
+          control,
+          processorId: 'processor-follower',
+        }),
+      ],
+      leaderProcessorId: 'processor-leader',
+    }),
+  })
 
 const nextCount = (count: number, message: Message): number => {
   if (message._tag === 'Incremented') {
@@ -117,7 +166,9 @@ const session = InstantProgramSessionRecord.make({
   processorRoomId: 'room-b16c34a61a9b45a29f8b180035bdc821',
   programId,
   programVersion,
+  protocolVersion: instantProgramProtocolVersion,
   sessionId,
+  sessionPolicy: mirrorPolicy,
   subjectId,
 })
 
@@ -170,6 +221,96 @@ const codec = makeSchemaProgramMessageCodec({
       : Effect.fail(new Error('Envelope occurrence provenance mismatch.')),
 })
 
+const authorityProtocol = {
+  acceptEnvelope: codec.acceptEnvelope,
+  decodeAcceptedMessage: (occurrence: InstantAcceptedMessageOccurrenceRecord) =>
+    codec
+      .decodeAccepted(occurrence)
+      .pipe(Effect.map(decoded => decoded.message)),
+  decodeProposedMessage: (proposal: InstantMessageProposalRecord) =>
+    codec.decodeProposed(proposal).pipe(Effect.map(decoded => decoded.message)),
+  messageCategory: programSynchronization.messageCategory,
+}
+
+type TestAuthorityConfig = Omit<
+  AcceptanceAuthorityConfig<Message>,
+  | 'decodeAcceptedMessage'
+  | 'decodeProposedMessage'
+  | 'messageCategory'
+  | 'store'
+> &
+  Readonly<{ store: ProgramStoreService }>
+
+const makeTestAuthorityStore = (
+  store: ProgramStoreService,
+): ProgramAuthorityStoreService =>
+  ProgramAuthorityStore.of({
+    ...store,
+    appendServerConfirmedAcceptedMessageOccurrence: record =>
+      Effect.flatMap(store.appendAcceptedMessageOccurrence(record), outcome =>
+        outcome._tag === 'Synced'
+          ? Effect.succeed(outcome)
+          : Effect.fail(
+              new ProgramStoreError({
+                cause: new Error('Accepted write was not server confirmed.'),
+                operation: 'AppendAcceptedMessageOccurrence',
+              }),
+            ),
+      ),
+    appendServerConfirmedEffectPlacement: record =>
+      Effect.flatMap(store.appendEffectPlacement(record), outcome =>
+        outcome._tag === 'Synced'
+          ? Effect.succeed(outcome)
+          : Effect.fail(
+              new ProgramStoreError({
+                cause: new Error('Placement write was not server confirmed.'),
+                operation: 'AppendEffectPlacement',
+              }),
+            ),
+      ),
+    appendServerConfirmedEffectRequest: record =>
+      Effect.flatMap(store.appendEffectRequest(record), outcome =>
+        outcome._tag === 'Synced'
+          ? Effect.succeed(outcome)
+          : Effect.fail(
+              new ProgramStoreError({
+                cause: new Error('Effect request was not server confirmed.'),
+                operation: 'AppendEffectRequest',
+              }),
+            ),
+      ),
+    appendServerConfirmedMessageProposalResolution: record =>
+      Effect.flatMap(store.appendMessageProposalResolution(record), outcome =>
+        outcome._tag === 'Synced'
+          ? Effect.succeed(outcome)
+          : Effect.fail(
+              new ProgramStoreError({
+                cause: new Error('Resolution write was not server confirmed.'),
+                operation: 'AppendMessageProposalResolution',
+              }),
+            ),
+      ),
+    serverConfirmed: {
+      observeAcceptedMessageOccurrences:
+        store.observeAcceptedMessageOccurrences,
+      observeConnectionStatus: store.observeConnectionStatus,
+      observeEffectPlacements: store.observeEffectPlacements,
+      observeEffectRequests: store.observeEffectRequests,
+      observeMessageProposals: store.observeMessageProposals,
+      observeMessageProposalResolutions:
+        store.observeMessageProposalResolutions,
+      observeProgramSessions: store.observeProgramSessions,
+      observeProjectionCheckpoints: store.observeProjectionCheckpoints,
+    },
+  })
+
+const makeAcceptanceAuthority = (config: TestAuthorityConfig) =>
+  makeBaseAcceptanceAuthority({
+    ...authorityProtocol,
+    ...config,
+    store: makeTestAuthorityStore(config.store),
+  })
+
 const makeRuntime = (
   initialCount = 0,
 ): Effect.Effect<
@@ -217,6 +358,7 @@ const makeRuntime = (
 const makeOccurrence = (
   proposal: InstantMessageProposalRecord,
   acceptedSequence: number,
+  sessionPolicy: Synchronization.SessionPolicy = mirrorPolicy,
 ): Effect.Effect<InstantAcceptedMessageOccurrenceRecord> =>
   Effect.map(
     codec.acceptEnvelope(proposal, {
@@ -231,6 +373,7 @@ const makeOccurrence = (
         acceptingProcessorId: authorityProcessorId,
         actorId: proposal.actorId,
         actorSequence: proposal.actorSequence,
+        audience: proposal.proposedAudience,
         causationId: proposal.causationOccurrenceId,
         clientId: proposal.clientId,
         correlationId: proposal.correlationId,
@@ -245,6 +388,8 @@ const makeOccurrence = (
         eventVersion: proposal.eventVersion,
         executorProcessorId: proposal.executorProcessorId,
         id: proposal.occurrenceId,
+        messageCategory: proposal.messageCategory,
+        messageIdempotencyKey: proposal.messageIdempotencyKey,
         occurrenceId: proposal.occurrenceId,
         originDeviceId: proposal.originDeviceId,
         originatingProcessorId: proposal.originatingProcessorId,
@@ -255,13 +400,41 @@ const makeOccurrence = (
         ),
         programId,
         programVersion,
+        protocolVersion: proposal.protocolVersion,
         proposedEnvelopeJson: proposal.envelopeJson,
         proposalId: proposal.proposalId,
         proposalKind: proposal.proposalKind,
+        policyGeneration: proposal.policyGeneration,
+        sessionPolicy,
         sessionId,
         subjectId,
       }),
   ).pipe(Effect.orDie)
+
+const appendCausalOccurrence = (
+  store: ProgramStoreService,
+  acceptedSequence = 1,
+): Effect.Effect<InstantAcceptedMessageOccurrenceRecord, never, Scope.Scope> =>
+  Effect.gen(function* () {
+    const { runtime } = yield* makeRuntime()
+    const generator = yield* makeProcessor(
+      store,
+      runtime,
+      codec,
+      'client-causal',
+      0,
+      programSynchronization,
+      mirrorPolicy,
+      'processor-causal',
+      'causal-occurrence',
+    )
+    const proposal = yield* generator.propose(
+      SelectedCounter.make({ counterId: 'counter-causal' }),
+    )
+    const occurrence = yield* makeOccurrence(proposal, acceptedSequence)
+    yield* store.appendAcceptedMessageOccurrence(occurrence)
+    return occurrence
+  }).pipe(Effect.orDie)
 
 const makeProcessor = (
   store: ProgramStoreService,
@@ -274,8 +447,14 @@ const makeProcessor = (
     Message
   > = programSynchronization,
   synchronizationPolicy: Synchronization.SessionPolicy = mirrorPolicy,
+  processorOccurrenceId: string = processorId,
+  occurrenceIdPrefix = 'occurrence',
 ) => {
-  const ids = ['occurrence-001', 'occurrence-002', 'occurrence-003']
+  const ids = [
+    `${occurrenceIdPrefix}-001`,
+    `${occurrenceIdPrefix}-002`,
+    `${occurrenceIdPrefix}-003`,
+  ]
   const nextId = SubscriptionRef.make(0)
   const nextSequence = SubscriptionRef.make(0)
   return Effect.flatMap(nextId, idRef =>
@@ -291,7 +470,7 @@ const makeProcessor = (
           )
           return Option.getOrElse(
             Array.get(ids, index),
-            () => `occurrence-${index}`,
+            () => `${occurrenceIdPrefix}-${index}`,
           )
         },
         Model,
@@ -301,9 +480,10 @@ const makeProcessor = (
         ),
         now: () => 1_753_825_050_000,
         originDeviceId,
-        originatingProcessorId: processorId,
+        originatingProcessorId: processorOccurrenceId,
         programId,
         programVersion,
+        protocolVersion: instantProgramProtocolVersion,
         runtime,
         sessionId,
         store,
@@ -316,14 +496,132 @@ const makeProcessor = (
   )
 }
 
+const nextSynchronizedModel = (
+  model: SynchronizedModel,
+  message: Message,
+): SynchronizedModel => {
+  if (message._tag === 'Incremented') {
+    return SynchronizedModel.make({
+      ...model,
+      count: model.count + 1,
+    })
+  } else if (message._tag === 'ResetCounter') {
+    return SynchronizedModel.make({
+      ...model,
+      count: 0,
+    })
+  } else {
+    return SynchronizedModel.make({
+      ...model,
+      maybeSelectedCounterId: Option.some(message.counterId),
+    })
+  }
+}
+
+const makeSynchronizedRuntime = (
+  initialCount = 0,
+): Effect.Effect<
+  Readonly<{
+    appliedEnvelopes: SubscriptionRef.SubscriptionRef<ReadonlyArray<Envelope>>
+    runtime: SharedProgramRuntime<SynchronizedModel, Message, Envelope, never>
+  }>
+> =>
+  Effect.gen(function* () {
+    const model = yield* SubscriptionRef.make(
+      SynchronizedModel.make({
+        count: initialCount,
+        maybeSelectedCounterId: Option.none(),
+      }),
+    )
+    const appliedEnvelopes = yield* SubscriptionRef.make<
+      ReadonlyArray<Envelope>
+    >([])
+    return {
+      appliedEnvelopes,
+      runtime: {
+        project: (currentModel, messages) =>
+          Array.reduce(messages, currentModel, nextSynchronizedModel),
+        readModel: () => Effect.runSync(SubscriptionRef.get(model)),
+        replay: {
+          inspect: frame =>
+            Effect.succeed(
+              SynchronizedModel.make({
+                count: frame,
+                maybeSelectedCounterId: Option.none(),
+              }),
+            ),
+        },
+        run: (message, options) =>
+          Effect.gen(function* () {
+            yield* SubscriptionRef.update(
+              appliedEnvelopes,
+              Array.append(options.envelope),
+            )
+            return yield* SubscriptionRef.updateAndGet(model, currentModel =>
+              nextSynchronizedModel(currentModel, message),
+            )
+          }),
+      },
+    }
+  })
+
+const makeSynchronizedProcessor = (
+  store: ProgramStoreService,
+  runtime: SharedProgramRuntime<SynchronizedModel, Message, Envelope, never>,
+  synchronizationPolicy: Synchronization.SessionPolicy,
+  processorOccurrenceId: string,
+  processorClientId: string = clientId,
+) => {
+  const nextId = SubscriptionRef.make(0)
+  const nextSequence = SubscriptionRef.make(0)
+  return Effect.flatMap(nextId, idRef =>
+    Effect.flatMap(nextSequence, sequenceRef =>
+      makeSharedProgramProcessor({
+        admissionSequencerProcessorId: authorityProcessorId,
+        actorId: subjectId,
+        clientId: processorClientId,
+        codec,
+        makeId: () => {
+          const index = Effect.runSync(
+            SubscriptionRef.getAndUpdate(idRef, value => value + 1),
+          )
+          return `${processorOccurrenceId}-occurrence-${index}`
+        },
+        Model: SynchronizedModel,
+        nextActorSequence: SubscriptionRef.updateAndGet(
+          sequenceRef,
+          value => value + 1,
+        ),
+        now: () => 1_753_825_050_000,
+        originDeviceId,
+        originatingProcessorId: processorOccurrenceId,
+        programId,
+        programVersion,
+        protocolVersion: instantProgramProtocolVersion,
+        runtime,
+        sessionId,
+        store,
+        subjectId,
+        synchronization: navigationSynchronization,
+        synchronizationPolicy,
+      }),
+    ),
+  )
+}
+
 const effectCapability = Processor.CapabilityRequirement.make({
   id: ['Device', 'Vibrate'],
   minimumVersion: 1,
 })
 
-const makeEffectRequest = (): InstantEffectRequestRecord =>
+const makeEffectRequest = (
+  causalOccurrence: InstantAcceptedMessageOccurrenceRecord,
+): InstantEffectRequestRecord =>
   InstantEffectRequestRecord.make({
-    causalOccurrenceId: 'occurrence-cause',
+    causalAudience: causalOccurrence.audience,
+    causalMessageCategory: causalOccurrence.messageCategory,
+    causalOccurrenceId: causalOccurrence.occurrenceId,
+    causalPolicyGeneration: causalOccurrence.policyGeneration,
     effectId: 'device.vibrate',
     effectVersion: 1,
     id: 'effect-request-001',
@@ -339,6 +637,7 @@ const makeEffectRequest = (): InstantEffectRequestRecord =>
     }),
     programId,
     programVersion,
+    protocolVersion: instantProgramProtocolVersion,
     publicArguments: {},
     permittedResultEvents: [
       Command.ResultEventRange.make({
@@ -391,12 +690,13 @@ const makeEffectPlacement = (
     assignmentGeneration: 1,
     cancellationGeneration: 0,
     decidedAtMs: 1_753_825_200_001,
-    id: `${request.requestId}:placement:1:0`,
+    id: '00000000-0000-4000-8000-000000000001',
     placementDecision,
     placementStatus,
     positionKey: makeInstantEffectPlacementPositionKey(request.requestId, 1, 0),
     programId: request.programId,
     programVersion: request.programVersion,
+    protocolVersion: request.protocolVersion,
     requestId: request.requestId,
     sessionId: request.sessionId,
     subjectId: request.subjectId,
@@ -460,6 +760,11 @@ describe('shared Program Processor', () => {
           SelectedCounter.make({ counterId: 'counter-002' }),
         )
 
+        expect(proposal.messageCategory).toBe('Navigation')
+        expect(proposal.policyGeneration).toBe(mirrorPolicy.generation)
+        expect(proposal.proposedAudience).toEqual(
+          Synchronization.SessionAudience.make({}),
+        )
         expect((yield* processor.readSnapshot).pendingProposals).toHaveLength(1)
 
         yield* store.appendAcceptedMessageOccurrence(
@@ -484,68 +789,617 @@ describe('shared Program Processor', () => {
   )
 
   it.effect(
-    'rejects SharedDomain and Follow until accepted occurrences persist audiences',
+    'keeps SharedDomain navigation optimistic only on its originating Processor',
     () =>
       Effect.scoped(
         Effect.gen(function* () {
           const store = yield* makeInMemoryProgramStore()
+          const { runtime: originRuntime } = yield* makeSynchronizedRuntime(5)
+          const origin = yield* makeSynchronizedProcessor(
+            store,
+            originRuntime,
+            sharedDomainPolicy,
+            'processor-origin',
+          )
+          const proposal = yield* origin.propose(
+            SelectedCounter.make({ counterId: 'counter-002' }),
+          )
+
+          expect(proposal.messageCategory).toBe('Navigation')
+          expect(proposal.policyGeneration).toBe(sharedDomainPolicy.generation)
+          expect(proposal.proposedAudience).toEqual(
+            Synchronization.ProcessorAudience.make({
+              processorIds: ['processor-origin'],
+            }),
+          )
+          expect((yield* origin.readSnapshot).displayedModel).toEqual({
+            count: 5,
+            maybeSelectedCounterId: Option.some('counter-002'),
+          })
+
+          const { runtime: otherRuntime } = yield* makeSynchronizedRuntime(5)
+          const other = yield* makeSynchronizedProcessor(
+            store,
+            otherRuntime,
+            sharedDomainPolicy,
+            'processor-other',
+          )
+          yield* other.connect
+
+          const otherSnapshot = yield* other.readSnapshot
+          expect(otherSnapshot.pendingProposals).toEqual([])
+          expect(otherSnapshot.displayedModel).toEqual({
+            count: 5,
+            maybeSelectedCounterId: Option.none(),
+          })
+
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(proposal, 1, sharedDomainPolicy),
+          )
+          yield* Stream.runHead(
+            Stream.filter(
+              other.snapshots,
+              snapshot => snapshot.acceptedSequence === 1,
+            ),
+          )
+          yield* origin.connect
+
+          expect((yield* origin.readSnapshot).acceptedModel).toEqual({
+            count: 5,
+            maybeSelectedCounterId: Option.some('counter-002'),
+          })
+          expect((yield* other.readSnapshot).acceptedModel).toEqual({
+            count: 5,
+            maybeSelectedCounterId: Option.none(),
+          })
+        }),
+      ),
+  )
+
+  it.effect(
+    'rejects Follow Observe navigation before optimistic projection or persistence',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { appliedEnvelopes, runtime } =
+            yield* makeSynchronizedRuntime(5)
+          const follower = yield* makeSynchronizedProcessor(
+            store,
+            runtime,
+            makeFollowPolicy('Observe'),
+            'processor-follower',
+          )
+
+          const rejection = yield* Effect.flip(
+            follower.propose(
+              SelectedCounter.make({ counterId: 'counter-002' }),
+            ),
+          )
+          const proposals = yield* Stream.runHead(
+            store.observeMessageProposals({ sessionId, subjectId }),
+          )
+
+          expect(rejection).toEqual(
+            Synchronization.ReadOnlyFollowerRejected.make({
+              leaderProcessorId: 'processor-leader',
+              processorId: 'processor-follower',
+            }),
+          )
+          expect((yield* follower.readSnapshot).pendingProposals).toEqual([])
+          expect(Option.getOrThrow(proposals)).toEqual([])
+
+          const { runtime: leaderRuntime } = yield* makeSynchronizedRuntime(5)
+          const leader = yield* makeSynchronizedProcessor(
+            store,
+            leaderRuntime,
+            makeFollowPolicy('Observe'),
+            'processor-leader',
+            'client-leader',
+          )
+          const leaderProposal = yield* leader.propose(
+            SelectedCounter.make({ counterId: 'counter-002' }),
+          )
+          expect(leaderProposal.proposedAudience).toEqual(
+            Synchronization.ProcessorAudience.make({
+              processorIds: ['processor-follower', 'processor-leader'],
+            }),
+          )
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(
+              leaderProposal,
+              1,
+              makeFollowPolicy('Observe'),
+            ),
+          )
+          yield* follower.connect
+
+          const acceptedFollower = yield* follower.readSnapshot
+          expect(acceptedFollower.acceptedSequence).toBe(1)
+          expect(acceptedFollower.acceptedModel).toEqual({
+            count: 5,
+            maybeSelectedCounterId: Option.some('counter-002'),
+          })
+          expect(yield* SubscriptionRef.get(appliedEnvelopes)).toHaveLength(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'reports an invalid Program-owned Message category before proposal persistence',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const invalidSynchronization: Program.ProgramSynchronization<
+            Model,
+            Message
+          > = {
+            messageCategory: () =>
+              S.decodeUnknownSync(Synchronization.MessageCategory)(
+                'InvalidCategory',
+              ),
+            projectDomain: model => model,
+          }
+          const store = yield* makeInMemoryProgramStore()
           const { runtime } = yield* makeRuntime()
-          const sharedDomainPolicy = Synchronization.SessionPolicy.make({
-            generation: 1,
+          const processor = yield* makeProcessor(
+            store,
+            runtime,
+            codec,
+            clientId,
+            0,
+            invalidSynchronization,
+          )
+
+          expect(
+            yield* Effect.flip(processor.propose(Incremented.make({}))),
+          ).toBeInstanceOf(SharedProgramMessageCategoryError)
+          expect((yield* processor.readSnapshot).pendingProposals).toEqual([])
+          expect(
+            Option.getOrThrow(
+              yield* Stream.runHead(
+                store.observeMessageProposals({ sessionId, subjectId }),
+              ),
+            ),
+          ).toEqual([])
+        }),
+      ),
+  )
+
+  it.effect(
+    'lets Follow RemoteControl navigation originate from a granted follower',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeSynchronizedRuntime(5)
+          const follower = yield* makeSynchronizedProcessor(
+            store,
+            runtime,
+            makeFollowPolicy('RemoteControl'),
+            'processor-follower',
+          )
+
+          const proposal = yield* follower.propose(
+            SelectedCounter.make({ counterId: 'counter-002' }),
+          )
+
+          expect(proposal.proposedAudience).toEqual(
+            Synchronization.ProcessorAudience.make({
+              processorIds: ['processor-follower', 'processor-leader'],
+            }),
+          )
+          expect((yield* follower.readSnapshot).displayedModel).toEqual({
+            count: 5,
+            maybeSelectedCounterId: Option.some('counter-002'),
+          })
+
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(
+              proposal,
+              1,
+              makeFollowPolicy('RemoteControl'),
+            ),
+          )
+          const { runtime: leaderRuntime } = yield* makeSynchronizedRuntime(5)
+          const leader = yield* makeSynchronizedProcessor(
+            store,
+            leaderRuntime,
+            makeFollowPolicy('RemoteControl'),
+            'processor-leader',
+            'client-leader',
+          )
+          yield* leader.connect
+          expect((yield* leader.readSnapshot).acceptedModel).toEqual({
+            count: 5,
+            maybeSelectedCounterId: Option.some('counter-002'),
+          })
+        }),
+      ),
+  )
+
+  it.effect(
+    'advances across skipped navigation before applying a later included occurrence',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime: originRuntime } = yield* makeSynchronizedRuntime()
+          const origin = yield* makeSynchronizedProcessor(
+            store,
+            originRuntime,
+            sharedDomainPolicy,
+            'processor-origin',
+            'client-origin',
+          )
+          const skippedProposal = yield* origin.propose(
+            SelectedCounter.make({ counterId: 'counter-002' }),
+          )
+          const includedProposal = yield* origin.propose(Incremented.make({}))
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(skippedProposal, 1, sharedDomainPolicy),
+          )
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(includedProposal, 2, sharedDomainPolicy),
+          )
+
+          const { appliedEnvelopes, runtime } =
+            yield* makeSynchronizedRuntime(5)
+          const processor = yield* makeSynchronizedProcessor(
+            store,
+            runtime,
+            sharedDomainPolicy,
+            'processor-other',
+            'client-other',
+          )
+          yield* processor.connect
+
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedSequence).toBe(2)
+          expect(snapshot.acceptedModel).toEqual({
+            count: 6,
+            maybeSelectedCounterId: Option.none(),
+          })
+          expect(snapshot.displayedModel).toEqual({
+            count: 6,
+            maybeSelectedCounterId: Option.none(),
+          })
+          expect(yield* SubscriptionRef.get(appliedEnvelopes)).toHaveLength(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'rejects corrupt accepted routing before changing the Model or cursor',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeSynchronizedRuntime(5)
+          const processor = yield* makeSynchronizedProcessor(
+            store,
+            runtime,
+            sharedDomainPolicy,
+            'processor-origin',
+          )
+          const proposal = yield* processor.propose(
+            SelectedCounter.make({ counterId: 'counter-002' }),
+          )
+          const occurrence = yield* makeOccurrence(
+            proposal,
+            1,
+            sharedDomainPolicy,
+          )
+          const corruptOccurrence = InstantAcceptedMessageOccurrenceRecord.make(
+            {
+              ...occurrence,
+              audience: Synchronization.SessionAudience.make({}),
+            },
+          )
+          yield* store.appendAcceptedMessageOccurrence(corruptOccurrence)
+
+          const failure = yield* Effect.flip(processor.connect)
+          const snapshot = yield* processor.readSnapshot
+
+          expect(failure).toEqual(
+            new SharedProgramAcceptedRoutingMismatch({
+              occurrenceId: corruptOccurrence.occurrenceId,
+              reason: 'AudienceClaim',
+            }),
+          )
+          expect(snapshot.acceptedSequence).toBe(0)
+          expect(snapshot.acceptedModel).toEqual({
+            count: 5,
+            maybeSelectedCounterId: Option.none(),
+          })
+        }),
+      ),
+  )
+
+  it.effect(
+    'rejects accepted-row incoherence before changing the Model or cursor',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { appliedEnvelopes, runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const proposal = yield* processor.propose(Incremented.make({}))
+          const occurrence = yield* makeOccurrence(proposal, 1)
+          const invalidOccurrence = InstantAcceptedMessageOccurrenceRecord.make(
+            {
+              ...occurrence,
+              effectRequestId: 'unexpected-effect-request',
+            },
+          )
+          yield* store.appendAcceptedMessageOccurrence(invalidOccurrence)
+
+          const failure = yield* Effect.flip(processor.connect)
+          const snapshot = yield* processor.readSnapshot
+
+          expect(failure).toEqual(
+            new SharedProgramAcceptedOccurrenceInvalid({
+              occurrenceId: invalidOccurrence.occurrenceId,
+              reason:
+                InstantAcceptedMessageOccurrenceValidationIssue.make(
+                  'ProposalKind',
+                ),
+            }),
+          )
+          expect(snapshot.acceptedSequence).toBe(0)
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(yield* SubscriptionRef.get(appliedEnvelopes)).toEqual([])
+        }),
+      ),
+  )
+
+  it.effect(
+    'fences every invalid ordered accepted-policy history before runtime application',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const generatorStore = yield* makeInMemoryProgramStore()
+          const { runtime: generatorRuntime } = yield* makeSynchronizedRuntime()
+          const generator = yield* makeSynchronizedProcessor(
+            generatorStore,
+            generatorRuntime,
+            sharedDomainPolicy,
+            'processor-generator',
+          )
+          const firstProposal = yield* generator.propose(Incremented.make({}))
+          const secondProposal = yield* generator.propose(Incremented.make({}))
+          const currentOccurrence = yield* makeOccurrence(
+            firstProposal,
+            1,
+            sharedDomainPolicy,
+          )
+          const priorOccurrence = yield* makeOccurrence(
+            InstantMessageProposalRecord.make({
+              ...firstProposal,
+              policyGeneration: mirrorPolicy.generation,
+            }),
+            1,
+            mirrorPolicy,
+          )
+          const priorAfterCurrent = yield* makeOccurrence(
+            InstantMessageProposalRecord.make({
+              ...secondProposal,
+              policyGeneration: mirrorPolicy.generation,
+            }),
+            2,
+            mirrorPolicy,
+          )
+          const futurePolicy = Synchronization.SessionPolicy.make({
+            generation: 2,
+            mode: Synchronization.Mirror.make({}),
+          })
+          const futureOccurrence = yield* makeOccurrence(
+            InstantMessageProposalRecord.make({
+              ...firstProposal,
+              policyGeneration: futurePolicy.generation,
+            }),
+            1,
+            futurePolicy,
+          )
+          const wrongCurrentPolicy = Synchronization.SessionPolicy.make({
+            generation: sharedDomainPolicy.generation,
+            mode: Synchronization.Mirror.make({}),
+          })
+          const wrongCurrentOccurrence = yield* makeOccurrence(
+            firstProposal,
+            1,
+            wrongCurrentPolicy,
+          )
+          const reusedPriorPolicy = Synchronization.SessionPolicy.make({
+            generation: mirrorPolicy.generation,
             mode: Synchronization.SharedDomain.make({}),
           })
-          const followPolicy = Synchronization.SessionPolicy.make({
-            generation: 2,
-            mode: Synchronization.Follow.make({
-              followers: [
-                Synchronization.Follower.make({
-                  control: 'Observe',
-                  processorId: 'processor-follower',
-                }),
-              ],
-              leaderProcessorId: processorId,
+          const noncanonicalPriorOccurrence = yield* makeOccurrence(
+            InstantMessageProposalRecord.make({
+              ...secondProposal,
+              policyGeneration: mirrorPolicy.generation,
             }),
-          })
-
-          const sharedDomainError = yield* Effect.flip(
-            makeProcessor(
-              store,
-              runtime,
-              codec,
-              clientId,
-              0,
-              programSynchronization,
-              sharedDomainPolicy,
-            ),
-          )
-          const followError = yield* Effect.flip(
-            makeProcessor(
-              store,
-              runtime,
-              codec,
-              clientId,
-              0,
-              programSynchronization,
-              followPolicy,
-            ),
+            2,
+            reusedPriorPolicy,
           )
 
-          expect(sharedDomainError).toBeInstanceOf(
-            SharedProgramSynchronizationModeUnsupported,
+          const connectFailure = (
+            occurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
+          ) =>
+            Effect.gen(function* () {
+              const store = yield* makeInMemoryProgramStore()
+              yield* Effect.forEach(
+                occurrences,
+                store.appendAcceptedMessageOccurrence,
+                { concurrency: 1, discard: true },
+              )
+              const { appliedEnvelopes, runtime } =
+                yield* makeSynchronizedRuntime()
+              const processor = yield* makeSynchronizedProcessor(
+                store,
+                runtime,
+                sharedDomainPolicy,
+                'processor-consumer',
+              )
+              const failure = yield* Effect.flip(processor.connect)
+              return {
+                appliedEnvelopes: yield* SubscriptionRef.get(appliedEnvelopes),
+                failure,
+              }
+            })
+
+          const decreased = yield* connectFailure([
+            currentOccurrence,
+            priorAfterCurrent,
+          ])
+          expect(decreased.failure).toEqual(
+            new SharedProgramAcceptedPolicyHistoryMismatch({
+              occurrenceId: priorAfterCurrent.occurrenceId,
+              reason: 'GenerationDecreased',
+            }),
           )
-          expect(sharedDomainError).toMatchObject({
-            mode: 'SharedDomain',
-            requiredProtocolVersion: 2,
-            supportedProtocolVersion: 1,
-          })
-          expect(followError).toBeInstanceOf(
-            SharedProgramSynchronizationModeUnsupported,
+          expect(decreased.appliedEnvelopes).toEqual([])
+
+          const future = yield* connectFailure([futureOccurrence])
+          expect(future.failure).toEqual(
+            new SharedProgramAcceptedPolicyHistoryMismatch({
+              occurrenceId: futureOccurrence.occurrenceId,
+              reason: 'FutureGeneration',
+            }),
           )
-          expect(followError).toMatchObject({
-            mode: 'Follow',
-            requiredProtocolVersion: 2,
-            supportedProtocolVersion: 1,
-          })
+          expect(future.appliedEnvelopes).toEqual([])
+
+          const wrongCurrent = yield* connectFailure([wrongCurrentOccurrence])
+          expect(wrongCurrent.failure).toEqual(
+            new SharedProgramAcceptedPolicyHistoryMismatch({
+              occurrenceId: wrongCurrentOccurrence.occurrenceId,
+              reason: 'SessionPolicyClaim',
+            }),
+          )
+          expect(wrongCurrent.appliedEnvelopes).toEqual([])
+
+          const noncanonical = yield* connectFailure([
+            priorOccurrence,
+            noncanonicalPriorOccurrence,
+          ])
+          expect(noncanonical.failure).toEqual(
+            new SharedProgramAcceptedPolicyHistoryMismatch({
+              occurrenceId: noncanonicalPriorOccurrence.occurrenceId,
+              reason: 'SessionPolicyClaim',
+            }),
+          )
+          expect(noncanonical.appliedEnvelopes).toEqual([])
+        }),
+      ),
+  )
+
+  it.effect(
+    'rejects duplicate accepted effect-result idempotency before runtime application',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const generatorStore = yield* makeInMemoryProgramStore()
+          const { runtime: generatorRuntime } = yield* makeRuntime()
+          const generator = yield* makeProcessor(
+            generatorStore,
+            generatorRuntime,
+          )
+          const causalProposal = yield* generator.propose(Incremented.make({}))
+          const firstResultProposal = yield* generator.propose(
+            Incremented.make({}),
+          )
+          const secondResultProposal = yield* generator.propose(
+            Incremented.make({}),
+          )
+          const causalOccurrence = yield* makeOccurrence(causalProposal, 1)
+          const effectIdempotencyKey = 'duplicate-accepted-effect-key'
+          const asEffectResult = (
+            proposal: InstantMessageProposalRecord,
+          ): InstantMessageProposalRecord =>
+            InstantMessageProposalRecord.make({
+              ...proposal,
+              causationOccurrenceId: causalOccurrence.occurrenceId,
+              effectAssignmentGeneration: 1,
+              effectCancellationGeneration: 0,
+              effectIdempotencyKey,
+              effectRequestId: 'effect-request-duplicate-accepted',
+              executorProcessorId: processorId,
+              proposalKind: 'EffectResult',
+            })
+          const firstResult = yield* makeOccurrence(
+            asEffectResult(firstResultProposal),
+            2,
+          )
+          const secondResult = yield* makeOccurrence(
+            asEffectResult(secondResultProposal),
+            3,
+          )
+          const store = yield* makeInMemoryProgramStore()
+          yield* store.appendAcceptedMessageOccurrence(causalOccurrence)
+          yield* store.appendAcceptedMessageOccurrence(firstResult)
+          yield* store.appendAcceptedMessageOccurrence(secondResult)
+          const { appliedEnvelopes, runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+
+          const failure = yield* Effect.flip(processor.connect)
+
+          expect(failure).toEqual(
+            new SharedProgramAcceptedEffectResultDuplicate({
+              effectIdempotencyKey,
+              occurrenceId: secondResult.occurrenceId,
+            }),
+          )
+          expect(yield* SubscriptionRef.get(appliedEnvelopes)).toEqual([])
+          expect((yield* processor.readSnapshot).acceptedSequence).toBe(0)
+        }),
+      ),
+  )
+
+  it.effect(
+    'rejects duplicate accepted ordinary-Message identities before optimistic or runtime projection',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const generatorStore = yield* makeInMemoryProgramStore()
+          const { runtime: generatorRuntime } = yield* makeRuntime()
+          const generator = yield* makeProcessor(
+            generatorStore,
+            generatorRuntime,
+          )
+          const messageIdempotencyKey = 'placement-request-duplicate:1:0'
+          const input = {
+            messageIdempotencyKey,
+            maybeCausationOccurrenceId: Option.none<string>(),
+            maybeCorrelationId: Option.none<string>(),
+          }
+          const firstProposal = yield* generator.proposeIdempotentCorrelated(
+            Incremented.make({}),
+            input,
+          )
+          const secondProposal = yield* generator.proposeIdempotentCorrelated(
+            Incremented.make({}),
+            input,
+          )
+          const firstOccurrence = yield* makeOccurrence(firstProposal, 1)
+          const secondOccurrence = yield* makeOccurrence(secondProposal, 2)
+          const store = yield* makeInMemoryProgramStore()
+          yield* store.appendAcceptedMessageOccurrence(firstOccurrence)
+          yield* store.appendAcceptedMessageOccurrence(secondOccurrence)
+          const { appliedEnvelopes, runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+
+          const failure = yield* Effect.flip(processor.connect)
+
+          expect(failure).toEqual(
+            new SharedProgramAcceptedMessageDuplicate({
+              messageIdempotencyKey,
+              occurrenceId: secondOccurrence.occurrenceId,
+            }),
+          )
+          expect(yield* SubscriptionRef.get(appliedEnvelopes)).toEqual([])
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedSequence).toBe(0)
+          expect(snapshot.displayedModel).toEqual({ count: 0 })
         }),
       ),
   )
@@ -570,6 +1424,75 @@ describe('shared Program Processor', () => {
           expect(snapshot.pendingProposals).toHaveLength(1)
           expect(yield* SubscriptionRef.get(appliedEnvelopes)).toEqual([])
           expect(Option.getOrThrow(proposals)).toHaveLength(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'rejects an invalid ordinary-Message identity as a typed error',
+    () =>
+      Effect.gen(function* () {
+        const store = yield* makeInMemoryProgramStore()
+        const { runtime } = yield* makeRuntime()
+        const processor = yield* makeProcessor(store, runtime)
+
+        expect(
+          yield* Effect.flip(
+            processor.proposeIdempotentCorrelated(Incremented.make({}), {
+              messageIdempotencyKey: '',
+              maybeCausationOccurrenceId: Option.none(),
+              maybeCorrelationId: Option.none(),
+            }),
+          ),
+        ).toBeInstanceOf(SharedProgramMessageIdempotencyKeyInvalid)
+        expect((yield* processor.readSnapshot).pendingProposals).toEqual([])
+      }),
+  )
+
+  it.effect(
+    'projects ordinary-Message aliases once and clears every pending alias on acceptance',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { appliedEnvelopes, runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          yield* processor.connect
+          const messageIdempotencyKey = 'placement-request-pending:1:0'
+          const input = {
+            messageIdempotencyKey,
+            maybeCausationOccurrenceId: Option.none<string>(),
+            maybeCorrelationId: Option.none<string>(),
+          }
+          const original = yield* processor.proposeIdempotentCorrelated(
+            Incremented.make({}),
+            input,
+          )
+          yield* processor.proposeIdempotentCorrelated(
+            Incremented.make({}),
+            input,
+          )
+
+          const pendingSnapshot = yield* processor.readSnapshot
+          expect(pendingSnapshot.acceptedModel).toEqual({ count: 0 })
+          expect(pendingSnapshot.displayedModel).toEqual({ count: 1 })
+          expect(pendingSnapshot.pendingProposals).toHaveLength(2)
+
+          yield* store.appendAcceptedMessageOccurrence(
+            yield* makeOccurrence(original, 1),
+          )
+          yield* Stream.runHead(
+            Stream.filter(
+              processor.snapshots,
+              snapshot => snapshot.acceptedSequence === 1,
+            ),
+          )
+
+          const acceptedSnapshot = yield* processor.readSnapshot
+          expect(acceptedSnapshot.acceptedModel).toEqual({ count: 1 })
+          expect(acceptedSnapshot.displayedModel).toEqual({ count: 1 })
+          expect(acceptedSnapshot.pendingProposals).toEqual([])
+          expect(yield* SubscriptionRef.get(appliedEnvelopes)).toHaveLength(1)
         }),
       ),
   )
@@ -819,9 +1742,13 @@ describe('shared Program Processor', () => {
           const proposal = yield* processor.propose(Incremented.make({}))
           yield* store.appendMessageProposalResolution(
             InstantMessageProposalResolutionRecord.make({
+              actorId: proposal.actorId,
+              actorSequence: proposal.actorSequence,
+              clientId: proposal.clientId,
               id: proposal.proposalId,
               programId,
               programVersion,
+              protocolVersion: instantProgramProtocolVersion,
               proposalId: proposal.proposalId,
               rejectedAtMs: 1_753_825_100_002,
               rejectingProcessorId: 'processor-not-the-sequencer',
@@ -838,6 +1765,85 @@ describe('shared Program Processor', () => {
           expect(snapshot.acceptedModel).toEqual({ count: 0 })
           expect(snapshot.displayedModel).toEqual({ count: 1 })
           expect(snapshot.pendingProposals).toHaveLength(1)
+        }),
+      ),
+  )
+
+  it.effect(
+    'fails closed on a proposal resolution outside the authenticated Program scope',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          const proposal = yield* processor.propose(Incremented.make({}))
+          const resolution = InstantMessageProposalResolutionRecord.make({
+            actorId: proposal.actorId,
+            actorSequence: proposal.actorSequence,
+            clientId: proposal.clientId,
+            id: proposal.proposalId,
+            programId: 'different-program',
+            programVersion,
+            protocolVersion: instantProgramProtocolVersion,
+            proposalId: proposal.proposalId,
+            rejectedAtMs: 1_753_825_100_002,
+            rejectingProcessorId: authorityProcessorId,
+            rejectionReason: 'EnvelopeInvalid',
+            sessionId,
+            subjectId,
+          })
+          yield* store.appendMessageProposalResolution(resolution)
+
+          expect(yield* Effect.flip(processor.connect)).toEqual(
+            new SharedProgramProposalResolutionScopeMismatch({
+              resolutionId: resolution.id,
+            }),
+          )
+          expect((yield* processor.readSnapshot).pendingProposals).toHaveLength(
+            1,
+          )
+        }),
+      ),
+  )
+
+  it.effect(
+    'fails closed on contradictory accepted and rejected terminals after restart',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const generator = yield* makeProcessor(store, runtime)
+          const proposal = yield* generator.propose(Incremented.make({}))
+          const occurrence = yield* makeOccurrence(proposal, 1)
+          yield* store.appendAcceptedMessageOccurrence(occurrence)
+          yield* store.appendMessageProposalResolution(
+            InstantMessageProposalResolutionRecord.make({
+              actorId: proposal.actorId,
+              actorSequence: proposal.actorSequence,
+              clientId: proposal.clientId,
+              id: proposal.proposalId,
+              programId,
+              programVersion,
+              protocolVersion: instantProgramProtocolVersion,
+              proposalId: proposal.proposalId,
+              rejectedAtMs: 1_753_825_100_002,
+              rejectingProcessorId: authorityProcessorId,
+              rejectionReason: 'EnvelopeInvalid',
+              sessionId,
+              subjectId,
+            }),
+          )
+          const { runtime: restartedRuntime } = yield* makeRuntime()
+          const restarted = yield* makeProcessor(store, restartedRuntime)
+
+          expect(yield* Effect.flip(restarted.connect)).toEqual(
+            new SharedProgramProposalResolutionMismatch({
+              proposalId: proposal.proposalId,
+              reason: 'AcceptedAndRejected',
+            }),
+          )
         }),
       ),
   )
@@ -915,7 +1921,7 @@ describe('shared Program Processor', () => {
   )
 
   it.effect(
-    'suppresses a proposal snapshot that arrives after its accepted occurrence',
+    'suppresses an ordinary-Message alias snapshot that arrives after acceptance',
     () =>
       Effect.scoped(
         Effect.gen(function* () {
@@ -925,8 +1931,20 @@ describe('shared Program Processor', () => {
             generatorStore,
             generatorRuntime,
           )
-          const proposal = yield* generator.propose(Incremented.make({}))
-          const occurrence = yield* makeOccurrence(proposal, 1)
+          const input = {
+            messageIdempotencyKey: 'placement-query-skew:1:0',
+            maybeCausationOccurrenceId: Option.none<string>(),
+            maybeCorrelationId: Option.none<string>(),
+          }
+          const original = yield* generator.proposeIdempotentCorrelated(
+            Incremented.make({}),
+            input,
+          )
+          const alias = yield* generator.proposeIdempotentCorrelated(
+            Incremented.make({}),
+            input,
+          )
+          const occurrence = yield* makeOccurrence(original, 1)
           const acceptedAllowed = yield* Deferred.make<void>()
           const proposalsAllowed = yield* Deferred.make<void>()
           const baseStore = yield* makeInMemoryProgramStore()
@@ -938,7 +1956,7 @@ describe('shared Program Processor', () => {
               ).pipe(Stream.concat(Stream.never)),
             observeMessageProposals: () =>
               Stream.fromEffect(
-                Deferred.await(proposalsAllowed).pipe(Effect.as([proposal])),
+                Deferred.await(proposalsAllowed).pipe(Effect.as([alias])),
               ).pipe(Stream.concat(Stream.never)),
           }
           const { appliedEnvelopes, runtime } = yield* makeRuntime()
@@ -968,7 +1986,7 @@ describe('shared Program Processor', () => {
   )
 
   it.effect(
-    'rolls back a projected proposal removed from the exact snapshot',
+    'requeues a synced optimistic proposal removed without a terminal resolution',
     () =>
       Effect.scoped(
         Effect.gen(function* () {
@@ -993,21 +2011,92 @@ describe('shared Program Processor', () => {
           expect((yield* processor.readSnapshot).displayedModel).toEqual({
             count: 1,
           })
-          const rolledBack = yield* Effect.forkChild(
+          const removalProcessed = yield* Effect.forkChild(
             Stream.runHead(
               Stream.filter(processor.snapshots, snapshot =>
-                Array.isReadonlyArrayEmpty(snapshot.pendingProposals),
+                Array.some(
+                  snapshot.pendingProposals,
+                  pending =>
+                    pending.proposal.proposalId === proposal.proposalId &&
+                    pending.persistence === 'Local',
+                ),
               ),
             ),
           )
 
           yield* SubscriptionRef.set(proposals, [])
-          yield* Fiber.join(rolledBack)
+          yield* Fiber.join(removalProcessed)
 
           const snapshot = yield* processor.readSnapshot
           expect(snapshot.acceptedModel).toEqual({ count: 0 })
-          expect(snapshot.displayedModel).toEqual({ count: 0 })
-          expect(snapshot.pendingProposals).toEqual([])
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
+          expect(snapshot.pendingProposals).toMatchObject([
+            {
+              persistence: 'Local',
+              proposal: { proposalId: proposal.proposalId },
+            },
+          ])
+        }),
+      ),
+  )
+
+  it.effect(
+    'requeues an enqueued optimistic proposal after a later Instant rollback',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseStore = yield* makeInMemoryProgramStore(
+            enqueuedTransactionOutcome('offline-client'),
+          )
+          const proposals = yield* SubscriptionRef.make<
+            ReadonlyArray<InstantMessageProposalRecord>
+          >([])
+          const store: ProgramStoreService = {
+            ...baseStore,
+            observeMessageProposals: () => SubscriptionRef.changes(proposals),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          yield* processor.connect
+          const proposal = yield* processor.propose(Incremented.make({}))
+          expect(
+            (yield* processor.readSnapshot).pendingProposals,
+          ).toMatchObject([{ persistence: 'Enqueued' }])
+
+          yield* SubscriptionRef.set(proposals, [proposal])
+          yield* Stream.runHead(
+            Stream.filter(processor.snapshots, snapshot =>
+              Array.some(
+                snapshot.pendingProposals,
+                pending => pending.proposal.proposalId === proposal.proposalId,
+              ),
+            ),
+          )
+          const removalProcessed = yield* Effect.forkChild(
+            Stream.runHead(
+              Stream.filter(processor.snapshots, snapshot =>
+                Array.some(
+                  snapshot.pendingProposals,
+                  pending =>
+                    pending.proposal.proposalId === proposal.proposalId &&
+                    pending.persistence === 'Local',
+                ),
+              ),
+            ),
+          )
+
+          yield* SubscriptionRef.set(proposals, [])
+          yield* Fiber.join(removalProcessed)
+
+          const snapshot = yield* processor.readSnapshot
+          expect(snapshot.acceptedModel).toEqual({ count: 0 })
+          expect(snapshot.displayedModel).toEqual({ count: 1 })
+          expect(snapshot.pendingProposals).toMatchObject([
+            {
+              persistence: 'Local',
+              proposal: { proposalId: proposal.proposalId },
+            },
+          ])
         }),
       ),
   )
@@ -1033,9 +2122,13 @@ describe('shared Program Processor', () => {
 
         yield* store.appendMessageProposalResolution(
           InstantMessageProposalResolutionRecord.make({
+            actorId: proposal.actorId,
+            actorSequence: proposal.actorSequence,
+            clientId: proposal.clientId,
             id: proposal.proposalId,
             programId,
             programVersion,
+            protocolVersion: instantProgramProtocolVersion,
             proposalId: proposal.proposalId,
             rejectedAtMs: 1_753_825_100_002,
             rejectingProcessorId: authorityProcessorId,
@@ -1062,6 +2155,91 @@ describe('shared Program Processor', () => {
   )
 
   it.effect(
+    'defers a post-connect resolution until its proposal snapshot catches up',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseStore = yield* makeInMemoryProgramStore()
+          const proposalRows = yield* SubscriptionRef.make<
+            ReadonlyArray<InstantMessageProposalRecord>
+          >([])
+          const resolutionRows = yield* SubscriptionRef.make<
+            ReadonlyArray<InstantMessageProposalResolutionRecord>
+          >([])
+          const store: ProgramStoreService = {
+            ...baseStore,
+            observeMessageProposalResolutions: () =>
+              SubscriptionRef.changes(resolutionRows),
+            observeMessageProposals: () =>
+              SubscriptionRef.changes(proposalRows),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          yield* processor.connect
+          const proposal = yield* processor.propose(Incremented.make({}))
+          const resolution = InstantMessageProposalResolutionRecord.make({
+            actorId: proposal.actorId,
+            actorSequence: proposal.actorSequence,
+            clientId: proposal.clientId,
+            id: proposal.proposalId,
+            programId,
+            programVersion,
+            protocolVersion: instantProgramProtocolVersion,
+            proposalId: proposal.proposalId,
+            rejectedAtMs: 1_753_825_100_002,
+            rejectingProcessorId: authorityProcessorId,
+            rejectionReason: 'EnvelopeInvalid',
+            sessionId,
+            subjectId,
+          })
+          const snapshotObservationStarted = yield* Deferred.make<void>()
+          const resolutionReconciled = yield* Effect.forkChild(
+            Stream.runHead(
+              processor.snapshots.pipe(
+                Stream.tap(() =>
+                  Deferred.succeed(snapshotObservationStarted, undefined).pipe(
+                    Effect.asVoid,
+                  ),
+                ),
+                Stream.drop(1),
+              ),
+            ),
+          )
+
+          yield* Deferred.await(snapshotObservationStarted)
+          yield* SubscriptionRef.set(resolutionRows, [resolution])
+          yield* Fiber.join(resolutionReconciled)
+
+          const deferredSnapshot = yield* processor.readSnapshot
+          expect(deferredSnapshot.connection).toEqual({
+            _tag: 'Attached',
+            transportStatus: 'authenticated',
+          })
+          expect(deferredSnapshot.pendingProposals).toMatchObject([
+            { proposal: { proposalId: proposal.proposalId } },
+          ])
+
+          const rolledBack = yield* Effect.forkChild(
+            Stream.runHead(
+              Stream.filter(processor.snapshots, snapshot =>
+                Array.isReadonlyArrayEmpty(snapshot.pendingProposals),
+              ),
+            ),
+          )
+          yield* SubscriptionRef.set(proposalRows, [proposal])
+          yield* Fiber.join(rolledBack)
+
+          const resolvedSnapshot = yield* processor.readSnapshot
+          expect(resolvedSnapshot.connection).toEqual({
+            _tag: 'Attached',
+            transportStatus: 'authenticated',
+          })
+          expect(resolvedSnapshot.pendingProposals).toEqual([])
+        }),
+      ),
+  )
+
+  it.effect(
     'suppresses a proposal snapshot that arrives after its rejection',
     () =>
       Effect.scoped(
@@ -1074,9 +2252,13 @@ describe('shared Program Processor', () => {
           )
           const proposal = yield* generator.propose(Incremented.make({}))
           const resolution = InstantMessageProposalResolutionRecord.make({
+            actorId: proposal.actorId,
+            actorSequence: proposal.actorSequence,
+            clientId: proposal.clientId,
             id: proposal.proposalId,
             programId,
             programVersion,
+            protocolVersion: instantProgramProtocolVersion,
             proposalId: proposal.proposalId,
             rejectedAtMs: 1_753_825_100_002,
             rejectingProcessorId: authorityProcessorId,
@@ -1130,9 +2312,13 @@ describe('shared Program Processor', () => {
           )
           const proposal = yield* generator.propose(Incremented.make({}))
           const resolution = InstantMessageProposalResolutionRecord.make({
+            actorId: proposal.actorId,
+            actorSequence: proposal.actorSequence,
+            clientId: proposal.clientId,
             id: proposal.proposalId,
             programId,
             programVersion,
+            protocolVersion: instantProgramProtocolVersion,
             proposalId: proposal.proposalId,
             rejectedAtMs: 1_753_825_100_002,
             rejectingProcessorId: authorityProcessorId,
@@ -1542,6 +2728,42 @@ describe('shared Program Processor', () => {
   )
 
   it.effect(
+    'rejects an effect result without locally observed causal routing',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const causalStore = yield* makeInMemoryProgramStore()
+          const causalOccurrence = yield* appendCausalOccurrence(causalStore)
+          const request = makeEffectRequest(causalOccurrence)
+          const placement = makeEffectPlacement(
+            request,
+            'AssignedPreferred',
+            processorId,
+          )
+          const store = yield* makeInMemoryProgramStore()
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+
+          expect(
+            yield* Effect.flip(
+              processor.proposeEffectResult(Incremented.make({}), {
+                effectAssignmentGeneration: placement.assignmentGeneration,
+                effectCancellationGeneration: placement.cancellationGeneration,
+                effectIdempotencyKey: request.idempotencyKey,
+                effectRequestId: request.requestId,
+                maybeCausationOccurrenceId: Option.some(
+                  request.causalOccurrenceId,
+                ),
+                maybeCorrelationId: Option.some(sessionId),
+              }),
+            ),
+          ).toBeInstanceOf(SharedProgramCausalRoutingMissing)
+          expect((yield* processor.readSnapshot).pendingProposals).toEqual([])
+        }),
+      ),
+  )
+
+  it.effect(
     'does not leave an already accepted effect-result retry pending',
     () =>
       Effect.scoped(
@@ -1549,13 +2771,15 @@ describe('shared Program Processor', () => {
           const store = yield* makeInMemoryProgramStore()
           const { runtime } = yield* makeRuntime()
           const processor = yield* makeProcessor(store, runtime)
+          const causalOccurrence = yield* appendCausalOccurrence(store)
           const authority = yield* makeAcceptanceAuthority({
             acceptEnvelope: codec.acceptEnvelope,
             now: () => 1_753_825_100_001,
             session,
             store,
           })
-          const request = makeEffectRequest()
+          yield* authority.recoverAcceptedOccurrences([causalOccurrence])
+          const request = makeEffectRequest(causalOccurrence)
           const placement = makeEffectPlacement(
             request,
             'AssignedPreferred',
@@ -1577,11 +2801,14 @@ describe('shared Program Processor', () => {
             Incremented.make({}),
             resultInput,
           )
+          expect(result.messageCategory).toBe(request.causalMessageCategory)
+          expect(result.policyGeneration).toBe(request.causalPolicyGeneration)
+          expect(result.proposedAudience).toEqual(request.causalAudience)
           yield* authority.admit(result)
           yield* Stream.runHead(
             Stream.filter(
               processor.snapshots,
-              snapshot => snapshot.acceptedSequence === 1,
+              snapshot => snapshot.acceptedSequence === 2,
             ),
           )
 
@@ -1594,7 +2821,7 @@ describe('shared Program Processor', () => {
             store.observeMessageProposals({ sessionId, subjectId }),
           )
           expect(snapshot.pendingProposals).toEqual([])
-          expect(Option.getOrThrow(proposals)).toHaveLength(1)
+          expect(Option.getOrThrow(proposals)).toHaveLength(2)
         }),
       ),
   )
@@ -1629,7 +2856,9 @@ describe('shared Program Processor', () => {
           }
           const { runtime } = yield* makeRuntime()
           const processor = yield* makeProcessor(store, runtime, racingCodec)
-          const request = makeEffectRequest()
+          const causalOccurrence = yield* appendCausalOccurrence(store)
+          yield* processor.connect
+          const request = makeEffectRequest(causalOccurrence)
           const placement = makeEffectPlacement(
             request,
             'AssignedPreferred',
@@ -1648,14 +2877,13 @@ describe('shared Program Processor', () => {
             resultInput,
           )
           yield* store.appendAcceptedMessageOccurrence(
-            yield* makeOccurrence(firstResult, 1),
+            yield* makeOccurrence(firstResult, 2),
           )
           const retry = yield* Effect.forkChild(
             processor.proposeEffectResult(Incremented.make({}), resultInput),
           )
           yield* Deferred.await(encodeRetryStarted)
 
-          yield* processor.connect
           yield* Deferred.succeed(encodeRetryAllowed, undefined)
           yield* Fiber.join(retry)
 
@@ -1666,7 +2894,7 @@ describe('shared Program Processor', () => {
           expect(snapshot.acceptedModel).toEqual({ count: 1 })
           expect(snapshot.displayedModel).toEqual({ count: 1 })
           expect(snapshot.pendingProposals).toEqual([])
-          expect(Option.getOrThrow(proposals)).toHaveLength(1)
+          expect(Option.getOrThrow(proposals)).toHaveLength(2)
         }),
       ),
   )
@@ -1679,7 +2907,9 @@ describe('shared Program Processor', () => {
           const store = yield* makeInMemoryProgramStore()
           const { runtime } = yield* makeRuntime()
           const processor = yield* makeProcessor(store, runtime)
-          const request = makeEffectRequest()
+          const causalOccurrence = yield* appendCausalOccurrence(store)
+          yield* processor.connect
+          const request = makeEffectRequest(causalOccurrence)
           const placement = makeEffectPlacement(
             request,
             'AssignedPreferred',
@@ -1880,48 +3110,57 @@ describe('shared Program Processor', () => {
       ),
   )
 
-  it.effect('rolls back projection after Instant rejects its mutation', () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const baseStore = yield* makeInMemoryProgramStore()
-        const rejectAppend = yield* Deferred.make<void>()
-        const store: ProgramStoreService = {
-          ...baseStore,
-          appendMessageProposal: () =>
-            Deferred.await(rejectAppend).pipe(
-              Effect.andThen(
-                Effect.fail(
-                  new ProgramStoreProposalMutationRejected({
-                    cause: new Error('Instant rejected the mutation.'),
-                  }),
+  it.effect(
+    'retains optimistic projection for authority resolution after Instant rejects its mutation',
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseStore = yield* makeInMemoryProgramStore()
+          const rejectAppend = yield* Deferred.make<void>()
+          const store: ProgramStoreService = {
+            ...baseStore,
+            appendMessageProposal: () =>
+              Deferred.await(rejectAppend).pipe(
+                Effect.andThen(
+                  Effect.fail(
+                    new ProgramStoreProposalMutationRejected({
+                      cause: new Error('Instant rejected the mutation.'),
+                    }),
+                  ),
                 ),
               ),
+          }
+          const { runtime } = yield* makeRuntime()
+          const processor = yield* makeProcessor(store, runtime)
+          yield* processor.connect
+          const proposalFiber = yield* Effect.forkChild(
+            processor.propose(Incremented.make({})),
+          )
+          yield* Stream.runHead(
+            Stream.filter(
+              processor.snapshots,
+              snapshot => snapshot.displayedModel.count === 1,
             ),
-        }
-        const { runtime } = yield* makeRuntime()
-        const processor = yield* makeProcessor(store, runtime)
-        const proposalFiber = yield* Effect.forkChild(
-          processor.propose(Incremented.make({})),
-        )
-        yield* Stream.runHead(
-          Stream.filter(
-            processor.snapshots,
-            snapshot => snapshot.displayedModel.count === 1,
-          ),
-        )
+          )
 
-        expect((yield* processor.readSnapshot).displayedModel).toEqual({
-          count: 1,
-        })
-        yield* Deferred.succeed(rejectAppend, undefined)
-        yield* Fiber.join(proposalFiber)
+          expect((yield* processor.readSnapshot).displayedModel).toEqual({
+            count: 1,
+          })
+          yield* Deferred.succeed(rejectAppend, undefined)
+          yield* Fiber.join(proposalFiber)
 
-        const rolledBack = yield* processor.readSnapshot
-        expect(rolledBack.acceptedModel).toEqual({ count: 0 })
-        expect(rolledBack.displayedModel).toEqual({ count: 0 })
-        expect(rolledBack.pendingProposals).toEqual([])
-      }),
-    ),
+          const retained = yield* processor.readSnapshot
+          expect(retained.acceptedModel).toEqual({ count: 0 })
+          expect(retained.displayedModel).toEqual({ count: 1 })
+          expect(retained.pendingProposals).toMatchObject([
+            { persistence: 'Local' },
+          ])
+          expect(retained.connection).toEqual({
+            _tag: 'Attached',
+            transportStatus: 'errored',
+          })
+        }),
+      ),
   )
 })
 
@@ -1978,7 +3217,7 @@ describe('acceptance authority', () => {
       ),
   )
 
-  it.effect('does not advance after an accepted write remains Enqueued', () =>
+  it.effect('rejects an optimistic authority write without advancing', () =>
     Effect.scoped(
       Effect.gen(function* () {
         const baseStore = yield* makeInMemoryProgramStore()
@@ -2009,7 +3248,7 @@ describe('acceptance authority', () => {
 
         expect(
           yield* Effect.flip(authority.admit(firstProposal)),
-        ).toBeInstanceOf(AcceptanceAuthorityWriteNotSynced)
+        ).toBeInstanceOf(ProgramStoreError)
         yield* SubscriptionRef.set(isSynchronized, true)
 
         expect((yield* authority.admit(secondProposal)).acceptedSequence).toBe(
@@ -2328,12 +3567,14 @@ describe('acceptance authority', () => {
           const store = yield* makeInMemoryProgramStore()
           const { runtime } = yield* makeRuntime()
           const programProcessor = yield* makeProcessor(store, runtime)
-          const request = makeEffectRequest()
+          const causalOccurrence = yield* appendCausalOccurrence(store)
+          yield* programProcessor.connect
+          const request = makeEffectRequest(causalOccurrence)
           const waitingPlacement = makeEffectPlacement(request, 'Waiting', null)
           const assignedPlacement = InstantEffectPlacementRecord.make({
             ...makeEffectPlacement(request, 'AssignedPreferred', processorId),
             assignmentGeneration: 2,
-            id: `${request.requestId}:placement:2:0`,
+            id: '00000000-0000-4000-8000-000000000002',
             positionKey: makeInstantEffectPlacementPositionKey(
               request.requestId,
               2,
@@ -2346,6 +3587,7 @@ describe('acceptance authority', () => {
             session,
             store,
           })
+          yield* authority.recoverAcceptedOccurrences([causalOccurrence])
           yield* authority.recoverEffectRequests([request])
           yield* authority.recoverEffectPlacements([
             assignedPlacement,
@@ -2385,7 +3627,7 @@ describe('acceptance authority', () => {
             },
           )
           expect((yield* authority.admit(currentResult)).acceptedSequence).toBe(
-            1,
+            2,
           )
         }),
       ),
@@ -2399,13 +3641,16 @@ describe('acceptance authority', () => {
           const store = yield* makeInMemoryProgramStore()
           const { runtime } = yield* makeRuntime()
           const programProcessor = yield* makeProcessor(store, runtime)
+          const causalOccurrence = yield* appendCausalOccurrence(store)
+          yield* programProcessor.connect
           const authority = yield* makeAcceptanceAuthority({
             acceptEnvelope: codec.acceptEnvelope,
             now: () => 1_753_825_100_001,
             session,
             store,
           })
-          const assignedRequest = makeEffectRequest()
+          yield* authority.recoverAcceptedOccurrences([causalOccurrence])
+          const assignedRequest = makeEffectRequest(causalOccurrence)
           const assignedPlacement = makeEffectPlacement(
             assignedRequest,
             'AssignedPreferred',
@@ -2485,7 +3730,7 @@ describe('acceptance authority', () => {
             proposalId: 'effect-result-failed',
           })
           expect((yield* authority.admit(failedResult)).acceptedSequence).toBe(
-            2,
+            3,
           )
 
           const outOfRangeResult = InstantMessageProposalRecord.make({
@@ -2524,19 +3769,14 @@ describe('acceptance authority', () => {
           const waitingAuthority = yield* makeAcceptanceAuthority({
             acceptEnvelope: codec.acceptEnvelope,
             now: () => 1_753_825_100_002,
-            session: InstantProgramSessionRecord.make({
-              ...session,
-              id: 'waiting-session',
-              processorRoomId: 'room-a4e4923dfaf446aeb7770b294012a677',
-              sessionId: 'waiting-session',
-            }),
+            session,
             store,
           })
+          yield* waitingAuthority.recoverAcceptedOccurrences([causalOccurrence])
           const waitingRequest = InstantEffectRequestRecord.make({
-            ...makeEffectRequest(),
+            ...makeEffectRequest(causalOccurrence),
             id: 'waiting-request',
             requestId: 'waiting-request',
-            sessionId: 'waiting-session',
           })
           const waitingPlacement = makeEffectPlacement(
             waitingRequest,
@@ -2555,7 +3795,6 @@ describe('acceptance authority', () => {
             id: 'waiting-result',
             occurrenceId: 'waiting-result',
             proposalId: 'waiting-result',
-            sessionId: 'waiting-session',
           })
           expect(
             yield* Effect.flip(waitingAuthority.admit(waitingResult)),

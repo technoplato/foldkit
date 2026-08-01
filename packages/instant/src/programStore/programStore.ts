@@ -34,14 +34,18 @@ const EnqueuedTransactionOutcome = S.TaggedStruct('Enqueued', {
   clientId: S.String,
 })
 
-const SyncedTransactionOutcome = S.TaggedStruct('Synced', {
+/** A transaction confirmed by the authoritative server. */
+export const ProgramStoreSyncedTransactionOutcome = S.TaggedStruct('Synced', {
   clientId: S.String,
 })
+/** A transaction confirmed by the authoritative server. */
+export type ProgramStoreSyncedTransactionOutcome =
+  typeof ProgramStoreSyncedTransactionOutcome.Type
 
 /** Whether InstantDB synchronized a transaction or retained it in the local outbox. */
 export const ProgramStoreTransactionOutcome = S.Union([
   EnqueuedTransactionOutcome,
-  SyncedTransactionOutcome,
+  ProgramStoreSyncedTransactionOutcome,
 ])
 /** Whether InstantDB synchronized a transaction or retained it in the local outbox. */
 export type ProgramStoreTransactionOutcome =
@@ -56,7 +60,8 @@ export const enqueuedTransactionOutcome = (
 /** Constructs an outcome for a transaction synchronized with InstantDB. */
 export const syncedTransactionOutcome = (
   clientId: string,
-): ProgramStoreTransactionOutcome => SyncedTransactionOutcome.make({ clientId })
+): ProgramStoreSyncedTransactionOutcome =>
+  ProgramStoreSyncedTransactionOutcome.make({ clientId })
 
 /** A durable Program store operation failed. */
 export class ProgramStoreError extends Data.TaggedError('ProgramStoreError')<{
@@ -156,8 +161,47 @@ export type ProgramStoreService = Readonly<{
   >
 }>
 
+/** Server-confirmed observations available only to an authoritative host store. */
+export type ProgramAuthorityStoreObservations = Readonly<{
+  observeAcceptedMessageOccurrences: ProgramStoreService['observeAcceptedMessageOccurrences']
+  observeConnectionStatus: ProgramStoreService['observeConnectionStatus']
+  observeEffectPlacements: ProgramStoreService['observeEffectPlacements']
+  observeEffectRequests: ProgramStoreService['observeEffectRequests']
+  observeMessageProposals: ProgramStoreService['observeMessageProposals']
+  observeMessageProposalResolutions: ProgramStoreService['observeMessageProposalResolutions']
+  observeProgramSessions: ProgramStoreService['observeProgramSessions']
+  observeProjectionCheckpoints: ProgramStoreService['observeProjectionCheckpoints']
+}>
+
+/**
+ * The server-confirmed storage capability required by admission and placement
+ * authorities. Optimistic Client stores intentionally do not implement it.
+ */
+export type ProgramAuthorityStoreService = ProgramStoreService &
+  Readonly<{
+    appendServerConfirmedAcceptedMessageOccurrence: (
+      record: InstantAcceptedMessageOccurrenceRecord,
+    ) => Effect.Effect<ProgramStoreSyncedTransactionOutcome, ProgramStoreError>
+    appendServerConfirmedEffectPlacement: (
+      record: InstantEffectPlacementRecord,
+    ) => Effect.Effect<ProgramStoreSyncedTransactionOutcome, ProgramStoreError>
+    appendServerConfirmedEffectRequest: (
+      record: InstantEffectRequestRecord,
+    ) => Effect.Effect<ProgramStoreSyncedTransactionOutcome, ProgramStoreError>
+    appendServerConfirmedMessageProposalResolution: (
+      record: InstantMessageProposalResolutionRecord,
+    ) => Effect.Effect<ProgramStoreSyncedTransactionOutcome, ProgramStoreError>
+    serverConfirmed: ProgramAuthorityStoreObservations
+  }>
+
 /** The durable Program store implementation selected by a Client. */
 export class ProgramStore extends Context.Service<
   ProgramStore,
   ProgramStoreService
 >()('@foldkit/instant/ProgramStore') {}
+
+/** The authoritative server-confirmed Program store selected by a trusted host. */
+export class ProgramAuthorityStore extends Context.Service<
+  ProgramAuthorityStore,
+  ProgramAuthorityStoreService
+>()('@foldkit/instant/ProgramAuthorityStore') {}

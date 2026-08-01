@@ -5,6 +5,7 @@ import {
   Effect,
   Exit,
   Fiber,
+  HashMap,
   HashSet,
   Match as M,
   Option,
@@ -32,12 +33,43 @@ import {
 } from '../programStore/index.js'
 import {
   type InstantAcceptedMessageOccurrenceRecord,
+  type InstantAcceptedMessageOccurrenceValidationIssue,
   type InstantEffectRequestRecord,
+  InstantMessageIdempotencyKey,
+  type InstantMessageIdempotencyKey as InstantMessageIdempotencyKeyType,
   InstantMessageProposalRecord,
   type InstantMessageProposalRecord as InstantMessageProposalRecordType,
   type InstantMessageProposalResolutionRecord,
+  InstantProgramProtocolVersion,
+  instantAcceptedMessageOccurrenceValidationIssue,
   isInstantMessageProposalKindValid,
 } from '../schema/index.js'
+
+const AudienceJson = S.fromJsonString(Synchronization.Audience)
+const encodeAudience = S.encodeSync(AudienceJson)
+const SessionPolicyJson = S.fromJsonString(Synchronization.SessionPolicy)
+const encodeSessionPolicy = S.encodeSync(SessionPolicyJson)
+
+type ProposalRouting = Readonly<{
+  audience: Synchronization.Audience
+  messageCategory: Synchronization.MessageCategory
+  policyGeneration: number
+  sessionPolicy: Synchronization.SessionPolicy
+}>
+
+const areAudiencesEqual = (
+  left: Synchronization.Audience,
+  right: Synchronization.Audience,
+): boolean => encodeAudience(left) === encodeAudience(right)
+
+const routingFromOccurrence = (
+  occurrence: InstantAcceptedMessageOccurrenceRecord,
+): ProposalRouting => ({
+  audience: occurrence.audience,
+  messageCategory: occurrence.messageCategory,
+  policyGeneration: occurrence.policyGeneration,
+  sessionPolicy: occurrence.sessionPolicy,
+})
 
 const Detached = S.TaggedStruct('Detached', {})
 const Attached = S.TaggedStruct('Attached', {
@@ -91,6 +123,7 @@ export const makeSharedProgramProcessorSnapshotSchema = <Model>(
     pendingProposals: S.Array(PendingProgramProposal),
     programId: S.String,
     programVersion: S.Int,
+    protocolVersion: InstantProgramProtocolVersion,
     replayMode: SharedProgramReplayMode,
     sessionId: S.String,
     subjectId: S.String,
@@ -106,6 +139,7 @@ export type SharedProgramProcessorSnapshot<Model> = Readonly<{
   pendingProposals: ReadonlyArray<PendingProgramProposal>
   programId: string
   programVersion: number
+  protocolVersion: InstantProgramProtocolVersion
   replayMode: SharedProgramReplayMode
   sessionId: string
   subjectId: string
@@ -270,33 +304,286 @@ export class SharedProgramActorSequenceError extends Data.TaggedError(
   readonly cause: unknown
 }> {}
 
-/**
- * The selected session mode requires a persisted audience protocol not yet
- * available.
- */
-export class SharedProgramSynchronizationModeUnsupported extends Data.TaggedError(
-  'SharedProgramSynchronizationModeUnsupported',
+/** An effect result could not inherit routing from its causal occurrence. */
+export class SharedProgramCausalRoutingMissing extends Data.TaggedError(
+  'SharedProgramCausalRoutingMissing',
 )<{
-  readonly mode: Exclude<Synchronization.Mode['_tag'], 'Mirror'>
-  readonly requiredProtocolVersion: 2
-  readonly supportedProtocolVersion: 1
+  readonly causationOccurrenceId: string | null
 }> {}
 
+/** An accepted occurrence disagreed with its immutable synchronization routing. */
+export class SharedProgramAcceptedRoutingMismatch extends Data.TaggedError(
+  'SharedProgramAcceptedRoutingMismatch',
+)<{
+  readonly occurrenceId: string
+  readonly reason:
+    | 'AudienceClaim'
+    | 'CausalRoutingMissing'
+    | 'MessageCategoryClaim'
+    | 'PolicyGenerationClaim'
+    | 'ReadOnlyFollower'
+    | 'SessionPolicyClaim'
+}> {}
+
+/** An accepted occurrence violated the semantic protocol-v2 row contract. */
+export class SharedProgramAcceptedOccurrenceInvalid extends Data.TaggedError(
+  'SharedProgramAcceptedOccurrenceInvalid',
+)<{
+  readonly occurrenceId: string
+  readonly reason: InstantAcceptedMessageOccurrenceValidationIssue
+}> {}
+
+/** Accepted history reused one effect-result idempotency key. */
+export class SharedProgramAcceptedEffectResultDuplicate extends Data.TaggedError(
+  'SharedProgramAcceptedEffectResultDuplicate',
+)<{
+  readonly effectIdempotencyKey: string
+  readonly occurrenceId: string
+}> {}
+
+/** Accepted history reused one ordinary-Message idempotency key. */
+export class SharedProgramAcceptedMessageDuplicate extends Data.TaggedError(
+  'SharedProgramAcceptedMessageDuplicate',
+)<{
+  readonly messageIdempotencyKey: string
+  readonly occurrenceId: string
+}> {}
+
+/** Accepted history violated the configured ordered session-policy ledger. */
+export class SharedProgramAcceptedPolicyHistoryMismatch extends Data.TaggedError(
+  'SharedProgramAcceptedPolicyHistoryMismatch',
+)<{
+  readonly occurrenceId: string
+  readonly reason:
+    | 'FutureGeneration'
+    | 'GenerationDecreased'
+    | 'SessionPolicyClaim'
+}> {}
+
+/** A proposal resolution escaped the Processor's authenticated Program scope. */
+export class SharedProgramProposalResolutionScopeMismatch extends Data.TaggedError(
+  'SharedProgramProposalResolutionScopeMismatch',
+)<{
+  readonly resolutionId: string
+}> {}
+
+/** A terminal resolution did not join one matching proposal, or conflicted with acceptance. */
+export class SharedProgramProposalResolutionMismatch extends Data.TaggedError(
+  'SharedProgramProposalResolutionMismatch',
+)<{
+  readonly proposalId: string
+  readonly reason:
+    | 'AcceptedAndRejected'
+    | 'ActorId'
+    | 'ActorSequence'
+    | 'ClientId'
+    | 'DuplicateProposal'
+    | 'DuplicateResolution'
+    | 'MissingProposal'
+    | 'ProposalIdentity'
+    | 'ProposalScope'
+}> {}
+
+/** A Program returned an invalid synchronization category for a Message. */
+export class SharedProgramMessageCategoryError extends Data.TaggedError(
+  'SharedProgramMessageCategoryError',
+)<{
+  readonly cause: unknown
+}> {}
+
+/** A caller supplied an invalid globally unique ordinary-Message identity. */
+export class SharedProgramMessageIdempotencyKeyInvalid extends Data.TaggedError(
+  'SharedProgramMessageIdempotencyKeyInvalid',
+)<{
+  readonly cause: unknown
+  readonly messageIdempotencyKey: string
+}> {}
+
+const acceptedOccurrenceOrder = Order.mapInput(
+  Order.Number,
+  (occurrence: InstantAcceptedMessageOccurrenceRecord) =>
+    occurrence.acceptedSequence,
+)
+
+const validateAcceptedOccurrenceRecord = (
+  occurrence: InstantAcceptedMessageOccurrenceRecord,
+): Effect.Effect<void, SharedProgramAcceptedOccurrenceInvalid> => {
+  const maybeIssue = instantAcceptedMessageOccurrenceValidationIssue(occurrence)
+  if (Option.isNone(maybeIssue)) {
+    return Effect.void
+  } else {
+    return Effect.fail(
+      new SharedProgramAcceptedOccurrenceInvalid({
+        occurrenceId: occurrence.occurrenceId,
+        reason: maybeIssue.value,
+      }),
+    )
+  }
+}
+
+const validateAcceptedPolicyHistory = (
+  occurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
+  currentPolicy: Synchronization.SessionPolicy,
+): Effect.Effect<void, SharedProgramAcceptedPolicyHistoryMismatch> => {
+  const initialState: Effect.Effect<
+    readonly [
+      Option.Option<number>,
+      HashMap.HashMap<number, Synchronization.SessionPolicy>,
+    ],
+    SharedProgramAcceptedPolicyHistoryMismatch
+  > = Effect.succeed(
+    Tuple.make(
+      Option.none<number>(),
+      HashMap.empty<number, Synchronization.SessionPolicy>(),
+    ),
+  )
+  return Array.reduce(
+    Array.sort(occurrences, acceptedOccurrenceOrder),
+    initialState,
+    (stateEffect, occurrence) =>
+      Effect.flatMap(stateEffect, ([maybeLastGeneration, policies]) => {
+        const fail = (
+          reason: SharedProgramAcceptedPolicyHistoryMismatch['reason'],
+        ): Effect.Effect<never, SharedProgramAcceptedPolicyHistoryMismatch> =>
+          Effect.fail(
+            new SharedProgramAcceptedPolicyHistoryMismatch({
+              occurrenceId: occurrence.occurrenceId,
+              reason,
+            }),
+          )
+        const maybeCanonicalPolicy = HashMap.get(
+          policies,
+          occurrence.policyGeneration,
+        )
+        if (occurrence.policyGeneration > currentPolicy.generation) {
+          return fail('FutureGeneration')
+        } else if (
+          Option.isSome(maybeLastGeneration) &&
+          occurrence.policyGeneration < maybeLastGeneration.value
+        ) {
+          return fail('GenerationDecreased')
+        } else if (
+          Option.isSome(maybeCanonicalPolicy) &&
+          encodeSessionPolicy(maybeCanonicalPolicy.value) !==
+            encodeSessionPolicy(occurrence.sessionPolicy)
+        ) {
+          return fail('SessionPolicyClaim')
+        } else if (
+          occurrence.policyGeneration === currentPolicy.generation &&
+          encodeSessionPolicy(occurrence.sessionPolicy) !==
+            encodeSessionPolicy(currentPolicy)
+        ) {
+          return fail('SessionPolicyClaim')
+        } else {
+          return Effect.succeed(
+            Tuple.make(
+              Option.some(occurrence.policyGeneration),
+              HashMap.set(
+                policies,
+                occurrence.policyGeneration,
+                occurrence.sessionPolicy,
+              ),
+            ),
+          )
+        }
+      }),
+  ).pipe(Effect.asVoid)
+}
+
+const validateAcceptedEffectResultIdentities = (
+  occurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
+): Effect.Effect<void, SharedProgramAcceptedEffectResultDuplicate> => {
+  const initialAcceptedKeys: Effect.Effect<
+    HashSet.HashSet<string>,
+    SharedProgramAcceptedEffectResultDuplicate
+  > = Effect.succeed(HashSet.empty<string>())
+  return Array.reduce(
+    Array.sort(occurrences, acceptedOccurrenceOrder),
+    initialAcceptedKeys,
+    (acceptedKeysEffect, occurrence) =>
+      Effect.flatMap(acceptedKeysEffect, acceptedKeys => {
+        if (
+          occurrence.proposalKind !== 'EffectResult' ||
+          occurrence.effectIdempotencyKey === null
+        ) {
+          return Effect.succeed(acceptedKeys)
+        } else if (HashSet.has(acceptedKeys, occurrence.effectIdempotencyKey)) {
+          return Effect.fail(
+            new SharedProgramAcceptedEffectResultDuplicate({
+              effectIdempotencyKey: occurrence.effectIdempotencyKey,
+              occurrenceId: occurrence.occurrenceId,
+            }),
+          )
+        } else {
+          return Effect.succeed(
+            HashSet.add(acceptedKeys, occurrence.effectIdempotencyKey),
+          )
+        }
+      }),
+  ).pipe(Effect.asVoid)
+}
+
+const validateAcceptedMessageIdentities = (
+  occurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
+): Effect.Effect<void, SharedProgramAcceptedMessageDuplicate> => {
+  const initialAcceptedKeys: Effect.Effect<
+    HashSet.HashSet<string>,
+    SharedProgramAcceptedMessageDuplicate
+  > = Effect.succeed(HashSet.empty<string>())
+  return Array.reduce(
+    Array.sort(occurrences, acceptedOccurrenceOrder),
+    initialAcceptedKeys,
+    (acceptedKeysEffect, occurrence) =>
+      Effect.flatMap(acceptedKeysEffect, acceptedKeys => {
+        if (
+          occurrence.proposalKind !== 'Message' ||
+          occurrence.messageIdempotencyKey === null
+        ) {
+          return Effect.succeed(acceptedKeys)
+        } else if (
+          HashSet.has(acceptedKeys, occurrence.messageIdempotencyKey)
+        ) {
+          return Effect.fail(
+            new SharedProgramAcceptedMessageDuplicate({
+              messageIdempotencyKey: occurrence.messageIdempotencyKey,
+              occurrenceId: occurrence.occurrenceId,
+            }),
+          )
+        } else {
+          return Effect.succeed(
+            HashSet.add(acceptedKeys, occurrence.messageIdempotencyKey),
+          )
+        }
+      }),
+  ).pipe(Effect.asVoid)
+}
+
 /** A shared Program Processor could not be constructed safely. */
-export type SharedProgramProcessorConstructionError =
-  SharedProgramSynchronizationModeUnsupported
+export type SharedProgramProcessorConstructionError = never
 
 /** A local Message could not be converted into a durable proposal. */
 export type SharedProgramProposalError =
   | SharedProgramActorSequenceError
+  | SharedProgramCausalRoutingMissing
   | SharedProgramCodecError
+  | SharedProgramMessageIdempotencyKeyInvalid
+  | SharedProgramMessageCategoryError
+  | typeof Synchronization.ReadOnlyFollowerRejected.Type
 
 /** A shared Program Processor operation failed. */
 export type SharedProgramProcessorError =
   | AcceptedOccurrenceCursorError
   | ProgramStoreError
+  | SharedProgramAcceptedEffectResultDuplicate
+  | SharedProgramAcceptedMessageDuplicate
+  | SharedProgramAcceptedOccurrenceInvalid
+  | SharedProgramAcceptedPolicyHistoryMismatch
+  | SharedProgramAcceptedRoutingMismatch
   | SharedProgramAdmissionSequencerMismatch
   | SharedProgramCodecError
+  | SharedProgramMessageCategoryError
+  | SharedProgramProposalResolutionMismatch
+  | SharedProgramProposalResolutionScopeMismatch
   | SharedProgramReplayError
   | SharedProgramScopeMismatch
 
@@ -319,6 +606,7 @@ export type SharedProgramProcessorConfig<
   originatingProcessorId: string
   programId: string
   programVersion: number
+  protocolVersion: InstantProgramProtocolVersion
   runtime: SharedProgramRuntime<Model, Message, Envelope, ReplayError>
   sessionId: string
   store: ProgramStoreService
@@ -333,6 +621,12 @@ export type CorrelatedProposalInput = Readonly<{
   maybeCausationOccurrenceId: Option.Option<string>
   maybeCorrelationId: Option.Option<string>
 }>
+
+/** Correlation and durable semantic identity for one ordinary Message. */
+export type IdempotentCorrelatedProposalInput = CorrelatedProposalInput &
+  Readonly<{
+    messageIdempotencyKey: InstantMessageIdempotencyKeyType
+  }>
 
 /** Correlation and exact placement generation required for an effect result. */
 export type EffectResultProposalInput = CorrelatedProposalInput &
@@ -362,6 +656,13 @@ export type SharedProgramProcessorService<Model, Message> = Readonly<{
   proposeCorrelated: (
     message: Message,
     input: CorrelatedProposalInput,
+  ) => Effect.Effect<
+    InstantMessageProposalRecordType,
+    SharedProgramProposalError
+  >
+  proposeIdempotentCorrelated: (
+    message: Message,
+    input: IdempotentCorrelatedProposalInput,
   ) => Effect.Effect<
     InstantMessageProposalRecordType,
     SharedProgramProposalError
@@ -547,7 +848,12 @@ const pendingProposalsForProjection = (
         right.proposal.proposalKind === 'EffectResult' &&
         left.proposal.effectIdempotencyKey !== null &&
         left.proposal.effectIdempotencyKey ===
-          right.proposal.effectIdempotencyKey),
+          right.proposal.effectIdempotencyKey) ||
+      (left.proposal.proposalKind === 'Message' &&
+        right.proposal.proposalKind === 'Message' &&
+        left.proposal.messageIdempotencyKey !== null &&
+        left.proposal.messageIdempotencyKey ===
+          right.proposal.messageIdempotencyKey),
   )
 
 const persistenceFromOutcome = (
@@ -588,7 +894,10 @@ const removeAcceptedProposal = <Model>(
       pending.proposal.proposalId !== occurrence.proposalId &&
       (occurrence.effectIdempotencyKey === null ||
         pending.proposal.effectIdempotencyKey !==
-          occurrence.effectIdempotencyKey),
+          occurrence.effectIdempotencyKey) &&
+      (occurrence.messageIdempotencyKey === null ||
+        pending.proposal.messageIdempotencyKey !==
+          occurrence.messageIdempotencyKey),
   ),
 })
 
@@ -611,6 +920,7 @@ export const makeSharedProgramProcessor = <
   originatingProcessorId,
   programId,
   programVersion,
+  protocolVersion,
   runtime,
   sessionId,
   store,
@@ -629,15 +939,6 @@ export const makeSharedProgramProcessor = <
   Scope.Scope
 > =>
   Effect.gen(function* () {
-    if (synchronizationPolicy.mode._tag !== 'Mirror') {
-      return yield* Effect.fail(
-        new SharedProgramSynchronizationModeUnsupported({
-          mode: synchronizationPolicy.mode._tag,
-          requiredProtocolVersion: 2,
-          supportedProtocolVersion: 1,
-        }),
-      )
-    }
     const scope = yield* Effect.scope
     const cursor = yield* makeAcceptedOccurrenceCursor(
       sessionId,
@@ -678,12 +979,27 @@ export const makeSharedProgramProcessor = <
     const acceptedEffectIdempotencyKeys = yield* SynchronizedRef.make(
       HashSet.empty<string>(),
     )
+    const acceptedMessageIdempotencyKeys = yield* SynchronizedRef.make(
+      HashSet.empty<string>(),
+    )
     const acceptedProposalIds = yield* SynchronizedRef.make(
       HashSet.empty<string>(),
+    )
+    const validatedAcceptedProposalIds = yield* SynchronizedRef.make(
+      HashSet.empty<string>(),
+    )
+    const acceptedRoutingByOccurrenceId = yield* SynchronizedRef.make(
+      HashMap.empty<string, ProposalRouting>(),
     )
     const rejectedProposalIds = yield* SynchronizedRef.make(
       HashSet.empty<string>(),
     )
+    const observedProposalsRef = yield* SynchronizedRef.make<
+      ReadonlyArray<InstantMessageProposalRecordType>
+    >([])
+    const observedProposalResolutionsRef = yield* SynchronizedRef.make<
+      ReadonlyArray<InstantMessageProposalResolutionRecord>
+    >([])
     const initialModel = S.decodeUnknownSync(Model)(runtime.readModel())
     const snapshotRef = yield* SubscriptionRef.make<
       SharedProgramProcessorSnapshot<Model>
@@ -695,15 +1011,194 @@ export const makeSharedProgramProcessor = <
       pendingProposals: [],
       programId,
       programVersion,
+      protocolVersion,
       replayMode: LiveReplay.make({}),
       sessionId,
       subjectId,
       synchronizationPolicy,
     })
 
-    const classifyMessage = (message: Message): Message => {
-      synchronization.messageCategory(message)
-      return message
+    const classifyMessage = (
+      message: Message,
+    ): Effect.Effect<
+      Synchronization.MessageCategory,
+      SharedProgramMessageCategoryError
+    > =>
+      Effect.try({
+        try: () =>
+          S.decodeUnknownSync(Synchronization.MessageCategory)(
+            synchronization.messageCategory(message),
+          ),
+        catch: cause => new SharedProgramMessageCategoryError({ cause }),
+      })
+
+    const routingForMessage = (
+      message: Message,
+      routingOriginatingProcessorId: string,
+    ): Effect.Effect<
+      ProposalRouting,
+      | SharedProgramMessageCategoryError
+      | typeof Synchronization.ReadOnlyFollowerRejected.Type
+    > =>
+      Effect.flatMap(classifyMessage(message), messageCategory => {
+        const routingDecision = Synchronization.resolveAudience(
+          synchronizationPolicy,
+          messageCategory,
+          routingOriginatingProcessorId,
+        )
+        if (routingDecision._tag === 'ReadOnlyFollowerRejected') {
+          return Effect.fail(routingDecision)
+        } else {
+          return Effect.succeed({
+            audience: routingDecision,
+            messageCategory,
+            policyGeneration: synchronizationPolicy.generation,
+            sessionPolicy: synchronizationPolicy,
+          })
+        }
+      })
+
+    const validateAcceptedRoutingClaims = (
+      occurrence: InstantAcceptedMessageOccurrenceRecord,
+      routing: ProposalRouting,
+    ): Effect.Effect<void, SharedProgramAcceptedRoutingMismatch> => {
+      const fail = (
+        reason: SharedProgramAcceptedRoutingMismatch['reason'],
+      ): Effect.Effect<never, SharedProgramAcceptedRoutingMismatch> =>
+        Effect.fail(
+          new SharedProgramAcceptedRoutingMismatch({
+            occurrenceId: occurrence.occurrenceId,
+            reason,
+          }),
+        )
+      if (occurrence.messageCategory !== routing.messageCategory) {
+        return fail('MessageCategoryClaim')
+      } else if (occurrence.policyGeneration !== routing.policyGeneration) {
+        return fail('PolicyGenerationClaim')
+      } else if (
+        occurrence.policyGeneration !== occurrence.sessionPolicy.generation
+      ) {
+        return fail('PolicyGenerationClaim')
+      } else if (
+        encodeSessionPolicy(occurrence.sessionPolicy) !==
+        encodeSessionPolicy(routing.sessionPolicy)
+      ) {
+        return fail('SessionPolicyClaim')
+      } else if (!areAudiencesEqual(occurrence.audience, routing.audience)) {
+        return fail('AudienceClaim')
+      } else {
+        return Effect.void
+      }
+    }
+
+    const validateAcceptedRouting = (
+      occurrence: InstantAcceptedMessageOccurrenceRecord,
+      message: Message,
+    ): Effect.Effect<
+      void,
+      SharedProgramAcceptedRoutingMismatch | SharedProgramMessageCategoryError
+    > => {
+      if (occurrence.proposalKind === 'EffectResult') {
+        return SynchronizedRef.get(acceptedRoutingByOccurrenceId).pipe(
+          Effect.flatMap(routingByOccurrenceId => {
+            const maybeRouting = Option.flatMap(
+              Option.fromNullishOr(occurrence.causationId),
+              causationOccurrenceId =>
+                HashMap.get(routingByOccurrenceId, causationOccurrenceId),
+            )
+            if (Option.isSome(maybeRouting)) {
+              return validateAcceptedRoutingClaims(
+                occurrence,
+                maybeRouting.value,
+              )
+            } else {
+              return Effect.fail(
+                new SharedProgramAcceptedRoutingMismatch({
+                  occurrenceId: occurrence.occurrenceId,
+                  reason: 'CausalRoutingMissing',
+                }),
+              )
+            }
+          }),
+        )
+      } else {
+        return Effect.flatMap(classifyMessage(message), messageCategory => {
+          const routingDecision = Synchronization.resolveAudience(
+            occurrence.sessionPolicy,
+            messageCategory,
+            occurrence.originatingProcessorId,
+          )
+          if (routingDecision._tag === 'ReadOnlyFollowerRejected') {
+            return Effect.fail(
+              new SharedProgramAcceptedRoutingMismatch({
+                occurrenceId: occurrence.occurrenceId,
+                reason: 'ReadOnlyFollower',
+              }),
+            )
+          } else {
+            return validateAcceptedRoutingClaims(occurrence, {
+              audience: routingDecision,
+              messageCategory,
+              policyGeneration: occurrence.sessionPolicy.generation,
+              sessionPolicy: occurrence.sessionPolicy,
+            })
+          }
+        })
+      }
+    }
+
+    const routingForEffectResult = (
+      correlation: CorrelatedProposalInput,
+    ): Effect.Effect<ProposalRouting, SharedProgramCausalRoutingMissing> =>
+      SynchronizedRef.get(acceptedRoutingByOccurrenceId).pipe(
+        Effect.flatMap(routingByOccurrenceId => {
+          const maybeRouting = Option.flatMap(
+            correlation.maybeCausationOccurrenceId,
+            causationOccurrenceId =>
+              HashMap.get(routingByOccurrenceId, causationOccurrenceId),
+          )
+          if (Option.isSome(maybeRouting)) {
+            return Effect.succeed(maybeRouting.value)
+          } else {
+            return Effect.fail(
+              new SharedProgramCausalRoutingMissing({
+                causationOccurrenceId: Option.getOrNull(
+                  correlation.maybeCausationOccurrenceId,
+                ),
+              }),
+            )
+          }
+        }),
+      )
+
+    const isProposalRoutingValid = (
+      proposal: InstantMessageProposalRecordType,
+      message: Message,
+    ): Effect.Effect<boolean> => {
+      const canonicalRouting =
+        proposal.proposalKind === 'EffectResult'
+          ? SynchronizedRef.get(acceptedRoutingByOccurrenceId).pipe(
+              Effect.map(routingByOccurrenceId =>
+                Option.flatMap(
+                  Option.fromNullishOr(proposal.causationOccurrenceId),
+                  causationOccurrenceId =>
+                    HashMap.get(routingByOccurrenceId, causationOccurrenceId),
+                ),
+              ),
+            )
+          : Effect.option(
+              routingForMessage(message, proposal.originatingProcessorId),
+            )
+      return canonicalRouting.pipe(
+        Effect.map(
+          Option.exists(
+            routing =>
+              routing.messageCategory === proposal.messageCategory &&
+              routing.policyGeneration === proposal.policyGeneration &&
+              areAudiencesEqual(routing.audience, proposal.proposedAudience),
+          ),
+        ),
+      )
     }
 
     const projectPendingModel = (
@@ -713,13 +1208,26 @@ export const makeSharedProgramProcessor = <
       Effect.forEach(
         pendingProposalsForProjection(pendingProposals),
         pending =>
+          pending.proposal.originatingProcessorId === originatingProcessorId &&
+          Synchronization.includesProcessor(
+            pending.proposal.proposedAudience,
+            originatingProcessorId,
+          ) &&
           isInstantMessageProposalKindValid(pending.proposal)
             ? codec.decodeProposed(pending.proposal).pipe(
-                Effect.match({
-                  onFailure: () => Option.none<Message>(),
-                  onSuccess: decoded =>
-                    Option.some(classifyMessage(decoded.message)),
-                }),
+                Effect.flatMap(decoded =>
+                  isProposalRoutingValid(
+                    pending.proposal,
+                    decoded.message,
+                  ).pipe(
+                    Effect.map(isValid =>
+                      isValid
+                        ? Option.some(decoded.message)
+                        : Option.none<Message>(),
+                    ),
+                  ),
+                ),
+                Effect.catch(() => Effect.succeed(Option.none<Message>())),
               )
             : Effect.succeed(Option.none<Message>()),
         { concurrency: 1 },
@@ -782,9 +1290,20 @@ export const makeSharedProgramProcessor = <
       DecodedAcceptedProgramMessage<Message, Envelope>,
       SharedProgramProcessorError
     > => {
+      const maybeValidationIssue =
+        instantAcceptedMessageOccurrenceValidationIssue(occurrence)
+      if (Option.isSome(maybeValidationIssue)) {
+        return Effect.fail(
+          new SharedProgramAcceptedOccurrenceInvalid({
+            occurrenceId: occurrence.occurrenceId,
+            reason: maybeValidationIssue.value,
+          }),
+        )
+      }
       if (
         occurrence.programId !== programId ||
         occurrence.programVersion !== programVersion ||
+        occurrence.protocolVersion !== protocolVersion ||
         occurrence.sessionId !== sessionId ||
         occurrence.subjectId !== subjectId
       ) {
@@ -804,24 +1323,45 @@ export const makeSharedProgramProcessor = <
           }),
         )
       }
-      return codec.decodeAccepted(occurrence).pipe(
-        Effect.map(decoded => ({
-          ...decoded,
-          message: classifyMessage(decoded.message),
-        })),
-      )
+      return codec
+        .decodeAccepted(occurrence)
+        .pipe(
+          Effect.tap(decoded =>
+            validateAcceptedRouting(occurrence, decoded.message),
+          ),
+        )
     }
 
-    const runAcceptedOccurrence = (
+    const modelAfterAcceptedOccurrence = (
       occurrence: InstantAcceptedMessageOccurrenceRecord,
     ): Effect.Effect<Model, SharedProgramProcessorError> =>
       Effect.flatMap(decodeAcceptedOccurrence(occurrence), decoded =>
-        runtime.run(decoded.message, {
-          envelope: decoded.envelope,
-        }),
+        Synchronization.includesProcessor(
+          occurrence.audience,
+          originatingProcessorId,
+        )
+          ? runtime.run(decoded.message, {
+              envelope: decoded.envelope,
+            })
+          : SubscriptionRef.get(snapshotRef).pipe(
+              Effect.map(snapshot => snapshot.acceptedModel),
+            ),
       )
 
-    const commitAppliedOccurrence = (
+    const rememberAcceptedOccurrenceRouting = (
+      occurrence: InstantAcceptedMessageOccurrenceRecord,
+    ): Effect.Effect<void> =>
+      SynchronizedRef.update(
+        acceptedRoutingByOccurrenceId,
+        routingByOccurrenceId =>
+          HashMap.set(
+            routingByOccurrenceId,
+            occurrence.occurrenceId,
+            routingFromOccurrence(occurrence),
+          ),
+      )
+
+    const commitAcceptedOccurrence = (
       occurrence: InstantAcceptedMessageOccurrenceRecord,
       acceptedModel: Model,
     ): Effect.Effect<void, AcceptedOccurrenceCursorError> =>
@@ -831,6 +1371,7 @@ export const makeSharedProgramProcessor = <
           yield* SynchronizedRef.update(acceptedProposalIds, proposalIds =>
             HashSet.add(proposalIds, occurrence.proposalId),
           )
+          yield* rememberAcceptedOccurrenceRouting(occurrence)
           if (
             occurrence.proposalKind === 'EffectResult' &&
             occurrence.effectIdempotencyKey !== null
@@ -839,6 +1380,16 @@ export const makeSharedProgramProcessor = <
             yield* SynchronizedRef.update(
               acceptedEffectIdempotencyKeys,
               acceptedKeys => HashSet.add(acceptedKeys, effectIdempotencyKey),
+            )
+          }
+          if (
+            occurrence.proposalKind === 'Message' &&
+            occurrence.messageIdempotencyKey !== null
+          ) {
+            const messageIdempotencyKey = occurrence.messageIdempotencyKey
+            yield* SynchronizedRef.update(
+              acceptedMessageIdempotencyKeys,
+              acceptedKeys => HashSet.add(acceptedKeys, messageIdempotencyKey),
             )
           }
           yield* SubscriptionRef.modifyEffect(snapshotRef, snapshot => {
@@ -866,9 +1417,9 @@ export const makeSharedProgramProcessor = <
             onNone: () => Effect.void,
             onSome: occurrence =>
               Effect.uninterruptibleMask(restore =>
-                restore(runAcceptedOccurrence(occurrence)).pipe(
+                restore(modelAfterAcceptedOccurrence(occurrence)).pipe(
                   Effect.flatMap(acceptedModel =>
-                    commitAppliedOccurrence(occurrence, acceptedModel),
+                    commitAcceptedOccurrence(occurrence, acceptedModel),
                   ),
                 ),
               ).pipe(Effect.andThen(drainStagedOccurrences)),
@@ -893,6 +1444,7 @@ export const makeSharedProgramProcessor = <
               yield* SynchronizedRef.update(acceptedProposalIds, proposalIds =>
                 HashSet.add(proposalIds, occurrence.proposalId),
               )
+              yield* rememberAcceptedOccurrenceRouting(occurrence)
               if (
                 occurrence.proposalKind === 'EffectResult' &&
                 occurrence.effectIdempotencyKey !== null
@@ -904,6 +1456,17 @@ export const makeSharedProgramProcessor = <
                     HashSet.add(acceptedKeys, effectIdempotencyKey),
                 )
               }
+              if (
+                occurrence.proposalKind === 'Message' &&
+                occurrence.messageIdempotencyKey !== null
+              ) {
+                const messageIdempotencyKey = occurrence.messageIdempotencyKey
+                yield* SynchronizedRef.update(
+                  acceptedMessageIdempotencyKeys,
+                  acceptedKeys =>
+                    HashSet.add(acceptedKeys, messageIdempotencyKey),
+                )
+              }
             }),
           { concurrency: 1, discard: true },
         ),
@@ -913,9 +1476,63 @@ export const makeSharedProgramProcessor = <
       occurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
     ): Effect.Effect<void, SharedProgramProcessorError> =>
       Effect.gen(function* () {
+        const rejectedIds = yield* SynchronizedRef.get(rejectedProposalIds)
+        yield* Effect.forEach(
+          occurrences,
+          occurrence =>
+            HashSet.has(rejectedIds, occurrence.proposalId)
+              ? Effect.fail(
+                  new SharedProgramProposalResolutionMismatch({
+                    proposalId: occurrence.proposalId,
+                    reason: 'AcceptedAndRejected',
+                  }),
+                )
+              : Effect.void,
+          { concurrency: 1, discard: true },
+        )
+        yield* Effect.forEach(occurrences, validateAcceptedOccurrenceRecord, {
+          concurrency: 1,
+          discard: true,
+        })
+        yield* validateAcceptedPolicyHistory(occurrences, synchronizationPolicy)
+        yield* validateAcceptedEffectResultIdentities(occurrences)
+        yield* validateAcceptedMessageIdentities(occurrences)
+        const committedMessageKeys = yield* SynchronizedRef.get(
+          acceptedMessageIdempotencyKeys,
+        )
+        const committedProposalIds =
+          yield* SynchronizedRef.get(acceptedProposalIds)
+        yield* Effect.forEach(
+          occurrences,
+          occurrence =>
+            occurrence.messageIdempotencyKey !== null &&
+            HashSet.has(
+              committedMessageKeys,
+              occurrence.messageIdempotencyKey,
+            ) &&
+            !HashSet.has(committedProposalIds, occurrence.proposalId)
+              ? Effect.fail(
+                  new SharedProgramAcceptedMessageDuplicate({
+                    messageIdempotencyKey: occurrence.messageIdempotencyKey,
+                    occurrenceId: occurrence.occurrenceId,
+                  }),
+                )
+              : Effect.void,
+          { concurrency: 1, discard: true },
+        )
         yield* recoverCheckpointedAcceptedIdentities(occurrences)
         yield* cursor.stage(occurrences)
         yield* drainStagedOccurrences
+        yield* SynchronizedRef.update(
+          validatedAcceptedProposalIds,
+          proposalIds =>
+            Array.reduce(
+              occurrences,
+              proposalIds,
+              (nextProposalIds, occurrence) =>
+                HashSet.add(nextProposalIds, occurrence.proposalId),
+            ),
+        )
       })
 
     const recoverClientProposals = (
@@ -927,13 +1544,18 @@ export const makeSharedProgramProcessor = <
           const acceptedEffectKeys = yield* SynchronizedRef.get(
             acceptedEffectIdempotencyKeys,
           )
+          const acceptedMessageKeys = yield* SynchronizedRef.get(
+            acceptedMessageIdempotencyKeys,
+          )
           const rejectedIds = yield* SynchronizedRef.get(rejectedProposalIds)
           const recoverable = Array.filter(
             proposals,
             proposal =>
               proposal.clientId === clientId &&
+              proposal.originatingProcessorId === originatingProcessorId &&
               proposal.programId === programId &&
               proposal.programVersion === programVersion &&
+              proposal.protocolVersion === protocolVersion &&
               proposal.sessionId === sessionId &&
               proposal.subjectId === subjectId &&
               !HashSet.has(acceptedIds, proposal.proposalId) &&
@@ -943,22 +1565,39 @@ export const makeSharedProgramProcessor = <
                 !HashSet.has(
                   acceptedEffectKeys,
                   proposal.effectIdempotencyKey,
+                )) &&
+              (proposal.proposalKind !== 'Message' ||
+                proposal.messageIdempotencyKey === null ||
+                !HashSet.has(
+                  acceptedMessageKeys,
+                  proposal.messageIdempotencyKey,
                 )),
           )
           const observedProposalIds = HashSet.fromIterable(
             Array.map(recoverable, proposal => proposal.proposalId),
           )
           yield* SubscriptionRef.modifyEffect(snapshotRef, snapshot => {
-            const localProposals = Array.filter(
-              snapshot.pendingProposals,
+            const retainedProposals = Array.map(
+              Array.filter(
+                snapshot.pendingProposals,
+                pending =>
+                  !HashSet.has(
+                    observedProposalIds,
+                    pending.proposal.proposalId,
+                  ) &&
+                  !HashSet.has(acceptedIds, pending.proposal.proposalId) &&
+                  !HashSet.has(rejectedIds, pending.proposal.proposalId) &&
+                  (pending.proposal.messageIdempotencyKey === null ||
+                    !HashSet.has(
+                      acceptedMessageKeys,
+                      pending.proposal.messageIdempotencyKey,
+                    )),
+              ),
               pending =>
-                pending.persistence === 'Local' &&
-                !HashSet.has(
-                  observedProposalIds,
-                  pending.proposal.proposalId,
-                ) &&
-                !HashSet.has(acceptedIds, pending.proposal.proposalId) &&
-                !HashSet.has(rejectedIds, pending.proposal.proposalId),
+                PendingProgramProposal.make({
+                  persistence: 'Local',
+                  proposal: pending.proposal,
+                }),
             )
             const observedProposals = Array.map(recoverable, proposal => {
               const maybeExisting = Array.findFirst(
@@ -976,7 +1615,7 @@ export const makeSharedProgramProcessor = <
             return withLiveProjection({
               ...snapshot,
               pendingProposals: Array.sort(
-                [...localProposals, ...observedProposals],
+                [...retainedProposals, ...observedProposals],
                 pendingProposalOrder,
               ),
             }).pipe(
@@ -986,54 +1625,222 @@ export const makeSharedProgramProcessor = <
         }),
       )
 
+    const validateProposalResolutions = (
+      proposals: ReadonlyArray<InstantMessageProposalRecordType>,
+      resolutions: ReadonlyArray<InstantMessageProposalResolutionRecord>,
+    ): Effect.Effect<
+      ReadonlyArray<InstantMessageProposalResolutionRecord>,
+      | SharedProgramProposalResolutionMismatch
+      | SharedProgramProposalResolutionScopeMismatch
+    > =>
+      Effect.gen(function* () {
+        const initialResolutionProposalIds: Effect.Effect<
+          HashSet.HashSet<string>,
+          SharedProgramProposalResolutionMismatch
+        > = Effect.succeed(HashSet.empty())
+        yield* Array.reduce(
+          resolutions,
+          initialResolutionProposalIds,
+          (proposalIdsEffect, resolution) =>
+            Effect.flatMap(proposalIdsEffect, proposalIds => {
+              if (HashSet.has(proposalIds, resolution.proposalId)) {
+                return Effect.fail(
+                  new SharedProgramProposalResolutionMismatch({
+                    proposalId: resolution.proposalId,
+                    reason: 'DuplicateResolution',
+                  }),
+                )
+              } else {
+                return Effect.succeed(
+                  HashSet.add(proposalIds, resolution.proposalId),
+                )
+              }
+            }),
+        )
+        const acceptedIds = yield* SynchronizedRef.get(acceptedProposalIds)
+        const validatedAcceptedIds = yield* SynchronizedRef.get(
+          validatedAcceptedProposalIds,
+        )
+        const validateResolution = (
+          resolution: InstantMessageProposalResolutionRecord,
+        ): Effect.Effect<
+          Option.Option<InstantMessageProposalResolutionRecord>,
+          | SharedProgramProposalResolutionMismatch
+          | SharedProgramProposalResolutionScopeMismatch
+        > => {
+          if (
+            resolution.programId !== programId ||
+            resolution.programVersion !== programVersion ||
+            resolution.protocolVersion !== protocolVersion ||
+            resolution.sessionId !== sessionId ||
+            resolution.subjectId !== subjectId
+          ) {
+            return Effect.fail(
+              new SharedProgramProposalResolutionScopeMismatch({
+                resolutionId: resolution.id,
+              }),
+            )
+          }
+          if (
+            HashSet.has(acceptedIds, resolution.proposalId) ||
+            HashSet.has(validatedAcceptedIds, resolution.proposalId)
+          ) {
+            return Effect.fail(
+              new SharedProgramProposalResolutionMismatch({
+                proposalId: resolution.proposalId,
+                reason: 'AcceptedAndRejected',
+              }),
+            )
+          }
+          if (resolution.id !== resolution.proposalId) {
+            return Effect.fail(
+              new SharedProgramProposalResolutionMismatch({
+                proposalId: resolution.proposalId,
+                reason: 'ProposalIdentity',
+              }),
+            )
+          }
+          const matchingProposals = Array.filter(
+            proposals,
+            proposal => proposal.proposalId === resolution.proposalId,
+          )
+          const maybeProposal = Array.head(matchingProposals)
+          if (Option.isNone(maybeProposal)) {
+            return Effect.succeed(Option.none())
+          }
+          if (Option.isSome(Array.get(matchingProposals, 1))) {
+            return Effect.fail(
+              new SharedProgramProposalResolutionMismatch({
+                proposalId: resolution.proposalId,
+                reason: 'DuplicateProposal',
+              }),
+            )
+          }
+          const proposal = maybeProposal.value
+          if (
+            proposal.programId !== programId ||
+            proposal.programVersion !== programVersion ||
+            proposal.protocolVersion !== protocolVersion ||
+            proposal.sessionId !== sessionId ||
+            proposal.subjectId !== subjectId
+          ) {
+            return Effect.fail(
+              new SharedProgramProposalResolutionMismatch({
+                proposalId: resolution.proposalId,
+                reason: 'ProposalScope',
+              }),
+            )
+          }
+          if (proposal.id !== proposal.proposalId) {
+            return Effect.fail(
+              new SharedProgramProposalResolutionMismatch({
+                proposalId: resolution.proposalId,
+                reason: 'ProposalIdentity',
+              }),
+            )
+          }
+          if (resolution.actorId !== proposal.actorId) {
+            return Effect.fail(
+              new SharedProgramProposalResolutionMismatch({
+                proposalId: resolution.proposalId,
+                reason: 'ActorId',
+              }),
+            )
+          }
+          if (resolution.clientId !== proposal.clientId) {
+            return Effect.fail(
+              new SharedProgramProposalResolutionMismatch({
+                proposalId: resolution.proposalId,
+                reason: 'ClientId',
+              }),
+            )
+          }
+          if (resolution.actorSequence !== proposal.actorSequence) {
+            return Effect.fail(
+              new SharedProgramProposalResolutionMismatch({
+                proposalId: resolution.proposalId,
+                reason: 'ActorSequence',
+              }),
+            )
+          }
+          return Effect.succeed(Option.some(resolution))
+        }
+        const maybeValidatedResolutions = yield* Effect.forEach(
+          resolutions,
+          validateResolution,
+          {
+            concurrency: 1,
+          },
+        )
+        return Array.getSomes(maybeValidatedResolutions)
+      })
+
+    const reconcileObservedProposalResolutions: Effect.Effect<
+      void,
+      | SharedProgramAdmissionSequencerMismatch
+      | SharedProgramProposalResolutionMismatch
+      | SharedProgramProposalResolutionScopeMismatch
+    > = projectionSemaphore.withPermit(
+      Effect.gen(function* () {
+        const observedProposals =
+          yield* SynchronizedRef.get(observedProposalsRef)
+        const observedResolutions = yield* SynchronizedRef.get(
+          observedProposalResolutionsRef,
+        )
+        const validatedResolutions = yield* validateProposalResolutions(
+          observedProposals,
+          observedResolutions,
+        )
+        yield* Effect.forEach(
+          observedResolutions,
+          resolution =>
+            resolution.rejectingProcessorId === admissionSequencerProcessorId
+              ? Effect.void
+              : Effect.fail(
+                  new SharedProgramAdmissionSequencerMismatch({
+                    actualProcessorId: resolution.rejectingProcessorId,
+                    expectedProcessorId: admissionSequencerProcessorId,
+                    recordId: resolution.id,
+                    recordKind: 'ProposalResolution',
+                  }),
+                ),
+          { discard: true },
+        )
+        const nextRejectedIds = yield* SynchronizedRef.updateAndGet(
+          rejectedProposalIds,
+          rejectedIds =>
+            Array.reduce(
+              validatedResolutions,
+              rejectedIds,
+              (proposalIds, resolution) =>
+                HashSet.add(proposalIds, resolution.proposalId),
+            ),
+        )
+        yield* SubscriptionRef.modifyEffect(snapshotRef, snapshot =>
+          withLiveProjection({
+            ...snapshot,
+            pendingProposals: Array.filter(
+              snapshot.pendingProposals,
+              pending =>
+                !HashSet.has(nextRejectedIds, pending.proposal.proposalId),
+            ),
+          }).pipe(
+            Effect.map(nextSnapshot => Tuple.make(undefined, nextSnapshot)),
+          ),
+        )
+      }),
+    )
+
     const recoverProposalResolutions = (
       resolutions: ReadonlyArray<InstantMessageProposalResolutionRecord>,
-    ): Effect.Effect<void, SharedProgramAdmissionSequencerMismatch> =>
-      projectionSemaphore.withPermit(
-        Effect.gen(function* () {
-          const relevant = Array.filter(
-            resolutions,
-            resolution =>
-              resolution.programId === programId &&
-              resolution.programVersion === programVersion &&
-              resolution.sessionId === sessionId &&
-              resolution.subjectId === subjectId,
-          )
-          yield* Effect.forEach(
-            relevant,
-            resolution =>
-              resolution.rejectingProcessorId === admissionSequencerProcessorId
-                ? Effect.void
-                : Effect.fail(
-                    new SharedProgramAdmissionSequencerMismatch({
-                      actualProcessorId: resolution.rejectingProcessorId,
-                      expectedProcessorId: admissionSequencerProcessorId,
-                      recordId: resolution.id,
-                      recordKind: 'ProposalResolution',
-                    }),
-                  ),
-            { discard: true },
-          )
-          const nextRejectedIds = yield* SynchronizedRef.updateAndGet(
-            rejectedProposalIds,
-            rejectedIds =>
-              Array.reduce(relevant, rejectedIds, (proposalIds, resolution) =>
-                HashSet.add(proposalIds, resolution.proposalId),
-              ),
-          )
-          yield* SubscriptionRef.modifyEffect(snapshotRef, snapshot =>
-            withLiveProjection({
-              ...snapshot,
-              pendingProposals: Array.filter(
-                snapshot.pendingProposals,
-                pending =>
-                  !HashSet.has(nextRejectedIds, pending.proposal.proposalId),
-              ),
-            }).pipe(
-              Effect.map(nextSnapshot => Tuple.make(undefined, nextSnapshot)),
-            ),
-          )
-        }),
+    ): Effect.Effect<
+      void,
+      | SharedProgramAdmissionSequencerMismatch
+      | SharedProgramProposalResolutionMismatch
+      | SharedProgramProposalResolutionScopeMismatch
+    > =>
+      SynchronizedRef.set(observedProposalResolutionsRef, resolutions).pipe(
+        Effect.andThen(reconcileObservedProposalResolutions),
       )
 
     const whenTransportActive = <Error, Requirements>(
@@ -1066,18 +1873,7 @@ export const makeSharedProgramProcessor = <
     ): Effect.Effect<boolean> =>
       store.appendMessageProposal(pending.proposal).pipe(
         Effect.matchEffect({
-          onFailure: error =>
-            error._tag === 'ProgramStoreProposalMutationRejected'
-              ? updateProjectedSnapshot(snapshot => ({
-                  ...snapshot,
-                  pendingProposals: Array.filter(
-                    snapshot.pendingProposals,
-                    candidate =>
-                      candidate.proposal.proposalId !==
-                      pending.proposal.proposalId,
-                  ),
-                })).pipe(Effect.as(false))
-              : Effect.succeed(false),
+          onFailure: () => Effect.succeed(false),
           onSuccess: outcome =>
             SubscriptionRef.update(snapshotRef, snapshot =>
               updatePendingPersistence(
@@ -1334,6 +2130,8 @@ export const makeSharedProgramProcessor = <
               }
               return Effect.gen(function* () {
                 const generation = currentLifecycle.generation + 1
+                yield* SynchronizedRef.set(observedProposalsRef, [])
+                yield* SynchronizedRef.set(observedProposalResolutionsRef, [])
                 const initialized = yield* Deferred.make<
                   void,
                   SharedProgramProcessorError
@@ -1352,6 +2150,7 @@ export const makeSharedProgramProcessor = <
                   void,
                   SharedProgramProcessorError
                 >()
+                const proposalsObserved = yield* Deferred.make<void>()
                 const resolutionsInitialized = yield* Deferred.make<
                   void,
                   SharedProgramProcessorError
@@ -1376,6 +2175,7 @@ export const makeSharedProgramProcessor = <
                       generation,
                       Effect.gen(function* () {
                         yield* ingestSnapshot(occurrences)
+                        yield* reconcileObservedProposalResolutions
                         const isFirst = yield* SynchronizedRef.getAndSet(
                           isFirstAcceptedSnapshot,
                           false,
@@ -1433,6 +2233,11 @@ export const makeSharedProgramProcessor = <
                   }),
                   proposals =>
                     Effect.gen(function* () {
+                      yield* SynchronizedRef.set(
+                        observedProposalsRef,
+                        proposals,
+                      )
+                      yield* Deferred.succeed(proposalsObserved, undefined)
                       const isFirst = yield* SynchronizedRef.getAndSet(
                         isFirstProposalSnapshot,
                         false,
@@ -1449,6 +2254,7 @@ export const makeSharedProgramProcessor = <
                       yield* whenTransportActive(
                         generation,
                         Effect.gen(function* () {
+                          yield* reconcileObservedProposalResolutions
                           yield* recoverClientProposals(proposals)
                           if (isFirst) {
                             yield* Deferred.succeed(
@@ -1479,6 +2285,7 @@ export const makeSharedProgramProcessor = <
                     whenTransportActive(
                       generation,
                       Effect.gen(function* () {
+                        yield* Deferred.await(proposalsObserved)
                         yield* recoverProposalResolutions(resolutions)
                         const isFirst = yield* SynchronizedRef.getAndSet(
                           isFirstResolutionSnapshot,
@@ -1603,10 +2410,20 @@ export const makeSharedProgramProcessor = <
           const acceptedKeys = yield* SynchronizedRef.get(
             acceptedEffectIdempotencyKeys,
           )
+          const acceptedMessageKeys = yield* SynchronizedRef.get(
+            acceptedMessageIdempotencyKeys,
+          )
           if (
             proposal.proposalKind === 'EffectResult' &&
             proposal.effectIdempotencyKey !== null &&
             HashSet.has(acceptedKeys, proposal.effectIdempotencyKey)
+          ) {
+            return false
+          }
+          if (
+            proposal.proposalKind === 'Message' &&
+            proposal.messageIdempotencyKey !== null &&
+            HashSet.has(acceptedMessageKeys, proposal.messageIdempotencyKey)
           ) {
             return false
           }
@@ -1634,13 +2451,16 @@ export const makeSharedProgramProcessor = <
     const proposeWithKind = (
       message: Message,
       correlation: CorrelatedProposalInput,
+      maybeMessageIdempotencyKey: Option.Option<InstantMessageIdempotencyKeyType>,
       effectResult: Option.Option<EffectResultProposalInput>,
     ): Effect.Effect<
       InstantMessageProposalRecordType,
       SharedProgramProposalError
     > =>
       Effect.gen(function* () {
-        classifyMessage(message)
+        const routing = yield* Option.isSome(effectResult)
+          ? routingForEffectResult(correlation)
+          : routingForMessage(message, originatingProcessorId)
         const actorSequence = yield* nextActorSequence.pipe(
           Effect.mapError(
             cause =>
@@ -1699,16 +2519,21 @@ export const makeSharedProgramProcessor = <
             onSome: () => originatingProcessorId,
           }),
           id: occurrenceId,
+          messageCategory: routing.messageCategory,
+          messageIdempotencyKey: Option.getOrNull(maybeMessageIdempotencyKey),
           occurrenceId,
           originDeviceId,
           originatingProcessorId,
           payloadJson: encoded.payloadJson,
           programId,
           programVersion,
+          protocolVersion,
           proposalId: occurrenceId,
           proposalKind: Option.isSome(effectResult)
             ? 'EffectResult'
             : 'Message',
+          proposedAudience: routing.audience,
+          policyGeneration: routing.policyGeneration,
           sessionId,
           subjectId,
         })
@@ -1774,11 +2599,32 @@ export const makeSharedProgramProcessor = <
             maybeCorrelationId: Option.none(),
           },
           Option.none(),
+          Option.none(),
         ),
       proposeCorrelated: (message, input) =>
-        proposeWithKind(message, input, Option.none()),
+        proposeWithKind(message, input, Option.none(), Option.none()),
+      proposeIdempotentCorrelated: (message, input) =>
+        S.decodeUnknownEffect(InstantMessageIdempotencyKey)(
+          input.messageIdempotencyKey,
+        ).pipe(
+          Effect.mapError(
+            cause =>
+              new SharedProgramMessageIdempotencyKeyInvalid({
+                cause,
+                messageIdempotencyKey: input.messageIdempotencyKey,
+              }),
+          ),
+          Effect.flatMap(messageIdempotencyKey =>
+            proposeWithKind(
+              message,
+              input,
+              Option.some(messageIdempotencyKey),
+              Option.none(),
+            ),
+          ),
+        ),
       proposeEffectResult: (message, input) =>
-        proposeWithKind(message, input, Option.some(input)),
+        proposeWithKind(message, input, Option.none(), Option.some(input)),
       readSnapshot: SubscriptionRef.get(snapshotRef),
       returnLive,
       snapshots: SubscriptionRef.changes(snapshotRef),

@@ -23,12 +23,15 @@ accepted Message exactly once, and keeps replay inspection inert.
 
 Every shared Processor selects a framework `Synchronization.SessionPolicy` and
 supplies its Program-owned synchronization metadata. The selected policy is
-visible in the portable Processor snapshot. Protocol version 1 supports
-`Mirror` explicitly: Domain and Navigation Messages both project optimistically
-and apply from the accepted tape on every Processor. `SharedDomain` and `Follow`
-fail construction with a typed error until protocol version 2 persists each
-accepted occurrence's frozen audience and policy generation. The adapter never
-silently treats a partitioned mode as Mirror.
+visible in the portable Processor snapshot. Protocol version 2 persists each
+accepted occurrence's immutable audience, Message category, policy generation,
+and complete session policy. `Mirror` sends Domain and Navigation Messages to
+the session. `SharedDomain` sends Domain Messages to the session while keeping
+Navigation Messages on their originating Processor. `Follow` sends Domain
+Messages to the session and routes Navigation Messages through its declared
+leader, Observe, and RemoteControl policy. Effect results inherit the exact
+routing of their causal occurrence. The adapter never silently treats one mode
+as another.
 
 There is no per-Message optimism allowlist. A Message participates when it is
 part of the Program's Message Schema, its versioned codec validates the wire
