@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 1:54:07 a.m. EDT — `e1bb646bbd46` fix(foldkit): bound processor session contracts
+
+- **Implementation commit:** `e1bb646bbd46c33be9f6e2482d28f75d558022bc`
+- **Change:** Bounded and canonicalized Processor session contracts before durable authenticated admission.
+- **Details:**
+  - Added explicit 1-128 character Processor, Client, and Device identity Schemas with a compatibility grammar for current colon-composite identities and collision-resistant namespace requirements.
+  - Capped targeted Processor audiences and Follow membership at 256 entries, rejected duplicates, and required canonical lexicographic ordering so equivalent policies have one wire representation.
+  - Rejected inverted Processor protocol version ranges and added focused boundary regressions for legacy-compatible identifiers, malformed identifiers, ordering, size, and version ranges.
+- **Files:**
+  - `.changeset/bound-processor-identities.md` — Announces the Foldkit validation patch.
+  - `packages/foldkit/src/processor/processor.ts` — Defines canonical transport identities and validates protocol ranges at the Schema boundary.
+  - `packages/foldkit/src/processor/public.ts` — Exports the identity Schemas through the Processor API.
+  - `packages/foldkit/src/processor/processor.test.ts` — Proves accepted compatibility identities and rejected malformed, oversized, and inverted inputs.
+  - `packages/foldkit/src/synchronization/synchronization.ts` — Bounds and canonicalizes targeted audiences and Follow membership.
+  - `packages/foldkit/src/synchronization/synchronization.test.ts` — Proves policy collection ordering, size, and identity rejection.
+- **User context (verbatim):**
+  > I explicitly want every program to be able to run on any processor, and some processors just have different capabilities.
+- **SpecStory:** unavailable — No durable SpecStory URI is available because this work ran in the Codex desktop app, whose GUI task capture is not documented by SpecStory.
+
 ## August 1st, 2026 at 1:43:57 a.m. EDT — `4b22f3d408bc` feat: own authenticated Program session lifecycles
 
 - **Implementation commit:** `4b22f3d408bc68d3f6e3748d3b56a08767536344`
