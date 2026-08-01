@@ -1,21 +1,30 @@
 import {
   type CounterDetailMode,
   type CounterFactStatus,
-  CounterList,
   type Destination,
   type Interaction,
   type Message,
   type Model,
+  MultipleCountersInteractionGraph,
   MultipleCountersProgram,
-  type Navigation,
+  type NavigationCarrierResolutionError,
   StaticCounterFactClient,
+  activatedInteraction,
   destinationForModel,
-  interactionsForModel,
-  messageForInteractionToken,
-  modelForNavigation,
+  interactionIdentitySourceForOccurrence,
+  resolveNavigationCarrier,
 } from 'counters-core-example'
-import { Array, Console, Data, Effect, Match as M, Option } from 'effect'
+import {
+  Array,
+  Console,
+  Data,
+  Effect,
+  Match as M,
+  Option,
+  Result,
+} from 'effect'
 import { Runtime } from 'foldkit'
+import * as InteractionGraph from 'foldkit/interaction-graph'
 
 /** A CLI token is not valid in the current state and mode. */
 export class CountersCliError extends Data.TaggedError('CountersCliError')<{
@@ -27,67 +36,165 @@ export type CountersCliExecution = Readonly<{
   initialModel: Model
   messages: ReadonlyArray<Message>
   finalModel: Model
+  journal: Runtime.ProgramJournalSnapshot<Model, Message>
+  replayTape: Runtime.ReplayTape<Model, Message>
 }>
+
+type CountersAction = InteractionGraph.InteractionAction<Interaction>
+
+const defaultCliNavigationCarrier = '/counters'
+
+const cliNavigationOccurrenceId =
+  InteractionGraph.InteractionOccurrenceId.make('cli-navigation-1')
+
+/** Every typed failure produced while resolving local CLI input. */
+export type CountersCliResolutionError =
+  | CountersCliError
+  | InteractionGraph.InteractionClaimError
+  | InteractionGraph.InteractionGraphError
+  | NavigationCarrierResolutionError
+
+const cliInvocationFacts = (
+  occurrenceId: InteractionGraph.InteractionOccurrenceId,
+) =>
+  InteractionGraph.InteractionInvocationFacts.make({
+    occurrenceId,
+    actorId: 'local-cli-actor',
+    clientId: 'counters-cli-client',
+    originatingProcessorId: 'counters-cli-processor',
+    sessionId: 'local-cli-session',
+    subjectId: 'local-cli-subject',
+  })
+
+const actionsForModel = (
+  model: Model,
+): Result.Result<
+  ReadonlyArray<CountersAction>,
+  InteractionGraph.InteractionGraphError
+> =>
+  Result.map(MultipleCountersInteractionGraph.project(model), projection =>
+    Array.filter(
+      InteractionGraph.interactiveNodes(projection.root),
+      (node): node is CountersAction => node._tag === 'InteractionAction',
+    ),
+  )
+
+const actionTokens = (actions: ReadonlyArray<CountersAction>) =>
+  Array.map(actions, action => action.descriptor.token)
+
+const resolveActionToken = (
+  model: Model,
+  token: string,
+  occurrenceId: InteractionGraph.InteractionOccurrenceId,
+): Result.Result<
+  Message,
+  | CountersCliError
+  | InteractionGraph.InteractionClaimError
+  | InteractionGraph.InteractionGraphError
+> => {
+  const projected = actionsForModel(model)
+  if (Result.isFailure(projected)) {
+    return Result.fail(projected.failure)
+  }
+  const maybeAction = Array.findFirst(
+    projected.success,
+    action => action.descriptor.token === token,
+  )
+  if (Option.isNone(maybeAction)) {
+    return Result.fail(
+      new CountersCliError({
+        message: `Action "${token}" is not valid here. Valid actions: ${Array.join(
+          actionTokens(projected.success),
+          ', ',
+        )}`,
+      }),
+    )
+  }
+  return MultipleCountersInteractionGraph.resolveWithContext(
+    model,
+    activatedInteraction(maybeAction.value.reference, occurrenceId),
+    interactionIdentitySourceForOccurrence(occurrenceId),
+  )
+}
+
+const openNavigationCarrier = (
+  runtime: Runtime.ProgramRuntime<Model, Message>,
+  initialModel: Model,
+  maybeCarrier: Option.Option<string>,
+): Effect.Effect<ReadonlyArray<Message>, NavigationCarrierResolutionError> =>
+  Effect.gen(function* () {
+    const carrier = Option.getOrElse(
+      maybeCarrier,
+      () => defaultCliNavigationCarrier,
+    )
+    const resolved = resolveNavigationCarrier(
+      initialModel,
+      carrier,
+      cliInvocationFacts(cliNavigationOccurrenceId),
+    )
+    if (Result.isFailure(resolved)) {
+      return yield* Effect.fail(resolved.failure)
+    }
+    yield* runtime.run(resolved.success)
+    return [resolved.success]
+  })
 
 const runTokens = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
-  initialModel: Model,
   tokens: ReadonlyArray<string>,
 ): Effect.Effect<
   Readonly<{ messages: ReadonlyArray<Message>; finalModel: Model }>,
-  CountersCliError
+  | CountersCliError
+  | InteractionGraph.InteractionClaimError
+  | InteractionGraph.InteractionGraphError
 > =>
   Effect.gen(function* () {
-    let nextModel = initialModel
-    let messages: ReadonlyArray<Message> = []
-
-    for (const token of tokens) {
-      const maybeMessage = messageForInteractionToken(nextModel, token)
-      if (Option.isNone(maybeMessage)) {
-        const validTokens = Array.join(
-          Array.map(
-            interactionsForModel(nextModel),
-            interaction => interaction.token,
-          ),
-          ', ',
-        )
-        return yield* Effect.fail(
-          new CountersCliError({
-            message: `Action "${token}" is not valid here. Valid actions: ${validTokens}`,
-          }),
-        )
+    const messages = yield* Effect.forEach(tokens, (token, index) => {
+      const resolved = resolveActionToken(
+        runtime.readModel(),
+        token,
+        InteractionGraph.InteractionOccurrenceId.make(
+          `cli-action-${(index + 1).toString()}`,
+        ),
+      )
+      if (Result.isFailure(resolved)) {
+        return Effect.fail(resolved.failure)
       }
-      messages = Array.append(messages, maybeMessage.value)
-      nextModel = yield* runtime.run(maybeMessage.value)
-    }
-
-    return { messages, finalModel: nextModel }
+      return runtime.run(resolved.success).pipe(Effect.as(resolved.success))
+    })
+    return { messages, finalModel: runtime.readModel() }
   })
 
 /** Runs CLI actions through the renderer-free runtime without printing. */
 export const executeCounters = (
   tokens: ReadonlyArray<string>,
-  maybeInitialNavigation = Option.none<Navigation>(),
-): Effect.Effect<CountersCliExecution, CountersCliError> =>
+  maybeCarrier = Option.none<string>(),
+): Effect.Effect<CountersCliExecution, CountersCliResolutionError> =>
   Effect.scoped(
     Effect.gen(function* () {
       const runtime = yield* Effect.orDie(
         Runtime.makeProgramRuntime({
           program: MultipleCountersProgram,
           resources: StaticCounterFactClient,
-          start: Runtime.fromModel(
-            modelForNavigation(
-              Option.getOrElse(maybeInitialNavigation, () =>
-                CounterList.make({}),
-              ),
-            ),
-          ),
         }),
       )
       const initialModel = yield* runtime.initialization
-      const execution = yield* runTokens(runtime, initialModel, tokens)
+      const navigationMessages = yield* openNavigationCarrier(
+        runtime,
+        initialModel,
+        maybeCarrier,
+      )
+      const execution = yield* runTokens(runtime, tokens)
+      const journal = runtime.journal.read()
+      const replayTape = runtime.replay.readTape()
       yield* runtime.shutdown
-      return { initialModel, ...execution }
+      return {
+        initialModel,
+        messages: [...navigationMessages, ...execution.messages],
+        finalModel: execution.finalModel,
+        journal,
+        replayTape,
+      }
     }),
   )
 
@@ -144,12 +251,12 @@ export const formatDestination = (
   )
 
 const formatInteractions = (
-  interactions: ReadonlyArray<Interaction>,
+  actions: ReadonlyArray<CountersAction>,
 ): ReadonlyArray<string> => [
   'Available commands:',
   ...Array.map(
-    interactions,
-    interaction => `  ${interaction.token}  ${interaction.label}`,
+    actions,
+    action => `  ${action.descriptor.token}  ${action.label}`,
   ),
 ]
 
@@ -157,19 +264,21 @@ const formatInteractions = (
 export const runCounters = (
   tokens: ReadonlyArray<string>,
   isVerbose: boolean,
-  maybeInitialNavigation = Option.none<Navigation>(),
-): Effect.Effect<void, CountersCliError> =>
+  maybeCarrier = Option.none<string>(),
+): Effect.Effect<void, CountersCliResolutionError> =>
   Effect.gen(function* () {
-    const execution = yield* executeCounters(tokens, maybeInitialNavigation)
+    const execution = yield* executeCounters(tokens, maybeCarrier)
     const screenLines = formatDestination(
       destinationForModel(execution.finalModel),
     )
     yield* Console.log(Array.join(screenLines, '\n'))
 
     if (isVerbose) {
-      const commandLines = formatInteractions(
-        interactionsForModel(execution.finalModel),
-      )
+      const actions = actionsForModel(execution.finalModel)
+      if (Result.isFailure(actions)) {
+        return yield* Effect.fail(actions.failure)
+      }
+      const commandLines = formatInteractions(actions.success)
       yield* Console.log(Array.join(commandLines, '\n'))
     }
   })
