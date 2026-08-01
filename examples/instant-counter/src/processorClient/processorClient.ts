@@ -1,10 +1,12 @@
 import { Effect, Exit, Fiber, Layer, Schedule, Scope, Stream } from 'effect'
 import * as Processor from 'foldkit/processor'
 import * as Runtime from 'foldkit/program-runtime'
+import * as Synchronization from 'foldkit/synchronization'
 
 import {
   type InstantProcessorPresence as InstantProcessorPresenceType,
   type ProcessorRoomService,
+  type SharedProgramProcessorConstructionError,
   type SharedProgramProcessorService,
   makeInstantProgramStore,
   makeProcessorRoom,
@@ -16,7 +18,10 @@ import type { EffectExecutor } from '../domain/effect.js'
 import type { Message } from '../domain/message.js'
 import type { Model } from '../domain/model.js'
 import { Model as ModelSchema } from '../domain/model.js'
-import { InstantCounterProgram } from '../domain/program.js'
+import {
+  InstantCounterProgram,
+  InstantCounterSynchronization,
+} from '../domain/program.js'
 import {
   type Sha256HexDigest,
   programId,
@@ -103,7 +108,9 @@ export const makeClientProcessor = ({
   subjectId,
 }: ClientProcessorConfig): Effect.Effect<
   ClientProcessor,
-  ProgramSessionError | Runtime.ProgramRuntimeStartError,
+  | ProgramSessionError
+  | Runtime.ProgramRuntimeStartError
+  | SharedProgramProcessorConstructionError,
   Scope.Scope
 > =>
   Effect.gen(function* () {
@@ -166,6 +173,8 @@ export const makeClientProcessor = ({
       sessionId: session.sessionId,
       store,
       subjectId,
+      synchronization: InstantCounterSynchronization,
+      synchronizationPolicy: Synchronization.legacyMirrorSessionPolicy(),
     })
     scheduler.attach(shared)
 

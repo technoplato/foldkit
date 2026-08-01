@@ -8,7 +8,7 @@ import {
   Scope,
   Stream,
 } from 'effect'
-import { Processor, Runtime } from 'foldkit'
+import { Processor, Runtime, Synchronization } from 'foldkit'
 import { randomUUID } from 'node:crypto'
 
 import {
@@ -19,7 +19,10 @@ import {
 } from '@foldkit/instant'
 
 import { Model } from '../domain/model.js'
-import { InstantCounterProgram } from '../domain/program.js'
+import {
+  InstantCounterProgram,
+  InstantCounterSynchronization,
+} from '../domain/program.js'
 import { programId, programVersion } from '../shared/identity.js'
 import { makeProcessorPresence } from '../shared/presence.js'
 import { validateProgramSession } from '../shared/sessionValidation.js'
@@ -115,6 +118,8 @@ const runSessionAdmissionSequencer = (
         sessionId: session.sessionId,
         store,
         subjectId: session.subjectId,
+        synchronization: InstantCounterSynchronization,
+        synchronizationPolicy: Synchronization.legacyMirrorSessionPolicy(),
       })
       scheduler.attach(shared)
       yield* shared.connect

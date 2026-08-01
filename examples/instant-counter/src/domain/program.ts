@@ -177,6 +177,15 @@ const updateCounter = (model: Model, message: CounterMessage): UpdateReturn => {
   return [Model.make({ ...model, counter }), commands]
 }
 
+/** Classifies the current counter-only coordinator as one shared domain. */
+export const InstantCounterSynchronization: Program.ProgramSynchronization<
+  Model,
+  Message
+> = {
+  messageCategory: () => 'Domain',
+  projectDomain: model => model,
+}
+
 /** The renderer-free Program shared by every authenticated Instant Processor. */
 export const InstantCounterProgram = Program.make({
   id: 'instant-counter',
@@ -208,5 +217,6 @@ export const InstantCounterProgram = Program.make({
         FailedEffect: message => failEffect(model, message),
       }),
     ),
+  synchronization: InstantCounterSynchronization,
   versionedEvents: EventRegistry,
 })
