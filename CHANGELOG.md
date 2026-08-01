@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 4:00:37 a.m. EDT — `ed2eaeb19034` feat(foldkit): bind Message admission to Programs
+
+- **Implementation commit:** `ed2eaeb19034ac518db259ed3c735d8f357950e5`
+- **Change:** Bound authenticated Message admission to the exact Program and separated strict claim decoding from current-Model resolution.
+- **Details:**
+  - Authorities can now verify Program identity and validate claims and resolved Messages through the Program Schemas.
+  - Untrusted invocation facts remain unknown until the Program-owned resolver decodes them, with distinct typed decode and resolution failures.
+- **Files:**
+  - `.changeset/add-program-message-admission.md` — Records the new public Foldkit admission API for release.
+  - `packages/foldkit/src/program/messageAdmission.ts` — Defines the Program-bound, Schema-backed admission contract.
+  - `packages/foldkit/src/program/public.ts` — Exports the admission constructor and definition type.
+  - `examples/counters/core/src/admission.ts` — Binds Multiple Counters claims to the canonical Program.
+  - `examples/counters/core/src/admission.test.ts` — Pins the Program identity carried by the admission definition.
+- **User context (verbatim):**
+  > Who is the authority? How is that defined?
+  > All these really seem like framework level stuff.
+- **SpecStory:** unavailable — Codex desktop task; SpecStory CLI capture is unavailable for this session.
+
 ## August 1st, 2026 at 3:20:45 a.m. EDT — `4471d3e93b76` feat(counters): add authenticated message admission claims
 
 - **Implementation commit:** `4471d3e93b76b0f0c4487686b628ce195598ae5d`
