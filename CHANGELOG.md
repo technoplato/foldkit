@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 12:31:58 a.m. EDT — `456f119294fd` docs: define showcase composition and invocation provenance
+
+- **Implementation commit:** `456f119294fdc51e881f74506ca1d5f656fe6a15`
+- **Change:** Defined the Showcase as a small shell Program and separated semantic Messages from invocation provenance.
+- **Details:**
+  - Documented manual parent-Program composition, route composition, and Client-hosted independent Processors as three distinct patterns; Foldkit has no generic embedProgram primitive.
+  - Specified a staged Schema-backed occurrence-provenance extension for human modality, automation, and agent invocation while keeping raw input outside canonical Program history.
+  - Updated the TUI design skill to map all activations to one semantic Message and avoid claiming origin detail the current runtime cannot yet attest.
+- **Files:**
+  - `.agents/skills/design-tuis/SKILL.md` — Added the renderer-neutral semantic Message and staged provenance rule to reusable TUI guidance.
+  - `docs/adr/0003-navigation-as-state.md` — Recorded the small Showcase shell and independent child Processor composition decision.
+  - `docs/adr/0006-semantic-message-invocation-provenance.md` — Recorded the semantic Message, causal-link metadata, trust, and replay provenance boundary.
+- **User context (verbatim):**
+  > The showcase should be modeled as a program, but a small shell program.
+  > Did an AI invoke, did an agent invoke this command?
+  > definitely don't absorb all of them into the showcase problem.
+- **SpecStory:** unavailable — Codex desktop task; no durable SpecStory URI is available.
+
 ## August 1st, 2026 at 12:07:53 a.m. EDT — `22a1baea2ab4` feat(instant-counter): declare explicit Mirror synchronization
 
 - **Implementation commit:** `22a1baea2ab4ce9e01e00d5fc62e22ef448dff42`
