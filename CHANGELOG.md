@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 4:47:12 a.m. EDT — `fd092f13b610` feat(counters): drive browser clients from Program interactions
+
+- **Implementation commit:** `fd092f13b6105c97d4967d485bb29abffcc86843`
+- **Change:** Made the Foldkit HTML and React Multiple Counters Clients derive navigation and actions from the Program-owned semantic graph.
+- **Details:**
+  - Boot and popstate carriers now resolve strictly into exactly one canonical OpenedNavigation Message, while invalid carriers remain Client-local typed failures and add no Message.
+  - HTML resolves exact InteractionReferences against the live Model at DOM event time; React retained handlers do the same and cannot rebind stale destructive actions by token.
+  - The canonical React Client Provider owns canonical initialization and error context, and browser history continues to project replay or mirrored navigation after unrelated local interaction errors.
+- **Files:**
+  - `examples/counters/src/client.ts` — Defines strict HTML carrier and exact semantic Action resolution at event boundaries.
+  - `examples/counters/src/client.test.ts` — Proves invalid carriers, stale destructive references, occurrence identity, and exact boot/popstate Message counts.
+  - `examples/counters/src/entry.ts` — Starts the canonical Program Model and delegates URI boot to the Client Mount.
+  - `examples/counters/src/main.ts` — Projects Program-owned interactions, Client-local failures, and DOM events without direct Message construction.
+  - `examples/counters/src/scene.test.ts` — Updates scene coverage for occurrence-qualified Program Messages.
+  - `examples/counters/src/story.test.ts` — Updates story coverage for presentation-qualified navigation Messages.
+  - `examples/counters/react-bindings/src/counters.tsx` — Makes the canonical React Provider enforce Program-owned URI boot and live semantic Action resolution.
+  - `examples/counters/react/src/App.tsx` — Surfaces Client-local typed failures and supplies a canonical destination URI.
+  - `examples/counters/react/src/App.test.tsx` — Proves the public Provider, exactly-once navigation, invalid carriers, and history projection after interaction failures.
+  - `examples/counters/react/src/client.test.ts` — Proves strict carriers and retained stale Action rejection against the latest Model.
+  - `examples/counters/react/src/main.tsx` — Passes the raw pathname into the strict canonical Provider.
+  - `examples/counters/react/src/view.tsx` — Keeps browser history local while distinguishing actual Program navigation changes.
+- **User context (verbatim):**
+  > make sure the navigation is set up purely through the core program
+  > each URI in each mode of each URI needs to be mapped out explicitly
+- **SpecStory:** unavailable — Unavailable: this work was performed in the Codex desktop app, whose session is not captured by SpecStory.
+
 ## August 1st, 2026 at 4:05:12 a.m. EDT — `7852a9893c9a` feat(counters): drive text Clients from Program interactions
 
 - **Implementation commit:** `7852a9893c9abfbfb7c5298bb16b308534d88968`
