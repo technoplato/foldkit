@@ -1,0 +1,1547 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Foldkit | Transcription player archaeology</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --cream: #f8f7fb;
+        --paper: #ffffff;
+        --gray-50: #f5f4f8;
+        --gray-100: #eeedf2;
+        --gray-200: #e0dfe6;
+        --gray-300: #cdcbd4;
+        --gray-400: #9e9baa;
+        --gray-500: #716e7e;
+        --gray-600: #534f60;
+        --gray-700: #3e3a4a;
+        --gray-800: #2a2833;
+        --gray-900: #1e1c21;
+        --gray-950: #13121a;
+        --accent-100: #e8f5d0;
+        --accent-200: #c8e494;
+        --accent-300: #a3d154;
+        --accent-400: #82b536;
+        --accent-600: #4d7a15;
+        --accent-800: #365610;
+        --blue: #2860bd;
+        --blue-soft: #e8effc;
+        --amber: #9d5b00;
+        --amber-soft: #fff2d8;
+        --red: #a3322b;
+        --red-soft: #fdebe8;
+        --shadow: 0 1.4rem 4rem rgb(30 28 33 / 0.09);
+        --radius: 1.25rem;
+        --mono:
+          'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        --sans:
+          'ABC Favorit', ui-sans-serif, system-ui, -apple-system,
+          BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(
+            circle at 8% 0%,
+            rgb(163 209 84 / 0.18),
+            transparent 24rem
+          ),
+          var(--cream);
+        color: var(--gray-800);
+        font-family: var(--sans);
+        font-weight: 350;
+        line-height: 1.55;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      code,
+      .mono {
+        font-family: var(--mono);
+      }
+
+      code {
+        overflow-wrap: anywhere;
+      }
+
+      .page {
+        width: min(100% - 2rem, 92rem);
+        margin: 0 auto;
+        padding: 1rem 0 6rem;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.7rem 0 1.1rem;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+      }
+
+      .brand img {
+        width: 8.5rem;
+        max-height: 2.25rem;
+      }
+
+      .date-chip,
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+        border: 1px solid var(--gray-200);
+        border-radius: 999px;
+        background: rgb(255 255 255 / 0.78);
+        color: var(--gray-600);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        line-height: 1.2;
+        padding: 0.45rem 0.68rem;
+        overflow-wrap: anywhere;
+      }
+
+      .hero {
+        position: relative;
+        border: 1px solid var(--gray-200);
+        border-radius: 1.7rem;
+        background:
+          radial-gradient(
+            circle at 100% 0%,
+            rgb(200 228 148 / 0.7),
+            transparent 17rem
+          ),
+          var(--paper);
+        box-shadow: var(--shadow);
+        padding: clamp(1.5rem, 5vw, 4.5rem);
+      }
+
+      .hero::after {
+        content: none;
+      }
+
+      .eyebrow {
+        margin: 0 0 0.8rem;
+        color: var(--accent-600);
+        font-family: var(--mono);
+        font-size: 0.78rem;
+        font-weight: 650;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        overflow-wrap: anywhere;
+      }
+
+      h1 {
+        position: relative;
+        z-index: 1;
+        max-width: 20ch;
+        margin: 0;
+        color: var(--gray-950);
+        font-size: clamp(2.25rem, 6vw, 5.4rem);
+        font-weight: 350;
+        letter-spacing: -0.055em;
+        line-height: 1.04;
+        padding-bottom: 0.06em;
+      }
+
+      .hero-lead {
+        position: relative;
+        z-index: 1;
+        max-width: 58rem;
+        margin: 1.6rem 0 0;
+        color: var(--gray-600);
+        font-size: clamp(1.04rem, 2vw, 1.35rem);
+      }
+
+      .hero-verdicts {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.8rem;
+        margin-top: 2.4rem;
+      }
+
+      .metric {
+        min-width: 0;
+        border-top: 1px solid var(--gray-200);
+        padding-top: 0.85rem;
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--gray-950);
+        font-family: var(--mono);
+        font-size: clamp(1.5rem, 3vw, 2.5rem);
+        font-weight: 500;
+        letter-spacing: -0.04em;
+      }
+
+      .metric span {
+        color: var(--gray-600);
+        font-size: 0.88rem;
+      }
+
+      .section {
+        margin-top: clamp(3.5rem, 8vw, 7rem);
+      }
+
+      .section-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+        gap: 2rem;
+        align-items: end;
+        margin-bottom: 1.5rem;
+      }
+
+      .section-heading h2 {
+        margin: 0;
+        color: var(--gray-950);
+        font-size: clamp(1.8rem, 4vw, 3.5rem);
+        font-weight: 350;
+        letter-spacing: -0.045em;
+        line-height: 1.04;
+      }
+
+      .section-heading p {
+        max-width: 50rem;
+        margin: 0;
+        color: var(--gray-600);
+      }
+
+      .verdict-grid,
+      .gold-grid,
+      .lane-grid,
+      .plan-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .card {
+        min-width: 0;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        background: var(--paper);
+        padding: clamp(1.1rem, 3vw, 1.7rem);
+      }
+
+      .card.success {
+        background: linear-gradient(145deg, var(--paper), #f6fbe9);
+        border-color: var(--accent-200);
+      }
+
+      .card.warning {
+        background: linear-gradient(145deg, var(--paper), #fff9ed);
+        border-color: #efd39c;
+      }
+
+      .card h3 {
+        margin: 0;
+        color: var(--gray-950);
+        font-size: 1.18rem;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+      }
+
+      .card p {
+        margin: 0.55rem 0 0;
+        color: var(--gray-600);
+      }
+
+      .plain-list {
+        margin: 0.9rem 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .plain-list li {
+        position: relative;
+        margin-top: 0.48rem;
+        padding-left: 1.2rem;
+      }
+
+      .plain-list li::before {
+        content: '=>';
+        position: absolute;
+        left: 0;
+        color: var(--accent-600);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        top: 0.24rem;
+      }
+
+      .demo-shell {
+        min-width: 0;
+        margin-top: 1rem;
+        overflow: hidden;
+        border: 1px solid var(--gray-200);
+        border-radius: 1.5rem;
+        background: #f5faf7;
+        box-shadow: 0 1.2rem 3.2rem rgb(23 95 82 / 0.09);
+      }
+
+      .demo-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        padding: 1rem 1rem 0;
+      }
+
+      .chip.good {
+        border-color: var(--accent-200);
+        background: var(--accent-100);
+        color: var(--accent-800);
+      }
+
+      .chip.info {
+        border-color: #c8d9f4;
+        background: var(--blue-soft);
+        color: #17468f;
+      }
+
+      .demo-note {
+        margin: 0;
+        padding: 0.1rem 1.25rem 1.2rem;
+        color: var(--gray-600);
+        font-size: 0.87rem;
+      }
+
+      #words-audio {
+        display: none;
+      }
+
+      .matrix-wrap {
+        min-width: 0;
+        overflow-x: auto;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        background: var(--paper);
+      }
+
+      table {
+        width: 100%;
+        min-width: 68rem;
+        border-collapse: collapse;
+        text-align: left;
+      }
+
+      th,
+      td {
+        min-width: 0;
+        border-bottom: 1px solid var(--gray-100);
+        padding: 0.85rem 1rem;
+        vertical-align: top;
+        overflow-wrap: anywhere;
+      }
+
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--gray-50);
+        color: var(--gray-700);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      td:first-child {
+        width: 16%;
+        color: var(--gray-950);
+        font-weight: 500;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0.17rem 0.45rem;
+        font-family: var(--mono);
+        font-size: 0.67rem;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .status.yes {
+        background: var(--accent-100);
+        color: var(--accent-800);
+      }
+
+      .status.partial {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .status.no {
+        background: var(--gray-100);
+        color: var(--gray-600);
+      }
+
+      .rank {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.65rem;
+        background: var(--gray-950);
+        color: white;
+        font-family: var(--mono);
+        font-size: 0.82rem;
+        margin-bottom: 0.8rem;
+      }
+
+      .take-leave {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+
+      .take-leave div {
+        min-width: 0;
+        border-radius: 0.8rem;
+        padding: 0.75rem;
+        background: var(--gray-50);
+      }
+
+      .take-leave strong {
+        display: block;
+        margin-bottom: 0.28rem;
+        color: var(--gray-700);
+        font-family: var(--mono);
+        font-size: 0.67rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .take-leave span {
+        color: var(--gray-600);
+        font-size: 0.86rem;
+      }
+
+      .figure {
+        min-width: 0;
+        margin: 1rem 0 0;
+        overflow: hidden;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        background: var(--paper);
+      }
+
+      .figure img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .figure figcaption {
+        border-top: 1px solid var(--gray-200);
+        padding: 0.9rem 1rem;
+        color: var(--gray-600);
+        font-size: 0.84rem;
+      }
+
+      .architecture {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        background: var(--paper);
+        padding: clamp(1rem, 3vw, 1.8rem);
+      }
+
+      .mermaid {
+        min-width: 0;
+        overflow-x: auto;
+      }
+
+      .lane-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-top: 1rem;
+      }
+
+      .lane-grid .card {
+        border-top-width: 0.35rem;
+      }
+
+      .lane-grid .shared {
+        border-top-color: var(--accent-400);
+      }
+
+      .lane-grid .local {
+        border-top-color: #5f8dd7;
+      }
+
+      .lane-grid .verify {
+        border-top-color: #d79c42;
+      }
+
+      .plan-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        counter-reset: step;
+      }
+
+      .plan-step {
+        position: relative;
+        min-width: 0;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius);
+        background: var(--paper);
+        padding: 3.3rem 1rem 1rem;
+        counter-increment: step;
+      }
+
+      .plan-step::before {
+        content: '0' counter(step);
+        position: absolute;
+        left: 1rem;
+        top: 1rem;
+        color: var(--accent-600);
+        font-family: var(--mono);
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+
+      .plan-step h3 {
+        margin: 0;
+        color: var(--gray-950);
+        font-size: 1rem;
+        font-weight: 550;
+      }
+
+      .plan-step p {
+        margin: 0.5rem 0 0;
+        color: var(--gray-600);
+        font-size: 0.88rem;
+      }
+
+      .callout {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 1rem;
+        align-items: start;
+        margin-top: 1rem;
+        border-radius: var(--radius);
+        background: var(--gray-950);
+        color: var(--gray-100);
+        padding: 1.2rem;
+      }
+
+      .callout .symbol {
+        color: var(--accent-300);
+        font-family: var(--mono);
+        font-size: 1.25rem;
+      }
+
+      .callout strong {
+        color: white;
+        font-weight: 500;
+      }
+
+      .callout p {
+        margin: 0.35rem 0 0;
+        color: var(--gray-300);
+      }
+
+      .evidence-list {
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .evidence-row {
+        display: grid;
+        grid-template-columns: minmax(0, 0.38fr) minmax(0, 0.62fr);
+        gap: 1rem;
+        min-width: 0;
+        border-bottom: 1px solid var(--gray-100);
+        padding: 0 0 0.65rem;
+      }
+
+      .evidence-row:last-child {
+        border-bottom: 0;
+      }
+
+      .evidence-row code {
+        color: var(--gray-950);
+        font-size: 0.75rem;
+      }
+
+      .evidence-row span {
+        color: var(--gray-600);
+        font-size: 0.86rem;
+      }
+
+      .footer {
+        margin-top: 5rem;
+        border-top: 1px solid var(--gray-200);
+        padding-top: 1.2rem;
+        color: var(--gray-500);
+        font-size: 0.82rem;
+      }
+
+      @media (max-width: 68rem) {
+        .hero-verdicts,
+        .plan-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .lane-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 48rem) {
+        .page {
+          width: min(100% - 1rem, 92rem);
+        }
+
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .hero {
+          border-radius: 1.25rem;
+        }
+
+        .hero-verdicts,
+        .section-heading,
+        .verdict-grid,
+        .gold-grid,
+        .plan-grid,
+        .evidence-row,
+        .take-leave {
+          grid-template-columns: 1fr;
+        }
+
+        .section-heading {
+          align-items: start;
+          gap: 0.8rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="topbar">
+        <div class="brand">
+          <img src="foldkit-logo.svg" alt="Foldkit" />
+          <span class="chip good">repository archaeology</span>
+        </div>
+        <span class="date-chip">August 1, 2026 · source-fresh</span>
+      </div>
+
+      <header class="hero" id="top">
+        <p class="eyebrow">Transcription playback | Toolshed gold map</p>
+        <h1>Foldkit already has the player.</h1>
+        <p class="hero-lead">
+          Your memory is real, but composite. Foldkit already owns the typed
+          word-by-word player. Toolshed contributes a native click-word product,
+          a browser speaker-review workflow, a mature data shape, and unusually
+          useful stress fixtures. The right move is to add an Instant-backed
+          host around the existing Words Program, not to invent another playback
+          core.
+        </p>
+        <div class="hero-verdicts" aria-label="Audit summary">
+          <div class="metric">
+            <strong>YES</strong>
+            <span
+              >Foldkit has word click, scrub, active-word sync, and native
+              audio</span
+            >
+          </div>
+          <div class="metric">
+            <strong>22/22</strong>
+            <span
+              >focused Words tests passed in the current Foldkit checkout</span
+            >
+          </div>
+          <div class="metric">
+            <strong>3</strong>
+            <span
+              >distinct Toolshed viewers explain the remembered feature
+              set</span
+            >
+          </div>
+          <div class="metric">
+            <strong>0</strong>
+            <span>waveform implementations found in Foldkit</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="section" id="answer">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Question one</p>
+            <h2>The current Foldkit answer</h2>
+          </div>
+          <p>
+            <code>examples/words</code> is a recent, renderer-independent
+            Foldkit Program. It owns a Schema Model, factual Messages, pure
+            update logic, audio Commands, observed media events, accessible
+            controls, and progressive enhancement over a host-supplied native
+            audio element.
+          </p>
+        </div>
+
+        <div class="verdict-grid">
+          <article class="card success">
+            <h3>Already implemented</h3>
+            <ul class="plain-list">
+              <li>Clickable, stable, timed word buttons</li>
+              <li>Current-word projection from media time</li>
+              <li>Range scrubbing and clamped arbitrary seek</li>
+              <li>Play, pause, replay, plus and minus 10 seconds</li>
+              <li>Typed failures and scoped media-listener cleanup</li>
+              <li>
+                Progressive fallback preservation and CSP nonce propagation
+              </li>
+            </ul>
+          </article>
+          <article class="card warning">
+            <h3>Still missing from the example</h3>
+            <ul class="plain-list">
+              <li>No bundled audio or transcript fixture</li>
+              <li>
+                No Instant query, mutation, authentication, or ownership adapter
+              </li>
+              <li>No manual-scroll pause and resume-follow behavior</li>
+              <li>
+                No segment, speaker, comparison, correction, or search workflow
+              </li>
+              <li>No waveform, peaks, spectrogram, or PCM visualization</li>
+              <li>
+                No adapter policy for repairing unordered or zero-duration
+                upstream words
+              </li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="demo-shell" id="live-demo">
+          <div class="demo-meta">
+            <span class="chip good">actual examples/words bundle</span>
+            <span class="chip info">new synthetic narration</span>
+            <span class="chip">no repository source modified</span>
+          </div>
+          <audio id="words-audio" preload="metadata"></audio>
+          <div id="words-review-demo">
+            <p style="padding: 2rem">
+              Loading the existing Foldkit Words Program…
+            </p>
+          </div>
+          <p class="demo-note">
+            This is the committed
+            <code>examples/words/dist/words.js</code> mounted here with a small
+            synthetic payload and newly generated audio. Click a word, scrub, or
+            use the jump controls.
+          </p>
+        </div>
+      </section>
+
+      <section class="section" id="composite-memory">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">What you remembered</p>
+            <h2>One memory, three implementations</h2>
+          </div>
+          <p>
+            No single Toolshed web app owns every remembered behavior. The exact
+            word-level player is Swift. The best review workflow is plain HTML
+            plus Python and InstantDB. Search lived in a deleted Vite prototype.
+            Foldkit's Words Program now covers the reusable playback center.
+          </p>
+        </div>
+
+        <div class="matrix-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Foldkit Words</th>
+                <th>Toolshed SpeechRecorderApp</th>
+                <th>Toolshed Ground Truth Creator</th>
+                <th>Deleted apps/web prototype</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Click word to seek</td>
+                <td>
+                  <span class="status yes">YES</span> stable word ID to start
+                  time
+                </td>
+                <td>
+                  <span class="status yes">YES</span> tap seeks, but does not
+                  auto-play
+                </td>
+                <td>
+                  <span class="status no">NO</span> segment and timestamp seek
+                  only
+                </td>
+                <td><span class="status no">NO</span> segment seek only</td>
+              </tr>
+              <tr>
+                <td>Scrub and transport</td>
+                <td>
+                  <span class="status yes">YES</span> range, play/pause/replay,
+                  ±10
+                </td>
+                <td>
+                  <span class="status yes">YES</span> slider, play/pause, ±10
+                </td>
+                <td>
+                  <span class="status partial">PARTIAL</span> native browser
+                  audio controls
+                </td>
+                <td>
+                  <span class="status partial">PARTIAL</span> YouTube player
+                  controls
+                </td>
+              </tr>
+              <tr>
+                <td>Playback highlighting</td>
+                <td>
+                  <span class="status yes">WORD</span> half-open timed interval
+                </td>
+                <td>
+                  <span class="status yes">WORD</span> yellow word and active
+                  segment
+                </td>
+                <td>
+                  <span class="status partial">SEGMENT</span> auto-follow with
+                  resume
+                </td>
+                <td>
+                  <span class="status partial">SEGMENT</span> 200 ms polling
+                </td>
+              </tr>
+              <tr>
+                <td>Review workflow</td>
+                <td><span class="status no">NO</span> playback-only surface</td>
+                <td>
+                  <span class="status partial">PARTIAL</span> fullscreen and
+                  captured media ideas
+                </td>
+                <td>
+                  <span class="status yes">YES</span> runs, speakers, split,
+                  keyboard, optimistic edits
+                </td>
+                <td>
+                  <span class="status partial">SEARCH</span> Fuse transcript
+                  search
+                </td>
+              </tr>
+              <tr>
+                <td>Instant integration</td>
+                <td>
+                  <span class="status no">NO</span> host-supplied payload and
+                  audio URL
+                </td>
+                <td>
+                  <span class="status partial">DATA</span> transcript synced,
+                  audio path local
+                </td>
+                <td>
+                  <span class="status partial">DATA</span> live metadata, Python
+                  edit boundary, local audio
+                </td>
+                <td>
+                  <span class="status partial">META</span> transcript fetched by
+                  path
+                </td>
+              </tr>
+              <tr>
+                <td>Confidence today</td>
+                <td>
+                  <span class="status yes">TESTED</span> 22 focused tests passed
+                </td>
+                <td>
+                  <span class="status no">SOURCE ONLY</span> blocked dependency
+                  and disabled suite
+                </td>
+                <td>
+                  <span class="status partial">PROBED</span> 43 live segments
+                  and local audio played
+                </td>
+                <td>
+                  <span class="status no">DELETED</span> removed from
+                  origin/main
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <figure class="figure">
+          <img
+            src="toolshed-ground-truth-viewer-playing.png"
+            alt="The Toolshed Ground Truth Creator showing a playing audio control, active segment, speakers, transcript cards, and debug data"
+          />
+          <figcaption>
+            Source-fresh browser probe of
+            <code>origin/main:.../ground_truth_instant.html</code>. InstantDB
+            returned the real 43-segment review surface, and Chrome played the
+            existing local audio fixture. The full Python edit endpoints were
+            not exercised. The screenshot is evidence of the workflow, not a
+            recommendation to reuse the monolithic page.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section" id="gold">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Question two</p>
+            <h2>The gold worth extracting</h2>
+          </div>
+          <p>
+            The source is valuable as a specification quarry. The domain shape,
+            race fixtures, review behaviors, and scale requirements are stronger
+            than the runtime implementations. Port the contracts. Rewrite the
+            machinery in idiomatic Foldkit and Effect.
+          </p>
+        </div>
+
+        <div class="gold-grid">
+          <article class="card">
+            <span class="rank">01</span>
+            <h3>Media → Run → Segment → embedded Word</h3>
+            <p>
+              The compact SpeechRecorder Instant schema is the cleanest v1 seed.
+              Keep stable segment ordinals, word time ranges, confidence, run
+              provenance, and explicit links.
+            </p>
+            <div class="take-leave">
+              <div>
+                <strong>Take</strong
+                ><span
+                  >identity, ordering, provenance, embedded timed words</span
+                >
+              </div>
+              <div>
+                <strong>Leave</strong
+                ><span
+                  >device paths, photos, boolean soup, empty permissions</span
+                >
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="rank">02</span>
+            <h3>Rapid volatile-to-final convergence fixtures</h3>
+            <p>
+              The deterministic two-segment fixture captures the hard part:
+              repeated same-ID volatile updates, final replacement, create/link
+              ordering, offline optimism, and remote truth.
+            </p>
+            <div class="take-leave">
+              <div>
+                <strong>Take</strong
+                ><span
+                  >controlled-clock sequence and Admin verification lanes</span
+                >
+              </div>
+              <div>
+                <strong>Leave</strong
+                ><span
+                  >wall-clock sleeps and fire-and-forget mutation ordering</span
+                >
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="rank">03</span>
+            <h3>User-owned follow mode</h3>
+            <p>
+              Manual scrolling suspends auto-follow. A visible action resumes
+              it. This is a small interaction with outsized usability value for
+              long playback and live transcription.
+            </p>
+            <div class="take-leave">
+              <div>
+                <strong>Take</strong
+                ><span
+                  >explicit Follow/Suspended union and stable segment
+                  anchors</span
+                >
+              </div>
+              <div>
+                <strong>Leave</strong
+                ><span
+                  >imperative DOM scans and fragile custom view equality</span
+                >
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="rank">04</span>
+            <h3>Keyboard-first reviewer workflow</h3>
+            <p>
+              Space toggles playback, arrows navigate and play segments, Enter
+              edits a speaker, and segment cards expose time, text, and
+              assignment in one scan-friendly loop.
+            </p>
+            <div class="take-leave">
+              <div>
+                <strong>Take</strong
+                ><span
+                  >semantic shortcuts, speaker autocomplete, run
+                  comparison</span
+                >
+              </div>
+              <div>
+                <strong>Leave</strong
+                ><span
+                  >hard-coded app ID, innerHTML injection, mixed server
+                  writes</span
+                >
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="rank">05</span>
+            <h3>Four-hour performance contract</h3>
+            <p>
+              Toolshed already names the right target: 60+ FPS around 36,000
+              words. It also identifies the exact traps, per-word layout, 50 ms
+              polling, and linear current-word lookup.
+            </p>
+            <div class="take-leave">
+              <div>
+                <strong>Take</strong
+                ><span
+                  >seeded 36k fixture, segment virtualization, measurable
+                  gates</span
+                >
+              </div>
+              <div>
+                <strong>Leave</strong
+                ><span>random fixtures and O(words) polling on every tick</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="rank">06</span>
+            <h3>Messy real-data contract tests</h3>
+            <p>
+              The live Instant word relation arrived unordered and contains
+              multiple zero-duration words. The Words decoder correctly rejects
+              both, so an Instant adapter needs an explicit repair or rejection
+              policy before handing data to the Program.
+            </p>
+            <div class="take-leave">
+              <div>
+                <strong>Take</strong
+                ><span
+                  >sort by stable ordinal/time, reject or repair invalid
+                  intervals</span
+                >
+              </div>
+              <div>
+                <strong>Leave</strong
+                ><span
+                  >assuming relation order and silently unhighlightable
+                  words</span
+                >
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="architecture">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Recommended seam</p>
+            <h2>Add a host, not another player</h2>
+          </div>
+          <p>
+            Keep the existing Words Program renderer-independent. Put Instant
+            authentication, queries, mutation ordering, remote verification, and
+            audio artifact resolution in adapters. Keep playback time and follow
+            state local unless synchronized playback is an explicit feature.
+          </p>
+        </div>
+
+        <div class="architecture">
+          <div class="mermaid">
+            flowchart LR A["InstantDB domain<br />Media → Run → Segment → Word"]
+            --> B["Instant adapter<br />auth · order · decode · cleanup"] B -->
+            C["Existing Words Program<br />Model · Message · update"]
+            D["LinkedProgramArtifact<br />audio outside Message journal"] -->
+            E["Host audio resource<br />play · pause · seek"] C --> E E
+            -->|"observed media facts"| C F["Shared review facts<br />finalization
+            · speaker · correction"] --> A C -. "Processor-local" .->
+            G["playback time · active word · follow mode"]
+          </div>
+        </div>
+
+        <div class="lane-grid">
+          <article class="card shared">
+            <h3>Shared Domain</h3>
+            <p>
+              Recording identity, ordered transcript, finalization, speaker
+              assignments, corrections, and artifact references.
+            </p>
+          </article>
+          <article class="card local">
+            <h3>Processor-local playback</h3>
+            <p>
+              Playing state, current time, active word, scroll/follow mode,
+              scrub gesture, and native audio handle.
+            </p>
+          </article>
+          <article class="card verify">
+            <h3>Independent remote truth</h3>
+            <p>
+              Admin-side entity IDs, final segment words, link ordering,
+              offline-to-online convergence, and cleanup.
+            </p>
+          </article>
+        </div>
+
+        <div class="callout">
+          <div class="symbol">!</div>
+          <div>
+            <strong
+              >Do not synchronize every media time update through the accepted
+              Message tape.</strong
+            >
+            <p>
+              Toolshed's 50 ms polling is useful local UI input, but it is the
+              wrong shared-data unit. Synchronize durable transcript facts. Keep
+              the high-frequency playback cursor local, or emit only semantic
+              boundary changes when remote control is intentionally enabled.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="path-forward">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Suggested extraction order</p>
+            <h2>A small, coherent path forward</h2>
+          </div>
+          <p>
+            This sequence preserves the tested Words core, makes the Instant
+            boundary independently verifiable, and postpones reviewer breadth
+            until the foundational media path is real.
+          </p>
+        </div>
+
+        <div class="plan-grid">
+          <article class="plan-step">
+            <h3>Normalize the domain</h3>
+            <p>
+              Add Media, Run, Segment, and Word Schemas with explicit status
+              unions, ownership, stable ordering, and positive time-range
+              checks.
+            </p>
+          </article>
+          <article class="plan-step">
+            <h3>Host existing Words</h3>
+            <p>
+              Build an Instant-backed host/adapter around the same Program.
+              Resolve audio through the existing artifact-stream boundary.
+            </p>
+          </article>
+          <article class="plan-step">
+            <h3>Port the usability gold</h3>
+            <p>
+              Add suspend/resume follow, stable segment anchors, resume
+              position, keyboard transport, then speaker review as a separate
+              route.
+            </p>
+          </article>
+          <article class="plan-step">
+            <h3>Prove the ugly cases</h3>
+            <p>
+              Run rapid volatile/final convergence, offline remote-truth
+              acceptance, unordered/invalid word data, and seeded 36k-word
+              performance gates.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="evidence">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Evidence atlas</p>
+            <h2>Where the claims come from</h2>
+          </div>
+          <p>
+            Foldkit paths are current working-tree files. Toolshed native and
+            reviewer paths are Git blobs at <code>origin/main@3d136a6</code>,
+            because the physical checkout is stale and conflicted.
+          </p>
+        </div>
+
+        <div class="card evidence-list">
+          <div class="evidence-row">
+            <code
+              >/Users/laptop/Development/foldkit/examples/words/src/model.ts:10-46,110-173</code
+            >
+            <span
+              >Timed word/audio payload, playback union, Model, and active-word
+              projection.</span
+            >
+          </div>
+          <div class="evidence-row">
+            <code
+              >/Users/laptop/Development/foldkit/examples/words/src/audioPlayer.ts:36-72,89-163</code
+            >
+            <span
+              >Native audio Commands, observed media events, typed failures, and
+              listener cleanup.</span
+            >
+          </div>
+          <div class="evidence-row">
+            <code
+              >/Users/laptop/Development/foldkit/examples/words/src/update.ts:142-154,299-341</code
+            >
+            <span
+              >Clamped seek, word-click seek, scrub, ±10, and playback
+              transitions.</span
+            >
+          </div>
+          <div class="evidence-row">
+            <code
+              >/Users/laptop/Development/foldkit/examples/words/src/view.ts:54-175</code
+            >
+            <span
+              >Accessible timed-word buttons, active styling, custom controls,
+              and scrubber.</span
+            >
+          </div>
+          <div class="evidence-row">
+            <code
+              >/Users/laptop/Development/foldkit/packages/instant/src/artifactStream/artifactStream.ts:14-105</code
+            >
+            <span
+              >Existing large-artifact boundary for audio outside the Message
+              journal.</span
+            >
+          </div>
+          <div class="evidence-row">
+            <code
+              >origin/main:apps/SpeechRecorderApp/instant.schema.ts:55-70,148-236,286-350</code
+            >
+            <span
+              >Compact Media, Run, Segment, and embedded Word ontology.</span
+            >
+          </div>
+          <div class="evidence-row">
+            <code
+              >origin/main:apps/SpeechRecorderApp/.../PlaybackFeature.swift:276-350,419-423</code
+            >
+            <span
+              >Word-tap seek, polling, current-word lookup, and the performance
+              trap to avoid.</span
+            >
+          </div>
+          <div class="evidence-row">
+            <code
+              >origin/main:apps/SpeechRecorderApp/.../TranscriptionDisplayView.swift:160-307,609-623</code
+            >
+            <span
+              >Stable segment identity, follow suspension/resume, and tappable
+              word presentation.</span
+            >
+          </div>
+          <div class="evidence-row">
+            <code
+              >origin/main:apps/speaker-diarization-benchmark/data/clips/ground_truth_instant.html:501-536,930-1129,1236-1550</code
+            >
+            <span
+              >Keyboard review, run comparison, time-overlap joins, seek/play,
+              saved position, and follow behavior.</span
+            >
+          </div>
+          <div class="evidence-row">
+            <code
+              >origin/main:apps/SpeechRecorderApp/.../RapidUpdateSharingInstantTest.swift:63-108,431-484,531-629</code
+            >
+            <span
+              >Deterministic volatile-to-final update sequence and
+              mutation-ordering hazard.</span
+            >
+          </div>
+        </div>
+
+        <div class="callout">
+          <div class="symbol">i</div>
+          <div>
+            <strong
+              >Repository state limits what can be called verified.</strong
+            >
+            <p>
+              Foldkit Words tests passed 22/22. The Words typecheck and another
+              example were blocked by an out-of-sync built workspace package,
+              and no mutating setup was run. Toolshed HEAD is
+              <code>bf8cdb2</code>, 169 commits behind local
+              <code>origin/main</code>, with unresolved conflicts.
+              SpeechRecorderApp also references an absent local SharingInstant
+              package and its dedicated playback tests are disabled. The native
+              viewer is source evidence, not a fresh build claim.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        Design source: Foldkit website colors, typography hierarchy, logo, and
+        code font. The embedded player is Foldkit's actual Words bundle. The
+        synthetic narration was generated for this private review so no
+        unlicensed Toolshed podcast media is repackaged.
+      </footer>
+    </main>
+
+    <script src="words-classic.js"></script>
+    <script>
+      const payload = {
+        version: 1,
+        recordingID: 'synthetic-foldkit-review',
+        segmentRangeID: 'player-proof',
+        range: {
+          firstSegmentID: 'synthetic-01',
+          lastSegmentID: 'synthetic-04',
+        },
+        audio: {
+          url: new URL('foldkit-words-demo.wav', document.baseURI).pathname,
+          duration: 10.053,
+          mimeType: 'audio/wav',
+        },
+        words: [
+          {
+            id: 'w01',
+            text: 'Foldkit',
+            start: 0.0,
+            end: 0.62,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w02',
+            text: 'already',
+            start: 0.62,
+            end: 1.08,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w03',
+            text: 'has',
+            start: 1.08,
+            end: 1.32,
+            speaker: 'Narrator',
+          },
+          { id: 'w04', text: 'a', start: 1.32, end: 1.48, speaker: 'Narrator' },
+          {
+            id: 'w05',
+            text: 'word',
+            start: 1.48,
+            end: 1.82,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w06',
+            text: 'by',
+            start: 1.82,
+            end: 2.02,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w07',
+            text: 'word',
+            start: 2.02,
+            end: 2.36,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w08',
+            text: 'transcript',
+            start: 2.36,
+            end: 2.92,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w09',
+            text: 'player.',
+            start: 2.92,
+            end: 3.42,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w10',
+            text: 'Click',
+            start: 3.58,
+            end: 3.98,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w11',
+            text: 'any',
+            start: 3.98,
+            end: 4.24,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w12',
+            text: 'word',
+            start: 4.24,
+            end: 4.56,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w13',
+            text: 'to',
+            start: 4.56,
+            end: 4.76,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w14',
+            text: 'seek.',
+            start: 4.76,
+            end: 5.24,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w15',
+            text: 'Scrub',
+            start: 5.38,
+            end: 5.8,
+            speaker: 'Narrator',
+          },
+          { id: 'w16', text: 'the', start: 5.8, end: 6.0, speaker: 'Narrator' },
+          {
+            id: 'w17',
+            text: 'timeline.',
+            start: 6.0,
+            end: 6.56,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w18',
+            text: 'Jump',
+            start: 6.72,
+            end: 7.08,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w19',
+            text: 'backward',
+            start: 7.08,
+            end: 7.62,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w20',
+            text: 'or',
+            start: 7.62,
+            end: 7.78,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w21',
+            text: 'forward.',
+            start: 7.78,
+            end: 8.32,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w22',
+            text: 'Playback',
+            start: 8.48,
+            end: 9.04,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w23',
+            text: 'stays',
+            start: 9.04,
+            end: 9.38,
+            speaker: 'Narrator',
+          },
+          {
+            id: 'w24',
+            text: 'local.',
+            start: 9.38,
+            end: 9.88,
+            speaker: 'Narrator',
+          },
+        ],
+      }
+
+      const root = document.querySelector('#words-review-demo')
+      const audio = document.querySelector('#words-audio')
+      const mounted = window.mountWordsExample({ root, audio, payload })
+      if (!mounted) {
+        root.innerHTML =
+          "<p style='padding:2rem;color:#a3322b'>The Foldkit Words demo could not mount.</p>"
+      }
+    </script>
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
+
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: 'base',
+        securityLevel: 'strict',
+        themeVariables: {
+          fontFamily: 'JetBrains Mono, ui-monospace, monospace',
+          primaryColor: '#e8f5d0',
+          primaryTextColor: '#1e1c21',
+          primaryBorderColor: '#82b536',
+          lineColor: '#716e7e',
+          secondaryColor: '#e8effc',
+          tertiaryColor: '#f5f4f8',
+          clusterBkg: '#f8f7fb',
+          clusterBorder: '#cdcbd4',
+        },
+        flowchart: {
+          htmlLabels: true,
+          curve: 'basis',
+          useMaxWidth: true,
+        },
+      })
+    </script>
+  </body>
+</html>

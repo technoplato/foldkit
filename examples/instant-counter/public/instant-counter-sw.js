@@ -26,11 +26,7 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request
   const url = new URL(request.url)
-  if (
-    request.method !== 'GET' ||
-    url.origin !== self.location.origin ||
-    url.search.length > 0
-  ) {
+  if (request.method !== 'GET' || url.origin !== self.location.origin) {
     return
   }
   if (request.mode === 'navigate') {
@@ -39,6 +35,9 @@ self.addEventListener('fetch', event => {
         caches.open(cacheName).then(cache => cache.match('/index.html')),
       ),
     )
+    return
+  }
+  if (url.search.length > 0) {
     return
   }
   event.respondWith(

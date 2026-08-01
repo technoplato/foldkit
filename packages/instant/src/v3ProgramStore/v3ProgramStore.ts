@@ -1,4 +1,13 @@
-import { Context, Data, Effect, Option, Schema as S, Stream } from 'effect'
+import {
+  Context,
+  Data,
+  Deferred,
+  Effect,
+  Option,
+  Ref,
+  Schema as S,
+  Stream,
+} from 'effect'
 
 import {
   InstantV3AcceptedMessageOccurrenceRecord,
@@ -42,6 +51,19 @@ export const V3OriginPolicyStoreScope = S.Struct({
 })
 /** The app-subject scope shared by origin enrollment and policy decisions. */
 export type V3OriginPolicyStoreScope = typeof V3OriginPolicyStoreScope.Type
+
+/** One exact server-confirmed prerequisite snapshot read inside the authority coordinator. */
+export const V3ProgramAuthoritySnapshot = S.Struct({
+  acceptedMessageOccurrences: S.Array(InstantV3AcceptedMessageOccurrenceRecord),
+  effectPlacements: S.Array(InstantV3EffectPlacementRecord),
+  effectRequests: S.Array(InstantV3EffectRequestRecord),
+  messageProposalResolutions: S.Array(InstantV3MessageProposalResolutionRecord),
+  messageProposals: S.Array(InstantV3MessageProposalRecord),
+  originPolicyDecisions: S.Array(InstantV3OriginPolicyDecisionRecord),
+  programSessions: S.Array(InstantV3ProgramSessionRecord),
+})
+/** One exact server-confirmed prerequisite snapshot read inside the authority coordinator. */
+export type V3ProgramAuthoritySnapshot = typeof V3ProgramAuthoritySnapshot.Type
 
 /** The real connection state reported by a protocol-v3 transport. */
 export const V3ProgramStoreConnectionStatus = S.Literals([
@@ -290,6 +312,13 @@ export class V3ProgramStoreError extends Data.TaggedError(
   readonly operation: V3ProgramStoreOperation
 }> {}
 
+/** A retained authority critical section was invoked after its coordinator released it. */
+export class V3ProgramAuthorityCriticalSectionExpired extends Data.TaggedError(
+  'V3ProgramAuthorityCriticalSectionExpired',
+)<{
+  readonly operation: V3ProgramStoreOperation
+}> {}
+
 /** Every immutable entity persisted by the protocol-v3 Program store. */
 export type V3ProgramStoreEntity =
   | 'AcceptedMessageOccurrence'
@@ -306,10 +335,12 @@ export type V3ProgramStoreEntity =
 export type V3ProgramStoreOperation =
   | `Append${V3ProgramStoreEntity}`
   | `Observe${V3ProgramStoreEntity}s`
+  | 'ReadAuthoritySnapshot'
 
 /** Expected immutable-write failures surfaced without defects. */
 export type V3ProgramStoreAppendError =
   | V3OriginPolicyDecisionLifecycleConflict
+  | V3ProgramAuthorityCriticalSectionExpired
   | V3ProgramStoreAcceptedMessageOccurrenceMismatch
   | V3ProgramStoreError
   | V3ProgramStoreIdentityConflict
@@ -403,6 +434,17 @@ export const V3ProgramAuthorityStoreCapability = S.TaggedStruct(
 export type V3ProgramAuthorityStoreCapability =
   typeof V3ProgramAuthorityStoreCapability.Type
 
+/** Runtime evidence that every authority read-evaluate-write cycle shares one coordinator. */
+export const V3ProgramAuthorityCoordinatorCapability = S.TaggedStruct(
+  'ExclusiveAuthorityCoordinator',
+  {
+    protocolVersion: S.Literal(3),
+  },
+)
+/** Runtime evidence that every authority read-evaluate-write cycle shares one coordinator. */
+export type V3ProgramAuthorityCoordinatorCapability =
+  typeof V3ProgramAuthorityCoordinatorCapability.Type
+
 /** Server-confirmed protocol-v3 observations available only to authorities. */
 export type V3ProgramAuthorityStoreObservations = V3ProgramStoreObservations
 
@@ -429,8 +471,7 @@ export type V3ProgramStoreAcceptedMessageOccurrenceTransaction =
   typeof V3ProgramStoreAcceptedMessageOccurrenceTransaction.Type
 
 /** Server-confirmed writes available only to a trusted protocol-v3 authority. */
-export type V3ProgramAuthorityStoreService = Readonly<{
-  authorityCapability: V3ProgramAuthorityStoreCapability
+export type V3ProgramAuthorityMutationService = Readonly<{
   appendServerConfirmedAcceptedMessageOccurrence: (
     transaction: V3ProgramStoreAcceptedMessageOccurrenceTransaction,
   ) => Effect.Effect<
@@ -473,8 +514,167 @@ export type V3ProgramAuthorityStoreService = Readonly<{
     V3ProgramStoreServerConfirmedTransactionOutcome,
     V3ProgramStoreAppendError
   >
-  serverConfirmed: V3ProgramAuthorityStoreObservations
 }>
+
+/** The non-reentrant authority surface available only while its coordinator is held. */
+export type V3ProgramAuthorityCriticalSection =
+  V3ProgramAuthorityMutationService &
+    Readonly<{
+      readServerConfirmedSnapshot: (
+        scope: V3ProgramStoreScope,
+      ) => Effect.Effect<
+        V3ProgramAuthoritySnapshot,
+        V3ProgramAuthorityCriticalSectionExpired | V3ProgramStoreError
+      >
+    }>
+
+/** Creates one authority critical section that expires when its invocation ends. */
+export const makeV3ProgramAuthorityCriticalSectionInvocation = (
+  raw: V3ProgramAuthorityMutationService &
+    Readonly<{
+      readServerConfirmedSnapshot: (
+        scope: V3ProgramStoreScope,
+      ) => Effect.Effect<V3ProgramAuthoritySnapshot, V3ProgramStoreError>
+    }>,
+): Effect.Effect<
+  Readonly<{
+    expire: Effect.Effect<void>
+    section: V3ProgramAuthorityCriticalSection
+  }>
+> =>
+  Effect.gen(function* () {
+    const state = yield* Ref.make({ inFlight: 0, isActive: true })
+    const drained = yield* Deferred.make<void>()
+    const releaseOperation = Ref.modify(state, current => {
+      const nextInFlight = current.inFlight - 1
+      return [
+        !current.isActive && nextInFlight === 0,
+        { ...current, inFlight: nextInFlight },
+      ]
+    }).pipe(
+      Effect.flatMap(isDrained => {
+        if (isDrained) {
+          return Deferred.succeed(drained, undefined)
+        } else {
+          return Effect.void
+        }
+      }),
+    )
+    const invoke = <Success, Error, Requirements>(
+      operation: V3ProgramStoreOperation,
+      effect: () => Effect.Effect<Success, Error, Requirements>,
+    ): Effect.Effect<
+      Success,
+      Error | V3ProgramAuthorityCriticalSectionExpired,
+      Requirements
+    > =>
+      Effect.uninterruptibleMask(
+        (
+          restore,
+        ): Effect.Effect<
+          Success,
+          Error | V3ProgramAuthorityCriticalSectionExpired,
+          Requirements
+        > =>
+          Ref.modify(state, current => {
+            if (current.isActive) {
+              return [true, { ...current, inFlight: current.inFlight + 1 }]
+            } else {
+              return [false, current]
+            }
+          }).pipe(
+            Effect.flatMap(
+              (
+                isRegistered,
+              ): Effect.Effect<
+                Success,
+                Error | V3ProgramAuthorityCriticalSectionExpired,
+                Requirements
+              > => {
+                if (isRegistered) {
+                  return restore(effect()).pipe(
+                    Effect.ensuring(releaseOperation),
+                  )
+                } else {
+                  return Effect.fail(
+                    new V3ProgramAuthorityCriticalSectionExpired({
+                      operation,
+                    }),
+                  )
+                }
+              },
+            ),
+          ),
+      )
+    const expire = Ref.modify(state, current => [
+      current.inFlight === 0,
+      { ...current, isActive: false },
+    ]).pipe(
+      Effect.flatMap(isDrained => {
+        if (isDrained) {
+          return Deferred.succeed(drained, undefined)
+        } else {
+          return Effect.void
+        }
+      }),
+      Effect.andThen(Deferred.await(drained)),
+    )
+    return {
+      expire,
+      section: {
+        appendServerConfirmedAcceptedMessageOccurrence: transaction =>
+          invoke('AppendAcceptedMessageOccurrence', () =>
+            raw.appendServerConfirmedAcceptedMessageOccurrence(transaction),
+          ),
+        appendServerConfirmedEffectPlacement: record =>
+          invoke('AppendEffectPlacement', () =>
+            raw.appendServerConfirmedEffectPlacement(record),
+          ),
+        appendServerConfirmedEffectRequest: record =>
+          invoke('AppendEffectRequest', () =>
+            raw.appendServerConfirmedEffectRequest(record),
+          ),
+        appendServerConfirmedRejectedMessageProposalResolution: record =>
+          invoke('AppendMessageProposalResolution', () =>
+            raw.appendServerConfirmedRejectedMessageProposalResolution(record),
+          ),
+        appendServerConfirmedOriginPolicyDecision: record =>
+          invoke('AppendOriginPolicyDecision', () =>
+            raw.appendServerConfirmedOriginPolicyDecision(record),
+          ),
+        appendServerConfirmedProgramSession: record =>
+          invoke('AppendProgramSession', () =>
+            raw.appendServerConfirmedProgramSession(record),
+          ),
+        appendServerConfirmedProjectionCheckpoint: record =>
+          invoke('AppendProjectionCheckpoint', () =>
+            raw.appendServerConfirmedProjectionCheckpoint(record),
+          ),
+        readServerConfirmedSnapshot: scope =>
+          invoke('ReadAuthoritySnapshot', () =>
+            raw.readServerConfirmedSnapshot(scope),
+          ),
+      },
+    }
+  })
+
+/** The single serialized boundary shared by every authoritative mutation and admission. */
+export type V3ProgramAuthorityCoordinator = Readonly<{
+  capability: V3ProgramAuthorityCoordinatorCapability
+  withCriticalSection: <Success, Error, Requirements>(
+    use: (
+      section: V3ProgramAuthorityCriticalSection,
+    ) => Effect.Effect<Success, Error, Requirements>,
+  ) => Effect.Effect<Success, Error, Requirements>
+}>
+
+/** Server-confirmed writes available only to a trusted protocol-v3 authority. */
+export type V3ProgramAuthorityStoreService = V3ProgramAuthorityMutationService &
+  Readonly<{
+    authorityCapability: V3ProgramAuthorityStoreCapability
+    coordinator: V3ProgramAuthorityCoordinator
+    serverConfirmed: V3ProgramAuthorityStoreObservations
+  }>
 
 /** The ordinary protocol-v3 Program store selected by a Client. */
 export class V3ProgramStore extends Context.Service<

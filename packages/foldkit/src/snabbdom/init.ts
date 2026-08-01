@@ -315,9 +315,23 @@ export function init(
     }
   }
 
-  function invokeDestroyHook(vnode: VNode) {
+  function invokeDestroyHook(
+    vnode: VNode,
+    destroyedElements: Set<Node> = new Set(),
+    destroyedVnodes: Set<VNode> = new Set(),
+  ) {
     const data = vnode.data
-    if (data !== undefined) {
+    const element = vnode.elm
+    const isFirstDestroy =
+      element === undefined
+        ? !destroyedVnodes.has(vnode)
+        : !destroyedElements.has(element)
+    if (element === undefined) {
+      destroyedVnodes.add(vnode)
+    } else {
+      destroyedElements.add(element)
+    }
+    if (data !== undefined && isFirstDestroy) {
       data?.hook?.destroy?.(vnode)
       const dataMask = data[vnodeDataMaskKey]
       for (
@@ -334,16 +348,16 @@ export function init(
           moduleHooks.destroy[moduleIndex]!(vnode)
         }
       }
-      if (vnode.children !== undefined) {
-        for (
-          let childIndex = 0;
-          childIndex < vnode.children.length;
-          ++childIndex
-        ) {
-          const child = vnode.children[childIndex]
-          if (child != null && typeof child !== 'string') {
-            invokeDestroyHook(child)
-          }
+    }
+    if (vnode.children !== undefined) {
+      for (
+        let childIndex = 0;
+        childIndex < vnode.children.length;
+        ++childIndex
+      ) {
+        const child = vnode.children[childIndex]
+        if (child != null && typeof child !== 'string') {
+          invokeDestroyHook(child, destroyedElements, destroyedVnodes)
         }
       }
     }
@@ -663,7 +677,7 @@ export function init(
     hook?.postpatch?.(oldVnode, vnode)
   }
 
-  return function patch(
+  const patch = function patch(
     oldVnode: VNode | Element | DocumentFragment,
     vnode: VNode,
   ): VNode {
@@ -715,4 +729,12 @@ export function init(
     }
     return vnode
   }
+  patch.destroy = (
+    vnode: VNode,
+    destroyedElements: Set<Node> = new Set(),
+    destroyedVnodes: Set<VNode> = new Set(),
+  ): void => {
+    invokeDestroyHook(vnode, destroyedElements, destroyedVnodes)
+  }
+  return patch
 }

@@ -178,6 +178,7 @@ const makeFixture = Effect.gen(function* () {
       makeInstantV3MessageProposalActorSequencePositionKey(
         sessionId,
         'actor-1',
+        clientKeyPair.clientId,
         42,
       ),
     admissionClaimJson: stringifyInstantV3CanonicalJson({
@@ -246,6 +247,7 @@ const makeFixture = Effect.gen(function* () {
       makeInstantV3MessageProposalActorSequencePositionKey(
         sessionId,
         'actor-1',
+        clientKeyPair.clientId,
         43,
       ),
     appSubjectDigest,
@@ -823,6 +825,7 @@ describe('protocol-v3 origin proof verification', () => {
               makeInstantV3MessageProposalActorSequencePositionKey(
                 sessionId,
                 fixture.ordinaryProposal.actorId,
+                fixture.ordinaryProposal.clientId,
                 43,
               ),
           },
@@ -832,6 +835,7 @@ describe('protocol-v3 origin proof verification', () => {
               makeInstantV3MessageProposalActorSequencePositionKey(
                 sessionId,
                 fixture.ordinaryProposal.actorId,
+                fixture.ordinaryProposal.clientId,
                 43,
               ),
           },
@@ -923,6 +927,7 @@ describe('protocol-v3 origin proof verification', () => {
               makeInstantV3MessageProposalActorSequencePositionKey(
                 sessionId,
                 fixture.effectResultProposal.actorId,
+                fixture.effectResultProposal.clientId,
                 44,
               ),
           },
@@ -932,6 +937,7 @@ describe('protocol-v3 origin proof verification', () => {
               makeInstantV3MessageProposalActorSequencePositionKey(
                 sessionId,
                 fixture.effectResultProposal.actorId,
+                fixture.effectResultProposal.clientId,
                 44,
               ),
           },

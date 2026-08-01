@@ -1,10 +1,8 @@
 import { execFileSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const wrapperPath = fileURLToPath(
-  new URL('../../scripts/with-public-instant-env', import.meta.url),
-)
+const wrapperPath = resolve(process.cwd(), 'scripts/with-public-instant-env')
 
 describe('public Instant child environment', () => {
   it('removes admin and CLI credentials before Vite starts', () => {
