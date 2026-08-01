@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 1st, 2026 at 12:04:11 a.m. EDT — `27b73e43624e` feat(instant)!: require explicit Mirror session policy
+
+- **Implementation commit:** `27b73e43624e7b198d9ca05732f1cafa050fe42d`
+- **Change:** Make Mirror an explicit, inspectable Instant shared-Processor session policy.
+- **Details:**
+  - Require every shared Processor construction to supply the framework SessionPolicy and its Program-owned synchronization metadata.
+  - Expose the selected policy in the portable snapshot and route optimistic, recovered pending, and accepted Messages through the Program classifier.
+  - Fail SharedDomain and Follow construction with a typed protocol-version error until accepted occurrences persist immutable audiences.
+- **Files:**
+  - `.changeset/make-instant-mirror-explicit.md` — Record the public Instant adapter API change.
+  - `packages/instant/README.md` — Document the explicit Mirror boundary and protocol-v2 safety gate.
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.test.ts` — Prove explicit Mirror diagnostics, classification, and typed rejection of partitioned modes.
+  - `packages/instant/src/sharedProgramProcessor/sharedProgramProcessor.ts` — Require and expose the framework policy while preserving Mirror optimism and accepted application.
+- **User context (verbatim):**
+  > Mirror mode.
+  > Framework level session should choose the mode: instant transports authenticated schema valid messages.
+  > Obviously, first, let's do mirror mode
+- **SpecStory:** unavailable — Unavailable: this work ran in Codex desktop, and no verified SpecStory GUI capture exists.
+
 ## July 31st, 2026 at 11:54:49 p.m. EDT — `3d0a52547120` feat(foldkit): model synchronized Program session modes
 
 - **Implementation commit:** `3d0a52547120871201bc0c3db55bcfe16a0af6f6`
