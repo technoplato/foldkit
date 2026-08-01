@@ -53,6 +53,7 @@ import {
   resolveNavigationCarrier,
 } from './navigationCarrier.js'
 import type { Interaction } from './presentation.js'
+import { MultipleCountersProgram } from './program.js'
 import { update } from './update.js'
 
 const invocationFacts = (occurrenceId: string) =>
@@ -589,6 +590,9 @@ describe('Multiple Counters Message admission', () => {
 
     expect(MultipleCountersMessageAdmission.Claim).toBe(
       MultipleCountersAdmissionClaim,
+    )
+    expect(MultipleCountersMessageAdmission.program).toBe(
+      MultipleCountersProgram,
     )
     expect(MultipleCountersMessageAdmission.decodeClaim).toBe(
       decodeMultipleCountersAdmissionClaim,
