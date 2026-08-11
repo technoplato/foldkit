@@ -1,2 +1,1 @@
-export { ts } from './index.js'
-export type { CallableTaggedStruct } from './index.js'
+export { ts, type CallableTaggedStruct } from './index.js'
