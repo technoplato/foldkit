@@ -1,1 +1,8 @@
-export { m } from '../schema/index.js'
+export {
+  m,
+  md,
+  type CallableTaggedStruct,
+  type CallableTaggedStructWithDoc,
+  type MessageDoc,
+  type MessageDocOptions,
+} from '../schema/index.js'
