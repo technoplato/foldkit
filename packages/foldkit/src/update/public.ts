@@ -1,9 +1,22 @@
-export { combine, refresh } from './index.js'
+export {
+  SignalInstrumentationOptions,
+  SignalInstrumentationState,
+  SignalKind,
+  SignalObservation,
+  SignalPerformanceMetrics,
+  SignalTransition,
+  combine,
+  instrumentSignals,
+  makeSignalInstrumentationState,
+  refresh,
+} from './index.js'
 
 export type {
   Commands,
   Return,
   ReturnWithOutMessage,
-  Step,
   Refreshable,
+  SignalInstrumentationConfig,
+  SignalInstrumentedReturn,
+  Step,
 } from './index.js'
