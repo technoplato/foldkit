@@ -19,7 +19,8 @@ export type UiNode = {
   children: UiNode[]
 }
 
-export type HotspotAction =
+/** Multi-counters list/detail (existing). */
+export type MultiHotspotAction =
   | { _tag: 'add' }
   | { _tag: 'open'; counterId: string }
   | { _tag: 'inc'; counterId: string }
@@ -29,6 +30,35 @@ export type HotspotAction =
   | { _tag: 'delete' }
   | { _tag: 'cancelDelete' }
   | { _tag: 'confirmDelete' }
+
+/** Catalog demos beyond multi-counters. */
+export type CatalogHotspotAction =
+  | { _tag: 'singleInc' }
+  | { _tag: 'singleDec' }
+  | { _tag: 'singleReset' }
+  | {
+      _tag: 'calc'
+      kind:
+        | 'digit'
+        | 'op'
+        | 'clear'
+        | 'equals'
+        | 'dot'
+        | 'percent'
+        | 'sign'
+        | 'backspace'
+      digit?: string
+      operation?: string
+    }
+  | { _tag: 'listAdd' }
+  | { _tag: 'listRemove'; id: string }
+  | { _tag: 'listInc'; id: string }
+  | { _tag: 'listDec'; id: string }
+  | { _tag: 'focusDemo'; slot: 'single' | 'multi' | 'calc' | 'list' | 'chrome' }
+
+export type HotspotAction =
+  | MultiHotspotAction
+  | CatalogHotspotAction
   | { _tag: 'custom'; id: string }
 
 export type LayoutBox = {
