@@ -73,6 +73,9 @@ Before stopping after a commit or amend, verify:
 ## Boundaries
 
 - Do not run the release process. Releases are automated.
-- Do not edit changelogs manually.
+- Do not edit `CHANGELOG.md` by hand. After the implementation commit,
+  follow the two-commit ledger in `AGENTS.md`: run
+  `python3 scripts/change-log/record_change.py` against that SHA, then
+  commit `CHANGELOG.md` alone. Do not recursively log the ledger commit.
 - Do not push unless the user explicitly asks.
 - If the worktree contains unrelated changes that make staging ambiguous, stop and ask which files belong in the commit.
