@@ -4,6 +4,71 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 12th, 2026 at 11:55:03 a.m. EDT — `a69f971ba615` feat(foldkit): classify Message streams beside the domain Model
+
+- **Implementation commit:** `a69f971ba615562ab918362e7874af60c74bd9ff`
+- **Change:** Classify Message streams as Continuous, Periodic, or Discrete beside the domain Model.
+- **Details:**
+  - instrumentSignals wraps update, keeps bounded cadence history, and records Model deltas without changing return types.
+- **Files:**
+  - `packages/foldkit/src/update/signalInstrumentation.ts` — Implements stream classification and bounded delta retention.
+  - `packages/foldkit/src/update/signalInstrumentation.test.ts` — Proves suppression, retention limits, and type preservation.
+- **User context (verbatim):**
+  > I want to bring in that signal instrumentation
+- **SpecStory:** unavailable — work performed in Cursor desktop, which SpecStory CLI does not capture.
+
+## August 12th, 2026 at 11:55:03 a.m. EDT — `50cef715b2ef` feat(pis-canvas-lab): full-viewport map with all catalog demos
+
+- **Implementation commit:** `50cef715b2eff72b4b610760e13a28492bb7c2c2`
+- **Change:** Show every catalog demo on one fullscreen PIS-style canvas.
+- **Details:**
+  - Toolbar toggles demo visibility. Hotspots enqueue composed lab Messages.
+- **Files:**
+  - `examples/pis-canvas-lab/react/src/FoldkitCanvas.tsx` — Lays out the full-viewport catalog map.
+  - `examples/pis-canvas-lab/react/src/ascii-ui/catalogProduct.ts` — Paints all catalog demo phones.
+- **User context (verbatim):**
+  > full-viewport map with all catalog demos
+- **SpecStory:** unavailable — work performed in a desktop AI environment.
+
+## August 12th, 2026 at 11:55:03 a.m. EDT — `411efb02ff96` feat(pis-canvas-lab): Program.compose catalog + fixed ASCII hotspots
+
+- **Implementation commit:** `411efb02ff969ff976409b78a0b293df54c3a3a5`
+- **Change:** Add Program.compose and a PIS canvas lab that nests catalog demos.
+- **Details:**
+  - compose.forEach nests monorepo demos. ASCII hotspots use canvas text metrics instead of getBoundingClientRect.
+- **Files:**
+  - `packages/foldkit/src/program/compose.ts` — Implements Program.compose and compose.forEach.
+  - `examples/pis-canvas-lab/react/src/FoldkitCanvas.tsx` — Hosts ASCII phones on a canvas map.
+- **User context (verbatim):**
+  > Program.compose catalog + fixed ASCII hotspots
+- **SpecStory:** unavailable — work performed in a desktop AI environment.
+
+## August 12th, 2026 at 11:55:03 a.m. EDT — `59f85cd32c8d` feat(message): co-locate what/why docs on m constructors
+
+- **Implementation commit:** `59f85cd32c8d6bea2da1c44edbd8fbbddcf5c2c1`
+- **Change:** Co-locate what and why docs on Message constructors without changing wire values.
+- **Details:**
+  - Docs hang on the callable constructor via Proxy. Wire values stay pure tag-and-fields objects.
+- **Files:**
+  - `packages/foldkit/src/schema/index.ts` — Detects string-valued what and why on m constructors.
+  - `packages/foldkit/src/schema/index.test.ts` — Proves legacy m constructors stay unchanged.
+- **User context (verbatim):**
+  > feat(m-message-docs)
+- **SpecStory:** unavailable — work performed in a desktop AI environment.
+
+## August 12th, 2026 at 11:55:02 a.m. EDT — `d89f48def262` docs: propose view layer separation and multi-client explorations
+
+- **Implementation commit:** `d89f48def2625399eb5d16300d862b63aebb65b9`
+- **Change:** Propose view-layer separation so one Program can drive many Clients.
+- **Details:**
+  - Documents Foldkit HTML, React, React Native, and terminal adapters over a renderer-free core Program.
+  - Wallet creation and multichain send already live on this branch; the leftover worktrees were stale snapshots.
+- **Files:**
+  - `README.md` — States the view-agnostic multi-client exploration.
+- **User context (verbatim):**
+  > get everything onto the view agnosticism branch
+- **SpecStory:** unavailable — work performed in Cursor desktop, which SpecStory CLI does not capture.
+
 ## August 1st, 2026 at 9:30:17 a.m. EDT — `dc6e090f9a92` wip: save in-flight work streams as watermark at Aug 1, 9:30 AM
 
 - **Implementation commit:** `dc6e090f9a92b0785d1c0cc6502ba307cfb29e47`
