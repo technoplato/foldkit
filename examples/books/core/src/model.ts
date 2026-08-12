@@ -1,9 +1,18 @@
-import { Option, Schema as S } from 'effect'
+import { Array, Option, Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 
 /** Preferred packaging on a shelf row. */
 export const Preferred = S.Literals(['None', 'Audio', 'Text', 'Both'])
 export type Preferred = typeof Preferred.Type
+
+/** One spoken token on the audio timeline. */
+export const Word = S.Struct({
+  id: S.String,
+  text: S.String,
+  start: S.Number,
+  end: S.Number,
+})
+export type Word = typeof Word.Type
 
 /** One shelf row the Program can open. */
 export const Item = S.Struct({
@@ -13,7 +22,9 @@ export const Item = S.Struct({
   preferred: Preferred,
   textId: S.Option(S.String),
   audioId: S.Option(S.String),
+  audioUrl: S.Option(S.String),
   body: S.String,
+  words: S.Array(Word),
 })
 export type Item = typeof Item.Type
 
@@ -72,7 +83,9 @@ export const dune: Item = {
   preferred: 'Both',
   textId: Option.some('r-text-1'),
   audioId: Option.some('r-audio-1'),
+  audioUrl: Option.none(),
   body: 'A beginning is the time for taking the most delicate care that the balances are correct.',
+  words: [],
 }
 
 export const kindred: Item = {
@@ -82,13 +95,27 @@ export const kindred: Item = {
   preferred: 'Text',
   textId: Option.some('r-text-2'),
   audioId: Option.none(),
+  audioUrl: Option.none(),
   body: 'I lost an arm on my last trip home.',
+  words: [],
+}
+
+export const newEarth: Item = {
+  id: 'i3',
+  title: 'A New Earth',
+  authorLabel: 'Eckhart Tolle',
+  preferred: 'Both',
+  textId: Option.some('r-text-3'),
+  audioId: Option.some('r-audio-3'),
+  audioUrl: Option.some('/a-new-earth-evocation.mp3?v=2'),
+  body: 'Chapter One. Evocation.',
+  words: [],
 }
 
 export const initialModel: Model = {
   screen: SignedOut(),
   play: PlayIdle(),
-  items: [dune, kindred],
+  items: [newEarth, dune, kindred],
   speechRate: 1,
 }
 
@@ -109,3 +136,13 @@ export const readerForItem = (item: Item): Screen => {
 
 export const shelfForItems = (items: ReadonlyArray<Item>): Screen =>
   items.length === 0 ? ShelfEmpty() : ShelfBrowse()
+
+/** Finds the word whose half-open interval contains an audio time. */
+export const wordAt = (
+  words: ReadonlyArray<Word>,
+  seconds: number,
+): Option.Option<Word> =>
+  Array.findFirst(
+    words,
+    word => seconds >= word.start && seconds < word.end,
+  )

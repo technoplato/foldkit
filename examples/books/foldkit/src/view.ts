@@ -2,6 +2,7 @@ import {
   type Item,
   type Message,
   type Model,
+  type Word,
   PressedGoBack,
   PressedOpenAccounts,
   PressedOpenBook,
@@ -13,6 +14,7 @@ import {
   PressedResumePlayback,
   PressedScanFinished,
   PressedScanShelf,
+  PressedSeekWord,
   PressedShowAudio,
   PressedShowBoth,
   PressedShowText,
@@ -21,11 +23,14 @@ import {
   PressedStartPlayback,
   PressedStopPlayback,
   itemById,
+  wordAt,
 } from 'books-core-example'
 import { Match as M, Option } from 'effect'
-import { Document, html } from 'foldkit/html'
+import { Document, type Html, html } from 'foldkit/html'
 
 import { Button } from '@foldkit/ui'
+
+import { ObserveReaderAudio, ScrollCurrentWord } from './audio-clock.js'
 
 const h = html<Message>()
 
@@ -58,15 +63,22 @@ const itemCard = (item: Item) =>
     ],
   )
 
-const chrome = (body: ReadonlyArray<ReturnType<typeof h.div>>) =>
+const chrome = (body: ReadonlyArray<Html>) =>
   h.div(
-    [h.Class('min-h-screen bg-zinc-950 text-amber-50 p-6 max-w-xl mx-auto')],
+    [h.Class('min-h-screen bg-zinc-950 text-amber-50 p-6 max-w-4xl mx-auto')],
     body,
   )
 
+const formatTime = (seconds: number): string => {
+  const rounded = Math.max(0, Math.floor(seconds))
+  const minutes = Math.floor(rounded / 60)
+  const rest = rounded % 60
+  return `${minutes}:${rest.toString().padStart(2, '0')}`
+}
+
 const playBar = (model: Model) =>
   M.value(model.play).pipe(
-    M.withReturnType<ReturnType<typeof h.div>>(),
+    M.withReturnType<Html>(),
     M.tagsExhaustive({
       PlayIdle: () =>
         h.div([h.Class('text-zinc-500 text-sm mt-8')], ['playIdle']),
@@ -80,13 +92,18 @@ const playBar = (model: Model) =>
             action('Open audio', PressedOpenPlaybackReader()),
             h.span(
               [h.Class('text-sm text-zinc-400')],
-              [`${item?.title ?? play.itemId} paused`],
+              [
+                `${item?.title ?? play.itemId} paused · ${formatTime(play.mediaPosition)}`,
+              ],
             ),
           ],
         )
       },
       PlayPlaying: play => {
         const item = itemById(model.items, play.itemId)
+        const current = item === undefined
+          ? Option.none()
+          : wordAt(item.words, play.mediaPosition)
         return h.div(
           [h.Class('mt-8 flex flex-wrap gap-2 items-center')],
           [
@@ -95,7 +112,11 @@ const playBar = (model: Model) =>
             action('Open audio', PressedOpenPlaybackReader()),
             h.span(
               [h.Class('text-sm text-zinc-400')],
-              [`${item?.title ?? play.itemId} playing`],
+              [
+                `${item?.title ?? play.itemId} playing · ${formatTime(play.mediaPosition)}${
+                  Option.isSome(current) ? ` · ${current.value.text}` : ''
+                }`,
+              ],
             ),
           ],
         )
@@ -115,9 +136,93 @@ const signedInNav = () =>
     ],
   )
 
+const wordButton = (word: Word, maybeCurrentId: Option.Option<string>) => {
+  const isCurrent =
+    Option.isSome(maybeCurrentId) && maybeCurrentId.value === word.id
+  const attributes = [
+    h.Type('button'),
+    h.Key(word.id),
+    h.AriaLabel(word.text),
+    h.Class(
+      isCurrent
+        ? 'bg-amber-500 text-zinc-950 rounded-sm px-0.5 mx-0.5'
+        : 'px-0.5 mx-0.5 hover:bg-zinc-800 rounded-sm',
+    ),
+    h.OnClick(PressedSeekWord({ start: word.start })),
+    ...(isCurrent
+      ? [h.AriaCurrent('true'), h.OnMount(ScrollCurrentWord())]
+      : []),
+  ]
+  return h.button(attributes, [word.text])
+}
+
+const transcriptView = (item: Item, mediaPosition: number) => {
+  if (item.words.length === 0) {
+    return h.p([h.Class('leading-7')], [item.body])
+  }
+  const maybeCurrent = wordAt(item.words, mediaPosition)
+  const maybeCurrentId = Option.map(maybeCurrent, word => word.id)
+  return h.p(
+    [h.Class('leading-8 text-lg max-h-[28rem] overflow-y-auto')],
+    item.words.map(word => wordButton(word, maybeCurrentId)),
+  )
+}
+
+const mediaPositionFor = (model: Model, itemId: string): number => {
+  if (model.play._tag === 'PlayIdle' || model.play.itemId !== itemId) {
+    return 0
+  }
+  return model.play.mediaPosition
+}
+
+const activeAudioItem = (model: Model): Item | undefined => {
+  if (model.play._tag !== 'PlayIdle') {
+    return itemById(model.items, model.play.itemId)
+  }
+  return M.value(model.screen).pipe(
+    M.withReturnType<Item | undefined>(),
+    M.tagsExhaustive({
+      ReaderAudio: ({ itemId }) => itemById(model.items, itemId),
+      ReaderBoth: ({ itemId }) => itemById(model.items, itemId),
+      ReaderText: ({ itemId }) => itemById(model.items, itemId),
+      Accounts: () => undefined,
+      ImportIdle: () => undefined,
+      ImportScanning: () => undefined,
+      Search: () => undefined,
+      Settings: () => undefined,
+      ShelfBrowse: () => undefined,
+      ShelfEmpty: () => undefined,
+      SignedOut: () => undefined,
+    }),
+  )
+}
+
+const readerAudio = (item: Item) => {
+  if (Option.isNone(item.audioUrl) || Option.isNone(item.audioId)) {
+    return h.span([], [])
+  }
+  return h.audio(
+    [
+      h.Id('books-reader-audio'),
+      h.Key(item.id),
+      h.Class('w-full mt-4'),
+      h.Controls(true),
+      h.Preload('auto'),
+      h.OnMount(
+        ObserveReaderAudio({
+          itemId: item.id,
+          renditionId: item.audioId.value,
+          src: item.audioUrl.value,
+        }),
+      ),
+    ],
+    [],
+  )
+}
+
 export const view = (model: Model): Document => {
   const body = M.value(model.screen).pipe(
-    M.withReturnType<ReturnType<typeof h.div>>(),
+    M.withReturnType<Html>(),
     M.tagsExhaustive({
       SignedOut: () =>
         chrome([
@@ -143,6 +248,7 @@ export const view = (model: Model): Document => {
             model.items.map(item => itemCard(item)),
           ),
           playBar(model),
+          audioHost(model),
         ]),
       ReaderText: ({ itemId }) => readerView(model, itemId, 'text'),
       ReaderAudio: ({ itemId }) => readerView(model, itemId, 'audio'),
@@ -207,12 +313,61 @@ export const view = (model: Model): Document => {
   return { title: 'Books', body }
 }
 
+const audioHost = (model: Model) => {
+  const item = activeAudioItem(model)
+  if (item === undefined || Option.isNone(item.audioUrl)) {
+    return h.span([], [])
+  }
+  return readerAudio(item)
+}
+
 const readerView = (
   model: Model,
   itemId: string,
   pane: 'text' | 'audio' | 'both',
 ) => {
   const item = itemById(model.items, itemId)
+  const position = mediaPositionFor(model, itemId)
+  const transcript =
+    item === undefined
+      ? h.p([], [itemId])
+      : transcriptView(item, position)
+  const panes =
+    pane === 'both'
+      ? h.div(
+          [h.Class('grid gap-4 md:grid-cols-2 mb-4')],
+          [
+            h.section(
+              [h.Class('border border-zinc-700 rounded p-3')],
+              [
+                h.h2([h.Class('text-sm text-zinc-400 mb-2')], ['Text']),
+                transcript,
+              ],
+            ),
+            h.section(
+              [h.Class('border border-zinc-700 rounded p-3')],
+              [
+                h.h2([h.Class('text-sm text-zinc-400 mb-2')], ['Audio']),
+                h.p(
+                  [h.Class('text-zinc-500 text-sm')],
+                  [
+                    'Press play on the audio bar. Words highlight as Tolle reads. Same timeline · two rendition ids.',
+                  ],
+                ),
+              ],
+            ),
+          ],
+        )
+      : h.div(
+          [h.Class('mb-4')],
+          [
+            transcript,
+            h.p(
+              [h.Class('text-zinc-500 text-sm mt-2')],
+              [pane],
+            ),
+          ],
+        )
   return chrome([
     signedInNav(),
     h.h1(
@@ -220,15 +375,7 @@ const readerView = (
       [item?.title ?? itemId],
     ),
     h.p([h.Class('text-zinc-400 mb-2')], [item?.authorLabel ?? '']),
-    h.p([h.Class('mb-4')], [item?.body ?? '']),
-    h.p(
-      [h.Class('text-zinc-500 text-sm mb-4')],
-      [
-        pane === 'both'
-          ? 'two rendition ids · never one body both'
-          : pane,
-      ],
-    ),
+    panes,
     h.div(
       [h.Class('flex flex-wrap gap-2')],
       [
@@ -242,5 +389,6 @@ const readerView = (
       ],
     ),
     playBar(model),
+    audioHost(model),
   ])
 }

@@ -29,6 +29,7 @@ import {
   makeV3AcceptanceAuthority,
 } from '@foldkit/instant'
 
+import { logMultipleCountersV3Debug } from '../shared/debugLog.js'
 import {
   makeMultipleCountersV3AppSubjectDigest,
   makeMultipleCountersV3SessionIdentity,
@@ -267,6 +268,13 @@ const runSessionAcceptanceAuthority = (
   config: MultipleCountersV3AcceptanceSupervisorConfig,
 ): Effect.Effect<never, V3AcceptanceAuthorityError> =>
   Effect.gen(function* () {
+    logMultipleCountersV3Debug('authority-session', {
+      lifecycleGeneration: session.lifecycleGeneration,
+      sessionId: session.sessionId,
+      sessionIdLength: session.sessionId.length,
+      subjectId: session.subjectId,
+      subjectIdLength: session.subjectId.length,
+    })
     const scope = scopeForSession(session)
     const authority = yield* makeMultipleCountersV3AcceptanceAuthority(
       session,
@@ -292,6 +300,11 @@ const resilientSessionAcceptanceAuthority = (
         }
         return Effect.andThen(
           Effect.sync(() => {
+            logMultipleCountersV3Debug('authority-session-defect', {
+              cause: String(cause).slice(0, 240),
+              sessionId: session.sessionId,
+              subjectId: session.subjectId,
+            })
             config.onSessionDefect?.(cause, session)
           }),
           Effect.sleep(restartDelay),

@@ -174,5 +174,94 @@ export const update = (model: Model, message: Message): Result =>
             ],
           }),
         ),
+      PressedSeekWord: ({ start }) =>
+        M.value(model.play).pipe(
+          M.withReturnType<Result>(),
+          M.tagsExhaustive({
+            PlayIdle: () => none(model),
+            PlayPaused: play => [
+              {
+                ...model,
+                play: PlayPaused({ ...play, mediaPosition: start }),
+              },
+              [],
+            ],
+            PlayPlaying: play => [
+              {
+                ...model,
+                play: PlayPlaying({ ...play, mediaPosition: start }),
+              },
+              [],
+            ],
+          }),
+        ),
+      HeardPlaybackPosition: ({ mediaPosition }) =>
+        M.value(model.play).pipe(
+          M.withReturnType<Result>(),
+          M.tagsExhaustive({
+            PlayIdle: () => none(model),
+            PlayPaused: play => [
+              {
+                ...model,
+                play: PlayPaused({ ...play, mediaPosition }),
+              },
+              [],
+            ],
+            PlayPlaying: play => [
+              {
+                ...model,
+                play: PlayPlaying({ ...play, mediaPosition }),
+              },
+              [],
+            ],
+          }),
+        ),
+      HeardAudioPlaying: ({ itemId, renditionId }) => {
+        const mediaPosition =
+          model.play._tag === 'PlayIdle' || model.play.itemId !== itemId
+            ? 0
+            : model.play.mediaPosition
+        return [
+          {
+            ...model,
+            play: PlayPlaying({ itemId, renditionId, mediaPosition }),
+          },
+          [],
+        ]
+      },
+      HeardAudioPaused: () =>
+        M.value(model.play).pipe(
+          M.withReturnType<Result>(),
+          M.tagsExhaustive({
+            PlayIdle: () => none(model),
+            PlayPaused: () => none(model),
+            PlayPlaying: play => [
+              {
+                ...model,
+                play: PlayPaused({
+                  itemId: play.itemId,
+                  renditionId: play.renditionId,
+                  mediaPosition: play.mediaPosition,
+                }),
+              },
+              [],
+            ],
+          }),
+        ),
+      HeardAudioEnded: () => [{ ...model, play: PlayIdle() }, []],
+      HeardFollowAlong: ({ itemId, body, words }) => [
+        {
+          ...model,
+          items: model.items.map(item =>
+            item.id === itemId ? { ...item, body, words } : item,
+          ),
+        },
+        [],
+      ],
+      FailedFollowAlong: () => none(model),
+      CompletedPlayAudio: () => none(model),
+      CompletedPauseAudio: () => none(model),
+      CompletedSeekAudio: () => none(model),
+      CompletedScrollCurrentWord: () => none(model),
     }),
   )

@@ -238,7 +238,7 @@ const observeAdminQuery = <Record>(
         ),
       ),
       subscription => Effect.sync(() => subscription.close()),
-    ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
   )
 
 const observeAllEnrollmentClaims = (
@@ -332,7 +332,7 @@ const observeAllPolicyRequests = (
         ),
       ),
       subscription => Effect.sync(() => subscription.close()),
-    ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
   )
 
 const queryPolicyResolution = (

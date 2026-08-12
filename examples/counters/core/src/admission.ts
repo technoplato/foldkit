@@ -95,7 +95,6 @@ export const resolveMultipleCountersAdmissionClaim = (
 ): Result.Result<Message, MultipleCountersAdmissionError> => {
   const parsedInvocationFacts = SchemaParser.decodeUnknownResult(
     InteractionInvocationFacts,
-    { onExcessProperty: 'error' },
   )(invocationFacts)
   if (Result.isFailure(parsedInvocationFacts)) {
     return Result.fail(

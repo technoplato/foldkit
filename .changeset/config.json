@@ -94,6 +94,12 @@
     "@foldkit/lustre-benchmark",
     "charting-example",
     "checkout-machine-example",
+    "conversations-cli-example",
+    "conversations-core-example",
+    "conversations-foldkit-example",
+    "conversations-react-bindings-example",
+    "conversations-react-example",
+    "conversations-tui-example",
     "personal-blog-example",
     "interrupting-commands-example"
   ]

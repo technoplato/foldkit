@@ -13,7 +13,11 @@
     "src/shared/identity.ts",
     "src/shared/presence.ts",
     "src/shared/sessionClaim.ts",
-    "src/transport/**/*.ts"
+    "src/transport/**/*.ts",
+    "src/v3Demo/client/**/*.ts",
+    "src/v3Demo/shared/**/*.ts",
+    "src/v3Demo/headless/enrollmentMaterializer.ts",
+    "src/v3Demo/headless/messageProtocol.ts"
   ],
   "exclude": ["src/**/*.test.ts"]
 }

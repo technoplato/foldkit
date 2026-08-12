@@ -160,6 +160,7 @@ export const interactionAdmissionLimits = Object.freeze({
   interactionPathDepth: 32,
   interactionSourceComponentLength: 128,
   interactionTokenLength: 128,
+  invocationFactIdentityLength: 512,
   selectionChoiceIdLength: 128,
 })
 

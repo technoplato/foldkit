@@ -88,7 +88,57 @@ In another terminal, start the browser Client. The public-environment scrubber r
   pnpm --dir examples/instant-counter dev
 ```
 
-Open the Vite URL in two isolated browser contexts on the development laptop and sign in as the exact same Instant user. Each browser context is a distinct Client with its own Processor, and the headless admission sequencer is a third Processor. All three run the same Program. The headless Processor additionally has trusted admission-writer and background-timer capabilities. Use the same authentication method unless those Google and email identities have already been linked in Instant. A Google identity and an email identity with the same displayed address must not be assumed to be the same authenticated subject.
+Open the Vite URL in two isolated browser contexts on the development laptop. In local Vite, the signed-out page includes **Debug login** buttons for `alice@fake.com` and `bob@fake.com`. Those buttons ask the headless process to mint Instant magic codes on loopback. They never receive the admin token. Use Alice in both tabs to get two Processors of one subject, or Alice in one tab and Bob in the other to exercise cross-subject permissions. Set `FOLDKIT_INSTANT_DEBUG_LOGIN=0` on the headless process to disable minting. Production builds omit the buttons.
+
+Signed-in Clients share one session policy. Independent keeps navigation Processor-specific while domain Messages stay shared, so one Processor can stay on the list while another is on a counter detail, fact, or delete confirmation. Mirror copies domain and navigation to every Processor. Follow aligns a follower on the leader's next accepted Navigation Message, either as Observe or Remote control. Observe followers keep domain actions such as increment, decrement, reset, and add. They cannot open, leave, or change destinations themselves. The Foldkit browser, React, CLI, and TUI Clients all request that policy through the same controller. Mode is not a Program Model field.
+
+In additional terminals, after the headless authority is running:
+
+```sh
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  examples/instant-counter/scripts/with-public-instant-env \
+  pnpm --dir examples/instant-counter dev:react
+```
+
+```sh
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter cli login alice
+
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter cli show
+
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter cli run open:counter-1
+
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter cli run fact
+
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter cli run increment:counter-1 decrement:counter-1
+
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter cli mode independent
+
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter cli mode mirror
+
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter cli follow --leader <processor-id> --control observe
+```
+
+```sh
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --dir examples/instant-counter tui
+```
+
+```sh
+/Users/laptop/Sync/skills/foldkit-instant-demo/scripts/with-foldkit-instant-demo-credentials \
+  pnpm --filter instant-counter-expo-example dev-client
+```
+
+The CLI and TUI keep separate Processor identities under `~/.config/foldkit-instant-counter/clients/`. Copy a Processor id from one surface's chrome into another surface's Follow form or `cli follow` to Observe or Remote-control it. React listens on `http://localhost:5174`. The Expo Dev Client is a fifth Processor with its own AsyncStorage identity. Physical devices need `FOLDKIT_INSTANT_DEBUG_LOGIN_HOST=0.0.0.0` on the headless process so Alice and Bob codes can be minted over the LAN.
+
+Otherwise sign in as the exact same Instant user with email magic codes or Google. Each browser context is a distinct Client with its own Processor, and the headless admission sequencer is a third Processor. All three run the same Program. The headless Processor additionally has trusted admission-writer and background-timer capabilities. Use the same authentication method unless those Google and email identities have already been linked in Instant. A Google identity and an email identity with the same displayed address must not be assumed to be the same authenticated subject.
 
 The persistent demo app currently registers the Google OAuth origin for `localhost:5173`. That does not establish physical-phone acceptance because a phone cannot use the laptop's localhost origin. A physical two-device run needs a reachable HTTPS development origin registered with Instant and the Google OAuth client. Email magic-code authentication can then use that same reachable origin. Until that origin is configured and tested, this walkthrough claims localhost multi-Client acceptance only.
 

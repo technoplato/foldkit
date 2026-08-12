@@ -521,7 +521,7 @@ export const makeInstantProgramStore = (
           ),
         ),
         unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     ),
   observeConnectionStatus: makeInstantConnectionStatusStream({
     current: () =>
@@ -589,7 +589,7 @@ export const makeInstantProgramStore = (
           ),
         ),
         unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     ),
   observeEffectRequests: scope =>
     Stream.callback<
@@ -647,7 +647,7 @@ export const makeInstantProgramStore = (
           ),
         ),
         unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     ),
   observeMessageProposals: scope =>
     Stream.callback<
@@ -736,7 +736,7 @@ export const makeInstantProgramStore = (
           ),
         ),
         unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     ),
   observeMessageProposalResolutions: scope =>
     Stream.callback<
@@ -798,7 +798,7 @@ export const makeInstantProgramStore = (
           ),
         ),
         unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     ),
   observeProgramSessions: scope =>
     Stream.callback<
@@ -855,7 +855,7 @@ export const makeInstantProgramStore = (
           ),
         ),
         unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     ),
   observeProjectionCheckpoints: scope =>
     Stream.callback<
@@ -917,7 +917,7 @@ export const makeInstantProgramStore = (
           ),
         ),
         unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     ),
 })
 

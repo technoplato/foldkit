@@ -31,6 +31,7 @@ import {
   verifyOriginEnrollmentClaim,
 } from '@foldkit/instant'
 
+import { logMultipleCountersV3Debug } from '../shared/debugLog.js'
 import {
   makeMultipleCountersV3EntityId,
   makeMultipleCountersV3OriginPolicyId,
@@ -418,8 +419,34 @@ export const runMultipleCountersV3EnrollmentMaterializer = <StreamError>(
       ),
       record =>
         materializeMultipleCountersV3Enrollment(record, config).pipe(
+          Effect.tap(materialization =>
+            Effect.sync(() => {
+              if (
+                materialization.originPolicyDisposition === 'Idempotent' &&
+                materialization.programSessionDisposition === 'Existing'
+              ) {
+                return
+              }
+              logMultipleCountersV3Debug('enrollment-materialized', {
+                originPolicyDisposition:
+                  materialization.originPolicyDisposition,
+                programSessionDisposition:
+                  materialization.programSessionDisposition,
+                sessionId: materialization.programSession.sessionId,
+                sessionIdLength:
+                  materialization.programSession.sessionId.length,
+                subjectId: materialization.programSession.subjectId,
+                subjectIdLength:
+                  materialization.programSession.subjectId.length,
+              })
+            }),
+          ),
           Effect.catchTag('MultipleCountersV3EnrollmentClaimError', error =>
             Effect.sync(() => {
+              logMultipleCountersV3Debug('enrollment-rejected', {
+                stage: error.stage,
+                subjectId: record.subjectId,
+              })
               config.onRejectedClaim?.(error, record)
             }),
           ),

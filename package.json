@@ -65,6 +65,8 @@
     "dev:example:showcase:web": "pnpm --filter react-native-showcase-example web",
     "dev:example:calculator": "pnpm --filter calculator-core-example build && pnpm --filter calculator-foldkit-example dev",
     "dev:example:calculator:react": "pnpm --filter calculator-react-example dev",
+    "dev:example:conversations": "pnpm --filter conversations-core-example build && pnpm --filter conversations-foldkit-example dev",
+    "dev:example:conversations:react": "pnpm --filter conversations-react-example dev",
     "dev:example:fact:react": "pnpm --filter fact-react-example dev",
     "dev:example:replayability": "pnpm --filter replayability-example dev",
     "dev:example:replayability:react": "pnpm --filter replayability-example dev",

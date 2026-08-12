@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "jsx": "react-jsx",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "noEmit": true,
     "types": ["node", "vite/client"]
@@ -9,7 +10,9 @@
     "instant.perms.ts",
     "instant.schema.ts",
     "src/**/*.ts",
+    "src/**/*.tsx",
     "vite.config.ts",
+    "vite.react.config.ts",
     "vitest.config.ts"
   ]
 }

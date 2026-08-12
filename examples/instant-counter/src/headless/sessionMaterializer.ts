@@ -114,7 +114,7 @@ const observeSessionClaims = (
           ),
       ),
       subscription => Effect.sync(() => subscription.close()),
-    ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
   )
 
 /** Builds canonical session fields exclusively from trusted headless inputs. */

@@ -4,6 +4,8 @@ import { type Plugin, defineConfig } from 'vite'
 
 import { foldkit } from '@foldkit/vite-plugin'
 
+import { multipleCountersV3DebugLoginLoopbackPort } from './src/v3Demo/shared/debugLogin.js'
+
 const buildAssetMarker = '__FOLDKIT_BUILD_ASSETS__'
 const serviceWorkerFileName = 'instant-counter-sw.js'
 
@@ -42,4 +44,15 @@ const precacheBuildAssets = (): Plugin => {
 
 export default defineConfig({
   plugins: [foldkit(), precacheBuildAssets()],
+  optimizeDeps: {
+    entries: ['index.html'],
+  },
+  server: {
+    proxy: {
+      '/__foldkit-debug': {
+        target: `http://127.0.0.1:${multipleCountersV3DebugLoginLoopbackPort.toString()}`,
+        rewrite: path => path.replace(/^\/__foldkit-debug/, ''),
+      },
+    },
+  },
 })

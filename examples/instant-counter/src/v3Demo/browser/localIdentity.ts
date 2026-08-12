@@ -37,9 +37,9 @@ const transactionCompletion = (transaction: IDBTransaction): Promise<void> =>
     )
   })
 
-const openIdentityDatabase = (): Promise<IDBDatabase> =>
+const openIdentityDatabase = (name: string): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
-    const request = indexedDB.open(databaseName, databaseVersion)
+    const request = indexedDB.open(name, databaseVersion)
     request.addEventListener(
       'upgradeneeded',
       () => {
@@ -63,8 +63,11 @@ const openIdentityDatabase = (): Promise<IDBDatabase> =>
     )
   })
 
-const nextActorSequence = (positionKey: string): Promise<number> =>
-  openIdentityDatabase().then(async database => {
+const nextActorSequence = (
+  databaseNameForStore: string,
+  positionKey: string,
+): Promise<number> =>
+  openIdentityDatabase(databaseNameForStore).then(async database => {
     try {
       const transaction = database.transaction(sequencesStoreName, 'readwrite')
       const store = transaction.objectStore(sequencesStoreName)
@@ -78,8 +81,12 @@ const nextActorSequence = (positionKey: string): Promise<number> =>
     }
   })
 
-const readOrCreateValue = (name: string, candidate: string): Promise<string> =>
-  openIdentityDatabase().then(async database => {
+const readOrCreateValue = (
+  databaseNameForStore: string,
+  name: string,
+  candidate: string,
+): Promise<string> =>
+  openIdentityDatabase(databaseNameForStore).then(async database => {
     try {
       const transaction = database.transaction(secretsStoreName, 'readwrite')
       const store = transaction.objectStore(secretsStoreName)
@@ -96,17 +103,18 @@ const readOrCreateValue = (name: string, candidate: string): Promise<string> =>
   })
 
 /** Browser IndexedDB vault with atomic cross-tab sequence and secret allocation. */
-export const makeBrowserMultipleCountersV3LocalIdentityStore =
-  (): MultipleCountersV3LocalIdentityStore => ({
-    nextActorSequence: positionKey =>
-      Effect.tryPromise(() => nextActorSequence(positionKey)),
-    readOrCreateValue: (name, create) =>
-      create.pipe(
-        Effect.flatMap(candidate =>
-          Effect.tryPromise(() => readOrCreateValue(name, candidate)),
-        ),
+export const makeBrowserMultipleCountersV3LocalIdentityStore = (
+  name = databaseName,
+): MultipleCountersV3LocalIdentityStore => ({
+  nextActorSequence: positionKey =>
+    Effect.tryPromise(() => nextActorSequence(name, positionKey)),
+  readOrCreateValue: (secretName, create) =>
+    create.pipe(
+      Effect.flatMap(candidate =>
+        Effect.tryPromise(() => readOrCreateValue(name, secretName, candidate)),
       ),
-  })
+    ),
+})
 
 /** Browser entropy, UUID, and clock sources used only by the host controller. */
 export const browserMultipleCountersV3LocalIdentityEnvironment =

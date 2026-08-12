@@ -34,7 +34,7 @@ const BoundedAuthorityIdentity = S.String.check(
   S.isLengthBetween(1, instantV3ProtocolLimits.positionKeyLength),
 )
 const CapabilityIdJson = S.fromJsonString(Processor.CapabilityId)
-const Forbidden = S.optionalKey(S.Never)
+const Forbidden = S.optionalKey(S.NullOr(S.Never))
 
 const ForbiddenClientRoutingFields = {
   audience: Forbidden,

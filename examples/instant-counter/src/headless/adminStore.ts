@@ -53,7 +53,7 @@ const observeAdminQuery = <Record>(
         ),
       ),
       subscription => Effect.sync(() => subscription.close()),
-    ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
   )
 
 const decodeAcceptedOccurrences = (

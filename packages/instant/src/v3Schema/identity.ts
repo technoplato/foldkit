@@ -21,7 +21,7 @@ export const instantV3ProtocolLimits = Object.freeze({
   certificateJsonLength: 16_384,
   compositeKeyLength: 2_048,
   idempotencyKeyLength: 512,
-  identityLength: 128,
+  identityLength: 512,
   positionKeyLength: 1_024,
   reasonLength: 512,
   sessionEpochIdLength: 128,
@@ -444,7 +444,7 @@ export type InstantV3ProgramSessionIdentity =
   typeof InstantV3ProgramSessionIdentity.Type
 
 const sessionIdPattern =
-  /^([A-Za-z0-9_-]{1,128}):pv(0|[1-9][0-9]*):ip3:([0-9a-f]{64}):([A-Za-z0-9_-]{22,128})$/u
+  /^([A-Za-z0-9_-]{1,512}):pv(0|[1-9][0-9]*):ip3:([0-9a-f]{64}):([A-Za-z0-9_-]{22,512})$/u
 
 const formatInstantV3ProgramSessionId = (
   identity: InstantV3ProgramSessionIdentity,

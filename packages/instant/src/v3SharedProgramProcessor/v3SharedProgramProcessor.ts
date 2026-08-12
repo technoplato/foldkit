@@ -65,7 +65,7 @@ import {
 } from '../v3Schema/index.js'
 import { finishCurrentObserverGeneration } from './observerLifecycle.js'
 
-const BoundedText = S.String.check(S.isLengthBetween(1, 128))
+const BoundedText = S.String.check(S.isLengthBetween(1, 512))
 const NullableIdentity = S.NullOr(InstantV3Identity)
 const defaultInitialObservationReadinessTimeoutMs = 10_000
 

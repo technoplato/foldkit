@@ -121,7 +121,7 @@ describe('browser Multiple Counters v3 policy resolution', () => {
     const responseFailure = await Effect.runPromise(
       Effect.flip(
         resolveBrowserMultipleCountersV3PolicyRequestSubscription(listener => {
-          listener({ error: new Error('query failed') })
+          queueMicrotask(() => listener({ error: new Error('query failed') }))
           return vi.fn()
         }, request),
       ),
