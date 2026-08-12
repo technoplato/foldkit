@@ -1,4 +1,19 @@
 export { make } from './program.js'
+export {
+  compose,
+  forEach,
+  scope,
+  type AnyProgram,
+  type ComposedHelpers,
+  type ComposedMessage,
+  type ComposedModel,
+  type ComposedProgram,
+  type ComposeOptions,
+  type ForEachMessage,
+  type ForEachModel,
+  type ForEachProgram,
+  type ForEachRow,
+} from './compose.js'
 export { makeMessageAdmission } from './messageAdmission.js'
 export {
   makeDestinationRouter,
