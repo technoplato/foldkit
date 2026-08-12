@@ -137,9 +137,11 @@ export function m(
       what: fieldsOrOptions.what,
       why: fieldsOrOptions.why,
     }
-    return makeCallable(S.TaggedStruct(tag, fields), doc)
+    return makeCallable(S.TaggedStruct(tag, fields as S.Struct.Fields), doc)
   }
-  return makeCallable(S.TaggedStruct(tag, fieldsOrOptions))
+  return makeCallable(
+    S.TaggedStruct(tag, fieldsOrOptions as S.Struct.Fields),
+  )
 }
 
 /**
@@ -166,13 +168,10 @@ export function md<Tag extends string, Fields extends S.Struct.Fields>(
 export function md(
   tag: string,
   options: MessageDocOptions,
-): CallableTaggedStructWithDoc<string, S.Struct.Fields> {
+): any {
   const fields = options.fields ?? {}
   const doc: MessageDoc = { what: options.what, why: options.why }
-  return makeCallable(
-    S.TaggedStruct(tag, fields),
-    doc,
-  ) as CallableTaggedStructWithDoc<string, S.Struct.Fields>
+  return makeCallable(S.TaggedStruct(tag, fields as S.Struct.Fields), doc)
 }
 
 /**
