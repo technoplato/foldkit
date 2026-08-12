@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 12th, 2026 at 1:22:40 p.m. EDT — `a990e1cd7d5a` feat(books): add word-timed library Program example
+
+- **Implementation commit:** `a990e1cd7d5aa360ff493c436fb9f389eeb50f6f`
+- **Change:** Add a word-timed books library Foldkit Program example
+- **Details:**
+  - Core Program models screen and play as separate unions; HTML host on port 5180.
+- **Files:**
+  - `examples/books/core/src/update.ts` — Books Program update for screen and play
+  - `examples/books/core/src/update.test.ts` — Core tests for sign-in, open book, and play
+  - `examples/books/foldkit/src/view.ts` — Foldkit HTML view for the books session tree
+- **User context (verbatim):**
+  > PISS CLI registration, HTML/Foldkit/Swift hosts. Represent first; emit later.
+  > commit books
+- **SpecStory:** unavailable — Unavailable: work performed in Cursor desktop, which SpecStory CLI does not capture.
+
 ## August 12th, 2026 at 11:55:03 a.m. EDT — `a69f971ba615` feat(foldkit): classify Message streams beside the domain Model
 
 - **Implementation commit:** `a69f971ba615562ab918362e7874af60c74bd9ff`
