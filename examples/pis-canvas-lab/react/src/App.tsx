@@ -7,9 +7,9 @@ import {
 import { Match as M, Option, Schema as S } from 'effect'
 import { type ReactNode } from 'react'
 
+import { FoldkitCanvas } from './FoldkitCanvas.js'
 import { ReactAPresentation } from './reactA.js'
 import { ReactBPresentation } from './reactB.js'
-import { FoldkitCanvas } from './FoldkitCanvas.js'
 import {
   CounterDetailView,
   CounterListView,
@@ -22,7 +22,7 @@ export const Presenter = S.Literals(['ReactA', 'ReactB'])
 /** The two React presentation adapters included in this comparison. */
 export type Presenter = typeof Presenter.Type
 
-/** Runs the selected React host from one canonical Program destination URI. */
+/** Full-viewport PIS map host — Foldkit composed catalog. */
 export const App = ({
   initialDestinationUri,
   presenter,
@@ -34,17 +34,17 @@ export const App = ({
     fallback={<LoadingScreen />}
     initialDestinationUri={initialDestinationUri}
   >
-    <MultipleCountersScreen presenter={presenter} />
+    <LabScreen presenter={presenter} />
   </MultipleCountersProvider>
 )
 
 const LoadingScreen = () => (
-  <main className="grid min-h-screen place-items-center bg-stone-950 text-stone-400">
-    Starting Multiple Counters…
+  <main className="grid min-h-dvh place-items-center bg-stone-950 text-stone-400">
+    Starting PIS lab…
   </main>
 )
 
-const MultipleCountersScreen = ({ presenter }: { presenter: Presenter }) => {
+const LabScreen = ({ presenter }: { presenter: Presenter }) => {
   const model = useMultipleCountersModel()
   const maybeResolutionError = useMultipleCountersResolutionError()
   const destination = destinationForModel(model)
@@ -55,41 +55,27 @@ const MultipleCountersScreen = ({ presenter }: { presenter: Presenter }) => {
   useNavigationHistory(model)
 
   return (
-    <main className="min-h-screen bg-stone-950 px-5 py-10 text-stone-100">
-      <section className="mx-auto grid w-full max-w-6xl gap-8 pb-36">
-        <header className="space-y-3">
-          <p className="font-mono text-xs uppercase tracking-[0.24em] text-amber-400">
-            PIS canvas · Foldkit-driven multi-counters
-          </p>
-          <h1 className="text-4xl font-semibold tracking-tight">
-            Counters on the map
-          </h1>
-          <p className="max-w-2xl text-stone-400">
-            Atomic UI tree (VStack / HStack / Text / Button) → AsciiSurface
-            layout → phones. Foldkit Model drives the tree; hotspots come from
-            layout boxes. Non-captive CLI:{' '}
-            <code className="text-amber-200/90">pnpm cli:dump</code> in this
-            package.
-          </p>
-        </header>
+    <main className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-stone-950 text-stone-100">
+      {Option.isSome(maybeResolutionError) ? (
+        <output
+          aria-live="assertive"
+          className="shrink-0 border-b border-red-900 bg-red-950/80 px-3 py-1 text-sm text-red-300"
+          role="alert"
+        >
+          {maybeResolutionError.value._tag}
+        </output>
+      ) : null}
 
-        {Option.isSome(maybeResolutionError) ? (
-          <output
-            aria-live="assertive"
-            className="text-sm text-red-300"
-            role="alert"
-          >
-            {maybeResolutionError.value._tag}
-          </output>
-        ) : null}
+      {/* Canvas fills the viewport (PIS AppShell shape) */}
+      <FoldkitCanvas />
 
-        <FoldkitCanvas />
-
-        <details className="rounded-xl border border-stone-800 bg-stone-900/50 p-4">
-          <summary className="cursor-pointer text-sm text-stone-300">
-            Classic counters UI (same Program · {presenter})
-          </summary>
-          <div className="mt-4 grid max-w-3xl gap-6">
+      {/* Classic UI tucked away — same Program */}
+      <details className="shrink-0 border-t border-stone-800 bg-stone-950/95">
+        <summary className="cursor-pointer px-3 py-2 text-xs text-stone-400 hover:text-stone-200">
+          Classic multi-counters UI · {presenter}
+        </summary>
+        <div className="max-h-[40vh] overflow-auto border-t border-stone-900 px-4 py-4">
+          <div className="mx-auto grid max-w-3xl gap-4">
             <nav aria-label="React presenter" className="flex gap-2 text-sm">
               <PresenterLink
                 presenter="ReactA"
@@ -106,8 +92,8 @@ const MultipleCountersScreen = ({ presenter }: { presenter: Presenter }) => {
             </nav>
             <DestinationView destination={destination} presenter={presenter} />
           </div>
-        </details>
-      </section>
+        </div>
+      </details>
       {isReplayControlInPresentation ? null : <ReplayControls />}
     </main>
   )

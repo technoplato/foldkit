@@ -43,11 +43,16 @@ GotCalculatorMessage({ message })
 // or: ShowcaseShell.message.demos(DemoCatalog.message.calc(...))
 ```
 
-## Commands
+## Map UI
+
+Full-viewport canvas (PIS-style): toolbar toggles `single` / `multi` / `calc` /
+`list`. Phones are live AsciiSurface views of composed Models. Scroll to zoom;
+drag empty space to pan.
 
 ```sh
 pnpm --filter pis-canvas-lab-core-example test
 pnpm --filter pis-canvas-lab-core-example typecheck
+pnpm --filter pis-canvas-lab-react-example test
 pnpm --filter pis-canvas-lab-react-example dev
 # → http://localhost:5199/
 ```

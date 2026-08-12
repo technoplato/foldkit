@@ -7,3 +7,10 @@ export {
   countersCanvasNodes,
   type CountersActions,
 } from './countersProduct.js'
+export {
+  CalculatorPhone,
+  CounterListPhone,
+  SingleCounterPhone,
+  labCanvasNodes,
+  type LabCanvasModels,
+} from './catalogProduct.js'

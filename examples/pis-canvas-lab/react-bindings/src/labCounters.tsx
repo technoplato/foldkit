@@ -35,6 +35,8 @@ import { createReplayableReactProgramClient } from 'shared-react-bindings-exampl
 type MultipleCountersRuntimeActions = Readonly<{
   /** Enqueues a counters-core Message wrapped as GotMultiCountersMessage on the lab Program. */
   sentMessage: (message: CountersMessage) => void
+  /** Enqueues any lab Program Message (chrome + all demos). */
+  sentLabMessage: (message: LabMessage) => void
 }>
 
 /** One exact Program-owned action projected for a React Client. */
@@ -158,6 +160,7 @@ const MultipleCountersRuntimeClient = createReplayableReactProgramClient<
   createActions: enqueueLabMessage => ({
     sentMessage: (message: CountersMessage) =>
       enqueueLabMessage(GotMultiCountersMessage({ message })),
+    sentLabMessage: (message: LabMessage) => enqueueLabMessage(message),
   }),
   name: 'PisCanvasLabCounters',
   program: PisCanvasLabProgram,
@@ -465,8 +468,14 @@ export const MultipleCountersProgramRouteClient = {
 export const useMultipleCountersModel = (): CountersModel =>
   useLabModel().demos.multi
 
-/** Full PIS lab Model (chrome + single + multi) for later map chrome. */
+/** Full PIS lab Model (chrome + demos catalog). */
 export const usePisCanvasLabModel = useLabModel
+
+/** Enqueue any composed lab Message (single / multi / calc / list / chrome). */
+export const usePisCanvasLabEnqueue = (): ((message: LabMessage) => void) => {
+  const { sentLabMessage } = MultipleCountersRuntimeClient.useActions()
+  return sentLabMessage
+}
 
 /** Returns stable host-callable Multiple Counters actions. */
 export const useMultipleCountersActions = useResolvedMultipleCountersActions

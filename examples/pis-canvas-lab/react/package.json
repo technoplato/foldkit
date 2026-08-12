@@ -15,10 +15,12 @@
     "cli:dump": "tsx src/cli-dump.mts"
   },
   "dependencies": {
+    "calculator-core-example": "workspace:*",
     "counter-core-example": "workspace:*",
     "counters-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
+    "pis-canvas-lab-core-example": "workspace:*",
     "pis-canvas-lab-react-bindings-example": "workspace:*",
     "react": "19.2.3",
     "react-dom": "19.2.3"
