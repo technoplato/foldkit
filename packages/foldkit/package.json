@@ -9,163 +9,203 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./asyncData": {
       "types": "./dist/asyncData/public.d.ts",
-      "import": "./dist/asyncData/public.js"
+      "import": "./dist/asyncData/public.js",
+      "default": "./dist/asyncData/public.js"
     },
     "./brand": {
       "types": "./dist/brand/public.d.ts",
-      "import": "./dist/brand/public.js"
+      "import": "./dist/brand/public.js",
+      "default": "./dist/brand/public.js"
     },
     "./calendar": {
       "types": "./dist/calendar/public.d.ts",
-      "import": "./dist/calendar/public.js"
+      "import": "./dist/calendar/public.js",
+      "default": "./dist/calendar/public.js"
     },
     "./canvas": {
       "types": "./dist/canvas/public.d.ts",
-      "import": "./dist/canvas/public.js"
+      "import": "./dist/canvas/public.js",
+      "default": "./dist/canvas/public.js"
     },
     "./command": {
       "types": "./dist/command/public.d.ts",
-      "import": "./dist/command/public.js"
+      "import": "./dist/command/public.js",
+      "default": "./dist/command/public.js"
     },
     "./customElement": {
       "types": "./dist/customElement/public.d.ts",
-      "import": "./dist/customElement/public.js"
+      "import": "./dist/customElement/public.js",
+      "default": "./dist/customElement/public.js"
     },
     "./dom": {
       "types": "./dist/dom/public.d.ts",
-      "import": "./dist/dom/public.js"
+      "import": "./dist/dom/public.js",
+      "default": "./dist/dom/public.js"
     },
     "./experimental": {
       "types": "./dist/experimental/public.d.ts",
-      "import": "./dist/experimental/public.js"
+      "import": "./dist/experimental/public.js",
+      "default": "./dist/experimental/public.js"
     },
     "./experimental/machine": {
       "types": "./dist/experimental/machine/public.d.ts",
-      "import": "./dist/experimental/machine/public.js"
+      "import": "./dist/experimental/machine/public.js",
+      "default": "./dist/experimental/machine/public.js"
     },
     "./html": {
       "types": "./dist/html/public.d.ts",
-      "import": "./dist/html/public.js"
+      "import": "./dist/html/public.js",
+      "default": "./dist/html/public.js"
     },
     "./http": {
       "types": "./dist/http/public.d.ts",
-      "import": "./dist/http/public.js"
+      "import": "./dist/http/public.js",
+      "default": "./dist/http/public.js"
     },
     "./interaction-graph": {
       "types": "./dist/interactionGraph/public.d.ts",
-      "import": "./dist/interactionGraph/public.js"
+      "import": "./dist/interactionGraph/public.js",
+      "default": "./dist/interactionGraph/public.js"
     },
     "./managedResource": {
       "types": "./dist/managedResource/public.d.ts",
-      "import": "./dist/managedResource/public.js"
+      "import": "./dist/managedResource/public.js",
+      "default": "./dist/managedResource/public.js"
     },
     "./message": {
       "types": "./dist/message/public.d.ts",
-      "import": "./dist/message/public.js"
+      "import": "./dist/message/public.js",
+      "default": "./dist/message/public.js"
     },
     "./mount": {
       "types": "./dist/mount/public.d.ts",
-      "import": "./dist/mount/public.js"
+      "import": "./dist/mount/public.js",
+      "default": "./dist/mount/public.js"
     },
     "./navigation": {
       "types": "./dist/navigation/public.d.ts",
-      "import": "./dist/navigation/public.js"
+      "import": "./dist/navigation/public.js",
+      "default": "./dist/navigation/public.js"
     },
     "./port": {
       "types": "./dist/port/public.d.ts",
-      "import": "./dist/port/public.js"
+      "import": "./dist/port/public.js",
+      "default": "./dist/port/public.js"
     },
     "./processor": {
       "types": "./dist/processor/public.d.ts",
-      "import": "./dist/processor/public.js"
+      "import": "./dist/processor/public.js",
+      "default": "./dist/processor/public.js"
     },
     "./program": {
       "types": "./dist/program/public.d.ts",
-      "import": "./dist/program/public.js"
+      "import": "./dist/program/public.js",
+      "default": "./dist/program/public.js"
     },
     "./program-runtime": {
       "types": "./dist/programRuntime/public.d.ts",
-      "import": "./dist/programRuntime/public.js"
+      "import": "./dist/programRuntime/public.js",
+      "default": "./dist/programRuntime/public.js"
     },
     "./render": {
       "types": "./dist/render/public.d.ts",
-      "import": "./dist/render/public.js"
+      "import": "./dist/render/public.js",
+      "default": "./dist/render/public.js"
     },
     "./route": {
       "types": "./dist/route/public.d.ts",
-      "import": "./dist/route/public.js"
+      "import": "./dist/route/public.js",
+      "default": "./dist/route/public.js"
     },
     "./runtime": {
       "types": "./dist/runtime/public.d.ts",
-      "import": "./dist/runtime/public.js"
+      "import": "./dist/runtime/public.js",
+      "default": "./dist/runtime/public.js"
     },
     "./scene": {
       "types": "./dist/scene/public.d.ts",
-      "import": "./dist/scene/public.js"
+      "import": "./dist/scene/public.js",
+      "default": "./dist/scene/public.js"
     },
     "./story": {
       "types": "./dist/story/public.d.ts",
-      "import": "./dist/story/public.js"
+      "import": "./dist/story/public.js",
+      "default": "./dist/story/public.js"
     },
     "./hmr-protocol": {
       "types": "./dist/runtime/hmrProtocolPublic.d.ts",
-      "import": "./dist/runtime/hmrProtocolPublic.js"
+      "import": "./dist/runtime/hmrProtocolPublic.js",
+      "default": "./dist/runtime/hmrProtocolPublic.js"
     },
     "./fieldValidation": {
       "types": "./dist/fieldValidation/public.d.ts",
-      "import": "./dist/fieldValidation/public.js"
+      "import": "./dist/fieldValidation/public.js",
+      "default": "./dist/fieldValidation/public.js"
     },
     "./file": {
       "types": "./dist/file/public.d.ts",
-      "import": "./dist/file/public.js"
+      "import": "./dist/file/public.js",
+      "default": "./dist/file/public.js"
     },
     "./schema": {
       "types": "./dist/schema/public.d.ts",
-      "import": "./dist/schema/public.js"
+      "import": "./dist/schema/public.js",
+      "default": "./dist/schema/public.js"
     },
     "./struct": {
       "types": "./dist/struct/public.d.ts",
-      "import": "./dist/struct/public.js"
+      "import": "./dist/struct/public.js",
+      "default": "./dist/struct/public.js"
     },
     "./submodel": {
       "types": "./dist/submodel/public.d.ts",
-      "import": "./dist/submodel/public.js"
+      "import": "./dist/submodel/public.js",
+      "default": "./dist/submodel/public.js"
     },
     "./subscription": {
       "types": "./dist/subscription/public.d.ts",
-      "import": "./dist/subscription/public.js"
+      "import": "./dist/subscription/public.js",
+      "default": "./dist/subscription/public.js"
     },
     "./synchronization": {
       "types": "./dist/synchronization/public.d.ts",
-      "import": "./dist/synchronization/public.js"
+      "import": "./dist/synchronization/public.js",
+      "default": "./dist/synchronization/public.js"
     },
     "./test": {
       "types": "./dist/test/public.d.ts",
-      "import": "./dist/test/public.js"
+      "import": "./dist/test/public.js",
+      "default": "./dist/test/public.js"
     },
     "./test/vitest": {
       "types": "./dist/test/vitest.d.ts",
-      "import": "./dist/test/vitest.js"
+      "import": "./dist/test/vitest.js",
+      "default": "./dist/test/vitest.js"
     },
     "./update": {
       "types": "./dist/update/public.d.ts",
-      "import": "./dist/update/public.js"
+      "import": "./dist/update/public.js",
+      "default": "./dist/update/public.js"
     },
     "./url": {
       "types": "./dist/url/public.d.ts",
-      "import": "./dist/url/public.js"
+      "import": "./dist/url/public.js",
+      "default": "./dist/url/public.js"
     },
     "./devtools-protocol": {
       "types": "./dist/devTools/public.d.ts",
-      "import": "./dist/devTools/public.js"
+      "import": "./dist/devTools/public.js",
+      "default": "./dist/devTools/public.js"
     },
     "./devtools-host": {
       "types": "./dist/devTools/host.d.ts",
-      "import": "./dist/devTools/host.js"
+      "import": "./dist/devTools/host.js",
+      "default": "./dist/devTools/host.js"
     }
   },
   "sideEffects": false,

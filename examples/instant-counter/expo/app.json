@@ -9,10 +9,16 @@
     "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.knophy.foldkit.instantcounter.dev",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      },
       "supportsTablet": true
     },
     "android": {
-      "package": "com.knophy.foldkit.instantcounter.dev"
+      "package": "com.knophy.foldkit.instantcounter.dev",
+      "usesCleartextTraffic": true
     },
     "plugins": ["expo-dev-client"]
   }

@@ -71,10 +71,9 @@ configuration.
 The chain-specific transports, custody adapters, SDK clients, and
 configuration services remain package-internal implementation dependencies.
 
-`@solana-program/token` 0.15.0 requires Node 24 or newer. The adapter package
-therefore declares `node >=24.0.0`, even though other Foldkit packages can use
-the repository's broader Node engine range. Validation must use Node 24 when
-building or running this package.
+`@solana-program/token` 0.15.0 documents Node 24 or newer. This workspace stays
+on the repository Node range so everyday `pnpm` commands are not flooded with
+engine warnings. Use Node 24 when you actually build or run this adapter.
 
 ## Environment configuration
 

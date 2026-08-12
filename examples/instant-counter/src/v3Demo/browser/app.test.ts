@@ -173,7 +173,9 @@ describe('Multiple Counters v3 browser host', () => {
       },
     ])
 
-    expect(multipleCountersV3NewTerminalRejection(previous, next)).toEqual(
+    expect(
+      multipleCountersV3NewTerminalRejection('subject-a', previous, next),
+    ).toEqual(
       Option.some({
         maybeRejectionReason: Option.some('AdmissionClaimRejected'),
         proposalId: 'proposal-rejected',
@@ -181,9 +183,9 @@ describe('Multiple Counters v3 browser host', () => {
         resolvedAtMs: 100,
       }),
     )
-    expect(multipleCountersV3NewTerminalRejection(null, next)).toEqual(
-      Option.none(),
-    )
+    expect(
+      multipleCountersV3NewTerminalRejection('subject-a', null, next),
+    ).toEqual(Option.none())
   })
 
   it('keeps authentication and chrome mounted when the renderer replaces its own root', async () => {

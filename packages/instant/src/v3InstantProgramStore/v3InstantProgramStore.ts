@@ -1013,7 +1013,7 @@ const makeV3InstantObservationStream = <Record>(
           }
         }),
         unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     { bufferSize: 1, strategy: 'sliding' },
   ).pipe(Stream.changesWith(spec.equivalence))
 
@@ -1055,7 +1055,7 @@ export const makeV3InstantConnectionStatusStream = (
           return unsubscribe
         }),
         unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     { bufferSize: 1, strategy: 'sliding' },
   ).pipe(Stream.changes)
 

@@ -8777,7 +8777,7 @@ var Yx = '|',
     dedupeSeen: /* @__PURE__ */ new Set(),
   }),
   $x = () => {
-    let e = (/* @__PURE__ */ Error().stack ?? '').split('\n')
+    let e = /* @__PURE__ */ (Error().stack ?? '').split('\n')
     for (let t of e) {
       let e = t.trim()
       if (

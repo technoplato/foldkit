@@ -17,3 +17,5 @@ packages/oxlint-plugin-foldkit/all.json
 playwright-report/
 test-results/
 .DS_Store
+examples/books/foldkit/public/a-new-earth-evocation.mp3
+examples/books/foldkit/public/a-new-earth-evocation.words.json

@@ -25,6 +25,7 @@ import {
   type InteractionSelection,
   type InteractionSource,
   type ResolvedInteractionOccurrence,
+  interactionAdmissionLimits,
   makeSchemas,
 } from './interactionNode.js'
 
@@ -216,7 +217,7 @@ export type InteractionAdmissionError =
   | InteractionInvocationContextDefectError
 
 const InvocationFactIdentity = S.String.check(
-  S.isLengthBetween(1, 128),
+  S.isLengthBetween(1, interactionAdmissionLimits.invocationFactIdentityLength),
   S.isPattern(/^[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
 )
 

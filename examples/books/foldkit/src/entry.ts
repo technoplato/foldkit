@@ -1,17 +1,17 @@
-import { BooksProgram } from 'books-core-example'
 import { Layer } from 'effect'
 import { Runtime } from 'foldkit'
 
 import { overlay } from '@foldkit/devtools'
 
 import { view } from './index.js'
+import { BooksFoldkitProgram } from './playback.js'
 
 const application = Runtime.makeFoldkitApplication({
   container: document.getElementById('root'),
   devTools: {
     overlay,
   },
-  program: BooksProgram,
+  program: BooksFoldkitProgram,
   resources: Layer.empty,
   view,
 })

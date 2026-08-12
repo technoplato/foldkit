@@ -93,7 +93,7 @@ export const makeProcessorRoom = (
             }),
           ),
           unsubscribe => Effect.sync(unsubscribe),
-        ).pipe(Effect.flatMap(() => Effect.never)),
+        ),
       ),
       publishActivity: activity =>
         Effect.try({

@@ -1,11 +1,14 @@
-import { Match as M, Option } from 'effect'
+import { Array, Effect, Exit, Option, Result, Scope, Schema as S, Stream } from 'effect'
+import Constants from 'expo-constants'
+import * as Crypto from 'expo-crypto'
 import { StatusBar } from 'expo-status-bar'
+import * as Synchronization from 'foldkit/synchronization'
 import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useState,
-  useSyncExternalStore,
 } from 'react'
 import {
   ActivityIndicator,
@@ -19,474 +22,448 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import {
+  type MultipleCountersV3ClientController,
+  type MultipleCountersV3ClientSnapshot,
+  type MultipleCountersV3DebugEmail,
+  MultipleCountersV3DebugLoginIssued,
+  type MultipleCountersV3FollowDraft,
+  appendMultipleCountersV3PolicyRequest,
+  emptyMultipleCountersV3FollowDraft,
+  formatMultipleCountersV3SessionChrome,
+  isMultipleCountersV3ObserveFollower,
+  makeMultipleCountersV3ClientController,
+  multipleCountersV3FollowAlignmentExplanation,
+  multipleCountersV3FollowMode,
+  multipleCountersV3ModeRequestLabel,
+  multipleCountersV3SessionChrome,
+  multipleCountersV3SessionEpochSeed,
+  multipleCountersV3DebugLoginSubjects,
+  resolveMultipleCountersV3EnabledActionToken,
+  resolveMultipleCountersV3PolicyRequest,
+} from 'instant-counter-example/v3-client'
 
 import { logBuildProvenance } from './buildProvenance'
-import {
-  type Authentication,
-  FailedAuthentication,
-  NativeCounterController,
-  type NativeCounterViewState,
-  RestoringAuthentication,
-  SignedInAuthentication,
-  SignedOutAuthentication,
-} from './controller'
+import { multipleCountersV3NativeDebugLoginUrl } from './debugLogin'
 import { nativeDatabase } from './nativeDatabase'
-import { makeNativeProcessorGateway } from './processorGateway'
+import {
+  makeNativeMultipleCountersV3ProcessorConfig,
+  nativeCoreDatabase,
+} from './processorConfig'
+import { MultipleCountersV3NativeProgramScreen } from './programScreen'
 
-const processorGateway = makeNativeProcessorGateway(nativeDatabase)
+const canonicalListDestinationUri = '/counters'
+const isDebugLoginEnabled = __DEV__
 
-const makeController = (): NativeCounterController =>
-  new NativeCounterController({
-    authentication: {
-      sendMagicCode: email =>
-        nativeDatabase.auth.sendMagicCode({ email }).then(() => undefined),
-      signInWithMagicCode: (email, code) =>
-        nativeDatabase.auth
-          .signInWithMagicCode({ code, email })
-          .then(() => undefined),
-      signOut: () => nativeDatabase.auth.signOut(),
-    },
-    processorGateway,
+const instantAppId = (): string => {
+  const appId = process.env['EXPO_PUBLIC_INSTANT_APP_ID']
+  if (appId === undefined || appId.length === 0) {
+    throw new Error(
+      'EXPO_PUBLIC_INSTANT_APP_ID is required. Start through the public Instant environment wrapper.',
+    )
+  }
+  return appId
+}
+
+const debugLoginUrl = (): string =>
+  multipleCountersV3NativeDebugLoginUrl({
+    maybeMetroHost: Option.fromNullishOr(Constants.expoConfig?.hostUri),
+    originOverride: Option.fromNullishOr(
+      process.env['EXPO_PUBLIC_DEBUG_LOGIN_ORIGIN'],
+    ),
+    platform: Platform.OS,
   })
 
-const authenticationLabel = (authentication: Authentication): string =>
-  M.value(authentication).pipe(
-    M.withReturnType<string>(),
-    M.tagsExhaustive({
-      FailedAuthentication: () => 'Failed',
-      RestoringAuthentication: () => 'Restoring',
-      SignedInAuthentication: () => 'Signed in',
-      SignedOutAuthentication: () => 'Signed out',
-      SigningOutAuthentication: () => 'Signing out',
-    }),
-  )
+const requestDebugLogin = (
+  email: MultipleCountersV3DebugEmail,
+): Promise<typeof MultipleCountersV3DebugLoginIssued.Type> =>
+  fetch(debugLoginUrl(), {
+    body: JSON.stringify({ email }),
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  }).then(async response => {
+    const body: unknown = await response.json()
+    if (!response.ok) {
+      throw new Error('DebugLoginUnavailable')
+    }
+    return S.decodeUnknownSync(MultipleCountersV3DebugLoginIssued)(body)
+  })
 
-const processorLifecycleLabel = (state: NativeCounterViewState): string =>
-  M.value(state.processorLifecycle).pipe(
-    M.withReturnType<string>(),
-    M.tagsExhaustive({
-      DisconnectedProcessor: () => 'Disconnected',
-      DisconnectingProcessor: () => 'Disconnecting',
-      FailedProcessor: () => 'Failed',
-      IdleProcessor: () => 'Idle',
-      ReadyProcessor: () => 'Ready',
-      ReconnectingProcessor: () => 'Reconnecting',
-      StartingProcessor: () => 'Starting',
-      StoppingProcessor: () => 'Stopping',
-    }),
-  )
+const accountLabel = (
+  maybeEmail: string | null | undefined,
+  subjectId: string,
+): string => Option.getOrElse(Option.fromNullishOr(maybeEmail), () => subjectId)
 
-/** Runs the authenticated Instant Counter through a real native Processor. */
+/** Runs authenticated Instant Multiple Counters through a native Processor. */
 export const App = () => {
-  const [controller] = useState(makeController)
-  const state = useSyncExternalStore(
-    controller.subscribe,
-    controller.getSnapshot,
-    controller.getSnapshot,
+  const database = useMemo(() => nativeDatabase, [])
+  const coreDatabase = useMemo(() => nativeCoreDatabase(database), [database])
+  const authentication = database.useAuth()
+  const transportStatus = database.useConnectionStatus()
+  const [controller, setController] =
+    useState<MultipleCountersV3ClientController | null>(null)
+  const [snapshot, setSnapshot] =
+    useState<MultipleCountersV3ClientSnapshot | null>(null)
+  const [followDraft, setFollowDraft] = useState<MultipleCountersV3FollowDraft>(
+    emptyMultipleCountersV3FollowDraft(),
   )
-  const authentication = nativeDatabase.useAuth()
-  const transportStatus = nativeDatabase.useConnectionStatus()
-  const isAuthenticationLoading = authentication.isLoading
-  const isAuthenticationFailed = authentication.error !== undefined
-  const authenticatedSubjectId = authentication.user?.id
-  const authenticatedEmail = authentication.user?.email
-  const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [maybeSentEmail, setMaybeSentEmail] = useState<Option.Option<string>>(
-    Option.none(),
-  )
+  const [maybeNotice, setNotice] = useState(Option.none<string>())
+  const [isModeRequestPending, setModeRequestPending] = useState(false)
 
   useEffect(logBuildProvenance, [])
 
   useEffect(() => {
-    if (isAuthenticationLoading) {
-      controller.authenticationChanged(RestoringAuthentication.make({}))
-    } else if (isAuthenticationFailed) {
-      controller.authenticationChanged(
-        FailedAuthentication.make({
-          reason: 'Instant could not restore native authentication.',
-        }),
+    const scope = Effect.runSync(Scope.make())
+    const appId = instantAppId()
+    void Effect.runPromise(
+      makeMultipleCountersV3ClientController({
+        policyRequests: {
+          append: request =>
+            appendMultipleCountersV3PolicyRequest(coreDatabase, request),
+          nextPolicyRequestId: () => Crypto.randomUUID(),
+          now: Date.now,
+          resolve: request =>
+            resolveMultipleCountersV3PolicyRequest(coreDatabase, request),
+        },
+        processorConfig: subjectId =>
+          makeNativeMultipleCountersV3ProcessorConfig({
+            database: coreDatabase,
+            instantAppId: appId,
+            sessionEpochSeed: multipleCountersV3SessionEpochSeed,
+            subjectId,
+          }),
+        signOut: () =>
+          Effect.promise(() => database.auth.signOut()).pipe(Effect.asVoid),
+      }).pipe(Effect.provideService(Scope.Scope, scope)),
+    ).then(nextController => {
+      setController(nextController)
+      void Effect.runPromise(
+        Stream.runForEach(nextController.snapshots, nextSnapshot =>
+          Effect.sync(() => setSnapshot(nextSnapshot)),
+        ).pipe(Effect.provideService(Scope.Scope, scope)),
       )
-    } else if (authenticatedSubjectId !== undefined) {
-      controller.authenticationChanged(
-        SignedInAuthentication.make({
-          maybeEmail: Option.fromNullishOr(authenticatedEmail),
-          subjectId: authenticatedSubjectId,
-        }),
-      )
-    } else {
-      controller.authenticationChanged(SignedOutAuthentication.make({}))
+    })
+    return () => {
+      void Effect.runPromise(Scope.close(scope, Exit.void))
     }
-  }, [
-    authenticatedEmail,
-    authenticatedSubjectId,
-    controller,
-    isAuthenticationFailed,
-    isAuthenticationLoading,
-  ])
+  }, [coreDatabase, database])
 
   useEffect(() => {
-    controller.transportChanged(transportStatus)
-  }, [controller, transportStatus])
+    if (controller === null || authentication.user == null) {
+      return
+    }
+    void Effect.runPromise(
+      controller
+        .reconcileAuthenticatedSubject(Option.some(authentication.user.id))
+        .pipe(Effect.flatMap(() => controller.open(canonicalListDestinationUri))),
+    )
+  }, [authentication.user, controller])
 
-  useEffect(
-    () => () => {
-      void controller.dispose()
-    },
-    [controller],
+  const requestMode = (mode: Synchronization.Mode) => {
+    if (controller === null || isModeRequestPending) {
+      return
+    }
+    setModeRequestPending(true)
+    setNotice(
+      Option.some(
+        `Requesting ${multipleCountersV3ModeRequestLabel(mode)} from the session authority.`,
+      ),
+    )
+    void Effect.runPromise(controller.requestMode(mode)).then(
+      resolution => {
+        setModeRequestPending(false)
+        setNotice(
+          Option.some(
+            resolution.resolutionState === 'Accepted'
+              ? `The authority accepted ${multipleCountersV3ModeRequestLabel(mode)} as policy generation ${resolution.resolvedPolicyGeneration.toString()}.`
+              : `The authority rejected ${multipleCountersV3ModeRequestLabel(mode)}: ${resolution.rejectionReason}.`,
+          ),
+        )
+        void Effect.runPromise(controller.readSnapshot).then(setSnapshot)
+      },
+      () => {
+        setModeRequestPending(false)
+        setNotice(Option.some('Mode request was not applied.'))
+      },
+    )
+  }
+
+  const performToken = (token: string) => {
+    if (controller === null || snapshot === null) {
+      return
+    }
+    const resolved = resolveMultipleCountersV3EnabledActionToken(
+      snapshot.model,
+      token,
+      !isMultipleCountersV3ObserveFollower(snapshot),
+    )
+    if (Result.isFailure(resolved)) {
+      setNotice(Option.some(resolved.failure._tag))
+      return
+    }
+    void Effect.runPromise(controller.perform(resolved.success)).then(() =>
+      Effect.runPromise(controller.readSnapshot).then(setSnapshot),
+    )
+  }
+
+  const signInAs = useCallback((email: MultipleCountersV3DebugEmail) => {
+    void requestDebugLogin(email).then(
+      issued =>
+        database.auth.signInWithMagicCode({
+          code: issued.code,
+          email: issued.email,
+        }),
+      () =>
+        setNotice(
+          Option.some(
+            'Start the headless authority to mint Alice and Bob codes. Physical devices need FOLDKIT_INSTANT_DEBUG_LOGIN_HOST=0.0.0.0.',
+          ),
+        ),
+    )
+  }, [database])
+
+  if (authentication.isLoading || authentication.user == null || snapshot === null) {
+    return (
+      <Shell>
+        <AuthCard
+          isFailed={authentication.error !== undefined}
+          isLoading={authentication.isLoading}
+          maybeNotice={maybeNotice}
+          signInAs={signInAs}
+        />
+      </Shell>
+    )
+  }
+
+  const chrome = multipleCountersV3SessionChrome(
+    snapshot,
+    accountLabel(authentication.user.email, authentication.user.id),
   )
-
-  const sendMagicCode = useCallback(() => {
-    const normalizedEmail = email.trim()
-    if (normalizedEmail.length === 0) {
-      return
-    }
-    void controller.sendMagicCode(normalizedEmail).then(isSendSuccessful => {
-      if (isSendSuccessful) {
-        setMaybeSentEmail(Option.some(normalizedEmail))
-      }
-    })
-  }, [controller, email])
-
-  const verifyMagicCode = useCallback(() => {
-    if (Option.isNone(maybeSentEmail) || code.trim().length === 0) {
-      return
-    }
-    void controller
-      .signInWithMagicCode(maybeSentEmail.value, code.trim())
-      .then(isSignInSuccessful => {
-        if (!isSignInSuccessful) {
-          setCode('')
-        }
-      })
-  }, [code, controller, maybeSentEmail])
-
-  const signOut = useCallback(() => {
-    setMaybeSentEmail(Option.none())
-    setCode('')
-    void controller.signOut()
-  }, [controller])
+  const followerProcessorId =
+    followDraft.followerProcessorId.length === 0
+      ? chrome.processorId
+      : followDraft.followerProcessorId
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.hero}>
-            <Text style={styles.eyebrow}>FOLDKIT · INSTANT</Text>
-            <Text style={styles.title}>Shared Counter</Text>
-            <Text style={styles.subtitle}>
-              Valid native proposals project immediately. Every Processor then
-              converges on the accepted Instant tape.
-            </Text>
-          </View>
-
-          <AuthenticationCard
-            authentication={state.authentication}
-            code={code}
-            email={email}
-            maybeSentEmail={maybeSentEmail}
-            sendMagicCode={sendMagicCode}
-            setCode={setCode}
-            setEmail={setEmail}
-            setMaybeSentEmail={setMaybeSentEmail}
-            signOut={signOut}
-            verifyMagicCode={verifyMagicCode}
-          />
-
-          {state.authentication._tag === 'SignedInAuthentication' ? (
-            <>
-              <CounterCard controller={controller} state={state} />
-              <ConnectionCard controller={controller} state={state} />
-            </>
-          ) : null}
-
-          {Option.isSome(state.maybeNotice) ? (
-            <View
-              accessibilityLiveRegion="polite"
-              style={styles.notice}
-              testID="notice"
-            >
-              <Text style={styles.noticeText}>{state.maybeNotice.value}</Text>
-            </View>
-          ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  )
-}
-
-const AuthenticationCard = ({
-  authentication,
-  code,
-  email,
-  maybeSentEmail,
-  sendMagicCode,
-  setCode,
-  setEmail,
-  setMaybeSentEmail,
-  signOut,
-  verifyMagicCode,
-}: Readonly<{
-  authentication: Authentication
-  code: string
-  email: string
-  maybeSentEmail: Option.Option<string>
-  sendMagicCode: () => void
-  setCode: (code: string) => void
-  setEmail: (email: string) => void
-  setMaybeSentEmail: (email: Option.Option<string>) => void
-  signOut: () => void
-  verifyMagicCode: () => void
-}>) => {
-  if (authentication._tag === 'RestoringAuthentication') {
-    return (
-      <Card>
-        <View style={styles.loadingRow}>
-          <ActivityIndicator color="#8ae8cf" />
-          <Text style={styles.cardDetail}>
-            Restoring native authentication…
+    <Shell>
+      <View style={styles.card}>
+        <Text style={styles.label}>INSTANT SESSION</Text>
+        {Array.map(formatMultipleCountersV3SessionChrome(chrome), line => (
+          <Text key={line} style={styles.chromeLine}>
+            {line}
           </Text>
+        ))}
+        <StatusRow label="Transport" value={transportStatus} />
+        {chrome.isObserveFollower ? (
+          <Text style={styles.noticeText}>
+            Navigation follows the leader. Domain actions stay available.
+          </Text>
+        ) : null}
+        {Option.isSome(maybeNotice) ? (
+          <Text style={styles.noticeText} testID="notice">
+            {maybeNotice.value}
+          </Text>
+        ) : null}
+        <Text style={styles.sectionLabel}>Navigation synchronization</Text>
+        <View style={styles.rowActions}>
+          <ActionButton
+            disabled={isModeRequestPending}
+            label="Independent"
+            onPress={() => requestMode(Synchronization.SharedDomain.make({}))}
+            testID="mode-independent"
+          />
+          <ActionButton
+            disabled={isModeRequestPending}
+            label="Mirror"
+            onPress={() => requestMode(Synchronization.Mirror.make({}))}
+            testID="mode-mirror"
+            tone="quiet"
+          />
         </View>
-      </Card>
-    )
-  } else if (authentication._tag === 'SigningOutAuthentication') {
-    return (
-      <Card>
-        <View style={styles.loadingRow}>
-          <ActivityIndicator color="#8ae8cf" />
-          <Text style={styles.cardDetail}>Closing the Processor…</Text>
-        </View>
-      </Card>
-    )
-  } else if (authentication._tag === 'FailedAuthentication') {
-    return (
-      <Card>
-        <Text style={styles.cardTitle}>Authentication unavailable</Text>
-        <Text style={styles.errorText}>{authentication.reason}</Text>
-      </Card>
-    )
-  } else if (authentication._tag === 'SignedInAuthentication') {
-    const account = Option.getOrElse(
-      authentication.maybeEmail,
-      () => 'Authenticated subject',
-    )
-    return (
-      <Card>
-        <Text style={styles.cardLabel}>ACCOUNT</Text>
-        <Text style={styles.accountText} testID="signed-in-account">
-          {account}
+        <Text style={styles.detail}>
+          {multipleCountersV3FollowAlignmentExplanation}
         </Text>
+        <TextInput
+          accessibilityLabel="Leader Processor id"
+          autoCapitalize="none"
+          onChangeText={leaderProcessorId =>
+            setFollowDraft({ ...followDraft, leaderProcessorId })
+          }
+          placeholder="Leader Processor id"
+          placeholderTextColor="#65758c"
+          style={styles.input}
+          testID="follow-leader"
+          value={followDraft.leaderProcessorId}
+        />
+        <TextInput
+          accessibilityLabel="Follower Processor id"
+          autoCapitalize="none"
+          onChangeText={nextFollowerProcessorId =>
+            setFollowDraft({
+              ...followDraft,
+              followerProcessorId: nextFollowerProcessorId,
+            })
+          }
+          placeholder="Follower Processor id"
+          placeholderTextColor="#65758c"
+          style={styles.input}
+          testID="follow-follower"
+          value={followerProcessorId}
+        />
+        <View style={styles.rowActions}>
+          <ActionButton
+            disabled={isModeRequestPending}
+            label="Observe"
+            onPress={() =>
+              setFollowDraft({ ...followDraft, control: 'Observe' })
+            }
+            testID="follow-observe"
+            tone={followDraft.control === 'Observe' ? 'primary' : 'quiet'}
+          />
+          <ActionButton
+            disabled={isModeRequestPending}
+            label="Remote control"
+            onPress={() =>
+              setFollowDraft({ ...followDraft, control: 'RemoteControl' })
+            }
+            testID="follow-remote"
+            tone={
+              followDraft.control === 'RemoteControl' ? 'primary' : 'quiet'
+            }
+          />
+        </View>
+        <ActionButton
+          disabled={isModeRequestPending}
+          label="Follow"
+          onPress={() => {
+            const maybeMode = multipleCountersV3FollowMode(
+              followDraft.leaderProcessorId,
+              followerProcessorId,
+              followDraft.control,
+            )
+            if (Option.isNone(maybeMode)) {
+              setNotice(
+                Option.some(
+                  'Follow needs different non-empty leader and follower Processor ids.',
+                ),
+              )
+              return
+            }
+            requestMode(maybeMode.value)
+          }}
+          testID="follow-submit"
+        />
         <ActionButton
           label="Sign out"
-          onPress={signOut}
+          onPress={() => {
+            if (controller !== null) {
+              void Effect.runPromise(controller.signOut)
+            }
+          }}
           testID="sign-out-button"
           tone="quiet"
         />
-      </Card>
-    )
-  } else if (Option.isNone(maybeSentEmail)) {
-    return (
-      <Card>
-        <Text style={styles.cardTitle}>Sign in with email</Text>
-        <Text style={styles.cardDetail}>
-          Instant will send a one-time magic code. No credential enters the
-          counter Model or replay tape.
-        </Text>
-        <TextInput
-          accessibilityLabel="Email address"
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          onChangeText={setEmail}
-          placeholder="you@example.com"
-          placeholderTextColor="#65758c"
-          style={styles.input}
-          testID="email-input"
-          value={email}
-        />
-        <ActionButton
-          disabled={email.trim().length === 0}
-          label="Send one-time code"
-          onPress={sendMagicCode}
-          testID="send-code-button"
-        />
-      </Card>
-    )
-  } else {
-    return (
-      <Card>
-        <Text style={styles.cardTitle}>Enter your code</Text>
-        <Text style={styles.cardDetail}>Sent to {maybeSentEmail.value}</Text>
-        <TextInput
-          accessibilityLabel="One-time code"
-          autoComplete="one-time-code"
-          keyboardType="number-pad"
-          onChangeText={setCode}
-          placeholder="123456"
-          placeholderTextColor="#65758c"
-          style={styles.input}
-          testID="code-input"
-          value={code}
-        />
-        <ActionButton
-          disabled={code.trim().length === 0}
-          label="Verify code"
-          onPress={verifyMagicCode}
-          testID="verify-code-button"
-        />
-        <ActionButton
-          label="Use another email"
-          onPress={() => {
-            setCode('')
-            setMaybeSentEmail(Option.none())
-          }}
-          testID="change-email-button"
-          tone="quiet"
-        />
-      </Card>
-    )
-  }
+      </View>
+      <MultipleCountersV3NativeProgramScreen
+        isNavigationEnabled={!chrome.isObserveFollower}
+        model={snapshot.model}
+        onPerform={performToken}
+      />
+    </Shell>
+  )
 }
 
-const CounterCard = ({
-  controller,
-  state,
-}: Readonly<{
-  controller: NativeCounterController
-  state: NativeCounterViewState
-}>) => (
-  <Card>
-    <Text style={styles.cardLabel}>DISPLAYED MODEL</Text>
-    <Text
-      accessibilityLabel={`Counter value ${state.count.toString()}`}
-      style={styles.count}
-      testID="counter-value"
+const Shell = ({ children }: Readonly<{ children: ReactNode }>) => (
+  <SafeAreaView style={styles.safeArea}>
+    <StatusBar style="light" />
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.flex}
     >
-      {state.count}
-    </Text>
-    <View style={styles.sequenceRow}>
-      <SequenceMetric
-        label="Accepted"
-        testID="accepted-sequence"
-        value={state.acceptedSequence}
-      />
-      <SequenceMetric
-        label="Displayed"
-        testID="displayed-sequence"
-        value={state.displayedSequence}
-      />
-      <SequenceMetric
-        label="Pending"
-        testID="pending-count"
-        value={state.pendingCount}
-      />
-    </View>
-    <View style={styles.counterActions}>
-      <ActionButton
-        disabled={!state.isActionFenceOpen}
-        label="−"
-        onPress={() => void controller.decrement()}
-        testID="decrement-button"
-      />
-      <ActionButton
-        disabled={!state.isActionFenceOpen}
-        label="Reset"
-        onPress={() => void controller.reset()}
-        testID="reset-button"
-        tone="quiet"
-      />
-      <ActionButton
-        disabled={!state.isActionFenceOpen}
-        label="+"
-        onPress={() => void controller.increment()}
-        testID="increment-button"
-      />
-    </View>
-  </Card>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.hero}>
+          <Text style={styles.eyebrow}>FOLDKIT · INSTANT</Text>
+          <Text style={styles.heroTitle}>Multiple counters</Text>
+          <Text style={styles.subtitle}>
+            Optimistic here. Authenticated and accepted everywhere. Independent,
+            Mirror, and Follow are session policy, not Program state.
+          </Text>
+        </View>
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </SafeAreaView>
 )
 
-const ConnectionCard = ({
-  controller,
-  state,
+const authStatusCopy = (
+  isFailed: boolean,
+  isLoading: boolean,
+): ReactNode => {
+  if (isLoading) {
+    return (
+      <View style={styles.loadingRow}>
+        <ActivityIndicator color="#8ae8cf" />
+        <Text style={styles.detail}>Restoring native authentication…</Text>
+      </View>
+    )
+  }
+  if (isFailed) {
+    return (
+      <Text style={styles.errorText}>
+        Instant could not restore native authentication.
+      </Text>
+    )
+  }
+  return (
+    <Text style={styles.detail}>
+      Sign in as Alice or Bob, then switch Independent, Mirror, or Follow.
+    </Text>
+  )
+}
+
+const AuthCard = ({
+  isFailed,
+  isLoading,
+  maybeNotice,
+  signInAs,
 }: Readonly<{
-  controller: NativeCounterController
-  state: NativeCounterViewState
+  isFailed: boolean
+  isLoading: boolean
+  maybeNotice: Option.Option<string>
+  signInAs: (email: MultipleCountersV3DebugEmail) => void
 }>) => (
-  <Card>
-    <Text style={styles.cardLabel}>LIVE STATE</Text>
-    <StatusRow
-      label="Auth"
-      testID="auth-state"
-      value={authenticationLabel(state.authentication)}
-    />
-    <StatusRow
-      label="Transport"
-      testID="transport-state"
-      value={state.transportStatus}
-    />
-    <StatusRow
-      label="Connection"
-      testID="connection-state"
-      value={state.processorConnection}
-    />
-    <StatusRow
-      label="Processor"
-      testID="processor-state"
-      value={processorLifecycleLabel(state)}
-    />
-    <View style={styles.connectionActions}>
-      <ActionButton
-        disabled={!state.isActionFenceOpen}
-        label="Disconnect"
-        onPress={() => void controller.disconnect()}
-        testID="disconnect-button"
-        tone="quiet"
-      />
-      <ActionButton
-        disabled={state.processorLifecycle._tag !== 'DisconnectedProcessor'}
-        label="Reconnect"
-        onPress={() => void controller.reconnect()}
-        testID="reconnect-button"
-        tone="quiet"
-      />
-    </View>
-  </Card>
-)
-
-const Card = ({ children }: Readonly<{ children: ReactNode }>) => (
-  <View style={styles.card}>{children}</View>
-)
-
-const SequenceMetric = ({
-  label,
-  testID,
-  value,
-}: Readonly<{ label: string; testID: string; value: number }>) => (
-  <View style={styles.metric}>
-    <Text style={styles.metricValue} testID={testID}>
-      {value}
-    </Text>
-    <Text style={styles.metricLabel}>{label}</Text>
+  <View style={styles.card}>
+    <Text style={styles.cardTitle}>Your counters, on every Processor</Text>
+    {Option.isSome(maybeNotice) ? (
+      <Text style={styles.noticeText} testID="notice">
+        {maybeNotice.value}
+      </Text>
+    ) : null}
+    {authStatusCopy(isFailed, isLoading)}
+    {isDebugLoginEnabled
+      ? Array.map(multipleCountersV3DebugLoginSubjects, subject => (
+          <ActionButton
+            key={subject.email}
+            label={`Sign in as ${subject.label}`}
+            onPress={() => signInAs(subject.email)}
+            testID={`debug-login-${subject.label.toLowerCase()}`}
+            tone="quiet"
+          />
+        ))
+      : null}
   </View>
 )
 
 const StatusRow = ({
   label,
-  testID,
   value,
-}: Readonly<{ label: string; testID: string; value: string }>) => (
+}: Readonly<{ label: string; value: string }>) => (
   <View style={styles.statusRow}>
     <Text style={styles.statusLabel}>{label}</Text>
-    <Text style={styles.statusValue} testID={testID}>
-      {value}
-    </Text>
+    <Text style={styles.statusValue}>{value}</Text>
   </View>
 )
 
@@ -523,12 +500,6 @@ const ActionButton = ({
 )
 
 const styles = StyleSheet.create({
-  accountText: {
-    color: '#f3f8ff',
-    fontSize: 17,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
   button: {
     alignItems: 'center',
     borderRadius: 14,
@@ -549,44 +520,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 12,
     padding: 20,
-    shadowColor: '#000000',
-    shadowOffset: { height: 12, width: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-  },
-  cardDetail: {
-    color: '#aebbd0',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  cardLabel: {
-    color: '#78d8c0',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.5,
   },
   cardTitle: {
     color: '#f3f8ff',
     fontSize: 22,
     fontWeight: '800',
   },
-  connectionActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
+  chromeLine: {
+    color: '#e1ebf8',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  count: {
-    color: '#ffffff',
-    fontSize: 84,
-    fontVariant: ['tabular-nums'],
-    fontWeight: '200',
-    letterSpacing: -5,
-    lineHeight: 96,
-    textAlign: 'center',
-  },
-  counterActions: {
-    flexDirection: 'row',
-    gap: 10,
+  detail: {
+    color: '#aebbd0',
+    fontSize: 15,
+    lineHeight: 22,
   },
   disabledButton: {
     opacity: 0.35,
@@ -610,6 +558,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 12,
   },
+  heroTitle: {
+    color: '#f7fbff',
+    fontSize: 38,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+  },
   input: {
     backgroundColor: '#0a1321',
     borderColor: '#32435b',
@@ -620,33 +574,16 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: 16,
   },
+  label: {
+    color: '#78d8c0',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
   loadingRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 12,
-  },
-  metric: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  metricLabel: {
-    color: '#7f8da3',
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  metricValue: {
-    color: '#dce8f8',
-    fontSize: 18,
-    fontVariant: ['tabular-nums'],
-    fontWeight: '700',
-  },
-  notice: {
-    backgroundColor: '#17362f',
-    borderColor: '#2c6457',
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
   },
   noticeText: {
     color: '#c8f6ea',
@@ -655,7 +592,6 @@ const styles = StyleSheet.create({
   },
   pressedButton: {
     opacity: 0.72,
-    transform: [{ scale: 0.98 }],
   },
   primaryButton: {
     backgroundColor: '#8ae8cf',
@@ -670,6 +606,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  rowActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
   safeArea: {
     backgroundColor: '#07101d',
     flex: 1,
@@ -679,11 +620,11 @@ const styles = StyleSheet.create({
     padding: 18,
     paddingBottom: 42,
   },
-  sequenceRow: {
-    backgroundColor: '#0a1321',
-    borderRadius: 16,
-    flexDirection: 'row',
-    paddingVertical: 12,
+  sectionLabel: {
+    color: '#f3f8ff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 4,
   },
   statusLabel: {
     color: '#7f8da3',
@@ -691,27 +632,19 @@ const styles = StyleSheet.create({
   },
   statusRow: {
     alignItems: 'center',
-    borderBottomColor: '#243147',
-    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 36,
+    minHeight: 32,
   },
   statusValue: {
     color: '#e1ebf8',
     fontSize: 14,
     fontWeight: '700',
+    textTransform: 'capitalize',
   },
   subtitle: {
     color: '#95a6bd',
     fontSize: 16,
     lineHeight: 24,
-    maxWidth: 520,
-  },
-  title: {
-    color: '#f7fbff',
-    fontSize: 38,
-    fontWeight: '900',
-    letterSpacing: -1.5,
   },
 })

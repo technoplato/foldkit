@@ -879,6 +879,46 @@ describe('InteractionGraph', () => {
     ).toThrow()
   })
 
+  it('admits Instant-length canonical session identities used by protocol-v3 hosts', () => {
+    const instantSessionId = `multiple-counters:pv2:ip3:${'a'.repeat(64)}:${'e'.repeat(43)}`
+    const maximumIdentity = 's'.repeat(
+      interactionAdmissionLimits.invocationFactIdentityLength,
+    )
+    const overlongIdentity = `${maximumIdentity}x`
+
+    expect(instantSessionId.length).toBeGreaterThan(128)
+    expect(() =>
+      InteractionInvocationFacts.make({
+        occurrenceId: 'occurrence-instant-session',
+        actorId: 'actor-1',
+        clientId: 'client-1',
+        originatingProcessorId: 'processor-1',
+        sessionId: instantSessionId,
+        subjectId: 'subject-1',
+      }),
+    ).not.toThrow()
+    expect(() =>
+      InteractionInvocationFacts.make({
+        occurrenceId: 'occurrence-maximum-session',
+        actorId: maximumIdentity,
+        clientId: 'client-1',
+        originatingProcessorId: 'processor-1',
+        sessionId: maximumIdentity,
+        subjectId: maximumIdentity,
+      }),
+    ).not.toThrow()
+    expect(() =>
+      InteractionInvocationFacts.make({
+        occurrenceId: 'occurrence-overlong-session',
+        actorId: 'actor-1',
+        clientId: 'client-1',
+        originatingProcessorId: 'processor-1',
+        sessionId: overlongIdentity,
+        subjectId: 'subject-1',
+      }),
+    ).toThrow()
+  })
+
   it('bounds every untrusted occurrence component before authority resolution', () => {
     const limits = interactionAdmissionLimits
     const maximumPathSegment = {

@@ -39,6 +39,8 @@ import {
   ClickedDeleteCounter,
   ClickedShowCounterFact,
   ConfirmedDeleteCounter,
+  CounterListOpening,
+  CounterListTarget,
   DeleteCounterOpening,
   DeleteCounterTarget,
   DismissedCounterDetail,
@@ -535,6 +537,40 @@ describe('Multiple Counters Message admission', () => {
     )
     expect(Result.isFailure(navigation) && navigation.failure).toBeInstanceOf(
       InvalidInteractionInvocationFactsError,
+    )
+  })
+
+  it('admits a list navigation whose session identity is a canonical Instant v3 Program session ID', () => {
+    const [model] = init()
+    const occurrenceId = 'occurrence-instant-session'
+    const sessionId = `multiple-counters:pv2:ip3:${'a'.repeat(64)}:${'e'.repeat(43)}`
+    const claim = NavigationCarrierInvocation.make({
+      destinationUri: '/counters',
+      occurrenceId,
+    })
+
+    expect(sessionId.length).toBeGreaterThan(128)
+    expect(
+      resolveMultipleCountersAdmissionClaim(
+        model,
+        claim,
+        InteractionInvocationFacts.make({
+          occurrenceId,
+          actorId: 'actor-1',
+          clientId: 'client-1',
+          originatingProcessorId: 'processor-1',
+          sessionId,
+          subjectId: 'subject-1',
+        }),
+      ),
+    ).toStrictEqual(
+      Result.succeed(
+        OpenedNavigation({
+          opening: CounterListOpening.make({
+            target: CounterListTarget.make({}),
+          }),
+        }),
+      ),
     )
   })
 

@@ -165,6 +165,33 @@ button.quiet {
   text-transform: uppercase;
 }
 
+.debug-login {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1.25rem 0 0;
+  padding: 0.95rem 1rem 1rem;
+  border: 1px dashed #3d6a5c;
+  border-radius: 1rem;
+}
+
+.debug-login-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.debug-code {
+  margin: 0;
+  color: #d7f6e6;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.debug-code code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #9ef0c4;
+}
+
 .or::before,
 .or::after {
   height: 1px;
@@ -636,7 +663,8 @@ button.quiet {
   padding: clamp(1.5rem, 6vw, 4rem);
   border: 1px solid #315047;
   border-radius: 1.5rem;
-  background: radial-gradient(circle at center, rgb(50 117 89 / 27%), transparent 65%),
+  background:
+    radial-gradient(circle at center, rgb(50 117 89 / 27%), transparent 65%),
     #091713;
   text-align: center;
 }

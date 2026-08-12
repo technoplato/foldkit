@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Foldkit & Scribe | Gemini Grounding Presentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&family=Lexend:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-dark: #0a090d;
+        --bg-card: rgba(22, 20, 29, 0.75);
+        --bg-card-hover: rgba(30, 27, 40, 0.85);
+        --border-card: rgba(235, 190, 110, 0.15);
+        --border-accent: rgba(235, 190, 110, 0.4);
+        --gold-primary: #f3cf7a;
+        --gold-light: #fbe6af;
+        --gold-deep: #c49b53;
+        --gold-glow: rgba(243, 207, 122, 0.25);
+        --accent-cyan: #56d4dd;
+        --accent-purple: #b388ff;
+        --accent-green: #71d087;
+        --accent-red: #ff7575;
+        --text-main: #f0edf6;
+        --text-muted: #9e9ab0;
+        --font-display: 'Outfit', sans-serif;
+        --font-body: 'Lexend', sans-serif;
+        --font-mono: 'JetBrains Mono', monospace;
+        --radius-lg: 1.25rem;
+        --radius-md: 0.75rem;
+        --shadow-glow:
+          0 1rem 3rem rgba(0, 0, 0, 0.6), 0 0 2rem rgba(243, 207, 122, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: var(--bg-dark);
+        background-image:
+          radial-gradient(
+            circle at 15% 10%,
+            rgba(243, 207, 122, 0.07),
+            transparent 30rem
+          ),
+          radial-gradient(
+            circle at 85% 60%,
+            rgba(179, 136, 255, 0.06),
+            transparent 35rem
+          ),
+          radial-gradient(
+            circle at 50% 90%,
+            rgba(86, 212, 221, 0.05),
+            transparent 28rem
+          );
+        color: var(--text-main);
+        font-family: var(--font-body);
+        line-height: 1.6;
+        min-height: 100vh;
+        padding: 2rem 1rem 6rem;
+      }
+
+      .container {
+        max-width: 86rem;
+        margin: 0 auto;
+      }
+
+      /* Top Navigation Bar */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.5rem;
+        background: var(--bg-card);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        margin-bottom: 2.5rem;
+        box-shadow: var(--shadow-glow);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .brand-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        background: linear-gradient(
+          135deg,
+          var(--gold-primary),
+          var(--gold-deep)
+        );
+        border-radius: 0.6rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-display);
+        font-weight: 800;
+        color: var(--bg-dark);
+        font-size: 1.3rem;
+        box-shadow: 0 0 1rem var(--gold-glow);
+      }
+
+      .brand-title {
+        font-family: var(--font-display);
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--gold-primary);
+        letter-spacing: -0.02em;
+      }
+
+      .brand-subtitle {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .nav-btn {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--text-muted);
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-md);
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .nav-btn:hover,
+      .nav-btn.active {
+        background: rgba(243, 207, 122, 0.15);
+        border-color: var(--gold-primary);
+        color: var(--gold-primary);
+      }
+
+      /* Header Section */
+      .hero {
+        text-align: center;
+        margin: 2rem 0 4rem;
+        position: relative;
+      }
+
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 1.1rem;
+        background: rgba(243, 207, 122, 0.1);
+        border: 1px solid var(--border-accent);
+        border-radius: 2rem;
+        color: var(--gold-primary);
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .hero-title {
+        font-family: var(--font-display);
+        font-size: clamp(2.5rem, 5vw, 4rem);
+        font-weight: 800;
+        line-height: 1.15;
+        background: linear-gradient(
+          135deg,
+          #ffffff 0%,
+          var(--gold-light) 60%,
+          var(--gold-deep) 100%
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 1rem;
+        letter-spacing: -0.03em;
+      }
+
+      .hero-lead {
+        max-width: 50rem;
+        margin: 0 auto;
+        color: var(--text-muted);
+        font-size: 1.15rem;
+        font-weight: 350;
+      }
+
+      /* Sparse Infographic Shapes Bar (ADHD Grounding Visualizer) */
+      .visual-grounder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+        margin: 2.5rem 0;
+        padding: 1.25rem;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: var(--radius-lg);
+        border: 1px dashed rgba(243, 207, 122, 0.2);
+      }
+
+      .shape-node {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.6rem 1.2rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border-card);
+        border-radius: 2rem;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        color: var(--text-main);
+      }
+
+      .shape-icon {
+        width: 0.9rem;
+        height: 0.9rem;
+        border-radius: 50%;
+      }
+
+      .shape-icon.gold {
+        background: var(--gold-primary);
+        box-shadow: 0 0 0.5rem var(--gold-primary);
+      }
+      .shape-icon.cyan {
+        background: var(--accent-cyan);
+        box-shadow: 0 0 0.5rem var(--accent-cyan);
+      }
+      .shape-icon.purple {
+        background: var(--accent-purple);
+        box-shadow: 0 0 0.5rem var(--accent-purple);
+      }
+      .shape-icon.green {
+        background: var(--accent-green);
+        box-shadow: 0 0 0.5rem var(--accent-green);
+      }
+
+      .connector-line {
+        height: 2px;
+        width: 2rem;
+        background: linear-gradient(
+          90deg,
+          var(--gold-glow),
+          var(--border-card)
+        );
+      }
+
+      /* Grid & Cards */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr));
+        gap: 1.75rem;
+        margin-bottom: 3.5rem;
+      }
+
+      .card {
+        background: var(--bg-card);
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        padding: 1.75rem;
+        transition: all 0.25s ease;
+        box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.4);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .card:hover {
+        background: var(--bg-card-hover);
+        border-color: var(--border-accent);
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-glow);
+      }
+
+      .card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+      }
+
+      .card-tag {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        padding: 0.25rem 0.618rem;
+        border-radius: 0.4rem;
+        font-weight: 600;
+      }
+
+      .tag-landed {
+        background: rgba(113, 208, 135, 0.15);
+        color: var(--accent-green);
+        border: 1px solid rgba(113, 208, 135, 0.3);
+      }
+      .tag-active {
+        background: rgba(86, 212, 221, 0.15);
+        color: var(--accent-cyan);
+        border: 1px solid rgba(86, 212, 221, 0.3);
+      }
+      .tag-bug {
+        background: rgba(255, 117, 117, 0.15);
+        color: var(--accent-red);
+        border: 1px solid rgba(255, 117, 117, 0.3);
+      }
+      .tag-sync {
+        background: rgba(179, 136, 255, 0.15);
+        color: var(--accent-purple);
+        border: 1px solid rgba(179, 136, 255, 0.3);
+      }
+
+      .card-title {
+        font-family: var(--font-display);
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: var(--gold-primary);
+        margin-bottom: 0.5rem;
+      }
+
+      .card-body {
+        color: var(--text-main);
+        font-size: 0.95rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .card-body p {
+        margin-bottom: 0.75rem;
+      }
+
+      .spec-list {
+        list-style: none;
+        margin-top: 0.75rem;
+      }
+
+      .spec-list li {
+        position: relative;
+        padding-left: 1.25rem;
+        margin-bottom: 0.4rem;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+      }
+
+      .spec-list li::before {
+        content: '•';
+        position: absolute;
+        left: 0;
+        color: var(--gold-primary);
+        font-weight: bold;
+      }
+
+      .card-footer {
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        padding-top: 1rem;
+        margin-top: auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      /* Section Banner */
+      .section-title {
+        font-family: var(--font-display);
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--text-main);
+        margin: 3rem 0 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .section-title::before {
+        content: '';
+        display: block;
+        width: 0.5rem;
+        height: 1.8rem;
+        background: var(--gold-primary);
+        border-radius: 0.2rem;
+      }
+
+      /* Code & Command Cards */
+      .prompt-box {
+        background: #0d0c12;
+        border: 1px solid var(--border-card);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .prompt-box-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .prompt-box-title {
+        font-family: var(--font-display);
+        font-weight: 600;
+        color: var(--gold-primary);
+        font-size: 1.1rem;
+      }
+
+      .copy-btn {
+        background: rgba(243, 207, 122, 0.15);
+        border: 1px solid var(--gold-primary);
+        color: var(--gold-primary);
+        padding: 0.4rem 0.8rem;
+        border-radius: var(--radius-md);
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .copy-btn:hover {
+        background: var(--gold-primary);
+        color: var(--bg-dark);
+      }
+
+      pre {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        color: var(--text-main);
+        overflow-x: auto;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .token-keyword {
+        color: var(--accent-purple);
+      }
+      .token-string {
+        color: var(--accent-green);
+      }
+      .token-path {
+        color: var(--accent-cyan);
+      }
+      .token-gold {
+        color: var(--gold-primary);
+      }
+
+      /* Footer */
+      footer {
+        text-align: center;
+        padding-top: 3rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        font-family: var(--font-mono);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-icon">F</div>
+          <div>
+            <div class="brand-title">Foldkit & Scribe</div>
+            <div class="brand-subtitle">Gemini Grounding Presentation</div>
+          </div>
+        </div>
+        <nav class="nav-links">
+          <button class="nav-btn active" onclick="filterDomain('all')">
+            All Work
+          </button>
+          <button class="nav-btn" onclick="filterDomain('foldkit')">
+            Foldkit Core
+          </button>
+          <button class="nav-btn" onclick="filterDomain('scribe')">
+            Voice Dictation
+          </button>
+          <button class="nav-btn" onclick="filterDomain('prompts')">
+            Task Kick-offs
+          </button>
+        </nav>
+      </header>
+
+      <!-- Hero Section -->
+      <section class="hero">
+        <div class="hero-badge">Architectural Alignment & Task Map</div>
+        <h1 class="hero-title">State Audit & Execution Grounding</h1>
+        <p class="hero-lead">
+          Comprehensive synthesis of recent Foldkit framework advancements,
+          Scribe audio pipeline diagnoses, cross-device database reconciliation,
+          and ready-to-run Gemini task prompts.
+        </p>
+      </section>
+
+      <!-- ADHD Sparse Infographic Grounder -->
+      <div class="visual-grounder">
+        <div class="shape-node">
+          <div class="shape-icon gold"></div>
+          <span>InteractionGraph v1 (Landed)</span>
+        </div>
+        <div class="connector-line"></div>
+        <div class="shape-node">
+          <div class="shape-icon cyan"></div>
+          <span>Instant DB Sync v3</span>
+        </div>
+        <div class="connector-line"></div>
+        <div class="shape-node">
+          <div class="shape-icon purple"></div>
+          <span>Words Playback & Tape</span>
+        </div>
+        <div class="connector-line"></div>
+        <div class="shape-node">
+          <div class="shape-icon green"></div>
+          <span>Scribe Crash & Duration Fixes</span>
+        </div>
+      </div>
+
+      <!-- Domain 1: Foldkit Core & Instant Integration -->
+      <h2 class="section-title" id="sec-foldkit">
+        Part 1: Foldkit Framework & Instant Integration
+      </h2>
+
+      <div class="grid">
+        <!-- Card 1 -->
+        <div class="card" data-domain="foldkit">
+          <div>
+            <div class="card-header">
+              <span class="card-tag tag-landed"
+                >Commits 455650ab / 7975c7ac</span
+              >
+              <span
+                style="
+                  color: var(--text-muted);
+                  font-size: 0.8rem;
+                  font-family: var(--font-mono);
+                "
+                >Thread 019fb87d</span
+              >
+            </div>
+            <div class="card-title">InteractionGraph v1 & OpenTUI</div>
+            <div class="card-body">
+              <p>
+                Schema-backed semantic identity engine for Foldkit UI controls
+                and OpenTUI multiple counters proof.
+              </p>
+              <ul class="spec-list">
+                <li>
+                  <strong>InteractionId:</strong> Excludes URI. Source-owned
+                  semantic identity (e.g. Counter increment on list matches
+                  detail).
+                </li>
+                <li>
+                  <strong>InteractionReference:</strong> Includes URI and
+                  occurrence info; stale targets resolve cleanly to
+                  <code>None</code>.
+                </li>
+                <li>
+                  <strong>Tape Facts:</strong> Route carriers enter as
+                  <code>OpenedNavigation</code> Message facts; order preserved
+                  without action reordering.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>61 Tests Passed</span>
+            <span>Vim Navigation (`j`/`k`)</span>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="card" data-domain="foldkit">
+          <div>
+            <div class="card-header">
+              <span class="card-tag tag-active">In Progress</span>
+              <span
+                style="
+                  color: var(--text-muted);
+                  font-size: 0.8rem;
+                  font-family: var(--font-mono);
+                "
+                >Thread 019fbb90</span
+              >
+            </div>
+            <div class="card-title">Words Playback & Instant Sync</div>
+            <div class="card-body">
+              <p>
+                Real-time word-level timestamp playback and data synchronization
+                with Instant DB streams (Toolshed integration).
+              </p>
+              <ul class="spec-list">
+                <li>
+                  <strong>Protocol Admission:</strong> Wraps Instant DB
+                  admission streams into Foldkit Command and Subscription
+                  primitives.
+                </li>
+                <li>
+                  <strong>Unidirectional Tape:</strong> Live audio position
+                  updates flow through Program Model and Message transitions.
+                </li>
+                <li>
+                  <strong>Playback Viewer:</strong> Synchronizes HTML/WAV
+                  presentation with word-by-word highlights.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Toolshed Viewer</span>
+            <span>Effect-TS Stream Sync</span>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="card" data-domain="foldkit">
+          <div>
+            <div class="card-header">
+              <span class="card-tag tag-landed">Implemented</span>
+              <span
+                style="
+                  color: var(--text-muted);
+                  font-size: 0.8rem;
+                  font-family: var(--font-mono);
+                "
+                >Thread 019fb285</span
+              >
+            </div>
+            <div class="card-title">Multi-Crypto Wallet Contract</div>
+            <div class="card-body">
+              <p>
+                Full multi-chain crypto wallet screens compliant with generic
+                Foldkit architecture contracts without placeholder data.
+              </p>
+              <ul class="spec-list">
+                <li>
+                  <strong>Dropdown Selection:</strong> Dynamic UI switching
+                  across supported cryptocurrencies.
+                </li>
+                <li>
+                  <strong>Network Switcher:</strong> Reactive switching between
+                  Devnet, Testnet, and Mainnet/Live environments.
+                </li>
+                <li>
+                  <strong>Mac API Faucet:</strong> Authenticated Mac-side API
+                  endpoints for testnet/devnet token airdrops.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Zero Placeholders</span>
+            <span>Mac Faucet API</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Domain 2: Voice Dictation Application -->
+      <h2 class="section-title" id="sec-scribe">
+        Part 2: Voice Dictation Application ("Scribe")
+      </h2>
+
+      <div class="grid">
+        <!-- Card 4 -->
+        <div class="card" data-domain="scribe">
+          <div>
+            <div class="card-header">
+              <span class="card-tag tag-bug">Open Bug</span>
+              <span
+                style="
+                  color: var(--text-muted);
+                  font-size: 0.8rem;
+                  font-family: var(--font-mono);
+                "
+                >Thread 019fbb93</span
+              >
+            </div>
+            <div class="card-title">WCSession Crash & Freeze Guard</div>
+            <div class="card-body">
+              <p>
+                Diagnosed application freeze during active voice recording
+                sessions and screenshot capture.
+              </p>
+              <ul class="spec-list">
+                <li>
+                  <strong>Root Exception:</strong>
+                  <code
+                    >denying activation as it is not supported on this device
+                    type WCSession has not...</code
+                  >
+                </li>
+                <li>
+                  <strong>Cause:</strong> Attempting WatchConnectivity session
+                  activation on iPad/Mac hardware targets where
+                  WatchConnectivity is unsupported.
+                </li>
+                <li>
+                  <strong>Fix Plan:</strong> Guard with
+                  <code>WCSession.isSupported()</code> prior to activation and
+                  run state sync off the main thread.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>iPad / Mac Guard</span>
+            <span>Asynchronous Sync</span>
+          </div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="card" data-domain="scribe">
+          <div>
+            <div class="card-header">
+              <span class="card-tag tag-bug">Open Bug</span>
+              <span
+                style="
+                  color: var(--text-muted);
+                  font-size: 0.8rem;
+                  font-family: var(--font-mono);
+                "
+                >Thread 019fbb88</span
+              >
+            </div>
+            <div class="card-title">Scribe Pipeline & Issue Tracker</div>
+            <div class="card-body">
+              <p>
+                Performance regressions in the recording pipeline managed via
+                the typed Instant issue-tracker skill.
+              </p>
+              <ul class="spec-list">
+                <li>
+                  <strong>Bug 1 (>10s Load):</strong> Opening local audio
+                  recordings on iPad taking over 10 seconds.
+                </li>
+                <li>
+                  <strong>Bug 2 (0-Second Duration):</strong> Newly created
+                  audio recordings register 0s duration metadata on iOS/iPadOS.
+                </li>
+                <li>
+                  <strong>Bug 3 (Startup Lag):</strong> Noticeable UI latency
+                  when initiating new audio recordings.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Sub-second Load Goal</span>
+            <span>Issue Tracker Skill</span>
+          </div>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="card" data-domain="scribe">
+          <div>
+            <div class="card-header">
+              <span class="card-tag tag-sync">Reconciled</span>
+              <span
+                style="
+                  color: var(--text-muted);
+                  font-size: 0.8rem;
+                  font-family: var(--font-mono);
+                "
+                >Thread 019fb853</span
+              >
+            </div>
+            <div class="card-title">Voice Memos Sync & Reference Index</div>
+            <div class="card-body">
+              <p>
+                Cross-device audio reconciliation across Instant DB, iPhone,
+                iPad, Apple Watch voice memos (#350–#370 series), and Apple
+                Memos.
+              </p>
+              <ul class="spec-list">
+                <li>
+                  <strong>Transcript Synthesis:</strong> Unified transcripts
+                  from Martin and TJ calls into one sorted chronological
+                  document.
+                </li>
+                <li>
+                  <strong>Zero-Padded Dictionary:</strong>
+                  <code>/0/0/0/0/0/0/0/0/33</code> maps to
+                  <code>https://cardboard.knophy.com/0/33</code> (33rd
+                  reference).
+                </li>
+                <li>
+                  <strong>Cultural Index:</strong> Categorical index of
+                  Odysseus, Biblical, logic, math, and voting references in
+                  Medium/dev.to visual style.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>cardboard.knophy.com</span>
+            <span>Cultural Index</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Domain 3: Task Kick-offs -->
+      <h2 class="section-title" id="sec-prompts">
+        Part 3: Ready-to-Run Gemini Task Kick-offs
+      </h2>
+
+      <!-- Prompt Box 1 -->
+      <div class="prompt-box" data-domain="prompts">
+        <div class="prompt-box-header">
+          <div class="prompt-box-title">
+            Task 1: Foldkit Instant Synchronization & Replayability
+          </div>
+          <button class="copy-btn" onclick="copyPrompt('prompt-1')">
+            Copy Prompt
+          </button>
+        </div>
+        <pre
+          id="prompt-1"
+        ><span class="token-keyword"># TASK INITIATION | Foldkit Instant Synchronization & Replayability</span>
+
+<span class="token-gold">## Project Context & Grounding</span>
+- Work Root: <span class="token-path">/Users/laptop/Development/foldkit</span>
+- Grounding Spec: <span class="token-path">/Users/laptop/Development/foldkit/gemini-grounding.md`</span>
+- Presentation: <span class="token-path">/Users/laptop/Development/foldkit/.lavish/gemini-grounding-presentation.html</span>
+
+<span class="token-gold">## Task Goal</span>
+Build and verify Foldkit Instant DB Synchronization (`packages/instant`), v3 Program Store (`v3ProgramStore`), attached renderers (`attachedRenderer.ts`), and words playback synchronization. Ensure all Program navigation and state mutations enter the tape as deterministic Message facts for full session replayability.
+
+<span class="token-gold">## Currently Dirty Files in Git</span>
+- `packages/instant/src/v3Schema/records.ts` & `records.test.ts`
+- `packages/instant/src/v3ProgramStore/v3ProgramStore.ts`
+- `packages/foldkit/src/runtime/public.ts` & `index.ts`
+- `packages/foldkit/src/runtime/attachedRenderer.ts` & `attachedRenderer.test.ts`
+- `packages/instant/src/v3AcceptanceAuthority/`
+- `packages/instant/src/v3InstantProgramStore/`
+- `packages/instant/src/v3SharedProgramProcessor/`
+- `examples/instant-counter/src/v3Demo/` & `v3Entry.ts`
+
+<span class="token-gold">## Upstream Codex Rollout Sessions on Disk</span>
+1. InteractionGraph v1 & Tape Replayability:
+   `/Users/laptop/.codex/sessions/2026/07/31/rollout-2026-07-31T10-04-04-019fb87d-4323-7752-bd5e-d8f263703c71.jsonl`
+2. Foldkit Words Playback & Toolshed Sync:
+   `/Users/laptop/.codex/sessions/2026/08/01/rollout-2026-08-01T00-24-08-019fbb90-aca0-7313-9467-f5d40570989b.jsonl`
+
+Please inspect `gemini-grounding.md`, review dirty files in `packages/instant/`, and state your execution plan before making edits.</pre>
+      </div>
+
+      <!-- Prompt Box 2 -->
+      <div class="prompt-box" data-domain="prompts">
+        <div class="prompt-box-header">
+          <div class="prompt-box-title">
+            Task 2: Scribe Audio Pipeline Fixes (WCSession & Load Optimization)
+          </div>
+          <button class="copy-btn" onclick="copyPrompt('prompt-2')">
+            Copy Prompt
+          </button>
+        </div>
+        <pre
+          id="prompt-2"
+        ><span class="token-keyword"># TASK INITIATION | Voice Dictation Scribe Bug Fixes</span>
+
+<span class="token-gold">## Task Goal</span>
+Fix the `WCSession` activation crash on iPad/Mac targets, optimize local recording load times on iPad from >10s to sub-second, and fix the 0-second recording duration bug on iOS/iPadOS.
+
+<span class="token-gold">## Upstream Codex Rollout Sessions on Disk</span>
+1. WCSession Crash Diagnosis:
+   `/Users/laptop/.codex/sessions/2026/08/01/rollout-2026-08-01T00-27-17-019fbb93-8f0b-7fd3-a2d2-398df893ec53.jsonl`
+2. Performance & Issue Tracker:
+   `/Users/laptop/.codex/sessions/2026/08/01/rollout-2026-08-01T00-15-27-019fbb88-b700-7d71-8ae7-72fd11d23b20.jsonl`
+
+Please inspect `gemini-grounding.md` Part 2 and outline your plan to guard WCSession and optimize the local database queries.</pre>
+      </div>
+
+      <footer>
+        Foldkit Architecture & Gemini Grounding Presentation | Built with Lavish
+        Design System
+      </footer>
+    </div>
+
+    <script>
+      function filterDomain(domain) {
+        const cards = document.querySelectorAll('.card, .prompt-box')
+        const navBtns = document.querySelectorAll('.nav-btn')
+
+        navBtns.forEach(btn => btn.classList.remove('active'))
+        event.target.classList.add('active')
+
+        cards.forEach(card => {
+          if (domain === 'all' || card.dataset.domain === domain) {
+            card.style.display = 'flex'
+            if (card.classList.contains('prompt-box'))
+              card.style.display = 'block'
+          } else {
+            card.style.display = 'none'
+          }
+        })
+      }
+
+      function copyPrompt(id) {
+        const text = document.getElementById(id).innerText
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = event.target
+          const orig = btn.innerText
+          btn.innerText = 'Copied!'
+          btn.style.background = 'var(--accent-green)'
+          btn.style.color = 'var(--bg-dark)'
+          setTimeout(() => {
+            btn.innerText = orig
+            btn.style.background = 'rgba(243, 207, 122, 0.15)'
+            btn.style.color = 'var(--gold-primary)'
+          }, 2000)
+        })
+      }
+    </script>
+  </body>
+</html>

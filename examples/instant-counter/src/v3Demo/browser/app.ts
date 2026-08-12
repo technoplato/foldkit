@@ -46,7 +46,37 @@ import {
   isMultipleCountersV3RetainedOptimisticError,
   makeMultipleCountersV3ClientController,
 } from '../client/index.js'
-import { multipleCountersV3SessionEpochSeed } from '../shared/identity.js'
+import {
+  type MultipleCountersV3FollowDraft,
+  emptyMultipleCountersV3FollowDraft,
+  isMultipleCountersV3ObserveFollower,
+  multipleCountersV3FollowAlignmentExplanation,
+  multipleCountersV3FollowMode,
+  multipleCountersV3ModeLabel,
+  multipleCountersV3ModeRequestLabel,
+  multipleCountersV3ObserveLeaderProcessorId,
+} from '../client/sessionChrome.js'
+
+export {
+  type MultipleCountersV3FollowDraft,
+  isMultipleCountersV3ObserveFollower,
+  multipleCountersV3FollowAlignmentExplanation,
+  multipleCountersV3FollowMode,
+}
+import {
+  MultipleCountersV3DebugEmail,
+  MultipleCountersV3DebugLoginIssued,
+  multipleCountersV3DebugLoginMarkup,
+  multipleCountersV3DebugLoginPath,
+} from '../shared/debugLogin.js'
+import {
+  describeUnknownCause,
+  logMultipleCountersV3Debug,
+} from '../shared/debugLog.js'
+import {
+  makeMultipleCountersV3SessionIdentity,
+  multipleCountersV3SessionEpochSeed,
+} from '../shared/identity.js'
 import { MultipleCountersV3BrowserClientInput } from './clientInput.js'
 import {
   type MultipleCountersV3BrowserNavigationDecision,
@@ -66,6 +96,22 @@ import { multipleCountersV3BrowserView } from './view.js'
 
 const canonicalListDestinationUri = '/counters'
 const [initialRendererModel] = MultipleCountersProgram.init()
+const isBrowserDebugLoginEnabled = import.meta.env.DEV
+
+const requestMultipleCountersV3DebugLogin = (
+  email: typeof MultipleCountersV3DebugEmail.Type,
+): Promise<typeof MultipleCountersV3DebugLoginIssued.Type> =>
+  fetch(multipleCountersV3DebugLoginPath, {
+    body: JSON.stringify({ email }),
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  }).then(async response => {
+    const body: unknown = await response.json()
+    if (!response.ok) {
+      throw new Error('DebugLoginUnavailable')
+    }
+    return S.decodeUnknownSync(MultipleCountersV3DebugLoginIssued)(body)
+  })
 
 /** Presentation state produced by one attached-renderer defect. */
 export type MultipleCountersV3RendererDefectState = Readonly<{
@@ -112,13 +158,6 @@ type MultipleCountersV3SubmissionAttempt =
       submission: MultipleCountersV3ClientSubmission
     }>
 
-/** Client-local Follow form values bound to one active Processor occurrence. */
-export type MultipleCountersV3FollowDraft = Readonly<{
-  control: 'Observe' | 'RemoteControl'
-  followerProcessorId: string
-  leaderProcessorId: string
-}>
-
 /** Subject, lifecycle generation, and Processor identity for one active occurrence. */
 export type MultipleCountersV3ProcessorBinding = Readonly<{
   generation: number
@@ -141,16 +180,10 @@ export type MultipleCountersV3ProcessorBoundTransition = Readonly<{
   state: MultipleCountersV3ProcessorBoundState
 }>
 
-const emptyFollowDraft = (): MultipleCountersV3FollowDraft => ({
-  control: 'Observe',
-  followerProcessorId: '',
-  leaderProcessorId: '',
-})
-
 /** Creates Client controls before any active Processor has claimed them. */
 export const makeMultipleCountersV3ProcessorBoundState =
   (): MultipleCountersV3ProcessorBoundState => ({
-    followDraft: emptyFollowDraft(),
+    followDraft: emptyMultipleCountersV3FollowDraft(),
     isModeRequestPending: false,
     maybeLastActiveBinding: Option.none(),
     maybeObservedBinding: Option.none(),
@@ -226,7 +259,9 @@ export const transitionMultipleCountersV3ProcessorBoundState = (
   return {
     didCrossBoundary,
     state: {
-      followDraft: didCrossBoundary ? emptyFollowDraft() : state.followDraft,
+      followDraft: didCrossBoundary
+        ? emptyMultipleCountersV3FollowDraft()
+        : state.followDraft,
       isModeRequestPending: didCrossBoundary
         ? false
         : state.isModeRequestPending,
@@ -329,34 +364,6 @@ export const setMultipleCountersV3BrowserHostVisibility = (
   host.chromeRoot.hidden = !isProgramReady
 }
 
-const observeLeaderForSnapshot = (
-  snapshot: MultipleCountersV3ClientSnapshot,
-): Option.Option<string> => {
-  const maybeActive = snapshot.maybeActiveProgram
-  if (Option.isNone(maybeActive)) {
-    return Option.none()
-  }
-  const maybePolicy = maybeActive.value.processorSnapshot.activeSessionPolicy
-  if (Option.isNone(maybePolicy) || maybePolicy.value.mode._tag !== 'Follow') {
-    return Option.none()
-  }
-  const followMode = maybePolicy.value.mode
-  const maybeFollower = Array.findFirst(
-    followMode.followers,
-    follower => follower.processorId === maybeActive.value.processorId,
-  )
-  return Option.flatMap(maybeFollower, follower =>
-    follower.control === 'Observe'
-      ? Option.some(followMode.leaderProcessorId)
-      : Option.none(),
-  )
-}
-
-/** Returns whether the current Processor follows navigation without control. */
-export const isMultipleCountersV3ObserveFollower = (
-  snapshot: MultipleCountersV3ClientSnapshot,
-): boolean => Option.isSome(observeLeaderForSnapshot(snapshot))
-
 /** Finds one terminal authority claim for the current subject and Processor. */
 export const multipleCountersV3TerminalClaimForProposal = (
   snapshot: MultipleCountersV3ClientSnapshot,
@@ -392,12 +399,12 @@ export const multipleCountersV3NewTerminalRejection = (
       active =>
         active.processorId === previousActive.processorId &&
         active.generation === previousActive.generation
-        ? Array.findFirst(
-            active.processorSnapshot.recentTerminalClaims,
-            claim =>
-              claim.resolutionState === 'Rejected' &&
-              !previousTerminalProposalIds.has(claim.proposalId),
-          )
+          ? Array.findFirst(
+              active.processorSnapshot.recentTerminalClaims,
+              claim =>
+                claim.resolutionState === 'Rejected' &&
+                !previousTerminalProposalIds.has(claim.proposalId),
+            )
           : Option.none(),
     )
   })
@@ -436,10 +443,6 @@ export const multipleCountersV3SubmissionDisposition = (
     : 'NotApplied'
 }
 
-/** Follow aligns when authority accepts the next typed Navigation Message. */
-export const multipleCountersV3FollowAlignmentExplanation =
-  'Follow aligns on the next accepted Navigation Message. It does not immediately jump to the leader’s current destination.'
-
 const escapeHtml = (value: string): string =>
   value
     .replaceAll('&', '&amp;')
@@ -452,34 +455,6 @@ const escapeHtml = (value: string): string =>
 export const multipleCountersV3DestinationUriFromPathname = (
   pathname: string,
 ): string => (pathname === '/' ? canonicalListDestinationUri : pathname)
-
-/** Constructs one valid single-follower Follow mode from Client form fields. */
-export const multipleCountersV3FollowMode = (
-  leaderProcessorId: string,
-  followerProcessorId: string,
-  control: string,
-): Option.Option<Synchronization.Mode> => {
-  const nextLeaderProcessorId = leaderProcessorId.trim()
-  const nextFollowerProcessorId = followerProcessorId.trim()
-  if (
-    nextLeaderProcessorId.length === 0 ||
-    nextFollowerProcessorId.length === 0 ||
-    nextLeaderProcessorId === nextFollowerProcessorId ||
-    (control !== 'Observe' && control !== 'RemoteControl')
-  ) {
-    return Option.none()
-  }
-  return S.decodeUnknownOption(Synchronization.Follow)({
-    _tag: 'Follow',
-    followers: [
-      {
-        control,
-        processorId: nextFollowerProcessorId,
-      },
-    ],
-    leaderProcessorId: nextLeaderProcessorId,
-  })
-}
 
 const destinationUriFromLocation = (): string =>
   multipleCountersV3DestinationUriFromPathname(window.location.pathname)
@@ -509,6 +484,10 @@ const authenticationMarkup = (
   authentication: Authentication,
   maybeSentEmail: Option.Option<string>,
   maybeNotice: Option.Option<string>,
+  isDebugLoginEnabled: boolean,
+  maybeDebugIssued: Option.Option<
+    typeof MultipleCountersV3DebugLoginIssued.Type
+  >,
 ): string => {
   const notice = Option.isSome(maybeNotice)
     ? `<p class="notice" role="status">${escapeHtml(maybeNotice.value)}</p>`
@@ -525,7 +504,10 @@ const authenticationMarkup = (
   const form = Option.isNone(maybeSentEmail)
     ? `<form id="v3-email-form" class="auth-form"><label for="v3-email">Email</label><input id="v3-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" /><button type="submit" class="primary">Send magic code</button></form>`
     : `<form id="v3-code-form" class="auth-form"><p class="muted">Code sent to <strong>${escapeHtml(maybeSentEmail.value)}</strong></p><label for="v3-code">Magic code</label><input id="v3-code" name="code" inputmode="numeric" autocomplete="one-time-code" required placeholder="123456" /><button type="submit" class="primary">Verify code</button><button id="v3-change-email" type="button" class="quiet">Use another email</button></form>`
-  return `<main class="auth-shell"><section class="auth-card"><p class="eyebrow">Foldkit Program | InstantDB</p><h1>Your counters, on every Processor</h1><p class="lede">Sign in on your Mac, iPhone, iPad, browser tabs, simulators, or terminal. Actions appear immediately here, then converge through one authenticated accepted Message stream.</p>${notice}${form}<div class="or"><span>or</span></div><button id="v3-google" class="google">Continue with Google</button><p class="privacy">Origin secrets stay in this Client vault. Instant receives signed claims and public certificates, never the signing keys.</p></section></main>`
+  const debugLogin = isDebugLoginEnabled
+    ? multipleCountersV3DebugLoginMarkup(maybeDebugIssued)
+    : ''
+  return `<main class="auth-shell"><section class="auth-card"><p class="eyebrow">Foldkit Program | InstantDB</p><h1>Your counters, on every Processor</h1><p class="lede">Sign in on your Mac, iPhone, iPad, browser tabs, simulators, or terminal. Actions appear immediately here, then converge through one authenticated accepted Message stream.</p>${notice}${form}${debugLogin}<div class="or"><span>or</span></div><button id="v3-google" class="google">Continue with Google</button><p class="privacy">Origin secrets stay in this Client vault. Instant receives signed claims and public certificates, never the signing keys.</p></section></main>`
 }
 
 const preparingProgramMarkup = (
@@ -549,18 +531,6 @@ const preparingProgramMarkup = (
     : ''
   const isSignOutDisabled = isSigningOut || hasMemoryOnlyPendingClaims
   return `<main class="auth-shell"><section class="auth-card"><p class="eyebrow">Foldkit Program | InstantDB</p><h1>${isSigningOut ? 'Signing out' : 'Preparing your authenticated Processor'}</h1><p class="muted">${isSigningOut ? 'The framework fenced this subject and is invalidating its Instant session.' : `Restoring ${escapeHtml(account)}, confirming the session policy, and opening ${escapeHtml(destinationUriFromLocation())} through the Program.`}</p>${notice}${memoryOnlyWarning}<button id="v3-retry-processor" type="button" class="quiet"${isSigningOut ? ' disabled' : ''}>Retry Processor startup</button><button id="v3-preparing-sign-out" type="button" class="quiet"${isSignOutDisabled ? ' disabled' : ''}>${isSigningOut ? 'Signing out…' : 'Sign out'}</button></section></main>`
-}
-
-const modeLabel = (snapshot: MultipleCountersV3ClientSnapshot): string => {
-  const maybeActive = snapshot.maybeActiveProgram
-  if (Option.isNone(maybeActive)) {
-    return 'Starting'
-  }
-  const programSnapshot = maybeActive.value.processorSnapshot
-  if (Option.isNone(programSnapshot.activeSessionPolicy)) {
-    return 'Awaiting authority'
-  }
-  return programSnapshot.activeSessionPolicy.value.mode._tag
 }
 
 const connectionLabel = (
@@ -686,7 +656,7 @@ const chromeMarkup = (
     ? '<span class="v3-client-error" role="status">Sign out, reload, and page closing are blocked while a proposal is Local only. Retry it until Instant confirms durable storage.</span>'
     : ''
   const isSignOutDisabled = isSigningOut || hasMemoryOnlyPendingClaims
-  return `<aside class="v3-client-chrome" aria-label="Instant session"><div class="v3-session-summary"><span>${escapeHtml(connectionLabel(snapshot))}</span><span>${escapeHtml(modeLabel(snapshot))}</span><span>${pendingCount(snapshot).toString()} pending</span><span>${escapeHtml(account)}</span><code title="Processor identity">${escapeHtml(processorId)}</code>${processorHealthMarkup(snapshot)}${notice}${reload}${signOutWarning}<button id="v3-sign-out" type="button"${isSignOutDisabled ? ' disabled' : ''}>${isSigningOut ? 'Signing out…' : 'Sign out'}</button></div><div class="v3-mode-controls"><span>Navigation synchronization</span><button type="button" data-v3-mode="SharedDomain"${modeDisabled}>Independent</button><button type="button" data-v3-mode="Mirror"${modeDisabled}>Mirror</button><form id="v3-follow-form"><p class="muted">${escapeHtml(multipleCountersV3FollowAlignmentExplanation)}</p><label>Leader <input name="leaderProcessorId" required placeholder="Processor id" value="${escapeHtml(followDraft.leaderProcessorId)}"${modeDisabled} /></label><label>Follower <input name="followerProcessorId" required value="${escapeHtml(followerProcessorId)}"${modeDisabled} /></label><label>Control <select name="control"${modeDisabled}><option value="Observe"${followDraft.control === 'Observe' ? ' selected' : ''}>Observe</option><option value="RemoteControl"${followDraft.control === 'RemoteControl' ? ' selected' : ''}>Remote control</option></select></label><button type="submit"${modeDisabled}>${isModeRequestPending ? 'Waiting for authority…' : 'Follow'}</button></form></div>${pendingMarkup(snapshot)}${terminalClaimsMarkup(snapshot)}</aside>`
+  return `<aside class="v3-client-chrome" aria-label="Instant session"><div class="v3-session-summary"><span>${escapeHtml(connectionLabel(snapshot))}</span><span>${escapeHtml(multipleCountersV3ModeLabel(snapshot))}</span><span>${pendingCount(snapshot).toString()} pending</span><span>${escapeHtml(account)}</span><code title="Processor identity">${escapeHtml(processorId)}</code>${processorHealthMarkup(snapshot)}${notice}${reload}${signOutWarning}<button id="v3-sign-out" type="button"${isSignOutDisabled ? ' disabled' : ''}>${isSigningOut ? 'Signing out…' : 'Sign out'}</button></div><div class="v3-mode-controls"><span>Navigation synchronization</span><button type="button" data-v3-mode="SharedDomain"${modeDisabled}>Independent</button><button type="button" data-v3-mode="Mirror"${modeDisabled}>Mirror</button><form id="v3-follow-form"><p class="muted">${escapeHtml(multipleCountersV3FollowAlignmentExplanation)}</p><label>Leader <input name="leaderProcessorId" required placeholder="Processor id" value="${escapeHtml(followDraft.leaderProcessorId)}"${modeDisabled} /></label><label>Follower <input name="followerProcessorId" required value="${escapeHtml(followerProcessorId)}"${modeDisabled} /></label><label>Control <select name="control"${modeDisabled}><option value="Observe"${followDraft.control === 'Observe' ? ' selected' : ''}>Observe</option><option value="RemoteControl"${followDraft.control === 'RemoteControl' ? ' selected' : ''}>Remote control</option></select></label><button type="submit"${modeDisabled}>${isModeRequestPending ? 'Waiting for authority…' : 'Follow'}</button></form></div>${pendingMarkup(snapshot)}${terminalClaimsMarkup(snapshot)}</aside>`
 }
 
 /** One authenticated browser Client whose Foldkit renderer attaches to v3 optimism. */
@@ -700,12 +670,17 @@ export class MultipleCountersV3BrowserApp {
   readonly #root: HTMLElement
   #authentication: Authentication = LoadingAuthentication.make({})
   #controller: MultipleCountersV3ClientController | null = null
+  #followDraft: MultipleCountersV3FollowDraft = emptyMultipleCountersV3FollowDraft()
   #isBeforeUnloadProtected = false
+  #isModeRequestPending = false
   #isRendererTerminal = false
   #isSigningOut = false
   #lifecycleGeneration = 0
+  #maybeDebugIssued =
+    Option.none<typeof MultipleCountersV3DebugLoginIssued.Type>()
   #maybeNotice = Option.none<string>()
   #maybeSentEmail = Option.none<string>()
+  #modeOperationToken = 0
   #navigationIntentToken = 0
   #navigationState = makeMultipleCountersV3BrowserNavigationState(
     canonicalListDestinationUri,
@@ -864,12 +839,33 @@ export class MultipleCountersV3BrowserApp {
     }
   }
 
+  #removeBeforeUnloadProtection(): void {
+    if (this.#isBeforeUnloadProtected) {
+      window.removeEventListener('beforeunload', this.#onBeforeUnload)
+      this.#isBeforeUnloadProtected = false
+    }
+  }
+
+  #onBeforeUnload = (event: BeforeUnloadEvent): void => {
+    const pendingClaims =
+      this.#snapshot !== null
+        ? Option.match(this.#snapshot.maybeActiveProgram, {
+            onNone: () => [],
+            onSome: active => active.processorSnapshot.pendingClaims,
+          })
+        : []
+    if (multipleCountersV3HasMemoryOnlyPendingClaims(pendingClaims)) {
+      event.preventDefault()
+    }
+  }
+
   #resetRunState(): void {
     this.#authentication = LoadingAuthentication.make({})
     this.#isRendererTerminal = false
     this.#isSigningOut = false
     this.#maybeNotice = Option.none()
     this.#maybeSentEmail = Option.none()
+    this.#maybeDebugIssued = Option.none()
     this.#navigationState = makeMultipleCountersV3BrowserNavigationState(
       canonicalListDestinationUri,
     )
@@ -878,6 +874,7 @@ export class MultipleCountersV3BrowserApp {
     this.#rendererModel = initialRendererModel
     this.#requestedDestinationUri = destinationUriFromLocation()
     this.#processorBoundState = makeMultipleCountersV3ProcessorBoundState()
+    void this.#processorBoundState
     this.#snapshot = null
   }
 
@@ -944,6 +941,22 @@ export class MultipleCountersV3BrowserApp {
       )
       this.#maybeNotice = Option.none()
       this.#maybeSentEmail = Option.none()
+      if (authentication._tag === 'SignedIn') {
+        const session = makeMultipleCountersV3SessionIdentity({
+          instantAppId: this.#instantAppId,
+          sessionEpochSeed: multipleCountersV3SessionEpochSeed,
+          subjectId: authentication.subjectId,
+        })
+        logMultipleCountersV3Debug('signed-in', {
+          email: Option.getOrElse(authentication.maybeEmail, () => ''),
+          sessionId: session.sessionId,
+          sessionIdLength: session.sessionId.length,
+          subjectId: authentication.subjectId,
+          subjectIdLength: authentication.subjectId.length,
+        })
+      } else {
+        logMultipleCountersV3Debug('signed-out', {})
+      }
     }
     if (authentication._tag !== 'SignedIn') {
       this.#isSigningOut = false
@@ -1007,7 +1020,12 @@ export class MultipleCountersV3BrowserApp {
         navigationToPath(snapshot.model.navigation),
       )
     }
+    const subjectId =
+      this.#authentication._tag === 'SignedIn'
+        ? this.#authentication.subjectId
+        : ''
     const maybeNewRejection = multipleCountersV3NewTerminalRejection(
+      subjectId,
       this.#snapshot,
       snapshot,
     )
@@ -1096,7 +1114,7 @@ export class MultipleCountersV3BrowserApp {
     const lifecycleGeneration = this.#lifecycleGeneration
     const destinationUri = this.#requestedDestinationUri
     this.#openingGeneration = generation
-    const maybeObserveLeader = observeLeaderForSnapshot(snapshot)
+    const maybeObserveLeader = multipleCountersV3ObserveLeaderProcessorId(snapshot)
     if (Option.isSome(maybeObserveLeader)) {
       this.#completedRequestedDestinationOpen(
         generation,
@@ -1124,6 +1142,12 @@ export class MultipleCountersV3BrowserApp {
           return
         }
         if (attempt._tag === 'SucceededSubmission') {
+          logMultipleCountersV3Debug('open-applied', {
+            destinationUri,
+            outcome: attempt.submission.outcome._tag,
+            projection: attempt.submission.projection._tag,
+            proposalId: attempt.submission.proposal.proposalId,
+          })
           if (isMultipleCountersV3ClientSubmissionApplied(attempt.submission)) {
             this.#settleNavigationIntent(navigationIntentToken, true)
             this.#completedRequestedDestinationOpen(
@@ -1137,6 +1161,11 @@ export class MultipleCountersV3BrowserApp {
             this.#render()
           }
         } else if (isMultipleCountersV3RetainedOptimisticError(attempt.error)) {
+          logMultipleCountersV3Debug('open-retained', {
+            cause: describeUnknownCause(attempt.error),
+            destinationUri,
+            proposalId: attempt.error.proposal.proposalId,
+          })
           if (isMultipleCountersV3ClientSubmissionApplied(attempt.error)) {
             this.#settleNavigationIntent(navigationIntentToken, true)
             this.#completedRequestedDestinationOpen(
@@ -1154,6 +1183,11 @@ export class MultipleCountersV3BrowserApp {
             this.#render()
           }
         } else {
+          logMultipleCountersV3Debug('open-rejected', {
+            cause: describeUnknownCause(attempt.error),
+            destinationUri,
+            tag: attempt.error._tag,
+          })
           this.#settleNavigationIntent(navigationIntentToken, false)
           if (this.#openingGeneration === generation) {
             this.#openingGeneration = -1
@@ -1161,7 +1195,7 @@ export class MultipleCountersV3BrowserApp {
           this.#maybeNotice = Option.some(
             attempt.error._tag === 'V3SharedProgramSessionPolicyUnavailable'
               ? 'Waiting for the authority to confirm this Program session.'
-              : `Could not open ${destinationUri}: ${attempt.error._tag}.`,
+              : `Could not open ${destinationUri}: ${attempt.error._tag}. ${describeUnknownCause(attempt.error)}`,
           )
           if (
             attempt.error._tag !== 'V3SharedProgramSessionPolicyUnavailable'
@@ -1398,6 +1432,11 @@ export class MultipleCountersV3BrowserApp {
           return
         }
         if (attempt._tag === 'SucceededSubmission') {
+          logMultipleCountersV3Debug('submission-applied', {
+            outcome: attempt.submission.outcome._tag,
+            projection: attempt.submission.projection._tag,
+            proposalId: attempt.submission.proposal.proposalId,
+          })
           if (isMultipleCountersV3ClientSubmissionApplied(attempt.submission)) {
             callbacks.onApplied?.()
           } else {
@@ -1408,6 +1447,10 @@ export class MultipleCountersV3BrowserApp {
           }
           this.#maybeNotice = submissionNotice(attempt.submission)
         } else if (isMultipleCountersV3RetainedOptimisticError(attempt.error)) {
+          logMultipleCountersV3Debug('submission-retained', {
+            cause: describeUnknownCause(attempt.error),
+            proposalId: attempt.error.proposal.proposalId,
+          })
           if (isMultipleCountersV3ClientSubmissionApplied(attempt.error)) {
             callbacks.onApplied?.()
           } else {
@@ -1422,17 +1465,24 @@ export class MultipleCountersV3BrowserApp {
               : 'Retained only in this running Client after Instant persistence failed, but the current Program projection did not apply it.',
           )
         } else {
+          logMultipleCountersV3Debug('submission-rejected', {
+            cause: describeUnknownCause(attempt.error),
+            tag: attempt.error._tag,
+          })
           callbacks.onNotApplied?.()
           if (!isLatestOperation()) {
             return
           }
           this.#maybeNotice = Option.some(
-            `Not applied: ${attempt.error._tag}. The current Program Model was left unchanged.`,
+            `Not applied: ${attempt.error._tag}. ${describeUnknownCause(attempt.error)} The current Program Model was left unchanged.`,
           )
         }
         this.#render()
       },
-      () => {
+      error => {
+        logMultipleCountersV3Debug('submission-defect', {
+          cause: describeUnknownCause(error),
+        })
         if (!isCurrentContext()) {
           return
         }
@@ -1470,16 +1520,27 @@ export class MultipleCountersV3BrowserApp {
     } else {
       programShell.removeAttribute('aria-disabled')
     }
+    const hasMemoryOnlyPendingClaims =
+      this.#snapshot !== null &&
+      multipleCountersV3HasMemoryOnlyPendingClaims(
+        Option.match(this.#snapshot.maybeActiveProgram, {
+          onNone: () => [],
+          onSome: active => active.processorSnapshot.pendingClaims,
+        }),
+      )
     authRoot.innerHTML = isSignedIn
       ? preparingProgramMarkup(
           this.#authentication,
           this.#maybeNotice,
           this.#isSigningOut,
+          hasMemoryOnlyPendingClaims,
         )
       : authenticationMarkup(
           this.#authentication,
           this.#maybeSentEmail,
           this.#maybeNotice,
+          isBrowserDebugLoginEnabled,
+          this.#maybeDebugIssued,
         )
     if (isProgramReady && this.#snapshot !== null) {
       chromeRoot.innerHTML = chromeMarkup(
@@ -1490,6 +1551,7 @@ export class MultipleCountersV3BrowserApp {
         this.#isSigningOut,
         this.#followDraft,
         this.#isModeRequestPending,
+        hasMemoryOnlyPendingClaims,
       )
     } else {
       chromeRoot.replaceChildren()
@@ -1639,7 +1701,7 @@ export class MultipleCountersV3BrowserApp {
     this.#modeOperationToken = modeOperationToken
     this.#isModeRequestPending = true
     this.#maybeNotice = Option.some(
-      `Requesting ${mode._tag} from the session authority.`,
+      `Requesting ${multipleCountersV3ModeRequestLabel(mode)} from the session authority.`,
     )
     this.#render()
     const isCurrentModeOperation = (): boolean => {
@@ -1661,10 +1723,10 @@ export class MultipleCountersV3BrowserApp {
         this.#maybeNotice =
           resolution.resolutionState === 'Accepted'
             ? Option.some(
-                `The authority accepted ${mode._tag} as policy generation ${resolution.resolvedPolicyGeneration.toString()}.`,
+                `The authority accepted ${multipleCountersV3ModeRequestLabel(mode)} as policy generation ${resolution.resolvedPolicyGeneration.toString()}.`,
               )
             : Option.some(
-                `The authority rejected ${mode._tag}: ${resolution.rejectionReason}.`,
+                `The authority rejected ${multipleCountersV3ModeRequestLabel(mode)}: ${resolution.rejectionReason}.`,
               )
         this.#render()
       },
@@ -1804,6 +1866,81 @@ export class MultipleCountersV3BrowserApp {
       this.#authenticationOperationToken += 1
       signInWithGoogle(this.#database)
     })
+    this.#bindDebugLoginEvents()
+  }
+
+  #bindDebugLoginEvents(): void {
+    const authRoot = this.#authRoot
+    if (authRoot === null || !isBrowserDebugLoginEnabled) {
+      return
+    }
+    for (const button of authRoot.querySelectorAll('[data-debug-email]')) {
+      button.addEventListener('click', () => {
+        if (!(button instanceof HTMLButtonElement)) {
+          return
+        }
+        const decodedEmail = S.decodeUnknownResult(
+          MultipleCountersV3DebugEmail,
+        )(button.getAttribute('data-debug-email'))
+        if (Result.isFailure(decodedEmail)) {
+          return
+        }
+        this.#signInWithDebugSubject(decodedEmail.success)
+      })
+    }
+  }
+
+  #signInWithDebugSubject(
+    email: typeof MultipleCountersV3DebugEmail.Type,
+  ): void {
+    const lifecycleGeneration = this.#lifecycleGeneration
+    const authenticationOperationToken = this.#authenticationOperationToken + 1
+    this.#authenticationOperationToken = authenticationOperationToken
+    const isCurrentAuthenticationOperation = (): boolean =>
+      this.#lifecycleGeneration === lifecycleGeneration &&
+      this.#authenticationOperationToken === authenticationOperationToken &&
+      this.#authentication._tag === 'SignedOut'
+    logMultipleCountersV3Debug('debug-login-requested', { email })
+    void requestMultipleCountersV3DebugLogin(email).then(
+      issued => {
+        if (!isCurrentAuthenticationOperation()) {
+          return
+        }
+        logMultipleCountersV3Debug('debug-login-issued', {
+          code: issued.code,
+          email: issued.email,
+          label: issued.label,
+        })
+        this.#maybeDebugIssued = Option.some(issued)
+        this.#maybeSentEmail = Option.some(issued.email)
+        this.#maybeNotice = Option.none()
+        this.#render()
+        return signInWithMagicCode(
+          this.#database,
+          issued.email,
+          issued.code,
+        ).catch(() => {
+          if (!isCurrentAuthenticationOperation()) {
+            return
+          }
+          logMultipleCountersV3Debug('debug-login-verify-failed', { email })
+          this.#maybeNotice = Option.some(
+            'The debug magic code could not be verified.',
+          )
+          this.#render()
+        })
+      },
+      () => {
+        if (!isCurrentAuthenticationOperation()) {
+          return
+        }
+        logMultipleCountersV3Debug('debug-login-unavailable', { email })
+        this.#maybeNotice = Option.some(
+          'Start the headless authority to mint Alice and Bob codes.',
+        )
+        this.#render()
+      },
+    )
   }
 
   #signOut(controller: MultipleCountersV3ClientController): void {
