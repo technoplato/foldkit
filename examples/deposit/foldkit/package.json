@@ -1,0 +1,35 @@
+{
+  "name": "deposit-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "@foldkit/ui": "workspace:*",
+    "@tailwindcss/vite": "^4.3.1",
+    "deposit-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1",
+    "wallet-core-example": "workspace:*",
+    "wallet-qr-example": "workspace:*",
+    "wallet-web-client-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "happy-dom": "^20.10.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9",
+    "@types/node": "^25.9.3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "vite --port 5184",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5204 --strictPort"
+  }
+}

@@ -33,4 +33,13 @@ describe('Books TUI', () => {
       Option.some(PressedOpenBook({ itemId: newEarth.id })),
     )
   })
+
+  it('renders shelf covers as ASCII boxes', () => {
+    const signedIn = { ...initialModel, screen: ShelfBrowse() }
+    const screen = renderBooksScreen(signedIn)
+
+    expect(screen).toContain('|ANE|')
+    expect(screen).toContain('[1] A New Earth')
+    expect(screen).toContain('Eckhart Tolle')
+  })
 })

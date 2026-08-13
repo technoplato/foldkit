@@ -1,0 +1,9 @@
+#!/bin/sh
+ENV_FILE="${IDEAS_INSTANT_ENV:-$HOME/.config/foldkit-instant-demo/instant.env}"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+fi
+exec "$@"

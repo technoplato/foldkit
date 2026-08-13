@@ -1,0 +1,3 @@
+Rewrite examples/vending/three so vending.knophy.com looks like a real vending machine.
+Use ~/.grok/skills threejs-skill-router, architecture, geometry, materials, camera-direction, bloom, exposure-color-grading, shadow-systems, image-pipeline, procedural-animation.
+Keep VendingProgram as the only business logic. Physical cabinet, glass, keypad, LED, door. PBR, ACES, shadows, bloom on LEDs. Kickstart vending-demo. No core rule changes. No mainnet.

@@ -6,6 +6,10 @@ export const foldkitAliases = (dirname: string) => ({
     dirname,
     '../../packages/foldkit/src/asyncData/public',
   ),
+  'foldkit/attention': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/attention/public',
+  ),
   'foldkit/calendar': path.resolve(
     dirname,
     '../../packages/foldkit/src/calendar',
@@ -39,6 +43,10 @@ export const foldkitAliases = (dirname: string) => ({
   'foldkit/file': path.resolve(dirname, '../../packages/foldkit/src/file'),
   'foldkit/html': path.resolve(dirname, '../../packages/foldkit/src/html'),
   'foldkit/http': path.resolve(dirname, '../../packages/foldkit/src/http'),
+  'foldkit/interactable': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/interactable/public',
+  ),
   'foldkit/interaction-graph': path.resolve(
     dirname,
     '../../packages/foldkit/src/interactionGraph/public',
@@ -75,6 +83,10 @@ export const foldkitAliases = (dirname: string) => ({
     '../../packages/foldkit/src/test/scene',
   ),
   'foldkit/schema': path.resolve(dirname, '../../packages/foldkit/src/schema'),
+  'foldkit/spatial': path.resolve(
+    dirname,
+    '../../packages/foldkit/src/spatial/public',
+  ),
   'foldkit/story': path.resolve(
     dirname,
     '../../packages/foldkit/src/test/story',

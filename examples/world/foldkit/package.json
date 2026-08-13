@@ -1,0 +1,33 @@
+{
+  "name": "world-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "@foldkit/ui": "workspace:*",
+    "@tailwindcss/vite": "^4.3.1",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1",
+    "vending-core-example": "workspace:*",
+    "wallet-core-example": "workspace:*",
+    "wallet-simulated-client-example": "workspace:*",
+    "world-core-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "pretypecheck": "pnpm --filter world-core-example build",
+    "dev": "vite --port 5187",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5217 --strictPort"
+  }
+}

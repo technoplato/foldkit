@@ -1,6 +1,7 @@
 export * from './acceptedOccurrenceCursor/index.js'
 export * from './acceptanceAuthority/index.js'
 export * from './artifactStream/index.js'
+export * from './auth/index.js'
 export * from './inMemoryProgramStore/index.js'
 export * from './instantProgramStore/index.js'
 export * from './originProof/index.js'

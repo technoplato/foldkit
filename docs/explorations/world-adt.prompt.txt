@@ -1,0 +1,107 @@
+You are working in /Users/laptop/Development/foldkit.
+
+CONTEXT
+- Another Grok session owns examples/vending/three/src/{cabinet,camera,lighting,image,animation}. Do NOT edit those files.
+- User wants (1) a walkable MMORPG-style world with a little man, A-to-interact, Pokemon-style sign overlays, nested vending menu; (2) ALL of this modeled with normalized ADTs that make impossible states impossible; (3) the primitives baked into FoldKit CORE and reused across examples; (4) skill guidance in this repo adjusted accordingly.
+
+================================================================
+PART A — FoldKit core primitives
+================================================================
+Existing: packages/foldkit/src/schema (m, md, ts, r), asyncData, brand, fieldValidation.
+skills/foldkit-schema-modeling already says tagged unions, no boolean combos.
+
+ADD reusable primitives (with tests, public.ts, export from packages/foldkit/src/index.ts and package exports):
+
+1. packages/foldkit/src/spatial
+   - CardinalFacing = N | E | S | W (ts tagged or Literals — pick one exhaustive Schema)
+   - GridCoord branded { x: Int, z: Int }
+   - step(coord, facing) -> coord
+   - manhattan / inFront / adjacent helpers
+   Reuse from examples/map and examples/snake if they currently roll their own.
+
+2. packages/foldkit/src/attention  (name it clearly)
+   Exclusive player/UI attention. NOT booleans.
+   Generic Attention = Roaming | Reading<Sign> | Operating<Tool>
+   Overlay is not a nullable field beside a walking flag.
+   A World model MUST be a tagged union so Roaming+Reading is unrepresentable.
+   Provide constructors via ts() and Match helpers.
+
+3. packages/foldkit/src/interactable
+   InteractTarget = None | Adjacent(id)
+   Kind = Sign | Machine | Npc  (extensible tagged union)
+   PressA is only defined when Adjacent; update must not accept PressA while None without a no-op that stays typed.
+
+Do not invent a second Schema stack. Use Effect Schema + foldkit/schema ts/m.
+
+================================================================
+PART B — examples/world on those primitives
+================================================================
+examples/world/core     WorldProgram
+examples/world/three    3D client
+examples/world/foldkit  HTML FoldKit client
+examples/world/react    React client (counters/react-bindings)
+examples/world/opentui  TUI
+examples/world/headless receipt
+
+World Model (impossible states impossible):
+  World =
+    | Roaming { at: GridCoord, facing: CardinalFacing }
+    | Reading { at, facing, sign: Sign }
+    | Operating { at, facing, vending: VendingModel }
+
+  Signs are data, not a parallel overlay boolean.
+  Nested VendingProgram via GotVendingMessage + Command.mapMessages. Do not fork vend rules.
+  SKU 1428 the clip, listed 14.28, Devnet settle already in VendingProgram.
+
+Messages: Moved(facing), PressedA, Dismissed, GotVendingMessage(inner)
+- Moved only legal in Roaming (or is a no-op that stays Roaming).
+- PressedA in Roaming + Adjacent(Sign) -> Reading; Adjacent(Machine) -> Operating.
+- Dismissed from Reading/Operating -> Roaming (same at/facing).
+- Keypad digits while Operating forward to VendingProgram.
+
+SIGNS (Pokemon NPC voice; short post + full overlay text, derived from chats)
+1 welcome: Press A near things. That is how you talk in this town.
+2 clip: Sell TJ tortoise the clip. SKU 1428. Listed $14.28. Boomerang 1428.
+3 knophy: Voice garbles Knophy. If you hear nofi, nofee, nophy — it means knophy.com.
+4 sol: deposit.knophy.com takes SOL Devnet first. Stripe later. Capabilities unlock from a fiat|crypto ADT.
+5 foldkit: One Program. Many views. TUI, Three.js, React, FoldKit. Core never renders.
+6 degree: Pull this off and it is a degree in 3D programming and software engineering.
+7 machine: Walk up to the machine. Press A. Enter 1428. Pay on Devnet. It vends.
+8 wallet: wallet.knophy.com is Devnet. No live money.
+
+THREE.JS (use ~/.grok/skills threejs-skill-router then architecture, geometry, materials, camera-direction chase, procedural-animation walk, bloom, exposure-color-grading, shadow-systems, image-pipeline)
+- Little man is real geometry, not a sprite plane.
+- Fence-post signs around a yard. Vending machine at an interact cell (embed vending-three cabinet if importable without editing those owned files; else a readable PBR cabinet).
+- Pokemon overlay is HTML over the canvas (darken + dialogue box). A/Esc dismiss. WASD/arrows move.
+- No-post baseline must still read.
+
+TUI: ASCII map (@ walker, V machine, ! signs, # fence). Overlay = boxed full-screen panel. a/A interact.
+FoldKit HTML + React: 2D town, overlay panel. Same Program.
+
+HOST
+Port 5207. allowedHosts world.knophy.com.
+Caddy http://world.knophy.com { import loopback_proxy 5207 }
+LaunchAgent com.knophy.foldkit.world-demo + ~/.local/bin/foldkit-world-launchd
+caddy reload. Kickstart. Follow orbit/deposit/vending knophy-host patterns.
+
+================================================================
+PART C — reuse across examples + skill guidance
+================================================================
+- examples/map and examples/snake: switch to foldkit spatial primitives where they duplicate grid/facing.
+- examples/vending/core and examples/deposit: keep domain ADTs; document they follow attention/asyncData/ts. Do not flatten vend phase into booleans.
+- examples/constructive-data-modeling: mention the new core primitives as the preferred spatial/attention layer.
+
+Update skill files (this IS the foldkit example-directory guidance):
+- skills/foldkit-schema-modeling/SKILL.md
+  Add: attention as tagged union; spatial GridCoord/CardinalFacing; reject isReading && isOpen flags; point at examples/world/core and packages/foldkit/src/attention, spatial, interactable.
+- skills/generate-program/SKILL.md
+  Phase 1: mutually exclusive modes MUST be tagged unions; use foldkit/attention, spatial, asyncData, fieldValidation instead of rolling booleans.
+- skills/foldkit-composable-architecture/SKILL.md
+  Nested Operating(childModel) is the pattern for "open the vending menu"; wrap child messages.
+- skills/foldkit-client-hosts/SKILL.md (if it lists examples)
+  Add examples/world as the multi-client RPG/TUI/Three/React matrix.
+- examples/orbit/core/src/tools/AGENT.md if it teaches example authors: one Program, ADTs, impossible states unrepresentable.
+
+CONSTRAINTS
+No mainnet. No keys. No edits to the in-flight vending/three graphics modules.
+When done print: core modules added, examples/world URL, how to move, how A works, which skills you changed.

@@ -35,6 +35,11 @@ for TypeScript inference.
 - Reject plain TypeScript-only Model or Message declarations.
 - Reject `as const` or type casts used as substitutes for Schema constructors.
 - Reject boolean combinations that admit impossible presentation states.
+- Reject `isReading && isOpen` flags. Mutually exclusive player or UI
+  attention is `Roaming | Reading<Subject> | Operating<Tool>` from
+  `foldkit/attention`. Overlay is not a nullable field beside a walking flag.
+- Use `foldkit/spatial` for `GridCoord` and `CardinalFacing`. Do not invent a
+  second grid or facing Schema when those primitives fit.
 - Keep effect handles, DOM nodes, fibers, subscriptions, and native navigation
   objects out of Model.
 - Keep Message names factual and past tense. Keep Command names imperative.
@@ -45,6 +50,10 @@ for TypeScript inference.
 - `packages/foldkit/src/runtime/replayTape.ts`
 - `packages/foldkit/src/schema/public.ts`
 - `packages/foldkit/src/message/public.ts`
+- `packages/foldkit/src/attention/public.ts`
+- `packages/foldkit/src/spatial/public.ts`
+- `packages/foldkit/src/interactable/public.ts`
+- `examples/world/core/src/`
 - `examples/counters/core/src/model.ts`
 - `examples/counters/core/src/message.ts`
 - `examples/message-versioning/src/`

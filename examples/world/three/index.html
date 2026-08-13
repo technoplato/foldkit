@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>World | Knophy</title>
+    <style>
+      html,
+      body,
+      #root {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: #0c1410;
+        overflow: hidden;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      #hud {
+        position: absolute;
+        left: 16px;
+        bottom: 16px;
+        color: #e8f5d8;
+        font-size: 12px;
+        line-height: 1.45;
+        pointer-events: none;
+        text-shadow: 0 1px 2px #000;
+      }
+      #overlay {
+        display: none;
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        align-items: flex-end;
+        justify-content: center;
+        padding: 24px;
+      }
+      #overlay.open {
+        display: flex;
+      }
+      #dialogue {
+        width: min(720px, 100%);
+        border: 4px solid #f3ead4;
+        background: #16120c;
+        color: #f7f1e4;
+        padding: 18px 20px 16px;
+        box-shadow: 0 12px 40px #000;
+      }
+      #dialogue .speaker {
+        color: #f0c14b;
+        letter-spacing: 0.16em;
+        font-size: 11px;
+        margin: 0 0 8px;
+      }
+      #dialogue .body {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 20px;
+        line-height: 1.45;
+        margin: 0;
+      }
+      #dialogue .hint {
+        color: #9a917f;
+        font-size: 11px;
+        margin: 12px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="hud"></div>
+    <div id="overlay" role="dialog" aria-live="polite">
+      <div id="dialogue">
+        <p class="speaker" id="overlay-speaker"></p>
+        <p class="body" id="overlay-body"></p>
+        <p class="hint" id="overlay-hint">A / Esc dismiss</p>
+      </div>
+    </div>
+    <script type="module" src="./src/entry.ts"></script>
+  </body>
+</html>

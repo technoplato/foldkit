@@ -1,25 +1,37 @@
+import { Option } from 'effect'
 import { Story } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 
-import { Option } from 'effect'
-
 import {
+  BookBothTarget,
+  HeardCatalog,
   HeardFollowAlong,
   HeardPlaybackPosition,
+  HeardSignedIn,
+  HeardUserData,
+  OpenedNavigation,
   PlayIdle,
+  PlayPaused,
   PlayPlaying,
+  PressedAddBookmark,
+  PressedAddNote,
+  PressedFollowLive,
   PressedGoBack,
   PressedOpenBook,
   PressedPausePlayback,
   PressedSeekWord,
+  PressedSetNoteAudience,
   PressedShowAudio,
   PressedSignIn,
   PressedSignOut,
   PressedStartPlayback,
+  PressedToggleAppearance,
   ReaderAudio,
   ReaderBoth,
+  ScrolledAway,
   ShelfBrowse,
   SignedOut,
+  UpdatedNoteDraft,
   dune,
   init,
   initialModel,
@@ -34,6 +46,7 @@ describe('books update', () => {
     const [model, commands] = init()
     expect(model.screen._tag).toBe('SignedOut')
     expect(model.play._tag).toBe('PlayIdle')
+    expect(model.noteDraft).toBe('')
     expect(commands).toEqual([])
   })
 
@@ -229,6 +242,243 @@ describe('books update', () => {
       Story.model(model => {
         expect(model.screen).toEqual(SignedOut())
         expect(model.play).toEqual(PlayIdle())
+      }),
+    )
+  })
+
+  test('pause writes progress and play resumes from it', () => {
+    Story.story(
+      update,
+      Story.with({
+        ...initialModel,
+        screen: ReaderBoth({ itemId: newEarth.id }),
+        play: PlayPlaying({
+          itemId: newEarth.id,
+          renditionId: 'r-audio-3',
+          mediaPosition: 18.669,
+        }),
+      }),
+      Story.message(PressedPausePlayback()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.play._tag).toBe('PlayPaused')
+        expect(model.progress[0]?.relative).toBe(18.669)
+        expect(model.progress[0]?.chapterId).toBe('ch-001')
+      }),
+      Story.message(PressedStartPlayback({ itemId: newEarth.id })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.play).toEqual(
+          PlayPlaying({
+            itemId: newEarth.id,
+            renditionId: 'r-audio-3',
+            mediaPosition: 18.669,
+          }),
+        )
+      }),
+    )
+  })
+
+  test('add bookmark and note at the playing place', () => {
+    Story.story(
+      update,
+      Story.with({
+        ...initialModel,
+        screen: ReaderBoth({ itemId: newEarth.id }),
+        play: PlayPlaying({
+          itemId: newEarth.id,
+          renditionId: 'r-audio-3',
+          mediaPosition: 18.669,
+        }),
+      }),
+      Story.message(PressedAddBookmark()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.bookmarks).toHaveLength(1)
+        expect(model.bookmarks[0]?.chapterId).toBe('ch-001')
+        expect(model.bookmarks[0]?.relative).toBe(18.669)
+      }),
+      Story.message(UpdatedNoteDraft({ value: 'first flower' })),
+      Story.Command.expectNone(),
+      Story.message(PressedAddNote()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.notes).toHaveLength(1)
+        expect(model.notes[0]?.body).toBe('first flower')
+        expect(model.notes[0]?.itemId).toBe(newEarth.id)
+        expect(model.noteDraft).toBe('')
+      }),
+    )
+  })
+
+  test('heard catalog replaces items and signed-in opens the shelf', () => {
+    Story.story(
+      update,
+      Story.with(initialModel),
+      Story.message(HeardCatalog({ items: [dune] })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.screen).toEqual(SignedOut())
+        expect(model.items).toEqual([dune])
+      }),
+      Story.message(HeardSignedIn({ accountId: 'acct-1' })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.accountId).toEqual(Option.some('acct-1'))
+        expect(model.screen).toEqual(ShelfBrowse())
+      }),
+    )
+  })
+
+  test('heard user data replaces bookmarks notes and progress', () => {
+    Story.story(
+      update,
+      Story.with({ ...initialModel, screen: ShelfBrowse() }),
+      Story.message(
+        HeardUserData({
+          bookmarks: [
+            {
+              id: 'b1',
+              itemId: newEarth.id,
+              chapterId: 'ch-001',
+              renditionId: 'r-audio-3',
+              relative: 20,
+              createdAt: 1,
+            },
+          ],
+          notes: [],
+          progress: [
+            {
+              id: 'p1',
+              itemId: newEarth.id,
+              chapterId: 'ch-001',
+              renditionId: 'r-audio-3',
+              relative: 20,
+              finished: false,
+              hidden: false,
+              startedAt: 1,
+              updatedAt: 1,
+            },
+          ],
+        }),
+      ),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.bookmarks).toHaveLength(1)
+        expect(model.progress[0]?.relative).toBe(20)
+      }),
+    )
+  })
+
+  test('empty note draft is a no-op', () => {
+    Story.story(
+      update,
+      Story.with({
+        ...initialModel,
+        screen: ReaderBoth({ itemId: newEarth.id }),
+      }),
+      Story.message(PressedAddNote()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.notes).toEqual([])
+        expect(model.noteDraft).toBe('')
+      }),
+      Story.message(UpdatedNoteDraft({ value: '   ' })),
+      Story.Command.expectNone(),
+      Story.message(PressedAddNote()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.notes).toEqual([])
+        expect(model.noteDraft).toBe('   ')
+      }),
+    )
+  })
+
+  test('seek while idle parks on the chapter', () => {
+    Story.story(
+      update,
+      Story.with({
+        ...initialModel,
+        screen: ReaderBoth({ itemId: newEarth.id }),
+      }),
+      Story.message(PressedSeekWord({ start: 483.955 })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.play).toEqual(
+          PlayPaused({
+            itemId: newEarth.id,
+            renditionId: 'r-audio-3',
+            mediaPosition: 483.955,
+          }),
+        )
+        expect(model.progress[0]?.chapterId).toBe('ch-002')
+      }),
+    )
+  })
+  test('appearance toggle updates Model', () => {
+    Story.story(
+      update,
+      Story.with(initialModel),
+      Story.message(PressedToggleAppearance()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.appearance).toBe('dark')
+      }),
+      Story.message(PressedToggleAppearance()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.appearance).toBe('light')
+      }),
+    )
+  })
+
+  test('opened navigation makes destinations data', () => {
+    Story.story(
+      update,
+      Story.with({ ...initialModel, screen: ShelfBrowse() }),
+      Story.message(
+        OpenedNavigation({
+          target: BookBothTarget.make({ itemId: newEarth.id }),
+        }),
+      ),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.screen).toEqual(ReaderBoth({ itemId: newEarth.id }))
+      }),
+    )
+  })
+
+  test('follow live and scrolled away', () => {
+    Story.story(
+      update,
+      Story.with({
+        ...initialModel,
+        screen: ReaderBoth({ itemId: newEarth.id }),
+      }),
+      Story.message(ScrolledAway()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.follow._tag).toBe('FollowAway')
+      }),
+      Story.message(PressedFollowLive()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.follow._tag).toBe('FollowLive')
+      }),
+    )
+  })
+
+  test('note audience stays on the session draft', () => {
+    Story.story(
+      update,
+      Story.with({
+        ...initialModel,
+        screen: ReaderBoth({ itemId: newEarth.id }),
+      }),
+      Story.message(PressedSetNoteAudience({ audience: 'public' })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.noteAudience).toBe('public')
       }),
     )
   })

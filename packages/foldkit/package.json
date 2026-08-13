@@ -12,6 +12,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./adt": {
+      "types": "./dist/adt/public.d.ts",
+      "import": "./dist/adt/public.js",
+      "default": "./dist/adt/public.js"
+    },
     "./asyncData": {
       "types": "./dist/asyncData/public.d.ts",
       "import": "./dist/asyncData/public.js",

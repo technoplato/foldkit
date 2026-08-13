@@ -1,1 +1,150 @@
 @import 'tailwindcss';
+
+:root,
+[data-theme='light'] {
+  --bg: #f4efe6;
+  --fg: #1c1917;
+  --muted: #78716c;
+  --card: #fffdf8;
+  --accent: #d97706;
+  --word: #fbbf24;
+  --chrome: #fffdf8cc;
+  --border: #e7e0d4;
+  --shadow: 0 8px 30px rgba(28, 25, 23, 0.08);
+}
+
+[data-theme='dark'] {
+  --bg: #0a0a0a;
+  --fg: #fafafa;
+  --muted: #a8a29e;
+  --card: #171717;
+  --accent: #fbbf24;
+  --word: #f59e0b;
+  --chrome: #0a0a0acc;
+  --border: #27272a;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.books-shell {
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 100vh;
+}
+
+.player-chrome {
+  background: var(--chrome);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.75rem 1rem 0.5rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.player-btn {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--fg);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.player-btn-primary {
+  background: var(--word);
+  color: #1c1917;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.player-scrubber {
+  width: 100%;
+  margin-top: 0.5rem;
+  height: 4px;
+  accent-color: var(--accent);
+}
+
+.word-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  margin: 0.12rem 0.08rem;
+  line-height: 1.7;
+  font-size: 1.05rem;
+}
+
+.word-pill:hover {
+  background: var(--border);
+}
+
+.word-pill-current {
+  background: var(--word);
+  color: #1c1917;
+  font-weight: 600;
+}
+
+.transcript-scroller {
+  max-height: calc(100vh - 16rem);
+  overflow-y: auto;
+  line-height: 1.9;
+  padding-right: 0.5rem;
+}
+
+.reader-layout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .reader-layout {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+  }
+}
+
+.notes-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1rem;
+  height: fit-content;
+}
+
+.note-draft {
+  width: 100%;
+  min-height: 6rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.follow-fab {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  background: var(--word);
+  color: #1c1917;
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  z-index: 30;
+}
+
+.books-audio-host {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}

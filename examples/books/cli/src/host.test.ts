@@ -24,6 +24,9 @@ describe('Books CLI host', () => {
     expect(execution.messages).toEqual([PressedSignIn()])
     expect(describeScreen(execution.finalModel)).toContain('Dune')
     expect(describeScreen(execution.finalModel)).toContain('Kindred')
+    expect(describeScreen(execution.finalModel)).toContain(
+      'A New Earth · Eckhart Tolle · Both · cover',
+    )
   })
 
   it('opens Dune', async () => {

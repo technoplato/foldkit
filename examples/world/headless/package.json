@@ -1,0 +1,28 @@
+{
+  "name": "world-headless-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "foldkit-world-headless": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretypecheck": "pnpm --filter world-core-example build",
+    "start": "node dist/entry.js"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.97",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "vending-core-example": "workspace:*",
+    "wallet-simulated-client-example": "workspace:*",
+    "world-core-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3"
+  }
+}

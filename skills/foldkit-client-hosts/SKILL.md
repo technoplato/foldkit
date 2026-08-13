@@ -61,3 +61,4 @@ task depends on runtime identity, isolation, replay ownership, or shutdown.
 - `examples/fact/react/src/factReactClient.ts`
 - `examples/embedding/src/`
 - `examples/client-matrix/`
+- `examples/world/` (one World Program; Three.js, Foldkit HTML, React, OpenTUI, headless)

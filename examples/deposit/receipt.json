@@ -1,0 +1,33 @@
+{
+  "source": "Simulated",
+  "note": "Headless used simulated resources. Foldkit Live is the real SOL path.",
+  "wallet": "ready",
+  "address": "7XSg97qfSE6n2J1aVfxyTLZgcV7R4sr1kPnCVTLMriYJ",
+  "accountId": "simulated-solana-account",
+  "incoming": [
+    {
+      "transactionId": "simulated-funding-57669197",
+      "lamports": "10000000",
+      "sol": "10000000",
+      "status": "Confirmed"
+    }
+  ],
+  "funding": {
+    "_tag": "received",
+    "requestId": "airdrop-1786630198212",
+    "fundingId": "simulated-funding-57669197",
+    "lamports": "10000000"
+  },
+  "unlocked": [
+    "catalog-publish",
+    "leaderboard-submit",
+    "clip-claim",
+    "ideas-note",
+    "books-listen",
+    "transcribe-session"
+  ],
+  "lastOutcome": {
+    "_tag": "ok",
+    "line": "settled 10000000 lamports"
+  }
+}

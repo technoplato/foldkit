@@ -1,0 +1,33 @@
+{
+  "name": "transcribe-react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "./scripts/with-transcribe-instant-env ./scripts/with-public-instant-env sh -c 'tsc --noEmit && vite build'",
+    "dev": "./scripts/with-transcribe-instant-env ./scripts/with-public-instant-env vite --port 5187",
+    "typecheck": "tsc --noEmit",
+    "preview": "./scripts/with-transcribe-instant-env ./scripts/with-public-instant-env vite preview --host 127.0.0.1 --port 5203 --strictPort",
+    "prebuild": "pnpm --filter transcribe-react-bindings-example build",
+    "predev": "pnpm --filter transcribe-react-bindings-example build",
+    "pretypecheck": "pnpm --filter transcribe-react-bindings-example build"
+  },
+  "dependencies": {
+    "transcribe-react-bindings-example": "workspace:*",
+    "transcribe-core-example": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "effect": "4.0.0-beta.97",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "prettier": "^3.8.4",
+    "tailwindcss": "^4.3.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}

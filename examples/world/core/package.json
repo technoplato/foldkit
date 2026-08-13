@@ -1,0 +1,37 @@
+{
+  "name": "world-core-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "vending-core-example": "workspace:*",
+    "wallet-core-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretypecheck": "pnpm --filter vending-core-example build && pnpm --filter foldkit build",
+    "prebuild": "pnpm --filter vending-core-example build",
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist"
+  }
+}

@@ -4,19 +4,25 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite --port 5180",
+    "build": "./scripts/with-books-instant-env ./scripts/with-public-instant-env vite build",
+    "dev": "./scripts/with-books-instant-env ./scripts/with-public-instant-env vite --port 5180",
+    "ingest": "./scripts/with-books-instant-env tsx scripts/ingest-books.ts",
+    "instant:perms": "./scripts/with-books-instant-env npx instant-cli@1.0.53 push perms --yes --package core",
+    "instant:schema": "./scripts/with-books-instant-env npx instant-cli@1.0.53 push schema --yes --package core",
     "prebuild": "pnpm --filter books-core-example build",
     "predev": "pnpm --filter books-core-example build",
     "pretest": "pnpm --filter books-core-example build",
     "pretypecheck": "pnpm --filter books-core-example build",
+    "preview": "./scripts/with-books-instant-env ./scripts/with-public-instant-env vite preview --host 127.0.0.1 --port 5200 --strictPort",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ingest:audible": "./scripts/with-books-instant-env tsx scripts/ingest-audible.ts"
   },
   "dependencies": {
     "@effect/platform-browser": "4.0.0-beta.97",
     "@foldkit/devtools": "workspace:*",
     "@foldkit/ui": "workspace:*",
+    "@instantdb/core": "1.0.53",
     "@tailwindcss/vite": "^4.3.1",
     "books-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
@@ -25,8 +31,11 @@
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "workspace:*",
+    "@instantdb/admin": "1.0.53",
+    "@types/node": "^25.9.3",
     "happy-dom": "^20.10.4",
     "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.9"

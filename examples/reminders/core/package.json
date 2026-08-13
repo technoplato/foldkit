@@ -1,0 +1,18 @@
+{
+  "name": "reminders-core-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@instantdb/admin": "1.0.53",
+    "@types/node": "^25.9.3",
+    "typescript": "^6.0.3"
+  }
+}

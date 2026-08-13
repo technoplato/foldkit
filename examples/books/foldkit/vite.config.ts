@@ -13,8 +13,14 @@ export default defineConfig({
   },
   server: {
     port: 5180,
+    allowedHosts: ['books.knophy.com'],
     fs: {
       allow: ['../../../'],
     },
+  },
+  preview: {
+    host: '127.0.0.1',
+    port: 5200,
+    allowedHosts: ['books.knophy.com'],
   },
 })

@@ -1,0 +1,33 @@
+{
+  "name": "transcribe-book-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "./scripts/with-transcribe-instant-env ./scripts/with-public-instant-env vite build",
+    "dev": "./scripts/with-transcribe-instant-env ./scripts/with-public-instant-env vite --port 5188",
+    "typecheck": "tsc --noEmit",
+    "preview": "./scripts/with-transcribe-instant-env ./scripts/with-public-instant-env vite preview --host 127.0.0.1 --port 5205 --strictPort",
+    "prebuild": "pnpm --filter transcribe-core-example build",
+    "predev": "pnpm --filter transcribe-core-example build",
+    "pretypecheck": "pnpm --filter transcribe-core-example build"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "@foldkit/ui": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "@tailwindcss/vite": "^4.3.1",
+    "transcribe-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "@types/node": "^25.9.3"
+  }
+}
