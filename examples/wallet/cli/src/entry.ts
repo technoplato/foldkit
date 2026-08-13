@@ -16,6 +16,28 @@ import {
   formatWalletCliExecution,
 } from './host.js'
 
+const exitOneShotWalletCli = (): void => {
+  const code = process.exitCode ?? 0
+  const flush = (
+    stream: Readonly<{
+      writableEnded: boolean
+      write: (chunk: string, callback: () => void) => boolean
+    }>,
+    done: () => void,
+  ): void => {
+    if (stream.writableEnded) {
+      done()
+      return
+    }
+    stream.write('', done)
+  }
+  flush(process.stdout, () => {
+    flush(process.stderr, () => {
+      process.exit(code)
+    })
+  })
+}
+
 const usage = `Usage:
   foldkit-wallet show [--uri <state-or-replay-path>] [--verbose]
   foldkit-wallet create [--network <devnet|testnet|live>] [--uri <path>] [--verbose]
@@ -269,6 +291,7 @@ const program = Effect.gen(function* () {
       ),
     ),
   ),
+  Effect.ensuring(Effect.sync(exitOneShotWalletCli)),
 )
 
 program.pipe(Effect.provide(NodeServices.layer), NodeRuntime.runMain)

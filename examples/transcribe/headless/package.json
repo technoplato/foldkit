@@ -1,0 +1,29 @@
+{
+  "name": "transcribe-headless-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "foldkit-transcribe-headless": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "transcribe-headless": "node dist/entry.js",
+    "ingest": "../scripts/with-transcribe-instant-env tsx ../core/scripts/ingest-transcribe.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prebuild": "pnpm --filter transcribe-core-example build",
+    "pretypecheck": "pnpm --filter transcribe-core-example build"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.97",
+    "@instantdb/core": "1.0.53",
+    "transcribe-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3"
+  }
+}

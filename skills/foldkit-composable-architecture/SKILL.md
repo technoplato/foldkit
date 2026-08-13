@@ -23,7 +23,10 @@ next Model plus finite Commands, and the runtime performs effects. Start with
    failure into Messages inside the Effect. Never run an Effect from update.
 5. Wrap child Messages in a `Got*Message` constructor. Delegate to the child,
    map child Commands with `Command.mapMessages`, and interpret OutMessages at
-   the parent boundary.
+   the parent boundary. Opening a nested tool such as a vending menu is
+   `Operating(childModel)` on the parent attention union, not a boolean beside
+   the walker. See `examples/world/core` (`GotVendingMessage` +
+   `Command.mapMessages`).
 6. Choose the lifecycle primitive by cause: Command after a Message,
    Subscription for an external stream gated by Model, ManagedResource for a
    stateful handle needed by Commands, Mount for element-scoped DOM work, and

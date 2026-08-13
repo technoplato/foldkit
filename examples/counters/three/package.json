@@ -1,0 +1,27 @@
+{
+  "name": "counters-three-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "counter-core-example": "workspace:*",
+    "counters-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "vite --port 5188",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5208 --strictPort"
+  }
+}

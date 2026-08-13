@@ -1,0 +1,23 @@
+{
+  "name": "orbit-headless-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/entry.js"
+  },
+  "dependencies": {
+    "orbit-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "@effect/platform-node": "4.0.0-beta.97",
+    "@instantdb/core": "1.0.53"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "typescript": "^6.0.3",
+    "prettier": "^3.8.4"
+  }
+}

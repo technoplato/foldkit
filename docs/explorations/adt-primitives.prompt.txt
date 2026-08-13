@@ -1,0 +1,69 @@
+You are working in /Users/laptop/Development/foldkit.
+
+CORRECTION from the user (do this exactly):
+
+`spatial`, `attention`, and `interactable` are DOMAIN-SPECIFIC. They do NOT belong in the FoldKit library (`packages/foldkit`). The user asked for generic ADT *bricks* in core: NonEmptyString, NonEmptyArray, and similar refinements that make empty/invalid scalars unrepresentable. Grid/facing/NPC attention stay in `examples/world/core`.
+
+================================================
+1. REMOVE from packages/foldkit
+================================================
+Delete packages/foldkit/src/{spatial,attention,interactable} entirely.
+Remove exports from packages/foldkit/src/index.ts and packages/foldkit/package.json ("./spatial", "./attention", "./interactable").
+Revert skill text that tells authors to import foldkit/attention or foldkit/spatial. That was wrong.
+
+Move those modules into examples/world/core (e.g. examples/world/core/src/spatial.ts etc.) and fix world imports. World/snake domain types live in example cores, never in the package.
+
+================================================
+2. ADD generic ADT primitives to FoldKit library
+================================================
+Add packages/foldkit/src/adt (or extend packages/foldkit/src/schema if that is the house style — prefer a dedicated `foldkit/adt` export if schema is already the ts/m/r constructors).
+
+These are Schema values + Type aliases, Effect Schema based, same style as asyncData/fieldValidation:
+
+Required:
+- NonEmptyString          ("" is not a value)
+- TrimmedNonEmptyString   (whitespace-only is not a value)
+- NonEmptyArray<A>        (catalogs/lists that must have ≥1 member)
+- NonEmptyReadonlyArray<A>
+- PositiveInt             (> 0)
+- NonNegativeInt          (>= 0)
+- FiniteNumber            (no NaN/Infinity)
+- UnitInterval            ([0,1])
+
+Use existing Effect Schema refinements where they already exist; wrap/re-export as the FoldKit blessed names so examples do not each invent `S.String.pipe(S.nonEmpty...)`.
+Callable constructors or `.make` like the rest of Foldkit. Tests that prove "" / [] / 0 / NaN fail decode.
+Export from packages/foldkit/src/index.ts and package.json "./adt".
+CHANGELOG.md entry. Follow existing changelog/skill-version scripts.
+
+Do NOT add: CardinalFacing, GridCoord, Roaming/Reading/Operating, Sign, Machine. Those stay in examples/world.
+
+================================================
+3. Reuse in examples
+================================================
+World signs: title/body are TrimmedNonEmptyString (a blank sign cannot be constructed).
+Vending SKU `code` and `name`: TrimmedNonEmptyString; defaultCatalog is NonEmptyArray (empty catalog unrepresentable).
+Deposit/orbit: only switch fields that are currently plain S.String for names/ids that must not be empty. Do not boil the ocean.
+Snake: keep its own grid types in the example. Optionally use PositiveInt for sizes if that is a one-line win.
+
+================================================
+4. Skill guidance (foldkit example-author skills)
+================================================
+skills/foldkit-schema-modeling/SKILL.md
+- Library primitives: foldkit/adt NonEmptyString, TrimmedNonEmptyString, NonEmptyArray, PositiveInt, NonNegativeInt, FiniteNumber, UnitInterval.
+- Reject S.String for names, codes, labels that cannot be blank. Reject S.Array for catalogs that cannot be empty.
+- Domain tagged unions (Roaming | Reading | Operating, Fiat | Crypto, VendPhase) live in the EXAMPLE CORE program, not in packages/foldkit.
+- Remove the foldkit/attention paragraph you added.
+
+skills/generate-program/SKILL.md
+- Phase 1: pick foldkit/adt refinements for any string/list/number that has a lower bound. Domain sums stay in the program module.
+
+examples/orbit/core/src/tools/AGENT.md if it teaches authors: same split (library = scalar refinements; example core = domain ADTs).
+
+================================================
+5. Keep world playable
+================================================
+Do not break examples/world. After the move, typecheck world core + foldkit package tests for adt + world update tests.
+Do not edit examples/vending/three/src/{cabinet,camera,lighting,image,animation} unless an import path forces it (it should not).
+No mainnet, no keys.
+
+When done, print: what was removed from the library, what was added under foldkit/adt, where world domain types now live, which skills changed.

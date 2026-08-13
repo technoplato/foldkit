@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+.word-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  margin: 0.12rem 0.08rem;
+  line-height: 1.7;
+  font-size: 1.05rem;
+}
+
+.word-pill:hover {
+  background: #e7e5e4;
+}
+
+.word-pill-current {
+  background: #fbbf24;
+  color: #1c1917;
+  font-weight: 600;
+}
+
+.transcript-scroller {
+  max-height: calc(100vh - 16rem);
+  overflow-y: auto;
+  line-height: 1.9;
+  padding-right: 0.5rem;
+}
+
+.follow-fab {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  background: #fbbf24;
+  color: #1c1917;
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: 0 8px 30px rgba(28, 25, 23, 0.08);
+  z-index: 30;
+}

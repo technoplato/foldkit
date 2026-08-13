@@ -37,10 +37,10 @@ describe('view', () => {
       { update, view },
       Scene.with(initialModel),
       Scene.click(Scene.role('button', { name: 'Sign in' })),
-      Scene.expect(Scene.text('Home')).toExist(),
-      Scene.expect(Scene.role('button', { name: /A New Earth/ })).toExist(),
-      Scene.expect(Scene.role('button', { name: /Dune/ })).toExist(),
-      Scene.expect(Scene.role('button', { name: /Kindred/ })).toExist(),
+      Scene.expect(Scene.text('Shelf')).toExist(),
+      Scene.expect(Scene.role('link', { name: /A New Earth/ })).toExist(),
+      Scene.expect(Scene.role('link', { name: /Dune/ })).toExist(),
+      Scene.expect(Scene.role('link', { name: /Kindred/ })).toExist(),
     )
   })
 
@@ -49,15 +49,10 @@ describe('view', () => {
       { update, view },
       Scene.with(initialModel),
       Scene.click(Scene.role('button', { name: 'Sign in' })),
-      Scene.click(Scene.role('button', { name: /Dune/ })),
+      Scene.click(Scene.role('link', { name: /Dune/ })),
       Scene.expect(
         Scene.text(
           'A beginning is the time for taking the most delicate care that the balances are correct.',
-        ),
-      ).toExist(),
-      Scene.expect(
-        Scene.text(
-          'Press play on the audio bar. Words highlight as Tolle reads. Same timeline · two rendition ids.',
         ),
       ).toExist(),
       Scene.expect(Scene.role('button', { name: 'Play' })).toExist(),
@@ -86,10 +81,7 @@ describe('view', () => {
       }),
       Scene.Mount.resolveAll(
         [ScrollCurrentWord, CompletedScrollCurrentWord()],
-        [
-          ObserveReaderAudio,
-          HeardPlaybackPosition({ mediaPosition: 0.5 }),
-        ],
+        [ObserveReaderAudio, HeardPlaybackPosition({ mediaPosition: 0.5 })],
       ),
       Scene.expect(Scene.role('button', { name: 'beginning' })).toHaveAttr(
         'aria-current',
@@ -106,7 +98,7 @@ describe('view', () => {
       { update, view },
       Scene.with(initialModel),
       Scene.click(Scene.role('button', { name: 'Sign in' })),
-      Scene.click(Scene.role('button', { name: 'Settings' })),
+      Scene.click(Scene.role('link', { name: 'Settings' })),
       Scene.expect(Scene.text('Speech rate 1 · highlight ≤ 50 ms')).toExist(),
     )
   })

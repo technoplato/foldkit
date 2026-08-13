@@ -1,0 +1,28 @@
+{
+  "name": "deposit-cli-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "foldkit-deposit": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "deposit": "node dist/entry.js"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.97",
+    "deposit-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "wallet-core-example": "workspace:*",
+    "wallet-node-client-example": "workspace:*",
+    "wallet-simulated-client-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3"
+  }
+}

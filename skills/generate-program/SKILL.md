@@ -13,6 +13,10 @@ Generate a complete Foldkit program based on this description:
 Before writing any code, analyze the description to identify:
 
 1. **Domain entities**: nouns that become Model fields (e.g., "todos", "user", "score")
+1b. **Mutually exclusive modes**: if the player or UI can roam, read, or operate,
+    that MUST be a tagged union. Use `foldkit/attention` (`Roaming | Reading | Operating`),
+    `foldkit/spatial` (`GridCoord`, `CardinalFacing`), `foldkit/asyncData`, and
+    `foldkit/fieldValidation` instead of rolling booleans such as `isReading && isOpen`.
 2. **User interactions**: verbs that become Messages (e.g., "add", "delete", "filter", "submit")
 3. **Async operations**: external data that becomes Commands (e.g., "fetch weather", "save to localStorage")
 4. **Real-time needs**: streaming data that becomes Subscriptions (e.g., "live updates", "countdown", "WebSocket")

@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Knophy transcribe",
+    "slug": "knophy-transcribe",
+    "scheme": "knophy-transcribe",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.knophy.foldkit.transcribe.dev",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.knophy.foldkit.transcribe.dev"
+    }
+  }
+}

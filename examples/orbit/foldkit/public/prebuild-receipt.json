@@ -1,0 +1,110 @@
+{
+  "schema": "orbit.prebuild.v1",
+  "ok": true,
+  "at": "2026-08-13T14:43:40.894Z",
+  "why": "The index is not a README that drifts. It is the program an agent runs. Prebuild mounts the same FoldKit core with no view and no server. One Model, one update, two clients: this page and the compiler. Dangerous things are not `if (live) throw`. LiveWallet is not a variant. You cannot construct what is not in the union. Play credits are a branded ADT. They cannot be added to satoshis because satoshis are not a type here. If the instructions lie, `npm run build` fails. That is why the instructions stay true.",
+  "results": [
+    {
+      "id": "01",
+      "title": "Open sim tortoise",
+      "ok": true,
+      "detail": "{\"tag\":\"ok\",\"line\":\"opened sim tortoise\"}"
+    },
+    {
+      "id": "02",
+      "title": "Open sim achilles",
+      "ok": true,
+      "detail": "{\"tag\":\"ok\",\"line\":\"opened sim achilles\"}"
+    },
+    {
+      "id": "03",
+      "title": "Mint 1428 play to tortoise (14.28 callback, play units)",
+      "ok": true,
+      "detail": "{\"tag\":\"ok\",\"line\":\"mint 1428 play → tortoise\"}"
+    },
+    {
+      "id": "04",
+      "title": "Move 428 play tortoise → achilles",
+      "ok": true,
+      "detail": "{\"tag\":\"ok\",\"line\":\"move 428 tortoise → achilles\"}"
+    },
+    {
+      "id": "05",
+      "title": "Tortoise holds 1000",
+      "ok": true,
+      "detail": "tortoise bal=1000 want=1000"
+    },
+    {
+      "id": "06",
+      "title": "Achilles holds 428",
+      "ok": true,
+      "detail": "achilles bal=428 want=428"
+    },
+    {
+      "id": "07",
+      "title": "Ask for a live wallet — must refuse",
+      "ok": true,
+      "detail": "{\"tag\":\"refuse\",\"danger\":{\"tag\":\"live-wallet\"},\"why\":\"no live wallets\"}"
+    },
+    {
+      "id": "08",
+      "title": "Ask to broadcast a claim — must refuse",
+      "ok": true,
+      "detail": "{\"tag\":\"refuse\",\"danger\":{\"tag\":\"broadcast\"},\"why\":\"no broadcasts\"}"
+    },
+    {
+      "id": "09",
+      "title": "Ask to send on a chain — must refuse",
+      "ok": true,
+      "detail": "{\"tag\":\"refuse\",\"danger\":{\"tag\":\"chain-send\"},\"why\":\"no chain\"}"
+    },
+    {
+      "id": "10",
+      "title": "Ask to load key material — must refuse",
+      "ok": true,
+      "detail": "{\"tag\":\"refuse\",\"danger\":{\"tag\":\"key-exfil\"},\"why\":\"no keys in source\"}"
+    },
+    {
+      "id": "11",
+      "title": "live-wallet was refused",
+      "ok": true,
+      "detail": "refused live-wallet"
+    },
+    {
+      "id": "12",
+      "title": "broadcast was refused",
+      "ok": true,
+      "detail": "refused broadcast"
+    },
+    {
+      "id": "13",
+      "title": "chain-send was refused",
+      "ok": true,
+      "detail": "refused chain-send"
+    },
+    {
+      "id": "14",
+      "title": "key-exfil was refused",
+      "ok": true,
+      "detail": "refused key-exfil"
+    },
+    {
+      "id": "15",
+      "title": "No live wallet is representable",
+      "ok": true,
+      "detail": "union has no live variant"
+    },
+    {
+      "id": "16",
+      "title": "Ledger has at least 7 events",
+      "ok": true,
+      "detail": "seq=8 min=7"
+    }
+  ],
+  "balances": {
+    "tortoise": 1000,
+    "achilles": 428
+  },
+  "seq": 8,
+  "liveWallets": 0
+}

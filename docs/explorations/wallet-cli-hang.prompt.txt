@@ -1,0 +1,5 @@
+Read docs/explorations/wallet-cli-devnet-send-hang.md
+Fix the wallet CLI hang on Devnet.
+One-shot commands must exit.
+Do not use mainnet.
+Do not print secrets.

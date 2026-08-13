@@ -1,0 +1,12 @@
+{
+  "source": "Simulated",
+  "note": "Headless used simulated resources. The Three host is the real SOL path.",
+  "wallet": "ready",
+  "address": "7XSg97qfSE6n2J1aVfxyTLZgcV7R4sr1kPnCVTLMriYJ",
+  "accountId": "simulated-solana-account",
+  "vendPhase": "TimedOut",
+  "selection": "Locked",
+  "listPriceDisplay": "14.28",
+  "settleLamports": "1000000",
+  "incoming": []
+}

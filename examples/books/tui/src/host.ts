@@ -1,5 +1,7 @@
 import {
   BooksProgram,
+  type Message,
+  type Model,
   PressedGoBack,
   PressedOpenAccounts,
   PressedOpenBook,
@@ -18,8 +20,6 @@ import {
   PressedSignOut,
   PressedStartPlayback,
   PressedStopPlayback,
-  type Message,
-  type Model,
   itemById,
 } from 'books-core-example'
 import {
@@ -33,6 +33,8 @@ import {
   Terminal,
 } from 'effect'
 import { Runtime } from 'foldkit'
+
+import { ShelfBrowse, renderAscii } from '../../shared-ui/dist/index.js'
 
 const CLEAR_SCREEN = '\u001b[2J\u001b[H'
 const SCREEN_INNER_WIDTH = 62
@@ -174,13 +176,29 @@ const helpLines = (model: Model): ReadonlyArray<string> => {
   ]
 }
 
+const shelfAsciiLines = (model: Model): ReadonlyArray<string> =>
+  renderAscii(
+    ShelfBrowse(
+      model.items.map(item => ({
+        title: item.title,
+        authorLabel: item.authorLabel,
+        coverSrc: Option.getOrElse(item.coverUrl, () => ''),
+      })),
+    ),
+    SCREEN_INNER_WIDTH - 2,
+  ).lines
+
 export const renderBooksScreen = (model: Model): string => {
   const border = `+${'-'.repeat(SCREEN_INNER_WIDTH)}+`
+  const body =
+    model.screen._tag === 'ShelfBrowse'
+      ? shelfAsciiLines(model)
+      : listLines(model)
   const lines = [
     border,
     framed(titleForScreen(model)),
     framed(''),
-    ...listLines(model).map(framed),
+    ...body.map(framed),
     framed(''),
     ...helpLines(model).map(framed),
     border,

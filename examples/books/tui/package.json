@@ -10,8 +10,8 @@
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "books-tui": "node dist/entry.js",
-    "prebuild": "pnpm --filter books-core-example build",
-    "pretypecheck": "pnpm --filter books-core-example build",
+    "prebuild": "pnpm --filter books-core-example build && tsc -p ../shared-ui/tsconfig.json",
+    "pretypecheck": "pnpm --filter books-core-example build && tsc -p ../shared-ui/tsconfig.json",
     "test": "pnpm run build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

@@ -1,0 +1,37 @@
+{
+  "name": "ideas-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "@foldkit/ui": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "@tailwindcss/vite": "^4.3.1",
+    "ideas-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "happy-dom": "^20.10.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9",
+    "@types/node": "^25.9.3"
+  },
+  "scripts": {
+    "build": "./scripts/with-ideas-instant-env ./scripts/with-public-instant-env vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "./scripts/with-ideas-instant-env ./scripts/with-public-instant-env vite --port 5182",
+    "preview": "./scripts/with-ideas-instant-env ./scripts/with-public-instant-env vite preview --host 127.0.0.1 --port 5201 --strictPort",
+    "prebuild": "pnpm --filter ideas-core-example build",
+    "predev": "pnpm --filter ideas-core-example build",
+    "pretest": "pnpm --filter ideas-core-example build",
+    "pretypecheck": "pnpm --filter ideas-core-example build"
+  }
+}

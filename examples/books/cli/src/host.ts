@@ -1,5 +1,7 @@
 import {
   BooksProgram,
+  type Message,
+  type Model,
   PressedGoBack,
   PressedOpenAccounts,
   PressedOpenBook,
@@ -19,11 +21,9 @@ import {
   PressedSignOut,
   PressedStartPlayback,
   PressedStopPlayback,
-  type Message,
-  type Model,
   itemById,
 } from 'books-core-example'
-import { Console, Data, Effect, Layer, Match as M } from 'effect'
+import { Console, Data, Effect, Layer, Match as M, Option } from 'effect'
 import { Runtime } from 'foldkit'
 
 export class BooksCliError extends Data.TaggedError('BooksCliError')<{
@@ -175,9 +175,10 @@ export const describeScreen = (model: Model): string =>
       ShelfEmpty: () => 'shelf empty',
       ShelfBrowse: () =>
         [
-          ...model.items.map(
-            item => `${item.title} · ${item.authorLabel} · ${item.preferred}`,
-          ),
+          ...model.items.map(item => {
+            const line = `${item.title} · ${item.authorLabel} · ${item.preferred}`
+            return Option.isSome(item.coverUrl) ? `${line} · cover` : line
+          }),
           describePlay(model),
         ].join('\n'),
       ReaderText: ({ itemId }) => readerLines(model, itemId, 'text'),
@@ -233,10 +234,41 @@ const formatMessage = (message: Message): string =>
       HeardAudioEnded: () => 'HeardAudioEnded()',
       HeardFollowAlong: ({ itemId }) => `HeardFollowAlong(${itemId})`,
       FailedFollowAlong: () => 'FailedFollowAlong()',
+      HeardSignedIn: ({ accountId }) => `HeardSignedIn(${accountId})`,
+      FailedSignIn: () => 'FailedSignIn()',
+      HeardCatalog: () => 'HeardCatalog()',
+      FailedCatalog: () => 'FailedCatalog()',
+      HeardUserData: () => 'HeardUserData()',
+      PressedAddBookmark: () => 'PressedAddBookmark()',
+      PressedOpenBookmark: ({ bookmarkId }) =>
+        `PressedOpenBookmark(${bookmarkId})`,
+      PressedDeleteBookmark: ({ bookmarkId }) =>
+        `PressedDeleteBookmark(${bookmarkId})`,
+      UpdatedNoteDraft: ({ value }) => `UpdatedNoteDraft(${value})`,
+      PressedAddNote: () => 'PressedAddNote()',
+      PressedDeleteNote: ({ noteId }) => `PressedDeleteNote(${noteId})`,
+      CompletedSaveProgress: () => 'CompletedSaveProgress()',
+      FailedSaveProgress: () => 'FailedSaveProgress()',
+      CompletedSaveBookmark: () => 'CompletedSaveBookmark()',
+      FailedSaveBookmark: () => 'FailedSaveBookmark()',
+      CompletedSaveNote: () => 'CompletedSaveNote()',
+      FailedSaveNote: () => 'FailedSaveNote()',
+      CompletedSignOut: () => 'CompletedSignOut()',
       CompletedPlayAudio: () => 'CompletedPlayAudio()',
       CompletedPauseAudio: () => 'CompletedPauseAudio()',
       CompletedSeekAudio: () => 'CompletedSeekAudio()',
       CompletedScrollCurrentWord: () => 'CompletedScrollCurrentWord()',
+      ClickedLink: () => 'ClickedLink()',
+      ChangedUrl: () => 'ChangedUrl()',
+      OpenedNavigation: ({ target }) => `OpenedNavigation(${target._tag})`,
+      CompletedNavigateInternal: () => 'CompletedNavigateInternal()',
+      CompletedLoadExternal: () => 'CompletedLoadExternal()',
+      CompletedHistoryBack: () => 'CompletedHistoryBack()',
+      PressedToggleAppearance: () => 'PressedToggleAppearance()',
+      PressedFollowLive: () => 'PressedFollowLive()',
+      ScrolledAway: () => 'ScrolledAway()',
+      PressedSetNoteAudience: ({ audience }) =>
+        `PressedSetNoteAudience(${audience})`,
     }),
   )
 
