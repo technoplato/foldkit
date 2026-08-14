@@ -198,7 +198,7 @@ const counterInteractions = (
     'Default',
     GotCounterMessage({
       counterId,
-      message: Counter.ClickedDecrement(),
+      message: Counter.Decrement(),
     }),
   ),
   sendMessageInteraction(
@@ -208,7 +208,7 @@ const counterInteractions = (
     'Default',
     GotCounterMessage({
       counterId,
-      message: Counter.ClickedIncrement(),
+      message: Counter.Increment(),
     }),
   ),
 ]
@@ -344,7 +344,7 @@ export const interactionsForModel = (
               'Default',
               GotCounterMessage({
                 counterId: counter.id,
-                message: Counter.ClickedReset(),
+                message: Counter.Reset(),
               }),
             ),
             ShowCounterFactInteraction.make({

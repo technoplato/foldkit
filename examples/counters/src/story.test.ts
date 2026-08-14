@@ -20,7 +20,7 @@ describe('Multiple Counters update', () => {
       Story.message(
         GotCounterMessage({
           counterId: 'counter-2',
-          message: Counter.ClickedIncrement(),
+          message: Counter.Increment(),
         }),
       ),
       Story.model(model => {

@@ -26,6 +26,10 @@ import {
 import { Runtime } from 'foldkit'
 import * as InteractionGraph from 'foldkit/interaction-graph'
 
+import { commitSharedMessage } from '@foldkit/instant'
+
+import { type CountersTape, resolveCountersTape } from './instantTape.js'
+
 /** A CLI token is not valid in the current state and mode. */
 export class CountersCliError extends Data.TaggedError('CountersCliError')<{
   readonly message: string
@@ -121,7 +125,11 @@ const openNavigationCarrier = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   initialModel: Model,
   maybeCarrier: Option.Option<string>,
-): Effect.Effect<ReadonlyArray<Message>, NavigationCarrierResolutionError> =>
+  tape: CountersTape,
+): Effect.Effect<
+  ReadonlyArray<Message>,
+  CountersCliError | NavigationCarrierResolutionError
+> =>
   Effect.gen(function* () {
     const carrier = Option.getOrElse(
       maybeCarrier,
@@ -135,13 +143,23 @@ const openNavigationCarrier = (
     if (Result.isFailure(resolved)) {
       return yield* Effect.fail(resolved.failure)
     }
-    yield* runtime.run(resolved.success)
+    yield* commitSharedMessage(tape, resolved.success, () =>
+      runtime.run(resolved.success),
+    ).pipe(
+      Effect.mapError(
+        () =>
+          new CountersCliError({
+            message: 'Cannot append the Instant tape.',
+          }),
+      ),
+    )
     return [resolved.success]
   })
 
 const runTokens = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   tokens: ReadonlyArray<string>,
+  tape: CountersTape,
 ): Effect.Effect<
   Readonly<{ messages: ReadonlyArray<Message>; finalModel: Model }>,
   | CountersCliError
@@ -160,7 +178,17 @@ const runTokens = (
       if (Result.isFailure(resolved)) {
         return Effect.fail(resolved.failure)
       }
-      return runtime.run(resolved.success).pipe(Effect.as(resolved.success))
+      return commitSharedMessage(tape, resolved.success, () =>
+        runtime.run(resolved.success),
+      ).pipe(
+        Effect.mapError(
+          () =>
+            new CountersCliError({
+              message: 'Cannot append the Instant tape.',
+            }),
+        ),
+        Effect.as(resolved.success),
+      )
     })
     return { messages, finalModel: runtime.readModel() }
   })
@@ -172,19 +200,26 @@ export const executeCounters = (
 ): Effect.Effect<CountersCliExecution, CountersCliResolutionError> =>
   Effect.scoped(
     Effect.gen(function* () {
+      const tape = yield* Effect.orDie(resolveCountersTape())
+      const accepted = yield* Effect.orDie(tape.readAcceptedMessages)
       const runtime = yield* Effect.orDie(
         Runtime.makeProgramRuntime({
           program: MultipleCountersProgram,
           resources: StaticCounterFactClient,
         }),
       )
-      const initialModel = yield* runtime.initialization
+      yield* runtime.initialization
+      yield* Effect.forEach(accepted, message => runtime.run(message), {
+        discard: true,
+      })
+      const initialModel = runtime.readModel()
       const navigationMessages = yield* openNavigationCarrier(
         runtime,
         initialModel,
         maybeCarrier,
+        tape,
       )
-      const execution = yield* runTokens(runtime, tokens)
+      const execution = yield* runTokens(runtime, tokens, tape)
       const journal = runtime.journal.read()
       const replayTape = runtime.replay.readTape()
       yield* runtime.shutdown

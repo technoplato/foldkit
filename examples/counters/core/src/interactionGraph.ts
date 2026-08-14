@@ -201,9 +201,9 @@ const counterMessageToken = (message: Counter.Message): string =>
   M.value(message).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      ClickedDecrement: () => 'DecrementCounter',
-      ClickedIncrement: () => 'IncrementCounter',
-      ClickedReset: () => 'ResetCounter',
+      Decrement: () => 'DecrementCounter',
+      Increment: () => 'IncrementCounter',
+      Reset: () => 'ResetCounter',
     }),
   )
 
