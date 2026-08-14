@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 3:38:46 p.m. EDT — `e9a7fa4cdff3` feat(foldkit): hang keys and valid on md constructors
+
+- **Implementation commit:** `e9a7fa4cdff3433ed4f27801e00b141eebf3ce10`
+- **Change:** Hang keys, tokens, and valid on md Message constructors for issue 207
+- **Details:**
+  - show can walk the Message union. Wire values stay tag-only. Viewer: https://issues.knophy.com/issues/207
+- **Files:**
+  - `packages/foldkit/src/schema/index.ts` — Hang keys, tokens, valid, and hiddenBecause on md
+  - `packages/foldkit/src/schema/index.test.ts` — Prove metadata stays off the wire
+  - `packages/foldkit/src/message/index.ts` — Re-export Action types
+  - `packages/foldkit/src/message/public.ts` — Re-export Action types
+  - `.changeset/add-md-action-valid.md` — Minor foldkit changeset
+- **User context (verbatim):**
+  > If md cannot take valid / keys yet, extend packages/foldkit/src/schema/index.ts in a small, tested commit.
+- **SpecStory:** unavailable — Unavailable: Grok TUI session. SpecStory CLI does not capture this host.
+
 ## August 12th, 2026 at 1:22:40 p.m. EDT — `a990e1cd7d5a` feat(books): add word-timed library Program example
 
 - **Implementation commit:** `a990e1cd7d5aa360ff493c436fb9f389eeb50f6f`
