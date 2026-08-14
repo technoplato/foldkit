@@ -45,7 +45,7 @@ const start = Effect.gen(function* () {
       runtime.send(
         GotCounterMessage({
           counterId,
-          message: Counter.ClickedIncrement(),
+          message: Counter.Increment(),
         }),
       )
     },
@@ -53,7 +53,7 @@ const start = Effect.gen(function* () {
       runtime.send(
         GotCounterMessage({
           counterId,
-          message: Counter.ClickedDecrement(),
+          message: Counter.Decrement(),
         }),
       )
     },

@@ -173,7 +173,7 @@ const representativeMessages = (): ReadonlyArray<Message> => [
   ClickedAddCounter({ counterId: 'counter-3' }),
   GotCounterMessage({
     counterId: 'counter-1',
-    message: Counter.ClickedIncrement(),
+    message: Counter.Increment(),
   }),
   selectedCounter('counter-1', 'detail-1'),
   DismissedCounterDetail({
@@ -257,7 +257,7 @@ describe('Multiple Counters Program', () => {
       initialModel,
       GotCounterMessage({
         counterId: 'counter-2',
-        message: Counter.ClickedIncrement(),
+        message: Counter.Increment(),
       }),
     )
     const maybeFirst = Array.findFirst(
@@ -479,7 +479,7 @@ describe('Multiple Counters Program', () => {
       recreatedModel,
       GotCounterMessage({
         counterId: 'counter-1',
-        message: Counter.ClickedIncrement(),
+        message: Counter.Increment(),
       }),
     )
     const [staleDeleteModel] = update(staleCounterMessageModel, deleteMessage)
@@ -758,7 +758,7 @@ describe('Multiple Counters Program', () => {
       initialModel,
       GotCounterMessage({
         counterId: 'counter-1',
-        message: Counter.ClickedIncrement(),
+        message: Counter.Increment(),
       }),
     )
     const nextFirstRowInteractions = Array.filter(
@@ -1016,7 +1016,7 @@ describe('Multiple Counters Program', () => {
     const domainMessages: ReadonlyArray<Message> = [
       GotCounterMessage({
         counterId: 'counter-1',
-        message: Counter.ClickedIncrement(),
+        message: Counter.Increment(),
       }),
       ClickedAddCounter({ counterId: 'counter-3' }),
       ConfirmedDeleteCounter({

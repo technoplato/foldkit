@@ -161,7 +161,7 @@ describe('Multiple Counters InteractionGraph', () => {
       model,
       GotCounterMessage({
         counterId: 'counter-1',
-        message: Counter.ClickedIncrement(),
+        message: Counter.Increment(),
       }),
     )
     const after = actionForToken(
