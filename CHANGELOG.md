@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 3:39:04 p.m. EDT — `3d8802b0d141` feat(counter): lift semantic Messages and in-memory CLI
+
+- **Implementation commit:** `3d8802b0d141e1ed64df1423582453be885e8ce7`
+- **Change:** Lift Counter core and in-memory CLI for issue 207
+- **Details:**
+  - Semantic increment, decrement, reset. show then do increment. Reset at 0 is invalid. Viewer: https://issues.knophy.com/issues/207
+- **Files:**
+  - `examples/counter/core/src/message.ts` — Semantic Increment Decrement Reset constructors with valid and keys
+  - `examples/counter/core/src/show.ts` — IDENTITY ACESS and chrome from core
+  - `examples/counter/core/src/tree.ts` — Product tree atoms
+  - `examples/counter/cli/src/entry.ts` — counter show and counter do increment
+  - `examples/counter/cli/src/host.ts` — In-memory one-shot host. No CliOperation
+- **User context (verbatim):**
+  > Then lift FoldKit examples/counter core + CLI as this HANDOFF says.
+- **SpecStory:** unavailable — Unavailable: Grok TUI session. SpecStory CLI does not capture this host.
+
 ## August 14th, 2026 at 3:38:46 p.m. EDT — `e9a7fa4cdff3` feat(foldkit): hang keys and valid on md constructors
 
 - **Implementation commit:** `e9a7fa4cdff3433ed4f27801e00b141eebf3ce10`
