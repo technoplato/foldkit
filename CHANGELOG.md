@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 7:08:05 p.m. EDT — `ea2b2f5b4543` feat(instant): share one Counter Instant account across Processors
+
+- **Implementation commit:** `ea2b2f5b454363bef9852d1a409561c77703b5c0`
+- **Change:** CLI, TUI, and Foldkit share one Counter Instant account.
+- **Details:**
+  - Node Processors write Instant Program rows through the admin store because Instant core skips storage on Node.
+  - Foldkit signs in as counter@foldkit.dev and applies remote accepted Messages.
+  - Same-actor Instant perms allow programId counter proposal and accepted writes.
+- **Files:**
+  - `packages/instant/src/adminStore/adminStore.ts` — Trusted Node Instant Program store for the same-actor tape.
+  - `packages/instant/src/nodeDatabase/nodeDatabase.ts` — Node Instant file store helper.
+  - `packages/instant/src/sharing/tape.ts` — Expose accepted occurrence observation.
+  - `examples/instant-counter/instant.perms.ts` — Allow same-actor counter tape writes without opening the sequencer path.
+  - `examples/counter/cli/src/instantTape.ts` — Open the live Instant tape for the CLI Processor.
+  - `examples/counter/tui/src/instantTape.ts` — Open the live Instant tape for the TUI Processor.
+  - `examples/counter/foldkit/src/instantHost.ts` — Foldkit Processor on the same Instant tape.
+- **User context (verbatim):**
+  > Live Instant account for programId counter.
+  > CLI and a live Client are two Processors on one Instant account.
+- **SpecStory:** unavailable — Grok TUI session. No SpecStory capture for this host.
+
 ## August 14th, 2026 at 5:35:59 p.m. EDT — `2e12c2e9c77d` feat(instant): write Counter Messages on a same-actor Instant tape
 
 - **Implementation commit:** `2e12c2e9c77de78164be66a90e95c72397f760de`
