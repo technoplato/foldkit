@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 7:48:38 p.m. EDT — `8d244da99dbd` feat(counters): share Instant tape and fetch favorite facts
+
+- **Implementation commit:** `8d244da99dbd08a5a2c5b3f084505f7654b180c5`
+- **Change:** Counters Foldkit, React, TUI, and Expo Processors now share one Instant tape, and favorite fact is a Command.
+- **Details:**
+  - Remaining Slice B hosts write each Message before update and after update, then apply remote accepted occurrences without re-running Commands.
+  - Slice C FetchCounterFact returns SucceededLoadCounterFact or FailedLoadCounterFact. update stays pure. Instant hosts try numbersapi.com and fall back to the static fact.
+  - Parent Instant issue https://issues.knophy.com/issues/207
+- **Files:**
+  - `examples/counters/core/src/update.ts` — Schedule FetchCounterFact and apply the result Message.
+  - `examples/counters/instant-host/src/attach.ts` — Share tape fold, commit, and remote observe for every Processor.
+  - `examples/counters/src/instantHost.ts` — Attach the Foldkit browser Processor to Instant tape.
+  - `examples/counters/react/src/instantHost.ts` — Attach the React Processor to Instant tape.
+  - `examples/counters/expo/src/App.tsx` — Attach Expo iOS and Android Processors to Instant tape.
+  - `examples/instant-counter/instant.perms.ts` — Allow same-actor accepted rows for programId multiple-counters.
+- **User context (verbatim):**
+  > Slice B is NEEDS-WORK, not a stop.
+  > Continue remaining Counters Clients (foldkit react tui expo-ios expo-android). Then slice C favorite fact from TCA 1 case studies.
+  > Same Instant tape. update stays pure.
+- **SpecStory:** unavailable — Grok desktop session. SpecStory has no documented capture for this host.
+
 ## August 14th, 2026 at 7:12:01 p.m. EDT — `d5ca82519394` feat(counters): persist Multiple Counters Messages on Instant tape
 
 - **Implementation commit:** `d5ca82519394c3963a56142c18df95e8cbcab2b2`
