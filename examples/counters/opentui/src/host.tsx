@@ -30,6 +30,7 @@ import {
   useMultipleCountersReplay,
 } from './client.js'
 import { type CountersInteractionId, normalizeInput } from './input.js'
+import type { OpenTuiCountersHost } from './instant.js'
 import {
   availableSemanticShortcutLabels,
   movedSourceReference,
@@ -41,15 +42,18 @@ const HEADER_HEIGHT = 6
 
 /** Runs Multiple Counters through the OpenTUI React reconciler. */
 export const App = ({
+  host,
   maybeInitialTarget,
   renderer,
 }: Readonly<{
+  host?: OpenTuiCountersHost
   maybeInitialTarget: Option.Option<NavigationTarget>
   renderer: CliRenderer
 }>) => (
   <MultipleCountersProvider
     fallback={<text fg="#a8a29e">Starting Multiple Counters…</text>}
     maybeInitialTarget={maybeInitialTarget}
+    {...(host === undefined ? {} : { host })}
   >
     <MultipleCountersTerminal renderer={renderer} />
   </MultipleCountersProvider>

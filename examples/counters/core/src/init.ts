@@ -1,6 +1,7 @@
 import * as Counter from 'counter-core-example'
 import { type Command } from 'foldkit'
 
+import { type CounterFactClient } from './counterFactClient.js'
 import { type Message } from './message.js'
 import { CounterList, CounterRow, Model, type Navigation } from './model.js'
 
@@ -26,5 +27,5 @@ export const modelForNavigation = (navigation: Navigation): Model =>
 /** Creates the initial Multiple Counters Model and Commands. */
 export const init = (): readonly [
   Model,
-  ReadonlyArray<Command.Command<Message>>,
+  ReadonlyArray<Command.Command<Message, never, CounterFactClient>>,
 ] => [modelForNavigation(CounterList.make({})), []]

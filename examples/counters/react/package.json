@@ -5,16 +5,18 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build",
-    "dev": "vite",
-    "prebuild": "pnpm --filter counters-react-bindings-example build",
-    "predev": "pnpm --filter counters-react-bindings-example build",
+    "dev": "./scripts/with-public-instant-env vite",
+    "prebuild": "pnpm --filter counters-react-bindings-example build && pnpm --filter counters-instant-example build",
+    "predev": "pnpm --filter counters-react-bindings-example build && pnpm --filter counters-instant-example build",
     "pretest": "pnpm --filter counters-react-bindings-example build",
     "pretypecheck": "pnpm --filter counters-react-bindings-example build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@foldkit/instant": "workspace:*",
     "counters-core-example": "workspace:*",
+    "counters-instant-example": "workspace:*",
     "counters-react-bindings-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",

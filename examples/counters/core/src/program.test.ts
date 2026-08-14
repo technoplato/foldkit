@@ -22,11 +22,13 @@ import {
   DeleteCounterTarget,
   DismissedCounterDetail,
   DismissedCounterFactAlert,
+  FailedLoadCounterFact,
   GotCounterMessage,
   type Message,
   type NavigationTarget,
   OpenedNavigation,
   SelectedCounter,
+  SucceededLoadCounterFact,
   openingForTarget,
 } from './message.js'
 import {
@@ -185,6 +187,18 @@ const representativeMessages = (): ReadonlyArray<Message> => [
     detailPresentationId: 'detail-1',
     requestId: 'fact-1',
   }),
+  SucceededLoadCounterFact({
+    counterId: 'counter-1',
+    detailPresentationId: 'detail-1',
+    fact: counterFactForNumber(0),
+    requestId: 'fact-1',
+  }),
+  FailedLoadCounterFact({
+    counterId: 'counter-1',
+    detailPresentationId: 'detail-1',
+    reason: 'Numbers API did not return a fact.',
+    requestId: 'fact-1',
+  }),
   DismissedCounterFactAlert({
     counterId: 'counter-1',
     detailPresentationId: 'detail-1',
@@ -277,13 +291,13 @@ describe('Multiple Counters Program', () => {
     )
   })
 
-  it('derives a counter fact without scheduling duplicated Commands', () => {
+  it('schedules a fact Command and records the result as a Message', () => {
     const [initialModel] = init()
     const [detailModel] = update(
       initialModel,
       selectedCounter('counter-1', 'detail-1'),
     )
-    const [factModel, commands] = update(
+    const [loadingModel, commands] = update(
       detailModel,
       ClickedShowCounterFact({
         counterId: 'counter-1',
@@ -291,9 +305,21 @@ describe('Multiple Counters Program', () => {
         requestId: 'fact-1',
       }),
     )
+    const [factModel, resultCommands] = update(
+      loadingModel,
+      SucceededLoadCounterFact({
+        counterId: 'counter-1',
+        detailPresentationId: 'detail-1',
+        fact: counterFactForNumber(0),
+        requestId: 'fact-1',
+      }),
+    )
 
-    expect(commands).toStrictEqual([])
-    expect(factModel.navigation).toMatchObject({
+    expect(Array.map(commands, command => command.name)).toStrictEqual([
+      'FetchCounterFact',
+    ])
+    expect(resultCommands).toStrictEqual([])
+    expect(loadingModel.navigation).toMatchObject({
       _tag: 'CounterDetail',
       counterId: 'counter-1',
       presentationId: 'detail-1',
@@ -303,6 +329,16 @@ describe('Multiple Counters Program', () => {
           _tag: 'CounterFactAlert',
           detailPresentationId: 'detail-1',
           requestId: 'fact-1',
+          status: { _tag: 'LoadingCounterFact' },
+        },
+      },
+    })
+    expect(factModel.navigation).toMatchObject({
+      _tag: 'CounterDetail',
+      maybeMode: {
+        _tag: 'Some',
+        value: {
+          _tag: 'CounterFactAlert',
           status: {
             _tag: 'LoadedCounterFact',
             fact: { number: 0 },
@@ -312,7 +348,7 @@ describe('Multiple Counters Program', () => {
     })
   })
 
-  it('normalizes restored pending or failed facts into deterministic loaded facts', () => {
+  it('restores an in-flight fact by scheduling the Command again', () => {
     const [initialModel] = init()
     const ModelJson = S.toCodecJson(Model)
     const decodePersistedModel = (model: Model): Model =>
@@ -337,10 +373,20 @@ describe('Multiple Counters Program', () => {
     const [restoredFailedModel, failedCommands] = restore(failedModel)
     const [restoredLoadedModel, loadedCommands] = restore(loadedModel)
 
-    expect(restoredLoadingModel.navigation).toStrictEqual(
-      loadedModel.navigation,
-    )
-    expect(restoredFailedModel.navigation).toStrictEqual(loadedModel.navigation)
+    expect(restoredLoadingModel.navigation).toMatchObject({
+      _tag: 'CounterDetail',
+      maybeMode: {
+        _tag: 'Some',
+        value: {
+          _tag: 'CounterFactAlert',
+          status: { _tag: 'LoadingCounterFact' },
+        },
+      },
+    })
+    expect(Array.map(loadingCommands, command => command.name)).toStrictEqual([
+      'FetchCounterFact',
+    ])
+    expect(restoredFailedModel.navigation).toStrictEqual(failedModel.navigation)
     expect(restoredLoadedModel).toStrictEqual(loadedModel)
     expect(projectDomain(restoredLoadingModel)).toStrictEqual(
       projectDomain(loadingModel),
@@ -351,7 +397,6 @@ describe('Multiple Counters Program', () => {
     expect(projectDomain(restoredLoadedModel)).toStrictEqual(
       projectDomain(loadedModel),
     )
-    expect(loadingCommands).toStrictEqual([])
     expect(failedCommands).toStrictEqual([])
     expect(loadedCommands).toStrictEqual([])
   })
@@ -839,6 +884,8 @@ describe('Multiple Counters Program', () => {
     expect(Array.map(messages, messageCategory)).toStrictEqual([
       'Domain',
       'Domain',
+      'Navigation',
+      'Navigation',
       'Navigation',
       'Navigation',
       'Navigation',

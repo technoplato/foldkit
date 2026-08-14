@@ -7,9 +7,13 @@ export default defineConfig({
       ...configDefaults.exclude,
       'cli/**',
       'core/**',
+      'expo/**',
+      'instant-host/**',
+      'opentui/**',
       'react/**',
       'react-bindings/**',
       'terminal/**',
+      'three/**',
     ],
     setupFiles: ['./src/vitest-setup.ts'],
     server: {

@@ -1,0 +1,3 @@
+#!/bin/sh
+unset INSTANT_CLI_AUTH_TOKEN
+exec "$@"

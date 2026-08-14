@@ -58,7 +58,7 @@ export default {
   },
   foldkitAcceptedMessageOccurrences: {
     allow: {
-      create: createsCounterTapeRow,
+      create: `${createsCounterTapeRow} || ${createsV2OrdinaryProposal}`,
       delete: 'false',
       update: 'false',
       view: ownsRecord,

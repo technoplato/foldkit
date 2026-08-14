@@ -4,6 +4,7 @@ import { m } from 'foldkit/message'
 
 import {
   CounterDetailPresentationId,
+  CounterFact,
   CounterFactRequestId,
   CounterId,
   DeleteCounterConfirmationId,
@@ -129,6 +130,20 @@ export const ClickedShowCounterFact = m('ClickedShowCounterFact', {
   detailPresentationId: CounterDetailPresentationId,
   requestId: CounterFactRequestId,
 })
+/** Records that the favorite-fact Command returned a number fact. */
+export const SucceededLoadCounterFact = m('SucceededLoadCounterFact', {
+  counterId: CounterId,
+  detailPresentationId: CounterDetailPresentationId,
+  fact: CounterFact,
+  requestId: CounterFactRequestId,
+})
+/** Records that the favorite-fact Command failed. */
+export const FailedLoadCounterFact = m('FailedLoadCounterFact', {
+  counterId: CounterId,
+  detailPresentationId: CounterDetailPresentationId,
+  reason: S.String,
+  requestId: CounterFactRequestId,
+})
 /** Records that the counter fact alert was dismissed. */
 export const DismissedCounterFactAlert = m('DismissedCounterFactAlert', {
   counterId: CounterId,
@@ -165,6 +180,8 @@ export const Message = S.Union([
   SelectedCounter,
   DismissedCounterDetail,
   ClickedShowCounterFact,
+  SucceededLoadCounterFact,
+  FailedLoadCounterFact,
   DismissedCounterFactAlert,
   ClickedDeleteCounter,
   CancelledDeleteCounter,

@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "predev": "pnpm --filter counters-core-example build",
+    "dev": "./scripts/with-public-instant-env vite",
+    "predev": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
     "pretest": "pnpm --filter counters-core-example build",
     "pretypecheck": "pnpm --filter counters-core-example build",
     "typecheck": "tsc --noEmit",
@@ -14,7 +14,10 @@
   "dependencies": {
     "@effect/platform-browser": "4.0.0-beta.97",
     "@foldkit/devtools": "workspace:*",
+    "@foldkit/instant": "workspace:*",
     "@foldkit/ui": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "counters-instant-example": "workspace:*",
     "@tailwindcss/vite": "^4.3.1",
     "counter-core-example": "workspace:*",
     "counters-core-example": "workspace:*",
@@ -24,6 +27,7 @@
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "workspace:*",
+    "@instantdb/admin": "1.0.53",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "happy-dom": "^20.10.4",
     "prettier": "^3.8.4",
