@@ -1,57 +1,34 @@
 import {
-  ClickedDecrement,
-  ClickedIncrement,
-  ClickedReset,
   CounterProgram,
+  Device,
+  LastAction,
   type Message,
   type Model,
+  actionByToken,
+  defaultShowContext,
+  invalidActionLog,
+  renderReceipt,
+  renderShow,
+  tokenOf,
 } from 'counter-core-example'
-import { Console, Effect, Layer, Match as M, Option, Schema as S } from 'effect'
+import {
+  Array,
+  Console,
+  Data,
+  Effect,
+  Layer,
+  Option,
+  Schema as S,
+  String as String_,
+} from 'effect'
 import { Runtime } from 'foldkit'
 
-/** Operations supported by the one-shot Counter client. */
-export const CliOperation = S.Literals([
-  'Show',
-  'Increment',
-  'Decrement',
-  'Reset',
-])
-/** A one-shot Counter operation. */
-export type CliOperation = typeof CliOperation.Type
+/** CLI failure for a bad token or target. */
+export class CounterCliError extends Data.TaggedError('CounterCliError')<{
+  readonly message: string
+}> {}
 
-/** The imported Counter state transition performed by a one-shot operation. */
-export type CliOperationExecution = Readonly<{
-  initialModel: Model
-  maybeMessage: Option.Option<Message>
-  finalModel: Model
-}>
-
-const messageForOperation = (operation: CliOperation): Option.Option<Message> =>
-  M.value(operation).pipe(
-    M.withReturnType<Option.Option<Message>>(),
-    M.when('Show', () => Option.none()),
-    M.when('Increment', () => Option.some(ClickedIncrement())),
-    M.when('Decrement', () => Option.some(ClickedDecrement())),
-    M.when('Reset', () => Option.some(ClickedReset())),
-    M.exhaustive,
-  )
-
-const runMessage = (
-  runtime: Runtime.ProgramRuntime<Model, Message>,
-  initialModel: Model,
-  maybeMessage: Option.Option<Message>,
-): Effect.Effect<Model> => {
-  if (Option.isSome(maybeMessage)) {
-    return runtime.run(maybeMessage.value)
-  } else {
-    return Effect.succeed(initialModel)
-  }
-}
-
-/** Runs one CLI operation through the renderer-free runtime without printing. */
-export const executeCliOperation = (
-  operation: CliOperation,
-): Effect.Effect<CliOperationExecution> =>
+const freshModel = (): Effect.Effect<Model> =>
   Effect.scoped(
     Effect.gen(function* () {
       const runtime = yield* Effect.orDie(
@@ -60,45 +37,168 @@ export const executeCliOperation = (
           resources: Layer.empty,
         }),
       )
-      const initialModel = yield* runtime.initialization
-      const maybeMessage = messageForOperation(operation)
-      const finalModel = yield* runMessage(runtime, initialModel, maybeMessage)
-      yield* runtime.shutdown
-      return { initialModel, maybeMessage, finalModel }
+      return yield* runtime.initialization
     }),
   )
 
-const formatModel = (model: Model): string => `Model({ count: ${model.count} })`
-
-const formatMessage = (message: Message): string =>
-  M.value(message).pipe(
-    M.withReturnType<string>(),
-    M.tagsExhaustive({
-      ClickedDecrement: () => 'ClickedDecrement()',
-      ClickedIncrement: () => 'ClickedIncrement()',
-      ClickedReset: () => 'ClickedReset()',
-    }),
-  )
-
-/** Runs one CLI operation and prints its resulting integer. */
-export const runCliOperation = (
-  operation: CliOperation,
-  isVerbose: boolean,
-): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    const execution = yield* executeCliOperation(operation)
-
-    if (isVerbose) {
-      yield* Console.log(
-        `Initial Model: ${formatModel(execution.initialModel)}`,
+const runThroughRuntime = (
+  model: Model,
+  maybeMessage: Option.Option<Message>,
+): Effect.Effect<Model> =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const runtime = yield* Effect.orDie(
+        Runtime.makeProgramRuntime({
+          program: CounterProgram,
+          resources: Layer.empty,
+          start: Runtime.fromModel(model),
+        }),
       )
-      if (Option.isSome(execution.maybeMessage)) {
-        yield* Console.log(
-          `Message: ${formatMessage(execution.maybeMessage.value)}`,
-        )
+      yield* runtime.initialization
+      if (Option.isSome(maybeMessage)) {
+        return yield* runtime.run(maybeMessage.value)
       }
-      yield* Console.log(`Final Model: ${formatModel(execution.finalModel)}`)
+      return runtime.readModel()
+    }),
+  )
+
+const parseTargets = (
+  raw: string | undefined,
+): Effect.Effect<ReadonlyArray<Device>, CounterCliError> => {
+  if (raw === undefined) {
+    return Effect.succeed(defaultShowContext.targets)
+  }
+  const parts = Array.filter(
+    Array.map(raw.split(','), part => part.trim()),
+    String_.isNonEmpty,
+  )
+  const decoded = S.decodeUnknownOption(S.Array(Device))(parts)
+  if (Option.isNone(decoded)) {
+    return Effect.fail(
+      new CounterCliError({ message: `Unknown targets "${raw}"` }),
+    )
+  }
+  if (Option.isNone(Array.head(decoded.value))) {
+    return Effect.fail(
+      new CounterCliError({ message: 'Provide at least one target' }),
+    )
+  }
+  return Effect.succeed(decoded.value)
+}
+
+/** One `show` or `do` execution against the imported Program. */
+export type CliExecution = Readonly<{
+  initialModel: Model
+  maybeMessage: Option.Option<Message>
+  finalModel: Model
+  stdout: string
+}>
+
+/** Prints IDENTITY, ACESS, and chrome. `show` is not a Message. */
+export const executeShow = (
+  targetsRaw: string | undefined,
+  path: string | undefined,
+): Effect.Effect<CliExecution, CounterCliError> =>
+  Effect.gen(function* () {
+    const targets = yield* parseTargets(targetsRaw)
+    const initialModel = yield* freshModel()
+    const stdout = renderShow(initialModel, {
+      targets,
+      focus: defaultShowContext.focus,
+      ...(path === undefined ? {} : { path }),
+    })
+    return {
+      initialModel,
+      maybeMessage: Option.none(),
+      finalModel: initialModel,
+      stdout,
+    }
+  })
+
+/** Sends one semantic token, then auto-shows. The process starts at count 0. */
+export const executeDo = (
+  token: string,
+): Effect.Effect<CliExecution, CounterCliError> =>
+  Effect.gen(function* () {
+    const initialModel = yield* freshModel()
+    const action = actionByToken(token.trim().toLowerCase())
+    if (action === undefined) {
+      return yield* Effect.fail(
+        new CounterCliError({
+          message: `Unknown action "${token}". Use increment, decrement, or reset.`,
+        }),
+      )
+    }
+    const isValid = action.valid(initialModel, {})
+    if (!isValid) {
+      const stdout = [
+        invalidActionLog(token, initialModel),
+        '',
+        renderShow(initialModel, {
+          targets: defaultShowContext.targets,
+          focus: defaultShowContext.focus,
+        }),
+      ].join('\n')
+      return {
+        initialModel,
+        maybeMessage: Option.none(),
+        finalModel: initialModel,
+        stdout,
+      }
     }
 
-    yield* Console.log(execution.finalModel.count)
+    const message = action()
+    const finalModel = yield* runThroughRuntime(
+      initialModel,
+      Option.some(message),
+    )
+    const last: LastAction = {
+      command: action.command ?? token,
+      event: action.event ?? token,
+      sideEffects: ['tape append', 'link  offline'],
+    }
+    const receipt = renderReceipt({
+      token: tokenOf(action),
+      verb: 'sent',
+      from: 'cli',
+      via: 'argv',
+      command: last.command,
+      event: last.event,
+      mutate: action.mutate ?? '',
+      sideEffects: action.sideEffects ?? '(none)',
+      tape: 'appended',
+      link: 'offline',
+    })
+    const stdout = [
+      receipt,
+      '',
+      renderShow(finalModel, {
+        targets: defaultShowContext.targets,
+        focus: defaultShowContext.focus,
+        last,
+      }),
+    ].join('\n')
+    return {
+      initialModel,
+      maybeMessage: Option.some(message),
+      finalModel,
+      stdout,
+    }
+  })
+
+/** Runs `show` and prints. */
+export const runShow = (
+  targetsRaw: string | undefined,
+  path: string | undefined,
+): Effect.Effect<void, CounterCliError> =>
+  Effect.gen(function* () {
+    const execution = yield* executeShow(targetsRaw, path)
+    yield* Console.log(execution.stdout)
+  })
+
+/** Runs `do` and prints the receipt plus auto-show. */
+export const runDo = (token: string): Effect.Effect<void, CounterCliError> =>
+  Effect.gen(function* () {
+    const execution = yield* executeDo(token)
+    yield* Console.log(execution.stdout)
   })

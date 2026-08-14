@@ -6,18 +6,22 @@ import { type Model, initialCount } from './model.js'
 
 // UPDATE
 
+type UpdateReturn = readonly [Model, ReadonlyArray<Command.Command<Message>>]
+
+const withUpdateReturn = M.withReturnType<UpdateReturn>()
+
 /** Applies one Counter Message to the current Model. */
-export const update = (
-  model: Model,
-  message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] =>
+export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
-    M.withReturnType<
-      readonly [Model, ReadonlyArray<Command.Command<Message>>]
-    >(),
+    withUpdateReturn,
     M.tagsExhaustive({
-      ClickedDecrement: () => [{ count: model.count - 1 }, []],
-      ClickedIncrement: () => [{ count: model.count + 1 }, []],
-      ClickedReset: () => [{ count: initialCount }, []],
+      Decrement: () => [{ count: model.count - 1 }, []],
+      Increment: () => [{ count: model.count + 1 }, []],
+      Reset: () => {
+        if (model.count === 0) {
+          return [model, []]
+        }
+        return [{ count: initialCount }, []]
+      },
     }),
   )

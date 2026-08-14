@@ -1,12 +1,12 @@
 import {
-  ClickedDecrement,
-  ClickedIncrement,
-  ClickedReset,
   CounterProgram,
   type Message,
   type Model,
+  actions,
+  renderChrome,
 } from 'counter-core-example'
 import {
+  Array,
   Cause,
   Effect,
   Layer,
@@ -18,49 +18,32 @@ import {
 import { Runtime } from 'foldkit'
 
 const CLEAR_SCREEN = '\u001b[2J\u001b[H'
-const SCREEN_INNER_WIDTH = 43
 
-const framed = (content: string): string => {
-  const remainingWidth = Math.max(0, SCREEN_INNER_WIDTH - content.length)
-  return `| ${content}${' '.repeat(Math.max(0, remainingWidth - 1))}|`
-}
-
-const centered = (content: string): string => {
-  const remainingWidth = Math.max(0, SCREEN_INNER_WIDTH - content.length)
-  const leftPadding = Math.floor(remainingWidth / 2)
-  const rightPadding = remainingWidth - leftPadding
-  return `|${' '.repeat(leftPadding)}${content}${' '.repeat(rightPadding)}|`
-}
-
-/** Renders the imported Counter Model as a terminal screen. */
+/** Renders the imported Counter Model from core chrome. */
 export const renderCounterScreen = (model: Model): string => {
-  const border = `+${'-'.repeat(SCREEN_INNER_WIDTH)}+`
-  const lines = [
-    border,
-    framed('Counter'),
-    framed(''),
-    centered(model.count.toString()),
-    framed(''),
-    framed('[-] decrement  [R] reset  [+] increment'),
-    framed(''),
-    framed('                               [Q] quit'),
-    border,
-  ]
-  return `${CLEAR_SCREEN}${lines.join('\n')}\n`
+  const chrome = renderChrome(model, ['laptop'])
+  return `${CLEAR_SCREEN}${chrome}\n\n[Q] quit\n`
 }
 
 /** Maps a terminal key to an imported Counter Message when applicable. */
-export const messageForInput = (input: string): Option.Option<Message> => {
+export const messageForInput = (
+  input: string,
+  model: Model,
+): Option.Option<Message> => {
   const key = input.toLowerCase()
-  if (key === '+' || key === '=') {
-    return Option.some(ClickedIncrement())
-  } else if (key === '-') {
-    return Option.some(ClickedDecrement())
-  } else if (key === 'r') {
-    return Option.some(ClickedReset())
-  } else {
+  const maybeAction = Array.findFirst(
+    actions,
+    action =>
+      Array.contains(action.keys ?? [], key) ||
+      Array.contains(action.keys ?? [], input),
+  )
+  if (Option.isNone(maybeAction)) {
     return Option.none()
   }
+  if (!maybeAction.value.valid(model, {})) {
+    return Option.none()
+  }
+  return Option.some(maybeAction.value())
 }
 
 const runInputLoop = (
@@ -78,7 +61,7 @@ const runInputLoop = (
         return Effect.void
       }
 
-      const maybeMessage = messageForInput(key)
+      const maybeMessage = messageForInput(key, runtime.readModel())
       if (Option.isSome(maybeMessage)) {
         return runtime.run(maybeMessage.value).pipe(
           Effect.flatMap(model => terminal.display(renderCounterScreen(model))),
