@@ -1,8 +1,8 @@
 import { Array, Option } from 'effect'
+import { Button, Column, Row, Text, type UiNode } from 'foldkit/renderers'
 
 import { type Action, Reset, actions, tokenOf } from './message.js'
 import { type Model } from './model.js'
-import { Button, Column, Row, Text, type UiNode } from './tree.js'
 
 const labelOf = (action: Action): string => {
   if (action === Reset) {
@@ -21,5 +21,5 @@ export const productView = (model: Model): UiNode => {
         label: labelOf(action),
       }),
   )
-  return Column([Text(model.count.toString()), Row(buttons)])
+  return Column({}, Text(model.count.toString()), Row({}, ...buttons))
 }

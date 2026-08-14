@@ -5,20 +5,22 @@ import { describe, expect, it } from 'vitest'
 import { messageForInput, renderCounterScreen } from './host.js'
 
 describe('Counter TUI', () => {
-  it('prints core laptop chrome and hides reset at 0', () => {
+  it('prints computer chrome around the product tree and hides reset at 0', () => {
     const screen = renderCounterScreen(Model.make({ count: 0 }))
 
     expect(screen).toContain('/counter')
-    expect(screen).toContain('            0             ')
-    expect(screen).toContain('[ - ]            [ + ]')
-    expect(screen).not.toContain('[reset]')
+    expect(screen).toContain('0')
+    expect(screen).toContain('[ + ]')
+    expect(screen).toContain('[ - ]')
+    expect(screen).not.toContain('[ reset ]')
     expect(screen).toContain('[Q] quit')
+    expect(screen).not.toContain('laptop')
   })
 
-  it('prints reset in core chrome when the count is not 0', () => {
+  it('prints reset from the product tree when the count is not 0', () => {
     const screen = renderCounterScreen(Model.make({ count: 2 }))
 
-    expect(screen).toContain('[reset]')
+    expect(screen).toContain('[ reset ]')
   })
 
   it('maps keys to the imported Message constructors', () => {

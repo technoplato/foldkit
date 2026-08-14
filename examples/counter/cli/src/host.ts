@@ -5,8 +5,10 @@ import {
   type Message,
   type Model,
   actionByToken,
+  actions,
   defaultShowContext,
   invalidActionLog,
+  productView,
   renderReceipt,
   renderShow,
   tokenOf,
@@ -17,13 +19,15 @@ import {
   Data,
   Effect,
   Layer,
+  Match as M,
   Option,
   Schema as S,
-  String as String_,
 } from 'effect'
 import { Runtime } from 'foldkit'
+import { renderScreen } from 'foldkit/renderers'
+import { readFileSync } from 'node:fs'
 
-/** CLI failure for a bad token or target. */
+/** CLI failure for a bad token, Device, or tape. */
 export class CounterCliError extends Data.TaggedError('CounterCliError')<{
   readonly message: string
 }> {}
@@ -62,29 +66,27 @@ const runThroughRuntime = (
     }),
   )
 
-const parseTargets = (
+const parseDevice = (
   raw: string | undefined,
-): Effect.Effect<ReadonlyArray<Device>, CounterCliError> => {
+): Effect.Effect<Device | undefined, CounterCliError> => {
   if (raw === undefined) {
-    return Effect.succeed(defaultShowContext.targets)
+    return Effect.succeed(undefined)
   }
-  const parts = Array.filter(
-    Array.map(raw.split(','), part => part.trim()),
-    String_.isNonEmpty,
-  )
-  const decoded = S.decodeUnknownOption(S.Array(Device))(parts)
+  const decoded = S.decodeUnknownOption(Device)(raw)
   if (Option.isNone(decoded)) {
     return Effect.fail(
-      new CounterCliError({ message: `Unknown targets "${raw}"` }),
-    )
-  }
-  if (Option.isNone(Array.head(decoded.value))) {
-    return Effect.fail(
-      new CounterCliError({ message: 'Provide at least one target' }),
+      new CounterCliError({
+        message: `Unknown device "${raw}". Use watch, phone, tablet, computer, or tv.`,
+      }),
     )
   }
   return Effect.succeed(decoded.value)
 }
+
+const showContext = (device: Device | undefined) => ({
+  ...defaultShowContext,
+  ...(device === undefined ? {} : { device }),
+})
 
 /** One `show` or `do` execution against the imported Program. */
 export type CliExecution = Readonly<{
@@ -94,17 +96,16 @@ export type CliExecution = Readonly<{
   stdout: string
 }>
 
-/** Prints IDENTITY, ACESS, and chrome. `show` is not a Message. */
+/** Prints IDENTITY and ACESS. Optional `--device` wraps the product tree. */
 export const executeShow = (
-  targetsRaw: string | undefined,
+  deviceRaw: string | undefined,
   path: string | undefined,
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
-    const targets = yield* parseTargets(targetsRaw)
+    const device = yield* parseDevice(deviceRaw)
     const initialModel = yield* freshModel()
     const stdout = renderShow(initialModel, {
-      targets,
-      focus: defaultShowContext.focus,
+      ...showContext(device),
       ...(path === undefined ? {} : { path }),
     })
     return {
@@ -134,10 +135,7 @@ export const executeDo = (
       const stdout = [
         invalidActionLog(token, initialModel),
         '',
-        renderShow(initialModel, {
-          targets: defaultShowContext.targets,
-          focus: defaultShowContext.focus,
-        }),
+        renderShow(initialModel, showContext(undefined)),
       ].join('\n')
       return {
         initialModel,
@@ -173,8 +171,7 @@ export const executeDo = (
       receipt,
       '',
       renderShow(finalModel, {
-        targets: defaultShowContext.targets,
-        focus: defaultShowContext.focus,
+        ...showContext(undefined),
         last,
       }),
     ].join('\n')
@@ -186,13 +183,116 @@ export const executeDo = (
     }
   })
 
+const describeTapeError = (error: Runtime.ReplayTapeDecodeError): string =>
+  M.value(error).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      ReplayTapeImportError: ({ message }) => message,
+      IncompatibleProgramError: ({ expectedProgramId, actualProgramId }) =>
+        `Tape program is ${actualProgramId}. Expected ${expectedProgramId}.`,
+      IncompatibleProgramVersionError: ({
+        expectedVersion,
+        actualVersion,
+        programId,
+      }) =>
+        `Tape ${programId} version ${actualVersion.toString()} does not match ${expectedVersion.toString()}.`,
+      ReplayTapeMigrationError: ({ programId, fromVersion, toVersion }) =>
+        `Tape ${programId} could not migrate from ${fromVersion.toString()} to ${toVersion.toString()}.`,
+    }),
+  )
+
+const validLine = (model: Model): string =>
+  Array.map(actions, action => {
+    const token = tokenOf(action)
+    const isValid = action.valid(model, {})
+    return `  ${token.padEnd(12)}${isValid ? 'true' : 'false'}`
+  }).join('\n')
+
+const formatReplayFrame = (
+  frame: number,
+  model: Model,
+  maybeMessage: Option.Option<Message>,
+): string => {
+  const messageLine = Option.match(maybeMessage, {
+    onNone: () => '  (none)',
+    onSome: message => `  ${message._tag}`,
+  })
+  return [
+    `FRAME ${frame.toString()}`,
+    'MESSAGE',
+    messageLine,
+    'STATE',
+    `  count    ${model.count.toString()}`,
+    'VALID',
+    validLine(model),
+    'SCREEN',
+    renderScreen(productView(model)),
+  ].join('\n')
+}
+
+/** One replay of a Program tape. The CLI does not reimplement update. */
+export type ReplayExecution = Readonly<{
+  models: ReadonlyArray<Model>
+  stdout: string
+}>
+
+/** Steps a portable tape through Runtime.replayToFrame. */
+export const executeReplay = (
+  tapePath: string,
+): Effect.Effect<ReplayExecution, CounterCliError> =>
+  Effect.gen(function* () {
+    const json = yield* Effect.try({
+      try: () => readFileSync(tapePath, 'utf8'),
+      catch: () =>
+        new CounterCliError({
+          message: `Cannot read tape at ${tapePath}.`,
+        }),
+    })
+    const tape = yield* Runtime.decodeReplayTape(CounterProgram, json).pipe(
+      Effect.mapError(
+        error =>
+          new CounterCliError({
+            message: describeTapeError(error),
+          }),
+      ),
+    )
+    const frames = Array.range(0, tape.transitions.length)
+    const rendered = yield* Effect.forEach(frames, frame =>
+      Runtime.replayToFrame(CounterProgram, tape, frame).pipe(
+        Effect.map(model => {
+          const maybeMessage =
+            frame === 0
+              ? Option.none()
+              : Option.map(
+                  Array.get(tape.transitions, frame - 1),
+                  transition => transition.message,
+                )
+          return {
+            model,
+            block: formatReplayFrame(frame, model, maybeMessage),
+          }
+        }),
+        Effect.mapError(
+          error =>
+            new CounterCliError({
+              message: `Tape frame ${error.frame.toString()} is out of range.`,
+            }),
+        ),
+      ),
+    )
+    return {
+      models: Array.map(rendered, item => item.model),
+      stdout: Array.map(rendered, item => item.block).join('\n\n'),
+    }
+  })
+
 /** Runs `show` and prints. */
 export const runShow = (
-  targetsRaw: string | undefined,
+  deviceRaw: string | undefined,
   path: string | undefined,
 ): Effect.Effect<void, CounterCliError> =>
   Effect.gen(function* () {
-    const execution = yield* executeShow(targetsRaw, path)
+    const execution = yield* executeShow(deviceRaw, path)
     yield* Console.log(execution.stdout)
   })
 
@@ -200,5 +300,14 @@ export const runShow = (
 export const runDo = (token: string): Effect.Effect<void, CounterCliError> =>
   Effect.gen(function* () {
     const execution = yield* executeDo(token)
+    yield* Console.log(execution.stdout)
+  })
+
+/** Runs `replay` and prints each tape frame. */
+export const runReplay = (
+  tapePath: string,
+): Effect.Effect<void, CounterCliError> =>
+  Effect.gen(function* () {
+    const execution = yield* executeReplay(tapePath)
     yield* Console.log(execution.stdout)
   })

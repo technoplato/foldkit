@@ -21,7 +21,7 @@ const CLEAR_SCREEN = '\u001b[2J\u001b[H'
 
 /** Renders the imported Counter Model from core chrome. */
 export const renderCounterScreen = (model: Model): string => {
-  const chrome = renderChrome(model, ['laptop'])
+  const chrome = renderChrome(model, 'computer')
   return `${CLEAR_SCREEN}${chrome}\n\n[Q] quit\n`
 }
 
