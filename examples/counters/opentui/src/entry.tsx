@@ -5,6 +5,7 @@ import { createCliRenderer } from '@opentui/core'
 import { createRoot } from '@opentui/react'
 
 import { App } from './host.js'
+import { startOpenTuiCountersHost } from './instant.js'
 
 const renderer = await createCliRenderer({
   consoleMode: 'disabled',
@@ -18,6 +19,17 @@ const maybeCarrier = pipe(
 )
 const maybeInitialTarget = Option.map(maybeCarrier, pathToNavigationTarget)
 
+const mode = process.env['COUNTERS_TAPE'] ?? process.env['COUNTER_TAPE']
+const maybeHost = mode === 'instant' ? await startOpenTuiCountersHost() : null
+
 createRoot(renderer).render(
-  <App maybeInitialTarget={maybeInitialTarget} renderer={renderer} />,
+  maybeHost === null ? (
+    <App maybeInitialTarget={maybeInitialTarget} renderer={renderer} />
+  ) : (
+    <App
+      host={maybeHost}
+      maybeInitialTarget={maybeInitialTarget}
+      renderer={renderer}
+    />
+  ),
 )

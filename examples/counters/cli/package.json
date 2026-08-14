@@ -10,8 +10,8 @@
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "counters": "node dist/entry.js",
-    "prebuild": "pnpm --filter counters-core-example build",
-    "pretypecheck": "pnpm --filter counters-core-example build",
+    "prebuild": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "pretypecheck": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
     "test": "pnpm run build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -20,6 +20,7 @@
     "@foldkit/instant": "workspace:*",
     "@instantdb/admin": "1.0.53",
     "counters-core-example": "workspace:*",
+    "counters-instant-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*"
   },

@@ -6,7 +6,6 @@ import {
   type Message,
   type Model,
   MultipleCountersInteractionGraph,
-  MultipleCountersProgram,
   type NavigationCarrierResolutionError,
   StaticCounterFactClient,
   activatedInteraction,
@@ -15,6 +14,16 @@ import {
   navigationToPath,
   resolveNavigationCarrier,
 } from 'counters-core-example'
+import {
+  type CountersTape,
+  type CountersTapeCursor,
+  commitCountersMessage,
+  countersProcessorIds,
+  instantCountersResources,
+  observeRemoteCountersTape,
+  openCountersTapeRuntime,
+} from 'counters-instant-example'
+import { resolveCountersTape } from 'counters-instant-example/node'
 import {
   Array,
   Cause,
@@ -30,6 +39,8 @@ import {
 import { Runtime } from 'foldkit'
 import * as InteractionGraph from 'foldkit/interaction-graph'
 
+import type { ProgramStoreError } from '@foldkit/instant'
+
 const clearScreen = '\u001b[2J\u001b[H'
 
 type CountersAction = InteractionGraph.InteractionAction<Interaction>
@@ -42,6 +53,7 @@ export type CountersTerminalResolutionError =
   | InteractionGraph.InteractionClaimError
   | InteractionGraph.InteractionGraphError
   | NavigationCarrierResolutionError
+  | ProgramStoreError
 
 const terminalInvocationFacts = (
   occurrenceId: InteractionGraph.InteractionOccurrenceId,
@@ -155,14 +167,36 @@ const actionForInput = (
 }
 
 /** Resolves and enqueues one numeric terminal selection through the Program graph. */
+const sendTerminalMessage = (
+  runtime: Runtime.ProgramRuntime<Model, Message>,
+  message: Message,
+  maybeTape: Option.Option<
+    Readonly<{ cursor: CountersTapeCursor; tape: CountersTape }>
+  >,
+) => {
+  if (Option.isNone(maybeTape)) {
+    return runtime.run(message)
+  }
+  return commitCountersMessage(
+    maybeTape.value.tape,
+    runtime,
+    maybeTape.value.cursor,
+    message,
+  )
+}
+
 export const enqueueCountersTerminalSelection = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   input: string,
   occurrenceId: InteractionGraph.InteractionOccurrenceId,
+  maybeTape: Option.Option<
+    Readonly<{ cursor: CountersTapeCursor; tape: CountersTape }>
+  > = Option.none(),
 ): Effect.Effect<
   Option.Option<Message>,
   | InteractionGraph.InteractionClaimError
   | InteractionGraph.InteractionGraphError
+  | ProgramStoreError
 > =>
   Effect.gen(function* () {
     const projected = actionsForModel(runtime.readModel())
@@ -181,7 +215,7 @@ export const enqueueCountersTerminalSelection = (
     if (Result.isFailure(resolved)) {
       return yield* Effect.fail(resolved.failure)
     }
-    yield* runtime.run(resolved.success)
+    yield* sendTerminalMessage(runtime, resolved.success, maybeTape)
     return Option.some(resolved.success)
   })
 
@@ -190,12 +224,16 @@ const runInputLoop = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   terminal: Terminal.Terminal,
   nextOccurrenceNumber: number,
+  maybeTape: Option.Option<
+    Readonly<{ cursor: CountersTapeCursor; tape: CountersTape }>
+  >,
 ): Effect.Effect<
   void,
   | Cause.Done
   | InteractionGraph.InteractionClaimError
   | InteractionGraph.InteractionGraphError
   | PlatformError.PlatformError
+  | ProgramStoreError
 > =>
   Queue.take(inputQueue).pipe(
     Effect.flatMap(input => {
@@ -210,7 +248,12 @@ const runInputLoop = (
       const occurrenceId = InteractionGraph.InteractionOccurrenceId.make(
         `terminal-action-${nextOccurrenceNumber.toString()}`,
       )
-      return enqueueCountersTerminalSelection(runtime, key, occurrenceId).pipe(
+      return enqueueCountersTerminalSelection(
+        runtime,
+        key,
+        occurrenceId,
+        maybeTape,
+      ).pipe(
         Effect.flatMap(maybeMessage => {
           if (Option.isNone(maybeMessage)) {
             return runInputLoop(
@@ -218,6 +261,7 @@ const runInputLoop = (
               runtime,
               terminal,
               nextOccurrenceNumber,
+              maybeTape,
             )
           }
           return terminal
@@ -229,6 +273,7 @@ const runInputLoop = (
                   runtime,
                   terminal,
                   nextOccurrenceNumber + 1,
+                  maybeTape,
                 ),
               ),
             )
@@ -241,7 +286,13 @@ const runInputLoop = (
 export const openCountersTerminalCarrier = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   carrier: string,
-): Effect.Effect<Message, NavigationCarrierResolutionError> =>
+  maybeTape: Option.Option<
+    Readonly<{ cursor: CountersTapeCursor; tape: CountersTape }>
+  > = Option.none(),
+): Effect.Effect<
+  Message,
+  NavigationCarrierResolutionError | ProgramStoreError
+> =>
   Effect.gen(function* () {
     const resolvedCarrier = resolveNavigationCarrier(
       runtime.readModel(),
@@ -251,7 +302,7 @@ export const openCountersTerminalCarrier = (
     if (Result.isFailure(resolvedCarrier)) {
       return yield* Effect.fail(resolvedCarrier.failure)
     }
-    yield* runtime.run(resolvedCarrier.success)
+    yield* sendTerminalMessage(runtime, resolvedCarrier.success, maybeTape)
     return resolvedCarrier.success
   })
 
@@ -266,20 +317,42 @@ export const runCountersTerminal = (
   Effect.scoped(
     Effect.gen(function* () {
       const terminal = yield* Terminal.Terminal
-      const runtime = yield* Effect.orDie(
-        Runtime.makeProgramRuntime({
-          program: MultipleCountersProgram,
-          resources: StaticCounterFactClient,
+      const tape = yield* Effect.orDie(
+        resolveCountersTape({
+          ...process.env,
+          COUNTERS_PROCESSOR_ID: countersProcessorIds.terminal,
         }),
       )
-
-      yield* runtime.initialization
-      yield* openCountersTerminalCarrier(runtime, carrier)
-      yield* terminal.display(renderCountersTerminal(runtime.readModel()))
-      const inputQueue = yield* terminal.readInput
-      yield* runInputLoop(inputQueue, runtime, terminal, 1).pipe(
-        Pull.catchDone(() => Effect.void),
+      const mode = process.env['COUNTERS_TAPE'] ?? process.env['COUNTER_TAPE']
+      const resources =
+        mode === 'instant' ? instantCountersResources : StaticCounterFactClient
+      const opened = yield* Effect.orDie(
+        openCountersTapeRuntime(tape, resources),
       )
-      yield* runtime.shutdown
+      const maybeTape = Option.some({
+        cursor: opened.cursor,
+        tape,
+      })
+      if (mode === 'instant') {
+        yield* observeRemoteCountersTape(
+          tape,
+          opened.runtime,
+          countersProcessorIds.terminal,
+        ).pipe(Effect.forkChild)
+      }
+
+      yield* openCountersTerminalCarrier(opened.runtime, carrier, maybeTape)
+      yield* terminal.display(
+        renderCountersTerminal(opened.runtime.readModel()),
+      )
+      const inputQueue = yield* terminal.readInput
+      yield* runInputLoop(
+        inputQueue,
+        opened.runtime,
+        terminal,
+        1,
+        maybeTape,
+      ).pipe(Pull.catchDone(() => Effect.void))
+      yield* opened.runtime.shutdown
     }),
   )

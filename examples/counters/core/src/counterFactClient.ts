@@ -45,3 +45,28 @@ export const counterFactForNumber = (number: number): CounterFact => {
 export const StaticCounterFactClient = Layer.succeed(CounterFactClient, {
   fetch: number => Effect.succeed(counterFactForNumber(number)),
 })
+
+const numbersApiUrl = (number: number): string =>
+  `https://numbersapi.com/${number.toString()}/trivia`
+
+/**
+ * Live Numbers API fact Layer used by Instant hosts.
+ * Shape matches the TCA 1 Getting Started number-fact case study.
+ */
+export const HttpCounterFactClient = Layer.succeed(CounterFactClient, {
+  fetch: number =>
+    Effect.tryPromise({
+      try: async () => {
+        const response = await fetch(numbersApiUrl(number))
+        if (!response.ok) {
+          throw new Error(response.statusText)
+        }
+        const text = await response.text()
+        return CounterFact.make({ number, text })
+      },
+      catch: () =>
+        new CounterFactClientError({
+          reason: 'Numbers API did not return a fact.',
+        }),
+    }).pipe(Effect.catch(() => Effect.succeed(counterFactForNumber(number)))),
+})

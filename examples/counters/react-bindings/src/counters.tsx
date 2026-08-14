@@ -23,6 +23,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { createReplayableReactProgramClient } from 'shared-react-bindings-example'
 
@@ -140,6 +141,24 @@ const resolveBootMessage = (carrier: string) =>
     nextOccurrenceId(),
   )
 
+/** One renderer-free Multiple Counters runtime used by React hosts. */
+export type MultipleCountersHost = Readonly<{
+  isInstantTape: boolean
+  readModel: () => Model
+  send: (message: Message) => void
+  subscribe: (listener: (model: Model) => void) => () => void
+}>
+
+const MultipleCountersHostContext = createContext<MultipleCountersHost | null>(
+  null,
+)
+
+const unusedSubscribe = (_listener: (model: Model) => void) => () => {}
+
+const missingHostModel = (): Model => {
+  throw new Error('Multiple Counters host is not mounted')
+}
+
 const MultipleCountersRuntimeClient = createReplayableReactProgramClient<
   Model,
   Message,
@@ -153,6 +172,36 @@ const MultipleCountersRuntimeClient = createReplayableReactProgramClient<
   resources: StaticCounterFactClient,
   route: initialRoute => initialRoute,
 })
+
+const instantReplayStub: ReturnType<
+  typeof MultipleCountersRuntimeClient.useReplay
+> = {
+  mode: 'Live',
+  frame: 0,
+  finalFrame: 0,
+  isBranchable: true,
+  maybeError: Option.none(),
+  runtimeEvents: [],
+  occurredRuntimeEvents: [],
+  transitions: [],
+  inspect: () => {},
+  resume: () => {},
+  seek: () => {},
+  stepBackward: () => {},
+  stepForward: () => {},
+  stateRoute: () => {
+    throw new Error('Instant tape has no local replay route')
+  },
+  replayRoute: () => {
+    throw new Error('Instant tape has no local replay route')
+  },
+  statePath: async () => '/counters',
+  replayPath: async () => '/counters',
+}
+
+const MultipleCountersReplayContext = createContext<ReturnType<
+  typeof MultipleCountersRuntimeClient.useReplay
+> | null>(null)
 
 type MultipleCountersResolutionContextValue = Readonly<{
   clearResolutionError: () => void
@@ -201,13 +250,31 @@ const MultipleCountersResolutionProvider = ({
   )
 }
 
+const useMultipleCountersHost = (): MultipleCountersHost => {
+  const host = useContext(MultipleCountersHostContext)
+  if (host === null) {
+    throw new Error('Multiple Counters host is not mounted')
+  }
+  return host
+}
+
+const useHostModel = (): Model => {
+  const host = useContext(MultipleCountersHostContext)
+  return useSyncExternalStore(
+    host === null ? unusedSubscribe : host.subscribe,
+    host === null ? missingHostModel : host.readModel,
+    host === null ? missingHostModel : host.readModel,
+  )
+}
+
 const useResolvedMultipleCountersActions = (): MultipleCountersActions => {
-  const model = MultipleCountersRuntimeClient.useModel()
+  const model = useHostModel()
   const modelReference = useRef(model)
   useLayoutEffect(() => {
     modelReference.current = model
   }, [model])
-  const { sentMessage } = MultipleCountersRuntimeClient.useActions()
+  const host = useMultipleCountersHost()
+  const sentMessage = host.send
   const { clearResolutionError, reportResolutionError } = useContext(
     MultipleCountersResolutionContext,
   )
@@ -352,6 +419,41 @@ const useResolvedMultipleCountersActions = (): MultipleCountersActions => {
   )
 }
 
+const MemoryHostBridge = ({ children }: Readonly<{ children: ReactNode }>) => {
+  const model = MultipleCountersRuntimeClient.useModel()
+  const { sentMessage } = MultipleCountersRuntimeClient.useActions()
+  const replay = MultipleCountersRuntimeClient.useReplay()
+  const modelReference = useRef(model)
+  const listeners = useRef(new Set<(next: Model) => void>())
+  modelReference.current = model
+  useLayoutEffect(() => {
+    listeners.current.forEach(listener => {
+      listener(model)
+    })
+  }, [model])
+  const host = useMemo<MultipleCountersHost>(
+    () => ({
+      isInstantTape: false,
+      readModel: () => modelReference.current,
+      send: sentMessage,
+      subscribe: listener => {
+        listeners.current.add(listener)
+        return () => {
+          listeners.current.delete(listener)
+        }
+      },
+    }),
+    [sentMessage],
+  )
+  return (
+    <MultipleCountersHostContext.Provider value={host}>
+      <MultipleCountersReplayContext.Provider value={replay}>
+        {children}
+      </MultipleCountersReplayContext.Provider>
+    </MultipleCountersHostContext.Provider>
+  )
+}
+
 const BootNavigation = ({
   children,
   initialDestinationUri,
@@ -359,8 +461,9 @@ const BootNavigation = ({
   children: ReactNode
   initialDestinationUri: string
 }>) => {
-  const { sentMessage } = MultipleCountersRuntimeClient.useActions()
-  const replay = MultipleCountersRuntimeClient.useReplay()
+  const host = useMultipleCountersHost()
+  const sentMessage = host.send
+  const replay = useContext(MultipleCountersReplayContext) ?? instantReplayStub
   const { clearResolutionError, reportResolutionError } = useContext(
     MultipleCountersResolutionContext,
   )
@@ -386,7 +489,8 @@ const BootNavigation = ({
 
   const isBootAccepted =
     isBootHandled &&
-    (Result.isFailure(bootResolution) ||
+    (host.isInstantTape ||
+      Result.isFailure(bootResolution) ||
       Array.some(replay.transitions, transition =>
         Equal.equals(transition.message, bootResolution.success),
       ))
@@ -397,23 +501,42 @@ const BootNavigation = ({
 export const MultipleCountersProvider = ({
   children,
   fallback,
+  host,
   initialDestinationUri,
 }: Readonly<{
   children: ReactNode
   fallback?: ReactNode
+  host?: MultipleCountersHost
   initialDestinationUri: string
-}>) => (
-  <MultipleCountersRuntimeClient.Provider
-    initialRoute={initialMultipleCountersRoute}
-    fallback={fallback}
-  >
-    <MultipleCountersResolutionProvider>
-      <BootNavigation initialDestinationUri={initialDestinationUri}>
-        {children}
-      </BootNavigation>
-    </MultipleCountersResolutionProvider>
-  </MultipleCountersRuntimeClient.Provider>
-)
+}>) => {
+  if (host !== undefined) {
+    return (
+      <MultipleCountersHostContext.Provider value={host}>
+        <MultipleCountersReplayContext.Provider value={instantReplayStub}>
+          <MultipleCountersResolutionProvider>
+            <BootNavigation initialDestinationUri={initialDestinationUri}>
+              {children}
+            </BootNavigation>
+          </MultipleCountersResolutionProvider>
+        </MultipleCountersReplayContext.Provider>
+      </MultipleCountersHostContext.Provider>
+    )
+  }
+  return (
+    <MultipleCountersRuntimeClient.Provider
+      initialRoute={initialMultipleCountersRoute}
+      fallback={fallback}
+    >
+      <MemoryHostBridge>
+        <MultipleCountersResolutionProvider>
+          <BootNavigation initialDestinationUri={initialDestinationUri}>
+            {children}
+          </BootNavigation>
+        </MultipleCountersResolutionProvider>
+      </MemoryHostBridge>
+    </MultipleCountersRuntimeClient.Provider>
+  )
+}
 
 /** Provides an explicit state or replay route for inspection-oriented hosts. */
 export const MultipleCountersProgramRouteProvider = ({
@@ -429,9 +552,11 @@ export const MultipleCountersProgramRouteProvider = ({
     initialRoute={initialRoute}
     fallback={fallback}
   >
-    <MultipleCountersResolutionProvider>
-      {children}
-    </MultipleCountersResolutionProvider>
+    <MemoryHostBridge>
+      <MultipleCountersResolutionProvider>
+        {children}
+      </MultipleCountersResolutionProvider>
+    </MemoryHostBridge>
   </MultipleCountersRuntimeClient.Provider>
 )
 
@@ -440,18 +565,32 @@ export const MultipleCountersClient = {
   ...MultipleCountersRuntimeClient,
   Provider: MultipleCountersProvider,
   useActions: useResolvedMultipleCountersActions,
+  useModel: useHostModel,
+  useReplay: () => {
+    const replay = useContext(MultipleCountersReplayContext)
+    if (replay === null) {
+      throw new Error('Multiple Counters replay is not mounted')
+    }
+    return replay
+  },
 }
 
 /** An inspection Client for explicit Program state and replay routes. */
 export const MultipleCountersProgramRouteClient = {
   Provider: MultipleCountersProgramRouteProvider,
   useActions: useResolvedMultipleCountersActions,
-  useModel: MultipleCountersRuntimeClient.useModel,
-  useReplay: MultipleCountersRuntimeClient.useReplay,
+  useModel: useHostModel,
+  useReplay: () => {
+    const replay = useContext(MultipleCountersReplayContext)
+    if (replay === null) {
+      throw new Error('Multiple Counters replay is not mounted')
+    }
+    return replay
+  },
 }
 
 /** Reads the current immutable Multiple Counters Model. */
-export const useMultipleCountersModel = MultipleCountersRuntimeClient.useModel
+export const useMultipleCountersModel = useHostModel
 
 /** Returns stable host-callable Multiple Counters actions. */
 export const useMultipleCountersActions = useResolvedMultipleCountersActions
@@ -461,4 +600,16 @@ export const useMultipleCountersResolutionError = () =>
   useContext(MultipleCountersResolutionContext).maybeResolutionError
 
 /** Returns controls for inspecting and branching the same Multiple Counters tape. */
-export const useMultipleCountersReplay = MultipleCountersRuntimeClient.useReplay
+export const useMultipleCountersReplay = () => {
+  const replay = useContext(MultipleCountersReplayContext)
+  if (replay === null) {
+    throw new Error('Multiple Counters replay is not mounted')
+  }
+  return replay
+}
+
+/** True when this React tree is attached to the shared Instant tape. */
+export const useMultipleCountersInstantTape = (): boolean => {
+  const host = useContext(MultipleCountersHostContext)
+  return host?.isInstantTape === true
+}

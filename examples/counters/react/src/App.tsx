@@ -1,12 +1,15 @@
 import { type Destination, destinationForModel } from 'counters-core-example'
 import {
+  type MultipleCountersHost,
   MultipleCountersProvider,
+  useMultipleCountersInstantTape,
   useMultipleCountersModel,
   useMultipleCountersResolutionError,
 } from 'counters-react-bindings-example'
 import { Match as M, Option, Schema as S } from 'effect'
-import { type ReactNode } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 
+import { startReactCountersHost } from './instantHost.js'
 import { ReactAPresentation } from './reactA.js'
 import { ReactBPresentation } from './reactB.js'
 import {
@@ -28,14 +31,51 @@ export const App = ({
 }: Readonly<{
   initialDestinationUri: string
   presenter: Presenter
-}>) => (
-  <MultipleCountersProvider
-    fallback={<LoadingScreen />}
-    initialDestinationUri={initialDestinationUri}
-  >
-    <MultipleCountersScreen presenter={presenter} />
-  </MultipleCountersProvider>
-)
+}>) => {
+  const instantAppId = import.meta.env.VITE_INSTANT_APP_ID
+  if (typeof instantAppId === 'string' && instantAppId !== '') {
+    return (
+      <InstantCountersApp
+        appId={instantAppId}
+        initialDestinationUri={initialDestinationUri}
+        presenter={presenter}
+      />
+    )
+  }
+  return (
+    <MultipleCountersProvider
+      fallback={<LoadingScreen />}
+      initialDestinationUri={initialDestinationUri}
+    >
+      <MultipleCountersScreen presenter={presenter} />
+    </MultipleCountersProvider>
+  )
+}
+
+const InstantCountersApp = ({
+  appId,
+  initialDestinationUri,
+  presenter,
+}: Readonly<{
+  appId: string
+  initialDestinationUri: string
+  presenter: Presenter
+}>) => {
+  const [host, setHost] = useState<MultipleCountersHost | null>(null)
+  useEffect(() => startReactCountersHost(appId, setHost), [appId])
+  if (host === null) {
+    return <LoadingScreen />
+  }
+  return (
+    <MultipleCountersProvider
+      fallback={<LoadingScreen />}
+      host={host}
+      initialDestinationUri={initialDestinationUri}
+    >
+      <MultipleCountersScreen presenter={presenter} />
+    </MultipleCountersProvider>
+  )
+}
 
 const LoadingScreen = () => (
   <main className="grid min-h-screen place-items-center bg-stone-950 text-stone-400">
@@ -47,10 +87,9 @@ const MultipleCountersScreen = ({ presenter }: { presenter: Presenter }) => {
   const model = useMultipleCountersModel()
   const maybeResolutionError = useMultipleCountersResolutionError()
   const destination = destinationForModel(model)
-  const isReplayControlInPresentation = replayControlIsInPresentation(
-    destination,
-    presenter,
-  )
+  const isInstantTape = useMultipleCountersInstantTape()
+  const isReplayControlInPresentation =
+    isInstantTape || replayControlIsInPresentation(destination, presenter)
   useNavigationHistory(model)
 
   return (

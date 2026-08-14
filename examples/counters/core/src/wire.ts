@@ -9,10 +9,12 @@ import {
   ConfirmedDeleteCounter,
   DismissedCounterDetail,
   DismissedCounterFactAlert,
+  FailedLoadCounterFact,
   GotCounterMessage,
   type Message,
   OpenedNavigation,
   SelectedCounter,
+  SucceededLoadCounterFact,
 } from './message.js'
 
 /** A current event identifier and JSON payload ready for an envelope. */
@@ -27,6 +29,8 @@ const eventIds = {
   clickedAddCounter: 'MultipleCounters.ClickedAddCounter',
   clickedDeleteCounter: 'MultipleCounters.ClickedDeleteCounter',
   clickedShowCounterFact: 'MultipleCounters.ClickedShowCounterFact',
+  succeededLoadCounterFact: 'MultipleCounters.SucceededLoadCounterFact',
+  failedLoadCounterFact: 'MultipleCounters.FailedLoadCounterFact',
   confirmedDeleteCounter: 'MultipleCounters.ConfirmedDeleteCounter',
   dismissedCounterDetail: 'MultipleCounters.DismissedCounterDetail',
   dismissedCounterFactAlert: 'MultipleCounters.DismissedCounterFactAlert',
@@ -55,6 +59,18 @@ const ClickedShowCounterFactPayload = S.Struct({
   counterId: ClickedShowCounterFact.fields.counterId,
   detailPresentationId: ClickedShowCounterFact.fields.detailPresentationId,
   requestId: ClickedShowCounterFact.fields.requestId,
+})
+const SucceededLoadCounterFactPayload = S.Struct({
+  counterId: SucceededLoadCounterFact.fields.counterId,
+  detailPresentationId: SucceededLoadCounterFact.fields.detailPresentationId,
+  fact: SucceededLoadCounterFact.fields.fact,
+  requestId: SucceededLoadCounterFact.fields.requestId,
+})
+const FailedLoadCounterFactPayload = S.Struct({
+  counterId: FailedLoadCounterFact.fields.counterId,
+  detailPresentationId: FailedLoadCounterFact.fields.detailPresentationId,
+  reason: FailedLoadCounterFact.fields.reason,
+  requestId: FailedLoadCounterFact.fields.requestId,
 })
 const DismissedCounterFactAlertPayload = S.Struct({
   counterId: DismissedCounterFactAlert.fields.counterId,
@@ -127,6 +143,16 @@ export const EventRegistry = Effect.runSync(
         ClickedShowCounterFact,
       ),
       makeFamily(
+        eventIds.succeededLoadCounterFact,
+        SucceededLoadCounterFactPayload,
+        SucceededLoadCounterFact,
+      ),
+      makeFamily(
+        eventIds.failedLoadCounterFact,
+        FailedLoadCounterFactPayload,
+        FailedLoadCounterFact,
+      ),
+      makeFamily(
         eventIds.dismissedCounterFactAlert,
         DismissedCounterFactAlertPayload,
         DismissedCounterFactAlert,
@@ -189,6 +215,26 @@ export const encodeMessage = (message: Message): EncodedEvent =>
         eventId: eventIds.clickedShowCounterFact,
         eventVersion: currentEventVersion,
         payload: { counterId, detailPresentationId, requestId },
+      }),
+      SucceededLoadCounterFact: ({
+        counterId,
+        detailPresentationId,
+        fact,
+        requestId,
+      }) => ({
+        eventId: eventIds.succeededLoadCounterFact,
+        eventVersion: currentEventVersion,
+        payload: { counterId, detailPresentationId, fact, requestId },
+      }),
+      FailedLoadCounterFact: ({
+        counterId,
+        detailPresentationId,
+        reason,
+        requestId,
+      }) => ({
+        eventId: eventIds.failedLoadCounterFact,
+        eventVersion: currentEventVersion,
+        payload: { counterId, detailPresentationId, reason, requestId },
       }),
       DismissedCounterFactAlert: ({
         counterId,

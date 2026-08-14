@@ -6,7 +6,6 @@ import {
   type Message,
   type Model,
   MultipleCountersInteractionGraph,
-  MultipleCountersProgram,
   type NavigationCarrierResolutionError,
   StaticCounterFactClient,
   activatedInteraction,
@@ -14,6 +13,14 @@ import {
   interactionIdentitySourceForOccurrence,
   resolveNavigationCarrier,
 } from 'counters-core-example'
+import {
+  type CountersTape,
+  type CountersTapeCursor,
+  commitCountersMessage,
+  instantCountersResources,
+  openCountersTapeRuntime,
+} from 'counters-instant-example'
+import { resolveCountersTape } from 'counters-instant-example/node'
 import {
   Array,
   Console,
@@ -25,10 +32,6 @@ import {
 } from 'effect'
 import { Runtime } from 'foldkit'
 import * as InteractionGraph from 'foldkit/interaction-graph'
-
-import { commitSharedMessage } from '@foldkit/instant'
-
-import { type CountersTape, resolveCountersTape } from './instantTape.js'
 
 /** A CLI token is not valid in the current state and mode. */
 export class CountersCliError extends Data.TaggedError('CountersCliError')<{
@@ -126,6 +129,7 @@ const openNavigationCarrier = (
   initialModel: Model,
   maybeCarrier: Option.Option<string>,
   tape: CountersTape,
+  cursor: CountersTapeCursor,
 ): Effect.Effect<
   ReadonlyArray<Message>,
   CountersCliError | NavigationCarrierResolutionError
@@ -143,9 +147,7 @@ const openNavigationCarrier = (
     if (Result.isFailure(resolved)) {
       return yield* Effect.fail(resolved.failure)
     }
-    yield* commitSharedMessage(tape, resolved.success, () =>
-      runtime.run(resolved.success),
-    ).pipe(
+    yield* commitCountersMessage(tape, runtime, cursor, resolved.success).pipe(
       Effect.mapError(
         () =>
           new CountersCliError({
@@ -160,6 +162,7 @@ const runTokens = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   tokens: ReadonlyArray<string>,
   tape: CountersTape,
+  cursor: CountersTapeCursor,
 ): Effect.Effect<
   Readonly<{ messages: ReadonlyArray<Message>; finalModel: Model }>,
   | CountersCliError
@@ -178,8 +181,11 @@ const runTokens = (
       if (Result.isFailure(resolved)) {
         return Effect.fail(resolved.failure)
       }
-      return commitSharedMessage(tape, resolved.success, () =>
-        runtime.run(resolved.success),
+      return commitCountersMessage(
+        tape,
+        runtime,
+        cursor,
+        resolved.success,
       ).pipe(
         Effect.mapError(
           () =>
@@ -201,28 +207,29 @@ export const executeCounters = (
   Effect.scoped(
     Effect.gen(function* () {
       const tape = yield* Effect.orDie(resolveCountersTape())
-      const accepted = yield* Effect.orDie(tape.readAcceptedMessages)
-      const runtime = yield* Effect.orDie(
-        Runtime.makeProgramRuntime({
-          program: MultipleCountersProgram,
-          resources: StaticCounterFactClient,
-        }),
+      const mode = process.env['COUNTERS_TAPE'] ?? process.env['COUNTER_TAPE']
+      const resources =
+        mode === 'instant' ? instantCountersResources : StaticCounterFactClient
+      const opened = yield* Effect.orDie(
+        openCountersTapeRuntime(tape, resources),
       )
-      yield* runtime.initialization
-      yield* Effect.forEach(accepted, message => runtime.run(message), {
-        discard: true,
-      })
-      const initialModel = runtime.readModel()
+      const initialModel = opened.runtime.readModel()
       const navigationMessages = yield* openNavigationCarrier(
-        runtime,
+        opened.runtime,
         initialModel,
         maybeCarrier,
         tape,
+        opened.cursor,
       )
-      const execution = yield* runTokens(runtime, tokens, tape)
-      const journal = runtime.journal.read()
-      const replayTape = runtime.replay.readTape()
-      yield* runtime.shutdown
+      const execution = yield* runTokens(
+        opened.runtime,
+        tokens,
+        tape,
+        opened.cursor,
+      )
+      const journal = opened.runtime.journal.read()
+      const replayTape = opened.runtime.replay.readTape()
+      yield* opened.runtime.shutdown
       return {
         initialModel,
         messages: [...navigationMessages, ...execution.messages],

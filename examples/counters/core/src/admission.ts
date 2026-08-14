@@ -10,6 +10,7 @@ import {
 } from 'foldkit/interaction-graph'
 import { makeMessageAdmission } from 'foldkit/program'
 
+import type { CounterFactClient } from './counterFactClient.js'
 import { MultipleCountersInteractionAdmission } from './interactionGraph.js'
 import type { Message } from './message.js'
 import type { Model } from './model.js'
@@ -139,7 +140,8 @@ export const MultipleCountersMessageAdmission = makeMessageAdmission<
   Message,
   MultipleCountersAdmissionClaim,
   InvalidMultipleCountersAdmissionClaimError,
-  MultipleCountersAdmissionError
+  MultipleCountersAdmissionError,
+  CounterFactClient
 >({
   program: MultipleCountersProgram,
   Claim: MultipleCountersAdmissionClaim,

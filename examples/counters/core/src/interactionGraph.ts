@@ -120,6 +120,13 @@ const sourceForMessage = (message: Message): InteractionSource =>
         detailSource(counterId, detailPresentationId),
       ClickedShowCounterFact: ({ counterId, detailPresentationId }) =>
         detailSource(counterId, detailPresentationId),
+      SucceededLoadCounterFact: ({
+        counterId,
+        detailPresentationId,
+        requestId,
+      }) => factSource(counterId, detailPresentationId, requestId),
+      FailedLoadCounterFact: ({ counterId, detailPresentationId, requestId }) =>
+        factSource(counterId, detailPresentationId, requestId),
       DismissedCounterFactAlert: ({
         counterId,
         detailPresentationId,
@@ -216,6 +223,8 @@ const messageToken = (message: Message): string =>
       SelectedCounter: () => 'OpenCounter',
       DismissedCounterDetail: () => 'BackToCounters',
       ClickedShowCounterFact: () => 'ShowCounterFact',
+      SucceededLoadCounterFact: () => 'LoadCounterFact',
+      FailedLoadCounterFact: () => 'FailCounterFact',
       DismissedCounterFactAlert: () => 'DismissCounterFact',
       ClickedDeleteCounter: () => 'DeleteCounter',
       CancelledDeleteCounter: () => 'CancelDeleteCounter',
@@ -266,6 +275,8 @@ const maybeDestinationForInteraction = (
             DismissedCounterDetail: () => Option.some(listDestinationUri()),
             ClickedShowCounterFact: ({ counterId }) =>
               Option.some(factDestinationUri(counterId)),
+            SucceededLoadCounterFact: () => Option.none(),
+            FailedLoadCounterFact: () => Option.none(),
             DismissedCounterFactAlert: ({ counterId }) =>
               Option.some(detailDestinationUri(counterId)),
             ClickedDeleteCounter: ({ counterId }) =>
