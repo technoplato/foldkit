@@ -144,6 +144,57 @@ describe('m', () => {
 })
 
 describe('md', () => {
+  it('hangs keys and valid on the constructor without polluting wire values', () => {
+    const Model = S.Struct({ count: S.Number })
+    type Model = typeof Model.Type
+
+    const Reset = md('Reset', {
+      what: 'Sets the count to 0',
+      why: 'Triggered when the user indicates a desire to reset the count',
+      keys: ['r'],
+      tokens: ['reset'],
+      spoken: ['reset'],
+      command: 'reset',
+      event: 'reset',
+      mutate: 'count = 0',
+      sideEffects: '(none)',
+      valid: (model: Model) => model.count !== 0,
+      hiddenBecause: (model: Model) =>
+        model.count === 0 ? 'count is already 0' : undefined,
+    })
+
+    const wire = Reset()
+    expect(wire).toStrictEqual({ _tag: 'Reset' })
+    expect(wire).not.toHaveProperty('keys')
+    expect(wire).not.toHaveProperty('valid')
+    expect(wire).not.toHaveProperty('hiddenBecause')
+
+    expect(Reset.doc).toStrictEqual({
+      what: 'Sets the count to 0',
+      why: 'Triggered when the user indicates a desire to reset the count',
+    })
+    expect(Reset.keys).toEqual(['r'])
+    expect(Reset.tokens).toEqual(['reset'])
+    expect(Reset.spoken).toEqual(['reset'])
+    expect(Reset.command).toBe('reset')
+    expect(Reset.event).toBe('reset')
+    expect(Reset.mutate).toBe('count = 0')
+    expect(Reset.sideEffects).toBe('(none)')
+    expect(Reset.valid({ count: 0 }, {})).toBe(false)
+    expect(Reset.valid({ count: 1 }, {})).toBe(true)
+    expect(Reset.hiddenBecause?.({ count: 0 })).toBe('count is already 0')
+    expect(Reset.hiddenBecause?.({ count: 1 })).toBeUndefined()
+  })
+
+  it('defaults valid to true when the options omit it', () => {
+    const Increment = md('Increment', {
+      what: 'Increments the count by one',
+      why: 'Triggered when the user indicates a desire to increment the count',
+    })
+    expect(Increment.valid({ count: 0 }, {})).toBe(true)
+    expect('keys' in Increment).toBe(false)
+  })
+
   it('requires what/why and exposes .doc', () => {
     const RequestedIncrement = md('RequestedIncrement', {
       what: 'User asked to increment the counter',
@@ -161,9 +212,7 @@ describe('md', () => {
       what: 'Persisted counter loaded',
       why: 'Hydrate model after boot',
     })
-    expect(
-      LoadedCounter({ maybeCounter: Option.none() }),
-    ).toStrictEqual({
+    expect(LoadedCounter({ maybeCounter: Option.none() })).toStrictEqual({
       _tag: 'LoadedCounter',
       maybeCounter: Option.none(),
     })

@@ -16,6 +16,49 @@ export type CallableTaggedStruct<
       >)
 
 /**
+ * Optional device hint passed to {@link ActionValidity}.
+ * Clients may omit it. `valid` must still return a boolean.
+ */
+export type ActionContext = Readonly<{
+  readonly device?: 'watch' | 'phone' | 'tablet' | 'laptop' | 'tv'
+}>
+
+/**
+ * Decides whether a Client may offer this constructor for the current Model.
+ * Hang this on the constructor. Do not keep a second valid tree file.
+ */
+export type ActionValidity<Model = unknown, Context = ActionContext> = (
+  model: Model,
+  context: Context,
+) => boolean
+
+/**
+ * Explains why an invalid constructor is hidden from chrome.
+ */
+export type ActionHiddenBecause<Model = unknown> = (
+  model: Model,
+) => string | undefined
+
+/**
+ * Optional Action metadata for `m` / `md`.
+ * Hangs on the constructor. Wire values stay `{ _tag, ...fields }`.
+ */
+export type MessageActionOptions<
+  Model = unknown,
+  Context = ActionContext,
+> = Readonly<{
+  readonly keys?: ReadonlyArray<string>
+  readonly tokens?: ReadonlyArray<string>
+  readonly spoken?: ReadonlyArray<string>
+  readonly command?: string
+  readonly event?: string
+  readonly mutate?: string
+  readonly sideEffects?: string
+  readonly valid?: ActionValidity<Model, Context>
+  readonly hiddenBecause?: ActionHiddenBecause<Model>
+}>
+
+/**
  * Co-located what/why documentation for a message constructor.
  * Hangs on the constructor/schema (`Message.doc`), never on wire values.
  */
@@ -24,20 +67,42 @@ export type MessageDoc = {
   readonly why: string
 }
 
+/** Action metadata hung on a documented constructor. Functions stay off `.doc`. */
+export type MessageActionMeta<
+  Model = unknown,
+  Context = ActionContext,
+> = Readonly<{
+  readonly keys?: ReadonlyArray<string>
+  readonly tokens?: ReadonlyArray<string>
+  readonly spoken?: ReadonlyArray<string>
+  readonly command?: string
+  readonly event?: string
+  readonly mutate?: string
+  readonly sideEffects?: string
+  readonly valid: ActionValidity<Model, Context>
+  readonly hiddenBecause?: ActionHiddenBecause<Model>
+}>
+
 /** A callable tagged struct that exposes co-located {@link MessageDoc}. */
 export type CallableTaggedStructWithDoc<
   Tag extends string,
   Fields extends S.Struct.Fields,
-> = CallableTaggedStruct<Tag, Fields> & {
-  readonly doc: MessageDoc
-}
+  Model = unknown,
+  Context = ActionContext,
+> = CallableTaggedStruct<Tag, Fields> &
+  MessageActionMeta<Model, Context> & {
+    readonly doc: MessageDoc
+  }
 
 /** Options bag for `m` / `md` when co-locating docs (optional `fields`). */
 export type MessageDocOptions<
   Fields extends S.Struct.Fields = {},
-> = MessageDoc & {
-  readonly fields?: Fields
-}
+  Model = unknown,
+  Context = ActionContext,
+> = MessageDoc &
+  MessageActionOptions<Model, Context> & {
+    readonly fields?: Fields
+  }
 
 const isMessageDocOptions = (
   value: unknown,
@@ -57,9 +122,62 @@ const isMessageDocOptions = (
   )
 }
 
+const actionHangFromOptions = <Model, Context>(
+  options: MessageActionOptions<Model, Context>,
+): MessageActionMeta<Model, Context> => ({
+  valid: options.valid ?? ((_model: Model, _context: Context) => true),
+  ...(options.keys === undefined ? {} : { keys: options.keys }),
+  ...(options.tokens === undefined ? {} : { tokens: options.tokens }),
+  ...(options.spoken === undefined ? {} : { spoken: options.spoken }),
+  ...(options.command === undefined ? {} : { command: options.command }),
+  ...(options.event === undefined ? {} : { event: options.event }),
+  ...(options.mutate === undefined ? {} : { mutate: options.mutate }),
+  ...(options.sideEffects === undefined
+    ? {}
+    : { sideEffects: options.sideEffects }),
+  ...(options.hiddenBecause === undefined
+    ? {}
+    : { hiddenBecause: options.hiddenBecause }),
+})
+
+const actionPropertyOf = (
+  action: MessageActionMeta,
+  property: string,
+): unknown => {
+  if (property === 'keys') {
+    return action.keys
+  }
+  if (property === 'tokens') {
+    return action.tokens
+  }
+  if (property === 'spoken') {
+    return action.spoken
+  }
+  if (property === 'command') {
+    return action.command
+  }
+  if (property === 'event') {
+    return action.event
+  }
+  if (property === 'mutate') {
+    return action.mutate
+  }
+  if (property === 'sideEffects') {
+    return action.sideEffects
+  }
+  if (property === 'valid') {
+    return action.valid
+  }
+  if (property === 'hiddenBecause') {
+    return action.hiddenBecause
+  }
+  return undefined
+}
+
 const makeCallable = <Tag extends string, Fields extends S.Struct.Fields>(
   schema: S.TaggedStruct<Tag, Fields>,
   doc?: MessageDoc,
+  action?: MessageActionMeta,
 ): CallableTaggedStruct<Tag, Fields> =>
   /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
   new Proxy(function () {} as unknown as object, {
@@ -72,11 +190,22 @@ const makeCallable = <Tag extends string, Fields extends S.Struct.Fields>(
       if (property === 'doc' && doc !== undefined) {
         return doc
       }
+      if (typeof property === 'string' && action !== undefined) {
+        const value = actionPropertyOf(action, property)
+        if (value !== undefined) {
+          return value
+        }
+      }
       return Reflect.get(schema, property, receiver)
     },
     has(_target, property) {
       if (property === 'doc' && doc !== undefined) {
         return true
+      }
+      if (typeof property === 'string' && action !== undefined) {
+        if (actionPropertyOf(action, property) !== undefined) {
+          return true
+        }
       }
       return Reflect.has(schema, property)
     },
@@ -115,14 +244,20 @@ const makeCallable = <Tag extends string, Fields extends S.Struct.Fields>(
  * ```
  */
 export function m<Tag extends string>(tag: Tag): CallableTaggedStruct<Tag, {}>
-export function m<Tag extends string>(
+export function m<Tag extends string, Model = unknown, Context = ActionContext>(
   tag: Tag,
-  options: MessageDoc,
-): CallableTaggedStructWithDoc<Tag, {}>
-export function m<Tag extends string, Fields extends S.Struct.Fields>(
+  options: MessageDoc & MessageActionOptions<Model, Context>,
+): CallableTaggedStructWithDoc<Tag, {}, Model, Context>
+export function m<
+  Tag extends string,
+  Fields extends S.Struct.Fields,
+  Model = unknown,
+  Context = ActionContext,
+>(
   tag: Tag,
-  options: MessageDoc & { readonly fields: Fields },
-): CallableTaggedStructWithDoc<Tag, Fields>
+  options: MessageDoc &
+    MessageActionOptions<Model, Context> & { readonly fields: Fields },
+): CallableTaggedStructWithDoc<Tag, Fields, Model, Context>
 export function m<Tag extends string, Fields extends S.Struct.Fields>(
   tag: Tag,
   fields: Fields,
@@ -137,11 +272,13 @@ export function m(
       what: fieldsOrOptions.what,
       why: fieldsOrOptions.why,
     }
-    return makeCallable(S.TaggedStruct(tag, fields as S.Struct.Fields), doc)
+    return makeCallable(
+      S.TaggedStruct(tag, fields as S.Struct.Fields),
+      doc,
+      actionHangFromOptions(fieldsOrOptions),
+    )
   }
-  return makeCallable(
-    S.TaggedStruct(tag, fieldsOrOptions as S.Struct.Fields),
-  )
+  return makeCallable(S.TaggedStruct(tag, fieldsOrOptions as S.Struct.Fields))
 }
 
 /**
@@ -157,21 +294,32 @@ export function m(
  * RequestedIncrement.doc.what
  * ```
  */
-export function md<Tag extends string>(
+export function md<
+  Tag extends string,
+  Model = unknown,
+  Context = ActionContext,
+>(
   tag: Tag,
-  options: MessageDoc,
-): CallableTaggedStructWithDoc<Tag, {}>
-export function md<Tag extends string, Fields extends S.Struct.Fields>(
+  options: MessageDoc & MessageActionOptions<Model, Context>,
+): CallableTaggedStructWithDoc<Tag, {}, Model, Context>
+export function md<
+  Tag extends string,
+  Fields extends S.Struct.Fields,
+  Model = unknown,
+  Context = ActionContext,
+>(
   tag: Tag,
-  options: MessageDoc & { readonly fields: Fields },
-): CallableTaggedStructWithDoc<Tag, Fields>
-export function md(
-  tag: string,
-  options: MessageDocOptions,
-): any {
+  options: MessageDoc &
+    MessageActionOptions<Model, Context> & { readonly fields: Fields },
+): CallableTaggedStructWithDoc<Tag, Fields, Model, Context>
+export function md(tag: string, options: MessageDocOptions): any {
   const fields = options.fields ?? {}
   const doc: MessageDoc = { what: options.what, why: options.why }
-  return makeCallable(S.TaggedStruct(tag, fields as S.Struct.Fields), doc)
+  return makeCallable(
+    S.TaggedStruct(tag, fields as S.Struct.Fields),
+    doc,
+    actionHangFromOptions(options),
+  )
 }
 
 /**
