@@ -17,6 +17,10 @@ import {
 } from 'effect'
 import { Runtime } from 'foldkit'
 
+import { commitSharedMessage } from '@foldkit/instant'
+
+import { type CounterTape, resolveCounterTape } from './tape.js'
+
 const CLEAR_SCREEN = '\u001b[2J\u001b[H'
 
 /** Renders the imported Counter Model from core chrome. */
@@ -50,6 +54,7 @@ const runInputLoop = (
   inputQueue: Queue.Dequeue<Terminal.UserInput, Cause.Done>,
   runtime: Runtime.ProgramRuntime<Model, Message>,
   terminal: Terminal.Terminal,
+  tape: CounterTape,
 ): Effect.Effect<void, Cause.Done | PlatformError.PlatformError> =>
   Queue.take(inputQueue).pipe(
     Effect.flatMap(input => {
@@ -63,12 +68,18 @@ const runInputLoop = (
 
       const maybeMessage = messageForInput(key, runtime.readModel())
       if (Option.isSome(maybeMessage)) {
-        return runtime.run(maybeMessage.value).pipe(
+        return commitSharedMessage(tape, maybeMessage.value, () =>
+          runtime.run(maybeMessage.value),
+        ).pipe(
+          Effect.map(commit => commit.result),
+          Effect.orDie,
           Effect.flatMap(model => terminal.display(renderCounterScreen(model))),
-          Effect.flatMap(() => runInputLoop(inputQueue, runtime, terminal)),
+          Effect.flatMap(() =>
+            runInputLoop(inputQueue, runtime, terminal, tape),
+          ),
         )
       } else {
-        return runInputLoop(inputQueue, runtime, terminal)
+        return runInputLoop(inputQueue, runtime, terminal, tape)
       }
     }),
   )
@@ -82,6 +93,8 @@ export const runCounterTui = (): Effect.Effect<
   Effect.scoped(
     Effect.gen(function* () {
       const terminal = yield* Terminal.Terminal
+      const tape = yield* resolveCounterTape()
+      const accepted = yield* Effect.orDie(tape.readAcceptedMessages)
       const runtime = yield* Effect.orDie(
         Runtime.makeProgramRuntime({
           program: CounterProgram,
@@ -90,10 +103,13 @@ export const runCounterTui = (): Effect.Effect<
       )
 
       yield* runtime.initialization
+      yield* Effect.forEach(accepted, message => runtime.run(message), {
+        discard: true,
+      })
       yield* terminal.display(renderCounterScreen(runtime.readModel()))
 
       const inputQueue = yield* terminal.readInput
-      yield* runInputLoop(inputQueue, runtime, terminal)
+      yield* runInputLoop(inputQueue, runtime, terminal, tape)
       yield* runtime.shutdown
     }),
   )

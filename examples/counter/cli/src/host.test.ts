@@ -14,6 +14,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { executeDo, executeReplay, executeShow } from './host.js'
+import { makeMemoryCounterTape } from './tape.js'
 
 const writeTape = async (messages: ReadonlyArray<Message>): Promise<string> => {
   const tape = await Effect.runPromise(
@@ -100,6 +101,35 @@ describe('Counter CLI host', () => {
     expect(shown.finalModel).toEqual(Model.make({ count: 0 }))
     expect(shown.stdout).toContain('count    0')
     expect(Reset.valid(shown.finalModel, {})).toBe(false)
+  })
+
+  it('persists increment on a shared Instant tape', async () => {
+    const tape = await Effect.runPromise(makeMemoryCounterTape('cli'))
+    await Effect.runPromise(executeDo('increment', { tape }))
+    const shown = await Effect.runPromise(
+      executeShow(undefined, undefined, { tape }),
+    )
+
+    expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
+    expect(shown.stdout).toContain('count    1')
+    expect(Reset.valid(shown.finalModel, {})).toBe(true)
+  })
+
+  it('lets a second Processor read every Message on the tape', async () => {
+    const first = await Effect.runPromise(makeMemoryCounterTape('cli'))
+    await Effect.runPromise(executeDo('increment', { tape: first }))
+    const second = first
+    const shown = await Effect.runPromise(
+      executeShow(undefined, undefined, { tape: second }),
+    )
+    const again = await Effect.runPromise(
+      executeDo('increment', { tape: second }),
+    )
+
+    expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
+    expect(again.finalModel).toEqual(Model.make({ count: 2 }))
+    expect(again.link).toBe('offline')
+    expect(again.stdout).toContain('link           offline')
   })
 
   it('replays a Program tape through Runtime.replayToFrame', async () => {

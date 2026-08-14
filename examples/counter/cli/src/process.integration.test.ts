@@ -2,8 +2,8 @@ import { CounterProgram, Increment } from 'counter-core-example'
 import { Effect, Layer } from 'effect'
 import { Runtime } from 'foldkit'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -53,6 +53,30 @@ describe('Counter CLI process', () => {
     const shown = runCli(['show'])
     expect(shown.status, shown.stderr).toBe(0)
     expect(shown.stdout).toContain('count    0')
+  })
+
+  it('persists increment across processes on a file Instant tape', () => {
+    const cacheRoot = join(homedir(), '.cache')
+    mkdirSync(cacheRoot, { recursive: true })
+    const directory = mkdtempSync(join(cacheRoot, 'foldkit-counter-cli-'))
+    const tapePath = join(directory, 'tape.json')
+    const env = { ...process.env, COUNTER_TAPE_PATH: tapePath }
+
+    const incremented = spawnSync(
+      process.execPath,
+      [cliEntryPath, 'do', 'increment'],
+      { encoding: 'utf8', env },
+    )
+    expect(incremented.status, incremented.stderr).toBe(0)
+    expect(incremented.stdout).toContain('count    1')
+
+    const shown = spawnSync(process.execPath, [cliEntryPath, 'show'], {
+      encoding: 'utf8',
+      env,
+    })
+    expect(shown.status, shown.stderr).toBe(0)
+    expect(shown.stdout).toContain('count    1')
+    rmSync(directory, { force: true, recursive: true })
   })
 
   it('rejects an unknown token without crashing', () => {
