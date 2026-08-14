@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 4:10:55 p.m. EDT — `543a7842d88d` feat(foldkit): lift renderers, devices, and composed replay
+
+- **Implementation commit:** `543a7842d88ddddccc4b057e1afecdc1d3777e35`
+- **Change:** Lift foldkit/renderers, Device chrome, and composed replay
+- **Details:**
+  - Atoms: Row Column Text Button TextInput. Device is watch phone tablet computer tv. Host is cli tui headless foldkit react expo.
+  - counter replay --tape calls Runtime.decodeReplayTape and Runtime.replayToFrame. laptop is rejected. Viewer: https://issues.knophy.com/issues/207
+- **Files:**
+  - `packages/foldkit/src/renderers/public.ts` — Public atoms and ASCII render
+  - `packages/foldkit/src/renderers/devices/devices.ts` — Device shells wrap the product tree
+  - `examples/counter/cli/src/host.ts` — show --device and replay --tape
+  - `examples/counter/core/src/chrome.ts` — Chrome uses wrapDevice
+  - `packages/foldkit/src/schema/index.ts` — ActionContext device is computer
+- **User context (verbatim):**
+  > lift foldkit/renderers + foldkit/renderers/devices, and compose replay
+  > NEEDS-WORK is not a stop
+- **SpecStory:** unavailable — Grok TUI session. SpecStory CLI does not capture this host.
+
 ## August 14th, 2026 at 3:39:04 p.m. EDT — `3d8802b0d141` feat(counter): lift semantic Messages and in-memory CLI
 
 - **Implementation commit:** `3d8802b0d141e1ed64df1423582453be885e8ce7`
