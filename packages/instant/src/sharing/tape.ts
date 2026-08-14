@@ -81,6 +81,10 @@ export type SharedProgramTape<Message> = Readonly<{
     ReadonlyArray<Message>,
     ProgramStoreError
   >
+  observeAcceptedOccurrences: Stream.Stream<
+    ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
+    ProgramStoreError
+  >
   readAcceptedMessages: Effect.Effect<ReadonlyArray<Message>, ProgramStoreError>
   readAcceptedOccurrences: Effect.Effect<
     ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
@@ -408,6 +412,8 @@ export const makeSharedProgramTape = <Message>(
       observeAcceptedMessages: config.store
         .observeAcceptedMessageOccurrences(scope)
         .pipe(Stream.mapEffect(decodeOccurrences)),
+      observeAcceptedOccurrences:
+        config.store.observeAcceptedMessageOccurrences(scope),
       readAcceptedMessages: Effect.flatMap(
         readAcceptedOccurrences,
         decodeOccurrences,

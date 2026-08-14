@@ -17,6 +17,11 @@ import {
   makeSharedProgramTape,
 } from '@foldkit/instant'
 
+import {
+  CounterInstantTapeError,
+  makeInstantCounterTape,
+} from './instantTape.js'
+
 /** One Instant tape used by the Counter TUI Processor. */
 export type CounterTape = SharedProgramTape<Message>
 
@@ -55,8 +60,11 @@ const makeTape = (
 /** Resolves the TUI Instant tape from the process environment. */
 export const resolveCounterTape = (
   environment: Readonly<Record<string, string | undefined>> = process.env,
-): Effect.Effect<CounterTape> => {
+): Effect.Effect<CounterTape, CounterInstantTapeError> => {
   const processorId = processorIdFrom(environment['COUNTER_PROCESSOR_ID'])
+  if (environment['COUNTER_TAPE'] === 'instant') {
+    return makeInstantCounterTape(processorId, environment)
+  }
   const path = environment['COUNTER_TAPE_PATH']
   if (path !== undefined && path !== '') {
     return Effect.gen(function* () {

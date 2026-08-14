@@ -93,7 +93,7 @@ export const runCounterTui = (): Effect.Effect<
   Effect.scoped(
     Effect.gen(function* () {
       const terminal = yield* Terminal.Terminal
-      const tape = yield* resolveCounterTape()
+      const tape = yield* Effect.orDie(resolveCounterTape())
       const accepted = yield* Effect.orDie(tape.readAcceptedMessages)
       const runtime = yield* Effect.orDie(
         Runtime.makeProgramRuntime({
