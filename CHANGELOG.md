@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 7:12:01 p.m. EDT — `d5ca82519394` feat(counters): persist Multiple Counters Messages on Instant tape
+
+- **Implementation commit:** `d5ca82519394c3963a56142c18df95e8cbcab2b2`
+- **Change:** Multiple Counters CLI writes Instant tape and uses Counter Messages.
+- **Details:**
+  - forEach sends Increment, Decrement, and Reset. The CLI writes each Message before and after update.
+  - Navigation stays Model. URI destinations are unchanged.
+- **Files:**
+  - `examples/counters/cli/src/instantTape.ts` — Memory, file, or live Instant tape for Multiple Counters.
+  - `examples/counters/cli/src/host.ts` — Write the tape around navigation and action Messages.
+  - `examples/counters/core/src/presentation.ts` — Send Increment, Decrement, and Reset through forEach.
+- **User context (verbatim):**
+  > Then Counters (many). Navigation is Model.
+  > Same tape rules.
+- **SpecStory:** unavailable — Grok TUI session. No SpecStory capture for this host.
+
 ## August 14th, 2026 at 7:08:05 p.m. EDT — `ea2b2f5b4543` feat(instant): share one Counter Instant account across Processors
 
 - **Implementation commit:** `ea2b2f5b454363bef9852d1a409561c77703b5c0`
