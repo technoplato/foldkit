@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "foldkit-counter": "./dist/entry.js"
+    "counter": "./dist/entry.js"
   },
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",

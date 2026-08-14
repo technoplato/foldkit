@@ -1,10 +1,10 @@
 import {
-  ClickedDecrement,
-  ClickedIncrement,
-  ClickedReset,
   CounterProgram,
+  Decrement,
+  Increment,
   Message,
   Model,
+  Reset,
   initialCount,
 } from 'counter-core-example'
 import { Layer } from 'effect'
@@ -12,7 +12,9 @@ import { Program } from 'foldkit'
 import type { ReactNode } from 'react'
 import { createReplayableReactProgramClient } from 'shared-react-bindings-example'
 
-/** Actions exposed to React and React Native consumers of the Counter Program. */
+export { Decrement, Increment, Reset }
+
+/** Pointer causes. Each cause sends a semantic Message. */
 export type CounterActions = Readonly<{
   clickedDecrement: () => void
   clickedIncrement: () => void
@@ -35,9 +37,9 @@ export const CounterClient = createReplayableReactProgramClient<
   CounterInitialRoute
 >({
   createActions: enqueueMessage => ({
-    clickedDecrement: () => enqueueMessage(ClickedDecrement()),
-    clickedIncrement: () => enqueueMessage(ClickedIncrement()),
-    clickedReset: () => enqueueMessage(ClickedReset()),
+    clickedDecrement: () => enqueueMessage(Decrement()),
+    clickedIncrement: () => enqueueMessage(Increment()),
+    clickedReset: () => enqueueMessage(Reset()),
   }),
   name: 'Counter',
   program: CounterProgram,

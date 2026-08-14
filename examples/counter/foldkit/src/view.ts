@@ -1,9 +1,9 @@
 import {
-  ClickedDecrement,
-  ClickedIncrement,
-  ClickedReset,
+  Decrement,
+  Increment,
   type Message,
   type Model,
+  Reset,
 } from 'counter-core-example'
 import { Document, html } from 'foldkit/html'
 
@@ -14,6 +14,24 @@ import { Button } from '@foldkit/ui'
 /** Renders the Counter with Foldkit HTML. */
 export const view = (model: Model): Document => {
   const h = html<Message>()
+  const decrementButton = Button.view<Message>({
+    onClick: Decrement(),
+    toView: attributes =>
+      h.button([...attributes.button, h.Class(buttonStyle)], ['-']),
+  })
+  const incrementButton = Button.view<Message>({
+    onClick: Increment(),
+    toView: attributes =>
+      h.button([...attributes.button, h.Class(buttonStyle)], ['+']),
+  })
+  const resetButton = Button.view<Message>({
+    onClick: Reset(),
+    toView: attributes =>
+      h.button([...attributes.button, h.Class(buttonStyle)], ['Reset']),
+  })
+  const buttons = Reset.valid(model, {})
+    ? [decrementButton, resetButton, incrementButton]
+    : [decrementButton, incrementButton]
 
   return {
     title: `Counter: ${model.count}`,
@@ -28,29 +46,7 @@ export const view = (model: Model): Document => {
           [h.Class('text-6xl font-bold text-gray-800')],
           [model.count.toString()],
         ),
-        h.div(
-          [h.Class('flex flex-wrap justify-center gap-4')],
-          [
-            Button.view<Message>({
-              onClick: ClickedDecrement(),
-              toView: attributes =>
-                h.button([...attributes.button, h.Class(buttonStyle)], ['-']),
-            }),
-            Button.view<Message>({
-              onClick: ClickedReset(),
-              toView: attributes =>
-                h.button(
-                  [...attributes.button, h.Class(buttonStyle)],
-                  ['Reset'],
-                ),
-            }),
-            Button.view<Message>({
-              onClick: ClickedIncrement(),
-              toView: attributes =>
-                h.button([...attributes.button, h.Class(buttonStyle)], ['+']),
-            }),
-          ],
-        ),
+        h.div([h.Class('flex flex-wrap justify-center gap-4')], buttons),
       ],
     ),
   }

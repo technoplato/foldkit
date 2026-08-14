@@ -7,14 +7,14 @@ import { view } from './index.js'
 const initialModel: Model = { count: initialCount }
 
 describe('view', () => {
-  test('renders the initial count and three buttons', () => {
+  test('renders the initial count and hides reset at 0', () => {
     Scene.scene(
       { update, view },
       Scene.with(initialModel),
       Scene.expect(Scene.text('0')).toExist(),
       Scene.expect(Scene.role('button', { name: '+' })).toExist(),
       Scene.expect(Scene.role('button', { name: '-' })).toExist(),
-      Scene.expect(Scene.role('button', { name: 'Reset' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Reset' })).not.toExist(),
     )
   })
 

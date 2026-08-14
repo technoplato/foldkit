@@ -2,10 +2,10 @@ import { Story } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 
 import {
-  ClickedDecrement,
-  ClickedIncrement,
-  ClickedReset,
+  Decrement,
+  Increment,
   Model,
+  Reset,
   init,
   initialCount,
   restore,
@@ -28,11 +28,11 @@ describe('update', () => {
     expect(restore(model)).toStrictEqual([model, []])
   })
 
-  test('ClickedIncrement adds one to the count', () => {
+  test('Increment adds one to the count', () => {
     Story.story(
       update,
       Story.with(initialModel),
-      Story.message(ClickedIncrement()),
+      Story.message(Increment()),
       Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(1)
@@ -40,11 +40,11 @@ describe('update', () => {
     )
   })
 
-  test('ClickedDecrement subtracts one from the count', () => {
+  test('Decrement subtracts one from the count', () => {
     Story.story(
       update,
       Story.with({ count: 5 }),
-      Story.message(ClickedDecrement()),
+      Story.message(Decrement()),
       Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(4)
@@ -52,11 +52,11 @@ describe('update', () => {
     )
   })
 
-  test('ClickedDecrement past zero produces a negative count', () => {
+  test('Decrement past zero produces a negative count', () => {
     Story.story(
       update,
       Story.with(initialModel),
-      Story.message(ClickedDecrement()),
+      Story.message(Decrement()),
       Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(-1)
@@ -64,11 +64,23 @@ describe('update', () => {
     )
   })
 
-  test('ClickedReset sets the count back to zero', () => {
+  test('Reset from a non-zero count sets the count to zero', () => {
     Story.story(
       update,
       Story.with({ count: 99 }),
-      Story.message(ClickedReset()),
+      Story.message(Reset()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.count).toBe(0)
+      }),
+    )
+  })
+
+  test('Reset at 0 does not change the count', () => {
+    Story.story(
+      update,
+      Story.with(initialModel),
+      Story.message(Reset()),
       Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(0)
@@ -80,18 +92,18 @@ describe('update', () => {
     Story.story(
       update,
       Story.with(initialModel),
-      Story.message(ClickedIncrement()),
+      Story.message(Increment()),
       Story.Command.expectNone(),
-      Story.message(ClickedIncrement()),
+      Story.message(Increment()),
       Story.Command.expectNone(),
-      Story.message(ClickedIncrement()),
+      Story.message(Increment()),
       Story.Command.expectNone(),
-      Story.message(ClickedDecrement()),
+      Story.message(Decrement()),
       Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(2)
       }),
-      Story.message(ClickedReset()),
+      Story.message(Reset()),
       Story.Command.expectNone(),
       Story.model(model => {
         expect(model.count).toBe(0)

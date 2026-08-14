@@ -1,5 +1,6 @@
 import {
   CounterProvider,
+  Reset,
   useCounterActions,
   useCounterModel,
   useCounterReplay,
@@ -28,13 +29,17 @@ const CounterScreen = () => {
           >
             -
           </button>
-          <button
-            className={buttonClassName}
-            onClick={actions.clickedReset}
-            type="button"
-          >
-            Reset
-          </button>
+          {Reset.valid(model, {}) ? (
+            <button
+              className={buttonClassName}
+              onClick={actions.clickedReset}
+              type="button"
+            >
+              Reset
+            </button>
+          ) : (
+            <div />
+          )}
           <button
             className={buttonClassName}
             onClick={actions.clickedIncrement}
