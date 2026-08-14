@@ -4,6 +4,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 5:35:59 p.m. EDT — `2e12c2e9c77d` feat(instant): write Counter Messages on a same-actor Instant tape
+
+- **Implementation commit:** `2e12c2e9c77de78164be66a90e95c72397f760de`
+- **Change:** Counter Messages now persist on a same-actor Instant tape.
+- **Details:**
+  - update stays pure. The host writes the Message to Instant Program store rows before update and after update.
+  - A file outbox is the offline Instant cache. CLI and TUI are two Processors of one Program.
+  - Default CLI processes still start at count 0. COUNTER_TAPE_PATH persists the tape across processes.
+  - Parent Instant issue: https://issues.knophy.com/issues/207
+- **Files:**
+  - `packages/instant/src/sharing/tape.ts` — Same-actor Instant tape that writes a proposal before update and an accepted occurrence after update.
+  - `packages/instant/src/sharing/fileStore.ts` — Offline Instant outbox for proposal and accepted-occurrence rows.
+  - `packages/instant/src/sharing/tape.test.ts` — Proves before/after writes and that every Processor reads the same accepted Messages.
+  - `packages/instant/src/sharing/fileStore.test.ts` — Proves a file tape survives a second store instance.
+  - `packages/instant/src/index.ts` — Export the tape and file store from @foldkit/instant.
+  - `examples/counter/core/src/tapeIdentity.ts` — Stable Program id, version, and local same-actor subject for the Counter tape.
+  - `examples/counter/cli/src/tape.ts` — Resolve memory or file Instant tape for the CLI Processor.
+  - `examples/counter/cli/src/host.ts` — Load accepted Messages on show. Write the tape around do update.
+  - `examples/counter/tui/src/tape.ts` — Resolve the TUI Processor onto the same Instant tape.
+  - `examples/counter/tui/src/host.ts` — Replay accepted Messages at start and write each key onto the tape.
+  - `.changeset/add-counter-instant-tape.md` — Minor changeset for the Instant tape API.
+- **User context (verbatim):**
+  > Finish one Counter with Instant tape.
+  > Write the tape before update and after update.
+  > CLI and a live Client are two Processors on one Instant account.
+- **SpecStory:** unavailable — Grok TUI session. No SpecStory capture for this host.
+
 ## August 14th, 2026 at 4:10:55 p.m. EDT — `543a7842d88d` feat(foldkit): lift renderers, devices, and composed replay
 
 - **Implementation commit:** `543a7842d88ddddccc4b057e1afecdc1d3777e35`
