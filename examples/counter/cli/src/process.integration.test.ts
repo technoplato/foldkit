@@ -106,6 +106,30 @@ describe('Counter CLI process', () => {
     )
   })
 
+  it('persists increment on the live Instant tape when credentials exist', () => {
+    if (
+      process.env['COUNTER_TAPE'] !== 'instant' ||
+      process.env['INSTANT_APP_ID'] === undefined ||
+      process.env['INSTANT_APP_ID'] === ''
+    ) {
+      return
+    }
+    const env = { ...process.env, COUNTER_TAPE: 'instant' }
+    const incremented = spawnSync(
+      process.execPath,
+      [cliEntryPath, 'do', 'increment'],
+      { encoding: 'utf8', env },
+    )
+    expect(incremented.status, incremented.stderr).toBe(0)
+    expect(incremented.stdout).toContain('increment sent')
+    const shown = spawnSync(process.execPath, [cliEntryPath, 'show'], {
+      encoding: 'utf8',
+      env,
+    })
+    expect(shown.status, shown.stderr).toBe(0)
+    expect(shown.stdout).toMatch(/count\s+[1-9]/)
+  })
+
   it('replays a Program tape from --tape', async () => {
     const tape = await Effect.runPromise(
       Effect.scoped(

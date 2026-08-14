@@ -1,6 +1,12 @@
 const ownsRecord = 'auth.id != null && auth.id == data.subjectId'
 const targetsMultipleCounters =
   "data.programId == 'multiple-counters' && data.programVersion == 2"
+const targetsCounter = "data.programId == 'counter' && data.programVersion == 2"
+const createsCounterTapeRow =
+  ownsRecord +
+  ' && ' +
+  targetsCounter +
+  " && data.protocolVersion == 2 && data.proposalKind == 'Message' && data.actorId == auth.id"
 const createsV2OrdinaryProposal =
   ownsRecord +
   ' && ' +
@@ -50,13 +56,20 @@ export default {
       create: 'false',
     },
   },
-  foldkitAcceptedMessageOccurrences: authorityOwned,
+  foldkitAcceptedMessageOccurrences: {
+    allow: {
+      create: createsCounterTapeRow,
+      delete: 'false',
+      update: 'false',
+      view: ownsRecord,
+    },
+  },
   foldkitEffectPlacements: authorityOwned,
   foldkitEffectRequests: authorityOwned,
   foldkitMessageProposalResolutions: authorityOwned,
   foldkitMessageProposals: {
     allow: {
-      create: createsV2OrdinaryProposal,
+      create: `${createsV2OrdinaryProposal} || ${createsCounterTapeRow}`,
       delete: 'false',
       update: 'false',
       view: ownsRecord,

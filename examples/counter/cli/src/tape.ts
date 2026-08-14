@@ -20,6 +20,11 @@ import {
   makeSharedProgramTape,
 } from '@foldkit/instant'
 
+import {
+  CounterInstantTapeError,
+  maybeMakeInstantCounterTape,
+} from './instantTape.js'
+
 /** One Instant tape used by a Counter Processor. */
 export type CounterTape = SharedProgramTape<Message>
 
@@ -86,27 +91,34 @@ export const defaultCounterTapePath = (): string =>
 /** Resolves the Counter tape from the process environment. */
 export const resolveCounterTape = (
   environment: Readonly<Record<string, string | undefined>> = process.env,
-): Effect.Effect<CounterTape> => {
-  const processorId = processorIdFrom(environment['COUNTER_PROCESSOR_ID'])
-  const mode = environment['COUNTER_TAPE']
-  if (mode === 'memory') {
-    return makeMemoryCounterTape(processorId)
-  }
-  const path = environment['COUNTER_TAPE_PATH']
-  if (path !== undefined && path !== '') {
-    return makeFileCounterTape(path, processorId)
-  }
-  if (mode === 'file') {
-    return makeFileCounterTape(defaultCounterTapePath(), processorId)
-  }
-  return makeMemoryCounterTape(processorId)
-}
+): Effect.Effect<CounterTape, CounterInstantTapeError> =>
+  Effect.gen(function* () {
+    const processorId = processorIdFrom(environment['COUNTER_PROCESSOR_ID'])
+    const mode = environment['COUNTER_TAPE']
+    if (mode === 'instant') {
+      const maybeInstant = yield* maybeMakeInstantCounterTape(environment)
+      if (Option.isSome(maybeInstant)) {
+        return maybeInstant.value
+      }
+    }
+    if (mode === 'memory') {
+      return yield* makeMemoryCounterTape(processorId)
+    }
+    const path = environment['COUNTER_TAPE_PATH']
+    if (path !== undefined && path !== '') {
+      return yield* makeFileCounterTape(path, processorId)
+    }
+    if (mode === 'file') {
+      return yield* makeFileCounterTape(defaultCounterTapePath(), processorId)
+    }
+    return yield* makeMemoryCounterTape(processorId)
+  })
 
 /** Reads an optional tape or builds the process default. */
 export const withCounterTape = (
   maybeTape: Option.Option<CounterTape>,
   environment: Readonly<Record<string, string | undefined>> = process.env,
-): Effect.Effect<CounterTape> => {
+): Effect.Effect<CounterTape, CounterInstantTapeError> => {
   if (Option.isSome(maybeTape)) {
     return Effect.succeed(maybeTape.value)
   }

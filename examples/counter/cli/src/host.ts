@@ -60,6 +60,18 @@ const tapeError = (): CounterCliError =>
     message: 'Cannot append the Instant tape.',
   })
 
+const openTape = (
+  options: CliTapeOptions,
+): Effect.Effect<CounterTape, CounterCliError> =>
+  withCounterTape(Option.fromNullishOr(options.tape)).pipe(
+    Effect.mapError(
+      error =>
+        new CounterCliError({
+          message: error.message,
+        }),
+    ),
+  )
+
 const modelFromTape = (
   tape: CounterTape,
 ): Effect.Effect<Model, CounterCliError> =>
@@ -132,7 +144,7 @@ export const executeShow = (
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
     const device = yield* parseDevice(deviceRaw)
-    const tape = yield* withCounterTape(Option.fromNullishOr(options.tape))
+    const tape = yield* openTape(options)
     const initialModel = yield* modelFromTape(tape)
     const stdout = renderShow(initialModel, {
       ...showContext(device),
@@ -153,7 +165,7 @@ export const executeDo = (
   options: CliTapeOptions = {},
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
-    const tape = yield* withCounterTape(Option.fromNullishOr(options.tape))
+    const tape = yield* openTape(options)
     const initialModel = yield* modelFromTape(tape)
     const action = actionByToken(token.trim().toLowerCase())
     if (action === undefined) {
