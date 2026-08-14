@@ -9,13 +9,13 @@ import {
 } from './show.js'
 
 describe('renderShow', () => {
-  test('prints IDENTITY, ACESS, and chrome at count 0', () => {
+  test('prints IDENTITY and ACESS at count 0 without Device chrome', () => {
     const output = renderShow(Model.make({ count: 0 }), defaultShowContext)
 
     expect(output).toContain('IDENTITY')
     expect(output).toContain('title    counter')
     expect(output).toContain('uri      /counter')
-    expect(output).toContain('targets  watch, phone, tablet, laptop, tv')
+    expect(output).not.toContain('device')
     expect(output).toContain('STATE')
     expect(output).toContain('count    0')
     expect(output).toContain('focus    increment')
@@ -39,15 +39,14 @@ describe('renderShow', () => {
     expect(output).toContain('EVENTS')
     expect(output).toContain('SIDE EFFECTS')
     expect(output).toContain('(none)')
-    expect(output).toContain('│ [-]     [+]  │')
-    expect(output).toContain('│ [ - ]          [ + ] │')
-    expect(output).not.toContain('│ [-] [r] [+]  │')
-    expect(output).not.toContain('│ [ - ] [reset] [ + ]  │')
+    expect(output).not.toContain('╭')
+    expect(output).not.toContain('laptop')
   })
 
-  test('prints reset chrome when the count is not 0', () => {
+  test('wraps the product tree in phone chrome when a Device is set', () => {
     const output = renderShow(Model.make({ count: 1 }), {
       ...defaultShowContext,
+      device: 'phone',
       last: {
         command: 'increment',
         event: 'incremented',
@@ -56,14 +55,17 @@ describe('renderShow', () => {
     })
 
     expect(output).toContain('count    1')
-    expect(output).toContain('│ [-] [r] [+]  │')
-    expect(output).toContain('│ [ - ] [reset] [ + ]  │')
-    expect(output).toContain('║  [ - ]  [reset]  [ + ]   ║')
+    expect(output).toContain('device   phone')
+    expect(output).toContain('[ + ]')
+    expect(output).toContain('[ - ]')
+    expect(output).toContain('[ reset ]')
+    expect(output).toContain('9:41')
     expect(output).toContain('COMMANDS\n  increment')
     expect(output).toContain('EVENTS\n  incremented')
     expect(output).toContain('tape append')
     expect(output).toContain('link  offline')
     expect(output).not.toContain('hidden         count is already 0')
+    expect(output).not.toContain('laptop')
   })
 
   test('can filter to one Action path', () => {

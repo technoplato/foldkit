@@ -20,7 +20,7 @@ export type CallableTaggedStruct<
  * Clients may omit it. `valid` must still return a boolean.
  */
 export type ActionContext = Readonly<{
-  readonly device?: 'watch' | 'phone' | 'tablet' | 'laptop' | 'tv'
+  readonly device?: 'watch' | 'phone' | 'tablet' | 'computer' | 'tv'
 }>
 
 /**

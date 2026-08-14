@@ -17,6 +17,11 @@
       "import": "./dist/adt/public.js",
       "default": "./dist/adt/public.js"
     },
+    "./attention": {
+      "types": "./dist/attention/public.d.ts",
+      "import": "./dist/attention/public.js",
+      "default": "./dist/attention/public.js"
+    },
     "./asyncData": {
       "types": "./dist/asyncData/public.d.ts",
       "import": "./dist/asyncData/public.js",
@@ -66,6 +71,11 @@
       "types": "./dist/html/public.d.ts",
       "import": "./dist/html/public.js",
       "default": "./dist/html/public.js"
+    },
+    "./interactable": {
+      "types": "./dist/interactable/public.d.ts",
+      "import": "./dist/interactable/public.js",
+      "default": "./dist/interactable/public.js"
     },
     "./http": {
       "types": "./dist/http/public.d.ts",
@@ -122,6 +132,16 @@
       "import": "./dist/render/public.js",
       "default": "./dist/render/public.js"
     },
+    "./renderers": {
+      "types": "./dist/renderers/public.d.ts",
+      "import": "./dist/renderers/public.js",
+      "default": "./dist/renderers/public.js"
+    },
+    "./renderers/devices": {
+      "types": "./dist/renderers/devices/public.d.ts",
+      "import": "./dist/renderers/devices/public.js",
+      "default": "./dist/renderers/devices/public.js"
+    },
     "./route": {
       "types": "./dist/route/public.d.ts",
       "import": "./dist/route/public.js",
@@ -136,6 +156,11 @@
       "types": "./dist/scene/public.d.ts",
       "import": "./dist/scene/public.js",
       "default": "./dist/scene/public.js"
+    },
+    "./spatial": {
+      "types": "./dist/spatial/public.d.ts",
+      "import": "./dist/spatial/public.js",
+      "default": "./dist/spatial/public.js"
     },
     "./story": {
       "types": "./dist/story/public.d.ts",

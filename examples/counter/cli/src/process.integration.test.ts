@@ -1,4 +1,10 @@
+import { CounterProgram, Increment } from 'counter-core-example'
+import { Effect, Layer } from 'effect'
+import { Runtime } from 'foldkit'
 import { spawnSync } from 'node:child_process'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
@@ -22,18 +28,24 @@ const runCli = (
 }
 
 describe('Counter CLI process', () => {
-  it('prints show and do increment for a fresh count', () => {
-    const shown = runCli(['show', '--targets', 'watch,phone,tablet,laptop,tv'])
+  it('prints show without chrome and do increment for a fresh count', () => {
+    const shown = runCli(['show'])
     expect(shown.status, shown.stderr).toBe(0)
     expect(shown.stdout).toContain('uri      /counter')
     expect(shown.stdout).toContain('count    0')
-    expect(shown.stdout).toContain('│ [-]     [+]  │')
+    expect(shown.stdout).not.toContain('laptop')
+    expect(shown.stdout).not.toContain('[ + ]')
+
+    const phone = runCli(['show', '--device', 'phone'])
+    expect(phone.status, phone.stderr).toBe(0)
+    expect(phone.stdout).toContain('device   phone')
+    expect(phone.stdout).toContain('[ + ]')
+    expect(phone.stdout).not.toContain('[ reset ]')
 
     const incremented = runCli(['do', 'increment'])
     expect(incremented.status, incremented.stderr).toBe(0)
     expect(incremented.stdout).toContain('increment sent')
     expect(incremented.stdout).toContain('count    1')
-    expect(incremented.stdout).toContain('│ [-] [r] [+]  │')
   })
 
   it('starts each process at count 0', () => {
@@ -68,5 +80,27 @@ describe('Counter CLI process', () => {
     expect(result.stdout).toContain(
       'log  attempted to invoke invalid action reset',
     )
+  })
+
+  it('replays a Program tape from --tape', async () => {
+    const tape = await Effect.runPromise(
+      Effect.scoped(
+        Runtime.recordReplayTape(CounterProgram, Layer.empty, [Increment()]),
+      ),
+    )
+    const json = await Effect.runPromise(
+      Runtime.encodeReplayTape(CounterProgram, tape),
+    )
+    const path = join(mkdtempSync(join(tmpdir(), 'counter-cli-')), 'tape.json')
+    writeFileSync(path, json)
+
+    const result = runCli(['replay', '--tape', path])
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('FRAME 0')
+    expect(result.stdout).toContain('FRAME 1')
+    expect(result.stdout).toContain('Increment')
+    expect(result.stdout).toContain('count    0')
+    expect(result.stdout).toContain('count    1')
+    expect(result.stdout).toContain('[ reset ]')
   })
 })

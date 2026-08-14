@@ -1,11 +1,37 @@
-import { Decrement, Increment, Model, Reset } from 'counter-core-example'
-import { Effect, Option } from 'effect'
+import {
+  CounterProgram,
+  Decrement,
+  Increment,
+  type Message,
+  Model,
+  Reset,
+} from 'counter-core-example'
+import { Effect, Layer, Option } from 'effect'
+import { Runtime } from 'foldkit'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { executeDo, executeShow } from './host.js'
+import { executeDo, executeReplay, executeShow } from './host.js'
+
+const writeTape = async (messages: ReadonlyArray<Message>): Promise<string> => {
+  const tape = await Effect.runPromise(
+    Effect.scoped(
+      Runtime.recordReplayTape(CounterProgram, Layer.empty, messages),
+    ),
+  )
+  const json = await Effect.runPromise(
+    Runtime.encodeReplayTape(CounterProgram, tape),
+  )
+  const dir = mkdtempSync(join(tmpdir(), 'counter-tape-'))
+  const path = join(dir, 'tape.json')
+  writeFileSync(path, json)
+  return path
+}
 
 describe('Counter CLI host', () => {
-  it('shows the imported initial Model without a Message', async () => {
+  it('shows the imported initial Model without a Message or chrome', async () => {
     const execution = await Effect.runPromise(executeShow(undefined, undefined))
 
     expect(execution.initialModel).toEqual(Model.make({ count: 0 }))
@@ -14,7 +40,25 @@ describe('Counter CLI host', () => {
     expect(execution.stdout).toContain('uri      /counter')
     expect(execution.stdout).toContain('count    0')
     expect(execution.stdout).toContain('valid          false')
-    expect(execution.stdout).toContain('│ [-]     [+]  │')
+    expect(execution.stdout).not.toContain('device')
+    expect(execution.stdout).not.toContain('[ + ]')
+    expect(execution.stdout).not.toContain('laptop')
+  })
+
+  it('wraps the product tree when --device phone is set', async () => {
+    const execution = await Effect.runPromise(executeShow('phone', undefined))
+
+    expect(execution.stdout).toContain('device   phone')
+    expect(execution.stdout).toContain('[ + ]')
+    expect(execution.stdout).toContain('[ - ]')
+    expect(execution.stdout).not.toContain('[ reset ]')
+    expect(execution.stdout).not.toContain('laptop')
+  })
+
+  it('rejects laptop as a Device', async () => {
+    await expect(
+      Effect.runPromise(executeShow('laptop', undefined)),
+    ).rejects.toThrow('Unknown device "laptop"')
   })
 
   it('sends increment and auto-shows the new count', async () => {
@@ -28,7 +72,6 @@ describe('Counter CLI host', () => {
     expect(execution.stdout).toContain('tape           appended')
     expect(execution.stdout).toContain('link           offline')
     expect(execution.stdout).toContain('count    1')
-    expect(execution.stdout).toContain('│ [-] [r] [+]  │')
   })
 
   it('starts decrement from count 0', async () => {
@@ -57,5 +100,25 @@ describe('Counter CLI host', () => {
     expect(shown.finalModel).toEqual(Model.make({ count: 0 }))
     expect(shown.stdout).toContain('count    0')
     expect(Reset.valid(shown.finalModel, {})).toBe(false)
+  })
+
+  it('replays a Program tape through Runtime.replayToFrame', async () => {
+    const path = await writeTape([Increment()])
+    const execution = await Effect.runPromise(executeReplay(path))
+
+    expect(execution.models).toEqual([
+      Model.make({ count: 0 }),
+      Model.make({ count: 1 }),
+    ])
+    expect(execution.stdout).toContain('FRAME 0')
+    expect(execution.stdout).toContain('FRAME 1')
+    expect(execution.stdout).toContain('Increment')
+    expect(execution.stdout).toContain('count    0')
+    expect(execution.stdout).toContain('count    1')
+    expect(execution.stdout).toContain('increment   true')
+    expect(execution.stdout).toContain('reset       false')
+    expect(execution.stdout).toContain('reset       true')
+    expect(execution.stdout).toContain('[ + ]')
+    expect(execution.stdout).toContain('[ reset ]')
   })
 })

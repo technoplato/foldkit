@@ -20,7 +20,7 @@ export type LastAction = typeof LastAction.Type
 
 /** Adapter input for `show`. This is not a Message. */
 export const ShowContext = S.Struct({
-  targets: S.Array(Device),
+  device: S.optionalKey(Device),
   focus: Focus,
   path: S.optionalKey(S.String),
   last: S.optionalKey(LastAction),
@@ -28,9 +28,8 @@ export const ShowContext = S.Struct({
 /** Adapter input for `show`. */
 export type ShowContext = typeof ShowContext.Type
 
-/** Default `show` context: every form factor, focus on increment. */
+/** Default `show` context: ACESS only, no Device chrome. */
 export const defaultShowContext: ShowContext = {
-  targets: ['watch', 'phone', 'tablet', 'laptop', 'tv'],
   focus: 'increment',
 }
 
@@ -157,19 +156,37 @@ export const renderReceipt = (receipt: Receipt): string =>
 export const invalidActionLog = (token: string, model: Model): string =>
   `log  attempted to invoke invalid action ${token}\n     state  count ${model.count}`
 
-/** Prints IDENTITY, ACESS, and device chrome. `show` is not a Message. */
+const identityLines = (context: ShowContext): ReadonlyArray<string> => {
+  const lines = [
+    'IDENTITY',
+    identityField('title', title),
+    identityField('uri', uri),
+  ]
+  if (context.device === undefined) {
+    return lines
+  }
+  return [...lines, identityField('device', context.device)]
+}
+
+const chromeLines = (
+  model: Model,
+  context: ShowContext,
+): ReadonlyArray<string> => {
+  if (context.device === undefined) {
+    return []
+  }
+  return ['', renderChrome(model, context.device)]
+}
+
+/** Prints IDENTITY, ACESS, and optional Device chrome. `show` is not a Message. */
 export const renderShow = (model: Model, context: ShowContext): string => {
   const selected = actionsForPath(context.path)
   const actionBlock = Array.map(selected, action =>
     renderAction(action, model, context.focus),
   ).join('\n')
-  const chrome = renderChrome(model, context.targets)
 
   return [
-    'IDENTITY',
-    identityField('title', title),
-    identityField('uri', uri),
-    identityField('targets', context.targets.join(', ')),
+    ...identityLines(context),
     '',
     'STATE',
     identityField('count', model.count.toString()),
@@ -183,7 +200,6 @@ export const renderShow = (model: Model, context: ShowContext): string => {
     renderEvents(context.last),
     '',
     renderSideEffects(context.last),
-    '',
-    chrome,
+    ...chromeLines(model, context),
   ].join('\n')
 }

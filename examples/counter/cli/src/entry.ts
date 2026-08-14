@@ -4,37 +4,41 @@
  *
  * Run the built binary:
  *   node dist/entry.js show
+ *   node dist/entry.js show --device phone
  *   node dist/entry.js do increment
+ *   node dist/entry.js replay --tape tape.json
  *
  * Domain: one integer count. Messages: increment, decrement, reset.
  * Reset is invalid when count is 0. Chrome hides reset then.
  * `show` is not a Message. `do` sends a token, then auto-shows.
- * The first CLI is in-memory. Each process starts at count 0.
+ * `replay` steps a Program tape. The first CLI is in-memory.
  *
  * Examples:
- *   counter show --targets watch,phone,tablet,laptop,tv
+ *   counter show
+ *   counter show --device phone
  *   counter show --path counter.increment
  *   counter do increment
- *   counter do decrement
- *   counter do reset
+ *   counter replay --tape tape.json
  */
 import { Array, Effect, Option } from 'effect'
 import { Argument, Command, Flag } from 'effect/unstable/cli'
 
 import { NodeRuntime, NodeServices } from '@effect/platform-node'
 
-import { runDo, runShow } from './host.js'
+import { runDo, runReplay, runShow } from './host.js'
 
-const targetsFlag = Flag.string('targets').pipe(
+const deviceFlag = Flag.string('device').pipe(
   Flag.optional,
-  Flag.withDescription(
-    'Comma list of form factors: watch,phone,tablet,laptop,tv',
-  ),
+  Flag.withDescription('Device chrome: watch, phone, tablet, computer, tv'),
 )
 
 const pathFlag = Flag.string('path').pipe(
   Flag.optional,
   Flag.withDescription('Print one path, for example counter.increment'),
+)
+
+const tapeFlag = Flag.string('tape').pipe(
+  Flag.withDescription('Path to a Program replay tape'),
 )
 
 const tokensArgument = Argument.string('token').pipe(
@@ -44,15 +48,15 @@ const tokensArgument = Argument.string('token').pipe(
 
 const show = Command.make(
   'show',
-  { maybeTargets: targetsFlag, maybePath: pathFlag },
-  ({ maybeTargets, maybePath }) =>
+  { maybeDevice: deviceFlag, maybePath: pathFlag },
+  ({ maybeDevice, maybePath }) =>
     runShow(
-      Option.getOrUndefined(maybeTargets),
+      Option.getOrUndefined(maybeDevice),
       Option.getOrUndefined(maybePath),
     ),
 ).pipe(
   Command.withDescription(
-    'Print IDENTITY, ACESS, and device chrome. This is not a Message.',
+    'Print IDENTITY and ACESS. Optional --device wraps the product tree.',
   ),
 )
 
@@ -79,8 +83,16 @@ const doCommand = Command.make(
   ),
 )
 
+const replay = Command.make('replay', { tape: tapeFlag }, ({ tape }) =>
+  runReplay(tape),
+).pipe(
+  Command.withDescription(
+    'Step a Program tape. Print Model, valid, and screen after each frame.',
+  ),
+)
+
 const counter = Command.make('counter').pipe(
-  Command.withSubcommands([show, doCommand]),
+  Command.withSubcommands([show, doCommand, replay]),
 )
 
 Command.run(counter, { version: '0.0.0' }).pipe(
