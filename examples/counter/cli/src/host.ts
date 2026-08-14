@@ -27,12 +27,18 @@ import { Runtime } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 import { readFileSync } from 'node:fs'
 
+import { commitSharedMessage } from '@foldkit/instant'
+
+import { type CounterTape, withCounterTape } from './tape.js'
+
 /** CLI failure for a bad token, Device, or tape. */
 export class CounterCliError extends Data.TaggedError('CounterCliError')<{
   readonly message: string
 }> {}
 
-const freshModel = (): Effect.Effect<Model> =>
+const projectMessages = (
+  messages: ReadonlyArray<Message>,
+): Effect.Effect<Model> =>
   Effect.scoped(
     Effect.gen(function* () {
       const runtime = yield* Effect.orDie(
@@ -41,8 +47,24 @@ const freshModel = (): Effect.Effect<Model> =>
           resources: Layer.empty,
         }),
       )
-      return yield* runtime.initialization
+      yield* runtime.initialization
+      yield* Effect.forEach(messages, message => runtime.run(message), {
+        discard: true,
+      })
+      return runtime.readModel()
     }),
+  )
+
+const tapeError = (): CounterCliError =>
+  new CounterCliError({
+    message: 'Cannot append the Instant tape.',
+  })
+
+const modelFromTape = (
+  tape: CounterTape,
+): Effect.Effect<Model, CounterCliError> =>
+  Effect.flatMap(tape.readAcceptedMessages, projectMessages).pipe(
+    Effect.mapError(() => tapeError()),
   )
 
 const runThroughRuntime = (
@@ -93,17 +115,25 @@ export type CliExecution = Readonly<{
   initialModel: Model
   maybeMessage: Option.Option<Message>
   finalModel: Model
+  link: 'offline' | 'queued' | 'delivered'
   stdout: string
+}>
+
+/** Optional Instant tape for one CLI execution. */
+export type CliTapeOptions = Readonly<{
+  tape?: CounterTape
 }>
 
 /** Prints IDENTITY and ACESS. Optional `--device` wraps the product tree. */
 export const executeShow = (
   deviceRaw: string | undefined,
   path: string | undefined,
+  options: CliTapeOptions = {},
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
     const device = yield* parseDevice(deviceRaw)
-    const initialModel = yield* freshModel()
+    const tape = yield* withCounterTape(Option.fromNullishOr(options.tape))
+    const initialModel = yield* modelFromTape(tape)
     const stdout = renderShow(initialModel, {
       ...showContext(device),
       ...(path === undefined ? {} : { path }),
@@ -112,16 +142,19 @@ export const executeShow = (
       initialModel,
       maybeMessage: Option.none(),
       finalModel: initialModel,
+      link: 'offline',
       stdout,
     }
   })
 
-/** Sends one semantic token, then auto-shows. The process starts at count 0. */
+/** Sends one semantic token, then auto-shows. */
 export const executeDo = (
   token: string,
+  options: CliTapeOptions = {},
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
-    const initialModel = yield* freshModel()
+    const tape = yield* withCounterTape(Option.fromNullishOr(options.tape))
+    const initialModel = yield* modelFromTape(tape)
     const action = actionByToken(token.trim().toLowerCase())
     if (action === undefined) {
       return yield* Effect.fail(
@@ -141,19 +174,19 @@ export const executeDo = (
         initialModel,
         maybeMessage: Option.none(),
         finalModel: initialModel,
+        link: 'offline',
         stdout,
       }
     }
 
     const message = action()
-    const finalModel = yield* runThroughRuntime(
-      initialModel,
-      Option.some(message),
-    )
+    const commit = yield* commitSharedMessage(tape, message, () =>
+      runThroughRuntime(initialModel, Option.some(message)),
+    ).pipe(Effect.mapError(() => tapeError()))
     const last: LastAction = {
       command: action.command ?? token,
       event: action.event ?? token,
-      sideEffects: ['tape append', 'link  offline'],
+      sideEffects: ['tape append', `link  ${commit.accepted}`],
     }
     const receipt = renderReceipt({
       token: tokenOf(action),
@@ -165,12 +198,12 @@ export const executeDo = (
       mutate: action.mutate ?? '',
       sideEffects: action.sideEffects ?? '(none)',
       tape: 'appended',
-      link: 'offline',
+      link: commit.accepted,
     })
     const stdout = [
       receipt,
       '',
-      renderShow(finalModel, {
+      renderShow(commit.result, {
         ...showContext(undefined),
         last,
       }),
@@ -178,7 +211,8 @@ export const executeDo = (
     return {
       initialModel,
       maybeMessage: Option.some(message),
-      finalModel,
+      finalModel: commit.result,
+      link: commit.accepted,
       stdout,
     }
   })
