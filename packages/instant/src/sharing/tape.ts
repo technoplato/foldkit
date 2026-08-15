@@ -180,7 +180,8 @@ const linkFor = (
   return tapeLinkFromOutcome(outcome)
 }
 
-const lastAcceptedSequence = (
+/** Newest accepted sequence on a same-actor tape. Empty history is 0. */
+export const lastAcceptedSequence = (
   occurrences: ReadonlyArray<InstantAcceptedMessageOccurrenceRecord>,
 ): number =>
   Option.getOrElse(
@@ -444,6 +445,52 @@ export const commitSharedMessage = <Message, A, E = never, R = never>(
     const result = yield* applyUpdate()
     const accepted = yield* tape.appendAcceptedMessage(message)
     return { accepted, proposed, result }
+  })
+
+/**
+ * Applies remote accepted Messages after this Processor has folded history.
+ * Skips this Processor's own writes. The host still calls update.
+ */
+export const observeRemoteAcceptedMessages = <
+  Message,
+  E = never,
+  R = never,
+>(
+  tape: SharedProgramTape<Message>,
+  originatingProcessorId: string,
+  applyMessage: (
+    message: Message,
+    occurrence: InstantAcceptedMessageOccurrenceRecord,
+  ) => Effect.Effect<void, E, R>,
+): Effect.Effect<void, ProgramStoreError | E, R> =>
+  Effect.gen(function* () {
+    const startOccurrences = yield* tape.readAcceptedOccurrences
+    let appliedSequence = lastAcceptedSequence(startOccurrences)
+    yield* tape.observeAcceptedOccurrences.pipe(
+      Stream.runForEach(occurrences =>
+        Effect.forEach(occurrences, occurrence => {
+          if (occurrence.acceptedSequence <= appliedSequence) {
+            return Effect.void
+          }
+          if (occurrence.originatingProcessorId === originatingProcessorId) {
+            appliedSequence = occurrence.acceptedSequence
+            return Effect.void
+          }
+          return Effect.gen(function* () {
+            const messages = yield* tape.readAcceptedMessages
+            const maybeMessage = Array.get(
+              messages,
+              occurrence.acceptedSequence - 1,
+            )
+            if (Option.isNone(maybeMessage)) {
+              return
+            }
+            yield* applyMessage(maybeMessage.value, occurrence)
+            appliedSequence = occurrence.acceptedSequence
+          })
+        }),
+      ),
+    )
   })
 
 /**

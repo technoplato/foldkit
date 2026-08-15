@@ -6,12 +6,13 @@ import {
   MultipleCountersProgram,
   StaticCounterFactClient,
 } from 'counters-core-example'
-import { Array, Effect, Layer, Option, Stream } from 'effect'
+import { Array, Effect, Layer } from 'effect'
 import { Runtime } from 'foldkit'
 
 import {
   type ProgramStoreError,
   commitSharedMessage,
+  observeRemoteAcceptedMessages,
 } from '@foldkit/instant/browser'
 
 import { foldCountersMessages } from './fold.js'
@@ -21,17 +22,6 @@ import { type CountersTape } from './makeTape.js'
 export type CountersTapeCursor = {
   journalIndex: number
 }
-
-const lastAcceptedSequence = (
-  occurrences: ReadonlyArray<{ readonly acceptedSequence: number }>,
-): number =>
-  Option.getOrElse(
-    Option.map(
-      Array.last(occurrences),
-      occurrence => occurrence.acceptedSequence,
-    ),
-    () => 0,
-  )
 
 /** Writes Command-result Messages after they apply locally. */
 export const tapeJournaledCommandResults = (
@@ -107,34 +97,10 @@ export const observeRemoteCountersTape = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   processorId: string,
 ): Effect.Effect<void, ProgramStoreError> =>
-  Effect.gen(function* () {
-    const startOccurrences = yield* tape.readAcceptedOccurrences
-    let appliedSequence = lastAcceptedSequence(startOccurrences)
-    yield* tape.observeAcceptedOccurrences.pipe(
-      Stream.runForEach(occurrences =>
-        Effect.forEach(occurrences, occurrence => {
-          if (occurrence.acceptedSequence <= appliedSequence) {
-            return Effect.void
-          }
-          if (occurrence.originatingProcessorId === processorId) {
-            appliedSequence = occurrence.acceptedSequence
-            return Effect.void
-          }
-          return Effect.gen(function* () {
-            const messages = yield* tape.readAcceptedMessages
-            const maybeMessage = Array.get(
-              messages,
-              occurrence.acceptedSequence - 1,
-            )
-            if (Option.isNone(maybeMessage)) {
-              return
-            }
-            yield* runtime.run(maybeMessage.value, {
-              source: Runtime.fromAcceptedMessage(occurrence.occurrenceId),
-            })
-            appliedSequence = occurrence.acceptedSequence
-          })
-        }),
-      ),
-    )
-  })
+  observeRemoteAcceptedMessages(tape, processorId, (message, occurrence) =>
+    Effect.asVoid(
+      runtime.run(message, {
+        source: Runtime.fromAcceptedMessage(occurrence.occurrenceId),
+      }),
+    ),
+  )

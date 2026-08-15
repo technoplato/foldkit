@@ -7,18 +7,19 @@ import {
   actionByToken,
   actions,
   defaultShowContext,
+  foldCounterMessages,
   invalidActionLog,
   productView,
   renderReceipt,
   renderShow,
   tokenOf,
+  update,
 } from 'counter-core-example'
 import {
   Array,
   Console,
   Data,
   Effect,
-  Layer,
   Match as M,
   Option,
   Schema as S,
@@ -35,25 +36,6 @@ import { type CounterTape, withCounterTape } from './tape.js'
 export class CounterCliError extends Data.TaggedError('CounterCliError')<{
   readonly message: string
 }> {}
-
-const projectMessages = (
-  messages: ReadonlyArray<Message>,
-): Effect.Effect<Model> =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const runtime = yield* Effect.orDie(
-        Runtime.makeProgramRuntime({
-          program: CounterProgram,
-          resources: Layer.empty,
-        }),
-      )
-      yield* runtime.initialization
-      yield* Effect.forEach(messages, message => runtime.run(message), {
-        discard: true,
-      })
-      return runtime.readModel()
-    }),
-  )
 
 const tapeError = (): CounterCliError =>
   new CounterCliError({
@@ -75,29 +57,8 @@ const openTape = (
 const modelFromTape = (
   tape: CounterTape,
 ): Effect.Effect<Model, CounterCliError> =>
-  Effect.flatMap(tape.readAcceptedMessages, projectMessages).pipe(
+  Effect.map(tape.readAcceptedMessages, foldCounterMessages).pipe(
     Effect.mapError(() => tapeError()),
-  )
-
-const runThroughRuntime = (
-  model: Model,
-  maybeMessage: Option.Option<Message>,
-): Effect.Effect<Model> =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const runtime = yield* Effect.orDie(
-        Runtime.makeProgramRuntime({
-          program: CounterProgram,
-          resources: Layer.empty,
-          start: Runtime.fromModel(model),
-        }),
-      )
-      yield* runtime.initialization
-      if (Option.isSome(maybeMessage)) {
-        return yield* runtime.run(maybeMessage.value)
-      }
-      return runtime.readModel()
-    }),
   )
 
 const parseDevice = (
@@ -193,7 +154,10 @@ export const executeDo = (
 
     const message = action()
     const commit = yield* commitSharedMessage(tape, message, () =>
-      runThroughRuntime(initialModel, Option.some(message)),
+      Effect.sync(() => {
+        const [next] = update(initialModel, message)
+        return next
+      }),
     ).pipe(Effect.mapError(() => tapeError()))
     const last: LastAction = {
       command: action.command ?? token,

@@ -1,12 +1,10 @@
+import { counterDemoEmail } from 'counter-core-example'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 
 import { init } from '@instantdb/admin'
 
 import { counterDemoSessionPath } from './demoSessionPath.js'
-
-/** Shared Instant demo subject used by local Counter Processors. */
-export const counterDemoEmail = 'counter@foldkit.dev'
 
 const envValue = (name: string): string => {
   const value = process.env[name]

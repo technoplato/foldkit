@@ -11,10 +11,11 @@ import {
   counterProcessorIds,
   counterTapeIdentityFields,
   describeCounterWindowError,
+  foldCounterMessages,
   startCounterWindowRuntime,
   uri,
 } from 'counter-core-example'
-import { Array, Effect, Exit, Layer, Option, Scope, Stream } from 'effect'
+import { Effect, Exit, Layer, Scope } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 
 import {
@@ -24,6 +25,7 @@ import {
 import {
   commitSharedMessage,
   makeSharedProgramTape,
+  observeRemoteAcceptedMessages,
 } from '@foldkit/instant/sharing'
 import { init } from '@instantdb/core'
 
@@ -31,25 +33,6 @@ import { counterDemoSessionPath } from './demoSessionPath.js'
 import { view } from './view.js'
 
 const foldkitProcessorId = counterProcessorIds.foldkit
-
-const projectMessages = (
-  messages: ReadonlyArray<Message>,
-): Effect.Effect<Model> =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const runtime = yield* Effect.orDie(
-        Runtime.makeProgramRuntime({
-          program: CounterProgram,
-          resources: Layer.empty,
-        }),
-      )
-      yield* runtime.initialization
-      yield* Effect.forEach(messages, message => runtime.run(message), {
-        discard: true,
-      })
-      return runtime.readModel()
-    }),
-  )
 
 const readJsonToken = async (response: Response): Promise<string> => {
   if (!response.ok) {
@@ -132,58 +115,33 @@ const openInstantWindowTape = (
         now: () => Date.now(),
         store: makeInstantProgramStore(database),
       })
-      const acceptedOccurrences = yield* tape.readAcceptedOccurrences
       const accepted = yield* tape.readAcceptedMessages
-      const startModel = yield* projectMessages(accepted)
       const runtime = yield* Effect.orDie(
         Runtime.makeProgramRuntime({
           program: CounterProgram,
           resources: Layer.empty,
-          start: Runtime.fromModel(startModel),
+          start: Runtime.fromModel(foldCounterMessages(accepted)),
         }),
       )
       yield* runtime.initialization
-      let appliedSequence = Option.getOrElse(
-        Option.map(
-          Array.last(acceptedOccurrences),
-          occurrence => occurrence.acceptedSequence,
-        ),
-        () => 0,
-      )
-      yield* tape.observeAcceptedOccurrences.pipe(
-        Stream.runForEach(occurrences =>
-          Effect.forEach(occurrences, occurrence => {
-            if (occurrence.acceptedSequence <= appliedSequence) {
-              return Effect.void
-            }
-            if (occurrence.originatingProcessorId === foldkitProcessorId) {
-              appliedSequence = occurrence.acceptedSequence
-              return Effect.void
-            }
-            return Effect.gen(function* () {
-              const messages = yield* tape.readAcceptedMessages
-              const maybeMessage = Array.get(
-                messages,
-                occurrence.acceptedSequence - 1,
-              )
-              if (Option.isNone(maybeMessage)) {
-                return
-              }
-              yield* runtime.run(maybeMessage.value, {
+      yield* Effect.forkChild(
+        observeRemoteAcceptedMessages(
+          tape,
+          foldkitProcessorId,
+          (message, occurrence) =>
+            Effect.asVoid(
+              runtime.run(message, {
                 source: Runtime.fromAcceptedMessage(occurrence.occurrenceId),
-              })
-              appliedSequence = occurrence.acceptedSequence
-            })
-          }),
+              }),
+            ),
         ),
-        Effect.forkChild,
       )
       return {
         readModel: () => runtime.readModel(),
         send: (message: Message) =>
           Effect.runPromise(
-            commitSharedMessage(tape, message, () => runtime.run(message)).pipe(
-              Effect.asVoid,
+            Effect.asVoid(
+              commitSharedMessage(tape, message, () => runtime.run(message)),
             ),
           ),
         stop: () => {

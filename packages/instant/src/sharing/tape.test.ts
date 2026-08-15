@@ -1,4 +1,4 @@
-import { Array, Effect, Option, Schema as S } from 'effect'
+import { Array, Effect, Option, Schema as S, Stream } from 'effect'
 import { Processor } from 'foldkit'
 import { expect } from 'vitest'
 
@@ -9,7 +9,11 @@ import {
   type ProgramStoreService,
   enqueuedTransactionOutcome,
 } from '../programStore/index.js'
-import { commitSharedMessage, makeSharedProgramTape } from './tape.js'
+import {
+  commitSharedMessage,
+  makeSharedProgramTape,
+  observeRemoteAcceptedMessages,
+} from './tape.js'
 
 const Increment = S.TaggedStruct('Increment', {})
 const Decrement = S.TaggedStruct('Decrement', {})
@@ -154,6 +158,83 @@ describe('same-actor Instant tape', () => {
       )
       expect(commit.proposed).toBe('offline')
       expect(commit.accepted).toBe('offline')
+    }),
+  )
+
+  it.effect('applies a remote accepted Message to the other Processor', () =>
+    Effect.gen(function* () {
+      const store = yield* makeInMemoryProgramStore()
+      const cli = yield* makeTape(store, 'cli')
+      const foldkit = yield* makeTape(store, 'foldkit')
+      yield* commitSharedMessage(cli, Increment.make({}), () =>
+        Effect.succeed(1),
+      )
+      const accepted = yield* cli.readAcceptedOccurrences
+      const applied: Array<string> = []
+      yield* observeRemoteAcceptedMessages(
+        {
+          ...foldkit,
+          observeAcceptedOccurrences: Stream.succeed(accepted),
+          readAcceptedOccurrences: Effect.succeed([]),
+        },
+        'foldkit',
+        message =>
+          Effect.sync(() => {
+            applied.push(message._tag)
+          }),
+      )
+      expect(applied).toEqual(['Increment'])
+    }),
+  )
+
+  it.effect('skips this Processor own accepted writes', () =>
+    Effect.gen(function* () {
+      const store = yield* makeInMemoryProgramStore()
+      const cli = yield* makeTape(store, 'cli')
+      yield* commitSharedMessage(cli, Increment.make({}), () =>
+        Effect.succeed(1),
+      )
+      const accepted = yield* cli.readAcceptedOccurrences
+      const applied: Array<string> = []
+      yield* observeRemoteAcceptedMessages(
+        {
+          ...cli,
+          observeAcceptedOccurrences: Stream.succeed(accepted),
+          readAcceptedOccurrences: Effect.succeed([]),
+        },
+        'cli',
+        message =>
+          Effect.sync(() => {
+            applied.push(message._tag)
+          }),
+      )
+      expect(applied).toEqual([])
+    }),
+  )
+
+  it.effect('skips history this Processor already folded', () =>
+    Effect.gen(function* () {
+      const store = yield* makeInMemoryProgramStore()
+      const cli = yield* makeTape(store, 'cli')
+      const foldkit = yield* makeTape(store, 'foldkit')
+      yield* commitSharedMessage(cli, Increment.make({}), () =>
+        Effect.succeed(1),
+      )
+      const accepted = yield* cli.readAcceptedOccurrences
+      const applied: Array<string> = []
+      yield* observeRemoteAcceptedMessages(
+        {
+          ...foldkit,
+          observeAcceptedOccurrences: Stream.succeed(accepted),
+          readAcceptedOccurrences: Effect.succeed(accepted),
+        },
+        'foldkit',
+        message =>
+          Effect.sync(() => {
+            applied.push(message._tag)
+          }),
+      )
+      expect(applied).toEqual([])
     }),
   )
 })
