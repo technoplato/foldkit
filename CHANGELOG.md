@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 8:35:58 p.m. EDT — `7a3ca621437f` feat(counters): keep native Instant tape off browser hosts
+
+- **Implementation commit:** `7a3ca621437f340e5a988a2ee08807ac65dd66dd`
+- **Change:** Keep native Instant tape off browser Counters hosts and live-click SvelteKit, Three, and OpenTUI.
+- **Details:**
+  - SvelteKit failed because the Instant host barrel exported native hosted-identity. Native tape is now counters-instant-example/native.
+  - Three writes canvas pick targets for counter-1. A SwiftShader canvas click moved counter-1 from 7 to 8.
+  - SvelteKit Increment moved counter-1 from 6 to 7. OpenTUI j then + moved it from 8 to 9. CLI show printed counter-1 9.
+  - Parent Instant issue https://issues.knophy.com/issues/207
+- **Files:**
+  - `examples/counters/instant-host/src/index.ts` — Stop exporting native tape from the browser Instant host barrel.
+  - `examples/counters/instant-host/package.json` — Export native Instant tape as counters-instant-example/native.
+  - `examples/counters/expo/src/App.tsx` — Import native Instant tape from the native export.
+  - `examples/counters/three/src/scene.ts` — Write canvas pick targets for a counter-1 increment click.
+- **User context (verbatim):**
+  > Finish live-click SvelteKit, Three, and TUI Instant hosts.
+  > Expo stays unproven with no device.
+- **SpecStory:** unavailable — Grok desktop session. SpecStory has no documented capture for this host.
+
 ## August 14th, 2026 at 8:25:35 p.m. EDT — `f1b995f3c649` feat(counters): load Instant tape without Node browser stores
 
 - **Implementation commit:** `f1b995f3c649feae71d8a0bd2bfc420eae8181d4`
