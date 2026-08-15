@@ -1,21 +1,17 @@
 import {
   Message,
-  counterTapeProgramId,
-  counterTapeProgramVersion,
+  counterDemoEmail,
+  counterInstantSessionId,
+  counterTapeIdentityFields,
 } from 'counter-core-example'
 import { Data, Effect } from 'effect'
 import { Processor } from 'foldkit'
 
-import {
-  makeAdminInstantProgramStore,
-  makeSharedProgramTape,
-} from '@foldkit/instant'
+import { makeAdminInstantProgramStore } from '@foldkit/instant'
+import { makeSharedProgramTape } from '@foldkit/instant/sharing'
 import { init as initInstantAdmin } from '@instantdb/admin'
 
 import { type CounterTape } from './tape.js'
-
-const counterDemoEmail = 'counter@foldkit.dev'
-const counterInstantSessionId = 'counter-session'
 
 /** Live Instant tape could not be opened. */
 export class CounterInstantTapeError extends Data.TaggedError(
@@ -69,14 +65,11 @@ export const makeInstantCounterTape = (
       eventId: message => message._tag,
       identity: {
         actor: Processor.AuthenticatedActor.make({ subjectId: user.id }),
-        actorId: user.id,
-        clientId: processorId,
-        originDeviceId: 'computer',
-        originatingProcessorId: processorId,
-        programId: counterTapeProgramId,
-        programVersion: counterTapeProgramVersion,
-        sessionId: counterInstantSessionId,
-        subjectId: user.id,
+        ...counterTapeIdentityFields(
+          processorId,
+          user.id,
+          counterInstantSessionId,
+        ),
       },
       makeId: () => crypto.randomUUID(),
       now: () => Date.now(),

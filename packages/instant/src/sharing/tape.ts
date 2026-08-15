@@ -1,3 +1,9 @@
+/**
+ * Same-actor Instant Program tape.
+ * This module is the `@foldkit/instant/sharing` package.
+ * Instant holds one Message list. The host writes before update and after
+ * update. This service never calls update.
+ */
 import {
   Array,
   Effect,

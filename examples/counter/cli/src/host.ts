@@ -27,7 +27,7 @@ import { Runtime } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 import { readFileSync } from 'node:fs'
 
-import { commitSharedMessage } from '@foldkit/instant'
+import { commitSharedMessage } from '@foldkit/instant/sharing'
 
 import { type CounterTape, withCounterTape } from './tape.js'
 

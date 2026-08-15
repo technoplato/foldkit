@@ -1,25 +1,21 @@
 import {
   Message,
-  counterTapeProgramId,
-  counterTapeProgramVersion,
+  counterDemoEmail,
+  counterInstantSessionId,
+  counterProcessorIds,
+  counterTapeIdentityFields,
 } from 'counter-core-example'
 import { Data, Effect, Option } from 'effect'
 import { Processor } from 'foldkit'
 
+import { makeAdminInstantProgramStore } from '@foldkit/instant'
 import {
   type SharedProgramTapeIdentity,
-  makeAdminInstantProgramStore,
   makeSharedProgramTape,
-} from '@foldkit/instant'
+} from '@foldkit/instant/sharing'
 import { init as initInstantAdmin } from '@instantdb/admin'
 
 import { type CounterTape } from './tape.js'
-
-/** Shared Instant demo subject used by local Counter Processors. */
-export const counterDemoEmail = 'counter@foldkit.dev'
-
-/** Instant session id shared by every Counter Processor of one subject. */
-export const counterInstantSessionId = 'counter-session'
 
 /** Live Instant tape could not be opened. */
 export class CounterInstantTapeError extends Data.TaggedError(
@@ -30,7 +26,7 @@ export class CounterInstantTapeError extends Data.TaggedError(
 
 const processorIdFrom = (value: string | undefined): string => {
   if (value === undefined || value === '') {
-    return 'cli'
+    return counterProcessorIds.cli
   }
   return value
 }
@@ -41,14 +37,7 @@ export const counterInstantTapeIdentity = (
   subjectId: string,
 ): SharedProgramTapeIdentity => ({
   actor: Processor.AuthenticatedActor.make({ subjectId }),
-  actorId: subjectId,
-  clientId: processorId,
-  originDeviceId: 'computer',
-  originatingProcessorId: processorId,
-  programId: counterTapeProgramId,
-  programVersion: counterTapeProgramVersion,
-  sessionId: counterInstantSessionId,
-  subjectId,
+  ...counterTapeIdentityFields(processorId, subjectId, counterInstantSessionId),
 })
 
 /** Opens the live Instant tape for one Counter Processor. */

@@ -1,7 +1,7 @@
 import {
   Message,
-  counterTapeProgramId,
-  counterTapeProgramVersion,
+  counterProcessorIds,
+  counterTapeIdentityFields,
   localCounterSessionId,
   localCounterSubjectId,
 } from 'counter-core-example'
@@ -12,13 +12,15 @@ import { join } from 'node:path'
 
 import {
   type ProgramStoreService,
+  makeFileProgramStore,
+  makeInMemoryProgramStore,
+} from '@foldkit/instant'
+import {
   type SharedProgramTape,
   type SharedProgramTapeIdentity,
   type TapeLink,
-  makeFileProgramStore,
-  makeInMemoryProgramStore,
   makeSharedProgramTape,
-} from '@foldkit/instant'
+} from '@foldkit/instant/sharing'
 
 import {
   CounterInstantTapeError,
@@ -30,7 +32,7 @@ export type CounterTape = SharedProgramTape<Message>
 
 const processorIdFrom = (value: string | undefined): string => {
   if (value === undefined || value === '') {
-    return 'cli'
+    return counterProcessorIds.cli
   }
   return value
 }
@@ -40,17 +42,15 @@ export const counterTapeIdentity = (
   processorId: string,
 ): SharedProgramTapeIdentity => ({
   actor: Processor.SystemActor.make({ processorId }),
-  actorId: localCounterSubjectId,
-  clientId: processorId,
-  originDeviceId: 'computer',
-  originatingProcessorId: processorId,
-  programId: counterTapeProgramId,
-  programVersion: counterTapeProgramVersion,
-  sessionId: localCounterSessionId,
-  subjectId: localCounterSubjectId,
+  ...counterTapeIdentityFields(
+    processorId,
+    localCounterSubjectId,
+    localCounterSessionId,
+  ),
 })
 
-const makeTape = (
+/** Builds a Counter tape over an existing Instant Program store. */
+export const makeCounterTapeOnStore = (
   store: ProgramStoreService,
   processorId: string,
   link: TapeLink,
@@ -67,21 +67,21 @@ const makeTape = (
 
 /** In-memory Instant tape. The process dies with the count. */
 export const makeMemoryCounterTape = (
-  processorId = 'cli',
+  processorId: string = counterProcessorIds.cli,
 ): Effect.Effect<CounterTape> =>
   Effect.gen(function* () {
     const store = yield* makeInMemoryProgramStore()
-    return yield* makeTape(store, processorId, 'offline')
+    return yield* makeCounterTapeOnStore(store, processorId, 'offline')
   })
 
 /** File Instant tape. The offline outbox shared by local Processors. */
 export const makeFileCounterTape = (
   path: string,
-  processorId = 'cli',
+  processorId: string = counterProcessorIds.cli,
 ): Effect.Effect<CounterTape> =>
   Effect.gen(function* () {
     const store = yield* makeFileProgramStore(path)
-    return yield* makeTape(store, processorId, 'offline')
+    return yield* makeCounterTapeOnStore(store, processorId, 'offline')
   })
 
 /** Default file path for a local Counter tape. */
