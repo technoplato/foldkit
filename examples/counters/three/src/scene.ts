@@ -190,6 +190,19 @@ export const createCountersScene = (
       }
     })
     camera.lookAt(0, 1.1, 0)
+    const canvas = renderer.domElement
+    const rect = canvas.getBoundingClientRect()
+    const plusPoint = new THREE.Vector3()
+    for (const [id, meshes] of rows) {
+      meshes.plus.getWorldPosition(plusPoint)
+      plusPoint.project(camera)
+      const clientX = rect.left + ((plusPoint.x + 1) / 2) * rect.width
+      const clientY = rect.top + ((1 - plusPoint.y) / 2) * rect.height
+      if (id === 'counter-1') {
+        canvas.dataset.incrementCounter1X = clientX.toFixed(1)
+        canvas.dataset.incrementCounter1Y = clientY.toFixed(1)
+      }
+    }
     renderer.render(scene, camera)
     frameHandle = requestAnimationFrame(animate)
   }
