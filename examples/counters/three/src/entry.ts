@@ -1,12 +1,11 @@
-import * as Counter from 'counter-core-example'
+import { type Model } from 'counters-core-example'
 import {
-  ClickedAddCounter,
-  GotCounterMessage,
-  MultipleCountersProgram,
-  type Model,
-} from 'counters-core-example'
-import { Effect, Layer } from 'effect'
-import { Runtime } from 'foldkit'
+  addCounterMessage,
+  countersProcessorIds,
+  decrementCounterMessage,
+  incrementCounterMessage,
+  launchBrowserCountersHost,
+} from 'counters-instant-example'
 
 import { createCountersScene } from './scene.js'
 
@@ -18,56 +17,25 @@ if (root === null) {
 const rowsFromModel = (model: Model) =>
   model.rows.map(row => ({ id: row.id, count: row.counter.count }))
 
-const nextCounterId = (model: Model): string => {
-  const used = new Set(model.rows.map(row => row.id))
-  for (const retired of model.retiredCounterIds) {
-    used.add(retired)
-  }
-  let index = model.rows.length + 1
-  let candidate = `counter-${String(index)}`
-  while (used.has(candidate)) {
-    index += 1
-    candidate = `counter-${String(index)}`
-  }
-  return candidate
-}
+const appId = import.meta.env.VITE_INSTANT_APP_ID
 
-const start = Effect.gen(function* () {
-  const runtime = yield* Effect.orDie(
-    Runtime.makeProgramRuntime({
-      program: MultipleCountersProgram,
-      resources: Layer.empty,
-    }),
-  )
-  yield* runtime.initialization
+void launchBrowserCountersHost(
+  countersProcessorIds.threejs,
+  typeof appId === 'string' && appId !== '' ? appId : undefined,
+).then(host => {
   const scene = createCountersScene(root, {
     onIncrement: counterId => {
-      runtime.send(
-        GotCounterMessage({
-          counterId,
-          message: Counter.Increment(),
-        }),
-      )
+      host.send(incrementCounterMessage(counterId))
     },
     onDecrement: counterId => {
-      runtime.send(
-        GotCounterMessage({
-          counterId,
-          message: Counter.Decrement(),
-        }),
-      )
+      host.send(decrementCounterMessage(counterId))
     },
     onAdd: () => {
-      runtime.send(
-        ClickedAddCounter({ counterId: nextCounterId(runtime.readModel()) }),
-      )
+      host.send(addCounterMessage(host.readModel()))
     },
   })
-  scene.syncState({ rows: rowsFromModel(runtime.readModel()) })
-  runtime.observeModel(model => {
+  scene.syncState({ rows: rowsFromModel(host.readModel()) })
+  host.subscribe(model => {
     scene.syncState({ rows: rowsFromModel(model) })
   })
-  yield* Effect.never
 })
-
-Effect.runFork(Effect.scoped(start))

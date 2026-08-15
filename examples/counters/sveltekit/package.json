@@ -1,0 +1,34 @@
+{
+  "name": "counters-sveltekit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "../scripts/with-public-instant-env vite dev --port 5211",
+    "predev": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "pretest": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "pretypecheck": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "counters-core-example": "workspace:*",
+    "counters-instant-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "svelte": "^5.38.0"
+  },
+  "devDependencies": {
+    "@instantdb/admin": "1.0.53",
+    "@sveltejs/adapter-auto": "^6.1.0",
+    "@sveltejs/kit": "^2.36.0",
+    "@sveltejs/vite-plugin-svelte": "^6.1.0",
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}

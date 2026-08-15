@@ -1,11 +1,5 @@
 /// <reference types="vite/client" />
 
-declare module 'three'
-
 interface ImportMetaEnv {
   readonly VITE_INSTANT_APP_ID?: string
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
 }
