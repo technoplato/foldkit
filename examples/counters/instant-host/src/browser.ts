@@ -1,10 +1,6 @@
 import { Effect } from 'effect'
 
-import {
-  InstantProgramSchema,
-  ensureHostedInstantSession,
-  makeInstantProgramStore,
-} from '@foldkit/instant'
+import { InstantProgramSchema, makeInstantProgramStore } from '@foldkit/instant'
 import { init } from '@instantdb/core'
 
 import { countersDemoSessionPath } from './identity.js'
@@ -45,7 +41,6 @@ export const openBrowserCountersTape = (
 ): Effect.Effect<CountersTape | null> =>
   Effect.gen(function* () {
     const database = init({ appId, schema: InstantProgramSchema })
-    yield* Effect.promise(() => ensureHostedInstantSession(database))
     yield* Effect.promise(() => signInDemoSession(database, sessionPath))
     const user = yield* Effect.promise(() => database.getAuth())
     if (user === null) {
