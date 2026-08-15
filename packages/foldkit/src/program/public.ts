@@ -50,7 +50,10 @@ export type {
   Program,
   ProgramCommand,
   ProgramSchema,
+  ProgramScreen,
   ProgramSynchronization,
+  ProgramValid,
+  ProgramValidAction,
   ResourcesOf,
 } from './program.js'
 

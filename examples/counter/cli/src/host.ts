@@ -5,15 +5,14 @@ import {
   type Message,
   type Model,
   actionByToken,
-  actions,
+  counterScreen,
+  counterValid,
   defaultShowContext,
   foldCounterMessages,
   invalidActionLog,
-  productView,
   renderReceipt,
   renderShow,
   tokenOf,
-  update,
 } from 'counter-core-example'
 import {
   Array,
@@ -136,7 +135,10 @@ export const executeDo = (
         }),
       )
     }
-    const isValid = action.valid(initialModel, {})
+    const isValid = Array.some(
+      counterValid(initialModel, {}),
+      item => item.token === tokenOf(action) && item.valid,
+    )
     if (!isValid) {
       const stdout = [
         invalidActionLog(token, initialModel),
@@ -155,7 +157,7 @@ export const executeDo = (
     const message = action()
     const commit = yield* commitSharedMessage(tape, message, () =>
       Effect.sync(() => {
-        const [next] = update(initialModel, message)
+        const [next] = CounterProgram.update(initialModel, message)
         return next
       }),
     ).pipe(Effect.mapError(() => tapeError()))
@@ -211,17 +213,25 @@ const describeTapeError = (error: Runtime.ReplayTapeDecodeError): string =>
     }),
   )
 
-const validLine = (model: Model): string =>
-  Array.map(actions, action => {
-    const token = tokenOf(action)
-    const isValid = action.valid(model, {})
-    return `  ${token.padEnd(12)}${isValid ? 'true' : 'false'}`
+const validLine = (
+  items: ReadonlyArray<{
+    readonly token: string
+    readonly valid: boolean
+  }>,
+): string =>
+  Array.map(items, item => {
+    return `  ${item.token.padEnd(12)}${item.valid ? 'true' : 'false'}`
   }).join('\n')
 
 const formatReplayFrame = (
   frame: number,
   model: Model,
   maybeMessage: Option.Option<Message>,
+  valid: ReadonlyArray<{
+    readonly token: string
+    readonly valid: boolean
+  }>,
+  screen: ReturnType<typeof counterScreen>,
 ): string => {
   const messageLine = Option.match(maybeMessage, {
     onNone: () => '  (none)',
@@ -234,9 +244,9 @@ const formatReplayFrame = (
     'STATE',
     `  count    ${model.count.toString()}`,
     'VALID',
-    validLine(model),
+    validLine(valid),
     'SCREEN',
-    renderScreen(productView(model)),
+    renderScreen(screen),
   ].join('\n')
 }
 
@@ -268,8 +278,8 @@ export const executeReplay = (
     )
     const frames = Array.range(0, tape.transitions.length)
     const rendered = yield* Effect.forEach(frames, frame =>
-      Runtime.replayToFrame(CounterProgram, tape, frame).pipe(
-        Effect.map(model => {
+      Runtime.inspectReplayFrame(CounterProgram, tape, frame).pipe(
+        Effect.map(inspection => {
           const maybeMessage =
             frame === 0
               ? Option.none()
@@ -277,9 +287,18 @@ export const executeReplay = (
                   Array.get(tape.transitions, frame - 1),
                   transition => transition.message,
                 )
+          const screen = Option.getOrElse(inspection.screen, () =>
+            counterScreen(inspection.model),
+          )
           return {
-            model,
-            block: formatReplayFrame(frame, model, maybeMessage),
+            model: inspection.model,
+            block: formatReplayFrame(
+              frame,
+              inspection.model,
+              maybeMessage,
+              inspection.valid,
+              screen,
+            ),
           }
         }),
         Effect.mapError(

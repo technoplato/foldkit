@@ -2,6 +2,7 @@ import {
   CounterProgram,
   type CounterWindowActions,
   type CounterWindowModel,
+  type CounterWindowRuntime,
   type CounterWindowTape,
   FailedCounterSession,
   Message,
@@ -158,6 +159,14 @@ const openInstantWindowTape = (
   )
 }
 
+/** Surfaces a Foldkit attach failure as FailedWindow. The page must not stay blank. */
+export const reportAttachedFoldkitFailure = (
+  runtime: Pick<CounterWindowRuntime, 'fail'>,
+  error: unknown,
+): void => {
+  runtime.fail(describeCounterWindowError(error))
+}
+
 const attachProduct = (
   container: HTMLElement,
   runtime: ReturnType<typeof startCounterWindowRuntime>,
@@ -192,7 +201,9 @@ const attachProduct = (
   )
   attached.then(
     () => undefined,
-    () => undefined,
+    error => {
+      reportAttachedFoldkitFailure(runtime, error)
+    },
   )
   return () => {
     const closing = Effect.runPromise(Scope.close(scope, Exit.void))

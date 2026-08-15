@@ -3,6 +3,7 @@ import { Array, Option, Schema as S } from 'effect'
 import { Device, renderChrome } from './chrome.js'
 import { type Action, actions, tokenOf } from './message.js'
 import { type Model, title, uri } from './model.js'
+import { counterValid } from './program.js'
 
 /** Focus among valid Actions. TV chrome can stay on increment. */
 export const Focus = S.Literals(['increment', 'decrement', 'reset'])
@@ -52,8 +53,16 @@ const formatList = (values: ReadonlyArray<string>): string =>
 const formatSpoken = (values: ReadonlyArray<string>): string =>
   `[${Array.map(values, value => `"${value}"`).join(', ')}]`
 
-const isActionValid = (action: Action, model: Model): boolean =>
-  action.valid(model, {})
+const validItemOf = (action: Action, model: Model) =>
+  Array.findFirst(
+    counterValid(model, {}),
+    item => item.token === tokenOf(action),
+  )
+
+const isActionValid = (action: Action, model: Model): boolean => {
+  const maybeItem = validItemOf(action, model)
+  return Option.isSome(maybeItem) && maybeItem.value.valid
+}
 
 const renderAction = (action: Action, model: Model, focus: Focus): string => {
   const token = tokenOf(action)
@@ -74,10 +83,10 @@ const renderAction = (action: Action, model: Model, focus: Focus): string => {
   if (token === focus) {
     lines.push(actionField('focus', 'here'))
   }
-  if (!isValid && action.hiddenBecause !== undefined) {
-    const reason = action.hiddenBecause(model)
-    if (reason !== undefined) {
-      lines.push(actionField('hidden', reason))
+  if (!isValid) {
+    const maybeItem = validItemOf(action, model)
+    if (Option.isSome(maybeItem) && maybeItem.value.hidden !== undefined) {
+      lines.push(actionField('hidden', maybeItem.value.hidden))
     }
   }
   return lines.join('\n')

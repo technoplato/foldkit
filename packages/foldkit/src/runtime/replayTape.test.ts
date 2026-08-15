@@ -1,4 +1,4 @@
-import { Effect, Match as M, Option, Schema as S } from 'effect'
+import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
 import { expect } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
@@ -6,6 +6,7 @@ import { describe, it } from '@effect/vitest'
 import * as Command from '../command/index.js'
 import { m } from '../message/index.js'
 import { make } from '../program/program.js'
+import { Text } from '../renderers/elements.js'
 import {
   fromCommand,
   fromHost,
@@ -17,6 +18,7 @@ import {
   decodeReplayTape,
   encodeReplayTape,
   fromJournal,
+  inspectReplayFrame,
   replayToFrame,
 } from './replayTape.js'
 
@@ -121,6 +123,74 @@ describe('typed Program history and replay tapes', () => {
         expect(saveCount).toBe(0)
         expect(auditCount).toBe(0)
       }),
+  )
+
+  it.effect('inspects valid and screen from the Program at a tape frame', () =>
+    Effect.gen(function* () {
+      const CountModel = S.Struct({ count: S.Number })
+      type CountModel = typeof CountModel.Type
+      const Bump = m('Bump')
+      const CountMessage = S.Union([Bump])
+      type CountMessage = typeof CountMessage.Type
+      const CountProgram = make({
+        id: 'inspect-count',
+        version: 1,
+        Model: CountModel,
+        Message: CountMessage,
+        init: () => [CountModel.make({ count: 0 }), []],
+        update: (model: CountModel) => [
+          CountModel.make({ count: model.count + 1 }),
+          [],
+        ],
+        valid: (model: CountModel) => [
+          {
+            token: 'bump',
+            keys: ['+'],
+            spoken: ['bump'],
+            valid: true,
+          },
+          {
+            token: 'reset',
+            keys: ['r'],
+            spoken: ['reset'],
+            valid: model.count !== 0,
+          },
+        ],
+        screen: (model: CountModel) => Text(String(model.count)),
+      })
+      const journal = makeProgramJournal({
+        program: CountProgram,
+        initialModel: CountModel.make({ count: 0 }),
+        now: () => 1,
+      })
+      journal.record({
+        message: Bump(),
+        source: fromHost('bump'),
+        isOperationSettled: true,
+        commands: [],
+        model: CountModel.make({ count: 1 }),
+      })
+      const tape = fromJournal(CountProgram, journal.read())
+      const start = yield* inspectReplayFrame(CountProgram, tape, 0)
+      const next = yield* inspectReplayFrame(CountProgram, tape, 1)
+
+      expect(start.model).toStrictEqual({ count: 0 })
+      expect(start.valid).toStrictEqual([
+        { token: 'bump', keys: ['+'], spoken: ['bump'], valid: true },
+        { token: 'reset', keys: ['r'], spoken: ['reset'], valid: false },
+      ])
+      expect(Option.isSome(start.screen) && start.screen.value).toEqual(
+        Text('0'),
+      )
+      expect(next.model).toStrictEqual({ count: 1 })
+      expect(Option.getOrUndefined(Array.get(next.valid, 1))).toEqual({
+        token: 'reset',
+        keys: ['r'],
+        spoken: ['reset'],
+        valid: true,
+      })
+      expect(Option.isSome(next.screen) && next.screen.value).toEqual(Text('1'))
+    }),
   )
 
   it.effect('round-trips encoded Messages and causal metadata', () =>

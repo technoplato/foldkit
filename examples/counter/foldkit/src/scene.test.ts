@@ -14,7 +14,7 @@ describe('view', () => {
       Scene.expect(Scene.text('0')).toExist(),
       Scene.expect(Scene.role('button', { name: '+' })).toExist(),
       Scene.expect(Scene.role('button', { name: '-' })).toExist(),
-      Scene.expect(Scene.role('button', { name: 'Reset' })).not.toExist(),
+      Scene.expect(Scene.role('button', { name: 'reset' })).not.toExist(),
     )
   })
 
@@ -51,7 +51,7 @@ describe('view', () => {
     Scene.scene(
       { update, view },
       Scene.with({ count: 42 }),
-      Scene.click(Scene.role('button', { name: 'Reset' })),
+      Scene.click(Scene.role('button', { name: 'reset' })),
       Scene.expect(Scene.text('0')).toExist(),
     )
   })

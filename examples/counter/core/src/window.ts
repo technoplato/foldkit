@@ -1,7 +1,8 @@
-import { Equal, Match as M, Schema as S } from 'effect'
+import { Array, Equal, Match as M, Schema as S } from 'effect'
 
 import { Decrement, Increment, type Message, Reset } from './message.js'
 import { type Model, initialCount, uri } from './model.js'
+import { counterValid } from './program.js'
 import { localCounterSubjectId } from './tapeIdentity.js'
 import { update } from './update.js'
 
@@ -45,6 +46,7 @@ export type CounterWindowActions = Readonly<{
 export type CounterWindowRuntime = Readonly<{
   actions: (windowUri: string) => CounterWindowActions
   enqueue: (message: Message) => void
+  fail: (error: string) => void
   getSnapshot: (windowUri: string) => CounterWindowModel
   signIn: () => void
   stop: () => void
@@ -260,7 +262,11 @@ export const startCounterWindowRuntime = (
           enqueue(Increment())
         },
         clickedReset: () => {
-          if (Reset.valid(model, {})) {
+          const resetIsValid = Array.some(
+            counterValid(model, {}),
+            item => item.token === 'reset' && item.valid,
+          )
+          if (resetIsValid) {
             enqueue(Reset())
           }
         },
@@ -268,6 +274,7 @@ export const startCounterWindowRuntime = (
       }
     },
     enqueue,
+    fail,
     getSnapshot: windowUri => snapshotFor(windowUri),
     signIn,
     stop: () => {

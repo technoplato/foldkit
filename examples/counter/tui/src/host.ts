@@ -5,8 +5,10 @@ import {
   actions,
   counterProcessorIdFrom,
   counterProcessorIds,
+  counterValid,
   foldCounterMessages,
   renderChrome,
+  tokenOf,
 } from 'counter-core-example'
 import {
   Array,
@@ -50,7 +52,12 @@ export const messageForInput = (
   if (Option.isNone(maybeAction)) {
     return Option.none()
   }
-  if (!maybeAction.value.valid(model, {})) {
+  const token = tokenOf(maybeAction.value)
+  const isValid = Array.some(
+    counterValid(model, {}),
+    item => item.token === token && item.valid,
+  )
+  if (!isValid) {
     return Option.none()
   }
   return Option.some(maybeAction.value())

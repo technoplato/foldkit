@@ -3,9 +3,32 @@ import type { Effect, Schema } from 'effect'
 import type { EffectManifest } from '../command/effectManifest.js'
 import type { ManagedResources } from '../managedResource/managedResource.js'
 import type { Ports } from '../port/port.js'
+import type { UiNode } from '../renderers/types.js'
+import type { ActionContext } from '../schema/index.js'
 import type { Subscriptions } from '../subscription/subscription.js'
 import type { MessageCategory } from '../synchronization/synchronization.js'
 import type { VersionedEventRegistry } from './versionedEvent.js'
+
+/** One Action projected from Program.valid for the current Model. */
+export type ProgramValidAction = Readonly<{
+  token: string
+  keys: ReadonlyArray<string>
+  spoken: ReadonlyArray<string>
+  valid: boolean
+  hidden?: string
+}>
+
+/** Projects the valid Action tree from Model. This is not a CLI flag. */
+export type ProgramValid<Model> = (
+  model: Model,
+  context?: ActionContext,
+) => ReadonlyArray<ProgramValidAction>
+
+/** Builds the host-neutral screen tree from Model. Clients paint this tree. */
+export type ProgramScreen<Model> = (
+  model: Model,
+  context?: ActionContext,
+) => UiNode
 
 /** A Schema usable by a portable Foldkit Program without codec services. */
 export type ProgramSchema<Value> = Schema.Codec<Value, unknown, never, never>
@@ -35,9 +58,9 @@ export type ProgramSynchronization<Model, Message> = Readonly<{
 /**
  * A renderer-free Foldkit Program.
  *
- * The Program owns the Model, Message protocol, init, update, and optional
- * Subscriptions. Rendering, platform Layers, URI carriers, and launch behavior
- * belong to clients that run the Program.
+ * The Program owns the Model, Message protocol, init, update, valid, and
+ * screen tree. Clients paint the screen tree. Replay uses update, valid, and
+ * screen. Platform Layers, URI carriers, and launch behavior belong to clients.
  */
 export type Program<
   Model,
@@ -83,6 +106,8 @@ export type Program<
   migrations?: ReadonlyArray<Migration>
   synchronization?: ProgramSynchronization<Model, Message>
   versionedEvents?: VersionedEventRegistry<Message>
+  valid?: ProgramValid<Model>
+  screen?: ProgramScreen<Model>
 }>
 
 /** Defines a renderer-free Foldkit Program while preserving inferred types. */
