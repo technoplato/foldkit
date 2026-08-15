@@ -3,7 +3,8 @@ import type { Plugin } from 'vite'
 
 import { init } from '@instantdb/admin'
 
-import { countersDemoEmail, countersDemoSessionPath } from './identity.js'
+import { countersDemoSessionPath } from './identity.js'
+import { mintCountersDemoSession } from './mint.js'
 
 const envValue = (name: string): string => {
   const value = process.env[name]
@@ -40,15 +41,12 @@ export const countersDemoSession = (): Plugin => {
       response.end(JSON.stringify({ error: 'MintUnavailable' }))
       return
     }
-    void init({ adminToken, appId })
-      .auth.createToken({ email: countersDemoEmail })
-      .then(token => {
+    void mintCountersDemoSession(init({ adminToken, appId }))
+      .then(session => {
         response.statusCode = 200
         response.setHeader('cache-control', 'private, no-store')
         response.setHeader('content-type', 'application/json')
-        response.end(
-          JSON.stringify({ email: countersDemoEmail, token: String(token) }),
-        )
+        response.end(JSON.stringify(session))
       })
       .catch(() => {
         response.statusCode = 503

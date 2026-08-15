@@ -1,254 +1,148 @@
 import {
-  type CounterDetailMode,
-  type Destination,
-  destinationForModel,
-} from 'counters-core-example'
-import {
-  countersProcessorIds,
-  instantCountersResources,
-  observeRemoteCountersTape,
-  openCountersTapeRuntime,
-  openNativeCountersTapeFromDatabase,
+  type CountersWindowActions,
+  type CountersWindowModel,
 } from 'counters-instant-example/native'
-import {
-  type MultipleCountersHost,
-  MultipleCountersProvider,
-  useMultipleCountersActions,
-  useMultipleCountersModel,
-} from 'counters-react-bindings-example'
-import { Array, Effect, Exit, Match as M, Option, Scope } from 'effect'
+import { Array, Match as M } from 'effect'
 import { StatusBar } from 'expo-status-bar'
-import { type ReactNode, useEffect, useState } from 'react'
-import {
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native'
+import { type ReactNode, useState } from 'react'
+import { Pressable, ScrollView, Text, View } from 'react-native'
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 
-import { ensureHostedInstantSession } from '@foldkit/instant'
+import { useActions, useModel } from './adapter'
 
-import { loadStoredAccessToken, requestKnophyAccessToken } from './access'
-import { nativeDatabase } from './nativeDatabase'
+const listUri = '/counters'
 
-const instantAppId = (): string | undefined => {
-  const appId = process.env['EXPO_PUBLIC_INSTANT_APP_ID']
-  if (appId === undefined || appId === '') {
-    return undefined
-  }
-  return appId
-}
+const counterUri = (counterId: string): string => `/counters/${counterId}`
 
-const processorId = (): string =>
-  Platform.OS === 'ios'
-    ? countersProcessorIds.expoIos
-    : countersProcessorIds.expoAndroid
-
-const startExpoCountersHost = (
-  database: NonNullable<typeof nativeDatabase>,
-  onHost: (host: MultipleCountersHost) => void,
-): (() => void) => {
-  const scope = Effect.runSync(Scope.make())
-  void Effect.runPromise(
-    Effect.gen(function* () {
-      const token = yield* Effect.promise(() => loadStoredAccessToken())
-      if (token !== undefined) {
-        yield* Effect.promise(() =>
-          ensureHostedInstantSession(database.core, { accessToken: token }),
-        )
-      }
-      const tape = yield* openNativeCountersTapeFromDatabase(
-        database.core,
-        processorId(),
-        process.env['EXPO_PUBLIC_COUNTERS_DEMO_SESSION_URL'],
-      )
-      if (tape === null) {
-        return
-      }
-      const opened = yield* openCountersTapeRuntime(
-        tape,
-        instantCountersResources,
-      )
-      onHost({
-        isInstantTape: true,
-        readModel: () => opened.runtime.readModel(),
-        send: opened.sendClientInput,
-        subscribe: listener => opened.runtime.observeModel(listener),
-      })
-      yield* observeRemoteCountersTape(
-        tape,
-        opened.runtime,
-        processorId(),
-      ).pipe(Effect.forkChild)
-      return yield* Effect.never
-    }).pipe(Effect.provideService(Scope.Scope, scope)),
-  )
-  return () => {
-    void Effect.runPromise(Scope.close(scope, Exit.void))
-  }
-}
-
-/** Runs Multiple Counters on Instant tape for iOS and Android. */
+/** Draws Multiple Counters. The window only calls useModel and useActions. */
 export const App = () => {
-  const appId = instantAppId()
-  const [host, setHost] = useState<MultipleCountersHost | null>(null)
-  useEffect(() => {
-    if (nativeDatabase === null) {
-      return
-    }
-    return startExpoCountersHost(nativeDatabase, setHost)
-  }, [])
-
-  if (appId === undefined || nativeDatabase === null) {
-    return (
+  const [uri, setUri] = useState(listUri)
+  const view = useModel(uri)
+  const actions = useActions(uri)
+  return (
+    <SafeAreaProvider>
+      <StatusBar style="light" />
       <SafeAreaView style={{ flex: 1, backgroundColor: '#0c0a09' }}>
-        <Text style={{ color: '#fafaf9', padding: 24 }}>
-          EXPO_PUBLIC_INSTANT_APP_ID is missing. Start through the Instant demo
-          wrapper.
-        </Text>
+        <WindowView actions={actions} onOpen={setUri} view={view} />
       </SafeAreaView>
-    )
-  }
+    </SafeAreaProvider>
+  )
+}
 
-  if (host === null) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#0c0a09' }}>
+const WindowView = ({
+  actions,
+  onOpen,
+  view,
+}: Readonly<{
+  actions: CountersWindowActions
+  onOpen: (uri: string) => void
+  view: CountersWindowModel
+}>) =>
+  M.value(view).pipe(
+    M.withReturnType<ReactNode>(),
+    M.tagsExhaustive({
+      StartingWindow: () => (
         <Text style={{ color: '#fafaf9', padding: 24 }}>
           Starting Instant Multiple Counters…
         </Text>
-        <Pressable
-          onPress={() => {
-            void requestKnophyAccessToken()
-          }}
-          style={{ padding: 24 }}
-        >
-          <Text style={{ color: '#fbbf24' }}>Sign in with Access</Text>
-        </Pressable>
-      </SafeAreaView>
-    )
-  }
-
-  return (
-    <MultipleCountersProvider host={host} initialDestinationUri="/counters">
-      <StatusBar style="light" />
-      <CountersScreen />
-    </MultipleCountersProvider>
-  )
-}
-
-const CountersScreen = () => {
-  const model = useMultipleCountersModel()
-  const actions = useMultipleCountersActions()
-  const destination = destinationForModel(model)
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0c0a09' }}>
-      <ScrollView contentContainerStyle={{ padding: 24, gap: 12 }}>
-        <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '700' }}>
-          FOLDKIT COUNTERS
-        </Text>
-        <Text style={{ color: '#fafaf9', fontSize: 28, fontWeight: '600' }}>
-          Multiple counters
-        </Text>
-        <DestinationView actions={actions} destination={destination} />
-        <Pressable
-          onPress={actions.clickedAddCounter}
-          style={{ backgroundColor: '#fbbf24', borderRadius: 16, padding: 16 }}
-        >
-          <Text style={{ fontWeight: '700' }}>Add counter</Text>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
-  )
-}
-
-const DestinationView = ({
-  actions,
-  destination,
-}: Readonly<{
-  actions: ReturnType<typeof useMultipleCountersActions>
-  destination: Destination
-}>) =>
-  M.value(destination).pipe(
-    M.withReturnType<ReactNode>(),
-    M.tagsExhaustive({
-      CounterListDestination: ({ counters }) => (
-        <View style={{ gap: 12 }}>
-          {Array.map(counters, counter => (
-            <Pressable
-              accessibilityLabel={counter.id}
-              accessibilityRole="button"
-              key={counter.id}
-              onPress={() => actions.selectedCounter(counter.id)}
-              style={{
-                backgroundColor: '#1c1917',
-                borderRadius: 16,
-                padding: 16,
-              }}
-            >
-              <Text style={{ color: '#fbbf24', fontFamily: 'monospace' }}>
-                {counter.id}
-              </Text>
-              <Text style={{ color: '#fafaf9', fontSize: 32 }}>
-                {counter.counter.count.toString()}
-              </Text>
-            </Pressable>
-          ))}
+      ),
+      FailedWindow: ({ error }) => (
+        <View style={{ padding: 24, gap: 12 }}>
+          <Text style={{ color: '#fafaf9' }}>{error}</Text>
+          <Pressable
+            accessibilityLabel="Sign in with Access"
+            accessibilityRole="button"
+            onPress={actions.signIn}
+          >
+            <Text style={{ color: '#fbbf24' }}>Sign in with Access</Text>
+          </Pressable>
         </View>
       ),
-      CounterDetailDestination: ({ counter, maybeMode }) => (
-        <DetailCard
-          actions={actions}
-          count={counter.counter.count}
-          counterId={counter.id}
-          maybeMode={maybeMode}
-        />
+      ReadyWindow: ready => (
+        <ReadyView actions={actions} onOpen={onOpen} view={ready} />
       ),
     }),
   )
 
-const DetailCard = ({
+const ReadyView = ({
   actions,
-  count,
-  counterId,
-  maybeMode,
+  onOpen,
+  view,
 }: Readonly<{
-  actions: ReturnType<typeof useMultipleCountersActions>
-  count: number
-  counterId: string
-  maybeMode: Option.Option<CounterDetailMode>
-}>) => (
-  <View style={{ backgroundColor: '#1c1917', borderRadius: 24, padding: 20 }}>
-    <Text style={{ color: '#fbbf24', fontFamily: 'monospace' }}>
-      {counterId}
-    </Text>
-    <Text style={{ color: '#fafaf9', fontSize: 56, fontWeight: '700' }}>
-      {count.toString()}
-    </Text>
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-      <Action
-        label="+"
-        onPress={() => actions.clickedIncrementCounter(counterId)}
-      />
-      <Action
-        label="-"
-        onPress={() => actions.clickedDecrementCounter(counterId)}
-      />
-      <Action
-        label="Reset"
-        onPress={() => actions.clickedResetCounter(counterId)}
-      />
-      <Action label="Fact" onPress={actions.clickedShowCounterFact} />
-      <Action label="Back" onPress={actions.dismissedCounterDetail} />
-    </View>
-    {Option.isSome(maybeMode) ? (
-      <Text style={{ color: '#a8a29e', marginTop: 12 }}>
-        {maybeMode.value._tag}
+  actions: CountersWindowActions
+  onOpen: (uri: string) => void
+  view: Extract<CountersWindowModel, { readonly _tag: 'ReadyWindow' }>
+}>) => {
+  if (view.selectedId !== undefined && view.count !== undefined) {
+    return (
+      <ScrollView contentContainerStyle={{ padding: 24, gap: 12 }}>
+        <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '700' }}>
+          FOLDKIT COUNTERS
+        </Text>
+        <Text style={{ color: '#fbbf24', fontFamily: 'monospace' }}>
+          {view.selectedId}
+        </Text>
+        <Text style={{ color: '#fafaf9', fontSize: 56, fontWeight: '700' }}>
+          {view.count.toString()}
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <Action label="+" onPress={actions.increment} />
+          <Action label="-" onPress={actions.decrement} />
+          <Action label="Reset" onPress={actions.reset} />
+          <Action label="Fact" onPress={actions.showFact} />
+          <Action
+            label="Back"
+            onPress={() => {
+              actions.back()
+              onOpen(listUri)
+            }}
+          />
+        </View>
+      </ScrollView>
+    )
+  }
+  return (
+    <ScrollView contentContainerStyle={{ padding: 24, gap: 12 }}>
+      <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '700' }}>
+        FOLDKIT COUNTERS
       </Text>
-    ) : null}
-  </View>
-)
+      <Text style={{ color: '#fafaf9', fontSize: 28, fontWeight: '600' }}>
+        Multiple counters
+      </Text>
+      <View style={{ gap: 12 }}>
+        {Array.map(view.counters, counter => (
+          <Pressable
+            accessibilityLabel={counter.id}
+            accessibilityRole="button"
+            key={counter.id}
+            onPress={() => {
+              actions.open(counter.id)
+              onOpen(counterUri(counter.id))
+            }}
+            style={{
+              backgroundColor: '#1c1917',
+              borderRadius: 16,
+              padding: 16,
+            }}
+          >
+            <Text style={{ color: '#fbbf24', fontFamily: 'monospace' }}>
+              {counter.id}
+            </Text>
+            <Text style={{ color: '#fafaf9', fontSize: 32 }}>
+              {counter.count.toString()}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Pressable
+        onPress={actions.addCounter}
+        style={{ backgroundColor: '#fbbf24', borderRadius: 16, padding: 16 }}
+      >
+        <Text style={{ fontWeight: '700' }}>Add counter</Text>
+      </Pressable>
+    </ScrollView>
+  )
+}
 
 const Action = ({
   label,

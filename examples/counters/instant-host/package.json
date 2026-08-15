@@ -29,6 +29,8 @@
     "clean": "rimraf dist",
     "prebuild": "pnpm --filter counters-core-example build && pnpm --filter @foldkit/instant build",
     "pretypecheck": "pnpm --filter counters-core-example build && pnpm --filter @foldkit/instant build",
+    "pretest": "pnpm --filter counters-core-example build && pnpm --filter @foldkit/instant build",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -45,6 +47,7 @@
     "prettier": "^3.8.4",
     "rimraf": "^6.1.3",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
   }
 }
