@@ -1,0 +1,35 @@
+{
+  "name": "counters-headless-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "foldkit-counters-headless": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "counters-headless": "node dist/entry.js",
+    "prebuild": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "pretypecheck": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "test": "pnpm run build && vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.97",
+    "@foldkit/instant": "workspace:*",
+    "@instantdb/admin": "1.0.53",
+    "counter-core-example": "workspace:*",
+    "counters-core-example": "workspace:*",
+    "counters-instant-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

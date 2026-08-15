@@ -31,6 +31,7 @@
     "@foldkit/instant": "workspace:*",
     "@instantdb/admin": "1.0.53",
     "@instantdb/core": "1.0.53",
+    "counter-core-example": "workspace:*",
     "counters-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*"

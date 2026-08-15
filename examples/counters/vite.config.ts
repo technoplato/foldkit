@@ -1,4 +1,5 @@
 import { countersDemoSession } from 'counters-instant-example/vite'
+import path from 'path'
 import { defineConfig } from 'vite'
 
 import { hostedIdentity } from '@foldkit/instant/hosted-identity/vite'
@@ -15,7 +16,12 @@ export default defineConfig({
     countersDemoSession(),
   ],
   resolve: {
-    alias: foldkitAliases(__dirname),
+    alias: {
+      ...foldkitAliases(__dirname),
+      'node:crypto': path.resolve(__dirname, 'src/cryptoBrowser.ts'),
+      'node:fs': path.resolve(__dirname, 'src/cryptoBrowser.ts'),
+      'node:module': path.resolve(__dirname, 'src/cryptoBrowser.ts'),
+    },
   },
   server: {
     fs: {

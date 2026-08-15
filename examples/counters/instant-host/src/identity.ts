@@ -13,7 +13,12 @@ export const countersProcessorIds = {
   expoAndroid: 'counters-expo-android',
   expoIos: 'counters-expo-ios',
   foldkit: 'counters-foldkit',
+  headless: 'counters-headless',
   opentui: 'counters-opentui',
   react: 'counters-react',
+  svelte: 'counters-svelte',
+  sveltekit: 'counters-sveltekit',
   terminal: 'counters-terminal',
+  threejs: 'counters-threejs',
+  vue: 'counters-vue',
 }
