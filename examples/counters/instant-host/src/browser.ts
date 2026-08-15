@@ -1,6 +1,10 @@
 import { Effect } from 'effect'
 
-import { InstantProgramSchema, makeInstantProgramStore } from '@foldkit/instant'
+import {
+  type InstantProgramDatabase,
+  InstantProgramSchema,
+  makeInstantProgramStore,
+} from '@foldkit/instant'
 import { init } from '@instantdb/core'
 
 import { countersDemoSessionPath } from './identity.js'
@@ -8,7 +12,7 @@ import { type CountersTape, makeCountersTape } from './makeTape.js'
 
 /** Signs in the shared Instant demo subject when a mint path is available. */
 export const signInDemoSession = async (
-  database: ReturnType<typeof init<typeof InstantProgramSchema>>,
+  database: InstantProgramDatabase,
   sessionPath: string = countersDemoSessionPath,
 ): Promise<void> => {
   const existing = await database.getAuth()

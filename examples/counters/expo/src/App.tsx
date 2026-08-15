@@ -8,8 +8,8 @@ import {
   instantCountersResources,
   observeRemoteCountersTape,
   openCountersTapeRuntime,
-} from 'counters-instant-example'
-import { openNativeCountersTape } from 'counters-instant-example/native'
+  openNativeCountersTapeFromDatabase,
+} from 'counters-instant-example/native'
 import {
   type MultipleCountersHost,
   MultipleCountersProvider,
@@ -27,12 +27,11 @@ import {
   Text,
   View,
 } from 'react-native'
-import 'react-native-get-random-values'
 
 import { ensureHostedInstantSession } from '@foldkit/instant'
-import { init } from '@instantdb/core'
 
-import { loadStoredAccessToken, requestKnophyAccessToken } from './access.js'
+import { loadStoredAccessToken, requestKnophyAccessToken } from './access'
+import { nativeDatabase } from './nativeDatabase'
 
 const instantAppId = (): string | undefined => {
   const appId = process.env['EXPO_PUBLIC_INSTANT_APP_ID']
@@ -48,21 +47,20 @@ const processorId = (): string =>
     : countersProcessorIds.expoAndroid
 
 const startExpoCountersHost = (
-  appId: string,
+  database: NonNullable<typeof nativeDatabase>,
   onHost: (host: MultipleCountersHost) => void,
 ): (() => void) => {
   const scope = Effect.runSync(Scope.make())
   void Effect.runPromise(
     Effect.gen(function* () {
       const token = yield* Effect.promise(() => loadStoredAccessToken())
-      const database = init({ appId })
       if (token !== undefined) {
         yield* Effect.promise(() =>
-          ensureHostedInstantSession(database, { accessToken: token }),
+          ensureHostedInstantSession(database.core, { accessToken: token }),
         )
       }
-      const tape = yield* openNativeCountersTape(
-        appId,
+      const tape = yield* openNativeCountersTapeFromDatabase(
+        database.core,
         processorId(),
         process.env['EXPO_PUBLIC_COUNTERS_DEMO_SESSION_URL'],
       )
@@ -97,13 +95,13 @@ export const App = () => {
   const appId = instantAppId()
   const [host, setHost] = useState<MultipleCountersHost | null>(null)
   useEffect(() => {
-    if (appId === undefined) {
+    if (nativeDatabase === null) {
       return
     }
-    return startExpoCountersHost(appId, setHost)
-  }, [appId])
+    return startExpoCountersHost(nativeDatabase, setHost)
+  }, [])
 
-  if (appId === undefined) {
+  if (appId === undefined || nativeDatabase === null) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#0c0a09' }}>
         <Text style={{ color: '#fafaf9', padding: 24 }}>
@@ -179,6 +177,8 @@ const DestinationView = ({
         <View style={{ gap: 12 }}>
           {Array.map(counters, counter => (
             <Pressable
+              accessibilityLabel={counter.id}
+              accessibilityRole="button"
               key={counter.id}
               onPress={() => actions.selectedCounter(counter.id)}
               style={{
@@ -255,6 +255,8 @@ const Action = ({
   onPress,
 }: Readonly<{ label: string; onPress: () => void }>) => (
   <Pressable
+    accessibilityLabel={label}
+    accessibilityRole="button"
     onPress={onPress}
     style={{ backgroundColor: '#292524', borderRadius: 999, padding: 12 }}
   >

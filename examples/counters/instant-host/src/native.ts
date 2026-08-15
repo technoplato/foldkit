@@ -1,23 +1,36 @@
 import { Effect } from 'effect'
 
 import {
+  type InstantProgramDatabase,
   InstantProgramSchema,
   ensureHostedInstantSession,
   makeInstantProgramStore,
 } from '@foldkit/instant'
 import { init } from '@instantdb/core'
 
+import {
+  instantCountersResources,
+  observeRemoteCountersTape,
+  openCountersTapeRuntime,
+} from './attach.js'
 import { signInDemoSession } from './browser.js'
+import { countersProcessorIds } from './identity.js'
 import { type CountersTape, makeCountersTape } from './makeTape.js'
 
-/** Signs in and opens the live Instant Counters tape from a native Client. */
-export const openNativeCountersTape = (
-  appId: string,
+export {
+  countersProcessorIds,
+  instantCountersResources,
+  observeRemoteCountersTape,
+  openCountersTapeRuntime,
+}
+
+/** Signs in and opens the Instant tape from a host-owned Instant database. */
+export const openNativeCountersTapeFromDatabase = (
+  database: InstantProgramDatabase,
   processorId: string,
   sessionUrl?: string,
 ): Effect.Effect<CountersTape | null> =>
   Effect.gen(function* () {
-    const database = init({ appId, schema: InstantProgramSchema })
     yield* Effect.promise(() => ensureHostedInstantSession(database))
     if (sessionUrl !== undefined && sessionUrl !== '') {
       yield* Effect.promise(() => signInDemoSession(database, sessionUrl))
@@ -32,3 +45,15 @@ export const openNativeCountersTape = (
       user.id,
     )
   })
+
+/** Signs in and opens the live Instant Counters tape from a native Client. */
+export const openNativeCountersTape = (
+  appId: string,
+  processorId: string,
+  sessionUrl?: string,
+): Effect.Effect<CountersTape | null> =>
+  openNativeCountersTapeFromDatabase(
+    init({ appId, schema: InstantProgramSchema }),
+    processorId,
+    sessionUrl,
+  )
