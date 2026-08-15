@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 10:27:54 p.m. EDT — `e1f341d09974` fix(counters): mint Expo Instant session through Metro
+
+- **Implementation commit:** `e1f341d099740c836242980347c054cb53c25930`
+- **Change:** Android Expo Increment is visible on the Instant tape.
+- **Details:**
+  - counters-expo-android Increment moved counter-1 from 10 to 11. CLI show printed the new count. Viewer https://issues.knophy.com/issues/211
+  - Metro proxies the demo Instant mint so the emulator does not fetch Vite on 5213.
+- **Files:**
+  - `examples/counters/expo/metro.config.js` — Proxy the demo Instant mint through Metro on 8088.
+- **User context (verbatim):**
+  > Open Counters Expo. Tap accessibilityLabel + on counter-1.
+- **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
+
 ## August 14th, 2026 at 10:03:07 p.m. EDT — `f4e49165adb0` fix(counters): open Expo Instant tape on iOS simulator
 
 - **Implementation commit:** `f4e49165adb060acda5c1387501c1490e509c9fc`
