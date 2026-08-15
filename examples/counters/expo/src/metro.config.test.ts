@@ -12,6 +12,14 @@ describe('Expo Metro config', () => {
     expect(source).not.toContain('counters-demo-session')
     expect(source).not.toContain('__foldkit')
   })
+
+  it('does not stub Instant admin or Node fs as empty', () => {
+    const source = readFileSync(join(expoSrc, '../metro.config.js'), 'utf8')
+    expect(source).not.toContain('@instantdb/admin')
+    expect(source).not.toContain("type: 'empty'")
+    expect(source).not.toContain('type: "empty"')
+    expect(source).not.toContain('resolveRequest')
+  })
 })
 
 describe('Expo window', () => {
@@ -24,5 +32,24 @@ describe('Expo window', () => {
     expect(source).not.toContain('openNativeCountersTape')
     expect(source).toContain('useModel')
     expect(source).toContain('useActions')
+  })
+})
+
+describe('Expo Instant imports', () => {
+  it('loads Instant through the browser entry, not the Node barrel', () => {
+    const access = readFileSync(join(expoSrc, 'access.ts'), 'utf8')
+    const adapter = readFileSync(join(expoSrc, 'adapter.ts'), 'utf8')
+    const nativeDatabase = readFileSync(
+      join(expoSrc, 'nativeDatabase.ts'),
+      'utf8',
+    )
+    expect(access).toContain('@foldkit/instant/browser')
+    expect(access).not.toMatch(/from ['"]@foldkit\/instant['"]/)
+    expect(access).not.toContain('@instantdb/admin')
+    expect(nativeDatabase).toContain('@foldkit/instant/browser')
+    expect(nativeDatabase).not.toMatch(/from ['"]@foldkit\/instant['"]/)
+    expect(nativeDatabase).not.toContain('@instantdb/admin')
+    expect(adapter).not.toMatch(/from ['"]@foldkit\/instant['"]/)
+    expect(adapter).not.toContain('@instantdb/admin')
   })
 })

@@ -6,7 +6,7 @@ import {
   InstantProgramSchema,
   ensureHostedInstantSession,
   makeInstantProgramStore,
-} from '@foldkit/instant'
+} from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
 
 import {

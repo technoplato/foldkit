@@ -5,7 +5,7 @@ import {
 } from 'counters-core-example'
 import { Effect, Exit, Scope } from 'effect'
 
-import { makeInMemoryProgramStore } from '@foldkit/instant'
+import { makeInMemoryProgramStore } from '@foldkit/instant/browser'
 
 import {
   instantCountersResources,

@@ -6,7 +6,7 @@ import * as WebBrowser from 'expo-web-browser'
 import {
   accessTokenFromCallbackUrl,
   knophyAccessStartUrl,
-} from '@foldkit/instant'
+} from '@foldkit/instant/browser'
 
 const TOKEN_KEY = 'cf_authorization'
 
