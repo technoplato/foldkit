@@ -9,7 +9,10 @@ import {
 import { Array, Effect, Layer, Option, Stream } from 'effect'
 import { Runtime } from 'foldkit'
 
-import { type ProgramStoreError, commitSharedMessage } from '@foldkit/instant'
+import {
+  type ProgramStoreError,
+  commitSharedMessage,
+} from '@foldkit/instant/browser'
 
 import { foldCountersMessages } from './fold.js'
 import { type CountersTape } from './makeTape.js'

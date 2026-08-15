@@ -1,4 +1,4 @@
-import { InstantProgramSchema } from '@foldkit/instant'
+import { InstantProgramSchema } from '@foldkit/instant/browser'
 import { init } from '@instantdb/react-native'
 
 const instantAppId = process.env['EXPO_PUBLIC_INSTANT_APP_ID']

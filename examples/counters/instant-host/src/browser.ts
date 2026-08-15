@@ -4,7 +4,7 @@ import {
   type InstantProgramDatabase,
   InstantProgramSchema,
   makeInstantProgramStore,
-} from '@foldkit/instant'
+} from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
 
 import { countersDemoSessionPath } from './identity.js'

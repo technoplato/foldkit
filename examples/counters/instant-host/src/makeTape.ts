@@ -6,7 +6,7 @@ import {
   type ProgramStoreService,
   type SharedProgramTape,
   makeSharedProgramTape,
-} from '@foldkit/instant'
+} from '@foldkit/instant/browser'
 
 import { countersInstantSessionId } from './identity.js'
 
