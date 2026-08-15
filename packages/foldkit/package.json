@@ -142,6 +142,11 @@
       "import": "./dist/renderers/devices/public.js",
       "default": "./dist/renderers/devices/public.js"
     },
+    "./renderers/html": {
+      "types": "./dist/renderers/html.d.ts",
+      "import": "./dist/renderers/html.js",
+      "default": "./dist/renderers/html.js"
+    },
     "./route": {
       "types": "./dist/route/public.d.ts",
       "import": "./dist/route/public.js",

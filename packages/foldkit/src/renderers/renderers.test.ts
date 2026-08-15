@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { wrapDevice } from './devices/devices.js'
 import { Button, Column, Row, Text, TextInput } from './elements.js'
 import { Host } from './host.js'
+import { paintHtml } from './html.js'
 import { buttonsOf, textsOf } from './query.js'
 import { renderAscii, renderScreen } from './render.js'
 
@@ -63,6 +64,22 @@ describe('atoms', () => {
         id: 'increment',
       })
     }
+  })
+})
+
+describe('paintHtml', () => {
+  it('paints Button labels and keeps the token as the click Message', () => {
+    const tree = Column(
+      {},
+      Text('0'),
+      Row({}, Button({ label: '+', token: 'increment' })),
+    )
+    const vnode = paintHtml(tree, token => token)
+
+    expect(vnode).not.toBeNull()
+    expect(vnode?.sel).toBe('div')
+    expect(JSON.stringify(vnode)).toContain('+')
+    expect(JSON.stringify(vnode)).toContain('0')
   })
 })
 

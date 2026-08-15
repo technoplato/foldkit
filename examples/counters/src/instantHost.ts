@@ -15,9 +15,32 @@ import { Runtime } from 'foldkit'
 
 import { makeView } from './main'
 
+/** Turns a thrown Instant or attach failure into host chrome text. */
+export const describeCountersHostError = (error: unknown): string => {
+  if (error instanceof Error && error.message !== '') {
+    return error.message
+  }
+  return 'Instant could not open the Multiple Counters tape.'
+}
+
+/** Paints Instant or attach failure. The page must not stay blank. */
+export const paintCountersHostFailure = (
+  container: HTMLElement,
+  error: unknown,
+): void => {
+  container.replaceChildren()
+  const status = document.createElement('p')
+  status.textContent = describeCountersHostError(error)
+  container.append(status)
+}
+
 /** Starts the Foldkit Processor on the live Instant Multiple Counters tape. */
 export const startInstantCounters = (appId: string): void => {
-  void Effect.runPromise(
+  const container = document.getElementById('root')
+  if (container === null) {
+    throw new Error('Root element not found')
+  }
+  const started = Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
         const tape = yield* openBrowserCountersTape(
@@ -25,7 +48,9 @@ export const startInstantCounters = (appId: string): void => {
           countersProcessorIds.foldkit,
         )
         if (tape === null) {
-          return
+          return yield* Effect.fail(
+            new Error('Instant has no Multiple Counters demo session.'),
+          )
         }
         const { runtime, sendClientInput } = yield* openCountersTapeRuntime(
           tape,
@@ -55,7 +80,7 @@ export const startInstantCounters = (appId: string): void => {
         })
         yield* Runtime.makeAttachedFoldkitApplication({
           ClientInput: Message,
-          container: document.getElementById('root'),
+          container,
           program: MultipleCountersProgram,
           sendClientInput,
           source: {
@@ -72,5 +97,11 @@ export const startInstantCounters = (appId: string): void => {
         return yield* Effect.never
       }),
     ),
+  )
+  started.then(
+    () => undefined,
+    error => {
+      paintCountersHostFailure(container, error)
+    },
   )
 }

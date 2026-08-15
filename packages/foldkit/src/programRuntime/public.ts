@@ -17,6 +17,7 @@ export {
   decodeReplayTape,
   encodeReplayTape,
   fromJournal,
+  inspectReplayFrame,
   makeReplayTapeSchema,
   ProgramRuntimeEvent,
   replayToFrame,
@@ -95,6 +96,7 @@ export type {
 } from '../runtime/replayController.js'
 export type { ReplaySession } from '../runtime/replaySession.js'
 export type {
+  ReplayFrameInspection,
   ReplayTape,
   ReplayTapeDecodeError,
   ReplayTransition,

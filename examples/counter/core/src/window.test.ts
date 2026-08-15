@@ -80,4 +80,15 @@ describe('Counter window runtime', () => {
       'SignedInCounterSession',
     )
   })
+
+  it('surfaces a host attach failure as FailedWindow', async () => {
+    const runtime = startMemoryCounterWindow()
+    await waitForSnapshot(() => runtime.getSnapshot(uri), 'ReadyWindow')
+    runtime.fail('Foldkit could not attach the Counter screen.')
+    expect(runtime.getSnapshot(uri)).toEqual({
+      _tag: 'FailedWindow',
+      error: 'Foldkit could not attach the Counter screen.',
+    })
+    runtime.stop()
+  })
 })

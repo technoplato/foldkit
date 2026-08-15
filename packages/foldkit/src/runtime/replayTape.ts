@@ -3,7 +3,9 @@ import { Array, Data, Effect, Option, Schema, pipe } from 'effect'
 import type { Ports } from '../port/port.js'
 import { MessageEnvelope } from '../processor/processor.js'
 import type { MessageEnvelope as MessageEnvelopeType } from '../processor/processor.js'
-import type { Program } from '../program/program.js'
+import type { Program, ProgramValidAction } from '../program/program.js'
+import type { UiNode } from '../renderers/types.js'
+import type { ActionContext } from '../schema/index.js'
 import {
   type CommandRecord,
   type ProgramJournalSnapshot,
@@ -549,6 +551,35 @@ export const decodeReplayTape = <
       runtimeEvents: encodedTape.runtimeEvents,
     }
   })
+
+/** Model, valid Actions, and screen tree at one replay frame. */
+export type ReplayFrameInspection<Model> = Readonly<{
+  model: Model
+  valid: ReadonlyArray<ProgramValidAction>
+  screen: Option.Option<UiNode>
+}>
+
+/** Reconstructs one tape frame and projects Program.valid and Program.screen. */
+export const inspectReplayFrame = <
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+>(
+  program: Program<Model, Message, Resources, ManagedResourceServices, P>,
+  tape: ReplayTape<Model, Message>,
+  frame: number,
+  context: ActionContext = {},
+): Effect.Effect<ReplayFrameInspection<Model>, ReplayFrameError> =>
+  Effect.map(replayToFrame(program, tape, frame), model => ({
+    model,
+    valid: program.valid === undefined ? [] : program.valid(model, context),
+    screen:
+      program.screen === undefined
+        ? Option.none()
+        : Option.some(program.screen(model, context)),
+  }))
 
 /** Reconstructs a Model at a tape frame without executing historical effects. */
 export const replayToFrame = <
