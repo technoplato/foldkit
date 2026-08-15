@@ -25,6 +25,17 @@ export const counterProcessorIds = {
   tui: 'tui',
 } as const
 
+/** Uses the process Processor id, or the host default. */
+export const counterProcessorIdFrom = (
+  value: string | undefined,
+  fallback: string,
+): string => {
+  if (value === undefined || value === '') {
+    return fallback
+  }
+  return value
+}
+
 /** Identity fields written onto every same-actor Counter tape row. */
 export type CounterTapeIdentityFields = Readonly<{
   actorId: string

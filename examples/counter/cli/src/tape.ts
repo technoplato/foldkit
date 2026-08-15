@@ -1,5 +1,6 @@
 import {
   Message,
+  counterProcessorIdFrom,
   counterProcessorIds,
   counterTapeIdentityFields,
   localCounterSessionId,
@@ -29,13 +30,6 @@ import {
 
 /** One Instant tape used by a Counter Processor. */
 export type CounterTape = SharedProgramTape<Message>
-
-const processorIdFrom = (value: string | undefined): string => {
-  if (value === undefined || value === '') {
-    return counterProcessorIds.cli
-  }
-  return value
-}
 
 /** Builds the same-actor identity for one Counter Processor. */
 export const counterTapeIdentity = (
@@ -93,7 +87,10 @@ export const resolveCounterTape = (
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): Effect.Effect<CounterTape, CounterInstantTapeError> =>
   Effect.gen(function* () {
-    const processorId = processorIdFrom(environment['COUNTER_PROCESSOR_ID'])
+    const processorId = counterProcessorIdFrom(
+      environment['COUNTER_PROCESSOR_ID'],
+      counterProcessorIds.cli,
+    )
     const mode = environment['COUNTER_TAPE']
     if (mode === 'instant') {
       const maybeInstant = yield* maybeMakeInstantCounterTape(environment)

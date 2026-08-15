@@ -3,6 +3,9 @@ import {
   type Message,
   type Model,
   actions,
+  counterProcessorIdFrom,
+  counterProcessorIds,
+  foldCounterMessages,
   renderChrome,
 } from 'counter-core-example'
 import {
@@ -17,7 +20,10 @@ import {
 } from 'effect'
 import { Runtime } from 'foldkit'
 
-import { commitSharedMessage } from '@foldkit/instant/sharing'
+import {
+  commitSharedMessage,
+  observeRemoteAcceptedMessages,
+} from '@foldkit/instant/sharing'
 
 import { type CounterTape, resolveCounterTape } from './tape.js'
 
@@ -95,18 +101,35 @@ export const runCounterTui = (): Effect.Effect<
       const terminal = yield* Terminal.Terminal
       const tape = yield* Effect.orDie(resolveCounterTape())
       const accepted = yield* Effect.orDie(tape.readAcceptedMessages)
+      const processorId = counterProcessorIdFrom(
+        process.env['COUNTER_PROCESSOR_ID'],
+        counterProcessorIds.tui,
+      )
       const runtime = yield* Effect.orDie(
         Runtime.makeProgramRuntime({
           program: CounterProgram,
           resources: Layer.empty,
+          start: Runtime.fromModel(foldCounterMessages(accepted)),
         }),
       )
 
       yield* runtime.initialization
-      yield* Effect.forEach(accepted, message => runtime.run(message), {
-        discard: true,
-      })
       yield* terminal.display(renderCounterScreen(runtime.readModel()))
+      yield* observeRemoteAcceptedMessages(
+        tape,
+        processorId,
+        (message, occurrence) =>
+          runtime
+            .run(message, {
+              source: Runtime.fromAcceptedMessage(occurrence.occurrenceId),
+            })
+            .pipe(
+              Effect.flatMap(model =>
+                terminal.display(renderCounterScreen(model)),
+              ),
+              Effect.asVoid,
+            ),
+      ).pipe(Effect.orDie, Effect.forkChild)
 
       const inputQueue = yield* terminal.readInput
       yield* runInputLoop(inputQueue, runtime, terminal, tape)

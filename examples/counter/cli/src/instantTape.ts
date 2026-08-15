@@ -2,6 +2,7 @@ import {
   Message,
   counterDemoEmail,
   counterInstantSessionId,
+  counterProcessorIdFrom,
   counterProcessorIds,
   counterTapeIdentityFields,
 } from 'counter-core-example'
@@ -23,13 +24,6 @@ export class CounterInstantTapeError extends Data.TaggedError(
 )<{
   readonly message: string
 }> {}
-
-const processorIdFrom = (value: string | undefined): string => {
-  if (value === undefined || value === '') {
-    return counterProcessorIds.cli
-  }
-  return value
-}
 
 /** Builds Instant identity for one authenticated Counter Processor. */
 export const counterInstantTapeIdentity = (
@@ -100,7 +94,10 @@ export const maybeMakeInstantCounterTape = (
   }
   return Effect.map(
     makeInstantCounterTape(
-      processorIdFrom(environment['COUNTER_PROCESSOR_ID']),
+      counterProcessorIdFrom(
+        environment['COUNTER_PROCESSOR_ID'],
+        counterProcessorIds.cli,
+      ),
       environment,
     ),
     Option.some,

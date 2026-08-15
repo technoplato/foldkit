@@ -1,5 +1,6 @@
 import {
   Message,
+  counterProcessorIdFrom,
   counterProcessorIds,
   counterTapeIdentityFields,
   localCounterSessionId,
@@ -27,13 +28,6 @@ import {
 /** One Instant tape used by the Counter TUI Processor. */
 export type CounterTape = SharedProgramTape<Message>
 
-const processorIdFrom = (value: string | undefined): string => {
-  if (value === undefined || value === '') {
-    return counterProcessorIds.tui
-  }
-  return value
-}
-
 const makeTape = (
   store: ProgramStoreService,
   processorId: string,
@@ -60,7 +54,10 @@ const makeTape = (
 export const resolveCounterTape = (
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): Effect.Effect<CounterTape, CounterInstantTapeError> => {
-  const processorId = processorIdFrom(environment['COUNTER_PROCESSOR_ID'])
+  const processorId = counterProcessorIdFrom(
+    environment['COUNTER_PROCESSOR_ID'],
+    counterProcessorIds.tui,
+  )
   if (environment['COUNTER_TAPE'] === 'instant') {
     return makeInstantCounterTape(processorId, environment)
   }
