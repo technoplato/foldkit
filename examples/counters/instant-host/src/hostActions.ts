@@ -29,6 +29,13 @@ export const decrementCounterMessage = (counterId: string): Message =>
     message: Counter.Decrement(),
   })
 
+/** Resets one identified Counter. */
+export const resetCounterMessage = (counterId: string): Message =>
+  GotCounterMessage({
+    counterId,
+    message: Counter.Reset(),
+  })
+
 /** Opens one Counter detail. */
 export const selectCounterMessage = (counterId: string): Message =>
   SelectedCounter({

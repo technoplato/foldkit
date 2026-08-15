@@ -8,6 +8,8 @@
     "ios": "../scripts/with-public-instant-env expo start --ios",
     "start": "../scripts/with-public-instant-env expo start",
     "pretypecheck": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build && pnpm --filter counters-react-bindings-example build",
+    "pretest": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -28,13 +30,18 @@
     "foldkit": "workspace:*",
     "react": "19.2.3",
     "react-native": "0.86.2",
-    "react-native-get-random-values": "~1.11.0"
+    "react-native-get-random-values": "~1.11.0",
+    "react-native-safe-area-context": "~5.7.0"
   },
   "devDependencies": {
     "@babel/plugin-transform-object-rest-spread": "^7.29.7",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.17",
     "babel-preset-expo": "~57.0.4",
+    "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
-    "typescript": "^6.0.3"
+    "react-dom": "19.2.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   }
 }
