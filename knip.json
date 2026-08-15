@@ -77,6 +77,10 @@
       "entry": ["App.tsx"],
       "ignoreDependencies": ["expo-system-ui", "expo-updates", "prettier"]
     },
+    "examples/counter/instant-host": {
+      "entry": ["src/index.ts", "src/node.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
     "examples/counter/cli": {
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]

@@ -8,16 +8,15 @@ import {
   Message,
   type Model,
   SignedInCounterSession,
-  counterInstantSessionId,
   counterProcessorIds,
-  counterTapeIdentityFields,
   describeCounterWindowError,
   foldCounterMessages,
   startCounterWindowRuntime,
   uri,
 } from 'counter-core-example'
+import { makeLiveCounterTape } from 'counter-instant-example'
 import { Effect, Exit, Layer, Scope } from 'effect'
-import { Processor, Runtime } from 'foldkit'
+import { Runtime } from 'foldkit'
 
 import {
   InstantProgramSchema,
@@ -25,7 +24,6 @@ import {
 } from '@foldkit/instant/browser'
 import {
   commitSharedMessage,
-  makeSharedProgramTape,
   observeRemoteAcceptedMessages,
 } from '@foldkit/instant/sharing'
 import { init } from '@instantdb/core'
@@ -101,21 +99,11 @@ const openInstantWindowTape = (
   const scope = Effect.runSync(Scope.make())
   return Effect.runPromise(
     Effect.gen(function* () {
-      const tape = yield* makeSharedProgramTape({
-        Message,
-        eventId: message => message._tag,
-        identity: {
-          actor: Processor.AuthenticatedActor.make({ subjectId: userId }),
-          ...counterTapeIdentityFields(
-            foldkitProcessorId,
-            userId,
-            counterInstantSessionId,
-          ),
-        },
-        makeId: () => crypto.randomUUID(),
-        now: () => Date.now(),
-        store: makeInstantProgramStore(database),
-      })
+      const tape = yield* makeLiveCounterTape(
+        makeInstantProgramStore(database),
+        foldkitProcessorId,
+        userId,
+      )
       const accepted = yield* tape.readAcceptedMessages
       const runtime = yield* Effect.orDie(
         Runtime.makeProgramRuntime({

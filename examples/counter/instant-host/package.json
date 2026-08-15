@@ -1,0 +1,42 @@
+{
+  "name": "counter-instant-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "prebuild": "pnpm --filter counter-core-example build && pnpm --filter @foldkit/instant build",
+    "pretypecheck": "pnpm --filter counter-core-example build && pnpm --filter @foldkit/instant build",
+    "pretest": "pnpm --filter counter-core-example build && pnpm --filter @foldkit/instant build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@instantdb/admin": "1.0.53",
+    "counter-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

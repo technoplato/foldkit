@@ -6,10 +6,10 @@
   "scripts": {
     "build": "vite build",
     "dev": "./scripts/with-public-instant-env vite",
-    "prebuild": "pnpm --filter counter-core-example build",
-    "predev": "pnpm --filter counter-core-example build",
-    "pretest": "pnpm --filter counter-core-example build",
-    "pretypecheck": "pnpm --filter counter-core-example build",
+    "prebuild": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
+    "predev": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
+    "pretest": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
+    "pretypecheck": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -21,6 +21,7 @@
     "@instantdb/core": "1.0.53",
     "@tailwindcss/vite": "^4.3.1",
     "counter-core-example": "workspace:*",
+    "counter-instant-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
     "tailwindcss": "^4.3.1"

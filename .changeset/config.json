@@ -28,6 +28,7 @@
     "counter-with-shared-state-example",
     "counter-cli-example",
     "counter-core-example",
+    "counter-instant-example",
     "counter-foldkit-example",
     "counter-react-bindings-example",
     "counter-react-native-example",
