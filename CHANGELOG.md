@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 15th, 2026 at 5:04:00 p.m. EDT — `9542c1264073` refactor(instant): observe remote same-actor tape Messages
+
+- **Implementation commit:** `9542c1264073e49bc5b09db5ef6edcfb3a5bd556`
+- **Change:** Observe remote same-actor tape Messages through foldkit/instant/sharing. Parent Instant issue https://issues.knophy.com/issues/207.
+- **Details:**
+  - Fold Counter history through Program update. Hosts no longer rebuild a runtime to replay accepted Messages.
+  - CLI, TUI, Foldkit, and Multiple Counters use observeRemoteAcceptedMessages. update stays pure.
+- **Files:**
+  - `packages/instant/src/sharing/tape.ts` — Export observeRemoteAcceptedMessages and lastAcceptedSequence.
+  - `packages/instant/src/sharing/tape.test.ts` — Prove remote apply, skip own writes, and skip folded history.
+  - `packages/instant/src/index.ts` — Drop duplicate sharing re-exports.
+  - `examples/counter/core/src/fold.ts` — Fold accepted Messages through update.
+  - `examples/counter/cli/src/host.ts` — Read the tape through foldCounterMessages.
+  - `examples/counter/foldkit/src/instantHost.ts` — Use the sharing observe primitive.
+  - `examples/counter/tui/src/host.ts` — Fold history and observe remote Messages.
+  - `examples/counters/instant-host/src/attach.ts` — Delegate observe to sharing.
+- **User context (verbatim):**
+  > Mow extra code. Lift only after the second copy.
+  > If crowing has high confidence, apply the platform way.
+- **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
+
 ## August 15th, 2026 at 4:37:06 p.m. EDT — `0d35e8bcaf89` feat(instant): export sharing and give Counter windows useModel
 
 - **Implementation commit:** `0d35e8bcaf897cf4198a7b81d9c550b4faa74f75`
