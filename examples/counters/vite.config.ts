@@ -1,12 +1,11 @@
 import { countersDemoSession } from 'counters-instant-example/vite'
-import path from 'path'
 import { defineConfig } from 'vite'
 
 import { hostedIdentity } from '@foldkit/instant/hosted-identity/vite'
 import { foldkit } from '@foldkit/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 
-import { foldkitAliases } from '../vite.aliases'
+import { foldkitAliases, instantBrowserAlias } from '../vite.aliases'
 
 export default defineConfig({
   plugins: [
@@ -18,10 +17,11 @@ export default defineConfig({
   resolve: {
     alias: {
       ...foldkitAliases(__dirname),
-      'node:crypto': path.resolve(__dirname, 'src/cryptoBrowser.ts'),
-      'node:fs': path.resolve(__dirname, 'src/cryptoBrowser.ts'),
-      'node:module': path.resolve(__dirname, 'src/cryptoBrowser.ts'),
+      ...instantBrowserAlias,
     },
+  },
+  optimizeDeps: {
+    exclude: ['@foldkit/instant'],
   },
   server: {
     fs: {
