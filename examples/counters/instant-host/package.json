@@ -11,6 +11,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./native": {
+      "types": "./dist/native.d.ts",
+      "import": "./dist/native.js"
+    },
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"

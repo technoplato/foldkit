@@ -8,8 +8,8 @@ import {
   instantCountersResources,
   observeRemoteCountersTape,
   openCountersTapeRuntime,
-  openNativeCountersTape,
 } from 'counters-instant-example'
+import { openNativeCountersTape } from 'counters-instant-example/native'
 import {
   type MultipleCountersHost,
   MultipleCountersProvider,
