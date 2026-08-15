@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 15th, 2026 at 5:56:11 p.m. EDT — `a590091d4d0f` refactor(counter): lift Instant tape into one Node host
+
+- **Implementation commit:** `a590091d4d0f64cf41b85aca80fc2ed2f3be4c41`
+- **Change:** Lift Counter Instant tape into one Node host package. Parent Instant issue https://issues.knophy.com/issues/207.
+- **Details:**
+  - CLI and TUI each opened Instant with a second copy of makeSharedProgramTape. Foldkit built the live tape by hand.
+  - counter-instant-example now owns local and live tape construction. Hosts re-export it. update stays pure.
+- **Files:**
+  - `examples/counter/instant-host/src/makeTape.ts` — Share local and live makeSharedProgramTape construction.
+  - `examples/counter/instant-host/src/node.ts` — Open memory, file, or live Instant tape once.
+  - `examples/counter/cli/src/tape.ts` — Re-export the shared Node tape.
+  - `examples/counter/tui/src/tape.ts` — Re-export the shared Node tape with the TUI Processor id.
+  - `examples/counter/foldkit/src/instantHost.ts` — Open the live tape through makeLiveCounterTape.
+- **User context (verbatim):**
+  > Mow extra code. Lift only after the second copy.
+  > Crow if this is not the platform way. Read upstream FoldKit or TCA.
+- **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
+
 ## August 15th, 2026 at 5:34:58 p.m. EDT — `5f195421fa19` feat(counter): compose valid, screen, and replay into Program
 
 - **Implementation commit:** `5f195421fa1954e1cb73502f1eca6b7f61e0091d`
