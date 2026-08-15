@@ -47,6 +47,11 @@ const makeTape = (
   })
 
 describe('same-actor Instant tape', () => {
+  it('publishes commitSharedMessage from foldkit/instant/sharing', () => {
+    expect(typeof commitSharedMessage).toBe('function')
+    expect(typeof makeSharedProgramTape).toBe('function')
+  })
+
   it.effect('writes the Message before update and after update', () =>
     Effect.gen(function* () {
       const store = yield* makeInMemoryProgramStore()

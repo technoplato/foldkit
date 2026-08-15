@@ -1,7 +1,7 @@
 import {
   Message,
-  counterTapeProgramId,
-  counterTapeProgramVersion,
+  counterProcessorIds,
+  counterTapeIdentityFields,
   localCounterSessionId,
   localCounterSubjectId,
 } from 'counter-core-example'
@@ -10,12 +10,14 @@ import { Processor } from 'foldkit'
 
 import {
   type ProgramStoreService,
-  type SharedProgramTape,
-  type TapeLink,
   makeFileProgramStore,
   makeInMemoryProgramStore,
-  makeSharedProgramTape,
 } from '@foldkit/instant'
+import {
+  type SharedProgramTape,
+  type TapeLink,
+  makeSharedProgramTape,
+} from '@foldkit/instant/sharing'
 
 import {
   CounterInstantTapeError,
@@ -27,7 +29,7 @@ export type CounterTape = SharedProgramTape<Message>
 
 const processorIdFrom = (value: string | undefined): string => {
   if (value === undefined || value === '') {
-    return 'tui'
+    return counterProcessorIds.tui
   }
   return value
 }
@@ -42,14 +44,11 @@ const makeTape = (
     eventId: message => message._tag,
     identity: {
       actor: Processor.SystemActor.make({ processorId }),
-      actorId: localCounterSubjectId,
-      clientId: processorId,
-      originDeviceId: 'computer',
-      originatingProcessorId: processorId,
-      programId: counterTapeProgramId,
-      programVersion: counterTapeProgramVersion,
-      sessionId: localCounterSessionId,
-      subjectId: localCounterSubjectId,
+      ...counterTapeIdentityFields(
+        processorId,
+        localCounterSubjectId,
+        localCounterSessionId,
+      ),
     },
     link,
     makeId: () => crypto.randomUUID(),

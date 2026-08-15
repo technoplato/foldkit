@@ -13,8 +13,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+import { makeInMemoryProgramStore } from '@foldkit/instant'
+
 import { executeDo, executeReplay, executeShow } from './host.js'
-import { makeMemoryCounterTape } from './tape.js'
+import { makeCounterTapeOnStore, makeMemoryCounterTape } from './tape.js'
 
 const writeTape = async (messages: ReadonlyArray<Message>): Promise<string> => {
   const tape = await Effect.runPromise(
@@ -116,18 +118,27 @@ describe('Counter CLI host', () => {
   })
 
   it('lets a second Processor read every Message on the tape', async () => {
-    const first = await Effect.runPromise(makeMemoryCounterTape('cli'))
-    await Effect.runPromise(executeDo('increment', { tape: first }))
-    const second = first
+    const store = await Effect.runPromise(makeInMemoryProgramStore())
+    const cli = await Effect.runPromise(
+      makeCounterTapeOnStore(store, 'cli', 'offline'),
+    )
+    const foldkit = await Effect.runPromise(
+      makeCounterTapeOnStore(store, 'foldkit', 'offline'),
+    )
+    await Effect.runPromise(executeDo('increment', { tape: cli }))
     const shown = await Effect.runPromise(
-      executeShow(undefined, undefined, { tape: second }),
+      executeShow(undefined, undefined, { tape: foldkit }),
     )
     const again = await Effect.runPromise(
-      executeDo('increment', { tape: second }),
+      executeDo('increment', { tape: foldkit }),
+    )
+    const fromCli = await Effect.runPromise(
+      executeShow(undefined, undefined, { tape: cli }),
     )
 
     expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
     expect(again.finalModel).toEqual(Model.make({ count: 2 }))
+    expect(fromCli.finalModel).toEqual(Model.make({ count: 2 }))
     expect(again.link).toBe('offline')
     expect(again.stdout).toContain('link           offline')
   })

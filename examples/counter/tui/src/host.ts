@@ -17,7 +17,7 @@ import {
 } from 'effect'
 import { Runtime } from 'foldkit'
 
-import { commitSharedMessage } from '@foldkit/instant'
+import { commitSharedMessage } from '@foldkit/instant/sharing'
 
 import { type CounterTape, resolveCounterTape } from './tape.js'
 
