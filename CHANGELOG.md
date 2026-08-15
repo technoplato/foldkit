@@ -4,6 +4,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 15th, 2026 at 8:51:30 a.m. EDT — `fac7a7606973` feat(counters): give Expo window useModel and useActions
+
+- **Implementation commit:** `fac7a7606973c95fc548cb8481d5a045c110578c`
+- **Change:** Give the Expo Counters window useModel(uri) and useActions(uri).
+- **Details:**
+  - The iPhone file no longer opens Instant, voids Effect.runPromise, or hangs on Starting with no error. Failed sign-in is FailedWindow.
+  - Login mint lives in instant-host. Metro no longer forwards /__foldkit/counters-demo-session to port 5213.
+  - Adapter tests cover useModel, useActions, failed sign-in, and the Metro mint ban.
+- **Files:**
+  - `examples/counters/expo/src/App.tsx` — Draw counts through useModel(uri) and useActions(uri) only.
+  - `examples/counters/expo/src/adapter.ts` — Start the native window runtime. The window does not import this Instant start.
+  - `examples/counters/expo/src/windowHooks.ts` — Subscribe the React Native window to the runtime snapshot.
+  - `examples/counters/expo/src/adapter.test.ts` — Prove useModel and useActions and FailedWindow.
+  - `examples/counters/expo/metro.config.js` — Stop forwarding the demo Instant mint through Metro.
+  - `examples/counters/instant-host/src/window.ts` — Own the observable window runtime. Zero business rules in the React adapter.
+  - `examples/counters/instant-host/src/session.ts` — Establish Instant session. Failed sign-in is visible.
+  - `examples/counters/instant-host/src/mint.ts` — Mint the demo Instant session in the runtime, not Metro.
+  - `examples/counters/instant-host/src/native.ts` — Start the native Instant window and surface Failed.
+- **User context (verbatim):**
+  > useModel(uri) + useActions(uri) + platform adapters. Zero business logic in the adapter.
+  > DO NOT put store.send or store.observe on the iPhone file.
+  > metro.config.js does not forward /__foldkit/counters-demo-session to port 5213.
+- **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
+
 ## August 14th, 2026 at 10:27:54 p.m. EDT — `e1f341d09974` fix(counters): mint Expo Instant session through Metro
 
 - **Implementation commit:** `e1f341d099740c836242980347c054cb53c25930`
