@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 10:03:07 p.m. EDT — `f4e49165adb0` fix(counters): open Expo Instant tape on iOS simulator
+
+- **Implementation commit:** `f4e49165adb060acda5c1387501c1490e509c9fc`
+- **Change:** Expo iOS Instant Increment is visible on the shared tape.
+- **Details:**
+  - counters-expo-ios Increment moved counter-1 from 9 to 10. CLI show printed the new count. Viewer https://issues.knophy.com/issues/211
+  - The Expo host uses the React Native Instant client, Metro Node stubs, and a Hermes randomUUID polyfill.
+- **Files:**
+  - `examples/counters/expo/src/App.tsx` — Open Instant tape from the React Native Instant client.
+  - `examples/counters/expo/src/nativeDatabase.ts` — Initialize Instant with InstantProgramSchema on React Native.
+  - `examples/counters/expo/src/polyfill.ts` — Supply crypto.randomUUID for Hermes.
+  - `examples/counters/expo/metro.config.js` — Stub Node-only Instant modules in Metro.
+  - `examples/counters/instant-host/src/native.ts` — Accept a host-owned Instant database for the native tape.
+  - `examples/counters/instant-host/src/browser.ts` — Sign in the demo session on InstantProgramDatabase.
+- **User context (verbatim):**
+  > Um why in the world would we be waiting on a device? Opening a simulator is common sense.
+- **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
+
 ## August 14th, 2026 at 8:35:58 p.m. EDT — `7a3ca621437f` feat(counters): keep native Instant tape off browser hosts
 
 - **Implementation commit:** `7a3ca621437f340e5a988a2ee08807ac65dd66dd`
