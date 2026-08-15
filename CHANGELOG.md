@@ -4,6 +4,29 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 15th, 2026 at 5:34:58 p.m. EDT — `5f195421fa19` feat(counter): compose valid, screen, and replay into Program
+
+- **Implementation commit:** `5f195421fa1954e1cb73502f1eca6b7f61e0091d`
+- **Change:** Compose valid, screen, and replay into Program.make for the Counter Instant tape.
+- **Details:**
+  - Program.make owns valid and screen. Runtime.inspectReplayFrame returns Model, valid, and the screen tree. CLI replay uses that API.
+  - Foldkit view.ts paints counterScreen through paintHtml. Attach failure calls runtime.fail so the page is not blank.
+  - Multiple Counters Foldkit start no longer uses void Effect.runPromise. Parent Instant issue https://issues.knophy.com/issues/207.
+- **Files:**
+  - `packages/foldkit/src/program/program.ts` — Add optional valid and screen to Program.make.
+  - `packages/foldkit/src/runtime/replayTape.ts` — Add inspectReplayFrame that projects valid and screen.
+  - `packages/foldkit/src/renderers/html.ts` — Paint a Program screen tree as Foldkit HTML.
+  - `examples/counter/core/src/program.ts` — Compose counterValid and counterScreen into CounterProgram.
+  - `examples/counter/cli/src/host.ts` — Replay through inspectReplayFrame. Do not reimplement update.
+  - `examples/counter/foldkit/src/view.ts` — Paint the Program screen tree. Do not invent buttons.
+  - `examples/counter/foldkit/src/instantHost.ts` — Surface attach failure as FailedWindow.
+  - `examples/counters/src/instantHost.ts` — Paint Instant start failure. Do not ignore Effect errors.
+- **User context (verbatim):**
+  > Compose replay, valid, and the screen tree into the Program. Do not tack them on.
+  > Windows call useModel(uri) and useActions(uri).
+  > Package foldkit/instant/sharing. Same Instant account. CLI and Foldkit browser are two Processors.
+- **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
+
 ## August 15th, 2026 at 5:04:00 p.m. EDT — `9542c1264073` refactor(instant): observe remote same-actor tape Messages
 
 - **Implementation commit:** `9542c1264073e49bc5b09db5ef6edcfb3a5bd556`
