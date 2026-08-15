@@ -4,6 +4,39 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 15th, 2026 at 4:37:06 p.m. EDT — `0d35e8bcaf89` feat(instant): export sharing and give Counter windows useModel
+
+- **Implementation commit:** `0d35e8bcaf897cf4198a7b81d9c550b4faa74f75`
+- **Change:** Export foldkit/instant/sharing and share one Counter Instant tape.
+- **Details:**
+  - CLI Processor cli and Foldkit Processor foldkit use one Instant account. update stays pure. The host writes the Message before update and after update.
+  - Windows call useModel(/counter) and useActions(/counter). Failed Instant sign-in is a FailedWindow. Live Instant is COUNTER_TAPE=instant.
+  - Parent Instant issue https://issues.knophy.com/issues/207.
+- **Files:**
+  - `packages/instant/package.json` — Export @foldkit/instant/sharing as the same-actor tape package.
+  - `packages/instant/src/sharing/tape.ts` — Document the sharing package and keep update out of the tape service.
+  - `packages/instant/src/sharing/tape.test.ts` — Prove commitSharedMessage is the public sharing API.
+  - `examples/counter/core/src/window.ts` — Own the window runtime so Clients subscribe and send actions only.
+  - `examples/counter/core/src/window.test.ts` — Prove ReadyWindow, FailedWindow, and reset at 0.
+  - `examples/counter/core/src/tapeIdentity.ts` — Share Processor ids and Instant session identity.
+  - `examples/counter/cli/src/tape.ts` — Import the tape from @foldkit/instant/sharing and expose a shared store helper.
+  - `examples/counter/cli/src/host.ts` — Commit Messages through the sharing package.
+  - `examples/counter/cli/src/host.test.ts` — Prove CLI and Foldkit Processors share every Message.
+  - `examples/counter/cli/src/instantTape.ts` — Open live Instant with the shared Counter account.
+  - `examples/counter/tui/src/tape.ts` — Import the tape from @foldkit/instant/sharing.
+  - `examples/counter/tui/src/instantTape.ts` — Use the shared Counter Instant identity.
+  - `examples/counter/foldkit/src/instantHost.ts` — Open Instant in the runtime. Surface FailedWindow. Do not ignore Effect errors.
+  - `examples/counter/foldkit/src/instantHost.test.ts` — Prove host chrome and keep Instant out of view.ts.
+  - `examples/counter/react/src/App.tsx` — Draw through useModel(uri) and useActions(uri) only.
+  - `examples/counter/react-bindings/src/windowHooks.ts` — Subscribe the React window to the runtime snapshot.
+  - `examples/counter/react-bindings/src/windowHooks.test.tsx` — Prove useModel, useActions, and FailedWindow.
+  - `.changeset/export-instant-sharing.md` — Declare the sharing export as a minor Instant release.
+- **User context (verbatim):**
+  > Package foldkit/instant/sharing. Same Instant account. CLI and Foldkit browser are two Processors.
+  > Windows call useModel(uri) and useActions(uri).
+  > Write the tape before and after update. Live Instant, not file-only.
+- **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
+
 ## August 15th, 2026 at 9:06:46 a.m. EDT — `f446034aac8c` fix(counters): remove Metro empty Instant stubs
 
 - **Implementation commit:** `f446034aac8cac554ea62694a4c387d9ec9bbd32`
