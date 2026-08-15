@@ -4,6 +4,45 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 14th, 2026 at 8:25:35 p.m. EDT — `f1b995f3c649` feat(counters): load Instant tape without Node browser stores
+
+- **Implementation commit:** `f1b995f3c649feae71d8a0bd2bfc420eae8181d4`
+- **Change:** Load Instant tape in Counters browser hosts without Node stores.
+- **Details:**
+  - The Instant package entry pulls Node file and admin stores. Vite then fails in Foldkit and React.
+  - A browser Instant entry omits those stores. Counters Vite hosts alias @foldkit/instant to that entry.
+  - Live Foldkit increment moved counter-1 from 2 to 3. React moved it from 3 to 4. Svelte moved it from 4 to 5. Vue moved it from 5 to 6. CLI show then printed counter-1 6.
+  - Parent Instant issue https://issues.knophy.com/issues/207
+- **Files:**
+  - `packages/instant/src/browser.ts` — Export Instant modules that can load in a browser.
+  - `examples/vite.aliases.ts` — Point Vite at the browser Instant entry.
+  - `examples/counters/vite.config.ts` — Alias Foldkit Vite to the browser Instant entry.
+  - `examples/counters/react/vite.config.ts` — Alias React Vite to the browser Instant entry.
+  - `examples/counters/instant-host/src/browser.ts` — Sign in with the demo mint path.
+- **User context (verbatim):**
+  > Live-click Foldkit/React if a local host exists.
+  > NEEDS-WORK is not a stop. Do not idle.
+- **SpecStory:** unavailable — Grok desktop session. SpecStory has no documented capture for this host.
+
+## August 14th, 2026 at 8:25:35 p.m. EDT — `9a4e380fc3c9` feat(counters): add headless, Svelte, Vue, and Three Instant hosts
+
+- **Implementation commit:** `9a4e380fc3c90035fea13a7d851d991ed8365fb4`
+- **Change:** Add Counters headless, Svelte, SvelteKit, Vue, and Three Instant hosts.
+- **Details:**
+  - These Processors share Instant tape multiple-counters and the demo subject counter@foldkit.dev.
+  - Headless increment on Instant printed counter-1 count 2.
+  - Parent Instant issue https://issues.knophy.com/issues/207
+- **Files:**
+  - `examples/counters/headless/src/host.ts` — Open Instant or memory tape for the headless Processor.
+  - `examples/counters/svelte/src/processor.ts` — Start the Svelte Processor on Instant tape.
+  - `examples/counters/sveltekit/src/processor.ts` — Start the SvelteKit Processor on Instant tape.
+  - `examples/counters/vue/src/processor.ts` — Start the Vue Processor on Instant tape.
+  - `examples/counters/three/src/entry.ts` — Start the Three Processor on Instant tape.
+  - `examples/counters/instant-host/src/launch.ts` — Launch one browser Processor on Instant or memory tape.
+- **User context (verbatim):**
+  > Next: add remaining Counters Clients headless svelte sveltekit vue threejs on the same Instant tape.
+- **SpecStory:** unavailable — Grok desktop session. SpecStory has no documented capture for this host.
+
 ## August 14th, 2026 at 7:48:38 p.m. EDT — `8d244da99dbd` feat(counters): share Instant tape and fetch favorite facts
 
 - **Implementation commit:** `8d244da99dbd08a5a2c5b3f084505f7654b180c5`
