@@ -4,6 +4,36 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 15th, 2026 at 9:06:46 a.m. EDT — `f446034aac8c` fix(counters): remove Metro empty Instant stubs
+
+- **Implementation commit:** `f446034aac8cac554ea62694a4c387d9ec9bbd32`
+- **Change:** Remove Metro empty Instant stubs from the Expo Counters app.
+- **Details:**
+  - The phone Instant host now imports @foldkit/instant/browser. That entry omits Instant admin, Node fs, and the Vite mint server.
+  - metro.config.js is the default Expo Metro config. It does not stub modules as empty and does not mint a login.
+  - instant-host 14 tests pass. Expo 6 tests pass. Typecheck passes for both packages.
+- **Files:**
+  - `examples/counters/expo/metro.config.js` — Delete the empty-stub resolveRequest for Instant admin and fs.
+  - `examples/counters/expo/src/metro.config.test.ts` — Ban @instantdb/admin and type empty in Metro config.
+  - `examples/counters/expo/src/access.ts` — Load Access helpers from the Instant browser entry.
+  - `examples/counters/expo/src/nativeDatabase.ts` — Load InstantProgramSchema from the Instant browser entry.
+  - `examples/counters/instant-host/src/native.ts` — Start the native window through the Instant browser entry.
+  - `examples/counters/instant-host/src/attach.ts` — Commit tape Messages through the Instant browser entry.
+  - `examples/counters/instant-host/src/makeTape.ts` — Open the shared tape through the Instant browser entry.
+  - `examples/counters/instant-host/src/browser.ts` — Open the browser tape through the Instant browser entry.
+  - `examples/counters/instant-host/src/launch.ts` — Load memory tape through the Instant browser entry.
+  - `examples/counters/instant-host/src/native.import.test.ts` — Prove the phone host does not import admin, fs, or mint.
+  - `packages/instant/package.json` — Export @foldkit/instant/browser.
+  - `packages/instant/src/browser.ts` — Export client hosted identity. Omit admin and file stores.
+  - `packages/instant/src/hostedIdentity/hostedIdentity.ts` — Keep Access Instant sign-in on the client. Do not import admin.
+  - `packages/instant/src/hostedIdentity/index.ts` — Export the client hosted identity module.
+- **User context (verbatim):**
+  > Metro still pretends @instantdb/admin and fs are empty.
+  > Fix the import graph. Then delete the empty-stub resolver.
+  > Split the Instant host so the phone path never imports admin, Node fs, or a Node mint server.
+  > Metro must not mint. Metro must not stub.
+- **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
+
 ## August 15th, 2026 at 8:51:30 a.m. EDT — `fac7a7606973` feat(counters): give Expo window useModel and useActions
 
 - **Implementation commit:** `fac7a7606973c95fc548cb8481d5a045c110578c`
