@@ -1,10 +1,8 @@
-import { counterDemoEmail } from 'counter-core-example'
+import { counterDemoEmail, counterDemoSessionPath } from 'counter-core-example'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 
 import { init } from '@instantdb/admin'
-
-import { counterDemoSessionPath } from './demoSessionPath.js'
 
 const envValue = (name: string): string => {
   const value = process.env[name]

@@ -3,67 +3,23 @@ import {
   type CounterWindowActions,
   type CounterWindowModel,
   type CounterWindowRuntime,
-  type CounterWindowTape,
-  FailedCounterSession,
   Message,
-  type Model,
-  SignedInCounterSession,
   counterProcessorIds,
   describeCounterWindowError,
-  foldCounterMessages,
   startCounterWindowRuntime,
   uri,
 } from 'counter-core-example'
-import { makeLiveCounterTape } from 'counter-instant-example'
-import { Effect, Exit, Layer, Scope } from 'effect'
+import {
+  makeCounterInstantDatabase,
+  openLiveCounterWindowTape,
+  signInCounterWindowSession,
+} from 'counter-instant-example/browser'
+import { Effect, Exit, Scope } from 'effect'
 import { Runtime } from 'foldkit'
 
-import {
-  InstantProgramSchema,
-  makeInstantProgramStore,
-} from '@foldkit/instant/browser'
-import {
-  commitSharedMessage,
-  observeRemoteAcceptedMessages,
-} from '@foldkit/instant/sharing'
-import { init } from '@instantdb/core'
-
-import { counterDemoSessionPath } from './demoSessionPath.js'
 import { view } from './view.js'
 
 const foldkitProcessorId = counterProcessorIds.foldkit
-
-const readJsonToken = async (response: Response): Promise<string> => {
-  if (!response.ok) {
-    throw new Error('Instant could not mint the Counter demo session.')
-  }
-  const body: unknown = await response.json()
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    !('token' in body) ||
-    typeof body.token !== 'string' ||
-    body.token === ''
-  ) {
-    throw new Error('Instant could not mint the Counter demo session.')
-  }
-  return body.token
-}
-
-/** Signs the Foldkit Processor into the shared Counter Instant account. */
-export const signInCounterDemoSession = async (
-  database: ReturnType<typeof init<typeof InstantProgramSchema>>,
-): Promise<void> => {
-  const existing = await database.getAuth()
-  if (existing !== null) {
-    return
-  }
-  const response = await fetch(counterDemoSessionPath, {
-    credentials: 'same-origin',
-  })
-  const token = await readJsonToken(response)
-  await database.auth.signInWithToken(token)
-}
 
 /** Paints Starting or Failed host chrome. Ready returns false so Foldkit can draw. */
 export const paintCounterHostStatus = (
@@ -90,61 +46,6 @@ export const paintCounterHostStatus = (
   })
   container.append(status, retry)
   return true
-}
-
-const openInstantWindowTape = (
-  database: ReturnType<typeof init<typeof InstantProgramSchema>>,
-  userId: string,
-): Promise<CounterWindowTape> => {
-  const scope = Effect.runSync(Scope.make())
-  return Effect.runPromise(
-    Effect.gen(function* () {
-      const tape = yield* makeLiveCounterTape(
-        makeInstantProgramStore(database),
-        foldkitProcessorId,
-        userId,
-      )
-      const accepted = yield* tape.readAcceptedMessages
-      const runtime = yield* Effect.orDie(
-        Runtime.makeProgramRuntime({
-          program: CounterProgram,
-          resources: Layer.empty,
-          start: Runtime.fromModel(foldCounterMessages(accepted)),
-        }),
-      )
-      yield* runtime.initialization
-      yield* Effect.forkChild(
-        observeRemoteAcceptedMessages(
-          tape,
-          foldkitProcessorId,
-          (message, occurrence) =>
-            Effect.asVoid(
-              runtime.run(message, {
-                source: Runtime.fromAcceptedMessage(occurrence.occurrenceId),
-              }),
-            ),
-        ),
-      )
-      return {
-        readModel: () => runtime.readModel(),
-        send: (message: Message) =>
-          Effect.runPromise(
-            Effect.asVoid(
-              commitSharedMessage(tape, message, () => runtime.run(message)),
-            ),
-          ),
-        stop: () => {
-          const closing = Effect.runPromise(Scope.close(scope, Exit.void))
-          closing.then(
-            () => undefined,
-            () => undefined,
-          )
-        },
-        subscribe: (listener: (model: Model) => void) =>
-          runtime.observeModel(listener),
-      }
-    }).pipe(Effect.provideService(Scope.Scope, scope)),
-  )
 }
 
 /** Surfaces a Foldkit attach failure as FailedWindow. The page must not stay blank. */
@@ -208,25 +109,11 @@ export const startInstantCounter = (appId: string): void => {
   if (container === null) {
     throw new Error('Root element not found')
   }
-  const database = init({ appId, schema: InstantProgramSchema })
+  const database = makeCounterInstantDatabase(appId)
   const runtime = startCounterWindowRuntime({
-    openTape: userId => openInstantWindowTape(database, userId),
-    signIn: async () => {
-      try {
-        await signInCounterDemoSession(database)
-        const user = await database.getAuth()
-        if (user === null) {
-          return FailedCounterSession.make({
-            error: 'Instant has no Counter demo user.',
-          })
-        }
-        return SignedInCounterSession.make({ userId: user.id })
-      } catch (error) {
-        return FailedCounterSession.make({
-          error: describeCounterWindowError(error),
-        })
-      }
-    },
+    openTape: userId =>
+      openLiveCounterWindowTape(database, foldkitProcessorId, userId),
+    signIn: () => signInCounterWindowSession(database),
   })
   let detach: (() => void) | undefined
   const render = (): void => {
