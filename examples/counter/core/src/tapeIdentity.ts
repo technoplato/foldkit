@@ -18,10 +18,14 @@ export const counterInstantSessionId = 'counter-session'
 /** Shared Instant demo subject used by local Counter Processors. */
 export const counterDemoEmail = 'counter@foldkit.dev'
 
-/** Processor ids for the CLI and Foldkit browser on one Instant account. */
+/** Vite path that mints the Counter demo Instant session. */
+export const counterDemoSessionPath = '/__foldkit/counter-demo-session'
+
+/** Processor ids written onto the same Instant Counter tape. */
 export const counterProcessorIds = {
   cli: 'cli',
   foldkit: 'foldkit',
+  react: 'react',
   tui: 'tui',
 } as const
 

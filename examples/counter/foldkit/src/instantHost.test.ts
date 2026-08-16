@@ -38,6 +38,14 @@ describe('Counter Foldkit Instant host chrome', () => {
     ).toBe(false)
   })
 
+  it('opens Instant through the shared browser tape', () => {
+    const source = readFileSync('src/instantHost.ts', 'utf8')
+    expect(source).toContain('counter-instant-example/browser')
+    expect(source).toContain('openLiveCounterWindowTape')
+    expect(source).not.toContain('@instantdb')
+    expect(source).not.toContain('void Effect.runPromise')
+  })
+
   it('keeps Instant out of the Foldkit window view', () => {
     const viewSource = readFileSync('src/view.ts', 'utf8')
     expect(viewSource).toContain('paintHtml')

@@ -1,11 +1,11 @@
+import { counterDemoSession } from 'counter-instant-example/vite'
 import path from 'path'
 import { defineConfig } from 'vite'
 
 import { foldkit } from '@foldkit/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 
-import { foldkitAliases } from '../../vite.aliases'
-import { counterDemoSession } from './src/demoSession'
+import { foldkitAliases, instantBrowserAlias } from '../../vite.aliases'
 
 export default defineConfig({
   plugins: [
@@ -14,7 +14,13 @@ export default defineConfig({
     counterDemoSession(),
   ],
   resolve: {
-    alias: foldkitAliases(path.resolve(__dirname, '..')),
+    alias: {
+      ...foldkitAliases(path.resolve(__dirname, '..')),
+      ...instantBrowserAlias,
+    },
+  },
+  optimizeDeps: {
+    exclude: ['@foldkit/instant'],
   },
   server: {
     fs: {

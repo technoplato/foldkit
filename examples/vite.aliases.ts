@@ -1,11 +1,23 @@
 import path from 'path'
 
-/** Vite alias that keeps Node Instant stores out of browser bundles. */
+const instantBrowserEntry = path.resolve(
+  import.meta.dirname,
+  '../packages/instant/src/browser.ts',
+)
+
+const instantSharingEntry = path.resolve(
+  import.meta.dirname,
+  '../packages/instant/src/sharing/tape.ts',
+)
+
+/**
+ * Vite aliases that keep Node Instant stores out of browser bundles.
+ * A package-root file alias does not match `@foldkit/instant/browser`.
+ */
 export const instantBrowserAlias = {
-  '@foldkit/instant': path.resolve(
-    import.meta.dirname,
-    '../packages/instant/src/browser.ts',
-  ),
+  '@foldkit/instant/browser': instantBrowserEntry,
+  '@foldkit/instant/sharing': instantSharingEntry,
+  '@foldkit/instant': instantBrowserEntry,
 }
 
 /** Vite resolve aliases that point foldkit subpath imports at the local source. */
