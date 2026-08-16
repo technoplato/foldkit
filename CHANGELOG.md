@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 16th, 2026 at 12:54:18 a.m. EDT — `28843b122753` fix(counter): attach React Instant tape and Vite Instant subpaths
+
+- **Implementation commit:** `28843b1227537ec976d2c610b46134b28c739002`
+- **Change:** Attach Counter React Instant tape and map Vite Instant subpaths. Parent Instant issue https://issues.knophy.com/issues/207.
+- **Details:**
+  - A package-root file alias did not match @foldkit/instant/browser or @foldkit/instant/sharing. Vite hosts painted empty Instant windows.
+  - counter-instant-example/browser now signs in, observes accepted rows, and commits through commitSharedMessage. React installs that tape from the host.
+  - Live Instant subject counter@foldkit.dev. Counter tape count 10. Multiple Counters counter-1 count 14.
+- **Files:**
+  - `examples/vite.aliases.ts` — Map Instant browser and sharing subpaths for Vite hosts.
+  - `examples/counter/instant-host/src/browser.ts` — Share the Counter Instant browser tape.
+  - `examples/counter/instant-host/src/demoSession.ts` — Move the Vite demo mint out of the Foldkit Client package.
+  - `examples/counter/react/src/instantHost.ts` — Install the Instant window runtime. App still calls useModel and useActions.
+  - `examples/counter/foldkit/src/instantHost.ts` — Open Instant through the shared browser tape.
+  - `examples/counter/core/src/tapeIdentity.ts` — Add the React Processor id and the demo mint path.
+- **User context (verbatim):**
+  > The bar: a stranger increments on one Processor. Every other Processor on this Instant account shows the same count.
+  > Fix only Instant attach / subscribe / send holes that block the match.
+  > Do not open Instant in a Client file.
+  > A plus tap is QA. It is not a pass.
+- **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
+
 ## August 15th, 2026 at 5:56:11 p.m. EDT — `a590091d4d0f` refactor(counter): lift Instant tape into one Node host
 
 - **Implementation commit:** `a590091d4d0f64cf41b85aca80fc2ed2f3be4c41`
