@@ -1,12 +1,9 @@
 import { mount } from 'svelte'
 
 import App from './App.svelte'
-import { startInstantCounterWindow } from './instantHost.js'
+import { startInstantCounter } from './instantHost.js'
 
-const instantAppId = import.meta.env.VITE_INSTANT_APP_ID
-if (typeof instantAppId === 'string' && instantAppId !== '') {
-  startInstantCounterWindow(instantAppId)
-}
+startInstantCounter()
 
 const root = document.getElementById('root')
 if (root === null) {

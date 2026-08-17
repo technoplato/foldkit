@@ -1,26 +1,18 @@
+import { Path, describeCounterSyncError } from 'counter-core-example'
 import { useActions, useModel } from 'counter-react-bindings-example'
 import type { ReactNode } from 'react'
 
-const counterUri = '/counter'
-
 /** Draws one Counter. The window only calls useModel and useActions. */
 export const App = () => {
-  const view = useModel(counterUri)
-  const actions = useActions(counterUri)
-  if (view._tag === 'StartingWindow') {
+  const view = useModel(Path())
+  const actions = useActions(Path())
+  if (view._tag === 'Starting') {
     return <Status>Starting Instant Counter…</Status>
   }
-  if (view._tag === 'FailedWindow') {
+  if (view._tag === 'Failed') {
     return (
       <Status>
-        <p>{view.error}</p>
-        <button
-          className={buttonClassName}
-          onClick={actions.signIn}
-          type="button"
-        >
-          Sign in
-        </button>
+        <p>{describeCounterSyncError(view.error)}</p>
       </Status>
     )
   }

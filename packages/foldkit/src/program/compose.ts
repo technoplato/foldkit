@@ -16,6 +16,7 @@ import type {
   ProgramSchema,
 } from './program.js'
 import { make } from './program.js'
+import { sync } from './sync.js'
 
 // ── Minimal program surface used by compose ─────────────────────────
 
@@ -100,7 +101,7 @@ export type ComposedProgram<Children extends ChildrenMap> = Program<
 
 const wrapMessage =
   <K extends string>(key: K) =>
-  <M,>(message: M): { readonly _tag: K; readonly message: M } => ({
+  <M>(message: M): { readonly _tag: K; readonly message: M } => ({
     _tag: key,
     message,
   })
@@ -117,7 +118,9 @@ const buildMessageSchema = <Children extends ChildrenMap>(
   )
 
   if (members.length === 0) {
-    throw new Error('[foldkit] Program.compose requires at least one child Program')
+    throw new Error(
+      '[foldkit] Program.compose requires at least one child Program',
+    )
   }
 
   if (members.length === 1) {
@@ -165,7 +168,9 @@ export const compose = <
   type Kids = Children
   const keys = Object.keys(children) as Array<keyof Kids & string>
   if (keys.length === 0) {
-    throw new Error('[foldkit] Program.compose requires at least one child Program')
+    throw new Error(
+      '[foldkit] Program.compose requires at least one child Program',
+    )
   }
 
   const kids = children as Kids
@@ -202,10 +207,7 @@ export const compose = <
 
   const restore = (
     model: ComposedModel<Kids>,
-  ): readonly [
-    ComposedModel<Kids>,
-    ReadonlyArray<ChildCommand<Kids>>,
-  ] => {
+  ): readonly [ComposedModel<Kids>, ReadonlyArray<ChildCommand<Kids>>] => {
     const next = { ...model } as Record<string, unknown>
     const commands: Array<ChildCommand<Kids>> = []
 
@@ -229,10 +231,7 @@ export const compose = <
   const update = (
     model: ComposedModel<Kids>,
     parentMessage: ComposedMessage<Kids> & Readonly<{ _tag: string }>,
-  ): readonly [
-    ComposedModel<Kids>,
-    ReadonlyArray<ChildCommand<Kids>>,
-  ] => {
+  ): readonly [ComposedModel<Kids>, ReadonlyArray<ChildCommand<Kids>>] => {
     const key = parentMessage._tag as keyof Kids & string
     const child = kids[key]
     if (child === undefined) {
@@ -391,7 +390,9 @@ export const forEach = <Child extends AnyProgram>(config: {
     const [childModel, commands] = child.init()
     return [
       { id, child: childModel },
-      mapMessages(commands, message => childMessage(id, message as ChildMessage)),
+      mapMessages(commands, message =>
+        childMessage(id, message as ChildMessage),
+      ),
     ]
   }
 
@@ -401,9 +402,8 @@ export const forEach = <Child extends AnyProgram>(config: {
   ] => {
     const initialCount = config.initialCount ?? 0
     const rows: Array<ForEachRow<ChildModel>> = []
-    const commands: Array<
-      ProgramCommand<ForEachMessage<ChildMessage>, any>
-    > = []
+    const commands: Array<ProgramCommand<ForEachMessage<ChildMessage>, any>> =
+      []
     for (let i = 0; i < initialCount; i += 1) {
       const id = String(i)
       const [row, rowCommands] = makeRow(id)
@@ -484,6 +484,7 @@ export const forEach = <Child extends AnyProgram>(config: {
 
 // Attach forEach as compose.forEach for ergonomic import
 compose.forEach = forEach
+compose.sync = sync
 
 /** Scope one child Program under a fixed key (sugar over compose of one). */
 export const scope = <K extends string, Child extends AnyProgram>(
@@ -493,6 +494,4 @@ export const scope = <K extends string, Child extends AnyProgram>(
 ): ComposedProgram<{ [P in K]: Child }> =>
   compose({ [key]: child } as { [P in K]: Child }, options)
 
-export type {
-  ChildrenMap as ComposeChildren,
-}
+export type { ChildrenMap as ComposeChildren }

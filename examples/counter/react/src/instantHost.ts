@@ -1,21 +1,17 @@
-import {
-  counterProcessorIds,
-  startCounterWindowRuntime,
-} from 'counter-core-example'
-import {
-  makeCounterInstantDatabase,
-  openLiveCounterWindowTape,
-  signInCounterWindowSession,
-} from 'counter-instant-example/browser'
-import { installCounterWindowRuntime } from 'counter-react-bindings-example'
+import { startSyncedCounterHandle } from 'counter-core-example'
+import { installSyncedCounterHandle } from 'counter-react-bindings-example'
+import { Processor } from 'foldkit'
 
-/** Starts the React Processor on the live Instant Counter tape. */
-export const startInstantCounterWindow = (appId: string): void => {
-  const database = makeCounterInstantDatabase(appId)
-  const runtime = startCounterWindowRuntime({
-    openTape: userId =>
-      openLiveCounterWindowTape(database, counterProcessorIds.react, userId),
-    signIn: () => signInCounterWindowSession(),
-  })
-  installCounterWindowRuntime(runtime)
+import { FoldkitCounterV01, Instant } from '@foldkit/instant/browser'
+
+/** Starts the React Processor on Instant. Instant has no Model. */
+export const startInstantCounter = (): void => {
+  installSyncedCounterHandle(
+    startSyncedCounterHandle(
+      Instant({
+        app: FoldkitCounterV01,
+        processor: Processor.Host.React(),
+      }),
+    ),
+  )
 }

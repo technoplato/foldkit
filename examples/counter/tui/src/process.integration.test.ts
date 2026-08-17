@@ -1,4 +1,4 @@
-import { ReadyWindow } from 'counter-core-example'
+import { Model, SyncedCounter } from 'counter-core-example'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -8,7 +8,7 @@ import { renderCounterScreen } from './client.js'
 const tuiEntryPath = fileURLToPath(new URL('../dist/entry.js', import.meta.url))
 
 const readyScreen = (count: number): string =>
-  renderCounterScreen(ReadyWindow.make({ count }))
+  renderCounterScreen(SyncedCounter.Ready(Model.make({ count })))
 
 const memoryEnv = (): NodeJS.ProcessEnv => ({
   ...process.env,
@@ -54,7 +54,9 @@ describe('Counter TUI process', () => {
     })
 
     expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout).toMatch(/Starting Instant Counter|INSTANT_APP_ID/)
+    expect(result.stdout).toMatch(
+      /Starting Instant Counter|INSTANT_APP_ADMIN_TOKEN/,
+    )
     expect(result.stdout).not.toContain('[ + ]')
   })
 })

@@ -1,4 +1,11 @@
 export * from './adminStore/index.js'
+export {
+  FoldkitCounterV01,
+  Instant,
+  fromTransport,
+  instantCauseString,
+} from './sync/nodeInstant.js'
+export type { InstantApp, InstantOptions } from './sync/nodeInstant.js'
 export * from './acceptedOccurrenceCursor/index.js'
 export * from './acceptanceAuthority/index.js'
 export * from './artifactStream/index.js'
@@ -16,6 +23,7 @@ export * from './sharedProgramProcessor/index.js'
 export * from './sharing/index.js'
 export * from './snapshotLog/index.js'
 export * from './snapshotLog/admin.js'
+export * from './snapshotLog/file.js'
 export * from './subjectScopedProgram/index.js'
 export * from './v3AcceptanceAuthority/index.js'
 export * from './v3InMemoryProgramStore/index.js'

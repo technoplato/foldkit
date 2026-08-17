@@ -1,23 +1,15 @@
 import {
-  ReadyWindow,
-  startMemoryCounterWindow,
-  uri,
+  Model,
+  SyncedCounter,
+  memorySyncedEngine,
+  startSyncedCounterHandle,
+  waitForSyncedHandle,
 } from 'counter-core-example'
 import { Effect, Layer, Option, Queue, Terminal } from 'effect'
+import { Processor } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import { renderCounterScreen, runCounterTui } from './client.js'
-
-const waitForReady = async (
-  runtime: ReturnType<typeof startMemoryCounterWindow>,
-): Promise<void> => {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (runtime.getSnapshot(uri)._tag === 'ReadyWindow') {
-      return
-    }
-    await Promise.resolve()
-  }
-}
 
 const keyInput = (name: string): Terminal.UserInput => ({
   input: Option.some(name),
@@ -30,9 +22,11 @@ const keyInput = (name: string): Terminal.UserInput => ({
 })
 
 describe('Counter TUI Client', () => {
-  it('subscribes and sends Starting, Failed, and Ready through the window runtime', async () => {
-    const runtime = startMemoryCounterWindow()
-    await waitForReady(runtime)
+  it('subscribes and sends Starting, Failed, and Ready through the handle', async () => {
+    const handle = startSyncedCounterHandle(
+      memorySyncedEngine(Processor.Host.Tui()),
+    )
+    await waitForSyncedHandle(handle)
     const screens: Array<string> = []
     const layer = Layer.succeed(
       Terminal.Terminal,
@@ -56,16 +50,16 @@ describe('Counter TUI Client', () => {
       }),
     )
 
-    await Effect.runPromise(runCounterTui(runtime).pipe(Effect.provide(layer)))
+    await Effect.runPromise(runCounterTui(handle).pipe(Effect.provide(layer)))
 
     expect(screens).toContain(
-      renderCounterScreen(ReadyWindow.make({ count: 0 })),
+      renderCounterScreen(SyncedCounter.Ready(Model.make({ count: 0 }))),
     )
     expect(screens).toContain(
-      renderCounterScreen(ReadyWindow.make({ count: 1 })),
+      renderCounterScreen(SyncedCounter.Ready(Model.make({ count: 1 }))),
     )
     expect(screens).toContain(
-      renderCounterScreen(ReadyWindow.make({ count: 2 })),
+      renderCounterScreen(SyncedCounter.Ready(Model.make({ count: 2 }))),
     )
   })
 })

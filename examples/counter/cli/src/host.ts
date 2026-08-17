@@ -1,12 +1,12 @@
 import {
+  Model as CounterModel,
   CounterProgram,
   Device,
   LastAction,
   type Message,
   type Model,
+  SyncedCounter,
   actionByToken,
-  counterProcessorIdFrom,
-  counterProcessorIds,
   counterScreen,
   counterValid,
   defaultShowContext,
@@ -25,18 +25,20 @@ import {
   Option,
   Schema as S,
 } from 'effect'
-import { Runtime } from 'foldkit'
+import { Processor, Program, Runtime } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 import { readFileSync } from 'node:fs'
 
+import {
+  FoldkitCounterV01,
+  Instant,
+  makeFileSnapshotLogTransport,
+} from '@foldkit/instant'
 import { commitSharedMessage } from '@foldkit/instant/sharing'
 
 import {
   type CounterTape,
   type SnapshotLogTransport,
-  commitCounterSnapshotMessage,
-  readCounterSnapshotModel,
-  withCounterSnapshotLog,
   withCounterTape,
 } from './tape.js'
 
@@ -50,30 +52,13 @@ const tapeError = (): CounterCliError =>
     message: 'Cannot append the Instant tape.',
   })
 
-const snapshotError = (): CounterCliError =>
-  new CounterCliError({
-    message: 'Cannot write the Instant count.',
-  })
-
-const usesSnapshot = (options: CliTapeOptions): boolean =>
-  options.snapshot !== undefined || process.env['COUNTER_TAPE'] === 'instant'
+const usesTape = (options: CliTapeOptions): boolean =>
+  options.tape !== undefined
 
 const openTape = (
   options: CliTapeOptions,
 ): Effect.Effect<CounterTape, CounterCliError> =>
   withCounterTape(Option.fromNullishOr(options.tape)).pipe(
-    Effect.mapError(
-      error =>
-        new CounterCliError({
-          message: error.message,
-        }),
-    ),
-  )
-
-const openSnapshot = (
-  options: CliTapeOptions,
-): Effect.Effect<SnapshotLogTransport, CounterCliError> =>
-  withCounterSnapshotLog(Option.fromNullishOr(options.snapshot)).pipe(
     Effect.mapError(
       error =>
         new CounterCliError({
@@ -89,41 +74,82 @@ const modelFromTape = (
     Effect.mapError(() => tapeError()),
   )
 
-const modelFromSnapshot = (
-  transport: SnapshotLogTransport,
-): Effect.Effect<Model, CounterCliError> =>
-  readCounterSnapshotModel(transport).pipe(
-    Effect.mapError(() => snapshotError()),
-  )
-
-const loadInitialModel = (
-  options: CliTapeOptions,
-): Effect.Effect<
-  | Readonly<{
-      kind: 'snapshot'
-      model: Model
-      transport: SnapshotLogTransport
-    }>
-  | Readonly<{
-      kind: 'tape'
-      model: Model
-      tape: CounterTape
-    }>,
-  CounterCliError
-> => {
-  if (usesSnapshot(options)) {
-    return Effect.gen(function* () {
-      const transport = yield* openSnapshot(options)
-      const model = yield* modelFromSnapshot(transport)
-      return { kind: 'snapshot', model, transport }
+const resolveEngine = (options: CliTapeOptions): Runtime.SyncEngine => {
+  if (options.snapshot !== undefined) {
+    return Instant({
+      app: FoldkitCounterV01,
+      processor: Processor.Host.Cli(),
+      transport: options.snapshot,
     })
   }
-  return Effect.gen(function* () {
-    const tape = yield* openTape(options)
-    const model = yield* modelFromTape(tape)
-    return { kind: 'tape', model, tape }
-  })
+  if (process.env['COUNTER_TAPE'] === 'instant') {
+    return Instant({
+      app: FoldkitCounterV01,
+      processor: Processor.Host.Cli(),
+    })
+  }
+  const tapePath = process.env['COUNTER_TAPE_PATH']
+  if (tapePath !== undefined && tapePath !== '') {
+    return Instant({
+      app: FoldkitCounterV01,
+      processor: Processor.Host.Cli(),
+      transport: makeFileSnapshotLogTransport(tapePath),
+    })
+  }
+  return Runtime.Memory({ processor: Processor.Host.Cli() })
 }
+
+const readyCount = (
+  model: Program.SyncedModel<Model, Message>,
+): Effect.Effect<Model, CounterCliError> => {
+  if (model._tag === 'Ready') {
+    return Effect.succeed(CounterModel.make({ count: model.count }))
+  }
+  if (model._tag === 'Failed') {
+    return Effect.fail(
+      new CounterCliError({
+        message: Program.describeSyncError(
+          model.error,
+          message => message._tag,
+        ),
+      }),
+    )
+  }
+  return Effect.fail(
+    new CounterCliError({
+      message: 'CLI waited for Ready and Instant stayed Starting.',
+    }),
+  )
+}
+
+const withSynced = <A>(
+  body: (
+    started: Runtime.StartedProgram<
+      Program.SyncedModel<Model, Message>,
+      Program.SyncedMessage<Model, Message>
+    >,
+    initialModel: Model,
+  ) => Effect.Effect<A, CounterCliError>,
+  options: CliTapeOptions,
+): Effect.Effect<A, CounterCliError> =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const started = yield* Runtime.start({
+        program: SyncedCounter,
+        sync: resolveEngine(options),
+      }).pipe(
+        Effect.mapError(
+          error =>
+            new CounterCliError({
+              message: error.message,
+            }),
+        ),
+      )
+      const settled = yield* Runtime.untilSettled(started)
+      const initialModel = yield* readyCount(settled)
+      return yield* body(started, initialModel)
+    }),
+  )
 
 const parseDevice = (
   raw: string | undefined,
@@ -162,6 +188,76 @@ export type CliTapeOptions = Readonly<{
   tape?: CounterTape
 }>
 
+const showExecution = (
+  initialModel: Model,
+  device: Device | undefined,
+  path: string | undefined,
+): CliExecution => ({
+  initialModel,
+  maybeMessage: Option.none(),
+  finalModel: initialModel,
+  link: 'offline',
+  stdout: renderShow(initialModel, {
+    ...showContext(device),
+    ...(path === undefined ? {} : { path }),
+  }),
+})
+
+const doExecution = (
+  initialModel: Model,
+  action: NonNullable<ReturnType<typeof actionByToken>>,
+  token: string,
+  nextModel: Model,
+  link: CliExecution['link'],
+): CliExecution => {
+  const last: LastAction = {
+    command: action.command ?? token,
+    event: action.event ?? token,
+    sideEffects: ['tape append', `link  ${link}`],
+  }
+  const receipt = renderReceipt({
+    token: tokenOf(action),
+    verb: 'sent',
+    from: 'cli',
+    via: 'argv',
+    command: last.command,
+    event: last.event,
+    mutate: action.mutate ?? '',
+    sideEffects: action.sideEffects ?? '(none)',
+    tape: 'appended',
+    link,
+  })
+  return {
+    initialModel,
+    maybeMessage: Option.some(action()),
+    finalModel: nextModel,
+    link,
+    stdout: [
+      receipt,
+      '',
+      renderShow(nextModel, {
+        ...showContext(undefined),
+        last,
+      }),
+    ].join('\n'),
+  }
+}
+
+const invalidDoExecution = (
+  token: string,
+  initialModel: Model,
+): CliExecution => ({
+  initialModel,
+  maybeMessage: Option.none(),
+  finalModel: initialModel,
+  link: 'offline',
+  stdout: [
+    invalidActionLog(token, initialModel),
+    '',
+    renderShow(initialModel, showContext(undefined)),
+  ].join('\n'),
+})
+
 /** Prints IDENTITY and ACESS. Optional `--device` wraps the product tree. */
 export const executeShow = (
   deviceRaw: string | undefined,
@@ -170,19 +266,16 @@ export const executeShow = (
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
     const device = yield* parseDevice(deviceRaw)
-    const loaded = yield* loadInitialModel(options)
-    const initialModel = loaded.model
-    const stdout = renderShow(initialModel, {
-      ...showContext(device),
-      ...(path === undefined ? {} : { path }),
-    })
-    return {
-      initialModel,
-      maybeMessage: Option.none(),
-      finalModel: initialModel,
-      link: 'offline',
-      stdout,
+    if (usesTape(options)) {
+      const tape = yield* openTape(options)
+      const initialModel = yield* modelFromTape(tape)
+      return showExecution(initialModel, device, path)
     }
+    return yield* withSynced(
+      (_started, initialModel) =>
+        Effect.succeed(showExecution(initialModel, device, path)),
+      options,
+    )
   })
 
 /** Sends one semantic token, then auto-shows. */
@@ -191,8 +284,6 @@ export const executeDo = (
   options: CliTapeOptions = {},
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
-    const loaded = yield* loadInitialModel(options)
-    const initialModel = loaded.model
     const action = actionByToken(token.trim().toLowerCase())
     if (action === undefined) {
       return yield* Effect.fail(
@@ -201,86 +292,51 @@ export const executeDo = (
         }),
       )
     }
-    const isValid = Array.some(
-      counterValid(initialModel, {}),
-      item => item.token === tokenOf(action) && item.valid,
-    )
-    if (!isValid) {
-      const stdout = [
-        invalidActionLog(token, initialModel),
-        '',
-        renderShow(initialModel, showContext(undefined)),
-      ].join('\n')
-      return {
-        initialModel,
-        maybeMessage: Option.none(),
-        finalModel: initialModel,
-        link: 'offline',
-        stdout,
+    if (usesTape(options)) {
+      const tape = yield* openTape(options)
+      const initialModel = yield* modelFromTape(tape)
+      const isValid = Array.some(
+        counterValid(initialModel, {}),
+        item => item.token === tokenOf(action) && item.valid,
+      )
+      if (!isValid) {
+        return invalidDoExecution(token, initialModel)
       }
+      const message = action()
+      const [nextModel] = CounterProgram.update(initialModel, message)
+      const commit = yield* commitSharedMessage(tape, message, () =>
+        Effect.succeed(nextModel),
+      ).pipe(
+        Effect.map(shared => ({
+          link: shared.accepted,
+          model: shared.result,
+        })),
+        Effect.mapError(() => tapeError()),
+      )
+      return doExecution(initialModel, action, token, commit.model, commit.link)
     }
-
-    const message = action()
-    const [nextModel] = CounterProgram.update(initialModel, message)
-    const commit =
-      loaded.kind === 'snapshot'
-        ? yield* commitCounterSnapshotMessage(
-            loaded.transport,
-            counterProcessorIdFrom(
-              process.env['COUNTER_PROCESSOR_ID'],
-              counterProcessorIds.cli,
-            ),
-            initialModel.count,
-            message,
-          ).pipe(
-            Effect.catchTag('SnapshotLogError', () =>
-              Effect.succeed({
-                link: 'queued' as const,
-                model: nextModel,
-              }),
-            ),
+    return yield* withSynced(
+      (started, initialModel) =>
+        Effect.gen(function* () {
+          const isValid = Array.some(
+            counterValid(initialModel, {}),
+            item => item.token === tokenOf(action) && item.valid,
           )
-        : yield* commitSharedMessage(loaded.tape, message, () =>
-            Effect.succeed(nextModel),
-          ).pipe(
-            Effect.map(shared => ({
-              link: shared.accepted,
-              model: shared.result,
-            })),
-            Effect.mapError(() => tapeError()),
-          )
-    const last: LastAction = {
-      command: action.command ?? token,
-      event: action.event ?? token,
-      sideEffects: ['tape append', `link  ${commit.link}`],
-    }
-    const receipt = renderReceipt({
-      token: tokenOf(action),
-      verb: 'sent',
-      from: 'cli',
-      via: 'argv',
-      command: last.command,
-      event: last.event,
-      mutate: action.mutate ?? '',
-      sideEffects: action.sideEffects ?? '(none)',
-      tape: 'appended',
-      link: commit.link,
-    })
-    const stdout = [
-      receipt,
-      '',
-      renderShow(commit.model, {
-        ...showContext(undefined),
-        last,
-      }),
-    ].join('\n')
-    return {
-      initialModel,
-      maybeMessage: Option.some(message),
-      finalModel: commit.model,
-      link: commit.link,
-      stdout,
-    }
+          if (!isValid) {
+            return invalidDoExecution(token, initialModel)
+          }
+          const message = action()
+          yield* started.run(message)
+          const nextModel = yield* readyCount(started.readModel())
+          const write = started.lastWrite()
+          const link = Option.match(write, {
+            onNone: () => 'offline' as const,
+            onSome: result => result.link,
+          })
+          return doExecution(initialModel, action, token, nextModel, link)
+        }),
+      options,
+    )
   })
 
 const describeTapeError = (error: Runtime.ReplayTapeDecodeError): string =>

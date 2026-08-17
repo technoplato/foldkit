@@ -14,6 +14,30 @@ export {
   type ForEachProgram,
   type ForEachRow,
 } from './compose.js'
+export {
+  describeSyncError,
+  isChildMessage,
+  isFailed,
+  isReady,
+  isStarting,
+  makeSyncError,
+  readyModel,
+  sync,
+  type DecodeFailed,
+  type Failed,
+  type Ready,
+  type RemoteMessageReceived,
+  type SnapshotReceived,
+  type Starting,
+  type SyncError,
+  type SyncFailed,
+  type SyncChild,
+  type SyncOptions,
+  type SyncProgram,
+  type SyncedMessage,
+  type SyncedModel,
+  type TransportFailed,
+} from './sync.js'
 export { makeMessageAdmission } from './messageAdmission.js'
 export {
   makeDestinationRouter,

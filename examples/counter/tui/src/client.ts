@@ -1,13 +1,12 @@
 import {
-  type CounterWindowModel,
-  type CounterWindowRuntime,
   type Message,
   Model,
+  type SyncedCounterHandle,
   actions,
   counterValid,
+  describeCounterSyncError,
   renderChrome,
   tokenOf,
-  uri,
 } from 'counter-core-example'
 import {
   Array,
@@ -19,19 +18,21 @@ import {
   Queue,
   Terminal,
 } from 'effect'
+import { Program } from 'foldkit'
 
 const CLEAR_SCREEN = '\u001b[2J\u001b[H'
 
 /** Renders Starting, Failed, or the imported Counter chrome. */
-export const renderCounterScreen = (snapshot: CounterWindowModel): string =>
+export const renderCounterScreen = (
+  snapshot: Program.SyncedModel<Model, Message>,
+): string =>
   M.value(snapshot).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      StartingWindow: () =>
-        `${CLEAR_SCREEN}Starting Instant Counter…\n\n[Q] quit\n`,
-      FailedWindow: ({ error }) =>
-        `${CLEAR_SCREEN}${error}\n\n[S] sign in\n[Q] quit\n`,
-      ReadyWindow: ({ count }) => {
+      Starting: () => `${CLEAR_SCREEN}Starting Instant Counter…\n\n[Q] quit\n`,
+      Failed: ({ error }) =>
+        `${CLEAR_SCREEN}${describeCounterSyncError(error)}\n\n[Q] quit\n`,
+      Ready: ({ count }) => {
         const chrome = renderChrome(Model.make({ count }), 'computer')
         return `${CLEAR_SCREEN}${chrome}\n\n[Q] quit\n`
       },
@@ -64,12 +65,8 @@ export const messageForInput = (
   return Option.some(maybeAction.value())
 }
 
-const sendForInput = (key: string, runtime: CounterWindowRuntime): void => {
-  const windowActions = runtime.actions(uri)
-  if (key === 's') {
-    windowActions.signIn()
-    return
-  }
+const sendForInput = (key: string, handle: SyncedCounterHandle): void => {
+  const windowActions = handle.actions()
   if (key === '+' || key === '=') {
     windowActions.clickedIncrement()
     return
@@ -85,9 +82,9 @@ const sendForInput = (key: string, runtime: CounterWindowRuntime): void => {
 
 const runInputLoop = (
   inputQueue: Queue.Dequeue<Terminal.UserInput, Cause.Done>,
-  runtime: CounterWindowRuntime,
+  handle: SyncedCounterHandle,
   paint: (
-    snapshot: CounterWindowModel,
+    snapshot: Program.SyncedModel<Model, Message>,
   ) => Effect.Effect<void, PlatformError.PlatformError>,
 ): Effect.Effect<void, Cause.Done | PlatformError.PlatformError> =>
   Queue.take(inputQueue).pipe(
@@ -99,16 +96,16 @@ const runInputLoop = (
       if (key === 'q') {
         return Effect.void
       }
-      sendForInput(key, runtime)
-      return paint(runtime.getSnapshot(uri)).pipe(
-        Effect.flatMap(() => runInputLoop(inputQueue, runtime, paint)),
+      sendForInput(key, handle)
+      return paint(handle.readModel()).pipe(
+        Effect.flatMap(() => runInputLoop(inputQueue, handle, paint)),
       )
     }),
   )
 
-/** Paints the window runtime. The Client only subscribes and sends. */
+/** Paints the synced handle. The Client only subscribes and sends. */
 export const runCounterTui = (
-  runtime: CounterWindowRuntime,
+  handle: SyncedCounterHandle,
 ): Effect.Effect<
   void,
   Cause.Done | PlatformError.PlatformError,
@@ -118,21 +115,22 @@ export const runCounterTui = (
     Effect.gen(function* () {
       const terminal = yield* Terminal.Terminal
       const inputQueue = yield* terminal.readInput
-      const paints = yield* Queue.unbounded<CounterWindowModel>()
-      const unsubscribe = runtime.subscribe(() => {
-        Effect.runSync(Queue.offer(paints, runtime.getSnapshot(uri)))
+      const paints =
+        yield* Queue.unbounded<Program.SyncedModel<Model, Message>>()
+      const unsubscribe = handle.subscribe(() => {
+        Effect.runSync(Queue.offer(paints, handle.readModel()))
       })
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
           unsubscribe()
-          runtime.stop()
+          handle.stop()
         }),
       )
 
-      const paint = (snapshot: CounterWindowModel) =>
+      const paint = (snapshot: Program.SyncedModel<Model, Message>) =>
         terminal.display(renderCounterScreen(snapshot))
 
-      yield* paint(runtime.getSnapshot(uri))
+      yield* paint(handle.readModel())
 
       const paintUntilReadyOrFailed = (): Effect.Effect<
         void,
@@ -140,7 +138,7 @@ export const runCounterTui = (
         Terminal.Terminal
       > =>
         Effect.gen(function* () {
-          if (runtime.getSnapshot(uri)._tag !== 'StartingWindow') {
+          if (handle.readModel()._tag !== 'Starting') {
             return
           }
           const snapshot = yield* Queue.take(paints)
@@ -155,7 +153,7 @@ export const runCounterTui = (
         Effect.asVoid,
       )
       yield* Effect.raceFirst(
-        runInputLoop(inputQueue, runtime, paint),
+        runInputLoop(inputQueue, handle, paint),
         paintLoop,
       )
     }),

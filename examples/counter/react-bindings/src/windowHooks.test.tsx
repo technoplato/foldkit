@@ -1,60 +1,61 @@
 import {
-  FailedCounterSession,
-  memoryCounterTape,
-  startCounterWindowRuntime,
+  Path,
+  describeCounterSyncError,
+  startSyncedCounterHandle,
+  waitForSyncedHandle,
 } from 'counter-core-example'
+import { Processor, Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { cleanup, renderHook, waitFor } from '@testing-library/react'
 
 import {
-  installCounterWindowRuntime,
-  resetCounterWindowRuntime,
+  installSyncedCounterHandle,
+  resetSyncedCounterHandle,
   useActions,
   useModel,
 } from './windowHooks.js'
 
 afterEach(() => {
-  resetCounterWindowRuntime()
+  resetSyncedCounterHandle()
   cleanup()
 })
 
-describe('Counter window hooks', () => {
-  it('exposes useModel(uri) and useActions(uri) without store.send', async () => {
+describe('Counter synced hooks', () => {
+  it('exposes useModel(Path()) and useActions(Path()) without store.send', async () => {
     const { result } = renderHook(() => {
-      const view = useModel('/counter')
-      const actions = useActions('/counter')
+      const view = useModel(Path())
+      const actions = useActions(Path())
       return { actions, view }
     })
     await waitFor(() => {
-      expect(result.current.view._tag).toBe('ReadyWindow')
+      expect(result.current.view._tag).toBe('Ready')
     })
     expect(result.current.actions).not.toHaveProperty('send')
     expect(result.current.actions).not.toHaveProperty('observe')
+    expect(result.current.actions).not.toHaveProperty('signIn')
     expect(result.current.actions).toHaveProperty('clickedIncrement')
     result.current.actions.clickedIncrement()
     await waitFor(() => {
-      expect(result.current.view).toEqual({ _tag: 'ReadyWindow', count: 1 })
+      expect(result.current.view).toEqual({ _tag: 'Ready', count: 1 })
     })
   })
 
-  it('shows failed sign-in as a FailedWindow snapshot', async () => {
-    const runtime = startCounterWindowRuntime({
-      openTape: () => Promise.resolve(memoryCounterTape()),
-      signIn: () =>
-        Promise.resolve(
-          FailedCounterSession.make({
-            error: 'Sign-in failed. Instant has no session.',
-          }),
-        ),
-    })
-    installCounterWindowRuntime(runtime)
-    const { result } = renderHook(() => useModel('/counter'))
+  it('shows Failed when Instant boot read fails', async () => {
+    const engine = Runtime.Memory({ processor: Processor.Host.React() })
+    engine.failNextRead('Instant is down.')
+    const handle = startSyncedCounterHandle(engine)
+    installSyncedCounterHandle(handle)
+    await waitForSyncedHandle(handle)
+    const { result } = renderHook(() => useModel(Path()))
     await waitFor(() => {
-      expect(result.current).toEqual({
-        _tag: 'FailedWindow',
-        error: 'Sign-in failed. Instant has no session.',
-      })
+      expect(result.current._tag).toBe('Failed')
     })
+    if (result.current._tag === 'Failed') {
+      const text = describeCounterSyncError(result.current.error)
+      expect(text).toContain('Instant is down.')
+      expect(text).not.toContain('TransportFailed')
+    }
+    expect(result.current).not.toHaveProperty('signIn')
   })
 })

@@ -1,22 +1,18 @@
-import {
-  counterProcessorIds,
-  startCounterWindowRuntime,
-} from 'counter-core-example'
-import {
-  makeCounterInstantDatabase,
-  openLiveCounterWindowTape,
-  signInCounterWindowSession,
-} from 'counter-instant-example/browser'
+import { startSyncedCounterHandle } from 'counter-core-example'
+import { Processor } from 'foldkit'
 
-import { installCounterWindowRuntime } from './processor.js'
+import { FoldkitCounterV01, Instant } from '@foldkit/instant/browser'
 
-/** Starts the Svelte Processor on the live Instant Counter snapshot. */
-export const startInstantCounterWindow = (appId: string): void => {
-  const database = makeCounterInstantDatabase(appId)
-  const runtime = startCounterWindowRuntime({
-    openTape: userId =>
-      openLiveCounterWindowTape(database, counterProcessorIds.svelte, userId),
-    signIn: () => signInCounterWindowSession(),
-  })
-  installCounterWindowRuntime(runtime)
+import { installSyncedCounterHandle } from './processor.js'
+
+/** Starts the Svelte Processor on Instant. Instant has no Model. */
+export const startInstantCounter = (): void => {
+  installSyncedCounterHandle(
+    startSyncedCounterHandle(
+      Instant({
+        app: FoldkitCounterV01,
+        processor: Processor.Host.Svelte(),
+      }),
+    ),
+  )
 }

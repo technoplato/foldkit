@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@foldkit/instant": "workspace:*",
+    "foldkit": "workspace:*",
     "counter-core-example": "workspace:*",
     "counter-instant-example": "workspace:*",
     "counter-react-bindings-example": "workspace:*",
