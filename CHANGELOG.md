@@ -4,6 +4,39 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 17th, 2026 at 7:22:04 p.m. EDT — `4538c47c3ba2` feat(foldkit): add Program.compose.sync Instant Schema I/O
+
+- **Implementation commit:** `4538c47c3ba2254d28dd6437b8e7e116547bd059`
+- **Change:** Add Program.compose.sync and Runtime.start Instant Schema I/O. Instant has no Model.
+- **Details:**
+  - Program.compose.sync wraps one Program as Starting | Ready & M | Failed. Ready has no child field. Child Messages sit in the union unwrapped.
+  - Runtime.start boots from snapshot, then lives on RemoteMessageReceived. Echo skip when from is this Processor. Failed is boot only. Ready keeps the count if a later write fails.
+  - Errors carry what, meaning, fix, optional sent Message, and Instant cause. describeSyncError prints Sent and Cause. It does not print _tag.
+  - Processor.Host is a nest. Path is a parser-printer. Instant() is the live engine in @foldkit/instant. Memory() is the fake Instant.
+  - CLI, React, Svelte, TUI, and Foldkit HTML hosts use this API. Unit tests passed. Live CLI then React then TUI share-one-count waits for HIA.
+- **Files:**
+  - `packages/foldkit/src/program/sync.ts` — Program.compose.sync Model, Messages, and describeSyncError.
+  - `packages/foldkit/src/program/compose.ts` — Attach compose.sync next to forEach.
+  - `packages/foldkit/src/processor/host.ts` — Processor.Host nest and lowercase Instant from printer.
+  - `packages/foldkit/src/runtime/start.ts` — Runtime.start Instant I/O using the two Schemas.
+  - `packages/foldkit/src/runtime/syncEngine.ts` — SyncEngine contract and Memory fake Instant.
+  - `packages/instant/src/sync/fromTransport.ts` — Instant() SyncEngine plus Stream subscribe handshake.
+  - `packages/instant/src/snapshotLog/file.ts` — File snapshot log so two Node processes share one count.
+  - `examples/counter/core/src/synced.ts` — SyncedCounter = compose.sync of CountProjection and MessageWire.
+  - `examples/counter/core/src/path.ts` — Path parser-printer. pathRouter prints /counter.
+  - `examples/counter/core/src/startSynced.ts` — Long-lived handle with cached Model so React does not loop.
+  - `examples/counter/cli/src/host.ts` — CLI Runtime.start. File Instant tape via COUNTER_TAPE_PATH.
+  - `examples/counter/react-bindings/src/windowHooks.ts` — useModel(Path()) and useActions(Path()).
+  - `examples/counter/svelte/src/processor.ts` — Svelte useModel(Path()) on Host.Svelte().
+  - `examples/counter/tui/src/client.ts` — TUI paints Starting, Failed, Ready. No sign in.
+  - `examples/counter/foldkit/src/instantHost.ts` — Foldkit HTML Instant Host.Foldkit().
+  - `.changeset/add-program-compose-sync.md` — Minor changeset for foldkit and @foldkit/instant.
+- **User context (verbatim):**
+  > Write /Users/laptop/Sync/skills/dir/census/SYNC-COMPOSE-STATUS now.
+  > Law: Program.compose.sync. Instant has no Model. Schemas not a sync bag.
+  > Do not start Counters. Do not start favorite fact.
+- **SpecStory:** unavailable — Grok Build TUI session. SpecStory does not capture this host.
+
 ## August 17th, 2026 at 1:37:43 p.m. EDT — `af50fabc7e3b` feat(instant): add count snapshot plus Message log
 
 - **Implementation commit:** `af50fabc7e3b5e518f8be5cdce5538e181c9dd00`
