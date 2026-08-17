@@ -12,8 +12,8 @@
  * Reset is invalid when count is 0. Chrome hides reset then.
  * `show` is not a Message. `do` sends a token, then auto-shows.
  * `replay` steps a Program tape. Default `show` / `do` is in-memory.
- * COUNTER_TAPE=instant uses the live Instant tape. CLI and Foldkit
- * are two Processors of one Instant account.
+ * COUNTER_TAPE=instant reads the count snapshot, then writes one
+ * Message. CLI and React are two Processors of one Instant app.
  *
  * Examples:
  *   counter show

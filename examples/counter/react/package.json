@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build",
-    "dev": "./scripts/with-public-instant-env vite --port 5216 --strictPort",
+    "dev": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env vite --port 5216 --strictPort",
     "prebuild": "pnpm --filter counter-react-bindings-example build && pnpm --filter counter-instant-example build",
     "predev": "pnpm --filter counter-react-bindings-example build && pnpm --filter counter-instant-example build",
     "pretest": "pnpm --filter counter-react-bindings-example build && pnpm --filter counter-instant-example build",

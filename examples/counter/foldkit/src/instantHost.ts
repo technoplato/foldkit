@@ -113,7 +113,7 @@ export const startInstantCounter = (appId: string): void => {
   const runtime = startCounterWindowRuntime({
     openTape: userId =>
       openLiveCounterWindowTape(database, foldkitProcessorId, userId),
-    signIn: () => signInCounterWindowSession(database),
+    signIn: () => signInCounterWindowSession(),
   })
   let detach: (() => void) | undefined
   const render = (): void => {

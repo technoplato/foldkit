@@ -21,6 +21,11 @@
       "types": "./dist/sharing/tape.d.ts",
       "import": "./dist/sharing/tape.js",
       "default": "./dist/sharing/tape.js"
+    },
+    "./snapshot-log": {
+      "types": "./dist/snapshotLog/index.d.ts",
+      "import": "./dist/snapshotLog/index.js",
+      "default": "./dist/snapshotLog/index.js"
     }
   },
   "sideEffects": false,
@@ -34,6 +39,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "@instantdb/admin": "1.0.53",
     "@instantdb/core": "1.0.53",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:^0"
@@ -44,6 +50,7 @@
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-beta.97",
+    "@instantdb/admin": "1.0.53",
     "@instantdb/core": "1.0.53",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
@@ -70,5 +77,10 @@
   },
   "engines": {
     "node": ">=20.19.0 || >=22.12.0"
+  },
+  "peerDependenciesMeta": {
+    "@instantdb/admin": {
+      "optional": true
+    }
   }
 }

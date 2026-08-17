@@ -1,5 +1,4 @@
 import {
-  counterDemoEmail,
   counterProcessorIdFrom,
   counterProcessorIds,
 } from 'counter-core-example'
@@ -9,17 +8,14 @@ import { join } from 'node:path'
 
 import {
   type ProgramStoreService,
-  makeAdminInstantProgramStore,
+  type SnapshotLogTransport,
+  makeAdminSnapshotLogTransport,
   makeFileProgramStore,
   makeInMemoryProgramStore,
+  makeMemorySnapshotLogTransport,
 } from '@foldkit/instant'
-import { init as initInstantAdmin } from '@instantdb/admin'
 
-import {
-  type CounterTape,
-  makeLiveCounterTape,
-  makeLocalCounterTape,
-} from './makeTape.js'
+import { type CounterTape, makeLocalCounterTape } from './makeTape.js'
 
 export {
   type CounterTape,
@@ -29,7 +25,17 @@ export {
   makeLocalCounterTape,
 } from './makeTape.js'
 
-/** Live Instant tape could not be opened. */
+export {
+  type CounterSnapshotCommit,
+  commitCounterSnapshotMessage,
+  decodeCounterLogMessage,
+  openSnapshotCounterWindowTape,
+  readCounterSnapshotModel,
+} from './snapshot.js'
+
+export type { SnapshotLogTransport } from '@foldkit/instant'
+
+/** Live Instant snapshot log could not be opened. */
 export class CounterInstantTapeError extends Data.TaggedError(
   'CounterInstantTapeError',
 )<{
@@ -66,50 +72,51 @@ export const makeFileCounterTape = (
 export const defaultCounterTapePath = (): string =>
   join(homedir(), '.config', 'foldkit-counter', 'tape.json')
 
-/** Opens the live Instant tape for one Counter Processor. */
-export const makeInstantCounterTape = (
-  processorId: string,
+const missingInstantAppIdError =
+  'COUNTER_TAPE=instant needs INSTANT_APP_ID. Use the foldkit Instant demo wrapper.'
+
+const missingInstantAdminTokenError =
+  'COUNTER_TAPE=instant needs INSTANT_APP_ADMIN_TOKEN in the trusted wrapper.'
+
+const instantCredentials = (
+  environment: Readonly<Record<string, string | undefined>>,
+): Effect.Effect<
+  Readonly<{ adminToken: string; appId: string }>,
+  CounterInstantTapeError
+> => {
+  const appId = environment['INSTANT_APP_ID']
+  const adminToken = environment['INSTANT_APP_ADMIN_TOKEN']
+  if (appId === undefined || appId === '') {
+    return Effect.fail(
+      new CounterInstantTapeError({
+        message: missingInstantAppIdError,
+      }),
+    )
+  }
+  if (adminToken === undefined || adminToken === '') {
+    return Effect.fail(
+      new CounterInstantTapeError({
+        message: missingInstantAdminTokenError,
+      }),
+    )
+  }
+  return Effect.succeed({ adminToken, appId })
+}
+
+/** In-memory count snapshot plus Message log. */
+export const makeMemoryCounterSnapshotLog =
+  (): Effect.Effect<SnapshotLogTransport> => makeMemorySnapshotLogTransport()
+
+/** Opens the live Instant count snapshot plus Message log. */
+export const makeInstantCounterSnapshotLog = (
+  _processorId: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
-): Effect.Effect<CounterTape, CounterInstantTapeError> =>
+): Effect.Effect<SnapshotLogTransport, CounterInstantTapeError> =>
   Effect.gen(function* () {
-    const appId = environment['INSTANT_APP_ID']
-    const adminToken = environment['INSTANT_APP_ADMIN_TOKEN']
-    if (appId === undefined || appId === '') {
-      return yield* new CounterInstantTapeError({
-        message:
-          'COUNTER_TAPE=instant needs INSTANT_APP_ID. Use the foldkit Instant demo wrapper.',
-      })
-    }
-    if (adminToken === undefined || adminToken === '') {
-      return yield* new CounterInstantTapeError({
-        message:
-          'COUNTER_TAPE=instant needs INSTANT_APP_ADMIN_TOKEN in the trusted wrapper.',
-      })
-    }
-    const admin = initInstantAdmin({ adminToken, appId })
-    yield* Effect.tryPromise({
-      try: () => admin.auth.createToken({ email: counterDemoEmail }),
-      catch: () =>
-        new CounterInstantTapeError({
-          message: 'Instant could not mint the Counter demo session.',
-        }),
-    })
-    const user = yield* Effect.tryPromise({
-      try: () => admin.auth.getUser({ email: counterDemoEmail }),
-      catch: () =>
-        new CounterInstantTapeError({
-          message: 'Instant could not load the Counter demo user.',
-        }),
-    })
-    if (user === null) {
-      return yield* new CounterInstantTapeError({
-        message: 'Instant has no Counter demo user.',
-      })
-    }
-    return yield* makeLiveCounterTape(
-      makeAdminInstantProgramStore(appId, adminToken),
-      processorId,
-      user.id,
+    const credentials = yield* instantCredentials(environment)
+    return makeAdminSnapshotLogTransport(
+      credentials.appId,
+      credentials.adminToken,
     )
   })
 
@@ -124,7 +131,11 @@ export const resolveCounterTape = (
       defaultProcessorId,
     )
     if (environment['COUNTER_TAPE'] === 'instant') {
-      return yield* makeInstantCounterTape(processorId, environment)
+      yield* instantCredentials(environment)
+      return yield* new CounterInstantTapeError({
+        message:
+          'COUNTER_TAPE=instant uses the count snapshot log, not the Program tape.',
+      })
     }
     if (environment['COUNTER_TAPE'] === 'memory') {
       return yield* makeMemoryCounterTape(processorId)
@@ -139,6 +150,18 @@ export const resolveCounterTape = (
     return yield* makeMemoryCounterTape(processorId)
   })
 
+/** Resolves the count snapshot log from the process environment. */
+export const resolveCounterSnapshotLog = (
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  defaultProcessorId: string = counterProcessorIds.cli,
+): Effect.Effect<SnapshotLogTransport, CounterInstantTapeError> => {
+  const processorId = counterProcessorIdFrom(
+    environment['COUNTER_PROCESSOR_ID'],
+    defaultProcessorId,
+  )
+  return makeInstantCounterSnapshotLog(processorId, environment)
+}
+
 /** Reads an optional tape or builds the process default. */
 export const withCounterTape = (
   maybeTape: Option.Option<CounterTape>,
@@ -148,4 +171,15 @@ export const withCounterTape = (
     return Effect.succeed(maybeTape.value)
   }
   return resolveCounterTape(environment)
+}
+
+/** Reads an optional snapshot log or opens the live Instant log. */
+export const withCounterSnapshotLog = (
+  maybeSnapshot: Option.Option<SnapshotLogTransport>,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): Effect.Effect<SnapshotLogTransport, CounterInstantTapeError> => {
+  if (Option.isSome(maybeSnapshot)) {
+    return Effect.succeed(maybeSnapshot.value)
+  }
+  return resolveCounterSnapshotLog(environment)
 }
