@@ -10,6 +10,11 @@ const instantSharingEntry = path.resolve(
   '../packages/instant/src/sharing/tape.ts',
 )
 
+const instantSnapshotLogEntry = path.resolve(
+  import.meta.dirname,
+  '../packages/instant/src/snapshotLog/index.ts',
+)
+
 /**
  * Vite aliases that keep Node Instant stores out of browser bundles.
  * A package-root file alias does not match `@foldkit/instant/browser`.
@@ -17,6 +22,7 @@ const instantSharingEntry = path.resolve(
 export const instantBrowserAlias = {
   '@foldkit/instant/browser': instantBrowserEntry,
   '@foldkit/instant/sharing': instantSharingEntry,
+  '@foldkit/instant/snapshot-log': instantSnapshotLogEntry,
   '@foldkit/instant': instantBrowserEntry,
 }
 

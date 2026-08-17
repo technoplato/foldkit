@@ -30,6 +30,8 @@
     "prebuild": "pnpm --filter counter-core-example build && pnpm --filter @foldkit/instant build",
     "pretypecheck": "pnpm --filter counter-core-example build && pnpm --filter @foldkit/instant build",
     "pretest": "pnpm --filter counter-core-example build && pnpm --filter @foldkit/instant build",
+    "push:perms": "npx instant-cli@1.0.53 push perms --yes",
+    "push:schema": "npx instant-cli@1.0.53 push schema --yes",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

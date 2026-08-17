@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest'
 
 import { commitSharedMessage } from '@foldkit/instant/sharing'
 
-import { CounterInstantTapeError, resolveCounterTape } from './node.js'
+import {
+  CounterInstantTapeError,
+  commitCounterSnapshotMessage,
+  makeMemoryCounterSnapshotLog,
+  resolveCounterSnapshotLog,
+  resolveCounterTape,
+} from './node.js'
 
 describe('Counter Node Instant tape', () => {
   it('opens a memory tape by default', async () => {
@@ -21,6 +27,28 @@ describe('Counter Node Instant tape', () => {
   it('fails live Instant when the app id is missing', async () => {
     const error = await Effect.runPromise(
       resolveCounterTape({ COUNTER_TAPE: 'instant' }).pipe(Effect.flip),
+    )
+
+    expect(error).toBeInstanceOf(CounterInstantTapeError)
+    expect(error.message).toContain('INSTANT_APP_ID')
+  })
+
+  it('opens a memory count snapshot', async () => {
+    const transport = await Effect.runPromise(makeMemoryCounterSnapshotLog())
+    const commit = await Effect.runPromise(
+      commitCounterSnapshotMessage(transport, 'cli', 0, Increment()),
+    )
+    const state = await Effect.runPromise(transport.read())
+
+    expect(commit.link).toBe('delivered')
+    expect(commit.model).toEqual({ count: 1 })
+    expect(state.snapshot.value).toBe(1)
+    expect(state.messages).toHaveLength(1)
+  })
+
+  it('fails the live snapshot log when the app id is missing', async () => {
+    const error = await Effect.runPromise(
+      resolveCounterSnapshotLog({ COUNTER_TAPE: 'instant' }).pipe(Effect.flip),
     )
 
     expect(error).toBeInstanceOf(CounterInstantTapeError)

@@ -5,6 +5,8 @@ import {
   type Message,
   type Model,
   actionByToken,
+  counterProcessorIdFrom,
+  counterProcessorIds,
   counterScreen,
   counterValid,
   defaultShowContext,
@@ -29,7 +31,14 @@ import { readFileSync } from 'node:fs'
 
 import { commitSharedMessage } from '@foldkit/instant/sharing'
 
-import { type CounterTape, withCounterTape } from './tape.js'
+import {
+  type CounterTape,
+  type SnapshotLogTransport,
+  commitCounterSnapshotMessage,
+  readCounterSnapshotModel,
+  withCounterSnapshotLog,
+  withCounterTape,
+} from './tape.js'
 
 /** CLI failure for a bad token, Device, or tape. */
 export class CounterCliError extends Data.TaggedError('CounterCliError')<{
@@ -41,10 +50,30 @@ const tapeError = (): CounterCliError =>
     message: 'Cannot append the Instant tape.',
   })
 
+const snapshotError = (): CounterCliError =>
+  new CounterCliError({
+    message: 'Cannot write the Instant count.',
+  })
+
+const usesSnapshot = (options: CliTapeOptions): boolean =>
+  options.snapshot !== undefined || process.env['COUNTER_TAPE'] === 'instant'
+
 const openTape = (
   options: CliTapeOptions,
 ): Effect.Effect<CounterTape, CounterCliError> =>
   withCounterTape(Option.fromNullishOr(options.tape)).pipe(
+    Effect.mapError(
+      error =>
+        new CounterCliError({
+          message: error.message,
+        }),
+    ),
+  )
+
+const openSnapshot = (
+  options: CliTapeOptions,
+): Effect.Effect<SnapshotLogTransport, CounterCliError> =>
+  withCounterSnapshotLog(Option.fromNullishOr(options.snapshot)).pipe(
     Effect.mapError(
       error =>
         new CounterCliError({
@@ -59,6 +88,42 @@ const modelFromTape = (
   Effect.map(tape.readAcceptedMessages, foldCounterMessages).pipe(
     Effect.mapError(() => tapeError()),
   )
+
+const modelFromSnapshot = (
+  transport: SnapshotLogTransport,
+): Effect.Effect<Model, CounterCliError> =>
+  readCounterSnapshotModel(transport).pipe(
+    Effect.mapError(() => snapshotError()),
+  )
+
+const loadInitialModel = (
+  options: CliTapeOptions,
+): Effect.Effect<
+  | Readonly<{
+      kind: 'snapshot'
+      model: Model
+      transport: SnapshotLogTransport
+    }>
+  | Readonly<{
+      kind: 'tape'
+      model: Model
+      tape: CounterTape
+    }>,
+  CounterCliError
+> => {
+  if (usesSnapshot(options)) {
+    return Effect.gen(function* () {
+      const transport = yield* openSnapshot(options)
+      const model = yield* modelFromSnapshot(transport)
+      return { kind: 'snapshot', model, transport }
+    })
+  }
+  return Effect.gen(function* () {
+    const tape = yield* openTape(options)
+    const model = yield* modelFromTape(tape)
+    return { kind: 'tape', model, tape }
+  })
+}
 
 const parseDevice = (
   raw: string | undefined,
@@ -91,8 +156,9 @@ export type CliExecution = Readonly<{
   stdout: string
 }>
 
-/** Optional Instant tape for one CLI execution. */
+/** Optional Instant tape or count snapshot for one CLI execution. */
 export type CliTapeOptions = Readonly<{
+  snapshot?: SnapshotLogTransport
   tape?: CounterTape
 }>
 
@@ -104,8 +170,8 @@ export const executeShow = (
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
     const device = yield* parseDevice(deviceRaw)
-    const tape = yield* openTape(options)
-    const initialModel = yield* modelFromTape(tape)
+    const loaded = yield* loadInitialModel(options)
+    const initialModel = loaded.model
     const stdout = renderShow(initialModel, {
       ...showContext(device),
       ...(path === undefined ? {} : { path }),
@@ -125,8 +191,8 @@ export const executeDo = (
   options: CliTapeOptions = {},
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
-    const tape = yield* openTape(options)
-    const initialModel = yield* modelFromTape(tape)
+    const loaded = yield* loadInitialModel(options)
+    const initialModel = loaded.model
     const action = actionByToken(token.trim().toLowerCase())
     if (action === undefined) {
       return yield* Effect.fail(
@@ -155,16 +221,38 @@ export const executeDo = (
     }
 
     const message = action()
-    const commit = yield* commitSharedMessage(tape, message, () =>
-      Effect.sync(() => {
-        const [next] = CounterProgram.update(initialModel, message)
-        return next
-      }),
-    ).pipe(Effect.mapError(() => tapeError()))
+    const [nextModel] = CounterProgram.update(initialModel, message)
+    const commit =
+      loaded.kind === 'snapshot'
+        ? yield* commitCounterSnapshotMessage(
+            loaded.transport,
+            counterProcessorIdFrom(
+              process.env['COUNTER_PROCESSOR_ID'],
+              counterProcessorIds.cli,
+            ),
+            initialModel.count,
+            message,
+          ).pipe(
+            Effect.catchTag('SnapshotLogError', () =>
+              Effect.succeed({
+                link: 'queued' as const,
+                model: nextModel,
+              }),
+            ),
+          )
+        : yield* commitSharedMessage(loaded.tape, message, () =>
+            Effect.succeed(nextModel),
+          ).pipe(
+            Effect.map(shared => ({
+              link: shared.accepted,
+              model: shared.result,
+            })),
+            Effect.mapError(() => tapeError()),
+          )
     const last: LastAction = {
       command: action.command ?? token,
       event: action.event ?? token,
-      sideEffects: ['tape append', `link  ${commit.accepted}`],
+      sideEffects: ['tape append', `link  ${commit.link}`],
     }
     const receipt = renderReceipt({
       token: tokenOf(action),
@@ -176,12 +264,12 @@ export const executeDo = (
       mutate: action.mutate ?? '',
       sideEffects: action.sideEffects ?? '(none)',
       tape: 'appended',
-      link: commit.accepted,
+      link: commit.link,
     })
     const stdout = [
       receipt,
       '',
-      renderShow(commit.result, {
+      renderShow(commit.model, {
         ...showContext(undefined),
         last,
       }),
@@ -189,8 +277,8 @@ export const executeDo = (
     return {
       initialModel,
       maybeMessage: Option.some(message),
-      finalModel: commit.result,
-      link: commit.accepted,
+      finalModel: commit.model,
+      link: commit.link,
       stdout,
     }
   })

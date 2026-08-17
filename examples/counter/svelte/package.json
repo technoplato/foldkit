@@ -1,36 +1,27 @@
 {
-  "name": "counter-foldkit-example",
+  "name": "counter-svelte-example",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env vite --port 5215 --strictPort",
-    "prebuild": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
+    "dev": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env vite --port 5218 --strictPort",
     "predev": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
     "pretest": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
     "pretypecheck": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@effect/platform-browser": "4.0.0-beta.97",
-    "@foldkit/devtools": "workspace:*",
     "@foldkit/instant": "workspace:*",
-    "@foldkit/ui": "workspace:*",
-    "@instantdb/core": "1.0.53",
-    "@tailwindcss/vite": "^4.3.1",
     "counter-core-example": "workspace:*",
     "counter-instant-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
-    "tailwindcss": "^4.3.1"
+    "svelte": "^5.38.0"
   },
   "devDependencies": {
-    "@foldkit/vite-plugin": "workspace:*",
-    "@instantdb/admin": "1.0.53",
-    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
-    "happy-dom": "^20.10.4",
+    "@sveltejs/vite-plugin-svelte": "^6.1.0",
+    "@types/node": "^25.9.3",
     "prettier": "^3.8.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",

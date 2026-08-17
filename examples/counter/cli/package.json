@@ -10,6 +10,7 @@
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "counter": "node dist/entry.js",
+    "counter:instant": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant node dist/entry.js",
     "prebuild": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
     "pretypecheck": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
     "test": "pnpm run build && vitest run",

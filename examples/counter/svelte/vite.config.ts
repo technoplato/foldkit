@@ -1,12 +1,11 @@
 import { defineConfig } from 'vite'
 
-import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
 
 import { instantBrowserAlias } from '../../vite.aliases'
 
 export default defineConfig({
-  plugins: [tailwindcss(), react()],
+  plugins: [svelte()],
   resolve: {
     alias: instantBrowserAlias,
   },
@@ -14,7 +13,7 @@ export default defineConfig({
     exclude: ['@foldkit/instant'],
   },
   server: {
-    port: 5216,
+    port: 5218,
     strictPort: true,
     fs: {
       allow: ['../../../'],

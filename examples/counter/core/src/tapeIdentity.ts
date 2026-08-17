@@ -26,6 +26,7 @@ export const counterProcessorIds = {
   cli: 'cli',
   foldkit: 'foldkit',
   react: 'react',
+  svelte: 'svelte',
   tui: 'tui',
 } as const
 

@@ -7,14 +7,15 @@ import {
   openLiveCounterWindowTape,
   signInCounterWindowSession,
 } from 'counter-instant-example/browser'
-import { installCounterWindowRuntime } from 'counter-react-bindings-example'
 
-/** Starts the React Processor on the live Instant Counter tape. */
+import { installCounterWindowRuntime } from './processor.js'
+
+/** Starts the Svelte Processor on the live Instant Counter snapshot. */
 export const startInstantCounterWindow = (appId: string): void => {
   const database = makeCounterInstantDatabase(appId)
   const runtime = startCounterWindowRuntime({
     openTape: userId =>
-      openLiveCounterWindowTape(database, counterProcessorIds.react, userId),
+      openLiveCounterWindowTape(database, counterProcessorIds.svelte, userId),
     signIn: () => signInCounterWindowSession(),
   })
   installCounterWindowRuntime(runtime)

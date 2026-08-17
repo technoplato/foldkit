@@ -16,7 +16,11 @@ import { describe, expect, it } from 'vitest'
 import { makeInMemoryProgramStore } from '@foldkit/instant'
 
 import { executeDo, executeReplay, executeShow } from './host.js'
-import { makeCounterTapeOnStore, makeMemoryCounterTape } from './tape.js'
+import {
+  makeCounterTapeOnStore,
+  makeMemoryCounterSnapshotLog,
+  makeMemoryCounterTape,
+} from './tape.js'
 
 const writeTape = async (messages: ReadonlyArray<Message>): Promise<string> => {
   const tape = await Effect.runPromise(
@@ -115,6 +119,31 @@ describe('Counter CLI host', () => {
     expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
     expect(shown.stdout).toContain('count    1')
     expect(Reset.valid(shown.finalModel, {})).toBe(true)
+  })
+
+  it('persists increment on a shared count snapshot', async () => {
+    const snapshot = await Effect.runPromise(makeMemoryCounterSnapshotLog())
+    await Effect.runPromise(executeDo('increment', { snapshot }))
+    const shown = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }),
+    )
+
+    expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
+    expect(shown.stdout).toContain('count    1')
+    expect(Reset.valid(shown.finalModel, {})).toBe(true)
+  })
+
+  it('lets a second Processor read the same count snapshot', async () => {
+    const snapshot = await Effect.runPromise(makeMemoryCounterSnapshotLog())
+    await Effect.runPromise(executeDo('increment', { snapshot }))
+    const shown = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }),
+    )
+    const again = await Effect.runPromise(executeDo('increment', { snapshot }))
+
+    expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
+    expect(again.finalModel).toEqual(Model.make({ count: 2 }))
+    expect(again.link).toBe('delivered')
   })
 
   it('lets a second Processor read every Message on the tape', async () => {
