@@ -36,3 +36,6 @@ export type { PlacementContext } from './processor.js'
 
 /** Provider-neutral contracts for finite audio processing effects. */
 export * as Audio from './audio.js'
+
+/** Processor Host ADT. Pass `Processor.Host.React()`, not `'react'`. */
+export * as Host from './host.js'

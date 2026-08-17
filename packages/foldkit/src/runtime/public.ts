@@ -23,6 +23,28 @@ export type {
 
 export { makeHostRuntime } from './hostRuntime.js'
 export * from '../programRuntime/public.js'
+export {
+  start,
+  untilSettled,
+  type StartConfig,
+  type StartedProgram,
+  type SyncStartProgram,
+} from './start.js'
+export {
+  Memory,
+  SyncTransportError,
+  isEmptySnapshot,
+  makeMemoryStore,
+  readRowString,
+  type MemoryEngine,
+  type MemoryStore,
+  type SyncEngine,
+  type SyncEvent,
+  type SyncLink,
+  type SyncRead,
+  type SyncWrite,
+  type SyncWriteResult,
+} from './syncEngine.js'
 
 export type {
   RoutingConfig,

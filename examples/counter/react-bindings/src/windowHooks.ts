@@ -1,51 +1,63 @@
 import {
-  type CounterWindowActions,
-  type CounterWindowModel,
-  type CounterWindowRuntime,
-  startMemoryCounterWindow,
+  type Message,
+  type Model,
+  type Path,
+  type SyncedCounterActions,
+  type SyncedCounterHandle,
+  memorySyncedEngine,
+  startSyncedCounterHandle,
 } from 'counter-core-example'
-import { useMemo, useRef, useSyncExternalStore } from 'react'
+import { Processor, Program } from 'foldkit'
+import { useMemo, useSyncExternalStore } from 'react'
 
-let installedRuntime: CounterWindowRuntime | undefined
+let installedHandle: SyncedCounterHandle | undefined
 
-/** Installs a Counter window runtime. Tests use this. The window does not. */
-export const installCounterWindowRuntime = (
-  runtime: CounterWindowRuntime,
+/** Installs a synced Counter handle. Tests use this. The window does not. */
+export const installSyncedCounterHandle = (
+  handle: SyncedCounterHandle,
 ): void => {
-  installedRuntime = runtime
+  installedHandle = handle
 }
 
-/** Clears a test runtime so the next hook call starts a fresh memory window. */
-export const resetCounterWindowRuntime = (): void => {
-  if (installedRuntime !== undefined) {
-    installedRuntime.stop()
+/** Clears a test handle so the next hook call starts a fresh Memory Processor. */
+export const resetSyncedCounterHandle = (): void => {
+  if (installedHandle !== undefined) {
+    installedHandle.stop()
   }
-  installedRuntime = undefined
+  installedHandle = undefined
 }
 
-const getCounterWindowRuntime = (): CounterWindowRuntime => {
-  if (installedRuntime !== undefined) {
-    return installedRuntime
+const getSyncedCounterHandle = (): SyncedCounterHandle => {
+  if (installedHandle !== undefined) {
+    return installedHandle
   }
-  installedRuntime = startMemoryCounterWindow()
-  return installedRuntime
+  installedHandle = startSyncedCounterHandle(
+    memorySyncedEngine(Processor.Host.React()),
+  )
+  return installedHandle
 }
 
-/** Live snapshot of schema fields for one window URI. */
-export const useModel = (windowUri: string): CounterWindowModel => {
-  const runtime = getCounterWindowRuntime()
-  const uriRef = useRef(windowUri)
-  uriRef.current = windowUri
-  const subscribe = useMemo(() => runtime.subscribe, [runtime])
+/** Live synced Model for `Path()`. Do not pass `'/counter'`. */
+export const useModel = (path: Path): Program.SyncedModel<Model, Message> => {
+  const handle = getSyncedCounterHandle()
+  const pathRef = path
+  const subscribe = useMemo(() => handle.subscribe, [handle])
   const getSnapshot = useMemo(
-    () => () => runtime.getSnapshot(uriRef.current),
-    [runtime],
+    () => () => {
+      void pathRef
+      return handle.readModel()
+    },
+    [handle, pathRef],
   )
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-/** Valid buttons for one window URI. Instant stays in the runtime. */
-export const useActions = (windowUri: string): CounterWindowActions => {
-  const runtime = getCounterWindowRuntime()
-  return runtime.actions(windowUri)
+/** Valid buttons for `Path()`. Instant stays in Runtime.start. */
+export const useActions = (path: Path): SyncedCounterActions => {
+  const handle = getSyncedCounterHandle()
+  void path
+  const subscribe = useMemo(() => handle.subscribe, [handle])
+  const getSnapshot = useMemo(() => handle.readModel, [handle])
+  useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  return handle.actions()
 }

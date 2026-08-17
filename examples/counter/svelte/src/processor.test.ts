@@ -1,34 +1,38 @@
 import {
-  type CounterWindowModel,
-  startCounterWindowRuntime,
-  startMemoryCounterWindow,
+  Path,
+  type SyncedCounterHandle,
+  memorySyncedEngine,
+  startSyncedCounterHandle,
+  waitForSyncedHandle,
 } from 'counter-core-example'
+import { Processor } from 'foldkit'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { startInstantCounterWindow } from './instantHost.js'
+import { startInstantCounter } from './instantHost.js'
 import {
-  installCounterWindowRuntime,
+  installSyncedCounterHandle,
+  resetSyncedCounterHandle,
   useActions,
   useModel,
 } from './processor.js'
 
-const waitForSnapshot = async (
-  runtime: ReturnType<typeof startCounterWindowRuntime>,
-  match: (snapshot: CounterWindowModel) => boolean,
-): Promise<CounterWindowModel> => {
-  const current = useModel('/counter')
-  if (match(current)) {
+const waitForReadyCount = async (
+  handle: SyncedCounterHandle,
+  count: number,
+) => {
+  const current = handle.readModel()
+  if (current._tag === 'Ready' && current.count === count) {
     return current
   }
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       stop()
-      reject(new Error('Timed out waiting for the Counter window.'))
+      reject(new Error('Timed out waiting for the Counter handle.'))
     }, 1000)
-    const stop = runtime.subscribe(() => {
-      const next = useModel('/counter')
-      if (match(next)) {
+    const stop = handle.subscribe(() => {
+      const next = handle.readModel()
+      if (next._tag === 'Ready' && next.count === count) {
         clearTimeout(timeout)
         stop()
         resolve(next)
@@ -37,55 +41,61 @@ const waitForSnapshot = async (
   })
 }
 
-let windowRuntime: ReturnType<typeof startCounterWindowRuntime> | undefined
+let handle: SyncedCounterHandle | undefined
 
 afterEach(() => {
-  windowRuntime?.stop()
-  windowRuntime = undefined
+  resetSyncedCounterHandle()
+  handle = undefined
 })
 
 describe('Counter Svelte processor', () => {
   it('keeps Instant out of the Svelte window', () => {
     const viewSource = readFileSync('src/App.svelte', 'utf8')
-    expect(viewSource).toContain('useModel')
-    expect(viewSource).toContain('useActions')
+    expect(viewSource).toContain('useModel(Path())')
+    expect(viewSource).toContain('useActions(Path())')
+    expect(viewSource).toContain('describeCounterSyncError')
+    expect(viewSource).not.toContain('StartingWindow')
+    expect(viewSource).not.toContain('signIn')
+    expect(viewSource).not.toContain("useModel('/counter')")
     expect(viewSource).not.toContain('@instantdb')
     expect(viewSource).not.toContain('@foldkit/instant')
     expect(viewSource).not.toContain('instantHost')
     expect(viewSource).not.toContain('store.send')
   })
 
-  it('installs the Instant window runtime from the host', () => {
+  it('installs Instant from the host with Processor.Host.Svelte()', () => {
     const hostSource = readFileSync('src/instantHost.ts', 'utf8')
     const entrySource = readFileSync('src/main.ts', 'utf8')
-    expect(hostSource).toContain('installCounterWindowRuntime')
-    expect(hostSource).toContain('counterProcessorIds.svelte')
-    expect(hostSource).toContain('openLiveCounterWindowTape')
-    expect(entrySource).toContain('startInstantCounterWindow')
-    expect(entrySource).toContain('VITE_INSTANT_APP_ID')
-    expect(startInstantCounterWindow).toEqual(expect.any(Function))
+    expect(hostSource).toContain('installSyncedCounterHandle')
+    expect(hostSource).toContain('FoldkitCounterV01')
+    expect(hostSource).toContain('Processor.Host.Svelte()')
+    expect(hostSource).toContain('Instant(')
+    expect(hostSource).not.toContain('openLiveCounterWindowTape')
+    expect(hostSource).not.toContain('signIn')
+    expect(entrySource).toContain('startInstantCounter')
+    expect(entrySource).not.toContain('VITE_INSTANT_APP_ID')
+    expect(startInstantCounter).toEqual(expect.any(Function))
   })
 
   it('draws Ready from useModel and adds one without send', async () => {
-    windowRuntime = startMemoryCounterWindow()
-    installCounterWindowRuntime(windowRuntime)
-
-    const ready = await waitForSnapshot(
-      windowRuntime,
-      snapshot => snapshot._tag === 'ReadyWindow' && snapshot.count === 0,
+    handle = startSyncedCounterHandle(
+      memorySyncedEngine(Processor.Host.Svelte()),
     )
+    installSyncedCounterHandle(handle)
+    const ready = await waitForSyncedHandle(handle)
     expect(ready).toEqual({
-      _tag: 'ReadyWindow',
+      _tag: 'Ready',
+      count: 0,
+    })
+    expect(useModel(Path())).toEqual({
+      _tag: 'Ready',
       count: 0,
     })
 
-    useActions('/counter').clickedIncrement()
-    const next = await waitForSnapshot(
-      windowRuntime,
-      snapshot => snapshot._tag === 'ReadyWindow' && snapshot.count === 1,
-    )
+    useActions(Path()).clickedIncrement()
+    const next = await waitForReadyCount(handle, 1)
     expect(next).toEqual({
-      _tag: 'ReadyWindow',
+      _tag: 'Ready',
       count: 1,
     })
   })

@@ -1,20 +1,20 @@
 <script lang="ts">
+  import { Path, describeCounterSyncError } from 'counter-core-example'
+
   import { useActions, useModel } from './processor.js'
 
-  const counterUri = '/counter'
-  const view = $derived(useModel(counterUri))
-  const actions = $derived(useActions(counterUri))
+  const view = $derived(useModel(Path()))
+  const actions = $derived(useActions(Path()))
 </script>
 
 <main>
-  {#if view._tag === 'StartingWindow'}
+  {#if view._tag === 'Starting'}
     <section>
       <p>Starting Instant Counter…</p>
     </section>
-  {:else if view._tag === 'FailedWindow'}
+  {:else if view._tag === 'Failed'}
     <section>
-      <p>{view.error}</p>
-      <button onclick={() => actions.signIn()} type="button">Sign in</button>
+      <p>{describeCounterSyncError(view.error)}</p>
     </section>
   {:else}
     <section>

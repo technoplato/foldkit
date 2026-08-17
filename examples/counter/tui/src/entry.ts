@@ -1,18 +1,22 @@
 #!/usr/bin/env node
-import { startMemoryCounterWindow } from 'counter-core-example'
+import {
+  memorySyncedEngine,
+  startSyncedCounterHandle,
+} from 'counter-core-example'
 import { Effect } from 'effect'
+import { Processor } from 'foldkit'
 
 import { NodeRuntime, NodeServices } from '@effect/platform-node'
 
 import { runCounterTui } from './client.js'
-import { startInstantCounterWindow } from './instantHost.js'
+import { startInstantCounter } from './instantHost.js'
 
-const runtime =
+const handle =
   process.env['COUNTER_TAPE'] === 'memory'
-    ? startMemoryCounterWindow()
-    : startInstantCounterWindow()
+    ? startSyncedCounterHandle(memorySyncedEngine(Processor.Host.Tui()))
+    : startInstantCounter()
 
-runCounterTui(runtime).pipe(
+runCounterTui(handle).pipe(
   Effect.provide(NodeServices.layer),
   NodeRuntime.runMain,
 )

@@ -109,8 +109,8 @@ describe('Counter CLI process', () => {
   it('persists increment on the live Instant tape when credentials exist', () => {
     if (
       process.env['COUNTER_TAPE'] !== 'instant' ||
-      process.env['INSTANT_APP_ID'] === undefined ||
-      process.env['INSTANT_APP_ID'] === ''
+      process.env['INSTANT_APP_ADMIN_TOKEN'] === undefined ||
+      process.env['INSTANT_APP_ADMIN_TOKEN'] === ''
     ) {
       return
     }

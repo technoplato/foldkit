@@ -1,4 +1,4 @@
-import { StartingWindow } from 'counter-core-example'
+import { Model, SyncedCounter } from 'counter-core-example'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
@@ -10,39 +10,44 @@ import {
 describe('Counter Foldkit Instant host chrome', () => {
   it('paints Starting and Failed, then leaves Ready to Foldkit', () => {
     const container = document.createElement('div')
-    const actions = {
-      clickedDecrement: () => {},
-      clickedIncrement: () => {},
-      clickedReset: () => {},
-      signIn: () => {},
-    }
-    expect(
-      paintCounterHostStatus(container, StartingWindow.make({}), actions),
-    ).toBe(true)
+    expect(paintCounterHostStatus(container, SyncedCounter.Starting())).toBe(
+      true,
+    )
     expect(container.textContent).toContain('Starting Instant Counter')
     expect(
       paintCounterHostStatus(
         container,
-        { _tag: 'FailedWindow', error: 'Instant has no Counter demo user.' },
-        actions,
+        SyncedCounter.Failed({
+          error: SyncedCounter.TransportFailed({
+            what: 'Instant did not return a snapshot.',
+            meaning: 'This Processor could not start from Instant.',
+            fix: 'Check the Instant app and try again.',
+            cause:
+              'Instant() needs INSTANT_APP_ADMIN_TOKEN in the trusted wrapper.',
+          }),
+        }),
       ),
     ).toBe(true)
-    expect(container.textContent).toContain('Instant has no Counter demo user.')
-    expect(container.querySelector('button')?.textContent).toBe('Sign in')
+    expect(container.textContent).toContain('INSTANT_APP_ADMIN_TOKEN')
+    expect(container.textContent).not.toContain('TransportFailed')
+    expect(container.querySelector('button')).toBeNull()
     expect(
       paintCounterHostStatus(
         container,
-        { _tag: 'ReadyWindow', count: 3 },
-        actions,
+        SyncedCounter.Ready(Model.make({ count: 3 })),
       ),
     ).toBe(false)
   })
 
-  it('opens Instant through the shared browser tape', () => {
+  it('opens Instant through Instant() and Processor.Host.Foldkit()', () => {
     const source = readFileSync('src/instantHost.ts', 'utf8')
-    expect(source).toContain('counter-instant-example/browser')
-    expect(source).toContain('openLiveCounterWindowTape')
-    expect(source).not.toContain('@instantdb')
+    expect(source).toContain('FoldkitCounterV01')
+    expect(source).toContain('Processor.Host.Foldkit()')
+    expect(source).toContain('Instant(')
+    expect(source).toContain('startSyncedCounterHandle')
+    expect(source).not.toContain('openLiveCounterWindowTape')
+    expect(source).not.toContain('signIn')
+    expect(source).not.toContain('StartingWindow')
     expect(source).not.toContain('void Effect.runPromise')
   })
 
@@ -58,16 +63,11 @@ describe('Counter Foldkit Instant host chrome', () => {
     expect(viewSource).not.toContain('Button.view')
   })
 
-  it('reports attach failure through the window runtime', () => {
-    const failures: Array<string> = []
-    reportAttachedFoldkitFailure(
-      {
-        fail: error => {
-          failures.push(error)
-        },
-      },
-      new Error('Foldkit could not attach the Counter screen.'),
-    )
-    expect(failures).toEqual(['Foldkit could not attach the Counter screen.'])
+  it('keeps Ready when Foldkit attach fails', () => {
+    expect(() => {
+      reportAttachedFoldkitFailure(
+        new Error('Foldkit could not attach the Counter screen.'),
+      )
+    }).not.toThrow()
   })
 })
