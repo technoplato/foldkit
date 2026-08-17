@@ -4,6 +4,43 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 17th, 2026 at 1:37:43 p.m. EDT — `af50fabc7e3b` feat(instant): add count snapshot plus Message log
+
+- **Implementation commit:** `af50fabc7e3b5e518f8be5cdce5538e181c9dd00`
+- **Change:** Add a generic Instant count snapshot plus Message log and wire one Counter.
+- **Details:**
+  - Startup reads the Instant count row. Live Processors apply Messages from other Processors. One transaction updates count and upserts the Message.
+  - Instant 1.0.53 rejected count row id count. The one row id is UUID c0a7c001-0000-4000-8000-000000000001.
+  - Local count updates first. Observe uses the startup snapshot asOf so live remotes are not skipped.
+  - CLI do increment then React plus shared count 2 on Instant app 5417c2e3-c6b9-476d-a962-2e11c83492aa.
+  - Memory is a test double of the same API. examples/counters and the DIR room schema were not edited.
+- **Files:**
+  - `packages/instant/src/snapshotLog/snapshotLog.ts` — Generic write, observe, schema, and the UUID count row id.
+  - `packages/instant/src/snapshotLog/core.ts` — Instant core query, subscribe, and transaction.
+  - `packages/instant/src/snapshotLog/admin.ts` — Instant admin query, transaction, and 250ms poll.
+  - `packages/instant/src/snapshotLog/memory.ts` — In-memory test double of the same write and observe API.
+  - `packages/instant/src/snapshotLog/snapshotLog.test.ts` — Unit tests for write together, sort, skip own, and local first.
+  - `packages/instant/package.json` — Export snapshot-log and optional Instant admin peer.
+  - `examples/counter/instant-host/src/snapshot.ts` — Counter window tape over the count snapshot and Message log.
+  - `examples/counter/instant-host/instant.schema.ts` — Push the two-entity schema to the V0.1 Counter app.
+  - `examples/counter/cli/src/host.ts` — CLI show and do read the snapshot. Do does not fold history.
+  - `examples/counter/tui/src/instantHost.ts` — TUI Processor on the live Instant count snapshot.
+  - `examples/counter/react/src/instantHost.ts` — React Processor on the V0.1 Instant app.
+  - `examples/counter/foldkit/src/instantHost.ts` — Foldkit HTML Processor on the V0.1 Instant app.
+  - `examples/counter/svelte/src/App.svelte` — New one-Counter Svelte Client.
+  - `examples/counter/scripts/with-counter-v01-env` — Load V0.1 Counter Instant credentials. Do not print the token.
+  - `examples/vite.aliases.ts` — Map @foldkit/instant/snapshot-log for Vite hosts.
+  - `.changeset/add-instant-snapshot-log.md` — Minor changeset for the new snapshot-log API.
+- **User context (verbatim):**
+  > A Message is one user intent: Increment, Decrement, or Reset.
+  > Count is an Instant entity. Startup reads that snapshot.
+  > Then listen for Messages from other Processors.
+  > Do not fold the whole history on boot.
+  > Instant transaction updates `count` and creates `message` together.
+  > Bake that into `@foldkit/instant` as a generic API.
+  > Prove CLI `do increment` then React plus shows the same count.
+- **SpecStory:** unavailable — Grok Build TUI session. SpecStory does not capture this host.
+
 ## August 16th, 2026 at 12:54:18 a.m. EDT — `28843b122753` fix(counter): attach React Instant tape and Vite Instant subpaths
 
 - **Implementation commit:** `28843b1227537ec976d2c610b46134b28c739002`
