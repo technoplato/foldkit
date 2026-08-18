@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 18th, 2026 at 1:12:03 p.m. EDT — `02979225ef0b` Use exhaustive Match on the Counter React window
+
+- **Implementation commit:** `02979225ef0b408baa933d3e306efc82862d77cf`
+- **Change:** Use exhaustive Match on the Counter React window.
+- **Details:**
+  - Starting, Failed, and Ready are cases. Ready destructures count.
+- **Files:**
+  - `examples/counter/react/src/App.tsx` — Exhaustive Match on the synced Model.
+  - `examples/counter/react/package.json` — Depend on effect for Match.
+  - `pnpm-lock.yaml` — Lock the effect dependency.
+- **User context (verbatim):**
+  > please go ahead and change the live file
+  > I liked the match exhaustive. That was better typing
+- **SpecStory:** unavailable — Grok TUI HIA session. SpecStory does not capture this host. No durable share URI.
+
 ## August 17th, 2026 at 9:48:32 p.m. EDT — `1239088a1d60` fix(counter): rename pnpm show to pnpm count
 
 - **Implementation commit:** `1239088a1d603a833f5b1b2d4276b1c3a2031334`
