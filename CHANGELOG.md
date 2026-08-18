@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 17th, 2026 at 9:48:32 p.m. EDT — `1239088a1d60` fix(counter): rename pnpm show to pnpm count
+
+- **Implementation commit:** `1239088a1d603a833f5b1b2d4276b1c3a2031334`
+- **Change:** Rename the Instant CLI print script to pnpm count so it does not hit the npm registry.
+- **Details:**
+  - pnpm show is a built-in package lookup. The print script is now pnpm count.
+- **Files:**
+  - `examples/counter/cli/package.json` — Rename show script to count.
+- **User context (verbatim):**
+  > pnpm show [ERR_PNPM_FETCH_404] GET https://registry.npmjs.org/counter-cli-example
+- **SpecStory:** unavailable — Grok TUI HIA session. SpecStory does not capture this host. No durable share URI.
+
 ## August 17th, 2026 at 8:26:07 p.m. EDT — `144acee2b6b5` fix(counter): let pnpm pass show and increment to Instant CLI
 
 - **Implementation commit:** `144acee2b6b5bffe81d932026ce09040c44598fb`
