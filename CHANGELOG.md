@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 17th, 2026 at 8:26:07 p.m. EDT — `144acee2b6b5` fix(counter): let pnpm pass show and increment to Instant CLI
+
+- **Implementation commit:** `144acee2b6b5bffe81d932026ce09040c44598fb`
+- **Change:** Let pnpm show and pnpm increment run the Instant Counter CLI.
+- **Details:**
+  - pnpm inserts -- before extra args. The wrapper drops that token so Effect CLI sees show.
+- **Files:**
+  - `examples/counter/cli/scripts/run.sh` — Strip a leading -- then run entry.js.
+  - `examples/counter/cli/package.json` — Add show and increment Instant scripts.
+- **User context (verbatim):**
+  > fix pnpm i don't want to type all that
+- **SpecStory:** unavailable — Grok TUI HIA session. SpecStory does not capture this host. No durable share URI.
+
 ## August 17th, 2026 at 7:22:04 p.m. EDT — `4538c47c3ba2` feat(foldkit): add Program.compose.sync Instant Schema I/O
 
 - **Implementation commit:** `4538c47c3ba2254d28dd6437b8e7e116547bd059`
