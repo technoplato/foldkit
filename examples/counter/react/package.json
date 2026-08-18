@@ -19,6 +19,7 @@
     "counter-core-example": "workspace:*",
     "counter-instant-example": "workspace:*",
     "counter-react-bindings-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
