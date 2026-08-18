@@ -11,7 +11,7 @@
     "clean": "rimraf dist",
     "counter": "./scripts/run.sh",
     "counter:instant": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh",
-    "show": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh show",
+    "count": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh show",
     "increment": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh do increment",
     "prebuild": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
     "pretypecheck": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
