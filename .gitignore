@@ -19,6 +19,8 @@ test-results/
 .DS_Store
 examples/books/foldkit/public/a-new-earth-evocation.mp3
 examples/books/foldkit/public/a-new-earth-evocation.words.json
-examples/books/foldkit/public/media/
+examples/books/foldkit/public/media/a-new-earth.mp3
+examples/books/foldkit/public/media/*.mp3
+examples/books/foldkit/public/media/*.m4b
 **/.expo/
 **/.svelte-kit/
