@@ -303,6 +303,45 @@ export const makeInstantIssueRecord = (issue: Issue): InstantIssueRecord =>
 export const decodeIssueRecord = (record: InstantIssueRecord): Issue =>
   S.decodeUnknownSync(IssueJson)(record.payloadJson)
 
+const reportIssueDecodeFailure = (issueID: string, cause: unknown): void => {
+  const reason = cause instanceof Error ? cause.message : String(cause)
+  const error = new Error(`Issue ${issueID} could not be decoded: ${reason}`, {
+    cause,
+  })
+  try {
+    if (typeof globalThis.reportError === 'function') {
+      globalThis.reportError(error)
+    }
+  } catch {
+    return
+  }
+}
+
+/** Decodes a catalog snapshot, keeping readable Issues when one payload is stale. */
+export const decodeIssueRecords = (
+  records: ReadonlyArray<InstantIssueRecord>,
+): ReadonlyArray<Issue> => {
+  const issues = Array.reduce(
+    records,
+    [] as ReadonlyArray<Issue>,
+    (decoded, record) => {
+      try {
+        return Array.append(decoded, decodeIssueRecord(record))
+      } catch (cause) {
+        reportIssueDecodeFailure(record.issueID, cause)
+        return decoded
+      }
+    },
+  )
+  if (
+    Array.isReadonlyArrayEmpty(issues) &&
+    Array.isReadonlyArrayNonEmpty(records)
+  ) {
+    return Array.map(records, decodeIssueRecord)
+  }
+  return issues
+}
+
 /** Encodes one catalog entry into its queryable InstantDB envelope. */
 export const makeInstantProductRecord = (
   entry: ProductCatalogEntry,
@@ -451,7 +490,7 @@ export const makeIssueTracker = (
     store.fetchIssues.pipe(
       Effect.flatMap(records =>
         Effect.try({
-          try: () => Array.map(records, decodeIssueRecord),
+          try: () => decodeIssueRecords(records),
           catch: cause =>
             new IssueTrackerError({
               cause,
@@ -478,7 +517,7 @@ export const makeIssueTracker = (
     store.observeIssues.pipe(
       Stream.mapEffect(records =>
         Effect.try({
-          try: () => Array.map(records, decodeIssueRecord),
+          try: () => decodeIssueRecords(records),
           catch: cause =>
             new IssueTrackerError({
               cause,
