@@ -5,6 +5,7 @@ import {
   ApplicationProduct,
   Issue,
   IssueAttachment,
+  IssueComplexity,
   IssueMention,
   type IssuePriority,
   IssueSourceDocument,
@@ -94,6 +95,39 @@ describe('issue domain', () => {
     expect(S.decodeUnknownSync(IssueSuccessEvidence)('CodeReview')).toBe(
       'CodeReview',
     )
+  })
+
+  it('preserves performance and multi-device as live success evidence', () => {
+    expect(S.decodeUnknownSync(IssueSuccessEvidence)('Performance')).toBe(
+      'Performance',
+    )
+    expect(S.decodeUnknownSync(IssueSuccessEvidence)('MultiDevice')).toBe(
+      'MultiDevice',
+    )
+  })
+
+  it('preserves catalog Issue references and omitted related arrays', () => {
+    const mention = S.decodeUnknownSync(IssueMention)({
+      capturedAtMs: 1_753_825_157_000,
+      id: 'mention-issue-link',
+      issueId: '218',
+      source: { _tag: 'Agent', id: 'grok-4.6-issues-evidence' },
+      related: [{ _tag: 'Issue', id: '044' }],
+    })
+    expect(mention.related).toEqual([{ _tag: 'Issue', id: '044' }])
+
+    const omittedRelated = S.decodeUnknownSync(IssueMention)({
+      capturedAtMs: 1_753_825_157_000,
+      id: 'mention-legacy-related',
+      issueId: '044',
+      source: { _tag: 'Agent', id: 'grok-4.6-issues-evidence' },
+    })
+    expect(omittedRelated.related).toEqual([])
+  })
+
+  it('preserves live High and Medium complexity labels', () => {
+    expect(S.decodeUnknownSync(IssueComplexity)('High')).toBe('High')
+    expect(S.decodeUnknownSync(IssueComplexity)('Medium')).toBe('Medium')
   })
 
   it('accepts only explicitly enumerated success evidence', () => {
