@@ -128,10 +128,15 @@ export const ReleaseReference = S.TaggedStruct('Release', {
 export const UriReference = S.TaggedStruct('Uri', {
   value: S.String,
 })
+/** A reference to another Issue in the catalog. */
+export const CatalogIssueReference = S.TaggedStruct('Issue', {
+  id: S.String,
+})
 
 /** A polymorphic link from Issue data to one related artifact. */
 export const IssueReference = S.Union([
   AgentReference,
+  CatalogIssueReference,
   CommitReference,
   MediaReference,
   ProjectReference,
@@ -209,7 +214,10 @@ export const IssueMention = S.Struct({
   ),
   id: S.String,
   issueId: S.String,
-  related: S.Array(IssueReference),
+  related: S.Array(IssueReference).pipe(
+    S.withDecodingDefaultKey(Effect.succeed([])),
+    S.withConstructorDefault(Effect.succeed([])),
+  ),
   reporter: S.OptionFromNullOr(IssueReference).pipe(
     S.withDecodingDefaultKey(Effect.succeed(null)),
   ),
@@ -244,6 +252,8 @@ export const IssueSuccessEvidence = S.Literals([
   'CodeReview',
   'FocusedTest',
   'Log',
+  'MultiDevice',
+  'Performance',
   'Persistence',
   'PhysicalDeviceInteraction',
   'Research',
@@ -294,7 +304,13 @@ const IssueLogEvidenceQueries = S.Array(IssueLogEvidenceQuery).pipe(
 )
 
 /** A coarse estimate used to keep unattended repair work bounded. */
-export const IssueComplexity = S.Literals(['Small', 'Moderate', 'Large'])
+export const IssueComplexity = S.Literals([
+  'High',
+  'Large',
+  'Medium',
+  'Moderate',
+  'Small',
+])
 /** A coarse estimate used to keep unattended repair work bounded. */
 export type IssueComplexity = typeof IssueComplexity.Type
 

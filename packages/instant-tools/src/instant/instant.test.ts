@@ -342,6 +342,38 @@ describe('Instant adapter', () => {
   )
 
   it.effect(
+    'keeps readable Issues when one catalog payload cannot decode',
+    () =>
+      Effect.gen(function* () {
+        const { store } = yield* makeStore
+        const malformedRecord = {
+          ...makeInstantIssueRecord(issue),
+          id: 'malformed',
+          issueID: 'malformed',
+          payloadJson: '{"status":"Future"}',
+        }
+        const mixedStore: InstantEntityStoreService = {
+          ...store,
+          observeIssues: Stream.succeed([
+            makeInstantIssueRecord(issue),
+            malformedRecord,
+          ]),
+        }
+        const issueTracker = makeIssueTracker(mixedStore)
+        const query = IssueQuery.make({
+          limit: 100,
+          productId: Option.none(),
+          projectId: Option.none(),
+          statuses: [],
+        })
+
+        expect(yield* Stream.runCollect(issueTracker.observe(query))).toEqual([
+          [issue],
+        ])
+      }),
+  )
+
+  it.effect(
     'persists and observes Applications and Libraries as products',
     () =>
       Effect.gen(function* () {
