@@ -68,6 +68,15 @@ export const ExchangingOAuth = S.TaggedStruct('ExchangingOAuth', {
 /** Instant is exchanging an OAuth identity token for a `$users` row. */
 export type ExchangingOAuth = typeof ExchangingOAuth.Type
 
+/** Instant is exchanging an Access-minted refresh token for a `$users` row. */
+export const SigningInHostedIdentity = S.TaggedStruct(
+  'SigningInHostedIdentity',
+  {},
+)
+
+/** Instant is exchanging an Access-minted refresh token for a `$users` row. */
+export type SigningInHostedIdentity = typeof SigningInHostedIdentity.Type
+
 /** Instant is invalidating the local `$users` session. */
 export const SigningOut = S.TaggedStruct('SigningOut', {})
 
@@ -83,6 +92,7 @@ export const Flow = S.Union([
   SigningInGuest,
   RedirectingOAuth,
   ExchangingOAuth,
+  SigningInHostedIdentity,
   SigningOut,
 ])
 

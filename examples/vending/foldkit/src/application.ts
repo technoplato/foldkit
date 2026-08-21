@@ -1,10 +1,6 @@
 import { Layer } from 'effect'
 import { Runtime } from 'foldkit'
-import {
-  type Message,
-  type Model,
-  VendingProgram,
-} from 'vending-core-example'
+import { type Message, type Model, VendingProgram } from 'vending-core-example'
 import type { WalletResources } from 'wallet-core-example'
 import type { ReceivingQrHostOrigin } from 'wallet-qr-example'
 

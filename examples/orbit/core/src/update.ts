@@ -2,11 +2,7 @@ import { Effect, Match as M, Option } from 'effect'
 import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
 
-import {
-  FailedObserveSnap,
-  type Message,
-  ObservedSnap,
-} from './message.js'
+import { FailedObserveSnap, type Message, ObservedSnap } from './message.js'
 import {
   type Danger,
   type Model,
@@ -87,7 +83,10 @@ export const LoadSnap = Command.define(
 export const update = (
   model: Model,
   message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message, never, OrbitStore>>] =>
+): readonly [
+  Model,
+  ReadonlyArray<Command.Command<Message, never, OrbitStore>>,
+] =>
   M.value(message).pipe(
     M.withReturnType<
       readonly [
@@ -143,10 +142,7 @@ export const update = (
         commitRefuse(model, danger, whyFor(danger)),
         [],
       ],
-      ObservedSnap: ({ source }) => [
-        evo(model, { source: () => source }),
-        [],
-      ],
+      ObservedSnap: ({ source }) => [evo(model, { source: () => source }), []],
       FailedObserveSnap: () => [
         evo(model, { source: () => 'StaticFallback' }),
         [],

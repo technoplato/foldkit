@@ -79,26 +79,14 @@ export const update = (
     >(),
     M.tagsExhaustive({
       CanvasChanged: ({ x, y, scale }) => [{ ...model, x, y, scale }, []],
-      FocusedSlotChanged: ({ slot }) => [
-        { ...model, focusedSlot: slot },
-        [],
-      ],
+      FocusedSlotChanged: ({ slot }) => [{ ...model, focusedSlot: slot }, []],
       ToggledShowSingle: () => [
         { ...model, showSingle: !model.showSingle },
         [],
       ],
-      ToggledShowMulti: () => [
-        { ...model, showMulti: !model.showMulti },
-        [],
-      ],
-      ToggledShowCalc: () => [
-        { ...model, showCalc: !model.showCalc },
-        [],
-      ],
-      ToggledShowList: () => [
-        { ...model, showList: !model.showList },
-        [],
-      ],
+      ToggledShowMulti: () => [{ ...model, showMulti: !model.showMulti }, []],
+      ToggledShowCalc: () => [{ ...model, showCalc: !model.showCalc }, []],
+      ToggledShowList: () => [{ ...model, showList: !model.showList }, []],
     }),
   )
 

@@ -16,16 +16,6 @@ import {
 import { stringifyInstantV3CanonicalJson } from '@foldkit/instant'
 
 import type { InstantCounterDatabase } from '../../../instant.schema.js'
-import {
-  type MultipleCountersV3LocalIdentityEnvironment,
-  type MultipleCountersV3LocalIdentityStore,
-  loadMultipleCountersV3EnrollmentClaimTimestamp,
-  loadMultipleCountersV3OriginSecrets,
-  makeMultipleCountersV3IdentitySources,
-  makeMultipleCountersV3ProcessorSecret,
-} from './localIdentity.js'
-import { deriveMultipleCountersV3OriginIdentity } from './originLifecycle.js'
-import type { MultipleCountersV3ProcessorConfig } from './processor.js'
 import { logMultipleCountersV3Debug } from '../shared/debugLog.js'
 import {
   makeMultipleCountersV3EntityId,
@@ -37,6 +27,16 @@ import {
   type MultipleCountersV3PolicyResolutionRecord as MultipleCountersV3PolicyResolutionRecordType,
   makeMultipleCountersV3PolicyResolutionPositionKey,
 } from '../shared/policyRequest.js'
+import {
+  type MultipleCountersV3LocalIdentityEnvironment,
+  type MultipleCountersV3LocalIdentityStore,
+  loadMultipleCountersV3EnrollmentClaimTimestamp,
+  loadMultipleCountersV3OriginSecrets,
+  makeMultipleCountersV3IdentitySources,
+  makeMultipleCountersV3ProcessorSecret,
+} from './localIdentity.js'
+import { deriveMultipleCountersV3OriginIdentity } from './originLifecycle.js'
+import type { MultipleCountersV3ProcessorConfig } from './processor.js'
 
 const strictDecodeOptions: SchemaAST.ParseOptions = {
   errors: 'all',

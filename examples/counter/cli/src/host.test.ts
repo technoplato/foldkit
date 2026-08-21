@@ -1,26 +1,31 @@
 import {
   CounterProgram,
   Decrement,
+  FoldkitCounterV01,
   Increment,
   type Message,
   Model,
   Reset,
+  SyncedCounter,
+  type SyncedCounterHandle,
+  makeMemorySnapshotLogTransport,
+  memorySyncedEngine,
+  startSyncedCounterHandle,
+  waitForSyncedHandle,
 } from 'counter-core-example'
 import { Effect, Layer, Option } from 'effect'
-import { Runtime } from 'foldkit'
+import { Processor, Program, Runtime } from 'foldkit'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { makeInMemoryProgramStore } from '@foldkit/instant'
-
+import { readyCount } from './cliError.js'
 import { executeDo, executeReplay, executeShow } from './host.js'
-import {
-  makeCounterTapeOnStore,
-  makeMemoryCounterSnapshotLog,
-  makeMemoryCounterTape,
-} from './tape.js'
+import { counterCliProgramId } from './isolation.js'
+import { settleAfterSend, waitForReadyCountChange } from './session.js'
+
+process.env['COUNTER_TAPE'] = 'memory'
 
 const writeTape = async (messages: ReadonlyArray<Message>): Promise<string> => {
   const tape = await Effect.runPromise(
@@ -38,6 +43,10 @@ const writeTape = async (messages: ReadonlyArray<Message>): Promise<string> => {
 }
 
 describe('Counter CLI host', () => {
+  it('uses the live Instant app id for daemon isolation', () => {
+    expect(counterCliProgramId).toBe(FoldkitCounterV01.id)
+  })
+
   it('shows the imported initial Model without a Message or chrome', async () => {
     const execution = await Effect.runPromise(executeShow(undefined, undefined))
 
@@ -66,6 +75,48 @@ describe('Counter CLI host', () => {
     await expect(
       Effect.runPromise(executeShow('laptop', undefined)),
     ).rejects.toThrow('Unknown device "laptop"')
+  })
+
+  it('settles increment from the local write, not an Instant echo', async () => {
+    let count = 0
+    let write = Option.none<{
+      readonly link: 'offline' | 'queued' | 'delivered'
+    }>()
+    const handle: SyncedCounterHandle = {
+      actions: () => {
+        throw new Error('settleAfterSend does not read actions.')
+      },
+      lastWrite: () => write,
+      readModel: () =>
+        SyncedCounter.Ready({
+          product: Model.make({ count }),
+          actionMenu: Program.Closed(),
+        }),
+      send: () => {
+        count += 1
+        write = Option.some({ link: 'delivered' })
+      },
+      stop: () => Promise.resolve(),
+      subscribe: () => () => undefined,
+    }
+    handle.send(Increment())
+    const settled = await Effect.runPromise(settleAfterSend(handle))
+    expect(settled.model).toEqual(Model.make({ count: 1 }))
+    expect(settled.write).toEqual(Option.some({ link: 'delivered' }))
+  })
+
+  it('waits for product.count after increment', async () => {
+    const handle = startSyncedCounterHandle(
+      memorySyncedEngine(Processor.Host.Cli()),
+    )
+    await waitForSyncedHandle(handle)
+    const previous = await Effect.runPromise(readyCount(handle.readModel()))
+    handle.send(Increment())
+    const next = await Effect.runPromise(
+      waitForReadyCountChange(handle, previous),
+    )
+    expect(next).toEqual(Model.make({ count: 1 }))
+    await handle.stop()
   })
 
   it('sends increment and auto-shows the new count', async () => {
@@ -109,20 +160,8 @@ describe('Counter CLI host', () => {
     expect(Reset.valid(shown.finalModel, {})).toBe(false)
   })
 
-  it('persists increment on a shared Instant tape', async () => {
-    const tape = await Effect.runPromise(makeMemoryCounterTape('cli'))
-    await Effect.runPromise(executeDo('increment', { tape }))
-    const shown = await Effect.runPromise(
-      executeShow(undefined, undefined, { tape }),
-    )
-
-    expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
-    expect(shown.stdout).toContain('count    1')
-    expect(Reset.valid(shown.finalModel, {})).toBe(true)
-  })
-
   it('persists increment on a shared count snapshot', async () => {
-    const snapshot = await Effect.runPromise(makeMemoryCounterSnapshotLog())
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
     await Effect.runPromise(executeDo('increment', { snapshot }))
     const shown = await Effect.runPromise(
       executeShow(undefined, undefined, { snapshot }),
@@ -134,7 +173,7 @@ describe('Counter CLI host', () => {
   })
 
   it('lets a second Processor read the same count snapshot', async () => {
-    const snapshot = await Effect.runPromise(makeMemoryCounterSnapshotLog())
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
     await Effect.runPromise(executeDo('increment', { snapshot }))
     const shown = await Effect.runPromise(
       executeShow(undefined, undefined, { snapshot }),
@@ -144,32 +183,6 @@ describe('Counter CLI host', () => {
     expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
     expect(again.finalModel).toEqual(Model.make({ count: 2 }))
     expect(again.link).toBe('delivered')
-  })
-
-  it('lets a second Processor read every Message on the tape', async () => {
-    const store = await Effect.runPromise(makeInMemoryProgramStore())
-    const cli = await Effect.runPromise(
-      makeCounterTapeOnStore(store, 'cli', 'offline'),
-    )
-    const foldkit = await Effect.runPromise(
-      makeCounterTapeOnStore(store, 'foldkit', 'offline'),
-    )
-    await Effect.runPromise(executeDo('increment', { tape: cli }))
-    const shown = await Effect.runPromise(
-      executeShow(undefined, undefined, { tape: foldkit }),
-    )
-    const again = await Effect.runPromise(
-      executeDo('increment', { tape: foldkit }),
-    )
-    const fromCli = await Effect.runPromise(
-      executeShow(undefined, undefined, { tape: cli }),
-    )
-
-    expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
-    expect(again.finalModel).toEqual(Model.make({ count: 2 }))
-    expect(fromCli.finalModel).toEqual(Model.make({ count: 2 }))
-    expect(again.link).toBe('offline')
-    expect(again.stdout).toContain('link           offline')
   })
 
   it('replays a Program tape through Runtime.replayToFrame', async () => {

@@ -1,3 +1,3 @@
-import { startHost } from "./host.js"
+import { startHost } from './host.js'
 
 startHost()

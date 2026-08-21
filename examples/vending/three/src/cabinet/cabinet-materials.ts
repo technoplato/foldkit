@@ -139,15 +139,17 @@ export const createCabinetMaterials = (): CabinetMaterials => {
     metalness: 0.82,
   })
   const ledPanel = new THREE.MeshStandardMaterial({
-    color: 0x04140a,
-    emissive: 0x7cff9a,
-    emissiveIntensity: 2.2,
-    roughness: 0.35,
-    metalness: 0.05,
+    color: 0xffffff,
+    emissive: 0xffffff,
+    emissiveIntensity: 0.92,
+    roughness: 0.42,
+    metalness: 0,
   })
   const ledBloom = new THREE.MeshBasicMaterial({
-    color: 0x7cff9a,
+    color: 0x14331c,
     toneMapped: false,
+    transparent: true,
+    opacity: 0.35,
   })
   const jewel = new THREE.MeshBasicMaterial({
     color: 0xf0b060,

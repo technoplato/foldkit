@@ -1,18 +1,26 @@
+import { Option } from 'effect'
 import { Story } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 
 import {
+  BodyKindText,
+  BodyKindThought,
+  BodyKindTool,
   ChatsPopulated,
   ClickedDeleteConversation,
   ClickedFollow,
   ClickedGoBack,
   ClickedIngest,
+  ClickedJumpTo,
   ClickedOpenChats,
   ClickedOpenConversation,
+  ClickedOpenIdentifier,
   ClickedOpenProject,
   ClickedOpenProjects,
   ClickedOpenSettings,
   ClickedStopFollow,
+  IdentifierCursor,
+  IdentifierGrok,
   IngestLive,
   Ingested,
   LibraryPopulated,
@@ -21,12 +29,21 @@ import {
   ProjectsPopulated,
   Settings,
   Transcript,
+  UpdatedFindQuery,
+  breakdown,
   cmuxConversation,
   conversationById,
+  conversationByIdentifier,
   debugConversation,
+  filterBreakdown,
+  focusedRow,
+  grokConversation,
+  identifierFromKindValue,
   identifierLabel,
   init,
   initialModel,
+  messageBodyText,
+  nextBreakdownMessageId,
   outline,
   promptCount,
   restore,
@@ -85,7 +102,13 @@ describe('conversations update', () => {
       Story.Command.expectNone(),
       Story.model(model => {
         expect(model.screen).toEqual(ChatsPopulated())
-        expect(model.conversations).toHaveLength(3)
+        expect(model.conversations).toHaveLength(4)
+        expect(
+          conversationByIdentifier(
+            model.conversations,
+            IdentifierGrok({ value: 'bot:distraction-blocker' }),
+          )?.title,
+        ).toBe(grokConversation.title)
       }),
     )
   })
@@ -215,6 +238,96 @@ describe('conversations update', () => {
       Story.model(model => {
         expect(model.screen).toEqual(ChatsPopulated())
       }),
+    )
+  })
+
+  test('breakdown is a host-agnostic TOC of every body case', () => {
+    const entries = breakdown(cmuxConversation)
+    expect(entries.map(entry => entry.bodyKind)).toEqual([
+      BodyKindText(),
+      BodyKindThought(),
+      BodyKindTool(),
+      BodyKindText(),
+      BodyKindText(),
+    ])
+    expect(entries[2]?.label).toContain('bash')
+    expect(filterBreakdown(entries, 'zscaler')[0]?.messageId).toBe('m-cmux-1')
+  })
+
+  test('identifier lookup does not prefer Cursor over Grok', () => {
+    expect(identifierLabel(grokConversation.identifier)).toBe('via Grok')
+    expect(identifierLabel(debugConversation.identifier)).toBe('via Cursor')
+    expect(identifierFromKindValue('grok', 'bot:distraction-blocker')).toEqual(
+      IdentifierGrok({ value: 'bot:distraction-blocker' }),
+    )
+    expect(
+      identifierFromKindValue('cursor', '412852D2-1396-49FB-A5BE-69986474E6AD'),
+    ).toEqual(
+      IdentifierCursor({ value: '412852D2-1396-49FB-A5BE-69986474E6AD' }),
+    )
+  })
+
+  test('open by identifier reaches the Grok transcript', () => {
+    Story.story(
+      update,
+      Story.with(initialModel),
+      Story.message(
+        ClickedOpenIdentifier({
+          identifier: IdentifierGrok({ value: 'bot:distraction-blocker' }),
+        }),
+      ),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.screen).toEqual(
+          Transcript({ conversationId: grokConversation.id }),
+        )
+      }),
+    )
+  })
+
+  test('find and jump are session handles on the transcript', () => {
+    Story.story(
+      update,
+      Story.with(initialModel),
+      Story.message(
+        ClickedOpenConversation({ conversationId: cmuxConversation.id }),
+      ),
+      Story.Command.expectNone(),
+      Story.message(UpdatedFindQuery({ query: 'bash' })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.findQuery).toBe('bash')
+        expect(
+          filterBreakdown(breakdown(cmuxConversation), model.findQuery),
+        ).toHaveLength(1)
+      }),
+      Story.message(ClickedJumpTo({ messageId: 'm-cmux-3' })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.maybeFocusMessageId).toEqual(Option.some('m-cmux-3'))
+        const row = Option.getOrThrow(focusedRow(model))
+        expect(row.id).toBe('m-cmux-3')
+        expect(messageBodyText(row)).toContain(
+          'sandbox has no outbound network',
+        )
+      }),
+      Story.message(ClickedGoBack()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.findQuery).toBe('')
+        expect(model.maybeFocusMessageId).toEqual(Option.none())
+      }),
+    )
+  })
+
+  test('next breakdown step starts at the first filtered row', () => {
+    const entries = filterBreakdown(breakdown(cmuxConversation), 'look in')
+    expect(entries).toHaveLength(2)
+    expect(nextBreakdownMessageId(entries, Option.none())).toEqual(
+      Option.some('m-cmux-1'),
+    )
+    expect(nextBreakdownMessageId(entries, Option.some('m-cmux-1'))).toEqual(
+      Option.some('m-cmux-5'),
     )
   })
 })

@@ -1,11 +1,11 @@
 # ADR 0008 — Host-neutral atomic UI (JSX → DOM / ASCII / TUI)
 
-| Field | Value |
-| --- | --- |
-| **Status** | In interview (Q0 locked 2026-08-11: Overview 01 accepted) |
-| **Date** | 2026-08-07 |
-| **Repos** | foldkit (presentation Clients); related: ADR 0001, 0007 |
-| **Parent issue** | TBD Instant after decisions lock |
+| Field            | Value                                                     |
+| ---------------- | --------------------------------------------------------- |
+| **Status**       | In interview (Q0 locked 2026-08-11: Overview 01 accepted) |
+| **Date**         | 2026-08-07                                                |
+| **Repos**        | foldkit (presentation Clients); related: ADR 0001, 0007   |
+| **Parent issue** | TBD Instant after decisions lock                          |
 
 ## One-line intent
 
@@ -13,8 +13,8 @@
 
 ## Related
 
-- ADR 0007 — PIS canvas hosts Foldkit; live Model on the map  
-- DomainAsTree / PIS skill — mode trees as ADTs; marketing is nothing  
+- ADR 0007 — PIS canvas hosts Foldkit; live Model on the map
+- DomainAsTree / PIS skill — mode trees as ADTs; marketing is nothing
 - Prior art: `examples/counters/opentui`, `pis-canvas-lab/.../liveAscii.ts` (to replace)
 
 ## Files

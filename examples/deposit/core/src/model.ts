@@ -35,13 +35,7 @@ export const IsoCurrency = S.Literals(['USD', 'EUR', 'GBP'])
 export type IsoCurrency = typeof IsoCurrency.Type
 
 /** Fiat rails named in the Deposit ADT. */
-export const FiatMethod = S.Literals([
-  'stripe',
-  'venmo',
-  'ach',
-  'card',
-  'wire',
-])
+export const FiatMethod = S.Literals(['stripe', 'venmo', 'ach', 'card', 'wire'])
 /** Fiat rails named in the Deposit ADT. */
 export type FiatMethod = typeof FiatMethod.Type
 
@@ -108,16 +102,13 @@ export const FIAT_RAIL_TAGS: ReadonlyArray<FiatRail['_tag']> = [
 ]
 
 /** Type-level proof that a live Stripe charge rail cannot be constructed. */
-export type LiveStripeChargeIsRepresentable = Extract<
-  FiatRail,
-  { readonly _tag: 'stripe-configured' }
-> extends never
-  ? false
-  : true
+export type LiveStripeChargeIsRepresentable =
+  Extract<FiatRail, { readonly _tag: 'stripe-configured' }> extends never
+    ? false
+    : true
 
 /** Runtime proof that a live Stripe charge rail cannot be constructed. */
-export const liveStripeChargeIsRepresentable: LiveStripeChargeIsRepresentable =
-  false
+export const liveStripeChargeIsRepresentable: LiveStripeChargeIsRepresentable = false
 
 /** Publish a public catalog entry. No money movement. */
 export const CatalogPublish = S.TaggedStruct('catalog-publish', {})
@@ -288,10 +279,7 @@ export const solanaDevnetNetwork = NetworkDescriptor.make({
 })
 
 /** Selects the crypto rail for one ADT chain and network. */
-export const selectCryptoRail = (
-  chain: Chain,
-  network: Network,
-): CryptoRail =>
+export const selectCryptoRail = (chain: Chain, network: Network): CryptoRail =>
   chain === 'sol' && network === 'devnet'
     ? SolDevnetRail.make({})
     : UnsupportedRail.make({ chain, network })

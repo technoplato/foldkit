@@ -1,10 +1,9 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { Console, Effect } from 'effect'
 import { Runtime } from 'foldkit'
 import { East, South } from 'foldkit/spatial'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { PressedDigit, PressedEnter } from 'vending-core-example'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
 import {

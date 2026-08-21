@@ -68,6 +68,10 @@ export const cameraNear = 0.08
 export const cameraFar = 24
 /** Authored camera back offset as a multiple of cabinet height. */
 export const cameraBackScale = 2.12
+/** Phone camera back offset as a multiple of cabinet height. */
+export const phoneCameraBackScale = 3.9
+/** Viewport width that switches the camera to the phone frame. */
+export const phoneViewportMaxWidth = 700
 /** Authored camera height as a multiple of cabinet height. */
 export const cameraHeightScale = 0.54
 /** Authored camera side offset as a multiple of cabinet height. */
@@ -131,6 +135,8 @@ export const keyDamping = 9
 export const maximumDeltaSeconds = 1 / 20
 /** Clip fall duration in seconds. */
 export const clipFallSeconds = 0.55
+/** Phone presentation duration in seconds. */
+export const phonePresentSeconds = 1.15
 
 /** Paint albedo tile size in metres. */
 export const paintTileMetres = 0.22
@@ -184,18 +190,18 @@ export const viewModeFromLocation = (search: string): ViewMode => {
 /** Maps a vend phase tag to LED emissive intensity. */
 export const ledIntensityForPhase = (vendPhase: string): number => {
   if (vendPhase === 'AwaitingPayment') {
-    return 3.4
+    return 2.35
   }
   if (vendPhase === 'Dispensed') {
-    return 4.2
+    return 2.6
   }
   if (vendPhase === 'WrongCode' || vendPhase === 'TimedOut') {
     return 1.6
   }
   if (vendPhase === 'Vending' || vendPhase === 'Received') {
-    return 3.8
+    return 2.5
   }
-  return 2.2
+  return 2.05
 }
 
 /** Status jewel color for a vend phase. */

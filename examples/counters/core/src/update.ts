@@ -15,6 +15,7 @@ import {
   CounterFact,
   CounterFactAlert,
   type CounterFactRequestId,
+  type CounterFactStatus,
   type CounterId,
   CounterList,
   CounterRow,
@@ -61,10 +62,11 @@ const normalizeNavigation = (
   }
 }
 
-const loadingFactNavigation = (
+const factAlertNavigation = (
   counterId: CounterId,
   detailPresentationId: CounterDetailPresentationId,
   requestId: CounterFactRequestId,
+  status: CounterFactStatus,
 ): Navigation =>
   CounterDetail.make({
     counterId,
@@ -72,43 +74,7 @@ const loadingFactNavigation = (
       CounterFactAlert.make({
         detailPresentationId,
         requestId,
-        status: LoadingCounterFact.make({}),
-      }),
-    ),
-    presentationId: detailPresentationId,
-  })
-
-const loadedFactNavigation = (
-  counterId: CounterId,
-  detailPresentationId: CounterDetailPresentationId,
-  requestId: CounterFactRequestId,
-  fact: CounterFact,
-): Navigation =>
-  CounterDetail.make({
-    counterId,
-    maybeMode: Option.some(
-      CounterFactAlert.make({
-        detailPresentationId,
-        requestId,
-        status: LoadedCounterFact.make({ fact }),
-      }),
-    ),
-    presentationId: detailPresentationId,
-  })
-
-const failedFactNavigation = (
-  counterId: CounterId,
-  detailPresentationId: CounterDetailPresentationId,
-  requestId: CounterFactRequestId,
-  reason: string,
-): Navigation =>
-  CounterDetail.make({
-    counterId,
-    maybeMode: Option.some(
-      CounterFactAlert.make({
-        detailPresentationId,
-        requestId,
-        status: FailedCounterFact.make({ reason }),
+        status,
       }),
     ),
     presentationId: detailPresentationId,
@@ -127,7 +93,12 @@ const fetchFact = (
   return [
     withNavigation(
       model,
-      loadingFactNavigation(counterId, detailPresentationId, requestId),
+      factAlertNavigation(
+        counterId,
+        detailPresentationId,
+        requestId,
+        LoadingCounterFact.make({}),
+      ),
     ),
     [
       FetchCounterFact({
@@ -316,7 +287,12 @@ const succeedFact = (
   return [
     withNavigation(
       model,
-      loadedFactNavigation(counterId, detailPresentationId, requestId, fact),
+      factAlertNavigation(
+        counterId,
+        detailPresentationId,
+        requestId,
+        LoadedCounterFact.make({ fact }),
+      ),
     ),
     [],
   ]
@@ -343,7 +319,12 @@ const failFact = (
   return [
     withNavigation(
       model,
-      failedFactNavigation(counterId, detailPresentationId, requestId, reason),
+      factAlertNavigation(
+        counterId,
+        detailPresentationId,
+        requestId,
+        FailedCounterFact.make({ reason }),
+      ),
     ),
     [],
   ]

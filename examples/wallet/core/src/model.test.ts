@@ -1,4 +1,4 @@
-import { Array, Option } from 'effect'
+import { Array, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -15,6 +15,7 @@ import {
   AccountBalance,
   BalanceSnapshot,
   FirstTransactionWithRecipient,
+  NetworkFailure,
   PortfolioSnapshot,
   TransactionQuote,
   TransactionRecord,
@@ -366,5 +367,16 @@ describe('normalized wallet model', () => {
     expect(
       mergeTransactionRecords([settledRecord], [secondOutput]),
     ).toHaveLength(2)
+  })
+
+  it('decodes a network failure without adapter guidance', () => {
+    const failure = S.decodeUnknownSync(NetworkFailure)({
+      _tag: 'NetworkFailure',
+      operation: 'SubmitTransaction',
+      code: 'Unavailable',
+    })
+
+    expect(failure.code).toBe('Unavailable')
+    expect(Option.isNone(failure.maybeGuidance)).toBe(true)
   })
 })

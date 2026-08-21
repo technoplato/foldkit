@@ -1,33 +1,33 @@
-import type { InstantRules } from "@instantdb/core"
+import type { InstantRules } from '@instantdb/core'
 
 const rules = {
   attrs: {
     allow: {
-      create: "false",
+      create: 'false',
     },
   },
   knophyIdeas: {
     allow: {
-      view: "true",
-      create: "false",
-      update: "false",
-      delete: "false",
+      view: 'true',
+      create: 'false',
+      update: 'false',
+      delete: 'false',
     },
   },
   knophyTranscripts: {
     allow: {
-      view: "true",
-      create: "false",
-      update: "false",
-      delete: "false",
+      view: 'true',
+      create: 'false',
+      update: 'false',
+      delete: 'false',
     },
   },
   knophyTranscriptFrames: {
     allow: {
-      view: "true",
-      create: "false",
-      update: "false",
-      delete: "false",
+      view: 'true',
+      create: 'false',
+      update: 'false',
+      delete: 'false',
     },
   },
 } satisfies InstantRules

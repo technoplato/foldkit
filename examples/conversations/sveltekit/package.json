@@ -1,0 +1,32 @@
+{
+  "name": "conversations-sveltekit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite dev --port 5184",
+    "prebuild": "pnpm --filter conversations-core-example build",
+    "predev": "pnpm --filter conversations-core-example build",
+    "pretest": "pnpm --filter conversations-core-example build",
+    "pretypecheck": "pnpm --filter conversations-core-example build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "conversations-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^6.1.0",
+    "@sveltejs/kit": "^2.36.0",
+    "@sveltejs/vite-plugin-svelte": "^6.1.0",
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "svelte": "^5.38.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}

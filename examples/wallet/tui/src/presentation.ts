@@ -12,6 +12,7 @@ import {
   selectedSendNetworkLabel,
   toggledWalletNetworkMode,
   walletDataSourceLabel,
+  walletFailureLines,
 } from 'wallet-core-example'
 import {
   type ReceivingQrProjectionInput,
@@ -405,6 +406,11 @@ export const walletOpenTuiSummary = (model: Model): string => {
         onSome: () => selectedSendNetworkLabel(model),
       })}`,
       `Transaction ${model.transaction._tag}`,
+      ...(model.transaction._tag === 'FailedTransferValidation' ||
+      model.transaction._tag === 'FailedTransactionPreview' ||
+      model.transaction._tag === 'FailedTransactionSubmission'
+        ? [Array.join(walletFailureLines(model.transaction.failure), ' | ')]
+        : []),
       `Signature ${model.signature._tag}`,
       `History ${model.transactionHistory._tag}`,
       `Observation ${model.transactionObservation._tag}`,

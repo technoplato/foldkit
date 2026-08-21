@@ -3,7 +3,9 @@ import type { WalletResources } from 'wallet-core-example'
 
 import { type Message } from './message.js'
 import {
+  IdleClipPlayback,
   IdleClipboard,
+  IdleControl,
   IdleFunding,
   IdleSelection,
   IdleVend,
@@ -23,6 +25,7 @@ export const init = (): readonly [
   Model.make({
     catalog: defaultCatalog,
     keypadBuffer: '',
+    lastControl: IdleControl.make({}),
     selection: IdleSelection.make({}),
     vendPhase: IdleVend.make({}),
     listPriceDisplay,
@@ -31,6 +34,7 @@ export const init = (): readonly [
     incoming: [],
     funding: IdleFunding.make({}),
     clipboard: IdleClipboard.make({}),
+    clipPlayback: IdleClipPlayback.make({}),
   }),
   [LoadProfiles()],
 ]

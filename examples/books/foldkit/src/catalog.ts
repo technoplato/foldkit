@@ -2,7 +2,11 @@ import {
   type Bookmark,
   type Item,
   type Note,
-  type Preferred,
+  type Packaging,
+  PackagingAudio,
+  PackagingBoth,
+  PackagingNone,
+  PackagingText,
   type Progress,
   type Word,
 } from 'books-core-example'
@@ -32,17 +36,33 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
 
 const field = (row: Record<string, unknown>, key: string): unknown => row[key]
 
-const preferredFromKind = (kind: string): Preferred => {
-  if (kind === 'audio') {
-    return 'Audio'
+const packagingFromRow = (
+  kind: string,
+  textId: string,
+  audioId: string,
+  audioUrl: Option.Option<string>,
+): Option.Option<Packaging> => {
+  const hasText = textId !== ''
+  const hasAudio = audioId !== ''
+  if (kind === 'none') {
+    return hasText || hasAudio ? Option.none() : Option.some(PackagingNone())
   }
   if (kind === 'text') {
-    return 'Text'
+    return hasText && !hasAudio
+      ? Option.some(PackagingText({ textId }))
+      : Option.none()
+  }
+  if (kind === 'audio') {
+    return hasAudio && !hasText
+      ? Option.some(PackagingAudio({ audioId, audioUrl }))
+      : Option.none()
   }
   if (kind === 'both') {
-    return 'Both'
+    return hasText && hasAudio
+      ? Option.some(PackagingBoth({ textId, audioId, audioUrl }))
+      : Option.none()
   }
-  return 'None'
+  return Option.none()
 }
 
 const wordsFromSegments = (
@@ -137,23 +157,24 @@ export const itemsFromCatalog = (
     )
     const words = wordsFromSegments(segments)
     const title = asString(field(book, 'title'), 'Untitled')
+    const textId = text === undefined ? '' : asString(field(text, 'id'))
+    const audioId = audio === undefined ? '' : asString(field(audio, 'id'))
+    const audioUrl = audioPath === '' ? Option.none() : Option.some(audioPath)
+    const packaging = packagingFromRow(
+      asString(field(item, 'preferredKind'), 'none'),
+      textId,
+      audioId,
+      audioUrl,
+    )
+    if (Option.isNone(packaging)) {
+      return []
+    }
     return [
       {
         id,
         title,
         authorLabel: authors.join(', '),
-        preferred: preferredFromKind(
-          asString(field(item, 'preferredKind'), 'none'),
-        ),
-        textId:
-          text === undefined
-            ? Option.none()
-            : Option.some(asString(field(text, 'id'))),
-        audioId:
-          audio === undefined
-            ? Option.none()
-            : Option.some(asString(field(audio, 'id'))),
-        audioUrl: audioPath === '' ? Option.none() : Option.some(audioPath),
+        packaging: packaging.value,
         coverUrl: coverPath === '' ? Option.none() : Option.some(coverPath),
         body: bodyFromWords(words, title),
         words,

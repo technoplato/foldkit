@@ -1,6 +1,7 @@
 import path from 'path'
 import { defineConfig } from 'vite'
 
+import { hostedIdentity } from '@foldkit/instant/hosted-identity/vite'
 import { foldkit } from '@foldkit/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -12,6 +13,7 @@ export default defineConfig({
     tailwindcss(),
     foldkit({ devToolsMcpPort: 9993 }),
     orbitAgentPlugin(),
+    hostedIdentity(),
   ],
   resolve: {
     alias: foldkitAliases(path.resolve(__dirname, '..')),

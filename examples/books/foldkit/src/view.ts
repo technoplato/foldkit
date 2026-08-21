@@ -2,6 +2,7 @@ import {
   BookAudioTarget,
   BookBothTarget,
   BookTextTarget,
+  BookTitleTarget,
   ImportTarget,
   type Item,
   type Message,
@@ -11,6 +12,7 @@ import {
   PeopleTarget,
   PressedAddBookmark,
   PressedAddNote,
+  PressedCopySharePath,
   PressedDeleteBookmark,
   PressedDeleteNote,
   PressedFollowLive,
@@ -18,6 +20,7 @@ import {
   PressedOpenAccounts,
   PressedOpenBook,
   PressedOpenBookmark,
+  PressedOpenChapter,
   PressedOpenImport,
   PressedOpenSearch,
   PressedOpenSettings,
@@ -26,6 +29,7 @@ import {
   PressedScanFinished,
   PressedScanShelf,
   PressedSeekWord,
+  PressedSetChapterSort,
   PressedSetNoteAudience,
   PressedSetQuery,
   PressedShowAudio,
@@ -41,10 +45,18 @@ import {
   ShelfTarget,
   UpdatedNoteDraft,
   type Word,
+  audioOfItem,
   chapterAt,
+  chapterDuration,
+  continueListeningItem,
+  durationOfItem,
+  formatClock,
   itemById,
   navigationTargetToPath,
+  playOf,
   progressForItem,
+  screenOf,
+  sortedChapters,
   wordAt,
 } from 'books-core-example'
 import { Match as M, Option } from 'effect'
@@ -56,27 +68,19 @@ import { ObserveReaderAudio, ScrollCurrentWord } from './audio-clock.js'
 
 const h = html<Message>()
 
-const formatTime = (seconds: number): string => {
-  const rounded = Math.max(0, Math.floor(seconds))
-  const minutes = Math.floor(rounded / 60)
-  const rest = rounded % 60
-  return `${minutes}:${rest.toString().padStart(2, '0')}`
-}
+const findItem = (model: Model, itemId: string): Item | undefined =>
+  Option.getOrUndefined(itemById(model.items, itemId))
 
-const durationOf = (item: Item): number => {
-  const lastChapter = item.chapters[item.chapters.length - 1]
-  if (lastChapter !== undefined) {
-    return lastChapter.end
-  }
-  const lastWord = item.words[item.words.length - 1]
-  return lastWord?.end ?? 0
-}
+const formatTime = formatClock
+
+const durationOf = durationOfItem
 
 const mediaPositionFor = (model: Model, itemId: string): number => {
-  if (model.play._tag === 'PlayIdle' || model.play.itemId !== itemId) {
+  const play = playOf(model)
+  if (play._tag === 'PlayIdle' || play.itemId !== itemId) {
     return 0
   }
-  return model.play.mediaPosition
+  return play.mediaPosition
 }
 
 const quietLink = (href: string, label: string, message: Message) =>
@@ -167,7 +171,7 @@ const coverImage = (item: Item, className: string) =>
 
 const itemCard = (model: Model, item: Item) => {
   const saved = progressForItem(model.progress, item.id)
-  const href = navigationTargetToPath(BookBothTarget.make({ itemId: item.id }))
+  const href = navigationTargetToPath(BookTitleTarget.make({ itemId: item.id }))
   return h.a(
     [
       h.Href(href),
@@ -193,6 +197,119 @@ const itemCard = (model: Model, item: Item) => {
   )
 }
 
+const chapterHeadline = (item: Item, position: number): string => {
+  const current = chapterAt(item.chapters, position)
+  if (Option.isSome(current)) {
+    return current.value.title
+  }
+  return item.title
+}
+
+const heroResumePosition = (
+  model: Model,
+  item: Item,
+  saved: ReturnType<typeof progressForItem>,
+): number => {
+  const play = playOf(model)
+  if (play._tag !== 'PlayIdle' && play.itemId === item.id) {
+    return play.mediaPosition
+  }
+  if (Option.isSome(saved)) {
+    return saved.value.relative
+  }
+  return 0
+}
+
+const playOrContinueLabel = (model: Model, item: Item): string => {
+  const saved = progressForItem(model.progress, item.id)
+  if (Option.isSome(saved) && saved.value.relative > 0) {
+    return 'Continue'
+  }
+  return 'Play'
+}
+
+const continueHero = (model: Model) => {
+  const maybeItem = continueListeningItem(
+    model.items,
+    model.progress,
+    playOf(model),
+  )
+  if (Option.isNone(maybeItem)) {
+    return h.span([], [])
+  }
+  const item = maybeItem.value
+  const saved = progressForItem(model.progress, item.id)
+  const href = navigationTargetToPath(BookTitleTarget.make({ itemId: item.id }))
+  const position = heroResumePosition(model, item, saved)
+  return h.section(
+    [
+      h.Class(
+        'mb-8 rounded-3xl bg-[var(--card)] border border-[var(--border)] p-4 sm:p-6',
+      ),
+    ],
+    [
+      h.p(
+        [h.Class('text-xs uppercase tracking-wide text-[var(--muted)] mb-3')],
+        ['Continue Listening'],
+      ),
+      h.div(
+        [h.Class('flex gap-4 sm:gap-6 items-center')],
+        [
+          h.a(
+            [
+              h.Href(href),
+              h.Class('shrink-0'),
+              h.OnClick(PressedOpenBook({ itemId: item.id })),
+            ],
+            [
+              coverImage(
+                item,
+                'h-36 w-[6.75rem] object-cover rounded-xl shadow-md',
+              ),
+            ],
+          ),
+          h.div(
+            [h.Class('min-w-0 flex-1')],
+            [
+              h.a(
+                [
+                  h.Href(href),
+                  h.Class('block'),
+                  h.OnClick(PressedOpenBook({ itemId: item.id })),
+                ],
+                [
+                  h.div(
+                    [h.Class('text-xl font-semibold leading-snug')],
+                    [item.title],
+                  ),
+                  h.div(
+                    [h.Class('text-[var(--muted)] mt-1')],
+                    [item.authorLabel],
+                  ),
+                ],
+              ),
+              h.div(
+                [h.Class('text-sm text-[var(--accent)] mt-2')],
+                [`Resume ${formatTime(position)}`],
+              ),
+              Option.isNone(audioOfItem(item))
+                ? h.span([], [])
+                : h.button(
+                    [
+                      h.Type('button'),
+                      h.Class('player-btn player-btn-primary mt-3'),
+                      h.OnClick(PressedStartPlayback({ itemId: item.id })),
+                    ],
+                    ['Continue'],
+                  ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
 const chrome = (model: Model, body: ReadonlyArray<Html>) =>
   h.div(
     [
@@ -203,10 +320,11 @@ const chrome = (model: Model, body: ReadonlyArray<Html>) =>
   )
 
 const playToggle = (model: Model, item: Item) => {
-  if (Option.isNone(item.audioId)) {
+  if (Option.isNone(audioOfItem(item))) {
     return h.span([], [])
   }
-  if (model.play._tag === 'PlayPlaying' && model.play.itemId === item.id) {
+  const play = playOf(model)
+  if (play._tag === 'PlayPlaying' && play.itemId === item.id) {
     return h.button(
       [
         h.Type('button'),
@@ -217,7 +335,7 @@ const playToggle = (model: Model, item: Item) => {
       ['Pause'],
     )
   }
-  if (model.play._tag === 'PlayPaused' && model.play.itemId === item.id) {
+  if (play._tag === 'PlayPaused' && play.itemId === item.id) {
     return h.button(
       [
         h.Type('button'),
@@ -235,7 +353,7 @@ const playToggle = (model: Model, item: Item) => {
       h.Class('player-btn player-btn-primary'),
       h.OnClick(PressedStartPlayback({ itemId: item.id })),
     ],
-    ['Play'],
+    [playOrContinueLabel(model, item)],
   )
 }
 
@@ -256,10 +374,13 @@ const playerChrome = (model: Model, item: Item) => {
           h.div(
             [h.Class('min-w-0 flex-1')],
             [
-              h.div([h.Class('font-semibold truncate text-sm')], [item.title]),
+              h.div(
+                [h.Class('font-semibold truncate text-sm')],
+                [chapterHeadline(item, position)],
+              ),
               h.div(
                 [h.Class('text-[var(--muted)] text-xs truncate')],
-                [item.authorLabel],
+                [item.title],
               ),
             ],
           ),
@@ -426,6 +547,25 @@ const notesPanel = (model: Model, itemId: string) => {
                 ['Add note'],
               ),
           }),
+          Option.isSome(model.lastSharePath)
+            ? h.div(
+                [h.Class('flex flex-wrap items-center gap-2 mt-1')],
+                [
+                  h.code(
+                    [h.Class('text-xs text-[var(--muted)] break-all')],
+                    [model.lastSharePath.value],
+                  ),
+                  h.button(
+                    [
+                      h.Type('button'),
+                      h.Class('text-xs text-[var(--accent)]'),
+                      h.OnClick(PressedCopySharePath()),
+                    ],
+                    ['Copy'],
+                  ),
+                ],
+              )
+            : h.span([], []),
         ],
       ),
       rows.length === 0
@@ -534,7 +674,8 @@ const paneLinks = (itemId: string) =>
   )
 
 const readerAudio = (item: Item) => {
-  if (Option.isNone(item.audioUrl) || Option.isNone(item.audioId)) {
+  const audio = audioOfItem(item)
+  if (Option.isNone(audio) || Option.isNone(audio.value.audioUrl)) {
     return h.span([], [])
   }
   return h.audio(
@@ -546,8 +687,8 @@ const readerAudio = (item: Item) => {
       h.OnMount(
         ObserveReaderAudio({
           itemId: item.id,
-          renditionId: item.audioId.value,
-          src: item.audioUrl.value,
+          renditionId: audio.value.audioId,
+          src: audio.value.audioUrl.value,
         }),
       ),
     ],
@@ -556,15 +697,17 @@ const readerAudio = (item: Item) => {
 }
 
 const activeAudioItem = (model: Model): Item | undefined => {
-  if (model.play._tag !== 'PlayIdle') {
-    return itemById(model.items, model.play.itemId)
+  const play = playOf(model)
+  if (play._tag !== 'PlayIdle') {
+    return findItem(model, play.itemId)
   }
-  return M.value(model.screen).pipe(
+  return M.value(screenOf(model)).pipe(
     M.withReturnType<Item | undefined>(),
     M.tagsExhaustive({
-      ReaderAudio: ({ itemId }) => itemById(model.items, itemId),
-      ReaderBoth: ({ itemId }) => itemById(model.items, itemId),
-      ReaderText: ({ itemId }) => itemById(model.items, itemId),
+      ReaderAudio: ({ itemId }) => findItem(model, itemId),
+      ReaderBoth: ({ itemId }) => findItem(model, itemId),
+      ReaderText: ({ itemId }) => findItem(model, itemId),
+      TitlePage: () => undefined,
       Accounts: () => undefined,
       ImportIdle: () => undefined,
       ImportScanning: () => undefined,
@@ -572,6 +715,7 @@ const activeAudioItem = (model: Model): Item | undefined => {
       Settings: () => undefined,
       ShelfBrowse: () => undefined,
       ShelfEmpty: () => undefined,
+      SharedNote: () => undefined,
       SignedOut: () => undefined,
     }),
   )
@@ -579,7 +723,7 @@ const activeAudioItem = (model: Model): Item | undefined => {
 
 const audioHost = (model: Model) => {
   const item = activeAudioItem(model)
-  if (item === undefined || Option.isNone(item.audioUrl)) {
+  if (item === undefined) {
     return h.span([], [])
   }
   return readerAudio(item)
@@ -598,8 +742,125 @@ const followFab = (model: Model) =>
       )
     : h.span([], [])
 
+const titlePageView = (model: Model, itemId: string) => {
+  const item = findItem(model, itemId)
+  if (item === undefined) {
+    return chrome(model, [
+      signedInNav(model),
+      h.p([h.Class('text-[var(--muted)]')], [itemId]),
+      audioHost(model),
+    ])
+  }
+  const duration = durationOf(item)
+  return chrome(model, [
+    signedInNav(model),
+    h.article(
+      [h.Class('max-w-2xl mx-auto')],
+      [
+        h.div(
+          [h.Class('flex flex-col sm:flex-row gap-6 sm:gap-8 items-start')],
+          [
+            coverImage(
+              item,
+              'w-48 max-w-[40%] aspect-[3/4] object-cover rounded-2xl shadow-lg',
+            ),
+            h.div(
+              [h.Class('min-w-0 flex-1')],
+              [
+                h.h1(
+                  [h.Class('text-3xl font-semibold leading-tight')],
+                  [item.title],
+                ),
+                h.p(
+                  [h.Class('text-[var(--muted)] mt-2 text-lg')],
+                  [item.authorLabel],
+                ),
+                h.p(
+                  [h.Class('text-sm text-[var(--muted)] mt-3')],
+                  [duration > 0 ? formatTime(duration) : ''],
+                ),
+                h.div([h.Class('mt-5')], [playToggle(model, item)]),
+              ],
+            ),
+          ],
+        ),
+        h.div(
+          [h.Class('flex items-baseline justify-between mt-10 mb-2')],
+          [
+            h.h2(
+              [h.Class('text-sm font-semibold uppercase tracking-wide')],
+              ['Chapters'],
+            ),
+            h.div(
+              [h.Class('flex gap-2 text-xs')],
+              [
+                h.button(
+                  [
+                    h.Type('button'),
+                    h.Class(
+                      model.chapterSort === 'Index'
+                        ? 'text-[var(--fg)] font-semibold'
+                        : 'text-[var(--muted)]',
+                    ),
+                    h.OnClick(PressedSetChapterSort({ sort: 'Index' })),
+                  ],
+                  ['Index'],
+                ),
+                h.button(
+                  [
+                    h.Type('button'),
+                    h.Class(
+                      model.chapterSort === 'Title'
+                        ? 'text-[var(--fg)] font-semibold'
+                        : 'text-[var(--muted)]',
+                    ),
+                    h.OnClick(PressedSetChapterSort({ sort: 'Title' })),
+                  ],
+                  ['Title'],
+                ),
+              ],
+            ),
+          ],
+        ),
+        h.div(
+          [h.Class('divide-y divide-[var(--border)]')],
+          sortedChapters(item, model.chapterSort).map(chapter =>
+            h.button(
+              [
+                h.Type('button'),
+                h.Key(chapter.id),
+                h.Class(
+                  'chapter-row w-full flex items-baseline gap-3 py-3 text-left hover:text-[var(--accent)]',
+                ),
+                h.OnClick(
+                  PressedOpenChapter({
+                    itemId: item.id,
+                    chapterId: chapter.id,
+                  }),
+                ),
+              ],
+              [
+                h.span(
+                  [h.Class('text-xs tabular-nums text-[var(--muted)] w-8')],
+                  [String(chapter.index)],
+                ),
+                h.span([h.Class('flex-1 min-w-0')], [chapter.title]),
+                h.span(
+                  [h.Class('text-xs tabular-nums text-[var(--muted)]')],
+                  [formatTime(chapterDuration(chapter))],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+    audioHost(model),
+  ])
+}
+
 const readerView = (model: Model, itemId: string) => {
-  const item = itemById(model.items, itemId)
+  const item = findItem(model, itemId)
   const position = mediaPositionFor(model, itemId)
   const transcript =
     item === undefined
@@ -620,7 +881,7 @@ const readerView = (model: Model, itemId: string) => {
 }
 
 export const view = (model: Model): Document => {
-  const body = M.value(model.screen).pipe(
+  const body = M.value(screenOf(model)).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
       SignedOut: () =>
@@ -666,6 +927,7 @@ export const view = (model: Model): Document => {
       ShelfBrowse: () =>
         chrome(model, [
           signedInNav(model),
+          continueHero(model),
           h.h1([h.Class('text-2xl font-semibold mb-4')], ['Shelf']),
           h.div(
             [h.Class('grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4')],
@@ -673,6 +935,7 @@ export const view = (model: Model): Document => {
           ),
           audioHost(model),
         ]),
+      TitlePage: ({ itemId }) => titlePageView(model, itemId),
       ReaderText: ({ itemId }) => readerView(model, itemId),
       ReaderAudio: ({ itemId }) => readerView(model, itemId),
       ReaderBoth: ({ itemId }) => readerView(model, itemId),
@@ -723,6 +986,29 @@ export const view = (model: Model): Document => {
           signedInNav(model),
           h.h1([h.Class('text-2xl font-semibold mb-2')], ['People']),
           h.p([h.Class('text-[var(--muted)] mb-4')], ['michael · root · on']),
+        ]),
+      SharedNote: ({ noteId }) =>
+        chrome(model, [
+          signedInNav(model),
+          h.h1([h.Class('text-2xl font-semibold mb-2')], ['Shared note']),
+          Option.isSome(model.sharedNote)
+            ? h.article(
+                [
+                  h.Class(
+                    'rounded-2xl bg-[var(--card)] border border-[var(--border)] p-4',
+                  ),
+                ],
+                [
+                  h.p(
+                    [h.Class('text-sm whitespace-pre-wrap')],
+                    [model.sharedNote.value.body],
+                  ),
+                ],
+              )
+            : h.p(
+                [h.Class('text-[var(--muted)]')],
+                [`Note ${noteId} is not available.`],
+              ),
         ]),
       Search: ({ query }) =>
         chrome(model, [

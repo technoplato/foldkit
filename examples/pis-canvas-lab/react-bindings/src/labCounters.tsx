@@ -1,7 +1,7 @@
 import {
-  type Interaction,
   type Message as CountersMessage,
   type Model as CountersModel,
+  type Interaction,
   MultipleCountersInteractionGraph,
   type Navigation,
   type NavigationCarrierResolutionError,
@@ -11,6 +11,8 @@ import {
   navigationToPath,
   resolveNavigationCarrier,
 } from 'counters-core-example'
+import { Array, Data, Option, Result } from 'effect'
+import { InteractionGraph, Program } from 'foldkit'
 import {
   GotMultiCountersMessage,
   type Message as LabMessage,
@@ -18,8 +20,6 @@ import {
   PisCanvasLabProgram,
   init as labInit,
 } from 'pis-canvas-lab-core-example'
-import { Array, Data, Option, Result } from 'effect'
-import { InteractionGraph, Program } from 'foldkit'
 import {
   type ReactNode,
   createContext,
@@ -241,7 +241,10 @@ const useResolvedMultipleCountersActions = (): MultipleCountersActions => {
 
   const sendResolved = useCallback(
     (
-      resolved: Result.Result<CountersMessage, MultipleCountersClientResolutionError>,
+      resolved: Result.Result<
+        CountersMessage,
+        MultipleCountersClientResolutionError
+      >,
     ): MultipleCountersActionResult => {
       if (Result.isFailure(resolved)) {
         return failed(resolved.failure)

@@ -1,5 +1,25 @@
 import { Match as M } from 'effect'
+import { howToVend } from 'vending-core-example'
 import { type Model, overlayOf } from 'world-core-example'
+
+const howToHtml = (
+  copy: ReturnType<typeof howToVend>,
+  extraHint?: string,
+): string => {
+  const steps = copy.steps
+    .map(step => {
+      const className =
+        step.step < copy.currentStep
+          ? 'is-done'
+          : step.step === copy.currentStep
+            ? 'is-now'
+            : ''
+      return `<li class="${className}">${step.step}. ${step.label}</li>`
+    })
+    .join('')
+  const hint = extraHint === undefined ? copy.hint : extraHint
+  return `<p class="hud-kicker">${copy.title}</p><ol class="hud-steps">${steps}</ol><p class="hud-now">${copy.now}</p><p class="hud-hint">${hint}</p>`
+}
 
 /** Paints the Pokemon HTML overlay from World attention. */
 export const paintOverlay = (model: Model): void => {
@@ -22,11 +42,8 @@ export const paintOverlay = (model: Model): void => {
         body.textContent = value.overlay
         hint.textContent = 'A / Esc dismiss'
       },
-      VendingOverlay: value => {
-        root.classList.add('open')
-        speaker.textContent = 'MACHINE'
-        body.textContent = `listed ${value.listPriceDisplay}  ·  ${value.keypadBuffer === '' ? '____' : value.keypadBuffer}  ·  ${value.vendPhase}`
-        hint.textContent = 'Dial 1428. Enter. Esc leaves.'
+      VendingOverlay: () => {
+        root.classList.remove('open')
       },
     }),
   )
@@ -38,6 +55,17 @@ export const paintHud = (model: Model, viewMode: string): void => {
   if (hud === null) {
     return
   }
-  const viewNote = viewMode === 'final' ? '' : ` · view ${viewMode}`
-  hud.textContent = `knophy town · ${model._tag.toLowerCase()} · ${model.facing._tag}${viewNote}`
+  const viewNote =
+    viewMode === 'final' ? '' : `<p class="hud-hint">view ${viewMode}</p>`
+  if (model._tag === 'Operating') {
+    const copy = howToVend({
+      vendPhase: model.vending.vendPhase._tag,
+      digits: model.vending.keypadBuffer,
+      clipPlayback: model.vending.clipPlayback._tag,
+      input: 'type',
+    })
+    hud.innerHTML = `${howToHtml(copy, 'Type the code. Esc leaves the machine.')}${viewNote}`
+    return
+  }
+  hud.innerHTML = `<p class="hud-kicker">Knophy town</p><p class="hud-now">Walk to the red vending machine</p><p class="hud-hint">WASD move · Q / ← west · A uses a sign or the machine${viewNote === '' ? '' : ` · ${viewMode}`}</p>`
 }

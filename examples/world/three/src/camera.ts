@@ -1,14 +1,12 @@
-import * as THREE from 'three'
 import type { CardinalFacing } from 'foldkit/spatial'
 import type { GridCoord } from 'foldkit/spatial'
+import * as THREE from 'three'
 
 import { worldFromCell, yawFromFacing } from './layout.js'
 import type { ThreePerspectiveCamera } from './three-compat.js'
 
 /** Chase camera that sits behind and above the walker. */
-export const createChaseCamera = (
-  aspect: number,
-): ThreePerspectiveCamera => {
+export const createChaseCamera = (aspect: number): ThreePerspectiveCamera => {
   const camera = new THREE.PerspectiveCamera(42, aspect, 0.1, 80)
   camera.position.set(0, 6.2, 8.4)
   return camera

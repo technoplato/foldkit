@@ -2,9 +2,9 @@ import { Effect } from 'effect'
 
 import type { InstantCounterDatabase } from '../../../instant.schema.js'
 import {
+  MultipleCountersV3PolicyResolutionError,
   appendMultipleCountersV3PolicyRequest,
   makeMultipleCountersV3ProcessorConfig,
-  MultipleCountersV3PolicyResolutionError,
   resolveMultipleCountersV3PolicyRequest,
   resolveMultipleCountersV3PolicyRequestSubscription,
 } from '../client/instantTransport.js'

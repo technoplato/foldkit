@@ -1,12 +1,26 @@
-import { Path, describeCounterSyncError } from 'counter-core-example'
-import { useActions, useModel } from 'counter-react-bindings-example'
+import {
+  Path,
+  describeCounterSyncError,
+  surfaceFor,
+} from 'counter-core-example'
+import 'counter-react-bindings-example'
+import {
+  ActionMenuOverlay,
+  useActionMenu,
+} from 'counter-react-bindings-example'
 import { Match as M } from 'effect'
 import type { ReactNode } from 'react'
 
-/** Draws one Counter. The window only calls useModel and useActions. */
+import { useActions, useModel } from '@foldkit/react'
+
+import { HostHeader } from './hostHeader.js'
+
+/** Draws one bespoke Counter window from derived past-tense fact handles. */
 export const App = () => {
   const view = useModel(Path())
-  const actions = useActions(Path())
+  const { incrementButtonTapped, decrementButtonTapped, resetButtonTapped } =
+    useActions(Path())
+  const { menu, rows, empty, maybeChosen, dismiss, select } = useActionMenu()
   return M.value(view).pipe(
     M.tagsExhaustive({
       Starting: () => <Status>Starting Instant Counter…</Status>,
@@ -15,40 +29,52 @@ export const App = () => {
           <p>{describeCounterSyncError(error)}</p>
         </Status>
       ),
-      Ready: ({ count }) => (
+      Ready: ({ product }) => (
         <main className="min-h-screen bg-white text-gray-900 flex items-center justify-center p-6">
           <section className="w-full max-w-sm text-center space-y-6">
+            <HostHeader {...surfaceFor('react')} />
             <div className="text-7xl font-semibold tabular-nums">
-              {count}
+              {product.count}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <button
                 className={buttonClassName}
-                onClick={actions.clickedDecrement}
+                onClick={decrementButtonTapped}
                 type="button"
               >
                 -
               </button>
-              {count !== 0 ? (
-                <button
-                  className={buttonClassName}
-                  onClick={actions.clickedReset}
-                  type="button"
-                >
-                  Reset
-                </button>
-              ) : (
-                <div />
+              {M.value(resetButtonTapped).pipe(
+                M.tagsExhaustive({
+                  Tappable: ({ tap }) => (
+                    <button
+                      className={buttonClassName}
+                      onClick={tap}
+                      type="button"
+                    >
+                      Reset
+                    </button>
+                  ),
+                  Hidden: () => <div />,
+                }),
               )}
               <button
                 className={buttonClassName}
-                onClick={actions.clickedIncrement}
+                onClick={incrementButtonTapped}
                 type="button"
               >
                 +
               </button>
             </div>
           </section>
+          <ActionMenuOverlay
+            empty={empty}
+            maybeChosen={maybeChosen}
+            menu={menu}
+            rows={rows}
+            onDismiss={dismiss}
+            onSelect={select}
+          />
         </main>
       ),
     }),
@@ -58,6 +84,7 @@ export const App = () => {
 const Status = ({ children }: Readonly<{ children: ReactNode }>) => (
   <main className="min-h-screen bg-white text-gray-900 flex items-center justify-center p-6">
     <section className="w-full max-w-sm text-center space-y-4">
+      <HostHeader {...surfaceFor('react')} />
       {children}
     </section>
   </main>

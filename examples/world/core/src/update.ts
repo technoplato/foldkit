@@ -25,7 +25,10 @@ type UpdateResult = readonly [
 
 const stay = (model: Model): UpdateResult => [model, []]
 
-const moveRoaming = (model: typeof Roaming.Type, facing: typeof model.facing) => {
+const moveRoaming = (
+  model: typeof Roaming.Type,
+  facing: typeof model.facing,
+) => {
   const nextAt = step(model.at, facing)
   if (!isWalkable(nextAt)) {
     return Roaming({ at: model.at, facing })

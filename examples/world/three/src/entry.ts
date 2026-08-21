@@ -1,11 +1,7 @@
 import { Effect, Option } from 'effect'
 import { Runtime } from 'foldkit'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
-import {
-  type Model,
-  WorldProgram,
-  messageFromKey,
-} from 'world-core-example'
+import { type Model, WorldProgram, messageFromKey } from 'world-core-example'
 
 import { viewModeFromLocation } from './image.js'
 import { paintHud, paintOverlay } from './overlay.js'

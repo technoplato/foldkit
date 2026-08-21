@@ -62,7 +62,7 @@ export const instantCountersResources = HttpCounterFactClient
 export type OpenCountersTapeRuntime = Readonly<{
   cursor: CountersTapeCursor
   runtime: Runtime.ProgramRuntime<Model, Message>
-  sendClientInput: (message: Message) => void
+  sendClientInput: (message: Message) => Promise<void>
 }>
 
 /** Starts a Program runtime from the accepted Instant tape. */
@@ -83,11 +83,10 @@ export const openCountersTapeRuntime = (
     yield* runtime.initialization
     const cursor: CountersTapeCursor = { journalIndex: 0 }
     yield* tapeJournaledCommandResults(tape, runtime, cursor)
-    const sendClientInput = (message: Message): void => {
-      void Effect.runPromise(
-        commitCountersMessage(tape, runtime, cursor, message),
+    const sendClientInput = (message: Message): Promise<void> =>
+      Effect.runPromise(
+        Effect.asVoid(commitCountersMessage(tape, runtime, cursor, message)),
       )
-    }
     return { cursor, runtime, sendClientInput }
   })
 

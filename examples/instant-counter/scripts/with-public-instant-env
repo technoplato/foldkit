@@ -1,6 +1,5 @@
 #!/bin/sh
 
-unset INSTANT_APP_ADMIN_TOKEN
 unset INSTANT_CLI_AUTH_TOKEN
 
 exec "$@"

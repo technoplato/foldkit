@@ -1,17 +1,13 @@
-import {
-  IdeasProgram,
-  type Model,
-  ideasFromCatalog,
-} from "ideas-core-example"
-import { Console, Duration, Effect } from "effect"
-import { Runtime } from "foldkit"
+import { Console, Duration, Effect } from 'effect'
+import { Runtime } from 'foldkit'
+import { IdeasProgram, type Model, ideasFromCatalog } from 'ideas-core-example'
 
-import { ideasResources } from "./resources.js"
+import { ideasResources } from './resources.js'
 
 const waitForCatalog = (readModel: () => Model): Effect.Effect<Model> =>
   Effect.gen(function* () {
     let model = readModel()
-    if (model.catalog._tag !== "LoadingCatalog") {
+    if (model.catalog._tag !== 'LoadingCatalog') {
       return model
     }
     yield* Effect.sleep(Duration.millis(250))

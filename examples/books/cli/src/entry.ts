@@ -24,7 +24,7 @@ const doCommand = Command.make(
   ({ tokens, isVerbose }) => runBooksInput(tokens, isVerbose),
 ).pipe(
   Command.withDescription(
-    'Apply tokens: signin signout back import scan scanned settings accounts search text audio both pause resume stop reader open:<id> play:<id> query:<text>',
+    'Apply tokens: signin signout back import scan scanned settings accounts search text audio both pause resume stop reader open:<id> chapter:<itemId>:<chapterId> play:<id> sort:index sort:title seek:<sec> tick:<sec> query:<text>',
   ),
 )
 

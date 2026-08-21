@@ -123,9 +123,7 @@ const openNativeWindowTape = (
       return {
         readModel: () => opened.runtime.readModel(),
         send: opened.sendClientInput,
-        stop: () => {
-          void Effect.runPromise(Scope.close(scope, Exit.void))
-        },
+        stop: () => Effect.runPromise(Scope.close(scope, Exit.void)),
         subscribe: (listener: (model: Model) => void) =>
           opened.runtime.observeModel(listener),
       }

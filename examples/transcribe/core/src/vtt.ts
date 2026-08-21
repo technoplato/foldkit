@@ -20,24 +20,26 @@ export const parseTimestampMs = (value: string): number => {
   return ((hours * 60 + minutes) * 60 + seconds) * 1000 + milliseconds
 }
 
-const cueTiming =
-  /(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/
+const cueTiming = /(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/
 
 const stripTags = (value: string): string =>
-  value.replace(/<[^>]+>/g, "").replace(/\n+/g, " ").trim()
+  value
+    .replace(/<[^>]+>/g, '')
+    .replace(/\n+/g, ' ')
+    .trim()
 
 /** Parses YouTube or standard WebVTT into de-duplicated caption cues. */
 export const parseVtt = (source: string): ReadonlyArray<CaptionCue> => {
   const cues: Array<CaptionCue> = []
-  const blocks = source.replace(/\r\n/g, "\n").split(/\n\n+/)
+  const blocks = source.replace(/\r\n/g, '\n').split(/\n\n+/)
   for (const block of blocks) {
     const match = cueTiming.exec(block)
     if (match === null || match[1] === undefined || match[2] === undefined) {
       continue
     }
-    const newline = block.indexOf("\n")
-    const raw = newline === -1 ? "" : block.slice(newline + 1)
-    if (raw.includes("<c>")) {
+    const newline = block.indexOf('\n')
+    const raw = newline === -1 ? '' : block.slice(newline + 1)
+    if (raw.includes('<c>')) {
       continue
     }
     const text = stripTags(raw)
@@ -60,4 +62,4 @@ export const parseVtt = (source: string): ReadonlyArray<CaptionCue> => {
 /** Joins caption cues into a single transcript string. */
 export const transcriptTextFromCues = (
   cues: ReadonlyArray<CaptionCue>,
-): string => cues.map(cue => cue.text).join(" ")
+): string => cues.map(cue => cue.text).join(' ')

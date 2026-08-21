@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@foldkit/instant": "workspace:*",
     "@foldkit/instant-tools": "workspace:*",
     "@instantdb/core": "1.0.53",
     "effect": "4.0.0-beta.97",
@@ -24,6 +25,7 @@
     "shared-react-bindings-example": "workspace:*"
   },
   "devDependencies": {
+    "@instantdb/admin": "1.0.53",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",

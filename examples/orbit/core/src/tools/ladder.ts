@@ -4,11 +4,11 @@
  * Open a dam if compression costs more than it saves.
  */
 
-export type StageId = "solve" | "ten-x" | "explain"
+export type StageId = 'solve' | 'ten-x' | 'explain'
 
 export function countLines(source: string): number {
-  const lines = source.replace(/\r\n/g, "\n").split("\n")
-  while (lines.length && lines[lines.length - 1] === "") lines.pop()
+  const lines = source.replace(/\r\n/g, '\n').split('\n')
+  while (lines.length && lines[lines.length - 1] === '') lines.pop()
   return lines.length
 }
 

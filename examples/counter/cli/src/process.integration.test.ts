@@ -1,14 +1,26 @@
-import { CounterProgram, Increment } from 'counter-core-example'
+import {
+  CounterProgram,
+  FoldkitCounterV01,
+  Increment,
+} from 'counter-core-example'
 import { Effect, Layer } from 'effect'
 import { Runtime } from 'foldkit'
+import { cliDaemonSocketPath, stopCliDaemon } from 'foldkit/cli'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const cliEntryPath = fileURLToPath(new URL('../dist/entry.js', import.meta.url))
+const cliEntrySourcePath = fileURLToPath(new URL('./entry.ts', import.meta.url))
 
 const runCli = (
   args: ReadonlyArray<string>,
@@ -19,6 +31,7 @@ const runCli = (
 } => {
   const result = spawnSync(process.execPath, [cliEntryPath, ...args], {
     encoding: 'utf8',
+    env: { ...process.env, COUNTER_TAPE: 'memory' },
   })
   return {
     status: result.status,
@@ -28,6 +41,14 @@ const runCli = (
 }
 
 describe('Counter CLI process', () => {
+  it('keeps the slim view free of Effect, foldkit, Instant, and the Program', () => {
+    const source = readFileSync(cliEntrySourcePath, 'utf8')
+    expect(source).not.toMatch(/from ['"]effect['"]/)
+    expect(source).not.toMatch(/from ['"]foldkit['"]/)
+    expect(source).not.toMatch(/from ['"]counter-core-example['"]/)
+    expect(source).toContain("from 'foldkit/cli/view'")
+  })
+
   it('prints show without chrome and do increment for a fresh count', () => {
     const shown = runCli(['show'])
     expect(shown.status, shown.stderr).toBe(0)
@@ -55,7 +76,7 @@ describe('Counter CLI process', () => {
     expect(shown.stdout).toContain('count    0')
   })
 
-  it('persists increment across processes on a file Instant tape', () => {
+  it('persists increment across processes on a file Instant tape', async () => {
     const cacheRoot = join(homedir(), '.cache')
     mkdirSync(cacheRoot, { recursive: true })
     const directory = mkdtempSync(join(cacheRoot, 'foldkit-counter-cli-'))
@@ -65,7 +86,7 @@ describe('Counter CLI process', () => {
     const incremented = spawnSync(
       process.execPath,
       [cliEntryPath, 'do', 'increment'],
-      { encoding: 'utf8', env },
+      { encoding: 'utf8', env, timeout: 25_000 },
     )
     expect(incremented.status, incremented.stderr).toBe(0)
     expect(incremented.stdout).toContain('count    1')
@@ -73,11 +94,20 @@ describe('Counter CLI process', () => {
     const shown = spawnSync(process.execPath, [cliEntryPath, 'show'], {
       encoding: 'utf8',
       env,
+      timeout: 25_000,
     })
     expect(shown.status, shown.stderr).toBe(0)
     expect(shown.stdout).toContain('count    1')
+    await Effect.runPromise(
+      stopCliDaemon(
+        cliDaemonSocketPath({
+          programId: FoldkitCounterV01.id,
+          isolationKey: tapePath,
+        }),
+      ),
+    )
     rmSync(directory, { force: true, recursive: true })
-  })
+  }, 30_000)
 
   it('rejects an unknown token without crashing', () => {
     const result = runCli(['do', 'ClickedIncrement'])

@@ -1,5 +1,4 @@
 import { Array, Option } from 'effect'
-
 import { multipleCountersV3DebugLoginLoopbackPort } from 'instant-counter-example/v3-client'
 
 /** Inputs used to reach the headless Alice/Bob mint from a native Client. */

@@ -15,15 +15,15 @@
 
 ## Prior art (Foldkit tree)
 
-| Path | Note |
-| --- | --- |
+| Path                                              | Note                                                                                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `examples/counter/react-bindings/src/counter.tsx` | `CounterActions` typed object; `createActions: enqueue => ({ clickedIncrement: () => enqueue(ClickedIncrement()) })`; `useCounterModel` / `useCounterActions` |
-| `examples/counters/react-bindings` | Heavier; `sentMessage` / interaction graph projection — multi-counter list+detail+delete modes |
-| ADR 0001 | View-agnostic runtime prototype |
-| ADR 0002 | Universal program replay |
-| ADR 0003 | Navigation as state |
-| ADR 0006 | Semantic message invocation provenance |
-| Brainstorming `ideas/domain-as-tree-pis` | PIS map chrome (canvas, devices, CLI); **not** product UI source for Foldkit examples |
+| `examples/counters/react-bindings`                | Heavier; `sentMessage` / interaction graph projection — multi-counter list+detail+delete modes                                                                |
+| ADR 0001                                          | View-agnostic runtime prototype                                                                                                                               |
+| ADR 0002                                          | Universal program replay                                                                                                                                      |
+| ADR 0003                                          | Navigation as state                                                                                                                                           |
+| ADR 0006                                          | Semantic message invocation provenance                                                                                                                        |
+| Brainstorming `ideas/domain-as-tree-pis`          | PIS map chrome (canvas, devices, CLI); **not** product UI source for Foldkit examples                                                                         |
 
 ## useActions status (snapshot)
 
@@ -53,11 +53,11 @@ Hand-written `createActions` **duplicates** the Message surface. User requiremen
 
 ## Delete / ignore inventory
 
-| Item | Action when plan executes |
-| --- | --- |
+| Item                                                                   | Action when plan executes                       |
+| ---------------------------------------------------------------------- | ----------------------------------------------- |
 | `brainstorming/.../domains/counter.ts` hand ASCII frames as product UI | Delete or mark `sketch-only`; live path ignores |
-| Registry frames for counter as source of truth | Ignore for live Foldkit path |
-| PIS `run('send …')` as app runtime for counter | Replace with real Program dispatch |
+| Registry frames for counter as source of truth                         | Ignore for live Foldkit path                    |
+| PIS `run('send …')` as app runtime for counter                         | Replace with real Program dispatch              |
 
 ## Open technical challenges (for Q&A)
 

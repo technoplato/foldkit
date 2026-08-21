@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
-import { Decrement, Increment, Model, Reset } from './index.js'
 import { foldCounterMessages } from './fold.js'
+import { Decrement, Increment, Model, Reset } from './index.js'
 
 describe('foldCounterMessages', () => {
   test('starts at the init Model', () => {

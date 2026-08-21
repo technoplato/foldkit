@@ -1,40 +1,44 @@
 <script lang="ts">
-  import { destinationForModel, type Model } from 'counters-core-example'
-  import {
-    addCounterMessage,
-    decrementCounterMessage,
-    dismissCounterDetailMessage,
-    incrementCounterMessage,
-    selectCounterMessage,
-    showCounterFactMessage,
-    type CountersBrowserHost,
-  } from 'counters-instant-example'
-  import { Option } from 'effect'
   import { onDestroy, onMount } from 'svelte'
 
-  import { startCountersProcessor } from '../processor.js'
+  import {
+    type CountersWindowModel,
+    actions,
+    snapshot,
+    subscribe,
+  } from '../processor.js'
 
-  let host: CountersBrowserHost | undefined
-  let model: Model | undefined
+  const listUri = '/counters'
+
+  const counterUri = (counterId: string): string => `/counters/${counterId}`
+
+  let uri = listUri
+  let view: CountersWindowModel = { _tag: 'StartingWindow' }
   let stop: (() => void) | undefined
 
+  const refresh = () => {
+    view = snapshot(uri)
+  }
+
   onMount(() => {
-    void startCountersProcessor().then(next => {
-      host = next
-      model = next.readModel()
-      stop = next.subscribe(value => {
-        model = value
-      })
-    })
+    refresh()
+    stop = subscribe(refresh)
   })
 
   onDestroy(() => {
     stop?.()
-    void host?.stop()
   })
 
-  const send = (message: Parameters<CountersBrowserHost['send']>[0]) => {
-    host?.send(message)
+  const open = (counterId: string) => {
+    actions(uri).open(counterId)
+    uri = counterUri(counterId)
+    refresh()
+  }
+
+  const back = () => {
+    actions(uri).back()
+    uri = listUri
+    refresh()
   }
 </script>
 
@@ -45,58 +49,43 @@
 <main>
   <p>FOLDKIT COUNTERS</p>
   <h1>SvelteKit</h1>
-  {#if model}
-    {@const destination = destinationForModel(model)}
-    {#if destination._tag === 'CounterListDestination'}
-      <button onclick={() => send(addCounterMessage(model))} type="button">Add counter</button>
-      {#each destination.counters as counter (counter.id)}
-        <article>
-          <button onclick={() => send(selectCounterMessage(counter.id))} type="button">
-            {counter.id}
-          </button>
-          <strong>{counter.counter.count}</strong>
-          <button onclick={() => send(incrementCounterMessage(counter.id))} type="button">+</button>
-          <button onclick={() => send(decrementCounterMessage(counter.id))} type="button">-</button>
-        </article>
-      {/each}
-    {:else if destination._tag === 'CounterDetailDestination'}
-      <p>{destination.counter.id}</p>
-      <p>{destination.counter.counter.count}</p>
-      <button
-        onclick={() => send(incrementCounterMessage(destination.counter.id))}
-        type="button"
-      >
-        +
-      </button>
-      <button
-        onclick={() =>
-          send(
-            showCounterFactMessage(
-              destination.counter.id,
-              destination.detailPresentationId,
-            ),
-          )}
-        type="button"
-      >
-        Fact
-      </button>
-      <button
-        onclick={() =>
-          send(
-            dismissCounterDetailMessage(
-              destination.counter.id,
-              destination.detailPresentationId,
-            ),
-          )}
-        type="button"
-      >
-        Back
-      </button>
-      {#if Option.isSome(destination.maybeMode)}
-        <aside>{destination.maybeMode.value._tag}</aside>
-      {/if}
-    {/if}
+  {#if view._tag === 'StartingWindow'}
+    <p>Starting Instant Multiple Counters…</p>
+  {:else if view._tag === 'FailedWindow'}
+    <p>{view.error}</p>
+    <button onclick={() => actions(uri).signIn()} type="button">
+      Sign in with Access
+    </button>
+  {:else if view.selectedId !== undefined && view.count !== undefined}
+    <p>{view.selectedId}</p>
+    <p>{view.count}</p>
+    <button onclick={() => actions(uri).increment()} type="button">+</button>
+    <button onclick={() => actions(uri).decrement()} type="button">-</button>
+    <button onclick={() => actions(uri).showFact()} type="button">Fact</button>
+    <button onclick={back} type="button">Back</button>
   {:else}
-    <p>Starting Multiple Counters…</p>
+    <button onclick={() => actions(uri).addCounter()} type="button">
+      Add counter
+    </button>
+    {#each view.counters as counter (counter.id)}
+      <article>
+        <button onclick={() => open(counter.id)} type="button">
+          {counter.id}
+        </button>
+        <strong>{counter.count}</strong>
+        <button
+          onclick={() => actions(counterUri(counter.id)).increment()}
+          type="button"
+        >
+          +
+        </button>
+        <button
+          onclick={() => actions(counterUri(counter.id)).decrement()}
+          type="button"
+        >
+          -
+        </button>
+      </article>
+    {/each}
   {/if}
 </main>

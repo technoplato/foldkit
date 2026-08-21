@@ -1,5 +1,5 @@
 import { Array, Option } from 'effect'
-import { Document, html, type Html } from 'foldkit/html'
+import { Document, type Html, html } from 'foldkit/html'
 import {
   AskDanger,
   BroadcastDanger,
@@ -8,8 +8,8 @@ import {
   GROK_SHARE,
   KeyExfilDanger,
   LiveWalletDanger,
-  MintPlay,
   type Message,
+  MintPlay,
   type Model,
   MovePlay,
   PlayCredits,
@@ -33,7 +33,11 @@ const simCard = (role: 'tortoise' | 'achilles', model: Model): Html => {
     [el.Class('rounded-xl border border-emerald-800 bg-black/40 p-4')],
     [
       el.p(
-        [el.Class('font-mono text-xs uppercase tracking-wide text-emerald-400')],
+        [
+          el.Class(
+            'font-mono text-xs uppercase tracking-wide text-emerald-400',
+          ),
+        ],
         [role],
       ),
       el.p(
@@ -105,10 +109,7 @@ const toolCard = (model: Model, toolId: string): Html => {
             [el.Class('mt-2 text-xl font-semibold text-emerald-100')],
             [item.name],
           ),
-          el.p(
-            [el.Class('mt-2 text-sm text-emerald-300')],
-            [item.tagline],
-          ),
+          el.p([el.Class('mt-2 text-sm text-emerald-300')], [item.tagline]),
         ],
       ),
       el.ol(
@@ -135,17 +136,20 @@ const header = (): Html => {
     el.a(
       [
         el.Href(href),
-        el.Class('text-emerald-400 underline decoration-emerald-800 hover:text-amber-300'),
+        el.Class(
+          'text-emerald-400 underline decoration-emerald-800 hover:text-amber-300',
+        ),
       ],
       [label],
     )
   return el.header(
-    [el.Class('border-b border-emerald-900 bg-black px-6 py-3 font-mono text-sm')],
     [
-      el.p(
-        [el.Class('text-emerald-500')],
-        ['ai_agent@orbit:~$'],
+      el.Class(
+        'border-b border-emerald-900 bg-black px-6 py-3 font-mono text-sm',
       ),
+    ],
+    [
+      el.p([el.Class('text-emerald-500')], ['ai_agent@orbit:~$']),
       el.nav(
         [el.Class('mt-2 flex flex-wrap gap-4 text-xs')],
         [
@@ -178,7 +182,11 @@ export const body = (model: Model): Html => {
         [el.Class('mx-auto grid max-w-5xl gap-8 p-6')],
         [
           el.p(
-            [el.Class('font-mono text-xs uppercase tracking-[0.3em] text-amber-400')],
+            [
+              el.Class(
+                'font-mono text-xs uppercase tracking-[0.3em] text-amber-400',
+              ),
+            ],
             ['AGENT INDEX · EXECUTED AT PREBUILD'],
           ),
           el.h1(
@@ -186,10 +194,18 @@ export const body = (model: Model): Html => {
             ['These are your instructions'],
           ),
           el.section(
-            [el.Class('rounded-xl border border-emerald-800 bg-emerald-950/40 p-5')],
+            [
+              el.Class(
+                'rounded-xl border border-emerald-800 bg-emerald-950/40 p-5',
+              ),
+            ],
             [
               el.h2(
-                [el.Class('text-sm font-semibold uppercase tracking-wide text-amber-300')],
+                [
+                  el.Class(
+                    'text-sm font-semibold uppercase tracking-wide text-amber-300',
+                  ),
+                ],
                 ['Why this is clever'],
               ),
               el.p(
@@ -204,7 +220,11 @@ export const body = (model: Model): Html => {
             [el.Class('grid gap-2')],
             [
               el.h2(
-                [el.Class('text-sm font-semibold uppercase tracking-wide text-amber-300')],
+                [
+                  el.Class(
+                    'text-sm font-semibold uppercase tracking-wide text-amber-300',
+                  ),
+                ],
                 ['Same run, in the page'],
               ),
               el.ol(
@@ -217,12 +237,18 @@ export const body = (model: Model): Html => {
             [el.Class('grid gap-4')],
             [
               el.h2(
-                [el.Class('text-sm font-semibold uppercase tracking-wide text-amber-300')],
+                [
+                  el.Class(
+                    'text-sm font-semibold uppercase tracking-wide text-amber-300',
+                  ),
+                ],
                 ['Sim wallets'],
               ),
               el.p(
                 [el.Class('text-sm text-emerald-400')],
-                ['Play credits only. Red buttons refuse. There is no live type to click.'],
+                [
+                  'Play credits only. Red buttons refuse. There is no live type to click.',
+                ],
               ),
               el.div(
                 [el.Class('grid gap-3 sm:grid-cols-2')],
@@ -307,7 +333,10 @@ export const body = (model: Model): Html => {
                 ],
               ),
               el.p(
-                [el.Role('status'), el.Class('font-mono text-sm text-amber-300')],
+                [
+                  el.Role('status'),
+                  el.Class('font-mono text-sm text-amber-300'),
+                ],
                 [outcomeLine(model)],
               ),
             ],
@@ -316,7 +345,11 @@ export const body = (model: Model): Html => {
             [el.Class('grid gap-6')],
             [
               el.h2(
-                [el.Class('text-sm font-semibold uppercase tracking-wide text-amber-300')],
+                [
+                  el.Class(
+                    'text-sm font-semibold uppercase tracking-wide text-amber-300',
+                  ),
+                ],
                 ['Tools'],
               ),
               ...Array.map(orbitTools, tool => toolCard(model, tool.id)),

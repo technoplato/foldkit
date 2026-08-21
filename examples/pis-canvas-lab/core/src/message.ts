@@ -7,6 +7,14 @@ import type * as Counter from 'counter-core-example'
 import type * as Counters from 'counters-core-example'
 
 import {
+  CounterListProgram,
+  DemoCatalog,
+  ShowcaseShell,
+  calcMessage,
+  multiMessage,
+  singleMessage,
+} from './catalog.js'
+import {
   CanvasChanged as ChromeCanvasChanged,
   FocusedSlotChanged as ChromeFocusedSlotChanged,
   ToggledShowCalc as ChromeToggledShowCalc,
@@ -15,15 +23,6 @@ import {
   ToggledShowSingle as ChromeToggledShowSingle,
   type FocusedSlot,
 } from './chrome.js'
-import {
-  CounterListProgram,
-  DemoCatalog,
-  ShowcaseShell,
-  calcMessage,
-  multiMessage,
-  singleMessage,
-} from './catalog.js'
-
 import type { Message as LabMessage } from './program.js'
 
 export type Message = LabMessage
@@ -37,9 +36,8 @@ export const CanvasChanged = (fields: {
 }): Message => ShowcaseShell.message.chrome(ChromeCanvasChanged(fields))
 
 /** Chrome: focus ring. */
-export const FocusedSlotChanged = (fields: {
-  slot: FocusedSlot
-}): Message => ShowcaseShell.message.chrome(ChromeFocusedSlotChanged(fields))
+export const FocusedSlotChanged = (fields: { slot: FocusedSlot }): Message =>
+  ShowcaseShell.message.chrome(ChromeFocusedSlotChanged(fields))
 
 export const ToggledShowSingle = (): Message =>
   ShowcaseShell.message.chrome(ChromeToggledShowSingle())

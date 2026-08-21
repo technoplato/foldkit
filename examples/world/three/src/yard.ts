@@ -1,6 +1,6 @@
-import * as THREE from 'three'
 import { Array, Option } from 'effect'
 import { gridCoord } from 'foldkit/spatial'
+import * as THREE from 'three'
 import { lastCell, signCells, signs, vendingAt } from 'world-core-example'
 
 import { cellSize, worldFromCell } from './layout.js'
@@ -82,7 +82,10 @@ export const createYard = (): ThreeGroup => {
   ground.receiveShadow = true
   root.add(ground)
 
-  const path = new THREE.Mesh(new THREE.BoxGeometry(cellSize * 1.1, 0.04, cellSize * 7), dirt)
+  const path = new THREE.Mesh(
+    new THREE.BoxGeometry(cellSize * 1.1, 0.04, cellSize * 7),
+    dirt,
+  )
   path.position.set(0, 0.01, 0.4)
   path.receiveShadow = true
   root.add(path)
@@ -110,7 +113,10 @@ export const createYard = (): ThreeGroup => {
       ? maybeSign.value.speaker
       : placement.id
     const world = worldFromCell(placement.at)
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 1.35, 8), wood)
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.08, 1.35, 8),
+      wood,
+    )
     post.position.set(world.x, 0.67, world.z)
     post.castShadow = true
     root.add(post)
@@ -134,7 +140,10 @@ export const createYard = (): ThreeGroup => {
   })
 
   const machineMark = worldFromCell(vendingAt)
-  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.9, 0.08, 20), dirt)
+  const pad = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.85, 0.9, 0.08, 20),
+    dirt,
+  )
   pad.position.set(machineMark.x, 0.04, machineMark.z)
   pad.receiveShadow = true
   root.add(pad)

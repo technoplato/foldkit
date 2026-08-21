@@ -7,8 +7,6 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import {
   type ViewMode,
-  adaptSpeedDown,
-  adaptSpeedUp,
   bloomRadius,
   bloomStrength,
   bloomThreshold,
@@ -125,8 +123,8 @@ export const createImagePipeline = (
 
   const meterTarget = new THREE.WebGLRenderTarget(meterWidth, meterHeight, {
     type: THREE.UnsignedByteType,
-    minFilter: THREE.LINEAR_FILTER,
-    magFilter: THREE.LINEAR_FILTER,
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
     depthBuffer: false,
   })
   const meterScene = new THREE.Scene()
@@ -137,6 +135,7 @@ export const createImagePipeline = (
   const meterPixels = new Uint8Array(meterWidth * meterHeight * 4)
   let framesSinceMeter = 0
   let meterPending = false
+  let exposureLocked = false
   let currentExposure = initialExposure
   let targetExposure = initialExposure
 
@@ -167,14 +166,13 @@ export const createImagePipeline = (
     restorations.length = 0
   }
 
-  const sampleMeter = (deltaSeconds: number): void => {
+  const sampleMeter = (_deltaSeconds: number): void => {
+    renderer.toneMappingExposure = currentExposure
+    if (exposureLocked) {
+      return
+    }
     framesSinceMeter += 1
-    if (meterPending || framesSinceMeter < meterPeriodFrames) {
-      const speed =
-        targetExposure > currentExposure ? adaptSpeedUp : adaptSpeedDown
-      const amount = 1 - Math.exp(-Math.max(deltaSeconds, 0) * speed)
-      currentExposure += (targetExposure - currentExposure) * amount
-      renderer.toneMappingExposure = currentExposure
+    if (meterPending || framesSinceMeter < Math.max(24, meterPeriodFrames)) {
       return
     }
     framesSinceMeter = 0
@@ -207,11 +205,9 @@ export const createImagePipeline = (
       exposureMax,
     )
     meterPending = false
-    const speed =
-      targetExposure > currentExposure ? adaptSpeedUp : adaptSpeedDown
-    const amount = 1 - Math.exp(-Math.max(deltaSeconds, 0) * speed)
-    currentExposure += (targetExposure - currentExposure) * amount
+    currentExposure = targetExposure
     renderer.toneMappingExposure = currentExposure
+    exposureLocked = true
   }
 
   return {
@@ -231,7 +227,7 @@ export const createImagePipeline = (
         Math.sqrt(pixelBudget / Math.max(1, width * height)),
       )
       renderer.setPixelRatio(ratio)
-      renderer.setSize(width, height, false)
+      renderer.setSize(width, height, true)
       bloomComposer.setSize(width, height)
       finalComposer.setSize(width, height)
       bloomPass.resolution.set(width * ratio, height * ratio)

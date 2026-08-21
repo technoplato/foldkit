@@ -100,9 +100,9 @@ describe('native Multiple Counters v3 identity vault', () => {
 
     expect(Option.isSome(maybeFirst)).toBe(true)
     if (Option.isSome(maybeFirst)) {
-      expect(
-        Array_.every(secrets, secret => secret === maybeFirst.value),
-      ).toBe(true)
+      expect(Array_.every(secrets, secret => secret === maybeFirst.value)).toBe(
+        true,
+      )
     }
   })
 })

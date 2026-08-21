@@ -12,6 +12,7 @@ import {
   IdleFlow,
   RedirectingOAuth,
   SigningInGuest,
+  SigningInHostedIdentity,
   VerifyingMagicCode,
 } from './flow.js'
 import { type ExtraFields, NoneIdentity } from './identity.js'
@@ -161,14 +162,24 @@ const wrongStateForMagicCodeVerification = (
   }
 }
 
+const methodForOAuthAction = (
+  action: 'signInWithIdToken' | 'createAuthorizationURL' | 'signInWithToken',
+): string => {
+  if (action === 'signInWithIdToken') {
+    return 'sign in with an identity token'
+  }
+  if (action === 'signInWithToken') {
+    return 'sign in with a hosted identity token'
+  } else {
+    return 'start OAuth'
+  }
+}
+
 const wrongStateForOAuth = (
-  action: 'signInWithIdToken' | 'createAuthorizationURL',
+  action: 'signInWithIdToken' | 'createAuthorizationURL' | 'signInWithToken',
   auth: Auth,
 ): Option.Option<WrongState> => {
-  const method =
-    action === 'signInWithIdToken'
-      ? 'sign in with an identity token'
-      : 'start OAuth'
+  const method = methodForOAuthAction(action)
   if (auth.identity._tag === 'MemberIdentity') {
     return Option.some(
       new WrongState({
@@ -404,6 +415,30 @@ export const signInWithIdToken = (
           nonce,
           provider,
         }),
+        identity: auth.identity,
+      }),
+      result,
+    )
+  })
+
+/**
+ * Exchanges an Access-minted Instant refresh token. Requires NoneIdentity or
+ * GuestIdentity. The token is never stored on Auth.
+ */
+export const signInWithToken = (
+  client: InstantAuthClient,
+  auth: Auth,
+  token: string,
+): Effect.Effect<Auth, InstantFailure | WrongState> =>
+  Effect.gen(function* () {
+    const maybeWrongState = wrongStateForOAuth('signInWithToken', auth)
+    if (Option.isSome(maybeWrongState)) {
+      return yield* Effect.fail(maybeWrongState.value)
+    }
+    const result = yield* tryInstant(() => client.signInWithToken(token))
+    return completedAuth(
+      Auth.make({
+        flow: SigningInHostedIdentity.make({}),
         identity: auth.identity,
       }),
       result,

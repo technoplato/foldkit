@@ -62,7 +62,9 @@ const flattenChapters = (
 const readAudibleChapters = (fileName: string): ReadonlyArray<FlatChapter> => {
   const path = resolve(here, '../public/media', fileName)
   const parsed = JSON.parse(readFileSync(path, 'utf8')) as {
-    content_metadata?: { chapter_info?: { chapters?: ReadonlyArray<AudibleChapterNode> } }
+    content_metadata?: {
+      chapter_info?: { chapters?: ReadonlyArray<AudibleChapterNode> }
+    }
   }
   return flattenChapters(parsed.content_metadata?.chapter_info?.chapters ?? [])
 }
@@ -97,7 +99,9 @@ const offsetWords = (
   wallOriginMs: number,
 ): ReadonlyArray<SpokenWord> =>
   file.words.map(word => {
-    const relativeStartMs = Math.round((word.start + chapterStartSeconds) * 1000)
+    const relativeStartMs = Math.round(
+      (word.start + chapterStartSeconds) * 1000,
+    )
     const relativeEndMs = Math.round((word.end + chapterStartSeconds) * 1000)
     return {
       kind: 'spoken',
@@ -110,10 +114,14 @@ const offsetWords = (
     }
   })
 
-const requireEnv = (name: 'INSTANT_APP_ID' | 'INSTANT_APP_ADMIN_TOKEN'): string => {
+const requireEnv = (
+  name: 'INSTANT_APP_ID' | 'INSTANT_APP_ADMIN_TOKEN',
+): string => {
   const value = process.env[name]
   if (value === undefined || value.length === 0) {
-    throw new Error(`${name} is missing. Source ~/.config/books-knophy/instant.env`)
+    throw new Error(
+      `${name} is missing. Source ~/.config/books-knophy/instant.env`,
+    )
   }
   return value
 }
@@ -175,7 +183,7 @@ const books: ReadonlyArray<BookSpec> = [
     coverFile: '21-lessons.jpg',
     chaptersFile: '21-lessons-chapters.json',
     wordsFile: '21-lessons-ch1-2min.words.json',
-    chapterStartSeconds: 977.210,
+    chapterStartSeconds: 977.21,
   },
 ]
 

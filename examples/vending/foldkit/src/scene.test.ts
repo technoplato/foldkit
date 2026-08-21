@@ -1,6 +1,6 @@
 import { Scene } from 'foldkit'
-import { describe, test } from 'vitest'
 import { init, update } from 'vending-core-example'
+import { describe, test } from 'vitest'
 import { freshWalletHostOrigin } from 'wallet-qr-example'
 
 import { makeView } from './index.js'

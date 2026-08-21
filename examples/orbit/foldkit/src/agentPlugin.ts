@@ -1,6 +1,4 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-
-import type { Plugin, PreviewServer, ViteDevServer } from 'vite'
 import {
   agentIndex,
   agentMarkdown,
@@ -12,6 +10,7 @@ import {
   runIndex,
   toolById,
 } from 'orbit-core-example'
+import type { Plugin, PreviewServer, ViteDevServer } from 'vite'
 
 const originFrom = (req: IncomingMessage): string => {
   const host = req.headers.host ?? 'orbit.knophy.com'

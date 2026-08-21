@@ -1,3 +1,5 @@
+import { Effect, Option, Schema as S } from 'effect'
+import { Command, Program } from 'foldkit'
 import {
   CompletedCopyLink,
   CompletedScrollCurrentWord,
@@ -9,27 +11,23 @@ import {
   type Message,
   type Model,
   TranscribeProgram,
+  TranscribeStore,
   Word,
+  update as coreUpdate,
   jobShareUrl,
   localMediaUrl,
   modelForHref,
   restore,
-  subscriptions,
-  TranscribeStore,
   selectedJob,
-  update as coreUpdate,
+  subscriptions,
 } from 'transcribe-core-example'
-import { Effect, Option, Schema as S } from 'effect'
-import { Command, Program } from 'foldkit'
 
 const JobPlaybackPayload = S.Struct({
   analysis: S.optionalKey(S.Union([S.Struct({ summary: S.String }), S.Null])),
   id: S.String,
   mediaUrl: S.optionalKey(S.String),
   title: S.String,
-  transcript: S.optionalKey(
-    S.Union([S.Struct({ text: S.String }), S.Null]),
-  ),
+  transcript: S.optionalKey(S.Union([S.Struct({ text: S.String }), S.Null])),
   url: S.String,
   words: S.optionalKey(S.Array(Word)),
 })
@@ -215,7 +213,11 @@ export const update = (model: Model, message: Message): Result => {
 }
 
 /** Foldkit host Program: GET /jobs words plus the 50 ms media clock. */
-export const TranscribeFoldkitProgram: Program.Program<Model, Message, TranscribeStore> = Program.make({
+export const TranscribeFoldkitProgram: Program.Program<
+  Model,
+  Message,
+  TranscribeStore
+> = Program.make({
   id: TranscribeProgram.id,
   version: TranscribeProgram.version + 1,
   Model: TranscribeProgram.Model,

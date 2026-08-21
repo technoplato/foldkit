@@ -20,7 +20,9 @@ describe('Multiple Counters v3 action tokens', () => {
 
     expect(Result.isFailure(resolved)).toBe(true)
     if (Result.isFailure(resolved)) {
-      expect(resolved.failure).toBeInstanceOf(MultipleCountersV3ActionTokenError)
+      expect(resolved.failure).toBeInstanceOf(
+        MultipleCountersV3ActionTokenError,
+      )
     }
   })
 

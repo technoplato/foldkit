@@ -2,8 +2,8 @@
  * Model surface for the lab — explicit types + chrome helpers.
  * Runtime source of truth: Program.compose in catalog.ts.
  */
-import type { FocusedSlot as ChromeFocusedSlot } from './chrome.js'
 import { ShowcaseShell } from './catalog.js'
+import type { FocusedSlot as ChromeFocusedSlot } from './chrome.js'
 import type { Model as LabModel } from './program.js'
 
 export type Model = LabModel

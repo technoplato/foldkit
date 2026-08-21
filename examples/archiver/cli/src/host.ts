@@ -1,11 +1,11 @@
 import {
+  type ArchiveStatus,
   ArchiverProgram,
   ClickedArchive,
   type Message,
   type Model,
   SubmittedArchiveUrl,
   UpdatedUrlDraft,
-  type ArchiveStatus,
 } from 'archiver-core-example'
 import { Console, Data, Effect, Layer, Match as M } from 'effect'
 import { Runtime } from 'foldkit'
@@ -117,7 +117,9 @@ const printExecution = (
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     if (isVerbose) {
-      yield* Console.log(`Initial Model: ${formatModel(execution.initialModel)}`)
+      yield* Console.log(
+        `Initial Model: ${formatModel(execution.initialModel)}`,
+      )
       for (const message of execution.messages) {
         yield* Console.log(`Message: ${formatMessage(message)}`)
       }

@@ -12,6 +12,11 @@ export const Tui = ts('Tui')
 /** A terminal TUI Processor Host. Instant `from` is `tui`. */
 export type Tui = typeof Tui.Type
 
+/** An OpenTUI Processor Host. Instant `from` is `opentui`. */
+export const OpenTui = ts('OpenTui')
+/** An OpenTUI Processor Host. Instant `from` is `opentui`. */
+export type OpenTui = typeof OpenTui.Type
+
 /** A headless Processor Host. Instant `from` is `headless`. */
 export const Headless = ts('Headless')
 /** A headless Processor Host. Instant `from` is `headless`. */
@@ -32,20 +37,21 @@ export const Svelte = ts('Svelte')
 /** A Svelte Processor Host. Instant `from` is `svelte`. */
 export type Svelte = typeof Svelte.Type
 
-/** An Expo iOS Processor Host. Instant `from` is `expoios`. */
+/** An Expo iOS Processor Host. Instant `from` is `expo-ios`. */
 export const ExpoIos = ts('ExpoIos')
-/** An Expo iOS Processor Host. Instant `from` is `expoios`. */
+/** An Expo iOS Processor Host. Instant `from` is `expo-ios`. */
 export type ExpoIos = typeof ExpoIos.Type
 
-/** An Expo Android Processor Host. Instant `from` is `expoandroid`. */
+/** An Expo Android Processor Host. Instant `from` is `expo-android`. */
 export const ExpoAndroid = ts('ExpoAndroid')
-/** An Expo Android Processor Host. Instant `from` is `expoandroid`. */
+/** An Expo Android Processor Host. Instant `from` is `expo-android`. */
 export type ExpoAndroid = typeof ExpoAndroid.Type
 
 /** One Processor Host. Pass `Processor.Host.React()`, not `'react'`. */
 export const Host = S.Union([
   Cli,
   Tui,
+  OpenTui,
   Headless,
   Foldkit,
   React,
@@ -63,11 +69,12 @@ export const print = (host: Host): string =>
     M.tagsExhaustive({
       Cli: () => 'cli',
       Tui: () => 'tui',
+      OpenTui: () => 'opentui',
       Headless: () => 'headless',
       Foldkit: () => 'foldkit',
       React: () => 'react',
       Svelte: () => 'svelte',
-      ExpoIos: () => 'expoios',
-      ExpoAndroid: () => 'expoandroid',
+      ExpoIos: () => 'expo-ios',
+      ExpoAndroid: () => 'expo-android',
     }),
   )

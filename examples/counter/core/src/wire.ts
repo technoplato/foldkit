@@ -1,7 +1,25 @@
-import { Schema as S, SchemaTransformation } from 'effect'
+import { Match as M, Schema as S, SchemaTransformation } from 'effect'
+import { Program } from 'foldkit'
 
-import { Decrement, Increment, Message, Reset } from './message.js'
+import { type AppMessage, type AppModel } from './app.js'
+import { Decrement, Increment, Reset } from './message.js'
 import { Model } from './model.js'
+
+const AppSnapshot = S.Struct({
+  product: Model,
+  actionMenu: Program.ActionMenuModel,
+})
+
+const AppMessageSchema = S.Union([
+  Increment,
+  Decrement,
+  Reset,
+  Program.ActionMenuCommandTriggered,
+  Program.ActionMenuDismissed,
+  Program.ActionMenuFocusMoved,
+  Program.ActionCommandMenuSelectionMade,
+  Program.ActionMenuQueryChanged,
+])
 
 /**
  * Instant entity id for the one count snapshot row.
@@ -20,17 +38,20 @@ export const CountRow = S.Struct({
 export type CountRow = typeof CountRow.Type
 
 /**
- * Door from an Instant count row to the Counter Model.
- * Counter V0.1 projects the whole `{ count }`.
+ * Door from an Instant count row to the App Model.
+ * Count lives in the snapshot. Menu Open is a Message, so boot is Closed.
  */
 export const CountProjection = CountRow.pipe(
   S.decodeTo(
-    Model,
+    AppSnapshot,
     SchemaTransformation.transform({
-      decode: row => Model.make({ count: row.value }),
-      encode: model => ({
+      decode: (row): AppModel => ({
+        product: Model.make({ count: row.value }),
+        actionMenu: Program.Closed(),
+      }),
+      encode: (model: AppModel) => ({
         id: COUNT_UUID,
-        value: model.count,
+        value: model.product.count,
         asOf: '',
         at: 0,
       }),
@@ -41,32 +62,77 @@ export const CountProjection = CountRow.pipe(
 /** Instant Message row. `id`, `from`, and `createdAtMs` are filled at write time. */
 export const MessageRow = S.Struct({
   id: S.String,
-  tag: S.Literals(['Increment', 'Decrement', 'Reset']),
+  tag: S.String,
   from: S.String,
   createdAtMs: S.Number,
 })
 /** Instant Message row. `id`, `from`, and `createdAtMs` are filled at write time. */
 export type MessageRow = typeof MessageRow.Type
 
-const messageFromTag = (tag: MessageRow['tag']): Message => {
+const focusMovedPrefix = 'ActionMenuFocusMoved:'
+const selectionPrefix = 'ActionCommandMenuSelectionMade:'
+const queryPrefix = 'ActionMenuQueryChanged:'
+
+const tagFromMessage = (message: AppMessage): string =>
+  M.value(message).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      Increment: () => 'Increment',
+      Decrement: () => 'Decrement',
+      Reset: () => 'Reset',
+      ActionMenuCommandTriggered: () => 'ActionMenuCommandTriggered',
+      ActionMenuDismissed: () => 'ActionMenuDismissed',
+      ActionMenuFocusMoved: ({ direction }) =>
+        `${focusMovedPrefix}${direction}`,
+      ActionCommandMenuSelectionMade: ({ token }) =>
+        `${selectionPrefix}${token}`,
+      ActionMenuQueryChanged: ({ query }) => `${queryPrefix}${query}`,
+    }),
+  )
+
+const messageFromTag = (tag: string): AppMessage => {
   if (tag === 'Increment') {
     return Increment()
   }
   if (tag === 'Decrement') {
     return Decrement()
   }
-  return Reset()
+  if (tag === 'Reset') {
+    return Reset()
+  }
+  if (tag === 'ActionMenuCommandTriggered') {
+    return Program.ActionMenuCommandTriggered()
+  }
+  if (tag === 'ActionMenuDismissed') {
+    return Program.ActionMenuDismissed()
+  }
+  if (tag.startsWith(focusMovedPrefix)) {
+    const direction =
+      tag.slice(focusMovedPrefix.length) === 'Up' ? 'Up' : 'Down'
+    return Program.ActionMenuFocusMoved({ direction })
+  }
+  if (tag.startsWith(selectionPrefix)) {
+    return Program.ActionCommandMenuSelectionMade({
+      token: tag.slice(selectionPrefix.length),
+    })
+  }
+  if (tag.startsWith(queryPrefix)) {
+    return Program.ActionMenuQueryChanged({
+      query: tag.slice(queryPrefix.length),
+    })
+  }
+  return Increment()
 }
 
-/** Door from an Instant Message row to a Counter Message. */
+/** Door from an Instant Message row to an App Message. */
 export const MessageWire = MessageRow.pipe(
   S.decodeTo(
-    Message,
+    AppMessageSchema,
     SchemaTransformation.transform({
-      decode: row => messageFromTag(row.tag),
-      encode: message => ({
+      decode: (row): AppMessage => messageFromTag(row.tag),
+      encode: (message: AppMessage) => ({
         id: '',
-        tag: message._tag,
+        tag: tagFromMessage(message),
         from: '',
         createdAtMs: 0,
       }),

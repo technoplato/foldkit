@@ -542,6 +542,27 @@ describe('wallet update', () => {
     expect(commands).toHaveLength(1)
   })
 
+  it('fills recipient and amount from a pasted Solana Pay URI', () => {
+    const [loadedModel] = finishPortfolioLoad(initialModel, portfolio)
+    const [payModel] = update(
+      loadedModel,
+      ChangedTransferRecipient.make({
+        value:
+          'solana:C5DLCjAX2UGrVDvoz8M4TYBCWSyUL9451GzG62SfQuih?amount=0.001&label=the%20clip',
+      }),
+    )
+
+    expect(payModel.transferRecipient).toMatchObject({
+      _tag: 'EditingTransferRecipient',
+      value: 'C5DLCjAX2UGrVDvoz8M4TYBCWSyUL9451GzG62SfQuih',
+    })
+    expect(payModel.transferAmount).toMatchObject({
+      _tag: 'ValidTransferAmount',
+      value: '0.001',
+      atomicUnits: '1000000',
+    })
+  })
+
   it('composes sends from the user-entered exact display amount', () => {
     const [loadedModel] = finishPortfolioLoad(initialModel, portfolio)
     const [recipientModel] = update(

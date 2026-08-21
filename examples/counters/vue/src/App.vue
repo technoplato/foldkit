@@ -1,113 +1,63 @@
 <script lang="ts" setup>
-import { type Model, destinationForModel } from 'counters-core-example'
-import {
-  type CountersBrowserHost,
-  addCounterMessage,
-  decrementCounterMessage,
-  dismissCounterDetailMessage,
-  incrementCounterMessage,
-  selectCounterMessage,
-  showCounterFactMessage,
-} from 'counters-instant-example'
-import { Option } from 'effect'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 
-import { startCountersProcessor } from './processor.js'
+import { useActions, useModel } from './processor.js'
 
-const host = ref<CountersBrowserHost | undefined>(undefined)
-const model = ref<Model | undefined>(undefined)
-let stop: (() => void) | undefined
+const listUri = '/counters'
 
-onMounted(() => {
-  void startCountersProcessor().then(next => {
-    host.value = next
-    model.value = next.readModel()
-    stop = next.subscribe(value => {
-      model.value = value
-    })
-  })
-})
+const counterUri = (counterId: string): string => `/counters/${counterId}`
 
-onUnmounted(() => {
-  stop?.()
-  void host.value?.stop()
-})
+const uri = ref(listUri)
+const view = useModel(uri)
+const actions = useActions(uri)
 
-const destination = computed(() =>
-  model.value === undefined ? undefined : destinationForModel(model.value),
-)
-
-const send = (message: Parameters<CountersBrowserHost['send']>[0]) => {
-  host.value?.send(message)
+const openCounter = (counterId: string) => {
+  actions.value.open(counterId)
+  uri.value = counterUri(counterId)
 }
+
+const goBack = () => {
+  actions.value.back()
+  uri.value = listUri
+}
+
+const isReadyDetail = computed(() => {
+  const snapshot = view.value
+  if (snapshot._tag !== 'ReadyWindow') {
+    return false
+  }
+  return snapshot.selectedId !== undefined && snapshot.count !== undefined
+})
 </script>
 
 <template>
   <main>
     <p>FOLDKIT COUNTERS</p>
     <h1>Vue</h1>
-    <p v-if="model === undefined">Starting Multiple Counters…</p>
-    <template v-else-if="destination?._tag === 'CounterListDestination'">
-      <button type="button" @click="send(addCounterMessage(model))">
-        Add counter
-      </button>
-      <article v-for="counter in destination.counters" :key="counter.id">
-        <button type="button" @click="send(selectCounterMessage(counter.id))">
+    <p v-if="view._tag === 'StartingWindow'">
+      Starting Instant Multiple Counters…
+    </p>
+    <template v-else-if="view._tag === 'FailedWindow'">
+      <p role="alert">{{ view.error }}</p>
+      <button type="button" @click="actions.signIn">Sign in with Access</button>
+    </template>
+    <template v-else-if="view._tag === 'ReadyWindow' && isReadyDetail">
+      <p>{{ view.selectedId }}</p>
+      <p>{{ view.count }}</p>
+      <button type="button" @click="actions.increment">+</button>
+      <button type="button" @click="actions.decrement">-</button>
+      <button type="button" @click="actions.reset">Reset</button>
+      <button type="button" @click="actions.showFact">Fact</button>
+      <button type="button" @click="goBack">Back</button>
+    </template>
+    <template v-else-if="view._tag === 'ReadyWindow'">
+      <button type="button" @click="actions.addCounter">Add counter</button>
+      <article v-for="counter in view.counters" :key="counter.id">
+        <button type="button" @click="openCounter(counter.id)">
           {{ counter.id }}
         </button>
-        <strong>{{ counter.counter.count }}</strong>
-        <button
-          type="button"
-          @click="send(incrementCounterMessage(counter.id))"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          @click="send(decrementCounterMessage(counter.id))"
-        >
-          -
-        </button>
+        <strong>{{ counter.count }}</strong>
       </article>
-    </template>
-    <template v-else-if="destination?._tag === 'CounterDetailDestination'">
-      <p>{{ destination.counter.id }}</p>
-      <p>{{ destination.counter.counter.count }}</p>
-      <button
-        type="button"
-        @click="send(incrementCounterMessage(destination.counter.id))"
-      >
-        +
-      </button>
-      <button
-        type="button"
-        @click="
-          send(
-            showCounterFactMessage(
-              destination.counter.id,
-              destination.detailPresentationId,
-            ),
-          )
-        "
-      >
-        Fact
-      </button>
-      <button
-        type="button"
-        @click="
-          send(
-            dismissCounterDetailMessage(
-              destination.counter.id,
-              destination.detailPresentationId,
-            ),
-          )
-        "
-      >
-        Back
-      </button>
-      <aside v-if="Option.isSome(destination.maybeMode)">
-        {{ destination.maybeMode.value._tag }}
-      </aside>
     </template>
   </main>
 </template>

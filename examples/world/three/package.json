@@ -8,6 +8,7 @@
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
     "three": "^0.183.2",
+    "vending-core-example": "workspace:*",
     "wallet-core-example": "workspace:*",
     "wallet-simulated-client-example": "workspace:*",
     "world-core-example": "workspace:*"

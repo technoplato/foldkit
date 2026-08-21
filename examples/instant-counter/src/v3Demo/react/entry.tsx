@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client'
 
-import { MultipleCountersV3ReactApp } from './app.js'
 import '../../styles.css'
+import { MultipleCountersV3ReactApp } from './app.js'
 
 const root = document.querySelector('#root')
 if (root === null) {

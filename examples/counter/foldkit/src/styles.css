@@ -30,3 +30,9 @@
 .counter-screen .fk-button:hover {
   background-color: #374151;
 }
+
+.counter-screen .fk-button:active,
+.counter-screen .fk-button.fk-chosen {
+  background-color: #1d4ed8;
+  outline: 2px solid #93c5fd;
+}

@@ -7,13 +7,13 @@ import {
   navigationToPath,
 } from 'counters-core-example'
 import { Array, Match as M, Option, Result } from 'effect'
-import { type ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
 import {
   type MultipleCountersV3ProgramAction,
   multipleCountersV3ProgramActionForToken,
   multipleCountersV3ProgramActions,
 } from 'instant-counter-example/v3-client'
+import { type ReactNode } from 'react'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 type ProgramScreenProps = Readonly<{
   isNavigationEnabled: boolean
@@ -289,10 +289,7 @@ export const MultipleCountersV3NativeProgramScreen = ({
   model,
   onPerform,
 }: ProgramScreenProps) => {
-  const projected = multipleCountersV3ProgramActions(
-    model,
-    isNavigationEnabled,
-  )
+  const projected = multipleCountersV3ProgramActions(model, isNavigationEnabled)
   if (Result.isFailure(projected)) {
     return (
       <View style={styles.card}>

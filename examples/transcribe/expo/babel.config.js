@@ -4,10 +4,10 @@ module.exports = api => {
     assumptions: { setSpreadProperties: false },
     plugins: [
       [
-        "@babel/plugin-transform-object-rest-spread",
+        '@babel/plugin-transform-object-rest-spread',
         { loose: false, useBuiltIns: false },
       ],
     ],
-    presets: ["babel-preset-expo"],
+    presets: ['babel-preset-expo'],
   }
 }

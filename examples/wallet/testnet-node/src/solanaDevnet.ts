@@ -128,6 +128,12 @@ const JsonRpcFeeResponse = S.Struct({
   result: S.Struct({ value: S.NullOr(S.Number) }),
 })
 const JsonRpcSendResponse = S.Struct({ result: S.String })
+const JsonRpcErrorResponse = S.Struct({
+  error: S.Struct({
+    message: S.String,
+    data: S.optional(S.Unknown),
+  }),
+})
 const JsonRpcSignaturesResponse = S.Struct({
   result: S.Array(
     S.Struct({
@@ -172,7 +178,10 @@ const TokenTransferInstruction = S.Struct({
   }),
 })
 
-const toClientError = () => new WalletClientError({ code: 'Unavailable' })
+const toClientError = (error?: unknown) =>
+  error instanceof WalletClientError
+    ? error
+    : new WalletClientError({ code: 'Unavailable' })
 const invalidClientResponse = () =>
   new WalletClientError({ code: 'InvalidResponse' })
 const unsupportedClientCapability = () =>
@@ -322,7 +331,41 @@ const jsonRpc = async (
   if (!response.ok) {
     throw new Error('Solana JSON-RPC request failed')
   }
-  return response.json()
+  const payload: unknown = await response.json()
+  const maybeRpcError = S.decodeUnknownOption(JsonRpcErrorResponse)(payload)
+  if (Option.isSome(maybeRpcError)) {
+    const message = maybeRpcError.value.error.message
+    const data = maybeRpcError.value.error.data
+    if (method !== 'sendTransaction') {
+      throw new WalletClientError({ code: 'Unavailable' })
+    }
+    const haystack = `${message} ${JSON.stringify(data ?? {})}`.toLowerCase()
+    if (
+      haystack.includes('insufficientfundsforrent') ||
+      haystack.includes('insufficient funds for rent') ||
+      (haystack.includes('rent') && haystack.includes('insufficient'))
+    ) {
+      throw new WalletClientError({
+        code: 'Rejected',
+        guidance: TransferGuidance.make({
+          summary:
+            'This amount is too small to create the destination account.',
+          details: [
+            'A new Solana account needs enough lamports to stay rent-exempt.',
+            'Send at least 1000000 lamports (0.001 SOL), or send to an account that already exists.',
+          ],
+        }),
+      })
+    }
+    throw new WalletClientError({
+      code: 'Rejected',
+      guidance: TransferGuidance.make({
+        summary: 'Solana rejected this transfer.',
+        details: [message],
+      }),
+    })
+  }
+  return payload
 }
 
 const feeForMessage = async (

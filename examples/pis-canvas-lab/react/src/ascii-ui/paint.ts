@@ -31,12 +31,7 @@ export function paintAscii(root: LayoutBox): AsciiFrame {
       const { x, y, w, h } = box
       for (let c = 0; c < w; c++) {
         setChar(grid, y, x + c, c === 0 ? '+' : c === w - 1 ? '+' : '-')
-        setChar(
-          grid,
-          y + h - 1,
-          x + c,
-          c === 0 ? '+' : c === w - 1 ? '+' : '-',
-        )
+        setChar(grid, y + h - 1, x + c, c === 0 ? '+' : c === w - 1 ? '+' : '-')
       }
       for (let r = 1; r < h - 1; r++) {
         setChar(grid, y + r, x, '|')

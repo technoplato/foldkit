@@ -1,31 +1,31 @@
-import { Schema as S } from "effect"
+import { Schema as S } from 'effect'
 
-import { Idea } from "./catalog.js"
-import { CatalogSource } from "./model.js"
+import { Idea } from './catalog.js'
+import { CatalogSource } from './model.js'
 
 // MESSAGE
 
 /** Records a live catalog snapshot. */
-export const ObservedIdeas = S.TaggedStruct("ObservedIdeas", {
+export const ObservedIdeas = S.TaggedStruct('ObservedIdeas', {
   ideas: S.Array(Idea),
   source: CatalogSource,
 })
 
 /** Records that catalog observation failed. */
-export const FailedObserveIdeas = S.TaggedStruct("FailedObserveIdeas", {
+export const FailedObserveIdeas = S.TaggedStruct('FailedObserveIdeas', {
   reason: S.String,
 })
 
 /** Records that one idea was selected. */
-export const ClickedIdea = S.TaggedStruct("ClickedIdea", {
+export const ClickedIdea = S.TaggedStruct('ClickedIdea', {
   id: S.String,
 })
 
 /** Records that the selected idea was closed. */
-export const ClosedIdea = S.TaggedStruct("ClosedIdea", {})
+export const ClosedIdea = S.TaggedStruct('ClosedIdea', {})
 
 /** Records that the filter query changed. */
-export const UpdatedQuery = S.TaggedStruct("UpdatedQuery", {
+export const UpdatedQuery = S.TaggedStruct('UpdatedQuery', {
   query: S.String,
 })
 

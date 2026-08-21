@@ -4,6 +4,7 @@ import {
   caseOf,
   literal,
   oneOfCases,
+  query,
   r,
   root,
   slash,
@@ -13,21 +14,29 @@ import { type Url, fromString } from 'foldkit/url'
 
 import {
   Accounts,
+  type AppScreen,
   ImportIdle,
   type Model,
   ReaderAudio,
   ReaderBoth,
   ReaderText,
-  type Screen,
   Search,
   Settings,
+  SharedNote,
   SignedOut,
+  TitlePage,
   itemById,
+  screenOf,
   shelfForItems,
+  withView,
 } from './model.js'
 
 /** Opens the signed-in shelf. */
 export const ShelfTarget = S.TaggedStruct('ShelfTarget', {})
+/** Opens one book's title page. */
+export const BookTitleTarget = S.TaggedStruct('BookTitleTarget', {
+  itemId: S.String,
+})
 /** Opens one book in the text pane. */
 export const BookTextTarget = S.TaggedStruct('BookTextTarget', {
   itemId: S.String,
@@ -48,10 +57,16 @@ export const PeopleTarget = S.TaggedStruct('PeopleTarget', {})
 export const SettingsTarget = S.TaggedStruct('SettingsTarget', {})
 /** Opens import. */
 export const ImportTarget = S.TaggedStruct('ImportTarget', {})
+/** Opens a shared note. Secret stays in the query (`s`). */
+export const NoteShareTarget = S.TaggedStruct('NoteShareTarget', {
+  noteId: S.String,
+  secret: S.Option(S.String),
+})
 
 /** Every portable books destination accepted by the Program. */
 export const NavigationTarget = S.Union([
   ShelfTarget,
+  BookTitleTarget,
   BookTextTarget,
   BookAudioTarget,
   BookBothTarget,
@@ -59,6 +74,7 @@ export const NavigationTarget = S.Union([
   PeopleTarget,
   SettingsTarget,
   ImportTarget,
+  NoteShareTarget,
 ])
 /** Every portable books destination accepted by the Program. */
 export type NavigationTarget = typeof NavigationTarget.Type
@@ -80,6 +96,16 @@ const shelfParser = oneOfCases<NavigationTarget>(
     extract: target =>
       target._tag === 'ShelfTarget' ? Option.some({}) : Option.none(),
   }),
+  caseOf<NavigationTarget, Readonly<{ itemId: string }>>(
+    pipe(literal('b'), slash(string('itemId'))),
+    {
+      embed: ({ itemId }) => BookTitleTarget.make({ itemId }),
+      extract: target =>
+        target._tag === 'BookTitleTarget'
+          ? Option.some({ itemId: target.itemId })
+          : Option.none(),
+    },
+  ),
   caseOf<NavigationTarget, Readonly<{ itemId: string }>>(
     pipe(literal('book'), slash(string('itemId')), slash(literal('text'))),
     {
@@ -137,17 +163,41 @@ const shelfParser = oneOfCases<NavigationTarget>(
     extract: target =>
       target._tag === 'ImportTarget' ? Option.some({}) : Option.none(),
   }),
+  caseOf<NavigationTarget, Readonly<{ noteId: string; s?: string }>>(
+    pipe(
+      literal('n'),
+      slash(string('noteId')),
+      query(S.Struct({ s: S.optionalKey(S.String) })),
+    ),
+    {
+      embed: ({ noteId, s }) =>
+        NoteShareTarget.make({
+          noteId,
+          secret: s === undefined || s === '' ? Option.none() : Option.some(s),
+        }),
+      extract: target =>
+        target._tag === 'NoteShareTarget'
+          ? Option.some({
+              noteId: target.noteId,
+              ...(Option.isSome(target.secret)
+                ? { s: target.secret.value }
+                : {}),
+            })
+          : Option.none(),
+    },
+  ),
 )
 
 const urlToRoute = Route.parseUrlWithFallback(shelfParser, NotFoundRoute)
 const absoluteCarrierPattern = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//u
 
-/** Parses a host URL into a semantic target with no secrets. */
+/** Parses a host URL into a semantic target. Share secrets stay in `s`. */
 export const urlToNavigationTarget = (url: Url): NavigationTarget =>
   M.value(urlToRoute(url)).pipe(
     M.withReturnType<NavigationTarget>(),
     M.tagsExhaustive({
       ShelfTarget: target => target,
+      BookTitleTarget: target => target,
       BookTextTarget: target => target,
       BookAudioTarget: target => target,
       BookBothTarget: target => target,
@@ -155,6 +205,7 @@ export const urlToNavigationTarget = (url: Url): NavigationTarget =>
       PeopleTarget: target => target,
       SettingsTarget: target => target,
       ImportTarget: target => target,
+      NoteShareTarget: target => target,
       NotFoundRoute: () => ShelfTarget.make({}),
     }),
   )
@@ -179,21 +230,34 @@ export const pathToNavigationTarget = (
 export const navigationTargetToPath = (target: NavigationTarget): string => {
   const printed = Effect.runSync(shelfParser.print(target, emptyPrint))
   const path = `/${printed.segments.join('/')}`
-  return path === '//' ? '/' : path
+  const normalized = path === '//' ? '/' : path
+  if (printed.queryParams.length === 0) {
+    return normalized
+  }
+  const queryString = printed.queryParams
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+    )
+    .join('&')
+  return `${normalized}?${queryString}`
 }
 
 /** Prints current screen state as its semantic URL projection. */
-export const screenToPath = (screen: Screen): string =>
+export const screenToPath = (screen: AppScreen): string =>
   navigationTargetToPath(navigationTargetForScreen(screen))
 
 /** Projects a screen onto the destination it prints. */
-export const navigationTargetForScreen = (screen: Screen): NavigationTarget =>
+export const navigationTargetForScreen = (
+  screen: AppScreen,
+): NavigationTarget =>
   M.value(screen).pipe(
     M.withReturnType<NavigationTarget>(),
     M.tagsExhaustive({
       SignedOut: () => ShelfTarget.make({}),
       ShelfEmpty: () => ShelfTarget.make({}),
       ShelfBrowse: () => ShelfTarget.make({}),
+      TitlePage: ({ itemId }) => BookTitleTarget.make({ itemId }),
       ReaderText: ({ itemId }) => BookTextTarget.make({ itemId }),
       ReaderAudio: ({ itemId }) => BookAudioTarget.make({ itemId }),
       ReaderBoth: ({ itemId }) => BookBothTarget.make({ itemId }),
@@ -202,26 +266,34 @@ export const navigationTargetForScreen = (screen: Screen): NavigationTarget =>
       Settings: () => SettingsTarget.make({}),
       Accounts: () => PeopleTarget.make({}),
       Search: () => SearchTarget.make({}),
+      SharedNote: ({ noteId, secret }) =>
+        NoteShareTarget.make({ noteId, secret }),
     }),
   )
 
-const screenForTarget = (model: Model, target: NavigationTarget): Screen =>
+const screenForTarget = (model: Model, target: NavigationTarget): AppScreen =>
   M.value(target).pipe(
-    M.withReturnType<Screen>(),
+    M.withReturnType<AppScreen>(),
     M.tagsExhaustive({
       ShelfTarget: () =>
-        model.screen._tag === 'SignedOut'
+        screenOf(model)._tag === 'SignedOut'
           ? SignedOut()
           : shelfForItems(model.items),
+      BookTitleTarget: ({ itemId }) => TitlePage({ itemId }),
       BookTextTarget: ({ itemId }) => ReaderText({ itemId }),
       BookAudioTarget: ({ itemId }) => ReaderAudio({ itemId }),
       BookBothTarget: ({ itemId }) => ReaderBoth({ itemId }),
-      SearchTarget: () =>
-        model.screen._tag === 'Search' ? model.screen : Search({ query: '' }),
+      SearchTarget: () => {
+        const screen = screenOf(model)
+        return screen._tag === 'Search' ? screen : Search({ query: '' })
+      },
       PeopleTarget: () => Accounts(),
       SettingsTarget: () => Settings(),
-      ImportTarget: () =>
-        model.screen._tag === 'ImportScanning' ? model.screen : ImportIdle(),
+      ImportTarget: () => {
+        const screen = screenOf(model)
+        return screen._tag === 'ImportScanning' ? screen : ImportIdle()
+      },
+      NoteShareTarget: ({ noteId, secret }) => SharedNote({ noteId, secret }),
     }),
   )
 
@@ -231,18 +303,18 @@ export const applyNavigationTarget = (
   target: NavigationTarget,
 ): Model => {
   if (
-    (target._tag === 'BookTextTarget' ||
+    (target._tag === 'BookTitleTarget' ||
+      target._tag === 'BookTextTarget' ||
       target._tag === 'BookAudioTarget' ||
       target._tag === 'BookBothTarget') &&
-    itemById(model.items, target.itemId) === undefined
+    Option.isNone(itemById(model.items, target.itemId))
   ) {
-    return {
-      ...model,
+    return withView(model, {
       screen:
-        model.screen._tag === 'SignedOut'
+        screenOf(model)._tag === 'SignedOut'
           ? SignedOut()
           : shelfForItems(model.items),
-    }
+    })
   }
-  return { ...model, screen: screenForTarget(model, target) }
+  return withView(model, { screen: screenForTarget(model, target) })
 }

@@ -22,7 +22,7 @@ const waitForReadyCount = async (
   count: number,
 ) => {
   const current = handle.readModel()
-  if (current._tag === 'Ready' && current.count === count) {
+  if (current._tag === 'Ready' && current.product.count === count) {
     return current
   }
   return new Promise((resolve, reject) => {
@@ -32,7 +32,7 @@ const waitForReadyCount = async (
     }, 1000)
     const stop = handle.subscribe(() => {
       const next = handle.readModel()
-      if (next._tag === 'Ready' && next.count === count) {
+      if (next._tag === 'Ready' && next.product.count === count) {
         clearTimeout(timeout)
         stop()
         resolve(next)
@@ -67,9 +67,11 @@ describe('Counter Svelte processor', () => {
     const hostSource = readFileSync('src/instantHost.ts', 'utf8')
     const entrySource = readFileSync('src/main.ts', 'utf8')
     expect(hostSource).toContain('installSyncedCounterHandle')
-    expect(hostSource).toContain('FoldkitCounterV01')
+    expect(hostSource).toContain('startLiveCounter')
     expect(hostSource).toContain('Processor.Host.Svelte()')
-    expect(hostSource).toContain('Instant(')
+    expect(hostSource).not.toContain('Instant(')
+    expect(hostSource).not.toContain('@foldkit/instant')
+    expect(hostSource).not.toContain('counter-instant-example')
     expect(hostSource).not.toContain('openLiveCounterWindowTape')
     expect(hostSource).not.toContain('signIn')
     expect(entrySource).toContain('startInstantCounter')
@@ -85,18 +87,21 @@ describe('Counter Svelte processor', () => {
     const ready = await waitForSyncedHandle(handle)
     expect(ready).toEqual({
       _tag: 'Ready',
-      count: 0,
+      product: { count: 0 },
+      actionMenu: { _tag: 'Closed' },
     })
     expect(useModel(Path())).toEqual({
       _tag: 'Ready',
-      count: 0,
+      product: { count: 0 },
+      actionMenu: { _tag: 'Closed' },
     })
 
-    useActions(Path()).clickedIncrement()
+    useActions(Path()).incrementButtonTapped()
     const next = await waitForReadyCount(handle, 1)
     expect(next).toEqual({
       _tag: 'Ready',
-      count: 1,
+      product: { count: 1 },
+      actionMenu: { _tag: 'Closed' },
     })
   })
 })

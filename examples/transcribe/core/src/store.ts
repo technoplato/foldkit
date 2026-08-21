@@ -9,25 +9,27 @@ import {
   Queue,
   Schema as S,
   Stream,
-} from "effect"
+} from 'effect'
 
 import {
   Transcript,
   TranscriptFrame,
   TranscriptStatus,
   seedTranscripts,
-} from "./catalog.js"
+} from './catalog.js'
 
 /** A catalog query or observation failed. */
-export class TranscribeStoreError extends Data.TaggedError("TranscribeStoreError")<{
+export class TranscribeStoreError extends Data.TaggedError(
+  'TranscribeStoreError',
+)<{
   readonly cause: unknown
-  readonly operation: "Fetch" | "Observe"
+  readonly operation: 'Fetch' | 'Observe'
 }> {}
 
 /** One catalog snapshot with its source. */
 export const TranscribeSnapshot = S.Struct({
   jobs: S.Array(Transcript),
-  source: S.Literals(["Instant", "StaticFallback"]),
+  source: S.Literals(['Instant', 'StaticFallback']),
 })
 /** One catalog snapshot with its source. */
 export type TranscribeSnapshot = typeof TranscribeSnapshot.Type
@@ -42,7 +44,7 @@ export type TranscribeStoreService = Readonly<{
 export class TranscribeStore extends Context.Service<
   TranscribeStore,
   TranscribeStoreService
->()("transcribe-core-example/TranscribeStore") {}
+>()('transcribe-core-example/TranscribeStore') {}
 
 const InstantTranscriptRecord = S.Struct({
   analysis: S.String,
@@ -71,14 +73,22 @@ const transcribeQuery = {
   knophyTranscriptFrames: {},
 } as const
 
-const byCreatedAt = Order.mapInput(Order.Number, (job: Transcript) => -job.createdAt)
+const byCreatedAt = Order.mapInput(
+  Order.Number,
+  (job: Transcript) => -job.createdAt,
+)
 
-const byIndex = Order.mapInput(Order.Number, (frame: TranscriptFrame) => frame.index)
+const byIndex = Order.mapInput(
+  Order.Number,
+  (frame: TranscriptFrame) => frame.index,
+)
 
-const decodeFrames = (rows: ReadonlyArray<unknown>): ReadonlyArray<TranscriptFrame> => {
+const decodeFrames = (
+  rows: ReadonlyArray<unknown>,
+): ReadonlyArray<TranscriptFrame> => {
   const decoded = rows.flatMap(row => {
     const parsed = S.decodeUnknownOption(InstantFrameRecord)(row)
-    return parsed._tag === "Some" ? [parsed.value] : []
+    return parsed._tag === 'Some' ? [parsed.value] : []
   })
   return Array.sort(decoded, byIndex)
 }
@@ -90,11 +100,14 @@ const decodeJobs = (
   const frames = decodeFrames(frameRows)
   const decoded = transcriptRows.flatMap(row => {
     const parsed = S.decodeUnknownOption(InstantTranscriptRecord)(row)
-    if (parsed._tag === "None") {
+    if (parsed._tag === 'None') {
       return []
     }
     const record = parsed.value
-    const jobFrames = Array.filter(frames, frame => frame.transcriptId === record.id)
+    const jobFrames = Array.filter(
+      frames,
+      frame => frame.transcriptId === record.id,
+    )
     return [
       Transcript.make({
         ...record,
@@ -131,23 +144,34 @@ const snapshotFromRows = (
 ): TranscribeSnapshot => {
   const jobs = decodeJobs(transcripts, frames)
   if (jobs.length === 0) {
-    return TranscribeSnapshot.make({ jobs: seedTranscripts, source: "StaticFallback" })
+    return TranscribeSnapshot.make({
+      jobs: seedTranscripts,
+      source: 'StaticFallback',
+    })
   }
-  return TranscribeSnapshot.make({ jobs, source: "Instant" })
+  return TranscribeSnapshot.make({ jobs, source: 'Instant' })
 }
 
 /** Deterministic resources for tests, previews, and offline Clients. */
 export const StaticTranscribeResources = Layer.succeed(TranscribeStore, {
   fetch: Effect.succeed(
-    TranscribeSnapshot.make({ jobs: seedTranscripts, source: "StaticFallback" }),
+    TranscribeSnapshot.make({
+      jobs: seedTranscripts,
+      source: 'StaticFallback',
+    }),
   ),
   observe: Stream.succeed(
-    TranscribeSnapshot.make({ jobs: seedTranscripts, source: "StaticFallback" }),
+    TranscribeSnapshot.make({
+      jobs: seedTranscripts,
+      source: 'StaticFallback',
+    }),
   ),
 })
 
 /** Live Instant resources for browser, native, CLI, and TUI Clients. */
-export const makeLiveTranscribeResources = (database: TranscribeInstantClient) =>
+export const makeLiveTranscribeResources = (
+  database: TranscribeInstantClient,
+) =>
   Layer.succeed(TranscribeStore, {
     fetch: Effect.tryPromise({
       try: async () => {
@@ -157,7 +181,7 @@ export const makeLiveTranscribeResources = (database: TranscribeInstantClient) =
           response.data.knophyTranscriptFrames,
         )
       },
-      catch: cause => new TranscribeStoreError({ cause, operation: "Fetch" }),
+      catch: cause => new TranscribeStoreError({ cause, operation: 'Fetch' }),
     }),
     observe: Stream.callback<TranscribeSnapshot, TranscribeStoreError>(queue =>
       Effect.acquireRelease(
@@ -169,15 +193,19 @@ export const makeLiveTranscribeResources = (database: TranscribeInstantClient) =
                 Cause.fail(
                   new TranscribeStoreError({
                     cause: response.error,
-                    operation: "Observe",
+                    operation: 'Observe',
                   }),
                 ),
               )
             } else {
               const transcripts =
-                response.data === undefined ? [] : response.data.knophyTranscripts
+                response.data === undefined
+                  ? []
+                  : response.data.knophyTranscripts
               const frames =
-                response.data === undefined ? [] : response.data.knophyTranscriptFrames
+                response.data === undefined
+                  ? []
+                  : response.data.knophyTranscriptFrames
               Queue.offerUnsafe(queue, snapshotFromRows(transcripts, frames))
             }
           }),

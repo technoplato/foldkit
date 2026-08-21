@@ -1,9 +1,19 @@
-import { Increment, Model, SyncedCounter } from 'counter-core-example'
+import {
+  Decrement,
+  Increment,
+  type Message,
+  Model,
+  Reset,
+  SyncedCounter,
+  counterFactHandles,
+  readyCounter,
+} from 'counter-core-example'
 import { Option } from 'effect'
+import { Program } from 'foldkit'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-import { messageForInput, renderCounterScreen } from './client.js'
+import { factHandleForKey, renderCounterScreen, tapForInput } from './client.js'
 
 describe('Counter TUI', () => {
   it('paints Starting before Instant is ready', () => {
@@ -36,10 +46,9 @@ describe('Counter TUI', () => {
   })
 
   it('prints computer chrome around the product tree and hides reset at 0', () => {
-    const screen = renderCounterScreen(
-      SyncedCounter.Ready(Model.make({ count: 0 })),
-    )
+    const screen = renderCounterScreen(readyCounter(0))
 
+    expect(screen).toContain('Foldkit - TUI Counter')
     expect(screen).toContain('/counter')
     expect(screen).toContain('0')
     expect(screen).toContain('[ + ]')
@@ -50,23 +59,66 @@ describe('Counter TUI', () => {
   })
 
   it('prints reset from the product tree when the count is not 0', () => {
-    const screen = renderCounterScreen(
-      SyncedCounter.Ready(Model.make({ count: 2 })),
-    )
+    const screen = renderCounterScreen(readyCounter(2))
 
     expect(screen).toContain('[ reset ]')
   })
 
-  it('maps keys to the imported Message constructors', () => {
-    const atZero = Model.make({ count: 0 })
-    const atTwo = Model.make({ count: 2 })
+  it('paints the Action menu when Open and keeps reset Hidden at 0', () => {
+    const screen = renderCounterScreen(
+      readyCounter(0, Program.Open({ focus: 0, maybeQuery: Option.none() })),
+    )
 
-    expect(messageForInput('+', atZero)).toEqual(Option.some(Increment()))
-    expect(messageForInput('=', atZero)).toEqual(Option.some(Increment()))
-    expect(messageForInput('-', atZero)._tag).toBe('Some')
-    expect(messageForInput('R', atZero)).toEqual(Option.none())
-    expect(messageForInput('R', atTwo)._tag).toBe('Some')
-    expect(messageForInput('q', atZero)).toEqual(Option.none())
+    expect(screen).toContain('Actions')
+    expect(screen).toContain('> [ + ] increment')
+    expect(screen).toContain('[ r ] reset: count is already 0')
+    expect(screen).toContain('┌')
+    expect(screen).toContain('0')
+    expect(screen).toContain('[ + ]')
+    expect(screen.indexOf('Actions')).toBeLessThan(screen.indexOf('[ + ]'))
+  })
+
+  it('paints named Empty when the Open filter matches nothing', () => {
+    const screen = renderCounterScreen(
+      readyCounter(
+        0,
+        Program.Open({ focus: 0, maybeQuery: Option.some('zzz') }),
+      ),
+    )
+    expect(screen).toContain('Empty')
+    expect(screen).toContain('Actions  zzz')
+    expect(screen).not.toContain('> [ + ] increment')
+    expect(screen).not.toContain('> increment')
+  })
+
+  it('derives the keymap from the keys metadata', () => {
+    const handles = counterFactHandles(Model.make({ count: 0 }), () => {})
+
+    expect(factHandleForKey('+', handles)._tag).toBe('Some')
+    expect(factHandleForKey('=', handles)._tag).toBe('Some')
+    expect(factHandleForKey('-', handles)._tag).toBe('Some')
+    expect(factHandleForKey('R', handles)._tag).toBe('Some')
+    expect(factHandleForKey('q', handles)).toEqual(Option.none())
+    expect(factHandleForKey('x', handles)).toEqual(Option.none())
+  })
+
+  it('taps only Tappable handles for a keypress', () => {
+    const sent: Array<Message> = []
+    const send = (message: Message): void => {
+      sent.push(message)
+    }
+
+    const atZero = counterFactHandles(Model.make({ count: 0 }), send)
+    tapForInput('+', atZero)
+    tapForInput('=', atZero)
+    tapForInput('-', atZero)
+    tapForInput('R', atZero)
+    tapForInput('x', atZero)
+    expect(sent).toEqual([Increment(), Increment(), Decrement()])
+
+    const atTwo = counterFactHandles(Model.make({ count: 2 }), send)
+    tapForInput('R', atTwo)
+    expect(sent).toEqual([Increment(), Increment(), Decrement(), Reset()])
   })
 
   it('keeps Instant out of the TUI Client', () => {

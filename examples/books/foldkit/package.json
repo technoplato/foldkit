@@ -21,6 +21,7 @@
   "dependencies": {
     "@effect/platform-browser": "4.0.0-beta.97",
     "@foldkit/devtools": "workspace:*",
+    "@foldkit/instant": "workspace:*",
     "@foldkit/ui": "workspace:*",
     "@instantdb/core": "1.0.53",
     "@tailwindcss/vite": "^4.3.1",

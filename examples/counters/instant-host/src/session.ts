@@ -1,6 +1,6 @@
-import { Option, Schema as S } from 'effect'
+import { Data, Option, Schema as S } from 'effect'
 
-import { countersDemoEmail } from './identity.js'
+import { countersDemoEmail, countersDemoSessionPath } from './identity.js'
 
 /** Instant client surface required to establish a Counters session. */
 export type CountersSessionDatabase = Readonly<{
@@ -19,6 +19,24 @@ export const SignedInCountersSession = S.TaggedStruct(
 )
 /** A signed-in Instant subject for the Multiple Counters window. */
 export type SignedInCountersSession = typeof SignedInCountersSession.Type
+
+/** Instant demo sign-in failed. The Host must show this error. */
+export class CountersDemoSignInError extends Data.TaggedError(
+  'CountersDemoSignInError',
+)<Readonly<{ message: string }>> {}
+
+/** Instant demo mint path did not return a token. */
+export const countersDemoMintFailed = (): CountersDemoSignInError =>
+  new CountersDemoSignInError({
+    message:
+      'Instant demo sign-in failed. The mint path did not return a token.',
+  })
+
+/** Instant has no signed-in Multiple Counters demo subject. */
+export const countersDemoNoSession = (): CountersDemoSignInError =>
+  new CountersDemoSignInError({
+    message: 'Instant has no Multiple Counters demo session.',
+  })
 
 /** Instant session establishment failed. */
 export const FailedCountersSession = S.TaggedStruct('FailedCountersSession', {
@@ -105,6 +123,40 @@ export const fetchCountersDemoSession = async (
   } catch {
     return Option.none()
   }
+}
+
+/** Signs in the shared Instant demo subject. A failed mint is an error. */
+export const signInDemoSession = async (
+  database: CountersSessionDatabase,
+  sessionPath: string = countersDemoSessionPath,
+  runFetch: typeof fetch = fetch,
+): Promise<void> => {
+  const existing = await database.getAuth()
+  if (existing !== null) {
+    return
+  }
+  let response: Response
+  try {
+    response = await runFetch(sessionPath, {
+      credentials: 'same-origin',
+    })
+  } catch {
+    throw countersDemoMintFailed()
+  }
+  if (!response.ok) {
+    throw countersDemoMintFailed()
+  }
+  const body: unknown = await response.json()
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('token' in body) ||
+    typeof body.token !== 'string' ||
+    body.token === ''
+  ) {
+    throw countersDemoMintFailed()
+  }
+  await database.auth.signInWithToken(body.token)
 }
 
 /** Signs Instant in as the shared demo subject when a mint URL is available. */

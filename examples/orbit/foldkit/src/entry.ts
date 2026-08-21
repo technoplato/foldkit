@@ -6,6 +6,7 @@ import {
 } from 'orbit-core-example'
 
 import { overlay } from '@foldkit/devtools'
+import { withHostedIdentity } from '@foldkit/instant'
 
 import { orbitDatabase } from './database.js'
 import { view } from './view.js'
@@ -14,7 +15,7 @@ const database = orbitDatabase()
 const resources =
   database === undefined
     ? StaticOrbitResources
-    : makeLiveOrbitResources(database)
+    : withHostedIdentity(makeLiveOrbitResources(database), database)
 
 const application = Runtime.makeFoldkitApplication({
   container: document.getElementById('root'),

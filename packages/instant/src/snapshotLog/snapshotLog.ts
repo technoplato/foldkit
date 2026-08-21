@@ -225,11 +225,63 @@ const decodeMessageRow = (row: unknown): InstantLogMessageRecord => {
   })
 }
 
-/** Decodes Instant query rows into a snapshot and a sorted Message log. */
-export const decodeSnapshotLogState = (data: {
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' &&
+  value !== null &&
+  !globalThis.Array.isArray(value)
+
+const peekMessageId = (row: unknown): Option.Option<string> => {
+  if (!isPlainObject(row)) {
+    return Option.none()
+  }
+  const id = row['id']
+  if (typeof id !== 'string' || id === '') {
+    return Option.none()
+  }
+  return Option.some(id)
+}
+
+const messageRowMatchesCache = (
+  existing: InstantLogMessageRecord,
+  row: unknown,
+): boolean => {
+  if (!isPlainObject(row)) {
+    return false
+  }
+  return (
+    row['createdAtMs'] === existing.createdAtMs &&
+    row['from'] === existing.from &&
+    row['tag'] === existing.tag
+  )
+}
+
+const decodeMessageRowCached = (
+  row: unknown,
+  cache: Map<string, InstantLogMessageRecord>,
+): InstantLogMessageRecord => {
+  const maybeId = peekMessageId(row)
+  if (Option.isSome(maybeId)) {
+    const existing = cache.get(maybeId.value)
+    if (existing !== undefined && messageRowMatchesCache(existing, row)) {
+      return existing
+    }
+  }
+  const decoded = decodeMessageRow(row)
+  cache.set(decoded.id, decoded)
+  return decoded
+}
+
+/** Instant query payload for the count snapshot and Message log. */
+export type SnapshotLogQueryData = Readonly<{
   readonly count?: ReadonlyArray<unknown>
   readonly message?: ReadonlyArray<unknown>
-}): SnapshotLogState => {
+}>
+
+/** Decodes Instant query rows into a snapshot and a sorted Message log. */
+export const decodeSnapshotLogState = (
+  data: SnapshotLogQueryData,
+  cache?: Map<string, InstantLogMessageRecord>,
+): SnapshotLogState => {
   const countRows = data.count ?? []
   const messageRows = data.message ?? []
   const maybeCount = Array.findFirst(countRows, row => {
@@ -245,10 +297,26 @@ export const decodeSnapshotLogState = (data: {
     }
     return emptyCountSnapshot
   })()
+  const decodeOne =
+    cache === undefined
+      ? decodeMessageRow
+      : (row: unknown) => decodeMessageRowCached(row, cache)
   return {
-    messages: sortLogMessages(Array.map(messageRows, decodeMessageRow)),
+    messages: sortLogMessages(Array.map(messageRows, decodeOne)),
     snapshot,
   }
+}
+
+/**
+ * Decodes Instant query rows and reuses Messages that did not change.
+ * One decoder per subscribeQuery. A burst must not Schema-decode the
+ * whole log on every push.
+ */
+export const createSnapshotLogStateDecoder = (): ((
+  data: SnapshotLogQueryData,
+) => SnapshotLogState) => {
+  const cache = new Map<string, InstantLogMessageRecord>()
+  return data => decodeSnapshotLogState(data, cache)
 }
 
 /** Empty snapshot and no Messages. */

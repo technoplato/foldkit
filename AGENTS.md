@@ -42,6 +42,15 @@ Calibrate to the right context: library design when inside `packages/foldkit/src
 - Use `Option` at boundaries where the value will be matched or chained. Simple presence checks do not need it.
 - Errors in Commands become Messages via `Effect.catch(() => Effect.succeed(ErrorMessage(...)))`. Side effects should never crash the app.
 
+## Navigation
+
+- Every representable destination in a Program is a Schema sum type. The URL is a projection of that destination, not a second Model and not an event log. See `docs/adr/0003-navigation-as-state.md`.
+- Pair parse and print. `parse(print(destination))` equals the destination. `print(parse(url))` is the canonical URL. Test both. This is the Swift Navigation / Point-Free parser-printer contract. Use `foldkit/route` (`oneOfCases`, `schemaSegment`, `query`).
+- Drive navigation by state. A Client (browser history, argv, custom scheme) translates a URI into `OpenedNavigation` or `ChangedUrl`. update decides the next Model. Named Commands emit `pushUrl`, `replaceUrl`, or `back`. Do not hand-build paths at call sites when the printer exists.
+- Every destination a user can occupy must have a deep link. That includes share states (private, unlisted, public). Private still prints a URI. Access is permissions, not the absence of a link.
+- Keep the portable relative URI in core. Each Client adds an origin, scheme, or argv. Do not put tokens, refresh secrets, or PII in a URI. Instant share secrets belong in `ruleParams` (query `s`), not in the path.
+- Proofs live in `examples/routing`, `examples/counters`, `examples/books`, and `examples/cardboard`. Follow `skills/foldkit-navigation/SKILL.md`.
+
 ## Code Style
 
 - Use Effect's `Match` instead of `switch`. For tagged unions prefer `M.tagsExhaustive({ ... })` over `M.tag(...)` chains.
@@ -136,6 +145,9 @@ If `pnpm typecheck`, `pnpm lint`, `pnpm build`, or the pre-push hook surfaces er
 ## Debugging Example Apps
 
 Apps in `examples/` ship with `@foldkit/devtools-mcp` wired up. If the Foldkit devtools MCP tools are available, reach for them before adding logs. See `packages/devtools-mcp/README.md` for setup.
+
+Hosted `*.knophy.com` examples authenticate with Cloudflare Access. See
+`examples/AGENTS.md`.
 
 ## Communication
 

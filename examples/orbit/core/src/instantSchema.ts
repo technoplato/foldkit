@@ -1,7 +1,4 @@
-import {
-  InstantProgramEntities,
-  InstantProgramRooms,
-} from '@foldkit/instant'
+import { InstantProgramEntities, InstantProgramRooms } from '@foldkit/instant'
 import { InstantCoreDatabase, i } from '@instantdb/core'
 
 /** Instant schema for Orbit, composed with Foldkit Instant Program entities. */

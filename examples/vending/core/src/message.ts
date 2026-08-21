@@ -1,4 +1,5 @@
 import { Schema as S } from 'effect'
+import { NonNegativeInt } from 'foldkit/adt'
 import {
   PortfolioSnapshot,
   TestFundingReceipt,
@@ -20,6 +21,10 @@ export const PressedEnter = S.TaggedStruct('PressedEnter', {})
 export const PressedClear = S.TaggedStruct('PressedClear', {})
 /** Host declared the vend wait timed out. */
 export const ReportedVendTimeout = S.TaggedStruct('ReportedVendTimeout', {})
+/** Host advanced clip playback to this elapsed millisecond. */
+export const AdvancedClipPlayback = S.TaggedStruct('AdvancedClipPlayback', {
+  elapsedMs: NonNegativeInt,
+})
 /** Host requested copying the public receive address. */
 export const RequestedCopyAddress = S.TaggedStruct('RequestedCopyAddress', {})
 /** Host requested creating a receive wallet. */
@@ -47,10 +52,10 @@ export const FailedCreateWallet = S.TaggedStruct('FailedCreateWallet', {
   code: S.Literals(['Unavailable', 'InvalidKeyMaterial']),
 })
 /** Client loaded a public portfolio. */
-export const SucceededLoadPortfolio = S.TaggedStruct(
-  'SucceededLoadPortfolio',
-  { wallets: S.Array(WalletProfile), portfolio: PortfolioSnapshot },
-)
+export const SucceededLoadPortfolio = S.TaggedStruct('SucceededLoadPortfolio', {
+  wallets: S.Array(WalletProfile),
+  portfolio: PortfolioSnapshot,
+})
 /** Client could not load a public portfolio. */
 export const FailedLoadPortfolio = S.TaggedStruct('FailedLoadPortfolio', {
   failure: WalletFailure,
@@ -89,6 +94,7 @@ export const Message = S.Union([
   PressedEnter,
   PressedClear,
   ReportedVendTimeout,
+  AdvancedClipPlayback,
   RequestedCopyAddress,
   RequestedWalletCreation,
   RequestedTestFunding,

@@ -7,6 +7,7 @@ import {
   clipboardCopyRequestForAddress,
 } from './clipboard.js'
 import { AssetAmount, AssetDescriptor, NativeAsset } from './currency.js'
+import { NetworkFailure, TransferGuidance } from './model.js'
 import {
   assetAmountLabel,
   clipboardCopyFailureMessage,
@@ -14,6 +15,7 @@ import {
   shortenedAddress,
   walletDataSourceDetail,
   walletDataSourceLabel,
+  walletFailureMessage,
 } from './presentation.js'
 
 describe('wallet presentation', () => {
@@ -58,5 +60,29 @@ describe('wallet presentation', () => {
     expect(
       Option.getOrThrow(clipboardCopyFailureMessage(denied, request)),
     ).toContain('denied')
+  })
+
+  it('prints adapter guidance with a rejected network failure', () => {
+    const failure = NetworkFailure.make({
+      operation: 'SubmitTransaction',
+      code: 'Rejected',
+      maybeGuidance: Option.some(
+        TransferGuidance.make({
+          summary:
+            'This amount is too small to create the destination account.',
+          details: [
+            'A new Solana account needs at least 890880 lamports to stay rent-exempt.',
+          ],
+        }),
+      ),
+    })
+
+    expect(walletFailureMessage(failure)).toContain(
+      'SubmitTransaction/Rejected',
+    )
+    expect(walletFailureMessage(failure)).toContain(
+      'This amount is too small to create the destination account.',
+    )
+    expect(walletFailureMessage(failure)).toContain('890880 lamports')
   })
 })

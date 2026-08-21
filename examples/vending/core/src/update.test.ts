@@ -1,7 +1,6 @@
+import { Option, Schema as S } from 'effect'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-
-import { Option, Schema as S } from 'effect'
 import { describe, expect, test } from 'vitest'
 import { AtomicUnits, TransactionRecord } from 'wallet-core-example'
 import {
@@ -21,17 +20,23 @@ import {
 } from 'wallet-core-example'
 
 import {
+  AdvancedClipPlayback,
+  FailedCopyAddress,
   ObservedIncoming,
   PressedClear,
   PressedDigit,
   PressedEnter,
+  RequestedCopyAddress,
+  SucceededCopyAddress,
   SucceededLoadPortfolio,
   SucceededLoadProfiles,
+  clipCompleteMs,
   init,
   restore,
+  revealedLines,
   update,
 } from './index.js'
-import { clipSku, settleLamports } from './model.js'
+import { clipSku, copyAddressLabel, settleLamports } from './model.js'
 
 const incomingSol = (
   lamports: string,
@@ -169,12 +174,35 @@ describe('init', () => {
     expect(model.catalog).toEqual([clipSku])
     expect(model.vendPhase._tag).toBe('Idle')
     expect(model.selection._tag).toBe('Idle')
+    expect(model.clipPlayback._tag).toBe('Idle')
+    expect(model.lastControl._tag).toBe('Idle')
     expect(commands).toHaveLength(1)
     expect(restore(model)).toStrictEqual([model, []])
   })
 })
 
 describe('keypad', () => {
+  test('each press records lastControl so hosts can light the key', () => {
+    const [afterOne] = update(readyModel(), PressedDigit.make({ digit: '1' }))
+    expect(afterOne.keypadBuffer).toBe('1')
+    expect(afterOne.lastControl).toEqual({ _tag: 'Digit', digit: '1' })
+
+    const [afterEnter] = update(afterOne, PressedEnter.make({}))
+    expect(afterEnter.lastControl._tag).toBe('Enter')
+
+    const [afterClear] = update(afterEnter, PressedClear.make({}))
+    expect(afterClear.lastControl._tag).toBe('Clear')
+    expect(afterClear.keypadBuffer).toBe('')
+  })
+
+  test('a tap while awaiting payment still records lastControl', () => {
+    const awaiting = enterCode(readyModel(), '1428')
+    expect(awaiting.vendPhase._tag).toBe('AwaitingPayment')
+    const [next] = update(awaiting, PressedDigit.make({ digit: '9' }))
+    expect(next.keypadBuffer).toBe(awaiting.keypadBuffer)
+    expect(next.lastControl).toEqual({ _tag: 'Digit', digit: '9' })
+  })
+
   test('wrong code → WrongCode', () => {
     const next = enterCode(readyModel(), '0000')
     expect(next.vendPhase._tag).toBe('WrongCode')
@@ -200,6 +228,33 @@ describe('keypad', () => {
   })
 })
 
+describe('copy SOL Devnet address', () => {
+  test('labels the host button from clipboard state', () => {
+    const ready = readyModel()
+    expect(copyAddressLabel(ready.clipboard)).toBe('Copy Solana Pay')
+    const [copied] = update(
+      ready,
+      SucceededCopyAddress.make({ address: account.address }),
+    )
+    expect(copyAddressLabel(copied.clipboard)).toBe('Copied')
+    const [failed] = update(ready, FailedCopyAddress.make({ code: 'Denied' }))
+    expect(copyAddressLabel(failed.clipboard)).toBe('Try copy again')
+  })
+
+  test('RequestedCopyAddress emits CopyAddress when the wallet is ready', () => {
+    const ready = readyModel()
+    const [, commands] = update(ready, RequestedCopyAddress.make({}))
+    expect(commands).toHaveLength(1)
+  })
+
+  test('RequestedCopyAddress is a no-op before a receive address exists', () => {
+    const [initial] = init()
+    const [next, commands] = update(initial, RequestedCopyAddress.make({}))
+    expect(next.clipboard._tag).toBe('idle')
+    expect(commands).toHaveLength(0)
+  })
+})
+
 describe('incoming settlement', () => {
   test('incoming Confirmed >= settleLamports → Dispensed', () => {
     const awaiting = enterCode(readyModel(), '1428')
@@ -211,6 +266,39 @@ describe('incoming settlement', () => {
     )
     expect(next.vendPhase._tag).toBe('Dispensed')
     expect(next.incoming).toHaveLength(1)
+    expect(next.clipPlayback._tag).toBe('Playing')
+    expect(revealedLines(next.clipPlayback)).toHaveLength(1)
+  })
+
+  test('clip playback reveals the TJ deal from state, not a video', () => {
+    const awaiting = enterCode(readyModel(), '1428')
+    const [dispensed] = update(
+      awaiting,
+      ObservedIncoming.make({
+        transaction: incomingSol('1000000', 'Confirmed', 'tx-clip'),
+      }),
+    )
+    const [playing] = update(
+      dispensed,
+      AdvancedClipPlayback.make({ elapsedMs: 16_500 }),
+    )
+    const lines = revealedLines(playing.clipPlayback)
+    expect(lines.at(-1)?.text).toContain('14.28')
+    const [done] = update(
+      playing,
+      AdvancedClipPlayback.make({ elapsedMs: clipCompleteMs }),
+    )
+    expect(done.clipPlayback._tag).toBe('Complete')
+    expect(revealedLines(done.clipPlayback).at(-2)?.text).toBe('Okay. Deal.')
+  })
+
+  test('playback does not start before dispense', () => {
+    const awaiting = enterCode(readyModel(), '1428')
+    const [next] = update(
+      awaiting,
+      AdvancedClipPlayback.make({ elapsedMs: 16_500 }),
+    )
+    expect(next.clipPlayback._tag).toBe('Idle')
   })
 
   test('below threshold → still AwaitingPayment', () => {

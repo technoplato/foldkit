@@ -983,35 +983,35 @@ describe('protocol-v3 record invariants', () => {
   })
 
   it('treats Instant nulls on ordinary-occurrence effect fields as absent', () => {
-    const decoded = S.decodeUnknownSync(InstantV3AcceptedMessageOccurrenceRecord)(
-      {
-        ...acceptedOccurrence,
-        causalAcceptedSequence: null,
-        causalAudience: null,
-        causalMessageCategory: null,
-        causalOccurrenceId: null,
-        causalOriginDeviceId: null,
-        causalOriginPolicyGeneration: null,
-        causalOriginPolicyId: null,
-        causalOriginProofDigest: null,
-        causalOriginatingProcessorId: null,
-        causalPolicyGeneration: null,
-        causalProposalId: null,
-        effectAssignmentGeneration: null,
-        effectCancellationGeneration: null,
-        effectIdempotencyKey: null,
-        effectIdempotencyPositionKey: null,
-        effectPlacementId: null,
-        effectRequestId: null,
-        effectRequestResultPositionKey: null,
-        executorClientCertificateJson: null,
-        executorOriginPolicyGeneration: null,
-        executorOriginPolicyId: null,
-        executorProcessorCertificateJson: null,
-        executorProcessorId: null,
-        executorResultSignature: null,
-      },
-    )
+    const decoded = S.decodeUnknownSync(
+      InstantV3AcceptedMessageOccurrenceRecord,
+    )({
+      ...acceptedOccurrence,
+      causalAcceptedSequence: null,
+      causalAudience: null,
+      causalMessageCategory: null,
+      causalOccurrenceId: null,
+      causalOriginDeviceId: null,
+      causalOriginPolicyGeneration: null,
+      causalOriginPolicyId: null,
+      causalOriginProofDigest: null,
+      causalOriginatingProcessorId: null,
+      causalPolicyGeneration: null,
+      causalProposalId: null,
+      effectAssignmentGeneration: null,
+      effectCancellationGeneration: null,
+      effectIdempotencyKey: null,
+      effectIdempotencyPositionKey: null,
+      effectPlacementId: null,
+      effectRequestId: null,
+      effectRequestResultPositionKey: null,
+      executorClientCertificateJson: null,
+      executorOriginPolicyGeneration: null,
+      executorOriginPolicyId: null,
+      executorProcessorCertificateJson: null,
+      executorProcessorId: null,
+      executorResultSignature: null,
+    })
 
     expect(decoded.proposalKind).toBe('OrdinaryMessage')
     expect(decoded.occurrenceId).toBe(acceptedOccurrence.occurrenceId)

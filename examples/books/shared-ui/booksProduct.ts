@@ -33,3 +33,37 @@ export const ShelfBrowse = (items: ReadonlyArray<ShelfBrowseItem>): UiNode =>
       ),
     ),
   )
+
+export type TitlePageChapter = {
+  index: number
+  title: string
+  durationLabel: string
+}
+
+export type TitlePageItem = {
+  title: string
+  authorLabel: string
+  coverSrc: string
+  durationLabel: string
+  playLabel: string
+  chapters: ReadonlyArray<TitlePageChapter>
+}
+
+/** Screen: cover, title, author, duration, then chapter rows. */
+export const BookTitle = (item: TitlePageItem): UiNode =>
+  Column(
+    { gap: 0 },
+    Image({
+      src: item.coverSrc,
+      alt: item.title,
+      cols: 9,
+      rows: 5,
+    }),
+    Text(item.title),
+    Text(item.authorLabel, { dim: true }),
+    Text(item.durationLabel, { dim: true }),
+    Text(item.playLabel),
+    ...item.chapters.map(chapter =>
+      Text(`${chapter.index}  ${chapter.title}  ${chapter.durationLabel}`),
+    ),
+  )

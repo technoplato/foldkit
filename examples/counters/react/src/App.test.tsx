@@ -1,4 +1,12 @@
-import { navigationToPath } from 'counters-core-example'
+import {
+  type Model,
+  MultipleCountersProgram,
+  navigationToPath,
+} from 'counters-core-example'
+import {
+  type CountersWindowTape,
+  startCountersWindowRuntime,
+} from 'counters-instant-example'
 import {
   MultipleCountersClient,
   useMultipleCountersActions,
@@ -8,7 +16,7 @@ import {
 } from 'counters-react-bindings-example'
 import { Array, Option } from 'effect'
 import { StrictMode } from 'react'
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   cleanup,
@@ -18,29 +26,52 @@ import {
   waitFor,
 } from '@testing-library/react'
 
-import { App, type Presenter } from './App.js'
+import { App } from './App.js'
+import { installCountersWindowRuntime } from './instantHost.js'
 import { useNavigationHistory } from './view.js'
 
-beforeAll(() => {
-  HTMLDialogElement.prototype.showModal = function () {
-    this.open = true
+const [initialModel] = MultipleCountersProgram.init()
+
+const missingAppIdError =
+  'VITE_INSTANT_APP_ID is missing. Start through the Instant demo wrapper.'
+
+const memoryTape = (start: Model = initialModel): CountersWindowTape => {
+  let model = start
+  const listeners = new Set<(next: Model) => void>()
+  return {
+    readModel: () => model,
+    send: message => {
+      const [next] = MultipleCountersProgram.update(model, message)
+      model = next
+      listeners.forEach(listener => {
+        listener(model)
+      })
+    },
+    stop: () => {
+      listeners.clear()
+    },
+    subscribe: listener => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
   }
-  HTMLDialogElement.prototype.close = function () {
-    this.open = false
-  }
-})
+}
+
+let windowRuntime: ReturnType<typeof startCountersWindowRuntime> | undefined
 
 afterEach(() => {
   cleanup()
+  windowRuntime?.stop()
+  windowRuntime = undefined
   window.history.replaceState({}, '', '/counters')
 })
 
-const renderPresenter = (presenter: Presenter) => {
-  const query = presenter === 'ReactA' ? 'a' : 'b'
-  window.history.replaceState({}, '', `/counters?presenter=${query}`)
+const renderApp = () => {
   render(
     <StrictMode>
-      <App initialDestinationUri="/counters" presenter={presenter} />
+      <App initialDestinationUri="/counters" />
     </StrictMode>,
   )
 }
@@ -92,14 +123,6 @@ const renderCarrier = (initialDestinationUri: string) => {
       </MultipleCountersClient.Provider>
     </StrictMode>,
   )
-}
-
-const openFirstCounter = async () => {
-  const counterButton = await screen.findByRole('button', {
-    name: 'counter-1',
-  })
-  fireEvent.click(counterButton)
-  await screen.findByText('← Back to counters')
 }
 
 describe('Multiple Counters React presenters', () => {
@@ -190,57 +213,61 @@ describe('Multiple Counters React presenters', () => {
     expect(window.location.pathname).toBe('/counters')
   })
 
-  it('React-A drives fact and delete through one custom modal shell', async () => {
-    renderPresenter('ReactA')
-    await openFirstCounter()
+  it('React-A draws FailedWindow from useModel, not a local modal', async () => {
+    windowRuntime = startCountersWindowRuntime({
+      openTape: () => Promise.reject(new Error(missingAppIdError)),
+      signIn: () =>
+        Promise.resolve({
+          _tag: 'FailedCountersSession',
+          error: missingAppIdError,
+        }),
+    })
+    installCountersWindowRuntime(windowRuntime)
+    renderApp()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show counter fact' }))
-    const factDialog = await screen.findByRole('dialog', {
-      name: 'Counter fact',
-    })
-    expect(factDialog.textContent).toContain('React-A | unified modal')
-    await screen.findByText('0 is the current value of this counter.')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Delete counter' }))
-    const deleteDialog = await screen.findByRole('dialog', {
-      name: 'Delete counter-1',
-    })
-    expect(deleteDialog.textContent).toContain('Delete counter-1?')
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
-    })
+    expect(await screen.findByText(missingAppIdError)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByText('React-A | unified modal')).toBeNull()
+    expect(screen.queryByText('Starting Instant Multiple Counters…')).toBeNull()
   })
 
-  it('React-B derives a native dialog from state and replay removes and restores it', async () => {
-    renderPresenter('ReactB')
-    await openFirstCounter()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Delete counter' }))
-    const deleteDialog = await screen.findByRole('dialog', {
-      name: 'Delete counter-1?',
+  it('React-B draws Starting then Ready from useModel, not a native dialog', async () => {
+    let finishSignIn: (
+      session:
+        | { readonly _tag: 'SignedInCountersSession'; readonly userId: string }
+        | { readonly _tag: 'FailedCountersSession'; readonly error: string },
+    ) => void = () => undefined
+    windowRuntime = startCountersWindowRuntime({
+      openTape: () => Promise.resolve(memoryTape()),
+      signIn: () =>
+        new Promise(resolve => {
+          finishSignIn = resolve
+        }),
     })
-    expect(deleteDialog).toBeInstanceOf(HTMLDialogElement)
-    expect(deleteDialog).toHaveProperty('open', true)
+    installCountersWindowRuntime(windowRuntime)
+    renderApp()
 
-    const previousButton = screen.getByRole('button', { name: 'Previous' })
-    expect(deleteDialog.contains(previousButton)).toBe(true)
-    fireEvent.click(previousButton)
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
-      expect(screen.getByText('Inspecting')).toBeTruthy()
+    expect(
+      await screen.findByText('Starting Instant Multiple Counters…'),
+    ).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByText('Delete counter-1?')).toBeNull()
+
+    finishSignIn({
+      _tag: 'SignedInCountersSession',
+      userId: 'user-1',
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete counter' }))
-    const replayedDeleteDialog = await screen.findByRole('dialog', {
-      name: 'Delete counter-1?',
-    })
-    expect(replayedDeleteDialog).toHaveProperty('open', true)
-    expect(screen.getByText('Live')).toBeTruthy()
+    expect(await screen.findByText('Multiple counters')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /counter-1/ })).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByText('Inspecting')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /counter-1/ }))
+    expect(await screen.findByRole('button', { name: '+' })).toBeTruthy()
+    expect(screen.queryByText('Multiple counters')).toBeNull()
+    expect(screen.getByText('counter-1')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
