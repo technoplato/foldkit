@@ -4,6 +4,29 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 21st, 2026 at 4:08:22 p.m. EDT — `2d0707f5140f` feat: add Action menu compose and lift React Instant hosts
+
+- **Implementation commit:** `2d0707f5140f75c9b5a3a7e7520b132c28b77e19`
+- **Change:** Add Action menu compose, React host bindings, and Instant sharing.
+- **Details:**
+  - Program.compose.actionMenu wraps one product Program with a single global Action menu.
+  - Ship @foldkit/react host hooks so React and React Native Clients share one paint path.
+  - Instant sharing, demo env, and subscribe bursts live in @foldkit/instant.
+  - The non-captive CLI is a view of a daemon Processor.
+  - Examples adopt the same compose and paint path, including Counter Expo and Advocacy.
+- **Files:**
+  - `packages/foldkit/src/program/actionMenu.ts` — One Action menu Model, Messages, and compose wrapper.
+  - `packages/foldkit/src/program/compose.ts` — Attach compose.actionMenu next to compose.sync.
+  - `packages/react/src/hooks/hooks.ts` — React host hooks for a live Program handle.
+  - `packages/instant/src/sharing/index.ts` — Export Instant sharing audience, link, and perms.
+  - `packages/foldkit/src/cli/client.ts` — CLI adapter that starts a daemon on first invoke.
+  - `packages/instant/src/sync/demoEnv.ts` — Node-only Instant demo env loading for live tape.
+  - `.changeset/action-menu-react-hosts.md` — Minor changeset for foldkit and @foldkit/react.
+  - `examples/counter/core/src/app.ts` — Counter product Program composed with the Action menu.
+- **User context (verbatim):**
+  > commit everything in foldkit and push
+- **SpecStory:** unavailable — Cursor desktop agent session; no SpecStory capture for this task
+
 ## August 21st, 2026 at 10:55:37 a.m. EDT — `b66d675856cb` Decode live Performance evidence in the Issues catalog (#237).
 
 - **Implementation commit:** `b66d675856cbe4c624eaaa02ae744477763341b8`
@@ -68,7 +91,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 - **Details:**
   - Program.compose.sync wraps one Program as Starting | Ready & M | Failed. Ready has no child field. Child Messages sit in the union unwrapped.
   - Runtime.start boots from snapshot, then lives on RemoteMessageReceived. Echo skip when from is this Processor. Failed is boot only. Ready keeps the count if a later write fails.
-  - Errors carry what, meaning, fix, optional sent Message, and Instant cause. describeSyncError prints Sent and Cause. It does not print _tag.
+  - Errors carry what, meaning, fix, optional sent Message, and Instant cause. describeSyncError prints Sent and Cause. It does not print \_tag.
   - Processor.Host is a nest. Path is a parser-printer. Instant() is the live engine in @foldkit/instant. Memory() is the fake Instant.
   - CLI, React, Svelte, TUI, and Foldkit HTML hosts use this API. Unit tests passed. Live CLI then React then TUI share-one-count waits for HIA.
 - **Files:**
@@ -284,7 +307,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 - **Change:** Give the Expo Counters window useModel(uri) and useActions(uri).
 - **Details:**
   - The iPhone file no longer opens Instant, voids Effect.runPromise, or hangs on Starting with no error. Failed sign-in is FailedWindow.
-  - Login mint lives in instant-host. Metro no longer forwards /__foldkit/counters-demo-session to port 5213.
+  - Login mint lives in instant-host. Metro no longer forwards /\_\_foldkit/counters-demo-session to port 5213.
   - Adapter tests cover useModel, useActions, failed sign-in, and the Metro mint ban.
 - **Files:**
   - `examples/counters/expo/src/App.tsx` — Draw counts through useModel(uri) and useActions(uri) only.
@@ -299,7 +322,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 - **User context (verbatim):**
   > useModel(uri) + useActions(uri) + platform adapters. Zero business logic in the adapter.
   > DO NOT put store.send or store.observe on the iPhone file.
-  > metro.config.js does not forward /__foldkit/counters-demo-session to port 5213.
+  > metro.config.js does not forward /\_\_foldkit/counters-demo-session to port 5213.
 - **SpecStory:** unavailable — Grok Build TUI session. No SpecStory URI is available for this host.
 
 ## August 14th, 2026 at 10:27:54 p.m. EDT — `e1f341d09974` fix(counters): mint Expo Instant session through Metro
