@@ -1,5 +1,7 @@
 import * as THREE from 'three'
+import type { ClipLine } from 'vending-core-example'
 
+import { type Iphone17Pro, createIphone17Pro } from '../phone/iphone-17-pro.js'
 import type {
   ThreeCanvasTexture,
   ThreeGroup,
@@ -78,8 +80,10 @@ export type CabinetAssembly = Readonly<{
   root: ThreeGroup
   doorPivot: ThreeGroup
   clip: ThreeGroup
+  phone: Iphone17Pro
   clipShelf: ThreeVector3
   clipBin: ThreeVector3
+  clipPresent: ThreeVector3
   buttons: ReadonlyArray<KeypadButton>
   clickable: ReadonlyArray<ThreeObject3D>
   bloomMeshes: ReadonlyArray<ThreeMesh>
@@ -95,9 +99,11 @@ export type CabinetAssembly = Readonly<{
   extraTriangles: number
   dispose: () => void
   setLedTexture: (texture: ThreeCanvasTexture) => void
+  setKeyFeedback: (label: string | undefined) => void
   setQrTexture: (texture: ThreeTexture | undefined) => void
   setBrandTexture: (texture: ThreeCanvasTexture) => void
   setPriceTexture: (texture: ThreeCanvasTexture) => void
+  paintClipScreen: (lines: ReadonlyArray<ClipLine>, locked: boolean) => void
 }>
 
 const enableShadow = (mesh: ThreeMesh, cast: boolean): void => {
@@ -208,7 +214,8 @@ export const createCabinetAssembly = (): CabinetAssembly => {
     materials.ledBloom,
   )
   ledBloom.position.copy(ledDisplay.position)
-  ledBloom.position.z += 0.001
+  ledBloom.position.z -= 0.004
+  ledBloom.scale.set(1.08, 1.12, 1)
   ledBloom.userData['bloom'] = true
   extraTriangles += 2
   root.add(ledBloom)
@@ -300,9 +307,9 @@ export const createCabinetAssembly = (): CabinetAssembly => {
   const buttons: Array<KeypadButton> = []
   const clickable: Array<ThreeObject3D> = []
   const keyGeometry = new THREE.BoxGeometry(
-    keypadPlacement.size.x / 3.6,
-    keypadPlacement.size.y / 5.2,
-    0.018,
+    keypadPlacement.size.x / 3.15,
+    keypadPlacement.size.y / 4.55,
+    0.024,
   )
   extraTriangles += 12
   for (const [index, spec] of keypadSpecs.entries()) {
@@ -312,13 +319,16 @@ export const createCabinetAssembly = (): CabinetAssembly => {
     textures.push(texture)
     const material = materials.rubber.clone()
     material.map = texture
+    material.emissiveMap = texture
+    material.emissive.set(0x8a7048)
+    material.emissiveIntensity = 0.28
     const mesh = new THREE.Mesh(keyGeometry, material)
     const x =
       keypadPlacement.center.x -
       keypadPlacement.size.x * 0.32 +
       column * (keypadPlacement.size.x * 0.32)
     const y = keypadTop - 0.05 - row * ((keypadTop - keypadBottom) / 4.15)
-    const restZ = frontZ + 0.018
+    const restZ = frontZ + 0.022
     mesh.position.set(x, y, restZ)
     mesh.userData['spec'] = spec
     mesh.name = `key-${spec.label}`
@@ -346,31 +356,18 @@ export const createCabinetAssembly = (): CabinetAssembly => {
 
   const clip = new THREE.Group()
   clip.name = 'clip'
-  const upper = new THREE.Mesh(
-    new THREE.BoxGeometry(0.11, 0.016, 0.03),
-    materials.tortoise,
-  )
-  const lower = new THREE.Mesh(
-    new THREE.BoxGeometry(0.11, 0.016, 0.03),
-    materials.tortoise,
-  )
-  lower.position.y = -0.018
-  const hinge = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.006, 0.006, 0.028, 12),
-    materials.brass,
-  )
-  hinge.rotation.z = Math.PI / 2
-  extraTriangles += 12 + 12 + 24
-  clip.add(upper)
-  clip.add(lower)
-  clip.add(hinge)
+  const phone = createIphone17Pro()
+  extraTriangles += phone.triangleCount
+  clip.add(phone.root)
+  bloomMeshes.push(...phone.bloomMeshes)
   const clipShelfY = shelfHeights.at(clipShelfIndex) ?? 1.08
-  const clipShelf = new THREE.Vector3(-0.12, clipShelfY + 0.026, 0.01)
+  const clipShelf = new THREE.Vector3(-0.16, clipShelfY + 0.078, 0.02)
   const clipBin = new THREE.Vector3(
     doorPlacement.center.x,
-    doorBottom + 0.05,
-    frontZ - 0.12,
+    doorBottom + 0.09,
+    frontZ - 0.14,
   )
+  const clipPresent = new THREE.Vector3(0.08, 0.9, 0.82)
   clip.position.copy(clipShelf)
   root.add(clip)
 
@@ -379,9 +376,22 @@ export const createCabinetAssembly = (): CabinetAssembly => {
     if (previous instanceof THREE.Texture) {
       previous.dispose()
     }
+    texture.needsUpdate = true
     materials.ledPanel.map = texture
     materials.ledPanel.emissiveMap = texture
     materials.ledPanel.needsUpdate = true
+  }
+
+  const setKeyFeedback = (label: string | undefined): void => {
+    for (const button of buttons) {
+      const material = button.mesh.material
+      if (!(material instanceof THREE.MeshStandardMaterial)) {
+        continue
+      }
+      const isLit = label === button.spec.label
+      material.emissive.setHex(isLit ? 0xffe7a8 : 0x8a7048)
+      material.emissiveIntensity = isLit ? 1.85 : 0.28
+    }
   }
 
   const setQrTexture = (texture: ThreeTexture | undefined): void => {
@@ -413,8 +423,10 @@ export const createCabinetAssembly = (): CabinetAssembly => {
     root,
     doorPivot,
     clip,
+    phone,
     clipShelf,
     clipBin,
+    clipPresent,
     buttons,
     clickable,
     bloomMeshes,
@@ -441,11 +453,16 @@ export const createCabinetAssembly = (): CabinetAssembly => {
         texture.dispose()
       }
       materials.dispose()
+      phone.dispose()
     },
     setLedTexture,
+    setKeyFeedback,
     setQrTexture,
     setBrandTexture,
     setPriceTexture,
+    paintClipScreen: (lines, locked) => {
+      phone.screen.paint(lines, locked)
+    },
   }
 }
 

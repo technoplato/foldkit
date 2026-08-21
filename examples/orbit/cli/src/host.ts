@@ -1,6 +1,6 @@
-import { OrbitProgram, emptyModel, playOf, runIndex } from 'orbit-core-example'
 import { Console, Effect } from 'effect'
 import { Runtime } from 'foldkit'
+import { OrbitProgram, emptyModel, playOf, runIndex } from 'orbit-core-example'
 
 import { orbitResources } from './resources.js'
 
@@ -36,6 +36,10 @@ export const runCli = (): Effect.Effect<void> =>
   Effect.gen(function* () {
     const result = yield* executeIndex()
     const { receipt } = runIndex(emptyModel())
-    yield* Console.log(`ok=${String(result.ok && receipt.ok)} seq=${String(result.seq)}`)
-    yield* Console.log(`tortoise=${String(result.tortoise)} achilles=${String(result.achilles)}`)
+    yield* Console.log(
+      `ok=${String(result.ok && receipt.ok)} seq=${String(result.seq)}`,
+    )
+    yield* Console.log(
+      `tortoise=${String(result.tortoise)} achilles=${String(result.achilles)}`,
+    )
   })

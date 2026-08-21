@@ -73,15 +73,15 @@ export type CountersWindowRuntime = Readonly<{
   actions: (uri: string) => CountersWindowActions
   getSnapshot: (uri: string) => CountersWindowModel
   signIn: () => void
-  stop: () => void
+  stop: () => void | Promise<void>
   subscribe: (listener: () => void) => () => void
 }>
 
 /** A Program tape the window runtime can fold into a snapshot. */
 export type CountersWindowTape = Readonly<{
   readModel: () => Model
-  send: (message: Message) => void
-  stop: () => void
+  send: (message: Message) => void | Promise<void>
+  stop: () => void | Promise<void>
   subscribe: (listener: (model: Model) => void) => () => void
 }>
 
@@ -208,7 +208,12 @@ export const startCountersWindowRuntime = (
     if (tape === undefined) {
       return
     }
-    tape.send(message)
+    const current = tape
+    void Promise.resolve()
+      .then(() => current.send(message))
+      .catch(() => {
+        fail('Instant could not write the Message.')
+      })
   }
 
   const start = async (): Promise<void> => {
@@ -227,17 +232,26 @@ export const startCountersWindowRuntime = (
     }
   }
 
+  const begin = (): void => {
+    void start().catch(() => {
+      fail('Instant could not open the Counters tape.')
+    })
+  }
+
   const signIn = (): void => {
     status = StartingWindow.make({})
     notify()
     if (tape !== undefined) {
-      tape.stop()
+      const previous = tape
       tape = undefined
+      void Promise.resolve(previous.stop()).catch(() => {
+        fail('Instant could not close the Counters tape.')
+      })
     }
-    void start()
+    begin()
   }
 
-  void start()
+  begin()
 
   return {
     actions: uri => {
@@ -302,11 +316,13 @@ export const startCountersWindowRuntime = (
     getSnapshot: uri => snapshotFor(uri),
     signIn,
     stop: () => {
-      if (tape !== undefined) {
-        tape.stop()
-        tape = undefined
-      }
+      const current = tape
+      tape = undefined
       listeners.clear()
+      if (current === undefined) {
+        return
+      }
+      return Promise.resolve(current.stop())
     },
     subscribe: listener => {
       listeners.add(listener)

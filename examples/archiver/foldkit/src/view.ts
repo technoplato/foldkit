@@ -34,24 +34,24 @@ export const view = (model: Model): Document => {
 const urlFormView = (urlDraft: string) => {
   const h = html<Message>()
   return h.form(
-    [
-      h.Class('flex flex-col gap-3 mb-8'),
-      h.OnSubmit(SubmittedArchiveUrl()),
-    ],
+    [h.Class('flex flex-col gap-3 mb-8'), h.OnSubmit(SubmittedArchiveUrl())],
     [
       Input.view<Message>({
         id: 'archive-url',
         value: urlDraft,
         onInput: value => UpdatedUrlDraft({ value }),
         toView: attributes =>
-          h.div([h.Class('flex flex-col gap-1')], [
-            h.label([...attributes.label], ['Source URL']),
-            h.input([
-              ...attributes.input,
-              h.Class('border border-gray-300 rounded px-3 py-2 bg-white'),
-              h.Placeholder('https://'),
-            ]),
-          ]),
+          h.div(
+            [h.Class('flex flex-col gap-1')],
+            [
+              h.label([...attributes.label], ['Source URL']),
+              h.input([
+                ...attributes.input,
+                h.Class('border border-gray-300 rounded px-3 py-2 bg-white'),
+                h.Placeholder('https://'),
+              ]),
+            ],
+          ),
       }),
       Button.view<Message>({
         onClick: SubmittedArchiveUrl(),
@@ -68,17 +68,14 @@ const urlFormView = (urlDraft: string) => {
 const archiveListView = (model: Model) => {
   const h = html<Message>()
   return Array.match(model.archives, {
-    onEmpty: () =>
-      h.p([h.Class('text-gray-500')], ['No archives yet.']),
+    onEmpty: () => h.p([h.Class('text-gray-500')], ['No archives yet.']),
     onNonEmpty: archives =>
       h.ul(
         [h.Class('flex flex-col gap-2')],
         archives.map(archive =>
           h.keyed('li')(
             archive.id,
-            [
-              h.Class('border border-gray-200 rounded p-3 flex flex-col gap-1'),
-            ],
+            [h.Class('border border-gray-200 rounded p-3 flex flex-col gap-1')],
             [
               h.button(
                 [

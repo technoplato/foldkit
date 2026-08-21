@@ -64,9 +64,9 @@ List row click → clickedSelectCounter({ id: "2" })
 
 Still derived in the actions builder from Message payload type; not duplicated by hand forever.
 
-| Option | Status |
-| ------ | ------ |
-| H1 host draft | Rejected |
-| **M1 Model fields** | **Accepted** |
-| **Bind-A per-field Messages + bind.field()** | **Accepted** |
-| Generic FieldChanged only | Rejected as default (weak types) |
+| Option                                       | Status                           |
+| -------------------------------------------- | -------------------------------- |
+| H1 host draft                                | Rejected                         |
+| **M1 Model fields**                          | **Accepted**                     |
+| **Bind-A per-field Messages + bind.field()** | **Accepted**                     |
+| Generic FieldChanged only                    | Rejected as default (weak types) |

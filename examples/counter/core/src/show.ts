@@ -1,6 +1,7 @@
 import { Array, Option, Schema as S } from 'effect'
 
 import { Device, renderChrome } from './chrome.js'
+import { surfaceFor } from './hostSurface.js'
 import { type Action, actions, tokenOf } from './message.js'
 import { type Model, title, uri } from './model.js'
 import { counterValid } from './program.js'
@@ -166,10 +167,13 @@ export const invalidActionLog = (token: string, model: Model): string =>
   `log  attempted to invoke invalid action ${token}\n     state  count ${model.count}`
 
 const identityLines = (context: ShowContext): ReadonlyArray<string> => {
+  const surface = surfaceFor('cli')
   const lines = [
     'IDENTITY',
     identityField('title', title),
     identityField('uri', uri),
+    `  ${surface.description}`,
+    `  ${surface.sourceUrl}`,
   ]
   if (context.device === undefined) {
     return lines
@@ -195,6 +199,7 @@ export const renderShow = (model: Model, context: ShowContext): string => {
   ).join('\n')
 
   return [
+    surfaceFor('cli').title,
     ...identityLines(context),
     '',
     'STATE',

@@ -59,9 +59,7 @@ export type AttentionSchema<Subject, SubjectEncoded, Tool, ToolEncoded> =
     Reading: (
       payload: Readonly<{ subject: Subject }>,
     ) => Attention<Subject, Tool>
-    Operating: (
-      payload: Readonly<{ tool: Tool }>,
-    ) => Attention<Subject, Tool>
+    Operating: (payload: Readonly<{ tool: Tool }>) => Attention<Subject, Tool>
   }>
 
 /** Builds the three-state Attention Schema for the given subject and tool. */

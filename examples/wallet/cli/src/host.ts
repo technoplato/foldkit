@@ -40,6 +40,7 @@ import {
   primaryReceivingInstruction,
   primaryWalletTestFundingMethod,
   resolveSendNetworkSelection,
+  walletFailureMessage,
   walletIntentRouter,
 } from 'wallet-core-example'
 import { MacOSLiveWalletResources } from 'wallet-node-client-example'
@@ -541,7 +542,7 @@ const previewSummary = (
   } else if (model.transaction._tag === 'FailedTransactionPreview') {
     return Effect.fail(
       new WalletCliError({
-        message: `Preview failed: ${model.transaction.failure.operation}/${model.transaction.failure.code}`,
+        message: `Preview failed: ${walletFailureMessage(model.transaction.failure)}`,
       }),
     )
   } else if (model.transaction._tag === 'InvalidTransfer') {
@@ -618,7 +619,7 @@ const sendSummary = (
     if (model.transaction._tag === 'FailedTransactionSubmission') {
       return yield* Effect.fail(
         new WalletCliError({
-          message: `Submission failed: ${model.transaction.failure.operation}/${model.transaction.failure.code}`,
+          message: `Submission failed: ${walletFailureMessage(model.transaction.failure)}`,
         }),
       )
     }

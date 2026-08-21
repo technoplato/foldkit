@@ -24,7 +24,7 @@ const doCommand = Command.make(
   ({ tokens, isVerbose }) => runConversationsInput(tokens, isVerbose),
 ).pipe(
   Command.withDescription(
-    'Apply tokens: projects chats settings back ingest stop project:<id> open:<id> follow:<id> delete:<id>',
+    'Apply tokens: projects chats settings back ingest stop next prev project:<id> open:<id> identifier:<kind>:<value> follow:<id> delete:<id> find:<query> jump:<messageId>',
   ),
 )
 

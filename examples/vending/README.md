@@ -34,6 +34,11 @@ Below-threshold payment stays AwaitingPayment.
 - vending-headless-example: print SOL address JSON, watch until vend or timeout
 
 Hosted preview: https://vending.knophy.com
+Store alias: https://store.knophy.com
+
+The SKU is the TJ clip at 14.28. After SOL Devnet settlement the machine
+dispenses an iPhone 17 Pro. The phone screen is FoldKit clip state rendered
+as iMessage — not a YouTube decode.
 
 From the FoldKit repo root, test and build vending-core-example, then build
 and preview vending-three-example on 127.0.0.1:5205. Foldkit HTML is

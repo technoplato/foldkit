@@ -6,6 +6,8 @@ export {
   instantCauseString,
 } from './sync/nodeInstant.js'
 export type { InstantApp, InstantOptions } from './sync/nodeInstant.js'
+export { loadInstantDemoEnv, resolveInstantSyncEngine } from './sync/demoEnv.js'
+export type { ResolveInstantSyncEngineOptions } from './sync/demoEnv.js'
 export * from './acceptedOccurrenceCursor/index.js'
 export * from './acceptanceAuthority/index.js'
 export * from './artifactStream/index.js'

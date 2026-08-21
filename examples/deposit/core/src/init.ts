@@ -1,5 +1,6 @@
 import { Option } from 'effect'
 import { Command } from 'foldkit'
+import type { WalletResources } from 'wallet-core-example'
 
 import { type Message } from './message.js'
 import {
@@ -10,7 +11,6 @@ import {
   Sender,
   localSenderId,
 } from './model.js'
-import type { WalletResources } from 'wallet-core-example'
 import { LoadProfiles } from './update.js'
 
 /** Creates the initial Deposit Model and starts profile restoration. */

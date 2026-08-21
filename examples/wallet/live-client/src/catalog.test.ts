@@ -169,4 +169,17 @@ describe('live Wallet catalog', () => {
     expect(Option.isNone(liveWalletNetworkForId('solana'))).toBe(true)
     expect(Option.isNone(liveWalletNetworkForId('unknown:mainnet'))).toBe(true)
   })
+
+  it('suggests a rent-exempt Solana test transfer', () => {
+    const solanaNetworks = Array.filter(
+      liveWalletNetworks,
+      network => network._tag === 'SolanaLiveNetwork',
+    )
+    expect(solanaNetworks).toHaveLength(3)
+    Array.forEach(solanaNetworks, network => {
+      expect(
+        BigInt(network.asset.suggestedTestTransferAtomicUnits),
+      ).toBeGreaterThanOrEqual(1_000_000n)
+    })
+  })
 })

@@ -1,7 +1,7 @@
 import {
-  Model,
   SyncedCounter,
   memorySyncedEngine,
+  readyCounter,
   startSyncedCounterHandle,
   waitForSyncedHandle,
 } from 'counter-core-example'
@@ -52,14 +52,47 @@ describe('Counter TUI Client', () => {
 
     await Effect.runPromise(runCounterTui(handle).pipe(Effect.provide(layer)))
 
-    expect(screens).toContain(
-      renderCounterScreen(SyncedCounter.Ready(Model.make({ count: 0 }))),
+    expect(screens).toContain(renderCounterScreen(readyCounter(0)))
+    expect(screens).toContain(renderCounterScreen(readyCounter(1)))
+    expect(screens).toContain(renderCounterScreen(readyCounter(2)))
+  })
+
+  it('selects the focused Action menu row on Enter', async () => {
+    const handle = startSyncedCounterHandle(
+      memorySyncedEngine(Processor.Host.Tui()),
     )
-    expect(screens).toContain(
-      renderCounterScreen(SyncedCounter.Ready(Model.make({ count: 1 }))),
+    await waitForSyncedHandle(handle)
+    const screens: Array<string> = []
+    const layer = Layer.succeed(
+      Terminal.Terminal,
+      Terminal.make({
+        columns: Effect.succeed(80),
+        rows: Effect.succeed(24),
+        readInput: Effect.gen(function* () {
+          const queue = yield* Queue.unbounded<Terminal.UserInput>()
+          yield* Queue.offer(queue, keyInput('?'))
+          yield* Queue.offer(queue, {
+            input: Option.some('\r'),
+            key: {
+              name: 'enter',
+              ctrl: false,
+              meta: false,
+              shift: false,
+            },
+          })
+          yield* Queue.offer(queue, keyInput('q'))
+          return queue
+        }),
+        readLine: Effect.succeed(''),
+        display: text =>
+          Effect.sync(() => {
+            screens.push(text)
+          }),
+      }),
     )
-    expect(screens).toContain(
-      renderCounterScreen(SyncedCounter.Ready(Model.make({ count: 2 }))),
-    )
+
+    await Effect.runPromise(runCounterTui(handle).pipe(Effect.provide(layer)))
+
+    expect(screens).toContain(renderCounterScreen(readyCounter(1)))
   })
 })

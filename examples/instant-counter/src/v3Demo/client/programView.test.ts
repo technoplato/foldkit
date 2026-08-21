@@ -68,8 +68,9 @@ const modelWithFactStatus = (status: CounterFactStatus) =>
   })
 
 const tokensFor = (model: Model, isNavigationEnabled: boolean) =>
-  Result.map(multipleCountersV3ProgramActions(model, isNavigationEnabled), actions =>
-    Array.map(actions, action => action.token),
+  Result.map(
+    multipleCountersV3ProgramActions(model, isNavigationEnabled),
+    actions => Array.map(actions, action => action.token),
   )
 
 describe('Multiple Counters v3 program view', () => {

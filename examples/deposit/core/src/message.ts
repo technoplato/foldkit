@@ -7,13 +7,8 @@ import {
   WalletFailure,
   WalletProfile,
 } from 'wallet-core-example'
-import {
-  Chain,
-  FiatMethod,
-  IsoCurrency,
-  MinorUnits,
-  Network,
-} from './model.js'
+
+import { Chain, FiatMethod, IsoCurrency, MinorUnits, Network } from './model.js'
 
 /** Host selected a crypto rail option. */
 export const SelectedCryptoRail = S.TaggedStruct('SelectedCryptoRail', {
@@ -58,10 +53,10 @@ export const FailedCreateWallet = S.TaggedStruct('FailedCreateWallet', {
   code: S.Literals(['Unavailable', 'InvalidKeyMaterial']),
 })
 /** Client loaded a public portfolio. */
-export const SucceededLoadPortfolio = S.TaggedStruct(
-  'SucceededLoadPortfolio',
-  { wallets: S.Array(WalletProfile), portfolio: PortfolioSnapshot },
-)
+export const SucceededLoadPortfolio = S.TaggedStruct('SucceededLoadPortfolio', {
+  wallets: S.Array(WalletProfile),
+  portfolio: PortfolioSnapshot,
+})
 /** Client could not load a public portfolio. */
 export const FailedLoadPortfolio = S.TaggedStruct('FailedLoadPortfolio', {
   failure: WalletFailure,
@@ -141,13 +136,10 @@ export const MESSAGE_TAGS: ReadonlyArray<Message['_tag']> = [
 ]
 
 /** Type-level proof that a live Stripe charge message cannot be constructed. */
-export type LiveStripeChargeMessageIsRepresentable = Extract<
-  Message,
-  { readonly _tag: 'RequestedLiveStripeCharge' }
-> extends never
-  ? false
-  : true
+export type LiveStripeChargeMessageIsRepresentable =
+  Extract<Message, { readonly _tag: 'RequestedLiveStripeCharge' }> extends never
+    ? false
+    : true
 
 /** Runtime proof that a live Stripe charge message cannot be constructed. */
-export const liveStripeChargeMessageIsRepresentable: LiveStripeChargeMessageIsRepresentable =
-  false
+export const liveStripeChargeMessageIsRepresentable: LiveStripeChargeMessageIsRepresentable = false

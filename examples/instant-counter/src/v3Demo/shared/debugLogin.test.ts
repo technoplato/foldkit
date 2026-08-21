@@ -57,9 +57,9 @@ describe('Multiple Counters v3 debug login', () => {
         }),
       ),
     )
-    expect(Result.isFailure(parseMultipleCountersV3DebugSubjectToken('eve'))).toBe(
-      true,
-    )
+    expect(
+      Result.isFailure(parseMultipleCountersV3DebugSubjectToken('eve')),
+    ).toBe(true)
   })
 
   it('renders Alice and Bob buttons and the issued code without Program state', () => {

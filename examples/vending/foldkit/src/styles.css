@@ -1,1 +1,176 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+.ios-shell {
+  min-height: 100dvh;
+  background: #f2f2f7;
+  color: #1c1c1e;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue',
+    sans-serif;
+}
+
+.ios-status {
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 22px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c1c1e;
+}
+
+.ios-main {
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 8px 20px 48px;
+  display: grid;
+  gap: 12px;
+}
+
+.ios-eyebrow {
+  margin: 0;
+  color: #8e8e93;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ios-title {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.ios-price {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  color: #1c1c1e;
+}
+
+.ios-muted {
+  margin: 0;
+  color: #8e8e93;
+  font-size: 15px;
+}
+
+.ios-phase {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.ios-card {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.ios-led {
+  margin: 0 0 14px;
+  text-align: center;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ios-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.ios-key {
+  height: 52px;
+  border: 0;
+  border-radius: 14px;
+  background: #e5e5ea;
+  color: #1c1c1e;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.ios-key-muted {
+  color: #8e8e93;
+  font-size: 15px;
+}
+
+.ios-key-go {
+  background: #34c759;
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.ios-key.is-lit {
+  background: #1c1c1e;
+  color: #f6d59a;
+}
+
+.ios-section-label {
+  margin: 0;
+  color: #8e8e93;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ios-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.ios-address {
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.ios-qr {
+  width: 192px;
+  height: 192px;
+  background: #ffffff;
+  padding: 8px;
+}
+
+.ios-text-button {
+  border: 0;
+  background: transparent;
+  color: #007aff;
+  font-size: 17px;
+  font-weight: 600;
+  padding: 8px 0;
+  text-align: left;
+}
+
+.ios-messages {
+  display: grid;
+  gap: 8px;
+}
+
+.ios-bubble {
+  max-width: 82%;
+  padding: 8px 12px;
+  border-radius: 18px;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.ios-bubble p {
+  margin: 0;
+}
+
+.ios-bubble.mine {
+  justify-self: end;
+  background: #0b84fe;
+  color: #ffffff;
+}
+
+.ios-bubble.theirs {
+  justify-self: start;
+  background: #e9e9eb;
+  color: #1c1c1e;
+}

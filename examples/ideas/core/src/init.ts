@@ -1,10 +1,10 @@
-import { Option } from "effect"
-import { Command } from "foldkit"
+import { Option } from 'effect'
+import { Command } from 'foldkit'
 
-import { type Message } from "./message.js"
-import { LoadingCatalog, Model } from "./model.js"
-import { IdeasStore } from "./store.js"
-import { LoadCatalog } from "./update.js"
+import { type Message } from './message.js'
+import { LoadingCatalog, Model } from './model.js'
+import { IdeasStore } from './store.js'
+import { LoadCatalog } from './update.js'
 
 // INIT
 
@@ -15,9 +15,9 @@ export const init = (): readonly [
 ] => [
   Model.make({
     catalog: LoadingCatalog.make({}),
-    query: "",
+    query: '',
     selectedId: Option.none(),
-    source: "StaticFallback",
+    source: 'StaticFallback',
   }),
   [LoadCatalog()],
 ]
@@ -25,7 +25,7 @@ export const init = (): readonly [
 /** Restores an existing Ideas Model without inventing host coordination state. */
 export const restore = (
   model: Model,
-): readonly [Model, ReadonlyArray<Command.Command<Message, never, IdeasStore>>] => [
-  model,
-  [],
-]
+): readonly [
+  Model,
+  ReadonlyArray<Command.Command<Message, never, IdeasStore>>,
+] => [model, []]

@@ -1,1 +1,1 @@
-export * from "./view.js"
+export * from './view.js'

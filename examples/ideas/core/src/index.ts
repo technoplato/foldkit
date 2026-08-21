@@ -1,12 +1,9 @@
-export * from "./catalog.js"
-export * from "./init.js"
-export * from "./message.js"
-export * from "./model.js"
-export * from "./program.js"
-export * from "./store.js"
-export * from "./subscription.js"
-export * from "./update.js"
-export {
-  schema,
-  type IdeasInstantDatabase,
-} from "./instantSchema.js"
+export * from './catalog.js'
+export * from './init.js'
+export * from './message.js'
+export * from './model.js'
+export * from './program.js'
+export * from './store.js'
+export * from './subscription.js'
+export * from './update.js'
+export { schema, type IdeasInstantDatabase } from './instantSchema.js'

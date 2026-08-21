@@ -1,3 +1,4 @@
+import { notePermissionsBind } from '@foldkit/instant'
 import type { InstantRules } from '@instantdb/core'
 
 const isLoggedIn = 'auth.id != null'
@@ -68,7 +69,7 @@ const rules = {
   segments: catalog,
   items: catalog,
   bookmarks: owned,
-  notes: owned,
+  ...notePermissionsBind(),
   progress: owned,
   shares: {
     allow: {

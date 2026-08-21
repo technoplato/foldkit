@@ -2,4 +2,4 @@ export {
   schema as default,
   schema,
   type RemindersInstantDatabase,
-} from "./src/instantSchema.ts"
+} from './src/instantSchema.ts'

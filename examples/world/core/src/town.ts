@@ -1,11 +1,6 @@
 import { Array, Option, Schema as S } from 'effect'
 import * as Interactable from 'foldkit/interactable'
-import {
-  CardinalFacing,
-  GridCoord,
-  South,
-  gridCoord,
-} from 'foldkit/spatial'
+import { CardinalFacing, GridCoord, South, gridCoord } from 'foldkit/spatial'
 
 /** Inclusive yard size. Fence occupies the outer ring. */
 export const yardSize = 11
@@ -57,8 +52,7 @@ export const signs: ReadonlyArray<Sign> = [
     id: 'welcome',
     speaker: 'WELCOME',
     post: 'Press A near things.',
-    overlay:
-      'Press A near things. That is how you talk in this town.',
+    overlay: 'Press A near things. That is how you talk in this town.',
   }),
   Sign.make({
     id: 'clip',
@@ -111,16 +105,17 @@ export const signs: ReadonlyArray<Sign> = [
 ]
 
 /** Sign posts around the fence. */
-export const signCells: ReadonlyArray<Readonly<{ id: SignId; at: GridCoord }>> = [
-  { id: 'welcome', at: gridCoord(2, 1) },
-  { id: 'clip', at: gridCoord(8, 1) },
-  { id: 'knophy', at: gridCoord(1, 3) },
-  { id: 'sol', at: gridCoord(9, 3) },
-  { id: 'foldkit', at: gridCoord(1, 7) },
-  { id: 'degree', at: gridCoord(9, 7) },
-  { id: 'machine', at: gridCoord(2, 9) },
-  { id: 'wallet', at: gridCoord(8, 9) },
-]
+export const signCells: ReadonlyArray<Readonly<{ id: SignId; at: GridCoord }>> =
+  [
+    { id: 'welcome', at: gridCoord(2, 1) },
+    { id: 'clip', at: gridCoord(8, 1) },
+    { id: 'knophy', at: gridCoord(1, 3) },
+    { id: 'sol', at: gridCoord(9, 3) },
+    { id: 'foldkit', at: gridCoord(1, 7) },
+    { id: 'degree', at: gridCoord(9, 7) },
+    { id: 'machine', at: gridCoord(2, 9) },
+    { id: 'wallet', at: gridCoord(8, 9) },
+  ]
 
 /** Every interactable in the yard. */
 export const entities: ReadonlyArray<Interactable.Entity> = [
@@ -140,17 +135,11 @@ export const entities: ReadonlyArray<Interactable.Entity> = [
 
 /** True when the cell is on the outer fence ring. */
 export const isFence = (coord: GridCoord): boolean =>
-  coord.x === 0 ||
-  coord.z === 0 ||
-  coord.x === lastCell ||
-  coord.z === lastCell
+  coord.x === 0 || coord.z === 0 || coord.x === lastCell || coord.z === lastCell
 
 /** True when the cell is inside the yard bounds. */
 export const isInsideYard = (coord: GridCoord): boolean =>
-  coord.x >= 0 &&
-  coord.z >= 0 &&
-  coord.x <= lastCell &&
-  coord.z <= lastCell
+  coord.x >= 0 && coord.z >= 0 && coord.x <= lastCell && coord.z <= lastCell
 
 /** True when a walker can occupy the cell. */
 export const isWalkable = (coord: GridCoord): boolean => {

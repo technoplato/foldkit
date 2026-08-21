@@ -9,10 +9,10 @@ import * as Counter from 'counter-core-example'
 import * as Counters from 'counters-core-example'
 
 import {
+  type CountersActions,
   CountersDetailPhone,
   CountersListPhone,
   renderAscii,
-  type CountersActions,
 } from './ascii-ui/index.js'
 
 const noopActions: CountersActions = {

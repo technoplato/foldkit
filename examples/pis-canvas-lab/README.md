@@ -37,8 +37,8 @@ model.demos.list      // forEach list of Counters
 ## Message helpers
 
 ```ts
-GotSingleCounterMessage({ message })  // → demos.single
-GotMultiCountersMessage({ message })  // → demos.multi
+GotSingleCounterMessage({ message }) // → demos.single
+GotMultiCountersMessage({ message }) // → demos.multi
 GotCalculatorMessage({ message })
 // or: ShowcaseShell.message.demos(DemoCatalog.message.calc(...))
 ```

@@ -131,6 +131,7 @@ import {
   resolveSendNetworkSelection,
   selectSendNetworkForMode,
 } from './sendNetworkSelection.js'
+import { parseSolanaPayTransferUri } from './solanaPayUri.js'
 import {
   WalletClient,
   WalletClientError,
@@ -157,7 +158,12 @@ import { WalletVault } from './walletVault.js'
 const toNetworkFailure = (
   operation: WalletOperation,
   error: WalletClientError,
-): WalletFailure => NetworkFailure.make({ operation, code: error.code })
+): WalletFailure =>
+  NetworkFailure.make({
+    operation,
+    code: error.code,
+    maybeGuidance: Option.fromNullishOr(error.guidance),
+  })
 
 const toSigningFailure = (
   operation: WalletOperation,
@@ -1419,15 +1425,36 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ]
       },
       FailedRefreshWalletBalances: () => [model, []],
-      ChangedTransferRecipient: ({ value }) => [
-        {
-          ...model,
-          walletIntent: NoWalletIntent.make({}),
-          transferRecipient: transferRecipientFromInput(value),
-          transaction: IdleTransaction.make({}),
-        },
-        [],
-      ],
+      ChangedTransferRecipient: ({ value }) => {
+        const maybePay = parseSolanaPayTransferUri(value)
+        if (Option.isSome(maybePay)) {
+          const pay = maybePay.value
+          return [
+            {
+              ...model,
+              walletIntent: NoWalletIntent.make({}),
+              transferRecipient: transferRecipientFromInput(pay.recipient),
+              transferAmount: Option.isSome(pay.maybeAmount)
+                ? transferAmountFromInput(
+                    pay.maybeAmount.value,
+                    selectedAsset(model),
+                  )
+                : model.transferAmount,
+              transaction: IdleTransaction.make({}),
+            },
+            [],
+          ]
+        }
+        return [
+          {
+            ...model,
+            walletIntent: NoWalletIntent.make({}),
+            transferRecipient: transferRecipientFromInput(value),
+            transaction: IdleTransaction.make({}),
+          },
+          [],
+        ]
+      },
       ChangedTransferAmount: ({ value }) => [
         {
           ...model,

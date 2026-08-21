@@ -7,7 +7,11 @@ import {
 } from 'wallet-core-example'
 import { LiveWalletClient } from 'wallet-live-client-example'
 import { makePersistentLocalWalletResources } from 'wallet-local-vault-example'
-import { MacOSKeychainWalletVaultStorage } from 'wallet-local-vault-example/macos-keychain'
+import {
+  MacOSKeychainWalletVaultStorage,
+  makeLocalMacOSKeychainWalletVaultStorage,
+  nativeKeychainEntryFactory,
+} from 'wallet-local-vault-example/macos-keychain'
 
 const secureRandomBytes = (byteCount: number): Uint8Array =>
   globalThis.crypto.getRandomValues(new Uint8Array(byteCount))
@@ -47,6 +51,22 @@ export const MacOSLiveWalletResources: Layer.Layer<WalletResources> =
     makePersistentLocalWalletResources(
       secureRandomBytes,
       MacOSKeychainWalletVaultStorage,
+    ),
+    MacOSWalletClipboard,
+  )
+
+const vendingTillKeychainService = 'com.foldkit.vending.till.v1'
+
+/** Live Devnet networking with a till-owned Keychain vault, not the personal wallet. */
+export const MacOSVendingTillWalletResources: Layer.Layer<WalletResources> =
+  Layer.mergeAll(
+    LiveWalletClient,
+    makePersistentLocalWalletResources(
+      secureRandomBytes,
+      makeLocalMacOSKeychainWalletVaultStorage(
+        nativeKeychainEntryFactory,
+        vendingTillKeychainService,
+      ),
     ),
     MacOSWalletClipboard,
   )

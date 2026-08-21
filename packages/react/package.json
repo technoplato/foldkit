@@ -1,0 +1,64 @@
+{
+  "name": "@foldkit/react",
+  "version": "0.1.0",
+  "description": "React and React Native host hooks for Foldkit Programs",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rimraf dist *.tsbuildinfo",
+    "build": "pnpm run clean && tsc -b tsconfig.build.json",
+    "watch": "tsc -b tsconfig.build.json --watch",
+    "lint": "pnpm --filter @foldkit/oxlint-plugin build && oxlint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:^0",
+    "react": ">=19.2.3 <20"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "jsdom": "^29.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "keywords": [
+    "foldkit",
+    "react",
+    "hooks",
+    "host"
+  ],
+  "author": "Devin Jameson",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/foldkit/foldkit.git",
+    "directory": "packages/react"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,11 +1,7 @@
 import { Layer } from 'effect'
 import { Runtime } from 'foldkit'
 import type { WalletResources } from 'wallet-core-example'
-import {
-  type Message,
-  type Model,
-  WorldProgram,
-} from 'world-core-example'
+import { type Message, type Model, WorldProgram } from 'world-core-example'
 
 import { overlay } from '@foldkit/devtools'
 

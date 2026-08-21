@@ -15,15 +15,22 @@ const instantSnapshotLogEntry = path.resolve(
   '../packages/instant/src/snapshotLog/index.ts',
 )
 
+const counterCoreBrowserEntry = path.resolve(
+  import.meta.dirname,
+  'counter/core/src/index.browser.ts',
+)
+
 /**
  * Vite aliases that keep Node Instant stores out of browser bundles.
  * A package-root file alias does not match `@foldkit/instant/browser`.
+ * counter-core-example must resolve to the browser Instant, not startLive.ts.
  */
 export const instantBrowserAlias = {
   '@foldkit/instant/browser': instantBrowserEntry,
   '@foldkit/instant/sharing': instantSharingEntry,
   '@foldkit/instant/snapshot-log': instantSnapshotLogEntry,
   '@foldkit/instant': instantBrowserEntry,
+  'counter-core-example': counterCoreBrowserEntry,
 }
 
 /** Vite resolve aliases that point foldkit subpath imports at the local source. */
@@ -249,5 +256,6 @@ export const foldkitAliases = (dirname: string) => ({
     dirname,
     '../../packages/devtools/src/index',
   ),
+  '@foldkit/react': path.resolve(dirname, '../../packages/react/src/index'),
   foldkit: path.resolve(dirname, '../../packages/foldkit/src/index'),
 })

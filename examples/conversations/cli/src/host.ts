@@ -3,8 +3,10 @@ import {
   ClickedFollow,
   ClickedGoBack,
   ClickedIngest,
+  ClickedJumpTo,
   ClickedOpenChats,
   ClickedOpenConversation,
+  ClickedOpenIdentifier,
   ClickedOpenProject,
   ClickedOpenProjects,
   ClickedOpenSettings,
@@ -12,17 +14,26 @@ import {
   ConversationsProgram,
   type Message,
   type Model,
+  UpdatedFindQuery,
+  authorDisplayName,
+  bodyKindName,
   conversationById,
   conversationsForProject,
+  focusedRow,
+  identifierFromKindValue,
   identifierLabel,
   lastActivityAt,
+  messageBodyText,
+  nextBreakdownMessageId,
+  previousBreakdownMessageId,
   projectById,
   promptCount,
   sessionCount,
   snippet,
+  transcriptBreakdown,
   visibilityLabel,
 } from 'conversations-core-example'
-import { Console, Data, Effect, Layer, Match as M } from 'effect'
+import { Console, Data, Effect, Layer, Match as M, Option } from 'effect'
 import { Runtime } from 'foldkit'
 
 export class ConversationsCliError extends Data.TaggedError(
@@ -39,6 +50,7 @@ export type ConversationsCliExecution = Readonly<{
 
 export const messageForToken = (
   token: string,
+  model: Model,
 ): Effect.Effect<Message, ConversationsCliError> => {
   const normalized = token.trim()
   if (normalized === 'projects') {
@@ -59,6 +71,24 @@ export const messageForToken = (
   if (normalized === 'stop') {
     return Effect.succeed(ClickedStopFollow())
   }
+  if (normalized === 'next') {
+    return jumpToken(
+      nextBreakdownMessageId(
+        transcriptBreakdown(model),
+        model.maybeFocusMessageId,
+      ),
+      'next',
+    )
+  }
+  if (normalized === 'prev') {
+    return jumpToken(
+      previousBreakdownMessageId(
+        transcriptBreakdown(model),
+        model.maybeFocusMessageId,
+      ),
+      'prev',
+    )
+  }
   if (normalized.startsWith('project:')) {
     return Effect.succeed(
       ClickedOpenProject({ projectId: normalized.slice('project:'.length) }),
@@ -70,6 +100,9 @@ export const messageForToken = (
         conversationId: normalized.slice('open:'.length),
       }),
     )
+  }
+  if (normalized.startsWith('identifier:')) {
+    return identifierToken(normalized.slice('identifier:'.length))
   }
   if (normalized.startsWith('follow:')) {
     return Effect.succeed(
@@ -83,6 +116,16 @@ export const messageForToken = (
       }),
     )
   }
+  if (normalized.startsWith('find:')) {
+    return Effect.succeed(
+      UpdatedFindQuery({ query: normalized.slice('find:'.length) }),
+    )
+  }
+  if (normalized.startsWith('jump:')) {
+    return Effect.succeed(
+      ClickedJumpTo({ messageId: normalized.slice('jump:'.length) }),
+    )
+  }
   return Effect.fail(
     new ConversationsCliError({
       reason: `Unknown conversations token "${token}"`,
@@ -90,17 +133,54 @@ export const messageForToken = (
   )
 }
 
+const jumpToken = (
+  maybeMessageId: Option.Option<string>,
+  token: string,
+): Effect.Effect<Message, ConversationsCliError> =>
+  Option.match(maybeMessageId, {
+    onNone: () =>
+      Effect.fail(
+        new ConversationsCliError({
+          reason: `No ${token} breakdown row on this screen`,
+        }),
+      ),
+    onSome: messageId => Effect.succeed(ClickedJumpTo({ messageId })),
+  })
+
+const identifierToken = (
+  rest: string,
+): Effect.Effect<Message, ConversationsCliError> => {
+  const colon = rest.indexOf(':')
+  const kind = colon === -1 ? rest : rest.slice(0, colon)
+  const value = colon === -1 ? '' : rest.slice(colon + 1)
+  const identifier = identifierFromKindValue(kind, value)
+  if (identifier === undefined) {
+    return Effect.fail(
+      new ConversationsCliError({
+        reason: `Unknown identifier "${rest}"`,
+      }),
+    )
+  }
+  return Effect.succeed(ClickedOpenIdentifier({ identifier }))
+}
+
 const runMessages = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   initialModel: Model,
-  messages: ReadonlyArray<Message>,
-): Effect.Effect<Model> =>
+  tokens: ReadonlyArray<string>,
+): Effect.Effect<
+  { messages: ReadonlyArray<Message>; finalModel: Model },
+  ConversationsCliError
+> =>
   Effect.gen(function* () {
+    const messages: Array<Message> = []
     let nextModel = initialModel
-    for (const message of messages) {
+    for (const token of tokens) {
+      const message = yield* messageForToken(token, nextModel)
+      messages.push(message)
       nextModel = yield* runtime.run(message)
     }
-    return nextModel
+    return { messages, finalModel: nextModel }
   })
 
 export const executeConversationsInput = (
@@ -115,8 +195,11 @@ export const executeConversationsInput = (
         }),
       )
       const initialModel = yield* runtime.initialization
-      const messages = yield* Effect.forEach(tokens, messageForToken)
-      const finalModel = yield* runMessages(runtime, initialModel, messages)
+      const { messages, finalModel } = yield* runMessages(
+        runtime,
+        initialModel,
+        tokens,
+      )
       yield* runtime.shutdown
       return { initialModel, messages, finalModel }
     }),
@@ -162,20 +245,19 @@ export const describeScreen = (model: Model): string =>
           model.mode._tag === 'LiveFollowing'
             ? `following ${model.mode.conversationId}`
             : 'liveIdle'
+        const focus = Option.match(focusedRow(model), {
+          onNone: () => 'focus none',
+          onSome: row =>
+            `focus ${row.id}\n${authorDisplayName(row.author)}\n${messageBodyText(row)}`,
+        })
+        const find =
+          model.findQuery.trim() === '' ? 'find off' : `find ${model.findQuery}`
         return [
-          `${conversation.title} · ${visibilityLabel(conversation.visibility)} · ${follow}`,
-          ...conversation.messages.map(row => {
-            if (row.body._tag === 'BodyText') {
-              return row.body.content
-            }
-            if (row.body._tag === 'BodyThought') {
-              return `thinking: ${row.body.content}`
-            }
-            if (row.body._tag === 'BodyTool') {
-              return `tool ${row.body.name}`
-            }
-            return `edit ${row.body.path}`
-          }),
+          `${conversation.title} · ${visibilityLabel(conversation.visibility)} · ${follow} · ${find} · ${focus}`,
+          ...transcriptBreakdown(model).map(
+            entry =>
+              `${entry.messageId} ${bodyKindName(entry.bodyKind)} ${entry.label}`,
+          ),
         ].join('\n')
       },
       Settings: () =>
@@ -192,12 +274,16 @@ const formatMessage = (message: Message): string =>
       ClickedOpenProject: ({ projectId }) => `ClickedOpenProject(${projectId})`,
       ClickedOpenConversation: ({ conversationId }) =>
         `ClickedOpenConversation(${conversationId})`,
+      ClickedOpenIdentifier: ({ identifier }) =>
+        `ClickedOpenIdentifier(${identifier._tag})`,
       ClickedGoBack: () => 'ClickedGoBack()',
       ClickedOpenSettings: () => 'ClickedOpenSettings()',
       ClickedFollow: ({ conversationId }) => `ClickedFollow(${conversationId})`,
       ClickedStopFollow: () => 'ClickedStopFollow()',
       ClickedDeleteConversation: ({ conversationId }) =>
         `ClickedDeleteConversation(${conversationId})`,
+      UpdatedFindQuery: ({ query }) => `UpdatedFindQuery(${query})`,
+      ClickedJumpTo: ({ messageId }) => `ClickedJumpTo(${messageId})`,
       ClickedIngest: () => 'ClickedIngest()',
       Ingested: ({ conversationId }) => `Ingested(${conversationId})`,
     }),

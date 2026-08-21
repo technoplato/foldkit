@@ -1,23 +1,27 @@
-import { Runtime } from "foldkit"
+import { Runtime } from 'foldkit'
 import {
-  TranscribeProgram,
   StaticTranscribeResources,
+  TranscribeProgram,
   makeLiveTranscribeResources,
-} from "transcribe-core-example"
+} from 'transcribe-core-example'
 
-import { overlay } from "@foldkit/devtools"
+import { overlay } from '@foldkit/devtools'
+import { withHostedIdentity } from '@foldkit/instant'
 
-import { transcribeDatabase } from "./database.js"
-import { view } from "./view.js"
+import { transcribeDatabase } from './database.js'
+import { view } from './view.js'
 
 const database = transcribeDatabase()
 const resources =
   database === undefined
     ? StaticTranscribeResources
-    : makeLiveTranscribeResources(database as never)
+    : withHostedIdentity(
+        makeLiveTranscribeResources(database as never),
+        database,
+      )
 
 const application = Runtime.makeFoldkitApplication({
-  container: document.getElementById("root"),
+  container: document.getElementById('root'),
   devTools: { overlay },
   program: TranscribeProgram,
   resources,

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@effect/platform-node": "4.0.0-beta.97",
+    "@foldkit/instant": "workspace:*",
     "@instantdb/core": "1.0.53",
     "orbit-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",

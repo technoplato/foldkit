@@ -8,8 +8,10 @@ import {
   FailedSaveBookmark,
   FailedSaveNote,
   FailedSaveProgress,
+  FailedSharedNote,
   FailedSignIn,
   HeardCatalog,
+  HeardSharedNote,
   HeardSignedIn,
   HeardUserData,
   Note,
@@ -18,6 +20,10 @@ import {
 import { Effect, Option, Schema as S } from 'effect'
 import { Command } from 'foldkit'
 
+import {
+  ensureHostedInstantSession,
+  noteViewRuleParams,
+} from '@foldkit/instant'
 import { id } from '@instantdb/core'
 
 import type { BooksInstantDatabase } from '../instant.schema.js'
@@ -69,9 +75,18 @@ const requireTx = <T>(value: T | undefined, label: string): T => {
   return value
 }
 
+const accountName = (email: string | null | undefined): string => {
+  if (email === undefined || email === null || email === '') {
+    return 'Guest'
+  } else {
+    return email
+  }
+}
+
 const ensureAccount = async (
   database: BooksInstantDatabase,
   userId: string,
+  name: string,
 ): Promise<string> => {
   const existing = await database.queryOnce(accountQuery(userId))
   const account = existing.data.accounts[0]
@@ -87,7 +102,7 @@ const ensureAccount = async (
   await database.transact([
     requireTx(database.tx.accounts[accountId], 'accounts')
       .update({
-        name: 'Guest',
+        name,
         kind: 'person',
         life: 'alive',
         accessKind: 'root',
@@ -105,15 +120,15 @@ const ensureAccount = async (
 
 const signInAndEnsureAccount = async (): Promise<string> => {
   const database = requireDatabase()
-  let user = await database.getAuth()
+  let user = await ensureHostedInstantSession(database)
   if (user == null) {
     await database.auth.signInAsGuest()
     user = await database.getAuth()
   }
   if (user == null) {
-    throw new Error('guest sign-in returned no user')
+    throw new Error('sign-in returned no user')
   }
-  return ensureAccount(database, user.id)
+  return ensureAccount(database, user.id, accountName(user.email))
 }
 
 const loadCatalogRows = async (): Promise<ReadonlyArray<unknown>> => {
@@ -135,7 +150,7 @@ const loadAccountRow = async (accountId: string): Promise<unknown> => {
   )
 }
 
-/** Restores a persisted Instant guest session, if one exists. */
+/** Restores a persisted Instant session, or signs in through hosted Access. */
 export const RestoreSession = Command.define(
   'RestoreSession',
   HeardSignedIn,
@@ -147,7 +162,7 @@ export const RestoreSession = Command.define(
       return FailedSignIn()
     }
     const user = yield* Effect.tryPromise({
-      try: () => database.getAuth(),
+      try: () => ensureHostedInstantSession(database),
       catch: () => new Error('auth restore failed'),
     }).pipe(Effect.option)
     if (user._tag === 'None' || user.value == null) {
@@ -155,7 +170,8 @@ export const RestoreSession = Command.define(
     }
     const authUser = user.value
     const accountId = yield* Effect.tryPromise({
-      try: () => ensureAccount(database, authUser.id),
+      try: () =>
+        ensureAccount(database, authUser.id, accountName(authUser.email)),
       catch: () => new Error('account restore failed'),
     }).pipe(Effect.option)
     if (accountId._tag === 'None') {
@@ -165,7 +181,7 @@ export const RestoreSession = Command.define(
   }),
 )
 
-/** Signs in as an Instant guest and ensures an account row. */
+/** Signs in through hosted Access, then Instant guest when Access is absent. */
 export const SignInGuest = Command.define(
   'SignInGuest',
   HeardSignedIn,
@@ -365,10 +381,15 @@ export const DeleteBookmark = Command.define(
 /** Persists one note. */
 export const SaveNote = Command.define(
   'SaveNote',
-  { accountId: S.String, note: Note },
+  {
+    accountId: S.String,
+    audience: S.Literals(['public', 'unlisted', 'private']),
+    note: Note,
+    shareSecret: S.Option(S.String),
+  },
   CompletedSaveNote,
   FailedSaveNote,
-)(({ accountId, note }) =>
+)(({ accountId, audience, note, shareSecret }) =>
   Effect.gen(function* () {
     const result = yield* Effect.tryPromise({
       try: async () => {
@@ -407,9 +428,21 @@ export const SaveNote = Command.define(
               relativeMs,
               createdAt: note.createdAt === 0 ? now : note.createdAt,
               updatedAt: now,
+              audience,
             })
             .link(links),
         )
+        if (Option.isSome(shareSecret)) {
+          const linkId = id()
+          await database.transact(
+            requireTx(database.tx.noteLinks[linkId], 'noteLinks')
+              .update({
+                secret: shareSecret.value,
+                role: 'reader',
+              })
+              .link({ note: noteId }),
+          )
+        }
         return CompletedSaveNote()
       },
       catch: () => new Error('save note failed'),
@@ -446,5 +479,63 @@ export const DeleteNote = Command.define(
       return FailedSaveNote()
     }
     return result.value
+  }),
+)
+
+/** Loads one note with Instant ruleParams (knownDocId + optional secret). */
+export const LoadSharedNote = Command.define(
+  'LoadSharedNote',
+  { noteId: S.String, secret: S.Option(S.String) },
+  HeardSharedNote,
+  FailedSharedNote,
+)(({ noteId, secret }) =>
+  Effect.gen(function* () {
+    const result = yield* Effect.tryPromise({
+      try: async () => {
+        const database = requireDatabase()
+        const ruleParams = noteViewRuleParams({
+          subjectId: noteId,
+          ...(Option.isSome(secret) ? { secret: secret.value } : {}),
+        })
+        const queried = await database.queryOnce(
+          {
+            notes: {
+              $: { where: { id: noteId } },
+              item: {},
+              chapter: {},
+              rendition: {},
+            },
+          },
+          { ruleParams },
+        )
+        return queried.data.notes[0]
+      },
+      catch: () => new Error('shared note failed'),
+    }).pipe(Effect.option)
+    if (result._tag === 'None' || result.value === undefined) {
+      return HeardSharedNote({ note: Option.none() })
+    }
+    const row = result.value
+    return HeardSharedNote({
+      note: Option.some({
+        id: row.id,
+        itemId: row.item?.id ?? '',
+        body: row.body,
+        chapterId:
+          row.chapter?.id === undefined
+            ? Option.none()
+            : Option.some(row.chapter.id),
+        renditionId:
+          row.rendition?.id === undefined
+            ? Option.none()
+            : Option.some(row.rendition.id),
+        relative:
+          row.relativeMs === undefined || row.relativeMs === null
+            ? Option.none()
+            : Option.some(row.relativeMs / 1000),
+        createdAt: Number(row.createdAt),
+        updatedAt: Number(row.updatedAt),
+      }),
+    })
   }),
 )

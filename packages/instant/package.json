@@ -9,6 +9,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "react-native": "./dist/browser.js",
+      "browser": "./dist/browser.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
@@ -26,6 +28,11 @@
       "types": "./dist/snapshotLog/index.d.ts",
       "import": "./dist/snapshotLog/index.js",
       "default": "./dist/snapshotLog/index.js"
+    },
+    "./hosted-identity/vite": {
+      "types": "./dist/hostedIdentity/vite.d.ts",
+      "import": "./dist/hostedIdentity/vite.js",
+      "default": "./dist/hostedIdentity/vite.js"
     }
   },
   "sideEffects": false,
@@ -34,15 +41,25 @@
   ],
   "scripts": {
     "clean": "rimraf dist *.tsbuildinfo",
-    "build": "pnpm run clean && tsc -b tsconfig.build.json",
+    "compile": "tsc -b tsconfig.build.json",
+    "build": "pnpm run clean && pnpm run compile",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@instantdb/admin": "1.0.53",
-    "@instantdb/core": "1.0.53",
+    "@instantdb/admin": "1.0.65",
+    "@instantdb/core": "1.0.65",
     "effect": "4.0.0-beta.97",
-    "foldkit": "workspace:^0"
+    "foldkit": "workspace:^0",
+    "vite": "^7.0.0 || ^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@instantdb/admin": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@noble/curves": "2.2.0",
@@ -50,12 +67,14 @@
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-beta.97",
-    "@instantdb/admin": "1.0.53",
-    "@instantdb/core": "1.0.53",
+    "@instantdb/admin": "1.0.65",
+    "@instantdb/core": "1.0.65",
+    "@types/node": "^25.9.3",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
     "rimraf": "^6.1.3",
     "typescript": "^6.0.3",
+    "vite": "^8.0.16",
     "vitest": "^4.1.9"
   },
   "keywords": [
@@ -77,10 +96,5 @@
   },
   "engines": {
     "node": ">=20.19.0 || >=22.12.0"
-  },
-  "peerDependenciesMeta": {
-    "@instantdb/admin": {
-      "optional": true
-    }
   }
 }

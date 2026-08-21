@@ -94,6 +94,14 @@ body {
   overflow-y: auto;
   line-height: 1.9;
   padding-right: 0.5rem;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  font-size: 1.15rem;
+}
+
+.chapter-row {
+  border: 0;
+  background: transparent;
+  color: inherit;
 }
 
 .reader-layout {

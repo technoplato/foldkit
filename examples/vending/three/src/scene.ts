@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import type { ClipLine } from 'vending-core-example'
 
 import { createMachineMotion } from './animation/machine-motion.js'
 import {
@@ -21,12 +22,17 @@ import type { ThreeMaterial, ThreeMesh, ThreeObject3D } from './three-compat.js'
 
 export type VendingSceneState = Readonly<{
   digits: string
+  lastControl: string | undefined
   skuLabel: string
   listPriceDisplay: string
   vendPhase: string
   address: string | undefined
+  clipboard: string
+  copyLabel: string
   qrDataUrl: string | undefined
   incomingCount: number
+  clipPlayback: string
+  clipLines: ReadonlyArray<ClipLine>
 }>
 
 export type VendingSceneCallbacks = Readonly<{
@@ -112,26 +118,35 @@ export const createVendingScene = (
 
   let latestState: VendingSceneState = {
     digits: '',
+    lastControl: undefined,
     skuLabel: '',
     listPriceDisplay: '14.28',
     vendPhase: 'Idle',
     address: undefined,
+    clipboard: 'idle',
+    copyLabel: 'Copy Solana Pay',
     qrDataUrl: undefined,
     incomingCount: 0,
+    clipPlayback: 'Idle',
+    clipLines: [],
   }
   let paintedDigits = ''
   let paintedPhase = ''
+  let paintedControl: string | undefined
   let paintedPrice = '14.28'
+  let paintedClipKey = ''
   let lastQrUrl: string | undefined
   let frameHandle = 0
   let lastTime = performance.now()
   let elapsedSeconds = 0
+  let heroLatched = false
   const pointer = new THREE.Vector2()
   const raycaster = new THREE.Raycaster()
+  const tapTravelLimit = 32
   let pointerDownX = 0
   let pointerDownY = 0
-  let isOrbiting = false
   let isPointerDown = false
+  let pressedSpec: KeySpec | undefined
 
   const resize = (): void => {
     const width = container.clientWidth || 1
@@ -140,21 +155,29 @@ export const createVendingScene = (
     cameraRig.setSize(width, height)
   }
 
+  const specFromObject = (object: ThreeObject3D): KeySpec | undefined => {
+    let current: ThreeObject3D | null = object
+    while (current !== null) {
+      const spec = current.userData['spec']
+      if (spec !== undefined) {
+        return spec as KeySpec
+      }
+      current = current.parent
+    }
+    return undefined
+  }
+
   const pickSpec = (event: PointerEvent): KeySpec | undefined => {
     const rect = container.getBoundingClientRect()
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
     raycaster.setFromCamera(pointer, cameraRig.camera)
-    const hits = raycaster.intersectObjects(assembly.clickable, false)
+    const hits = raycaster.intersectObjects(assembly.clickable, true)
     const first = hits.at(0)
     if (first === undefined) {
       return undefined
     }
-    const spec = first.object.userData['spec']
-    if (spec === undefined) {
-      return undefined
-    }
-    return spec as KeySpec
+    return specFromObject(first.object)
   }
 
   const emitSpec = (spec: KeySpec): void => {
@@ -173,35 +196,39 @@ export const createVendingScene = (
     isPointerDown = true
     pointerDownX = event.clientX
     pointerDownY = event.clientY
-    const spec = pickSpec(event)
-    if (spec !== undefined) {
-      motion.notePress(spec.label)
-      container.setPointerCapture(event.pointerId)
-      return
+    pressedSpec = pickSpec(event)
+    if (pressedSpec !== undefined) {
+      motion.notePress(pressedSpec.label)
     }
-    isOrbiting = true
     container.setPointerCapture(event.pointerId)
   }
 
   const onPointerMove = (event: PointerEvent): void => {
-    if (!isPointerDown || !isOrbiting) {
+    if (!isPointerDown || pressedSpec !== undefined) {
       return
     }
-    cameraRig.orbitBy(event.movementX, event.movementY)
-  }
-
-  const onPointerUp = (event: PointerEvent): void => {
-    const spec = pickSpec(event)
     const travel = Math.hypot(
       event.clientX - pointerDownX,
       event.clientY - pointerDownY,
     )
-    if (spec !== undefined && travel < 6) {
+    if (travel < tapTravelLimit) {
+      return
+    }
+    cameraRig.orbitBy(event.movementX * 0.55, event.movementY * 0.55)
+  }
+
+  const onPointerUp = (event: PointerEvent): void => {
+    const spec = pickSpec(event) ?? pressedSpec
+    const travel = Math.hypot(
+      event.clientX - pointerDownX,
+      event.clientY - pointerDownY,
+    )
+    if (spec !== undefined && travel < tapTravelLimit) {
       emitSpec(spec)
     }
     motion.releasePress()
-    isOrbiting = false
     isPointerDown = false
+    pressedSpec = undefined
   }
 
   const onWheel = (event: WheelEvent): void => {
@@ -240,10 +267,24 @@ export const createVendingScene = (
       paintedDigits = state.digits
       paintedPhase = state.vendPhase
     }
+    if (state.lastControl !== paintedControl) {
+      assembly.setKeyFeedback(state.lastControl)
+      paintedControl = state.lastControl
+    }
     if (state.listPriceDisplay !== paintedPrice) {
       assembly.setPriceTexture(createPriceTexture(state.listPriceDisplay))
       paintedPrice = state.listPriceDisplay
     }
+  }
+
+  const refreshClip = (state: VendingSceneState): void => {
+    const locked = state.clipPlayback === 'Idle'
+    const key = `${state.clipPlayback}:${String(state.clipLines.length)}`
+    if (key === paintedClipKey) {
+      return
+    }
+    paintedClipKey = key
+    assembly.paintClipScreen(state.clipLines, locked)
   }
 
   const refreshQr = (state: VendingSceneState): void => {
@@ -272,13 +313,25 @@ export const createVendingScene = (
     elapsedSeconds += deltaSeconds
     const state = latestState
     refreshDisplay(state)
+    refreshClip(state)
     refreshQr(state)
     cameraRig.update(deltaSeconds)
     const doorMoved = motion.update(
       state.vendPhase,
+      state.lastControl,
       deltaSeconds,
       elapsedSeconds,
     )
+    if (motion.presented() && !heroLatched) {
+      heroLatched = true
+      cameraRig.setShot('phone-hero', assembly.clipPresent)
+      lights.invalidate()
+    }
+    if (state.vendPhase === 'Idle' && heroLatched) {
+      heroLatched = false
+      cameraRig.setShot('machine')
+      lights.invalidate()
+    }
     if (doorMoved) {
       lights.invalidate()
     }

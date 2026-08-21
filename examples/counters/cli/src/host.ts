@@ -158,6 +158,16 @@ const openNavigationCarrier = (
     return [resolved.success]
   })
 
+const openTape = (): Effect.Effect<CountersTape, CountersCliError> =>
+  resolveCountersTape().pipe(
+    Effect.mapError(
+      error =>
+        new CountersCliError({
+          message: error.message,
+        }),
+    ),
+  )
+
 const runTokens = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   tokens: ReadonlyArray<string>,
@@ -206,12 +216,17 @@ export const executeCounters = (
 ): Effect.Effect<CountersCliExecution, CountersCliResolutionError> =>
   Effect.scoped(
     Effect.gen(function* () {
-      const tape = yield* Effect.orDie(resolveCountersTape())
+      const tape = yield* openTape()
       const mode = process.env['COUNTERS_TAPE'] ?? process.env['COUNTER_TAPE']
       const resources =
         mode === 'instant' ? instantCountersResources : StaticCounterFactClient
-      const opened = yield* Effect.orDie(
-        openCountersTapeRuntime(tape, resources),
+      const opened = yield* openCountersTapeRuntime(tape, resources).pipe(
+        Effect.mapError(
+          () =>
+            new CountersCliError({
+              message: 'Cannot open the Instant tape.',
+            }),
+        ),
       )
       const initialModel = opened.runtime.readModel()
       const navigationMessages = yield* openNavigationCarrier(

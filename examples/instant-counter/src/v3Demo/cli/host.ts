@@ -12,13 +12,13 @@ import {
   multipleCountersV3SessionChrome,
   parseMultipleCountersV3ModeCommand,
 } from '../client/sessionChrome.js'
-import { parseMultipleCountersV3DebugSubjectToken } from '../shared/debugLogin.js'
 import {
   type MultipleCountersV3NodeSession,
   formatMultipleCountersV3NodeScreen,
   loginMultipleCountersV3NodeDebugSubject,
   makeMultipleCountersV3NodeSession,
 } from '../node/host.js'
+import { parseMultipleCountersV3DebugSubjectToken } from '../shared/debugLogin.js'
 
 const canonicalListDestinationUri = '/counters'
 const nodeSurface = 'cli' as const
@@ -169,7 +169,10 @@ export const runMultipleCountersV3CliFollow = (
   )
 
 /** Signs the persisted Instant Client out. */
-export const runMultipleCountersV3CliLogout = (): Effect.Effect<void, unknown> =>
+export const runMultipleCountersV3CliLogout = (): Effect.Effect<
+  void,
+  unknown
+> =>
   Effect.scoped(
     Effect.gen(function* () {
       const session = yield* makeMultipleCountersV3NodeSession(nodeSurface)

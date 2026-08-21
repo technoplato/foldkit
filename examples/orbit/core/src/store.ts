@@ -31,9 +31,10 @@ export type OrbitStoreService = Readonly<{
 }>
 
 /** An injected Orbit snap whose implementation is selected by the host. */
-export class OrbitStore extends Context.Service<OrbitStore, OrbitStoreService>()(
-  'orbit-core-example/OrbitStore',
-) {}
+export class OrbitStore extends Context.Service<
+  OrbitStore,
+  OrbitStoreService
+>()('orbit-core-example/OrbitStore') {}
 
 const snapQuery = { foldkitSnap: {} } as const
 

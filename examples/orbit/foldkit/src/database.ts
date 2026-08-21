@@ -1,5 +1,6 @@
+import { type OrbitInstantDatabase, schema } from 'orbit-core-example'
+
 import { init } from '@instantdb/core'
-import { schema, type OrbitInstantDatabase } from 'orbit-core-example'
 
 const appId = import.meta.env.VITE_INSTANT_APP_ID
 

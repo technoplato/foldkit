@@ -256,7 +256,7 @@ const solanaNetwork = (
       displayName: 'Solana',
       symbol: 'SOL',
       atomicUnitName: 'lamport',
-      suggestedTestTransferAtomicUnits: '1',
+      suggestedTestTransferAtomicUnits: '1000000',
       decimalPlaces: 9,
       kind: NativeAsset.make({}),
     }),

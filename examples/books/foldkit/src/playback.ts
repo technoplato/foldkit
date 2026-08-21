@@ -4,33 +4,41 @@ import {
   CompletedNavigateInternal,
   CompletedPauseAudio,
   CompletedPlayAudio,
+  CompletedSaveNote,
   CompletedScrollCurrentWord,
   CompletedSeekAudio,
   FailedFollowAlong,
   HeardFollowAlong,
   Message,
   Model,
+  Seconds,
   Word,
+  accountIdOf,
   applyNavigationTarget,
   chapterAt,
   update as coreUpdate,
   initialModel,
   itemById,
   pathToNavigationTarget,
+  playOf,
   progressForItem,
   restore,
+  screenOf,
   screenToPath,
 } from 'books-core-example'
-import { Effect, Match as M, Option, Schema as S } from 'effect'
+import { Array as Arr, Effect, Match as M, Option, Schema as S } from 'effect'
 import { Command, Program } from 'foldkit'
 import { back, load, pushUrl, replaceUrl } from 'foldkit/navigation'
 import { toString as urlToString } from 'foldkit/url'
+
+import { parseSharePath } from '@foldkit/instant'
 
 import { booksDatabase } from './database.js'
 import {
   DeleteBookmark,
   DeleteNote,
   LoadCatalog,
+  LoadSharedNote,
   LoadUserData,
   RestoreSession,
   SaveBookmark,
@@ -124,7 +132,7 @@ export const PauseAudio = Command.define(
 /** Seeks the mounted reader audio element. */
 export const SeekAudio = Command.define(
   'SeekAudio',
-  { seconds: S.Number },
+  { seconds: Seconds },
   CompletedSeekAudio,
 )(({ seconds }) =>
   Effect.sync(() => {
@@ -158,6 +166,22 @@ const HistoryBack = Command.define(
   'HistoryBack',
   CompletedHistoryBack,
 )(back().pipe(Effect.as(CompletedHistoryBack())))
+
+const CopySharePath = Command.define(
+  'CopySharePath',
+  { path: S.String },
+  CompletedSaveNote,
+)(({ path }) =>
+  Effect.gen(function* () {
+    if (globalThis.navigator?.clipboard !== undefined) {
+      yield* Effect.tryPromise({
+        try: () => globalThis.navigator.clipboard.writeText(path),
+        catch: () => new Error('copy failed'),
+      }).pipe(Effect.option)
+    }
+    return CompletedSaveNote()
+  }),
+)
 
 const ScrollFollowLive = Command.define(
   'ScrollFollowLive',
@@ -196,8 +220,8 @@ const syncUrlCommand = (
   next: Model,
   mode: 'push' | 'replace',
 ): Command.Command<Message> | undefined => {
-  const from = screenToPath(previous.screen)
-  const to = screenToPath(next.screen)
+  const from = screenToPath(screenOf(previous))
+  const to = screenToPath(screenOf(next))
   if (from === to) {
     return undefined
   }
@@ -215,25 +239,31 @@ const PROGRESS_SAVE_MS = 5000
 let lastProgressSaveAt = 0
 
 const progressFromPlay = (model: Model) => {
-  if (model.play._tag === 'PlayIdle') {
+  const play = playOf(model)
+  if (play._tag === 'PlayIdle') {
     return undefined
   }
-  const existing = progressForItem(model.progress, model.play.itemId)
-  const item = itemById(model.items, model.play.itemId)
-  const chapter =
-    item === undefined
-      ? Option.none()
-      : chapterAt(item.chapters, model.play.mediaPosition)
+  const existing = progressForItem(model.progress, play.itemId)
+  const maybeItem = itemById(model.items, play.itemId)
+  const maybeChapter = Option.flatMap(maybeItem, item =>
+    chapterAt(item.chapters, play.mediaPosition),
+  )
   return {
-    id: Option.isSome(existing)
-      ? existing.value.id
-      : `progress-${model.play.itemId}`,
-    itemId: model.play.itemId,
-    chapterId: Option.isSome(chapter)
-      ? chapter.value.id
-      : (item?.chapters[0]?.id ?? 'chapter-unknown'),
-    renditionId: model.play.renditionId,
-    relative: model.play.mediaPosition,
+    id: Option.isSome(existing) ? existing.value.id : `progress-${play.itemId}`,
+    itemId: play.itemId,
+    chapterId: Option.match(maybeChapter, {
+      onSome: chapter => chapter.id,
+      onNone: () =>
+        Option.match(
+          Option.flatMap(maybeItem, item => Arr.head(item.chapters)),
+          {
+            onSome: chapter => chapter.id,
+            onNone: () => 'chapter-unknown',
+          },
+        ),
+    }),
+    renditionId: play.renditionId,
+    relative: play.mediaPosition,
     finished: false,
     hidden: false,
     startedAt: Option.isSome(existing) ? existing.value.startedAt : 0,
@@ -274,6 +304,8 @@ export const update = (model: Model, message: Message): Result => {
 
   const [next, commands] = coreUpdate(model, message)
   const extra: Array<Command.Command<Message>> = []
+  const nextPlay = playOf(next)
+  const nextScreen = screenOf(next)
   if (message._tag === 'CompletedScrollCurrentWord') {
     lastProgrammaticScrollAt = Date.now()
   }
@@ -282,19 +314,19 @@ export const update = (model: Model, message: Message): Result => {
   }
   if (
     message._tag === 'PressedStartPlayback' &&
-    next.play._tag === 'PlayPlaying'
+    nextPlay._tag === 'PlayPlaying'
   ) {
-    extra.push(SeekAudio({ seconds: next.play.mediaPosition }), PlayAudio())
+    extra.push(SeekAudio({ seconds: nextPlay.mediaPosition }), PlayAudio())
   }
   if (
     message._tag === 'PressedResumePlayback' &&
-    next.play._tag === 'PlayPlaying'
+    nextPlay._tag === 'PlayPlaying'
   ) {
     extra.push(PlayAudio())
   }
   if (
     message._tag === 'PressedPausePlayback' &&
-    next.play._tag === 'PlayPaused'
+    nextPlay._tag === 'PlayPaused'
   ) {
     extra.push(PauseAudio())
   }
@@ -303,6 +335,9 @@ export const update = (model: Model, message: Message): Result => {
   }
   if (message._tag === 'PressedSeekWord') {
     extra.push(SeekAudio({ seconds: message.start }))
+  }
+  if (message._tag === 'PressedOpenChapter' && nextPlay._tag !== 'PlayIdle') {
+    extra.push(SeekAudio({ seconds: nextPlay.mediaPosition }))
   }
   if (message._tag === 'PressedOpenBookmark') {
     const bookmark = next.bookmarks.find(row => row.id === message.bookmarkId)
@@ -320,8 +355,9 @@ export const update = (model: Model, message: Message): Result => {
     if (message._tag === 'HeardSignedIn') {
       extra.push(LoadCatalog(), LoadUserData({ accountId: message.accountId }))
     }
-    if (Option.isSome(next.accountId)) {
-      const accountId = next.accountId.value
+    const maybeAccountId = accountIdOf(next)
+    if (Option.isSome(maybeAccountId)) {
+      const accountId = maybeAccountId.value
       if (
         message._tag === 'PressedPausePlayback' ||
         message._tag === 'PressedStopPlayback' ||
@@ -333,8 +369,8 @@ export const update = (model: Model, message: Message): Result => {
           progressFromPlay(next) ??
           next.progress.find(
             progress =>
-              next.play._tag !== 'PlayIdle' &&
-              progress.itemId === next.play.itemId,
+              nextPlay._tag !== 'PlayIdle' &&
+              progress.itemId === nextPlay.itemId,
           )
         if (row !== undefined) {
           extra.push(SaveProgress({ accountId, progress: row }))
@@ -342,7 +378,7 @@ export const update = (model: Model, message: Message): Result => {
       }
       if (
         message._tag === 'HeardPlaybackPosition' &&
-        next.play._tag === 'PlayPlaying'
+        nextPlay._tag === 'PlayPlaying'
       ) {
         const now = Date.now()
         if (now - lastProgressSaveAt >= PROGRESS_SAVE_MS) {
@@ -371,7 +407,15 @@ export const update = (model: Model, message: Message): Result => {
       ) {
         const note = next.notes[next.notes.length - 1]
         if (note !== undefined) {
-          extra.push(SaveNote({ accountId, note }))
+          const parsed = Option.flatMap(next.lastSharePath, parseSharePath)
+          extra.push(
+            SaveNote({
+              accountId,
+              audience: next.noteAudience,
+              note,
+              shareSecret: Option.flatMap(parsed, path => path.secret),
+            }),
+          )
         }
       }
       if (message._tag === 'PressedDeleteNote') {
@@ -391,6 +435,8 @@ export const update = (model: Model, message: Message): Result => {
   ])
   const pushTags = new Set([
     'PressedOpenBook',
+    'PressedOpenChapter',
+    'PressedStartPlayback',
     'PressedOpenSearch',
     'PressedOpenSettings',
     'PressedOpenAccounts',
@@ -411,13 +457,32 @@ export const update = (model: Model, message: Message): Result => {
       }
     }
   }
+  if (
+    nextScreen._tag === 'SharedNote' &&
+    (message._tag === 'ChangedUrl' ||
+      message._tag === 'OpenedNavigation' ||
+      message._tag === 'HeardSignedIn')
+  ) {
+    extra.push(
+      LoadSharedNote({
+        noteId: nextScreen.noteId,
+        secret: nextScreen.secret,
+      }),
+    )
+  }
+  if (
+    message._tag === 'PressedCopySharePath' &&
+    Option.isSome(next.lastSharePath)
+  ) {
+    extra.push(CopySharePath({ path: next.lastSharePath.value }))
+  }
   return [next, [...commands, ...extra]]
 }
 
 /** Foldkit host Program: Instant catalog when configured, local follow-along otherwise. */
 export const BooksFoldkitProgram = Program.make({
   id: 'books',
-  version: 4,
+  version: 5,
   Model,
   Message,
   init: (): Result => {
@@ -431,7 +496,19 @@ export const BooksFoldkitProgram = Program.make({
       target === undefined
         ? withAppearance
         : applyNavigationTarget(withAppearance, target),
-      booksDatabase() === undefined ? [LoadFollowAlong()] : [RestoreSession()],
+      booksDatabase() === undefined
+        ? [LoadFollowAlong()]
+        : [
+            RestoreSession(),
+            ...(target !== undefined && target._tag === 'NoteShareTarget'
+              ? [
+                  LoadSharedNote({
+                    noteId: target.noteId,
+                    secret: target.secret,
+                  }),
+                ]
+              : []),
+          ],
     ]
   },
   restore,

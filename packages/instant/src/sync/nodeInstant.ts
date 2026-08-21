@@ -1,15 +1,17 @@
-import { Processor, Runtime } from 'foldkit'
+import { Runtime } from 'foldkit'
 
 import { makeAdminSnapshotLogTransport } from '../snapshotLog/admin.js'
 import { makeInstantCoreSnapshotLogTransport } from '../snapshotLog/core.js'
 import {
   type InstantOptions,
+  engineProcessorId,
   fromTransport,
   missingAdminToken,
 } from './fromTransport.js'
 
 export {
   FoldkitCounterV01,
+  engineProcessorId,
   fromTransport,
   instantCauseString,
   type InstantApp,
@@ -33,7 +35,7 @@ const adminTokenFromEnv = (): string | undefined => {
  * Instant has no Model. Runtime.start reads and writes through Schemas.
  */
 export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
-  const processor = Processor.Host.print(options.processor)
+  const processor = engineProcessorId(options)
   if (options.transport !== undefined) {
     return fromTransport(options.transport, processor)
   }

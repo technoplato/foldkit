@@ -21,6 +21,7 @@ import type {
   ReceivingInstruction,
   WalletAccount,
   WalletDataSource,
+  WalletFailure,
 } from './model.js'
 import { sendNetworkSelectionLabel } from './sendNetworkSelection.js'
 
@@ -464,6 +465,29 @@ export const transferPreviewReadinessLabel = (model: Model): string =>
         'Preview ready. Confirm to sign and send.',
     }),
   )
+
+/** Public lines for one sanitized Wallet failure, including adapter guidance. */
+export const walletFailureLines = (
+  failure: WalletFailure,
+): ReadonlyArray<string> => {
+  const headline = `${failure.operation}/${failure.code}`
+  if (
+    failure._tag !== 'NetworkFailure' ||
+    Option.isNone(failure.maybeGuidance)
+  ) {
+    return [headline]
+  }
+  const guidance = failure.maybeGuidance.value
+  return [
+    headline,
+    guidance.summary,
+    ...Array.map(guidance.details, detail => `- ${detail}`),
+  ]
+}
+
+/** Formats one sanitized Wallet failure for a CLI or alert string. */
+export const walletFailureMessage = (failure: WalletFailure): string =>
+  Array.join(walletFailureLines(failure), '\n')
 
 /** Selects the primary account and asset's receiving instruction. */
 export const primaryReceivingInstruction = (

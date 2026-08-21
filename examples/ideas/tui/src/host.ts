@@ -1,13 +1,4 @@
 import {
-  ClickedIdea,
-  ClosedIdea,
-  IdeasProgram,
-  type Message,
-  type Model,
-  ideasFromCatalog,
-  visibleIdeas,
-} from "ideas-core-example"
-import {
   Array,
   Cause,
   Effect,
@@ -15,32 +6,35 @@ import {
   PlatformError,
   Queue,
   Terminal,
-} from "effect"
-import { Runtime } from "foldkit"
+} from 'effect'
+import { Runtime } from 'foldkit'
+import {
+  ClickedIdea,
+  ClosedIdea,
+  IdeasProgram,
+  type Message,
+  type Model,
+  ideasFromCatalog,
+  visibleIdeas,
+} from 'ideas-core-example'
 
-import { ideasResources } from "./resources.js"
+import { ideasResources } from './resources.js'
 
-const CLEAR_SCREEN = "\u001b[2J\u001b[H"
+const CLEAR_SCREEN = '\u001b[2J\u001b[H'
 const SCREEN_INNER_WIDTH = 72
 
 const framed = (content: string): string => {
   const clipped = content.slice(0, SCREEN_INNER_WIDTH)
   const remainingWidth = Math.max(0, SCREEN_INNER_WIDTH - clipped.length)
-  return `| ${clipped}${" ".repeat(Math.max(0, remainingWidth - 1))}|`
+  return `| ${clipped}${' '.repeat(Math.max(0, remainingWidth - 1))}|`
 }
 
 /** Renders the imported Ideas Model as a terminal screen. */
 export const renderIdeasScreen = (model: Model): string => {
-  const border = `+${"-".repeat(SCREEN_INNER_WIDTH)}+`
+  const border = `+${'-'.repeat(SCREEN_INNER_WIDTH)}+`
   const ideas = visibleIdeas(model)
-  const source =
-    model.source === "Instant" ? "Instant" : "StaticFallback"
-  const lines = [
-    border,
-    framed("Knophy ideas"),
-    framed(source),
-    framed(""),
-  ]
+  const source = model.source === 'Instant' ? 'Instant' : 'StaticFallback'
+  const lines = [border, framed('Knophy ideas'), framed(source), framed('')]
   const numbered = Array.map(ideas, (idea, index) =>
     framed(`${index + 1}. ${idea.title}`),
   )
@@ -48,14 +42,14 @@ export const renderIdeasScreen = (model: Model): string => {
     Array.findFirst(ideasFromCatalog(model.catalog), idea => idea.id === id),
   )
   const detail = Option.match(selected, {
-    onNone: () => [framed("Press 1-9 to open a note. Q quits.")],
+    onNone: () => [framed('Press 1-9 to open a note. Q quits.')],
     onSome: idea => [
       framed(idea.title),
       framed(idea.body.slice(0, SCREEN_INNER_WIDTH - 1)),
-      framed("[C] close"),
+      framed('[C] close'),
     ],
   })
-  return `${CLEAR_SCREEN}${[...lines, ...numbered, framed(""), ...detail, border].join("\n")}\n`
+  return `${CLEAR_SCREEN}${[...lines, ...numbered, framed(''), ...detail, border].join('\n')}\n`
 }
 
 /** Maps a terminal key to an imported Ideas Message when applicable. */
@@ -64,7 +58,7 @@ export const messageForInput = (
   model: Model,
 ): Option.Option<Message> => {
   const key = input.toLowerCase()
-  if (key === "c") {
+  if (key === 'c') {
     return Option.some(ClosedIdea.make({}))
   }
   const asNumber = Number.parseInt(key, 10)
@@ -83,8 +77,11 @@ const runInputLoop = (
 ): Effect.Effect<void, Cause.Done | PlatformError.PlatformError> =>
   Queue.take(inputQueue).pipe(
     Effect.flatMap(input => {
-      const key = Option.getOrElse(input.input, () => input.key.name).toLowerCase()
-      if (key === "q") {
+      const key = Option.getOrElse(
+        input.input,
+        () => input.key.name,
+      ).toLowerCase()
+      if (key === 'q') {
         return Effect.void
       }
       const maybeMessage = messageForInput(key, runtime.readModel())

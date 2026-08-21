@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 import { describe, expect, test } from 'vitest'
 
 import { dune, newEarth } from './model.js'
@@ -5,7 +6,9 @@ import {
   BookAudioTarget,
   BookBothTarget,
   BookTextTarget,
+  BookTitleTarget,
   ImportTarget,
+  NoteShareTarget,
   PeopleTarget,
   SearchTarget,
   SettingsTarget,
@@ -20,6 +23,7 @@ describe('books route parse/print', () => {
   > = [
     ['/', ShelfTarget.make({})],
     ['/shelf', ShelfTarget.make({})],
+    [`/b/${newEarth.id}`, BookTitleTarget.make({ itemId: newEarth.id })],
     [`/book/${newEarth.id}`, BookBothTarget.make({ itemId: newEarth.id })],
     [`/book/${newEarth.id}/text`, BookTextTarget.make({ itemId: newEarth.id })],
     [
@@ -36,6 +40,7 @@ describe('books route parse/print', () => {
   test('parse(print(value)) roundtrips every destination', () => {
     const targets = [
       ShelfTarget.make({}),
+      BookTitleTarget.make({ itemId: dune.id }),
       BookBothTarget.make({ itemId: dune.id }),
       BookTextTarget.make({ itemId: dune.id }),
       BookAudioTarget.make({ itemId: dune.id }),
@@ -62,6 +67,9 @@ describe('books route parse/print', () => {
   test('prints canonical relative URIs', () => {
     expect(navigationTargetToPath(ShelfTarget.make({}))).toBe('/')
     expect(
+      navigationTargetToPath(BookTitleTarget.make({ itemId: newEarth.id })),
+    ).toBe(`/b/${newEarth.id}`)
+    expect(
       navigationTargetToPath(BookBothTarget.make({ itemId: newEarth.id })),
     ).toBe(`/book/${newEarth.id}`)
     expect(
@@ -87,6 +95,41 @@ describe('books route parse/print', () => {
     expect(pathToNavigationTarget('/unknown')).toStrictEqual(
       ShelfTarget.make({}),
     )
+  })
+
+  const noteId = '550e8400-e29b-41d4-a716-446655440000'
+  const secret = 'share-secret-one'
+
+  test('parses and prints /n/:noteId for private and public', () => {
+    const target = NoteShareTarget.make({
+      noteId,
+      secret: Option.none(),
+    })
+    expect(pathToNavigationTarget(`/n/${noteId}`)).toStrictEqual(target)
+    expect(navigationTargetToPath(target)).toBe(`/n/${noteId}`)
+  })
+
+  test('parses and prints /n/:noteId?s=:secret for unlisted', () => {
+    const target = NoteShareTarget.make({
+      noteId,
+      secret: Option.some(secret),
+    })
+    expect(pathToNavigationTarget(`/n/${noteId}?s=${secret}`)).toStrictEqual(
+      target,
+    )
+    expect(navigationTargetToPath(target)).toBe(`/n/${noteId}?s=${secret}`)
+  })
+
+  test('title page /b/:itemId roundtrips and stays distinct from the reader', () => {
+    const target = BookTitleTarget.make({ itemId: newEarth.id })
+    expect(pathToNavigationTarget(`/b/${newEarth.id}`)).toStrictEqual(target)
+    expect(navigationTargetToPath(target)).toBe(`/b/${newEarth.id}`)
+    expect(pathToNavigationTarget(`/book/${newEarth.id}`)).toStrictEqual(
+      BookBothTarget.make({ itemId: newEarth.id }),
+    )
+    expect(
+      navigationTargetToPath(pathToNavigationTarget(`/b/${newEarth.id}`)),
+    ).toBe(`/b/${newEarth.id}`)
   })
 
   test('parses the same portable route through relative and host carriers', () => {

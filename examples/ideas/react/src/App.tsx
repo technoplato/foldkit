@@ -1,8 +1,8 @@
-import { Array, Match as M, Option } from "effect"
-import { visibleIdeas } from "ideas-core-example"
-import { initialIdeasRoute } from "ideas-react-bindings-example"
+import { Array, Match as M, Option } from 'effect'
+import { visibleIdeas } from 'ideas-core-example'
+import { initialIdeasRoute } from 'ideas-react-bindings-example'
 
-import { IdeasClient } from "./client.js"
+import { IdeasClient } from './client.js'
 
 export const App = () => (
   <IdeasClient.Provider initialRoute={initialIdeasRoute}>
@@ -15,9 +15,9 @@ const IdeasScreen = () => {
   const actions = IdeasClient.useActions()
   const ideas = visibleIdeas(model)
   const source =
-    model.source === "Instant"
-      ? "Live Instant catalog"
-      : "Seed catalog. Instant is unreachable or empty."
+    model.source === 'Instant'
+      ? 'Live Instant catalog'
+      : 'Seed catalog. Instant is unreachable or empty.'
 
   return (
     <main className="min-h-screen bg-stone-50 text-stone-900">
@@ -38,7 +38,9 @@ const IdeasScreen = () => {
             M.tagsExhaustive({
               LoadingCatalog: () => <p>Observing Knophy ideas…</p>,
               FailedCatalog: ({ reason }) => (
-                <p role="alert">Instant is unreachable ({reason}). Showing seed notes.</p>
+                <p role="alert">
+                  Instant is unreachable ({reason}). Showing seed notes.
+                </p>
               ),
               LoadedCatalog: () => null,
             }),
@@ -52,10 +54,12 @@ const IdeasScreen = () => {
                 type="button"
               >
                 <span className="font-mono text-xs text-amber-800">
-                  {String(idea.index).padStart(2, "0")}
+                  {String(idea.index).padStart(2, '0')}
                 </span>
                 <strong className="mt-2 block text-lg">{idea.title}</strong>
-                <p className="mt-2 text-sm leading-6 text-stone-600">{idea.body}</p>
+                <p className="mt-2 text-sm leading-6 text-stone-600">
+                  {idea.body}
+                </p>
               </button>
             ))}
           </div>
@@ -63,23 +67,29 @@ const IdeasScreen = () => {
         <aside>
           {Option.match(model.selectedId, {
             onNone: () => (
-              <p className="text-sm text-stone-500">Select a note to read it.</p>
+              <p className="text-sm text-stone-500">
+                Select a note to read it.
+              </p>
             ),
             onSome: id => {
               const maybeIdea = Array.findFirst(ideas, idea => idea.id === id)
               if (Option.isNone(maybeIdea)) {
                 return (
-                  <p className="text-sm text-stone-500">Select a note to read it.</p>
+                  <p className="text-sm text-stone-500">
+                    Select a note to read it.
+                  </p>
                 )
               }
               const idea = maybeIdea.value
               return (
                 <article className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
                   <p className="font-mono text-xs text-amber-800">
-                    {String(idea.index).padStart(2, "0")} · {idea.slug}
+                    {String(idea.index).padStart(2, '0')} · {idea.slug}
                   </p>
                   <h2 className="mt-2 text-2xl font-semibold">{idea.title}</h2>
-                  <p className="mt-4 text-base leading-7 text-stone-700">{idea.body}</p>
+                  <p className="mt-4 text-base leading-7 text-stone-700">
+                    {idea.body}
+                  </p>
                   <button
                     className="mt-6 rounded-full border border-stone-300 px-4 py-2 text-sm"
                     onClick={actions.closedIdea}

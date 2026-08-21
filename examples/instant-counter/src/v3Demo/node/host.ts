@@ -1,5 +1,7 @@
-import { Data, Duration, Effect, Option, Scope, Stream } from 'effect'
+import { Data, Duration, Effect, Layer, Option, Scope, Stream } from 'effect'
 import { randomUUID } from 'node:crypto'
+
+import { hostedIdentityLayer } from '@foldkit/instant'
 
 import type { InstantCounterDatabase } from '../../../instant.schema.js'
 import {
@@ -100,7 +102,8 @@ const waitForReadySnapshot = (
         onNone: () =>
           Effect.fail(
             new MultipleCountersV3NodeSessionTimeoutError({
-              message: 'The authenticated Processor closed before it was ready.',
+              message:
+                'The authenticated Processor closed before it was ready.',
             }),
           ),
         onSome: Effect.succeed,
@@ -148,12 +151,14 @@ export const makeMultipleCountersV3NodeSession = (
           store,
           subjectId,
         }),
-      signOut: () => Effect.promise(() => signOut(database)).pipe(Effect.asVoid),
+      signOut: () =>
+        Effect.promise(() => signOut(database)).pipe(Effect.asVoid),
     })
+    yield* Layer.build(hostedIdentityLayer(database))
     const authentication = yield* waitForAuthentication(database)
     if (authentication._tag !== 'SignedIn') {
       return yield* new MultipleCountersV3NodeSignedOutError({
-        message: `Sign in first with ${surface} login alice or ${surface} login bob.`,
+        message: `Sign in with CF_AUTHORIZATION and FOLDKIT_HOSTED_IDENTITY_ORIGIN, or ${surface} login alice or ${surface} login bob.`,
       })
     }
     yield* controller.reconcileAuthenticatedSubject(
@@ -207,9 +212,5 @@ export const formatMultipleCountersV3NodeScreen = (
   const chrome = formatMultipleCountersV3SessionChrome(
     multipleCountersV3SessionChrome(snapshot, account),
   )
-  return [
-    ...chrome,
-    '',
-    ...formatMultipleCountersV3Destination(snapshot.model),
-  ]
+  return [...chrome, '', ...formatMultipleCountersV3Destination(snapshot.model)]
 }

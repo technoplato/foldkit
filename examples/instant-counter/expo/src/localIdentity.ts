@@ -1,5 +1,11 @@
-import { Data, Effect, Option, Record as Record_, Schema as S, Semaphore } from 'effect'
-
+import {
+  Data,
+  Effect,
+  Option,
+  Record as Record_,
+  Schema as S,
+  Semaphore,
+} from 'effect'
 import type { MultipleCountersV3LocalIdentityStore } from 'instant-counter-example/v3-client'
 
 const identityKey = 'foldkit.instant-multiple-counters-v3.native.identity.v1'

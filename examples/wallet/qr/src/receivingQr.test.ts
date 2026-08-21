@@ -21,6 +21,7 @@ import {
   AvailableReceivingQr,
   type AvailableReceivingQr as AvailableReceivingQrType,
   type ReceivingQrProjectionInput,
+  encodeQrDataUrl,
   freshWalletHostOrigin,
   inspectingWalletRuntimeMode,
   liveWalletRuntimeMode,
@@ -610,6 +611,18 @@ describe('receivingQrTextLines', () => {
       ' '.repeat(expectedWidth),
     ])
     expect(Array.last(lines)).toEqual(Option.some(' '.repeat(expectedWidth)))
+  })
+})
+
+describe('encodeQrDataUrl', () => {
+  it('encodes a Solana Pay URI as a PNG data URL', () => {
+    const maybeDataUrl = encodeQrDataUrl(
+      'solana:C5DLCjAX2UGrVDvoz8M4TYBCWSyUL9451GzG62SfQuih?amount=0.001',
+    )
+    expect(Option.isSome(maybeDataUrl)).toBe(true)
+    if (Option.isSome(maybeDataUrl)) {
+      expect(maybeDataUrl.value.startsWith('data:image/')).toBe(true)
+    }
   })
 })
 

@@ -451,11 +451,7 @@ export const commitSharedMessage = <Message, A, E = never, R = never>(
  * Applies remote accepted Messages after this Processor has folded history.
  * Skips this Processor's own writes. The host still calls update.
  */
-export const observeRemoteAcceptedMessages = <
-  Message,
-  E = never,
-  R = never,
->(
+export const observeRemoteAcceptedMessages = <Message, E = never, R = never>(
   tape: SharedProgramTape<Message>,
   originatingProcessorId: string,
   applyMessage: (

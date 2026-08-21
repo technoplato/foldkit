@@ -1,10 +1,12 @@
 import {
   BooksProgram,
+  HeardPlaybackPosition,
   type Message,
   type Model,
   PressedGoBack,
   PressedOpenAccounts,
   PressedOpenBook,
+  PressedOpenChapter,
   PressedOpenImport,
   PressedOpenPlaybackReader,
   PressedOpenSearch,
@@ -13,6 +15,8 @@ import {
   PressedResumePlayback,
   PressedScanFinished,
   PressedScanShelf,
+  PressedSeekWord,
+  PressedSetChapterSort,
   PressedSetQuery,
   PressedShowAudio,
   PressedShowBoth,
@@ -21,7 +25,16 @@ import {
   PressedSignOut,
   PressedStartPlayback,
   PressedStopPlayback,
+  chapterDuration,
+  durationOfItem,
+  formatClock,
+  formatSpokenTail,
   itemById,
+  playMediaPosition,
+  playOf,
+  screenOf,
+  sortedChapters,
+  spokenTail,
 } from 'books-core-example'
 import { Console, Data, Effect, Layer, Match as M, Option } from 'effect'
 import { Runtime } from 'foldkit'
@@ -93,6 +106,23 @@ export const messageForToken = (
       PressedOpenBook({ itemId: normalized.slice('open:'.length) }),
     )
   }
+  if (normalized.startsWith('chapter:')) {
+    const rest = normalized.slice('chapter:'.length)
+    const separator = rest.indexOf(':')
+    if (separator <= 0 || separator === rest.length - 1) {
+      return Effect.fail(
+        new BooksCliError({
+          reason: `Unknown books token "${token}"`,
+        }),
+      )
+    }
+    return Effect.succeed(
+      PressedOpenChapter({
+        itemId: rest.slice(0, separator),
+        chapterId: rest.slice(separator + 1),
+      }),
+    )
+  }
   if (normalized.startsWith('play:')) {
     return Effect.succeed(
       PressedStartPlayback({ itemId: normalized.slice('play:'.length) }),
@@ -102,6 +132,34 @@ export const messageForToken = (
     return Effect.succeed(
       PressedSetQuery({ query: normalized.slice('query:'.length) }),
     )
+  }
+  if (normalized === 'sort:index') {
+    return Effect.succeed(PressedSetChapterSort({ sort: 'Index' }))
+  }
+  if (normalized === 'sort:title') {
+    return Effect.succeed(PressedSetChapterSort({ sort: 'Title' }))
+  }
+  if (normalized.startsWith('seek:')) {
+    const start = Number(normalized.slice('seek:'.length))
+    if (!Number.isFinite(start)) {
+      return Effect.fail(
+        new BooksCliError({
+          reason: `Unknown books token "${token}"`,
+        }),
+      )
+    }
+    return Effect.succeed(PressedSeekWord({ start }))
+  }
+  if (normalized.startsWith('tick:')) {
+    const mediaPosition = Number(normalized.slice('tick:'.length))
+    if (!Number.isFinite(mediaPosition)) {
+      return Effect.fail(
+        new BooksCliError({
+          reason: `Unknown books token "${token}"`,
+        }),
+      )
+    }
+    return Effect.succeed(HeardPlaybackPosition({ mediaPosition }))
   }
   return Effect.fail(
     new BooksCliError({
@@ -143,32 +201,58 @@ export const executeBooksInput = (
   )
 
 const describePlay = (model: Model): string =>
-  M.value(model.play).pipe(
+  M.value(playOf(model)).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
       PlayIdle: () => 'playIdle',
       PlayPaused: play => {
-        const item = itemById(model.items, play.itemId)
+        const item = Option.getOrUndefined(itemById(model.items, play.itemId))
         return `${item?.title ?? play.itemId} paused`
       },
       PlayPlaying: play => {
-        const item = itemById(model.items, play.itemId)
+        const item = Option.getOrUndefined(itemById(model.items, play.itemId))
         return `${item?.title ?? play.itemId} playing`
       },
     }),
   )
 
+const titlePageLines = (model: Model, itemId: string): string => {
+  const item = Option.getOrUndefined(itemById(model.items, itemId))
+  if (item === undefined) {
+    return itemId
+  }
+  const duration = durationOfItem(item)
+  return [
+    item.title,
+    item.authorLabel,
+    duration > 0 ? formatClock(duration) : '',
+    'Play',
+    ...sortedChapters(item, model.chapterSort).map(
+      chapter =>
+        `${chapter.index}  ${chapter.title}  ${formatClock(chapterDuration(chapter))}`,
+    ),
+    describePlay(model),
+  ].join('\n')
+}
+
 const readerLines = (model: Model, itemId: string, pane: string): string => {
-  const item = itemById(model.items, itemId)
+  const item = Option.getOrUndefined(itemById(model.items, itemId))
+  const tail =
+    item === undefined
+      ? ''
+      : formatSpokenTail(
+          spokenTail(item, playMediaPosition(playOf(model), itemId)),
+        )
+  const spoken = tail === '' ? (item?.body ?? '') : tail
   return [
     `${item?.title ?? itemId} · ${pane}`,
-    item?.body ?? '',
+    spoken,
     describePlay(model),
   ].join('\n')
 }
 
 export const describeScreen = (model: Model): string =>
-  M.value(model.screen).pipe(
+  M.value(screenOf(model)).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
       SignedOut: () => 'signed out',
@@ -176,11 +260,12 @@ export const describeScreen = (model: Model): string =>
       ShelfBrowse: () =>
         [
           ...model.items.map(item => {
-            const line = `${item.title} · ${item.authorLabel} · ${item.preferred}`
+            const line = `${item.title} · ${item.authorLabel} · ${item.packaging._tag}`
             return Option.isSome(item.coverUrl) ? `${line} · cover` : line
           }),
           describePlay(model),
         ].join('\n'),
+      TitlePage: ({ itemId }) => titlePageLines(model, itemId),
       ReaderText: ({ itemId }) => readerLines(model, itemId, 'text'),
       ReaderAudio: ({ itemId }) => readerLines(model, itemId, 'audio'),
       ReaderBoth: ({ itemId }) => readerLines(model, itemId, 'both'),
@@ -200,6 +285,10 @@ export const describeScreen = (model: Model): string =>
             )
             .map(item => item.title),
         ].join('\n'),
+      SharedNote: ({ noteId }) =>
+        Option.isSome(model.sharedNote)
+          ? model.sharedNote.value.body
+          : `Note ${noteId} is not available.`,
     }),
   )
 
@@ -210,6 +299,9 @@ const formatMessage = (message: Message): string =>
       PressedSignIn: () => 'PressedSignIn()',
       PressedSignOut: () => 'PressedSignOut()',
       PressedOpenBook: ({ itemId }) => `PressedOpenBook(${itemId})`,
+      PressedOpenChapter: ({ itemId, chapterId }) =>
+        `PressedOpenChapter(${itemId},${chapterId})`,
+      PressedSetChapterSort: ({ sort }) => `PressedSetChapterSort(${sort})`,
       PressedGoBack: () => 'PressedGoBack()',
       PressedShowText: () => 'PressedShowText()',
       PressedShowAudio: () => 'PressedShowAudio()',
@@ -269,6 +361,9 @@ const formatMessage = (message: Message): string =>
       ScrolledAway: () => 'ScrolledAway()',
       PressedSetNoteAudience: ({ audience }) =>
         `PressedSetNoteAudience(${audience})`,
+      PressedCopySharePath: () => 'PressedCopySharePath()',
+      HeardSharedNote: () => 'HeardSharedNote()',
+      FailedSharedNote: () => 'FailedSharedNote()',
     }),
   )
 
@@ -278,7 +373,7 @@ export const runBooksShow = (
   Effect.gen(function* () {
     const execution = yield* executeBooksInput([])
     if (isVerbose) {
-      yield* Console.log(`Screen: ${execution.finalModel.screen._tag}`)
+      yield* Console.log(`Screen: ${screenOf(execution.finalModel)._tag}`)
     }
     yield* Console.log(describeScreen(execution.finalModel))
   })
@@ -293,7 +388,7 @@ export const runBooksInput = (
       for (const message of execution.messages) {
         yield* Console.log(`Message: ${formatMessage(message)}`)
       }
-      yield* Console.log(`Screen: ${execution.finalModel.screen._tag}`)
+      yield* Console.log(`Screen: ${screenOf(execution.finalModel)._tag}`)
     }
     yield* Console.log(describeScreen(execution.finalModel))
   })

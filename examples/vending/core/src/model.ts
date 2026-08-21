@@ -8,6 +8,25 @@ import {
   WalletProfile,
 } from 'wallet-core-example'
 
+import { ClipPlayback } from './clip.js'
+
+export {
+  ClipConversation,
+  ClipLine,
+  ClipPlayback,
+  ClipSpeaker,
+  CompleteClipPlayback,
+  IdleClipPlayback,
+  PlayingClipPlayback,
+  clipCompleteMs,
+  clipConversation,
+  clipHoldMs,
+  isClipComplete,
+  playbackAtElapsed,
+  revealedCountAt,
+  revealedLines,
+} from './clip.js'
+
 /** Wallet catalog chain id for Solana. */
 export const defaultChainId = 'solana'
 /** Wallet catalog network id for Solana Devnet. */
@@ -22,6 +41,10 @@ export const tinyAirdropLamports = '10000000'
 export const listPriceDisplay = '14.28'
 /** Devnet settlement threshold so a 0.001 SOL test can vend. */
 export const settleLamports = 1_000_000n
+/** Lamports in one SOL. */
+export const lamportsPerSol = 1_000_000_000n
+/** Decimal SOL shown for the Devnet settle, matching Solana Pay `amount`. */
+export const settleSolDisplay = `${Number(settleLamports) / Number(lamportsPerSol)}`
 /** Maximum keypad digits retained before Enter. */
 export const maximumKeypadLength = 8
 
@@ -47,6 +70,38 @@ export const KeypadBuffer = S.String.check(
 )
 /** Digits currently shown on the machine display. */
 export type KeypadBuffer = typeof KeypadBuffer.Type
+
+/** No keypad control has been pressed yet. */
+export const IdleControl = S.TaggedStruct('Idle', {})
+/** The last press was a digit. */
+export const DigitControl = S.TaggedStruct('Digit', { digit: Digit })
+/** The last press was Enter. */
+export const EnterControl = S.TaggedStruct('Enter', {})
+/** The last press was Clear. */
+export const ClearControl = S.TaggedStruct('Clear', {})
+/** Last keypad control. Hosts light this key. */
+export const LastControl = S.Union([
+  IdleControl,
+  DigitControl,
+  EnterControl,
+  ClearControl,
+])
+/** Last keypad control. */
+export type LastControl = typeof LastControl.Type
+
+/** Key legend the 3JS host lights from lastControl. */
+export const lastControlLabel = (control: LastControl): string | undefined => {
+  if (control._tag === 'Digit') {
+    return control.digit
+  }
+  if (control._tag === 'Enter') {
+    return 'ENT'
+  }
+  if (control._tag === 'Clear') {
+    return 'CLR'
+  }
+  return undefined
+}
 
 /** One vendible catalog row. */
 export const Sku = S.Struct({
@@ -201,10 +256,22 @@ export const ClipboardState = S.Union([
 /** A clipboard state value. */
 export type ClipboardState = typeof ClipboardState.Type
 
+/** Host button label for copying the SOL Devnet receive address. */
+export const copyAddressLabel = (clipboard: ClipboardState): string => {
+  if (clipboard._tag === 'copied') {
+    return 'Copied'
+  }
+  if (clipboard._tag === 'failed') {
+    return 'Try copy again'
+  }
+  return 'Copy Solana Pay'
+}
+
 /** The Vending Program Model. FoldKit core owns vend rules. */
 export const Model = S.Struct({
   catalog: Catalog,
   keypadBuffer: KeypadBuffer,
+  lastControl: LastControl,
   selection: Selection,
   vendPhase: VendPhase,
   listPriceDisplay: S.String,
@@ -213,6 +280,7 @@ export const Model = S.Struct({
   incoming: S.Array(IncomingSol),
   funding: FundingState,
   clipboard: ClipboardState,
+  clipPlayback: ClipPlayback,
 })
 /** A Vending Model value. */
 export type Model = typeof Model.Type
@@ -234,10 +302,8 @@ export const solanaDevnetNetwork = NetworkDescriptor.make({
 })
 
 /** Looks up a catalog SKU by keypad code. */
-export const skuForCode = (
-  catalog: Catalog,
-  code: string,
-): Sku | undefined => catalog.find(sku => sku.code === code)
+export const skuForCode = (catalog: Catalog, code: string): Sku | undefined =>
+  catalog.find(sku => sku.code === code)
 
 /** True when confirmed lamports meet the Devnet settle threshold. */
 export const meetsSettleThreshold = (

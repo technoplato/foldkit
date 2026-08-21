@@ -1,0 +1,39 @@
+{
+  "name": "advocacy-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "./scripts/with-advocacy-instant-env ./scripts/with-public-instant-env vite build",
+    "dev": "./scripts/with-advocacy-instant-env ./scripts/with-public-instant-env vite --port 5211",
+    "prebuild": "pnpm --filter advocacy-core-example build",
+    "predev": "pnpm --filter advocacy-core-example build",
+    "pretest": "pnpm --filter advocacy-core-example build",
+    "pretypecheck": "pnpm --filter advocacy-core-example build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "@foldkit/instant": "workspace:*",
+    "@foldkit/ui": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "@tailwindcss/vite": "^4.3.1",
+    "advocacy-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "@instantdb/admin": "1.0.53",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "@types/node": "^25.9.3",
+    "happy-dom": "^20.10.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}

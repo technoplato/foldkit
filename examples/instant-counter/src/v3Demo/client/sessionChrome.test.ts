@@ -134,7 +134,9 @@ describe('Multiple Counters v3 session chrome', () => {
       ),
     ).toBe('Independent')
     expect(
-      multipleCountersV3ModeLabel(clientSnapshot(Synchronization.Mirror.make({}))),
+      multipleCountersV3ModeLabel(
+        clientSnapshot(Synchronization.Mirror.make({})),
+      ),
     ).toBe('Mirror')
     expect(
       multipleCountersV3ModeLabel(

@@ -64,6 +64,8 @@ export type MemoryEngine = SyncEngine &
     failNextWrite: (cause: string) => void
     injectSnapshot: (row: unknown) => void
     injectMessage: (row: unknown) => void
+    goOffline: () => void
+    comeOnline: () => void
   }>
 
 /** Builds an empty Memory store. */
@@ -98,11 +100,29 @@ export const Memory = (options?: {
   const processor = processorOf(options?.processor)
   let pendingReadFailure: string | undefined
   let pendingWriteFailure: string | undefined
+  let isOffline = false
+  const queuedWrites: Array<SyncWrite> = []
+  const ownListeners = new Set<(event: SyncEvent) => void>()
 
   const notify = (event: SyncEvent): void => {
     for (const listener of store.listeners) {
       listener(event)
     }
+  }
+
+  const applyWrite = (write: SyncWrite): void => {
+    const incomingOrder = rowOrderOf(write.message)
+    const newestStored = maxRowOrder(store.messages)
+    const isStaleSnapshot =
+      Option.isSome(incomingOrder) &&
+      Option.isSome(newestStored) &&
+      isRowOrderAfter(newestStored.value, incomingOrder.value)
+    if (!isStaleSnapshot) {
+      store.snapshot = write.snapshot
+    }
+    store.messages.push(write.message)
+    notify({ _tag: 'Snapshot', row: store.snapshot })
+    notify({ _tag: 'Message', row: write.message })
   }
 
   return {
@@ -113,6 +133,22 @@ export const Memory = (options?: {
     },
     failNextWrite: (cause: string) => {
       pendingWriteFailure = cause
+    },
+    goOffline: () => {
+      isOffline = true
+    },
+    comeOnline: () => {
+      isOffline = false
+      const writes = queuedWrites.splice(0)
+      for (const write of writes) {
+        applyWrite(write)
+      }
+      for (const listener of ownListeners) {
+        listener({ _tag: 'Snapshot', row: store.snapshot })
+        for (const message of store.messages) {
+          listener({ _tag: 'Message', row: message })
+        }
+      }
     },
     injectSnapshot: (row: unknown) => {
       store.snapshot = row
@@ -141,13 +177,21 @@ export const Memory = (options?: {
     subscribe: enqueue =>
       Effect.acquireRelease(
         Effect.sync(() => {
-          store.listeners.add(enqueue)
+          const gated = (event: SyncEvent): void => {
+            if (!isOffline) {
+              enqueue(event)
+            }
+          }
+          store.listeners.add(gated)
+          ownListeners.add(gated)
+          return gated
         }),
-        () =>
+        gated =>
           Effect.sync(() => {
-            store.listeners.delete(enqueue)
+            store.listeners.delete(gated)
+            ownListeners.delete(gated)
           }),
-      ),
+      ).pipe(Effect.asVoid),
     write: write => {
       if (pendingWriteFailure !== undefined) {
         const cause = pendingWriteFailure
@@ -159,11 +203,12 @@ export const Memory = (options?: {
           }),
         )
       }
-      store.snapshot = write.snapshot
-      store.messages.push(write.message)
-      notify({ _tag: 'Snapshot', row: write.snapshot })
-      notify({ _tag: 'Message', row: write.message })
-      return Effect.succeed({
+      if (isOffline) {
+        queuedWrites.push(write)
+        return Effect.succeed<SyncWriteResult>({ link: 'queued' })
+      }
+      applyWrite(write)
+      return Effect.succeed<SyncWriteResult>({
         link: isIsolated ? 'offline' : 'delivered',
       })
     },
@@ -191,6 +236,63 @@ export const readRowString = (
   }
   return Option.some(value)
 }
+
+/** Reads a number field from an Instant row. */
+export const readRowNumber = (
+  row: unknown,
+  key: string,
+): Option.Option<number> => {
+  if (!isPlainObject(row)) {
+    return Option.none()
+  }
+  if (!Object.hasOwn(row, key)) {
+    return Option.none()
+  }
+  const value = row[key]
+  if (typeof value !== 'number') {
+    return Option.none()
+  }
+  return Option.some(value)
+}
+
+/** Log position of one Message row: `createdAtMs`, then `id`. */
+export type LogRowOrder = Readonly<{
+  createdAtMs: number
+  id: string
+}>
+
+/** Reads the log position of a Message row. */
+export const rowOrderOf = (row: unknown): Option.Option<LogRowOrder> => {
+  const createdAtMs = readRowNumber(row, 'createdAtMs')
+  const id = readRowString(row, 'id')
+  if (Option.isNone(createdAtMs) || Option.isNone(id)) {
+    return Option.none()
+  }
+  return Option.some({ createdAtMs: createdAtMs.value, id: id.value })
+}
+
+/** True when `a` sorts after `b`: `createdAtMs`, then `id`. */
+export const isRowOrderAfter = (a: LogRowOrder, b: LogRowOrder): boolean => {
+  if (a.createdAtMs !== b.createdAtMs) {
+    return a.createdAtMs > b.createdAtMs
+  }
+  return a.id > b.id
+}
+
+/** Newest log position among Message rows. */
+export const maxRowOrder = (
+  rows: ReadonlyArray<unknown>,
+): Option.Option<LogRowOrder> =>
+  Array.reduce(rows, Option.none<LogRowOrder>(), (newest, row) => {
+    const order = rowOrderOf(row)
+    if (Option.isNone(order)) {
+      return newest
+    }
+    if (Option.isNone(newest) || isRowOrderAfter(order.value, newest.value)) {
+      return order
+    }
+    return newest
+  })
 
 /** True when Instant has no snapshot row yet. */
 export const isEmptySnapshot = (snapshot: unknown): boolean => {

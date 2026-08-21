@@ -1,8 +1,38 @@
-import { Array, Effect, Exit, Option, Result, Scope, Schema as S, Stream } from 'effect'
+import {
+  Array,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Result,
+  Schema as S,
+  Scope,
+  Stream,
+} from 'effect'
 import Constants from 'expo-constants'
 import * as Crypto from 'expo-crypto'
 import { StatusBar } from 'expo-status-bar'
 import * as Synchronization from 'foldkit/synchronization'
+import {
+  type MultipleCountersV3ClientController,
+  type MultipleCountersV3ClientSnapshot,
+  type MultipleCountersV3DebugEmail,
+  MultipleCountersV3DebugLoginIssued,
+  type MultipleCountersV3FollowDraft,
+  appendMultipleCountersV3PolicyRequest,
+  emptyMultipleCountersV3FollowDraft,
+  formatMultipleCountersV3SessionChrome,
+  isMultipleCountersV3ObserveFollower,
+  makeMultipleCountersV3ClientController,
+  multipleCountersV3DebugLoginSubjects,
+  multipleCountersV3FollowAlignmentExplanation,
+  multipleCountersV3FollowMode,
+  multipleCountersV3ModeRequestLabel,
+  multipleCountersV3SessionChrome,
+  multipleCountersV3SessionEpochSeed,
+  resolveMultipleCountersV3EnabledActionToken,
+  resolveMultipleCountersV3PolicyRequest,
+} from 'instant-counter-example/v3-client'
 import {
   type ReactNode,
   useCallback,
@@ -22,27 +52,13 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import {
-  type MultipleCountersV3ClientController,
-  type MultipleCountersV3ClientSnapshot,
-  type MultipleCountersV3DebugEmail,
-  MultipleCountersV3DebugLoginIssued,
-  type MultipleCountersV3FollowDraft,
-  appendMultipleCountersV3PolicyRequest,
-  emptyMultipleCountersV3FollowDraft,
-  formatMultipleCountersV3SessionChrome,
-  isMultipleCountersV3ObserveFollower,
-  makeMultipleCountersV3ClientController,
-  multipleCountersV3FollowAlignmentExplanation,
-  multipleCountersV3FollowMode,
-  multipleCountersV3ModeRequestLabel,
-  multipleCountersV3SessionChrome,
-  multipleCountersV3SessionEpochSeed,
-  multipleCountersV3DebugLoginSubjects,
-  resolveMultipleCountersV3EnabledActionToken,
-  resolveMultipleCountersV3PolicyRequest,
-} from 'instant-counter-example/v3-client'
 
+import {
+  ensureHostedInstantSession,
+  hostedIdentityLayer,
+} from '@foldkit/instant'
+
+import { loadStoredAccessToken, requestKnophyAccessToken } from './access'
 import { logBuildProvenance } from './buildProvenance'
 import { multipleCountersV3NativeDebugLoginUrl } from './debugLogin'
 import { nativeDatabase } from './nativeDatabase'
@@ -115,35 +131,54 @@ export const App = () => {
   useEffect(() => {
     const scope = Effect.runSync(Scope.make())
     const appId = instantAppId()
-    void Effect.runPromise(
-      makeMultipleCountersV3ClientController({
-        policyRequests: {
-          append: request =>
-            appendMultipleCountersV3PolicyRequest(coreDatabase, request),
-          nextPolicyRequestId: () => Crypto.randomUUID(),
-          now: Date.now,
-          resolve: request =>
-            resolveMultipleCountersV3PolicyRequest(coreDatabase, request),
-        },
-        processorConfig: subjectId =>
-          makeNativeMultipleCountersV3ProcessorConfig({
-            database: coreDatabase,
-            instantAppId: appId,
-            sessionEpochSeed: multipleCountersV3SessionEpochSeed,
-            subjectId,
-          }),
-        signOut: () =>
-          Effect.promise(() => database.auth.signOut()).pipe(Effect.asVoid),
-      }).pipe(Effect.provideService(Scope.Scope, scope)),
-    ).then(nextController => {
+    let isCancelled = false
+    void (async () => {
+      const token = await loadStoredAccessToken()
+      await Effect.runPromise(
+        Effect.scoped(
+          Layer.build(
+            token === undefined
+              ? hostedIdentityLayer(database)
+              : hostedIdentityLayer(database, { accessToken: token }),
+          ),
+        ),
+      )
+      if (isCancelled) {
+        return
+      }
+      const nextController = await Effect.runPromise(
+        makeMultipleCountersV3ClientController({
+          policyRequests: {
+            append: request =>
+              appendMultipleCountersV3PolicyRequest(coreDatabase, request),
+            nextPolicyRequestId: () => Crypto.randomUUID(),
+            now: Date.now,
+            resolve: request =>
+              resolveMultipleCountersV3PolicyRequest(coreDatabase, request),
+          },
+          processorConfig: subjectId =>
+            makeNativeMultipleCountersV3ProcessorConfig({
+              database: coreDatabase,
+              instantAppId: appId,
+              sessionEpochSeed: multipleCountersV3SessionEpochSeed,
+              subjectId,
+            }),
+          signOut: () =>
+            Effect.promise(() => database.auth.signOut()).pipe(Effect.asVoid),
+        }).pipe(Effect.provideService(Scope.Scope, scope)),
+      )
+      if (isCancelled) {
+        return
+      }
       setController(nextController)
       void Effect.runPromise(
         Stream.runForEach(nextController.snapshots, nextSnapshot =>
           Effect.sync(() => setSnapshot(nextSnapshot)),
         ).pipe(Effect.provideService(Scope.Scope, scope)),
       )
-    })
+    })()
     return () => {
+      isCancelled = true
       void Effect.runPromise(Scope.close(scope, Exit.void))
     }
   }, [coreDatabase, database])
@@ -155,7 +190,9 @@ export const App = () => {
     void Effect.runPromise(
       controller
         .reconcileAuthenticatedSubject(Option.some(authentication.user.id))
-        .pipe(Effect.flatMap(() => controller.open(canonicalListDestinationUri))),
+        .pipe(
+          Effect.flatMap(() => controller.open(canonicalListDestinationUri)),
+        ),
     )
   }, [authentication.user, controller])
 
@@ -206,23 +243,47 @@ export const App = () => {
     )
   }
 
-  const signInAs = useCallback((email: MultipleCountersV3DebugEmail) => {
-    void requestDebugLogin(email).then(
-      issued =>
-        database.auth.signInWithMagicCode({
-          code: issued.code,
-          email: issued.email,
-        }),
+  const signInWithAccess = useCallback(() => {
+    void requestKnophyAccessToken().then(
+      token => {
+        if (token === undefined) {
+          return
+        }
+        void ensureHostedInstantSession(database, { accessToken: token })
+      },
       () =>
         setNotice(
           Option.some(
-            'Start the headless authority to mint Alice and Bob codes. Physical devices need FOLDKIT_INSTANT_DEBUG_LOGIN_HOST=0.0.0.0.',
+            'Knophy Access did not return a JWT. Check the whoami redirect allowlist.',
           ),
         ),
     )
   }, [database])
 
-  if (authentication.isLoading || authentication.user == null || snapshot === null) {
+  const signInAs = useCallback(
+    (email: MultipleCountersV3DebugEmail) => {
+      void requestDebugLogin(email).then(
+        issued =>
+          database.auth.signInWithMagicCode({
+            code: issued.code,
+            email: issued.email,
+          }),
+        () =>
+          setNotice(
+            Option.some(
+              'Start the headless authority to mint Alice and Bob codes. Physical devices need FOLDKIT_INSTANT_DEBUG_LOGIN_HOST=0.0.0.0.',
+            ),
+          ),
+      )
+    },
+    [database],
+  )
+
+  if (
+    authentication.isLoading ||
+    authentication.user == null ||
+    snapshot === null
+  ) {
     return (
       <Shell>
         <AuthCard
@@ -230,6 +291,7 @@ export const App = () => {
           isLoading={authentication.isLoading}
           maybeNotice={maybeNotice}
           signInAs={signInAs}
+          signInWithAccess={signInWithAccess}
         />
       </Shell>
     )
@@ -327,9 +389,7 @@ export const App = () => {
               setFollowDraft({ ...followDraft, control: 'RemoteControl' })
             }
             testID="follow-remote"
-            tone={
-              followDraft.control === 'RemoteControl' ? 'primary' : 'quiet'
-            }
+            tone={followDraft.control === 'RemoteControl' ? 'primary' : 'quiet'}
           />
         </View>
         <ActionButton
@@ -398,10 +458,7 @@ const Shell = ({ children }: Readonly<{ children: ReactNode }>) => (
   </SafeAreaView>
 )
 
-const authStatusCopy = (
-  isFailed: boolean,
-  isLoading: boolean,
-): ReactNode => {
+const authStatusCopy = (isFailed: boolean, isLoading: boolean): ReactNode => {
   if (isLoading) {
     return (
       <View style={styles.loadingRow}>
@@ -419,7 +476,8 @@ const authStatusCopy = (
   }
   return (
     <Text style={styles.detail}>
-      Sign in as Alice or Bob, then switch Independent, Mirror, or Follow.
+      Sign in with Access, or as Alice or Bob, then switch Independent, Mirror,
+      or Follow.
     </Text>
   )
 }
@@ -429,11 +487,13 @@ const AuthCard = ({
   isLoading,
   maybeNotice,
   signInAs,
+  signInWithAccess,
 }: Readonly<{
   isFailed: boolean
   isLoading: boolean
   maybeNotice: Option.Option<string>
   signInAs: (email: MultipleCountersV3DebugEmail) => void
+  signInWithAccess: () => void
 }>) => (
   <View style={styles.card}>
     <Text style={styles.cardTitle}>Your counters, on every Processor</Text>
@@ -443,6 +503,11 @@ const AuthCard = ({
       </Text>
     ) : null}
     {authStatusCopy(isFailed, isLoading)}
+    <ActionButton
+      label="Sign in with Access"
+      onPress={signInWithAccess}
+      testID="access-login"
+    />
     {isDebugLoginEnabled
       ? Array.map(multipleCountersV3DebugLoginSubjects, subject => (
           <ActionButton

@@ -3,9 +3,7 @@ import * as THREE from 'three'
 import type { ThreeDirectionalLight, ThreeScene } from './three-compat.js'
 
 /** Hemisphere fill plus a single shadowed sun. */
-export const createYardLights = (
-  scene: ThreeScene,
-): ThreeDirectionalLight => {
+export const createYardLights = (scene: ThreeScene): ThreeDirectionalLight => {
   scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x2a3a24, 0.72))
   const sun = new THREE.DirectionalLight(0xfff1d0, 2.1)
   sun.position.set(8.5, 12.5, 6.5)

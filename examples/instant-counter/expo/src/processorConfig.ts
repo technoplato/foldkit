@@ -1,5 +1,5 @@
-import * as Crypto from 'expo-crypto'
 import { Effect } from 'effect'
+import * as Crypto from 'expo-crypto'
 import type { InstantCounterDatabase } from 'instant-counter-example/schema'
 import {
   type MultipleCountersV3LocalIdentityEnvironment,
@@ -7,10 +7,10 @@ import {
   makeMultipleCountersV3ProcessorConfig,
 } from 'instant-counter-example/v3-client'
 
+import AsyncStorage from '@react-native-async-storage/async-storage'
+
 import { makeNativeMultipleCountersV3LocalIdentityStore } from './localIdentity'
 import type { NativeDatabase } from './nativeDatabase'
-
-import AsyncStorage from '@react-native-async-storage/async-storage'
 
 /** Native entropy, UUID, and clock sources used only by the host controller. */
 export const nativeMultipleCountersV3LocalIdentityEnvironment =

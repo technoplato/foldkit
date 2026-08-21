@@ -7,6 +7,7 @@ import {
   type SubjectScopedProgramActive,
   type SubjectScopedProgramAllocationContext,
   type SubjectScopedProgramSnapshot,
+  ensureHostedInstantSession,
   makeSubjectScopedProgram,
 } from '@foldkit/instant'
 import type { ConnectionStatus } from '@instantdb/core'
@@ -103,6 +104,7 @@ export class BrowserApp {
 
   /** Starts authentication, connectivity, and Processor lifecycle observation. */
   start(): void {
+    void ensureHostedInstantSession(this.#database)
     this.#startSubjectProgram()
     this.#unsubscribeAuthentication = observeAuthentication(
       this.#database,

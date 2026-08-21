@@ -29,9 +29,8 @@ export type Wallet = typeof Wallet.Type
 export const WALLET_TAGS: ReadonlyArray<Wallet['_tag']> = ['absent', 'sim']
 
 /** Type-level proof that Wallet has no live member. */
-export type LiveWalletIsRepresentable = Extract<Wallet, { _tag: 'live' }> extends never
-  ? false
-  : true
+export type LiveWalletIsRepresentable =
+  Extract<Wallet, { _tag: 'live' }> extends never ? false : true
 
 /** Runtime proof that Wallet has no live member. */
 export const liveWalletIsRepresentable: LiveWalletIsRepresentable = false

@@ -13,7 +13,10 @@ describe('Counter wire Schemas', () => {
       asOf: 'cli',
       at: 1,
     })
-    expect(model).toEqual(Model.make({ count: 4 }))
+    expect(model).toEqual({
+      product: Model.make({ count: 4 }),
+      actionMenu: { _tag: 'Closed' },
+    })
     expect(S.encodeUnknownSync(CountProjection)(model)).toEqual({
       id: COUNT_UUID,
       value: 4,

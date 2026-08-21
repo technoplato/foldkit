@@ -6,7 +6,7 @@ import {
   SnapshotLogError,
   type SnapshotLogTransport,
   type SnapshotLogWrite,
-  decodeSnapshotLogState,
+  createSnapshotLogStateDecoder,
   snapshotLogQuery,
 } from './snapshotLog.js'
 
@@ -39,63 +39,66 @@ const transactSnapshotLogWrite = (
 /** Instant core transport. Browser Processors use this. */
 export const makeInstantCoreSnapshotLogTransport = (
   database: InstantSnapshotLogDatabase,
-): SnapshotLogTransport => ({
-  read: () =>
-    Effect.tryPromise({
-      try: async () => {
-        const response = await database.queryOnce(snapshotLogQuery)
-        return decodeSnapshotLogState(response.data)
-      },
-      catch: cause =>
-        new SnapshotLogError({
-          cause,
-          operation: 'Read',
-        }),
-    }),
-  subscribe: Stream.callback(queue =>
-    Effect.acquireRelease(
-      Effect.sync(() =>
-        database.subscribeQuery(snapshotLogQuery, response => {
-          if (response.error !== undefined) {
-            Queue.failCauseUnsafe(
-              queue,
-              Cause.fail(
-                new SnapshotLogError({
-                  cause: response.error,
-                  operation: 'Observe',
-                }),
-              ),
-            )
-          } else {
-            try {
-              Queue.offerUnsafe(queue, decodeSnapshotLogState(response.data))
-            } catch (cause) {
+): SnapshotLogTransport => {
+  const decode = createSnapshotLogStateDecoder()
+  return {
+    read: () =>
+      Effect.tryPromise({
+        try: async () => {
+          const response = await database.queryOnce(snapshotLogQuery)
+          return decode(response.data)
+        },
+        catch: cause =>
+          new SnapshotLogError({
+            cause,
+            operation: 'Read',
+          }),
+      }),
+    subscribe: Stream.callback(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() =>
+          database.subscribeQuery(snapshotLogQuery, response => {
+            if (response.error !== undefined) {
               Queue.failCauseUnsafe(
                 queue,
                 Cause.fail(
                   new SnapshotLogError({
-                    cause,
-                    operation: 'Decode',
+                    cause: response.error,
+                    operation: 'Observe',
                   }),
                 ),
               )
+            } else {
+              try {
+                Queue.offerUnsafe(queue, decode(response.data))
+              } catch (cause) {
+                Queue.failCauseUnsafe(
+                  queue,
+                  Cause.fail(
+                    new SnapshotLogError({
+                      cause,
+                      operation: 'Decode',
+                    }),
+                  ),
+                )
+              }
             }
-          }
-        }),
-      ),
-      unsubscribe => Effect.sync(unsubscribe),
-    ),
-  ),
-  write: write =>
-    Effect.tryPromise({
-      try: () =>
-        transactSnapshotLogWrite(database, write).then(
-          decodeProgramStoreTransactionOutcome,
+          }),
         ),
-      catch: cause =>
-        new SnapshotLogError({
-          cause,
-          operation: 'Write',
-        }),
-    }),
-})
+        unsubscribe => Effect.sync(unsubscribe),
+      ),
+    ),
+    write: write =>
+      Effect.tryPromise({
+        try: () =>
+          transactSnapshotLogWrite(database, write).then(
+            decodeProgramStoreTransactionOutcome,
+          ),
+        catch: cause =>
+          new SnapshotLogError({
+            cause,
+            operation: 'Write',
+          }),
+      }),
+  }
+}

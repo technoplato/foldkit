@@ -8,6 +8,7 @@
 import { Schema as S } from 'effect'
 
 import { mapMessages } from '../command/index.js'
+import { actionMenu } from './actionMenu.js'
 import type {
   MessageOf,
   ModelOf,
@@ -485,6 +486,7 @@ export const forEach = <Child extends AnyProgram>(config: {
 // Attach forEach as compose.forEach for ergonomic import
 compose.forEach = forEach
 compose.sync = sync
+compose.actionMenu = actionMenu
 
 /** Scope one child Program under a fixed key (sugar over compose of one). */
 export const scope = <K extends string, Child extends AnyProgram>(

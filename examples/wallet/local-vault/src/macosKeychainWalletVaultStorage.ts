@@ -435,7 +435,8 @@ const commitPreparedRecordUnsafe = (
     ),
   )
 
-const nativeKeychainEntryFactory: MacOSKeychainEntryFactory = (
+/** Native Keychain entry factory used by local and till vaults. */
+export const nativeKeychainEntryFactory: MacOSKeychainEntryFactory = (
   service,
   account,
 ) => {

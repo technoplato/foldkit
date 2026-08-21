@@ -1,1 +1,1 @@
-export * from "./ideas.js"
+export * from './ideas.js'

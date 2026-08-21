@@ -1,10 +1,6 @@
+import { DepositProgram, type Message, type Model } from 'deposit-core-example'
 import { Layer } from 'effect'
 import { Runtime } from 'foldkit'
-import {
-  DepositProgram,
-  type Message,
-  type Model,
-} from 'deposit-core-example'
 import type { WalletResources } from 'wallet-core-example'
 import type { ReceivingQrHostOrigin } from 'wallet-qr-example'
 

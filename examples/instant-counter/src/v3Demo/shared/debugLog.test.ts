@@ -46,9 +46,9 @@ describe('Multiple Counters v3 debug log', () => {
     const maybeLine = Array.head(writes)
     expect(Option.isSome(maybeLine)).toBe(true)
     if (Option.isSome(maybeLine)) {
-      expect(maybeLine.value.startsWith(`${multipleCountersV3DebugLogPrefix} `)).toBe(
-        true,
-      )
+      expect(
+        maybeLine.value.startsWith(`${multipleCountersV3DebugLogPrefix} `),
+      ).toBe(true)
       expect(maybeLine.value).toContain('"event":"signed-in"')
       expect(maybeLine.value).toContain('alice@fake.com')
       expect(maybeLine.value).not.toContain('INSTANT_APP_ADMIN_TOKEN')

@@ -1,46 +1,46 @@
-import { Option } from "effect"
+import { Option } from 'effect'
+import { Scene } from 'foldkit'
 import {
   CompletedScrollCurrentWord,
   HeardPlaybackPosition,
   LoadedCatalog,
+  update as coreUpdate,
   idlePlayback,
   seedTranscripts,
-  update as coreUpdate,
-} from "transcribe-core-example"
-import { Scene } from "foldkit"
-import { describe, test } from "vitest"
+} from 'transcribe-core-example'
+import { describe, test } from 'vitest'
 
-import { ObserveReaderVideo, ScrollCurrentWord } from "./video-clock.js"
-import { update } from "./playback.js"
-import { view } from "./index.js"
+import { view } from './index.js'
+import { update } from './playback.js'
+import { ObserveReaderVideo, ScrollCurrentWord } from './video-clock.js'
 
 const followAlongWords = [
-  { id: "w0", text: "Okay,", start: 0, end: 0.4 },
-  { id: "w1", text: "so", start: 0.4, end: 0.9 },
+  { id: 'w0', text: 'Okay,', start: 0, end: 0.4 },
+  { id: 'w1', text: 'so', start: 0.4, end: 0.9 },
 ]
 
 const loadedModel = {
   catalog: LoadedCatalog.make({ jobs: seedTranscripts }),
-  draftUrl: "",
+  draftUrl: '',
   selectedId: Option.none(),
-  source: "Instant" as const,
+  source: 'Instant' as const,
   ...idlePlayback,
 }
 
-describe("view", () => {
-  test("renders the Knophy transcribe heading and URL field", () => {
+describe('view', () => {
+  test('renders the Knophy transcribe heading and URL field', () => {
     Scene.scene(
       { update: coreUpdate, view },
       Scene.with(loadedModel),
-      Scene.expect(Scene.text("Knophy transcribe")).toExist(),
-      Scene.expect(Scene.text("Video transcripts")).toExist(),
+      Scene.expect(Scene.text('Knophy transcribe')).toExist(),
+      Scene.expect(Scene.text('Video transcripts')).toExist(),
     )
   })
 
-  test("playing a job highlights the current word", () => {
+  test('playing a job highlights the current word', () => {
     const job = seedTranscripts[0]
     if (job === undefined) {
-      throw new Error("seed catalog is empty")
+      throw new Error('seed catalog is empty')
     }
     Scene.scene(
       { update, view },
@@ -54,16 +54,19 @@ describe("view", () => {
       }),
       Scene.Mount.resolveAll(
         [ScrollCurrentWord, CompletedScrollCurrentWord.make({})],
-        [ObserveReaderVideo, HeardPlaybackPosition.make({ mediaPosition: 0.5 })],
+        [
+          ObserveReaderVideo,
+          HeardPlaybackPosition.make({ mediaPosition: 0.5 }),
+        ],
       ),
-      Scene.expect(Scene.role("button", { name: "so" })).toHaveAttr(
-        "aria-current",
-        "true",
+      Scene.expect(Scene.role('button', { name: 'so' })).toHaveAttr(
+        'aria-current',
+        'true',
       ),
-      Scene.expect(Scene.role("button", { name: "Okay," })).not.toHaveAttr(
-        "aria-current",
+      Scene.expect(Scene.role('button', { name: 'Okay,' })).not.toHaveAttr(
+        'aria-current',
       ),
-      Scene.expect(Scene.role("button", { name: "Send" })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Send' })).toExist(),
     )
   })
 })

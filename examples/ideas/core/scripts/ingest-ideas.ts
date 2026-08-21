@@ -1,9 +1,11 @@
-import { init } from "@instantdb/admin"
+import { init } from '@instantdb/admin'
 
-import { seedIdeas } from "../src/catalog.ts"
-import schema from "../instant.schema.ts"
+import schema from '../instant.schema.ts'
+import { seedIdeas } from '../src/catalog.ts'
 
-const requireEnv = (name: "INSTANT_APP_ID" | "INSTANT_APP_ADMIN_TOKEN"): string => {
+const requireEnv = (
+  name: 'INSTANT_APP_ID' | 'INSTANT_APP_ADMIN_TOKEN',
+): string => {
   const value = process.env[name]
   if (value === undefined || value.length === 0) {
     throw new Error(
@@ -21,11 +23,11 @@ const requireTx = <T>(value: T | undefined, label: string): T => {
 }
 
 const ingest = async (): Promise<void> => {
-  const appId = requireEnv("INSTANT_APP_ID")
-  const adminToken = requireEnv("INSTANT_APP_ADMIN_TOKEN")
+  const appId = requireEnv('INSTANT_APP_ID')
+  const adminToken = requireEnv('INSTANT_APP_ADMIN_TOKEN')
   const database = init({ adminToken, appId, schema })
   const ops = seedIdeas.map(idea =>
-    requireTx(database.tx.knophyIdeas[idea.id], "knophyIdeas").update({
+    requireTx(database.tx.knophyIdeas[idea.id], 'knophyIdeas').update({
       body: idea.body,
       index: idea.index,
       slug: idea.slug,

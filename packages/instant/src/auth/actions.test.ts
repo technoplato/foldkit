@@ -11,6 +11,7 @@ import {
   signInAsGuest,
   signInWithIdToken,
   signInWithMagicCode,
+  signInWithToken,
   signOut,
 } from './actions.js'
 import { InstantFailure, WrongState } from './error.js'
@@ -63,6 +64,7 @@ const unusedClient = (): InstantAuthClient => ({
     Promise.reject(unusedClientError('signInWithIdToken')),
   signInWithMagicCode: () =>
     Promise.reject(unusedClientError('signInWithMagicCode')),
+  signInWithToken: () => Promise.reject(unusedClientError('signInWithToken')),
   signOut: () => Promise.reject(unusedClientError('signOut')),
   subscribeAuth: () => {
     throw unusedClientError('subscribeAuth')
@@ -129,6 +131,7 @@ const recordingClient = (
     signInAsGuest?: InstantAuthClient['signInAsGuest']
     signInWithIdToken?: InstantAuthClient['signInWithIdToken']
     signInWithMagicCode?: InstantAuthClient['signInWithMagicCode']
+    signInWithToken?: InstantAuthClient['signInWithToken']
     signOut?: InstantAuthClient['signOut']
     subscribeAuth?: InstantAuthClient['subscribeAuth']
   }> = {},
@@ -193,6 +196,14 @@ const recordingClient = (
             user: memberUser,
           }
           return Promise.resolve(result)
+        }
+      },
+      signInWithToken: token => {
+        record('signInWithToken', token)
+        if (handlers.signInWithToken !== undefined) {
+          return handlers.signInWithToken(token)
+        } else {
+          return Promise.resolve({ user: memberUser })
         }
       },
       signOut: () => {
@@ -521,6 +532,33 @@ describe('signInWithIdToken WrongState', () => {
   )
 })
 
+describe('signInWithToken WrongState', () => {
+  it.effect(
+    'rejects member, unknown, failed, and busy flows before Instant',
+    () =>
+      Effect.gen(function* () {
+        const client = unusedClient()
+        expectWrongState(
+          yield* Effect.flip(signInWithToken(client, memberAuth, 'token')),
+          'signInWithToken',
+          "Can't sign in with a hosted identity token while already signed in as member.",
+        )
+        expectWrongState(
+          yield* Effect.flip(signInWithToken(client, unknownAuth, 'token')),
+          'signInWithToken',
+          "Can't sign in with a hosted identity token until authentication is signed out or a guest.",
+        )
+        expectWrongState(
+          yield* Effect.flip(
+            signInWithToken(client, awaitingAuth(memberEmail), 'token'),
+          ),
+          'signInWithToken',
+          "Can't sign in with a hosted identity token while another authentication method is in progress.",
+        )
+      }),
+  )
+})
+
 describe('createAuthorizationURL WrongState', () => {
   it.effect(
     'rejects member, unknown, failed, and busy flows before Instant',
@@ -689,6 +727,27 @@ describe('allowed Instant transitions', () => {
         ])
         expect(JSON.stringify(next)).not.toContain('id-token')
         expect(JSON.stringify(next)).not.toContain('nonce-1')
+      }),
+  )
+
+  it.effect(
+    'exchanges a hosted identity token from NoneIdentity or GuestIdentity',
+    () =>
+      Effect.gen(function* () {
+        const recorded = recordingClient()
+        const next = yield* signInWithToken(
+          recorded.client,
+          guestAuth,
+          'hosted-refresh-token',
+        )
+        expect(next).toEqual(memberAuth)
+        expect(recorded.calls).toEqual([
+          {
+            args: 'hosted-refresh-token',
+            method: 'signInWithToken',
+          },
+        ])
+        expect(JSON.stringify(next)).not.toContain('hosted-refresh-token')
       }),
   )
 

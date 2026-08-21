@@ -3,7 +3,7 @@ import type { Model } from 'world-core-example'
 
 import { createCabinet } from './cabinet.js'
 import { createChaseCamera, syncChaseCamera } from './camera.js'
-import { createImagePipeline, type ViewMode } from './image.js'
+import { type ViewMode, createImagePipeline } from './image.js'
 import { createYardLights } from './lighting.js'
 import { createWalker, syncWalker } from './walker.js'
 import { createYard } from './yard.js'

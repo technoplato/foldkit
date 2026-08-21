@@ -3,36 +3,41 @@ import { Array, Option, Schema as S } from 'effect'
 
 // MODEL
 
+const identityToken = '[A-Za-z0-9_-]+'
+const identityMaxLength = 112
+
+const prefixedIdentity = (prefix: string) =>
+  S.String.check(
+    S.isLengthBetween(prefix.length + 2, identityMaxLength),
+    S.isPattern(
+      new RegExp(`^${prefix}-${identityToken}(?::${identityToken})*$`, 'u'),
+    ),
+  )
+
+const uniqueKeysIssue = (
+  keys: ReadonlyArray<string>,
+  path: ReadonlyArray<PropertyKey>,
+  issue: string,
+) => (new Set(keys).size === Array.length(keys) ? undefined : { path, issue })
+
 /** A stable, bounded identity for one Counter Submodel. */
-export const CounterId = S.String.check(
-  S.isLengthBetween(9, 80),
-  S.isPattern(/^counter-[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
-)
+export const CounterId = prefixedIdentity('counter')
 /** A stable, bounded identity for one Counter Submodel. */
 export type CounterId = typeof CounterId.Type
 
 /** A transient identity for one presentation of a Counter detail. */
-export const CounterDetailPresentationId = S.String.check(
-  S.isLengthBetween(8, 112),
-  S.isPattern(/^detail-[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
-)
+export const CounterDetailPresentationId = prefixedIdentity('detail')
 /** A transient identity for one presentation of a Counter detail. */
 export type CounterDetailPresentationId =
   typeof CounterDetailPresentationId.Type
 
 /** A stable identity for one counter-fact request generation. */
-export const CounterFactRequestId = S.String.check(
-  S.isLengthBetween(6, 112),
-  S.isPattern(/^fact-[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
-)
+export const CounterFactRequestId = prefixedIdentity('fact')
 /** A stable identity for one counter-fact request generation. */
 export type CounterFactRequestId = typeof CounterFactRequestId.Type
 
 /** A stable identity for one delete-confirmation generation. */
-export const DeleteCounterConfirmationId = S.String.check(
-  S.isLengthBetween(8, 112),
-  S.isPattern(/^delete-[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/u),
-)
+export const DeleteCounterConfirmationId = prefixedIdentity('delete')
 /** A stable identity for one delete-confirmation generation. */
 export type DeleteCounterConfirmationId =
   typeof DeleteCounterConfirmationId.Type
@@ -131,12 +136,13 @@ export const maximumCounterIdentityCount = 1_000
 const CounterRows = S.Array(CounterRow)
   .check(S.isLengthBetween(0, maximumCounterCount))
   .check(
-    S.makeFilter(rows => {
-      const ids = Array.map(rows, row => row.id)
-      return new Set(ids).size === ids.length
-        ? undefined
-        : { path: ['rows'], issue: 'Counter ids must be unique' }
-    }),
+    S.makeFilter(rows =>
+      uniqueKeysIssue(
+        Array.map(rows, row => row.id),
+        ['rows'],
+        'Counter ids must be unique',
+      ),
+    ),
   )
 
 /** Counter identities retired permanently after deletion. */
@@ -144,12 +150,11 @@ const RetiredCounterIds = S.Array(CounterId)
   .check(S.isLengthBetween(0, maximumCounterIdentityCount))
   .check(
     S.makeFilter(counterIds =>
-      new Set(counterIds).size === Array.length(counterIds)
-        ? undefined
-        : {
-            path: ['retiredCounterIds'],
-            issue: 'Retired Counter ids must be unique',
-          },
+      uniqueKeysIssue(
+        counterIds,
+        ['retiredCounterIds'],
+        'Retired Counter ids must be unique',
+      ),
     ),
   )
 

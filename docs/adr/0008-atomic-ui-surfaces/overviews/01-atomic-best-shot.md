@@ -117,12 +117,12 @@ Same organisms; different template.
 
 ## What we delete after this works
 
-- `liveAscii.ts` hand `row`/`col` product tables  
-- Parallel empty-detail string arrays  
-- (Later) static multi-counter frames in brainstorming packs  
+- `liveAscii.ts` hand `row`/`col` product tables
+- Parallel empty-detail string arrays
+- (Later) static multi-counter frames in brainstorming packs
 
 ## Out of scope for first cut
 
-- Full CSS layout parity  
-- Animations  
-- Arbitrary nested scrolling in ASCII (cap list rows or clip with “+N more”)  
+- Full CSS layout parity
+- Animations
+- Arbitrary nested scrolling in ASCII (cap list rows or clip with “+N more”)

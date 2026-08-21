@@ -59,9 +59,9 @@ describe('applyPressA', () => {
   })
 
   it('builds PressA only from Adjacent', () => {
-    expect(
-      Interactable.pressAFromTarget(Interactable.None()),
-    ).toEqual(Option.none())
+    expect(Interactable.pressAFromTarget(Interactable.None())).toEqual(
+      Option.none(),
+    )
     expect(
       Interactable.pressAFromTarget(Interactable.Adjacent({ id: 'welcome' })),
     ).toEqual(Option.some(Interactable.PressA({ id: 'welcome' })))
@@ -94,11 +94,7 @@ describe('Kind', () => {
   })
 
   it('does not treat a side cell as in front', () => {
-    const target = Interactable.targetInFront(
-      gridCoord(2, 1),
-      East(),
-      entities,
-    )
+    const target = Interactable.targetInFront(gridCoord(2, 1), East(), entities)
     expect(target).toEqual(Interactable.None())
   })
 })

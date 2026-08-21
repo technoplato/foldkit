@@ -1,10 +1,10 @@
+import { Effect, Queue, Schema as S, Stream } from 'effect'
+import { Mount } from 'foldkit'
 import {
   CompletedScrollCurrentWord,
   HeardMediaError,
   HeardPlaybackPosition,
 } from 'transcribe-core-example'
-import { Effect, Queue, Schema as S, Stream } from 'effect'
-import { Mount } from 'foldkit'
 
 const TICK_INTERVAL_MS = 50
 

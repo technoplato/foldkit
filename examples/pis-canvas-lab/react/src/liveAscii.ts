@@ -50,10 +50,7 @@ const W = 28
 const pad = (s: string, w = W) =>
   s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length)
 
-const phone = (
-  content: string[],
-  hotspots: LiveHotspot[],
-): LiveFrame => {
+const phone = (content: string[], hotspots: LiveHotspot[]): LiveFrame => {
   // content rows are phone interior; wrap with border → line indices shift +1
   const lines = [
     '┌' + '─'.repeat(W) + '┐',
@@ -145,10 +142,7 @@ const listFrame = (rows: ReadonlyArray<CounterRow>): LiveFrame => {
   return phone(content, hotspots)
 }
 
-const detailFrame = (
-  row: CounterRow,
-  mode: 'plain' | 'delete',
-): LiveFrame => {
+const detailFrame = (row: CounterRow, mode: 'plain' | 'delete'): LiveFrame => {
   const hotspots: LiveHotspot[] = []
   const content: string[] = [
     '  ·  ·  ·          9:41  ⚡ ',

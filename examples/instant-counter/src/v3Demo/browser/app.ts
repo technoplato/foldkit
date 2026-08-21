@@ -26,6 +26,7 @@ import {
   SubjectScopedProgramSignOutInProgress,
   type V3PendingProgramClaim,
   type V3TerminalProgramClaim,
+  ensureHostedInstantSession,
 } from '@foldkit/instant'
 
 import type { InstantCounterDatabase } from '../../../instant.schema.js'
@@ -56,23 +57,16 @@ import {
   multipleCountersV3ModeRequestLabel,
   multipleCountersV3ObserveLeaderProcessorId,
 } from '../client/sessionChrome.js'
-
-export {
-  type MultipleCountersV3FollowDraft,
-  isMultipleCountersV3ObserveFollower,
-  multipleCountersV3FollowAlignmentExplanation,
-  multipleCountersV3FollowMode,
-}
+import {
+  describeUnknownCause,
+  logMultipleCountersV3Debug,
+} from '../shared/debugLog.js'
 import {
   MultipleCountersV3DebugEmail,
   MultipleCountersV3DebugLoginIssued,
   multipleCountersV3DebugLoginMarkup,
   multipleCountersV3DebugLoginPath,
 } from '../shared/debugLogin.js'
-import {
-  describeUnknownCause,
-  logMultipleCountersV3Debug,
-} from '../shared/debugLog.js'
 import {
   makeMultipleCountersV3SessionIdentity,
   multipleCountersV3SessionEpochSeed,
@@ -93,6 +87,13 @@ import {
   resolveBrowserMultipleCountersV3PolicyRequest,
 } from './processorConfig.js'
 import { multipleCountersV3BrowserView } from './view.js'
+
+export {
+  type MultipleCountersV3FollowDraft,
+  isMultipleCountersV3ObserveFollower,
+  multipleCountersV3FollowAlignmentExplanation,
+  multipleCountersV3FollowMode,
+}
 
 const canonicalListDestinationUri = '/counters'
 const [initialRendererModel] = MultipleCountersProgram.init()
@@ -670,7 +671,8 @@ export class MultipleCountersV3BrowserApp {
   readonly #root: HTMLElement
   #authentication: Authentication = LoadingAuthentication.make({})
   #controller: MultipleCountersV3ClientController | null = null
-  #followDraft: MultipleCountersV3FollowDraft = emptyMultipleCountersV3FollowDraft()
+  #followDraft: MultipleCountersV3FollowDraft =
+    emptyMultipleCountersV3FollowDraft()
   #isBeforeUnloadProtected = false
   #isModeRequestPending = false
   #isRendererTerminal = false
@@ -714,6 +716,7 @@ export class MultipleCountersV3BrowserApp {
     if (this.#scope !== null) {
       throw new Error('The browser Client is already starting or running.')
     }
+    await ensureHostedInstantSession(this.#database)
     this.#resetRunState()
     const lifecycleGeneration = this.#lifecycleGeneration + 1
     this.#lifecycleGeneration = lifecycleGeneration
@@ -1114,7 +1117,8 @@ export class MultipleCountersV3BrowserApp {
     const lifecycleGeneration = this.#lifecycleGeneration
     const destinationUri = this.#requestedDestinationUri
     this.#openingGeneration = generation
-    const maybeObserveLeader = multipleCountersV3ObserveLeaderProcessorId(snapshot)
+    const maybeObserveLeader =
+      multipleCountersV3ObserveLeaderProcessorId(snapshot)
     if (Option.isSome(maybeObserveLeader)) {
       this.#completedRequestedDestinationOpen(
         generation,

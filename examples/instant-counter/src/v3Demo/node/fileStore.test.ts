@@ -25,9 +25,9 @@ describe('Multiple Counters v3 Node Instant store', () => {
     expect(await second.getAllKeys()).toEqual(['auth', 'subject'])
     await second.removeItem('subject')
     expect(await second.getItem('subject')).toBeUndefined()
-    expect(readFileSync(join(root, 'instant', 'app-id', 'kv.json'), 'utf8')).toContain(
-      'token-1',
-    )
+    expect(
+      readFileSync(join(root, 'instant', 'app-id', 'kv.json'), 'utf8'),
+    ).toContain('token-1')
   })
 })
 
@@ -52,8 +52,8 @@ describe('Multiple Counters v3 Node identity vault', () => {
     expect(sequence).toBe(1)
     expect(nextSequence).toBe(2)
     expect(environment.randomBytes()).toBeInstanceOf(Uint8Array)
-    expect(Encoding.encodeBase64Url(environment.randomBytes()).length).toBeGreaterThan(
-      0,
-    )
+    expect(
+      Encoding.encodeBase64Url(environment.randomBytes()).length,
+    ).toBeGreaterThan(0)
   })
 })

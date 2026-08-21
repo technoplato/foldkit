@@ -1,5 +1,5 @@
-import { emptyModel, runIndex, update } from 'orbit-core-example'
 import { Scene } from 'foldkit'
+import { emptyModel, runIndex, update } from 'orbit-core-example'
 import { describe, test } from 'vitest'
 
 import { view } from './index.js'

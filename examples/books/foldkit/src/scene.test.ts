@@ -7,6 +7,7 @@ import {
   initialModel,
   newEarth,
   update,
+  withView,
 } from 'books-core-example'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
@@ -44,41 +45,66 @@ describe('view', () => {
     )
   })
 
-  test('opening Dune shows both panes', () => {
+  test('opening Dune shows the title page', () => {
     Scene.scene(
       { update, view },
       Scene.with(initialModel),
       Scene.click(Scene.role('button', { name: 'Sign in' })),
       Scene.click(Scene.role('link', { name: /Dune/ })),
+      Scene.expect(Scene.text('Frank Herbert')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Play' })).toExist(),
       Scene.expect(
         Scene.text(
           'A beginning is the time for taking the most delicate care that the balances are correct.',
         ),
-      ).toExist(),
+      ).not.toExist(),
+    )
+  })
+
+  test('opening a New Earth chapter lands in the reader', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(initialModel),
+      Scene.click(Scene.role('button', { name: 'Sign in' })),
+      Scene.click(Scene.role('link', { name: /A New Earth/ })),
+      Scene.expect(Scene.text('Opening Credits')).toExist(),
+      Scene.expect(Scene.text('THE NEW EARTH IS NO UTOPIA')).toExist(),
+      Scene.click(Scene.role('button', { name: /EVOCATION/ })),
+      Scene.Mount.resolveAll([
+        ObserveReaderAudio,
+        HeardPlaybackPosition({ mediaPosition: 18.669 }),
+      ]),
       Scene.expect(Scene.role('button', { name: 'Play' })).toExist(),
+      Scene.expect(Scene.text('EVOCATION')).toExist(),
     )
   })
 
   test('playing New Earth highlights the current word', () => {
     Scene.scene(
       { update, view },
-      Scene.with({
-        ...initialModel,
-        screen: ReaderBoth({ itemId: newEarth.id }),
-        play: PlayPlaying({
-          itemId: newEarth.id,
-          renditionId: 'r-audio-3',
-          mediaPosition: 0.5,
-        }),
-        items: [
+      Scene.with(
+        withView(
           {
-            ...newEarth,
-            body: 'A beginning is the time',
-            words: followAlongWords,
+            ...initialModel,
+            items: [
+              {
+                ...newEarth,
+                body: 'A beginning is the time',
+                words: followAlongWords,
+              },
+              dune,
+            ],
           },
-          dune,
-        ],
-      }),
+          {
+            screen: ReaderBoth({ itemId: newEarth.id }),
+            play: PlayPlaying({
+              itemId: newEarth.id,
+              renditionId: 'r-audio-3',
+              mediaPosition: 0.5,
+            }),
+          },
+        ),
+      ),
       Scene.Mount.resolveAll(
         [ScrollCurrentWord, CompletedScrollCurrentWord()],
         [ObserveReaderAudio, HeardPlaybackPosition({ mediaPosition: 0.5 })],
