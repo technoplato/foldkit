@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 21st, 2026 at 10:55:37 a.m. EDT — `b66d675856cb` Decode live Performance evidence in the Issues catalog (#237).
+
+- **Implementation commit:** `b66d675856cbe4c624eaaa02ae744477763341b8`
+- **Change:** Decode live Performance evidence in the Issues catalog
+- **Details:**
+  - Add Performance and MultiDevice to the closed IssueSuccessEvidence enum.
+  - Accept catalog Issue references, omitted related arrays, and High/Medium complexity.
+  - Collection observe keeps readable Issues when one payload cannot decode.
+- **Files:**
+  - `packages/instant-tools/src/issues/domain.ts` — Add Performance, MultiDevice, Issue references, and High/Medium complexity.
+  - `packages/instant-tools/src/issues/domain.test.ts` — Cover the live evidence and reference cases.
+  - `packages/instant-tools/src/instant/instant.ts` — Isolate catalog decode so one stale payload does not fail Observe.
+  - `packages/instant-tools/src/instant/instant.test.ts` — Prove mixed good and malformed catalog snapshots still observe.
+- **User context (verbatim):**
+  > It loads fine for me what's the problem? do you need me to cloudflare access you? and if so how do we do so securiely
+- **SpecStory:** unavailable — Cursor desktop agent session; no SpecStory capture for this task
+
 ## August 18th, 2026 at 1:12:03 p.m. EDT — `02979225ef0b` Use exhaustive Match on the Counter React window
 
 - **Implementation commit:** `02979225ef0b408baa933d3e306efc82862d77cf`
