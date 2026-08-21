@@ -78,10 +78,7 @@ export const resolveMultipleCountersV3EnabledActionToken = (
   | MultipleCountersV3NavigationFollowsLeaderError
   | InteractionGraph.InteractionGraphError
 > => {
-  const projected = multipleCountersV3ProgramActions(
-    model,
-    isNavigationEnabled,
-  )
+  const projected = multipleCountersV3ProgramActions(model, isNavigationEnabled)
   if (Result.isFailure(projected)) {
     return Result.fail(projected.failure)
   }

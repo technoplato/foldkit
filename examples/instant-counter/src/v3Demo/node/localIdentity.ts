@@ -103,7 +103,11 @@ export const makeNodeMultipleCountersV3LocalIdentityStore = (
             ) + 1
           const next = IdentityState.make({
             ...current,
-            sequences: Record_.set(current.sequences, positionKey, nextSequence),
+            sequences: Record_.set(
+              current.sequences,
+              positionKey,
+              nextSequence,
+            ),
           })
           writeState(statePath, next)
           return nextSequence

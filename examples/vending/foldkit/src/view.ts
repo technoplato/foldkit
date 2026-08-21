@@ -1,5 +1,5 @@
 import { Array } from 'effect'
-import { Document, html, type Html } from 'foldkit/html'
+import { Document, type Html, html } from 'foldkit/html'
 import {
   type Digit,
   type Message,
@@ -9,6 +9,9 @@ import {
   PressedEnter,
   RequestedCopyAddress,
   RequestedTestFunding,
+  copyAddressLabel,
+  lastControlLabel,
+  revealedLines,
 } from 'vending-core-example'
 import {
   type ReceivingQrHostOrigin,
@@ -33,19 +36,19 @@ const digits: ReadonlyArray<Digit> = [
 const phaseLine = (model: Model): string => {
   switch (model.vendPhase._tag) {
     case 'Idle':
-      return 'dial a SKU code'
+      return 'Dial a SKU code'
     case 'WrongCode':
-      return 'wrong code'
+      return 'Wrong code'
     case 'AwaitingPayment':
-      return 'awaiting SOL Devnet payment'
+      return 'Awaiting SOL Devnet payment'
     case 'Received':
-      return 'payment received'
+      return 'Payment received'
     case 'Vending':
-      return 'vending'
+      return 'Vending'
     case 'Dispensed':
-      return 'dispensed — the clip'
+      return 'Dispensed — the clip'
     case 'TimedOut':
-      return 'timed out'
+      return 'Timed out'
   }
 }
 
@@ -59,23 +62,18 @@ const selectedLabel = (model: Model): string => {
   return 'no selection'
 }
 
-const keypadButton = (digit: Digit): Html => {
+const keypadButton = (digit: Digit, isLit: boolean): Html => {
   const el = html<Message>()
   return el.button(
     [
       el.OnClick(PressedDigit.make({ digit })),
-      el.Class(
-        'h-12 rounded border border-amber-700 bg-black/50 font-mono text-lg text-amber-200 hover:border-amber-300',
-      ),
+      el.Class(isLit ? 'ios-key is-lit' : 'ios-key'),
     ],
     [digit],
   )
 }
 
-const qrPanel = (
-  model: Model,
-  hostOrigin: ReceivingQrHostOrigin,
-): Html => {
+const qrPanel = (model: Model, hostOrigin: ReceivingQrHostOrigin): Html => {
   const el = html<Message>()
   const address =
     model.selection._tag === 'Locked'
@@ -85,11 +83,11 @@ const qrPanel = (
         : undefined
   if (address === undefined || model.wallet._tag !== 'ready') {
     return el.p(
-      [el.Class('font-mono text-sm text-amber-500')],
+      [el.Class('ios-muted')],
       [
         model.wallet._tag === 'failed'
           ? `wallet failed: ${model.wallet.code}`
-          : 'loading SOL Devnet receive…',
+          : 'Loading SOL Devnet receive…',
       ],
     )
   }
@@ -102,7 +100,7 @@ const qrPanel = (
   )
   if (account === undefined || instruction === undefined) {
     return el.p(
-      [el.Class('font-mono text-sm text-red-400')],
+      [el.Class('ios-muted')],
       ['no SOL Devnet receiving instruction'],
     )
   }
@@ -116,107 +114,120 @@ const qrPanel = (
   const qr =
     projection._tag === 'AvailableReceivingQr'
       ? el.img([
-          el.Class('mt-3 h-48 w-48 bg-white p-2'),
+          el.Class('ios-qr'),
           el.Src(projection.dataUrl),
           el.Alt('SOL Devnet receive QR'),
           el.Width('192'),
           el.Height('192'),
         ])
       : el.p(
-          [el.Class('mt-3 font-mono text-xs text-amber-400')],
+          [el.Class('ios-muted')],
           [receivingQrUnavailableLabel(projection.reason)],
         )
   return el.div(
-    [el.Class('grid gap-3')],
+    [el.Class('ios-stack')],
     [
-      el.p(
-        [el.Class('font-mono text-xs uppercase tracking-wide text-amber-400')],
-        ['SOL Devnet receive'],
-      ),
-      el.code(
-        [el.Class('break-all font-mono text-sm text-amber-100')],
-        [address],
-      ),
+      el.p([el.Class('ios-section-label')], ['SOL Devnet receive']),
+      el.code([el.Class('ios-address')], [address]),
       qr,
       el.button(
         [
           el.OnClick(RequestedCopyAddress.make({})),
-          el.Class(
-            'w-fit rounded border border-amber-700 px-3 py-2 font-mono text-xs text-amber-200 hover:border-amber-300',
-          ),
+          el.Class('ios-text-button'),
         ],
-        ['copy address'],
+        [copyAddressLabel(model.clipboard)],
+      ),
+    ],
+  )
+}
+
+const messages = (model: Model): Html => {
+  const el = html<Message>()
+  const lines = revealedLines(model.clipPlayback)
+  if (model.vendPhase._tag !== 'Dispensed') {
+    return el.div([], [])
+  }
+  return el.section(
+    [el.Class('ios-card ios-messages')],
+    [
+      el.p([el.Class('ios-section-label')], ['Messages · TJ']),
+      ...Array.map(lines, line =>
+        el.div(
+          [
+            el.Class(
+              line.speaker === 'Michael'
+                ? 'ios-bubble mine'
+                : 'ios-bubble theirs',
+            ),
+          ],
+          [el.p([], [line.text])],
+        ),
       ),
     ],
   )
 }
 
 /** Renders the vending page as Html. */
-export const body = (
-  model: Model,
-  hostOrigin: ReceivingQrHostOrigin,
-): Html => {
+export const body = (model: Model, hostOrigin: ReceivingQrHostOrigin): Html => {
   const el = html<Message>()
   return el.div(
-    [el.Class('min-h-screen bg-zinc-950 text-amber-100')],
+    [el.Class('ios-shell')],
     [
       el.header(
-        [el.Class('border-b border-amber-900 bg-black px-6 py-3 font-mono text-sm')],
-        [el.p([el.Class('text-amber-500')], ['knophy@vending:~$'])],
+        [el.Class('ios-status')],
+        [el.p([], ['9:41']), el.p([], ['VENDING · KNOPHY'])],
       ),
       el.main(
-        [el.Class('mx-auto grid max-w-3xl gap-8 p-6')],
+        [el.Class('ios-main')],
         [
+          el.p([el.Class('ios-eyebrow')], ['Vending']),
+          el.h1([el.Class('ios-title')], ['the clip']),
+          el.p([el.Class('ios-price')], [model.listPriceDisplay]),
           el.p(
-            [el.Class('font-mono text-xs uppercase tracking-[0.3em] text-amber-400')],
-            ['VENDING · KNOPHY'],
+            [el.Class('ios-muted')],
+            ['Listed play · Devnet settle 0.001 SOL'],
           ),
-          el.h1(
-            [el.Class('text-3xl font-semibold')],
-            ['the clip'],
-          ),
-          el.p(
-            [el.Class('font-mono text-sm text-amber-300')],
-            [model.listPriceDisplay],
-          ),
-          el.p(
-            [el.Class('font-mono text-xs text-amber-500')],
-            ['play listed · Devnet settle 0.001 SOL'],
-          ),
-          el.p(
-            [el.Class('font-mono text-sm text-amber-400')],
-            [phaseLine(model)],
-          ),
-          el.p(
-            [el.Class('font-mono text-sm text-amber-200')],
-            [selectedLabel(model)],
-          ),
+          el.p([el.Class('ios-phase')], [phaseLine(model)]),
+          el.p([el.Class('ios-muted')], [selectedLabel(model)]),
+          messages(model),
           el.section(
-            [el.Class('rounded-xl border border-amber-800 bg-black/40 p-5')],
+            [el.Class('ios-card')],
             [
               el.p(
-                [el.Class('mb-3 font-mono text-3xl tracking-[0.4em] text-amber-100')],
+                [el.Class('ios-led')],
                 [model.keypadBuffer === '' ? '----' : model.keypadBuffer],
               ),
               el.div(
-                [el.Class('grid grid-cols-3 gap-2')],
+                [el.Class('ios-pad')],
                 [
-                  ...Array.map(digits.slice(0, 9), keypadButton),
+                  ...Array.map(digits.slice(0, 9), digit =>
+                    keypadButton(
+                      digit,
+                      lastControlLabel(model.lastControl) === digit,
+                    ),
+                  ),
                   el.button(
                     [
                       el.OnClick(PressedClear.make({})),
                       el.Class(
-                        'h-12 rounded border border-amber-800 font-mono text-xs text-amber-400',
+                        lastControlLabel(model.lastControl) === 'CLR'
+                          ? 'ios-key ios-key-muted is-lit'
+                          : 'ios-key ios-key-muted',
                       ),
                     ],
                     ['CLR'],
                   ),
-                  keypadButton('0'),
+                  keypadButton(
+                    '0',
+                    lastControlLabel(model.lastControl) === '0',
+                  ),
                   el.button(
                     [
                       el.OnClick(PressedEnter.make({})),
                       el.Class(
-                        'h-12 rounded border border-emerald-700 font-mono text-xs text-emerald-300',
+                        lastControlLabel(model.lastControl) === 'ENT'
+                          ? 'ios-key ios-key-go is-lit'
+                          : 'ios-key ios-key-go',
                       ),
                     ],
                     ['ENT'],
@@ -225,18 +236,13 @@ export const body = (
               ),
             ],
           ),
-          el.section(
-            [el.Class('rounded-xl border border-amber-800 bg-black/40 p-5')],
-            [qrPanel(model, hostOrigin)],
-          ),
+          el.section([el.Class('ios-card')], [qrPanel(model, hostOrigin)]),
           el.button(
             [
               el.OnClick(RequestedTestFunding.make({})),
-              el.Class(
-                'w-fit rounded border border-amber-700 px-3 py-2 font-mono text-xs text-amber-200',
-              ),
+              el.Class('ios-text-button'),
             ],
-            ['request tiny Devnet airdrop'],
+            ['Request Tiny Devnet Airdrop'],
           ),
         ],
       ),

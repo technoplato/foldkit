@@ -1,11 +1,7 @@
 import { Effect, Stream } from 'effect'
 import { Subscription } from 'foldkit'
 
-import {
-  FailedObserveSnap,
-  type Message,
-  ObservedSnap,
-} from './message.js'
+import { FailedObserveSnap, type Message, ObservedSnap } from './message.js'
 import { type Model } from './model.js'
 import { OrbitStore } from './store.js'
 

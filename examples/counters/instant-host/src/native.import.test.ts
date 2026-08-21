@@ -30,11 +30,11 @@ describe('native Instant host import graph', () => {
       expect(source).not.toContain("from 'fs'")
       expect(source).not.toContain('from "fs"')
       expect(source).not.toContain('node:fs')
-      expect(source).not.toContain('from \'./mint.js\'')
+      expect(source).not.toContain("from './mint.js'")
       expect(source).not.toContain('from "./mint.js"')
-      expect(source).not.toContain('from \'./demoSession.js\'')
+      expect(source).not.toContain("from './demoSession.js'")
       expect(source).not.toContain('from "./demoSession.js"')
-      expect(source).not.toContain('from \'./node.js\'')
+      expect(source).not.toContain("from './node.js'")
       expect(source).not.toContain('from "./node.js"')
       expect(source).not.toMatch(/from ['"]@foldkit\/instant['"]/)
     }
@@ -43,5 +43,12 @@ describe('native Instant host import graph', () => {
   it('keeps Instant admin on Node-only modules', () => {
     expect(readSrc('node.ts')).toContain('@instantdb/admin')
     expect(readSrc('demoSession.ts')).toContain('@instantdb/admin')
+  })
+
+  it('does not fire-and-forget Instant writes or Scope.close', () => {
+    expect(readSrc('attach.ts')).not.toContain('void Effect.runPromise')
+    expect(readSrc('native.ts')).not.toContain('void Effect.runPromise')
+    expect(readSrc('launch.ts')).not.toContain('makeInMemoryProgramStore')
+    expect(readSrc('launch.ts')).not.toContain('local-counters')
   })
 })

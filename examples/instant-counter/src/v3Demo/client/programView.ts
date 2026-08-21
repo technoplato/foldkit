@@ -86,9 +86,7 @@ export const formatMultipleCountersV3NumberedActions = (
       `  [${(index + 1).toString()}] ${action.label}  ${action.token}${followSuffix(action)}`,
   )
 
-const formatFactStatus = (
-  status: CounterFactStatus,
-): ReadonlyArray<string> =>
+const formatFactStatus = (status: CounterFactStatus): ReadonlyArray<string> =>
   M.value(status).pipe(
     M.withReturnType<ReadonlyArray<string>>(),
     M.tagsExhaustive({

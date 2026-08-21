@@ -1,4 +1,4 @@
-import { Model, SyncedCounter } from 'counter-core-example'
+import { SyncedCounter, readyCounter } from 'counter-core-example'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
@@ -31,20 +31,18 @@ describe('Counter Foldkit Instant host chrome', () => {
     expect(container.textContent).toContain('INSTANT_APP_ADMIN_TOKEN')
     expect(container.textContent).not.toContain('TransportFailed')
     expect(container.querySelector('button')).toBeNull()
-    expect(
-      paintCounterHostStatus(
-        container,
-        SyncedCounter.Ready(Model.make({ count: 3 })),
-      ),
-    ).toBe(false)
+    expect(paintCounterHostStatus(container, readyCounter(3))).toBe(false)
   })
 
-  it('opens Instant through Instant() and Processor.Host.Foldkit()', () => {
+  it('opens Instant through startLiveCounter and Processor.Host.Foldkit()', () => {
     const source = readFileSync('src/instantHost.ts', 'utf8')
-    expect(source).toContain('FoldkitCounterV01')
+    expect(source).toContain('startLiveCounter')
     expect(source).toContain('Processor.Host.Foldkit()')
-    expect(source).toContain('Instant(')
-    expect(source).toContain('startSyncedCounterHandle')
+    expect(source).toContain('document.addEventListener')
+    expect(source).not.toContain('window.addEventListener')
+    expect(source).not.toContain('Instant(')
+    expect(source).not.toContain('@foldkit/instant')
+    expect(source).not.toContain('counter-instant-example')
     expect(source).not.toContain('openLiveCounterWindowTape')
     expect(source).not.toContain('signIn')
     expect(source).not.toContain('StartingWindow')
@@ -54,7 +52,7 @@ describe('Counter Foldkit Instant host chrome', () => {
   it('keeps Instant out of the Foldkit window view', () => {
     const viewSource = readFileSync('src/view.ts', 'utf8')
     expect(viewSource).toContain('paintHtml')
-    expect(viewSource).toContain('counterScreen')
+    expect(viewSource).toContain('App.screen')
     expect(viewSource).not.toContain('@instantdb')
     expect(viewSource).not.toContain('@foldkit/instant')
     expect(viewSource).not.toContain('store.send')

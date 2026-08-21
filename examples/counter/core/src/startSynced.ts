@@ -1,33 +1,20 @@
-import { Array, Effect, Exit, Option, Scope } from 'effect'
+import { Effect, Exit, Layer, Option, Scope } from 'effect'
 import { Processor, Program, Runtime } from 'foldkit'
 
-import { Decrement, Increment, type Message, Reset } from './message.js'
-import { Model } from './model.js'
-import { counterValid } from './program.js'
+import { type AppMessage, type AppModel } from './app.js'
+import { type Actions, counterSyncedFactHandles } from './factHandles.js'
+import { InstantEngine } from './instantEngine.js'
 import { SyncedCounter } from './synced.js'
-
-/** Buttons for one synced Counter. There is no sign-in. */
-export type SyncedCounterActions = Readonly<{
-  clickedDecrement: () => void
-  clickedIncrement: () => void
-  clickedReset: () => void
-}>
 
 /** One live synced Counter. Hosts subscribe. Instant stays in Runtime.start. */
 export type SyncedCounterHandle = Readonly<{
-  actions: () => SyncedCounterActions
+  actions: () => Actions
   lastWrite: () => Option.Option<Runtime.SyncWriteResult>
-  readModel: () => Program.SyncedModel<Model, Message>
-  send: (message: Message) => void
-  stop: () => void
+  readModel: () => Program.SyncedModel<AppModel, AppMessage>
+  send: (message: AppMessage) => void
+  stop: () => Promise<void>
   subscribe: (listener: () => void) => () => void
 }>
-
-const idleActions: SyncedCounterActions = {
-  clickedDecrement: () => {},
-  clickedIncrement: () => {},
-  clickedReset: () => {},
-}
 
 /**
  * Starts SyncedCounter on a Scope. Long-lived Hosts must hold this handle
@@ -39,13 +26,14 @@ export const startSyncedCounterHandle = (
   const scope = Effect.runSync(Scope.make())
   let started:
     | Runtime.StartedProgram<
-        Program.SyncedModel<Model, Message>,
-        Program.SyncedMessage<Model, Message>
+        Program.SyncedModel<AppModel, AppMessage>,
+        Program.SyncedMessage<AppModel, AppMessage>
       >
     | undefined
   const listeners = new Set<() => void>()
   let unsubscribeStarted: (() => void) | undefined
-  let cachedModel: Program.SyncedModel<Model, Message> =
+  let isStopped = false
+  let cachedModel: Program.SyncedModel<AppModel, AppMessage> =
     SyncedCounter.Starting()
 
   const notify = (): void => {
@@ -87,28 +75,11 @@ export const startSyncedCounterHandle = (
 
   return {
     actions: () => {
-      const model =
+      const synced =
         started === undefined ? SyncedCounter.Starting() : started.readModel()
-      if (model._tag !== 'Ready') {
-        return idleActions
-      }
-      return {
-        clickedDecrement: () => {
-          started?.send(Decrement())
-        },
-        clickedIncrement: () => {
-          started?.send(Increment())
-        },
-        clickedReset: () => {
-          const isValid = Array.some(
-            counterValid(Model.make({ count: model.count }), {}),
-            item => item.token === 'reset' && item.valid,
-          )
-          if (isValid) {
-            started?.send(Reset())
-          }
-        },
-      }
+      return counterSyncedFactHandles(synced, message => {
+        started?.send(message)
+      })
     },
     lastWrite: () => {
       if (started === undefined) {
@@ -122,13 +93,19 @@ export const startSyncedCounterHandle = (
         return
       }
       started.send(message)
+      cachedModel = started.readModel()
+      notify()
     },
     stop: () => {
+      if (isStopped) {
+        return Promise.resolve()
+      }
+      isStopped = true
       if (unsubscribeStarted !== undefined) {
         unsubscribeStarted()
       }
       listeners.clear()
-      Effect.runFork(Scope.close(scope, Exit.void))
+      return Effect.runPromise(Scope.close(scope, Exit.void))
     },
     subscribe: listener => {
       listeners.add(listener)
@@ -144,17 +121,30 @@ export const memorySyncedEngine = (
   processor: Processor.Host.Host,
 ): Runtime.MemoryEngine => Runtime.Memory({ processor })
 
+/**
+ * Memory Instant Layer. Tests use this. COUNTER_TAPE=memory selects
+ * Memory inside NodeLive and BrowserLive.
+ *
+ * Caller supplies Host. Memory does not pick a surface.
+ */
+export const MemoryLive = (
+  processor: Processor.Host.Host,
+): Layer.Layer<InstantEngine> =>
+  Layer.succeed(InstantEngine, memorySyncedEngine(processor))
+
+export { InstantEngine }
+
 /** Prints a Failed Instant error. Does not print `error._tag`. */
 export const describeCounterSyncError = (
-  error: Program.SyncError<Message>,
+  error: Program.SyncError<AppMessage>,
 ): string => Program.describeSyncError(error, message => message._tag)
 
 /** Waits until the handle is Ready or Failed. */
 export const waitForSyncedHandle = (
   handle: SyncedCounterHandle,
-): Promise<Program.SyncedModel<Model, Message>> =>
+): Promise<Program.SyncedModel<AppModel, AppMessage>> =>
   new Promise((resolve, reject) => {
-    const finish = (model: Program.SyncedModel<Model, Message>): void => {
+    const finish = (model: Program.SyncedModel<AppModel, AppMessage>): void => {
       if (model._tag === 'Starting') {
         return
       }
@@ -170,4 +160,31 @@ export const waitForSyncedHandle = (
       finish(handle.readModel())
     })
     finish(handle.readModel())
+  })
+
+/** Waits until Instant reports a write after send. */
+export const waitForSyncedHandleWrite = (
+  handle: SyncedCounterHandle,
+): Promise<Option.Option<Runtime.SyncWriteResult>> =>
+  new Promise((resolve, reject) => {
+    const finish = (): void => {
+      const write = handle.lastWrite()
+      if (Option.isNone(write)) {
+        return
+      }
+      clearTimeout(timeout)
+      clearInterval(interval)
+      stop()
+      resolve(write)
+    }
+    const timeout = setTimeout(() => {
+      clearInterval(interval)
+      stop()
+      reject(new Error('Timed out waiting for Instant write.'))
+    }, 2000)
+    const interval = setInterval(finish, 10)
+    const stop = handle.subscribe(() => {
+      finish()
+    })
+    finish()
   })

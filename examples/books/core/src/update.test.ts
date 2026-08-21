@@ -18,8 +18,10 @@ import {
   PressedFollowLive,
   PressedGoBack,
   PressedOpenBook,
+  PressedOpenChapter,
   PressedPausePlayback,
   PressedSeekWord,
+  PressedSetChapterSort,
   PressedSetNoteAudience,
   PressedShowAudio,
   PressedSignIn,
@@ -31,21 +33,29 @@ import {
   ScrolledAway,
   ShelfBrowse,
   SignedOut,
+  TitlePage,
   UpdatedNoteDraft,
+  accountIdOf,
   dune,
+  formatSpokenTail,
   init,
   initialModel,
   newEarth,
+  playOf,
   restore,
+  screenOf,
+  sortedChapters,
+  spokenTail,
   update,
+  withView,
   wordAt,
 } from './index.js'
 
 describe('books update', () => {
   test('init uses signedOut and playIdle', () => {
     const [model, commands] = init()
-    expect(model.screen._tag).toBe('SignedOut')
-    expect(model.play._tag).toBe('PlayIdle')
+    expect(screenOf(model)._tag).toBe('SignedOut')
+    expect(playOf(model)._tag).toBe('PlayIdle')
     expect(model.noteDraft).toBe('')
     expect(commands).toEqual([])
   })
@@ -61,19 +71,19 @@ describe('books update', () => {
       Story.message(PressedSignIn()),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.screen).toEqual(ShelfBrowse())
+        expect(screenOf(model)).toEqual(ShelfBrowse())
       }),
     )
   })
 
-  test('open Dune goes to reader both', () => {
+  test('open Dune goes to the title page', () => {
     Story.story(
       update,
-      Story.with({ ...initialModel, screen: ShelfBrowse() }),
+      Story.with(withView(initialModel, { screen: ShelfBrowse() })),
       Story.message(PressedOpenBook({ itemId: dune.id })),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.screen).toEqual(ReaderBoth({ itemId: dune.id }))
+        expect(screenOf(model)).toEqual(TitlePage({ itemId: dune.id }))
       }),
     )
   })
@@ -81,14 +91,15 @@ describe('books update', () => {
   test('show audio from both keeps the same item', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        screen: ReaderBoth({ itemId: dune.id }),
-      }),
+      Story.with(
+        withView(initialModel, {
+          screen: ReaderBoth({ itemId: dune.id }),
+        }),
+      ),
       Story.message(PressedShowAudio()),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.screen).toEqual(ReaderAudio({ itemId: dune.id }))
+        expect(screenOf(model)).toEqual(ReaderAudio({ itemId: dune.id }))
       }),
     )
   })
@@ -96,43 +107,76 @@ describe('books update', () => {
   test('start playback then pause', () => {
     Story.story(
       update,
-      Story.with({ ...initialModel, screen: ShelfBrowse() }),
+      Story.with(withView(initialModel, { screen: ShelfBrowse() })),
       Story.message(PressedStartPlayback({ itemId: dune.id })),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.play._tag).toBe('PlayPlaying')
+        expect(playOf(model)._tag).toBe('PlayPlaying')
       }),
       Story.message(PressedPausePlayback()),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.play._tag).toBe('PlayPaused')
+        expect(playOf(model)._tag).toBe('PlayPaused')
       }),
     )
   })
 
-  test('go back returns to the shelf', () => {
+  test('go back from the reader returns to the title page', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        screen: ReaderBoth({ itemId: dune.id }),
+      Story.with(
+        withView(initialModel, {
+          screen: ReaderBoth({ itemId: dune.id }),
+        }),
+      ),
+      Story.message(PressedGoBack()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(screenOf(model)).toEqual(TitlePage({ itemId: dune.id }))
       }),
       Story.message(PressedGoBack()),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.screen).toEqual(ShelfBrowse())
+        expect(screenOf(model)).toEqual(ShelfBrowse())
       }),
     )
   })
 
-  test('open A New Earth goes to reader both', () => {
+  test('open A New Earth goes to the title page', () => {
     Story.story(
       update,
-      Story.with({ ...initialModel, screen: ShelfBrowse() }),
+      Story.with(withView(initialModel, { screen: ShelfBrowse() })),
       Story.message(PressedOpenBook({ itemId: newEarth.id })),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.screen).toEqual(ReaderBoth({ itemId: newEarth.id }))
+        expect(screenOf(model)).toEqual(TitlePage({ itemId: newEarth.id }))
+        expect(
+          model.items.find(item => item.id === newEarth.id)?.chapters,
+        ).toHaveLength(114)
+      }),
+    )
+  })
+
+  test('open a New Earth chapter parks the reader at that start', () => {
+    Story.story(
+      update,
+      Story.with(
+        withView(initialModel, { screen: TitlePage({ itemId: newEarth.id }) }),
+      ),
+      Story.message(
+        PressedOpenChapter({ itemId: newEarth.id, chapterId: 'ch-002' }),
+      ),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(screenOf(model)).toEqual(ReaderBoth({ itemId: newEarth.id }))
+        expect(playOf(model)).toEqual(
+          PlayPaused({
+            itemId: newEarth.id,
+            renditionId: 'r-audio-3',
+            mediaPosition: 483.955,
+          }),
+        )
+        expect(model.progress[0]?.chapterId).toBe('ch-002')
       }),
     )
   })
@@ -154,18 +198,20 @@ describe('books update', () => {
   test('heard playback position updates the playing clock', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        play: PlayPlaying({
-          itemId: newEarth.id,
-          renditionId: 'r-audio-3',
-          mediaPosition: 0,
+      Story.with(
+        withView(initialModel, {
+          screen: ShelfBrowse(),
+          play: PlayPlaying({
+            itemId: newEarth.id,
+            renditionId: 'r-audio-3',
+            mediaPosition: 0,
+          }),
         }),
-      }),
+      ),
       Story.message(HeardPlaybackPosition({ mediaPosition: 0.5 })),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.play).toEqual(
+        expect(playOf(model)).toEqual(
           PlayPlaying({
             itemId: newEarth.id,
             renditionId: 'r-audio-3',
@@ -203,18 +249,20 @@ describe('books update', () => {
   test('seek word updates the playing position', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        play: PlayPlaying({
-          itemId: newEarth.id,
-          renditionId: 'r-audio-3',
-          mediaPosition: 0,
+      Story.with(
+        withView(initialModel, {
+          screen: ShelfBrowse(),
+          play: PlayPlaying({
+            itemId: newEarth.id,
+            renditionId: 'r-audio-3',
+            mediaPosition: 0,
+          }),
         }),
-      }),
+      ),
       Story.message(PressedSeekWord({ start: 12.5 })),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.play).toEqual(
+        expect(playOf(model)).toEqual(
           PlayPlaying({
             itemId: newEarth.id,
             renditionId: 'r-audio-3',
@@ -228,20 +276,21 @@ describe('books update', () => {
   test('sign out clears play', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        screen: ShelfBrowse(),
-        play: PlayPlaying({
-          itemId: dune.id,
-          renditionId: 'r-audio-1',
-          mediaPosition: 12,
+      Story.with(
+        withView(initialModel, {
+          screen: ShelfBrowse(),
+          play: PlayPlaying({
+            itemId: dune.id,
+            renditionId: 'r-audio-1',
+            mediaPosition: 12,
+          }),
         }),
-      }),
+      ),
       Story.message(PressedSignOut()),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.screen).toEqual(SignedOut())
-        expect(model.play).toEqual(PlayIdle())
+        expect(screenOf(model)).toEqual(SignedOut())
+        expect(playOf(model)).toEqual(PlayIdle())
       }),
     )
   })
@@ -249,26 +298,27 @@ describe('books update', () => {
   test('pause writes progress and play resumes from it', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        screen: ReaderBoth({ itemId: newEarth.id }),
-        play: PlayPlaying({
-          itemId: newEarth.id,
-          renditionId: 'r-audio-3',
-          mediaPosition: 18.669,
+      Story.with(
+        withView(initialModel, {
+          screen: ReaderBoth({ itemId: newEarth.id }),
+          play: PlayPlaying({
+            itemId: newEarth.id,
+            renditionId: 'r-audio-3',
+            mediaPosition: 18.669,
+          }),
         }),
-      }),
+      ),
       Story.message(PressedPausePlayback()),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.play._tag).toBe('PlayPaused')
+        expect(playOf(model)._tag).toBe('PlayPaused')
         expect(model.progress[0]?.relative).toBe(18.669)
         expect(model.progress[0]?.chapterId).toBe('ch-001')
       }),
       Story.message(PressedStartPlayback({ itemId: newEarth.id })),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.play).toEqual(
+        expect(playOf(model)).toEqual(
           PlayPlaying({
             itemId: newEarth.id,
             renditionId: 'r-audio-3',
@@ -282,15 +332,16 @@ describe('books update', () => {
   test('add bookmark and note at the playing place', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        screen: ReaderBoth({ itemId: newEarth.id }),
-        play: PlayPlaying({
-          itemId: newEarth.id,
-          renditionId: 'r-audio-3',
-          mediaPosition: 18.669,
+      Story.with(
+        withView(initialModel, {
+          screen: ReaderBoth({ itemId: newEarth.id }),
+          play: PlayPlaying({
+            itemId: newEarth.id,
+            renditionId: 'r-audio-3',
+            mediaPosition: 18.669,
+          }),
         }),
-      }),
+      ),
       Story.message(PressedAddBookmark()),
       Story.Command.expectNone(),
       Story.model(model => {
@@ -318,14 +369,14 @@ describe('books update', () => {
       Story.message(HeardCatalog({ items: [dune] })),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.screen).toEqual(SignedOut())
+        expect(screenOf(model)).toEqual(SignedOut())
         expect(model.items).toEqual([dune])
       }),
       Story.message(HeardSignedIn({ accountId: 'acct-1' })),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.accountId).toEqual(Option.some('acct-1'))
-        expect(model.screen).toEqual(ShelfBrowse())
+        expect(accountIdOf(model)).toEqual(Option.some('acct-1'))
+        expect(screenOf(model)).toEqual(ShelfBrowse())
       }),
     )
   })
@@ -333,7 +384,7 @@ describe('books update', () => {
   test('heard user data replaces bookmarks notes and progress', () => {
     Story.story(
       update,
-      Story.with({ ...initialModel, screen: ShelfBrowse() }),
+      Story.with(withView(initialModel, { screen: ShelfBrowse() })),
       Story.message(
         HeardUserData({
           bookmarks: [
@@ -373,10 +424,11 @@ describe('books update', () => {
   test('empty note draft is a no-op', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        screen: ReaderBoth({ itemId: newEarth.id }),
-      }),
+      Story.with(
+        withView(initialModel, {
+          screen: ReaderBoth({ itemId: newEarth.id }),
+        }),
+      ),
       Story.message(PressedAddNote()),
       Story.Command.expectNone(),
       Story.model(model => {
@@ -397,14 +449,15 @@ describe('books update', () => {
   test('seek while idle parks on the chapter', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        screen: ReaderBoth({ itemId: newEarth.id }),
-      }),
+      Story.with(
+        withView(initialModel, {
+          screen: ReaderBoth({ itemId: newEarth.id }),
+        }),
+      ),
       Story.message(PressedSeekWord({ start: 483.955 })),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.play).toEqual(
+        expect(playOf(model)).toEqual(
           PlayPaused({
             itemId: newEarth.id,
             renditionId: 'r-audio-3',
@@ -435,7 +488,7 @@ describe('books update', () => {
   test('opened navigation makes destinations data', () => {
     Story.story(
       update,
-      Story.with({ ...initialModel, screen: ShelfBrowse() }),
+      Story.with(withView(initialModel, { screen: ShelfBrowse() })),
       Story.message(
         OpenedNavigation({
           target: BookBothTarget.make({ itemId: newEarth.id }),
@@ -443,7 +496,7 @@ describe('books update', () => {
       ),
       Story.Command.expectNone(),
       Story.model(model => {
-        expect(model.screen).toEqual(ReaderBoth({ itemId: newEarth.id }))
+        expect(screenOf(model)).toEqual(ReaderBoth({ itemId: newEarth.id }))
       }),
     )
   })
@@ -451,10 +504,11 @@ describe('books update', () => {
   test('follow live and scrolled away', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        screen: ReaderBoth({ itemId: newEarth.id }),
-      }),
+      Story.with(
+        withView(initialModel, {
+          screen: ReaderBoth({ itemId: newEarth.id }),
+        }),
+      ),
       Story.message(ScrolledAway()),
       Story.Command.expectNone(),
       Story.model(model => {
@@ -468,13 +522,53 @@ describe('books update', () => {
     )
   })
 
+  test('sort by index lists New Earth 0 through 113', () => {
+    const sorted = sortedChapters(newEarth, 'Index')
+    expect(sorted).toHaveLength(114)
+    expect(sorted.map(chapter => chapter.index)).toEqual(
+      Array.from({ length: 114 }, (_, index) => index),
+    )
+    expect(sorted[0]?.title).toBe('Opening Credits')
+    expect(sorted[113]?.title).toBe('THE NEW EARTH IS NO UTOPIA')
+  })
+
+  test('at Evocation start the current word is the first Evocation token', () => {
+    const first = newEarth.words[0]
+    expect(first?.text).toBe('Evocation')
+    expect(first).toBeDefined()
+    if (first === undefined) {
+      return
+    }
+    const tail = spokenTail(newEarth, first.start, 4)
+    expect(wordAt(newEarth.words, first.start)).toEqual(Option.some(first))
+    expect(tail.current).toEqual(Option.some(first))
+    expect(formatSpokenTail(tail)).toContain('*Evocation*')
+  })
+
+  test('set chapter sort is a Model fact', () => {
+    Story.story(
+      update,
+      Story.with(
+        withView(initialModel, { screen: TitlePage({ itemId: newEarth.id }) }),
+      ),
+      Story.message(PressedSetChapterSort({ sort: 'Title' })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.chapterSort).toBe('Title')
+        const sorted = sortedChapters(newEarth, model.chapterSort)
+        expect(sorted[0]?.title).not.toBe('Opening Credits')
+      }),
+    )
+  })
+
   test('note audience stays on the session draft', () => {
     Story.story(
       update,
-      Story.with({
-        ...initialModel,
-        screen: ReaderBoth({ itemId: newEarth.id }),
-      }),
+      Story.with(
+        withView(initialModel, {
+          screen: ReaderBoth({ itemId: newEarth.id }),
+        }),
+      ),
       Story.message(PressedSetNoteAudience({ audience: 'public' })),
       Story.Command.expectNone(),
       Story.model(model => {

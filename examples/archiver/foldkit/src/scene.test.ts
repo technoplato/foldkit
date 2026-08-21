@@ -1,4 +1,4 @@
-import { QueuedArchive, type Model, update } from 'archiver-core-example'
+import { type Model, QueuedArchive, update } from 'archiver-core-example'
 import { Scene } from 'foldkit'
 import { describe, test } from 'vitest'
 

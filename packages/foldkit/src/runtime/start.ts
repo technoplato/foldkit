@@ -1,4 +1,14 @@
-import { Effect, Layer, Option, Result, Schema as S, Scope } from 'effect'
+import {
+  Array,
+  Effect,
+  Layer,
+  Option,
+  Order,
+  Result,
+  Schema as S,
+  Scope,
+  pipe,
+} from 'effect'
 
 import type { Ports } from '../port/port.js'
 import type { AnyProgram } from '../program/compose.js'
@@ -14,13 +24,17 @@ import {
   makeProgramRuntime,
 } from './programRuntime.js'
 import {
+  type LogRowOrder,
   type SyncEngine,
   type SyncLink,
   type SyncTransportError,
   type SyncWrite,
   type SyncWriteResult,
   isEmptySnapshot,
+  isRowOrderAfter,
+  readRowNumber,
   readRowString,
+  rowOrderOf,
 } from './syncEngine.js'
 
 /** A Program produced by {@link Program.compose.sync}. */
@@ -128,6 +142,28 @@ const transportFailed = <Msg>(fields: {
 
 const asMessage = <Message>(message: unknown): Message => message as Message
 
+/**
+ * The boundary after a snapshot row. `at` is the write time of the
+ * last Message the snapshot folded, so rows in the same millisecond
+ * are treated as covered.
+ */
+const snapshotBoundary = (at: number): LogRowOrder => ({
+  createdAtMs: at,
+  id: '\u{10FFFF}',
+})
+
+const logEntryOrder = Order.combine(
+  Order.mapInput(
+    Order.Number,
+    (entry: Readonly<{ order: LogRowOrder; row: unknown }>) =>
+      entry.order.createdAtMs,
+  ),
+  Order.mapInput(
+    Order.String,
+    (entry: Readonly<{ order: LogRowOrder; row: unknown }>) => entry.order.id,
+  ),
+)
+
 const decodeFailed = <Msg>(fields: {
   readonly what: string
   readonly meaning: string
@@ -172,8 +208,17 @@ export const start = <
   Effect.gen(function* () {
     const program = config.program
     const engine = config.sync
-    const seenIds = new Set<string>()
+    const knownRows = new Map<string, unknown>()
     let lastWrite: Option.Option<SyncWriteResult> = Option.none()
+    let lastApplied: Option.Option<LogRowOrder> = Option.none()
+    const [initialChildModel] = program.of.init()
+    let bootBase: Readonly<{
+      model: unknown
+      order: Option.Option<LogRowOrder>
+    }> = {
+      model: initialChildModel,
+      order: Option.none(),
+    }
 
     const runtime = yield* makeProgramRuntime({
       program,
@@ -181,11 +226,67 @@ export const start = <
     })
     yield* runtime.initialization
 
-    const rememberId = (row: unknown): void => {
+    const rememberRow = (row: unknown): void => {
       const id = readRowString(row, 'id')
       if (Option.isSome(id) && id.value !== '') {
-        seenIds.add(id.value)
+        knownRows.set(id.value, row)
       }
+    }
+
+    const isKnownRow = (row: unknown): boolean => {
+      const id = readRowString(row, 'id')
+      return Option.isSome(id) && id.value !== '' && knownRows.has(id.value)
+    }
+
+    const bumpLastApplied = (order: LogRowOrder): void => {
+      if (
+        Option.isNone(lastApplied) ||
+        isRowOrderAfter(order, lastApplied.value)
+      ) {
+        lastApplied = Option.some(order)
+      }
+    }
+
+    /**
+     * Folds the boot base plus every known row after it, ordered by
+     * `createdAtMs` then `id`. Commands from the child update are
+     * discarded: these Messages already happened once.
+     */
+    const foldLog = (): Readonly<{
+      model: unknown
+      maxOrder: Option.Option<LogRowOrder>
+    }> => {
+      const entries = pipe(
+        Array.fromIterable(knownRows.values()),
+        Array.filterMap(row => {
+          const order = rowOrderOf(row)
+          if (Option.isNone(order)) {
+            return Result.failVoid
+          }
+          if (
+            Option.isSome(bootBase.order) &&
+            !isRowOrderAfter(order.value, bootBase.order.value)
+          ) {
+            return Result.failVoid
+          }
+          return Result.succeed({ order: order.value, row })
+        }),
+        Array.sort(logEntryOrder),
+      )
+      const model = Array.reduce(entries, bootBase.model, (folded, entry) => {
+        const decoded = decodeUnknown(program.message, entry.row)
+        if (Option.isNone(decoded)) {
+          return folded
+        }
+        const [next] = program.of.update(folded, decoded.value)
+        return next
+      })
+      const maxOrder = pipe(
+        Array.last(entries),
+        Option.map(entry => entry.order),
+        Option.orElse(() => bootBase.order),
+      )
+      return { model, maxOrder }
     }
 
     const persist = (message: Message): Effect.Effect<void> =>
@@ -236,7 +337,11 @@ export const start = <
           engine.processor,
           nowMs(),
         )
-        rememberId(write.message)
+        rememberRow(write.message)
+        const writtenOrder = rowOrderOf(write.message)
+        if (Option.isSome(writtenOrder)) {
+          bumpLastApplied(writtenOrder.value)
+        }
         const written = yield* engine.write(write).pipe(Effect.result)
         if (Result.isFailure(written)) {
           lastWrite = Option.some({ link: 'queued' })
@@ -273,26 +378,32 @@ export const start = <
       )
     } else {
       for (const row of applyBoot.success.messages) {
-        rememberId(row)
+        rememberRow(row)
       }
-      if (isEmptySnapshot(applyBoot.success.snapshot)) {
-        const [childModel] = program.of.init()
+      const bootSnapshot = applyBoot.success.snapshot
+      if (isEmptySnapshot(bootSnapshot)) {
+        const folded = foldLog()
+        lastApplied = folded.maxOrder
         runtime.send(
           asMessage<Message>({
             _tag: 'SnapshotReceived',
-            model: childModel,
+            model: folded.model,
           }),
         )
       } else {
-        const decoded = decodeUnknown(
-          program.snapshot,
-          applyBoot.success.snapshot,
-        )
+        const decoded = decodeUnknown(program.snapshot, bootSnapshot)
         if (Option.isSome(decoded)) {
+          const snapshotAt = readRowNumber(bootSnapshot, 'at')
+          bootBase = {
+            model: decoded.value,
+            order: Option.map(snapshotAt, snapshotBoundary),
+          }
+          const folded = foldLog()
+          lastApplied = folded.maxOrder
           runtime.send(
             asMessage<Message>({
               _tag: 'SnapshotReceived',
-              model: decoded.value,
+              model: folded.model,
             }),
           )
         } else {
@@ -303,7 +414,7 @@ export const start = <
                 meaning: 'The count row did not match the snapshot Schema.',
                 fix: 'Do not guess the count. Fix the snapshot Schema.',
                 cause: 'Snapshot Schema decode failed.',
-                raw: applyBoot.success.snapshot,
+                raw: bootSnapshot,
               }),
             ),
           )
@@ -320,13 +431,13 @@ export const start = <
       }
       const from = readRowString(event.row, 'from')
       if (Option.isSome(from) && from.value === engine.processor) {
+        rememberRow(event.row)
         return
       }
-      const id = readRowString(event.row, 'id')
-      if (Option.isSome(id) && id.value !== '' && seenIds.has(id.value)) {
+      if (isKnownRow(event.row)) {
         return
       }
-      rememberId(event.row)
+      rememberRow(event.row)
       const decoded = decodeUnknown(program.message, event.row)
       if (Option.isNone(decoded)) {
         runtime.send(
@@ -342,12 +453,31 @@ export const start = <
         )
         return
       }
+      const order = rowOrderOf(event.row)
+      const isOutOfOrder =
+        Option.isSome(order) &&
+        Option.isSome(lastApplied) &&
+        !isRowOrderAfter(order.value, lastApplied.value)
+      if (isOutOfOrder) {
+        const folded = foldLog()
+        lastApplied = folded.maxOrder
+        runtime.send(
+          asMessage<Message>({
+            _tag: 'LogRefolded',
+            model: folded.model,
+          }),
+        )
+        return
+      }
       runtime.send(
         asMessage<Message>({
           _tag: 'RemoteMessageReceived',
           message: decoded.value,
         }),
       )
+      if (Option.isSome(order)) {
+        bumpLastApplied(order.value)
+      }
     }
 
     yield* engine.subscribe(onEvent)

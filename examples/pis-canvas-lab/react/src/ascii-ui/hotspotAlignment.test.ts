@@ -123,9 +123,7 @@ describe('ascii hotspot alignment (layout ↔ paint)', () => {
   })
 
   it('phone uses ASCII borders only (no fullwidth / emoji cells)', () => {
-    const frame = renderAscii(
-      Phone({ cols: 20, title: 'T' }, Text('hello')),
-    )
+    const frame = renderAscii(Phone({ cols: 20, title: 'T' }, Text('hello')))
     const joined = frame.lines.join('')
     expect(joined).not.toMatch(/[┌┐└┘─│⚡←−]/)
     expect(frame.lines[0]?.startsWith('+')).toBe(true)

@@ -12,6 +12,7 @@
     "pretypecheck": "pnpm --filter ideas-react-bindings-example build"
   },
   "dependencies": {
+    "@foldkit/instant": "workspace:*",
     "@instantdb/core": "1.0.53",
     "@instantdb/react-native": "1.0.53",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -20,7 +21,10 @@
     "ideas-react-bindings-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "expo": "~57.0.9",
+    "expo-linking": "~57.0.5",
+    "expo-secure-store": "~57.0.1",
     "expo-status-bar": "~57.0.1",
+    "expo-web-browser": "~57.0.2",
     "foldkit": "workspace:*",
     "react": "19.2.3",
     "react-native": "0.86.2",

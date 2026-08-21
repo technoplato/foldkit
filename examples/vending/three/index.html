@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>Vending | Knophy</title>
     <style>
       html,
@@ -18,28 +21,93 @@
       #root {
         touch-action: none;
       }
+      #root canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
       #hud {
         position: absolute;
-        left: 16px;
-        bottom: 16px;
-        max-width: min(420px, calc(100% - 32px));
-        color: #f3d7a0;
+        left: max(12px, env(safe-area-inset-left));
+        bottom: max(12px, env(safe-area-inset-bottom));
+        width: min(240px, calc(100% - 24px));
+        color: #f6ead2;
         font-size: 12px;
-        line-height: 1.45;
+        line-height: 1.3;
         pointer-events: none;
-        text-shadow: 0 1px 2px #000;
+        background: rgba(12, 10, 9, 0.9);
+        padding: 8px 10px 9px;
+        border-radius: 12px;
+        border: 1px solid rgba(243, 215, 160, 0.18);
       }
-      #hud code {
-        display: block;
-        margin-top: 6px;
+      .hud-kicker {
+        margin: 0 0 6px;
+        color: #f3d7a0;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .hud-steps {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .hud-steps li {
+        color: #6f675c;
+        margin: 0 0 2px;
+      }
+      .hud-steps li.is-done {
+        color: #4e4943;
+      }
+      .hud-steps li.is-now {
+        color: #fff6e4;
+      }
+      .hud-now {
+        margin: 7px 0 0;
+        color: #fff6e4;
+        font-size: 13px;
+      }
+      .hud-hint {
+        margin: 5px 0 0;
+        color: #7a7266;
+        font-size: 10px;
+      }
+      .hud-address {
+        margin: 8px 0 0;
+        color: #cbb892;
+        font-size: 10px;
         word-break: break-all;
-        color: #fff4d6;
+      }
+      #copy-address {
+        display: none;
+        pointer-events: auto;
+        margin-top: 8px;
+        width: 100%;
+        border: 1px solid #f3d7a0;
+        background: #1a1612;
+        color: #fff6e4;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      #copy-address.is-visible {
+        display: block;
+      }
+      #copy-address.is-copied {
+        border-color: #7cff9a;
+        color: #b8ffc8;
       }
     </style>
   </head>
   <body>
     <div id="root"></div>
-    <div id="hud"></div>
+    <div id="hud">
+      <div id="hud-copy"></div>
+      <p id="hud-address" class="hud-address" hidden></p>
+      <button type="button" id="copy-address">Copy Solana Pay</button>
+    </div>
     <script type="module" src="./src/entry.ts"></script>
   </body>
 </html>

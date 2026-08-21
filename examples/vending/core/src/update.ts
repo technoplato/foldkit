@@ -3,6 +3,7 @@ import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
 import {
   NetworkFailure,
+  type PortfolioSnapshot,
   TestFundingRequest,
   WalletClient,
   WalletClientError,
@@ -14,7 +15,6 @@ import {
   WalletVault,
   clipboardCopyRequestForAddress,
   nextWalletCreationRequest,
-  type PortfolioSnapshot,
 } from 'wallet-core-example'
 
 import {
@@ -32,20 +32,24 @@ import {
 } from './message.js'
 import {
   AwaitingPayment,
+  ClearControl,
   CopiedAddress,
   CreatingWallet,
   DialedSelection,
+  type Digit,
+  DigitControl,
   DispensedVend,
+  EnterControl,
   FailedClipboard,
   FailedFunding,
   FailedWallet,
+  IdleClipPlayback,
   IdleSelection,
   IdleVend,
   LoadingPortfolio,
   LockedSelection,
-  maximumKeypadLength,
-  meetsSettleThreshold,
   type Model,
+  PlayingClipPlayback,
   ReadyReceive,
   ReceivedFunding,
   RequestingFunding,
@@ -55,17 +59,18 @@ import {
   defaultChainId,
   defaultNetworkId,
   incomingFromRecord,
+  maximumKeypadLength,
+  meetsSettleThreshold,
+  playbackAtElapsed,
   skuForCode,
   solDevnetReceive,
   solanaDevnetNetwork,
   tinyAirdropLamports,
 } from './model.js'
+import { solanaPayUriForAddress } from './presentation.js'
 
 const toNetworkFailure = (
-  operation:
-    | 'LoadPortfolio'
-    | 'RequestTestFunding'
-    | 'ObserveTransactions',
+  operation: 'LoadPortfolio' | 'RequestTestFunding' | 'ObserveTransactions',
   error: WalletClientError,
 ): WalletFailure => NetworkFailure.make({ operation, code: error.code })
 
@@ -131,7 +136,9 @@ export const CopyAddress = Command.define(
 )(({ address }) =>
   WalletClipboard.pipe(
     Effect.flatMap(clipboard =>
-      clipboard.writeText(clipboardCopyRequestForAddress(address).value),
+      clipboard.writeText(
+        clipboardCopyRequestForAddress(solanaPayUriForAddress(address)).value,
+      ),
     ),
     Effect.map(() => SucceededCopyAddress.make({ address })),
     Effect.catch(error =>
@@ -178,10 +185,7 @@ const loadOrCreate = (
       [CreateDepositWallet({ request: createRequestFor(wallets) })],
     ]
   }
-  return [
-    LoadingPortfolio.make({ wallets }),
-    [LoadPortfolio({ wallets })],
-  ]
+  return [LoadingPortfolio.make({ wallets }), [LoadPortfolio({ wallets })]]
 }
 
 const readyFromPortfolio = (
@@ -220,12 +224,13 @@ const lockIfAwaiting = (model: Model, address: string): Model => {
   })
 }
 
-const pressDigit = (model: Model, digit: string): Model => {
+const pressDigit = (model: Model, digit: Digit): Model => {
+  const lastControl = DigitControl.make({ digit })
   if (
     model.vendPhase._tag === 'AwaitingPayment' &&
     model.selection._tag === 'Locked'
   ) {
-    return model
+    return evo(model, { lastControl: () => lastControl })
   }
   const resetCycle =
     model.vendPhase._tag === 'Dispensed' ||
@@ -233,19 +238,23 @@ const pressDigit = (model: Model, digit: string): Model => {
     model.vendPhase._tag === 'WrongCode'
   const baseBuffer = resetCycle ? '' : model.keypadBuffer
   if (baseBuffer.length >= maximumKeypadLength) {
-    return model
+    return evo(model, { lastControl: () => lastControl })
   }
   const nextBuffer = `${baseBuffer}${digit}`
   return evo(model, {
     keypadBuffer: () => nextBuffer,
+    lastControl: () => lastControl,
     selection: () => DialedSelection.make({ code: nextBuffer }),
     vendPhase: () => (resetCycle ? IdleVend.make({}) : model.vendPhase),
+    clipPlayback: () =>
+      resetCycle ? IdleClipPlayback.make({}) : model.clipPlayback,
   })
 }
 
 const pressClear = (model: Model): Model =>
   evo(model, {
     keypadBuffer: () => '',
+    lastControl: () => ClearControl.make({}),
     selection: () => IdleSelection.make({}),
     vendPhase: () =>
       model.vendPhase._tag === 'Dispensed' ||
@@ -255,17 +264,19 @@ const pressClear = (model: Model): Model =>
   })
 
 const pressEnter = (model: Model): Model => {
+  const lastControl = EnterControl.make({})
   if (
     model.vendPhase._tag === 'AwaitingPayment' ||
     model.vendPhase._tag === 'Dispensed' ||
     model.vendPhase._tag === 'Received' ||
     model.vendPhase._tag === 'Vending'
   ) {
-    return model
+    return evo(model, { lastControl: () => lastControl })
   }
   const sku = skuForCode(model.catalog, model.keypadBuffer)
   if (sku === undefined) {
     return evo(model, {
+      lastControl: () => lastControl,
       selection: () => DialedSelection.make({ code: model.keypadBuffer }),
       vendPhase: () => WrongCodeVend.make({}),
     })
@@ -273,12 +284,13 @@ const pressEnter = (model: Model): Model => {
   if (model.wallet._tag === 'ready') {
     const address = model.wallet.address
     return evo(model, {
-      selection: () =>
-        LockedSelection.make({ sku, address }),
+      lastControl: () => lastControl,
+      selection: () => LockedSelection.make({ sku, address }),
       vendPhase: () => AwaitingPayment.make({}),
     })
   }
   return evo(model, {
+    lastControl: () => lastControl,
     selection: () => DialedSelection.make({ code: sku.code }),
     vendPhase: () => AwaitingPayment.make({}),
   })
@@ -291,7 +303,9 @@ const applyIncoming = (
   if (incoming === undefined) {
     return model
   }
-  if (model.incoming.some(item => item.transactionId === incoming.transactionId)) {
+  if (
+    model.incoming.some(item => item.transactionId === incoming.transactionId)
+  ) {
     return model
   }
   const nextIncoming = [...model.incoming, incoming]
@@ -305,6 +319,7 @@ const applyIncoming = (
   }
   return evo(withIncoming, {
     vendPhase: () => DispensedVend.make({}),
+    clipPlayback: () => PlayingClipPlayback.make({ elapsedMs: 0 }),
   })
 }
 
@@ -321,6 +336,20 @@ export const update = (model: Model, message: Message): UpdateResult =>
       PressedDigit: ({ digit }) => [pressDigit(model, digit), []],
       PressedEnter: () => [pressEnter(model), []],
       PressedClear: () => [pressClear(model), []],
+      AdvancedClipPlayback: ({ elapsedMs }) => {
+        if (model.vendPhase._tag !== 'Dispensed') {
+          return [model, []]
+        }
+        if (model.clipPlayback._tag === 'Idle') {
+          return [model, []]
+        }
+        return [
+          evo(model, {
+            clipPlayback: () => playbackAtElapsed(elapsedMs),
+          }),
+          [],
+        ]
+      },
       ReportedVendTimeout: () => [
         model.vendPhase._tag === 'AwaitingPayment'
           ? evo(model, { vendPhase: () => TimedOutVend.make({}) })

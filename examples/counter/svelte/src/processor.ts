@@ -1,11 +1,12 @@
 import {
-  type Message,
-  type Model,
+  type AppMessage,
+  type AppModel,
+  type CounterFactHandles,
   type Path,
-  type SyncedCounterActions,
   type SyncedCounterHandle,
   memorySyncedEngine,
   startSyncedCounterHandle,
+  subscribeHostPaint,
 } from 'counter-core-example'
 import { Processor, Program } from 'foldkit'
 import { createSubscriber } from 'svelte/reactivity'
@@ -14,7 +15,9 @@ let installedHandle: SyncedCounterHandle | undefined
 let subscribeToHandle: (() => void) | undefined
 
 const bindHandleSubscriber = (handle: SyncedCounterHandle): void => {
-  subscribeToHandle = createSubscriber(update => handle.subscribe(update))
+  subscribeToHandle = createSubscriber(update =>
+    subscribeHostPaint(handle.subscribe, update),
+  )
 }
 
 /** Installs a synced Counter handle. Tests use this. The window does not. */
@@ -47,15 +50,17 @@ const getSyncedCounterHandle = (): SyncedCounterHandle => {
 }
 
 /** Live synced Model for `Path()`. Do not pass `'/counter'`. */
-export const useModel = (path: Path): Program.SyncedModel<Model, Message> => {
+export const useModel = (
+  path: Path,
+): Program.SyncedModel<AppModel, AppMessage> => {
   const handle = getSyncedCounterHandle()
   void path
   subscribeToHandle?.()
   return handle.readModel()
 }
 
-/** Valid buttons for `Path()`. Instant stays in Runtime.start. */
-export const useActions = (path: Path): SyncedCounterActions => {
+/** Derived past-tense fact handles for `Path()`. Instant stays in Runtime.start. */
+export const useActions = (path: Path): CounterFactHandles => {
   const handle = getSyncedCounterHandle()
   void path
   subscribeToHandle?.()

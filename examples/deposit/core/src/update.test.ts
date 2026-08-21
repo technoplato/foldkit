@@ -1,5 +1,6 @@
 import { Option, Schema as S } from 'effect'
 import { describe, expect, test } from 'vitest'
+import { AtomicUnits, TransactionRecord } from 'wallet-core-example'
 
 import {
   CAPABILITY_TAGS,
@@ -17,7 +18,6 @@ import {
   selectCryptoRail,
   update,
 } from './index.js'
-import { AtomicUnits, TransactionRecord } from 'wallet-core-example'
 
 const incomingSol = (lamports: string, status: 'Confirmed' | 'Pending') =>
   TransactionRecord.make({
@@ -73,7 +73,9 @@ describe('SOL Devnet deposit', () => {
 describe('UnsupportedRail', () => {
   test('btc/eth/sui/mainnet-sol refuse without a live command', () => {
     const [initial] = init()
-    const cases: ReadonlyArray<readonly ['btc' | 'eth' | 'sui' | 'sol', 'devnet' | 'testnet' | 'mainnet']> = [
+    const cases: ReadonlyArray<
+      readonly ['btc' | 'eth' | 'sui' | 'sol', 'devnet' | 'testnet' | 'mainnet']
+    > = [
       ['btc', 'mainnet'],
       ['eth', 'mainnet'],
       ['sui', 'devnet'],

@@ -1,4 +1,4 @@
-import { Result } from 'effect'
+import { Option, Result } from 'effect'
 
 import { type Message, OpenedNavigation } from './message.js'
 import { type Model, itemById } from './model.js'
@@ -19,15 +19,20 @@ export const resolveNavigationCarrier = (
       : target._tag === 'BookBothTarget'
         ? destinationUri === canonical ||
           destinationUri === `/book/${target.itemId}/both`
-        : destinationUri === canonical
+        : target._tag === 'NoteShareTarget'
+          ? destinationUri === canonical ||
+            destinationUri === `/n/${target.noteId}` ||
+            destinationUri.startsWith(`/n/${target.noteId}?`)
+          : destinationUri === canonical
   if (!allowed) {
     return Result.fail(canonical)
   }
   if (
-    (target._tag === 'BookTextTarget' ||
+    (target._tag === 'BookTitleTarget' ||
+      target._tag === 'BookTextTarget' ||
       target._tag === 'BookAudioTarget' ||
       target._tag === 'BookBothTarget') &&
-    itemById(model.items, target.itemId) === undefined
+    Option.isNone(itemById(model.items, target.itemId))
   ) {
     return Result.fail(canonical)
   }

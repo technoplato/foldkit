@@ -1,13 +1,13 @@
 import { Data, Effect, Result, Scope } from 'effect'
 import { type IncomingMessage, type Server, createServer } from 'node:http'
 
+import { logMultipleCountersV3Debug } from '../shared/debugLog.js'
 import {
   MultipleCountersV3DebugLoginIssued,
   decodeMultipleCountersV3DebugLoginRequest,
   multipleCountersV3DebugLoginLoopbackPort,
   multipleCountersV3DebugSubjectLabel,
 } from '../shared/debugLogin.js'
-import { logMultipleCountersV3Debug } from '../shared/debugLog.js'
 
 /** Instant admin auth methods the debug login is allowed to call. */
 export type MultipleCountersV3DebugLoginAuth = Readonly<{
@@ -150,43 +150,41 @@ export const runMultipleCountersV3DebugLoginServer = (
   const host = options.host ?? multipleCountersV3DebugLoginHost()
   const port = options.port ?? multipleCountersV3DebugLoginPort()
   return Effect.acquireRelease(
-    Effect.callback<Server, MultipleCountersV3DebugLoginServerError>(
-      resume => {
-        const server = createServer((request, response) => {
-          void (async () => {
-            let body: unknown = {}
-            try {
-              body = await readJsonBody(request)
-            } catch {
-              response.writeHead(400, jsonHeaders)
-              response.end(JSON.stringify({ error: 'MalformedJson' }))
-              return
-            }
-            const result = await handleMultipleCountersV3DebugLoginRequest(
-              auth,
-              request.method ?? 'GET',
-              pathnameOf(request.url),
-              body,
-            )
-            response.writeHead(result.status, jsonHeaders)
-            response.end(JSON.stringify(result.body))
-          })()
-        })
-        server.on('error', cause => {
-          resume(
-            Effect.fail(
-              new MultipleCountersV3DebugLoginServerError({ cause, port }),
-            ),
+    Effect.callback<Server, MultipleCountersV3DebugLoginServerError>(resume => {
+      const server = createServer((request, response) => {
+        void (async () => {
+          let body: unknown = {}
+          try {
+            body = await readJsonBody(request)
+          } catch {
+            response.writeHead(400, jsonHeaders)
+            response.end(JSON.stringify({ error: 'MalformedJson' }))
+            return
+          }
+          const result = await handleMultipleCountersV3DebugLoginRequest(
+            auth,
+            request.method ?? 'GET',
+            pathnameOf(request.url),
+            body,
           )
-        })
-        server.listen(port, host, () => {
-          process.stdout.write(
-            `Foldkit Instant debug login is minting Alice and Bob codes at http://${host}:${port.toString()}/magic-code.\n`,
-          )
-          resume(Effect.succeed(server))
-        })
-      },
-    ),
+          response.writeHead(result.status, jsonHeaders)
+          response.end(JSON.stringify(result.body))
+        })()
+      })
+      server.on('error', cause => {
+        resume(
+          Effect.fail(
+            new MultipleCountersV3DebugLoginServerError({ cause, port }),
+          ),
+        )
+      })
+      server.listen(port, host, () => {
+        process.stdout.write(
+          `Foldkit Instant debug login is minting Alice and Bob codes at http://${host}:${port.toString()}/magic-code.\n`,
+        )
+        resume(Effect.succeed(server))
+      })
+    }),
     server =>
       Effect.callback<void>(resume => {
         server.close(() => {

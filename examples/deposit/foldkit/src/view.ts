@@ -1,18 +1,18 @@
-import { Array, Option } from 'effect'
-import { Document, html, type Html } from 'foldkit/html'
 import {
+  type Chain,
   type IncomingSol,
   type Message,
   type Model,
+  type Network,
   RequestedCopyAddress,
   RequestedCryptoDeposit,
   RequestedFiatDeposit,
   RequestedTestFunding,
   RequestedWalletCreation,
   SelectedCryptoRail,
-  type Chain,
-  type Network,
 } from 'deposit-core-example'
+import { Array, Option } from 'effect'
+import { Document, type Html, html } from 'foldkit/html'
 import { displayAmountFromAtomicUnits } from 'wallet-core-example'
 import {
   type ReceivingQrHostOrigin,
@@ -28,16 +28,10 @@ const outcomeLine = (model: Model): string =>
   Option.match(model.lastOutcome, {
     onNone: () => 'effects appear here — unsupported rails refuse',
     onSome: outcome =>
-      outcome._tag === 'ok'
-        ? outcome.line
-        : `refuse ${outcome.why}`,
+      outcome._tag === 'ok' ? outcome.line : `refuse ${outcome.why}`,
   })
 
-const railButton = (
-  chain: Chain,
-  network: Network,
-  model: Model,
-): Html => {
+const railButton = (chain: Chain, network: Network, model: Model): Html => {
   const el = html<Message>()
   const selected =
     model.selectedChain === chain && model.selectedNetwork === network
@@ -72,17 +66,16 @@ const incomingRow = (item: IncomingSol): Html => {
   )
 }
 
-const qrPanel = (
-  model: Model,
-  hostOrigin: ReceivingQrHostOrigin,
-): Html => {
+const qrPanel = (model: Model, hostOrigin: ReceivingQrHostOrigin): Html => {
   const el = html<Message>()
   if (model.wallet._tag !== 'ready') {
     return el.p(
       [el.Class('font-mono text-sm text-emerald-500')],
-      [model.wallet._tag === 'failed'
-        ? `wallet failed: ${model.wallet.code}`
-        : 'loading SOL Devnet receive…'],
+      [
+        model.wallet._tag === 'failed'
+          ? `wallet failed: ${model.wallet.code}`
+          : 'loading SOL Devnet receive…',
+      ],
     )
   }
   const wallet = model.wallet
@@ -153,29 +146,31 @@ const rails = (): ReadonlyArray<readonly [Chain, Network]> => [
 ]
 
 /** Renders the deposit page as Html. */
-export const body = (
-  model: Model,
-  hostOrigin: ReceivingQrHostOrigin,
-): Html => {
+export const body = (model: Model, hostOrigin: ReceivingQrHostOrigin): Html => {
   const el = html<Message>()
   return el.div(
     [el.Class('min-h-screen bg-zinc-950 text-emerald-100')],
     [
       el.header(
-        [el.Class('border-b border-emerald-900 bg-black px-6 py-3 font-mono text-sm')],
+        [
+          el.Class(
+            'border-b border-emerald-900 bg-black px-6 py-3 font-mono text-sm',
+          ),
+        ],
         [el.p([el.Class('text-emerald-500')], ['sender@deposit:~$'])],
       ),
       el.main(
         [el.Class('mx-auto grid max-w-5xl gap-8 p-6')],
         [
           el.p(
-            [el.Class('font-mono text-xs uppercase tracking-[0.3em] text-amber-400')],
+            [
+              el.Class(
+                'font-mono text-xs uppercase tracking-[0.3em] text-amber-400',
+              ),
+            ],
             ['DEPOSIT · SOL DEVNET FIRST'],
           ),
-          el.h1(
-            [el.Class('text-3xl font-semibold')],
-            ['Deposit page'],
-          ),
+          el.h1([el.Class('text-3xl font-semibold')], ['Deposit page']),
           el.p(
             [el.Class('font-mono text-sm text-emerald-400')],
             [outcomeLine(model)],
@@ -188,14 +183,16 @@ export const body = (
             [el.Class('grid gap-3')],
             [
               el.h2(
-                [el.Class('font-mono text-xs uppercase tracking-wide text-amber-300')],
+                [
+                  el.Class(
+                    'font-mono text-xs uppercase tracking-wide text-amber-300',
+                  ),
+                ],
                 ['crypto rails (ADT)'],
               ),
               el.div(
                 [el.Class('flex flex-wrap gap-2')],
-                Array.map(rails(), pair =>
-                  railButton(pair[0], pair[1], model),
-                ),
+                Array.map(rails(), pair => railButton(pair[0], pair[1], model)),
               ),
               el.button(
                 [
@@ -217,7 +214,11 @@ export const body = (
             [el.Class('grid gap-3')],
             [
               el.h2(
-                [el.Class('font-mono text-xs uppercase tracking-wide text-amber-300')],
+                [
+                  el.Class(
+                    'font-mono text-xs uppercase tracking-wide text-amber-300',
+                  ),
+                ],
                 ['fiat'],
               ),
               el.button(
@@ -245,7 +246,11 @@ export const body = (
             [el.Class('grid gap-3')],
             [
               el.h2(
-                [el.Class('font-mono text-xs uppercase tracking-wide text-amber-300')],
+                [
+                  el.Class(
+                    'font-mono text-xs uppercase tracking-wide text-amber-300',
+                  ),
+                ],
                 ['incoming SOL'],
               ),
               model.incoming.length === 0
@@ -263,7 +268,11 @@ export const body = (
             [el.Class('grid gap-3')],
             [
               el.h2(
-                [el.Class('font-mono text-xs uppercase tracking-wide text-amber-300')],
+                [
+                  el.Class(
+                    'font-mono text-xs uppercase tracking-wide text-amber-300',
+                  ),
+                ],
                 ['unlocked capabilities'],
               ),
               model.sender.unlocked.length === 0

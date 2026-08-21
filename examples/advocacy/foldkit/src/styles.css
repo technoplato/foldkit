@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Lato:wght@400;700&display=swap');
+@import 'tailwindcss';
+
+/* NOTE: Fraunces stands in for Solace's self-hosted Mollie Glaston. */
+
+@theme {
+  --color-forest: #285e50;
+  --color-forest-deep: #1d4339;
+  --color-forest-ink: #102720;
+  --color-cream: #fffdfa;
+  --color-surface: #ffffff;
+  --color-ink: #101010;
+  --color-body: #555555;
+  --color-muted: #7f7f7f;
+  --color-gold: #d7a13b;
+  --color-error: #bd4248;
+  --color-waiting: #f4f8f7;
+  --color-clinical: #e9f0ee;
+  --color-opal: #d4e2dd;
+  --font-sans: 'Lato', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+}
+
+body {
+  margin: 0;
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}

@@ -1,5 +1,5 @@
 import { Array, Match as M } from 'effect'
-import { Document, html, type Html } from 'foldkit/html'
+import { Document, type Html, html } from 'foldkit/html'
 import {
   type Message,
   type Model,
@@ -49,7 +49,11 @@ const overlayView = (model: Model): Html => {
               ],
               [
                 h.p(
-                  [h.Class('mb-2 font-mono text-xs tracking-widest text-amber-300')],
+                  [
+                    h.Class(
+                      'mb-2 font-mono text-xs tracking-widest text-amber-300',
+                    ),
+                  ],
                   [speaker],
                 ),
                 h.p([h.Class('font-serif text-lg leading-relaxed')], [body]),
@@ -79,11 +83,11 @@ const overlayView = (model: Model): Html => {
               ],
               [
                 h.p([h.Class('text-xs tracking-widest')], ['THE CLIP']),
+                h.p([h.Class('text-2xl')], [`listed ${listPriceDisplay}`]),
                 h.p(
-                  [h.Class('text-2xl')],
-                  [`listed ${listPriceDisplay}`],
+                  [h.Class('mt-3 text-lg')],
+                  [keypadBuffer === '' ? '____' : keypadBuffer],
                 ),
-                h.p([h.Class('mt-3 text-lg')], [keypadBuffer === '' ? '____' : keypadBuffer]),
                 h.p([h.Class('text-sm text-amber-300')], [vendPhase]),
                 h.p(
                   [h.Class('mt-3 text-xs text-stone-400')],
@@ -110,7 +114,7 @@ export const view = (model: Model): Document => {
         ),
         h.Tabindex(0),
         h.AriaLabel('Town yard'),
-        h.OnKeyDownPreventDefault((key) => messageFromKey(key, model)),
+        h.OnKeyDownPreventDefault(key => messageFromKey(key, model)),
       ],
       [
         h.h1(
@@ -123,7 +127,9 @@ export const view = (model: Model): Document => {
         ),
         h.div(
           [
-            h.Class('grid gap-px rounded border border-stone-700 bg-stone-900 p-1'),
+            h.Class(
+              'grid gap-px rounded border border-stone-700 bg-stone-900 p-1',
+            ),
             h.Style({
               gridTemplateColumns: `repeat(${String(townWidth)}, 1.75rem)`,
             }),

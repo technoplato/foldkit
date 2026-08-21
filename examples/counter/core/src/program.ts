@@ -5,7 +5,7 @@ import { type UiNode } from 'foldkit/renderers'
 import { wrapDevice } from 'foldkit/renderers/devices'
 
 import { init, restore } from './init.js'
-import { Message, actions, tokenOf } from './message.js'
+import { Message, actionByToken, actions, tokenOf } from './message.js'
 import { Model, uri } from './model.js'
 import { productView } from './product.js'
 import { update } from './update.js'
@@ -42,15 +42,22 @@ export const counterScreen: Program.ProgramScreen<Model> = (
   return wrapDevice(context.device, product, { title: uri })
 }
 
-/** The canonical renderer-free Counter Program shared by every client. */
-export const CounterProgram: Program.Program<Model, Message> = Program.make({
-  id: 'counter',
-  version: 2,
-  Model,
-  Message,
-  init,
-  restore,
-  update,
-  valid: counterValid,
-  screen: counterScreen,
-})
+/**
+ * The canonical renderer-free Counter Program shared by every client.
+ * Host titles and descriptions live in `hostSurface.ts` on this Program.
+ */
+export const CounterProgram: Program.Program<Model, Message> &
+  Readonly<{ actionByToken: typeof actionByToken }> = Object.assign(
+  Program.make({
+    id: 'counter',
+    version: 2,
+    Model,
+    Message,
+    init,
+    restore,
+    update,
+    valid: counterValid,
+    screen: counterScreen,
+  }),
+  { actionByToken },
+)

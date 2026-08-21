@@ -1,6 +1,6 @@
-import { Array, Effect, Match as M, Option } from "effect"
-import { Command } from "foldkit"
-import { evo } from "foldkit/struct"
+import { Array, Effect, Match as M, Option } from 'effect'
+import { Command } from 'foldkit'
+import { evo } from 'foldkit/struct'
 
 import {
   type Transcript,
@@ -9,12 +9,8 @@ import {
   requestFromHref,
   seedTranscripts,
   youtubeUrl,
-} from "./catalog.js"
-import {
-  FailedObserveJobs,
-  type Message,
-  ObservedJobs,
-} from "./message.js"
+} from './catalog.js'
+import { FailedObserveJobs, type Message, ObservedJobs } from './message.js'
 import {
   type CatalogState,
   FailedCatalog,
@@ -23,22 +19,22 @@ import {
   LoadedCatalog,
   type Model,
   idlePlayback,
-} from "./model.js"
-import { TranscribeStore } from "./store.js"
+} from './model.js'
+import { TranscribeStore } from './store.js'
 
 // COMMAND
 
 /** Loads one catalog snapshot through the injected Transcribe store. */
 export const LoadCatalog = Command.define(
-  "LoadCatalog",
+  'LoadCatalog',
   ObservedJobs,
   FailedObserveJobs,
 )(
   Effect.gen(function* () {
     const store = yield* TranscribeStore
     const snapshot = yield* store.fetch.pipe(Effect.option)
-    if (snapshot._tag === "None") {
-      return FailedObserveJobs.make({ reason: "catalog failed" })
+    if (snapshot._tag === 'None') {
+      return FailedObserveJobs.make({ reason: 'catalog failed' })
     }
     return ObservedJobs.make({
       jobs: snapshot.value.jobs,
@@ -91,46 +87,44 @@ const ensureJob = (
 }
 
 const playbackForJob = (job: Transcript) => ({
-  copyNotice: () => "",
+  copyNotice: () => '',
   currentTime: () => 0,
   fallbackUrl: () => job.url,
   follow: () => FollowLive.make({}),
   mediaUrl: () => localMediaUrl(job.videoId),
   usingFallback: () => false,
-  words: () => [] as Model["words"],
+  words: () => [] as Model['words'],
 })
 
 const applyPlayback = (model: Model, job: Transcript): Model => {
   if (model.mediaUrl === localMediaUrl(job.videoId) && model.words.length > 0) {
     return evo(model, {
-      fallbackUrl: () => (model.fallbackUrl === "" ? job.url : model.fallbackUrl),
+      fallbackUrl: () =>
+        model.fallbackUrl === '' ? job.url : model.fallbackUrl,
       mediaUrl: () => model.mediaUrl,
     })
   }
   return evo(model, playbackForJob(job))
 }
 
-const applyRequest = (
-  model: Model,
-  hrefOrUrl: string,
-): Model => {
+const applyRequest = (model: Model, hrefOrUrl: string): Model => {
   const request = requestFromHref(hrefOrUrl)
   const videoId = request.videoId
-  const nextDraft =
-    request.draftUrl !== "" ? request.draftUrl : model.draftUrl
+  const nextDraft = request.draftUrl !== '' ? request.draftUrl : model.draftUrl
   if (Option.isNone(videoId)) {
     return evo(model, {
       draftUrl: () => nextDraft,
     })
   }
   const id = videoId.value
-  const url = nextDraft === "" ? youtubeUrl(id) : nextDraft
+  const url = nextDraft === '' ? youtubeUrl(id) : nextDraft
   const catalog = M.value(model.catalog).pipe(
     M.withReturnType<CatalogState>(),
     M.tagsExhaustive({
       LoadingCatalog: () =>
         LoadedCatalog.make({ jobs: ensureJob(seedTranscripts, id, url) }),
-      LoadedCatalog: ({ jobs }) => LoadedCatalog.make({ jobs: ensureJob(jobs, id, url) }),
+      LoadedCatalog: ({ jobs }) =>
+        LoadedCatalog.make({ jobs: ensureJob(jobs, id, url) }),
       FailedCatalog: () =>
         LoadedCatalog.make({
           jobs: ensureJob(seedTranscripts, id, url),
@@ -162,11 +156,13 @@ const patchSelectedJob = (
       LoadedCatalog: ({ jobs }) =>
         LoadedCatalog.make({
           jobs: jobs.map(job =>
-            job.videoId === videoId || job.id === videoId || job.slug === videoId
+            job.videoId === videoId ||
+            job.id === videoId ||
+            job.slug === videoId
               ? {
                   ...job,
                   analysis: patch.analysis,
-                  status: job.status === "queued" ? "ready" : job.status,
+                  status: job.status === 'queued' ? 'ready' : job.status,
                   title: patch.title,
                   transcriptText: patch.transcriptText,
                 }
@@ -180,10 +176,16 @@ const patchSelectedJob = (
 export const update = (
   model: Model,
   message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message, never, TranscribeStore>>] =>
+): readonly [
+  Model,
+  ReadonlyArray<Command.Command<Message, never, TranscribeStore>>,
+] =>
   M.value(message).pipe(
     M.withReturnType<
-      readonly [Model, ReadonlyArray<Command.Command<Message, never, TranscribeStore>>]
+      readonly [
+        Model,
+        ReadonlyArray<Command.Command<Message, never, TranscribeStore>>,
+      ]
     >(),
     M.tagsExhaustive({
       ObservedJobs: ({ jobs, source }) => {
@@ -218,7 +220,7 @@ export const update = (
       FailedObserveJobs: ({ reason }) => [
         evo(model, {
           catalog: () => FailedCatalog.make({ reason }),
-          source: () => "StaticFallback",
+          source: () => 'StaticFallback',
         }),
         [],
       ],
@@ -246,7 +248,10 @@ export const update = (
         }),
         [],
       ],
-      UpdatedDraftUrl: ({ draftUrl }) => [evo(model, { draftUrl: () => draftUrl }), []],
+      UpdatedDraftUrl: ({ draftUrl }) => [
+        evo(model, { draftUrl: () => draftUrl }),
+        [],
+      ],
       SubmittedUrl: ({ url }) => [applyRequest(model, url), []],
       OpenedHref: ({ href }) => [applyRequest(model, href), []],
       HeardPlaybackPosition: ({ mediaPosition }) => [
@@ -260,19 +265,31 @@ export const update = (
         return [evo(model, { usingFallback: () => true }), []]
       },
       PressedSeekWord: ({ start }) => [
-        evo(model, { currentTime: () => start, follow: () => FollowLive.make({}) }),
+        evo(model, {
+          currentTime: () => start,
+          follow: () => FollowLive.make({}),
+        }),
         [],
       ],
-      PressedFollowLive: () => [evo(model, { follow: () => FollowLive.make({}) }), []],
+      PressedFollowLive: () => [
+        evo(model, { follow: () => FollowLive.make({}) }),
+        [],
+      ],
       ScrolledAway: () =>
-        model.follow._tag === "FollowAway"
+        model.follow._tag === 'FollowAway'
           ? [model, []]
           : [evo(model, { follow: () => FollowAway.make({}) }), []],
       CompletedScrollCurrentWord: () => [model, []],
       CompletedSeekVideo: () => [model, []],
       PressedCopyLink: () => [model, []],
-      CompletedCopyLink: () => [evo(model, { copyNotice: () => "Copied job URL" }), []],
-      FailedCopyLink: () => [evo(model, { copyNotice: () => "Copy failed" }), []],
+      CompletedCopyLink: () => [
+        evo(model, { copyNotice: () => 'Copied job URL' }),
+        [],
+      ],
+      FailedCopyLink: () => [
+        evo(model, { copyNotice: () => 'Copy failed' }),
+        [],
+      ],
       HeardJobPlayback: ({
         analysis,
         fallbackUrl,
@@ -283,8 +300,14 @@ export const update = (
         words,
       }) => [
         evo(model, {
-          catalog: () => patchSelectedJob(model, videoId, { analysis, title, transcriptText }),
-          fallbackUrl: () => (fallbackUrl.length > 0 ? fallbackUrl : model.fallbackUrl),
+          catalog: () =>
+            patchSelectedJob(model, videoId, {
+              analysis,
+              title,
+              transcriptText,
+            }),
+          fallbackUrl: () =>
+            fallbackUrl.length > 0 ? fallbackUrl : model.fallbackUrl,
           mediaUrl: () => (mediaUrl.length > 0 ? mediaUrl : model.mediaUrl),
           words: () => words,
         }),

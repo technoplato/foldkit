@@ -15,13 +15,14 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "prebuild": "pnpm --filter counter-core-example build && pnpm --filter shared-react-bindings-example build",
+    "prebuild": "pnpm --filter @foldkit/react build && pnpm --filter counter-core-example build && pnpm --filter shared-react-bindings-example build",
     "pretest": "pnpm run build",
-    "pretypecheck": "pnpm --filter counter-core-example build && pnpm --filter shared-react-bindings-example build",
+    "pretypecheck": "pnpm --filter @foldkit/react build && pnpm --filter counter-core-example build && pnpm --filter shared-react-bindings-example build",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@foldkit/react": "workspace:*",
     "counter-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",

@@ -17,13 +17,49 @@
       }
       #hud {
         position: absolute;
-        left: 16px;
-        bottom: 16px;
+        left: max(12px, env(safe-area-inset-left));
+        bottom: max(12px, env(safe-area-inset-bottom));
         color: #e8f5d8;
-        font-size: 12px;
-        line-height: 1.45;
+        font-size: 13px;
+        line-height: 1.35;
         pointer-events: none;
-        text-shadow: 0 1px 2px #000;
+        background: rgba(12, 20, 16, 0.9);
+        padding: 10px 12px 11px;
+        border-radius: 12px;
+        max-width: min(280px, calc(100% - 24px));
+        border: 1px solid rgba(232, 245, 216, 0.16);
+      }
+      .hud-kicker {
+        margin: 0 0 8px;
+        color: #d7f0b8;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .hud-steps {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .hud-steps li {
+        color: #6b7a62;
+        margin: 0 0 3px;
+      }
+      .hud-steps li.is-done {
+        color: #3f4a3a;
+      }
+      .hud-steps li.is-now {
+        color: #f3fbe6;
+      }
+      .hud-now {
+        margin: 9px 0 0;
+        color: #f3fbe6;
+        font-size: 14px;
+      }
+      .hud-hint {
+        margin: 6px 0 0;
+        color: #7d8a74;
+        font-size: 11px;
       }
       #overlay {
         display: none;

@@ -11,6 +11,7 @@ import {
   keyStiffness,
   ledIntensityForPhase,
   maximumDeltaSeconds,
+  phonePresentSeconds,
 } from '../cabinet/design-contract.js'
 
 type Spring1 = {
@@ -41,14 +42,16 @@ const stepSpring = (
 export type MachineMotion = Readonly<{
   notePress: (label: string) => void
   releasePress: () => void
+  presented: () => boolean
   update: (
     vendPhase: string,
+    lastControl: string | undefined,
     deltaSeconds: number,
     elapsedSeconds: number,
   ) => boolean
 }>
 
-/** Door spring, keypad press, clip fall, and LED pulse from vendPhase. */
+/** Door spring, keypad press, phone fall, presentation, and LED pulse. */
 export const createMachineMotion = (
   assembly: CabinetAssembly,
 ): MachineMotion => {
@@ -59,9 +62,15 @@ export const createMachineMotion = (
   }
   let heldLabel: string | undefined
   let clipElapsed = 0
+  let presentElapsed = 0
   let clipOnShelf = true
+  let phonePresented = false
   let lastPhase = 'Idle'
   const jewelColor = new THREE.Color()
+  const shelfQuat = new THREE.Quaternion()
+  const presentQuat = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(-0.08, 0.18, 0),
+  )
 
   return {
     notePress: label => {
@@ -70,19 +79,25 @@ export const createMachineMotion = (
     releasePress: () => {
       heldLabel = undefined
     },
-    update: (vendPhase, deltaSeconds, elapsedSeconds) => {
+    presented: () => phonePresented,
+    update: (vendPhase, lastControl, deltaSeconds, elapsedSeconds) => {
       const dt = Math.min(Math.max(deltaSeconds, 0), maximumDeltaSeconds)
       if (lastPhase === 'Dispensed' && vendPhase === 'Idle') {
         clipOnShelf = true
+        phonePresented = false
         clipElapsed = 0
+        presentElapsed = 0
         assembly.clip.position.copy(assembly.clipShelf)
+        assembly.clip.quaternion.identity()
       }
       if (
         (vendPhase === 'Dispensed' || vendPhase === 'Vending') &&
         clipOnShelf
       ) {
         clipOnShelf = false
+        phonePresented = false
         clipElapsed = 0
+        presentElapsed = 0
       }
       lastPhase = vendPhase
 
@@ -91,7 +106,7 @@ export const createMachineMotion = (
       stepSpring(door, doorTarget, doorStiffness, doorDamping, dt)
       assembly.doorPivot.rotation.x = door.value * doorOpenRadians
 
-      if (!clipOnShelf) {
+      if (!clipOnShelf && !phonePresented) {
         clipElapsed += dt
         const t = Math.min(clipElapsed / clipFallSeconds, 1)
         const eased = t * t * (3 - 2 * t)
@@ -101,10 +116,27 @@ export const createMachineMotion = (
           eased,
         )
         assembly.clip.position.x += Math.sin(t * Math.PI) * 0.03
-        assembly.clip.rotation.z = eased * 0.35
-        if (t >= 1) {
-          assembly.clip.position.copy(assembly.clipBin)
-          assembly.clip.rotation.z = 0.35
+        assembly.clip.rotation.z = eased * 0.28
+        if (t >= 1 && vendPhase === 'Dispensed') {
+          presentElapsed += dt
+          const presentT = Math.min(presentElapsed / phonePresentSeconds, 1)
+          const presentEase = presentT * presentT * (3 - 2 * presentT)
+          assembly.clip.position.lerpVectors(
+            assembly.clipBin,
+            assembly.clipPresent,
+            presentEase,
+          )
+          shelfQuat.setFromEuler(new THREE.Euler(0, 0, 0.28))
+          assembly.clip.quaternion.slerpQuaternions(
+            shelfQuat,
+            presentQuat,
+            presentEase,
+          )
+          if (presentT >= 1) {
+            phonePresented = true
+            assembly.clip.position.copy(assembly.clipPresent)
+            assembly.clip.quaternion.copy(presentQuat)
+          }
         }
       }
 
@@ -113,16 +145,20 @@ export const createMachineMotion = (
         if (spring === undefined) {
           continue
         }
-        const target = heldLabel === button.spec.label ? 1 : 0
+        const target =
+          heldLabel === button.spec.label
+            ? 1
+            : lastControl === button.spec.label
+              ? 0.42
+              : 0
         stepSpring(spring, target, keyStiffness, keyDamping, dt)
-        button.mesh.position.z = button.restZ - spring.value * 0.012
+        button.mesh.position.z = button.restZ - spring.value * 0.034
       }
 
-      const pulse = 1 + 0.05 * Math.sin(elapsedSeconds * 7.3)
-      const intensity = ledIntensityForPhase(vendPhase) * pulse
-      assembly.materials.ledPanel.emissiveIntensity = intensity
-      const bloomScale = intensity / 2.2
-      assembly.materials.ledBloom.color.setHex(0x7cff9a)
+      const pulse = 1 + 0.012 * Math.sin(elapsedSeconds * 1.6)
+      assembly.materials.ledPanel.emissiveIntensity = 0.92
+      const bloomScale = 0.28 + ledIntensityForPhase(vendPhase) * 0.04 * pulse
+      assembly.materials.ledBloom.color.setHex(0x1c4a28)
       assembly.materials.ledBloom.color.multiplyScalar(bloomScale)
       jewelColor.setHex(jewelColorForPhase(vendPhase))
       jewelColor.multiplyScalar(0.8 + 0.35 * pulse)

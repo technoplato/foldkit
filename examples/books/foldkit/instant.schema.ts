@@ -147,6 +147,10 @@ const _schema = i.schema({
     items: i.entity({
       addedAt: i.date().indexed(),
       presenceKind: i.string().indexed(),
+      /**
+       * Persist discriminant for domain Packaging.
+       * Catalog decode rejects kind/link mismatches.
+       */
       preferredKind: i.string().indexed(),
     }),
     bookmarks: i.entity({
@@ -162,6 +166,7 @@ const _schema = i.schema({
       textOffset: i.number().optional(),
       createdAt: i.date().indexed(),
       updatedAt: i.date(),
+      audience: i.string().indexed(),
     }),
     progress: i.entity({
       relativeMs: i.number(),
@@ -170,6 +175,10 @@ const _schema = i.schema({
       hiddenKind: i.string(),
       startedAt: i.date().indexed(),
       updatedAt: i.date().indexed(),
+    }),
+    noteLinks: i.entity({
+      secret: i.string().indexed(),
+      role: i.string().indexed(),
     }),
     shares: i.entity({
       subjectKind: i.string().indexed(),
@@ -500,6 +509,16 @@ const _schema = i.schema({
     shareShelf: {
       forward: { on: 'shares', has: 'one', label: 'shelf' },
       reverse: { on: 'shelves', has: 'many', label: 'shares' },
+    },
+    noteLinkNote: {
+      forward: {
+        on: 'noteLinks',
+        has: 'one',
+        label: 'note',
+        onDelete: 'cascade',
+        required: true,
+      },
+      reverse: { on: 'notes', has: 'many', label: 'noteLinks' },
     },
     shareItem: {
       forward: { on: 'shares', has: 'one', label: 'item' },

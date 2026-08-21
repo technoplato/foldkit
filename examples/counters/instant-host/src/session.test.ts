@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  CountersDemoSignInError,
   FailedCountersSession,
   SignedInCountersSession,
   establishCountersSession,
   fetchCountersDemoSession,
+  signInDemoSession,
 } from './session.js'
 
 type FakeUser = Readonly<{ id: string }> | null
@@ -78,6 +80,62 @@ describe('establishCountersSession', () => {
     expect(session).toEqual(
       SignedInCountersSession.make({ userId: 'user-for-demo' }),
     )
+  })
+})
+
+describe('signInDemoSession', () => {
+  it('reuses an existing Instant session', async () => {
+    await expect(
+      signInDemoSession(
+        fakeDatabase({ user: { id: 'existing' } }),
+        '/__foldkit/counters-demo-session',
+        async () => {
+          throw new Error('mint must not run')
+        },
+      ),
+    ).resolves.toBeUndefined()
+  })
+
+  it('fails when the mint path is not ok', async () => {
+    await expect(
+      signInDemoSession(
+        fakeDatabase({ user: null }),
+        '/__foldkit/counters-demo-session',
+        async () => new Response('nope', { status: 404 }),
+      ),
+    ).rejects.toBeInstanceOf(CountersDemoSignInError)
+  })
+
+  it('fails when the mint path returns no token', async () => {
+    await expect(
+      signInDemoSession(
+        fakeDatabase({ user: null }),
+        '/__foldkit/counters-demo-session',
+        async () =>
+          new Response(JSON.stringify({ email: 'counter@foldkit.dev' }), {
+            status: 200,
+          }),
+      ),
+    ).rejects.toBeInstanceOf(CountersDemoSignInError)
+  })
+
+  it('signs in with a token from the mint path', async () => {
+    const signedIn: Array<string> = []
+    await signInDemoSession(
+      fakeDatabase({
+        user: null,
+        signIn: async token => {
+          signedIn.push(token)
+        },
+      }),
+      '/__foldkit/counters-demo-session',
+      async () =>
+        new Response(
+          JSON.stringify({ email: 'counter@foldkit.dev', token: 'demo' }),
+          { status: 200 },
+        ),
+    )
+    expect(signedIn).toEqual(['demo'])
   })
 })
 

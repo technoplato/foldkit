@@ -3,11 +3,7 @@ import * as Counter from 'counter-core-example'
 import * as Counters from 'counters-core-example'
 import { describe, expect, it } from 'vitest'
 
-import {
-  CounterListProgram,
-  DemoCatalog,
-  ShowcaseShell,
-} from './catalog.js'
+import { CounterListProgram, DemoCatalog, ShowcaseShell } from './catalog.js'
 import { init } from './init.js'
 import {
   CanvasChanged,
@@ -32,10 +28,7 @@ describe('PisCanvasLab composed catalog', () => {
 
   it('updates chrome without touching product models', () => {
     const [model] = init()
-    const [next] = update(
-      model,
-      CanvasChanged({ x: 10, y: 20, scale: 1 }),
-    )
+    const [next] = update(model, CanvasChanged({ x: 10, y: 20, scale: 1 }))
     expect(next.chrome.x).toBe(10)
     expect(next.chrome.y).toBe(20)
     expect(next.chrome.scale).toBe(1)

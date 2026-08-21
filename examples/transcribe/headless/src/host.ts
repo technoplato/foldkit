@@ -1,17 +1,17 @@
+import { Console, Duration, Effect } from 'effect'
+import { Runtime } from 'foldkit'
 import {
-  TranscribeProgram,
   type Model,
+  TranscribeProgram,
   jobsFromCatalog,
-} from "transcribe-core-example"
-import { Console, Duration, Effect } from "effect"
-import { Runtime } from "foldkit"
+} from 'transcribe-core-example'
 
-import { transcribeResources } from "./resources.js"
+import { transcribeResources } from './resources.js'
 
 const waitForCatalog = (readModel: () => Model): Effect.Effect<Model> =>
   Effect.gen(function* () {
     let model = readModel()
-    if (model.catalog._tag !== "LoadingCatalog") {
+    if (model.catalog._tag !== 'LoadingCatalog') {
       return model
     }
     yield* Effect.sleep(Duration.millis(250))

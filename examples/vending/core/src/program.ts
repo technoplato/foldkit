@@ -11,7 +11,7 @@ import { update } from './update.js'
 export const VendingProgram: Program.Program<Model, Message, WalletResources> =
   Program.make({
     id: 'vending',
-    version: 1,
+    version: 3,
     Model,
     Message,
     init,

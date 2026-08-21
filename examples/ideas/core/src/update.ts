@@ -1,34 +1,30 @@
-import { Array, Effect, Match as M, Option } from "effect"
-import { Command } from "foldkit"
-import { evo } from "foldkit/struct"
+import { Array, Effect, Match as M, Option } from 'effect'
+import { Command } from 'foldkit'
+import { evo } from 'foldkit/struct'
 
-import { type Idea, seedIdeas } from "./catalog.js"
-import {
-  FailedObserveIdeas,
-  type Message,
-  ObservedIdeas,
-} from "./message.js"
+import { type Idea, seedIdeas } from './catalog.js'
+import { FailedObserveIdeas, type Message, ObservedIdeas } from './message.js'
 import {
   type CatalogState,
   FailedCatalog,
   LoadedCatalog,
   type Model,
-} from "./model.js"
-import { IdeasStore } from "./store.js"
+} from './model.js'
+import { IdeasStore } from './store.js'
 
 // COMMAND
 
 /** Loads one catalog snapshot through the injected Ideas store. */
 export const LoadCatalog = Command.define(
-  "LoadCatalog",
+  'LoadCatalog',
   ObservedIdeas,
   FailedObserveIdeas,
 )(
   Effect.gen(function* () {
     const store = yield* IdeasStore
     const snapshot = yield* store.fetch.pipe(Effect.option)
-    if (snapshot._tag === "None") {
-      return FailedObserveIdeas.make({ reason: "catalog failed" })
+    if (snapshot._tag === 'None') {
+      return FailedObserveIdeas.make({ reason: 'catalog failed' })
     }
     return ObservedIdeas.make({
       ideas: snapshot.value.ideas,
@@ -42,7 +38,7 @@ export const LoadCatalog = Command.define(
 /** Ideas currently visible for the active query. */
 export const visibleIdeas = (model: Model): ReadonlyArray<Idea> => {
   const ideas = ideasFromCatalog(model.catalog)
-  if (model.query === "") {
+  if (model.query === '') {
     return ideas
   }
   const needle = model.query.toLowerCase()
@@ -55,9 +51,7 @@ export const visibleIdeas = (model: Model): ReadonlyArray<Idea> => {
 }
 
 /** Ideas from a catalog state, seed notes while loading or failed. */
-export const ideasFromCatalog = (
-  catalog: CatalogState,
-): ReadonlyArray<Idea> =>
+export const ideasFromCatalog = (catalog: CatalogState): ReadonlyArray<Idea> =>
   M.value(catalog).pipe(
     M.withReturnType<ReadonlyArray<Idea>>(),
     M.tagsExhaustive({
@@ -71,10 +65,16 @@ export const ideasFromCatalog = (
 export const update = (
   model: Model,
   message: Message,
-): readonly [Model, ReadonlyArray<Command.Command<Message, never, IdeasStore>>] =>
+): readonly [
+  Model,
+  ReadonlyArray<Command.Command<Message, never, IdeasStore>>,
+] =>
   M.value(message).pipe(
     M.withReturnType<
-      readonly [Model, ReadonlyArray<Command.Command<Message, never, IdeasStore>>]
+      readonly [
+        Model,
+        ReadonlyArray<Command.Command<Message, never, IdeasStore>>,
+      ]
     >(),
     M.tagsExhaustive({
       ObservedIdeas: ({ ideas, source }) => [
@@ -87,7 +87,7 @@ export const update = (
       FailedObserveIdeas: ({ reason }) => [
         evo(model, {
           catalog: () => FailedCatalog.make({ reason }),
-          source: () => "StaticFallback",
+          source: () => 'StaticFallback',
         }),
         [],
       ],

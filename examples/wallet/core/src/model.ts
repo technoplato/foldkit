@@ -702,6 +702,12 @@ export const NetworkFailure = S.TaggedStruct('NetworkFailure', {
     'InvalidResponse',
     'UnsupportedCapability',
   ]),
+  maybeGuidance: S.OptionFromNullishOr(TransferGuidance, {
+    onNoneEncoding: null,
+  }).pipe(
+    S.withDecodingDefaultKey(Effect.succeed(null)),
+    S.withConstructorDefault(Effect.succeed(Option.none())),
+  ),
 })
 /** A signing failure safe to persist in the Wallet Model. */
 export const SigningFailure = S.TaggedStruct('SigningFailure', {

@@ -12,9 +12,12 @@ import {
   ConversationsProgram,
   type Message,
   type Model,
+  authorDisplayName,
   conversationById,
   conversationsForProject,
+  focusedRow,
   identifierLabel,
+  messageBodyText,
   projectById,
   promptCount,
 } from 'conversations-core-example'
@@ -90,9 +93,18 @@ const listLines = (model: Model): ReadonlyArray<string> =>
         }
         const follow =
           model.mode._tag === 'LiveFollowing' ? 'following' : 'liveIdle'
+        const focusLines = Option.match(focusedRow(model), {
+          onNone: () => [],
+          onSome: row => [
+            `focus ${row.id}`,
+            authorDisplayName(row.author),
+            ...messageBodyText(row).split('\n'),
+          ],
+        })
         return [
           conversation.title,
           follow,
+          ...focusLines,
           ...conversation.messages.slice(-6).map(row => {
             if (row.body._tag === 'BodyText') {
               return row.body.content

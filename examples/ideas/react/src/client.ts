@@ -1,16 +1,20 @@
-import { init } from "@instantdb/core"
 import {
   StaticIdeasResources,
   makeLiveIdeasResources,
   schema,
-} from "ideas-core-example"
-import { makeIdeasReactClient } from "ideas-react-bindings-example"
+} from 'ideas-core-example'
+import { makeIdeasReactClient } from 'ideas-react-bindings-example'
 
-const appId = import.meta.env["VITE_INSTANT_APP_ID"]
+import { withHostedIdentity } from '@foldkit/instant'
+import { init } from '@instantdb/core'
+
+const appId = import.meta.env['VITE_INSTANT_APP_ID']
+const database =
+  appId === undefined || appId === '' ? undefined : init({ appId, schema })
 const resources =
-  appId === undefined || appId === ""
+  database === undefined
     ? StaticIdeasResources
-    : makeLiveIdeasResources(init({ appId, schema }))
+    : withHostedIdentity(makeLiveIdeasResources(database as never), database)
 
 /** The React host selects live Instant resources when configured. */
 export const IdeasClient = makeIdeasReactClient(resources)

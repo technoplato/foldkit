@@ -22,6 +22,6 @@ describe('Books CLI process', () => {
   it('opens Dune from tokens', () => {
     const output = runCli(['do', 'signin', 'open:i1'])
     expect(output).toContain('Dune')
-    expect(output).toContain('delicate care')
+    expect(output).toContain('Frank Herbert')
   })
 })

@@ -1,4 +1,4 @@
-import { Match as M, Option } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 import type * as Command from 'foldkit/command'
 
 import { type Message } from './message.js'
@@ -19,11 +19,19 @@ import {
   Search,
   Settings,
   SignedOut,
+  TitlePage,
+  audioOfItem,
   chapterAt,
+  chapterById,
   itemById,
+  playOf,
   progressForItem,
   readerForItem,
+  screenOf,
   shelfForItems,
+  withAccount,
+  withPlay,
+  withView,
 } from './model.js'
 import { applyNavigationTarget, urlToNavigationTarget } from './route.js'
 
@@ -38,7 +46,7 @@ const playPosition = (
   renditionId: string
   mediaPosition: number
 }> =>
-  M.value(model.play).pipe(
+  M.value(playOf(model)).pipe(
     M.withReturnType<
       Option.Option<{
         itemId: string
@@ -59,12 +67,21 @@ const upsertProgress = (
   renditionId: string,
   relative: number,
 ): ReadonlyArray<Progress> => {
-  const item = itemById(model.items, itemId)
-  const chapter =
-    item === undefined ? Option.none() : chapterAt(item.chapters, relative)
-  const chapterId = Option.isSome(chapter)
-    ? chapter.value.id
-    : (item?.chapters[0]?.id ?? 'chapter-unknown')
+  const maybeItem = itemById(model.items, itemId)
+  const maybeChapter = Option.flatMap(maybeItem, item =>
+    chapterAt(item.chapters, relative),
+  )
+  const chapterId = Option.match(maybeChapter, {
+    onSome: chapter => chapter.id,
+    onNone: () =>
+      Option.match(
+        Option.flatMap(maybeItem, item => Array.head(item.chapters)),
+        {
+          onSome: chapter => chapter.id,
+          onNone: () => 'chapter-unknown',
+        },
+      ),
+  })
   const existing = progressForItem(model.progress, itemId)
   if (Option.isSome(existing)) {
     return model.progress.map(row =>
@@ -95,12 +112,13 @@ const upsertProgress = (
 }
 
 const readerItemId = (model: Model): string | undefined =>
-  M.value(model.screen).pipe(
+  M.value(screenOf(model)).pipe(
     M.withReturnType<string | undefined>(),
     M.tagsExhaustive({
       ReaderAudio: ({ itemId }) => itemId,
       ReaderBoth: ({ itemId }) => itemId,
       ReaderText: ({ itemId }) => itemId,
+      TitlePage: ({ itemId }) => itemId,
       Accounts: () => undefined,
       ImportIdle: () => undefined,
       ImportScanning: () => undefined,
@@ -108,6 +126,7 @@ const readerItemId = (model: Model): string | undefined =>
       Settings: () => undefined,
       ShelfBrowse: () => undefined,
       ShelfEmpty: () => undefined,
+      SharedNote: () => undefined,
       SignedOut: () => undefined,
     }),
   )
@@ -117,15 +136,13 @@ export const update = (model: Model, message: Message): Result =>
     M.withReturnType<Result>(),
     M.tagsExhaustive({
       PressedSignIn: () => [
-        { ...model, screen: shelfForItems(model.items) },
+        withView(model, { screen: shelfForItems(model.items) }),
         [],
       ],
       PressedSignOut: () => [
         {
           ...model,
-          screen: SignedOut(),
-          play: PlayIdle(),
-          accountId: Option.none(),
+          session: SignedOut(),
           bookmarks: [],
           notes: [],
           noteDraft: '',
@@ -134,88 +151,165 @@ export const update = (model: Model, message: Message): Result =>
         [],
       ],
       PressedOpenBook: ({ itemId }) => {
-        const item = itemById(model.items, itemId)
-        if (item === undefined) {
+        const maybeItem = itemById(model.items, itemId)
+        if (Option.isNone(maybeItem)) {
           return none(model)
         }
         return [
-          { ...model, screen: readerForItem(item), follow: FollowLive() },
+          withView(model, {
+            screen: TitlePage({ itemId: maybeItem.value.id }),
+          }),
           [],
         ]
       },
-      PressedGoBack: () => [
-        { ...model, screen: shelfForItems(model.items) },
+      PressedOpenChapter: ({ itemId, chapterId }) => {
+        const maybeItem = itemById(model.items, itemId)
+        if (Option.isNone(maybeItem)) {
+          return none(model)
+        }
+        const item = maybeItem.value
+        const chapter = chapterById(item.chapters, chapterId)
+        if (Option.isNone(chapter)) {
+          return none(model)
+        }
+        const start = chapter.value.start
+        const audio = audioOfItem(item)
+        if (Option.isNone(audio)) {
+          return [
+            {
+              ...withView(model, { screen: readerForItem(item) }),
+              follow: FollowLive(),
+            },
+            [],
+          ]
+        }
+        const playing = playOf(model)
+        const isPlayingThis =
+          playing._tag === 'PlayPlaying' && playing.itemId === item.id
+        const nextPlay = isPlayingThis
+          ? PlayPlaying({
+              itemId: item.id,
+              renditionId: audio.value.audioId,
+              mediaPosition: start,
+            })
+          : PlayPaused({
+              itemId: item.id,
+              renditionId: audio.value.audioId,
+              mediaPosition: start,
+            })
+        return [
+          {
+            ...withView(model, { screen: readerForItem(item), play: nextPlay }),
+            follow: FollowLive(),
+            progress: upsertProgress(
+              model,
+              item.id,
+              audio.value.audioId,
+              start,
+            ),
+          },
+          [],
+        ]
+      },
+      PressedSetChapterSort: ({ sort }) => [
+        { ...model, chapterSort: sort },
         [],
       ],
+      PressedGoBack: () => {
+        const itemId = readerItemId(model)
+        if (itemId !== undefined && screenOf(model)._tag !== 'TitlePage') {
+          return [withView(model, { screen: TitlePage({ itemId }) }), []]
+        }
+        return [withView(model, { screen: shelfForItems(model.items) }), []]
+      },
       PressedShowText: () => {
         const itemId = readerItemId(model)
         if (itemId === undefined) {
           return none(model)
         }
-        return [{ ...model, screen: ReaderText({ itemId }) }, []]
+        return [withView(model, { screen: ReaderText({ itemId }) }), []]
       },
       PressedShowAudio: () => {
         const itemId = readerItemId(model)
         if (itemId === undefined) {
           return none(model)
         }
-        return [{ ...model, screen: ReaderAudio({ itemId }) }, []]
+        return [withView(model, { screen: ReaderAudio({ itemId }) }), []]
       },
       PressedShowBoth: () => {
         const itemId = readerItemId(model)
         if (itemId === undefined) {
           return none(model)
         }
-        return [{ ...model, screen: ReaderBoth({ itemId }) }, []]
+        return [withView(model, { screen: ReaderBoth({ itemId }) }), []]
       },
-      PressedOpenImport: () => [{ ...model, screen: ImportIdle() }, []],
-      PressedScanShelf: () => [{ ...model, screen: ImportScanning() }, []],
-      PressedScanFinished: () => [
-        { ...model, screen: shelfForItems(model.items) },
+      PressedOpenImport: () => [withView(model, { screen: ImportIdle() }), []],
+      PressedScanShelf: () => [
+        withView(model, { screen: ImportScanning() }),
         [],
       ],
-      PressedOpenSettings: () => [{ ...model, screen: Settings() }, []],
-      PressedOpenAccounts: () => [{ ...model, screen: Accounts() }, []],
+      PressedScanFinished: () => [
+        withView(model, { screen: shelfForItems(model.items) }),
+        [],
+      ],
+      PressedOpenSettings: () => [withView(model, { screen: Settings() }), []],
+      PressedOpenAccounts: () => [withView(model, { screen: Accounts() }), []],
       PressedOpenSearch: () => [
-        { ...model, screen: Search({ query: '' }) },
+        withView(model, { screen: Search({ query: '' }) }),
         [],
       ],
       PressedSetQuery: ({ query }) => [
-        { ...model, screen: Search({ query }) },
+        withView(model, { screen: Search({ query }) }),
         [],
       ],
       PressedStartPlayback: ({ itemId }) => {
-        const item = itemById(model.items, itemId)
-        if (item === undefined || Option.isNone(item.audioId)) {
+        const maybeItem = itemById(model.items, itemId)
+        if (Option.isNone(maybeItem)) {
+          return none(model)
+        }
+        const item = maybeItem.value
+        const audio = audioOfItem(item)
+        if (Option.isNone(audio)) {
           return none(model)
         }
         const saved = progressForItem(model.progress, itemId)
+        const screen = screenOf(model)
+        const fromCover =
+          screen._tag === 'TitlePage' ||
+          screen._tag === 'ShelfBrowse' ||
+          screen._tag === 'ShelfEmpty'
+        const nextPlay = PlayPlaying({
+          itemId,
+          renditionId: audio.value.audioId,
+          mediaPosition: Option.isSome(saved) ? saved.value.relative : 0,
+        })
         return [
           {
-            ...model,
-            play: PlayPlaying({
-              itemId,
-              renditionId: item.audioId.value,
-              mediaPosition: Option.isSome(saved) ? saved.value.relative : 0,
+            ...withView(model, {
+              play: nextPlay,
+              screen: fromCover ? readerForItem(item) : screen,
             }),
+            follow: fromCover ? FollowLive() : model.follow,
           },
           [],
         ]
       },
       PressedPausePlayback: () =>
-        M.value(model.play).pipe(
+        M.value(playOf(model)).pipe(
           M.withReturnType<Result>(),
           M.tagsExhaustive({
             PlayIdle: () => none(model),
             PlayPaused: () => none(model),
             PlayPlaying: play => [
               {
-                ...model,
-                play: PlayPaused({
-                  itemId: play.itemId,
-                  renditionId: play.renditionId,
-                  mediaPosition: play.mediaPosition,
-                }),
+                ...withPlay(
+                  model,
+                  PlayPaused({
+                    itemId: play.itemId,
+                    renditionId: play.renditionId,
+                    mediaPosition: play.mediaPosition,
+                  }),
+                ),
                 progress: upsertProgress(
                   model,
                   play.itemId,
@@ -228,20 +322,20 @@ export const update = (model: Model, message: Message): Result =>
           }),
         ),
       PressedResumePlayback: () =>
-        M.value(model.play).pipe(
+        M.value(playOf(model)).pipe(
           M.withReturnType<Result>(),
           M.tagsExhaustive({
             PlayIdle: () => none(model),
             PlayPlaying: () => none(model),
             PlayPaused: play => [
-              {
-                ...model,
-                play: PlayPlaying({
+              withPlay(
+                model,
+                PlayPlaying({
                   itemId: play.itemId,
                   renditionId: play.renditionId,
                   mediaPosition: play.mediaPosition,
                 }),
-              },
+              ),
               [],
             ],
           }),
@@ -249,12 +343,11 @@ export const update = (model: Model, message: Message): Result =>
       PressedStopPlayback: () => {
         const playing = playPosition(model)
         if (Option.isNone(playing)) {
-          return [{ ...model, play: PlayIdle() }, []]
+          return [withPlay(model, PlayIdle()), []]
         }
         return [
           {
-            ...model,
-            play: PlayIdle(),
+            ...withPlay(model, PlayIdle()),
             progress: upsertProgress(
               model,
               playing.value.itemId,
@@ -266,43 +359,52 @@ export const update = (model: Model, message: Message): Result =>
         ]
       },
       PressedOpenPlaybackReader: () =>
-        M.value(model.play).pipe(
+        M.value(playOf(model)).pipe(
           M.withReturnType<Result>(),
           M.tagsExhaustive({
             PlayIdle: () => none(model),
             PlayPaused: ({ itemId }) => [
-              { ...model, screen: ReaderAudio({ itemId }) },
+              withView(model, { screen: ReaderAudio({ itemId }) }),
               [],
             ],
             PlayPlaying: ({ itemId }) => [
-              { ...model, screen: ReaderAudio({ itemId }) },
+              withView(model, { screen: ReaderAudio({ itemId }) }),
               [],
             ],
           }),
         ),
       PressedSeekWord: ({ start }) =>
-        M.value(model.play).pipe(
+        M.value(playOf(model)).pipe(
           M.withReturnType<Result>(),
           M.tagsExhaustive({
             PlayIdle: () => {
               const itemId = readerItemId(model)
-              const item =
-                itemId === undefined ? undefined : itemById(model.items, itemId)
-              if (item === undefined || Option.isNone(item.audioId)) {
+              const maybeItem =
+                itemId === undefined
+                  ? Option.none()
+                  : itemById(model.items, itemId)
+              if (Option.isNone(maybeItem)) {
+                return none(model)
+              }
+              const item = maybeItem.value
+              const audio = audioOfItem(item)
+              if (Option.isNone(audio)) {
                 return none(model)
               }
               return [
                 {
-                  ...model,
-                  play: PlayPaused({
-                    itemId: item.id,
-                    renditionId: item.audioId.value,
-                    mediaPosition: start,
-                  }),
+                  ...withPlay(
+                    model,
+                    PlayPaused({
+                      itemId: item.id,
+                      renditionId: audio.value.audioId,
+                      mediaPosition: start,
+                    }),
+                  ),
                   progress: upsertProgress(
                     model,
                     item.id,
-                    item.audioId.value,
+                    audio.value.audioId,
                     start,
                   ),
                 },
@@ -311,8 +413,10 @@ export const update = (model: Model, message: Message): Result =>
             },
             PlayPaused: play => [
               {
-                ...model,
-                play: PlayPaused({ ...play, mediaPosition: start }),
+                ...withPlay(
+                  model,
+                  PlayPaused({ ...play, mediaPosition: start }),
+                ),
                 progress: upsertProgress(
                   model,
                   play.itemId,
@@ -324,8 +428,10 @@ export const update = (model: Model, message: Message): Result =>
             ],
             PlayPlaying: play => [
               {
-                ...model,
-                play: PlayPlaying({ ...play, mediaPosition: start }),
+                ...withPlay(
+                  model,
+                  PlayPlaying({ ...play, mediaPosition: start }),
+                ),
                 progress: upsertProgress(
                   model,
                   play.itemId,
@@ -338,53 +444,47 @@ export const update = (model: Model, message: Message): Result =>
           }),
         ),
       HeardPlaybackPosition: ({ mediaPosition }) =>
-        M.value(model.play).pipe(
+        M.value(playOf(model)).pipe(
           M.withReturnType<Result>(),
           M.tagsExhaustive({
             PlayIdle: () => none(model),
             PlayPaused: play => [
-              {
-                ...model,
-                play: PlayPaused({ ...play, mediaPosition }),
-              },
+              withPlay(model, PlayPaused({ ...play, mediaPosition })),
               [],
             ],
             PlayPlaying: play => [
-              {
-                ...model,
-                play: PlayPlaying({ ...play, mediaPosition }),
-              },
+              withPlay(model, PlayPlaying({ ...play, mediaPosition })),
               [],
             ],
           }),
         ),
       HeardAudioPlaying: ({ itemId, renditionId }) => {
+        const playing = playOf(model)
         const mediaPosition =
-          model.play._tag === 'PlayIdle' || model.play.itemId !== itemId
+          playing._tag === 'PlayIdle' || playing.itemId !== itemId
             ? 0
-            : model.play.mediaPosition
+            : playing.mediaPosition
         return [
-          {
-            ...model,
-            play: PlayPlaying({ itemId, renditionId, mediaPosition }),
-          },
+          withPlay(model, PlayPlaying({ itemId, renditionId, mediaPosition })),
           [],
         ]
       },
       HeardAudioPaused: () =>
-        M.value(model.play).pipe(
+        M.value(playOf(model)).pipe(
           M.withReturnType<Result>(),
           M.tagsExhaustive({
             PlayIdle: () => none(model),
             PlayPaused: () => none(model),
             PlayPlaying: play => [
               {
-                ...model,
-                play: PlayPaused({
-                  itemId: play.itemId,
-                  renditionId: play.renditionId,
-                  mediaPosition: play.mediaPosition,
-                }),
+                ...withPlay(
+                  model,
+                  PlayPaused({
+                    itemId: play.itemId,
+                    renditionId: play.renditionId,
+                    mediaPosition: play.mediaPosition,
+                  }),
+                ),
                 progress: upsertProgress(
                   model,
                   play.itemId,
@@ -399,12 +499,11 @@ export const update = (model: Model, message: Message): Result =>
       HeardAudioEnded: () => {
         const playing = playPosition(model)
         if (Option.isNone(playing)) {
-          return [{ ...model, play: PlayIdle() }, []]
+          return [withPlay(model, PlayIdle()), []]
         }
         return [
           {
-            ...model,
-            play: PlayIdle(),
+            ...withPlay(model, PlayIdle()),
             progress: upsertProgress(
               model,
               playing.value.itemId,
@@ -426,31 +525,20 @@ export const update = (model: Model, message: Message): Result =>
       ],
       FailedFollowAlong: () => none(model),
       HeardSignedIn: ({ accountId }) => [
-        {
-          ...model,
-          accountId: Option.some(accountId),
-          screen:
-            model.screen._tag === 'SignedOut'
-              ? shelfForItems(model.items)
-              : model.screen,
-        },
+        withAccount(model, Option.some(accountId)),
         [],
       ],
       FailedSignIn: () => none(model),
-      HeardCatalog: ({ items }) => [
-        {
-          ...model,
-          items,
-          screen:
-            model.screen._tag === 'SignedOut'
-              ? model.screen
-              : model.screen._tag === 'ShelfEmpty' ||
-                  model.screen._tag === 'ShelfBrowse'
-                ? shelfForItems(items)
-                : model.screen,
-        },
-        [],
-      ],
+      HeardCatalog: ({ items }) => {
+        const screen = screenOf(model)
+        const nextScreen =
+          screen._tag === 'SignedOut'
+            ? screen
+            : screen._tag === 'ShelfEmpty' || screen._tag === 'ShelfBrowse'
+              ? shelfForItems(items)
+              : screen
+        return [withView({ ...model, items }, { screen: nextScreen }), []]
+      },
       FailedCatalog: () => none(model),
       HeardUserData: ({ bookmarks, notes, progress }) => [
         { ...model, bookmarks, notes, progress },
@@ -461,14 +549,21 @@ export const update = (model: Model, message: Message): Result =>
         if (Option.isNone(playing)) {
           return none(model)
         }
-        const item = itemById(model.items, playing.value.itemId)
-        const chapter =
-          item === undefined
-            ? Option.none()
-            : chapterAt(item.chapters, playing.value.mediaPosition)
-        const chapterId = Option.isSome(chapter)
-          ? chapter.value.id
-          : (item?.chapters[0]?.id ?? 'chapter-unknown')
+        const maybeItem = itemById(model.items, playing.value.itemId)
+        const maybeChapter = Option.flatMap(maybeItem, item =>
+          chapterAt(item.chapters, playing.value.mediaPosition),
+        )
+        const chapterId = Option.match(maybeChapter, {
+          onSome: chapter => chapter.id,
+          onNone: () =>
+            Option.match(
+              Option.flatMap(maybeItem, item => Array.head(item.chapters)),
+              {
+                onSome: chapter => chapter.id,
+                onNone: () => 'chapter-unknown',
+              },
+            ),
+        })
         const id = `bookmark-${playing.value.itemId}-${Math.floor(playing.value.mediaPosition * 1000)}`
         if (model.bookmarks.some(row => row.id === id)) {
           return none(model)
@@ -502,34 +597,32 @@ export const update = (model: Model, message: Message): Result =>
           playing.value.itemId !== bookmark.itemId
         ) {
           return [
-            {
-              ...model,
+            withView(model, {
+              screen: ReaderBoth({ itemId: bookmark.itemId }),
               play: PlayPaused({
                 itemId: bookmark.itemId,
                 renditionId: bookmark.renditionId,
                 mediaPosition: bookmark.relative,
               }),
-              screen: ReaderBoth({ itemId: bookmark.itemId }),
-            },
+            }),
             [],
           ]
         }
         return [
-          {
-            ...model,
-            play:
-              model.play._tag === 'PlayPlaying'
-                ? PlayPlaying({
-                    itemId: bookmark.itemId,
-                    renditionId: bookmark.renditionId,
-                    mediaPosition: bookmark.relative,
-                  })
-                : PlayPaused({
-                    itemId: bookmark.itemId,
-                    renditionId: bookmark.renditionId,
-                    mediaPosition: bookmark.relative,
-                  }),
-          },
+          withPlay(
+            model,
+            playOf(model)._tag === 'PlayPlaying'
+              ? PlayPlaying({
+                  itemId: bookmark.itemId,
+                  renditionId: bookmark.renditionId,
+                  mediaPosition: bookmark.relative,
+                })
+              : PlayPaused({
+                  itemId: bookmark.itemId,
+                  renditionId: bookmark.renditionId,
+                  mediaPosition: bookmark.relative,
+                }),
+          ),
           [],
         ]
       },
@@ -555,15 +648,26 @@ export const update = (model: Model, message: Message): Result =>
           Option.isSome(playing) && playing.value.itemId === itemId
             ? Option.some(playing.value.mediaPosition)
             : Option.none()
-        const item = itemById(model.items, itemId)
+        const maybeItem = itemById(model.items, itemId)
         const chapter =
-          Option.isNone(relative) || item === undefined
+          Option.isNone(relative) || Option.isNone(maybeItem)
             ? Option.none()
-            : chapterAt(item.chapters, relative.value)
-        const id = `note-${itemId}-${model.notes.length}`
+            : chapterAt(maybeItem.value.chapters, relative.value)
+        const id =
+          globalThis.crypto !== undefined &&
+          typeof globalThis.crypto.randomUUID === 'function'
+            ? globalThis.crypto.randomUUID()
+            : `note-${itemId}-${model.notes.length}`
+        const lastSharePath =
+          model.noteAudience === 'unlisted' &&
+          globalThis.crypto !== undefined &&
+          typeof globalThis.crypto.randomUUID === 'function'
+            ? Option.some(`/n/${id}?s=${globalThis.crypto.randomUUID()}`)
+            : Option.some(`/n/${id}`)
         return [
           {
             ...model,
+            lastSharePath,
             noteDraft: '',
             notes: [
               ...model.notes,
@@ -630,5 +734,8 @@ export const update = (model: Model, message: Message): Result =>
         { ...model, noteAudience: audience },
         [],
       ],
+      PressedCopySharePath: () => none(model),
+      HeardSharedNote: ({ note }) => [{ ...model, sharedNote: note }, []],
+      FailedSharedNote: () => [{ ...model, sharedNote: Option.none() }, []],
     }),
   )

@@ -53,6 +53,7 @@ import {
   transferPreviewReadinessLabel,
   transferRecipientInput,
   walletAccountBalanceLabel,
+  walletFailureLines,
 } from 'wallet-core-example'
 import { MacOSLiveWalletResources } from 'wallet-node-client-example'
 import {
@@ -342,6 +343,12 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
           `Confirm on ${model.transaction.submission.maybeExplorerConfirmation.value.label}: ${model.transaction.submission.maybeExplorerConfirmation.value.url}`,
         ]
       : []
+  const transactionFailureLines =
+    model.transaction._tag === 'FailedTransferValidation' ||
+    model.transaction._tag === 'FailedTransactionPreview' ||
+    model.transaction._tag === 'FailedTransactionSubmission'
+      ? walletFailureLines(model.transaction.failure)
+      : []
   const addressValidationLines =
     model.transferRecipient._tag === 'InvalidTransferRecipient'
       ? [
@@ -372,6 +379,7 @@ const modelLines = (model: Model): ReadonlyArray<string> => {
     `Recipient: ${transferRecipientInput(model.transferRecipient)}`,
     `Send readiness: ${transferPreviewReadinessLabel(model)}`,
     ...transactionLines,
+    ...transactionFailureLines,
     ...addressValidationLines,
     `Signature: ${model.signature._tag}`,
     `Clipboard: ${model.clipboardCopy._tag}`,

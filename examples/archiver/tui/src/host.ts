@@ -1,7 +1,7 @@
 import {
+  type ArchiveStatus,
   ArchiverProgram,
   ClickedArchive,
-  type ArchiveStatus,
   type Message,
   type Model,
   SubmittedArchiveUrl,
@@ -88,9 +88,7 @@ export const messageForInput = (
     return Option.some(SubmittedArchiveUrl())
   }
   if (isBackspaceKey(input)) {
-    return Option.some(
-      UpdatedUrlDraft({ value: model.urlDraft.slice(0, -1) }),
-    )
+    return Option.some(UpdatedUrlDraft({ value: model.urlDraft.slice(0, -1) }))
   }
   if (model.urlDraft === '' && /^[1-9]$/.test(input)) {
     const archive = model.archives[Number.parseInt(input, 10) - 1]

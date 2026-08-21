@@ -1,6 +1,7 @@
 import {
   Array,
   Cause,
+  Data,
   Effect,
   Option,
   Order,
@@ -91,6 +92,21 @@ const SolanaFeeResponse = S.Struct({
 
 const SolanaSignatureResponse = S.Struct({ result: S.String })
 
+const SolanaAccountInfoResponse = S.Struct({
+  result: S.Struct({ value: S.NullOr(S.Unknown) }),
+})
+
+const SolanaRentExemptionResponse = S.Struct({
+  result: S.Number,
+})
+
+const SolanaJsonRpcErrorBody = S.Struct({
+  error: S.Struct({
+    message: S.String,
+    data: S.optional(S.Unknown),
+  }),
+})
+
 const SolanaSignaturesResponse = S.Struct({
   result: S.Array(
     S.Struct({
@@ -145,9 +161,85 @@ const observationRetryMilliseconds = 250
 
 const unavailable = () => new WalletClientError({ code: 'Unavailable' })
 const invalidResponse = () => new WalletClientError({ code: 'InvalidResponse' })
-const rejected = () => new WalletClientError({ code: 'Rejected' })
+const rejected = (guidance?: TransferGuidance) =>
+  new WalletClientError(
+    guidance === undefined
+      ? { code: 'Rejected' }
+      : { code: 'Rejected', guidance },
+  )
 const unsupported = () =>
   new WalletClientError({ code: 'UnsupportedCapability' })
+
+class SolanaJsonRpcFailure extends Data.TaggedError('SolanaJsonRpcFailure')<{
+  readonly rpcMessage: string
+  readonly data?: unknown
+}> {}
+
+const isTransientSolanaRpcMessage = (message: string): boolean => {
+  const haystack = message.toLowerCase()
+  return (
+    haystack.includes('too many requests') ||
+    haystack.includes('rate limit') ||
+    haystack.includes('blockhash not found') ||
+    haystack.includes('node is unhealthy') ||
+    haystack.includes('timed out')
+  )
+}
+
+const isDestinationRentSolanaRpcFailure = (
+  message: string,
+  data: unknown,
+): boolean => {
+  const haystack = `${message} ${JSON.stringify(data ?? {})}`.toLowerCase()
+  return (
+    haystack.includes('insufficientfundsforrent') ||
+    haystack.includes('insufficient funds for rent') ||
+    (haystack.includes('rent') && haystack.includes('insufficient'))
+  )
+}
+
+const destinationCreationRentGuidance = (
+  rentLamports: bigint,
+): TransferGuidance =>
+  TransferGuidance.make({
+    summary: 'This amount is too small to create the destination account.',
+    details: [
+      `A new Solana account needs at least ${rentLamports.toString()} lamports to stay rent-exempt.`,
+      'Send at least that much, or send to an account that already exists.',
+    ],
+  })
+
+const solanaRpcGuidance = (
+  message: string,
+  data: unknown,
+): TransferGuidance => {
+  if (isDestinationRentSolanaRpcFailure(message, data)) {
+    return TransferGuidance.make({
+      summary: 'This amount is too small to create the destination account.',
+      details: [
+        'A new Solana account needs enough lamports to stay rent-exempt.',
+        'Send at least 1000000 lamports (0.001 SOL), or send to an account that already exists.',
+      ],
+    })
+  }
+  return TransferGuidance.make({
+    summary: 'Solana rejected this transfer.',
+    details: [message],
+  })
+}
+
+const walletClientErrorFromUnknown = (error: unknown): WalletClientError => {
+  if (error instanceof WalletClientError) {
+    return error
+  }
+  if (error instanceof SolanaJsonRpcFailure) {
+    if (isTransientSolanaRpcMessage(error.rpcMessage)) {
+      return unavailable()
+    }
+    return rejected(solanaRpcGuidance(error.rpcMessage, error.data))
+  }
+  return unavailable()
+}
 
 const exactUnsignedInteger = (value: number): bigint => {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -181,7 +273,15 @@ const postJsonRpc = async <A>(
   if (!response.ok) {
     throw new Error('Solana JSON-RPC request failed')
   }
-  return S.decodeUnknownSync(schema)(await response.json())
+  const payload: unknown = await response.json()
+  const maybeRpcError = S.decodeUnknownOption(SolanaJsonRpcErrorBody)(payload)
+  if (Option.isSome(maybeRpcError)) {
+    throw new SolanaJsonRpcFailure({
+      rpcMessage: maybeRpcError.value.error.message,
+      data: maybeRpcError.value.error.data,
+    })
+  }
+  return S.decodeUnknownSync(schema)(payload)
 }
 
 /** Builds the canonical Solana transaction message signed by custody. */
@@ -452,19 +552,47 @@ export const makeSolanaLiveAdapter = (
           transfer.recipient.address,
           transfer.request.atomicUnits,
         )
-        const [balanceResponse, fee] = await Promise.all([
-          postJsonRpc(configuration, SolanaBalanceResponse, 'getBalance', [
-            account.account.address,
-            { commitment: 'confirmed' },
-          ]),
-          feeForPayload(configuration, payload),
-        ])
+        const [balanceResponse, fee, destinationAccount, rentLamports] =
+          await Promise.all([
+            postJsonRpc(configuration, SolanaBalanceResponse, 'getBalance', [
+              account.account.address,
+              { commitment: 'confirmed' },
+            ]),
+            feeForPayload(configuration, payload),
+            postJsonRpc(
+              configuration,
+              SolanaAccountInfoResponse,
+              'getAccountInfo',
+              [
+                transfer.recipient.address,
+                { commitment: 'confirmed', encoding: 'base64' },
+              ],
+            ),
+            postJsonRpc(
+              configuration,
+              SolanaRentExemptionResponse,
+              'getMinimumBalanceForRentExemption',
+              [0],
+            ).then(response => exactUnsignedInteger(response.result)),
+          ])
+        if (
+          destinationAccount.result.value === null &&
+          BigInt(transfer.request.atomicUnits) < rentLamports
+        ) {
+          throw rejected(destinationCreationRentGuidance(rentLamports))
+        }
         const resultingBalance =
           exactUnsignedInteger(balanceResponse.result.value) -
           BigInt(transfer.request.atomicUnits) -
           fee
         if (resultingBalance < 0n) {
-          throw rejected()
+          throw rejected(
+            TransferGuidance.make({
+              summary:
+                'The sender does not have enough SOL for this transfer and fee.',
+              details: ['Reduce the amount or add SOL to the sending account.'],
+            }),
+          )
         }
         return TransactionQuote.make({
           quoteId: payload.previewId,
@@ -477,8 +605,7 @@ export const makeSolanaLiveAdapter = (
           expiresAt: observedAt + quoteLifetimeMilliseconds,
         })
       },
-      catch: error =>
-        error instanceof WalletClientError ? error : unavailable(),
+      catch: walletClientErrorFromUnknown,
     }),
   buildTransferPayload: (account, preview) => {
     if (preview.expiresAt < Date.now()) {
@@ -542,7 +669,7 @@ export const makeSolanaLiveAdapter = (
               ),
             })
           },
-          catch: unavailable,
+          catch: walletClientErrorFromUnknown,
         }),
       ),
     )

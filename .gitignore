@@ -20,3 +20,5 @@ test-results/
 examples/books/foldkit/public/a-new-earth-evocation.mp3
 examples/books/foldkit/public/a-new-earth-evocation.words.json
 examples/books/foldkit/public/media/
+**/.expo/
+**/.svelte-kit/

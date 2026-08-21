@@ -5,6 +5,7 @@ import {
   PressedGoBack,
   PressedOpenAccounts,
   PressedOpenBook,
+  PressedOpenChapter,
   PressedOpenImport,
   PressedOpenPlaybackReader,
   PressedOpenSearch,
@@ -13,6 +14,7 @@ import {
   PressedResumePlayback,
   PressedScanFinished,
   PressedScanShelf,
+  PressedSetChapterSort,
   PressedSetQuery,
   PressedShowAudio,
   PressedShowBoth,
@@ -32,6 +34,7 @@ export type BooksActions = Readonly<{
   pressedSignIn: () => void
   pressedSignOut: () => void
   pressedOpenBook: (itemId: string) => void
+  pressedOpenChapter: (itemId: string, chapterId: string) => void
   pressedGoBack: () => void
   pressedShowText: () => void
   pressedShowAudio: () => void
@@ -43,6 +46,7 @@ export type BooksActions = Readonly<{
   pressedOpenAccounts: () => void
   pressedOpenSearch: () => void
   pressedSetQuery: (query: string) => void
+  pressedSetChapterSort: (sort: 'Index' | 'Title') => void
   pressedStartPlayback: (itemId: string) => void
   pressedPausePlayback: () => void
   pressedResumePlayback: () => void
@@ -64,6 +68,8 @@ export const BooksClient = createReplayableReactProgramClient<
     pressedSignIn: () => enqueueMessage(PressedSignIn()),
     pressedSignOut: () => enqueueMessage(PressedSignOut()),
     pressedOpenBook: itemId => enqueueMessage(PressedOpenBook({ itemId })),
+    pressedOpenChapter: (itemId, chapterId) =>
+      enqueueMessage(PressedOpenChapter({ itemId, chapterId })),
     pressedGoBack: () => enqueueMessage(PressedGoBack()),
     pressedShowText: () => enqueueMessage(PressedShowText()),
     pressedShowAudio: () => enqueueMessage(PressedShowAudio()),
@@ -75,12 +81,15 @@ export const BooksClient = createReplayableReactProgramClient<
     pressedOpenAccounts: () => enqueueMessage(PressedOpenAccounts()),
     pressedOpenSearch: () => enqueueMessage(PressedOpenSearch()),
     pressedSetQuery: query => enqueueMessage(PressedSetQuery({ query })),
+    pressedSetChapterSort: sort =>
+      enqueueMessage(PressedSetChapterSort({ sort })),
     pressedStartPlayback: itemId =>
       enqueueMessage(PressedStartPlayback({ itemId })),
     pressedPausePlayback: () => enqueueMessage(PressedPausePlayback()),
     pressedResumePlayback: () => enqueueMessage(PressedResumePlayback()),
     pressedStopPlayback: () => enqueueMessage(PressedStopPlayback()),
-    pressedOpenPlaybackReader: () => enqueueMessage(PressedOpenPlaybackReader()),
+    pressedOpenPlaybackReader: () =>
+      enqueueMessage(PressedOpenPlaybackReader()),
   }),
   name: 'Books',
   program: BooksProgram,

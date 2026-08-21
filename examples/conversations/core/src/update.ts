@@ -1,4 +1,11 @@
-import { Duration, Effect, Match as M, Schema as S } from 'effect'
+import {
+  Clock,
+  Duration,
+  Effect,
+  Match as M,
+  Option,
+  Schema as S,
+} from 'effect'
 import { Command } from 'foldkit'
 import type * as CommandModule from 'foldkit/command'
 import { evo } from 'foldkit/struct'
@@ -17,6 +24,7 @@ import {
   canonicalize,
   chatsScreen,
   conversationById,
+  conversationByIdentifier,
   libraryScreen,
   liveIngestDelayMs,
   projectById,
@@ -27,21 +35,41 @@ type Result = readonly [Model, ReadonlyArray<CommandModule.Command<Message>>]
 
 const none = (model: Model): Result => [model, []]
 
+const keepTranscriptHandles = (model: Model, screen: Screen): boolean =>
+  model.screen._tag === 'Transcript' &&
+  screen._tag === 'Transcript' &&
+  model.screen.conversationId === screen.conversationId
+
+const applyScreen = (
+  model: Model,
+  screen: Screen,
+  history: ReadonlyArray<Screen>,
+): Model =>
+  evo(model, {
+    screen: () => screen,
+    history: () => history,
+    findQuery: keepTranscriptHandles(model, screen)
+      ? () => model.findQuery
+      : () => '',
+    maybeFocusMessageId: keepTranscriptHandles(model, screen)
+      ? () => model.maybeFocusMessageId
+      : () => Option.none(),
+  })
+
+const navigate = (model: Model, screen: Screen): Model =>
+  applyScreen(model, screen, [...model.history, model.screen])
+
 export const IngestLive = Command.define(
   'IngestLive',
   { conversationId: S.String },
   Ingested,
 )(({ conversationId }) =>
-  Effect.sleep(Duration.millis(liveIngestDelayMs)).pipe(
-    Effect.map(() => Ingested({ conversationId, now: Date.now() })),
-  ),
+  Effect.gen(function* () {
+    yield* Effect.sleep(Duration.millis(liveIngestDelayMs))
+    const now = yield* Clock.currentTimeMillis
+    return Ingested({ conversationId, now })
+  }),
 )
-
-const navigate = (model: Model, screen: Screen): Model =>
-  evo(model, {
-    history: () => [...model.history, model.screen],
-    screen: () => screen,
-  })
 
 const previousScreen = (
   model: Model,
@@ -107,15 +135,22 @@ export const update = (model: Model, message: Message): Result =>
         }
         return [navigate(model, Transcript({ conversationId })), []]
       },
-      ClickedGoBack: () => {
-        const [screen, history] = previousScreen(model, model.conversations)
+      ClickedOpenIdentifier: ({ identifier }) => {
+        const conversation = conversationByIdentifier(
+          model.conversations,
+          identifier,
+        )
+        if (conversation === undefined) {
+          return none(model)
+        }
         return [
-          evo(model, {
-            screen: () => screen,
-            history: () => history,
-          }),
+          navigate(model, Transcript({ conversationId: conversation.id })),
           [],
         ]
+      },
+      ClickedGoBack: () => {
+        const [screen, history] = previousScreen(model, model.conversations)
+        return [applyScreen(model, screen, history), []]
       },
       ClickedOpenSettings: () => [navigate(model, Settings()), []],
       ClickedFollow: ({ conversationId }) => {
@@ -158,11 +193,41 @@ export const update = (model: Model, message: Message): Result =>
           conversationId,
         )
         return [
-          evo(model, {
+          evo(applyScreen(model, screen, history), {
             conversations: () => remaining,
-            screen: () => screen,
-            history: () => history,
             mode: () => modeAfterDelete(model.mode, conversationId),
+          }),
+          [],
+        ]
+      },
+      UpdatedFindQuery: ({ query }) => {
+        if (model.screen._tag !== 'Transcript') {
+          return none(model)
+        }
+        return [
+          evo(model, {
+            findQuery: () => query,
+          }),
+          [],
+        ]
+      },
+      ClickedJumpTo: ({ messageId }) => {
+        if (model.screen._tag !== 'Transcript') {
+          return none(model)
+        }
+        const conversation = conversationById(
+          model.conversations,
+          model.screen.conversationId,
+        )
+        if (conversation === undefined) {
+          return none(model)
+        }
+        if (!conversation.messages.some(row => row.id === messageId)) {
+          return none(model)
+        }
+        return [
+          evo(model, {
+            maybeFocusMessageId: () => Option.some(messageId),
           }),
           [],
         ]

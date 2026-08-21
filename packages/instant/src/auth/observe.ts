@@ -15,9 +15,9 @@ import { Auth } from './model.js'
 
 /** Instant `$users` row fields this package reads. Refresh tokens are omitted. */
 export type InstantAuthUser = Readonly<{
-  email?: string | null
+  email?: string | null | undefined
   id: string
-  isGuest?: boolean
+  isGuest?: boolean | undefined
 }>
 
 /** Instant `subscribeAuth` payload this package reads. */
@@ -63,6 +63,7 @@ export type InstantAuthClient = Readonly<{
       extraFields?: ExtraFields
     }>,
   ) => Promise<InstantMagicCodeSignInResult>
+  signInWithToken: (token: string) => Promise<unknown>
   signOut: () => Promise<unknown>
   subscribeAuth: (listener: (result: InstantAuthResult) => void) => () => void
 }>

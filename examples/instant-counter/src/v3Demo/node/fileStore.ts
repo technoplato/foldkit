@@ -34,7 +34,9 @@ const writeJsonFile = (path: string, value: string): void => {
   renameSync(temporaryPath, path)
 }
 
-const readStore = (path: string): Readonly<{ readonly [key: string]: unknown }> => {
+const readStore = (
+  path: string,
+): Readonly<{ readonly [key: string]: unknown }> => {
   if (!existsSync(path)) {
     return {}
   }
@@ -108,6 +110,8 @@ export const makeMultipleCountersV3FileStoreClass = (
     }
 
     getAllKeys(): Promise<Array<string>> {
-      return this.#enqueue('Read', () => [...Record_.keys(readStore(this.#path))])
+      return this.#enqueue('Read', () => [
+        ...Record_.keys(readStore(this.#path)),
+      ])
     }
   }

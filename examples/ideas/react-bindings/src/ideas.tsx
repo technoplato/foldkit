@@ -1,5 +1,5 @@
-import { type Layer } from "effect"
-import { Program } from "foldkit"
+import { type Layer } from 'effect'
+import { Program } from 'foldkit'
 import {
   ClickedIdea,
   ClosedIdea,
@@ -10,9 +10,9 @@ import {
   StaticIdeasResources,
   UpdatedQuery,
   init,
-} from "ideas-core-example"
-import type { ReactNode } from "react"
-import { createReplayableReactProgramClient } from "shared-react-bindings-example"
+} from 'ideas-core-example'
+import type { ReactNode } from 'react'
+import { createReplayableReactProgramClient } from 'shared-react-bindings-example'
 
 /** Actions exposed to React and React Native consumers of the Ideas Program. */
 export type IdeasActions = Readonly<{
@@ -42,7 +42,7 @@ export const makeIdeasReactClient = (resources: Layer.Layer<IdeasStore>) =>
       closedIdea: () => enqueueMessage(ClosedIdea.make({})),
       updatedQuery: query => enqueueMessage(UpdatedQuery.make({ query })),
     }),
-    name: "Ideas",
+    name: 'Ideas',
     program: IdeasProgram,
     resources,
     route: initialRoute => initialRoute,

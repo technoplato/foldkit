@@ -1,7 +1,18 @@
 import { navigationToPath } from 'counters-core-example'
-import { Array, Effect, Exit, Option, Result, Scope, Schema as S, Stream } from 'effect'
+import {
+  Array,
+  Effect,
+  Exit,
+  Option,
+  Result,
+  Schema as S,
+  Scope,
+  Stream,
+} from 'effect'
 import * as Synchronization from 'foldkit/synchronization'
 import { useEffect, useMemo, useState } from 'react'
+
+import { ensureHostedInstantSession } from '@foldkit/instant'
 
 import type { InstantCounterDatabase } from '../../../instant.schema.js'
 import {
@@ -11,6 +22,11 @@ import {
   signInWithMagicCode,
 } from '../../client/auth.js'
 import { makeBrowserDatabase } from '../../client/database.js'
+import {
+  appendBrowserMultipleCountersV3PolicyRequest,
+  makeBrowserMultipleCountersV3ProcessorConfig,
+  resolveBrowserMultipleCountersV3PolicyRequest,
+} from '../browser/processorConfig.js'
 import { resolveMultipleCountersV3EnabledActionToken } from '../client/actions.js'
 import {
   type MultipleCountersV3ClientController,
@@ -34,11 +50,6 @@ import {
   multipleCountersV3DebugLoginSubjects,
 } from '../shared/debugLogin.js'
 import { multipleCountersV3SessionEpochSeed } from '../shared/identity.js'
-import {
-  appendBrowserMultipleCountersV3PolicyRequest,
-  makeBrowserMultipleCountersV3ProcessorConfig,
-  resolveBrowserMultipleCountersV3PolicyRequest,
-} from '../browser/processorConfig.js'
 import { MultipleCountersV3ReactProgramScreen } from './programScreen.js'
 
 const canonicalListDestinationUri = '/counters'
@@ -99,6 +110,7 @@ export const MultipleCountersV3ReactApp = () => {
   useEffect(() => {
     const scope = Effect.runSync(Scope.make())
     const appId = instantAppId()
+    void ensureHostedInstantSession(database)
     void Effect.runPromise(
       makeMultipleCountersV3ClientController({
         policyRequests: {
@@ -128,10 +140,7 @@ export const MultipleCountersV3ReactApp = () => {
         ).pipe(Effect.provideService(Scope.Scope, scope)),
       )
     })
-    const unsubscribeAuth = observeAuthentication(
-      database,
-      setAuthentication,
-    )
+    const unsubscribeAuth = observeAuthentication(database, setAuthentication)
     return () => {
       unsubscribeAuth()
       void Effect.runPromise(Scope.close(scope, Exit.void))
@@ -143,11 +152,11 @@ export const MultipleCountersV3ReactApp = () => {
       return
     }
     void Effect.runPromise(
-      controller.reconcileAuthenticatedSubject(
-        Option.some(authentication.subjectId),
-      ).pipe(
-        Effect.flatMap(() => controller.open(canonicalListDestinationUri)),
-      ),
+      controller
+        .reconcileAuthenticatedSubject(Option.some(authentication.subjectId))
+        .pipe(
+          Effect.flatMap(() => controller.open(canonicalListDestinationUri)),
+        ),
     )
   }, [authentication, controller])
 
@@ -248,7 +257,9 @@ export const MultipleCountersV3ReactApp = () => {
           >
             Mirror
           </button>
-          <p className="muted">{multipleCountersV3FollowAlignmentExplanation}</p>
+          <p className="muted">
+            {multipleCountersV3FollowAlignmentExplanation}
+          </p>
           <label>
             Leader
             <input
@@ -358,7 +369,9 @@ const AuthScreen = ({
       {authentication._tag === 'LoadingAuthentication' ? (
         <p className="muted">Restoring Instant authentication…</p>
       ) : (
-        <p className="muted">Sign in as Alice or Bob, then switch Independent, Mirror, or Follow.</p>
+        <p className="muted">
+          Sign in as Alice or Bob, then switch Independent, Mirror, or Follow.
+        </p>
       )}
       {isDebugLoginEnabled
         ? Array.map(multipleCountersV3DebugLoginSubjects, subject => (

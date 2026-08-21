@@ -34,7 +34,7 @@ export const init = (): readonly [
 /** Restores an existing Orbit Model without inventing host coordination state. */
 export const restore = (
   model: Model,
-): readonly [Model, ReadonlyArray<Command.Command<Message, never, OrbitStore>>] => [
-  model,
-  [],
-]
+): readonly [
+  Model,
+  ReadonlyArray<Command.Command<Message, never, OrbitStore>>,
+] => [model, []]

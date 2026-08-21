@@ -4,7 +4,7 @@
  * the timeline is a state machine. A player renders the current event.
  */
 
-export type Kind = "voice" | "photo" | "screen" | "note"
+export type Kind = 'voice' | 'photo' | 'screen' | 'note'
 
 export type StitchEvent = {
   id: string
@@ -42,7 +42,9 @@ export function toStitchJson(file: StitchFile): string {
 export function semanticExtract(events: StitchEvent[]): string[] {
   const bag = new Map<string, number>()
   for (const e of events) {
-    for (const w of (e.label + " " + e.detail).toLowerCase().match(/[a-z]{4,}/g) ?? []) {
+    for (const w of (e.label + ' ' + e.detail)
+      .toLowerCase()
+      .match(/[a-z]{4,}/g) ?? []) {
       bag.set(w, (bag.get(w) ?? 0) + 1)
     }
   }

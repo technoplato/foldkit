@@ -1,4 +1,4 @@
-import { ShelfBrowse } from 'books-core-example'
+import { ShelfBrowse, screenOf } from 'books-core-example'
 import { type ReactNode, StrictMode } from 'react'
 import { describe, expect, it } from 'vitest'
 
@@ -23,12 +23,12 @@ describe('Books React bindings', () => {
     )
 
     const actions = result.current.actions
-    expect(result.current.model.screen._tag).toBe('SignedOut')
+    expect(screenOf(result.current.model)._tag).toBe('SignedOut')
 
     act(() => {
       result.current.actions.pressedSignIn()
     })
-    expect(result.current.model.screen).toEqual(ShelfBrowse())
+    expect(screenOf(result.current.model)).toEqual(ShelfBrowse())
     expect(result.current.actions).toBe(actions)
   })
 })

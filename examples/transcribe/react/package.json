@@ -13,6 +13,7 @@
     "pretypecheck": "pnpm --filter transcribe-react-bindings-example build"
   },
   "dependencies": {
+    "@foldkit/instant": "workspace:*",
     "transcribe-react-bindings-example": "workspace:*",
     "transcribe-core-example": "workspace:*",
     "@instantdb/core": "1.0.53",
@@ -21,6 +22,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@instantdb/admin": "1.0.53",
     "@tailwindcss/vite": "^4.3.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

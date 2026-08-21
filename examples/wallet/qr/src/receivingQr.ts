@@ -313,6 +313,27 @@ const cacheEncodedArtifact = (
   encodedReceivingQrArtifacts.set(payload, artifact)
 }
 
+/** Encodes one public QR payload as a PNG data URL. */
+export const encodeQrDataUrl = (payload: string): Option.Option<string> => {
+  const cachedArtifact = encodedReceivingQrArtifacts.get(payload)
+  if (cachedArtifact !== undefined) {
+    return Option.some(cachedArtifact.dataUrl)
+  }
+  try {
+    const encoded = encoder.encode(new Byte(payload, Charset.UTF_8))
+    const artifact = EncodedReceivingQrArtifact.make({
+      dataUrl: encoded.toDataURL(qrModuleSize, {
+        margin: qrModuleSize * qrQuietZoneModules,
+      }),
+      modules: modulesFromEncodedQr(encoded),
+    })
+    cacheEncodedArtifact(payload, artifact)
+    return Option.some(artifact.dataUrl)
+  } catch {
+    return Option.none()
+  }
+}
+
 /** Projects one validated receiving instruction without retaining host state. */
 export const projectReceivingQr = (
   input: ReceivingQrProjectionInput,

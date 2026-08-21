@@ -3,8 +3,8 @@ import type * as Counter from 'counter-core-example'
 import type * as Counters from 'counters-core-example'
 import type * as Program from 'foldkit/program'
 
+import { type CounterListProgram, ShowcaseShell } from './catalog.js'
 import type * as Chrome from './chrome.js'
-import { ShowcaseShell, type CounterListProgram } from './catalog.js'
 
 /**
  * Explicit Model (compose Schema erases field names for tsc noPropertyAccessFromIndexSignature).

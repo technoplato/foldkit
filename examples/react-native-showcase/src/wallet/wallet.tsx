@@ -49,6 +49,7 @@ import {
   walletAccountBalanceLabel,
   walletDataSourceDetail,
   walletDataSourceLabel,
+  walletFailureLines,
 } from 'wallet-core-example'
 import {
   type ReceivingQrProjectionInput,
@@ -971,10 +972,13 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       {model.transaction._tag === 'FailedTransferValidation' ||
       model.transaction._tag === 'FailedTransactionPreview' ||
       model.transaction._tag === 'FailedTransactionSubmission' ? (
-        <Text accessibilityRole="alert" style={styles.validationText}>
-          {model.transaction.failure.operation} failed:{' '}
-          {model.transaction.failure.code}
-        </Text>
+        <View accessibilityRole="alert" style={styles.validationBlock}>
+          {Array.map(walletFailureLines(model.transaction.failure), line => (
+            <Text key={line} style={styles.validationText}>
+              {line}
+            </Text>
+          ))}
+        </View>
       ) : null}
       {model.transaction._tag === 'SubmittedTransaction' ? (
         <TransactionSubmissionConfirmation

@@ -1,15 +1,16 @@
-import { Effect, Schema as S, Stream } from 'effect'
+import { Duration, Effect, Schema as S, Stream } from 'effect'
 import { Subscription } from 'foldkit'
 import { NetworkFailure, WalletClient } from 'wallet-core-example'
 
 import {
+  AdvancedClipPlayback,
   FailedObserveIncoming,
   type Message,
   ObservedIncoming,
 } from './message.js'
 import { type Model } from './model.js'
 
-/** Observes Incoming SOL while the Devnet receive account is ready. */
+/** Observes Incoming SOL and ticks clip playback while Dispensed. */
 export const subscriptions = Subscription.make<Model, Message, WalletClient>()(
   entry => ({
     incoming: entry(
@@ -44,6 +45,31 @@ export const subscriptions = Subscription.make<Model, Message, WalletClient>()(
                 ),
               ),
             ),
+          )
+        },
+      },
+    ),
+    clipPlayback: entry(
+      { isPlaying: S.Boolean },
+      {
+        modelToDependencies: model => ({
+          isPlaying:
+            model.vendPhase._tag === 'Dispensed' &&
+            model.clipPlayback._tag === 'Playing',
+        }),
+        dependenciesToStream: ({ isPlaying }) => {
+          if (!isPlaying) {
+            return Stream.empty
+          }
+          return Stream.tick(Duration.millis(200)).pipe(
+            Stream.mapAccum(
+              () => -200,
+              elapsed => {
+                const next = elapsed + 200
+                return [next, [next]] as const
+              },
+            ),
+            Stream.map(elapsedMs => AdvancedClipPlayback.make({ elapsedMs })),
           )
         },
       },

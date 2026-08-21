@@ -40,6 +40,18 @@ describe('view', () => {
     )
   })
 
+  test('jumping a tool row shows its output', () => {
+    Scene.scene(
+      { update, view },
+      Scene.with(initialModel),
+      Scene.click(Scene.role('button', { name: /scribe/ })),
+      Scene.click(Scene.role('button', { name: /CMUX Tab Test/ })),
+      Scene.click(Scene.role('button', { name: /tool bash/ })),
+      Scene.expect(Scene.text('Focused')).toExist(),
+      Scene.expect(Scene.text('sandbox has no outbound network')).toExist(),
+    )
+  })
+
   test('settings names the other domains', () => {
     Scene.scene(
       { update, view },

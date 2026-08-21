@@ -4,11 +4,11 @@ import {
   type Model,
   navigationToPath,
 } from 'counters-core-example'
+import { Array, Match as M, Option, Result } from 'effect'
 import {
   useMultipleCountersActions,
   useMultipleCountersReplay,
 } from 'pis-canvas-lab-react-bindings-example'
-import { Array, Match as M, Option, Result } from 'effect'
 import { type ChangeEvent, type ReactNode, useEffect, useRef } from 'react'
 
 /** Projects navigation Model changes to browser history and re-enters opened history entries as Messages. */

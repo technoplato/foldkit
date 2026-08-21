@@ -1,7 +1,7 @@
-import { Match as M, Option } from "effect"
-import { Runtime } from "foldkit"
-import { type UrlRequest } from "foldkit/navigation"
-import { toString as urlToString } from "foldkit/url"
+import { Match as M, Option } from 'effect'
+import { Runtime } from 'foldkit'
+import { type UrlRequest } from 'foldkit/navigation'
+import { toString as urlToString } from 'foldkit/url'
 import {
   OpenedHref,
   StaticTranscribeResources,
@@ -9,19 +9,23 @@ import {
   requestFromHref,
   requestToPath,
   selectedJob,
-} from "transcribe-core-example"
+} from 'transcribe-core-example'
 
-import { overlay } from "@foldkit/devtools"
+import { overlay } from '@foldkit/devtools'
+import { withHostedIdentity } from '@foldkit/instant'
 
-import { transcribeDatabase } from "./database.js"
-import { TranscribeFoldkitProgram } from "./playback.js"
-import { view } from "./view.js"
+import { transcribeDatabase } from './database.js'
+import { TranscribeFoldkitProgram } from './playback.js'
+import { view } from './view.js'
 
 const database = transcribeDatabase()
 const resources =
   database === undefined
     ? StaticTranscribeResources
-    : makeLiveTranscribeResources(database as never)
+    : withHostedIdentity(
+        makeLiveTranscribeResources(database as never),
+        database,
+      )
 
 const openedHrefForRequest = (request: UrlRequest) =>
   M.value(request).pipe(
@@ -35,19 +39,21 @@ const openedHrefForRequest = (request: UrlRequest) =>
 const historyReconciliation = { isActive: false }
 
 const application = Runtime.makeFoldkitApplication({
-  container: document.getElementById("root"),
+  container: document.getElementById('root'),
   devTools: {
     overlay,
   },
   onModel: model => {
     const nextPath = Option.match(selectedJob(model), {
-      onNone: () => "/",
+      onNone: () => '/',
       onSome: job => requestToPath(requestFromHref(`/jobs/${job.videoId}`)),
     })
     const current = `${window.location.pathname}${window.location.search}`
     if (current !== nextPath) {
-      const method = historyReconciliation.isActive ? "replaceState" : "pushState"
-      window.history[method]({}, "", nextPath)
+      const method = historyReconciliation.isActive
+        ? 'replaceState'
+        : 'pushState'
+      window.history[method]({}, '', nextPath)
     }
     historyReconciliation.isActive = false
   },

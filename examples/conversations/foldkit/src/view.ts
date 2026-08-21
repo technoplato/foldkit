@@ -3,6 +3,7 @@ import {
   ClickedFollow,
   ClickedGoBack,
   ClickedIngest,
+  ClickedJumpTo,
   ClickedOpenChats,
   ClickedOpenConversation,
   ClickedOpenProject,
@@ -14,8 +15,12 @@ import {
   type Model,
   type Project,
   type TimelineRow,
+  UpdatedFindQuery,
+  authorDisplayName,
+  bodyKindName,
   conversationById,
   conversationsForProject,
+  focusedRow,
   identifierLabel,
   lastActivityAt,
   outline,
@@ -23,9 +28,10 @@ import {
   promptCount,
   sessionCount,
   snippet,
+  transcriptBreakdown,
   visibilityLabel,
 } from 'conversations-core-example'
-import { Match as M } from 'effect'
+import { Match as M, Option } from 'effect'
 import { Document, html } from 'foldkit/html'
 
 import { Button } from '@foldkit/ui'
@@ -122,16 +128,6 @@ const conversationCard = (conversation: Conversation) =>
     ],
   )
 
-const authorLabel = (row: TimelineRow): string =>
-  M.value(row.author).pipe(
-    M.withReturnType<string>(),
-    M.tagsExhaustive({
-      AuthorHuman: ({ name }) => name,
-      AuthorAgent: ({ name, model }) => `${name} (${model})`,
-      AuthorSystem: ({ name }) => name,
-    }),
-  )
-
 const bodyView = (row: TimelineRow) =>
   M.value(row.body).pipe(
     M.withReturnType<ReturnType<typeof h.div>>(),
@@ -163,12 +159,22 @@ const bodyView = (row: TimelineRow) =>
     }),
   )
 
-const rowView = (row: TimelineRow) =>
+const rowView = (row: TimelineRow, isFocused: boolean) =>
   h.keyed('article')(
     row.id,
-    [h.Class('border-l-2 border-zinc-700 pl-3 space-y-1')],
     [
-      h.div([h.Class('text-xs text-zinc-500')], [authorLabel(row)]),
+      h.Id(`message-${row.id}`),
+      h.Class(
+        isFocused
+          ? 'border-l-2 border-emerald-400 bg-emerald-950/40 pl-3 space-y-1'
+          : 'border-l-2 border-zinc-700 pl-3 space-y-1',
+      ),
+    ],
+    [
+      h.div(
+        [h.Class('text-xs text-zinc-500')],
+        [authorDisplayName(row.author)],
+      ),
       bodyView(row),
     ],
   )
@@ -219,6 +225,56 @@ const transcriptView = (model: Model, conversationId: string) => {
         `${project?.name ?? conversation.projectId} · ${identifierLabel(conversation.identifier)} · ${visibilityLabel(conversation.visibility)}`,
       ],
     ),
+    h.label(
+      [h.Class('block text-sm text-zinc-400 mb-4'), h.For('find-query')],
+      [
+        'Find',
+        h.input([
+          h.Id('find-query'),
+          h.Class(
+            'mt-1 w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-zinc-100',
+          ),
+          h.Value(model.findQuery),
+          h.OnInput(query => UpdatedFindQuery({ query })),
+        ]),
+      ],
+    ),
+    h.div(
+      [h.Class('mb-4')],
+      [
+        h.h2([h.Class('text-sm uppercase text-zinc-500 mb-2')], ['Jump']),
+        ...transcriptBreakdown(model).map(entry =>
+          h.keyed('button')(
+            entry.messageId,
+            [
+              h.Class(
+                'block w-full text-left text-sm py-1 hover:text-emerald-400',
+              ),
+              h.OnClick(ClickedJumpTo({ messageId: entry.messageId })),
+            ],
+            [
+              `${entry.index + 1}. ${bodyKindName(entry.bodyKind)} ${entry.label}`,
+            ],
+          ),
+        ),
+      ],
+    ),
+    ...Option.match(focusedRow(model), {
+      onNone: () => [],
+      onSome: row => [
+        h.div(
+          [h.Class('border border-emerald-500 rounded p-3 space-y-2 mb-4')],
+          [
+            h.h2([h.Class('text-sm uppercase text-emerald-400')], ['Focused']),
+            h.div(
+              [h.Class('text-xs text-zinc-500')],
+              [authorDisplayName(row.author)],
+            ),
+            bodyView(row),
+          ],
+        ),
+      ],
+    }),
     h.div(
       [h.Class('mb-4')],
       [
@@ -233,7 +289,12 @@ const transcriptView = (model: Model, conversationId: string) => {
     ),
     h.div(
       [h.Class('space-y-4 mb-6')],
-      conversation.messages.map(row => rowView(row)),
+      conversation.messages.map(row =>
+        rowView(
+          row,
+          Option.getOrUndefined(model.maybeFocusMessageId) === row.id,
+        ),
+      ),
     ),
     followBar(model, conversationId),
     h.div(

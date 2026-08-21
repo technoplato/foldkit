@@ -1,0 +1,40 @@
+{
+  "name": "counter-expo-example",
+  "private": true,
+  "version": "0.0.0",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "android": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env expo start --android --port 8089",
+    "ios": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env expo start --ios --port 8089",
+    "pretest": "pnpm --filter @foldkit/react build && pnpm --filter counter-core-example build && pnpm --filter counter-react-bindings-example build",
+    "pretypecheck": "pnpm --filter @foldkit/react build && pnpm --filter counter-core-example build && pnpm --filter counter-react-bindings-example build",
+    "start": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env expo start --port 8089",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/react": "workspace:*",
+    "@instantdb/core": "1.0.65",
+    "@instantdb/react-native": "1.0.65",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "12.0.1",
+    "counter-core-example": "workspace:*",
+    "counter-react-bindings-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "expo": "~57.0.9",
+    "expo-status-bar": "~57.0.1",
+    "foldkit": "workspace:*",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-get-random-values": "~1.11.0",
+    "react-native-safe-area-context": "~5.7.0"
+  },
+  "devDependencies": {
+    "@babel/plugin-transform-object-rest-spread": "^7.29.7",
+    "@types/react": "^19.2.17",
+    "babel-preset-expo": "~57.0.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

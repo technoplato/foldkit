@@ -1,5 +1,4 @@
-import { init as initInstant } from "@instantdb/core"
-import { Runtime } from "foldkit"
+import { Runtime } from 'foldkit'
 import {
   Message,
   Model,
@@ -9,17 +8,26 @@ import {
   schema,
   subscriptions,
   update,
-} from "transcribe-core-example"
+} from 'transcribe-core-example'
 
-import { overlay } from "@foldkit/devtools"
+import { overlay } from '@foldkit/devtools'
+import { withHostedIdentity } from '@foldkit/instant'
+import { init as initInstant } from '@instantdb/core'
 
-import { view } from "./view.js"
+import { view } from './view.js'
 
-const appId = import.meta.env["VITE_INSTANT_APP_ID"]
+const appId = import.meta.env['VITE_INSTANT_APP_ID']
+const database =
+  appId === undefined || appId === ''
+    ? undefined
+    : initInstant({ appId, schema })
 const resources =
-  appId === undefined || appId === ""
+  database === undefined
     ? StaticTranscribeResources
-    : makeLiveTranscribeResources(initInstant({ appId, schema }))
+    : withHostedIdentity(
+        makeLiveTranscribeResources(database as never),
+        database,
+      )
 
 /** Builds a captive Foldkit element that does not own document title or URL. */
 export const makeTranscribeElement = (container: HTMLElement) =>

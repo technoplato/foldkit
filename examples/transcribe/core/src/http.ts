@@ -1,7 +1,12 @@
-import { Option } from "effect"
+import { Option } from 'effect'
 
-import { localMediaUrl, videoIdFromInput, youtubeUrl, type Word } from "./catalog.js"
-import { parseVtt, transcriptTextFromCues } from "./vtt.js"
+import {
+  type Word,
+  localMediaUrl,
+  videoIdFromInput,
+  youtubeUrl,
+} from './catalog.js'
+import { parseVtt, transcriptTextFromCues } from './vtt.js'
 
 /** Full GET /jobs/:id payload. */
 export type JobPayload = Readonly<{
@@ -10,11 +15,11 @@ export type JobPayload = Readonly<{
   frames: ReadonlyArray<{ filename: string; id: string; index: number }>
   id: string
   mediaUrl: string
-  status: "queued" | "running" | "complete" | "failed"
+  status: 'queued' | 'running' | 'complete' | 'failed'
   title: string
   transcript: {
     cues: ReadonlyArray<{ endMs: number; startMs: number; text: string }>
-    source: "whisper" | "captions"
+    source: 'whisper' | 'captions'
     text: string
   } | null
   url: string
@@ -23,8 +28,8 @@ export type JobPayload = Readonly<{
 
 /** Result of idempotent start-or-lookup. */
 export type StartOrLookup =
-  | Readonly<{ _tag: "InvalidUrl" }>
-  | Readonly<{ _tag: "Ok"; created: boolean; job: JobPayload }>
+  | Readonly<{ _tag: 'InvalidUrl' }>
+  | Readonly<{ _tag: 'Ok'; created: boolean; job: JobPayload }>
 
 /** In-memory job registry used by the GET contract. */
 export type JobRegistry = Readonly<{
@@ -34,25 +39,25 @@ export type JobRegistry = Readonly<{
 }>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
+  typeof value === 'object' && value !== null
 
 /** Whisper `segments[].words` as follow-along tokens. Times stay in seconds. */
 export const wordsFromWhisper = (whisper: unknown): ReadonlyArray<Word> => {
-  if (!isRecord(whisper) || !Array.isArray(whisper["segments"])) {
+  if (!isRecord(whisper) || !Array.isArray(whisper['segments'])) {
     return []
   }
   const collected: Array<Word> = []
-  for (const segment of whisper["segments"]) {
-    if (!isRecord(segment) || !Array.isArray(segment["words"])) {
+  for (const segment of whisper['segments']) {
+    if (!isRecord(segment) || !Array.isArray(segment['words'])) {
       continue
     }
-    for (const raw of segment["words"]) {
+    for (const raw of segment['words']) {
       if (!isRecord(raw)) {
         continue
       }
-      const text = typeof raw["word"] === "string" ? raw["word"].trim() : ""
-      const start = typeof raw["start"] === "number" ? raw["start"] : undefined
-      const end = typeof raw["end"] === "number" ? raw["end"] : undefined
+      const text = typeof raw['word'] === 'string' ? raw['word'].trim() : ''
+      const start = typeof raw['start'] === 'number' ? raw['start'] : undefined
+      const end = typeof raw['end'] === 'number' ? raw['end'] : undefined
       if (text.length === 0 || start === undefined || end === undefined) {
         continue
       }
@@ -66,7 +71,11 @@ export const wordsFromWhisper = (whisper: unknown): ReadonlyArray<Word> => {
   }
   return collected.map((word, index) => {
     const next = collected[index + 1]
-    if (next !== undefined && word.end > next.start && next.start > word.start) {
+    if (
+      next !== undefined &&
+      word.end > next.start &&
+      next.start > word.start
+    ) {
       return { ...word, end: next.start }
     }
     return word
@@ -74,20 +83,22 @@ export const wordsFromWhisper = (whisper: unknown): ReadonlyArray<Word> => {
 }
 
 /** Builds a job payload from optional artifact contents. */
-export const jobFromArtifacts = (input: Readonly<{
-  frames: ReadonlyArray<string>
-  id: string
-  mediaUrl?: string
-  title: string
-  url: string
-  vtt?: string
-  whisper?: unknown
-}>): JobPayload => {
+export const jobFromArtifacts = (
+  input: Readonly<{
+    frames: ReadonlyArray<string>
+    id: string
+    mediaUrl?: string
+    title: string
+    url: string
+    vtt?: string
+    whisper?: unknown
+  }>,
+): JobPayload => {
   const whisperText =
-    typeof input.whisper === "object" &&
+    typeof input.whisper === 'object' &&
     input.whisper !== null &&
-    "text" in input.whisper &&
-    typeof input.whisper.text === "string" &&
+    'text' in input.whisper &&
+    typeof input.whisper.text === 'string' &&
     input.whisper.text.length > 0
       ? input.whisper.text
       : undefined
@@ -96,19 +107,23 @@ export const jobFromArtifacts = (input: Readonly<{
   const words = wordsFromWhisper(input.whisper)
   const transcript =
     whisperText !== undefined
-      ? { cues, source: "whisper" as const, text: whisperText }
+      ? { cues, source: 'whisper' as const, text: whisperText }
       : captionText.length > 0
-        ? { cues, source: "captions" as const, text: captionText }
+        ? { cues, source: 'captions' as const, text: captionText }
         : null
   const status =
-    whisperText !== undefined ? "complete" as const : transcript !== null ? "running" as const : "queued" as const
+    whisperText !== undefined
+      ? ('complete' as const)
+      : transcript !== null
+        ? ('running' as const)
+        : ('queued' as const)
   const analysis =
     whisperText !== undefined
-      ? { summary: "Whisper transcript is available." }
+      ? { summary: 'Whisper transcript is available.' }
       : transcript !== null
         ? {
             summary:
-              "YouTube English captions ingested as a caption track. Whisper JSON is not available yet.",
+              'YouTube English captions ingested as a caption track. Whisper JSON is not available yet.',
           }
         : null
   return {
@@ -116,7 +131,7 @@ export const jobFromArtifacts = (input: Readonly<{
     fallbackUrl: input.url,
     frames: input.frames.map((filename, index) => ({
       filename,
-      id: filename.replace(/\.[^.]+$/, ""),
+      id: filename.replace(/\.[^.]+$/, ''),
       index: index + 1,
     })),
     id: input.id,
@@ -145,12 +160,12 @@ export const createJobRegistry = (
     startOrLookup: url => {
       const maybeId = videoIdFromInput(url)
       if (Option.isNone(maybeId)) {
-        return { _tag: "InvalidUrl" }
+        return { _tag: 'InvalidUrl' }
       }
       const id = maybeId.value
       const existing = byId.get(id)
       if (existing !== undefined) {
-        return { _tag: "Ok", created: false, job: existing }
+        return { _tag: 'Ok', created: false, job: existing }
       }
       const job: JobPayload = {
         analysis: null,
@@ -158,14 +173,14 @@ export const createJobRegistry = (
         frames: [],
         id,
         mediaUrl: localMediaUrl(id),
-        status: "queued",
+        status: 'queued',
         title: id,
         transcript: null,
         url: youtubeUrl(id),
         words: [],
       }
       byId.set(id, job)
-      return { _tag: "Ok", created: true, job }
+      return { _tag: 'Ok', created: true, job }
     },
   }
 }
@@ -190,18 +205,18 @@ const json = (
   extra: Readonly<Record<string, string>> = {},
 ): TranscribeHttpResponse => ({
   body: `${JSON.stringify(value)}\n`,
-  headers: { "content-type": "application/json; charset=utf-8", ...extra },
+  headers: { 'content-type': 'application/json; charset=utf-8', ...extra },
   status,
 })
 
 const wantsJson = (accept: string): boolean =>
-  accept.toLowerCase().includes("application/json")
+  accept.toLowerCase().includes('application/json')
 
 const wantsHtml = (accept: string): boolean =>
-  accept.toLowerCase().includes("text/html")
+  accept.toLowerCase().includes('text/html')
 
 const normalizePath = (pathname: string): string => {
-  if (pathname.length > 1 && pathname.endsWith("/")) {
+  if (pathname.length > 1 && pathname.endsWith('/')) {
     return pathname.slice(0, -1)
   }
   return pathname
@@ -213,14 +228,14 @@ export const handleTranscribeRequest = (
   registry: JobRegistry,
 ): TranscribeHttpResponse | undefined => {
   const method = request.method.toUpperCase()
-  if (method !== "GET" && method !== "HEAD") {
+  if (method !== 'GET' && method !== 'HEAD') {
     return undefined
   }
-  const parsed = new URL(request.url, "http://127.0.0.1")
+  const parsed = new URL(request.url, 'http://127.0.0.1')
   const pathname = normalizePath(parsed.pathname)
 
-  if (pathname === "/healthz") {
-    return json(200, { status: "ok" })
+  if (pathname === '/healthz') {
+    return json(200, { status: 'ok' })
   }
 
   const jobsMatch = /^\/jobs\/([^/]+)$/.exec(pathname)
@@ -231,19 +246,19 @@ export const handleTranscribeRequest = (
     const id = decodeURIComponent(jobsMatch[1])
     const job = registry.getById(id)
     if (job === undefined) {
-      return json(404, { error: "not found", id })
+      return json(404, { error: 'not found', id })
     }
     return json(200, job)
   }
 
-  if (pathname === "/") {
-    const url = parsed.searchParams.get("url")
+  if (pathname === '/') {
+    const url = parsed.searchParams.get('url')
     if (url === null || url.length === 0) {
       return undefined
     }
     const result = registry.startOrLookup(url)
-    if (result._tag === "InvalidUrl") {
-      return json(400, { error: "invalid url", url })
+    if (result._tag === 'InvalidUrl') {
+      return json(400, { error: 'invalid url', url })
     }
     const location = `/jobs/${result.job.id}`
     if (wantsJson(request.accept)) {
@@ -256,7 +271,7 @@ export const handleTranscribeRequest = (
       })
     }
     return {
-      body: "",
+      body: '',
       headers: { location },
       status: 302,
     }

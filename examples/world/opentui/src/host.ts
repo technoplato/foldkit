@@ -1,12 +1,4 @@
 import {
-  asciiMap,
-  messageFromKey,
-  type Message,
-  type Model,
-  overlayOf,
-  WorldProgram,
-} from 'world-core-example'
-import {
   Cause,
   Effect,
   Match as M,
@@ -17,6 +9,14 @@ import {
 } from 'effect'
 import { Runtime } from 'foldkit'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
+import {
+  type Message,
+  type Model,
+  WorldProgram,
+  asciiMap,
+  messageFromKey,
+  overlayOf,
+} from 'world-core-example'
 
 const clearScreen = '\u001b[2J\u001b[H'
 const lime = '\u001b[38;2;196;255;82m'
@@ -34,8 +34,7 @@ export const renderWorldScreen = (model: Model): string => {
   const panel = M.value(overlay).pipe(
     M.tagsExhaustive({
       Hidden: () => '',
-      SignOverlay: ({ speaker, overlay: text }) =>
-        `\n\n${box(speaker, text)}`,
+      SignOverlay: ({ speaker, overlay: text }) => `\n\n${box(speaker, text)}`,
       VendingOverlay: ({ keypadBuffer, vendPhase, listPriceDisplay }) =>
         `\n\n${box('MACHINE', `listed ${listPriceDisplay}  ${keypadBuffer === '' ? '____' : keypadBuffer}  ${vendPhase}`)}`,
     }),

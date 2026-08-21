@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@foldkit/devtools": "workspace:*",
+    "@foldkit/instant": "workspace:*",
     "@foldkit/instant-tools": "workspace:*",
     "@foldkit/ui": "workspace:*",
     "@instantdb/core": "1.0.53",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "workspace:*",
+    "@instantdb/admin": "1.0.53",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "prettier": "^3.8.4",
     "typescript": "^6.0.3",

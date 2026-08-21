@@ -1,7 +1,6 @@
 import { Effect } from 'effect'
 
 import {
-  type InstantProgramDatabase,
   InstantProgramSchema,
   makeInstantProgramStore,
 } from '@foldkit/instant/browser'
@@ -9,32 +8,18 @@ import { init } from '@instantdb/core'
 
 import { countersDemoSessionPath } from './identity.js'
 import { type CountersTape, makeCountersTape } from './makeTape.js'
+import {
+  CountersDemoSignInError,
+  countersDemoMintFailed,
+  countersDemoNoSession,
+  signInDemoSession,
+} from './session.js'
 
-/** Signs in the shared Instant demo subject when a mint path is available. */
-export const signInDemoSession = async (
-  database: InstantProgramDatabase,
-  sessionPath: string = countersDemoSessionPath,
-): Promise<void> => {
-  const existing = await database.getAuth()
-  if (existing !== null) {
-    return
-  }
-  const response = await fetch(sessionPath, {
-    credentials: 'same-origin',
-  })
-  if (!response.ok) {
-    return
-  }
-  const body: unknown = await response.json()
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    !('token' in body) ||
-    typeof body.token !== 'string'
-  ) {
-    return
-  }
-  await database.auth.signInWithToken(body.token)
+export {
+  CountersDemoSignInError,
+  countersDemoMintFailed,
+  countersDemoNoSession,
+  signInDemoSession,
 }
 
 /** Signs in the demo subject and opens the live Instant Counters tape. */
@@ -42,13 +27,22 @@ export const openBrowserCountersTape = (
   appId: string,
   processorId: string,
   sessionPath: string = countersDemoSessionPath,
-): Effect.Effect<CountersTape | null> =>
+): Effect.Effect<CountersTape, CountersDemoSignInError> =>
   Effect.gen(function* () {
     const database = init({ appId, schema: InstantProgramSchema })
-    yield* Effect.promise(() => signInDemoSession(database, sessionPath))
-    const user = yield* Effect.promise(() => database.getAuth())
+    yield* Effect.tryPromise({
+      try: () => signInDemoSession(database, sessionPath),
+      catch: error =>
+        error instanceof CountersDemoSignInError
+          ? error
+          : countersDemoMintFailed(),
+    })
+    const user = yield* Effect.tryPromise({
+      try: () => database.getAuth(),
+      catch: () => countersDemoNoSession(),
+    })
     if (user === null) {
-      return null
+      return yield* countersDemoNoSession()
     }
     return yield* makeCountersTape(
       makeInstantProgramStore(database),

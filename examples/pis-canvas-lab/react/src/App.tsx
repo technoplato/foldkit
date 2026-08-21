@@ -1,10 +1,10 @@
 import { type Destination, destinationForModel } from 'counters-core-example'
+import { Match as M, Option, Schema as S } from 'effect'
 import {
   MultipleCountersProvider,
   useMultipleCountersModel,
   useMultipleCountersResolutionError,
 } from 'pis-canvas-lab-react-bindings-example'
-import { Match as M, Option, Schema as S } from 'effect'
 import { type ReactNode } from 'react'
 
 import { FoldkitCanvas } from './FoldkitCanvas.js'

@@ -54,8 +54,12 @@ const readWords = (): WordsFile | undefined => {
 
 const offsetWords = (file: WordsFile): ReadonlyArray<SpokenWord> =>
   file.words.map(word => {
-    const relativeStartMs = Math.round((word.start + EVOCATION_START_SECONDS) * 1000)
-    const relativeEndMs = Math.round((word.end + EVOCATION_START_SECONDS) * 1000)
+    const relativeStartMs = Math.round(
+      (word.start + EVOCATION_START_SECONDS) * 1000,
+    )
+    const relativeEndMs = Math.round(
+      (word.end + EVOCATION_START_SECONDS) * 1000,
+    )
     return {
       kind: 'spoken',
       text: word.text,
@@ -67,10 +71,14 @@ const offsetWords = (file: WordsFile): ReadonlyArray<SpokenWord> =>
     }
   })
 
-const requireEnv = (name: 'INSTANT_APP_ID' | 'INSTANT_APP_ADMIN_TOKEN'): string => {
+const requireEnv = (
+  name: 'INSTANT_APP_ID' | 'INSTANT_APP_ADMIN_TOKEN',
+): string => {
   const value = process.env[name]
   if (value === undefined || value.length === 0) {
-    throw new Error(`${name} is missing. Source ~/.config/books-knophy/instant.env`)
+    throw new Error(
+      `${name} is missing. Source ~/.config/books-knophy/instant.env`,
+    )
   }
   return value
 }
@@ -195,16 +203,15 @@ const ingest = async (): Promise<void> => {
         updatedAt: PUBLISHED_AT,
       })
       .link({ authors: authorButler }),
-    db.tx.files[fileCover]
-      .update({
-        name: 'a-new-earth.jpg',
-        path: '/media/a-new-earth.jpg',
-        size: coverSize,
-        presenceKind: 'local',
-        bodyKind: 'image',
-        addedAt: PUBLISHED_AT,
-        updatedAt: PUBLISHED_AT,
-      }),
+    db.tx.files[fileCover].update({
+      name: 'a-new-earth.jpg',
+      path: '/media/a-new-earth.jpg',
+      size: coverSize,
+      presenceKind: 'local',
+      bodyKind: 'image',
+      addedAt: PUBLISHED_AT,
+      updatedAt: PUBLISHED_AT,
+    }),
     db.tx.renditions[audioNewEarth]
       .update({
         language: 'en',

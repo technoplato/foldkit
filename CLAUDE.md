@@ -128,6 +128,9 @@ If `pnpm typecheck`, `pnpm lint`, `pnpm build`, or the pre-push hook surfaces er
 
 Apps in `examples/` ship with `@foldkit/devtools-mcp` wired up. Reach for the `foldkit_*` MCP tools before adding logs. See `packages/devtools-mcp/README.md` for setup.
 
+Hosted `*.knophy.com` examples authenticate with Cloudflare Access. See
+`examples/AGENTS.md`.
+
 ## Communication
 
 - When I ask a question or make a comment that sounds rhetorical, opinion-based, or conversational ("what do you think about X?", "im asking you"), respond with discussion, not code edits. Only make code changes when explicitly asked.

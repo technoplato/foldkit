@@ -6,14 +6,7 @@ import type { CounterRow, Model } from 'counters-core-example'
 import { destinationForModel } from 'counters-core-example'
 import { Option } from 'effect'
 
-import {
-  Button,
-  HStack,
-  Phone,
-  Spacer,
-  Text,
-  VStack,
-} from './elements.js'
+import { Button, HStack, Phone, Spacer, Text, VStack } from './elements.js'
 import type { HotspotAction, UiNode } from './types.js'
 
 export type CountersActions = {
@@ -34,11 +27,9 @@ const sum = (rows: ReadonlyArray<CounterRow>) =>
 const shortId = (id: string) => (id.length > 9 ? id.slice(0, 9) : id)
 
 /** Organism: one list row */
-const CounterRowView = (
-  row: CounterRow,
-  actions: CountersActions,
-): UiNode =>
-  HStack({ gap: 1 },
+const CounterRowView = (row: CounterRow, actions: CountersActions): UiNode =>
+  HStack(
+    { gap: 1 },
     Button({
       label: shortId(row.id),
       onPress: () => actions.selectedCounter(row.id),

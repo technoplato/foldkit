@@ -5,6 +5,7 @@ import {
   PressedGoBack,
   PressedOpenAccounts,
   PressedOpenBook,
+  PressedOpenChapter,
   PressedOpenImport,
   PressedOpenPlaybackReader,
   PressedOpenSearch,
@@ -13,6 +14,7 @@ import {
   PressedResumePlayback,
   PressedScanFinished,
   PressedScanShelf,
+  PressedSetChapterSort,
   PressedShowAudio,
   PressedShowBoth,
   PressedShowText,
@@ -20,9 +22,19 @@ import {
   PressedSignOut,
   PressedStartPlayback,
   PressedStopPlayback,
+  chapterDuration,
+  durationOfItem,
+  formatClock,
+  formatSpokenTail,
   itemById,
+  playMediaPosition,
+  playOf,
+  screenOf,
+  sortedChapters,
+  spokenTail,
 } from 'books-core-example'
 import {
+  Array,
   Cause,
   Effect,
   Layer,
@@ -34,7 +46,11 @@ import {
 } from 'effect'
 import { Runtime } from 'foldkit'
 
-import { ShelfBrowse, renderAscii } from '../../shared-ui/dist/index.js'
+import {
+  BookTitle,
+  ShelfBrowse,
+  renderAscii,
+} from '../../shared-ui/dist/index.js'
 
 const CLEAR_SCREEN = '\u001b[2J\u001b[H'
 const SCREEN_INNER_WIDTH = 62
@@ -46,12 +62,13 @@ const framed = (content: string): string => {
 }
 
 const visibleIds = (model: Model): ReadonlyArray<string> =>
-  M.value(model.screen).pipe(
+  M.value(screenOf(model)).pipe(
     M.withReturnType<ReadonlyArray<string>>(),
     M.tagsExhaustive({
       SignedOut: () => [],
       ShelfEmpty: () => [],
       ShelfBrowse: () => model.items.map(item => item.id),
+      TitlePage: () => [],
       ReaderText: () => [],
       ReaderAudio: () => [],
       ReaderBoth: () => [],
@@ -67,16 +84,18 @@ const visibleIds = (model: Model): ReadonlyArray<string> =>
               item.title.toLowerCase().includes(query.toLowerCase()),
           )
           .map(item => item.id),
+      SharedNote: () => [],
     }),
   )
 
 const readerItemId = (model: Model): string | undefined =>
-  M.value(model.screen).pipe(
+  M.value(screenOf(model)).pipe(
     M.withReturnType<string | undefined>(),
     M.tagsExhaustive({
       ReaderAudio: ({ itemId }) => itemId,
       ReaderBoth: ({ itemId }) => itemId,
       ReaderText: ({ itemId }) => itemId,
+      TitlePage: ({ itemId }) => itemId,
       Accounts: () => undefined,
       ImportIdle: () => undefined,
       ImportScanning: () => undefined,
@@ -84,12 +103,13 @@ const readerItemId = (model: Model): string | undefined =>
       Settings: () => undefined,
       ShelfBrowse: () => undefined,
       ShelfEmpty: () => undefined,
+      SharedNote: () => undefined,
       SignedOut: () => undefined,
     }),
   )
 
 const listLines = (model: Model): ReadonlyArray<string> =>
-  M.value(model.screen).pipe(
+  M.value(screenOf(model)).pipe(
     M.withReturnType<ReadonlyArray<string>>(),
     M.tagsExhaustive({
       SignedOut: () => ['Self-hosted shelves. Sign in to open them.'],
@@ -98,6 +118,7 @@ const listLines = (model: Model): ReadonlyArray<string> =>
         model.items.map(
           (item, index) => `[${index + 1}] ${item.title} ${item.authorLabel}`,
         ),
+      TitlePage: ({ itemId }) => titlePageLines(model, itemId),
       ReaderText: ({ itemId }) => readerLines(model, itemId, 'text'),
       ReaderAudio: ({ itemId }) => readerLines(model, itemId, 'audio'),
       ReaderBoth: ({ itemId }) => readerLines(model, itemId, 'both'),
@@ -118,43 +139,76 @@ const listLines = (model: Model): ReadonlyArray<string> =>
           )
           .map((item, index) => `[${index + 1}] ${item.title}`),
       ],
+      SharedNote: ({ noteId }) =>
+        Option.isSome(model.sharedNote)
+          ? [model.sharedNote.value.body]
+          : [`Note ${noteId} is not available.`],
     }),
   )
+
+const titlePageLines = (
+  model: Model,
+  itemId: string,
+): ReadonlyArray<string> => {
+  const item = Option.getOrUndefined(itemById(model.items, itemId))
+  if (item === undefined) {
+    return [itemId]
+  }
+  const duration = durationOfItem(item)
+  return [
+    item.title,
+    item.authorLabel,
+    duration > 0 ? formatClock(duration) : '',
+    'Play',
+    ...sortedChapters(item, model.chapterSort).map(
+      (chapter, index) =>
+        `[${index + 1}] ${chapter.index}  ${chapter.title}  ${formatClock(chapterDuration(chapter))}`,
+    ),
+  ]
+}
 
 const readerLines = (
   model: Model,
   itemId: string,
   pane: string,
 ): ReadonlyArray<string> => {
-  const item = itemById(model.items, itemId)
+  const item = Option.getOrUndefined(itemById(model.items, itemId))
+  const tail =
+    item === undefined
+      ? ''
+      : formatSpokenTail(
+          spokenTail(item, playMediaPosition(playOf(model), itemId)),
+        )
+  const spoken = tail === '' ? (item?.body ?? '') : tail
   return [
     item?.title ?? itemId,
     item?.authorLabel ?? '',
-    item?.body ?? '',
+    spoken,
     pane,
     playLine(model),
   ]
 }
 
 const playLine = (model: Model): string =>
-  M.value(model.play).pipe(
+  M.value(playOf(model)).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
       PlayIdle: () => 'playIdle',
       PlayPaused: play =>
-        `${itemById(model.items, play.itemId)?.title ?? play.itemId} paused`,
+        `${Option.getOrUndefined(itemById(model.items, play.itemId))?.title ?? play.itemId} paused`,
       PlayPlaying: play =>
-        `${itemById(model.items, play.itemId)?.title ?? play.itemId} playing`,
+        `${Option.getOrUndefined(itemById(model.items, play.itemId))?.title ?? play.itemId} playing`,
     }),
   )
 
 const titleForScreen = (model: Model): string =>
-  M.value(model.screen).pipe(
+  M.value(screenOf(model)).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
       SignedOut: () => 'Books',
       ShelfEmpty: () => 'Home',
       ShelfBrowse: () => 'Home',
+      TitlePage: () => 'Title',
       ReaderText: () => 'Reader',
       ReaderAudio: () => 'Reader',
       ReaderBoth: () => 'Reader',
@@ -163,16 +217,17 @@ const titleForScreen = (model: Model): string =>
       Settings: () => 'Settings',
       Accounts: () => 'People',
       Search: () => 'Search',
+      SharedNote: () => 'Shared note',
     }),
   )
 
 const helpLines = (model: Model): ReadonlyArray<string> => {
-  if (model.screen._tag === 'SignedOut') {
+  if (screenOf(model)._tag === 'SignedOut') {
     return ['[S] sign in  [Q] quit']
   }
   return [
     '[1-9] open  [I] import  [F] search  [A] people  [G] settings',
-    '[K] back  [P] play  [Space] pause/resume  [O] sign out  [Q] quit',
+    '[K] back  [P] play  [Y] sort  [Space] pause/resume  [O] sign out  [Q] quit',
   ]
 }
 
@@ -188,12 +243,46 @@ const shelfAsciiLines = (model: Model): ReadonlyArray<string> =>
     SCREEN_INNER_WIDTH - 2,
   ).lines
 
+const titleAsciiLines = (
+  model: Model,
+  itemId: string,
+): ReadonlyArray<string> => {
+  const item = Option.getOrUndefined(itemById(model.items, itemId))
+  if (item === undefined) {
+    return [itemId]
+  }
+  const duration = durationOfItem(item)
+  return renderAscii(
+    BookTitle({
+      title: item.title,
+      authorLabel: item.authorLabel,
+      coverSrc: Option.getOrElse(item.coverUrl, () => ''),
+      durationLabel: duration > 0 ? formatClock(duration) : '',
+      playLabel: 'Play',
+      chapters: sortedChapters(item, model.chapterSort).map(chapter => ({
+        index: chapter.index,
+        title: chapter.title,
+        durationLabel: formatClock(chapterDuration(chapter)),
+      })),
+    }),
+    SCREEN_INNER_WIDTH - 2,
+  ).lines
+}
+
+const screenBodyLines = (model: Model): ReadonlyArray<string> => {
+  const screen = screenOf(model)
+  if (screen._tag === 'ShelfBrowse') {
+    return shelfAsciiLines(model)
+  }
+  if (screen._tag === 'TitlePage') {
+    return titleAsciiLines(model, screen.itemId)
+  }
+  return listLines(model)
+}
+
 export const renderBooksScreen = (model: Model): string => {
   const border = `+${'-'.repeat(SCREEN_INNER_WIDTH)}+`
-  const body =
-    model.screen._tag === 'ShelfBrowse'
-      ? shelfAsciiLines(model)
-      : listLines(model)
+  const body = screenBodyLines(model)
   const lines = [
     border,
     framed(titleForScreen(model)),
@@ -212,7 +301,24 @@ export const messageForInput = (
 ): Option.Option<Message> => {
   const key = input.toLowerCase()
   const index = Number.parseInt(key, 10)
+  const screen = screenOf(model)
   if (index >= 1 && index <= 9) {
+    if (screen._tag === 'TitlePage') {
+      const item = Option.getOrUndefined(itemById(model.items, screen.itemId))
+      if (item === undefined) {
+        return Option.none()
+      }
+      const chapter = Array.get(
+        sortedChapters(item, model.chapterSort),
+        index - 1,
+      )
+      if (Option.isNone(chapter)) {
+        return Option.none()
+      }
+      return Option.some(
+        PressedOpenChapter({ itemId: item.id, chapterId: chapter.value.id }),
+      )
+    }
     const id = visibleIds(model)[index - 1]
     if (id === undefined) {
       return Option.none()
@@ -220,7 +326,7 @@ export const messageForInput = (
     return Option.some(PressedOpenBook({ itemId: id }))
   }
   if (key === 's') {
-    if (model.screen._tag === 'SignedOut') {
+    if (screen._tag === 'SignedOut') {
       return Option.some(PressedSignIn())
     }
     return Option.none()
@@ -261,6 +367,13 @@ export const messageForInput = (
   if (key === 'r') {
     return Option.some(PressedOpenPlaybackReader())
   }
+  if (key === 'y') {
+    return Option.some(
+      PressedSetChapterSort({
+        sort: model.chapterSort === 'Index' ? 'Title' : 'Index',
+      }),
+    )
+  }
   if (key === 'p') {
     const itemId = readerItemId(model)
     if (itemId === undefined) {
@@ -269,10 +382,10 @@ export const messageForInput = (
     return Option.some(PressedStartPlayback({ itemId }))
   }
   if (key === ' ' || key === 'space') {
-    if (model.play._tag === 'PlayPlaying') {
+    if (playOf(model)._tag === 'PlayPlaying') {
       return Option.some(PressedPausePlayback())
     }
-    if (model.play._tag === 'PlayPaused') {
+    if (playOf(model)._tag === 'PlayPaused') {
       return Option.some(PressedResumePlayback())
     }
     return Option.none()

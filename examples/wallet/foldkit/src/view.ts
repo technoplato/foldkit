@@ -54,6 +54,7 @@ import {
   walletAccountBalanceLabel,
   walletDataSourceDetail,
   walletDataSourceLabel,
+  walletFailureLines,
 } from 'wallet-core-example'
 import {
   type ReceivingQrHostOrigin,
@@ -803,7 +804,7 @@ const sendMoney = (model: Model): Html => {
       h.input([
         h.Id('wallet-recipient'),
         h.Type('text'),
-        h.Placeholder('Recipient address'),
+        h.Placeholder('Recipient address or Solana Pay URI'),
         h.Spellcheck(false),
         h.Value(transferRecipientInput(model.transferRecipient)),
         h.Disabled(model.transaction._tag === 'SubmittingTransaction'),
@@ -996,11 +997,11 @@ const sendMoney = (model: Model): Html => {
     model.transaction._tag === 'FailedTransactionPreview' ||
     model.transaction._tag === 'FailedTransactionSubmission'
       ? [
-          h.p(
+          h.div(
             [h.Class('wallet-validation'), h.Role('alert')],
-            [
-              `${model.transaction.failure.operation} failed: ${model.transaction.failure.code}`,
-            ],
+            Array.map(walletFailureLines(model.transaction.failure), line =>
+              h.p([h.Key(line)], [line]),
+            ),
           ),
         ]
       : []

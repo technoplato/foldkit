@@ -12,9 +12,16 @@ describe('renderShow', () => {
   test('prints IDENTITY and ACESS at count 0 without Device chrome', () => {
     const output = renderShow(Model.make({ count: 0 }), defaultShowContext)
 
+    expect(output).toContain('Foldkit - CLI Counter')
     expect(output).toContain('IDENTITY')
     expect(output).toContain('title    counter')
     expect(output).toContain('uri      /counter')
+    expect(output).toContain(
+      'all business logic and sync logic are written in Foldkit; consumed and rendered by CLI.',
+    )
+    expect(output).toContain(
+      'https://github.com/technoplato/foldkit/blob/ml/exploring-view-agnosticism/examples/counter/cli/src/host.ts',
+    )
     expect(output).not.toContain('device')
     expect(output).toContain('STATE')
     expect(output).toContain('count    0')

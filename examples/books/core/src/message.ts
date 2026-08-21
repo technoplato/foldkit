@@ -3,12 +3,28 @@ import { m } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
 
-import { Bookmark, Item, Note, NoteAudience, Progress, Word } from './model.js'
+import {
+  Bookmark,
+  ChapterSort,
+  Item,
+  Note,
+  NoteAudience,
+  Progress,
+  Seconds,
+  Word,
+} from './model.js'
 import { NavigationTarget } from './route.js'
 
 export const PressedSignIn = m('PressedSignIn')
 export const PressedSignOut = m('PressedSignOut')
 export const PressedOpenBook = m('PressedOpenBook', { itemId: S.String })
+export const PressedOpenChapter = m('PressedOpenChapter', {
+  itemId: S.String,
+  chapterId: S.String,
+})
+export const PressedSetChapterSort = m('PressedSetChapterSort', {
+  sort: ChapterSort,
+})
 export const PressedGoBack = m('PressedGoBack')
 export const PressedShowText = m('PressedShowText')
 export const PressedShowAudio = m('PressedShowAudio')
@@ -27,9 +43,9 @@ export const PressedPausePlayback = m('PressedPausePlayback')
 export const PressedResumePlayback = m('PressedResumePlayback')
 export const PressedStopPlayback = m('PressedStopPlayback')
 export const PressedOpenPlaybackReader = m('PressedOpenPlaybackReader')
-export const PressedSeekWord = m('PressedSeekWord', { start: S.Number })
+export const PressedSeekWord = m('PressedSeekWord', { start: Seconds })
 export const HeardPlaybackPosition = m('HeardPlaybackPosition', {
-  mediaPosition: S.Number,
+  mediaPosition: Seconds,
 })
 export const HeardAudioPlaying = m('HeardAudioPlaying', {
   itemId: S.String,
@@ -87,11 +103,18 @@ export const ScrolledAway = m('ScrolledAway')
 export const PressedSetNoteAudience = m('PressedSetNoteAudience', {
   audience: NoteAudience,
 })
+export const PressedCopySharePath = m('PressedCopySharePath')
+export const HeardSharedNote = m('HeardSharedNote', {
+  note: S.Option(Note),
+})
+export const FailedSharedNote = m('FailedSharedNote')
 
 export const Message = S.Union([
   PressedSignIn,
   PressedSignOut,
   PressedOpenBook,
+  PressedOpenChapter,
+  PressedSetChapterSort,
   PressedGoBack,
   PressedShowText,
   PressedShowAudio,
@@ -147,5 +170,8 @@ export const Message = S.Union([
   PressedFollowLive,
   ScrolledAway,
   PressedSetNoteAudience,
+  PressedCopySharePath,
+  HeardSharedNote,
+  FailedSharedNote,
 ])
 export type Message = typeof Message.Type

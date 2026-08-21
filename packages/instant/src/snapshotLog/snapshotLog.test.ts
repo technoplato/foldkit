@@ -1,4 +1,4 @@
-import { Deferred, Effect, Fiber, Stream } from 'effect'
+import { Array, Deferred, Effect, Fiber, Stream } from 'effect'
 import { expect } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
@@ -14,6 +14,7 @@ import {
   type SnapshotLogWrite,
   commitSnapshotLog,
   countSnapshotId,
+  decodeSnapshotLogState,
   emptyCountSnapshot,
   messagesSinceSnapshot,
   observeRemoteSnapshotLog,
@@ -96,6 +97,25 @@ describe('Instant snapshot log', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     )
     expect(emptyCountSnapshot.id).toBe(countSnapshotId)
+  })
+
+  it('reuses a decoded Message when id and createdAtMs match', () => {
+    const cache = new Map<string, InstantLogMessageRecord>()
+    const row = {
+      createdAtMs: 1,
+      from: 'tui',
+      id: 'm1',
+      tag: 'Increment',
+    }
+    const first = decodeSnapshotLogState({ message: [row] }, cache)
+    const second = decodeSnapshotLogState({ message: [row] }, cache)
+    const firstMessage = Array.head(first.messages)
+    const secondMessage = Array.head(second.messages)
+    expect(firstMessage._tag).toBe('Some')
+    expect(secondMessage._tag).toBe('Some')
+    if (firstMessage._tag === 'Some' && secondMessage._tag === 'Some') {
+      expect(secondMessage.value).toBe(firstMessage.value)
+    }
   })
 
   it('orders Messages by createdAtMs then id', () => {

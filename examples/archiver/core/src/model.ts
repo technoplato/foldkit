@@ -8,7 +8,11 @@ export const ReadyArchive = ts('ReadyArchive')
 /** Ingest failed for this URL. */
 export const FailedArchive = ts('FailedArchive')
 /** Every ingest status for one archive. */
-export const ArchiveStatus = S.Union([QueuedArchive, ReadyArchive, FailedArchive])
+export const ArchiveStatus = S.Union([
+  QueuedArchive,
+  ReadyArchive,
+  FailedArchive,
+])
 /** An ingest status value. */
 export type ArchiveStatus = typeof ArchiveStatus.Type
 

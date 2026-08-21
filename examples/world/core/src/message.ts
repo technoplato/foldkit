@@ -18,12 +18,7 @@ export const GotVendingMessage = m('GotVendingMessage', {
 })
 
 /** Every Message the World Program accepts. */
-export const Message = S.Union([
-  Moved,
-  PressedA,
-  Dismissed,
-  GotVendingMessage,
-])
+export const Message = S.Union([Moved, PressedA, Dismissed, GotVendingMessage])
 
 /** A World Message value. */
 export type Message = typeof Message.Type

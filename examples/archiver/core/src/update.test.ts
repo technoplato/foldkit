@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import { init } from './init.js'
 import { SubmittedArchiveUrl, UpdatedUrlDraft } from './message.js'
 import { QueuedArchive } from './model.js'
-import { init } from './init.js'
 import { update } from './update.js'
 
 describe('archiver update', () => {

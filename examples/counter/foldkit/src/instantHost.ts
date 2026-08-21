@@ -1,35 +1,48 @@
 import {
-  CounterProgram,
-  type Message,
-  type Model,
+  App,
+  type AppMessage,
+  type AppModel,
+  BrowserLive,
   type SyncedCounterHandle,
+  actionMenuMessageFromKey,
+  chosenMenuTokenOf,
   describeCounterSyncError,
-  startSyncedCounterHandle,
+  listActions,
+  startLiveCounter,
+  subscribeHostPaint,
+  surfaceFor,
 } from 'counter-core-example'
-import { Effect, Exit, Scope } from 'effect'
+import { Effect, Exit, Option, Scope } from 'effect'
 import { Processor, Program, Runtime } from 'foldkit'
 
-import { FoldkitCounterV01, Instant } from '@foldkit/instant/browser'
-
 import { view } from './view.js'
+
+const instanceLength = 8
 
 /** Paints Starting or Failed host chrome. Ready returns false so Foldkit can draw. */
 export const paintCounterHostStatus = (
   container: HTMLElement,
-  snapshot: Program.SyncedModel<Model, Message>,
+  snapshot: Program.SyncedModel<AppModel, AppMessage>,
 ): boolean => {
   if (snapshot._tag === 'Ready') {
     return false
   }
   container.replaceChildren()
+  const surface = surfaceFor('foldkit')
+  const heading = document.createElement('h1')
+  heading.textContent = surface.title
+  const description = document.createElement('p')
+  description.textContent = surface.description
+  const source = document.createElement('a')
+  source.href = surface.sourceUrl
+  source.textContent = surface.sourceUrl
   const status = document.createElement('p')
   if (snapshot._tag === 'Starting') {
     status.textContent = 'Starting Instant Counter…'
-    container.append(status)
-    return true
+  } else {
+    status.textContent = describeCounterSyncError(snapshot.error)
   }
-  status.textContent = describeCounterSyncError(snapshot.error)
-  container.append(status)
+  container.append(heading, description, source, status)
   return true
 }
 
@@ -39,6 +52,35 @@ export const paintCounterHostStatus = (
  */
 export const reportAttachedFoldkitFailure = (_error: unknown): void => {}
 
+const flashChosenButton = (container: HTMLElement, token: string): void => {
+  const buttons = container.querySelectorAll('button')
+  for (const button of buttons) {
+    const label = button.textContent ?? ''
+    if (label.includes(token)) {
+      button.classList.add('fk-chosen')
+    }
+  }
+}
+
+const sendWithChosenFlash = (
+  container: HTMLElement,
+  handle: SyncedCounterHandle,
+  message: AppMessage,
+): void => {
+  const snapshot = handle.readModel()
+  const maybeChosen = chosenMenuTokenOf(message)
+  const isOpen =
+    snapshot._tag === 'Ready' && snapshot.actionMenu._tag === 'Open'
+  if (!isOpen || Option.isNone(maybeChosen)) {
+    handle.send(message)
+    return
+  }
+  flashChosenButton(container, maybeChosen.value)
+  globalThis.setTimeout(() => {
+    handle.send(message)
+  }, Program.actionMenuChosenMs)
+}
+
 const attachProduct = (
   container: HTMLElement,
   handle: SyncedCounterHandle,
@@ -46,25 +88,31 @@ const attachProduct = (
   const scope = Effect.runSync(Scope.make())
   const attached = Effect.runPromise(
     Runtime.makeAttachedFoldkitApplication({
-      ClientInput: Message,
+      ClientInput: App.Message,
       container,
-      program: CounterProgram,
+      program: App,
       sendClientInput: message => {
-        handle.send(message)
+        sendWithChosenFlash(container, handle, message)
       },
       source: {
         readModel: () => {
           const snapshot = handle.readModel()
           if (snapshot._tag === 'Ready') {
-            return { count: snapshot.count }
+            return {
+              product: snapshot.product,
+              actionMenu: snapshot.actionMenu,
+            }
           }
-          return { count: 0 }
+          return App.init()[0]
         },
         subscribe: listener =>
           handle.subscribe(() => {
             const snapshot = handle.readModel()
             if (snapshot._tag === 'Ready') {
-              listener({ count: snapshot.count })
+              listener({
+                product: snapshot.product,
+                actionMenu: snapshot.actionMenu,
+              })
             }
           }),
       },
@@ -92,10 +140,9 @@ export const startInstantCounter = (): void => {
   if (container === null) {
     throw new Error('Root element not found')
   }
-  const handle = startSyncedCounterHandle(
-    Instant({
-      app: FoldkitCounterV01,
-      processor: Processor.Host.Foldkit(),
+  const handle = startLiveCounter(
+    BrowserLive(Processor.Host.Foldkit(), {
+      instance: globalThis.crypto.randomUUID().slice(0, instanceLength),
     }),
   )
   let detach: (() => void) | undefined
@@ -113,6 +160,36 @@ export const startInstantCounter = (): void => {
       detach = attachProduct(container, handle)
     }
   }
-  handle.subscribe(render)
+  subscribeHostPaint(handle.subscribe, render)
   render()
+  const onKeyDown = (event: KeyboardEvent): void => {
+    const snapshot = handle.readModel()
+    const menu =
+      snapshot._tag === 'Ready' ? snapshot.actionMenu : Program.Closed()
+    const product =
+      snapshot._tag === 'Ready' ? snapshot.product : App.init()[0].product
+    const rows = listActions(App.of, product)
+    const message = actionMenuMessageFromKey(
+      {
+        key: event.key,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+      },
+      menu,
+      rows,
+      product,
+    )
+    if (message === undefined) {
+      return
+    }
+    event.preventDefault()
+    sendWithChosenFlash(container, handle, message)
+  }
+  document.addEventListener('keydown', onKeyDown)
+  const hot = import.meta.hot
+  if (hot !== undefined) {
+    hot.dispose(() => {
+      document.removeEventListener('keydown', onKeyDown)
+    })
+  }
 }
