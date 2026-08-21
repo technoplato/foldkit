@@ -23,15 +23,18 @@ export function score(run: Run): number {
   return Math.max(0, raw)
 }
 
-export function rank(runs: Run[]): Array<Run & { points: number; place: number }> {
+export function rank(
+  runs: Run[],
+): Array<Run & { points: number; place: number }> {
   return [...runs]
-    .map((r) => ({ ...r, points: score(r) }))
+    .map(r => ({ ...r, points: score(r) }))
     .sort((a, b) => b.points - a.points)
     .map((r, i) => ({ ...r, place: i + 1 }))
 }
 
 export const RUBRIC = {
-  ged: "Extract every callback from the session, reverse-time, no invention.",
-  master: "Consume definitions.sh and rebuild the catalog without extra prompt.",
-  capital: "disabled",
+  ged: 'Extract every callback from the session, reverse-time, no invention.',
+  master:
+    'Consume definitions.sh and rebuild the catalog without extra prompt.',
+  capital: 'disabled',
 }

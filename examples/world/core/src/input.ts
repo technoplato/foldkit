@@ -1,10 +1,10 @@
 import { Match as M, Option } from 'effect'
 import { East, North, South, West } from 'foldkit/spatial'
 import {
+  type Digit,
   PressedClear,
   PressedDigit,
   PressedEnter,
-  type Digit,
 } from 'vending-core-example'
 
 import {
@@ -32,7 +32,10 @@ const isDigit = (value: string): value is Digit =>
  * Maps one key to a World Message. `a`/`A` is interact, not west.
  * Use `q` or ArrowLeft for west.
  */
-export const messageFromKey = (key: string, model: Model): Option.Option<Message> => {
+export const messageFromKey = (
+  key: string,
+  model: Model,
+): Option.Option<Message> => {
   if (key === 'a' || key === 'A' || key === ' ') {
     if (model._tag === 'Roaming') {
       return Option.some(PressedA())

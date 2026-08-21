@@ -1,13 +1,4 @@
 import {
-  ClickedJob,
-  ClosedJob,
-  TranscribeProgram,
-  type Message,
-  type Model,
-  jobsFromCatalog,
-  visibleJobs,
-} from "transcribe-core-example"
-import {
   Array,
   Cause,
   Effect,
@@ -15,30 +6,39 @@ import {
   PlatformError,
   Queue,
   Terminal,
-} from "effect"
-import { Runtime } from "foldkit"
+} from 'effect'
+import { Runtime } from 'foldkit'
+import {
+  ClickedJob,
+  ClosedJob,
+  type Message,
+  type Model,
+  TranscribeProgram,
+  jobsFromCatalog,
+  visibleJobs,
+} from 'transcribe-core-example'
 
-import { transcribeResources } from "./resources.js"
+import { transcribeResources } from './resources.js'
 
-const CLEAR_SCREEN = "\u001b[2J\u001b[H"
+const CLEAR_SCREEN = '\u001b[2J\u001b[H'
 const SCREEN_INNER_WIDTH = 72
 
 const framed = (content: string): string => {
   const clipped = content.slice(0, SCREEN_INNER_WIDTH)
   const remainingWidth = Math.max(0, SCREEN_INNER_WIDTH - clipped.length)
-  return `| ${clipped}${" ".repeat(Math.max(0, remainingWidth - 1))}|`
+  return `| ${clipped}${' '.repeat(Math.max(0, remainingWidth - 1))}|`
 }
 
 /** Renders the imported Transcribe Model as a terminal screen. */
 export const renderTranscribeScreen = (model: Model): string => {
-  const border = `+${"-".repeat(SCREEN_INNER_WIDTH)}+`
+  const border = `+${'-'.repeat(SCREEN_INNER_WIDTH)}+`
   const jobs = visibleJobs(model)
-  const source = model.source === "Instant" ? "Instant" : "StaticFallback"
+  const source = model.source === 'Instant' ? 'Instant' : 'StaticFallback'
   const lines = [
     border,
-    framed("Knophy transcribe"),
+    framed('Knophy transcribe'),
     framed(source),
-    framed(""),
+    framed(''),
   ]
   const numbered = Array.map(jobs, (job, index) =>
     framed(`${index + 1}. ${job.status} ${job.title}`),
@@ -50,15 +50,15 @@ export const renderTranscribeScreen = (model: Model): string => {
     ),
   )
   const detail = Option.match(selected, {
-    onNone: () => [framed("Press 1-9 to open a job. Q quits.")],
+    onNone: () => [framed('Press 1-9 to open a job. Q quits.')],
     onSome: job => [
       framed(job.title),
       framed(`${job.status} ${job.videoId}`),
       framed(job.analysis.slice(0, SCREEN_INNER_WIDTH - 1)),
-      framed("[C] close"),
+      framed('[C] close'),
     ],
   })
-  return `${CLEAR_SCREEN}${[...lines, ...numbered, framed(""), ...detail, border].join("\n")}\n`
+  return `${CLEAR_SCREEN}${[...lines, ...numbered, framed(''), ...detail, border].join('\n')}\n`
 }
 
 /** Maps a terminal key to an imported Transcribe Message when applicable. */
@@ -67,7 +67,7 @@ export const messageForInput = (
   model: Model,
 ): Option.Option<Message> => {
   const key = input.toLowerCase()
-  if (key === "c") {
+  if (key === 'c') {
     return Option.some(ClosedJob.make({}))
   }
   const asNumber = Number.parseInt(key, 10)
@@ -86,14 +86,19 @@ const runInputLoop = (
 ): Effect.Effect<void, Cause.Done | PlatformError.PlatformError> =>
   Queue.take(inputQueue).pipe(
     Effect.flatMap(input => {
-      const key = Option.getOrElse(input.input, () => input.key.name).toLowerCase()
-      if (key === "q") {
+      const key = Option.getOrElse(
+        input.input,
+        () => input.key.name,
+      ).toLowerCase()
+      if (key === 'q') {
         return Effect.void
       }
       const maybeMessage = messageForInput(key, runtime.readModel())
       if (Option.isSome(maybeMessage)) {
         return runtime.run(maybeMessage.value).pipe(
-          Effect.flatMap(model => terminal.display(renderTranscribeScreen(model))),
+          Effect.flatMap(model =>
+            terminal.display(renderTranscribeScreen(model)),
+          ),
           Effect.flatMap(() => runInputLoop(inputQueue, runtime, terminal)),
         )
       }

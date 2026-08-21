@@ -3,8 +3,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   FiniteNumber,
-  NonEmptyArray,
-  NonEmptyReadonlyArray,
   NonEmptyString,
   NonNegativeInt,
   PositiveInt,
@@ -39,28 +37,6 @@ describe('TrimmedNonEmptyString', () => {
     expect(isFailure(TrimmedNonEmptyString, '   ')).toBe(true)
     expect(isFailure(TrimmedNonEmptyString, ' hello')).toBe(true)
     expect(isSuccess(TrimmedNonEmptyString, 'hello')).toBe(true)
-  })
-})
-
-describe('NonEmptyArray', () => {
-  const Numbers = NonEmptyArray(S.Number)
-
-  it('constructs a list with one or more members', () => {
-    expect(Numbers.make([1])).toEqual([1])
-  })
-
-  it('rejects an empty list', () => {
-    expect(isFailure(Numbers, [])).toBe(true)
-    expect(isSuccess(Numbers, [1])).toBe(true)
-  })
-})
-
-describe('NonEmptyReadonlyArray', () => {
-  const Labels = NonEmptyReadonlyArray(S.String)
-
-  it('rejects an empty list', () => {
-    expect(isFailure(Labels, [])).toBe(true)
-    expect(isSuccess(Labels, ['a'])).toBe(true)
   })
 })
 

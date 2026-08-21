@@ -36,6 +36,33 @@ const waitForSnapshot = async (
   )
 }
 
+const waitForReadyCount = async (
+  runtime: ReturnType<typeof startCountersWindowRuntime>,
+  uri: string,
+  count: number,
+) => {
+  const current = runtime.getSnapshot(uri)
+  if (current._tag === 'ReadyWindow' && current.count === count) {
+    return current
+  }
+  return new Promise<ReturnType<typeof runtime.getSnapshot>>(
+    (resolve, reject) => {
+      const timeout = setTimeout(() => {
+        stop()
+        reject(new Error(`Timed out waiting for count ${String(count)}`))
+      }, 1000)
+      const stop = runtime.subscribe(() => {
+        const next = runtime.getSnapshot(uri)
+        if (next._tag === 'ReadyWindow' && next.count === count) {
+          clearTimeout(timeout)
+          stop()
+          resolve(next)
+        }
+      })
+    },
+  )
+}
+
 const memoryTape = (start: Model = initialModel): CountersWindowTape => {
   let model = start
   const listeners = new Set<(next: Model) => void>()
@@ -96,7 +123,7 @@ describe('Counters window runtime', () => {
     })
     await waitForSnapshot(runtime, '/counters/counter-1', 'ReadyWindow')
     runtime.actions('/counters/counter-1').increment()
-    const snapshot = runtime.getSnapshot('/counters/counter-1')
+    const snapshot = await waitForReadyCount(runtime, '/counters/counter-1', 1)
     expect(snapshot._tag).toBe('ReadyWindow')
     if (snapshot._tag === 'ReadyWindow') {
       expect(snapshot.count).toBe(1)
@@ -118,6 +145,33 @@ describe('Counters window runtime', () => {
     expect(snapshot).toEqual({
       _tag: 'FailedWindow',
       error: 'Sign-in failed. Instant has no session.',
+    })
+    runtime.stop()
+  })
+
+  it('surfaces a failed Instant write as FailedWindow', async () => {
+    const tape: CountersWindowTape = {
+      ...memoryTape(),
+      send: () => Promise.reject(new Error('write failed')),
+    }
+    const runtime = startCountersWindowRuntime({
+      openTape: () => Promise.resolve(tape),
+      signIn: () =>
+        Promise.resolve({
+          _tag: 'SignedInCountersSession',
+          userId: 'user-1',
+        }),
+    })
+    await waitForSnapshot(runtime, '/counters/counter-1', 'ReadyWindow')
+    runtime.actions('/counters/counter-1').increment()
+    const snapshot = await waitForSnapshot(
+      runtime,
+      '/counters/counter-1',
+      'FailedWindow',
+    )
+    expect(snapshot).toEqual({
+      _tag: 'FailedWindow',
+      error: 'Instant could not write the Message.',
     })
     runtime.stop()
   })

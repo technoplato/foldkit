@@ -4,7 +4,13 @@ import {
   useArchiverActions,
   useArchiverModel,
 } from 'archiver-react-bindings-example'
-import { Pressable, SafeAreaView, ScrollView, Text, TextInput } from 'react-native'
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  Text,
+  TextInput,
+} from 'react-native'
 
 /** Stub React Native host. Not a runnable Expo client. */
 export const program = ArchiverProgram

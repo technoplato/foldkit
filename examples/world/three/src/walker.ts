@@ -1,6 +1,6 @@
-import * as THREE from 'three'
 import type { CardinalFacing } from 'foldkit/spatial'
 import type { GridCoord } from 'foldkit/spatial'
+import * as THREE from 'three'
 
 import { worldFromCell, yawFromFacing } from './layout.js'
 import type { ThreeGroup } from './three-compat.js'
@@ -41,7 +41,10 @@ export const createWalker = (): ThreeGroup => {
   head.castShadow = true
   root.add(head)
 
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.185, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), hair)
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.185, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    hair,
+  )
   cap.position.y = 1.34
   cap.castShadow = true
   root.add(cap)
@@ -64,7 +67,10 @@ export const createWalker = (): ThreeGroup => {
   leftLeg.castShadow = true
   root.add(leftLeg)
 
-  const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.46, 0.16), pants)
+  const rightLeg = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, 0.46, 0.16),
+    pants,
+  )
   rightLeg.position.set(0.12, 0.34, 0)
   rightLeg.name = 'rightLeg'
   rightLeg.castShadow = true
@@ -96,8 +102,13 @@ export const syncWalker = (
   }
   walker.rotation.y += deltaYaw * follow
 
-  const speed = Math.hypot(target.x - walker.position.x, target.z - walker.position.z)
-  const swing = isRoaming ? Math.sin(performance.now() * 0.012) * Math.min(0.7, speed * 8 + 0.08) : 0
+  const speed = Math.hypot(
+    target.x - walker.position.x,
+    target.z - walker.position.z,
+  )
+  const swing = isRoaming
+    ? Math.sin(performance.now() * 0.012) * Math.min(0.7, speed * 8 + 0.08)
+    : 0
   const leftArm = walker.getObjectByName('leftArm')
   const rightArm = walker.getObjectByName('rightArm')
   const leftLeg = walker.getObjectByName('leftLeg')

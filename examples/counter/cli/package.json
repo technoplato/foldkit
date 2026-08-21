@@ -4,25 +4,25 @@
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "counter": "./dist/entry.js"
+    "counter": "./dist/entry.js",
+    "counter-screen": "./dist/screenEntry.js"
   },
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "counter": "./scripts/run.sh",
+    "counter-screen": "node dist/screenEntry.js",
     "counter:instant": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh",
     "count": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh show",
     "increment": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh do increment",
-    "prebuild": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
-    "pretypecheck": "pnpm --filter counter-core-example build && pnpm --filter counter-instant-example build",
+    "prebuild": "pnpm --filter counter-core-example build",
+    "pretypecheck": "pnpm --filter counter-core-example build",
     "test": "pnpm run build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@effect/platform-node": "4.0.0-beta.97",
-    "@foldkit/instant": "workspace:*",
     "counter-core-example": "workspace:*",
-    "counter-instant-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*"
   },

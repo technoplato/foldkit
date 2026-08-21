@@ -1,9 +1,14 @@
-import { Array, Option, Schema as S } from "effect"
+import { Array, Option, Schema as S } from 'effect'
 
 // MODEL
 
 /** Job status owned by the transcribe Program. */
-export const TranscriptStatus = S.Literals(["queued", "running", "ready", "error"])
+export const TranscriptStatus = S.Literals([
+  'queued',
+  'running',
+  'ready',
+  'error',
+])
 /** Job status owned by the transcribe Program. */
 export type TranscriptStatus = typeof TranscriptStatus.Type
 
@@ -54,7 +59,8 @@ export const wordAt = (
   Array.findFirst(words, word => seconds >= word.start && seconds < word.end)
 
 /** Local follow-along file for a YouTube id. */
-export const localMediaUrl = (videoId: string): string => `/media/${videoId}.mp4`
+export const localMediaUrl = (videoId: string): string =>
+  `/media/${videoId}.mp4`
 
 /** Public job URL copied by Send. */
 export const jobShareUrl = (videoId: string): string =>
@@ -70,19 +76,28 @@ export const videoIdFromInput = (input: string): Option.Option<string> => {
   }
   try {
     const url = new URL(trimmed)
-    const host = url.hostname.replace(/^www\./, "")
-    if (host === "youtu.be") {
-      const id = url.pathname.split("/").filter(part => part.length > 0)[0]
-      return id !== undefined && YOUTUBE_ID.test(id) ? Option.some(id) : Option.none()
+    const host = url.hostname.replace(/^www\./, '')
+    if (host === 'youtu.be') {
+      const id = url.pathname.split('/').filter(part => part.length > 0)[0]
+      return id !== undefined && YOUTUBE_ID.test(id)
+        ? Option.some(id)
+        : Option.none()
     }
-    if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
-      const v = url.searchParams.get("v")
+    if (
+      host === 'youtube.com' ||
+      host === 'm.youtube.com' ||
+      host === 'music.youtube.com'
+    ) {
+      const v = url.searchParams.get('v')
       if (v !== null && YOUTUBE_ID.test(v)) {
         return Option.some(v)
       }
-      const parts = url.pathname.split("/").filter(part => part.length > 0)
+      const parts = url.pathname.split('/').filter(part => part.length > 0)
       if (
-        (parts[0] === "shorts" || parts[0] === "embed" || parts[0] === "live" || parts[0] === "v") &&
+        (parts[0] === 'shorts' ||
+          parts[0] === 'embed' ||
+          parts[0] === 'live' ||
+          parts[0] === 'v') &&
         parts[1] !== undefined &&
         YOUTUBE_ID.test(parts[1])
       ) {
@@ -96,7 +111,8 @@ export const videoIdFromInput = (input: string): Option.Option<string> => {
 }
 
 /** Canonical watch URL for a YouTube id. */
-export const youtubeUrl = (videoId: string): string => `https://youtu.be/${videoId}`
+export const youtubeUrl = (videoId: string): string =>
+  `https://youtu.be/${videoId}`
 
 /** Parsed GET contract for `/`, `/?url=`, and `/v/:id`. */
 export const TranscribeRequest = S.Struct({
@@ -109,27 +125,32 @@ export type TranscribeRequest = typeof TranscribeRequest.Type
 /** Parses a host href into the transcribe GET contract. */
 export const requestFromHref = (href: string): TranscribeRequest => {
   try {
-    const url = new URL(href, "https://transcribe.knophy.com")
-    const queryUrl = url.searchParams.get("url")
-    const pathParts = url.pathname.split("/").filter(part => part.length > 0)
+    const url = new URL(href, 'https://transcribe.knophy.com')
+    const queryUrl = url.searchParams.get('url')
+    const pathParts = url.pathname.split('/').filter(part => part.length > 0)
     const pathVideoId =
-       (pathParts[0] === "v" || pathParts[0] === "jobs") && pathParts[1] !== undefined
+      (pathParts[0] === 'v' || pathParts[0] === 'jobs') &&
+      pathParts[1] !== undefined
         ? videoIdFromInput(pathParts[1])
         : Option.none()
     const queryVideoId =
-      queryUrl === null || queryUrl === "" ? Option.none() : videoIdFromInput(queryUrl)
+      queryUrl === null || queryUrl === ''
+        ? Option.none()
+        : videoIdFromInput(queryUrl)
     const hrefVideoId = videoIdFromInput(href)
-    const videoId = Option.orElse(pathVideoId, () => Option.orElse(queryVideoId, () => hrefVideoId))
+    const videoId = Option.orElse(pathVideoId, () =>
+      Option.orElse(queryVideoId, () => hrefVideoId),
+    )
     const draftUrl =
-      queryUrl !== null && queryUrl !== ""
+      queryUrl !== null && queryUrl !== ''
         ? queryUrl
         : Option.match(videoId, {
-            onNone: () => "",
+            onNone: () => '',
             onSome: id => youtubeUrl(id),
           })
     return TranscribeRequest.make({ draftUrl, videoId })
   } catch {
-    return TranscribeRequest.make({ draftUrl: "", videoId: Option.none() })
+    return TranscribeRequest.make({ draftUrl: '', videoId: Option.none() })
   }
 }
 
@@ -137,25 +158,27 @@ export const requestFromHref = (href: string): TranscribeRequest => {
 export const requestToPath = (request: TranscribeRequest): string =>
   Option.match(request.videoId, {
     onNone: () =>
-      request.draftUrl === "" ? "/" : `/?url=${encodeURIComponent(request.draftUrl)}`,
+      request.draftUrl === ''
+        ? '/'
+        : `/?url=${encodeURIComponent(request.draftUrl)}`,
     onSome: id => `/jobs/${id}`,
   })
 
-const SEED_ID = "b0fa0000-0000-4000-a000-0000b0fa0001"
-const SEED_VIDEO_ID = "B0FaK0sazXg"
+const SEED_ID = 'b0fa0000-0000-4000-a000-0000b0fa0001'
+const SEED_VIDEO_ID = 'B0FaK0sazXg'
 
 /** Canonical seed job. Instant is the live source of truth. */
 export const seedTranscripts: ReadonlyArray<Transcript> = [
   Transcript.make({
     analysis:
-      "Queued Knophy transcribe job. Open this URL to watch captions, frames, and analysis land as ingest finishes.",
+      'Queued Knophy transcribe job. Open this URL to watch captions, frames, and analysis land as ingest finishes.',
     createdAt: 1_755_000_000_000,
     frames: [],
     id: SEED_ID,
     slug: SEED_VIDEO_ID,
-    status: "queued",
-    title: "Recorded session",
-    transcriptText: "",
+    status: 'queued',
+    title: 'Recorded session',
+    transcriptText: '',
     url: youtubeUrl(SEED_VIDEO_ID),
     videoId: SEED_VIDEO_ID,
   }),
@@ -164,14 +187,15 @@ export const seedTranscripts: ReadonlyArray<Transcript> = [
 /** Builds a local queued job for a video the catalog does not yet have. */
 export const queuedTranscript = (videoId: string, url: string): Transcript =>
   Transcript.make({
-    analysis: "Queued. Knophy will attach transcript, frames, and analysis when ingest runs.",
+    analysis:
+      'Queued. Knophy will attach transcript, frames, and analysis when ingest runs.',
     createdAt: 0,
     frames: [],
     id: `queued-${videoId}`,
     slug: videoId,
-    status: "queued",
+    status: 'queued',
     title: `Video ${videoId}`,
-    transcriptText: "",
+    transcriptText: '',
     url,
     videoId,
   })

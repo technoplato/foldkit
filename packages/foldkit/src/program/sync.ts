@@ -78,6 +78,16 @@ export type RemoteMessageReceived<Msg> = {
   readonly message: Msg
 }
 
+/**
+ * This Processor re-derived the Model by folding the ordered
+ * Message log. Runtime.start sends this when a Message arrives
+ * late but happened earlier than one already applied.
+ */
+export type LogRefolded<M> = {
+  readonly _tag: 'LogRefolded'
+  readonly model: M
+}
+
 /** Instant I/O failed. Starting becomes Failed. Ready stays Ready. */
 export type SyncFailed<Msg> = {
   readonly _tag: 'SyncFailed'
@@ -89,6 +99,7 @@ export type SyncedMessage<M, Msg> =
   | Msg
   | SnapshotReceived<M>
   | RemoteMessageReceived<Msg>
+  | LogRefolded<M>
   | SyncFailed<Msg>
 
 /** Options for {@link sync}. */
@@ -143,6 +154,9 @@ export type SyncProgram<Child extends SyncChild> = Program<
     RemoteMessageReceived: (fields: {
       readonly message: MessageOf<Child>
     }) => RemoteMessageReceived<MessageOf<Child>>
+    LogRefolded: (fields: {
+      readonly model: ModelOf<Child>
+    }) => LogRefolded<ModelOf<Child>>
     SyncFailed: (fields: {
       readonly error: SyncError<MessageOf<Child>>
     }) => SyncFailed<MessageOf<Child>>
@@ -303,6 +317,9 @@ export const sync = <Child extends SyncChild>(config: {
   const RemoteMessageReceived = ts('RemoteMessageReceived', {
     message: child.Message,
   })
+  const LogRefolded = ts('LogRefolded', {
+    model: child.Model,
+  })
   const SyncFailed = ts('SyncFailed', {
     error: SyncErrorSchema,
   })
@@ -316,6 +333,7 @@ export const sync = <Child extends SyncChild>(config: {
     ...schemaMembers(child.Message),
     SnapshotReceived,
     RemoteMessageReceived,
+    LogRefolded,
     SyncFailed,
   ]
   const Message = S.Union(messageMembers as never) as ProgramSchema<Message>
@@ -335,6 +353,11 @@ export const sync = <Child extends SyncChild>(config: {
       }
       const received = message as SnapshotReceived<ChildModel>
       return [toReady(received.model), []]
+    }
+
+    if (readTag(message) === 'LogRefolded') {
+      const refolded = message as LogRefolded<ChildModel>
+      return [toReady(refolded.model), []]
     }
 
     if (readTag(message) === 'SyncFailed') {
@@ -426,6 +449,7 @@ export const sync = <Child extends SyncChild>(config: {
     Failed,
     SnapshotReceived,
     RemoteMessageReceived,
+    LogRefolded,
     SyncFailed,
     DecodeFailed: SyncErrorSchema.DecodeFailed,
     TransportFailed: SyncErrorSchema.TransportFailed,
@@ -456,4 +480,5 @@ export const readyModel = <M extends { readonly _tag: string }>(
 export const isChildMessage = (message: { readonly _tag: string }): boolean =>
   message._tag !== 'SnapshotReceived' &&
   message._tag !== 'RemoteMessageReceived' &&
+  message._tag !== 'LogRefolded' &&
   message._tag !== 'SyncFailed'

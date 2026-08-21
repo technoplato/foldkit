@@ -25,10 +25,13 @@ const flagValue = (flag: string): Option.Option<string> => {
   return typeof value === 'string' ? Option.some(value) : Option.none()
 }
 
-const maybeFollow = Option.map(flagValue('--follow-leader'), leaderProcessorId => ({
-  control: Option.getOrElse(flagValue('--control'), () => 'observe'),
-  leaderProcessorId,
-}))
+const maybeFollow = Option.map(
+  flagValue('--follow-leader'),
+  leaderProcessorId => ({
+    control: Option.getOrElse(flagValue('--control'), () => 'observe'),
+    leaderProcessorId,
+  }),
+)
 
 runMultipleCountersV3Tui(maybeFollow).pipe(
   Effect.provide(NodeServices.layer),

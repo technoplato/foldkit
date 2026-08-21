@@ -183,7 +183,8 @@ export const multipleCountersV3ObserveLeaderProcessorId = (
 /** Returns whether the current Processor follows navigation without control. */
 export const isMultipleCountersV3ObserveFollower = (
   snapshot: MultipleCountersV3ClientSnapshot,
-): boolean => Option.isSome(multipleCountersV3ObserveLeaderProcessorId(snapshot))
+): boolean =>
+  Option.isSome(multipleCountersV3ObserveLeaderProcessorId(snapshot))
 
 /** Host-neutral session chrome shared by CLI, React, Foldkit, and TUI Clients. */
 export type MultipleCountersV3SessionChrome = Readonly<{

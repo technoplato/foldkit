@@ -186,4 +186,134 @@ describe('Runtime.start Memory', () => {
       ),
     )
   })
+
+  it('converges to one number after an offline gap with a concurrent reset', async () => {
+    const expectEventually = (
+      read: () => unknown,
+      expected: unknown,
+    ): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        for (let attempt = 0; attempt < 200; attempt += 1) {
+          if (JSON.stringify(read()) === JSON.stringify(expected)) {
+            break
+          }
+          yield* Effect.sleep('5 millis')
+        }
+        expect(read()).toEqual(expected)
+      })
+    await runScoped(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = makeMemoryStore()
+          const reactEngine = Memory({ processor: Host.React(), store })
+          const cliEngine = Memory({ processor: Host.Cli(), store })
+          const react = yield* start({ program: Synced, sync: reactEngine })
+          const cli = yield* start({ program: Synced, sync: cliEngine })
+
+          for (let tap = 0; tap < 5; tap += 1) {
+            yield* react.run(Increment())
+          }
+          expect(react.readModel()).toEqual({ _tag: 'Ready', count: 5 })
+          yield* expectEventually(() => cli.readModel(), {
+            _tag: 'Ready',
+            count: 5,
+          })
+
+          reactEngine.goOffline()
+          yield* react.run(Increment())
+          yield* react.run(Increment())
+          expect(react.readModel()).toEqual({ _tag: 'Ready', count: 7 })
+          expect(cli.readModel()).toEqual({ _tag: 'Ready', count: 5 })
+
+          yield* Effect.sleep('5 millis')
+          yield* cli.run(Reset())
+          yield* cli.run(Increment())
+          expect(cli.readModel()).toEqual({ _tag: 'Ready', count: 1 })
+
+          reactEngine.comeOnline()
+          yield* expectEventually(() => react.readModel(), {
+            _tag: 'Ready',
+            count: 1,
+          })
+          yield* expectEventually(() => cli.readModel(), {
+            _tag: 'Ready',
+            count: 1,
+          })
+
+          const tui = yield* start({
+            program: Synced,
+            sync: Memory({ processor: Host.Tui(), store }),
+          })
+          expect(tui.readModel()).toEqual({ _tag: 'Ready', count: 1 })
+        }),
+      ),
+    )
+  })
+
+  it('boots by folding the Message log, not the stale count row', async () => {
+    await runScoped(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = makeMemoryStore()
+          store.snapshot = {
+            id: 'c0a7c001-0000-4000-8000-000000000001',
+            value: 10,
+            asOf: 'react',
+            at: 1_000,
+          }
+          store.messages = [
+            {
+              id: 'm-reset',
+              tag: 'Reset',
+              from: 'cli',
+              createdAtMs: 2_000,
+            },
+            {
+              id: 'm-plus',
+              tag: 'Increment',
+              from: 'cli',
+              createdAtMs: 3_000,
+            },
+          ]
+          const runtime = yield* start({
+            program: Synced,
+            sync: Memory({ processor: Host.Tui(), store }),
+          })
+          expect(runtime.readModel()).toEqual({ _tag: 'Ready', count: 1 })
+        }),
+      ),
+    )
+  })
+
+  it('re-derives when a Message arrives late but happened earlier', async () => {
+    await runScoped(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = makeMemoryStore()
+          const engine = Memory({ processor: Host.React(), store })
+          const runtime = yield* start({ program: Synced, sync: engine })
+          for (let tap = 0; tap < 5; tap += 1) {
+            yield* runtime.run(Increment())
+          }
+          expect(runtime.readModel()).toEqual({ _tag: 'Ready', count: 5 })
+
+          engine.injectMessage({
+            id: 'late-reset',
+            tag: 'Reset',
+            from: 'cli',
+            createdAtMs: Date.now() + 60_000,
+          })
+          expect(runtime.readModel()).toEqual({ _tag: 'Ready', count: 0 })
+
+          engine.injectMessage({
+            id: 'early-increment',
+            tag: 'Increment',
+            from: 'tui',
+            createdAtMs: Date.now() - 60_000,
+          })
+          expect(runtime.readModel()).toEqual({ _tag: 'Ready', count: 0 })
+        }),
+      ),
+    )
+  })
 })

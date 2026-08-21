@@ -26,7 +26,9 @@ const queuedModel = Model.make({
 
 describe('Archiver TUI', () => {
   it('renders the URL field and archive list', () => {
-    const empty = renderArchiverScreen(Model.make({ urlDraft: '', archives: [] }))
+    const empty = renderArchiverScreen(
+      Model.make({ urlDraft: '', archives: [] }),
+    )
     expect(empty).toContain('Archiver')
     expect(empty).toContain('URL:')
     expect(empty).toContain('No archives yet.')

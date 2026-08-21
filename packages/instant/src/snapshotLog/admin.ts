@@ -6,18 +6,20 @@ import { syncedTransactionOutcome } from '../programStore/index.js'
 import {
   InstantSnapshotLogSchema,
   SnapshotLogError,
+  type SnapshotLogQueryData,
+  type SnapshotLogState,
   type SnapshotLogTransport,
   type SnapshotLogWrite,
-  decodeSnapshotLogState,
+  createSnapshotLogStateDecoder,
   snapshotLogQuery,
 } from './snapshotLog.js'
 
-/** How often the admin transport re-reads the snapshot log. */
-export const adminSnapshotLogPollMs = 250
-
-const querySnapshotLogState = async (admin: ReturnType<typeof init>) => {
+const querySnapshotLogState = async (
+  admin: ReturnType<typeof init>,
+  decode: ReturnType<typeof createSnapshotLogStateDecoder>,
+) => {
   const result = await admin.query(snapshotLogQuery)
-  return decodeSnapshotLogState(result)
+  return decode(result)
 }
 
 const transactSnapshotLogWrite = async (
@@ -51,10 +53,64 @@ const transactSnapshotLogWrite = async (
   ])
 }
 
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null
+
+/**
+ * Instant admin subscribeQuery payloads use `{ type: 'error' }` or
+ * `{ data }`. Older admin callbacks used `{ error }`.
+ */
+const queryDataFromUnknown = (data: unknown): SnapshotLogQueryData => {
+  if (!isRecord(data)) {
+    return {}
+  }
+  const count = data['count']
+  const message = data['message']
+  return {
+    ...(globalThis.Array.isArray(count) ? { count } : {}),
+    ...(globalThis.Array.isArray(message) ? { message } : {}),
+  }
+}
+
+export const applyAdminSubscribePayload = (
+  payload: unknown,
+  decode: (data: SnapshotLogQueryData) => SnapshotLogState,
+  onState: (state: SnapshotLogState) => void,
+  onError: (cause: unknown) => void,
+): void => {
+  if (!isRecord(payload)) {
+    onError(payload)
+    return
+  }
+  if (payload['type'] === 'error' || payload['error'] !== undefined) {
+    onError(payload['error'] ?? payload)
+    return
+  }
+  try {
+    onState(decode(queryDataFromUnknown(payload['data'])))
+  } catch (cause) {
+    onError(cause)
+  }
+}
+
+const closeAdminSubscription = (subscription: unknown): void => {
+  if (typeof subscription === 'function') {
+    subscription()
+    return
+  }
+  if (!isRecord(subscription)) {
+    return
+  }
+  const close = subscription['close']
+  if (typeof close === 'function') {
+    close.call(subscription)
+  }
+}
+
 /**
  * Instant admin snapshot log for trusted Node Processors.
  * Instant core skips storage on Node. Admin writes the same entity rows.
- * Admin has no subscribeQuery, so observe polls.
+ * Observe uses admin subscribeQuery. It does not poll.
  */
 export const makeAdminSnapshotLogTransport = (
   appId: string,
@@ -65,10 +121,11 @@ export const makeAdminSnapshotLogTransport = (
     appId,
     schema: InstantSnapshotLogSchema,
   })
+  const decode = createSnapshotLogStateDecoder()
 
   const read = () =>
     Effect.tryPromise({
-      try: () => querySnapshotLogState(admin),
+      try: () => querySnapshotLogState(admin, decode),
       catch: cause =>
         new SnapshotLogError({
           cause,
@@ -80,9 +137,11 @@ export const makeAdminSnapshotLogTransport = (
     read,
     subscribe: Stream.callback(queue =>
       Effect.acquireRelease(
-        Effect.sync(() => {
-          const offer = (): void => {
-            Effect.runPromise(read()).then(
+        Effect.sync(() =>
+          admin.subscribeQuery(snapshotLogQuery, payload => {
+            applyAdminSubscribePayload(
+              payload,
+              decode,
               state => {
                 Queue.offerUnsafe(queue, state)
               },
@@ -98,13 +157,11 @@ export const makeAdminSnapshotLogTransport = (
                 )
               },
             )
-          }
-          offer()
-          return setInterval(offer, adminSnapshotLogPollMs)
-        }),
-        handle =>
+          }),
+        ),
+        subscription =>
           Effect.sync(() => {
-            clearInterval(handle)
+            closeAdminSubscription(subscription)
           }),
       ),
     ),

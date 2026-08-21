@@ -5,7 +5,12 @@
  * Molecules: Button, Field (label+input via composition)
  * Organisms/templates/screens: built in countersProduct.ts
  */
-import type { ChangeHandler, HotspotAction, PressHandler, UiNode } from './types.js'
+import type {
+  ChangeHandler,
+  HotspotAction,
+  PressHandler,
+  UiNode,
+} from './types.js'
 
 const node = (
   kind: UiNode['kind'],
@@ -68,7 +73,12 @@ export const TextInput = (props: {
 export const Phone = (
   props: { cols?: number; title?: string; time?: string } = {},
   ...children: UiNode[]
-): UiNode => node('phone', { cols: props.cols ?? 28, title: props.title, time: props.time ?? '9:41' }, children)
+): UiNode =>
+  node(
+    'phone',
+    { cols: props.cols ?? 28, title: props.title, time: props.time ?? '9:41' },
+    children,
+  )
 
 /** Generic padded box */
 export const Box = (

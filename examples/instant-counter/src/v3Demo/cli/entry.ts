@@ -41,8 +41,10 @@ const controlFlag = Flag.string('control').pipe(
   Flag.withDescription('observe or remote'),
 )
 
-const login = Command.make('login', { subject: subjectArgument }, ({ subject }) =>
-  runMultipleCountersV3CliLogin(subject),
+const login = Command.make(
+  'login',
+  { subject: subjectArgument },
+  ({ subject }) => runMultipleCountersV3CliLogin(subject),
 ).pipe(Command.withDescription('Sign in as Alice or Bob through debug login'))
 
 const logout = Command.make('logout', {}, () =>
@@ -57,10 +59,8 @@ const show = Command.make('show', {}, () =>
   ),
 )
 
-const run = Command.make(
-  'run',
-  { actions: actionsArgument },
-  ({ actions }) => runMultipleCountersV3CliActions(actions),
+const run = Command.make('run', { actions: actionsArgument }, ({ actions }) =>
+  runMultipleCountersV3CliActions(actions),
 ).pipe(
   Command.withDescription(
     'Run valid Program actions on the authenticated Processor',

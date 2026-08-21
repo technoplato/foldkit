@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@foldkit/instant'],
+    exclude: ['@foldkit/instant', 'counter-core-example'],
   },
   server: {
     port: 5215,

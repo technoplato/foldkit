@@ -3,6 +3,7 @@ import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
 import {
   NetworkFailure,
+  type PortfolioSnapshot,
   TestFundingRequest,
   WalletClient,
   WalletClientError,
@@ -14,7 +15,6 @@ import {
   WalletVault,
   clipboardCopyRequestForAddress,
   nextWalletCreationRequest,
-  type PortfolioSnapshot,
 } from 'wallet-core-example'
 
 import {
@@ -56,10 +56,7 @@ import {
 } from './model.js'
 
 const toNetworkFailure = (
-  operation:
-    | 'LoadPortfolio'
-    | 'RequestTestFunding'
-    | 'ObserveTransactions',
+  operation: 'LoadPortfolio' | 'RequestTestFunding' | 'ObserveTransactions',
   error: WalletClientError,
 ): WalletFailure => NetworkFailure.make({ operation, code: error.code })
 
@@ -182,10 +179,7 @@ const loadOrCreate = (
       [CreateDepositWallet({ request: createRequestFor(wallets) })],
     ]
   }
-  return [
-    LoadingPortfolio.make({ wallets }),
-    [LoadPortfolio({ wallets })],
-  ]
+  return [LoadingPortfolio.make({ wallets }), [LoadPortfolio({ wallets })]]
 }
 
 const readyFromPortfolio = (
@@ -204,13 +198,16 @@ const readyFromPortfolio = (
   })
 }
 
-const applyIncoming = (model: Model, incoming: ReturnType<
-  typeof incomingFromRecord
->): Model => {
+const applyIncoming = (
+  model: Model,
+  incoming: ReturnType<typeof incomingFromRecord>,
+): Model => {
   if (incoming === undefined) {
     return model
   }
-  if (model.incoming.some(item => item.transactionId === incoming.transactionId)) {
+  if (
+    model.incoming.some(item => item.transactionId === incoming.transactionId)
+  ) {
     return model
   }
   const nextIncoming = [...model.incoming, incoming]
@@ -256,10 +253,7 @@ export const update = (model: Model, message: Message): UpdateResult =>
         if (rail._tag === 'unsupported') {
           return [commitRefuse(model, 'unsupported-rail'), []]
         }
-        return [
-          commitOk(model, 'sol-devnet receive is live'),
-          [],
-        ]
+        return [commitOk(model, 'sol-devnet receive is live'), []]
       },
       RequestedFiatDeposit: () => [
         commitRefuse(model, 'stripe-unconfigured'),

@@ -9,20 +9,20 @@ import {
   Queue,
   Schema as S,
   Stream,
-} from "effect"
+} from 'effect'
 
-import { Idea, seedIdeas } from "./catalog.js"
+import { Idea, seedIdeas } from './catalog.js'
 
 /** A catalog query or observation failed. */
-export class IdeasStoreError extends Data.TaggedError("IdeasStoreError")<{
+export class IdeasStoreError extends Data.TaggedError('IdeasStoreError')<{
   readonly cause: unknown
-  readonly operation: "Fetch" | "Observe"
+  readonly operation: 'Fetch' | 'Observe'
 }> {}
 
 /** One catalog snapshot with its source. */
 export const IdeasSnapshot = S.Struct({
   ideas: S.Array(Idea),
-  source: S.Literals(["Instant", "StaticFallback"]),
+  source: S.Literals(['Instant', 'StaticFallback']),
 })
 /** One catalog snapshot with its source. */
 export type IdeasSnapshot = typeof IdeasSnapshot.Type
@@ -34,9 +34,10 @@ export type IdeasStoreService = Readonly<{
 }>
 
 /** An injected Ideas catalog whose implementation is selected by the host. */
-export class IdeasStore extends Context.Service<IdeasStore, IdeasStoreService>()(
-  "ideas-core-example/IdeasStore",
-) {}
+export class IdeasStore extends Context.Service<
+  IdeasStore,
+  IdeasStoreService
+>()('ideas-core-example/IdeasStore') {}
 
 const InstantIdeaRecord = S.Struct({
   body: S.String,
@@ -53,7 +54,7 @@ const byIndex = Order.mapInput(Order.Number, (idea: Idea) => idea.index)
 const decodeIdeas = (rows: ReadonlyArray<unknown>): ReadonlyArray<Idea> => {
   const decoded = rows.flatMap(row => {
     const parsed = S.decodeUnknownOption(InstantIdeaRecord)(row)
-    return parsed._tag === "Some" ? [parsed.value] : []
+    return parsed._tag === 'Some' ? [parsed.value] : []
   })
   return Array.sort(decoded, byIndex)
 }
@@ -72,23 +73,21 @@ export type IdeasInstantClient = Readonly<{
   ) => () => void
 }>
 
-const snapshotFromRows = (
-  rows: ReadonlyArray<unknown>,
-): IdeasSnapshot => {
+const snapshotFromRows = (rows: ReadonlyArray<unknown>): IdeasSnapshot => {
   const ideas = decodeIdeas(rows)
   if (ideas.length === 0) {
-    return IdeasSnapshot.make({ ideas: seedIdeas, source: "StaticFallback" })
+    return IdeasSnapshot.make({ ideas: seedIdeas, source: 'StaticFallback' })
   }
-  return IdeasSnapshot.make({ ideas, source: "Instant" })
+  return IdeasSnapshot.make({ ideas, source: 'Instant' })
 }
 
 /** Deterministic resources for tests, previews, and offline Clients. */
 export const StaticIdeasResources = Layer.succeed(IdeasStore, {
   fetch: Effect.succeed(
-    IdeasSnapshot.make({ ideas: seedIdeas, source: "StaticFallback" }),
+    IdeasSnapshot.make({ ideas: seedIdeas, source: 'StaticFallback' }),
   ),
   observe: Stream.succeed(
-    IdeasSnapshot.make({ ideas: seedIdeas, source: "StaticFallback" }),
+    IdeasSnapshot.make({ ideas: seedIdeas, source: 'StaticFallback' }),
   ),
 })
 
@@ -100,8 +99,7 @@ export const makeLiveIdeasResources = (database: IdeasInstantClient) =>
         const response = await database.queryOnce(ideasQuery)
         return snapshotFromRows(response.data.knophyIdeas)
       },
-      catch: cause =>
-        new IdeasStoreError({ cause, operation: "Fetch" }),
+      catch: cause => new IdeasStoreError({ cause, operation: 'Fetch' }),
     }),
     observe: Stream.callback<IdeasSnapshot, IdeasStoreError>(queue =>
       Effect.acquireRelease(
@@ -113,7 +111,7 @@ export const makeLiveIdeasResources = (database: IdeasInstantClient) =>
                 Cause.fail(
                   new IdeasStoreError({
                     cause: response.error,
-                    operation: "Observe",
+                    operation: 'Observe',
                   }),
                 ),
               )

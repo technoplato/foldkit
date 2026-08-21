@@ -19,6 +19,7 @@ export const IdentifierWindsurf = ts('IdentifierWindsurf', { value: S.String })
 export const IdentifierDeepseek = ts('IdentifierDeepseek', { value: S.String })
 export const IdentifierFactory = ts('IdentifierFactory', { value: S.String })
 export const IdentifierDroid = ts('IdentifierDroid', { value: S.String })
+export const IdentifierGrok = ts('IdentifierGrok', { value: S.String })
 export const IdentifierLocal = ts('IdentifierLocal')
 export const Identifier = S.Union([
   IdentifierCursor,
@@ -31,6 +32,7 @@ export const Identifier = S.Union([
   IdentifierDeepseek,
   IdentifierFactory,
   IdentifierDroid,
+  IdentifierGrok,
   IdentifierLocal,
 ])
 export type Identifier = typeof Identifier.Type
@@ -163,6 +165,8 @@ export const Model = S.Struct({
   screen: Screen,
   mode: Mode,
   history: S.Array(Screen),
+  findQuery: S.String,
+  maybeFocusMessageId: S.Option(S.String),
   projects: S.Array(Project),
   conversations: S.Array(Conversation),
 })
@@ -345,12 +349,58 @@ export const notesConversation: Conversation = Conversation.make({
   ],
 })
 
+export const grokConversation: Conversation = Conversation.make({
+  id: 'c-grok',
+  projectId: laptopProject.id,
+  identifier: IdentifierGrok({ value: 'bot:distraction-blocker' }),
+  visibility: VisibilityPrivate(),
+  title: 'Distraction blocker',
+  createdAt: mar18,
+  updatedAt: mar18,
+  finishedAt: Option.none(),
+  messages: [
+    TimelineRow.make({
+      id: 'm-grok-1',
+      index: 0,
+      times: timesAt(mar18, 0, 3_000),
+      author: AuthorHuman({ id: 'human-michael', name: 'Michael' }),
+      body: BodyText({
+        content:
+          'I was working on a distraction blocker in recent cloud sessions.',
+        isFinal: true,
+      }),
+    }),
+    TimelineRow.make({
+      id: 'm-grok-2',
+      index: 1,
+      times: timesAt(mar18, 3_000, 8_000),
+      author: AuthorAgent({
+        id: 'agent-grok',
+        name: 'Agent',
+        model: 'grok-4',
+      }),
+      body: BodyText({
+        content:
+          'Pull the latest Grok Bot session and keep it on identifier.grok.',
+        isFinal: true,
+      }),
+    }),
+  ],
+})
+
 export const initialModel: Model = Model.make({
   screen: ProjectsPopulated(),
   mode: LiveIdle(),
   history: [],
+  findQuery: '',
+  maybeFocusMessageId: Option.none(),
   projects: [scribeProject, laptopProject],
-  conversations: [cmuxConversation, debugConversation, notesConversation],
+  conversations: [
+    cmuxConversation,
+    debugConversation,
+    notesConversation,
+    grokConversation,
+  ],
 })
 
 export const projectById = (
@@ -424,6 +474,7 @@ export const identifierLabel = (identifier: Identifier): string =>
       IdentifierDeepseek: () => 'via DeepSeek',
       IdentifierFactory: () => 'via Factory',
       IdentifierDroid: () => 'via Droid',
+      IdentifierGrok: () => 'via Grok',
       IdentifierLocal: () => 'local',
     }),
   )
@@ -463,6 +514,310 @@ export const canonicalize = (
         libraryScreen(projectId, conversations),
       Transcript: transcript => transcript,
       Settings: () => Settings(),
+    }),
+  )
+
+/** Closed Body tag on a breakdown row, without the Body payload. */
+export const BodyKindText = ts('BodyKindText')
+export const BodyKindThought = ts('BodyKindThought')
+export const BodyKindTool = ts('BodyKindTool')
+export const BodyKindEdit = ts('BodyKindEdit')
+export const BodyKind = S.Union([
+  BodyKindText,
+  BodyKindThought,
+  BodyKindTool,
+  BodyKindEdit,
+])
+export type BodyKind = typeof BodyKind.Type
+
+/** Closed Author tag on a breakdown row, without the Author payload. */
+export const AuthorKindHuman = ts('AuthorKindHuman')
+export const AuthorKindAgent = ts('AuthorKindAgent')
+export const AuthorKindSystem = ts('AuthorKindSystem')
+export const AuthorKind = S.Union([
+  AuthorKindHuman,
+  AuthorKindAgent,
+  AuthorKindSystem,
+])
+export type AuthorKind = typeof AuthorKind.Type
+
+export const BreakdownEntry = S.Struct({
+  messageId: S.String,
+  index: S.Number,
+  bodyKind: BodyKind,
+  authorKind: AuthorKind,
+  label: S.String,
+})
+export type BreakdownEntry = typeof BreakdownEntry.Type
+
+const flattenLabel = (value: string): string =>
+  value.replace(/\s+/g, ' ').trim()
+
+export const bodyKind = (body: Body): BodyKind =>
+  M.value(body).pipe(
+    M.withReturnType<BodyKind>(),
+    M.tagsExhaustive({
+      BodyText: () => BodyKindText(),
+      BodyThought: () => BodyKindThought(),
+      BodyTool: () => BodyKindTool(),
+      BodyEdit: () => BodyKindEdit(),
+    }),
+  )
+
+export const authorKind = (author: Author): AuthorKind =>
+  M.value(author).pipe(
+    M.withReturnType<AuthorKind>(),
+    M.tagsExhaustive({
+      AuthorHuman: () => AuthorKindHuman(),
+      AuthorAgent: () => AuthorKindAgent(),
+      AuthorSystem: () => AuthorKindSystem(),
+    }),
+  )
+
+export const bodyKindName = (kind: BodyKind): string =>
+  M.value(kind).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      BodyKindText: () => 'text',
+      BodyKindThought: () => 'thought',
+      BodyKindTool: () => 'tool',
+      BodyKindEdit: () => 'edit',
+    }),
+  )
+
+export const authorKindName = (kind: AuthorKind): string =>
+  M.value(kind).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      AuthorKindHuman: () => 'human',
+      AuthorKindAgent: () => 'agent',
+      AuthorKindSystem: () => 'system',
+    }),
+  )
+
+export const breakdownLabel = (row: TimelineRow): string =>
+  M.value(row.body).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      BodyText: ({ content }) => flattenLabel(content),
+      BodyThought: ({ content }) => flattenLabel(content),
+      BodyTool: ({ name, input }) => flattenLabel(`${name} ${input}`),
+      BodyEdit: ({ path, old, next }) => {
+        const change =
+          old !== '' && next !== ''
+            ? 'replace'
+            : next !== '' && old === ''
+              ? 'create'
+              : old !== '' && next === ''
+                ? 'delete'
+                : 'replace'
+        return flattenLabel(`${change} ${path}`)
+      },
+    }),
+  )
+
+export const breakdown = (
+  conversation: Conversation,
+): ReadonlyArray<BreakdownEntry> =>
+  conversation.messages.map(row =>
+    BreakdownEntry.make({
+      messageId: row.id,
+      index: row.index,
+      bodyKind: bodyKind(row.body),
+      authorKind: authorKind(row.author),
+      label: breakdownLabel(row),
+    }),
+  )
+
+export const filterBreakdown = (
+  entries: ReadonlyArray<BreakdownEntry>,
+  query: string,
+): ReadonlyArray<BreakdownEntry> => {
+  const needle = query.trim().toLowerCase()
+  if (needle === '') {
+    return entries
+  }
+  return entries.filter(entry =>
+    `${bodyKindName(entry.bodyKind)} ${authorKindName(entry.authorKind)} ${entry.label}`
+      .toLowerCase()
+      .includes(needle),
+  )
+}
+
+export const identifierKey = (identifier: Identifier): string =>
+  M.value(identifier).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      IdentifierCursor: ({ value }) => `cursor:${value}`,
+      IdentifierSpecstory: ({ value }) => `specstory:${value}`,
+      IdentifierClaudeCode: ({ value }) => `claudeCode:${value}`,
+      IdentifierCodex: ({ value }) => `codex:${value}`,
+      IdentifierCopilot: ({ value }) => `copilot:${value}`,
+      IdentifierGemini: ({ value }) => `gemini:${value}`,
+      IdentifierWindsurf: ({ value }) => `windsurf:${value}`,
+      IdentifierDeepseek: ({ value }) => `deepseek:${value}`,
+      IdentifierFactory: ({ value }) => `factory:${value}`,
+      IdentifierDroid: ({ value }) => `droid:${value}`,
+      IdentifierGrok: ({ value }) => `grok:${value}`,
+      IdentifierLocal: () => 'local',
+    }),
+  )
+
+export const identifierEquals = (
+  left: Identifier,
+  right: Identifier,
+): boolean => identifierKey(left) === identifierKey(right)
+
+export const conversationByIdentifier = (
+  conversations: ReadonlyArray<Conversation>,
+  identifier: Identifier,
+): Conversation | undefined =>
+  conversations.find(conversation =>
+    identifierEquals(conversation.identifier, identifier),
+  )
+
+const identifierByKind: Record<string, (value: string) => Identifier> = {
+  cursor: value => IdentifierCursor({ value }),
+  specstory: value => IdentifierSpecstory({ value }),
+  claudecode: value => IdentifierClaudeCode({ value }),
+  claude: value => IdentifierClaudeCode({ value }),
+  codex: value => IdentifierCodex({ value }),
+  copilot: value => IdentifierCopilot({ value }),
+  gemini: value => IdentifierGemini({ value }),
+  windsurf: value => IdentifierWindsurf({ value }),
+  deepseek: value => IdentifierDeepseek({ value }),
+  factory: value => IdentifierFactory({ value }),
+  droid: value => IdentifierDroid({ value }),
+  grok: value => IdentifierGrok({ value }),
+}
+
+export const identifierFromKindValue = (
+  kind: string,
+  value: string,
+): Identifier | undefined => {
+  const normalized = kind.trim().toLowerCase().replace(/-/g, '')
+  if (normalized === 'local') {
+    return IdentifierLocal()
+  }
+  const construct = identifierByKind[normalized]
+  if (construct === undefined || value.trim() === '') {
+    return undefined
+  }
+  return construct(value)
+}
+
+export const nextBreakdownMessageId = (
+  entries: ReadonlyArray<BreakdownEntry>,
+  maybeFocusMessageId: Option.Option<string>,
+): Option.Option<string> => {
+  if (entries.length === 0) {
+    return Option.none()
+  }
+  const focusId = Option.getOrUndefined(maybeFocusMessageId)
+  if (focusId === undefined) {
+    const first = entries[0]
+    if (first === undefined) {
+      return Option.none()
+    }
+    return Option.some(first.messageId)
+  }
+  const index = entries.findIndex(entry => entry.messageId === focusId)
+  const next = entries[index + 1]
+  if (next === undefined) {
+    return Option.none()
+  }
+  return Option.some(next.messageId)
+}
+
+export const previousBreakdownMessageId = (
+  entries: ReadonlyArray<BreakdownEntry>,
+  maybeFocusMessageId: Option.Option<string>,
+): Option.Option<string> => {
+  if (entries.length === 0) {
+    return Option.none()
+  }
+  const focusId = Option.getOrUndefined(maybeFocusMessageId)
+  if (focusId === undefined) {
+    const last = entries[entries.length - 1]
+    if (last === undefined) {
+      return Option.none()
+    }
+    return Option.some(last.messageId)
+  }
+  const index = entries.findIndex(entry => entry.messageId === focusId)
+  if (index <= 0) {
+    return Option.none()
+  }
+  const previous = entries[index - 1]
+  if (previous === undefined) {
+    return Option.none()
+  }
+  return Option.some(previous.messageId)
+}
+
+export const transcriptBreakdown = (
+  model: Model,
+): ReadonlyArray<BreakdownEntry> => {
+  if (model.screen._tag !== 'Transcript') {
+    return []
+  }
+  const conversation = conversationById(
+    model.conversations,
+    model.screen.conversationId,
+  )
+  if (conversation === undefined) {
+    return []
+  }
+  return filterBreakdown(breakdown(conversation), model.findQuery)
+}
+
+export const focusedRow = (model: Model): Option.Option<TimelineRow> => {
+  if (model.screen._tag !== 'Transcript') {
+    return Option.none()
+  }
+  const focusId = Option.getOrUndefined(model.maybeFocusMessageId)
+  if (focusId === undefined) {
+    return Option.none()
+  }
+  const conversation = conversationById(
+    model.conversations,
+    model.screen.conversationId,
+  )
+  if (conversation === undefined) {
+    return Option.none()
+  }
+  const row = conversation.messages.find(message => message.id === focusId)
+  return row === undefined ? Option.none() : Option.some(row)
+}
+
+export const authorDisplayName = (author: Author): string =>
+  M.value(author).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      AuthorHuman: ({ name }) => name,
+      AuthorAgent: ({ name, model }) => `${name} (${model})`,
+      AuthorSystem: ({ name }) => name,
+    }),
+  )
+
+export const messageBodyText = (row: TimelineRow): string =>
+  M.value(row.body).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      BodyText: ({ content }) => content,
+      BodyThought: ({ content }) => content,
+      BodyTool: ({ name, input, outcome }) => {
+        const result = M.value(outcome).pipe(
+          M.withReturnType<string>(),
+          M.tagsExhaustive({
+            ToolPending: () => 'pending',
+            ToolResult: ({ output }) => output,
+            ToolError: ({ message }) => message,
+          }),
+        )
+        return `${name}\n${input}\n${result}`
+      },
+      BodyEdit: ({ path, old, next }) => `${path}\n${old}\n${next}`,
     }),
   )
 

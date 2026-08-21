@@ -1,8 +1,12 @@
 import {
   type Conversation,
   type Model,
+  type TimelineRow,
+  authorDisplayName,
+  bodyKindName,
   conversationById,
   conversationsForProject,
+  focusedRow,
   identifierLabel,
   lastActivityAt,
   outline,
@@ -10,6 +14,7 @@ import {
   promptCount,
   sessionCount,
   snippet,
+  transcriptBreakdown,
   visibilityLabel,
 } from 'conversations-core-example'
 import {
@@ -18,8 +23,8 @@ import {
   useConversationsModel,
   useConversationsReplay,
 } from 'conversations-react-bindings-example'
-import { Match as M } from 'effect'
-import type { ReactNode } from 'react'
+import { Match as M, Option } from 'effect'
+import { type ReactNode, useEffect } from 'react'
 
 export const App = () => (
   <ConversationsProvider>
@@ -28,6 +33,17 @@ export const App = () => (
 )
 
 const ConversationsScreen = () => {
+  const title = useConversationsModel({
+    selector: model => {
+      if (model.screen._tag !== 'Transcript') {
+        return 'Conversations'
+      }
+      return (
+        conversationById(model.conversations, model.screen.conversationId)
+          ?.title ?? 'Missing session'
+      )
+    },
+  })
   const model = useConversationsModel()
   const actions = useConversationsActions()
   const replay = useConversationsReplay()
@@ -35,6 +51,7 @@ const ConversationsScreen = () => {
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 p-6">
       <div className="mx-auto max-w-3xl space-y-6">
+        <h1 className="sr-only">{title}</h1>
         <nav className="flex flex-wrap gap-2">
           <button
             className={buttonClassName}
@@ -150,8 +167,13 @@ const screenView = (model: Model, actions: Actions) =>
           </button>
         </section>
       ),
-      Transcript: ({ conversationId }) =>
-        transcriptView(model, conversationId, actions),
+      Transcript: ({ conversationId }) => (
+        <TranscriptView
+          actions={actions}
+          conversationId={conversationId}
+          model={model}
+        />
+      ),
       Settings: () => (
         <section className="space-y-3">
           <h1 className="text-2xl font-semibold">Settings</h1>
@@ -207,15 +229,33 @@ const conversationCard = (conversation: Conversation, actions: Actions) => (
   </article>
 )
 
-const transcriptView = (
-  model: Model,
-  conversationId: string,
-  actions: Actions,
-) => {
+const TranscriptView = ({
+  actions,
+  conversationId,
+  model,
+}: Readonly<{
+  actions: Actions
+  conversationId: string
+  model: Model
+}>) => {
   const conversation = conversationById(model.conversations, conversationId)
+  const maybeFocused = focusedRow(model)
+
+  useEffect(() => {
+    Option.match(model.maybeFocusMessageId, {
+      onNone: () => undefined,
+      onSome: messageId => {
+        document
+          .getElementById(`message-${messageId}`)
+          ?.scrollIntoView({ block: 'center' })
+      },
+    })
+  }, [model.maybeFocusMessageId])
+
   if (conversation === undefined) {
     return <p>Missing session</p>
   }
+
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-semibold">{conversation.title}</h1>
@@ -223,6 +263,38 @@ const transcriptView = (
         {identifierLabel(conversation.identifier)} ·{' '}
         {visibilityLabel(conversation.visibility)}
       </p>
+      <label className="block text-sm text-zinc-400">
+        Find
+        <input
+          className="mt-1 w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-zinc-100"
+          onChange={event =>
+            actions.updatedFindQuery(event.currentTarget.value)
+          }
+          value={model.findQuery}
+        />
+      </label>
+      <div>
+        <h2 className="text-sm uppercase text-zinc-500 mb-2">Jump</h2>
+        {transcriptBreakdown(model).map(entry => (
+          <button
+            className="block w-full text-left text-sm py-1 hover:text-emerald-400"
+            key={entry.messageId}
+            onClick={() => actions.clickedJumpTo(entry.messageId)}
+            type="button"
+          >
+            {entry.index + 1}. {bodyKindName(entry.bodyKind)} {entry.label}
+          </button>
+        ))}
+      </div>
+      {Option.match(maybeFocused, {
+        onNone: () => null,
+        onSome: row => (
+          <article className="border border-emerald-500 rounded p-3 space-y-2">
+            <h2 className="text-sm uppercase text-emerald-400">Focused</h2>
+            <TimelineRowView isFocused row={row} withAnchor={false} />
+          </article>
+        ),
+      })}
       <div>
         <h2 className="text-sm uppercase text-zinc-500 mb-2">On this page</h2>
         {outline(conversation).map((item, index) => (
@@ -232,9 +304,14 @@ const transcriptView = (
         ))}
       </div>
       {conversation.messages.map(row => (
-        <article className="border-l-2 border-zinc-700 pl-3" key={row.id}>
-          {row.body._tag === 'BodyText' ? row.body.content : row.body._tag}
-        </article>
+        <TimelineRowView
+          isFocused={
+            Option.getOrUndefined(model.maybeFocusMessageId) === row.id
+          }
+          key={row.id}
+          row={row}
+          withAnchor
+        />
       ))}
       <div className="flex flex-wrap gap-2">
         {model.mode._tag === 'LiveFollowing' ? (
@@ -272,6 +349,58 @@ const transcriptView = (
     </section>
   )
 }
+
+const TimelineRowView = ({
+  isFocused,
+  row,
+  withAnchor,
+}: Readonly<{ isFocused: boolean; row: TimelineRow; withAnchor: boolean }>) => (
+  <article
+    className={
+      isFocused
+        ? 'border-l-2 border-emerald-400 bg-emerald-950/40 pl-3 py-2 space-y-1'
+        : 'border-l-2 border-zinc-700 pl-3 py-2 space-y-1'
+    }
+    id={withAnchor ? `message-${row.id}` : undefined}
+  >
+    <div className="text-xs text-zinc-500">{authorDisplayName(row.author)}</div>
+    {M.value(row.body).pipe(
+      M.withReturnType<ReactNode>(),
+      M.tagsExhaustive({
+        BodyText: ({ content }) => (
+          <div className="whitespace-pre-wrap">{content}</div>
+        ),
+        BodyThought: ({ content }) => (
+          <div className="text-zinc-400 italic">Thinking: {content}</div>
+        ),
+        BodyTool: ({ name, input, outcome }) => (
+          <div className="font-mono text-sm space-y-1">
+            <div>
+              {name} {input}
+            </div>
+            {M.value(outcome).pipe(
+              M.withReturnType<ReactNode>(),
+              M.tagsExhaustive({
+                ToolPending: () => <div>pending</div>,
+                ToolResult: ({ output }) => (
+                  <div className="whitespace-pre-wrap">{output}</div>
+                ),
+                ToolError: ({ message }) => <div>{message}</div>,
+              }),
+            )}
+          </div>
+        ),
+        BodyEdit: ({ path, old, next }) => (
+          <div className="font-mono text-sm">
+            <div>edit {path}</div>
+            <div>- {old}</div>
+            <div>+ {next}</div>
+          </div>
+        ),
+      }),
+    )}
+  </article>
+)
 
 const buttonClassName =
   'bg-zinc-800 text-zinc-100 hover:bg-zinc-700 px-3 py-2 rounded border border-zinc-600'

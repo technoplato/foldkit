@@ -26,9 +26,25 @@ export const FoldkitCounterV01: InstantApp = {
 export type InstantOptions = Readonly<{
   app: InstantApp
   processor: Processor.Host.Host
+  instance?: string
   database?: import('../snapshotLog/snapshotLog.js').InstantSnapshotLogDatabase
   transport?: SnapshotLogTransport
 }>
+
+/**
+ * Instant `from` for one engine occurrence.
+ *
+ * Two Processors on the same Host, for example two browser tabs,
+ * need distinct `from` strings or each drops the other's live rows
+ * as its own echo. `instance` disambiguates them.
+ */
+export const engineProcessorId = (options: InstantOptions): string => {
+  const host = Processor.Host.print(options.processor)
+  if (options.instance === undefined || options.instance === '') {
+    return host
+  }
+  return `${host}-${options.instance}`
+}
 
 /** Instant's own sentence. Never include an admin token. */
 export const instantCauseString = (cause: unknown): string => {
@@ -104,6 +120,7 @@ export const fromTransport = (
   subscribe: enqueue =>
     Effect.gen(function* () {
       const ready = yield* Deferred.make<void>()
+      const seenMessageIds = new Set<string>()
       yield* transport.subscribe.pipe(
         Stream.tap(() => Deferred.succeed(ready, undefined)),
         Stream.runForEach(state =>
@@ -113,6 +130,10 @@ export const fromTransport = (
               row: isBlankSnapshot(state.snapshot) ? undefined : state.snapshot,
             })
             for (const message of state.messages) {
+              if (seenMessageIds.has(message.id)) {
+                continue
+              }
+              seenMessageIds.add(message.id)
               enqueue({
                 _tag: 'Message',
                 row: message,

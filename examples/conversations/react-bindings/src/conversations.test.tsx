@@ -37,4 +37,16 @@ describe('Conversations React bindings', () => {
     )
     expect(result.current.actions).toBe(actions)
   })
+
+  it('selects a Model slice the way a thin React page should', () => {
+    const { result } = renderHook(
+      () =>
+        useConversationsModel({
+          selector: model => model.screen._tag,
+        }),
+      { wrapper },
+    )
+
+    expect(result.current).toBe('ProjectsPopulated')
+  })
 })

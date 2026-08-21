@@ -10,7 +10,7 @@ export default defineConfig({
     alias: instantBrowserAlias,
   },
   optimizeDeps: {
-    exclude: ['@foldkit/instant'],
+    exclude: ['@foldkit/instant', 'counter-core-example'],
   },
   server: {
     port: 5218,

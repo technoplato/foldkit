@@ -1,6 +1,6 @@
 import { type CounterDetailMode } from 'counters-core-example'
-import { useMultipleCountersActions } from 'pis-canvas-lab-react-bindings-example'
 import { Match as M } from 'effect'
+import { useMultipleCountersActions } from 'pis-canvas-lab-react-bindings-example'
 import { type MouseEvent, type ReactNode, useEffect } from 'react'
 
 import { FactStatusView } from './view.js'

@@ -1,7 +1,7 @@
 import { Array, Option } from 'effect'
-import { describe, expect, it } from 'vitest'
 import { East, North, South, gridCoord, step } from 'foldkit/spatial'
 import { PressedDigit } from 'vending-core-example'
+import { describe, expect, it } from 'vitest'
 
 import {
   Dismissed,

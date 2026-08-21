@@ -1,18 +1,27 @@
-import { startSyncedCounterHandle } from 'counter-core-example'
+import { BrowserLive, startLiveCounter } from 'counter-core-example'
 import { Processor } from 'foldkit'
 
-import { FoldkitCounterV01, Instant } from '@foldkit/instant/browser'
+import {
+  installSyncedCounterHandle,
+  resetSyncedCounterHandle,
+} from './processor.js'
 
-import { installSyncedCounterHandle } from './processor.js'
+const instanceLength = 8
 
 /** Starts the Svelte Processor on Instant. Instant has no Model. */
 export const startInstantCounter = (): void => {
+  resetSyncedCounterHandle()
   installSyncedCounterHandle(
-    startSyncedCounterHandle(
-      Instant({
-        app: FoldkitCounterV01,
-        processor: Processor.Host.Svelte(),
+    startLiveCounter(
+      BrowserLive(Processor.Host.Svelte(), {
+        instance: globalThis.crypto.randomUUID().slice(0, instanceLength),
       }),
     ),
   )
+  const hot = import.meta.hot
+  if (hot !== undefined) {
+    hot.dispose(() => {
+      resetSyncedCounterHandle()
+    })
+  }
 }

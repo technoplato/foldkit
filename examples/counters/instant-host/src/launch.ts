@@ -1,11 +1,5 @@
-import {
-  type Message,
-  type Model,
-  StaticCounterFactClient,
-} from 'counters-core-example'
-import { Effect, Exit, Scope } from 'effect'
-
-import { makeInMemoryProgramStore } from '@foldkit/instant/browser'
+import { type Message, type Model } from 'counters-core-example'
+import { Data, Effect, Exit, Scope } from 'effect'
 
 import {
   instantCountersResources,
@@ -13,12 +7,17 @@ import {
   openCountersTapeRuntime,
 } from './attach.js'
 import { openBrowserCountersTape } from './browser.js'
-import { type CountersTape, makeCountersTape } from './makeTape.js'
+import { type CountersTape } from './makeTape.js'
+
+/** Instant could not start a Multiple Counters Host. */
+export class CountersInstantHostError extends Data.TaggedError(
+  'CountersInstantHostError',
+)<Readonly<{ message: string }>> {}
 
 /** A long-lived Multiple Counters host used by browser and native Clients. */
 export type CountersBrowserHost = Readonly<{
   readModel: () => Model
-  send: (message: Message) => void
+  send: (message: Message) => Promise<void>
   stop: () => Promise<void>
   subscribe: (listener: (model: Model) => void) => () => void
 }>
@@ -26,19 +25,16 @@ export type CountersBrowserHost = Readonly<{
 const launchFromTape = (
   tape: CountersTape,
   processorId: string,
-  isInstant: boolean,
   scope: Scope.Scope,
 ) =>
   Effect.gen(function* () {
     const opened = yield* openCountersTapeRuntime(
       tape,
-      isInstant ? instantCountersResources : StaticCounterFactClient,
+      instantCountersResources,
     )
-    if (isInstant) {
-      yield* observeRemoteCountersTape(tape, opened.runtime, processorId).pipe(
-        Effect.forkChild,
-      )
-    }
+    yield* observeRemoteCountersTape(tape, opened.runtime, processorId).pipe(
+      Effect.forkChild,
+    )
     return {
       readModel: () => opened.runtime.readModel(),
       send: opened.sendClientInput,
@@ -48,7 +44,7 @@ const launchFromTape = (
     }
   })
 
-/** Starts memory or Instant tape for one Multiple Counters Processor. */
+/** Starts Instant tape for one Multiple Counters Processor. Missing Instant fails. */
 export const launchBrowserCountersHost = (
   processorId: string,
   appId: string | undefined,
@@ -56,15 +52,14 @@ export const launchBrowserCountersHost = (
   const scope = Effect.runSync(Scope.make())
   return Effect.runPromise(
     Effect.gen(function* () {
-      if (appId !== undefined && appId !== '') {
-        const tape = yield* openBrowserCountersTape(appId, processorId)
-        if (tape !== null) {
-          return yield* launchFromTape(tape, processorId, true, scope)
-        }
+      if (appId === undefined || appId === '') {
+        return yield* new CountersInstantHostError({
+          message:
+            'Instant app id is missing. The Host will not open a local tape.',
+        })
       }
-      const store = yield* makeInMemoryProgramStore()
-      const tape = yield* makeCountersTape(store, processorId, 'local-counters')
-      return yield* launchFromTape(tape, processorId, false, scope)
+      const tape = yield* openBrowserCountersTape(appId, processorId)
+      return yield* launchFromTape(tape, processorId, scope)
     }).pipe(Effect.provideService(Scope.Scope, scope)),
   )
 }

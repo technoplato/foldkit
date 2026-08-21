@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 const wrapperPath = resolve(process.cwd(), 'scripts/with-public-instant-env')
 
 describe('public Instant child environment', () => {
-  it('removes admin and CLI credentials before Vite starts', () => {
+  it('keeps the admin token for origin minting and drops the CLI token', () => {
     const output = execFileSync(
       wrapperPath,
       [
@@ -25,7 +25,7 @@ describe('public Instant child environment', () => {
     )
 
     expect(JSON.parse(output)).toStrictEqual({
-      admin: true,
+      admin: false,
       cli: true,
       public: true,
     })

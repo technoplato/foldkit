@@ -10,7 +10,11 @@ import { m } from 'foldkit/message'
 import { describe, expect, it } from 'vitest'
 
 import { makeMemorySnapshotLogTransport } from '../snapshotLog/memory.js'
-import { Instant, instantCauseString } from './nodeInstant.js'
+import {
+  Instant,
+  engineProcessorId,
+  instantCauseString,
+} from './nodeInstant.js'
 
 const Increment = m('Increment')
 const Decrement = m('Decrement')
@@ -126,6 +130,186 @@ describe('Instant SyncEngine', () => {
           if (Option.isSome(write)) {
             expect(write.value).toEqual({ link: 'delivered' })
           }
+        }),
+      ),
+    )
+  })
+
+  it('live-syncs two Processors on one Host through distinct instances', async () => {
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const transport = yield* makeMemorySnapshotLogTransport()
+          const firstTab = Instant({
+            app: { id: 'test-app' },
+            processor: Processor.Host.React(),
+            instance: 'tab-one',
+            transport,
+          })
+          const secondTab = Instant({
+            app: { id: 'test-app' },
+            processor: Processor.Host.React(),
+            instance: 'tab-two',
+            transport,
+          })
+          expect(firstTab.processor).toBe('react-tab-one')
+          expect(secondTab.processor).toBe('react-tab-two')
+          const left = yield* Runtime.start({ program: Synced, sync: firstTab })
+          const right = yield* Runtime.start({
+            program: Synced,
+            sync: secondTab,
+          })
+          yield* left.run(Increment())
+          yield* Effect.callback<void>(resume => {
+            const current = right.readModel()
+            if (current._tag === 'Ready' && current.count === 1) {
+              resume(Effect.void)
+              return
+            }
+            const stop = right.observeModel(model => {
+              if (model._tag === 'Ready' && model.count === 1) {
+                stop()
+                resume(Effect.void)
+              }
+            })
+            return Effect.sync(stop)
+          })
+          expect(right.readModel()).toEqual({ _tag: 'Ready', count: 1 })
+        }),
+      ),
+    )
+  })
+
+  it('keeps the bare Host string when no instance is given', () => {
+    expect(
+      engineProcessorId({
+        app: { id: 'test-app' },
+        processor: Processor.Host.React(),
+      }),
+    ).toBe('react')
+    expect(
+      engineProcessorId({
+        app: { id: 'test-app' },
+        processor: Processor.Host.Tui(),
+      }),
+    ).toBe('tui')
+    expect(
+      engineProcessorId({
+        app: { id: 'test-app' },
+        processor: Processor.Host.OpenTui(),
+      }),
+    ).toBe('opentui')
+    expect(
+      engineProcessorId({
+        app: { id: 'test-app' },
+        processor: Processor.Host.ExpoIos(),
+      }),
+    ).toBe('expo-ios')
+    expect(
+      engineProcessorId({
+        app: { id: 'test-app' },
+        processor: Processor.Host.ExpoAndroid(),
+      }),
+    ).toBe('expo-android')
+  })
+
+  it('live-syncs Host.Tui and Host.OpenTui on one transport', async () => {
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const transport = yield* makeMemorySnapshotLogTransport()
+          const tui = Instant({
+            app: { id: 'test-app' },
+            processor: Processor.Host.Tui(),
+            transport,
+          })
+          const openTui = Instant({
+            app: { id: 'test-app' },
+            processor: Processor.Host.OpenTui(),
+            transport,
+          })
+          expect(tui.processor).toBe('tui')
+          expect(openTui.processor).toBe('opentui')
+          const left = yield* Runtime.start({ program: Synced, sync: tui })
+          const right = yield* Runtime.start({
+            program: Synced,
+            sync: openTui,
+          })
+          yield* left.run(Increment())
+          yield* Effect.callback<void>(resume => {
+            const current = right.readModel()
+            if (current._tag === 'Ready' && current.count === 1) {
+              resume(Effect.void)
+              return
+            }
+            const stop = right.observeModel(model => {
+              if (model._tag === 'Ready' && model.count === 1) {
+                stop()
+                resume(Effect.void)
+              }
+            })
+            return Effect.sync(stop)
+          })
+          expect(right.readModel()).toEqual({ _tag: 'Ready', count: 1 })
+          yield* right.run(Increment())
+          yield* Effect.callback<void>(resume => {
+            const current = left.readModel()
+            if (current._tag === 'Ready' && current.count === 2) {
+              resume(Effect.void)
+              return
+            }
+            const stop = left.observeModel(model => {
+              if (model._tag === 'Ready' && model.count === 2) {
+                stop()
+                resume(Effect.void)
+              }
+            })
+            return Effect.sync(stop)
+          })
+          expect(left.readModel()).toEqual({ _tag: 'Ready', count: 2 })
+        }),
+      ),
+    )
+  })
+
+  it('live-syncs Host.ExpoIos and Host.ExpoAndroid on one transport', async () => {
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const transport = yield* makeMemorySnapshotLogTransport()
+          const ios = Instant({
+            app: { id: 'test-app' },
+            processor: Processor.Host.ExpoIos(),
+            transport,
+          })
+          const android = Instant({
+            app: { id: 'test-app' },
+            processor: Processor.Host.ExpoAndroid(),
+            transport,
+          })
+          expect(ios.processor).toBe('expo-ios')
+          expect(android.processor).toBe('expo-android')
+          const left = yield* Runtime.start({ program: Synced, sync: ios })
+          const right = yield* Runtime.start({
+            program: Synced,
+            sync: android,
+          })
+          yield* left.run(Increment())
+          yield* Effect.callback<void>(resume => {
+            const current = right.readModel()
+            if (current._tag === 'Ready' && current.count === 1) {
+              resume(Effect.void)
+              return
+            }
+            const stop = right.observeModel(model => {
+              if (model._tag === 'Ready' && model.count === 1) {
+                stop()
+                resume(Effect.void)
+              }
+            })
+            return Effect.sync(stop)
+          })
+          expect(right.readModel()).toEqual({ _tag: 'Ready', count: 1 })
         }),
       ),
     )

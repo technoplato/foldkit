@@ -14,10 +14,7 @@ describe('hotspotStyle (px overlay formula)', () => {
   const cell = { cellW: 7.5, cellH: 13 }
 
   it('places (0,0) at pad origin', () => {
-    const s = hotspotStyle(
-      { row: 0, col: 0, width: 5, height: 1 },
-      cell,
-    )
+    const s = hotspotStyle({ row: 0, col: 0, width: 5, height: 1 }, cell)
     expect(s.left).toBe(ASCII_PAD_X)
     expect(s.top).toBe(ASCII_PAD_Y)
     expect(s.width).toBe(5 * 7.5)
@@ -25,10 +22,7 @@ describe('hotspotStyle (px overlay formula)', () => {
   })
 
   it('steps by cell size for row/col', () => {
-    const s = hotspotStyle(
-      { row: 4, col: 10, width: 3, height: 2 },
-      cell,
-    )
+    const s = hotspotStyle({ row: 4, col: 10, width: 3, height: 2 }, cell)
     expect(s.left).toBe(ASCII_PAD_X + 10 * 7.5)
     expect(s.top).toBe(ASCII_PAD_Y + 4 * 13)
     expect(s.width).toBe(3 * 7.5)

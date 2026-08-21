@@ -14,6 +14,7 @@ import {
   type TransactionQuote,
   type TransactionRecord,
   type TransactionSubmission,
+  type TransferGuidance,
   type TransferRequest,
   type TransferValidation,
   type ValidatedTransfer,
@@ -70,6 +71,7 @@ export class WalletClientError extends Data.TaggedError('WalletClientError')<{
     | 'Rejected'
     | 'InvalidResponse'
     | 'UnsupportedCapability'
+  readonly guidance?: TransferGuidance
 }> {}
 
 /** A sanitized signing failure that contains no key or host cause. */

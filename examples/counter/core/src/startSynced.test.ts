@@ -14,12 +14,16 @@ describe('startSyncedCounterHandle', () => {
       memorySyncedEngine(Processor.Host.Cli()),
     )
     const ready = await waitForSyncedHandle(handle)
-    expect(ready).toEqual({ _tag: 'Ready', count: 0 })
-    handle.actions().clickedIncrement()
+    expect(ready).toEqual({
+      _tag: 'Ready',
+      product: { count: 0 },
+      actionMenu: { _tag: 'Closed' },
+    })
+    handle.actions().incrementButtonTapped()
     await new Promise<void>((resolve, reject) => {
       const finish = (): void => {
         const model = handle.readModel()
-        if (model._tag === 'Ready' && model.count === 1) {
+        if (model._tag === 'Ready' && model.product.count === 1) {
           clearTimeout(timeout)
           stop()
           resolve()
@@ -32,7 +36,11 @@ describe('startSyncedCounterHandle', () => {
       const stop = handle.subscribe(finish)
       finish()
     })
-    expect(handle.readModel()).toEqual({ _tag: 'Ready', count: 1 })
+    expect(handle.readModel()).toEqual({
+      _tag: 'Ready',
+      product: { count: 1 },
+      actionMenu: { _tag: 'Closed' },
+    })
     handle.stop()
   })
 

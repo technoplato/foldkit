@@ -37,6 +37,16 @@
       "import": "./dist/calendar/public.js",
       "default": "./dist/calendar/public.js"
     },
+    "./cli": {
+      "types": "./dist/cli/public.d.ts",
+      "import": "./dist/cli/public.js",
+      "default": "./dist/cli/public.js"
+    },
+    "./cli/view": {
+      "types": "./dist/cli/view.d.ts",
+      "import": "./dist/cli/view.js",
+      "default": "./dist/cli/view.js"
+    },
     "./canvas": {
       "types": "./dist/canvas/public.d.ts",
       "import": "./dist/canvas/public.js",
@@ -250,7 +260,8 @@
   ],
   "scripts": {
     "clean": "rimraf dist *.tsbuildinfo",
-    "build": "pnpm run clean && tsc -b tsconfig.build.json",
+    "compile": "tsc -b tsconfig.build.json",
+    "build": "pnpm run clean && pnpm run compile",
     "watch": "tsc -b tsconfig.build.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --coverage",
@@ -268,6 +279,7 @@
   "devDependencies": {
     "@effect/platform-browser": "4.0.0-beta.97",
     "@effect/vitest": "4.0.0-beta.97",
+    "@types/node": "^25.9.3",
     "@vitest/coverage-v8": "^4.1.9",
     "effect": "4.0.0-beta.97",
     "happy-dom": "^20.10.4",

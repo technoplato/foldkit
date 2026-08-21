@@ -1,24 +1,17 @@
+import { Cause, Effect, Option, PlatformError, Queue, Terminal } from 'effect'
+import { Runtime } from 'foldkit'
 import {
   AskDanger,
   ChainSendDanger,
   LiveWalletDanger,
-  MintPlay,
   type Message,
+  MintPlay,
   type Model,
   MovePlay,
   OrbitProgram,
   PlayCredits,
   playOf,
 } from 'orbit-core-example'
-import {
-  Cause,
-  Effect,
-  Option,
-  PlatformError,
-  Queue,
-  Terminal,
-} from 'effect'
-import { Runtime } from 'foldkit'
 
 import { orbitResources } from './resources.js'
 
@@ -42,7 +35,9 @@ export const renderOrbitScreen = (model: Model): string => {
   const lines = [
     border,
     framed('Orbit agent index'),
-    framed(`tortoise ${String(playOf(model.sims.tortoise))}  achilles ${String(playOf(model.sims.achilles))}`),
+    framed(
+      `tortoise ${String(playOf(model.sims.tortoise))}  achilles ${String(playOf(model.sims.achilles))}`,
+    ),
     framed(`seq=${String(model.seq)} steps=${String(model.steps.length)}`),
     framed(outcome),
     framed('M mint 1428  V move 428  L live  C chain  Q quit'),
@@ -84,7 +79,10 @@ const runInputLoop = (
 ): Effect.Effect<void, Cause.Done | PlatformError.PlatformError> =>
   Queue.take(inputQueue).pipe(
     Effect.flatMap(input => {
-      const key = Option.getOrElse(input.input, () => input.key.name).toLowerCase()
+      const key = Option.getOrElse(
+        input.input,
+        () => input.key.name,
+      ).toLowerCase()
       if (key === 'q') {
         return Effect.void
       }

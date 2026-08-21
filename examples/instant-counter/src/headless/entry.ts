@@ -40,10 +40,7 @@ const program = Effect.scoped(
       return yield* authority
     }
     return yield* Effect.all(
-      [
-        runMultipleCountersV3DebugLoginServer(databases.admin.auth),
-        authority,
-      ],
+      [runMultipleCountersV3DebugLoginServer(databases.admin.auth), authority],
       { concurrency: 'unbounded', discard: true },
     )
   }),

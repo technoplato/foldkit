@@ -1,23 +1,24 @@
-import { Runtime } from "foldkit"
+import { Runtime } from 'foldkit'
 import {
   IdeasProgram,
   StaticIdeasResources,
   makeLiveIdeasResources,
-} from "ideas-core-example"
+} from 'ideas-core-example'
 
-import { overlay } from "@foldkit/devtools"
+import { overlay } from '@foldkit/devtools'
+import { withHostedIdentity } from '@foldkit/instant'
 
-import { ideasDatabase } from "./database.js"
-import { view } from "./view.js"
+import { ideasDatabase } from './database.js'
+import { view } from './view.js'
 
 const database = ideasDatabase()
 const resources =
   database === undefined
     ? StaticIdeasResources
-    : makeLiveIdeasResources(database)
+    : withHostedIdentity(makeLiveIdeasResources(database as never), database)
 
 const application = Runtime.makeFoldkitApplication({
-  container: document.getElementById("root"),
+  container: document.getElementById('root'),
   devTools: {
     overlay,
   },

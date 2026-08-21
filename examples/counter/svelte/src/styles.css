@@ -22,6 +22,28 @@ section {
   width: 100%;
 }
 
+header {
+  margin-bottom: 1.5rem;
+}
+
+h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+header p {
+  color: #4b5563;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+header a {
+  color: #111827;
+}
+
 .count {
   font-size: 4.5rem;
   font-weight: 600;

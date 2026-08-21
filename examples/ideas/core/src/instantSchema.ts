@@ -1,8 +1,5 @@
-import {
-  InstantProgramEntities,
-  InstantProgramRooms,
-} from "@foldkit/instant"
-import { InstantCoreDatabase, i } from "@instantdb/core"
+import { InstantProgramEntities, InstantProgramRooms } from '@foldkit/instant'
+import { InstantCoreDatabase, i } from '@instantdb/core'
 
 /** Instant schema for Knophy ideas, composed with Foldkit Instant Program entities. */
 export const schema = i.schema({

@@ -20,13 +20,15 @@ describe('Counter React Instant host', () => {
     expect(viewSource).not.toContain('void Effect')
   })
 
-  it('installs Instant from the host with Processor.Host.React()', () => {
+  it('installs Instant from core with Processor.Host.React()', () => {
     const hostSource = readFileSync('src/instantHost.ts', 'utf8')
     const entrySource = readFileSync('src/main.tsx', 'utf8')
     expect(hostSource).toContain('installSyncedCounterHandle')
-    expect(hostSource).toContain('FoldkitCounterV01')
+    expect(hostSource).toContain('startLiveCounter')
     expect(hostSource).toContain('Processor.Host.React()')
-    expect(hostSource).toContain('Instant(')
+    expect(hostSource).not.toContain('Instant(')
+    expect(hostSource).not.toContain('@foldkit/instant')
+    expect(hostSource).not.toContain('counter-instant-example')
     expect(hostSource).not.toContain('openLiveCounterWindowTape')
     expect(hostSource).not.toContain('signIn')
     expect(hostSource).not.toContain('void Effect')

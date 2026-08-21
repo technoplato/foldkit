@@ -42,9 +42,7 @@ const ActionButton = ({
   }
   return (
     <button
-      aria-label={
-        maybeAction.value.isEnabled ? label : `${label} unavailable`
-      }
+      aria-label={maybeAction.value.isEnabled ? label : `${label} unavailable`}
       className={className}
       disabled={!maybeAction.value.isEnabled}
       onClick={() => onPerform(token)}
@@ -261,10 +259,7 @@ export const MultipleCountersV3ReactProgramScreen = ({
   onPerform,
   path,
 }: ProgramScreenProps) => {
-  const projected = multipleCountersV3ProgramActions(
-    model,
-    isNavigationEnabled,
-  )
+  const projected = multipleCountersV3ProgramActions(model, isNavigationEnabled)
   if (Result.isFailure(projected)) {
     return (
       <section className="v3-program-shell">

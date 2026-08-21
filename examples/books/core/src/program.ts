@@ -8,7 +8,7 @@ import { update } from './update.js'
 /** Renderer-free books Program shared by Foldkit, React, TUI, and CLI. */
 export const BooksProgram: Program.Program<Model, Message> = Program.make({
   id: 'books',
-  version: 4,
+  version: 7,
   Model,
   Message,
   init,

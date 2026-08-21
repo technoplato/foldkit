@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { type Plugin, defineConfig } from 'vite'
 
+import { hostedIdentity } from '@foldkit/instant/hosted-identity/vite'
 import { foldkit } from '@foldkit/vite-plugin'
 
 import { multipleCountersV3DebugLoginLoopbackPort } from './src/v3Demo/shared/debugLogin.js'
@@ -43,7 +44,7 @@ const precacheBuildAssets = (): Plugin => {
 }
 
 export default defineConfig({
-  plugins: [foldkit(), precacheBuildAssets()],
+  plugins: [foldkit(), precacheBuildAssets(), hostedIdentity()],
   optimizeDeps: {
     entries: ['index.html'],
   },

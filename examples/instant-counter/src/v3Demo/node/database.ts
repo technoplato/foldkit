@@ -1,4 +1,5 @@
 import { Data, Effect } from 'effect'
+
 import { init } from '@instantdb/core'
 
 import schema, { type InstantCounterDatabase } from '../../../instant.schema.js'

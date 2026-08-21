@@ -16,7 +16,7 @@ The browser Client supports Instant email magic codes and Google OAuth. Signing 
 
 ## Security boundary
 
-The browser receives only the public `VITE_INSTANT_APP_ID`. `scripts/with-public-instant-env` removes `INSTANT_APP_ADMIN_TOKEN` and `INSTANT_CLI_AUTH_TOKEN` before Vite starts, including production builds and previews. Instant owns its refresh token internally. Foldkit Models, Messages, envelopes, replay tape, presence, and effect arguments never retain an Instant refresh token, admin token, email magic code, OAuth authorization code, private key, or executable closure.
+The browser receives only the public `VITE_INSTANT_APP_ID`. `scripts/with-public-instant-env` removes `INSTANT_CLI_AUTH_TOKEN` before Vite starts. `INSTANT_APP_ADMIN_TOKEN` stays in the Vite process so `/__foldkit/hosted-identity/session` can mint Instant sessions from Cloudflare Access. Vite never exposes non-`VITE_` variables to the browser. Instant owns its refresh token internally. Foldkit Models, Messages, envelopes, replay tape, presence, and effect arguments never retain an Instant refresh token, admin token, email magic code, OAuth authorization code, private key, or executable closure.
 
 During a Google callback, Instant Core temporarily receives the OAuth authorization code in the browser query string and scrubs it during initialization. This example does not copy that code into Foldkit state. It does not claim that unrelated browser, proxy, or server logs redact the callback URL.
 

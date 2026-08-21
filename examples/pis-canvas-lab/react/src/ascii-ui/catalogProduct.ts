@@ -8,9 +8,9 @@ import type { Model as CounterModel } from 'counter-core-example'
 import type { ForEachModel } from 'foldkit/program'
 
 import {
+  type CountersActions,
   CountersDetailPhone,
   CountersListPhone,
-  type CountersActions,
 } from './countersProduct.js'
 import { Button, HStack, Phone, Spacer, Text, VStack } from './elements.js'
 import type { UiNode } from './types.js'
@@ -149,9 +149,7 @@ export const CalculatorPhone = (model: CalculatorModel): UiNode => {
 }
 
 /** forEach list of counters. */
-export const CounterListPhone = (
-  model: ForEachModel<CounterModel>,
-): UiNode =>
+export const CounterListPhone = (model: ForEachModel<CounterModel>): UiNode =>
   Phone(
     { cols: 24, title: `List (${model.rows.length})` },
     VStack(

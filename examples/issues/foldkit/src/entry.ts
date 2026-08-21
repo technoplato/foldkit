@@ -13,6 +13,7 @@ import {
 } from 'issues-core-example'
 
 import { overlay } from '@foldkit/devtools'
+import { withHostedIdentity } from '@foldkit/instant'
 import { InstantToolsSchema } from '@foldkit/instant-tools/instant'
 import { init } from '@instantdb/core'
 
@@ -20,10 +21,14 @@ import './styles.css'
 import { view } from './view.js'
 
 const appId = import.meta.env['VITE_INSTANT_APP_ID']
-const resources =
+const database =
   appId === undefined || appId === ''
+    ? undefined
+    : init({ appId, schema: InstantToolsSchema })
+const resources =
+  database === undefined
     ? StaticIssueTrackerResources
-    : makeLiveIssueTrackerResources(init({ appId, schema: InstantToolsSchema }))
+    : withHostedIdentity(makeLiveIssueTrackerResources(database), database)
 const initialNavigation = pathToNavigation(window.location.href)
 const historyReconciliation = { isActive: false }
 

@@ -1,12 +1,12 @@
 # ADR 0007 — PIS canvas hosts Foldkit; ASCII as derived interactive view
 
-| Field | Value |
-| --- | --- |
-| **Status** | In interview |
-| **Date** | 2026-08-07 |
-| **Repos** | foldkit (primary), brainstorming/PIS explorer (consumer map chrome) |
-| **Related** | ADR 0001 view-agnostic runtime, ADR 0002 replay, ADR 0003 navigation-as-state, ADR 0006 message provenance |
-| **Parent issue** | TBD (Instant) after interview locks |
+| Field            | Value                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Status**       | In interview                                                                                               |
+| **Date**         | 2026-08-07                                                                                                 |
+| **Repos**        | foldkit (primary), brainstorming/PIS explorer (consumer map chrome)                                        |
+| **Related**      | ADR 0001 view-agnostic runtime, ADR 0002 replay, ADR 0003 navigation-as-state, ADR 0006 message provenance |
+| **Parent issue** | TBD (Instant) after interview locks                                                                        |
 
 ## One-line intent
 

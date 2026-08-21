@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Foldkit - Expo Counter",
+    "slug": "foldkit-counter",
+    "scheme": "foldkit-counter",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.knophy.foldkit.counter.dev",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.knophy.foldkit.counter.dev"
+    }
+  }
+}

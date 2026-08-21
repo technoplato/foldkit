@@ -16,6 +16,7 @@
   "dependencies": {
     "@effect/platform-browser": "4.0.0-beta.97",
     "@foldkit/devtools": "workspace:*",
+    "@foldkit/instant": "workspace:*",
     "@foldkit/ui": "workspace:*",
     "@instantdb/core": "1.0.53",
     "@tailwindcss/vite": "^4.3.1",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "workspace:*",
+    "@instantdb/admin": "1.0.53",
     "happy-dom": "^20.10.4",
     "prettier": "^3.8.4",
     "typescript": "^6.0.3",

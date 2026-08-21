@@ -1,5 +1,8 @@
 import { Subscription } from 'foldkit'
-import { init as initVending, subscriptions as vendingSubscriptions } from 'vending-core-example'
+import {
+  init as initVending,
+  subscriptions as vendingSubscriptions,
+} from 'vending-core-example'
 
 import { GotVendingMessage, type Message } from './message.js'
 import { type Model } from './model.js'

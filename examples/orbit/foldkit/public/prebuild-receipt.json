@@ -1,7 +1,7 @@
 {
   "schema": "orbit.prebuild.v1",
   "ok": true,
-  "at": "2026-08-13T14:43:40.894Z",
+  "at": "2026-08-19T16:42:07.607Z",
   "why": "The index is not a README that drifts. It is the program an agent runs. Prebuild mounts the same FoldKit core with no view and no server. One Model, one update, two clients: this page and the compiler. Dangerous things are not `if (live) throw`. LiveWallet is not a variant. You cannot construct what is not in the union. Play credits are a branded ADT. They cannot be added to satoshis because satoshis are not a type here. If the instructions lie, `npm run build` fails. That is why the instructions stay true.",
   "results": [
     {

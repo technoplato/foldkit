@@ -123,7 +123,9 @@ export const PressA = ts('PressA', { id: S.String })
 export type PressA = typeof PressA.Type
 
 /** Builds Press A only from an adjacent target. */
-export const pressAFromTarget = (target: InteractTarget): Option.Option<PressA> =>
+export const pressAFromTarget = (
+  target: InteractTarget,
+): Option.Option<PressA> =>
   applyPressA(target, {
     onNone: () => Option.none(),
     onAdjacent: id => Option.some(PressA({ id })),

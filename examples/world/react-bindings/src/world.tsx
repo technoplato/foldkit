@@ -1,19 +1,15 @@
 import { Effect, Fiber } from 'effect'
 import { Runtime } from 'foldkit'
 import {
+  type ReactNode,
   createContext,
   useContext,
   useEffect,
   useState,
   useSyncExternalStore,
-  type ReactNode,
 } from 'react'
 import { SimulatedWalletResources } from 'wallet-simulated-client-example'
-import {
-  type Message,
-  type Model,
-  WorldProgram,
-} from 'world-core-example'
+import { type Message, type Model, WorldProgram } from 'world-core-example'
 
 type WorldRuntime = Runtime.ProgramRuntime<Model, Message>
 

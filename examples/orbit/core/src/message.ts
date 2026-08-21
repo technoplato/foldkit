@@ -1,6 +1,6 @@
 import { Schema as S } from 'effect'
 
-import { CatalogSource, Danger, Role, PlayCredits } from './model.js'
+import { CatalogSource, Danger, PlayCredits, Role } from './model.js'
 
 /** Opens a simulated wallet for a role. */
 export const OpenSim = S.TaggedStruct('OpenSim', {

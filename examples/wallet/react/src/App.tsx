@@ -34,6 +34,7 @@ import {
   walletAccountBalanceLabel,
   walletDataSourceDetail,
   walletDataSourceLabel,
+  walletFailureLines,
 } from 'wallet-core-example'
 import {
   type ReceivingQrHostOrigin,
@@ -634,7 +635,7 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
           onChange={event =>
             actions.changedTransferRecipient(event.currentTarget.value)
           }
-          placeholder="Recipient address"
+          placeholder="Recipient address or Solana Pay URI"
           spellCheck={false}
           type="text"
           value={recipientValue}
@@ -745,10 +746,11 @@ const SendMoney = ({ model }: Readonly<{ model: Model }>) => {
       {model.transaction._tag === 'FailedTransferValidation' ||
       model.transaction._tag === 'FailedTransactionPreview' ||
       model.transaction._tag === 'FailedTransactionSubmission' ? (
-        <p className="wallet-validation" role="alert">
-          {model.transaction.failure.operation} failed:{' '}
-          {model.transaction.failure.code}
-        </p>
+        <div className="wallet-validation" role="alert">
+          {Array.map(walletFailureLines(model.transaction.failure), line => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
       ) : null}
       {model.transaction._tag === 'SubmittedTransaction' ? (
         <div className="wallet-confirmation" role="status">

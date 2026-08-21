@@ -1,15 +1,12 @@
 import { Match as M, Option } from 'effect'
 import { useEffect } from 'react'
 import {
-  useWorldModel,
-  useWorldSend,
-} from 'world-react-bindings-example'
-import {
   messageFromKey,
   overlayOf,
   townCells,
   townWidth,
 } from 'world-core-example'
+import { useWorldModel, useWorldSend } from 'world-react-bindings-example'
 
 const cellClass = (glyph: string): string => {
   if (glyph === '@') {

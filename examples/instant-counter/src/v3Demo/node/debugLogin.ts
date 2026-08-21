@@ -1,11 +1,11 @@
 import { Data, Effect, Result } from 'effect'
 
+import { multipleCountersV3DebugLoginPort } from '../headless/debugLoginServer.js'
 import {
   type MultipleCountersV3DebugEmail,
   type MultipleCountersV3DebugLoginIssued,
   decodeMultipleCountersV3DebugLoginIssued,
 } from '../shared/debugLogin.js'
-import { multipleCountersV3DebugLoginPort } from '../headless/debugLoginServer.js'
 
 /** The loopback debug login server did not mint a usable Alice or Bob code. */
 export class MultipleCountersV3NodeDebugLoginError extends Data.TaggedError(
@@ -23,11 +23,14 @@ export const mintMultipleCountersV3NodeDebugLogin = (
   Effect.tryPromise({
     try: async () => {
       const port = multipleCountersV3DebugLoginPort(environment)
-      const response = await fetch(`http://127.0.0.1:${port.toString()}/magic-code`, {
-        body: JSON.stringify({ email }),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      })
+      const response = await fetch(
+        `http://127.0.0.1:${port.toString()}/magic-code`,
+        {
+          body: JSON.stringify({ email }),
+          headers: { 'content-type': 'application/json' },
+          method: 'POST',
+        },
+      )
       const body: unknown = await response.json()
       const decoded = decodeMultipleCountersV3DebugLoginIssued(body)
       if (!response.ok || Result.isFailure(decoded)) {

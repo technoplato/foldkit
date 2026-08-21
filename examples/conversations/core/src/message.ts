@@ -1,6 +1,8 @@
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
 
+import { Identifier } from './model.js'
+
 export const ClickedOpenProjects = m('ClickedOpenProjects')
 export const ClickedOpenChats = m('ClickedOpenChats')
 export const ClickedOpenProject = m('ClickedOpenProject', {
@@ -18,6 +20,15 @@ export const ClickedStopFollow = m('ClickedStopFollow')
 export const ClickedDeleteConversation = m('ClickedDeleteConversation', {
   conversationId: S.String,
 })
+export const ClickedOpenIdentifier = m('ClickedOpenIdentifier', {
+  identifier: Identifier,
+})
+export const UpdatedFindQuery = m('UpdatedFindQuery', {
+  query: S.String,
+})
+export const ClickedJumpTo = m('ClickedJumpTo', {
+  messageId: S.String,
+})
 export const ClickedIngest = m('ClickedIngest')
 export const Ingested = m('Ingested', {
   conversationId: S.String,
@@ -29,11 +40,14 @@ export const Message = S.Union([
   ClickedOpenChats,
   ClickedOpenProject,
   ClickedOpenConversation,
+  ClickedOpenIdentifier,
   ClickedGoBack,
   ClickedOpenSettings,
   ClickedFollow,
   ClickedStopFollow,
   ClickedDeleteConversation,
+  UpdatedFindQuery,
+  ClickedJumpTo,
   ClickedIngest,
   Ingested,
 ])

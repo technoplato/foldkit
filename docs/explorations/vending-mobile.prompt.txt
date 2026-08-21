@@ -1,0 +1,7 @@
+Fix vending.knophy.com phone UX and host world.knophy.com. Repo: /Users/laptop/Development/foldkit
+Keep VendingProgram as only business logic. Hosts send PressedDigit PressedEnter PressedClear.
+CLICKS: scene.ts travel<6px kills phone taps. Use ~32px. Raycast recursive true. Emit FoldKit on key pointerup. No orbit when ray hits a key. Visible 0-9 ENT CLR.
+PHONE CAMERA: width<700 or coarse pointer, pull back scale 3.1-3.4 so full cabinet in frame. Desktop keeps hero. Recompute on resize.
+HUD: 16-18px, dark panel, padding, safe-area. Address smaller.
+world.knophy.com: Caddy 5207, LaunchAgent just bootstrapped. Rebuild world-three if needed. Walker A-interact Pokemon signs. Domain types in examples/world/core not packages/foldkit.
+Build vending-three-example and kickstart com.knophy.foldkit.vending-demo. No mainnet. Print what you fixed.

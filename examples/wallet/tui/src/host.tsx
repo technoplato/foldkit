@@ -20,6 +20,7 @@ import {
   transferPreviewReadinessLabel,
   transferRecipientInput,
   walletAccountBalanceLabel,
+  walletFailureLines,
 } from 'wallet-core-example'
 import { MacOSLiveWalletResources } from 'wallet-node-client-example'
 import {
@@ -551,7 +552,7 @@ const WalletTerminal = ({
             }
             setFocus('Operations')
           }}
-          placeholder="Recipient address"
+          placeholder="Recipient address or Solana Pay URI"
           value={transferRecipientInput(model.transferRecipient)}
         />
       </box>
@@ -618,6 +619,13 @@ const WalletModelView = ({ model }: Readonly<{ model: Model }>) => {
         ),
       )}
       <text content={`Transaction: ${model.transaction._tag}`} height={1} />
+      {model.transaction._tag === 'FailedTransferValidation' ||
+      model.transaction._tag === 'FailedTransactionPreview' ||
+      model.transaction._tag === 'FailedTransactionSubmission'
+        ? Array.map(walletFailureLines(model.transaction.failure), line => (
+            <text content={line} height={1} key={line} />
+          ))
+        : null}
       <text
         content={
           model.transferRecipient._tag === 'InvalidTransferRecipient'

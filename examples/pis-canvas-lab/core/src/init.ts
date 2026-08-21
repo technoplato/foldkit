@@ -7,10 +7,11 @@ import type { Message, Model } from './program.js'
 export const init = (): readonly [
   Model,
   ReadonlyArray<Command.Command<Message>>,
-] => ShowcaseShell.init() as readonly [
-  Model,
-  ReadonlyArray<Command.Command<Message>>,
-]
+] =>
+  ShowcaseShell.init() as readonly [
+    Model,
+    ReadonlyArray<Command.Command<Message>>,
+  ]
 
 /** Restores an existing lab Model without inventing host coordination state. */
 export const restore = (

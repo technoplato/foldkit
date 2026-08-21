@@ -20,13 +20,13 @@ import {
 } from 'pis-canvas-lab-react-bindings-example'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { LiveAsciiPhone } from './LiveAsciiPhone.js'
 import {
-  labCanvasNodes,
-  renderAscii,
   type AsciiHotspot,
   type CountersActions,
+  labCanvasNodes,
+  renderAscii,
 } from './ascii-ui/index.js'
-import { LiveAsciiPhone } from './LiveAsciiPhone.js'
 
 const CARD_W = 300
 
@@ -148,10 +148,14 @@ export function FoldkitCanvas() {
           multiActions.confirmedDeleteCounter()
           break
         case 'singleInc':
-          enqueue(GotSingleCounterMessage({ message: Counter.ClickedIncrement() }))
+          enqueue(
+            GotSingleCounterMessage({ message: Counter.ClickedIncrement() }),
+          )
           break
         case 'singleDec':
-          enqueue(GotSingleCounterMessage({ message: Counter.ClickedDecrement() }))
+          enqueue(
+            GotSingleCounterMessage({ message: Counter.ClickedDecrement() }),
+          )
           break
         case 'singleReset':
           enqueue(GotSingleCounterMessage({ message: Counter.ClickedReset() }))
@@ -194,9 +198,7 @@ export function FoldkitCanvas() {
           break
         }
         case 'listAdd':
-          enqueue(
-            GotCounterListMessage({ message: CounterListProgram.addRow }),
-          )
+          enqueue(GotCounterListMessage({ message: CounterListProgram.addRow }))
           break
         case 'listRemove':
           enqueue(
@@ -378,8 +380,7 @@ export function FoldkitCanvas() {
         </div>
 
         <div className="pointer-events-none absolute bottom-3 left-3 rounded-md border border-stone-700 bg-stone-900/95 px-2 py-1 font-mono text-[11px] text-stone-400">
-          scroll zoom · drag empty · alt-drag ·{' '}
-          {ShowcaseShell.id}
+          scroll zoom · drag empty · alt-drag · {ShowcaseShell.id}
         </div>
       </div>
     </div>

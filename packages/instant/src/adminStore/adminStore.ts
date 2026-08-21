@@ -2,8 +2,6 @@ import { Array, Effect, Order, Schema as S, Stream } from 'effect'
 
 import { init } from '@instantdb/admin'
 
-import { InstantProgramSchema } from '../schema/index.js'
-
 import {
   ProgramStore,
   ProgramStoreError,
@@ -11,6 +9,7 @@ import {
   type ProgramStoreService,
   syncedTransactionOutcome,
 } from '../programStore/index.js'
+import { InstantProgramSchema } from '../schema/index.js'
 import {
   InstantAcceptedMessageOccurrenceRecord,
   InstantMessageProposalRecord,
@@ -118,7 +117,9 @@ export const makeAdminInstantProgramStore = (
         try: async () => {
           const entity = admin.tx.foldkitAcceptedMessageOccurrences[record.id]
           if (entity === undefined) {
-            throw new Error('Expected an accepted occurrence transaction entity.')
+            throw new Error(
+              'Expected an accepted occurrence transaction entity.',
+            )
           }
           await admin.transact(
             entity.update({

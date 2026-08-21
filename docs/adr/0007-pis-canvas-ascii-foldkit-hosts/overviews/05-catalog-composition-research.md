@@ -219,7 +219,7 @@ GotMultiCountersMessage: ({ message }) => foldMulti(model, message),
 ```ts
 // dream API (not built)
 const Catalog = ProgramCatalog.define({
-  single: Counter.Program,   // or { init, update, Message, Model }
+  single: Counter.Program, // or { init, update, Message, Model }
   multi: Counters.Program,
   // calculator: Calculator.Program,  // one line to add
 })
@@ -231,7 +231,7 @@ const Catalog = ProgramCatalog.define({
 
 type Model = {
   chrome: Chrome
-  demos: Catalog.Models  // { single: Counter.Model, multi: Counters.Model }
+  demos: Catalog.Models // { single: Counter.Model, multi: Counters.Model }
 }
 
 // host view
@@ -259,14 +259,17 @@ export const GotDemoMessage = m('GotDemoMessage', {
 type Slot = {
   id: string
   programId: 'counter' | 'counters' | string
-  model: unknown  // or branded per programId at runtime
+  model: unknown // or branded per programId at runtime
 }
 
-const registry: Record<string, {
-  init: unknown
-  update: (model: any, message: any) => readonly [any, readonly any[]]
-  // optional: message schema for decode
-}> = {
+const registry: Record<
+  string,
+  {
+    init: unknown
+    update: (model: any, message: any) => readonly [any, readonly any[]]
+    // optional: message schema for decode
+  }
+> = {
   counter: Counter,
   counters: Counters,
 }
@@ -360,13 +363,13 @@ type CatalogEntry =
 
 ## Side-by-side
 
-| Prototype | Arbitrary add? | One tape | Types | Like TCA |
-| --- | --- | --- | --- | --- |
-| P0 foldChild closed | recompile union | yes | strong | Scope by hand |
-| P1 catalog builder | register + build | yes | strong | many Scopes |
-| P2 opaque GotDemo | runtime register | yes | weak | existential |
-| P3 multi-runtime | runtime register | no* | strong per app | many Stores |
-| P4 hybrid | mix | nested yes / runtime no | mix | Scope + multi Store |
+| Prototype           | Arbitrary add?   | One tape                | Types          | Like TCA            |
+| ------------------- | ---------------- | ----------------------- | -------------- | ------------------- |
+| P0 foldChild closed | recompile union  | yes                     | strong         | Scope by hand       |
+| P1 catalog builder  | register + build | yes                     | strong         | many Scopes         |
+| P2 opaque GotDemo   | runtime register | yes                     | weak           | existential         |
+| P3 multi-runtime    | runtime register | no\*                    | strong per app | many Stores         |
+| P4 hybrid           | mix              | nested yes / runtime no | mix            | Scope + multi Store |
 
 \*unless coordinator logs envelopes
 
@@ -383,9 +386,9 @@ type CatalogEntry =
 
 **Practical path**
 
-1. **Pull/merge main** when tree is clean → get `Update.foldChild`; rewrite lab hand handlers.  
-2. **P0** for single + multi in shell (canonical).  
-3. Design **P1** if catalog stays monorepo-closed.  
+1. **Pull/merge main** when tree is clean → get `Update.foldChild`; rewrite lab hand handlers.
+2. **P0** for single + multi in shell (canonical).
+3. Design **P1** if catalog stays monorepo-closed.
 4. Add **P3/P4** when a demo must stay a separate Program (heavy Instant, own routes) or is only a sketch.
 
 ---
@@ -411,12 +414,12 @@ type CatalogEntry =
 
 ## Sources on this machine
 
-| Source | Path |
-| --- | --- |
-| Foldkit main (fetched) | `FETCH_HEAD` / foldkit `b2cf4e33` — `Update.foldChild` |
-| Lab hand compose | `examples/pis-canvas-lab/core` |
-| Embed | `examples/embedding` |
-| Multi runtime skill | `$foldkit-program-runtimes` |
-| TCA 1 guide | `Sync/tca/pointfree-research/…/tca-best-practices…` |
-| TCA 2 beta | `Sync/tca/TCA26-main/Sources/ComposableArchitecture2` (`Scope`, `IfLet`, `ForEach`) |
-| Local branch | `feat/m-message-docs` dirty; ahead/behind main |
+| Source                 | Path                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| Foldkit main (fetched) | `FETCH_HEAD` / foldkit `b2cf4e33` — `Update.foldChild`                              |
+| Lab hand compose       | `examples/pis-canvas-lab/core`                                                      |
+| Embed                  | `examples/embedding`                                                                |
+| Multi runtime skill    | `$foldkit-program-runtimes`                                                         |
+| TCA 1 guide            | `Sync/tca/pointfree-research/…/tca-best-practices…`                                 |
+| TCA 2 beta             | `Sync/tca/TCA26-main/Sources/ComposableArchitecture2` (`Scope`, `IfLet`, `ForEach`) |
+| Local branch           | `feat/m-message-docs` dirty; ahead/behind main                                      |

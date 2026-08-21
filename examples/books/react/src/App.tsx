@@ -1,7 +1,17 @@
 import {
   type Item,
   type Model,
+  audioOfItem,
+  chapterDuration,
+  durationOfItem,
+  formatClock,
+  formatSpokenTail,
   itemById,
+  playMediaPosition,
+  playOf,
+  screenOf,
+  sortedChapters,
+  spokenTail,
 } from 'books-core-example'
 import {
   BooksProvider,
@@ -52,7 +62,7 @@ const BooksScreen = () => {
 type Actions = ReturnType<typeof useBooksActions>
 
 const screenView = (model: Model, actions: Actions) =>
-  M.value(model.screen).pipe(
+  M.value(screenOf(model)).pipe(
     M.withReturnType<ReactNode>(),
     M.tagsExhaustive({
       SignedOut: () => (
@@ -88,6 +98,7 @@ const screenView = (model: Model, actions: Actions) =>
           {playBar(model, actions)}
         </section>
       ),
+      TitlePage: ({ itemId }) => titlePageView(model, itemId, actions),
       ReaderText: ({ itemId }) => readerView(model, itemId, 'text', actions),
       ReaderAudio: ({ itemId }) => readerView(model, itemId, 'audio', actions),
       ReaderBoth: ({ itemId }) => readerView(model, itemId, 'both', actions),
@@ -157,6 +168,19 @@ const screenView = (model: Model, actions: Actions) =>
           </button>
         </section>
       ),
+      SharedNote: ({ noteId }) => (
+        <section className="space-y-4">
+          {signedInNav(actions)}
+          <h1 className="text-2xl font-semibold">Shared note</h1>
+          {Option.isSome(model.sharedNote) ? (
+            <p className="whitespace-pre-wrap text-sm">
+              {model.sharedNote.value.body}
+            </p>
+          ) : (
+            <p className="text-zinc-400">Note {noteId} is not available.</p>
+          )}
+        </section>
+      ),
       Search: ({ query }) => (
         <section className="space-y-4">
           {signedInNav(actions)}
@@ -164,7 +188,9 @@ const screenView = (model: Model, actions: Actions) =>
           <input
             aria-label="Search query"
             className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2"
-            onChange={event => actions.pressedSetQuery(event.currentTarget.value)}
+            onChange={event =>
+              actions.pressedSetQuery(event.currentTarget.value)
+            }
             value={query}
           />
           <div className="grid gap-3">
@@ -240,19 +266,77 @@ const itemCard = (item: Item, actions: Actions) => (
   </button>
 )
 
+const titlePageView = (model: Model, itemId: string, actions: Actions) => {
+  const item = Option.getOrUndefined(itemById(model.items, itemId))
+  const duration = item === undefined ? 0 : durationOfItem(item)
+  return (
+    <section className="space-y-4">
+      {signedInNav(actions)}
+      <h1 className="text-2xl font-semibold">{item?.title ?? itemId}</h1>
+      <p className="text-zinc-400">{item?.authorLabel ?? ''}</p>
+      {duration > 0 ? (
+        <p className="text-sm text-zinc-500">{formatClock(duration)}</p>
+      ) : null}
+      {item !== undefined && Option.isSome(audioOfItem(item)) ? (
+        <button
+          className={primaryClassName}
+          onClick={() => actions.pressedStartPlayback(itemId)}
+          type="button"
+        >
+          Play
+        </button>
+      ) : null}
+      <div className="grid gap-2">
+        {(item === undefined
+          ? []
+          : sortedChapters(item, model.chapterSort)
+        ).map(chapter => (
+          <button
+            className={cardClassName}
+            key={chapter.id}
+            onClick={() => actions.pressedOpenChapter(itemId, chapter.id)}
+            type="button"
+          >
+            <span className="text-xs text-zinc-500">{chapter.index}</span>{' '}
+            {chapter.title}{' '}
+            <span className="text-xs text-zinc-500">
+              {formatClock(chapterDuration(chapter))}
+            </span>
+          </button>
+        ))}
+      </div>
+      <button
+        className={buttonClassName}
+        onClick={actions.pressedGoBack}
+        type="button"
+      >
+        Back
+      </button>
+      {playBar(model, actions)}
+    </section>
+  )
+}
+
 const readerView = (
   model: Model,
   itemId: string,
   pane: 'text' | 'audio' | 'both',
   actions: Actions,
 ) => {
-  const item = itemById(model.items, itemId)
+  const item = Option.getOrUndefined(itemById(model.items, itemId))
+  const tail =
+    item === undefined
+      ? ''
+      : formatSpokenTail(
+          spokenTail(item, playMediaPosition(playOf(model), itemId)),
+        )
+  const spoken = tail === '' ? (item?.body ?? '') : tail
   return (
     <section className="space-y-4">
       {signedInNav(actions)}
       <h1 className="text-2xl font-semibold">{item?.title ?? itemId}</h1>
       <p className="text-zinc-400">{item?.authorLabel ?? ''}</p>
-      <p>{item?.body ?? ''}</p>
+      <p>{spoken}</p>
       <p className="text-sm text-zinc-500">
         {pane === 'both' ? 'two rendition ids · never one body both' : pane}
       </p>
@@ -278,7 +362,7 @@ const readerView = (
         >
           Both
         </button>
-        {item && Option.isSome(item.audioId) ? (
+        {item && Option.isSome(audioOfItem(item)) ? (
           <button
             className={primaryClassName}
             onClick={() => actions.pressedStartPlayback(itemId)}
@@ -301,12 +385,12 @@ const readerView = (
 }
 
 const playBar = (model: Model, actions: Actions) =>
-  M.value(model.play).pipe(
+  M.value(playOf(model)).pipe(
     M.withReturnType<ReactNode>(),
     M.tagsExhaustive({
       PlayIdle: () => <p className="text-sm text-zinc-500">playIdle</p>,
       PlayPaused: play => {
-        const item = itemById(model.items, play.itemId)
+        const item = Option.getOrUndefined(itemById(model.items, play.itemId))
         return (
           <div className="flex flex-wrap gap-2 items-center">
             <button
@@ -337,7 +421,7 @@ const playBar = (model: Model, actions: Actions) =>
         )
       },
       PlayPlaying: play => {
-        const item = itemById(model.items, play.itemId)
+        const item = Option.getOrUndefined(itemById(model.items, play.itemId))
         return (
           <div className="flex flex-wrap gap-2 items-center">
             <button

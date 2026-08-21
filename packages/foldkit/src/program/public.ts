@@ -1,5 +1,38 @@
 export { make } from './program.js'
 export {
+  actionMenu,
+  ActionCommandMenuSelectionMade,
+  ActionMenuCommandTriggered,
+  ActionMenuDismissed,
+  ActionMenuFocusMoved,
+  ActionMenuMessage,
+  ActionMenuModel,
+  ActionMenuQueryChanged,
+  Closed,
+  FilteredEmpty,
+  Open,
+  actionMenuDismissToken,
+  actionMenuSelectPrefix,
+  actionMenuChosenMs,
+  actionMenuKeyHint,
+  filterByQuery,
+  focusAfterFilter,
+  highlightIndex,
+  isActionMenuMessage,
+  tokenFromActionMenuToken,
+} from './actionMenu.js'
+export type {
+  ActionMenuAppMessage,
+  ActionMenuAppModel,
+  ActionMenuChild,
+  ActionMenuMessage as ActionMenuMessageValue,
+  ActionMenuModel as ActionMenuModelValue,
+  ActionMenuOptions,
+  ActionMenuProgram,
+  FilteredActions,
+  FilteredMatches,
+} from './actionMenu.js'
+export {
   compose,
   forEach,
   scope,

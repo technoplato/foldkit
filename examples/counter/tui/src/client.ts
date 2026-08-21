@@ -1,12 +1,26 @@
 import {
-  type Message,
+  type AppMessage,
+  type AppModel,
+  type CounterFactHandles,
+  CounterProgram,
+  type FactCallable,
   Model,
   type SyncedCounterHandle,
-  actions,
-  counterValid,
+  type TapHandle,
+  actionByToken,
+  actionMenuMessageFromKey,
+  actionMenuRowLabel,
+  chosenMenuTokenOf,
+  counterScreen,
   describeCounterSyncError,
+  factHandleEntries,
+  filterListedActions,
+  formatHostChrome,
+  initialCount,
+  isActionMenuEnterKey,
+  listActions,
   renderChrome,
-  tokenOf,
+  surfaceFor,
 } from 'counter-core-example'
 import {
   Array,
@@ -19,93 +33,228 @@ import {
   Terminal,
 } from 'effect'
 import { Program } from 'foldkit'
+import { type UiNode } from 'foldkit/renderers'
+
+import { paintTui } from './paintTui.js'
 
 const CLEAR_SCREEN = '\u001b[2J\u001b[H'
 
+const menuBoxLine = (content: string, width: number): string =>
+  `│ ${content.padEnd(width)} │`
+
+const rowMark = (
+  rowToken: string,
+  index: number,
+  maybeHighlight: Option.Option<number>,
+  maybeChosen: Option.Option<string>,
+): string => {
+  if (Option.isSome(maybeChosen) && maybeChosen.value === rowToken) {
+    return '* '
+  }
+  if (Option.isSome(maybeHighlight) && maybeHighlight.value === index) {
+    return '> '
+  }
+  return '  '
+}
+
+const paintActionMenu = (
+  snapshot: Program.SyncedModel<AppModel, AppMessage>,
+  maybeChosen: Option.Option<string> = Option.none(),
+): string => {
+  if (snapshot._tag !== 'Ready' || snapshot.actionMenu._tag === 'Closed') {
+    return ''
+  }
+  const { maybeQuery } = snapshot.actionMenu
+  const catalog = listActions(CounterProgram, snapshot.product)
+  const filtered = filterListedActions(catalog, maybeQuery)
+  const maybeHighlight = Program.highlightIndex(snapshot.actionMenu, filtered)
+  const query = Option.getOrElse(maybeQuery, () => '')
+  const title =
+    query === '' ? 'Actions  [? open] [esc close]' : `Actions  ${query}`
+  const rowLines =
+    filtered._tag === 'Empty'
+      ? ['  Empty']
+      : filtered.rows.map((row, index) => {
+          const mark = rowMark(row.token, index, maybeHighlight, maybeChosen)
+          return `${mark}${actionMenuRowLabel(row)}`
+        })
+  const inner = [title, ...rowLines]
+  const width = inner.reduce((max, line) => Math.max(max, line.length), 24)
+  const edge = '─'.repeat(width + 2)
+  return [
+    `┌${edge}┐`,
+    ...inner.map(line => menuBoxLine(line, width)),
+    `└${edge}┘`,
+  ].join('\n')
+}
+
 /** Renders Starting, Failed, or the imported Counter chrome. */
 export const renderCounterScreen = (
-  snapshot: Program.SyncedModel<Model, Message>,
+  snapshot: Program.SyncedModel<AppModel, AppMessage>,
+  maybeChosen: Option.Option<string> = Option.none(),
 ): string =>
   M.value(snapshot).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      Starting: () => `${CLEAR_SCREEN}Starting Instant Counter…\n\n[Q] quit\n`,
+      Starting: () =>
+        `${CLEAR_SCREEN}${formatHostChrome(surfaceFor('tui'))}\n\nStarting Instant Counter…\n\n[Q] quit  [?] actions\n`,
       Failed: ({ error }) =>
-        `${CLEAR_SCREEN}${describeCounterSyncError(error)}\n\n[Q] quit\n`,
-      Ready: ({ count }) => {
-        const chrome = renderChrome(Model.make({ count }), 'computer')
-        return `${CLEAR_SCREEN}${chrome}\n\n[Q] quit\n`
+        `${CLEAR_SCREEN}${formatHostChrome(surfaceFor('tui'))}\n\n${describeCounterSyncError(error)}\n\n[Q] quit  [?] actions\n`,
+      Ready: ({ product }) => {
+        const chrome = renderChrome(product, 'computer')
+        const menu = paintActionMenu(snapshot, maybeChosen)
+        const overlay = menu === '' ? '' : `${menu}\n\n`
+        return `${CLEAR_SCREEN}${formatHostChrome(surfaceFor('tui'))}\n\n${overlay}${chrome}\n\n[Q] quit  [?] actions\n`
       },
     }),
   )
 
-/** Maps a terminal key to an imported Counter Message when applicable. */
-export const messageForInput = (
-  input: string,
-  model: Model,
-): Option.Option<Message> => {
-  const key = input.toLowerCase()
-  const maybeAction = Array.findFirst(
-    actions,
-    action =>
-      Array.contains(action.keys ?? [], key) ||
-      Array.contains(action.keys ?? [], input),
-  )
-  if (Option.isNone(maybeAction)) {
-    return Option.none()
+const startingScreen = counterScreen(Model.make({ count: initialCount }))
+
+const counterKeysForToken = (token: string): ReadonlyArray<string> => {
+  const action = actionByToken(token)
+  if (action === undefined) {
+    return []
   }
-  const token = tokenOf(maybeAction.value)
-  const isValid = Array.some(
-    counterValid(model, {}),
-    item => item.token === token && item.valid,
-  )
-  if (!isValid) {
-    return Option.none()
-  }
-  return Option.some(maybeAction.value())
+  return action.keys ?? []
 }
 
-const sendForInput = (key: string, handle: SyncedCounterHandle): void => {
-  const windowActions = handle.actions()
-  if (key === '+' || key === '=') {
-    windowActions.clickedIncrement()
+const productScreenOf = (
+  snapshot: Program.SyncedModel<AppModel, AppMessage>,
+): UiNode => {
+  if (snapshot._tag === 'Ready') {
+    return counterScreen(snapshot.product)
+  }
+  return startingScreen
+}
+
+/**
+ * Paints the screen window: the product tree plus overlay chrome.
+ * Key hints come from the Action `keys` metadata.
+ */
+export const renderCounterScreenWindow = (
+  snapshot: Program.SyncedModel<AppModel, AppMessage>,
+  maybeChosen: Option.Option<string> = Option.none(),
+): string => {
+  const painted = paintTui(productScreenOf(snapshot), {
+    keysForToken: counterKeysForToken,
+  })
+  const menu = paintActionMenu(snapshot, maybeChosen)
+  const overlay = menu === '' ? '' : `${menu}\n\n`
+  return `${CLEAR_SCREEN}${formatHostChrome(surfaceFor('tui-screen'))}\n\n${overlay}${painted}\n\n[Q] quit\n`
+}
+
+/**
+ * Resolves a terminal key to a derived fact handle. The keymap comes
+ * from the `keys` metadata on the Action declarations. Nothing here
+ * knows which key belongs to which Action.
+ */
+export const factHandleForKey = (
+  input: string,
+  handles: CounterFactHandles,
+): Option.Option<FactCallable | TapHandle> => {
+  const key = input.toLowerCase()
+  const entries = factHandleEntries(handles)
+  return Option.map(
+    Array.findFirst(
+      entries,
+      ([action]) =>
+        Array.contains(action.keys ?? [], key) ||
+        Array.contains(action.keys ?? [], input),
+    ),
+    ([, factHandle]) => factHandle,
+  )
+}
+
+/**
+ * Taps the fact for one keypress. An always-valid handle is a bare
+ * callable. A gated handle only taps when Tappable; Hidden has no way
+ * to send.
+ */
+export const tapForInput = (
+  input: string,
+  handles: CounterFactHandles,
+): void => {
+  const maybeHandle = factHandleForKey(input, handles)
+  if (Option.isNone(maybeHandle)) {
     return
   }
-  if (key === '-') {
-    windowActions.clickedDecrement()
+  const factHandle = maybeHandle.value
+  if (typeof factHandle === 'function') {
+    factHandle()
     return
   }
-  if (key === 'r') {
-    windowActions.clickedReset()
-  }
+  M.value(factHandle).pipe(
+    M.tagsExhaustive({
+      Tappable: ({ tap }) => {
+        tap()
+      },
+      Hidden: () => undefined,
+    }),
+  )
 }
 
 const runInputLoop = (
   inputQueue: Queue.Dequeue<Terminal.UserInput, Cause.Done>,
   handle: SyncedCounterHandle,
   paint: (
-    snapshot: Program.SyncedModel<Model, Message>,
+    snapshot: Program.SyncedModel<AppModel, AppMessage>,
+    maybeChosen?: Option.Option<string>,
   ) => Effect.Effect<void, PlatformError.PlatformError>,
 ): Effect.Effect<void, Cause.Done | PlatformError.PlatformError> =>
   Queue.take(inputQueue).pipe(
     Effect.flatMap(input => {
-      const key = Option.getOrElse(
-        input.input,
-        () => input.key.name,
-      ).toLowerCase()
+      const raw = Option.getOrElse(input.input, () => input.key.name)
+      const key = raw.toLowerCase()
       if (key === 'q') {
         return Effect.void
       }
-      sendForInput(key, handle)
+      const snapshot = handle.readModel()
+      const menu =
+        snapshot._tag === 'Ready' ? snapshot.actionMenu : Program.Closed()
+      const product =
+        snapshot._tag === 'Ready' ? snapshot.product : Model.make({ count: 0 })
+      const rows = listActions(CounterProgram, product)
+      const menuKey =
+        isActionMenuEnterKey(input.key.name) || isActionMenuEnterKey(raw)
+          ? 'Enter'
+          : raw
+      const menuMessage = actionMenuMessageFromKey(
+        {
+          key: menuKey,
+          metaKey: input.key.meta,
+          ctrlKey: input.key.ctrl,
+        },
+        menu,
+        rows,
+        product,
+      )
+      if (menuMessage !== undefined) {
+        const maybeChosen =
+          menu._tag === 'Open' ? chosenMenuTokenOf(menuMessage) : Option.none()
+        handle.send(menuMessage)
+        if (Option.isSome(maybeChosen) && snapshot._tag === 'Ready') {
+          return paint(snapshot, maybeChosen).pipe(
+            Effect.flatMap(() => paint(handle.readModel())),
+            Effect.flatMap(() => runInputLoop(inputQueue, handle, paint)),
+          )
+        }
+      } else {
+        tapForInput(key, handle.actions())
+      }
       return paint(handle.readModel()).pipe(
         Effect.flatMap(() => runInputLoop(inputQueue, handle, paint)),
       )
     }),
   )
 
+/** Which window the TUI paints. Screen paints the Program screen tree. */
+export type CounterTuiWindow = 'Bespoke' | 'Screen'
+
 /** Paints the synced handle. The Client only subscribes and sends. */
 export const runCounterTui = (
   handle: SyncedCounterHandle,
+  window: CounterTuiWindow = 'Bespoke',
 ): Effect.Effect<
   void,
   Cause.Done | PlatformError.PlatformError,
@@ -116,7 +265,7 @@ export const runCounterTui = (
       const terminal = yield* Terminal.Terminal
       const inputQueue = yield* terminal.readInput
       const paints =
-        yield* Queue.unbounded<Program.SyncedModel<Model, Message>>()
+        yield* Queue.unbounded<Program.SyncedModel<AppModel, AppMessage>>()
       const unsubscribe = handle.subscribe(() => {
         Effect.runSync(Queue.offer(paints, handle.readModel()))
       })
@@ -127,8 +276,12 @@ export const runCounterTui = (
         }),
       )
 
-      const paint = (snapshot: Program.SyncedModel<Model, Message>) =>
-        terminal.display(renderCounterScreen(snapshot))
+      const render =
+        window === 'Screen' ? renderCounterScreenWindow : renderCounterScreen
+      const paint = (
+        snapshot: Program.SyncedModel<AppModel, AppMessage>,
+        maybeChosen: Option.Option<string> = Option.none(),
+      ) => terminal.display(render(snapshot, maybeChosen))
 
       yield* paint(handle.readModel())
 

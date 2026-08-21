@@ -11,7 +11,7 @@ Load the persistent demo application's configuration through the `foldkit-instan
   pnpm --filter instant-counter-expo-example dev-client
 ```
 
-The credential wrapper provides the shared app configuration without copying or sourcing credentials manually. Every Metro, native build, and export script then runs through `../scripts/with-public-instant-env`. That second wrapper removes `INSTANT_APP_ADMIN_TOKEN` and `INSTANT_CLI_AUTH_TOKEN` before Expo starts. Only `EXPO_PUBLIC_INSTANT_APP_ID` and optional `EXPO_PUBLIC_DEBUG_LOGIN_ORIGIN` reach Metro. The native bundle must never receive either privileged token.
+The credential wrapper provides the shared app configuration without copying or sourcing credentials manually. Every Metro, native build, and export script then runs through `../scripts/with-public-instant-env`. That second wrapper removes `INSTANT_CLI_AUTH_TOKEN` before Expo starts and leaves `INSTANT_APP_ADMIN_TOKEN` out of Metro public env because Expo never prefixes it `EXPO_PUBLIC_`. Only `EXPO_PUBLIC_INSTANT_APP_ID` and optional `EXPO_PUBLIC_DEBUG_LOGIN_ORIGIN` reach the native bundle. The native bundle must never receive either privileged token.
 
 In local Dev Client builds, the signed-out screen includes **Sign in as Alice** and **Sign in as Bob**. Those buttons ask the headless process to mint Instant magic codes. They never receive the admin token. iOS Simulator can reach `127.0.0.1:18788`. Android emulator uses `10.0.2.2`. A physical device uses the Metro LAN host and needs the headless mint bound on all interfaces:
 
