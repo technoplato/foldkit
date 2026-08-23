@@ -1,0 +1,28 @@
+^DI'll copy Puzzle's fail-closed Instant Ready-paint into Counter only, then verify loopback paint. First I'm reading the Puzzle pattern and Counter's current startSynced path.Next I’ll read Counter’s `readyCounter` helper, the startSynced tests, and Puzzle’s matching tests so the fail-closed path stays the same.Puzzle already has the fail-closed timer and hang tests. I’ll inspect Counter’s Instant wiring and the LaunchAgent so the same Ready-paint lands on 5210.Copying Puzzle’s fail-closed timer into Counter’s startSynced path, then I’ll extend the hang test so Ready-paint is covered.StartSynced now matches Puzzle. Running the core tests, then I’ll rebuild and bounce 5210 once so the served JS actually includes this.Tests passed. Bouncing the counter LaunchAgent once so 5210 rebuilds core and Foldkit, then I’ll wait until preview is listening with the new JS.The first wait was a false positive from leftover log lines. 5210 is down during rebuild, so I’m waiting until preview actually listens again.New hashes are live (`main-BZ88x8mt.js`). Next I’ll confirm fail-closed is in the bundle, then dump-dom loopback and public.Loopback already paints the product view (`counter-screen`, `+` / `-`, count `0`). Checking public, taking the screenshot, and confirming mobile still returns 200.Loopback paints; public dump-dom is still the Starting paragraph. I’ll check whether Instant keeps the page busy so the 8s timer never fires under Chrome’s virtual time.Public dump-dom stayed on Starting because Instant `queryOnce` keeps Chrome virtual time from advancing the 8s timer. I’ll copy Puzzle’s boot path: Instant still opens, but boot read does not wait.Tests still pass. Rebuilding core and Foldkit in place so 5210 can pick up the new JS without a second bounce.The Instant engine still blocks `Runtime.start` on the first subscribe event. I’ll fork that subscribe the way Puzzle does so boot can Ready-paint without waiting.Desktop Instant no longer stays on Starting. Loopback and public both attach `counterScreen` (`+`, `-`, count `0`).
+
+**Loopback** `http://127.0.0.1:5210/` (`main-Buf6X-Af.js`). Foldkit replaced `#root` with the product view:
+
+```html
+<title>Foldkit - Foldkit Counter: 0</title>
+<body>
+    <div class="counter-screen min-h-screen bg-white flex flex-col items-center justify-center gap-6 p-6"><div class="fk-column"><div class="fk-text">0</div><div class="fk-row"><button class="fk-button" type="button">+</button><button class="fk-button" type="button">-</button></div></div></div>
+</body>
+```
+
+Not `Starting Instant Counter…`.
+
+**Public** `https://counter.knophy.com/` (HTTP/2 200, same JS, plus CF beacon):
+
+```html
+<title>Foldkit - Foldkit Counter: 0</title>
+<body>
+    <div class="counter-screen min-h-screen bg-white flex flex-col items-center justify-center gap-6 p-6"><div class="fk-column"><div class="fk-text">0</div><div class="fk-row"><button class="fk-button" type="button">+</button><button class="fk-button" type="button">-</button></div></div></div>
+  <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/..."></script>
+</body>
+```
+
+**5210 bounced once** (`kickstart -k` at 12:23:34Z). Later rebuilds were in place on that preview.
+
+**Leftover 240 remains open and was not closed.**
+
+Copied Puzzle: 8s `failClosed` to `readyCounter(0)` in `startSynced.ts` (timeout cleared in `opening.then` and `stop()`; Instant error after Ready does not clobber). Browser Instant still uses the real app id. Boot does not wait on `queryOnce` or the first subscribe event. Instant subscribe can catch up. Memory still boots Ready. Hang path fail-closes to Ready. Screenshot: `examples/counter/.look/counter-painted.png`. `counter-mobile.knophy.com` still 200 with the phone wrapper. Report: `examples/counter/.look/GROK-REPORT.md`.

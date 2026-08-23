@@ -1,0 +1,38 @@
+{
+  "name": "casino-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --port 5219 --strictPort",
+    "prebuild": "pnpm --filter casino-core-example build",
+    "predev": "pnpm --filter casino-core-example build",
+    "pretest": "pnpm --filter casino-core-example build",
+    "pretypecheck": "pnpm --filter casino-core-example build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "@foldkit/ui": "workspace:*",
+    "@tailwindcss/vite": "^4.3.1",
+    "casino-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1",
+    "wallet-core-example": "workspace:*",
+    "wallet-web-client-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@foldkit/vite-plugin": "workspace:*",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "happy-dom": "^20.10.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "settings-react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite --port 5219 --strictPort",
+    "prebuild": "pnpm --filter settings-react-bindings-example build",
+    "predev": "pnpm --filter settings-react-bindings-example build",
+    "pretest": "pnpm --filter settings-react-bindings-example build",
+    "pretypecheck": "pnpm --filter settings-react-bindings-example build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/react": "workspace:*",
+    "settings-core-example": "workspace:*",
+    "settings-react-bindings-example": "workspace:*",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.4",
+    "tailwindcss": "^4.3.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}

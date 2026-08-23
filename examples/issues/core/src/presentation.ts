@@ -3,20 +3,35 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 import { Issue } from '@foldkit/instant-tools/issues'
 
 import {
+  AllProducts,
+  LeftoverStatus,
+  OneProduct,
+  catalogIssueRefsOf,
+  issuesForProductFilter,
+  leftoverStatusesForIssue,
+} from './leftover.js'
+import {
+  AppendedIssueWorkLog,
   ClickedDismissTriageCandidate,
   ClickedFileIssue,
+  ClickedLeftoverStatus,
   ClickedOpenTriage,
   ClickedPromoteTriageCandidate,
   DismissedIssueDetail,
+  LinkedCatalogIssue,
   Message,
+  RetargetedIssueProduct,
   SelectedIssue,
+  SelectedProductFilter,
   SubmittedIssue,
+  SubmittedIssueComment,
 } from './message.js'
 import {
   IssueDetailState,
   IssueDraft,
   IssueDraftState,
   IssuesState,
+  LoadedIssues,
   type Model,
   ProductsState,
   TriageCandidatesState,
@@ -70,7 +85,15 @@ export const destinationForModel = (model: Model): Destination =>
     M.tagsExhaustive({
       IssueList: () =>
         IssueListDestination.make({
-          state: model.issues,
+          state:
+            model.issues._tag === 'LoadedIssues'
+              ? LoadedIssues.make({
+                  issues: issuesForProductFilter(
+                    model.issues.issues,
+                    model.productFilter,
+                  ),
+                })
+              : model.issues,
         }),
       IssueDetail: ({ issueId }) =>
         IssueDetailDestination.make({
@@ -104,17 +127,64 @@ export const interactionsForModel = (
       IssueList: () => [
         interaction('file', 'File issue', ClickedFileIssue.make({})),
         interaction('triage', 'Open triage', ClickedOpenTriage.make({})),
-        ...Array.map(loadedIssues(model.issues), issue =>
-          interaction(
-            `open:${issue.id}`,
-            `Open ${issue.id}`,
-            SelectedIssue.make({ issueId: issue.id }),
+        interaction(
+          'product:all',
+          'All products',
+          SelectedProductFilter.make({ filter: AllProducts.make({}) }),
+        ),
+        ...(model.products._tag === 'LoadedProducts'
+          ? Array.map(model.products.products, entry =>
+              interaction(
+                `product:${entry.product.id}`,
+                entry.product.name,
+                SelectedProductFilter.make({
+                  filter: OneProduct.make({ productId: entry.product.id }),
+                }),
+              ),
+            )
+          : []),
+        ...Array.map(
+          issuesForProductFilter(
+            loadedIssues(model.issues),
+            model.productFilter,
           ),
+          issue =>
+            interaction(
+              `open:${issue.id}`,
+              `Open ${issue.id}`,
+              SelectedIssue.make({ issueId: issue.id }),
+            ),
         ),
       ],
-      IssueDetail: () => [
-        interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
-      ],
+      IssueDetail: () => {
+        const leftover: Array<Interaction> = []
+        if (
+          model.issueDetail._tag === 'LoadedIssue' &&
+          Option.isSome(model.issueDetail.issue)
+        ) {
+          const issue = model.issueDetail.issue.value
+          leftover.push(
+            ...Array.map(leftoverStatusesForIssue(issue.id), status =>
+              interaction(
+                `status:${status}`,
+                status,
+                ClickedLeftoverStatus.make({ issueId: issue.id, status }),
+              ),
+            ),
+            ...Array.map(catalogIssueRefsOf(issue), ref =>
+              interaction(
+                `open:${ref.id}`,
+                `Open ${ref.id}`,
+                SelectedIssue.make({ issueId: ref.id }),
+              ),
+            ),
+          )
+        }
+        return [
+          interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
+          ...leftover,
+        ]
+      },
       FileIssue: () => [
         interaction('submit', 'Submit issue', SubmittedIssue.make({})),
         interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
@@ -159,3 +229,77 @@ export const messageForInteractionToken = (
     ),
     candidate => candidate.message,
   )
+
+/** Resolves a screen or CLI token, including leftover comment/link prefixes. */
+export const messageForScreenToken = (
+  model: Model,
+  token: string,
+): Option.Option<Message> => {
+  const known = messageForInteractionToken(model, token)
+  if (Option.isSome(known)) {
+    return known
+  }
+  if (model.navigation._tag === 'IssueList') {
+    if (token === 'product:all') {
+      return Option.some(
+        SelectedProductFilter.make({ filter: AllProducts.make({}) }),
+      )
+    }
+    if (token.startsWith('product:')) {
+      return Option.some(
+        SelectedProductFilter.make({
+          filter: OneProduct.make({
+            productId: token.slice('product:'.length),
+          }),
+        }),
+      )
+    }
+    return Option.none()
+  }
+  if (model.navigation._tag !== 'IssueDetail') {
+    return Option.none()
+  }
+  const issueId = model.navigation.issueId
+  if (token.startsWith('retarget:')) {
+    return Option.some(
+      RetargetedIssueProduct.make({
+        issueId,
+        productId: token.slice('retarget:'.length),
+      }),
+    )
+  }
+  if (token.startsWith('log:')) {
+    return Option.some(
+      AppendedIssueWorkLog.make({
+        summary: token.slice('log:'.length),
+      }),
+    )
+  }
+  if (token.startsWith('comment:')) {
+    return Option.some(
+      SubmittedIssueComment.make({
+        issueId,
+        summary: token.slice('comment:'.length),
+      }),
+    )
+  }
+  if (token.startsWith('link:')) {
+    return Option.some(
+      LinkedCatalogIssue.make({
+        sourceIssueId: issueId,
+        targetIssueId: token.slice('link:'.length),
+      }),
+    )
+  }
+  if (token.startsWith('status:')) {
+    return Option.map(
+      S.decodeUnknownOption(LeftoverStatus)(token.slice('status:'.length)),
+      status =>
+        ClickedLeftoverStatus.make({
+          issueId,
+          status,
+        }),
+    )
+  }
+  return Option.none()
+}

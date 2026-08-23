@@ -43,7 +43,6 @@ describe('paintTui', () => {
   it('hides reset from the screen window at 0', () => {
     const window = stripAnsi(renderCounterScreenWindow(readyCounter(0)))
 
-    expect(window).toContain('Foldkit - TUI screen Counter')
     expect(window).toContain('0')
     expect(window).toContain('[+] increment')
     expect(window).toContain('[-] decrement')

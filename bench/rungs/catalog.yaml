@@ -1,0 +1,20 @@
+rungs:
+  - id: A
+    title: Build a counter
+    status: live
+    file: a.build-a-counter.yaml
+  - id: B
+    title: list of counters, increment from list or detail, count stays in sync
+    status: stub
+  - id: C
+    title: remove a counter from detail or list
+    status: stub
+  - id: D
+    title: login where logged-in devices share count lists and sync realtime
+    status: stub
+  - id: E
+    title: offline adjustments consolidate when back online
+    status: stub
+  - id: F
+    title: mobile
+    status: stub

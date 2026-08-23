@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+
+.fk-text-link {
+  color: inherit;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}

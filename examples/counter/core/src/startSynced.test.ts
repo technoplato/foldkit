@@ -1,3 +1,4 @@
+import { Effect } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
@@ -7,6 +8,13 @@ import {
   startSyncedCounterHandle,
   waitForSyncedHandle,
 } from './startSynced.js'
+
+const hangingInstantEngine = (): Runtime.SyncEngine => ({
+  processor: 'cli',
+  read: () => Effect.never,
+  subscribe: () => Effect.never,
+  write: () => Effect.succeed({ link: 'offline' }),
+})
 
 describe('startSyncedCounterHandle', () => {
   it('boots Memory to Ready and adds one', async () => {
@@ -43,6 +51,21 @@ describe('startSyncedCounterHandle', () => {
     })
     handle.stop()
   })
+
+  it('fail-closes Instant hang to Ready', async () => {
+    const handle = startSyncedCounterHandle(hangingInstantEngine())
+    try {
+      expect(handle.readModel()._tag).toBe('Starting')
+      const ready = await waitForSyncedHandle(handle, 10_000)
+      expect(ready).toEqual({
+        _tag: 'Ready',
+        product: { count: 0 },
+        actionMenu: { _tag: 'Closed' },
+      })
+    } finally {
+      await handle.stop()
+    }
+  }, 15_000)
 
   it('Failed on boot read keeps describeSyncError free of the tag', async () => {
     const engine = Runtime.Memory({ processor: Processor.Host.Cli() })

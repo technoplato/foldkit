@@ -7,6 +7,8 @@ import {
 } from '@foldkit/instant-tools/issues'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { LeftoverKind, ProductFilter } from './leftover.js'
+
 /** The live collection has not emitted its first snapshot. */
 export const LoadingIssues = S.TaggedStruct('LoadingIssues', {})
 /** The live collection emitted its latest snapshot. */
@@ -138,6 +140,7 @@ export type Navigation = typeof Navigation.Type
 /** The editable fields required to file one Issue. */
 export const IssueDraft = S.Struct({
   details: S.String,
+  leftoverKind: S.Option(LeftoverKind),
   priority: Issue.fields.priority,
   productId: S.String,
   title: S.String,
@@ -162,14 +165,33 @@ export const IssueDraftState = S.Union([
 /** Every filing state. */
 export type IssueDraftState = typeof IssueDraftState.Type
 
+/** No leftover mutation is in flight. */
+export const IdleIssueMutation = S.TaggedStruct('IdleIssueMutation', {})
+/** A leftover comment, link, or status save is in flight. */
+export const SavingIssueMutation = S.TaggedStruct('SavingIssueMutation', {})
+/** A leftover mutation failed. */
+export const FailedIssueMutation = S.TaggedStruct('FailedIssueMutation', {
+  reason: S.String,
+})
+/** Every leftover mutation phase. */
+export const IssueMutationState = S.Union([
+  IdleIssueMutation,
+  SavingIssueMutation,
+  FailedIssueMutation,
+])
+/** Every leftover mutation phase. */
+export type IssueMutationState = typeof IssueMutationState.Type
+
 /** The shared renderer-independent Issue Tracker Model. */
 export const Model = S.Struct({
   draft: IssueDraft,
   draftState: IssueDraftState,
   issueDetail: IssueDetailState,
   issueLogs: IssueLogsState,
+  issueMutation: IssueMutationState,
   issues: IssuesState,
   navigation: Navigation,
+  productFilter: ProductFilter,
   products: ProductsState,
   triageCandidates: TriageCandidatesState,
 })

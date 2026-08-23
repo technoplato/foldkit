@@ -6,6 +6,7 @@ import {
   type SnapshotLogTransport,
   type SyncedCounterHandle,
   countOfReady,
+  counterScreen,
   describeCounterSyncError,
   startLiveCounter,
 } from 'counter-core-example'
@@ -21,6 +22,7 @@ import {
   Stream,
 } from 'effect'
 import { Processor, Program } from 'foldkit'
+import { renderScreen } from 'foldkit/renderers'
 
 import {
   FoldkitCounterV01,
@@ -271,12 +273,16 @@ export const formatHeadlessStatus = (
       Ready: ready => {
         const count = countOfReady(ready)
         const detail = count === undefined ? '(none)' : count.toString()
-        return formatStatusRow(
+        const status = formatStatusRow(
           'count',
           detail,
           absentCell,
           statusTimeCell(options),
         )
+        if (count === undefined) {
+          return status
+        }
+        return [status, renderScreen(counterScreen(ready.product))].join('\n')
       },
     }),
   )

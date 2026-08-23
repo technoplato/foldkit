@@ -1,0 +1,28 @@
+{
+  "name": "puzzle-svelte-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "../scripts/with-puzzle-v01-env ./scripts/with-public-instant-env vite --port 5211 --strictPort",
+    "predev": "pnpm --filter puzzle-core-example build",
+    "pretest": "pnpm --filter puzzle-core-example build",
+    "pretypecheck": "pnpm --filter puzzle-core-example build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "puzzle-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "svelte": "^5.38.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.1.0",
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}

@@ -1,0 +1,8 @@
+#!/bin/zsh
+set -euo pipefail
+
+cd /Users/laptop/Development/foldkit
+
+export __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=settings.knophy.com
+
+exec /bin/zsh -lic 'set -a; source /Users/laptop/.config/foldkit-instant-demo/instant.env; set +a; unset INSTANT_CLI_AUTH_TOKEN; pnpm --filter settings-core-example build && pnpm --filter settings-foldkit-example build && pnpm --filter settings-foldkit-example exec vite preview --host 127.0.0.1 --port 5216 --strictPort'

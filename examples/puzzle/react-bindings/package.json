@@ -1,0 +1,46 @@
+{
+  "name": "puzzle-react-bindings-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "prebuild": "pnpm --filter @foldkit/react build && pnpm --filter puzzle-core-example build && pnpm --filter shared-react-bindings-example build",
+    "pretest": "pnpm run build",
+    "pretypecheck": "pnpm --filter @foldkit/react build && pnpm --filter puzzle-core-example build && pnpm --filter shared-react-bindings-example build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/react": "workspace:*",
+    "puzzle-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "shared-react-bindings-example": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=19.2.3 <20"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

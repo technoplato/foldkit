@@ -1,0 +1,19 @@
+{
+  "model": "xai/grok-4.6",
+  "temperature": 0,
+  "maxOutputTokens": 8192,
+  "topP": 1,
+  "topK": 0,
+  "presencePenalty": 0,
+  "frequencyPenalty": 0,
+  "stopSequences": [],
+  "seed": 0,
+  "reasoning": "provider-default",
+  "maxRetries": 0,
+  "timeout": {
+    "totalMs": 180000,
+    "stepMs": 8000
+  },
+  "headers": {},
+  "providerOptions": {}
+}

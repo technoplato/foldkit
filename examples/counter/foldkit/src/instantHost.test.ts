@@ -53,6 +53,8 @@ describe('Counter Foldkit Instant host chrome', () => {
     const viewSource = readFileSync('src/view.ts', 'utf8')
     expect(viewSource).toContain('paintHtml')
     expect(viewSource).toContain('App.screen')
+    expect(viewSource).toContain('paintHtml(screen')
+    expect(viewSource).not.toContain('counterScreen(model.product)')
     expect(viewSource).not.toContain('@instantdb')
     expect(viewSource).not.toContain('@foldkit/instant')
     expect(viewSource).not.toContain('store.send')

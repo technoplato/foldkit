@@ -1,0 +1,32 @@
+{
+  "name": "puzzle-opentui-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "foldkit-puzzle-opentui": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "puzzle-opentui": "bun src/entry.ts",
+    "puzzle-opentui:instant": "../scripts/with-puzzle-v01-env bun src/entry.ts",
+    "prebuild": "pnpm --filter puzzle-core-example build",
+    "pretypecheck": "pnpm --filter puzzle-core-example build",
+    "test": "pnpm run build && bun test src/",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.5.4",
+    "puzzle-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.4",
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,5 +1,5 @@
-import { Layer, Schema as S } from 'effect'
-import { Processor } from 'foldkit'
+import { Effect, Layer, Schema as S } from 'effect'
+import { Processor, Runtime } from 'foldkit'
 
 import {
   FoldkitCounterV01,
@@ -40,11 +40,35 @@ export type StartLiveCounterOptions = Readonly<{
   transport?: SnapshotLogTransport
 }>
 
+const browserInstantEngine = (
+  processor: Processor.Host.Host,
+  options?: StartLiveCounterOptions,
+): Runtime.SyncEngine => {
+  const engine = Instant({
+    app: FoldkitCounterV01,
+    processor,
+    ...options,
+  })
+  if (options?.transport !== undefined) {
+    return engine
+  }
+  return {
+    processor: engine.processor,
+    read: () => Effect.succeed({ snapshot: undefined, messages: [] }),
+    subscribe: enqueue =>
+      engine.subscribe(enqueue).pipe(Effect.forkScoped, Effect.asVoid),
+    write: engine.write,
+  }
+}
+
 /**
  * Browser Instant Layer. Caller supplies Host.
  *
- * Instant() opens the browser Instant core. COUNTER_TAPE=memory
- * selects Memory. Pass database only from a native Instant Layer.
+ * Instant() opens the browser Instant core. Boot does not wait for
+ * Instant `queryOnce` or the first subscribe event. Runtime.start
+ * Ready-paints from Program init, then subscribe can catch up.
+ * COUNTER_TAPE=memory selects Memory.
+ * Pass database only from a native Instant Layer.
  */
 export const BrowserLive = (
   processor: Processor.Host.Host,
@@ -54,11 +78,7 @@ export const BrowserLive = (
     if (isMemoryTape()) {
       return memorySyncedEngine(processor)
     }
-    return Instant({
-      app: FoldkitCounterV01,
-      processor,
-      ...options,
-    })
+    return browserInstantEngine(processor, options)
   })
 
 /**

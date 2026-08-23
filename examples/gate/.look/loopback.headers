@@ -1,0 +1,9 @@
+HTTP/1.1 200 OK
+Cache-Control: no-cache
+Content-Type: text/html
+Date: Sun, 23 Aug 2026 12:06:16 GMT
+Etag: W/"1ce-xaL0YsA4ihvHpTVkJ9T4pEOOMr4"
+Vary: Origin
+Via: 1.1 Caddy
+Transfer-Encoding: chunked
+

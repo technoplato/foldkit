@@ -1,4 +1,4 @@
-import { Path, surfaceFor } from 'counter-core-example'
+import { Path } from 'counter-core-example'
 import {
   ActionMenuOverlay,
   useActionMenu,
@@ -10,8 +10,6 @@ import {
   sendScreenToken,
   useScreen,
 } from '@foldkit/react'
-
-import { HostHeader } from './hostHeader.js'
 
 const classNames: PaintClassNames = {
   Button:
@@ -27,7 +25,6 @@ export const ScreenApp = () => {
   const { menu, rows, empty, maybeChosen, dismiss, select } = useActionMenu()
   return (
     <main className="min-h-screen bg-white flex flex-col items-center justify-center gap-6 p-6">
-      <HostHeader {...surfaceFor('react-screen')} />
       {paintReact(screen, sendScreenToken, classNames)}
       <ActionMenuOverlay
         empty={empty}

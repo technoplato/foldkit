@@ -48,7 +48,6 @@ describe('Counter TUI', () => {
   it('prints computer chrome around the product tree and hides reset at 0', () => {
     const screen = renderCounterScreen(readyCounter(0))
 
-    expect(screen).toContain('Foldkit - TUI Counter')
     expect(screen).toContain('/counter')
     expect(screen).toContain('0')
     expect(screen).toContain('[ + ]')

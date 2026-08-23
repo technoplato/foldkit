@@ -1,0 +1,17 @@
+{
+  "name": "gate-svelte-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "foldkit": "workspace:*",
+    "gate-core-example": "workspace:*",
+    "svelte": "^5.38.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

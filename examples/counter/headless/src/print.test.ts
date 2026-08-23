@@ -170,9 +170,12 @@ describe('Counter headless printer', () => {
       nowMs: createdAtMs,
       timeZone: 'America/New_York',
     }
-    expect(formatHeadlessStatus(readyCounter(3), time)).toBe(
+    const status = formatHeadlessStatus(readyCounter(3), time)
+    expect(status.split('\n')[0]).toBe(
       'count       3          ·             1:52:44 PM',
     )
+    expect(status).toContain('[ + ]')
+    expect(status).toContain('[ reset ]')
     expect(
       formatHeadlessMessage(
         {

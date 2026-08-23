@@ -8,6 +8,13 @@ export {
   TextInput,
 } from './elements.js'
 export { Host } from './host.js'
+export { padOf } from './pad.js'
+export type {
+  MobilePad,
+  PadAction,
+  PressableButton,
+  PressableKey,
+} from './pad.js'
 export { buttonsOf, textsOf } from './query.js'
 export { renderAscii, renderScreen } from './render.js'
 export type {

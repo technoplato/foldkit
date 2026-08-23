@@ -1,0 +1,50 @@
+name: A
+title: Build a counter
+status: live
+proofHost: https://counter.knophy.com
+mirrorHost: https://counter-mobile.knophy.com
+asserts:
+  - name: countVisible
+    assertVisible:
+      - .counter-screen
+      - .fk-text
+      - '+'
+      - '-'
+    assertNotVisible:
+      - Starting Instant
+    when: after paint
+    why: Number is visible on the painted Counter page
+  - name: incrementRaises
+    tapOn: '+'
+    when: count is visible
+    why: Plus raises the visible count by 1
+  - name: decrementLowers
+    tapOn: '-'
+    when: count is visible
+    why: Minus lowers the visible count by 1
+  - name: instantSettlesLive
+    assertNotVisible:
+      - Starting Instant
+    when: Instant snapshot arrives, not after the 8s Memory fallback
+    why: Live Instant snapshot, not fail-closed Memory readyCounter(0)
+  - name: offlineWorks
+    tapOn: '+'
+    when: painted Counter with network offline
+    why: Painted Counter still increments with the network offline
+  - name: actionMenuAbstraction
+    tapOn: '?'
+    assertVisible:
+      - Actions
+    when: after cmd-K or ?
+    why: Action menu abstraction is on screen
+  - name: sameScreenMirrored
+    assertVisible:
+      - .fk-text
+      - '+'
+      - '-'
+    when: counter-mobile is already painted
+    why: Already-painted hosts show the same counterScreen
+  - name: globalSync
+    tapOn: '+'
+    when: two contexts on the proof host
+    why: Shared Instant count, not per-user login

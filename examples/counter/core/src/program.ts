@@ -44,7 +44,7 @@ export const counterScreen: Program.ProgramScreen<Model> = (
 
 /**
  * The canonical renderer-free Counter Program shared by every client.
- * Host titles and descriptions live in `hostSurface.ts` on this Program.
+ * Clients paint this screen. Host titles live in `hostSurface.ts` for tab titles.
  */
 export const CounterProgram: Program.Program<Model, Message> &
   Readonly<{ actionByToken: typeof actionByToken }> = Object.assign(

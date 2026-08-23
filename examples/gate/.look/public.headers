@@ -1,0 +1,15 @@
+HTTP/2 302 
+date: Sun, 23 Aug 2026 12:06:16 GMT
+content-type: text/html; charset=UTF-8
+location: https://chimaeramedia.cloudflareaccess.com/cdn-cgi/access/login/gate.knophy.com?kid=9784de8709504913105ad37feaeab9dcc162f683a515d083474adc9e113ca924&meta=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImVjZGQzMTFjOTNkNjg4ZDAyZmJhMjVjM2QzOWJmMjA0Mjc4MGQwNjk2NGZlMWJlMWQwNGNmMTIyOTQwZTBhN2YifQ.eyJ0eXBlIjoibWV0YSIsImF1ZCI6Ijk3ODRkZTg3MDk1MDQ5MTMxMDVhZDM3ZmVhZWFiOWRjYzE2MmY2ODNhNTE1ZDA4MzQ3NGFkYzllMTEzY2E5MjQiLCJob3N0bmFtZSI6ImdhdGUua25vcGh5LmNvbSIsInJlZGlyZWN0X3VybCI6Ii8iLCJzZXJ2aWNlX3Rva2VuX3N0YXR1cyI6ZmFsc2UsImlzX3dhcnAiOmZhbHNlLCJpc19nYXRld2F5IjpmYWxzZSwiZXhwIjoxNzg3NDg3MDc2LCJuYmYiOjE3ODc0ODY3NzYsImlhdCI6MTc4NzQ4Njc3NiwiYXV0aF9zdGF0dXMiOiJOT05FIiwibXRsc19hdXRoIjp7ImNlcnRfaXNzdWVyX2RuIjoiIiwiY2VydF9zZXJpYWwiOiIiLCJjZXJ0X2lzc3Vlcl9za2kiOiIiLCJjZXJ0X3ByZXNlbnRlZCI6ZmFsc2UsImNvbW1vbl9uYW1lIjoiIiwiYXV0aF9zdGF0dXMiOiJOT05FIn0sInJlYWxfY291bnRyeSI6IlVTIiwiYXBwX3Nlc3Npb25faGFzaCI6IjgwYTBiZjhiZDBjMjZjZjJiNzczYTdkM2Y5ZDhmZGRjMTdkOTA4MDk0ZTcyOTE0YTRiZGQxZGJkNzQ3Nzk0ZWEifQ.LBR5bS5xdVsIHaM9979ebJHyTWDVAF9jKwMqGvdBwr_URljHIn-mC6bbnKbLRetm-A4Bip5yCvoYLPIz7oCL57BCCuRawJaiu9PwqM_D4o-Y7qH6R4OwkQ28CfyuADyY8L99IzSsORlJa-Yo6HtaxAGen3rjSKjWjm9xq1j-5X5Ct4s7RlGw4Yf5BXvelF2Zv-aMcgszu2ETzaRUHA127nWORvTMJ5uWaxqp5Dqf2Gpf9xLVN4C2kC14xMYtL70UaF8MdWpP5CjUrdpa8hUrDUzqjdqukjEVHeO6YPsEQBjkbti6ijZx-jFv422YcE5LHifI3sRr7V2eAr1G7fy-pQ&redirect_url=%2F
+www-authenticate: Cloudflare-Access resource_metadata="https://gate.knophy.com/.well-known/cloudflare-access-protected-resource/"
+access-control-allow-credentials: true
+expires: Thu, 01 Jan 1970 00:00:01 GMT
+cache-control: private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0
+set-cookie: CF_AppSession=208181728a3844bc; Expires=Mon, 24 Aug 2026 12:06:16 GMT; Path=/; Secure; HttpOnly
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=RqyKNvH6CgvmfZ7oHJL53SbIGdGdG7hfT06zkJFm%2FKPT%2Fkz5%2BF8bXXxlef2KPYGr7%2FZ2JQjSRiiZDuwYrh8BAbezGjALkXGHbFAw%2ByFYKKpnWRZ3b0vkDwzG31CEvmUHEBg9kCc0l9%2FVAJcxUc4%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a2f9fd7f1b27d7b3-MIA
+alt-svc: h3=":443"; ma=86400
+

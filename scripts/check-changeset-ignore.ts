@@ -10,6 +10,9 @@ const PUBLISHABLE_PACKAGES = [
   '@foldkit/devtools-mcp',
   '@foldkit/oxlint-plugin',
   '@foldkit/markdown',
+  '@foldkit/react',
+  '@foldkit/instant',
+  '@foldkit/instant-tools',
 ]
 
 interface PnpmListEntry {

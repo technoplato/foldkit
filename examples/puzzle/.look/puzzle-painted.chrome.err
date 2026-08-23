@@ -1,0 +1,5 @@
+Trying to load the allocator multiple times. This is *not* supported.
+[35370:14347677:0823/001322.175816:ERROR:base/process/process_mac.cc:53] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)
+[35370:14347677:0823/001322.181655:ERROR:base/process/process_mac.cc:98] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)
+[35370:14347677:0823/001322.186142:ERROR:base/process/process_mac.cc:53] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)
+[35370:14347677:0823/001322.186180:ERROR:base/process/process_mac.cc:98] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)

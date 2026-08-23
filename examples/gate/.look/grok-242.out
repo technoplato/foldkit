@@ -1,0 +1,5 @@
+I'll inspect the gate product Read only: live GET of `https://gate.grok.me`, no `/origin` sample, no invented quotas. No edits unless a listed defect is real.Source matches the locked live Read so far. Next I’ll read origin, Vite, and product wiring to confirm there is no fake `/origin` sample.Product Layer looks live. I’ll confirm `product.ts`, other Vite configs, and live HTTP so I don’t edit unless a listed defect is real.I’ll curl the live origin and preview `/origin` (inspect only) to confirm the product Read is a real GET, not a sample route.originUrl: `https://gate.grok.me`
+/origin sample exists: no
+changed files: none
+5212 bounced: no
+leftover 242: Product Read is a live HttpClient GET of `https://gate.grok.me`; leftover is that origin’s Cloudflare HTTP 502 (`error code: 502`), which the Layer maps to BadGateway (failed fetch to Unreachable).

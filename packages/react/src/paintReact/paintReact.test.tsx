@@ -50,4 +50,11 @@ describe('paintReact', () => {
     render(paintReact(Text('hello'), vi.fn(), { Text: 'text-7xl' }))
     expect(screen.getByText('hello').className).toBe('fk-text text-7xl')
   })
+
+  it('paints Text href as a link', () => {
+    const href = 'https://puzzle.knophy.com'
+    render(paintReact(Text(href, { href }), vi.fn()))
+    const link = screen.getByRole('link', { name: href })
+    expect(link.getAttribute('href')).toBe(href)
+  })
 })

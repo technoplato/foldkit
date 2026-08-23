@@ -20,6 +20,31 @@ const counterCoreBrowserEntry = path.resolve(
   'counter/core/src/index.browser.ts',
 )
 
+const puzzleCoreBrowserEntry = path.resolve(
+  import.meta.dirname,
+  'puzzle/core/src/index.browser.ts',
+)
+
+const songbookCoreEntry = path.resolve(
+  import.meta.dirname,
+  'songbook/core/src/index.ts',
+)
+
+const ingestCoreEntry = path.resolve(
+  import.meta.dirname,
+  'ingest/core/src/index.ts',
+)
+
+const casinoCoreEntry = path.resolve(
+  import.meta.dirname,
+  'casino/core/src/index.ts',
+)
+
+const settingsCoreEntry = path.resolve(
+  import.meta.dirname,
+  'settings/core/src/index.ts',
+)
+
 /**
  * Vite aliases that keep Node Instant stores out of browser bundles.
  * A package-root file alias does not match `@foldkit/instant/browser`.
@@ -31,6 +56,11 @@ export const instantBrowserAlias = {
   '@foldkit/instant/snapshot-log': instantSnapshotLogEntry,
   '@foldkit/instant': instantBrowserEntry,
   'counter-core-example': counterCoreBrowserEntry,
+  'puzzle-core-example': puzzleCoreBrowserEntry,
+  'songbook-core-example': songbookCoreEntry,
+  'ingest-core-example': ingestCoreEntry,
+  'casino-core-example': casinoCoreEntry,
+  'settings-core-example': settingsCoreEntry,
 }
 
 /** Vite resolve aliases that point foldkit subpath imports at the local source. */

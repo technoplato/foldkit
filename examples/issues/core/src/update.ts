@@ -1,11 +1,17 @@
-import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
+import { Array, Clock, Effect, Match as M, Option, Schema as S } from 'effect'
 import { Command } from 'foldkit'
 
 import {
+  AgentReference,
+  ApplicationProduct,
+  CatalogIssueReference,
   Issue,
   IssueMention,
+  IssueQuery,
   IssueTracker,
+  IssueWorkLogEntry,
   ProductCatalog,
+  ProductCatalogEntry,
   RecordingMention,
   RecordingReference,
   TrackedProduct,
@@ -17,21 +23,31 @@ import { Logger } from '@foldkit/instant-tools/logging'
 
 import { IssueIdentity } from './issueIdentity.js'
 import {
+  LeftoverStatus,
+  catalogIssueRefsOf,
+  leftoverMayClose,
+  storedStatusOf,
+} from './leftover.js'
+import {
   FailedReviewTriageCandidate,
   FailedSaveIssue,
+  FailedSaveIssueWorkLog,
   type Message,
   SucceededReviewTriageCandidate,
   SucceededSaveIssue,
+  SucceededSaveIssueWorkLog,
 } from './message.js'
 import {
   EditingIssueDraft,
   FailedIssue,
   FailedIssueDraft,
   FailedIssueLogs,
+  FailedIssueMutation,
   FailedIssues,
   FailedProducts,
   FailedTriageCandidates,
   FileIssue,
+  IdleIssueMutation,
   IssueDetail,
   IssueDraft,
   IssueList,
@@ -47,6 +63,7 @@ import {
   NotObservingIssue,
   NotObservingIssueLogs,
   SavingIssueDraft,
+  SavingIssueMutation,
   TriageInbox,
 } from './model.js'
 
@@ -184,6 +201,236 @@ export const ReviewTriageCandidate = Command.define(
   ),
 )
 
+const COMMENT_AGENT_ID = 'issues-245-grok'
+const WORK_LOG_AGENT_ID = 'issues-245-grok'
+const ISSUE_QUERY_LIMIT = 500
+
+const loadTrackedIssue = (issueId: string) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const issues = yield* tracker.fetch(
+      IssueQuery.make({
+        limit: ISSUE_QUERY_LIMIT,
+        productId: Option.none(),
+        projectId: Option.none(),
+        statuses: [],
+      }),
+    )
+    return Array.findFirst(issues, candidate => candidate.id === issueId)
+  })
+
+/** Persists one already-built Issue through the tracker. */
+export const PersistIssue = Command.define(
+  'PersistIssue',
+  { issue: Issue },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issue }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    yield* tracker.save(issue)
+    return SucceededSaveIssue.make({ issue })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: String(error) })),
+    ),
+  ),
+)
+
+/** Appends one IssueWorkLogEntry and persists the Issue. */
+export const CommentOnIssue = Command.define(
+  'CommentOnIssue',
+  { issueId: S.String, summary: S.String },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, summary }) =>
+  Effect.gen(function* () {
+    const identity = yield* IssueIdentity
+    const tracker = yield* IssueTracker
+    const maybeIssue = yield* loadTrackedIssue(issueId)
+    if (Option.isNone(maybeIssue)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${issueId} was not found.`,
+      })
+    }
+    const { nowMs } = yield* identity.next
+    const issue = maybeIssue.value
+    const next = Issue.make({
+      ...issue,
+      updatedAtMs: nowMs,
+      workLog: Array.append(
+        issue.workLog,
+        IssueWorkLogEntry.make({
+          agentId: Option.some(COMMENT_AGENT_ID),
+          commitSha: Option.none(),
+          durationSeconds: Option.none(),
+          id: `work-${issue.id}-${nowMs.toString()}`,
+          occurredAtMs: nowMs,
+          state: Option.none(),
+          summary,
+        }),
+      ),
+    })
+    yield* tracker.save(next)
+    return SucceededSaveIssue.make({ issue: next })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: String(error) })),
+    ),
+  ),
+)
+
+/** Appends one IssueWorkLogEntry without changing Issue.status. */
+export const SaveIssueWorkLog = Command.define(
+  'SaveIssueWorkLog',
+  { issue: Issue, summary: S.String },
+  SucceededSaveIssueWorkLog,
+  FailedSaveIssueWorkLog,
+)(({ issue, summary }) =>
+  Effect.gen(function* () {
+    const tracker = yield* IssueTracker
+    const nowMs = yield* Clock.currentTimeMillis
+    const next = Issue.make({
+      ...issue,
+      updatedAtMs: nowMs,
+      workLog: Array.append(
+        issue.workLog,
+        IssueWorkLogEntry.make({
+          agentId: Option.some(WORK_LOG_AGENT_ID),
+          commitSha: Option.none(),
+          durationSeconds: Option.none(),
+          id: `work-${issue.id}-${nowMs.toString()}`,
+          occurredAtMs: nowMs,
+          state: Option.none(),
+          summary,
+        }),
+      ),
+    })
+    yield* tracker.save(next)
+    return SucceededSaveIssueWorkLog.make({ issue: next })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssueWorkLog.make({ reason: String(error) })),
+    ),
+  ),
+)
+
+/** Adds one CatalogIssueReference on mentions.related and persists. */
+export const LinkCatalogIssue = Command.define(
+  'LinkCatalogIssue',
+  { sourceIssueId: S.String, targetIssueId: S.String },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ sourceIssueId, targetIssueId }) =>
+  Effect.gen(function* () {
+    const identity = yield* IssueIdentity
+    const tracker = yield* IssueTracker
+    const maybeIssue = yield* loadTrackedIssue(sourceIssueId)
+    if (Option.isNone(maybeIssue)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${sourceIssueId} was not found.`,
+      })
+    }
+    const issue = maybeIssue.value
+    const { nowMs } = yield* identity.next
+    const alreadyLinked = Array.some(
+      catalogIssueRefsOf(issue),
+      ref => ref.id === targetIssueId,
+    )
+    const next = alreadyLinked
+      ? issue
+      : Issue.make({
+          ...issue,
+          mentions: Array.append(
+            issue.mentions,
+            IssueMention.make({
+              capturedAtMs: nowMs,
+              directQuote: Option.none(),
+              id: `link-${issue.id}-${targetIssueId}`,
+              issueId: issue.id,
+              related: [CatalogIssueReference.make({ id: targetIssueId })],
+              reporter: Option.some(
+                AgentReference.make({ id: COMMENT_AGENT_ID }),
+              ),
+              source: AgentReference.make({ id: COMMENT_AGENT_ID }),
+            }),
+          ),
+          updatedAtMs: nowMs,
+        })
+    yield* tracker.save(next)
+    return SucceededSaveIssue.make({ issue: next })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: String(error) })),
+    ),
+  ),
+)
+
+/** Stores leftover status without shrinking the wide IssueStatus union. */
+export const SetLeftoverStatus = Command.define(
+  'SetLeftoverStatus',
+  {
+    issueId: S.String,
+    leftover: LeftoverStatus,
+  },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issueId, leftover }) =>
+  Effect.gen(function* () {
+    if (leftover === 'Closed' && !leftoverMayClose(issueId)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${issueId} cannot be Closed.`,
+      })
+    }
+    const identity = yield* IssueIdentity
+    const tracker = yield* IssueTracker
+    const maybeIssue = yield* loadTrackedIssue(issueId)
+    if (Option.isNone(maybeIssue)) {
+      return FailedSaveIssue.make({
+        reason: `Issue ${issueId} was not found.`,
+      })
+    }
+    const issue = maybeIssue.value
+    const { nowMs } = yield* identity.next
+    const next = Issue.make({
+      ...issue,
+      status: storedStatusOf(leftover),
+      updatedAtMs: nowMs,
+    })
+    yield* tracker.save(next)
+    return SucceededSaveIssue.make({ issue: next })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: String(error) })),
+    ),
+  ),
+)
+
+/** Moves one leftover onto another live catalog product without closing it. */
+export const RetargetIssueProduct = Command.define(
+  'RetargetIssueProduct',
+  { issue: Issue, product: TrackedProduct },
+  SucceededSaveIssue,
+  FailedSaveIssue,
+)(({ issue, product }) =>
+  Effect.gen(function* () {
+    const identity = yield* IssueIdentity
+    const tracker = yield* IssueTracker
+    const { nowMs } = yield* identity.next
+    const next = Issue.make({
+      ...issue,
+      product,
+      updatedAtMs: nowMs,
+    })
+    yield* tracker.save(next)
+    return SucceededSaveIssue.make({ issue: next })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedSaveIssue.make({ reason: String(error) })),
+    ),
+  ),
+)
+
 type Resources =
   | IssueTracker
   | Logger
@@ -198,6 +445,7 @@ type UpdateReturn = readonly [
 const withNavigation = (model: Model, navigation: Navigation): Model =>
   Model.make({
     ...model,
+    issueMutation: IdleIssueMutation.make({}),
     issueDetail:
       navigation._tag === 'IssueDetail'
         ? LoadingIssue.make({ issueId: navigation.issueId })
@@ -272,6 +520,42 @@ const updateDraft = (
   [],
 ]
 
+const casinoProduct = ProductCatalogEntry.make({
+  product: ApplicationProduct.make({ id: 'casino', name: 'Casino' }),
+  updatedAtMs: 1_753_800_000_000,
+})
+
+const productsFromIssues = (
+  issues: ReadonlyArray<typeof Issue.Type>,
+): ReadonlyArray<typeof ProductCatalogEntry.Type> => {
+  const seen = new Map<string, typeof ProductCatalogEntry.Type>()
+  for (const issue of issues) {
+    if (!seen.has(issue.product.id)) {
+      seen.set(
+        issue.product.id,
+        ProductCatalogEntry.make({
+          product: issue.product,
+          updatedAtMs: issue.updatedAtMs,
+        }),
+      )
+    }
+  }
+  return [...seen.values()]
+}
+
+const mergeCatalog = (
+  left: ReadonlyArray<typeof ProductCatalogEntry.Type>,
+  right: ReadonlyArray<typeof ProductCatalogEntry.Type>,
+): ReadonlyArray<typeof ProductCatalogEntry.Type> => {
+  const seen = new Map<string, typeof ProductCatalogEntry.Type>()
+  for (const entry of [...left, ...right, casinoProduct]) {
+    if (!seen.has(entry.product.id)) {
+      seen.set(entry.product.id, entry)
+    }
+  }
+  return [...seen.values()]
+}
+
 const reviewTriageCandidate = (
   model: Model,
   candidateId: string,
@@ -291,6 +575,45 @@ const reviewTriageCandidate = (
   ]
 }
 
+const patchIssues = (
+  state: typeof LoadedIssues.Type | Model['issues'],
+  issue: typeof Issue.Type,
+): Model['issues'] => {
+  if (state._tag !== 'LoadedIssues') {
+    return state
+  }
+  const exists = Array.some(state.issues, current => current.id === issue.id)
+  return LoadedIssues.make({
+    issues: exists
+      ? Array.map(state.issues, current =>
+          current.id === issue.id ? issue : current,
+        )
+      : Array.append(state.issues, issue),
+  })
+}
+
+const loadedDetailIssue = (
+  model: Model,
+  issueId: string,
+): Option.Option<typeof Issue.Type> => {
+  if (
+    model.navigation._tag !== 'IssueDetail' ||
+    model.navigation.issueId !== issueId ||
+    model.issueDetail._tag !== 'LoadedIssue'
+  ) {
+    return Option.none()
+  }
+  return model.issueDetail.issue
+}
+
+const startLeftoverCommand = (
+  model: Model,
+  command: Command.Command<Message, never, Resources>,
+): UpdateReturn => [
+  Model.make({ ...model, issueMutation: SavingIssueMutation.make({}) }),
+  [command],
+]
+
 /** Restores destination-specific observation state from a Model snapshot. */
 export const restore = (model: Model): UpdateReturn => [
   withNavigation(model, model.navigation),
@@ -304,10 +627,24 @@ export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
-      ObservedIssues: ({ issues }) => [
-        Model.make({ ...model, issues: LoadedIssues.make({ issues }) }),
-        [],
-      ],
+      ObservedIssues: ({ issues }) => {
+        const current =
+          model.products._tag === 'LoadedProducts'
+            ? model.products.products
+            : []
+        const merged = mergeCatalog(current, productsFromIssues(issues))
+        return [
+          Model.make({
+            ...model,
+            issues: LoadedIssues.make({ issues }),
+            products:
+              merged.length === 0
+                ? model.products
+                : LoadedProducts.make({ products: merged }),
+          }),
+          [],
+        ]
+      },
       FailedObserveIssues: ({ reason }) => [
         Model.make({ ...model, issues: FailedIssues.make({ reason }) }),
         [],
@@ -424,17 +761,54 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       SelectedIssuePriority: ({ priority }) =>
         updateDraft(model, draft => IssueDraft.make({ ...draft, priority })),
       SubmittedIssue: () => saveDraft(model),
-      SucceededSaveIssue: ({ issue }) => [
-        withNavigation(model, IssueDetail.make({ issueId: issue.id })),
-        [],
-      ],
-      FailedSaveIssue: ({ reason }) => [
-        Model.make({
-          ...model,
-          draftState: FailedIssueDraft.make({ reason }),
-        }),
-        [],
-      ],
+      SucceededSaveIssue: ({ issue }) => {
+        if (
+          model.navigation._tag === 'IssueDetail' &&
+          model.navigation.issueId === issue.id
+        ) {
+          return [
+            Model.make({
+              ...model,
+              issueDetail: LoadedIssue.make({
+                issue: Option.some(issue),
+                issueId: issue.id,
+              }),
+              issueMutation: IdleIssueMutation.make({}),
+              issues: patchIssues(model.issues, issue),
+            }),
+            [],
+          ]
+        }
+        return [
+          withNavigation(
+            Model.make({
+              ...model,
+              draftState: EditingIssueDraft.make({}),
+              issueMutation: IdleIssueMutation.make({}),
+              issues: patchIssues(model.issues, issue),
+            }),
+            IssueDetail.make({ issueId: issue.id }),
+          ),
+          [],
+        ]
+      },
+      FailedSaveIssue: ({ reason }) =>
+        model.navigation._tag === 'FileIssue'
+          ? [
+              Model.make({
+                ...model,
+                draftState: FailedIssueDraft.make({ reason }),
+                issueMutation: IdleIssueMutation.make({}),
+              }),
+              [],
+            ]
+          : [
+              Model.make({
+                ...model,
+                issueMutation: FailedIssueMutation.make({ reason }),
+              }),
+              [],
+            ],
       SucceededReviewTriageCandidate: ({ candidate, issue }) => {
         const nextCandidates =
           model.triageCandidates._tag === 'LoadedTriageCandidates'
@@ -466,6 +840,92 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
+      SubmittedIssueComment: ({ issueId, summary }) => {
+        if (summary.trim() === '') {
+          return [model, []]
+        }
+        return startLeftoverCommand(model, CommentOnIssue({ issueId, summary }))
+      },
+      AppendedIssueWorkLog: ({ summary }) => {
+        if (summary.trim() === '') {
+          return [model, []]
+        }
+        if (model.navigation._tag !== 'IssueDetail') {
+          return [model, []]
+        }
+        return Option.match(
+          loadedDetailIssue(model, model.navigation.issueId),
+          {
+            onNone: () => [model, []],
+            onSome: issue =>
+              startLeftoverCommand(model, SaveIssueWorkLog({ issue, summary })),
+          },
+        )
+      },
+      SucceededSaveIssueWorkLog: ({ issue }) => [
+        Model.make({
+          ...model,
+          issueDetail:
+            model.navigation._tag === 'IssueDetail' &&
+            model.navigation.issueId === issue.id
+              ? LoadedIssue.make({
+                  issue: Option.some(issue),
+                  issueId: issue.id,
+                })
+              : model.issueDetail,
+          issueMutation: IdleIssueMutation.make({}),
+          issues: patchIssues(model.issues, issue),
+        }),
+        [],
+      ],
+      FailedSaveIssueWorkLog: ({ reason }) => [
+        Model.make({
+          ...model,
+          issueMutation: FailedIssueMutation.make({ reason }),
+        }),
+        [],
+      ],
+      LinkedCatalogIssue: ({ sourceIssueId, targetIssueId }) => {
+        if (targetIssueId.trim() === '' || targetIssueId === sourceIssueId) {
+          return [model, []]
+        }
+        return startLeftoverCommand(
+          model,
+          LinkCatalogIssue({ sourceIssueId, targetIssueId }),
+        )
+      },
+      ClickedLeftoverStatus: ({ issueId, status }) =>
+        startLeftoverCommand(
+          model,
+          SetLeftoverStatus({ issueId, leftover: status }),
+        ),
+      SelectedProductFilter: ({ filter }) => [
+        Model.make({ ...model, productFilter: filter }),
+        [],
+      ],
+      RetargetedIssueProduct: ({ issueId, productId }) => {
+        if (model.products._tag !== 'LoadedProducts') {
+          return [model, []]
+        }
+        const maybeProduct = Array.findFirst(
+          model.products.products,
+          entry => entry.product.id === productId,
+        )
+        if (Option.isNone(maybeProduct)) {
+          return [model, []]
+        }
+        return Option.match(loadedDetailIssue(model, issueId), {
+          onNone: () => [model, []],
+          onSome: issue =>
+            startLeftoverCommand(
+              model,
+              RetargetIssueProduct({
+                issue,
+                product: maybeProduct.value.product,
+              }),
+            ),
+        })
+      },
       OpenedNavigation: ({ navigation }) => [
         withNavigation(model, navigation),
         [],

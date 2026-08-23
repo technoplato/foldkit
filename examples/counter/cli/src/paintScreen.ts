@@ -3,8 +3,6 @@ import {
   type Model,
   actionByToken,
   counterScreen,
-  formatHostChrome,
-  surfaceFor,
   tokenOf,
 } from 'counter-core-example'
 import { Array, Option } from 'effect'
@@ -30,13 +28,7 @@ export const paintCounterCli = (model: Model): CliPainting =>
   })
 
 const showStdout = (painting: CliPainting): string =>
-  [
-    formatHostChrome(surfaceFor('cli-screen')),
-    '',
-    painting.screen,
-    '',
-    painting.usage,
-  ].join('\n')
+  [painting.screen, '', painting.usage].join('\n')
 
 const hiddenSentence = (action: Action, model: Model): string => {
   if (action.hiddenBecause === undefined) {

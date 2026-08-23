@@ -1,0 +1,35 @@
+{
+  "name": "puzzle-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "../scripts/with-puzzle-v01-env ./scripts/with-public-instant-env vite --port 5209 --strictPort",
+    "prebuild": "pnpm --filter puzzle-core-example build",
+    "predev": "pnpm --filter puzzle-core-example build",
+    "pretest": "pnpm --filter puzzle-core-example build",
+    "pretypecheck": "pnpm --filter puzzle-core-example build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.97",
+    "@foldkit/devtools": "workspace:*",
+    "@foldkit/ui": "workspace:*",
+    "@tailwindcss/vite": "^4.3.1",
+    "puzzle-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "happy-dom": "^20.10.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}
