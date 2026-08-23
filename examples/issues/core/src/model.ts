@@ -190,6 +190,8 @@ export const Model = S.Struct({
   issueLogs: IssueLogsState,
   issueMutation: IssueMutationState,
   issues: IssuesState,
+  leftoverComment: S.String,
+  leftoverLink: S.String,
   navigation: Navigation,
   productFilter: ProductFilter,
   products: ProductsState,

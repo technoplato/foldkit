@@ -28,11 +28,48 @@ export const hostedIdentityOriginEnvNames = [
   'EXPO_PUBLIC_HOSTED_IDENTITY_ORIGIN',
 ] as const
 
+/** Default wait for Instant getAuth before fail-open. IndexedDB can hang. */
+export const hostedIdentityGetAuthTimeoutMs = 2_000
+
+/** Instant member minted on loopback when Access identity is absent. */
+export const hostedIdentityLoopbackEmail = 'loopback@knophy.com'
+
+/** Env name that overrides the loopback Instant mint email. */
+export const hostedIdentityLoopbackEmailEnvNames = [
+  'FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL',
+] as const
+
+/** True when a TCP remote address is this machine. */
+export const isLoopbackRemoteAddress = (
+  address: string | undefined,
+): boolean => {
+  if (address === undefined || address === '') {
+    return false
+  }
+  if (address === '127.0.0.1' || address === '::1') {
+    return true
+  }
+  return address.endsWith('127.0.0.1') && address.includes('ffff')
+}
+
+/** Instant email minted for loopback preview when Access is missing. */
+export const loopbackMintEmail = (
+  env: Readonly<Record<string, string | undefined>> = processEnv(undefined),
+): string => {
+  const fromEnv = firstNonEmpty(env, hostedIdentityLoopbackEmailEnvNames)
+  if (fromEnv === '') {
+    return hostedIdentityLoopbackEmail
+  } else {
+    return fromEnv
+  }
+}
+
 /** Client options for presenting Access to a hosted Instant mint. */
 export type HostedIdentityClientOptions = Readonly<{
   accessToken?: string
   env?: Readonly<Record<string, string | undefined>>
   fetch?: typeof fetch
+  getAuthTimeoutMs?: number
   sessionOrigin?: string
   sessionUrl?: string
 }>
@@ -383,11 +420,13 @@ const isMemberUser = (user: InstantAuthUser): boolean => {
 
 /**
  * Mints an Instant refresh token for the Access email on the session path.
+ * Loopback preview may pass fallbackEmail when Access identity is absent.
  * Returns undefined when the request is not the hosted-identity session route.
  */
 export const mintHostedInstantSession = async (
   input: Readonly<{
     createToken: (email: string) => Promise<string>
+    fallbackEmail?: string
     headers: Readonly<Record<string, string>>
     method: string
     url: string
@@ -404,17 +443,22 @@ export const mintHostedInstantSession = async (
     return { body: { error: 'MethodNotAllowed' }, status: 405 }
   }
   const maybeIdentity = accessIdentityFromHeaders(input.headers)
-  if (Option.isNone(maybeIdentity)) {
+  const fallbackEmail = input.fallbackEmail?.trim() ?? ''
+  const email = Option.match(maybeIdentity, {
+    onNone: () => (isUsableEmail(fallbackEmail) ? fallbackEmail : ''),
+    onSome: identity => identity.email,
+  })
+  if (email === '') {
     return { body: { error: 'MissingAccessIdentity' }, status: 401 }
   }
   try {
-    const token = await input.createToken(maybeIdentity.value.email)
+    const token = await input.createToken(email)
     if (token === '') {
       return { body: { error: 'MintUnavailable' }, status: 503 }
     }
     return {
       body: HostedInstantSession.make({
-        email: maybeIdentity.value.email,
+        email,
         token,
       }),
       status: 200,
@@ -437,21 +481,69 @@ const memberFromAuth = (
   }
 }
 
+const settleOrTimeout = (
+  work: Promise<unknown>,
+  timeoutMs: number,
+): Promise<void> =>
+  new Promise(resolve => {
+    let isSettled = false
+    const finish = () => {
+      if (isSettled) {
+        return
+      }
+      isSettled = true
+      globalThis.clearTimeout(timer)
+      resolve()
+    }
+    const timer = globalThis.setTimeout(finish, timeoutMs)
+    work.then(finish, finish)
+  })
+
+const getAuthOrNull = (
+  database: HostedInstantDatabase,
+  timeoutMs: number,
+): Promise<InstantAuthUser | null> =>
+  new Promise(resolve => {
+    let isSettled = false
+    const finish = (user: InstantAuthUser | null) => {
+      if (isSettled) {
+        return
+      }
+      isSettled = true
+      globalThis.clearTimeout(timer)
+      resolve(user)
+    }
+    const timer = globalThis.setTimeout(() => finish(null), timeoutMs)
+    database.getAuth().then(
+      user => finish(user),
+      () => finish(null),
+    )
+  })
+
+const memberFromDatabase = async (
+  database: HostedInstantDatabase,
+  timeoutMs: number,
+): Promise<InstantAuthUser | null> =>
+  memberFromAuth(await getAuthOrNull(database, timeoutMs))
+
 /**
  * Signs Instant in as the Access email when the origin mints a session.
  * Existing Instant members are reused. Missing Access identity is not an error.
+ * Instant getAuth and signInWithToken are bounded; a hang fail-opens so Client
+ * Layers can still build.
  */
 export const ensureHostedInstantSession = async (
   database: HostedInstantDatabase,
   options: HostedIdentityClientOptions = {},
 ): Promise<InstantAuthUser | null> => {
-  const existing = memberFromAuth(await database.getAuth())
+  const timeoutMs = options.getAuthTimeoutMs ?? hostedIdentityGetAuthTimeoutMs
+  const existing = await memberFromDatabase(database, timeoutMs)
   if (existing !== null) {
     return existing
   }
   const request = resolveHostedIdentityRequest(options)
   if (!request.shouldFetch) {
-    return memberFromAuth(await database.getAuth())
+    return memberFromDatabase(database, timeoutMs)
   }
   const runFetch = options.fetch ?? fetch
   try {
@@ -460,18 +552,21 @@ export const ensureHostedInstantSession = async (
       headers: request.headers,
     })
     if (!response.ok) {
-      return memberFromAuth(await database.getAuth())
+      return memberFromDatabase(database, timeoutMs)
     }
     const maybeSession = S.decodeUnknownOption(HostedInstantSession)(
       await response.json(),
     )
     if (Option.isNone(maybeSession)) {
-      return memberFromAuth(await database.getAuth())
+      return memberFromDatabase(database, timeoutMs)
     }
-    await database.auth.signInWithToken(maybeSession.value.token)
-    return memberFromAuth(await database.getAuth())
+    await settleOrTimeout(
+      database.auth.signInWithToken(maybeSession.value.token),
+      timeoutMs,
+    )
+    return memberFromDatabase(database, timeoutMs)
   } catch {
-    return memberFromAuth(await database.getAuth())
+    return memberFromDatabase(database, timeoutMs)
   }
 }
 

@@ -32,6 +32,8 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     issueLogs: NotObservingIssueLogs.make({}),
     issueMutation: IdleIssueMutation.make({}),
     issues: LoadingIssues.make({}),
+    leftoverComment: '',
+    leftoverLink: '',
     navigation,
     productFilter: AllProducts.make({}),
     products: LoadingProducts.make({}),

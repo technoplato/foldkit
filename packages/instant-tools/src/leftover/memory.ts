@@ -15,7 +15,7 @@ type RoomState = Readonly<{
 
 /** In-memory leftover rooms for tests. Not Instant. */
 export const makeMemoryLeftoverPresence = (): LeftoverPresenceService => {
-  const rooms = Ref.unsafeMake(new Map<string, RoomState>())
+  const rooms = Ref.makeUnsafe(new Map<string, RoomState>())
   return {
     joinLeftoverRoom: (join: LeftoverPresenceJoin) =>
       Ref.update(rooms, current => {

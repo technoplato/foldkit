@@ -1,4 +1,4 @@
-import { Effect, Layer, Option, Stream } from 'effect'
+import { Cause, Effect, Layer, Option, Queue, Stream } from 'effect'
 
 import type { InstantToolsDatabase } from '../instant/instant.js'
 import {
@@ -17,6 +17,12 @@ type LeftoverPresenceShape = Readonly<{
   role: string
 }>
 
+type LeftoverPresenceSlice = Readonly<{
+  error?: string
+  peers: Record<string, Partial<LeftoverPresenceShape> & { peerId?: string }>
+  user?: Partial<LeftoverPresenceShape> & { peerId?: string }
+}>
+
 const peerFromSlice = (
   leftoverId: string,
   peerId: string,
@@ -32,14 +38,7 @@ const peerFromSlice = (
 
 const peersFromSlice = (
   leftoverId: string,
-  slice: {
-    readonly peers: Record<
-      string,
-      Partial<LeftoverPresenceShape> & { peerId?: string }
-    >
-    readonly user?: Partial<LeftoverPresenceShape> & { peerId?: string }
-    readonly error?: string
-  },
+  slice: LeftoverPresenceSlice,
 ): ReadonlyArray<LeftoverPeer> => {
   const peers: Array<LeftoverPeer> = []
   for (const [peerId, data] of Object.entries(slice.peers)) {
@@ -68,29 +67,36 @@ export const makeInstantLeftoverPresence = (
     return room
   }
   const observe = (leftoverId: string) =>
-    Stream.async<ReadonlyArray<LeftoverPeer>, LeftoverPresenceError>(emit => {
-      try {
-        const room = roomFor(leftoverId)
-        const stop = room.subscribePresence({}, slice => {
-          if (slice.error !== undefined) {
-            emit.fail(
-              new LeftoverPresenceError({
-                cause: slice.error,
-                operation: 'Observe',
-              }),
+    Stream.callback<ReadonlyArray<LeftoverPeer>, LeftoverPresenceError>(queue =>
+      Effect.acquireRelease(
+        Effect.try({
+          try: () => {
+            const room = roomFor(leftoverId)
+            return room.subscribePresence(
+              {},
+              (slice: LeftoverPresenceSlice) => {
+                if (slice.error !== undefined) {
+                  Queue.failCauseUnsafe(
+                    queue,
+                    Cause.fail(
+                      new LeftoverPresenceError({
+                        cause: slice.error,
+                        operation: 'Observe',
+                      }),
+                    ),
+                  )
+                  return
+                }
+                Queue.offerUnsafe(queue, peersFromSlice(leftoverId, slice))
+              },
             )
-            return
-          }
-          emit.single(peersFromSlice(leftoverId, slice))
-        })
-        return Effect.sync(() => {
-          stop()
-        })
-      } catch (cause) {
-        emit.fail(new LeftoverPresenceError({ cause, operation: 'Observe' }))
-        return Effect.void
-      }
-    })
+          },
+          catch: cause =>
+            new LeftoverPresenceError({ cause, operation: 'Observe' }),
+        }),
+        unsubscribe => Effect.sync(unsubscribe),
+      ).pipe(Effect.flatMap(() => Effect.never)),
+    )
   return {
     joinLeftoverRoom: (join: LeftoverPresenceJoin) =>
       Effect.try({

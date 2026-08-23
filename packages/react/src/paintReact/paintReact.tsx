@@ -64,11 +64,23 @@ export const paintReact = (
             </button>
           )
         },
-        TextInput: input => (
-          <div className={classFor('TextInput', 'fk-text-input')}>
-            {input.value}
-          </div>
-        ),
+        TextInput: input => {
+          const token = input.token
+          return (
+            <input
+              type="text"
+              className={classFor('TextInput', 'fk-text-input')}
+              value={input.value}
+              placeholder={input.placeholder}
+              autoFocus={input.focused === true}
+              onChange={event => {
+                if (token !== undefined) {
+                  sendToken(`${token}${event.currentTarget.value}`)
+                }
+              }}
+            />
+          )
+        },
         Spacer: () => <div className={classFor('Spacer', 'fk-spacer')} />,
         Row: row => (
           <div className={classFor('Row', 'fk-row')}>

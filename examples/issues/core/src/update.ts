@@ -442,9 +442,15 @@ type UpdateReturn = readonly [
   ReadonlyArray<Command.Command<Message, never, Resources>>,
 ]
 
-const withNavigation = (model: Model, navigation: Navigation): Model =>
-  Model.make({
+const withNavigation = (model: Model, navigation: Navigation): Model => {
+  const isSameIssueDetail =
+    model.navigation._tag === 'IssueDetail' &&
+    navigation._tag === 'IssueDetail' &&
+    model.navigation.issueId === navigation.issueId
+  return Model.make({
     ...model,
+    leftoverComment: isSameIssueDetail ? model.leftoverComment : '',
+    leftoverLink: isSameIssueDetail ? model.leftoverLink : '',
     issueMutation: IdleIssueMutation.make({}),
     issueDetail:
       navigation._tag === 'IssueDetail'
@@ -456,6 +462,7 @@ const withNavigation = (model: Model, navigation: Navigation): Model =>
         : NotObservingIssueLogs.make({}),
     navigation,
   })
+}
 
 const selectedProduct = (model: Model) => {
   if (model.products._tag !== 'LoadedProducts') {
@@ -840,11 +847,22 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
+      UpdatedLeftoverComment: ({ value }) => [
+        Model.make({ ...model, leftoverComment: value }),
+        [],
+      ],
+      UpdatedLeftoverLink: ({ value }) => [
+        Model.make({ ...model, leftoverLink: value }),
+        [],
+      ],
       SubmittedIssueComment: ({ issueId, summary }) => {
         if (summary.trim() === '') {
           return [model, []]
         }
-        return startLeftoverCommand(model, CommentOnIssue({ issueId, summary }))
+        return startLeftoverCommand(
+          Model.make({ ...model, leftoverComment: '' }),
+          CommentOnIssue({ issueId, summary }),
+        )
       },
       AppendedIssueWorkLog: ({ summary }) => {
         if (summary.trim() === '') {
@@ -890,7 +908,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [model, []]
         }
         return startLeftoverCommand(
-          model,
+          Model.make({ ...model, leftoverLink: '' }),
           LinkCatalogIssue({ sourceIssueId, targetIssueId }),
         )
       },

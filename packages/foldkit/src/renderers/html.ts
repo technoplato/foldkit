@@ -37,7 +37,29 @@ export const paintHtml = <Message>(
             [button.label],
           )
         },
-        TextInput: input => h.div([h.Class('fk-text-input')], [input.value]),
+        TextInput: input => {
+          const token = input.token
+          const messageFromToken = (nextToken: string): Message => {
+            const message = toMessage(nextToken)
+            if (message !== undefined) {
+              return message
+            }
+            throw new Error(`unknown screen token: ${nextToken}`)
+          }
+          const attrs = [
+            h.Type('text'),
+            h.Class('fk-text-input'),
+            h.Value(input.value),
+            ...(input.placeholder === undefined
+              ? []
+              : [h.Placeholder(input.placeholder)]),
+            ...(input.focused === true ? [h.Autofocus(true)] : []),
+            ...(token === undefined
+              ? []
+              : [h.OnInput(value => messageFromToken(`${token}${value}`))]),
+          ]
+          return h.input(attrs)
+        },
         Spacer: () => h.div([h.Class('fk-spacer')], []),
         Row: row => h.div([h.Class('fk-row')], Array.map(row.children, paint)),
         Column: column =>

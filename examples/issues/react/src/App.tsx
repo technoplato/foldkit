@@ -22,6 +22,8 @@ const classNames: PaintClassNames = {
   Column: 'flex flex-col gap-3',
   Row: 'flex flex-row flex-wrap gap-2',
   Text: 'text-sm leading-6',
+  TextInput:
+    'rounded-md border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm w-full max-w-md',
 }
 
 /** Paints the shared issuesScreen. The window makes zero leftover decisions. */

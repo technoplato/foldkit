@@ -14,12 +14,16 @@ import {
   accessTokenFromEnv,
   bootHostedInstantIdentity,
   ensureHostedInstantSession,
+  hostedIdentityGetAuthTimeoutMs,
   hostedIdentityLayer,
+  hostedIdentityLoopbackEmail,
   hostedIdentityOriginFromEnv,
   hostedIdentitySessionPath,
   hostedIdentitySessionUrl,
+  isLoopbackRemoteAddress,
   knophyAccessStartUrl,
   knophyWhoamiOrigin,
+  loopbackMintEmail,
   mintHostedInstantSession,
   resolveHostedIdentityRequest,
   withHostedIdentity,
@@ -94,6 +98,25 @@ describe('accessIdentityFromHeaders', () => {
   })
 })
 
+describe('loopback Instant mint', () => {
+  it('recognizes loopback TCP remotes', () => {
+    expect(isLoopbackRemoteAddress(undefined)).toBe(false)
+    expect(isLoopbackRemoteAddress('10.0.0.2')).toBe(false)
+    expect(isLoopbackRemoteAddress('127.0.0.1')).toBe(true)
+    expect(isLoopbackRemoteAddress('::1')).toBe(true)
+    expect(isLoopbackRemoteAddress('::ffff:127.0.0.1')).toBe(true)
+  })
+
+  it('uses the default loopback email unless env overrides', () => {
+    expect(loopbackMintEmail({})).toBe(hostedIdentityLoopbackEmail)
+    expect(
+      loopbackMintEmail({
+        FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL: 'ops@knophy.com',
+      }),
+    ).toBe('ops@knophy.com')
+  })
+})
+
 describe('mintHostedInstantSession', () => {
   it('ignores other paths', async () => {
     expect(
@@ -125,6 +148,43 @@ describe('mintHostedInstantSession', () => {
       }),
       status: 200,
     })
+  })
+
+  it('mints the loopback fallback email when Access identity is absent', async () => {
+    const emails: Array<string> = []
+    const result = await mintHostedInstantSession({
+      createToken: email => {
+        emails.push(email)
+        return Promise.resolve(refreshToken)
+      },
+      fallbackEmail: hostedIdentityLoopbackEmail,
+      headers: {},
+      method: 'GET',
+      url: hostedIdentitySessionPath,
+    })
+    expect(emails).toEqual([hostedIdentityLoopbackEmail])
+    expect(result).toEqual({
+      body: HostedInstantSession.make({
+        email: hostedIdentityLoopbackEmail,
+        token: refreshToken,
+      }),
+      status: 200,
+    })
+  })
+
+  it('prefers Access identity over the loopback fallback email', async () => {
+    const emails: Array<string> = []
+    await mintHostedInstantSession({
+      createToken: email => {
+        emails.push(email)
+        return Promise.resolve(refreshToken)
+      },
+      fallbackEmail: hostedIdentityLoopbackEmail,
+      headers: { 'cf-access-authenticated-user-email': memberEmail },
+      method: 'GET',
+      url: hostedIdentitySessionPath,
+    })
+    expect(emails).toEqual([memberEmail])
   })
 
   it('fails closed without Access identity or when minting throws', async () => {
@@ -406,6 +466,54 @@ describe('ensureHostedInstantSession', () => {
     )
     expect(next).toBeNull()
   })
+
+  it('fail-opens when Instant getAuth never settles', async () => {
+    const started = Date.now()
+    const next = await ensureHostedInstantSession(
+      {
+        auth: {
+          signInWithToken: () => Promise.reject(new Error('unused')),
+        },
+        getAuth: () => new Promise(() => undefined),
+      },
+      {
+        fetch: async () =>
+          new Response(JSON.stringify({ error: 'MissingAccessIdentity' }), {
+            status: 401,
+          }),
+        getAuthTimeoutMs: 20,
+      },
+    )
+    expect(next).toBeNull()
+    expect(Date.now() - started).toBeLessThan(hostedIdentityGetAuthTimeoutMs)
+  })
+
+  it('fail-opens when Instant signInWithToken never settles', async () => {
+    const started = Date.now()
+    const next = await ensureHostedInstantSession(
+      {
+        auth: {
+          signInWithToken: () => new Promise(() => undefined),
+        },
+        getAuth: () => Promise.resolve(null),
+      },
+      {
+        fetch: async () =>
+          new Response(
+            JSON.stringify(
+              HostedInstantSession.make({
+                email: memberEmail,
+                token: refreshToken,
+              }),
+            ),
+            { status: 200 },
+          ),
+        getAuthTimeoutMs: 20,
+      },
+    )
+    expect(next).toBeNull()
+    expect(Date.now() - started).toBeLessThan(hostedIdentityGetAuthTimeoutMs)
+  })
 })
 
 class TestStore extends Context.Service<
@@ -489,6 +597,61 @@ describe('hostedIdentityLayer', () => {
   it('is a no-op when Instant is not configured', async () => {
     await Effect.runPromise(
       Effect.scoped(Layer.build(hostedIdentityLayer(undefined))),
+    )
+  })
+
+  it('builds when Instant getAuth never settles', async () => {
+    await Effect.runPromise(
+      Effect.scoped(
+        Layer.build(
+          hostedIdentityLayer(
+            {
+              auth: {
+                signInWithToken: () => Promise.reject(new Error('unused')),
+              },
+              getAuth: () => new Promise(() => undefined),
+            },
+            {
+              fetch: async () =>
+                new Response(
+                  JSON.stringify({ error: 'MissingAccessIdentity' }),
+                  { status: 401 },
+                ),
+              getAuthTimeoutMs: 20,
+            },
+          ),
+        ),
+      ),
+    )
+  })
+
+  it('builds when Instant signInWithToken never settles', async () => {
+    await Effect.runPromise(
+      Effect.scoped(
+        Layer.build(
+          hostedIdentityLayer(
+            {
+              auth: {
+                signInWithToken: () => new Promise(() => undefined),
+              },
+              getAuth: () => Promise.resolve(null),
+            },
+            {
+              fetch: async () =>
+                new Response(
+                  JSON.stringify(
+                    HostedInstantSession.make({
+                      email: memberEmail,
+                      token: refreshToken,
+                    }),
+                  ),
+                  { status: 200 },
+                ),
+              getAuthTimeoutMs: 20,
+            },
+          ),
+        ),
+      ),
     )
   })
 })

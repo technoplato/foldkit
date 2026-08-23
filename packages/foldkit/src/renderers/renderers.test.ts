@@ -6,7 +6,7 @@ import { Button, Column, Row, Text, TextInput } from './elements.js'
 import { Host } from './host.js'
 import { paintHtml, paintMobile } from './html.js'
 import { padOf } from './pad.js'
-import { buttonsOf, textsOf } from './query.js'
+import { buttonsOf, inputsOf, textsOf } from './query.js'
 import { renderAscii, renderScreen } from './render.js'
 
 describe('atoms', () => {
@@ -52,6 +52,12 @@ describe('atoms', () => {
 
   it('paints a TextInput value', () => {
     expect(renderScreen(TextInput({ value: 'hello' }))).toContain('hello')
+    expect(
+      Array.map(
+        inputsOf(TextInput({ value: 'hello', token: 'comment-draft:' })),
+        input => input.token,
+      ),
+    ).toEqual(['comment-draft:'])
   })
 
   it('records a hotspot from a Button token', () => {
@@ -89,6 +95,22 @@ describe('paintHtml', () => {
 
     expect(JSON.stringify(vnode)).toContain(href)
     expect(JSON.stringify(vnode)).toContain('fk-text-link')
+  })
+
+  it('paints a TextInput as an input bound to its token', () => {
+    const vnode = paintHtml(
+      TextInput({
+        placeholder: 'Comment',
+        token: 'comment-draft:',
+        value: 'hello',
+      }),
+      token => token,
+    )
+
+    expect(vnode?.sel).toBe('input')
+    expect(JSON.stringify(vnode)).toContain('hello')
+    expect(JSON.stringify(vnode)).toContain('Comment')
+    expect(JSON.stringify(vnode)).toContain('fk-text-input')
   })
 })
 

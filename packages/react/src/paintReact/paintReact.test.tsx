@@ -1,4 +1,4 @@
-import { Button, Column, Row, Text } from 'foldkit/renderers'
+import { Button, Column, Row, Text, TextInput } from 'foldkit/renderers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -56,5 +56,23 @@ describe('paintReact', () => {
     render(paintReact(Text(href, { href }), vi.fn()))
     const link = screen.getByRole('link', { name: href })
     expect(link.getAttribute('href')).toBe(href)
+  })
+
+  it('paints a TextInput and sends token plus value', () => {
+    const sendToken = vi.fn()
+    render(
+      paintReact(
+        TextInput({
+          placeholder: 'Comment',
+          token: 'comment-draft:',
+          value: 'hello',
+        }),
+        sendToken,
+      ),
+    )
+    const input = screen.getByPlaceholderText('Comment')
+    expect(input).toBeDefined()
+    fireEvent.change(input, { target: { value: 'Painted leftover.' } })
+    expect(sendToken).toHaveBeenCalledWith('comment-draft:Painted leftover.')
   })
 })
