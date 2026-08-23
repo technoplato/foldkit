@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 23rd, 2026 at 6:22:04 p.m. EDT — `543a59fec990` feat: fail-open hosted Instant identity and leftover composer
+
+- **Implementation commit:** `543a59fec990c79cbce3577b2ffedd0917b4cdc8`
+- **Change:** Fail-open hosted Instant identity, leftover composer, and puzzle shared-screen hosts
+- **Details:**
+  - Loopback Instant mint without Access, and 2s fail-open on getAuth and signInWithToken, so the issues viewer can leave Starting.
+  - TextInput paints a real input on HTML and React so leftover comment and link drafts work on issuesScreen.
+  - Puzzle React, Svelte, and Expo hosts paint the shared puzzleScreen by default.
+  - Leftover Instant presence compiles against Effect 4 Stream.callback. Do not close 240-243.
+- **Files:**
+  - `packages/instant/src/hostedIdentity/hostedIdentity.ts` — Fail-open getAuth and signInWithToken; loopback Instant mint email.
+  - `packages/instant/src/hostedIdentity/vite.ts` — Mint loopback Instant sessions on 127.0.0.1 without Access.
+  - `packages/foldkit/src/renderers/html.ts` — Paint TextInput as a real input that sends token plus value.
+  - `packages/react/src/paintReact/paintReact.tsx` — Paint TextInput as a React input that sends token plus value.
+  - `examples/issues/core/src/product.ts` — Leftover comment and link composer on IssueDetail.
+  - `examples/puzzle/react/src/main.tsx` — Default the React puzzle host onto ScreenApp.
+  - `packages/instant-tools/src/leftover/instant.ts` — Compile leftover presence against Effect 4 Stream.callback.
+- **User context (verbatim):**
+  > go find this grokbot converssation id d7b5bc89-5140-4dbe-b7af-5ae6e582f500 creaste a skill for ctaching up and triaging what work has/hasn't been done issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session.
+
 ## August 23rd, 2026 at 5:06:42 p.m. EDT — `c9ff8794ea32` feat: share screen trees across clients and add product examples
 
 - **Implementation commit:** `c9ff8794ea32544a4b786a27803d8858ca9e49f6`
