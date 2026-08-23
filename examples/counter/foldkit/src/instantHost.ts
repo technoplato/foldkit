@@ -10,7 +10,6 @@ import {
   listActions,
   startLiveCounter,
   subscribeHostPaint,
-  surfaceFor,
 } from 'counter-core-example'
 import { Effect, Exit, Option, Scope } from 'effect'
 import { Processor, Program, Runtime } from 'foldkit'
@@ -28,21 +27,13 @@ export const paintCounterHostStatus = (
     return false
   }
   container.replaceChildren()
-  const surface = surfaceFor('foldkit')
-  const heading = document.createElement('h1')
-  heading.textContent = surface.title
-  const description = document.createElement('p')
-  description.textContent = surface.description
-  const source = document.createElement('a')
-  source.href = surface.sourceUrl
-  source.textContent = surface.sourceUrl
   const status = document.createElement('p')
   if (snapshot._tag === 'Starting') {
     status.textContent = 'Starting Instant Counter…'
   } else {
     status.textContent = describeCounterSyncError(snapshot.error)
   }
-  container.append(heading, description, source, status)
+  container.append(status)
   return true
 }
 

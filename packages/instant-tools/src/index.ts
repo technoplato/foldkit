@@ -1,3 +1,5 @@
 export * as Instant from './instant/index.js'
 export * as Issues from './issues/index.js'
+export * as Leftover from './leftover/index.js'
 export * as Logging from './logging/index.js'
+export * as Webhooks from './webhooks/index.js'

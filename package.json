@@ -7,6 +7,7 @@
   "scripts": {
     "prepare": "test -z \"$CI\" && simple-git-hooks || true",
     "build": "pnpm -r --if-present build",
+    "bench": "pnpm --filter foldkit-bench start",
     "demo": "tsx scripts/run-counter-demo.ts",
     "demo:cardboard": "pnpm --filter cardboard-cli-example build && pnpm --filter cardboard-cli-example cardboard show",
     "demo:cardboard:tui": "pnpm --filter cardboard-tui-example build && pnpm --filter cardboard-tui-example cardboard-tui",
@@ -65,6 +66,8 @@
     "dev:example:showcase:web": "pnpm --filter react-native-showcase-example web",
     "dev:example:calculator": "pnpm --filter calculator-core-example build && pnpm --filter calculator-foldkit-example dev",
     "dev:example:calculator:react": "pnpm --filter calculator-react-example dev",
+    "dev:example:gate": "pnpm --filter gate-core-example build && pnpm --filter gate-foldkit-example dev",
+    "dev:example:gate:react": "pnpm --filter gate-react-example dev",
     "dev:example:conversations": "pnpm --filter conversations-core-example build && pnpm --filter conversations-foldkit-example dev",
     "dev:example:advocacy": "pnpm --filter advocacy-core-example build && pnpm --filter advocacy-foldkit-example dev",
     "dev:example:advocacy:tui": "pnpm --filter advocacy-tui-example build && pnpm --filter advocacy-tui-example advocacy-tui",

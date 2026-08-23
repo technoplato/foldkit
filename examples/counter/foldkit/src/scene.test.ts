@@ -20,6 +20,35 @@ describe('view', () => {
       Scene.expect(Scene.role('button', { name: '+' })).toExist(),
       Scene.expect(Scene.role('button', { name: '-' })).toExist(),
       Scene.expect(Scene.role('button', { name: 'reset' })).not.toExist(),
+      Scene.expect(Scene.text('Actions')).not.toExist(),
+      Scene.expect(Scene.role('button', { name: 'Close' })).not.toExist(),
+    )
+  })
+
+  test('Open model paints visible Actions and Close on the product screen', () => {
+    const [open] = App.update(initialModel, App.ActionMenuCommandTriggered())
+    Scene.scene(
+      { update: App.update, view },
+      Scene.with(open),
+      Scene.expect(Scene.text('Actions')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Close' })).toExist(),
+      Scene.expect(Scene.text('0')).toExist(),
+      Scene.expect(Scene.role('button', { name: '+' })).toExist(),
+      Scene.expect(Scene.role('button', { name: '-' })).toExist(),
+    )
+  })
+
+  test('Close dismisses the Action menu and keeps the product', () => {
+    const [open] = App.update(initialModel, App.ActionMenuCommandTriggered())
+    Scene.scene(
+      { update: App.update, view },
+      Scene.with(open),
+      Scene.click(Scene.role('button', { name: 'Close' })),
+      Scene.expect(Scene.text('Actions')).not.toExist(),
+      Scene.expect(Scene.role('button', { name: 'Close' })).not.toExist(),
+      Scene.expect(Scene.text('0')).toExist(),
+      Scene.expect(Scene.role('button', { name: '+' })).toExist(),
+      Scene.expect(Scene.role('button', { name: '-' })).toExist(),
     )
   })
 

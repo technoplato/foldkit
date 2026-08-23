@@ -5,7 +5,8 @@ describe('Counter React Instant host', () => {
   it('keeps Instant out of the React window', () => {
     const viewSource = readFileSync('src/App.tsx', 'utf8')
     expect(viewSource).toContain('useModel(Path())')
-    expect(viewSource).toContain('useActions(Path())')
+    expect(viewSource).toContain('useScreen(Path())')
+    expect(viewSource).toContain('paintReact')
     expect(viewSource).toContain('Starting')
     expect(viewSource).toContain('Failed')
     expect(viewSource).toContain('describeCounterSyncError')

@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { wrapDevice } from './devices/devices.js'
 import { Button, Column, Row, Text, TextInput } from './elements.js'
 import { Host } from './host.js'
-import { paintHtml } from './html.js'
+import { paintHtml, paintMobile } from './html.js'
+import { padOf } from './pad.js'
 import { buttonsOf, textsOf } from './query.js'
 import { renderAscii, renderScreen } from './render.js'
 
@@ -81,6 +82,14 @@ describe('paintHtml', () => {
     expect(JSON.stringify(vnode)).toContain('+')
     expect(JSON.stringify(vnode)).toContain('0')
   })
+
+  it('paints Text href as an anchor', () => {
+    const href = 'https://puzzle.knophy.com'
+    const vnode = paintHtml(Text(href, { href }), token => token)
+
+    expect(JSON.stringify(vnode)).toContain(href)
+    expect(JSON.stringify(vnode)).toContain('fk-text-link')
+  })
 })
 
 describe('Host', () => {
@@ -152,5 +161,22 @@ describe('device shells', () => {
     expect(screen).toContain('/app')
     expect(screen).toContain('● ● ●')
     expect(screen).not.toContain('laptop')
+  })
+})
+
+describe('paintMobile', () => {
+  it('paints the screen and pad keys from Action keys', () => {
+    const screen = Column(
+      {},
+      Text('0'),
+      Row({}, Button({ label: '+', token: 'increment' })),
+    )
+    const pad = padOf(screen, [{ token: 'increment', keys: ['+', '='] }])
+    const vnode = paintMobile(screen, pad, token => token)
+
+    expect(JSON.stringify(vnode)).toContain('fk-mobile')
+    expect(JSON.stringify(vnode)).toContain('fk-mobile-key')
+    expect(JSON.stringify(vnode)).toContain('=')
+    expect(JSON.stringify(vnode)).not.toContain('reset')
   })
 })

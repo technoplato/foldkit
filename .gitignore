@@ -17,6 +17,7 @@ packages/oxlint-plugin-foldkit/all.json
 playwright-report/
 test-results/
 .DS_Store
+**/.look/chrome-profile/
 examples/books/foldkit/public/a-new-earth-evocation.mp3
 examples/books/foldkit/public/a-new-earth-evocation.words.json
 examples/books/foldkit/public/media/a-new-earth.mp3
@@ -24,3 +25,5 @@ examples/books/foldkit/public/media/*.mp3
 examples/books/foldkit/public/media/*.m4b
 **/.expo/
 **/.svelte-kit/
+**/ios/build/
+**/ios/build-simulator/

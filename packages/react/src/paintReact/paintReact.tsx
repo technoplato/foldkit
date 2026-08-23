@@ -31,9 +31,20 @@ export const paintReact = (
     M.value(current).pipe(
       M.withReturnType<ReactElement>(),
       M.tagsExhaustive({
-        Text: text => (
-          <div className={classFor('Text', 'fk-text')}>{text.content}</div>
-        ),
+        Text: text => {
+          if (text.href === undefined) {
+            return (
+              <div className={classFor('Text', 'fk-text')}>{text.content}</div>
+            )
+          }
+          return (
+            <div className={classFor('Text', 'fk-text')}>
+              <a className="fk-text-link" href={text.href}>
+                {text.content}
+              </a>
+            </div>
+          )
+        },
         Button: button => {
           const token = button.token
           const onClick =

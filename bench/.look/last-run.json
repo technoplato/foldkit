@@ -1,0 +1,77 @@
+{
+  "startedAt": "2026-08-23T13:56:44.596Z",
+  "finishedAt": "2026-08-23T13:56:54.078Z",
+  "wallClockMs": 9481,
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0
+  },
+  "loc": {
+    "added": 0,
+    "removed": 0,
+    "changed": 0
+  },
+  "config": {
+    "model": "none/none",
+    "temperature": 0,
+    "maxOutputTokens": 0,
+    "topP": 1,
+    "topK": 0,
+    "presencePenalty": 0,
+    "frequencyPenalty": 0,
+    "stopSequences": [],
+    "seed": 0,
+    "reasoning": "none",
+    "maxRetries": 0,
+    "timeout": 180000,
+    "headers": {},
+    "providerOptions": {}
+  },
+  "rung": "A",
+  "proofHost": "https://counter.knophy.com",
+  "asserts": [
+    {
+      "name": "instantSettlesLive",
+      "passed": true,
+      "detail": "Live Instant snapshot, not fail-closed Memory readyCounter(0). Live Instant snapshot via websocket:wss://api.instantdb.com/runtime/session?app_id=5417c2e3-c6b9-476d-a962-2e11c83492aa."
+    },
+    {
+      "name": "countVisible",
+      "passed": true,
+      "detail": "Number is visible on the painted Counter page. count 0 visible with plus and minus."
+    },
+    {
+      "name": "incrementRaises",
+      "passed": true,
+      "detail": "Plus raises the visible count by 1. 0 -> 1."
+    },
+    {
+      "name": "decrementLowers",
+      "passed": true,
+      "detail": "Minus lowers the visible count by 1. 1 -> 0."
+    },
+    {
+      "name": "actionMenuAbstraction",
+      "passed": true,
+      "detail": "Action menu abstraction is on screen. Actions overlay visible."
+    },
+    {
+      "name": "sameScreenMirrored",
+      "passed": true,
+      "detail": "Already-painted hosts show the same counterScreen. https://counter-mobile.knophy.com paints counterScreen. Proof remains https://counter.knophy.com."
+    },
+    {
+      "name": "globalSync",
+      "passed": true,
+      "detail": "Shared Instant count, not per-user login. second context saw -3. Not login."
+    },
+    {
+      "name": "offlineWorks",
+      "passed": true,
+      "detail": "Painted Counter still increments with the network offline. offline plus raised -4 -> -3."
+    }
+  ],
+  "modelCall": false,
+  "tracePath": "/Users/laptop/Development/foldkit/bench/traces/2026-08-23T13-56-44.596Z-rung-A.json"
+}

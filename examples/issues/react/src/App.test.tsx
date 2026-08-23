@@ -1,4 +1,7 @@
 import { LoadedIssueLogs } from 'issues-core-example'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
@@ -89,5 +92,17 @@ describe('Issue failure recovery', () => {
       'Observe: Issue collection payload failed to decode.',
     )
     expect(html).toContain('Reload latest viewer')
+  })
+})
+
+describe('Issue screenify', () => {
+  it('paints the Program screen with useScreen and paintReact', () => {
+    const source = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), 'App.tsx'),
+      'utf8',
+    )
+    expect(source).toContain('useScreen')
+    expect(source).toContain('paintReact')
+    expect(source).toContain('paintReact(screen, sendScreenToken')
   })
 })

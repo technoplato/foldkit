@@ -5,6 +5,9 @@
       "entry": ["scripts/*.{ts,js,sh}"],
       "project": ["scripts/**"]
     },
+    "bench": {
+      "entry": ["src/cli.ts", "src/index.ts"]
+    },
     "packages/foldkit": {
       "entry": [
         "src/index.ts",
@@ -62,7 +65,7 @@
       "ignoreDependencies": ["prettier"]
     },
     "examples/counter/foldkit": {
-      "entry": ["src/**/*.test.ts"],
+      "entry": ["src/**/*.test.ts", "mobile.html"],
       "ignoreDependencies": [
         "@trivago/prettier-plugin-sort-imports",
         "prettier",
@@ -89,6 +92,37 @@
       "ignoreDependencies": ["prettier"]
     },
     "examples/counter/tui": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/puzzle/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/puzzle/foldkit": {
+      "entry": ["src/**/*.test.ts"],
+      "ignoreDependencies": [
+        "prettier",
+        "tailwindcss",
+        "@trivago/prettier-plugin-sort-imports"
+      ]
+    },
+    "examples/puzzle/react-bindings": {
+      "entry": ["src/index.ts", "src/**/*.test.tsx"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/puzzle/react": {
+      "ignoreDependencies": ["prettier", "tailwindcss"]
+    },
+    "examples/puzzle/headless": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/puzzle/cli": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/puzzle/tui": {
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]
     },
@@ -165,6 +199,55 @@
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]
     },
+    "examples/gate/core": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/gate/foldkit": {
+      "entry": ["src/**/*.test.ts", "mobile.html"],
+      "ignoreDependencies": [
+        "@trivago/prettier-plugin-sort-imports",
+        "prettier",
+        "tailwindcss"
+      ]
+    },
+    "examples/gate/react-bindings": {
+      "entry": ["src/index.ts", "src/**/*.test.tsx"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/gate/react": {
+      "ignoreDependencies": ["prettier", "tailwindcss"]
+    },
+    "examples/gate/cli": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/gate/tui": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/gate/opentui": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/gate/headless": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/gate/svelte": {
+      "entry": ["src/App.svelte"],
+      "ignoreDependencies": ["svelte"]
+    },
+    "examples/gate/expo": {
+      "entry": ["App.tsx", "src/App.tsx"],
+      "ignoreDependencies": [
+        "@babel/plugin-transform-object-rest-spread",
+        "babel-preset-expo",
+        "expo",
+        "react-native-get-random-values"
+      ]
+    },
+
     "examples/conversations/core": {
       "entry": ["src/index.ts", "src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]

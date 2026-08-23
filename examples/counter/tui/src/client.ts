@@ -15,12 +15,10 @@ import {
   describeCounterSyncError,
   factHandleEntries,
   filterListedActions,
-  formatHostChrome,
   initialCount,
   isActionMenuEnterKey,
   listActions,
   renderChrome,
-  surfaceFor,
 } from 'counter-core-example'
 import {
   Array,
@@ -97,14 +95,14 @@ export const renderCounterScreen = (
     M.withReturnType<string>(),
     M.tagsExhaustive({
       Starting: () =>
-        `${CLEAR_SCREEN}${formatHostChrome(surfaceFor('tui'))}\n\nStarting Instant Counter…\n\n[Q] quit  [?] actions\n`,
+        `${CLEAR_SCREEN}Starting Instant Counter…\n\n[Q] quit  [?] actions\n`,
       Failed: ({ error }) =>
-        `${CLEAR_SCREEN}${formatHostChrome(surfaceFor('tui'))}\n\n${describeCounterSyncError(error)}\n\n[Q] quit  [?] actions\n`,
+        `${CLEAR_SCREEN}${describeCounterSyncError(error)}\n\n[Q] quit  [?] actions\n`,
       Ready: ({ product }) => {
         const chrome = renderChrome(product, 'computer')
         const menu = paintActionMenu(snapshot, maybeChosen)
         const overlay = menu === '' ? '' : `${menu}\n\n`
-        return `${CLEAR_SCREEN}${formatHostChrome(surfaceFor('tui'))}\n\n${overlay}${chrome}\n\n[Q] quit  [?] actions\n`
+        return `${CLEAR_SCREEN}${overlay}${chrome}\n\n[Q] quit  [?] actions\n`
       },
     }),
   )
@@ -141,7 +139,7 @@ export const renderCounterScreenWindow = (
   })
   const menu = paintActionMenu(snapshot, maybeChosen)
   const overlay = menu === '' ? '' : `${menu}\n\n`
-  return `${CLEAR_SCREEN}${formatHostChrome(surfaceFor('tui-screen'))}\n\n${overlay}${painted}\n\n[Q] quit\n`
+  return `${CLEAR_SCREEN}${overlay}${painted}\n\n[Q] quit\n`
 }
 
 /**

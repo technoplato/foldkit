@@ -1,0 +1,117 @@
+@import 'tailwindcss';
+
+.settings-screen {
+  background: #f4f4f5;
+  color: #18181b;
+}
+
+.settings-screen .fk-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 42rem;
+}
+
+.settings-screen .fk-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.settings-screen .fk-text {
+  font-size: 0.95rem;
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  color: #18181b;
+}
+
+.settings-screen .fk-button {
+  background-color: #18181b;
+  color: #f4f4f5;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.settings-screen .fk-button:hover {
+  background-color: #3f3f46;
+}
+
+.settings-screen .fk-button:active,
+.settings-screen .fk-button.fk-chosen {
+  background-color: #1d4ed8;
+  outline: 2px solid #93c5fd;
+}
+
+.fk-mobile {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  background: #0a0a0a;
+  color: #fafafa;
+}
+
+.fk-mobile-screen {
+  width: min(100%, 22rem);
+}
+
+.fk-device-phone {
+  width: 100%;
+  border: 2px solid #3f3f46;
+  border-radius: 2rem;
+  padding: 1.5rem 1rem 2rem;
+  background: #18181b;
+}
+
+.fk-mobile .fk-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fk-mobile .fk-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.fk-mobile .fk-text {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.fk-mobile .fk-button,
+.fk-mobile-key,
+.fk-mobile-button {
+  min-width: 3rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  background: #fafafa;
+  color: #0a0a0a;
+  font-size: 1rem;
+}
+
+.fk-mobile-pad {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: min(100%, 22rem);
+}
+
+.fk-mobile-keys,
+.fk-mobile-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}

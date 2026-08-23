@@ -194,11 +194,38 @@ export const InstantToolsEntities = {
     status: i.string().indexed(),
     updatedAtMs: i.number().indexed(),
   }),
+  instantToolsAgentQueueMessages: i.entity({
+    agentId: i.string().indexed(),
+    createdAtMs: i.number().indexed(),
+    leftoverId: i.string().indexed(),
+    kind: i.string().indexed(),
+    payloadJson: i.string(),
+  }),
+}
+
+/** Transient leftover presence rooms and the queuePing topic. */
+export const InstantToolsRooms = {
+  leftover: {
+    presence: i.entity({
+      agentId: i.string(),
+      leftoverId: i.string(),
+      origin: i.string(),
+      role: i.string(),
+    }),
+    topics: {
+      queuePing: i.entity({
+        agentId: i.string(),
+        leftoverId: i.string(),
+        queueMessageId: i.string(),
+      }),
+    },
+  },
 }
 
 /** A complete InstantDB schema for hosts using only the Instant Tools entities. */
 export const InstantToolsSchema = i.schema({
   entities: InstantToolsEntities,
+  rooms: InstantToolsRooms,
 })
 
 /** An InstantDB client initialized by the host with the Instant Tools schema. */

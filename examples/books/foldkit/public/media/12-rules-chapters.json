@@ -1,0 +1,132 @@
+{
+  "content_metadata": {
+    "chapter_info": {
+      "brandIntroDurationMs": 1904,
+      "brandOutroDurationMs": 4969,
+      "chapters": [
+        {
+          "length_ms": 17999,
+          "start_offset_ms": 0,
+          "start_offset_sec": 0,
+          "title": "Opening Credits"
+        },
+        {
+          "length_ms": 1419130,
+          "start_offset_ms": 17999,
+          "start_offset_sec": 17,
+          "title": "Overture"
+        },
+        {
+          "length_ms": 4104684,
+          "start_offset_ms": 1437129,
+          "start_offset_sec": 1437,
+          "title": "Rule One: Stand up straight with your shoulders back"
+        },
+        {
+          "length_ms": 5122972,
+          "start_offset_ms": 5541813,
+          "start_offset_sec": 5541,
+          "title": "Rule Two: Treat yourself like someone you are responsible for helping"
+        },
+        {
+          "length_ms": 2398250,
+          "start_offset_ms": 10664785,
+          "start_offset_sec": 10664,
+          "title": "Rule Three:  Make friends with people who want the best for you"
+        },
+        {
+          "length_ms": 3997455,
+          "start_offset_ms": 13063035,
+          "start_offset_sec": 13063,
+          "title": "Rule Four: Compare yourself to who you were yesterday, not to who someone else is today"
+        },
+        {
+          "length_ms": 4751499,
+          "start_offset_ms": 17060490,
+          "start_offset_sec": 17060,
+          "title": "Rule Five: Do not let your children do anything that makes you dislike them"
+        },
+        {
+          "length_ms": 1810367,
+          "start_offset_ms": 21811989,
+          "start_offset_sec": 21811,
+          "title": "Rule Six: Set your house in perfect order before you criticize the world"
+        },
+        {
+          "length_ms": 6958092,
+          "start_offset_ms": 23622356,
+          "start_offset_sec": 23622,
+          "title": "Rule Seven: Pursue what is meaningful (not what is expedient)"
+        },
+        {
+          "length_ms": 4726050,
+          "start_offset_ms": 30580448,
+          "start_offset_sec": 30580,
+          "title": "Rule Eight: Tell the truth or at least don't lie"
+        },
+        {
+          "length_ms": 3686864,
+          "start_offset_ms": 35306498,
+          "start_offset_sec": 35306,
+          "title": "Rule Nine: Assume that the person you are listening to might know something you don't"
+        },
+        {
+          "length_ms": 3954730,
+          "start_offset_ms": 38993362,
+          "start_offset_sec": 38993,
+          "title": "Rule Ten : Be precise in your speech"
+        },
+        {
+          "length_ms": 7827214,
+          "start_offset_ms": 42948092,
+          "start_offset_sec": 42948,
+          "title": "Rule Eleven: Do not bother children when they are skateboarding"
+        },
+        {
+          "length_ms": 3246150,
+          "start_offset_ms": 50775306,
+          "start_offset_sec": 50775,
+          "title": "Rule Twelve: Pet a cat when you encounter one on the street"
+        },
+        {
+          "length_ms": 2385629,
+          "start_offset_ms": 54021456,
+          "start_offset_sec": 54021,
+          "title": "Coda"
+        },
+        {
+          "length_ms": 35516,
+          "start_offset_ms": 56407085,
+          "start_offset_sec": 56407,
+          "title": "End Credits"
+        }
+      ],
+      "is_accurate": true,
+      "runtime_length_ms": 56442601,
+      "runtime_length_sec": 56442
+    },
+    "content_reference": {
+      "acr": "CR!4V5H70BQ590DB81YAK5ZSXSFP3J5",
+      "asin": "B0797YBP7N",
+      "codec": "mp4a.40.2",
+      "content_format": "AAX_22_64",
+      "content_size_in_bytes": 456331027,
+      "file_version": "2",
+      "marketplace": "AF2M0KC94RCEA",
+      "sku": "BK_PRHC_000058",
+      "tempo": "1.0",
+      "version": "497181"
+    },
+    "last_position_heard": {
+      "last_updated": "2021-06-03 11:29:08.296",
+      "position_ms": 21799183,
+      "status": "Exists"
+    }
+  },
+  "response_groups": [
+    "always-returned",
+    "last_position_heard",
+    "chapter_info",
+    "content_reference"
+  ]
+}

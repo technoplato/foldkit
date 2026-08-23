@@ -1,0 +1,38 @@
+{
+  "name": "puzzle-headless-example",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Headless Instant tail. From this dir: pnpm build (deps compile, no clean). From repo root: pnpm --filter puzzle-headless-example... build. Then pnpm puzzle-headless:instant. PUZZLE_HEADLESS_TIME=human|ms|both|verbose. Burst: pnpm puzzle-headless:stress. Live Instant across every Host: PUZZLE_LIVE_STRESS=1 pnpm puzzle-headless:live-stress.",
+  "type": "module",
+  "bin": {
+    "foldkit-puzzle-headless": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "compile": "tsc -p tsconfig.build.json",
+    "puzzle-headless": "node dist/entry.js",
+    "puzzle-headless:instant": "../scripts/with-puzzle-v01-env node dist/entry.js",
+    "puzzle-headless:stress": "node dist/stress.js",
+    "puzzle-headless:live-stress": "../scripts/with-puzzle-v01-env env PUZZLE_LIVE_STRESS=1 PUZZLE_TAPE=instant node dist/liveStress.js",
+    "prebuild": "pnpm --filter @foldkit/instant compile && pnpm --filter puzzle-core-example compile",
+    "pretypecheck": "pnpm --filter @foldkit/instant compile && pnpm --filter puzzle-core-example compile",
+    "push:perms": "npx instant-cli@1.0.53 push perms --yes",
+    "push:schema": "npx instant-cli@1.0.53 push schema --yes",
+    "test": "pnpm run build && vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "puzzle-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

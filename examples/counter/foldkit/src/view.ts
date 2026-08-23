@@ -17,7 +17,7 @@ export const view = (model: AppModel): Document => {
   const surface = surfaceFor('foldkit')
   const screen =
     App.screen === undefined
-      ? { _tag: 'Text' as const, content: model.product.count.toString() }
+      ? { _tag: 'Text' as const, content: String(model.product.count) }
       : App.screen(model)
   return {
     title: `${surface.title}: ${model.product.count}`,
@@ -27,25 +27,7 @@ export const view = (model: AppModel): Document => {
           'counter-screen min-h-screen bg-white flex flex-col items-center justify-center gap-6 p-6',
         ),
       ],
-      [
-        h.header(
-          [h.Class('text-center space-y-2 max-w-md')],
-          [
-            h.h1([h.Class('text-xl font-semibold')], [surface.title]),
-            h.p(
-              [h.Class('text-sm text-gray-600')],
-              [
-                `${surface.description} `,
-                h.a(
-                  [h.Href(surface.sourceUrl), h.Class('underline break-all')],
-                  [surface.sourceUrl],
-                ),
-              ],
-            ),
-          ],
-        ),
-        paintHtml(screen, token => messageFromScreenToken(token)),
-      ],
+      [paintHtml(screen, token => messageFromScreenToken(token))],
     ),
   }
 }

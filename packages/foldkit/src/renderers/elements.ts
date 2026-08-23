@@ -9,10 +9,11 @@ import type {
   UiNode,
 } from './types.js'
 
-/** A text run. */
+/** A text run. Optional `href` is a link the painters may follow. */
 export const Text = (
   content: string,
   props: Readonly<{
+    href?: string
     mono?: boolean
     dim?: boolean
     width?: number

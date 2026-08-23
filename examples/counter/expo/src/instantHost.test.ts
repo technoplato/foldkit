@@ -5,7 +5,8 @@ describe('Counter Expo Instant host', () => {
   it('keeps Instant out of the Expo window', () => {
     const viewSource = readFileSync('src/App.tsx', 'utf8')
     expect(viewSource).toContain('useModel(Path())')
-    expect(viewSource).toContain('useActions(Path())')
+    expect(viewSource).toContain('counterScreen')
+    expect(viewSource).toContain('paintScreen')
     expect(viewSource).toContain('Starting')
     expect(viewSource).toContain('Failed')
     expect(viewSource).toContain('describeCounterSyncError')

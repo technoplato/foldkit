@@ -7,3 +7,9 @@ playwright-report/
 test-results/
 repos/
 packages/oxlint-plugin-foldkit/test/integration/fixtures/
+**/ios/build/
+**/ios/build-simulator/
+**/ios/Pods/
+**/android/**/build/
+**/.gradle/
+**/.look/chrome-profile/

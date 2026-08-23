@@ -18,7 +18,6 @@ import {
   initialCount,
   isActionMenuEnterKey,
   listActions,
-  surfaceFor,
   tokenOf,
 } from 'counter-core-example'
 import { Array, Match as M, Option } from 'effect'
@@ -29,7 +28,6 @@ import {
   type CliRenderer,
   type Renderable,
   TextRenderable,
-  bold,
   dim,
   t,
 } from '@opentui/core'
@@ -276,22 +274,6 @@ export const runCounterOpenTui = (
       renderer.requestRender()
     }
 
-    const surface = surfaceFor('opentui')
-    renderer.root.add(
-      new TextRenderable(renderer, {
-        content: t`${bold(surface.title)}`,
-      }),
-    )
-    renderer.root.add(
-      new TextRenderable(renderer, {
-        content: t`${dim(surface.description)}`,
-      }),
-    )
-    renderer.root.add(
-      new TextRenderable(renderer, {
-        content: t`${dim(surface.sourceUrl)}`,
-      }),
-    )
     renderer.root.add(
       new TextRenderable(renderer, { content: t`${dim(quitHint)}` }),
     )

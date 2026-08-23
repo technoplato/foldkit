@@ -1,0 +1,47 @@
+@import 'tailwindcss';
+
+.puzzle-screen .fk-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.puzzle-screen .fk-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.puzzle-screen .fk-text {
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #1f2937;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.puzzle-screen .fk-text-link {
+  color: inherit;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+.puzzle-screen .fk-button {
+  background-color: #000000;
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  transition: background-color 150ms;
+}
+
+.puzzle-screen .fk-button:hover {
+  background-color: #374151;
+}
+
+.puzzle-screen .fk-button:active,
+.puzzle-screen .fk-button.fk-chosen {
+  background-color: #1d4ed8;
+  outline: 2px solid #93c5fd;
+}

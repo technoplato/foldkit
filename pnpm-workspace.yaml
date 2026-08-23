@@ -1,4 +1,5 @@
 packages:
+  - 'bench'
   - 'packages/*'
   - 'packages/typing-game/*'
   - 'examples/*'

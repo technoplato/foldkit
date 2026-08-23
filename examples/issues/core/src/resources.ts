@@ -34,6 +34,28 @@ const foldkit = ProductCatalogEntry.make({
   product: LibraryProduct.make({ id: 'foldkit', name: 'Foldkit' }),
   updatedAtMs: 1_753_800_000_000,
 })
+const instantDataSwift = ProductCatalogEntry.make({
+  product: LibraryProduct.make({
+    id: 'instant-data-swift',
+    name: 'Instant Data Swift',
+  }),
+  updatedAtMs: 1_753_800_000_000,
+})
+const ayutia = ProductCatalogEntry.make({
+  product: ApplicationProduct.make({ id: 'ayutia', name: 'AYUTIA' }),
+  updatedAtMs: 1_753_800_000_000,
+})
+const universalSoftwareShop = ProductCatalogEntry.make({
+  product: ApplicationProduct.make({
+    id: 'universal-software-shop',
+    name: 'Universal Software Shop',
+  }),
+  updatedAtMs: 1_753_800_000_000,
+})
+const casino = ProductCatalogEntry.make({
+  product: ApplicationProduct.make({ id: 'casino', name: 'Casino' }),
+  updatedAtMs: 1_753_800_000_000,
+})
 const seedIssue = Issue.make({
   area: Option.none(),
   attachments: [],
@@ -56,8 +78,30 @@ const seedIssue = Issue.make({
   viewerURL: Option.some('https://issues.knophy.com/issues/041'),
   workLog: [],
 })
+const scribeIssue = Issue.make({
+  area: Option.none(),
+  attachments: [],
+  claimantId: Option.none(),
+  complexity: Option.none(),
+  createdAtMs: 1_753_800_000_000,
+  details: 'Scribe leftover card used to prove product filter.',
+  id: 'issue-scribe',
+  issueType: Option.some('Task'),
+  mentions: [],
+  priority: 'P3',
+  product: scribe.product,
+  projectId: Option.none(),
+  reportedDate: Option.none(),
+  sourceDocument: Option.none(),
+  status: 'Open',
+  successCriteria: [],
+  title: 'Scribe transcript card',
+  updatedAtMs: 1_753_800_000_000,
+  viewerURL: Option.some('https://issues.knophy.com/issues/scribe'),
+  workLog: [],
+})
 
-const staticIssues: ReadonlyArray<Issue> = [seedIssue]
+const staticIssues: ReadonlyArray<Issue> = [seedIssue, scribeIssue]
 const staticIssueLogs = [
   IssueLogEvidence.make({
     category: 'issues',
@@ -72,7 +116,14 @@ const staticIssueLogs = [
     viewerURL: 'https://issues.knophy.com/issues/041',
   }),
 ]
-const staticProducts: ReadonlyArray<ProductCatalogEntry> = [scribe, foldkit]
+const staticProducts: ReadonlyArray<ProductCatalogEntry> = [
+  scribe,
+  foldkit,
+  instantDataSwift,
+  ayutia,
+  universalSoftwareShop,
+  casino,
+]
 const seedSegment = RecordingSegment.make({
   createdAtMs: 1_753_800_000_000,
   endMilliseconds: 49_000,

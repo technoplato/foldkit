@@ -20,3 +20,30 @@ select,
 textarea {
   font: inherit;
 }
+
+.issues-screen,
+.fk-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.fk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.fk-button {
+  border: 1px solid #57534e;
+  border-radius: 999px;
+  background: #1c1917;
+  color: #fafaf9;
+  cursor: pointer;
+  padding: 0.45rem 0.9rem;
+}
+.fk-text {
+  line-height: 1.5;
+}
+.fk-text-link {
+  color: #fbbf24;
+}

@@ -1,0 +1,16 @@
+{
+  "model": "none/none",
+  "temperature": 0,
+  "maxOutputTokens": 0,
+  "topP": 1,
+  "topK": 0,
+  "presencePenalty": 0,
+  "frequencyPenalty": 0,
+  "stopSequences": [],
+  "seed": 0,
+  "reasoning": "none",
+  "maxRetries": 0,
+  "timeout": 180000,
+  "headers": {},
+  "providerOptions": {}
+}

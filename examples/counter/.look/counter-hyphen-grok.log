@@ -1,0 +1,16 @@
+I'll add the nine missing `counter-*` hosts only: Caddy blocks, DNS routes, Vite `allowedHosts`, and Access bypass apps — no reverse aliases, no extra restarts, and no other files.Caddy already has nested and mobile hosts; I'll insert the nine `counter-*` blocks after `mobile-counter` and add the same names to Vite.Vite and Caddy are updated. Next: reload Caddy, add DNS CNAMEs, create the nine Access bypass apps, then bounce 5210 once.Caddy reloaded. DNS failed because zsh treats `status` as read-only — retrying with a different variable name, then creating the Access apps.DNS and Access are in place. Bouncing 5210 once so Vite picks up the new `allowedHosts`, then waiting until it accepts.Nine new APP-surface hosts are wired to `127.0.0.1:5210`. Nested names and `counter-mobile.knophy.com` were left as-is. No reverse aliases.
+
+**New hosts**
+- `counter-foldkit.knophy.com` — Caddy added; DNS already on the tunnel (not overwritten); Access bypass created
+- `counter-react.knophy.com` — Caddy, DNS CNAME, Access bypass
+- `counter-svelte.knophy.com` — Caddy, DNS CNAME, Access bypass
+- `counter-expo.knophy.com` — Caddy, DNS CNAME, Access bypass
+- `counter-cli.knophy.com` — Caddy, DNS CNAME, Access bypass
+- `counter-tui.knophy.com` — Caddy, DNS CNAME, Access bypass
+- `counter-opentui.knophy.com` — Caddy, DNS CNAME, Access bypass
+- `counter-headless.knophy.com` — Caddy, DNS CNAME, Access bypass
+- `counter-surface.knophy.com` — Caddy, DNS CNAME, Access bypass
+
+Vite `allowedHosts` in `examples/counter/foldkit/vite.config.ts` now includes those nine. Caddy reloaded. Access apps are Bypass/everyone only.
+
+**5210 bounced:** yes, once (`com.knophy.foldkit.counter-demo`). It is accepting again (`http://127.0.0.1:5210/` → 200).

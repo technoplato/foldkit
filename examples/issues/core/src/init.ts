@@ -1,8 +1,11 @@
+import { Option } from 'effect'
 import { type Command } from 'foldkit'
 
+import { AllProducts } from './leftover.js'
 import { type Message } from './message.js'
 import {
   EditingIssueDraft,
+  IdleIssueMutation,
   IssueDraft,
   IssueList,
   LoadingIssues,
@@ -19,6 +22,7 @@ export const modelForNavigation = (navigation: Navigation): Model =>
   Model.make({
     draft: IssueDraft.make({
       details: '',
+      leftoverKind: Option.none(),
       priority: 'P2',
       productId: '',
       title: '',
@@ -26,8 +30,10 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     draftState: EditingIssueDraft.make({}),
     issueDetail: NotObservingIssue.make({}),
     issueLogs: NotObservingIssueLogs.make({}),
+    issueMutation: IdleIssueMutation.make({}),
     issues: LoadingIssues.make({}),
     navigation,
+    productFilter: AllProducts.make({}),
     products: LoadingProducts.make({}),
     triageCandidates: LoadingTriageCandidates.make({}),
   })

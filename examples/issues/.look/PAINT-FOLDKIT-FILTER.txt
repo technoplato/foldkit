@@ -1,0 +1,20 @@
+issuesScreen product:foldkit (live Instant, 9:41 AM ET)
+
+Product filter chips:
+  product:all All
+  product:scribe Scribe
+  product:instant-data-swift Instant Data Swift
+  product:foldkit Foldkit (selected)
+  product:ayutia AYUTIA
+  product:casino Casino
+  product:universal-software-shop Universal Software Shop
+  plus live extras: ACESS, Instant Tools Issue Tracker, Predictev GPT, Firstmate, DomainAsTree / PIS, SwiftAudioCapture, rust-instantdb, TCA Rust Port, Issue tracker
+
+open cards: 20
+foldkit cards: 20
+scribe cards: 0
+PASS Foldkit filter hides Scribe cards
+243 is not on this board (Casino).
+
+Loopback Host issues.knophy.com http://127.0.0.1:5198/ HTTP 200
+Public https://issues.knophy.com Access 302

@@ -8,6 +8,7 @@ import {
 } from '@foldkit/instant-tools/issues'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
+import { LeftoverStatus, ProductFilter } from './leftover.js'
 import { Navigation } from './model.js'
 
 export const ObservedIssues = S.TaggedStruct('ObservedIssues', {
@@ -90,6 +91,35 @@ export const FailedReviewTriageCandidate = S.TaggedStruct(
 export const OpenedNavigation = S.TaggedStruct('OpenedNavigation', {
   navigation: Navigation,
 })
+export const SelectedProductFilter = S.TaggedStruct('SelectedProductFilter', {
+  filter: ProductFilter,
+})
+export const SubmittedIssueComment = S.TaggedStruct('SubmittedIssueComment', {
+  issueId: S.String,
+  summary: S.String,
+})
+export const AppendedIssueWorkLog = S.TaggedStruct('AppendedIssueWorkLog', {
+  summary: S.String,
+})
+export const SucceededSaveIssueWorkLog = S.TaggedStruct(
+  'SucceededSaveIssueWorkLog',
+  { issue: Issue },
+)
+export const FailedSaveIssueWorkLog = S.TaggedStruct('FailedSaveIssueWorkLog', {
+  reason: S.String,
+})
+export const LinkedCatalogIssue = S.TaggedStruct('LinkedCatalogIssue', {
+  sourceIssueId: S.String,
+  targetIssueId: S.String,
+})
+export const ClickedLeftoverStatus = S.TaggedStruct('ClickedLeftoverStatus', {
+  issueId: S.String,
+  status: LeftoverStatus,
+})
+export const RetargetedIssueProduct = S.TaggedStruct('RetargetedIssueProduct', {
+  issueId: S.String,
+  productId: S.String,
+})
 
 /** Every fact accepted by the Issue Tracker Program. */
 export const Message = S.Union([
@@ -119,6 +149,14 @@ export const Message = S.Union([
   SucceededReviewTriageCandidate,
   FailedReviewTriageCandidate,
   OpenedNavigation,
+  SelectedProductFilter,
+  SubmittedIssueComment,
+  AppendedIssueWorkLog,
+  SucceededSaveIssueWorkLog,
+  FailedSaveIssueWorkLog,
+  LinkedCatalogIssue,
+  ClickedLeftoverStatus,
+  RetargetedIssueProduct,
 ])
 /** Every fact accepted by the Issue Tracker Program. */
 export type Message = typeof Message.Type

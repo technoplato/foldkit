@@ -1,0 +1,76 @@
+Trying to load the allocator multiple times. This is *not* supported.
+[95355:15532721:0823/095138.970755:ERROR:base/process/process_mac.cc:53] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)
+[95355:15532721:0823/095138.970785:ERROR:base/process/process_mac.cc:98] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)
+88706 bytes written to file /Users/laptop/Development/foldkit/examples/casino/.look/casino.png
+[95355:15532721:0823/095138.980681:ERROR:base/process/process_mac.cc:53] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)
+[95355:15532721:0823/095138.980723:ERROR:base/process/process_mac.cc:98] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)
+[95355:15532721:0823/095138.983192:ERROR:base/process/process_mac.cc:53] task_policy_set TASK_CATEGORY_POLICY: (os/kern) invalid argument (4)
+[95355:15532721:0823/095138.983224:ERROR:base/process/process_mac.cc:98] task_policy_set TASK_SUPPRESSION_POLICY: (os/kern) invalid argument (4)
+[96938:15541316:0823/095437.454209:VERBOSE1:chrome/updater/updater.cc:374] Version: 152.0.7933.0, opt, ARM_64, command line: /Users/laptop/Library/Application Support/Google/GoogleUpdater/152.0.7933.0/GoogleUpdater.app/Contents/MacOS/GoogleUpdater --wake-all --enable-logging --vmodule=*/components/update_client/*=2,*/chrome/enterprise_companion/*=2,*/chrome/updater/*=2
+[96938:15541316:0823/095437.454961:VERBOSE1:chrome/updater/updater.cc:377] OS version: 26.5.2, arch: arm64, System uptime (seconds): 407306, parent pid: 95355
+[96938:15541316:0823/095437.458031:VERBOSE1:chrome/updater/updater.cc:382] Available disk space in install directory (/Users/laptop/Library/Application Support/Google/GoogleUpdater): 452363001856B (421.296GiB) / 3996329328640B (3.635TiB)
+[96938:15541316:0823/095437.458055:VERBOSE1:chrome/updater/updater.cc:386] Available disk space in temporary directory (/var/folders/2d/5pqypl0x3px_4z4pbqxwczk80000gn/T/): 452363001856B (421.296GiB) / 3996329328640B (3.635TiB)
+[96938:15541316:0823/095437.458161:VERBOSE2:chrome/updater/event_history.cc:265] Emitted a UPDATER_PROCESS START event to the history log
+[96940:15541320:0823/095437.469702:VERBOSE1:chrome/updater/updater.cc:374] Version: 152.0.7933.0, opt, ARM_64, command line: /Users/laptop/Library/Application Support/Google/GoogleUpdater/152.0.7933.0/GoogleUpdater.app/Contents/MacOS/GoogleUpdater --crash-handler --database=/Users/laptop/Library/Application Support/Google/GoogleUpdater/152.0.7933.0/Crashpad --url=https://clients2.google.com/cr/report --annotation=prod=Update4 --annotation=ver=152.0.7933.0 --handshake-fd=6 --enable-logging --vmodule=*/components/update_client/*=2,*/chrome/enterprise_companion/*=2,*/chrome/updater/*=2
+[96940:15541320:0823/095437.470355:VERBOSE1:chrome/updater/updater.cc:377] OS version: 26.5.2, arch: arm64, System uptime (seconds): 407306, parent pid: 1
+[96940:15541320:0823/095437.472772:VERBOSE1:chrome/updater/updater.cc:382] Available disk space in install directory (/Users/laptop/Library/Application Support/Google/GoogleUpdater): 452362993664B (421.296GiB) / 3996329328640B (3.635TiB)
+[96940:15541320:0823/095437.472792:VERBOSE1:chrome/updater/updater.cc:386] Available disk space in temporary directory (/var/folders/2d/5pqypl0x3px_4z4pbqxwczk80000gn/T/): 452362993664B (421.296GiB) / 3996329328640B (3.635TiB)
+[96940:15541320:0823/095437.472894:VERBOSE2:chrome/updater/event_history.cc:265] Emitted a UPDATER_PROCESS START event to the history log
+[96938:15541316:0823/095437.473446:VERBOSE1:chrome/updater/crash_reporter.cc:124] Crash handler launched and ready.
+[96938:15541316:0823/095437.474337:VERBOSE1:chrome/updater/crash_client.cc:108] Found 0 completed crash reports
+[96938:15541316:0823/095437.474434:VERBOSE1:chrome/updater/crash_client.cc:132] Found 0 pending crash reports
+[96938:15541316:0823/095437.474555:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Chrome Dev/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474576:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/RLZ/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474603:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/consentOptions/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474614:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Chrome Beta/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474643:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/AndroidStudio2022.2/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474654:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/AndroidStudio2024.1/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474679:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/ChromeForTesting/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474690:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Chrome Canary/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474700:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Endpoint Verification/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474709:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/AndroidStudio2023.3/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474718:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Chrome-headless/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474726:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/AndroidStudio2024.2/Crashpad/settings.dat: No such file or directory (2)
+[96938:15541316:0823/095437.474745:VERBOSE1:chrome/updater/updater.cc:105] Crash reporting initialized.
+[96938:15541328:0823/095437.475161:VERBOSE1:chrome/updater/app/app_wakeall.cc:58] Launching `/Users/laptop/Library/Application Support/Google/GoogleUpdater/152.0.7933.0/GoogleUpdater.app/Contents/MacOS/GoogleUpdater --wake`
+[96941:15541332:0823/095437.489179:VERBOSE1:chrome/updater/updater.cc:374] Version: 152.0.7933.0, opt, ARM_64, command line: /Users/laptop/Library/Application Support/Google/GoogleUpdater/152.0.7933.0/GoogleUpdater.app/Contents/MacOS/GoogleUpdater --wake --enable-logging --vmodule=*/components/update_client/*=2,*/chrome/enterprise_companion/*=2,*/chrome/updater/*=2
+[96941:15541332:0823/095437.490038:VERBOSE1:chrome/updater/updater.cc:377] OS version: 26.5.2, arch: arm64, System uptime (seconds): 407306, parent pid: 96938
+[96941:15541332:0823/095437.492647:VERBOSE1:chrome/updater/updater.cc:382] Available disk space in install directory (/Users/laptop/Library/Application Support/Google/GoogleUpdater): 452362985472B (421.296GiB) / 3996329328640B (3.635TiB)
+[96941:15541332:0823/095437.492663:VERBOSE1:chrome/updater/updater.cc:386] Available disk space in temporary directory (/var/folders/2d/5pqypl0x3px_4z4pbqxwczk80000gn/T/): 452362985472B (421.296GiB) / 3996329328640B (3.635TiB)
+[96941:15541332:0823/095437.492740:VERBOSE2:chrome/updater/event_history.cc:265] Emitted a UPDATER_PROCESS START event to the history log
+[96943:15541336:0823/095437.503933:VERBOSE1:chrome/updater/updater.cc:374] Version: 152.0.7933.0, opt, ARM_64, command line: /Users/laptop/Library/Application Support/Google/GoogleUpdater/152.0.7933.0/GoogleUpdater.app/Contents/MacOS/GoogleUpdater --crash-handler --database=/Users/laptop/Library/Application Support/Google/GoogleUpdater/152.0.7933.0/Crashpad --url=https://clients2.google.com/cr/report --annotation=prod=Update4 --annotation=ver=152.0.7933.0 --handshake-fd=6 --enable-logging --vmodule=*/components/update_client/*=2,*/chrome/enterprise_companion/*=2,*/chrome/updater/*=2
+[96943:15541336:0823/095437.504566:VERBOSE1:chrome/updater/updater.cc:377] OS version: 26.5.2, arch: arm64, System uptime (seconds): 407306, parent pid: 1
+[96943:15541336:0823/095437.506848:VERBOSE1:chrome/updater/updater.cc:382] Available disk space in install directory (/Users/laptop/Library/Application Support/Google/GoogleUpdater): 452362985472B (421.296GiB) / 3996329328640B (3.635TiB)
+[96943:15541336:0823/095437.506866:VERBOSE1:chrome/updater/updater.cc:386] Available disk space in temporary directory (/var/folders/2d/5pqypl0x3px_4z4pbqxwczk80000gn/T/): 452362985472B (421.296GiB) / 3996329328640B (3.635TiB)
+[96943:15541336:0823/095437.506963:VERBOSE2:chrome/updater/event_history.cc:265] Emitted a UPDATER_PROCESS START event to the history log
+[96941:15541332:0823/095437.507496:VERBOSE1:chrome/updater/crash_reporter.cc:124] Crash handler launched and ready.
+[96941:15541332:0823/095437.508421:VERBOSE1:chrome/updater/crash_client.cc:108] Found 0 completed crash reports
+[96941:15541332:0823/095437.508520:VERBOSE1:chrome/updater/crash_client.cc:132] Found 0 pending crash reports
+[96941:15541332:0823/095437.508660:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Chrome Dev/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508690:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/RLZ/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508701:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/consentOptions/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508709:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Chrome Beta/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508734:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/AndroidStudio2022.2/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508745:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/AndroidStudio2024.1/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508767:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/ChromeForTesting/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508777:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Chrome Canary/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508785:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Endpoint Verification/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508793:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/AndroidStudio2023.3/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508801:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/Chrome-headless/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508809:ERROR:third_party/crashpad/crashpad/util/file/file_io_posix.cc:145] open /Users/laptop/Library/Application Support/Google/AndroidStudio2024.2/Crashpad/settings.dat: No such file or directory (2)
+[96941:15541332:0823/095437.508833:VERBOSE1:chrome/updater/updater.cc:105] Crash reporting initialized.
+[96941:15541332:0823/095437.509057:VERBOSE1:chrome/updater/ipc/update_service_internal_proxy_mojo.cc:61] Run
+[95355:15532648:0823/095442.124814:ERROR:content/browser/gpu/gpu_process_host.cc:1035] GPU process exited unexpectedly: exit_code=15
+[96953:15541441:0823/095442.169060:ERROR:base/apple/mach_port_rendezvous_mac.cc:256] bootstrap_look_up com.google.Chrome.MachPortRendezvousServer.1: Permission denied (1100)
+[96953:15541441:0823/095442.169384:ERROR:base/memory/shared_memory_switch.cc:261] No rendezvous client, terminating process (parent died?)
+[96941:15541332:0823/095501.796276:VERBOSE1:chrome/updater/app/app.cc:52] Shutdown: 0
+[96941:15541332:0823/095501.796817:VERBOSE2:chrome/updater/event_history.cc:265] Emitted a UPDATER_PROCESS END event to the history log
+[96941:15541332:0823/095501.796839:VERBOSE1:chrome/updater/updater.cc:419] UpdaterMain (--wake) returned 0.
+[96943:15541336:0823/095501.798726:VERBOSE2:chrome/updater/event_history.cc:265] Emitted a UPDATER_PROCESS END event to the history log
+[96943:15541336:0823/095501.798758:VERBOSE1:chrome/updater/updater.cc:419] UpdaterMain (--crash-handler) returned 0.
+[96938:15541328:0823/095501.826266:VERBOSE1:chrome/updater/app/app_wakeall.cc:68] `/Users/laptop/Library/Application Support/Google/GoogleUpdater/152.0.7933.0/GoogleUpdater.app/Contents/MacOS/GoogleUpdater --wake` exited 0
+[96938:15541316:0823/095501.826436:VERBOSE1:chrome/updater/app/app.cc:52] Shutdown: 0
+[96938:15541316:0823/095501.826828:VERBOSE2:chrome/updater/event_history.cc:265] Emitted a UPDATER_PROCESS END event to the history log
+[96938:15541316:0823/095501.826847:VERBOSE1:chrome/updater/updater.cc:419] UpdaterMain (--wake-all) returned 0.
+[96940:15541320:0823/095501.828684:VERBOSE2:chrome/updater/event_history.cc:265] Emitted a UPDATER_PROCESS END event to the history log
+[96940:15541320:0823/095501.828716:VERBOSE1:chrome/updater/updater.cc:419] UpdaterMain (--crash-handler) returned 0.

@@ -1,0 +1,224 @@
+{
+  "content_metadata": {
+    "chapter_info": {
+      "brandIntroDurationMs": 3924,
+      "brandOutroDurationMs": 4945,
+      "chapters": [
+        {
+          "length_ms": 17020,
+          "start_offset_ms": 0,
+          "start_offset_sec": 0,
+          "title": "Opening Credits"
+        },
+        {
+          "length_ms": 18645,
+          "start_offset_ms": 17020,
+          "start_offset_sec": 17,
+          "title": "Dedication"
+        },
+        {
+          "length_ms": 920322,
+          "start_offset_ms": 35665,
+          "start_offset_sec": 35,
+          "title": "Introduction"
+        },
+        {
+          "chapters": [
+            {
+              "length_ms": 2203736,
+              "start_offset_ms": 977210,
+              "start_offset_sec": 977,
+              "title": "Chapter 1: Disillusionment"
+            },
+            {
+              "length_ms": 3407969,
+              "start_offset_ms": 3180946,
+              "start_offset_sec": 3180,
+              "title": "Chapter 2: Work"
+            },
+            {
+              "length_ms": 3869280,
+              "start_offset_ms": 6588915,
+              "start_offset_sec": 6588,
+              "title": "Chapter 3: Liberty"
+            },
+            {
+              "length_ms": 1127026,
+              "start_offset_ms": 10458195,
+              "start_offset_sec": 10458,
+              "title": "Chapter 4: Equality"
+            }
+          ],
+          "length_ms": 21223,
+          "start_offset_ms": 955987,
+          "start_offset_sec": 955,
+          "title": "Part I: The Technological Challenge"
+        },
+        {
+          "chapters": [
+            {
+              "length_ms": 1018543,
+              "start_offset_ms": 11612341,
+              "start_offset_sec": 11612,
+              "title": "Chapter 5: Community"
+            },
+            {
+              "length_ms": 2302281,
+              "start_offset_ms": 12630884,
+              "start_offset_sec": 12630,
+              "title": "Chapter 6: Civilization"
+            },
+            {
+              "length_ms": 2711812,
+              "start_offset_ms": 14933165,
+              "start_offset_sec": 14933,
+              "title": "Chapter 7: Nationalism"
+            },
+            {
+              "length_ms": 1615714,
+              "start_offset_ms": 17644977,
+              "start_offset_sec": 17644,
+              "title": "Chapter 8: Religion"
+            },
+            {
+              "length_ms": 2296848,
+              "start_offset_ms": 19260691,
+              "start_offset_sec": 19260,
+              "title": "Chapter 9: Immigration"
+            }
+          ],
+          "length_ms": 27120,
+          "start_offset_ms": 11585221,
+          "start_offset_sec": 11585,
+          "title": "Part II: The Political Challenge"
+        },
+        {
+          "chapters": [
+            {
+              "length_ms": 1549514,
+              "start_offset_ms": 21576532,
+              "start_offset_sec": 21576,
+              "title": "Chapter 10: Terrorism"
+            },
+            {
+              "length_ms": 1393290,
+              "start_offset_ms": 23126046,
+              "start_offset_sec": 23126,
+              "title": "Chapter 11: War"
+            },
+            {
+              "length_ms": 2148101,
+              "start_offset_ms": 24519336,
+              "start_offset_sec": 24519,
+              "title": "Chapter 12: Humility"
+            },
+            {
+              "length_ms": 821266,
+              "start_offset_ms": 26667437,
+              "start_offset_sec": 26667,
+              "title": "Chapter 13: God"
+            },
+            {
+              "length_ms": 1552277,
+              "start_offset_ms": 27488703,
+              "start_offset_sec": 27488,
+              "title": "Chapter 14: Secularism"
+            }
+          ],
+          "length_ms": 18993,
+          "start_offset_ms": 21557539,
+          "start_offset_sec": 21557,
+          "title": "Part III: Despair and Hope"
+        },
+        {
+          "chapters": [
+            {
+              "length_ms": 753766,
+              "start_offset_ms": 29065384,
+              "start_offset_sec": 29065,
+              "title": "Chapter 15: Ignorance"
+            },
+            {
+              "length_ms": 994719,
+              "start_offset_ms": 29819150,
+              "start_offset_sec": 29819,
+              "title": "Chapter 16: Justice"
+            },
+            {
+              "length_ms": 1922171,
+              "start_offset_ms": 30813869,
+              "start_offset_sec": 30813,
+              "title": "Chapter 17: Post-Truth"
+            },
+            {
+              "length_ms": 1322887,
+              "start_offset_ms": 32736040,
+              "start_offset_sec": 32736,
+              "title": "Chapter 18: Science Fiction"
+            }
+          ],
+          "length_ms": 24404,
+          "start_offset_ms": 29040980,
+          "start_offset_sec": 29040,
+          "title": "Part IV: Truth"
+        },
+        {
+          "chapters": [
+            {
+              "length_ms": 1341254,
+              "start_offset_ms": 34073091,
+              "start_offset_sec": 34073,
+              "title": "Chapter 19: Education"
+            },
+            {
+              "length_ms": 5772642,
+              "start_offset_ms": 35414345,
+              "start_offset_sec": 35414,
+              "title": "Chapter 20: Meaning"
+            },
+            {
+              "length_ms": 1443422,
+              "start_offset_ms": 41186987,
+              "start_offset_sec": 41186,
+              "title": "Chapter 21: Meditation"
+            }
+          ],
+          "length_ms": 14164,
+          "start_offset_ms": 34058927,
+          "start_offset_sec": 34058,
+          "title": "Part V: Resilience"
+        },
+        {
+          "length_ms": 30997,
+          "start_offset_ms": 42630409,
+          "start_offset_sec": 42630,
+          "title": "End Credits"
+        }
+      ],
+      "is_accurate": true,
+      "runtime_length_ms": 42661406,
+      "runtime_length_sec": 42661
+    },
+    "content_reference": {
+      "acr": "CR!CYA3A5S5B559FDRNMZD5G0FKQ4NF",
+      "asin": "B07DHS7PP5",
+      "codec": "mp4a.40.2",
+      "content_format": "AAX_44_128",
+      "content_size_in_bytes": 687128725,
+      "file_version": "2",
+      "marketplace": "AF2M0KC94RCEA",
+      "sku": "BK_RAND_006221",
+      "tempo": "1.0",
+      "version": "13946121"
+    },
+    "last_position_heard": {
+      "status": "DoesNotExist"
+    }
+  },
+  "response_groups": [
+    "always-returned",
+    "last_position_heard",
+    "chapter_info",
+    "content_reference"
+  ]
+}

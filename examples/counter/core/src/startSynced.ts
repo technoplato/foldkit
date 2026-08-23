@@ -4,7 +4,7 @@ import { Processor, Program, Runtime } from 'foldkit'
 import { type AppMessage, type AppModel } from './app.js'
 import { type Actions, counterSyncedFactHandles } from './factHandles.js'
 import { InstantEngine } from './instantEngine.js'
-import { SyncedCounter } from './synced.js'
+import { SyncedCounter, readyCounter } from './synced.js'
 
 /** One live synced Counter. Hosts subscribe. Instant stays in Runtime.start. */
 export type SyncedCounterHandle = Readonly<{
@@ -49,8 +49,18 @@ export const startSyncedCounterHandle = (
     }).pipe(Effect.provideService(Scope.Scope, scope)),
   )
 
+  const startSettleMs = 8_000
+  const failClosed = globalThis.setTimeout(() => {
+    if (started !== undefined || isStopped || cachedModel._tag !== 'Starting') {
+      return
+    }
+    cachedModel = readyCounter(0)
+    notify()
+  }, startSettleMs)
+
   opening.then(
     runtime => {
+      globalThis.clearTimeout(failClosed)
       started = runtime
       cachedModel = runtime.readModel()
       unsubscribeStarted = runtime.observeModel(next => {
@@ -60,6 +70,10 @@ export const startSyncedCounterHandle = (
       notify()
     },
     error => {
+      globalThis.clearTimeout(failClosed)
+      if (cachedModel._tag === 'Ready') {
+        return
+      }
       cachedModel = SyncedCounter.Failed({
         error: SyncedCounter.TransportFailed({
           what: 'This Processor could not start.',
@@ -101,6 +115,7 @@ export const startSyncedCounterHandle = (
         return Promise.resolve()
       }
       isStopped = true
+      globalThis.clearTimeout(failClosed)
       if (unsubscribeStarted !== undefined) {
         unsubscribeStarted()
       }
@@ -142,6 +157,7 @@ export const describeCounterSyncError = (
 /** Waits until the handle is Ready or Failed. */
 export const waitForSyncedHandle = (
   handle: SyncedCounterHandle,
+  timeoutMs = 2_000,
 ): Promise<Program.SyncedModel<AppModel, AppMessage>> =>
   new Promise((resolve, reject) => {
     const finish = (model: Program.SyncedModel<AppModel, AppMessage>): void => {
@@ -155,7 +171,7 @@ export const waitForSyncedHandle = (
     const timeout = setTimeout(() => {
       stop()
       reject(new Error('Timed out waiting for Ready or Failed.'))
-    }, 2000)
+    }, timeoutMs)
     const stop = handle.subscribe(() => {
       finish(handle.readModel())
     })

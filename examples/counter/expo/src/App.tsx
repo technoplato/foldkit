@@ -1,8 +1,9 @@
 import {
+  type ListedAction,
   Path,
   actionMenuRowLabel,
+  counterScreen,
   describeCounterSyncError,
-  surfaceFor,
 } from 'counter-core-example'
 import { useActionMenu } from 'counter-react-bindings-example'
 import { Match as M, Option } from 'effect'
@@ -12,9 +13,11 @@ import type { ReactNode } from 'react'
 import { Modal, Pressable, Text, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 
-import { ProgramKeyBindings, useActions, useModel } from '@foldkit/react'
+import { ProgramKeyBindings, sendScreenToken, useModel } from '@foldkit/react'
 
-/** Draws one bespoke Counter window from derived past-tense fact handles. */
+import { paintScreen } from './paintScreen.js'
+
+/** Paints counterScreen. Host chrome lives in the Program if at all. */
 export const App = () => (
   <ProgramKeyBindings path={Path()}>
     <CounterWindow />
@@ -23,8 +26,6 @@ export const App = () => (
 
 const CounterWindow = () => {
   const view = useModel(Path())
-  const { incrementButtonTapped, decrementButtonTapped, resetButtonTapped } =
-    useActions(Path())
   const { menu, rows, empty, maybeChosen, dismiss, select, trigger } =
     useActionMenu()
   return (
@@ -47,30 +48,7 @@ const CounterWindow = () => {
                   padding: 24,
                 }}
               >
-                <ExpoHostHeader />
-                <Text
-                  accessibilityLabel={`count ${product.count.toString()}`}
-                  style={{
-                    color: '#111827',
-                    fontSize: 72,
-                    fontVariant: ['tabular-nums'],
-                    fontWeight: '600',
-                  }}
-                >
-                  {product.count.toString()}
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
-                  <Action label="-" onPress={decrementButtonTapped} />
-                  {M.value(resetButtonTapped).pipe(
-                    M.tagsExhaustive({
-                      Tappable: ({ tap }) => (
-                        <Action label="Reset" onPress={tap} />
-                      ),
-                      Hidden: () => <View style={{ minWidth: 88 }} />,
-                    }),
-                  )}
-                  <Action label="+" onPress={incrementButtonTapped} />
-                </View>
+                {paintScreen(counterScreen(product), sendScreenToken)}
               </View>
             ),
           }),
@@ -164,45 +142,6 @@ const CounterWindow = () => {
   )
 }
 
-const ExpoHostHeader = () => {
-  const surface = surfaceFor('expo')
-  return (
-    <View style={{ marginBottom: 24, maxWidth: 360 }}>
-      <Text
-        style={{
-          color: '#111827',
-          fontSize: 20,
-          fontWeight: '600',
-          textAlign: 'center',
-        }}
-      >
-        {surface.title}
-      </Text>
-      <Text
-        style={{
-          color: '#4b5563',
-          fontSize: 14,
-          marginTop: 8,
-          textAlign: 'center',
-        }}
-      >
-        {surface.description}
-      </Text>
-      <Text
-        selectable
-        style={{
-          color: '#111827',
-          fontSize: 12,
-          marginTop: 8,
-          textAlign: 'center',
-        }}
-      >
-        {surface.sourceUrl}
-      </Text>
-    </View>
-  )
-}
-
 const Status = ({ children }: Readonly<{ children: ReactNode }>) => (
   <View
     style={{
@@ -212,7 +151,6 @@ const Status = ({ children }: Readonly<{ children: ReactNode }>) => (
       padding: 24,
     }}
   >
-    <ExpoHostHeader />
     <Text style={{ color: '#111827', fontSize: 18, textAlign: 'center' }}>
       {children}
     </Text>
@@ -237,12 +175,7 @@ const ExpoMenuRows = ({
 }: Readonly<{
   maybeChosen: Option.Option<string>
   maybeHighlight: Option.Option<number>
-  rows: ReadonlyArray<{
-    readonly token: string
-    readonly keys: ReadonlyArray<string>
-    readonly disabled: boolean
-    readonly hiddenBecause: string | undefined
-  }>
+  rows: ReadonlyArray<ListedAction>
   onSelect: (token: string) => void
 }>) => (
   <>
@@ -278,32 +211,4 @@ const ExpoMenuRows = ({
       )
     })}
   </>
-)
-
-const Action = ({
-  label,
-  onPress,
-}: Readonly<{ label: string; onPress: () => void }>) => (
-  <Pressable
-    accessibilityLabel={label}
-    accessibilityRole="button"
-    onPress={onPress}
-    style={{
-      backgroundColor: '#111827',
-      minWidth: 88,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-    }}
-  >
-    <Text
-      style={{
-        color: '#ffffff',
-        fontSize: 16,
-        fontWeight: '500',
-        textAlign: 'center',
-      }}
-    >
-      {label}
-    </Text>
-  </Pressable>
 )

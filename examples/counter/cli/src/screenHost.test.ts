@@ -11,10 +11,6 @@ describe('Counter screen-window CLI host', () => {
     const execution = await Effect.runPromise(executeScreenShow())
 
     expect(execution.finalModel).toEqual(Model.make({ count: 0 }))
-    expect(execution.stdout).toContain('Foldkit - CLI screen Counter')
-    expect(execution.stdout).toContain(
-      'all business logic and sync logic are written in Foldkit; consumed and rendered by CLI.',
-    )
     expect(execution.stdout).toContain('0\n[increment] [decrement]')
     expect(execution.stdout).toContain('commands')
     expect(execution.stdout).toContain('Increments the count by one')

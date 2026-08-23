@@ -22,6 +22,14 @@
     "./logging": {
       "types": "./dist/logging/index.d.ts",
       "import": "./dist/logging/index.js"
+    },
+    "./leftover": {
+      "types": "./dist/leftover/index.d.ts",
+      "import": "./dist/leftover/index.js"
+    },
+    "./webhooks": {
+      "types": "./dist/webhooks/index.d.ts",
+      "import": "./dist/webhooks/index.js"
     }
   },
   "sideEffects": false,
@@ -36,7 +44,13 @@
   },
   "peerDependencies": {
     "@instantdb/core": "1.0.53",
+    "@instantdb/webhooks": "1.0.53",
     "effect": "4.0.0-beta.97"
+  },
+  "peerDependenciesMeta": {
+    "@instantdb/webhooks": {
+      "optional": true
+    }
   },
   "dependencies": {
     "uuid": "14.0.1"

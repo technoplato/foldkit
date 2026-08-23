@@ -1,0 +1,38 @@
+issuesScreen /issues/244
+open buttons: BTN open:240 240 | BTN open:241 241 | BTN open:242 242 | BTN open:243 243
+has open:240 true
+has open:241 true
+has open:242 true
+has open:243 true
+TEXT Issues
+BTN back Back to issues
+TEXT 244  P1  Open
+TEXT Operator leftover recap 2026-08-23 morning
+TEXT Verified 9:05 AM ET. Do not close until Michael says.
+
+240 https://issues.knophy.com/issues/240 Instant hang on public puzzle. https://puzzle.knophy.com and https://grok.knophy.com are 200. 200 is not paint.
+
+241 https://issues.knophy.com/issues/241 Songbook 302. songbookScreen and songbookValid exist. ADT audit not yet. https://songbook.knophy.com 302. https://songbook-foldkit.knophy.com 302.
+
+242 https://issues.knophy.com/issues/242 https://gate.grok.me still 502. originUrl is that host. Live Read only. grok build in flight.
+
+243 https://issues.knophy.com/issues/243 https://casino.knophy.com 302. Paints fail-closed. Stripe stripe-unconfigured. Proofs not Verified.
+
+Also open: nested TLS leftover (one-label aliases live, do not buy ACM), Ice Cubes Instant roster only, settings leftover, Foldkit 0.150 after hosts (local 0.131.0).
+
+Counter bench v1 runs in parallel with 242/240/243, one grok per origin. v1: Instant settle, offline, action menu, mirrored UI, global sync. Login later. Live host https://counter.knophy.com.
+
+Event-driven leftover board: /home/box/agent-data/operator-board.md. Manager only pulls if stale.
+TEXT Work log
+TEXT No work log yet.
+TEXT Linked issues
+BTN open:240 240
+BTN open:241 241
+BTN open:242 242
+BTN open:243 243
+BTN status:Open Open
+BTN status:Blocked Blocked
+BTN status:Verify Verify
+BTN status:Closed Closed
+TEXT Library: Foldkit
+TEXT https://issues.knophy.com/issues/244
