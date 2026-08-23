@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 23rd, 2026 at 7:25:57 p.m. EDT — `c9ef95930a06` feat: observe leftover Instant catalogs and join leftover rooms
+
+- **Implementation commit:** `c9ef95930a06f6a5dee711723878da6eb5ca9d41`
+- **Change:** Observe leftover Instant catalogs immediately and join leftover presence rooms
+- **Details:**
+  - Prefix Instant leftover issue observation with queryOnce so catalogs can leave Observing if subscribe hangs.
+  - Join leftover Instant rooms from issuesScreen IssueDetail and paint peers.
+  - Implement songbook update, None|Some lyrics drafts, and TextInputs on songbookScreen.
+  - Do not close leftover issues 240-243. https://issues.knophy.com/issues/241 https://issues.knophy.com/issues/245
+- **Files:**
+  - `packages/instant-tools/src/instant/instant.ts` — Prefix Instant issue observation with a one-shot query so catalogs can leave Observing if subscribe hangs.
+  - `packages/instant-tools/src/leftover/memory.ts` — Notify leftover room observers after join and emit current peers on observe.
+  - `packages/instant-tools/src/leftover/instant.ts` — Prefix leftover presence with an empty peer list so IssueDetail can leave joining.
+  - `examples/issues/core/src/update.ts` — Join and leave leftover Instant rooms from IssueDetail navigation.
+  - `examples/issues/core/src/product.ts` — Paint leftover presence peers on IssueDetail.
+  - `examples/songbook/core/src/update.ts` — Implement songbook update, Commands, and None|Some lyrics drafts.
+  - `examples/songbook/core/src/product.ts` — Paint TextInputs and chart actions on one shared songbookScreen.
+- **User context (verbatim):**
+  > go find this grokbot converssation id d7b5bc89-5140-4dbe-b7af-5ae6e582f500 creaste a skill for ctaching up and triaging what work has/hasn't been done issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session.
+
 ## August 23rd, 2026 at 6:22:04 p.m. EDT — `543a59fec990` feat: fail-open hosted Instant identity and leftover composer
 
 - **Implementation commit:** `543a59fec990c79cbce3577b2ffedd0917b4cdc8`
