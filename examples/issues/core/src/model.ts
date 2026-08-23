@@ -5,6 +5,7 @@ import {
   ProductCatalogEntry,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
+import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { LeftoverKind, ProductFilter } from './leftover.js'
@@ -182,6 +183,36 @@ export const IssueMutationState = S.Union([
 /** Every leftover mutation phase. */
 export type IssueMutationState = typeof IssueMutationState.Type
 
+/** No leftover room is being observed. */
+export const NotObservingLeftoverPresence = S.TaggedStruct(
+  'NotObservingLeftoverPresence',
+  {},
+)
+/** A leftover room is joined, but has not emitted peers yet. */
+export const LoadingLeftoverPresence = S.TaggedStruct(
+  'LoadingLeftoverPresence',
+  { leftoverId: S.String },
+)
+/** Latest leftover room peers. */
+export const LoadedLeftoverPresence = S.TaggedStruct('LoadedLeftoverPresence', {
+  leftoverId: S.String,
+  peers: S.Array(LeftoverPeer),
+})
+/** Leftover room observation failed. */
+export const FailedLeftoverPresence = S.TaggedStruct('FailedLeftoverPresence', {
+  leftoverId: S.String,
+  reason: S.String,
+})
+/** Every leftover presence observation state. */
+export const LeftoverPresenceState = S.Union([
+  NotObservingLeftoverPresence,
+  LoadingLeftoverPresence,
+  LoadedLeftoverPresence,
+  FailedLeftoverPresence,
+])
+/** Every leftover presence observation state. */
+export type LeftoverPresenceState = typeof LeftoverPresenceState.Type
+
 /** The shared renderer-independent Issue Tracker Model. */
 export const Model = S.Struct({
   draft: IssueDraft,
@@ -192,6 +223,7 @@ export const Model = S.Struct({
   issues: IssuesState,
   leftoverComment: S.String,
   leftoverLink: S.String,
+  leftoverPresence: LeftoverPresenceState,
   navigation: Navigation,
   productFilter: ProductFilter,
   products: ProductsState,

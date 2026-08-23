@@ -8,24 +8,43 @@ import {
   ProductCatalog,
   TriageInbox,
 } from '@foldkit/instant-tools/issues'
+import {
+  LeftoverPresence,
+  LeftoverPresenceError,
+} from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
 import {
   FailedObserveIssue,
   FailedObserveIssueLogs,
   FailedObserveIssues,
+  FailedObserveLeftoverPeers,
   FailedObserveProducts,
   FailedObserveTriageCandidates,
   type Message,
   ObservedIssue,
   ObservedIssueLogs,
   ObservedIssues,
+  ObservedLeftoverPeers,
   ObservedProducts,
   ObservedTriageCandidates,
 } from './message.js'
 import { type Model } from './model.js'
 
-type Resources = IssueTracker | Logger | ProductCatalog | TriageInbox
+type Resources =
+  | IssueTracker
+  | LeftoverPresence
+  | Logger
+  | ProductCatalog
+  | TriageInbox
+
+const leftoverPresenceFailureReason = (
+  error: LeftoverPresenceError,
+): string => {
+  const cause =
+    error.cause instanceof Error ? error.cause.message : String(error.cause)
+  return `${error.operation}: ${cause}`
+}
 
 const issueTrackerFailureReason = (error: IssueTrackerError): string => {
   const cause =
@@ -157,6 +176,45 @@ export const subscriptions = Subscription.make<Model, Message, Resources>()(
                       FailedObserveIssueLogs.make({
                         issueId,
                         reason: String(error),
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        },
+      },
+    ),
+    leftoverPresence: entry(
+      { maybeLeftoverId: S.Option(S.String) },
+      {
+        modelToDependencies: model => ({
+          maybeLeftoverId:
+            model.navigation._tag === 'IssueDetail'
+              ? Option.some(model.navigation.issueId)
+              : Option.none(),
+        }),
+        dependenciesToStream: ({ maybeLeftoverId }) => {
+          if (Option.isNone(maybeLeftoverId)) {
+            return Stream.empty
+          }
+          const leftoverId = maybeLeftoverId.value
+          return Stream.unwrap(
+            LeftoverPresence.pipe(
+              Effect.map(presence =>
+                presence.observeLeftoverRoom(leftoverId).pipe(
+                  Stream.map(peers =>
+                    ObservedLeftoverPeers.make({ leftoverId, peers }),
+                  ),
+                  Stream.catch(error =>
+                    Stream.make(
+                      FailedObserveLeftoverPeers.make({
+                        leftoverId,
+                        reason:
+                          error instanceof LeftoverPresenceError
+                            ? leftoverPresenceFailureReason(error)
+                            : String(error),
                       }),
                     ),
                   ),

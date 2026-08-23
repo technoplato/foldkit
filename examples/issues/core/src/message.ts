@@ -6,6 +6,7 @@ import {
   ProductCatalogEntry,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
+import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { LeftoverStatus, ProductFilter } from './leftover.js'
@@ -126,6 +127,36 @@ export const RetargetedIssueProduct = S.TaggedStruct('RetargetedIssueProduct', {
   issueId: S.String,
   productId: S.String,
 })
+export const ObservedLeftoverPeers = S.TaggedStruct('ObservedLeftoverPeers', {
+  leftoverId: S.String,
+  peers: S.Array(LeftoverPeer),
+})
+export const FailedObserveLeftoverPeers = S.TaggedStruct(
+  'FailedObserveLeftoverPeers',
+  {
+    leftoverId: S.String,
+    reason: S.String,
+  },
+)
+export const CompletedJoinLeftoverRoom = S.TaggedStruct(
+  'CompletedJoinLeftoverRoom',
+  { leftoverId: S.String },
+)
+export const FailedJoinLeftoverRoom = S.TaggedStruct('FailedJoinLeftoverRoom', {
+  leftoverId: S.String,
+  reason: S.String,
+})
+export const CompletedLeaveLeftoverRoom = S.TaggedStruct(
+  'CompletedLeaveLeftoverRoom',
+  { leftoverId: S.String },
+)
+export const FailedLeaveLeftoverRoom = S.TaggedStruct(
+  'FailedLeaveLeftoverRoom',
+  {
+    leftoverId: S.String,
+    reason: S.String,
+  },
+)
 
 /** Every fact accepted by the Issue Tracker Program. */
 export const Message = S.Union([
@@ -165,6 +196,12 @@ export const Message = S.Union([
   LinkedCatalogIssue,
   ClickedLeftoverStatus,
   RetargetedIssueProduct,
+  ObservedLeftoverPeers,
+  FailedObserveLeftoverPeers,
+  CompletedJoinLeftoverRoom,
+  FailedJoinLeftoverRoom,
+  CompletedLeaveLeftoverRoom,
+  FailedLeaveLeftoverRoom,
 ])
 /** Every fact accepted by the Issue Tracker Program. */
 export type Message = typeof Message.Type

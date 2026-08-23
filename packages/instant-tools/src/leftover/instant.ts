@@ -67,35 +67,39 @@ export const makeInstantLeftoverPresence = (
     return room
   }
   const observe = (leftoverId: string) =>
-    Stream.callback<ReadonlyArray<LeftoverPeer>, LeftoverPresenceError>(queue =>
-      Effect.acquireRelease(
-        Effect.try({
-          try: () => {
-            const room = roomFor(leftoverId)
-            return room.subscribePresence(
-              {},
-              (slice: LeftoverPresenceSlice) => {
-                if (slice.error !== undefined) {
-                  Queue.failCauseUnsafe(
-                    queue,
-                    Cause.fail(
-                      new LeftoverPresenceError({
-                        cause: slice.error,
-                        operation: 'Observe',
-                      }),
-                    ),
-                  )
-                  return
-                }
-                Queue.offerUnsafe(queue, peersFromSlice(leftoverId, slice))
+    Stream.concat(
+      Stream.succeed<ReadonlyArray<LeftoverPeer>>([]),
+      Stream.callback<ReadonlyArray<LeftoverPeer>, LeftoverPresenceError>(
+        queue =>
+          Effect.acquireRelease(
+            Effect.try({
+              try: () => {
+                const room = roomFor(leftoverId)
+                return room.subscribePresence(
+                  {},
+                  (slice: LeftoverPresenceSlice) => {
+                    if (slice.error !== undefined) {
+                      Queue.failCauseUnsafe(
+                        queue,
+                        Cause.fail(
+                          new LeftoverPresenceError({
+                            cause: slice.error,
+                            operation: 'Observe',
+                          }),
+                        ),
+                      )
+                      return
+                    }
+                    Queue.offerUnsafe(queue, peersFromSlice(leftoverId, slice))
+                  },
+                )
               },
-            )
-          },
-          catch: cause =>
-            new LeftoverPresenceError({ cause, operation: 'Observe' }),
-        }),
-        unsubscribe => Effect.sync(unsubscribe),
-      ).pipe(Effect.flatMap(() => Effect.never)),
+              catch: cause =>
+                new LeftoverPresenceError({ cause, operation: 'Observe' }),
+            }),
+            unsubscribe => Effect.sync(unsubscribe),
+          ).pipe(Effect.flatMap(() => Effect.never)),
+      ),
     )
   return {
     joinLeftoverRoom: (join: LeftoverPresenceJoin) =>

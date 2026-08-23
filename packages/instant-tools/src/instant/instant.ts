@@ -767,47 +767,64 @@ export const makeInstantEntityStore = (
         operation: 'FetchProducts',
       }),
   }),
-  observeIssues: Stream.callback<
-    ReadonlyArray<InstantIssueRecord>,
-    InstantEntityStoreError
-  >(queue =>
-    Effect.acquireRelease(
-      Effect.sync(() =>
-        database.subscribeQuery({ instantToolsIssues: {} }, response => {
-          if (response.error !== undefined) {
-            Queue.failCauseUnsafe(
-              queue,
-              Cause.fail(
-                new InstantEntityStoreError({
-                  cause: response.error,
-                  operation: 'ObserveIssues',
-                }),
-              ),
-            )
-          } else {
-            try {
-              Queue.offerUnsafe(
-                queue,
-                Array.map(response.data.instantToolsIssues, record =>
-                  S.decodeUnknownSync(InstantIssueRecord)(record),
-                ),
-              )
-            } catch (cause) {
-              Queue.failCauseUnsafe(
-                queue,
-                Cause.fail(
-                  new InstantEntityStoreError({
-                    cause,
-                    operation: 'ObserveIssues',
-                  }),
-                ),
-              )
-            }
-          }
-        }),
-      ),
-      unsubscribe => Effect.sync(unsubscribe),
-    ).pipe(Effect.flatMap(() => Effect.never)),
+  observeIssues: Stream.concat(
+    Stream.fromEffect(
+      Effect.tryPromise({
+        try: async () => {
+          const response = await database.queryOnce({
+            instantToolsIssues: {},
+          })
+          return Array.map(response.data.instantToolsIssues, record =>
+            S.decodeUnknownSync(InstantIssueRecord)(record),
+          )
+        },
+        catch: cause =>
+          new InstantEntityStoreError({
+            cause,
+            operation: 'ObserveIssues',
+          }),
+      }),
+    ),
+    Stream.callback<ReadonlyArray<InstantIssueRecord>, InstantEntityStoreError>(
+      queue =>
+        Effect.acquireRelease(
+          Effect.sync(() =>
+            database.subscribeQuery({ instantToolsIssues: {} }, response => {
+              if (response.error !== undefined) {
+                Queue.failCauseUnsafe(
+                  queue,
+                  Cause.fail(
+                    new InstantEntityStoreError({
+                      cause: response.error,
+                      operation: 'ObserveIssues',
+                    }),
+                  ),
+                )
+              } else {
+                try {
+                  Queue.offerUnsafe(
+                    queue,
+                    Array.map(response.data.instantToolsIssues, record =>
+                      S.decodeUnknownSync(InstantIssueRecord)(record),
+                    ),
+                  )
+                } catch (cause) {
+                  Queue.failCauseUnsafe(
+                    queue,
+                    Cause.fail(
+                      new InstantEntityStoreError({
+                        cause,
+                        operation: 'ObserveIssues',
+                      }),
+                    ),
+                  )
+                }
+              }
+            }),
+          ),
+          unsubscribe => Effect.sync(unsubscribe),
+        ).pipe(Effect.flatMap(() => Effect.never)),
+    ),
   ),
   observeIssue: issueId =>
     Stream.callback<Option.Option<InstantIssueRecord>, InstantEntityStoreError>(

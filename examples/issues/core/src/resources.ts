@@ -19,6 +19,10 @@ import {
   type TriageInboxService,
 } from '@foldkit/instant-tools/issues'
 import {
+  MemoryLeftoverPresenceLive,
+  makeInstantLeftoverPresenceLayer,
+} from '@foldkit/instant-tools/leftover'
+import {
   IssueLogEvidence,
   Logger,
   type LoggerService,
@@ -187,6 +191,7 @@ export const StaticIssueTrackerResources = Layer.mergeAll(
   Layer.succeed(Logger, StaticLogger),
   Layer.succeed(ProductCatalog, StaticProductCatalog),
   Layer.succeed(TriageInbox, StaticTriageInbox),
+  MemoryLeftoverPresenceLive,
   Layer.succeed(IssueIdentity, {
     next: Effect.succeed({ id: 'issue-preview', nowMs: 1_753_800_100_000 }),
   }),
@@ -194,7 +199,8 @@ export const StaticIssueTrackerResources = Layer.mergeAll(
 
 /** Live Instant resources for browser and native Clients. */
 export const makeLiveIssueTrackerResources = (database: InstantToolsDatabase) =>
-  Layer.merge(
+  Layer.mergeAll(
     makeInstantToolsLayer(database),
+    makeInstantLeftoverPresenceLayer(database),
     Layer.succeed(IssueIdentity, LiveIssueIdentity),
   )

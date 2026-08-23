@@ -964,17 +964,22 @@ export const messageFromToken = (
   if (Option.isSome(maybeUnknown)) {
     return OpenedUnknown({ path: NonEmptyString.make(maybeUnknown.value) })
   }
-  const maybeSearch = afterPrefix(token, 'search:')
-  if (Option.isSome(maybeSearch)) {
-    return TypedSearch({ query: maybeSearch.value })
+  if (Str.startsWith(token, 'search:')) {
+    return TypedSearch({ query: token.slice('search:'.length) })
   }
-  const maybeTitle = afterPrefix(token, 'title:')
-  if (Option.isSome(maybeTitle)) {
-    return NamedTitle({ name: NonEmptyString.make(maybeTitle.value) })
+  if (Str.startsWith(token, 'title:')) {
+    const rest = token.slice('title:'.length)
+    if (Str.isEmpty(rest)) {
+      return ClearedTitle()
+    }
+    return NamedTitle({ name: NonEmptyString.make(rest) })
   }
-  const maybeArtist = afterPrefix(token, 'artist:')
-  if (Option.isSome(maybeArtist)) {
-    return NamedArtist({ name: NonEmptyString.make(maybeArtist.value) })
+  if (Str.startsWith(token, 'artist:')) {
+    const rest = token.slice('artist:'.length)
+    if (Str.isEmpty(rest)) {
+      return ClearedArtist()
+    }
+    return NamedArtist({ name: NonEmptyString.make(rest) })
   }
   const maybeKey = afterPrefix(token, 'key:')
   if (Option.isSome(maybeKey)) {
@@ -988,17 +993,15 @@ export const messageFromToken = (
   if (Option.isSome(maybeLyrics)) {
     return OpenedLyrics({ sectionId: NonEmptyString.make(maybeLyrics.value) })
   }
-  const maybeDraft = afterPrefix(token, 'draft:')
-  if (Option.isSome(maybeDraft)) {
-    return TypedLyrics({ text: maybeDraft.value })
+  if (Str.startsWith(token, 'draft:')) {
+    return TypedLyrics({ text: token.slice('draft:'.length) })
   }
   const maybeWord = afterPrefix(token, 'word:')
   if (Option.isSome(maybeWord)) {
     return OpenedWord({ wordId: NonEmptyString.make(maybeWord.value) })
   }
-  const maybeChord = afterPrefix(token, 'chord:')
-  if (Option.isSome(maybeChord)) {
-    return TypedChord({ text: maybeChord.value })
+  if (Str.startsWith(token, 'chord:')) {
+    return TypedChord({ text: token.slice('chord:'.length) })
   }
   const maybeRemove = afterPrefix(token, 'remove:')
   if (Option.isSome(maybeRemove)) {

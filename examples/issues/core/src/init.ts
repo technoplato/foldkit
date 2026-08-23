@@ -9,12 +9,14 @@ import {
   IssueDraft,
   IssueList,
   LoadingIssues,
+  LoadingLeftoverPresence,
   LoadingProducts,
   LoadingTriageCandidates,
   Model,
   type Navigation,
   NotObservingIssue,
   NotObservingIssueLogs,
+  NotObservingLeftoverPresence,
 } from './model.js'
 
 /** Creates the stable initial Model for one navigation destination. */
@@ -34,6 +36,10 @@ export const modelForNavigation = (navigation: Navigation): Model =>
     issues: LoadingIssues.make({}),
     leftoverComment: '',
     leftoverLink: '',
+    leftoverPresence:
+      navigation._tag === 'IssueDetail'
+        ? LoadingLeftoverPresence.make({ leftoverId: navigation.issueId })
+        : NotObservingLeftoverPresence.make({}),
     navigation,
     productFilter: AllProducts.make({}),
     products: LoadingProducts.make({}),
