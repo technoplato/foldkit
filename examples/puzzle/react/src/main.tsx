@@ -16,14 +16,14 @@ if (rootElement === null) {
   throw new Error('Root element not found')
 }
 
-const isScreenWindow =
-  new URLSearchParams(window.location.search).get('window') === 'screen'
-document.title = surfaceFor(isScreenWindow ? 'react-screen' : 'react').title
+const isBespokeWindow =
+  new URLSearchParams(window.location.search).get('window') === 'bespoke'
+document.title = surfaceFor(isBespokeWindow ? 'react' : 'react-screen').title
 
 createRoot(rootElement).render(
   <StrictMode>
     <ProgramKeyBindings path={Path()}>
-      {isScreenWindow ? <ScreenApp /> : <App />}
+      {isBespokeWindow ? <App /> : <ScreenApp />}
     </ProgramKeyBindings>
   </StrictMode>,
 )

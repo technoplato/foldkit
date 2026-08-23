@@ -1,23 +1,16 @@
-import { Match as M, Option } from 'effect'
+import { Option } from 'effect'
 import { StatusBar } from 'expo-status-bar'
 import { Program } from 'foldkit'
 import {
   type ListedAction,
   Path,
   actionMenuRowLabel,
-  describePuzzleSyncError,
 } from 'puzzle-core-example'
 import { useActionMenu } from 'puzzle-react-bindings-example'
-import type { ReactNode } from 'react'
 import { Modal, Pressable, Text, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 
-import {
-  ProgramKeyBindings,
-  sendScreenToken,
-  useModel,
-  useScreen,
-} from '@foldkit/react'
+import { ProgramKeyBindings, sendScreenToken, useScreen } from '@foldkit/react'
 
 import { paintScreen } from './paintScreen.js'
 
@@ -29,7 +22,6 @@ export const App = () => (
 )
 
 const PuzzleWindow = () => {
-  const view = useModel(Path())
   const screen = useScreen(Path())
   const { menu, rows, empty, maybeChosen, dismiss, select, trigger } =
     useActionMenu()
@@ -37,27 +29,16 @@ const PuzzleWindow = () => {
     <SafeAreaProvider>
       <StatusBar style="dark" />
       <SafeAreaView style={{ backgroundColor: '#ffffff', flex: 1 }}>
-        {M.value(view).pipe(
-          M.withReturnType<ReactNode>(),
-          M.tagsExhaustive({
-            Starting: () => <Status>Starting Instant Puzzle…</Status>,
-            Failed: ({ error }) => (
-              <Status>{describePuzzleSyncError(error)}</Status>
-            ),
-            Ready: () => (
-              <View
-                style={{
-                  alignItems: 'center',
-                  flex: 1,
-                  justifyContent: 'center',
-                  padding: 24,
-                }}
-              >
-                {paintScreen(screen, sendScreenToken)}
-              </View>
-            ),
-          }),
-        )}
+        <View
+          style={{
+            alignItems: 'center',
+            flex: 1,
+            justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          {paintScreen(screen, sendScreenToken)}
+        </View>
         <Pressable
           accessibilityLabel="Actions"
           accessibilityRole="button"
@@ -145,21 +126,6 @@ const PuzzleWindow = () => {
     </SafeAreaProvider>
   )
 }
-
-const Status = ({ children }: Readonly<{ children: ReactNode }>) => (
-  <View
-    style={{
-      alignItems: 'center',
-      flex: 1,
-      justifyContent: 'center',
-      padding: 24,
-    }}
-  >
-    <Text style={{ color: '#111827', fontSize: 18, textAlign: 'center' }}>
-      {children}
-    </Text>
-  </View>
-)
 
 const expoRowBackground = (isChosen: boolean, isFocused: boolean): string => {
   if (isChosen) {

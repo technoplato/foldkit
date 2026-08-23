@@ -6,6 +6,8 @@ import { init } from '@instantdb/admin'
 import {
   hostedIdentityResponseHeaders,
   hostedIdentitySessionPath,
+  isLoopbackRemoteAddress,
+  loopbackMintEmail,
   mintHostedInstantSession,
 } from './hostedIdentity.js'
 
@@ -72,8 +74,12 @@ export const hostedIdentity = (): Plugin => {
       next()
       return
     }
+    const fallbackEmail = isLoopbackRemoteAddress(request.socket.remoteAddress)
+      ? loopbackMintEmail()
+      : ''
     void mintHostedInstantSession({
       createToken,
+      fallbackEmail,
       headers: headerRecord(request.headers),
       method: request.method ?? 'GET',
       url: request.url,

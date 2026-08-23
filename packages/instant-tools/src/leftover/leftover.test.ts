@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Array, Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { makeMemoryLeftoverPresence, quorumFromPeers } from './index.js'
@@ -16,7 +16,11 @@ describe('leftover presence', () => {
     )
     const quorum = await Effect.runPromise(presence.quorum('245', 1))
     expect(quorum.hasQuorum).toBe(true)
-    expect(quorum.present[0]?.agentId).toBe('issues-245-grok')
+    const maybePeer = Array.head(quorum.present)
+    expect(Option.isSome(maybePeer)).toBe(true)
+    if (Option.isSome(maybePeer)) {
+      expect(maybePeer.value.agentId).toBe('issues-245-grok')
+    }
     expect(quorumFromPeers('245', [], 1).hasQuorum).toBe(false)
   })
 })

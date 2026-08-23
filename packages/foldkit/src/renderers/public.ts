@@ -15,7 +15,7 @@ export type {
   PressableButton,
   PressableKey,
 } from './pad.js'
-export { buttonsOf, textsOf } from './query.js'
+export { buttonsOf, inputsOf, textsOf } from './query.js'
 export { renderAscii, renderScreen } from './render.js'
 export type {
   AsciiFrame,

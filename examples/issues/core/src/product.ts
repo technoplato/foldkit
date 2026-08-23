@@ -1,5 +1,12 @@
 import { Array, Match as M, Option } from 'effect'
-import { Button, Column, Row, Text, type UiNode } from 'foldkit/renderers'
+import {
+  Button,
+  Column,
+  Row,
+  Text,
+  TextInput,
+  type UiNode,
+} from 'foldkit/renderers'
 
 import { type Issue } from '@foldkit/instant-tools/issues'
 
@@ -251,6 +258,20 @@ const destinationNodes = (model: Model): ReadonlyArray<UiNode> =>
       IssueList: () => listNodes(model),
       IssueDetail: () => [
         ...detailNodes(model),
+        Text('Comment'),
+        TextInput({
+          placeholder: 'Comment',
+          token: 'comment-draft:',
+          value: model.leftoverComment,
+        }),
+        Button({ label: 'Comment', token: 'comment-submit' }),
+        Text('Link issue'),
+        TextInput({
+          placeholder: 'Issue id',
+          token: 'link-draft:',
+          value: model.leftoverLink,
+        }),
+        Button({ label: 'Link', token: 'link-submit' }),
         ...(model.issueMutation._tag === 'FailedIssueMutation'
           ? [Text(model.issueMutation.reason)]
           : []),

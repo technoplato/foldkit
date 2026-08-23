@@ -94,6 +94,12 @@ export const OpenedNavigation = S.TaggedStruct('OpenedNavigation', {
 export const SelectedProductFilter = S.TaggedStruct('SelectedProductFilter', {
   filter: ProductFilter,
 })
+export const UpdatedLeftoverComment = S.TaggedStruct('UpdatedLeftoverComment', {
+  value: S.String,
+})
+export const UpdatedLeftoverLink = S.TaggedStruct('UpdatedLeftoverLink', {
+  value: S.String,
+})
 export const SubmittedIssueComment = S.TaggedStruct('SubmittedIssueComment', {
   issueId: S.String,
   summary: S.String,
@@ -150,6 +156,8 @@ export const Message = S.Union([
   FailedReviewTriageCandidate,
   OpenedNavigation,
   SelectedProductFilter,
+  UpdatedLeftoverComment,
+  UpdatedLeftoverLink,
   SubmittedIssueComment,
   AppendedIssueWorkLog,
   SucceededSaveIssueWorkLog,

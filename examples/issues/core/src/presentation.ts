@@ -25,6 +25,8 @@ import {
   SelectedProductFilter,
   SubmittedIssue,
   SubmittedIssueComment,
+  UpdatedLeftoverComment,
+  UpdatedLeftoverLink,
 } from './message.js'
 import {
   IssueDetailState,
@@ -156,8 +158,26 @@ export const interactionsForModel = (
             ),
         ),
       ],
-      IssueDetail: () => {
+      IssueDetail: ({ issueId }) => {
         const leftover: Array<Interaction> = []
+        leftover.push(
+          interaction(
+            'comment-submit',
+            'Comment',
+            SubmittedIssueComment.make({
+              issueId,
+              summary: model.leftoverComment,
+            }),
+          ),
+          interaction(
+            'link-submit',
+            'Link',
+            LinkedCatalogIssue.make({
+              sourceIssueId: issueId,
+              targetIssueId: model.leftoverLink,
+            }),
+          ),
+        )
         if (
           model.issueDetail._tag === 'LoadedIssue' &&
           Option.isSome(model.issueDetail.issue)
@@ -272,6 +292,20 @@ export const messageForScreenToken = (
     return Option.some(
       AppendedIssueWorkLog.make({
         summary: token.slice('log:'.length),
+      }),
+    )
+  }
+  if (token.startsWith('comment-draft:')) {
+    return Option.some(
+      UpdatedLeftoverComment.make({
+        value: token.slice('comment-draft:'.length),
+      }),
+    )
+  }
+  if (token.startsWith('link-draft:')) {
+    return Option.some(
+      UpdatedLeftoverLink.make({
+        value: token.slice('link-draft:'.length),
       }),
     )
   }

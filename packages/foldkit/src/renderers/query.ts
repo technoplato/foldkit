@@ -1,6 +1,6 @@
 import { Array, Match as M } from 'effect'
 
-import type { ButtonNode, TextNode, UiNode } from './types.js'
+import type { ButtonNode, TextInputNode, TextNode, UiNode } from './types.js'
 
 /** Reads every Text node, depth first. */
 export const textsOf = (node: UiNode): ReadonlyArray<TextNode> =>
@@ -31,5 +31,21 @@ export const buttonsOf = (node: UiNode): ReadonlyArray<ButtonNode> =>
       Column: column => Array.flatMap(column.children, buttonsOf),
       Box: box => Array.flatMap(box.children, buttonsOf),
       DeviceShell: shell => Array.flatMap(shell.children, buttonsOf),
+    }),
+  )
+
+/** Reads every TextInput node, depth first. */
+export const inputsOf = (node: UiNode): ReadonlyArray<TextInputNode> =>
+  M.value(node).pipe(
+    M.withReturnType<ReadonlyArray<TextInputNode>>(),
+    M.tagsExhaustive({
+      Text: () => [],
+      Button: () => [],
+      TextInput: input => [input],
+      Spacer: () => [],
+      Row: row => Array.flatMap(row.children, inputsOf),
+      Column: column => Array.flatMap(column.children, inputsOf),
+      Box: box => Array.flatMap(box.children, inputsOf),
+      DeviceShell: shell => Array.flatMap(shell.children, inputsOf),
     }),
   )

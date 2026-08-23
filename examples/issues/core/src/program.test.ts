@@ -1,5 +1,5 @@
 import { Array, Effect, Option, Stream } from 'effect'
-import { buttonsOf, textsOf } from 'foldkit/renderers'
+import { buttonsOf, inputsOf, textsOf } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -34,6 +34,8 @@ import {
   SubmittedIssue,
   SubmittedIssueComment,
   UpdatedIssueTitle,
+  UpdatedLeftoverComment,
+  UpdatedLeftoverLink,
 } from './message.js'
 import {
   FileIssue,
@@ -43,7 +45,11 @@ import {
   LoadingIssueLogs,
   TriageInbox,
 } from './model.js'
-import { destinationForModel, interactionsForModel } from './presentation.js'
+import {
+  destinationForModel,
+  interactionsForModel,
+  messageForScreenToken,
+} from './presentation.js'
 import { issuesScreen } from './program.js'
 import { StaticIssueTrackerResources } from './resources.js'
 import { navigationToPath, pathToNavigation } from './route.js'
@@ -403,6 +409,71 @@ describe('Issue Tracker Program', () => {
       button => button.token ?? '',
     )
     expect(screenButtons).toContain('open:240')
+  })
+
+  it('paints leftover comment and link TextInputs from Model drafts', () => {
+    const initial = modelForNavigation(IssueDetail.make({ issueId: issue.id }))
+    const [observed] = update(
+      initial,
+      ObservedIssue.make({ issue: Option.some(issue), issueId: issue.id }),
+    )
+    const [commenting] = update(
+      observed,
+      UpdatedLeftoverComment.make({ value: 'Painted leftover progress.' }),
+    )
+    const [linking] = update(
+      commenting,
+      UpdatedLeftoverLink.make({ value: '240' }),
+    )
+    expect(linking.leftoverComment).toBe('Painted leftover progress.')
+    expect(linking.leftoverLink).toBe('240')
+    expect(
+      messageForScreenToken(
+        observed,
+        'comment-draft:Painted leftover progress.',
+      ),
+    ).toEqual(
+      Option.some(
+        UpdatedLeftoverComment.make({ value: 'Painted leftover progress.' }),
+      ),
+    )
+    expect(messageForScreenToken(linking, 'comment-submit')).toEqual(
+      Option.some(
+        SubmittedIssueComment.make({
+          issueId: issue.id,
+          summary: 'Painted leftover progress.',
+        }),
+      ),
+    )
+    expect(messageForScreenToken(linking, 'link-submit')).toEqual(
+      Option.some(
+        LinkedCatalogIssue.make({
+          sourceIssueId: issue.id,
+          targetIssueId: '240',
+        }),
+      ),
+    )
+    const screen = issuesScreen(linking)
+    expect(Array.map(inputsOf(screen), input => input.token ?? '')).toEqual([
+      'comment-draft:',
+      'link-draft:',
+    ])
+    expect(Array.map(inputsOf(screen), input => input.value)).toEqual([
+      'Painted leftover progress.',
+      '240',
+    ])
+    const [submitting, commentCommands] = update(
+      linking,
+      SubmittedIssueComment.make({
+        issueId: issue.id,
+        summary: linking.leftoverComment,
+      }),
+    )
+    expect(submitting.leftoverComment).toBe('')
+    expect(commentCommands[0]?.name).toBe('CommentOnIssue')
+    const [away] = update(linking, SelectedIssue.make({ issueId: '240' }))
+    expect(away.leftoverComment).toBe('')
+    expect(away.leftoverLink).toBe('')
   })
 
   it('offers leftover Open | Blocked | Closed and never Closed on 240-243', () => {
