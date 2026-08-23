@@ -49,7 +49,7 @@ export const SongbookProgram: Program.Program<Model, Message> &
   Readonly<{ actionByToken: typeof actionByToken }> = Object.assign(
   Program.make({
     id: 'songbook',
-    version: 1,
+    version: 2,
     Model,
     Message,
     init,

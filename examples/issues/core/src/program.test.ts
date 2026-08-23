@@ -13,6 +13,7 @@ import {
   RecordingSegment,
   TriageCandidate,
 } from '@foldkit/instant-tools/issues'
+import { LeftoverPeer } from '@foldkit/instant-tools/leftover'
 import { IssueLogEvidence } from '@foldkit/instant-tools/logging'
 
 import { modelForNavigation } from './init.js'
@@ -23,10 +24,12 @@ import {
   ClickedLeftoverStatus,
   ClickedOpenTriage,
   ClickedPromoteTriageCandidate,
+  DismissedIssueDetail,
   LinkedCatalogIssue,
   ObservedIssue,
   ObservedIssueLogs,
   ObservedIssues,
+  ObservedLeftoverPeers,
   ObservedProducts,
   ObservedTriageCandidates,
   SelectedIssue,
@@ -41,8 +44,11 @@ import {
   FileIssue,
   IssueDetail,
   IssueList,
+  LoadedLeftoverPresence,
   LoadingIssue,
   LoadingIssueLogs,
+  LoadingLeftoverPresence,
+  NotObservingLeftoverPresence,
   TriageInbox,
 } from './model.js'
 import {
@@ -118,7 +124,7 @@ describe('Issue Tracker Program', () => {
 
   it('models list, detail, and independent detail observation as state', () => {
     const initial = modelForNavigation(IssueList.make({}))
-    const [selected] = update(
+    const [selected, selectedCommands] = update(
       initial,
       SelectedIssue.make({ issueId: issue.id }),
     )
@@ -129,6 +135,10 @@ describe('Issue Tracker Program', () => {
     expect(selected.issueLogs).toEqual(
       LoadingIssueLogs.make({ issueId: issue.id }),
     )
+    expect(selected.leftoverPresence).toEqual(
+      LoadingLeftoverPresence.make({ leftoverId: issue.id }),
+    )
+    expect(selectedCommands[0]?.name).toBe('JoinLeftoverRoom')
 
     const [observed] = update(
       selected,
@@ -171,6 +181,50 @@ describe('Issue Tracker Program', () => {
       _tag: 'LoadedIssueLogs',
       logs: [evidence],
     })
+  })
+
+  it('joins leftover presence and paints peers on IssueDetail', () => {
+    const initial = modelForNavigation(IssueList.make({}))
+    const [selected] = update(
+      initial,
+      SelectedIssue.make({ issueId: issue.id }),
+    )
+    const peer = LeftoverPeer.make({
+      agentId: 'issues-viewer',
+      leftoverId: issue.id,
+      origin: 'issues.knophy.com',
+      peerId: 'issues-viewer',
+      role: 'viewer',
+    })
+    const [withPeers] = update(
+      selected,
+      ObservedLeftoverPeers.make({ leftoverId: issue.id, peers: [peer] }),
+    )
+    expect(withPeers.leftoverPresence).toEqual(
+      LoadedLeftoverPresence.make({ leftoverId: issue.id, peers: [peer] }),
+    )
+    expect(
+      Array.map(textsOf(issuesScreen(withPeers)), text => text.content),
+    ).toContain('issues-viewer  viewer  issues.knophy.com')
+    const [dismissed, dismissedCommands] = update(
+      withPeers,
+      DismissedIssueDetail.make({}),
+    )
+    expect(dismissed.leftoverPresence).toEqual(
+      NotObservingLeftoverPresence.make({}),
+    )
+    expect(dismissedCommands[0]?.name).toBe('LeaveLeftoverRoom')
+    const [switched, switchedCommands] = update(
+      selected,
+      SelectedIssue.make({ issueId: '240' }),
+    )
+    expect(switched.leftoverPresence).toEqual(
+      LoadingLeftoverPresence.make({ leftoverId: '240' }),
+    )
+    expect(Array.map(switchedCommands, command => command.name)).toEqual([
+      'LeaveLeftoverRoom',
+      'JoinLeftoverRoom',
+    ])
   })
 
   it('delivers collection and detail decode failures to visible state', async () => {

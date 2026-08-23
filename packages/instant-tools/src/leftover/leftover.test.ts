@@ -1,4 +1,4 @@
-import { Array, Effect, Option } from 'effect'
+import { Array, Effect, Option, Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { makeMemoryLeftoverPresence, quorumFromPeers } from './index.js'
@@ -22,5 +22,26 @@ describe('leftover presence', () => {
       expect(maybePeer.value.agentId).toBe('issues-245-grok')
     }
     expect(quorumFromPeers('245', [], 1).hasQuorum).toBe(false)
+  })
+
+  it('emits joined peers to leftover room observers', async () => {
+    const presence = makeMemoryLeftoverPresence()
+    await Effect.runPromise(
+      presence.joinLeftoverRoom({
+        agentId: 'issues-viewer',
+        leftoverId: '245',
+        origin: 'issues.knophy.com',
+        role: 'viewer',
+      }),
+    )
+    const maybePeers = await Effect.runPromise(
+      Stream.runHead(presence.observeLeftoverRoom('245')),
+    )
+    expect(Option.isSome(maybePeers)).toBe(true)
+    if (Option.isSome(maybePeers)) {
+      expect(Array.map(maybePeers.value, peer => peer.agentId)).toContain(
+        'issues-viewer',
+      )
+    }
   })
 })

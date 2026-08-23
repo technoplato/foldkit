@@ -75,10 +75,19 @@ export type After = typeof After.Type
 
 /** Viewing the chart. */
 export const Viewing = ts('Viewing')
+/** No typed lyrics draft. */
+export const LyricsDraftNone = ts('None')
+/** A typed lyrics draft. */
+export const LyricsDraftSome = ts('Some', { text: NonEmptyString })
+/** Lyrics draft while a section is focused. */
+export const LyricsDraft = S.Union([LyricsDraftNone, LyricsDraftSome])
+/** Lyrics draft while a section is focused. */
+export type LyricsDraft = typeof LyricsDraft.Type
+
 /** Editing lyrics of a section member. */
 export const Lyrics = ts('Lyrics', {
   section: Section,
-  draft: S.String,
+  draft: LyricsDraft,
 })
 /** No typed chord draft. */
 export const DraftNone = ts('None')
@@ -264,6 +273,26 @@ export const shownSongs = (
     return Str.includes(pipe(song.artist.name, Str.toLowerCase), query)
   })
 }
+
+/** Lyrics draft from typed text. Empty is None. */
+export const lyricsDraftFromText = (text: string): LyricsDraft =>
+  Str.isEmpty(text)
+    ? LyricsDraftNone()
+    : LyricsDraftSome.make({ text: NonEmptyString.make(text) })
+
+/** Editable lyrics text from a draft. None is empty. */
+export const lyricsDraftText = (draft: LyricsDraft): string =>
+  draft._tag === 'None' ? '' : draft.text
+
+/** Chord draft from typed text. Empty is None. */
+export const chordDraftFromText = (text: string): ChordDraft =>
+  Str.isEmpty(text)
+    ? DraftNone()
+    : DraftSome.make({ text: NonEmptyString.make(text) })
+
+/** Editable chord text from a draft. None is empty. */
+export const chordDraftText = (draft: ChordDraft): string =>
+  draft._tag === 'None' ? '' : draft.text
 
 /** Clears a notice. */
 export const withoutNotice = (model: Model): Model =>

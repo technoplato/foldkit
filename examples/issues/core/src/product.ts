@@ -189,6 +189,26 @@ const listNodes = (model: Model): ReadonlyArray<UiNode> =>
     }),
   )
 
+const leftoverPresenceNodes = (model: Model): ReadonlyArray<UiNode> =>
+  M.value(model.leftoverPresence).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      NotObservingLeftoverPresence: () => [],
+      LoadingLeftoverPresence: () => [Text('Presence: joining…')],
+      FailedLeftoverPresence: ({ reason }) => [
+        Text(`Presence failed: ${reason}`),
+      ],
+      LoadedLeftoverPresence: ({ peers }) => [
+        Text('Presence'),
+        ...(Array.isReadonlyArrayEmpty(peers)
+          ? [Text('No peers in this leftover room.')]
+          : Array.map(peers, peer =>
+              Text(`${peer.agentId}  ${peer.role}  ${peer.origin}`),
+            )),
+      ],
+    }),
+  )
+
 const detailNodes = (model: Model): ReadonlyArray<UiNode> =>
   M.value(model.issueDetail).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
@@ -258,6 +278,7 @@ const destinationNodes = (model: Model): ReadonlyArray<UiNode> =>
       IssueList: () => listNodes(model),
       IssueDetail: () => [
         ...detailNodes(model),
+        ...leftoverPresenceNodes(model),
         Text('Comment'),
         TextInput({
           placeholder: 'Comment',

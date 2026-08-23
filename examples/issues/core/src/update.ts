@@ -19,6 +19,10 @@ import {
   TriageInbox as TriageInboxServiceTag,
   UriReference,
 } from '@foldkit/instant-tools/issues'
+import {
+  LeftoverPresence,
+  LeftoverPresenceJoin,
+} from '@foldkit/instant-tools/leftover'
 import { Logger } from '@foldkit/instant-tools/logging'
 
 import { IssueIdentity } from './issueIdentity.js'
@@ -29,6 +33,10 @@ import {
   storedStatusOf,
 } from './leftover.js'
 import {
+  CompletedJoinLeftoverRoom,
+  CompletedLeaveLeftoverRoom,
+  FailedJoinLeftoverRoom,
+  FailedLeaveLeftoverRoom,
   FailedReviewTriageCandidate,
   FailedSaveIssue,
   FailedSaveIssueWorkLog,
@@ -44,6 +52,7 @@ import {
   FailedIssueLogs,
   FailedIssueMutation,
   FailedIssues,
+  FailedLeftoverPresence,
   FailedProducts,
   FailedTriageCandidates,
   FileIssue,
@@ -54,14 +63,17 @@ import {
   LoadedIssue,
   LoadedIssueLogs,
   LoadedIssues,
+  LoadedLeftoverPresence,
   LoadedProducts,
   LoadedTriageCandidates,
   LoadingIssue,
   LoadingIssueLogs,
+  LoadingLeftoverPresence,
   Model,
   type Navigation,
   NotObservingIssue,
   NotObservingIssueLogs,
+  NotObservingLeftoverPresence,
   SavingIssueDraft,
   SavingIssueMutation,
   TriageInbox,
@@ -204,6 +216,9 @@ export const ReviewTriageCandidate = Command.define(
 const COMMENT_AGENT_ID = 'issues-245-grok'
 const WORK_LOG_AGENT_ID = 'issues-245-grok'
 const ISSUE_QUERY_LIMIT = 500
+const LEFTOVER_VIEWER_AGENT_ID = 'issues-viewer'
+const LEFTOVER_VIEWER_ORIGIN = 'issues.knophy.com'
+const LEFTOVER_VIEWER_ROLE = 'viewer'
 
 const loadTrackedIssue = (issueId: string) =>
   Effect.gen(function* () {
@@ -431,37 +446,139 @@ export const RetargetIssueProduct = Command.define(
   ),
 )
 
+/** Publishes this viewer into one leftover Instant room. */
+export const JoinLeftoverRoom = Command.define(
+  'JoinLeftoverRoom',
+  {
+    agentId: S.String,
+    leftoverId: S.String,
+    origin: S.String,
+    role: S.String,
+  },
+  CompletedJoinLeftoverRoom,
+  FailedJoinLeftoverRoom,
+)(({ agentId, leftoverId, origin, role }) =>
+  Effect.gen(function* () {
+    const presence = yield* LeftoverPresence
+    yield* presence.joinLeftoverRoom(
+      LeftoverPresenceJoin.make({
+        agentId,
+        leftoverId,
+        origin,
+        role,
+      }),
+    )
+    return CompletedJoinLeftoverRoom.make({ leftoverId })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedJoinLeftoverRoom.make({ leftoverId, reason: String(error) }),
+      ),
+    ),
+  ),
+)
+
+/** Leaves one leftover Instant room. */
+export const LeaveLeftoverRoom = Command.define(
+  'LeaveLeftoverRoom',
+  { leftoverId: S.String },
+  CompletedLeaveLeftoverRoom,
+  FailedLeaveLeftoverRoom,
+)(({ leftoverId }) =>
+  Effect.gen(function* () {
+    const presence = yield* LeftoverPresence
+    yield* presence.leaveLeftoverRoom(leftoverId)
+    return CompletedLeaveLeftoverRoom.make({ leftoverId })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedLeaveLeftoverRoom.make({ leftoverId, reason: String(error) }),
+      ),
+    ),
+  ),
+)
+
 type Resources =
   | IssueTracker
   | Logger
   | ProductCatalog
   | TriageInboxServiceTag
   | IssueIdentity
+  | LeftoverPresence
 type UpdateReturn = readonly [
   Model,
   ReadonlyArray<Command.Command<Message, never, Resources>>,
 ]
 
-const withNavigation = (model: Model, navigation: Navigation): Model => {
+const leftoverViewerJoin = (leftoverId: string) => ({
+  agentId: LEFTOVER_VIEWER_AGENT_ID,
+  leftoverId,
+  origin: LEFTOVER_VIEWER_ORIGIN,
+  role: LEFTOVER_VIEWER_ROLE,
+})
+
+const noLeftoverRoomCommands: ReadonlyArray<
+  Command.Command<Message, never, Resources>
+> = []
+
+const leftoverRoomCommands = (
+  previousLeftoverId: Option.Option<string>,
+  nextLeftoverId: Option.Option<string>,
+): ReadonlyArray<Command.Command<Message, never, Resources>> => {
+  const leave = Option.match(previousLeftoverId, {
+    onNone: () => noLeftoverRoomCommands,
+    onSome: leftoverId => {
+      if (
+        Option.isSome(nextLeftoverId) &&
+        leftoverId === nextLeftoverId.value
+      ) {
+        return noLeftoverRoomCommands
+      }
+      return [LeaveLeftoverRoom({ leftoverId })]
+    },
+  })
+  const join = Option.match(nextLeftoverId, {
+    onNone: () => noLeftoverRoomCommands,
+    onSome: leftoverId => [JoinLeftoverRoom(leftoverViewerJoin(leftoverId))],
+  })
+  return Array.appendAll(leave, join)
+}
+
+const withNavigation = (model: Model, navigation: Navigation): UpdateReturn => {
   const isSameIssueDetail =
     model.navigation._tag === 'IssueDetail' &&
     navigation._tag === 'IssueDetail' &&
     model.navigation.issueId === navigation.issueId
-  return Model.make({
-    ...model,
-    leftoverComment: isSameIssueDetail ? model.leftoverComment : '',
-    leftoverLink: isSameIssueDetail ? model.leftoverLink : '',
-    issueMutation: IdleIssueMutation.make({}),
-    issueDetail:
-      navigation._tag === 'IssueDetail'
-        ? LoadingIssue.make({ issueId: navigation.issueId })
-        : NotObservingIssue.make({}),
-    issueLogs:
-      navigation._tag === 'IssueDetail'
-        ? LoadingIssueLogs.make({ issueId: navigation.issueId })
-        : NotObservingIssueLogs.make({}),
-    navigation,
-  })
+  const previousLeftoverId =
+    model.navigation._tag === 'IssueDetail'
+      ? Option.some(model.navigation.issueId)
+      : Option.none()
+  const nextLeftoverId =
+    navigation._tag === 'IssueDetail'
+      ? Option.some(navigation.issueId)
+      : Option.none()
+  return [
+    Model.make({
+      ...model,
+      leftoverComment: isSameIssueDetail ? model.leftoverComment : '',
+      leftoverLink: isSameIssueDetail ? model.leftoverLink : '',
+      leftoverPresence: Option.match(nextLeftoverId, {
+        onNone: () => NotObservingLeftoverPresence.make({}),
+        onSome: leftoverId => LoadingLeftoverPresence.make({ leftoverId }),
+      }),
+      issueMutation: IdleIssueMutation.make({}),
+      issueDetail:
+        navigation._tag === 'IssueDetail'
+          ? LoadingIssue.make({ issueId: navigation.issueId })
+          : NotObservingIssue.make({}),
+      issueLogs:
+        navigation._tag === 'IssueDetail'
+          ? LoadingIssueLogs.make({ issueId: navigation.issueId })
+          : NotObservingIssueLogs.make({}),
+      navigation,
+    }),
+    leftoverRoomCommands(previousLeftoverId, nextLeftoverId),
+  ]
 }
 
 const selectedProduct = (model: Model) => {
@@ -622,10 +739,8 @@ const startLeftoverCommand = (
 ]
 
 /** Restores destination-specific observation state from a Model snapshot. */
-export const restore = (model: Model): UpdateReturn => [
-  withNavigation(model, model.navigation),
-  [],
-]
+export const restore = (model: Model): UpdateReturn =>
+  withNavigation(model, model.navigation)
 
 // UPDATE
 
@@ -738,19 +853,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
-      SelectedIssue: ({ issueId }) => [
+      SelectedIssue: ({ issueId }) =>
         withNavigation(model, IssueDetail.make({ issueId })),
-        [],
-      ],
-      DismissedIssueDetail: () => [
-        withNavigation(model, IssueList.make({})),
-        [],
-      ],
-      ClickedFileIssue: () => [withNavigation(model, FileIssue.make({})), []],
-      ClickedOpenTriage: () => [
-        withNavigation(model, TriageInbox.make({})),
-        [],
-      ],
+      DismissedIssueDetail: () => withNavigation(model, IssueList.make({})),
+      ClickedFileIssue: () => withNavigation(model, FileIssue.make({})),
+      ClickedOpenTriage: () => withNavigation(model, TriageInbox.make({})),
       ClickedPromoteTriageCandidate: ({ candidateId }) =>
         reviewTriageCandidate(model, candidateId, 'Promote'),
       ClickedDismissTriageCandidate: ({ candidateId }) =>
@@ -786,18 +893,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             [],
           ]
         }
-        return [
-          withNavigation(
-            Model.make({
-              ...model,
-              draftState: EditingIssueDraft.make({}),
-              issueMutation: IdleIssueMutation.make({}),
-              issues: patchIssues(model.issues, issue),
-            }),
-            IssueDetail.make({ issueId: issue.id }),
-          ),
-          [],
-        ]
+        return withNavigation(
+          Model.make({
+            ...model,
+            draftState: EditingIssueDraft.make({}),
+            issueMutation: IdleIssueMutation.make({}),
+            issues: patchIssues(model.issues, issue),
+          }),
+          IssueDetail.make({ issueId: issue.id }),
+        )
       },
       FailedSaveIssue: ({ reason }) =>
         model.navigation._tag === 'FileIssue'
@@ -831,13 +935,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         })
         return Option.match(issue, {
           onNone: () => [nextModel, []],
-          onSome: promoted => [
+          onSome: promoted =>
             withNavigation(
               nextModel,
               IssueDetail.make({ issueId: promoted.id }),
             ),
-            [],
-          ],
         })
       },
       FailedReviewTriageCandidate: ({ reason }) => [
@@ -944,9 +1046,80 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             ),
         })
       },
-      OpenedNavigation: ({ navigation }) => [
-        withNavigation(model, navigation),
-        [],
-      ],
+      OpenedNavigation: ({ navigation }) => withNavigation(model, navigation),
+      ObservedLeftoverPeers: ({ leftoverId, peers }) => {
+        if (
+          model.navigation._tag !== 'IssueDetail' ||
+          model.navigation.issueId !== leftoverId
+        ) {
+          return [model, []]
+        }
+        return [
+          Model.make({
+            ...model,
+            leftoverPresence: LoadedLeftoverPresence.make({
+              leftoverId,
+              peers,
+            }),
+          }),
+          [],
+        ]
+      },
+      FailedObserveLeftoverPeers: ({ leftoverId, reason }) => {
+        if (
+          model.navigation._tag !== 'IssueDetail' ||
+          model.navigation.issueId !== leftoverId
+        ) {
+          return [model, []]
+        }
+        return [
+          Model.make({
+            ...model,
+            leftoverPresence: FailedLeftoverPresence.make({
+              leftoverId,
+              reason,
+            }),
+          }),
+          [],
+        ]
+      },
+      CompletedJoinLeftoverRoom: () => [model, []],
+      FailedJoinLeftoverRoom: ({ leftoverId, reason }) => {
+        if (
+          model.navigation._tag !== 'IssueDetail' ||
+          model.navigation.issueId !== leftoverId
+        ) {
+          return [model, []]
+        }
+        return [
+          Model.make({
+            ...model,
+            leftoverPresence: FailedLeftoverPresence.make({
+              leftoverId,
+              reason,
+            }),
+          }),
+          [],
+        ]
+      },
+      CompletedLeaveLeftoverRoom: () => [model, []],
+      FailedLeaveLeftoverRoom: ({ leftoverId, reason }) => {
+        if (model.leftoverPresence._tag === 'NotObservingLeftoverPresence') {
+          return [model, []]
+        }
+        if (model.leftoverPresence.leftoverId !== leftoverId) {
+          return [model, []]
+        }
+        return [
+          Model.make({
+            ...model,
+            leftoverPresence: FailedLeftoverPresence.make({
+              leftoverId,
+              reason,
+            }),
+          }),
+          [],
+        ]
+      },
     }),
   )

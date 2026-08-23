@@ -5,17 +5,16 @@ import { ts } from 'foldkit/schema'
 import { Chord, displayChord, printChord } from './chord.js'
 import { SectionId, SongId, sectionIdAt } from './ids.js'
 import { ChordsNone, ChordsSome, Line, Placed, Words, lyricOf } from './line.js'
+import type { Word } from './line.js'
 import { Pitch, printPitch } from './pitch.js'
 import {
   LinesPopulated,
   Section,
-  SectionId,
   SectionKind,
   findLine,
   findSectionWord,
   kindLabel,
 } from './section.js'
-import type { Word } from './line.js'
 
 /** Transpose of zero. Stored chords are already in this key. */
 export const Unison = ts('Unison')
@@ -186,7 +185,10 @@ export const findSection = (
   if (song.sections._tag === 'Empty') {
     return Option.none()
   }
-  return Array.findFirst(song.sections.items, section => section.id === sectionId)
+  return Array.findFirst(
+    song.sections.items,
+    section => section.id === sectionId,
+  )
 }
 
 /** Finds a word member in the song. */
