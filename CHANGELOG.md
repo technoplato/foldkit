@@ -4,6 +4,31 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 23rd, 2026 at 5:06:42 p.m. EDT — `c9ff8794ea32` feat: share screen trees across clients and add product examples
+
+- **Implementation commit:** `c9ff8794ea32544a4b786a27803d8858ca9e49f6`
+- **Change:** Share one Program screen tree across clients and add product examples
+- **Details:**
+  - Paint the same screen tree on Foldkit HTML, React, CLI, TUI, Expo, and Svelte hosts.
+  - Derive a pad of pressable keys and Buttons from visible Action tokens.
+  - Add leftover and webhook Instant helpers for the Issues leftover board.
+  - Add Gate, Puzzle, Settings, Songbook, Casino, and Ingest examples plus a bench package.
+- **Files:**
+  - `packages/foldkit/src/renderers/pad.ts` — Build a pressable pad from the current screen tree and Action tokens.
+  - `packages/foldkit/src/renderers/html.ts` — Paint screen trees and text links as Foldkit HTML.
+  - `packages/react/src/paintReact/paintReact.tsx` — Paint the same screen tree as React elements with token clicks.
+  - `packages/instant-tools/src/leftover/domain.ts` — Add leftover Instant helpers used by the Issues board.
+  - `packages/instant-tools/src/webhooks/receiver.ts` — Add Instant webhook receiver helpers.
+  - `examples/issues/core/src/leftover.ts` — Move leftover board state into the Issues Program.
+  - `examples/counter/foldkit/src/mobile.ts` — Add a mobile Counter host that paints the shared screen.
+  - `examples/gate/core/src/program.ts` — Add the Gate product Program as a view-agnostic example.
+  - `bench/package.json` — Add the foldkit-bench workspace package.
+  - `.changeset/view-agnostic-screen-pad.md` — Record minor bumps for foldkit, React, and instant-tools.
+- **User context (verbatim):**
+  > please ensure all files are committed and pushed. we're in a wip state here but thats' okay
+  > branch that should have ll changes is view agnosticism
+- **SpecStory:** unavailable — Grok Build TUI session; no SpecStory capture for this task
+
 ## August 21st, 2026 at 4:08:22 p.m. EDT — `2d0707f5140f` feat: add Action menu compose and lift React Instant hosts
 
 - **Implementation commit:** `2d0707f5140f75c9b5a3a7e7520b132c28b77e19`
