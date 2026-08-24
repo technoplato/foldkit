@@ -49,7 +49,7 @@ const isEditing = (model: Model): boolean => {
   if (chart === undefined) {
     return false
   }
-  return chart.work._tag === 'Editing'
+  return chart.song._tag === 'Editing'
 }
 
 const isPlaying = (model: Model): boolean => {
@@ -57,40 +57,40 @@ const isPlaying = (model: Model): boolean => {
   if (chart === undefined) {
     return false
   }
-  return chart.work._tag === 'Playing'
+  return chart.song._tag === 'Playing'
 }
 
 const isViewing = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.work._tag !== 'Editing') {
+  if (chart === undefined || chart.song._tag !== 'Editing') {
     return false
   }
-  const tag = chart.work.current.sections._tag
+  const tag = chart.song.current.sections._tag
   return tag === 'Empty' || tag === 'Idle'
 }
 
 const isLyrics = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.work._tag !== 'Editing') {
+  if (chart === undefined || chart.song._tag !== 'Editing') {
     return false
   }
-  return chart.work.current.sections._tag === 'Lyrics'
+  return chart.song.current.sections._tag === 'Lyrics'
 }
 
 const isWord = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.work._tag !== 'Editing') {
+  if (chart === undefined || chart.song._tag !== 'Editing') {
     return false
   }
-  return chart.work.current.sections._tag === 'Word'
+  return chart.song.current.sections._tag === 'Word'
 }
 
 const isRemoving = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.work._tag !== 'Editing') {
+  if (chart === undefined || chart.song._tag !== 'Editing') {
     return false
   }
-  return chart.work.current.sections._tag === 'Removing'
+  return chart.song.current.sections._tag === 'Removing'
 }
 
 const isConfirming = (model: Model): boolean => {
@@ -317,7 +317,7 @@ export const ClickedPlay = md('ClickedPlay', {
   spoken: ['play'],
   command: 'play',
   event: 'clicked-play',
-  mutate: 'work becomes playing',
+  mutate: 'song becomes playing',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) => isEditing(model),
   hiddenBecause: (model: Model) =>
@@ -333,7 +333,7 @@ export const ClickedEdit = md('ClickedEdit', {
   spoken: ['edit'],
   command: 'edit',
   event: 'clicked-edit',
-  mutate: 'work becomes editing viewing',
+  mutate: 'song becomes editing viewing',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) => isPlaying(model),
   hiddenBecause: (model: Model) =>
