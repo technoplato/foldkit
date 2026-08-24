@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 12:51:22 p.m. EDT — `918bd67214d3` feat(skills): add foldkit-screens portable screen guide
+
+- **Implementation commit:** `918bd67214d3e4909a75ee7ec770bcb85664f15d`
+- **Change:** Add foldkit-screens skill for portable screen authoring and sync adoption
+- **Details:**
+  - Audit of examples/counter view agnosticism (five research subagents plus direct review) produced a new skills/foldkit-screens guide: core/adapter/view law with membership tests, atomic design tiers, ASCII-first QA loop, borrow-dont-depend verdict on effect-machine and Zag.js, navigation-as-state rules, and an Instant sync adoption checklist. Umbrella foldkit skill routes to the new companion. Research findings and consent-gated next steps recorded in ~/Sync/foldkit/PROGRESS.md.
+- **Files:**
+  - `skills/foldkit-screens/SKILL.md` — New companion skill codifying the portable screen architecture
+  - `skills/foldkit/SKILL.md` — Add foldkit-screens to the companion route list
+- **User context (verbatim):**
+  > please ensure code is committed and you are updating a progress log in ~Sync/foldkit somewhere with timestamps
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task; findings ledgered in ~/Sync/foldkit/PROGRESS.md instead.
+
 ## August 24th, 2026 at 4:33:28 a.m. EDT — `540e1f1c11f7` feat(songbook): take nonempty notice heading and detail
 
 - **Implementation commit:** `540e1f1c11f76a398e5ca4a3d89494657e0c49c0`
@@ -308,7 +321,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - Songbook LyricsDraft and EmptyPlace duplicated spoken names. One Draft covers lyrics and chords; empty library place is Place. Hole 7 still fail. Do not close leftover issues 240-243.
 - **Files:**
   - `packages/instant-tools/src/leftover/domain.ts` — Replace leftover quorum boolean with Present | Missing.
-  - `packages/instant-tools/src/leftover/leftover.test.ts` — Assert leftover quorum _tag Present or Missing.
+  - `packages/instant-tools/src/leftover/leftover.test.ts` — Assert leftover quorum \_tag Present or Missing.
   - `examples/issues/core/src/leftover.ts` — Re-export leftover quorum required peer count.
   - `examples/issues/core/src/product.ts` — Paint Quorum present or Quorum missing on IssueDetail.
   - `examples/issues/core/src/program.test.ts` — Expect IssueDetail to paint Quorum present.
