@@ -166,6 +166,19 @@ export const memorySyncedEngine = (
 ): Runtime.MemoryEngine => Runtime.Memory({ processor })
 
 /**
+ * Instant I/O that never reads or subscribes. Hosts paint Failed after
+ * {@link syncedHandleSettleMs}. Tests inject a short settleMs.
+ */
+export const hangingSyncedEngine = (
+  processor: Processor.Host.Host,
+): Runtime.SyncEngine => ({
+  processor: Processor.Host.print(processor),
+  read: () => Effect.never,
+  subscribe: () => Effect.never,
+  write: () => Effect.succeed({ link: 'offline' }),
+})
+
+/**
  * Memory Instant Layer. Tests use this. PUZZLE_TAPE=memory selects
  * Memory inside NodeLive and BrowserLive.
  *
@@ -175,6 +188,15 @@ export const MemoryLive = (
   processor: Processor.Host.Host,
 ): Layer.Layer<InstantEngine> =>
   Layer.succeed(InstantEngine, memorySyncedEngine(processor))
+
+/**
+ * Hang Instant Layer. Tests and leftover hang hosts paint Failed.
+ * Caller supplies Host.
+ */
+export const HangLive = (
+  processor: Processor.Host.Host,
+): Layer.Layer<InstantEngine> =>
+  Layer.succeed(InstantEngine, hangingSyncedEngine(processor))
 
 export { InstantEngine }
 

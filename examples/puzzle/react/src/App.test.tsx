@@ -4,6 +4,7 @@ import {
   Path,
   demoModel,
   emptyModel,
+  hangingSyncedEngine,
   memorySyncedEngine,
   startSyncedPuzzleHandle,
   uriOf,
@@ -62,6 +63,28 @@ const expectLiveHosts = (): void => {
 }
 
 describe('Puzzle bespoke window', () => {
+  it('paints Failed when Instant subscribe never settles', async () => {
+    const handle = startSyncedPuzzleHandle(
+      hangingSyncedEngine(Processor.Host.React()),
+      { settleMs: 50 },
+    )
+    installSyncedPuzzleHandle(handle)
+    installScreenPuzzleHandle(handle)
+    render(
+      <ProgramKeyBindings path={Path()}>
+        <App />
+      </ProgramKeyBindings>,
+    )
+    await waitFor(() => {
+      expect(
+        screen.getByText(/This Processor never became Ready/),
+      ).toBeDefined()
+    })
+    expect(screen.getByText(/start did not settle/)).toBeDefined()
+    expect(screen.queryByText('TransportFailed')).toBeNull()
+    await handle.stop()
+  })
+
   it('drops the ResetTape button on an empty tape and shows it after yes', async () => {
     const handle = await mountApp()
     await waitFor(() => {

@@ -5,6 +5,7 @@ import {
   demoModel,
   describePuzzleSyncError,
   emptyModel,
+  hangingSyncedEngine,
   startSyncedPuzzleHandle,
   update,
   uriOf,
@@ -107,6 +108,26 @@ describe('Puzzle synced hooks', () => {
     await waitFor(() => {
       expect(result.current).toBe(uriOf(demoModel()))
     })
+  })
+
+  it('shows Failed when Instant subscribe never settles', async () => {
+    const handle = startSyncedPuzzleHandle(
+      hangingSyncedEngine(Processor.Host.React()),
+      { settleMs: 50 },
+    )
+    installSyncedPuzzleHandle(handle)
+    await waitForSyncedHandle(handle, 1000)
+    const { result } = renderHook(() => useModel(Path()))
+    await waitFor(() => {
+      expect(result.current._tag).toBe('Failed')
+    })
+    if (result.current._tag === 'Failed') {
+      const text = describePuzzleSyncError(result.current.error)
+      expect(text).toContain('This Processor never became Ready.')
+      expect(text).toContain('start did not settle')
+      expect(text).not.toContain('TransportFailed')
+    }
+    await handle.stop()
   })
 
   it('shows Failed when Instant boot read fails', async () => {
