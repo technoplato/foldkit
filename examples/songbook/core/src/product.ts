@@ -20,16 +20,15 @@ import {
 import { type Action, actions, tokenOf } from './message.js'
 import {
   type Deleting,
-  type EmptyPlace,
   type Focus,
   type Library,
   type Looking,
   type Model,
   type Notice,
+  type Place,
   type PopulatedPlace,
   type Working,
-  chordDraftText,
-  lyricsDraftText,
+  draftText,
   shownSongs,
   title,
 } from './model.js'
@@ -136,7 +135,7 @@ const focusNodes = (focus: Focus, song: Song): ReadonlyArray<UiNode> =>
         TextInput({
           placeholder: 'Lyrics',
           token: 'draft:',
-          value: lyricsDraftText(lyrics.draft),
+          value: draftText(lyrics.draft),
         }),
       ],
       Word: word => [
@@ -145,7 +144,7 @@ const focusNodes = (focus: Focus, song: Song): ReadonlyArray<UiNode> =>
         TextInput({
           placeholder: 'Chord',
           token: 'chord:',
-          value: chordDraftText(word.draft),
+          value: draftText(word.draft),
         }),
         ...Array.map(CHORD_CHOICES, choice =>
           Button({
@@ -190,7 +189,7 @@ const songRow = (song: Song): ReadonlyArray<UiNode> => [
   }),
 ]
 
-const emptyPlaceNodes = (place: EmptyPlace): ReadonlyArray<UiNode> =>
+const emptyPlaceNodes = (place: Place): ReadonlyArray<UiNode> =>
   M.value(place).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({

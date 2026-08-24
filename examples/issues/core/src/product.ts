@@ -9,11 +9,13 @@ import {
 } from 'foldkit/renderers'
 
 import { type Issue } from '@foldkit/instant-tools/issues'
+import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
 import {
   catalogIssueRefsOf,
   issuesForProductFilter,
   leftoverKindOf,
+  leftoverQuorumRequired,
   leftoverStatusOf,
   leftoverStatusesForIssue,
   newestWorkLog,
@@ -198,14 +200,22 @@ const leftoverPresenceNodes = (model: Model): ReadonlyArray<UiNode> =>
       FailedLeftoverPresence: ({ reason }) => [
         Text(`Presence failed: ${reason}`),
       ],
-      LoadedLeftoverPresence: ({ peers }) => [
-        Text('Presence'),
-        ...(Array.isReadonlyArrayEmpty(peers)
-          ? [Text('No peers in this leftover room.')]
-          : Array.map(peers, peer =>
-              Text(`${peer.agentId}  ${peer.role}  ${peer.origin}`),
-            )),
-      ],
+      LoadedLeftoverPresence: ({ leftoverId, peers }) => {
+        const quorum = quorumFromPeers(
+          leftoverId,
+          peers,
+          leftoverQuorumRequired,
+        )
+        return [
+          Text('Presence'),
+          ...(Array.isReadonlyArrayEmpty(peers)
+            ? [Text('No peers in this leftover room.')]
+            : Array.map(peers, peer =>
+                Text(`${peer.agentId}  ${peer.role}  ${peer.origin}`),
+              )),
+          Text(quorum._tag === 'Present' ? 'Quorum present' : 'Quorum missing'),
+        ]
+      },
     }),
   )
 
