@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 12:19:03 a.m. EDT — `0c08efee109d` feat: nest songbook section zippers and fail hanging Instant start
+
+- **Implementation commit:** `0c08efee109da83abca5f545f3722f14f881112c`
+- **Change:** Nest songbook section zippers and fail hanging Instant start
+- **Details:**
+  - Songbook Lyrics, Word, and Removing zippers sat beside Song.sections (hole 13). Nest them as Song.sections Empty | Idle | Lyrics | Word | Removing and flatten before shelf or play. Do not claim ADT pass: hole 9/13 Playing beside Lyrics, hole 21 draft beside stored lyrics, hole 2 WordFocus remain.
+  - Puzzle Instant start stayed Starting when subscribe never settled. Fail the handle after syncedHandleSettleMs. Tests inject 50ms. Do not bounce 5209. Do not close leftover issues 240-243.
+- **Files:**
+  - `examples/puzzle/core/src/startSynced.ts` — Fail hanging Instant start after settle timeout.
+  - `examples/puzzle/core/src/startSynced.test.ts` — Assert hanging subscribe fails closed.
+  - `examples/songbook/core/src/domain/song.ts` — Nest Lyrics Word Removing as Song.sections.
+  - `examples/songbook/core/src/message.ts` — Read section zippers from Song.sections.
+  - `examples/songbook/core/src/model.ts` — Drop Editing.focus; flatten zippers on shelf.
+  - `examples/songbook/core/src/product.ts` — Paint Empty and Idle viewing from sections.
+  - `examples/songbook/core/src/update.ts` — Write Lyrics Word Removing onto Song.sections.
+  - `examples/songbook/core/src/update.test.ts` — Assert sections zipper tags after lyrics word and play.
+- **User context (verbatim):**
+  > go find this grokbot converssation id d7b5bc89-5140-4dbe-b7af-5ae6e582f500 creaste a skill for ctaching up and triaging what work has/hasn't been done issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session.
+
 ## August 23rd, 2026 at 9:23:31 p.m. EDT — `388b6d53534a` feat: zipper songbook selections and fail-open puzzle Instant start
 
 - **Implementation commit:** `388b6d53534a0404418e52a12896110c42a19de1`
