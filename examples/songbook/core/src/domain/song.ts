@@ -448,11 +448,9 @@ const sectionOfWord = (word: typeof Word.Type): Section => {
   })
 }
 
-/** Draft from typed host text. Empty is None. */
-export const draftFromText = (text: string): Draft =>
-  Str.isEmpty(text)
-    ? Draft.None()
-    : Draft.Some.make({ text: NonEmptyString.make(text) })
+/** Draft from populated typed text. */
+export const draftFromText = (text: typeof NonEmptyString.Type): Draft =>
+  Draft.Some.make({ text })
 
 /** Draft of stored section lyrics. Empty lines are None. */
 export const draftOfSection = (section: Section): Draft => {
@@ -462,15 +460,17 @@ export const draftOfSection = (section: Section): Draft => {
   const first = Array.headNonEmpty(section.lines.items)
   const rest = Array.tailNonEmpty(section.lines.items)
   const seed = Option.getOrElse(lyricOf(first), () => '')
-  return draftFromText(
-    Array.reduce(rest, seed, (soFar, line) => {
-      const maybeText = lyricOf(line)
-      if (Option.isNone(maybeText)) {
-        return `${soFar}\n`
-      }
-      return `${soFar}\n${maybeText.value}`
-    }),
-  )
+  const text = Array.reduce(rest, seed, (soFar, line) => {
+    const maybeText = lyricOf(line)
+    if (Option.isNone(maybeText)) {
+      return `${soFar}\n`
+    }
+    return `${soFar}\n${maybeText.value}`
+  })
+  if (Str.isEmpty(text)) {
+    return Draft.None()
+  }
+  return draftFromText(NonEmptyString.make(text))
 }
 
 const lyricsSection = (lyrics: typeof Lyrics.Type): Section => {

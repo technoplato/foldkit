@@ -124,7 +124,7 @@ describe('songbook update', () => {
 
     const [drafted] = update(
       lyrics,
-      TypedLyrics({ draft: draftFromText('going away') }),
+      TypedLyrics({ draft: draftFromText(NonEmptyString.make('going away')) }),
     )
     expect(drafted.library._tag).toBe('Populated')
     if (
@@ -256,7 +256,7 @@ describe('songbook update', () => {
     )
     const [drafted] = update(
       lyrics,
-      TypedLyrics({ draft: draftFromText('going away') }),
+      TypedLyrics({ draft: draftFromText(NonEmptyString.make('going away')) }),
     )
     expect(drafted.library._tag).toBe('Populated')
     if (
@@ -335,7 +335,7 @@ describe('songbook update', () => {
     )
     const [drafted] = update(
       lyrics,
-      TypedLyrics({ draft: draftFromText('going away') }),
+      TypedLyrics({ draft: draftFromText(NonEmptyString.make('going away')) }),
     )
     const [applied] = update(drafted, AppliedLyrics())
     expect(applied.library._tag).toBe('Populated')
@@ -414,7 +414,10 @@ describe('songbook update', () => {
       Array.every(inputsOf(songbookScreen(word)), input => input.value !== ''),
     ).toBe(true)
 
-    const [typed] = update(word, TypedChord({ draft: draftFromText('G') }))
+    const [typed] = update(
+      word,
+      TypedChord({ draft: draftFromText(NonEmptyString.make('G')) }),
+    )
     expect(typed.library._tag).toBe('Populated')
     if (
       typed.library._tag !== 'Populated' ||
@@ -475,8 +478,11 @@ describe('songbook update', () => {
   })
 
   it('hosts shelf search and lyrics drafts as Idle/None, not empty string', () => {
-    expect(draftFromText('')._tag).toBe('None')
-    expect(draftFromText('going away')._tag).toBe('Some')
+    const populatedDraft = draftFromText(NonEmptyString.make('going away'))
+    expect(populatedDraft._tag).toBe('Some')
+    if (populatedDraft._tag === 'Some') {
+      expect(populatedDraft.text).toBe('going away')
+    }
 
     const empty = emptyModel()
     expect(empty.library._tag).toBe('Empty')
@@ -562,6 +568,30 @@ describe('songbook update', () => {
       withSection,
       OpenedLyrics({ sectionId: maybeSection.value.id }),
     )
+    expect(Domain.draftOfSection(maybeSection.value)._tag).toBe('None')
+    expect(lyrics.library._tag).toBe('Populated')
+    if (
+      lyrics.library._tag !== 'Populated' ||
+      lyrics.library.page._tag !== 'Chart' ||
+      lyrics.library.page.song._tag !== 'Editing' ||
+      lyrics.library.page.song.current.sections._tag !== 'Lyrics'
+    ) {
+      return
+    }
+    expect(lyrics.library.page.song.current.sections.draft._tag).toBe('None')
+    const maybeEmptyDraft = messageFromToken('draft:', lyrics)
+    expect(maybeEmptyDraft?._tag).toBe('TypedLyrics')
+    if (maybeEmptyDraft?._tag === 'TypedLyrics') {
+      expect(maybeEmptyDraft.draft._tag).toBe('None')
+    }
+    const maybePopulatedDraft = messageFromToken('draft:going away', lyrics)
+    expect(maybePopulatedDraft?._tag).toBe('TypedLyrics')
+    if (maybePopulatedDraft?._tag === 'TypedLyrics') {
+      expect(maybePopulatedDraft.draft._tag).toBe('Some')
+      if (maybePopulatedDraft.draft._tag === 'Some') {
+        expect(maybePopulatedDraft.draft.text).toBe('going away')
+      }
+    }
     const [cleared] = update(lyrics, TypedLyrics({ draft: Draft.None() }))
     expect(cleared.library._tag).toBe('Populated')
     if (
@@ -588,7 +618,7 @@ describe('songbook update', () => {
     )
     const [drafted] = update(
       cleared,
-      TypedLyrics({ draft: draftFromText('going away') }),
+      TypedLyrics({ draft: draftFromText(NonEmptyString.make('going away')) }),
     )
     expect(
       Array.map(inputsOf(songbookScreen(drafted)), input => input.token ?? ''),
@@ -822,7 +852,9 @@ describe('songbook update', () => {
     )
     const [drafted] = update(
       lyrics,
-      TypedLyrics({ draft: draftFromText('going away\n\ncoming home') }),
+      TypedLyrics({
+        draft: draftFromText(NonEmptyString.make('going away\n\ncoming home')),
+      }),
     )
     const [applied] = update(drafted, AppliedLyrics())
     expect(applied.library._tag).toBe('Populated')
@@ -845,6 +877,11 @@ describe('songbook update', () => {
       return
     }
     expect(Array.length(maybeIdleSection.value.lines.items)).toBe(3)
+    const roundTripDraft = Domain.draftOfSection(maybeIdleSection.value)
+    expect(roundTripDraft._tag).toBe('Some')
+    if (roundTripDraft._tag === 'Some') {
+      expect(roundTripDraft.text).toBe('going away\n\ncoming home')
+    }
     const maybeFirst = Array.head(maybeIdleSection.value.lines.items)
     const maybeBlank = Array.get(maybeIdleSection.value.lines.items, 1)
     const maybeLast = Array.last(maybeIdleSection.value.lines.items)
@@ -868,7 +905,23 @@ describe('songbook update', () => {
     }
 
     const [word] = update(applied, OpenedWord({ wordId: maybeWord.value.id }))
-    const [typed] = update(word, TypedChord({ draft: draftFromText('G') }))
+    const maybeEmptyChord = messageFromToken('chord:', word)
+    expect(maybeEmptyChord?._tag).toBe('TypedChord')
+    if (maybeEmptyChord?._tag === 'TypedChord') {
+      expect(maybeEmptyChord.draft._tag).toBe('None')
+    }
+    const maybePopulatedChord = messageFromToken('chord:G', word)
+    expect(maybePopulatedChord?._tag).toBe('TypedChord')
+    if (maybePopulatedChord?._tag === 'TypedChord') {
+      expect(maybePopulatedChord.draft._tag).toBe('Some')
+      if (maybePopulatedChord.draft._tag === 'Some') {
+        expect(maybePopulatedChord.draft.text).toBe('G')
+      }
+    }
+    const [typed] = update(
+      word,
+      TypedChord({ draft: draftFromText(NonEmptyString.make('G')) }),
+    )
     const [kept] = update(typed, CancelledWord())
     expect(kept.library._tag).toBe('Populated')
     if (
@@ -970,7 +1023,9 @@ describe('songbook update', () => {
     )
     const [drafted] = update(
       lyrics,
-      TypedLyrics({ draft: draftFromText('going away\n\ncoming home') }),
+      TypedLyrics({
+        draft: draftFromText(NonEmptyString.make('going away\n\ncoming home')),
+      }),
     )
     const [applied] = update(drafted, AppliedLyrics())
     expect(applied.library._tag).toBe('Populated')
@@ -993,6 +1048,11 @@ describe('songbook update', () => {
       return
     }
     expect(Array.length(maybeIdleSection.value.lines.items)).toBe(3)
+    const roundTripDraft = Domain.draftOfSection(maybeIdleSection.value)
+    expect(roundTripDraft._tag).toBe('Some')
+    if (roundTripDraft._tag === 'Some') {
+      expect(roundTripDraft.text).toBe('going away\n\ncoming home')
+    }
     const maybeFirst = Array.head(maybeIdleSection.value.lines.items)
     const maybeBlank = Array.get(maybeIdleSection.value.lines.items, 1)
     const maybeLast = Array.last(maybeIdleSection.value.lines.items)
