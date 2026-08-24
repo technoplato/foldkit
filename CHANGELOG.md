@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 1:00:30 a.m. EDT — `b397a241f73d` feat(songbook): nest play current and make zipper drafts the letter
+
+- **Implementation commit:** `b397a241f73dd658a525236d59c3d33de51eb3dc`
+- **Change:** Nest play current and make zipper drafts the letter
+- **Details:**
+  - Playing sat beside Lyrics. Nest current under Working: Editing Song, Playing StoredSong.
+  - Lyrics/Word drafts are the letter. WordFocus is Word. Word holds lineId and chords, not a Line bag. Do not claim ADT pass. Do not close leftover issues 240-243.
+- **Files:**
+  - `examples/songbook/core/src/domain/index.ts` — Export lyric Word as LyricWord so zipper Word is spoken Word.
+  - `examples/songbook/core/src/domain/section.ts` — Import LineId from ids so section compiles with the zipper nest.
+  - `examples/songbook/core/src/domain/song.ts` — Nest Playing StoredSong; Lyrics/Word drafts; Word lineId and chords.
+  - `examples/songbook/core/src/message.ts` — Read zippers from Editing current and dispatch actions by command.
+  - `examples/songbook/core/src/model.ts` — Working is Editing or Playing; Chart has no sibling current.
+  - `examples/songbook/core/src/product.ts` — Paint Lyrics and Word from draft; Chart via currentSong.
+  - `examples/songbook/core/src/program.test.ts` — Guard Program.screen before calling it.
+  - `examples/songbook/core/src/update.test.ts` — Assert Playing stored Idle, Lyrics has no current, Word has no line.
+  - `examples/songbook/core/src/update.ts` — Flatten on play and cancel; Word zipper draft is the letter.
+- **User context (verbatim):**
+  > go find this grokbot converssation id d7b5bc89-5140-4dbe-b7af-5ae6e582f500 creaste a skill for ctaching up and triaging what work has/hasn't been done issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session.
+
 ## August 24th, 2026 at 12:19:03 a.m. EDT — `0c08efee109d` feat: nest songbook section zippers and fail hanging Instant start
 
 - **Implementation commit:** `0c08efee109da83abca5f545f3722f14f881112c`
