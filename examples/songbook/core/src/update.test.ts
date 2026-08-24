@@ -405,6 +405,12 @@ describe('songbook update', () => {
     expect(
       Array.map(textsOf(songbookScreen(word)), text => text.content),
     ).toContain('Word')
+    expect(
+      Array.map(inputsOf(songbookScreen(word)), input => input.token ?? ''),
+    ).not.toContain('chord:')
+    expect(
+      Array.every(inputsOf(songbookScreen(word)), input => input.value !== ''),
+    ).toBe(true)
 
     const [typed] = update(word, TypedChord({ draft: draftFromText('G') }))
     expect(typed.library._tag).toBe('Populated')
@@ -417,6 +423,12 @@ describe('songbook update', () => {
       return
     }
     expect(typed.library.place.use.current.sections.draft._tag).toBe('Some')
+    expect(
+      Array.map(inputsOf(songbookScreen(typed)), input => input.value),
+    ).toContain('G')
+    expect(
+      Array.map(inputsOf(songbookScreen(typed)), input => input.token ?? ''),
+    ).toContain('chord:')
 
     const [kept] = update(typed, CancelledWord())
     expect(kept.library._tag).toBe('Populated')
@@ -481,7 +493,18 @@ describe('songbook update', () => {
     expect(Array.map(textsOf(emptyScreen), text => text.content)).toContain(
       'Shelf',
     )
-    expect(Array.map(inputsOf(emptyScreen), input => input.value)).toContain('')
+    expect(Array.map(textsOf(emptyScreen), text => text.content)).toContain(
+      'Idle',
+    )
+    expect(Array.map(textsOf(emptyScreen), text => text.content)).toContain(
+      'Search',
+    )
+    expect(
+      Array.every(inputsOf(emptyScreen), input => input.value !== ''),
+    ).toBe(true)
+    expect(
+      Array.map(inputsOf(emptyScreen), input => input.token ?? ''),
+    ).not.toContain('search:')
 
     const [created] = update(empty, SucceededGeneratedIds({ songId: 'song-a' }))
     expect(created.library._tag).toBe('Populated')
@@ -489,8 +512,34 @@ describe('songbook update', () => {
       return
     }
     expect(created.library.place._tag).toBe('Chart')
+    const createdScreen = songbookScreen(created)
+    expect(Array.map(textsOf(createdScreen), text => text.content)).toContain(
+      'Title',
+    )
+    expect(Array.map(textsOf(createdScreen), text => text.content)).toContain(
+      'Artist',
+    )
+    expect(
+      Array.every(inputsOf(createdScreen), input => input.value !== ''),
+    ).toBe(true)
+    expect(
+      Array.map(inputsOf(createdScreen), input => input.token ?? ''),
+    ).not.toContain('title:')
+    expect(
+      Array.map(inputsOf(createdScreen), input => input.token ?? ''),
+    ).not.toContain('artist:')
     const [named] = update(created, NamedTitle({ name: 'Midnight Train' }))
-    const [withSection] = update(named, AddedSection({ kind: 'Verse' }))
+    expect(
+      Array.map(inputsOf(songbookScreen(named)), input => input.value),
+    ).toContain('Midnight Train')
+    const [namedArtist] = update(
+      named,
+      NamedArtist({ name: NonEmptyString.make('Aretha') }),
+    )
+    expect(
+      Array.map(inputsOf(songbookScreen(namedArtist)), input => input.value),
+    ).toContain('Aretha')
+    const [withSection] = update(namedArtist, AddedSection({ kind: 'Verse' }))
     expect(withSection.library._tag).toBe('Populated')
     if (
       withSection.library._tag !== 'Populated' ||
@@ -525,16 +574,26 @@ describe('songbook update', () => {
     const lyricsScreen = songbookScreen(cleared)
     expect(
       Array.map(inputsOf(lyricsScreen), input => input.token ?? ''),
-    ).toContain('draft:')
-    expect(Array.map(inputsOf(lyricsScreen), input => input.value)).toContain(
-      '',
-    )
+    ).not.toContain('draft:')
+    expect(
+      Array.every(inputsOf(lyricsScreen), input => input.value !== ''),
+    ).toBe(true)
     expect(Array.map(textsOf(lyricsScreen), text => text.content)).toContain(
       'Chart',
     )
     expect(Array.map(textsOf(lyricsScreen), text => text.content)).toContain(
       'Lyrics',
     )
+    const [drafted] = update(
+      cleared,
+      TypedLyrics({ draft: draftFromText('going away') }),
+    )
+    expect(
+      Array.map(inputsOf(songbookScreen(drafted)), input => input.token ?? ''),
+    ).toContain('draft:')
+    expect(
+      Array.map(inputsOf(songbookScreen(drafted)), input => input.value),
+    ).toContain('going away')
   })
 
   it('hosts key and section kind as Pitch and SectionKind, not String', () => {
