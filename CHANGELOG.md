@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 2:02:02 a.m. EDT — `24c67d8abcac` feat(songbook): nest remaining prefixed None Some members
+
+- **Implementation commit:** `24c67d8abcac4ad6e35891898825bde1830015c9`
+- **Change:** Nest remaining prefixed None/Some constructors as parent members.
+- **Details:**
+  - Capo, Artist, Key, Draft, Notice, Detail, and Chords now expose Capo.None, Artist.Some, and the same nest for Key, Draft, Notice, Detail, and Chords.
+  - Prefixed barrel exports are gone. Renderer TextInput still uses empty string at the DOM boundary. Do not claim ADT pass. Do not close leftover issues 240-243.
+- **Files:**
+  - `examples/songbook/core/src/domain/index.ts` — Drop ChordsNone and ChordsSome from the domain barrel.
+  - `examples/songbook/core/src/domain/line.ts` — Nest Chords.None and Chords.Some on Chords.
+  - `examples/songbook/core/src/domain/song.ts` — Nest Capo, Artist, Key, and Draft members.
+  - `examples/songbook/core/src/model.ts` — Nest Notice and Detail members. Stop re-exporting DraftNone.
+  - `examples/songbook/core/src/update.ts` — Write Artist.None, Key.Some, and Draft.None.
+  - `examples/songbook/core/src/update.test.ts` — Assert nested members and that prefixed exports are gone.
+- **User context (verbatim):**
+  > pick up on and complete all of the in flight tasks for me!
+  > issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session.
+
 ## August 24th, 2026 at 1:50:44 a.m. EDT — `1f194d564fb4` feat(puzzle): paint Failed when Instant subscribe hangs
 
 - **Implementation commit:** `1f194d564fb48cb77e5bcd90dd8c50cfbce1f494`
