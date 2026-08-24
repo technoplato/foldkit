@@ -459,8 +459,17 @@ export const draftOfSection = (section: Section): Draft => {
   if (section.lines._tag === 'Empty') {
     return Draft.None()
   }
+  const first = Array.headNonEmpty(section.lines.items)
+  const rest = Array.tailNonEmpty(section.lines.items)
+  const seed = Option.getOrElse(lyricOf(first), () => '')
   return draftFromText(
-    pipe(section.lines.items, Array.map(lyricOf), Array.join('\n')),
+    Array.reduce(rest, seed, (soFar, line) => {
+      const maybeText = lyricOf(line)
+      if (Option.isNone(maybeText)) {
+        return `${soFar}\n`
+      }
+      return `${soFar}\n${maybeText.value}`
+    }),
   )
 }
 
@@ -880,10 +889,11 @@ const formatLine = (
   transpose: number,
   capo: number,
 ): Option.Option<string> => {
-  if (line.body._tag === 'Blank') {
+  const maybeLyric = lyricOf(line)
+  if (Option.isNone(maybeLyric) || line.body._tag === 'Blank') {
     return Option.none()
   }
-  const lyric = lyricOf(line)
+  const lyric = maybeLyric.value
   if (line.body.chords._tag === 'None') {
     return Option.some(lyric)
   }
