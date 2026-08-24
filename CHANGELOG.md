@@ -4,6 +4,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 23rd, 2026 at 9:23:31 p.m. EDT — `388b6d53534a` feat: zipper songbook selections and fail-open puzzle Instant start
+
+- **Implementation commit:** `388b6d53534a0404418e52a12896110c42a19de1`
+- **Change:** Zipper songbook selections and fail-open puzzle Instant start onto puzzleScreen
+- **Details:**
+  - Puzzle Instant Starting still painted host chrome. Attach puzzleScreen from init until Ready; Failed stays host chrome.
+  - Songbook Confirming, Lyrics, Word, and Removing held member copies that could miss the parent NonEmpty. Model those as zippers. DeletingIdle owns the songs bag so Confirming is not a sibling bag. Do not close leftover issues 240-243.
+- **Files:**
+  - `examples/puzzle/foldkit/src/instantHost.ts` — Paint puzzleScreen during Instant Starting; Failed stays host chrome.
+  - `examples/puzzle/foldkit/src/instantHost.test.ts` — Assert Starting does not paint host chrome.
+  - `examples/puzzle/react/src/App.tsx` — Starting and Ready paint PuzzleWindow from useScreen.
+  - `examples/puzzle/tui/src/client.ts` — Starting paints puzzleScreen; Failed stays host chrome.
+  - `examples/puzzle/tui/src/tui.test.ts` — Assert Starting paints the puzzle URL and reset.
+  - `examples/puzzle/tui/src/process.integration.test.ts` — Missing Instant env still paints the shared puzzleScreen.
+  - `examples/puzzle/headless/src/print.ts` — Starting paints puzzleScreen from demoModel.
+  - `examples/puzzle/headless/src/print.test.ts` — Assert Starting contains the puzzle URL, not host chrome.
+  - `examples/songbook/core/src/model.ts` — Zipper Confirming, Lyrics, Word, and Removing; Idle owns the songs bag.
+  - `examples/songbook/core/src/update.ts` — Drive delete, lyrics, word, and remove through zippers.
+  - `examples/songbook/core/src/product.ts` — Paint zipper current on Confirming, Lyrics, Word, and Removing.
+  - `examples/songbook/core/src/update.test.ts` — Assert delete zipper current is a member.
+- **User context (verbatim):**
+  > go find this grokbot converssation id d7b5bc89-5140-4dbe-b7af-5ae6e582f500 creaste a skill for ctaching up and triaging what work has/hasn't been done issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session.
+
 ## August 23rd, 2026 at 8:46:17 p.m. EDT — `087fc9084971` feat!: type leftover quorum and unify songbook drafts
 
 - **Implementation commit:** `087fc9084971c5d4f11894d43226d56e257b747b`
