@@ -17,11 +17,13 @@ import { describe, expect, it } from 'vitest'
 import { factHandleForKey, renderPuzzleScreen, tapForInput } from './client.js'
 
 describe('Puzzle TUI', () => {
-  it('paints Starting before Instant is ready', () => {
+  it('paints the demo product while Starting', () => {
     const screen = renderPuzzleScreen(SyncedPuzzle.Starting())
 
-    expect(screen).toContain('Starting Instant Puzzle')
+    expect(screen).toContain('https://puzzle.knophy.com')
+    expect(screen).toContain('[ reset ]')
     expect(screen).toContain('[Q] quit')
+    expect(screen).not.toContain('Starting Instant Puzzle')
     expect(screen).not.toContain('[ y ]')
   })
 

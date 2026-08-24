@@ -30,6 +30,7 @@ import {
   type Working,
   draftText,
   shownSongs,
+  songsOfDeleting,
   title,
 } from './model.js'
 
@@ -58,7 +59,7 @@ const deletingNodes = (deleting: Deleting): ReadonlyArray<UiNode> =>
       Idle: () => [Text('Idle')],
       Confirming: confirming => [
         Text('Confirming'),
-        Text(displayTitle(confirming.song)),
+        Text(displayTitle(confirming.current)),
       ],
     }),
   )
@@ -131,7 +132,7 @@ const focusNodes = (focus: Focus, song: Song): ReadonlyArray<UiNode> =>
       ],
       Lyrics: lyrics => [
         Text('Lyrics'),
-        Text(kindLabel(lyrics.section.kind)),
+        Text(kindLabel(lyrics.current.kind)),
         TextInput({
           placeholder: 'Lyrics',
           token: 'draft:',
@@ -155,7 +156,7 @@ const focusNodes = (focus: Focus, song: Song): ReadonlyArray<UiNode> =>
       ],
       Removing: removing => [
         Text('Removing'),
-        Text(kindLabel(removing.section.kind)),
+        Text(kindLabel(removing.current.kind)),
       ],
     }),
   )
@@ -206,7 +207,10 @@ const populatedPlaceNodes = (place: PopulatedPlace): ReadonlyArray<UiNode> =>
         Text('Shelf'),
         ...lookingNodes(shelf.looking),
         ...deletingNodes(shelf.deleting),
-        ...Array.flatMap(shownSongs(shelf.songs, shelf.looking), songRow),
+        ...Array.flatMap(
+          shownSongs(songsOfDeleting(shelf.deleting), shelf.looking),
+          songRow,
+        ),
       ],
       Chart: chart => [
         Text('Chart'),

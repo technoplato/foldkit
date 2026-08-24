@@ -60,9 +60,8 @@ describe('Puzzle TUI process', () => {
 
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout).toMatch(
-      /Starting Instant Puzzle|INSTANT_APP_ADMIN_TOKEN/,
+      /INSTANT_APP_ADMIN_TOKEN|https:\/\/puzzle\.knophy\.com/,
     )
     expect(result.stdout).not.toContain('[ y ]')
-    expect(result.stdout).not.toContain('[ reset ]')
   })
 })

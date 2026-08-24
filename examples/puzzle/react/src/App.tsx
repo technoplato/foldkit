@@ -29,30 +29,61 @@ export const App = () => {
   const { menu, rows, empty, maybeChosen, dismiss, select } = useActionMenu()
   return M.value(view).pipe(
     M.tagsExhaustive({
-      Starting: () => <Status>Starting Instant Puzzle…</Status>,
+      Starting: () => (
+        <PuzzleWindow
+          empty={empty}
+          maybeChosen={maybeChosen}
+          menu={menu}
+          rows={rows}
+          screen={screen}
+          onDismiss={dismiss}
+          onSelect={select}
+        />
+      ),
       Failed: ({ error }) => (
         <Status>
           <p>{describePuzzleSyncError(error)}</p>
         </Status>
       ),
       Ready: () => (
-        <main className="min-h-screen bg-white text-gray-900 flex items-center justify-center p-6">
-          <section className="w-full max-w-sm text-center space-y-6">
-            {paintReact(screen, sendScreenToken, classNames)}
-          </section>
-          <ActionMenuOverlay
-            empty={empty}
-            maybeChosen={maybeChosen}
-            menu={menu}
-            rows={rows}
-            onDismiss={dismiss}
-            onSelect={select}
-          />
-        </main>
+        <PuzzleWindow
+          empty={empty}
+          maybeChosen={maybeChosen}
+          menu={menu}
+          rows={rows}
+          screen={screen}
+          onDismiss={dismiss}
+          onSelect={select}
+        />
       ),
     }),
   )
 }
+
+const PuzzleWindow = ({
+  empty,
+  maybeChosen,
+  menu,
+  rows,
+  screen,
+  onDismiss,
+  onSelect,
+}: Parameters<typeof ActionMenuOverlay>[0] &
+  Readonly<{ screen: ReturnType<typeof useScreen> }>) => (
+  <main className="min-h-screen bg-white text-gray-900 flex items-center justify-center p-6">
+    <section className="w-full max-w-sm text-center space-y-6">
+      {paintReact(screen, sendScreenToken, classNames)}
+    </section>
+    <ActionMenuOverlay
+      empty={empty}
+      maybeChosen={maybeChosen}
+      menu={menu}
+      rows={rows}
+      onDismiss={onDismiss}
+      onSelect={onSelect}
+    />
+  </main>
+)
 
 const Status = ({ children }: Readonly<{ children: ReactNode }>) => (
   <main className="min-h-screen bg-white text-gray-900 flex items-center justify-center p-6">

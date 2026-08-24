@@ -7,13 +7,16 @@ import {
   AppliedLyrics,
   ClickedCopy,
   ClickedNew,
+  ClickedShelf,
+  ConfirmedDelete,
   NamedTitle,
   OpenedLyrics,
+  RequestedDelete,
   SucceededGeneratedIds,
   TypedLyrics,
   TypedSearch,
 } from './message.js'
-import { emptyModel } from './model.js'
+import { emptyModel, zipperItems } from './model.js'
 import { songbookScreen } from './program.js'
 import { update } from './update.js'
 
@@ -87,6 +90,19 @@ describe('songbook update', () => {
       return
     }
     expect(lyrics.library.place.working.focus.draft._tag).toBe('None')
+    expect(lyrics.library.place.working.focus.current.id).toBe(
+      maybeSection.value.id,
+    )
+    expect(
+      Array.some(
+        zipperItems(
+          lyrics.library.place.working.focus.before,
+          lyrics.library.place.working.focus.current,
+          lyrics.library.place.working.focus.after,
+        ),
+        section => section.id === maybeSection.value.id,
+      ),
+    ).toBe(true)
 
     const [drafted] = update(lyrics, TypedLyrics({ text: 'going away' }))
     expect(drafted.library._tag).toBe('Populated')
@@ -123,6 +139,50 @@ describe('songbook update', () => {
       'draft:',
     )
     expect(Array.map(textsOf(screen), text => text.content)).toContain('Lyrics')
+  })
+
+  it('confirms delete from a zipper current that is a member', () => {
+    const empty = emptyModel()
+    const [created] = update(empty, SucceededGeneratedIds({ songId: 'song-a' }))
+    const [shelf] = update(created, ClickedShelf())
+    expect(shelf.library._tag).toBe('Populated')
+    if (
+      shelf.library._tag !== 'Populated' ||
+      shelf.library.place._tag !== 'Shelf'
+    ) {
+      return
+    }
+    expect(shelf.library.place.deleting._tag).toBe('Idle')
+
+    const [confirming] = update(shelf, RequestedDelete({ songId: 'song-a' }))
+    expect(confirming.library._tag).toBe('Populated')
+    if (
+      confirming.library._tag !== 'Populated' ||
+      confirming.library.place._tag !== 'Shelf'
+    ) {
+      return
+    }
+    expect(confirming.library.place.deleting._tag).toBe('Confirming')
+    if (confirming.library.place.deleting._tag !== 'Confirming') {
+      return
+    }
+    expect(confirming.library.place.deleting.current.id).toBe('song-a')
+    expect(
+      Array.some(
+        zipperItems(
+          confirming.library.place.deleting.before,
+          confirming.library.place.deleting.current,
+          confirming.library.place.deleting.after,
+        ),
+        song => song.id === 'song-a',
+      ),
+    ).toBe(true)
+    expect(
+      Array.map(textsOf(songbookScreen(confirming)), text => text.content),
+    ).toContain('Confirming')
+
+    const [deleted] = update(confirming, ConfirmedDelete())
+    expect(deleted.library._tag).toBe('Empty')
   })
 
   it('paints a search TextInput on the empty shelf', () => {
