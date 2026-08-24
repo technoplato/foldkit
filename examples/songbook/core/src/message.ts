@@ -830,6 +830,13 @@ const afterPrefix = (token: string, prefix: string): Option.Option<string> => {
   return Option.some(rest)
 }
 
+const draftFromHost = (text: string): Draft => {
+  if (Str.isEmpty(text)) {
+    return Draft.None()
+  }
+  return draftFromText(NonEmptyString.make(text))
+}
+
 const SECTION_KINDS: ReadonlyArray<SectionKind> = [
   'Intro',
   'Verse',
@@ -1085,14 +1092,14 @@ export const messageFromToken = (
     return OpenedLyrics({ sectionId: NonEmptyString.make(maybeLyrics.value) })
   }
   if (token.startsWith('draft:')) {
-    return TypedLyrics({ draft: draftFromText(token.slice('draft:'.length)) })
+    return TypedLyrics({ draft: draftFromHost(token.slice('draft:'.length)) })
   }
   const maybeWord = afterPrefix(token, 'word:')
   if (Option.isSome(maybeWord)) {
     return OpenedWord({ wordId: NonEmptyString.make(maybeWord.value) })
   }
   if (token.startsWith('chord:')) {
-    return TypedChord({ draft: draftFromText(token.slice('chord:'.length)) })
+    return TypedChord({ draft: draftFromHost(token.slice('chord:'.length)) })
   }
   const maybeRemove = afterPrefix(token, 'remove:')
   if (Option.isSome(maybeRemove)) {
