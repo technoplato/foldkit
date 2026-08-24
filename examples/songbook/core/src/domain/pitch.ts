@@ -1,4 +1,5 @@
 import { Array, Option, Schema as S } from 'effect'
+import { NonEmptyString } from 'foldkit/adt'
 
 /** Twelve pitch classes. Display uses sharps. */
 export const Pitch = S.Literals([
@@ -73,8 +74,9 @@ const TOKEN_PITCH: Readonly<Record<string, Pitch>> = {
 export const printPitch = (pitch: Pitch): string => PITCH_TOKEN[pitch]
 
 /** Parses a pitch token. */
-export const parsePitch = (token: string): Option.Option<Pitch> =>
-  Option.fromNullishOr(TOKEN_PITCH[token])
+export const parsePitch = (
+  token: typeof NonEmptyString.Type,
+): Option.Option<Pitch> => Option.fromNullishOr(TOKEN_PITCH[token])
 
 const wrapSemitone = (index: number): number => {
   const remainder = index % 12
