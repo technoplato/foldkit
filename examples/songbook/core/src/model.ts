@@ -124,7 +124,7 @@ export type Deleting = typeof Deleting.Type
 export const Editing = ts('Editing', { current: Song })
 /** Playing a chart. Current song is stored Empty or Idle only. */
 export const Playing = ts('Playing', { current: Song.Saved })
-const work = withMembers(S.Union([Editing, Playing]), {
+const song = withMembers(S.Union([Editing, Playing]), {
   Editing,
   Playing,
 })
@@ -150,7 +150,7 @@ export const Chart = withMembers(
   ts('Chart', {
     before: Before,
     after: After,
-    work,
+    song,
   }),
   { Editing, Playing },
 )
@@ -194,10 +194,10 @@ export const emptyModel = (): Model =>
 
 /** Current chart song. Playing current is stored Empty or Idle. */
 export const currentSong = (chart: typeof Chart.Type): Song => {
-  if (chart.work._tag === 'Editing') {
-    return chart.work.current
+  if (chart.song._tag === 'Editing') {
+    return chart.song.current
   }
-  return asSong(chart.work.current)
+  return asSong(chart.song.current)
 }
 
 /** Songs of a chart zipper. Current is always a member. Zippers flatten. */
@@ -247,7 +247,7 @@ export const zipperAt = (
       Chart.make({
         before: zip.before,
         after: zip.after,
-        work: Editing.make({ current: asSong(zip.current) }),
+        song: Editing.make({ current: asSong(zip.current) }),
       }),
   )
 
@@ -259,8 +259,8 @@ export const replaceCurrent = (
   Chart.make({
     before: chart.before,
     after: chart.after,
-    work:
-      chart.work._tag === 'Playing'
+    song:
+      chart.song._tag === 'Playing'
         ? Playing.make({ current: flattenSong(current) })
         : Editing.make({ current }),
   })

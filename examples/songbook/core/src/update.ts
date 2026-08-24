@@ -243,7 +243,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                       Chart.make({
                         before: chart.before,
                         after: chart.after,
-                        work: Playing.make({
+                        song: Playing.make({
                           current: song,
                         }),
                       }),
@@ -370,7 +370,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               Chart.make({
                 before: chart.before,
                 after: chart.after,
-                work: Playing.make({
+                song: Playing.make({
                   current: flattenSong(currentSong(chart)),
                 }),
               }),
@@ -387,7 +387,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               Chart.make({
                 before: chart.before,
                 after: chart.after,
-                work: Editing.make({
+                song: Editing.make({
                   current: asSong(flattenSong(currentSong(chart))),
                 }),
               }),
@@ -620,7 +620,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.work._tag !== 'Editing') {
+            if (chart.song._tag !== 'Editing') {
               return keep(model)
             }
             const sections = currentSong(chart).sections
@@ -644,7 +644,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.work._tag !== 'Editing') {
+            if (chart.song._tag !== 'Editing') {
               return keep(model)
             }
             if (currentSong(chart).sections._tag !== 'Lyrics') {
@@ -694,7 +694,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.work._tag !== 'Editing') {
+            if (chart.song._tag !== 'Editing') {
               return keep(model)
             }
             const sections = currentSong(chart).sections
@@ -718,7 +718,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.work._tag !== 'Editing') {
+            if (chart.song._tag !== 'Editing') {
               return keep(model)
             }
             const sections = currentSong(chart).sections
@@ -770,7 +770,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.work._tag !== 'Editing') {
+            if (chart.song._tag !== 'Editing') {
               return keep(model)
             }
             const sections = currentSong(chart).sections

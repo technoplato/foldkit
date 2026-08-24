@@ -204,8 +204,8 @@ const editingNodes = (song: Song): ReadonlyArray<UiNode> =>
     }),
   )
 
-const workNodes = (work: Chart['work']): ReadonlyArray<UiNode> =>
-  M.value(work).pipe(
+const songNodes = (song: Chart['song']): ReadonlyArray<UiNode> =>
+  M.value(song).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
       Editing: editing => [Text('Editing'), ...editingNodes(editing.current)],
@@ -260,7 +260,7 @@ const populatedPageNodes = (
       Chart: chart => [
         Text('Chart'),
         Text(displayTitle(currentSong(chart))),
-        ...workNodes(chart.work),
+        ...songNodes(chart.song),
       ],
       Unknown: unknown => [
         Text('Unknown'),
