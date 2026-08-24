@@ -1,16 +1,11 @@
-import { Layer } from 'effect'
 import {
-  IssueIdentity,
-  LiveIssueIdentity,
   StaticIssueTrackerResources,
+  makeLiveIssueTrackerResources,
 } from 'issues-core-example'
 import { makeIssueTrackerReactClient } from 'issues-react-bindings-example'
 
 import { withHostedIdentity } from '@foldkit/instant'
-import {
-  InstantToolsSchema,
-  makeInstantToolsLayer,
-} from '@foldkit/instant-tools/instant'
+import { InstantToolsSchema } from '@foldkit/instant-tools/instant'
 import { init } from '@instantdb/core'
 
 const appId = import.meta.env['VITE_INSTANT_APP_ID']
@@ -21,13 +16,7 @@ const database =
 const resources =
   database === undefined
     ? StaticIssueTrackerResources
-    : withHostedIdentity(
-        Layer.merge(
-          makeInstantToolsLayer(database),
-          Layer.succeed(IssueIdentity, LiveIssueIdentity),
-        ),
-        database,
-      )
+    : withHostedIdentity(makeLiveIssueTrackerResources(database), database)
 
 /** The React host selects live Instant resources when configured. */
 export const IssueTrackerClient = makeIssueTrackerReactClient(resources)
