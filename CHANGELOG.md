@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 23rd, 2026 at 8:46:17 p.m. EDT — `087fc9084971` feat!: type leftover quorum and unify songbook drafts
+
+- **Implementation commit:** `087fc9084971c5d4f11894d43226d56e257b747b`
+- **Change:** Type leftover quorum as Present or Missing and unify songbook drafts
+- **Details:**
+  - Leftover quorum was a boolean field. Name Present and Missing so IssueDetail can paint a verdict without a flag.
+  - Songbook LyricsDraft and EmptyPlace duplicated spoken names. One Draft covers lyrics and chords; empty library place is Place. Hole 7 still fail. Do not close leftover issues 240-243.
+- **Files:**
+  - `packages/instant-tools/src/leftover/domain.ts` — Replace leftover quorum boolean with Present | Missing.
+  - `packages/instant-tools/src/leftover/leftover.test.ts` — Assert leftover quorum _tag Present or Missing.
+  - `examples/issues/core/src/leftover.ts` — Re-export leftover quorum required peer count.
+  - `examples/issues/core/src/product.ts` — Paint Quorum present or Quorum missing on IssueDetail.
+  - `examples/issues/core/src/program.test.ts` — Expect IssueDetail to paint Quorum present.
+  - `examples/songbook/core/src/model.ts` — Unify LyricsDraft and ChordDraft as Draft; rename EmptyPlace to Place.
+  - `examples/songbook/core/src/product.ts` — Paint unified Draft and Place on songbookScreen.
+  - `examples/songbook/core/src/update.ts` — Drive lyrics and chord drafts through one Draft helper.
+  - `.changeset/leftover-quorum-adt.md` — Note leftover quorum callers must match Present or Missing.
+- **User context (verbatim):**
+  > go find this grokbot converssation id d7b5bc89-5140-4dbe-b7af-5ae6e582f500 creaste a skill for ctaching up and triaging what work has/hasn't been done issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session.
+
 ## August 23rd, 2026 at 8:17:34 p.m. EDT — `8e02107c9871` fix: wire leftover Instant presence into the issues React host
 
 - **Implementation commit:** `8e02107c9871927b16df17bb631c3fa02c587053`
