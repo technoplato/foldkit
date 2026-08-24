@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 3:22:43 a.m. EDT — `03215146179c` feat(songbook): parse pitch and chord rows without empty host tokens
+
+- **Implementation commit:** `03215146179c737f00c92ee8f9edcac3dac64f8c`
+- **Change:** Parse songbook pitch and chord rows without empty host tokens
+- **Details:**
+  - parsePitch and chordRowOf take NonEmptyString
+  - parseChord converts slash parts only when non-empty
+- **Files:**
+  - `examples/songbook/core/src/domain/pitch.ts` — parsePitch takes NonEmptyString
+  - `examples/songbook/core/src/domain/chord.ts` — parseChord converts slash parts only when non-empty
+  - `examples/songbook/core/src/domain/song.ts` — chordRowOf takes NonEmptyString from lyricOf
+  - `examples/songbook/core/src/message.ts` — key token uses NonEmptyString for parsePitch
+  - `examples/songbook/core/src/update.test.ts` — leftover test drives parsePitch G/Z from emptyModel
+- **User context (verbatim):**
+  > Then execute the unblocked rows. Logging the grade without picking up work is not catch-up.
+  > Next: hole 1 draftFromText still takes host string (hold Foldkit 0.150). Remaining hole 1 chordRowOf/parsePitch host tokens.
+- **SpecStory:** unavailable — Grok Build CLI leftover catch-up; no durable SpecStory URI for this session
+
 ## August 24th, 2026 at 3:10:06 a.m. EDT — `25b2a88b18c5` feat(songbook): paste lyrics without empty host strings
 
 - **Implementation commit:** `25b2a88b18c53ebc3546298dc603c252256d4c4d`
