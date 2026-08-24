@@ -4,19 +4,28 @@ import { type ActionContext, md } from 'foldkit/message'
 
 import {
   type Chord,
-  type Pitch,
-  type SectionKind,
+  Draft,
+  Pitch,
+  SectionKind,
   SongId,
+  draftFromText,
   parseChord,
   parsePitch,
 } from './domain/index.js'
-import { type Model, type PopulatedChart, songsOfPopulated } from './model.js'
+import {
+  type Chart,
+  Idle,
+  Looking,
+  type Model,
+  Searching,
+  songsOfPopulated,
+} from './model.js'
 
 // MESSAGE
 
 type Context = ActionContext
 
-const chartOf = (model: Model): typeof PopulatedChart.Type | undefined => {
+const chartOf = (model: Model): Chart | undefined => {
   if (model.library._tag !== 'Populated') {
     return undefined
   }
@@ -40,7 +49,7 @@ const isEditing = (model: Model): boolean => {
   if (chart === undefined) {
     return false
   }
-  return chart.working._tag === 'Editing'
+  return chart.use._tag === 'Editing'
 }
 
 const isPlaying = (model: Model): boolean => {
@@ -48,40 +57,40 @@ const isPlaying = (model: Model): boolean => {
   if (chart === undefined) {
     return false
   }
-  return chart.working._tag === 'Playing'
+  return chart.use._tag === 'Playing'
 }
 
 const isViewing = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.working._tag !== 'Editing') {
+  if (chart === undefined || chart.use._tag !== 'Editing') {
     return false
   }
-  const tag = chart.working.current.sections._tag
+  const tag = chart.use.current.sections._tag
   return tag === 'Empty' || tag === 'Idle'
 }
 
 const isLyrics = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.working._tag !== 'Editing') {
+  if (chart === undefined || chart.use._tag !== 'Editing') {
     return false
   }
-  return chart.working.current.sections._tag === 'Lyrics'
+  return chart.use.current.sections._tag === 'Lyrics'
 }
 
 const isWord = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.working._tag !== 'Editing') {
+  if (chart === undefined || chart.use._tag !== 'Editing') {
     return false
   }
-  return chart.working.current.sections._tag === 'Word'
+  return chart.use.current.sections._tag === 'Word'
 }
 
 const isRemoving = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.working._tag !== 'Editing') {
+  if (chart === undefined || chart.use._tag !== 'Editing') {
     return false
   }
-  return chart.working.current.sections._tag === 'Removing'
+  return chart.use.current.sections._tag === 'Removing'
 }
 
 const isConfirming = (model: Model): boolean => {
@@ -310,7 +319,7 @@ export const ClickedPlay = md('ClickedPlay', {
   spoken: ['play'],
   command: 'play',
   event: 'clicked-play',
-  mutate: 'working becomes playing',
+  mutate: 'use becomes playing',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) => isEditing(model),
   hiddenBecause: (model: Model) =>
@@ -326,7 +335,7 @@ export const ClickedEdit = md('ClickedEdit', {
   spoken: ['edit'],
   command: 'edit',
   event: 'clicked-edit',
-  mutate: 'working becomes editing viewing',
+  mutate: 'use becomes editing viewing',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) => isPlaying(model),
   hiddenBecause: (model: Model) =>
@@ -456,7 +465,7 @@ export const DismissedNotice = md('DismissedNotice', {
 
 /** Types a shelf search query. */
 export const TypedSearch = md('TypedSearch', {
-  fields: { query: S.String },
+  fields: { looking: Looking },
   what: 'Types a search query',
   why: 'Triggered when the player searches the shelf',
   tokens: ['search'],
@@ -549,7 +558,7 @@ export const ClearedArtist = md('ClearedArtist', {
 
 /** Sets the original key. */
 export const ChoseKey = md('ChoseKey', {
-  fields: { pitch: S.String },
+  fields: { pitch: Pitch },
   what: 'Sets the original key',
   why: 'Triggered when the player picks a pitch',
   tokens: ['key'],
@@ -580,7 +589,7 @@ export const ClearedKey = md('ClearedKey', {
 
 /** Adds a section of a named kind. */
 export const AddedSection = md('AddedSection', {
-  fields: { kind: S.String },
+  fields: { kind: SectionKind },
   what: 'Adds a section',
   why: 'Triggered when the player adds a named section',
   tokens: ['add'],
@@ -612,7 +621,7 @@ export const OpenedLyrics = md('OpenedLyrics', {
 
 /** Types lyrics draft text. */
 export const TypedLyrics = md('TypedLyrics', {
-  fields: { text: S.String },
+  fields: { draft: Draft },
   what: 'Types lyrics',
   why: 'Triggered when the player changes the lyrics draft',
   tokens: ['draft'],
@@ -678,7 +687,7 @@ export const OpenedWord = md('OpenedWord', {
 
 /** Types a chord draft. */
 export const TypedChord = md('TypedChord', {
-  fields: { text: S.String },
+  fields: { draft: Draft },
   what: 'Types a chord name',
   why: 'Triggered when the player types a chord',
   tokens: ['chord'],
@@ -1037,7 +1046,13 @@ export const messageFromToken = (
     return OpenedUnknown({ path: NonEmptyString.make(maybeUnknown.value) })
   }
   if (token.startsWith('search:')) {
-    return TypedSearch({ query: token.slice('search:'.length) })
+    const rest = token.slice('search:'.length)
+    if (Str.isEmpty(rest)) {
+      return TypedSearch({ looking: Idle() })
+    }
+    return TypedSearch({
+      looking: Searching.make({ query: NonEmptyString.make(rest) }),
+    })
   }
   if (token.startsWith('title:')) {
     const rest = token.slice('title:'.length)
@@ -1055,25 +1070,31 @@ export const messageFromToken = (
   }
   const maybeKey = afterPrefix(token, 'key:')
   if (Option.isSome(maybeKey)) {
-    return ChoseKey({ pitch: maybeKey.value })
+    return Option.match(parsePitch(maybeKey.value), {
+      onNone: () => undefined,
+      onSome: pitch => ChoseKey({ pitch }),
+    })
   }
   const maybeAdd = afterPrefix(token, 'add:')
   if (Option.isSome(maybeAdd)) {
-    return AddedSection({ kind: maybeAdd.value })
+    return Option.match(kindOf(maybeAdd.value), {
+      onNone: () => undefined,
+      onSome: kind => AddedSection({ kind }),
+    })
   }
   const maybeLyrics = afterPrefix(token, 'lyrics:')
   if (Option.isSome(maybeLyrics)) {
     return OpenedLyrics({ sectionId: NonEmptyString.make(maybeLyrics.value) })
   }
   if (token.startsWith('draft:')) {
-    return TypedLyrics({ text: token.slice('draft:'.length) })
+    return TypedLyrics({ draft: draftFromText(token.slice('draft:'.length)) })
   }
   const maybeWord = afterPrefix(token, 'word:')
   if (Option.isSome(maybeWord)) {
     return OpenedWord({ wordId: NonEmptyString.make(maybeWord.value) })
   }
   if (token.startsWith('chord:')) {
-    return TypedChord({ text: token.slice('chord:'.length) })
+    return TypedChord({ draft: draftFromText(token.slice('chord:'.length)) })
   }
   const maybeRemove = afterPrefix(token, 'remove:')
   if (Option.isSome(maybeRemove)) {

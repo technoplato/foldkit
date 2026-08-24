@@ -9,7 +9,6 @@ export {
   ChordsNone,
   ChordsSome,
   Line,
-  LineBody,
   Placed,
   Words,
   findWord,
@@ -17,4 +16,3 @@ export {
   lyricOf,
   wordsOf,
 } from './line.js'
-export { Word as LyricWord } from './line.js'

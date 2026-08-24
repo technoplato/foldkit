@@ -37,16 +37,41 @@ export const Words = ts('Words', {
   items: S.NonEmptyArray(Word),
   chords: Chords,
 })
-/** A lyric line body. */
-export const LineBody = S.Union([Blank, Words])
-/** A lyric line body. */
-export type LineBody = typeof LineBody.Type
 
-/** One lyric line. */
-export const Line = S.Struct({
-  id: LineId,
-  body: LineBody,
-})
+const withMembers = <Schema extends object, Members extends object>(
+  schema: Schema,
+  members: Members,
+): Schema & Members => {
+  const handler: ProxyHandler<Schema> = {
+    get(target, property, receiver) {
+      if (Object.hasOwn(members, property)) {
+        return Reflect.get(members, property)
+      }
+      return Reflect.get(target, property, receiver)
+    },
+    has(target, property) {
+      return Object.hasOwn(members, property) || Reflect.has(target, property)
+    },
+  }
+  if (typeof schema === 'function') {
+    handler.apply = (target, thisArg, argumentsList) =>
+      Reflect.apply(
+        target as unknown as (...args: Array<never>) => unknown,
+        thisArg,
+        argumentsList,
+      )
+  }
+  return new Proxy(schema, handler) as Schema & Members
+}
+
+/** One lyric line. Body is Blank or Words. */
+export const Line = withMembers(
+  S.Struct({
+    id: LineId,
+    body: S.Union([Blank, Words]),
+  }),
+  { Blank, Words },
+)
 /** One lyric line. */
 export type Line = typeof Line.Type
 

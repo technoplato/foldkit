@@ -9,14 +9,14 @@ import {
   ChordsNone,
   ChordsSome,
   Line,
-  Word as LyricWord,
   Placed,
   Words,
+  Word as lineWord,
   lyricOf,
 } from './line.js'
 import { Pitch, printPitch } from './pitch.js'
 import {
-  LinesPopulated,
+  Lines,
   Section,
   SectionKind,
   emptySection,
@@ -82,10 +82,34 @@ export const Key = S.Union([KeyNone, KeySome])
 /** Original key. */
 export type Key = typeof Key.Type
 
-/** A song with no sections. */
-export const SectionsEmpty = ts('Empty')
-/** Populated sections with no member zipper. */
-export const SectionsIdle = ts('Idle', {
+const withMembers = <Schema extends object, Members extends object>(
+  schema: Schema,
+  members: Members,
+): Schema & Members => {
+  const handler: ProxyHandler<Schema> = {
+    get(target, property, receiver) {
+      if (Object.hasOwn(members, property)) {
+        return Reflect.get(members, property)
+      }
+      return Reflect.get(target, property, receiver)
+    },
+    has(target, property) {
+      return Object.hasOwn(members, property) || Reflect.has(target, property)
+    },
+  }
+  if (typeof schema === 'function') {
+    handler.apply = (target, thisArg, argumentsList) =>
+      Reflect.apply(
+        target as unknown as (...args: Array<never>) => unknown,
+        thisArg,
+        argumentsList,
+      )
+  }
+  return new Proxy(schema, handler) as Schema & Members
+}
+
+const empty = ts('Empty')
+const idle = ts('Idle', {
   items: S.NonEmptyArray(Section),
 })
 
@@ -98,114 +122,118 @@ export const Draft = S.Union([DraftNone, DraftSome])
 /** Lyrics or chord draft. */
 export type Draft = typeof Draft.Type
 
-/** No sections before the current section. */
-export const SectionsBeforeNone = ts('None')
-/** Sections before the current section. */
-export const SectionsBeforeSome = ts('Some', {
+const beforeNone = ts('None')
+const beforeSome = ts('Some', {
   items: S.NonEmptyArray(Section),
 })
-/** Sections before the current section. */
-export const SectionsBefore = S.Union([SectionsBeforeNone, SectionsBeforeSome])
-/** Sections before the current section. */
-export type SectionsBefore = typeof SectionsBefore.Type
+const before = withMembers(S.Union([beforeNone, beforeSome]), {
+  None: beforeNone,
+  Some: beforeSome,
+})
 
-/** No sections after the current section. */
-export const SectionsAfterNone = ts('None')
-/** Sections after the current section. */
-export const SectionsAfterSome = ts('Some', {
+const afterNone = ts('None')
+const afterSome = ts('Some', {
   items: S.NonEmptyArray(Section),
 })
-/** Sections after the current section. */
-export const SectionsAfter = S.Union([SectionsAfterNone, SectionsAfterSome])
-/** Sections after the current section. */
-export type SectionsAfter = typeof SectionsAfter.Type
+const after = withMembers(S.Union([afterNone, afterSome]), {
+  None: afterNone,
+  Some: afterSome,
+})
 
-/** No lines before the current line. */
-export const LinesBeforeNone = ts('None')
-/** Lines before the current line. */
-export const LinesBeforeSome = ts('Some', { items: S.NonEmptyArray(Line) })
-/** Lines before the current line. */
-export const LinesBefore = S.Union([LinesBeforeNone, LinesBeforeSome])
-/** Lines before the current line. */
-export type LinesBefore = typeof LinesBefore.Type
+const lineBeforeNone = ts('None')
+const lineBeforeSome = ts('Some', { items: S.NonEmptyArray(Line) })
+const lineBefore = withMembers(S.Union([lineBeforeNone, lineBeforeSome]), {
+  None: lineBeforeNone,
+  Some: lineBeforeSome,
+})
+const lineAfterNone = ts('None')
+const lineAfterSome = ts('Some', { items: S.NonEmptyArray(Line) })
+const lineAfter = withMembers(S.Union([lineAfterNone, lineAfterSome]), {
+  None: lineAfterNone,
+  Some: lineAfterSome,
+})
 
-/** No lines after the current line. */
-export const LinesAfterNone = ts('None')
-/** Lines after the current line. */
-export const LinesAfterSome = ts('Some', { items: S.NonEmptyArray(Line) })
-/** Lines after the current line. */
-export const LinesAfter = S.Union([LinesAfterNone, LinesAfterSome])
-/** Lines after the current line. */
-export type LinesAfter = typeof LinesAfter.Type
-
-/** No words before the current word. */
-export const WordsBeforeNone = ts('None')
-/** Words before the current word. */
-export const WordsBeforeSome = ts('Some', { items: S.NonEmptyArray(LyricWord) })
-/** Words before the current word. */
-export const WordsBefore = S.Union([WordsBeforeNone, WordsBeforeSome])
-/** Words before the current word. */
-export type WordsBefore = typeof WordsBefore.Type
-
-/** No words after the current word. */
-export const WordsAfterNone = ts('None')
-/** Words after the current word. */
-export const WordsAfterSome = ts('Some', { items: S.NonEmptyArray(LyricWord) })
-/** Words after the current word. */
-export const WordsAfter = S.Union([WordsAfterNone, WordsAfterSome])
-/** Words after the current word. */
-export type WordsAfter = typeof WordsAfter.Type
+const wordBeforeNone = ts('None')
+const wordBeforeSome = ts('Some', { items: S.NonEmptyArray(lineWord) })
+const wordBefore = withMembers(S.Union([wordBeforeNone, wordBeforeSome]), {
+  None: wordBeforeNone,
+  Some: wordBeforeSome,
+})
+const wordAfterNone = ts('None')
+const wordAfterSome = ts('Some', { items: S.NonEmptyArray(lineWord) })
+const wordAfter = withMembers(S.Union([wordAfterNone, wordAfterSome]), {
+  None: wordAfterNone,
+  Some: wordAfterSome,
+})
 
 /** Editing lyrics of a zipper member. Draft is the lyrics. */
 export const Lyrics = ts('Lyrics', {
-  before: SectionsBefore,
-  after: SectionsAfter,
+  before,
+  after,
   id: SectionId,
   kind: SectionKind,
   draft: Draft,
 })
 
 /** Placing a chord on the zipper current word. Draft is the chord. */
-export const Word = ts('Word', {
-  sectionsBefore: SectionsBefore,
-  id: SectionId,
-  kind: SectionKind,
-  sectionsAfter: SectionsAfter,
-  linesBefore: LinesBefore,
-  lineId: LineId,
-  chords: Chords,
-  linesAfter: LinesAfter,
-  wordsBefore: WordsBefore,
-  word: LyricWord,
-  wordsAfter: WordsAfter,
-  draft: Draft,
-})
+export const Word = withMembers(
+  ts('Word', {
+    sectionsBefore: before,
+    id: SectionId,
+    kind: SectionKind,
+    sectionsAfter: after,
+    linesBefore: lineBefore,
+    lineId: LineId,
+    chords: Chords,
+    linesAfter: lineAfter,
+    wordsBefore: wordBefore,
+    word: lineWord,
+    wordsAfter: wordAfter,
+    draft: Draft,
+  }),
+  {
+    Line: withMembers(lineBefore, {
+      Before: lineBefore,
+      After: lineAfter,
+    }),
+    Words: withMembers(wordBefore, {
+      Before: wordBefore,
+      After: wordAfter,
+    }),
+  },
+)
 
 /** Removing the zipper current section. */
 export const Removing = ts('Removing', {
-  before: SectionsBefore,
+  before,
   current: Section,
-  after: SectionsAfter,
+  after,
 })
 
 /**
  * Sections of a song. Zippers replace the bag so lyrics, word, and
  * removing cannot disagree with the stored items.
  */
-export const Sections = S.Union([
-  SectionsEmpty,
-  SectionsIdle,
-  Lyrics,
-  Word,
-  Removing,
-])
+export const Sections = withMembers(
+  S.Union([empty, idle, Lyrics, Word, Removing]),
+  {
+    Empty: empty,
+    Idle: idle,
+    Lyrics,
+    Word,
+    Removing,
+  },
+)
 /** Sections of a song. */
 export type Sections = typeof Sections.Type
 
 /** Stored sections. Playing and the shelf cannot hold zippers. */
-export const StoredSections = S.Union([SectionsEmpty, SectionsIdle])
+export const Stored = withMembers(S.Union([empty, idle]), {
+  Empty: empty,
+  Idle: idle,
+})
 /** Stored sections. */
-export type StoredSections = typeof StoredSections.Type
+export type Stored = typeof Stored.Type
 
 const songFields = {
   id: SongId,
@@ -216,21 +244,21 @@ const songFields = {
   capo: Capo,
 }
 
-/** One song in the library. Zippers inhabit only while editing. */
-export const Song = S.Struct({
+const stored = S.Struct({
   ...songFields,
-  sections: Sections,
+  sections: Stored,
 })
+
+/** One song in the library. Zippers inhabit only while editing. */
+export const Song = withMembers(
+  S.Struct({
+    ...songFields,
+    sections: Sections,
+  }),
+  { Stored: stored },
+)
 /** One song in the library. */
 export type Song = typeof Song.Type
-
-/** A stored song. Sections are Empty or Idle only. */
-export const StoredSong = S.Struct({
-  ...songFields,
-  sections: StoredSections,
-})
-/** A stored song. */
-export type StoredSong = typeof StoredSong.Type
 
 /** A new untitled song with no sections. */
 export const blankSong = (id: SongId): Song =>
@@ -241,7 +269,7 @@ export const blankSong = (id: SongId): Song =>
     key: KeyNone(),
     transpose: Unison(),
     capo: CapoNone(),
-    sections: SectionsEmpty(),
+    sections: empty(),
   })
 
 type Identified = Readonly<{ id: string }>
@@ -323,10 +351,10 @@ export const sectionZipperAt = (
   zipperAtMember(
     sections,
     member,
-    SectionsBeforeSome,
-    SectionsBeforeNone,
-    SectionsAfterSome,
-    SectionsAfterNone,
+    before.Some,
+    before.None,
+    after.Some,
+    after.None,
   )
 
 function upsertPlaced(line: Line, placed: Placed): Line {
@@ -357,7 +385,7 @@ function upsertPlaced(line: Line, placed: Placed): Line {
   })
 }
 
-function clearPlaced(line: Line, wordId: LyricWord['id']): Line {
+function clearPlaced(line: Line, wordId: lineWord['id']): Line {
   const body = line.body
   if (body._tag === 'Blank') {
     return line
@@ -412,37 +440,45 @@ const sectionOfWord = (word: typeof Word.Type): Section => {
   return Section.make({
     id: word.id,
     kind: word.kind,
-    lines: LinesPopulated.make({
+    lines: Lines.Populated.make({
       items: zipperItems(word.linesBefore, line, word.linesAfter),
     }),
   })
 }
 
-/** Draft from typed text. Empty is None. */
+/** Draft from typed host text. Empty is None. */
 export const draftFromText = (text: string): Draft =>
   Str.isEmpty(text)
     ? DraftNone()
     : DraftSome.make({ text: NonEmptyString.make(text) })
 
-/** Editable draft text. None is empty. */
-export const draftText = (draft: Draft): string =>
-  draft._tag === 'None' ? '' : draft.text
+/** Draft of stored section lyrics. Empty lines are None. */
+export const draftOfSection = (section: Section): Draft => {
+  if (section.lines._tag === 'Empty') {
+    return DraftNone()
+  }
+  return draftFromText(
+    pipe(section.lines.items, Array.map(lyricOf), Array.join('\n')),
+  )
+}
 
-const lyricsSection = (lyrics: typeof Lyrics.Type): Section =>
-  replaceLyrics(emptySection(lyrics.id, lyrics.kind), draftText(lyrics.draft))
+const lyricsSection = (lyrics: typeof Lyrics.Type): Section => {
+  if (lyrics.draft._tag === 'None') {
+    return emptySection(lyrics.id, lyrics.kind)
+  }
+  return replaceLyrics(emptySection(lyrics.id, lyrics.kind), lyrics.draft.text)
+}
 
 /** Idle bag or empty. Zippers flatten to the members they hold. */
-export const flattenSections = (
-  sections: Sections,
-): typeof SectionsEmpty.Type | typeof SectionsIdle.Type => {
+export const flattenSections = (sections: Sections): Stored => {
   if (sections._tag === 'Empty') {
-    return SectionsEmpty()
+    return empty()
   }
   if (sections._tag === 'Idle') {
     return sections
   }
   if (sections._tag === 'Word') {
-    return SectionsIdle.make({
+    return idle.make({
       items: zipperItems(
         sections.sectionsBefore,
         sectionOfWord(sections),
@@ -451,7 +487,7 @@ export const flattenSections = (
     })
   }
   if (sections._tag === 'Lyrics') {
-    return SectionsIdle.make({
+    return idle.make({
       items: zipperItems(
         sections.before,
         lyricsSection(sections),
@@ -459,14 +495,14 @@ export const flattenSections = (
       ),
     })
   }
-  return SectionsIdle.make({
+  return idle.make({
     items: zipperItems(sections.before, sections.current, sections.after),
   })
 }
 
 /** Song whose sections zipper is flattened to Empty or Idle. */
-export const flattenSong = (song: Song): StoredSong =>
-  StoredSong.make({
+export const flattenSong = (song: Song): typeof Song.Stored.Type =>
+  Song.Stored.make({
     id: song.id,
     title: song.title,
     artist: song.artist,
@@ -477,7 +513,7 @@ export const flattenSong = (song: Song): StoredSong =>
   })
 
 /** Stored song as a Song. Sections stay Empty or Idle. */
-export const asSong = (song: StoredSong): Song =>
+export const asSong = (song: typeof Song.Stored.Type): Song =>
   Song.make({
     id: song.id,
     title: song.title,
@@ -514,7 +550,7 @@ export const removingAt = (
 /** Word zipper from members of the current song. Draft is the chord. */
 export const wordAt = (
   song: Song,
-  wordId: LyricWord['id'],
+  wordId: lineWord['id'],
   draft: Draft,
 ): Option.Option<typeof Word.Type> => {
   const idle = asSong(flattenSong(song))
@@ -535,30 +571,30 @@ export const wordAt = (
       zipperAtMember(
         songSections.items,
         found.section,
-        SectionsBeforeSome,
-        SectionsBeforeNone,
-        SectionsAfterSome,
-        SectionsAfterNone,
+        before.Some,
+        before.None,
+        after.Some,
+        after.None,
       ),
       sections =>
         Option.flatMap(
           zipperAtMember(
             sectionLines.items,
             found.line,
-            LinesBeforeSome,
-            LinesBeforeNone,
-            LinesAfterSome,
-            LinesAfterNone,
+            lineBefore.Some,
+            lineBefore.None,
+            lineAfter.Some,
+            lineAfter.None,
           ),
           lines =>
             Option.map(
               zipperAtMember(
                 lineBody.items,
                 found.word,
-                WordsBeforeSome,
-                WordsBeforeNone,
-                WordsAfterSome,
-                WordsAfterNone,
+                wordBefore.Some,
+                wordBefore.None,
+                wordAfter.Some,
+                wordAfter.None,
               ),
               words =>
                 Word.make({
@@ -685,9 +721,9 @@ export const findSection = (
 /** Finds a word member in the song. */
 export const findSongWord = (
   song: Song,
-  wordId: LyricWord['id'],
+  wordId: lineWord['id'],
 ): Option.Option<
-  Readonly<{ section: Section; line: Line; word: LyricWord }>
+  Readonly<{ section: Section; line: Line; word: lineWord }>
 > => {
   const bag = flattenSections(song.sections)
   if (bag._tag === 'Empty') {
@@ -718,7 +754,7 @@ const replaceSection = (song: Song, next: Section): Song => {
     onNonEmpty: populated =>
       Song.make({
         ...song,
-        sections: SectionsIdle.make({ items: populated }),
+        sections: idle.make({ items: populated }),
       }),
   })
 }
@@ -740,12 +776,12 @@ export const addSection = (song: Song, section: Section): Song => {
   if (bag._tag === 'Empty') {
     return Song.make({
       ...song,
-      sections: SectionsIdle.make({ items: [section] }),
+      sections: idle.make({ items: [section] }),
     })
   }
   return Song.make({
     ...song,
-    sections: SectionsIdle.make({
+    sections: idle.make({
       items: Array.append(bag.items, section),
     }),
   })
@@ -762,12 +798,12 @@ export const removeSection = (song: Song, sectionId: SectionId): Song => {
     onEmpty: () =>
       Song.make({
         ...song,
-        sections: SectionsEmpty(),
+        sections: empty(),
       }),
     onNonEmpty: items =>
       Song.make({
         ...song,
-        sections: SectionsIdle.make({ items }),
+        sections: idle.make({ items }),
       }),
   })
 }
@@ -784,13 +820,13 @@ const replaceLine = (section: Section, next: Line): Section => {
     onNonEmpty: populated =>
       Section.make({
         ...section,
-        lines: LinesPopulated.make({ items: populated }),
+        lines: Lines.Populated.make({ items: populated }),
       }),
   })
 }
 
 /** Places or replaces a chord on a word. */
-export const placeChord = (song: Song, word: LyricWord, chord: Chord): Song =>
+export const placeChord = (song: Song, word: lineWord, chord: Chord): Song =>
   Option.match(findSongWord(song, word.id), {
     onNone: () => song,
     onSome: ({ section, line }) =>
@@ -801,7 +837,7 @@ export const placeChord = (song: Song, word: LyricWord, chord: Chord): Song =>
   })
 
 /** Clears a chord from a word. */
-export const clearChord = (song: Song, wordId: LyricWord['id']): Song =>
+export const clearChord = (song: Song, wordId: lineWord['id']): Song =>
   Option.match(findSongWord(song, wordId), {
     onNone: () => song,
     onSome: ({ section, line }) =>

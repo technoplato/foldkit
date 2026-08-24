@@ -12,8 +12,7 @@ import {
   CHORD_CHOICES,
   SECTION_KINDS,
   type Section,
-  type Song,
-  type StoredSong,
+  Song,
   asSong,
   displayTitle,
   flattenSections,
@@ -22,16 +21,15 @@ import {
 } from './domain/index.js'
 import { type Action, actions, tokenOf } from './message.js'
 import {
+  type Chart,
   type Deleting,
   type Library,
   type Looking,
   type Model,
   type Notice,
   type Place,
-  type PopulatedPlace,
-  type Working,
+  Populated,
   currentSong,
-  draftText,
   shownSongs,
   songsOfDeleting,
   title,
@@ -143,7 +141,7 @@ const editingNodes = (song: Song): ReadonlyArray<UiNode> =>
         TextInput({
           placeholder: 'Lyrics',
           token: 'draft:',
-          value: draftText(lyrics.draft),
+          value: lyrics.draft._tag === 'None' ? '' : lyrics.draft.text,
         }),
       ],
       Word: word => [
@@ -152,7 +150,7 @@ const editingNodes = (song: Song): ReadonlyArray<UiNode> =>
         TextInput({
           placeholder: 'Chord',
           token: 'chord:',
-          value: draftText(word.draft),
+          value: word.draft._tag === 'None' ? '' : word.draft.text,
         }),
         ...Array.map(CHORD_CHOICES, choice =>
           Button({
@@ -168,8 +166,8 @@ const editingNodes = (song: Song): ReadonlyArray<UiNode> =>
     }),
   )
 
-const workingNodes = (working: Working): ReadonlyArray<UiNode> =>
-  M.value(working).pipe(
+const useNodes = (use: Chart['use']): ReadonlyArray<UiNode> =>
+  M.value(use).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
       Editing: editing => [Text('Editing'), ...editingNodes(editing.current)],
@@ -181,7 +179,7 @@ const workingNodes = (working: Working): ReadonlyArray<UiNode> =>
     }),
   )
 
-const songRow = (song: StoredSong): ReadonlyArray<UiNode> => [
+const songRow = (song: typeof Song.Stored.Type): ReadonlyArray<UiNode> => [
   Text(displayTitle(song)),
   Button({
     token: `open:${song.id}`,
@@ -206,7 +204,9 @@ const emptyPlaceNodes = (place: Place): ReadonlyArray<UiNode> =>
     }),
   )
 
-const populatedPlaceNodes = (place: PopulatedPlace): ReadonlyArray<UiNode> =>
+const populatedPlaceNodes = (
+  place: (typeof Populated.Type)['place'],
+): ReadonlyArray<UiNode> =>
   M.value(place).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
@@ -222,7 +222,7 @@ const populatedPlaceNodes = (place: PopulatedPlace): ReadonlyArray<UiNode> =>
       Chart: chart => [
         Text('Chart'),
         Text(displayTitle(currentSong(chart))),
-        ...workingNodes(chart.working),
+        ...useNodes(chart.use),
       ],
       Unknown: unknown => [
         Text('Unknown'),

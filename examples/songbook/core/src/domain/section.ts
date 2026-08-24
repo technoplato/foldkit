@@ -2,7 +2,7 @@ import { Array, Option, Schema as S, pipe } from 'effect'
 import { ts } from 'foldkit/schema'
 
 import { type LineId, SectionId, lineIdAt } from './ids.js'
-import { Line, Word, findWord, lineFromLyric, lyricOf } from './line.js'
+import { Line, Word, findWord, lineFromLyric } from './line.js'
 
 /** Named section kinds a chart can hold. */
 export const SectionKind = S.Literals([
@@ -34,14 +34,41 @@ export const SECTION_KINDS: ReadonlyArray<SectionKind> = [
 export const kindLabel = (kind: SectionKind): string =>
   kind === 'PreChorus' ? 'Pre-Chorus' : kind
 
-/** A section with no lines. */
-export const LinesEmpty = ts('Empty')
-/** A section with lines. */
-export const LinesPopulated = ts('Populated', {
+const withMembers = <Schema extends object, Members extends object>(
+  schema: Schema,
+  members: Members,
+): Schema & Members => {
+  const handler: ProxyHandler<Schema> = {
+    get(target, property, receiver) {
+      if (Object.hasOwn(members, property)) {
+        return Reflect.get(members, property)
+      }
+      return Reflect.get(target, property, receiver)
+    },
+    has(target, property) {
+      return Object.hasOwn(members, property) || Reflect.has(target, property)
+    },
+  }
+  if (typeof schema === 'function') {
+    handler.apply = (target, thisArg, argumentsList) =>
+      Reflect.apply(
+        target as unknown as (...args: Array<never>) => unknown,
+        thisArg,
+        argumentsList,
+      )
+  }
+  return new Proxy(schema, handler) as Schema & Members
+}
+
+const empty = ts('Empty')
+const populated = ts('Populated', {
   items: S.NonEmptyArray(Line),
 })
 /** Lines of a section. */
-export const Lines = S.Union([LinesEmpty, LinesPopulated])
+export const Lines = withMembers(S.Union([empty, populated]), {
+  Empty: empty,
+  Populated: populated,
+})
 /** Lines of a section. */
 export type Lines = typeof Lines.Type
 
@@ -59,7 +86,7 @@ export const emptySection = (id: SectionId, kind: SectionKind): Section =>
   Section.make({
     id,
     kind,
-    lines: LinesEmpty(),
+    lines: Lines.Empty(),
   })
 
 /** Replaces lyrics, clearing chords whose words disappeared. */
@@ -76,23 +103,15 @@ export const replaceLyrics = (section: Section, draft: string): Section => {
       Section.make({
         id: section.id,
         kind: section.kind,
-        lines: LinesEmpty(),
+        lines: Lines.Empty(),
       }),
     onNonEmpty: items =>
       Section.make({
         id: section.id,
         kind: section.kind,
-        lines: LinesPopulated.make({ items }),
+        lines: Lines.Populated.make({ items }),
       }),
   })
-}
-
-/** Prints lyrics as the editable draft. */
-export const lyricsDraft = (section: Section): string => {
-  if (section.lines._tag === 'Empty') {
-    return ''
-  }
-  return pipe(section.lines.items, Array.map(lyricOf), Array.join('\n'))
 }
 
 /** Finds a line member. */
