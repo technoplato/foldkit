@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 2:41:28 a.m. EDT — `bb9603e95aa6` feat(songbook): print blank chart lines without empty pads
+
+- **Implementation commit:** `bb9603e95aa6e242ec846e660c3161750c989833`
+- **Change:** Songbook chart printer treats Blank lines and chord-row pads without empty-string accumulators, and parseChord reads NonEmpty typed names.
+- **Details:**
+  - formatLine returns Option.none for Line.Blank and formatSection reduces from the heading.
+  - Chord rows accumulate cursor and gap parts instead of reducing from empty string. parseChord takes NonEmptyString and Array.get groups.
+  - Leftover tests drive toChartText and parseChord from emptyModel through lyrics with a blank line and a G chord. audit-adr still fail. Do not claim ADT pass. Do not close leftover 241.
+- **Files:**
+  - `examples/songbook/core/src/domain/song.ts` — Print Blank chart lines without empty pad strings.
+  - `examples/songbook/core/src/domain/chord.ts` — Parse NonEmpty chord names without empty rest sentinels.
+  - `examples/songbook/core/src/update.test.ts` — Drive shipped toChartText and parseChord from emptyModel through a blank lyric line.
+- **User context (verbatim):**
+  > pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session
+
 ## August 24th, 2026 at 2:29:03 a.m. EDT — `37921751ddd0` feat(songbook): print chart without empty omit-lines
 
 - **Implementation commit:** `37921751ddd061df43c99717070eac9f1cb7b791`
