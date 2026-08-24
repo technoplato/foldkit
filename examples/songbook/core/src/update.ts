@@ -18,8 +18,6 @@ import {
   KeySome,
   Lyrics,
   Named,
-  SECTION_KINDS,
-  type SectionKind,
   type Sections,
   Song,
   Untitled,
@@ -30,16 +28,14 @@ import {
   capoDown,
   capoUp,
   clearChord,
-  draftFromText,
+  draftOfSection,
   emptySection,
   findSection,
   findSongWord,
   flattenSections,
   flattenSong,
   lyricsAt,
-  lyricsDraft,
   nextSectionId,
-  parsePitch,
   printChord,
   removeSection,
   removingAt,
@@ -57,20 +53,15 @@ import {
   SucceededGeneratedIds,
 } from './message.js'
 import {
+  Chart,
   Confirming,
-  DeletingIdle,
+  Deleting,
   Editing,
-  EmptyShelf,
-  EmptyUnknown,
+  Empty,
   Idle,
-  LibraryEmpty,
   type Model,
   Playing,
-  PopulatedChart,
-  type PopulatedPlace,
-  PopulatedShelf,
-  PopulatedUnknown,
-  Searching,
+  Populated,
   currentSong,
   failedNotice,
   findSong,
@@ -132,16 +123,17 @@ export const CopyChart = Command.define(
 
 type UpdateReturn = readonly [Model, ReadonlyArray<Command.Command<Message>>]
 
-type Chart = typeof PopulatedChart.Type
-type Shelf = typeof PopulatedShelf.Type
+type Shelf = typeof Populated.Shelf.Type
 
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
 
 const keep = (model: Model): UpdateReturn => [model, []]
 
-const populatedPlaceOf = (model: Model): Option.Option<PopulatedPlace> =>
+const populatedPlaceOf = (
+  model: Model,
+): Option.Option<(typeof Populated.Type)['place']> =>
   M.value(model.library).pipe(
-    M.withReturnType<Option.Option<PopulatedPlace>>(),
+    M.withReturnType<Option.Option<(typeof Populated.Type)['place']>>(),
     M.tagsExhaustive({
       Empty: () => Option.none(),
       Populated: populated => Option.some(populated.place),
@@ -174,23 +166,15 @@ const withCurrentSections = (
 ): Model =>
   withCurrent(model, chart, Song.make({ ...currentSong(chart), sections }))
 
-const lookingOf = (query: string) =>
-  Str.isEmpty(query)
-    ? Idle()
-    : Searching.make({ query: NonEmptyString.make(query) })
-
-const kindOf = (name: string): Option.Option<SectionKind> =>
-  Array.findFirst(SECTION_KINDS, kind => kind === name)
-
 const toShelf = (
   model: Model,
   songs: ReturnType<typeof songsOfPopulated>,
 ): Model =>
   withPlace(
     withoutNotice(model),
-    PopulatedShelf.make({
+    Populated.Shelf.make({
       looking: Idle(),
-      deleting: DeletingIdle.make({ songs }),
+      deleting: Deleting.Idle.make({ songs }),
     }),
   )
 
@@ -223,8 +207,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           onNone: () => [
             withLibrary(
               withoutNotice(model),
-              LibraryEmpty.make({
-                place: EmptyShelf.make({ looking: Idle() }),
+              Empty.make({
+                place: Empty.Shelf.make({ looking: Idle() }),
               }),
             ),
             [],
@@ -259,10 +243,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                   onSome: chart => [
                     withChart(
                       model,
-                      PopulatedChart.make({
+                      Chart.make({
                         before: chart.before,
                         after: chart.after,
-                        working: Playing.make({
+                        use: Playing.make({
                           current: song,
                         }),
                       }),
@@ -278,8 +262,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           onNone: () => [
             withLibrary(
               withoutNotice(model),
-              LibraryEmpty.make({
-                place: EmptyUnknown.make({ path }),
+              Empty.make({
+                place: Empty.Unknown.make({ path }),
               }),
             ),
             [],
@@ -287,7 +271,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           onSome: place => [
             withPlace(
               withoutNotice(model),
-              PopulatedUnknown.make({
+              Populated.Unknown.make({
                 songs: songsOfPopulated(place),
                 path,
               }),
@@ -308,7 +292,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                   onSome: chart => [
                     withPlace(
                       withoutNotice(model),
-                      PopulatedShelf.make({
+                      Populated.Shelf.make({
                         looking: shelf.looking,
                         deleting: Confirming.make({
                           before: chart.before,
@@ -329,9 +313,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           onSome: shelf => [
             withPlace(
               withoutNotice(model),
-              PopulatedShelf.make({
+              Populated.Shelf.make({
                 looking: shelf.looking,
-                deleting: DeletingIdle.make({
+                deleting: Deleting.Idle.make({
                   songs: songsOfDeleting(shelf.deleting),
                 }),
               }),
@@ -359,8 +343,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               onEmpty: () => [
                 withLibrary(
                   withoutNotice(model),
-                  LibraryEmpty.make({
-                    place: EmptyShelf.make({
+                  Empty.make({
+                    place: Empty.Shelf.make({
                       looking: shelf.looking,
                     }),
                   }),
@@ -370,9 +354,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               onNonEmpty: songs => [
                 withPlace(
                   withoutNotice(model),
-                  PopulatedShelf.make({
+                  Populated.Shelf.make({
                     looking: shelf.looking,
-                    deleting: DeletingIdle.make({ songs }),
+                    deleting: Deleting.Idle.make({ songs }),
                   }),
                 ),
                 [],
@@ -386,10 +370,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           onSome: chart => [
             withChart(
               model,
-              PopulatedChart.make({
+              Chart.make({
                 before: chart.before,
                 after: chart.after,
-                working: Playing.make({
+                use: Playing.make({
                   current: flattenSong(currentSong(chart)),
                 }),
               }),
@@ -403,10 +387,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           onSome: chart => [
             withChart(
               model,
-              PopulatedChart.make({
+              Chart.make({
                 before: chart.before,
                 after: chart.after,
-                working: Editing.make({
+                use: Editing.make({
                   current: asSong(flattenSong(currentSong(chart))),
                 }),
               }),
@@ -460,8 +444,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       DismissedNotice: () => [withoutNotice(model), []],
-      TypedSearch: ({ query }) => {
-        const looking = lookingOf(query)
+      TypedSearch: ({ looking }) => {
         if (model.library._tag === 'Empty') {
           if (model.library.place._tag !== 'Shelf') {
             return keep(model)
@@ -469,8 +452,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [
             withLibrary(
               withoutNotice(model),
-              LibraryEmpty.make({
-                place: EmptyShelf.make({ looking }),
+              Empty.make({
+                place: Empty.Shelf.make({ looking }),
               }),
             ),
             [],
@@ -482,7 +465,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         return [
           withPlace(
             withoutNotice(model),
-            PopulatedShelf.make({
+            Populated.Shelf.make({
               ...model.library.place,
               looking,
             }),
@@ -498,8 +481,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           return [
             withLibrary(
               withoutNotice(model),
-              LibraryEmpty.make({
-                place: EmptyShelf.make({ looking: Idle() }),
+              Empty.make({
+                place: Empty.Shelf.make({ looking: Idle() }),
               }),
             ),
             [],
@@ -511,7 +494,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         return [
           withPlace(
             withoutNotice(model),
-            PopulatedShelf.make({
+            Populated.Shelf.make({
               ...model.library.place,
               looking: Idle(),
             }),
@@ -573,21 +556,17 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ChoseKey: ({ pitch }) =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
-          onSome: chart =>
-            Option.match(parsePitch(pitch), {
-              onNone: () => [failedNotice(model, 'Unknown key', pitch), []],
-              onSome: parsed => [
-                withCurrent(
-                  model,
-                  chart,
-                  Song.make({
-                    ...currentSong(chart),
-                    key: KeySome.make({ pitch: parsed }),
-                  }),
-                ),
-                [],
-              ],
-            }),
+          onSome: chart => [
+            withCurrent(
+              model,
+              chart,
+              Song.make({
+                ...currentSong(chart),
+                key: KeySome.make({ pitch }),
+              }),
+            ),
+            [],
+          ],
         }),
       ClearedKey: () =>
         Option.match(maybeChart(model), {
@@ -604,21 +583,17 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       AddedSection: ({ kind }) =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
-          onSome: chart =>
-            Option.match(kindOf(kind), {
-              onNone: () => [failedNotice(model, 'Unknown section', kind), []],
-              onSome: parsed => [
-                withCurrent(
-                  model,
-                  chart,
-                  addSection(
-                    currentSong(chart),
-                    emptySection(nextSectionId(currentSong(chart)), parsed),
-                  ),
-                ),
-                [],
-              ],
-            }),
+          onSome: chart => [
+            withCurrent(
+              model,
+              chart,
+              addSection(
+                currentSong(chart),
+                emptySection(nextSectionId(currentSong(chart)), kind),
+              ),
+            ),
+            [],
+          ],
         }),
       OpenedLyrics: ({ sectionId }) =>
         Option.match(maybeChart(model), {
@@ -632,11 +607,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               onNone: () => keep(model),
               onSome: section =>
                 Option.match(
-                  lyricsAt(
-                    bag.items,
-                    section,
-                    draftFromText(lyricsDraft(section)),
-                  ),
+                  lyricsAt(bag.items, section, draftOfSection(section)),
                   {
                     onNone: () => keep(model),
                     onSome: lyrics => [
@@ -648,11 +619,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             })
           },
         }),
-      TypedLyrics: ({ text }) =>
+      TypedLyrics: ({ draft }) =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.working._tag !== 'Editing') {
+            if (chart.use._tag !== 'Editing') {
               return keep(model)
             }
             const sections = currentSong(chart).sections
@@ -665,7 +636,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 chart,
                 Lyrics.make({
                   ...sections,
-                  draft: draftFromText(text),
+                  draft,
                 }),
               ),
               [],
@@ -676,7 +647,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.working._tag !== 'Editing') {
+            if (chart.use._tag !== 'Editing') {
               return keep(model)
             }
             if (currentSong(chart).sections._tag !== 'Lyrics') {
@@ -722,11 +693,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               },
             }),
         }),
-      TypedChord: ({ text }) =>
+      TypedChord: ({ draft }) =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.working._tag !== 'Editing') {
+            if (chart.use._tag !== 'Editing') {
               return keep(model)
             }
             const sections = currentSong(chart).sections
@@ -739,7 +710,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 chart,
                 Word.make({
                   ...sections,
-                  draft: draftFromText(text),
+                  draft,
                 }),
               ),
               [],
@@ -750,7 +721,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.working._tag !== 'Editing') {
+            if (chart.use._tag !== 'Editing') {
               return keep(model)
             }
             const sections = currentSong(chart).sections
@@ -802,7 +773,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            if (chart.working._tag !== 'Editing') {
+            if (chart.use._tag !== 'Editing') {
               return keep(model)
             }
             const sections = currentSong(chart).sections
