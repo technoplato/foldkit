@@ -10,12 +10,9 @@ import { Command } from 'foldkit'
 import { NonEmptyString } from 'foldkit/adt'
 
 import {
-  ArtistNone,
-  ArtistSome,
-  DraftNone,
-  DraftSome,
-  KeyNone,
-  KeySome,
+  Artist,
+  Draft,
+  Key,
   Lyrics,
   Named,
   type Sections,
@@ -535,7 +532,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               chart,
               Song.make({
                 ...currentSong(chart),
-                artist: ArtistSome.make({ name }),
+                artist: Artist.Some.make({ name }),
               }),
             ),
             [],
@@ -548,7 +545,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             withCurrent(
               model,
               chart,
-              Song.make({ ...currentSong(chart), artist: ArtistNone() }),
+              Song.make({ ...currentSong(chart), artist: Artist.None() }),
             ),
             [],
           ],
@@ -562,7 +559,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               chart,
               Song.make({
                 ...currentSong(chart),
-                key: KeySome.make({ pitch }),
+                key: Key.Some.make({ pitch }),
               }),
             ),
             [],
@@ -575,7 +572,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             withCurrent(
               model,
               chart,
-              Song.make({ ...currentSong(chart), key: KeyNone() }),
+              Song.make({ ...currentSong(chart), key: Key.None() }),
             ),
             [],
           ],
@@ -680,9 +677,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                       )
                     : Option.none()
                 const draft = Option.match(maybePlaced, {
-                  onNone: () => DraftNone(),
+                  onNone: () => Draft.None(),
                   onSome: placed =>
-                    DraftSome.make({
+                    Draft.Some.make({
                       text: NonEmptyString.make(printChord(placed.chord)),
                     }),
                 })

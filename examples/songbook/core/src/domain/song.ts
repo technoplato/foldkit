@@ -6,8 +6,6 @@ import { Chord, displayChord, parseChord, printChord } from './chord.js'
 import { LineId, SectionId, SongId, sectionIdAt } from './ids.js'
 import {
   Chords,
-  ChordsNone,
-  ChordsSome,
   Line,
   Placed,
   Words,
@@ -25,62 +23,6 @@ import {
   kindLabel,
   replaceLyrics,
 } from './section.js'
-
-/** Transpose of zero. Stored chords are already in this key. */
-export const Unison = ts('Unison')
-/** Transpose steps excluding zero. */
-export const TransposeSteps = S.Literals([
-  -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-  11,
-])
-/** Transpose steps excluding zero. */
-export type TransposeSteps = typeof TransposeSteps.Type
-/** A shifted transpose. */
-export const Shifted = ts('Shifted', { steps: TransposeSteps })
-/** Display transpose. Zero is unison, not a number. */
-export const Transpose = S.Union([Unison, Shifted])
-/** Display transpose. */
-export type Transpose = typeof Transpose.Type
-
-/** Capo fret 1 through 12. */
-export const CapoFret = S.Literals([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-/** Capo fret 1 through 12. */
-export type CapoFret = typeof CapoFret.Type
-/** No capo. */
-export const CapoNone = ts('None')
-/** A capo on a fret. */
-export const CapoFretted = ts('Fretted', { fret: CapoFret })
-/** Capo. Zero is none, not a fret. */
-export const Capo = S.Union([CapoNone, CapoFretted])
-/** Capo. */
-export type Capo = typeof Capo.Type
-
-/** Untitled song. */
-export const Untitled = ts('Untitled')
-/** A named title. */
-export const Named = ts('Named', { name: NonEmptyString })
-/** Song title. */
-export const Title = S.Union([Untitled, Named])
-/** Song title. */
-export type Title = typeof Title.Type
-
-/** No artist. */
-export const ArtistNone = ts('None')
-/** A named artist. */
-export const ArtistSome = ts('Some', { name: NonEmptyString })
-/** Artist. */
-export const Artist = S.Union([ArtistNone, ArtistSome])
-/** Artist. */
-export type Artist = typeof Artist.Type
-
-/** No original key. */
-export const KeyNone = ts('None')
-/** A written original key. */
-export const KeySome = ts('Some', { pitch: Pitch })
-/** Original key. */
-export const Key = S.Union([KeyNone, KeySome])
-/** Original key. */
-export type Key = typeof Key.Type
 
 const withMembers = <Schema extends object, Members extends object>(
   schema: Schema,
@@ -108,17 +50,77 @@ const withMembers = <Schema extends object, Members extends object>(
   return new Proxy(schema, handler) as Schema & Members
 }
 
+/** Transpose of zero. Stored chords are already in this key. */
+export const Unison = ts('Unison')
+/** Transpose steps excluding zero. */
+export const TransposeSteps = S.Literals([
+  -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+  11,
+])
+/** Transpose steps excluding zero. */
+export type TransposeSteps = typeof TransposeSteps.Type
+/** A shifted transpose. */
+export const Shifted = ts('Shifted', { steps: TransposeSteps })
+/** Display transpose. Zero is unison, not a number. */
+export const Transpose = S.Union([Unison, Shifted])
+/** Display transpose. */
+export type Transpose = typeof Transpose.Type
+
+/** Capo fret 1 through 12. */
+export const CapoFret = S.Literals([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+/** Capo fret 1 through 12. */
+export type CapoFret = typeof CapoFret.Type
+const capoNone = ts('None')
+const capoFretted = ts('Fretted', { fret: CapoFret })
+/** Capo. Zero is none, not a fret. */
+export const Capo = withMembers(S.Union([capoNone, capoFretted]), {
+  None: capoNone,
+  Fretted: capoFretted,
+})
+/** Capo. */
+export type Capo = typeof Capo.Type
+
+/** Untitled song. */
+export const Untitled = ts('Untitled')
+/** A named title. */
+export const Named = ts('Named', { name: NonEmptyString })
+/** Song title. */
+export const Title = S.Union([Untitled, Named])
+/** Song title. */
+export type Title = typeof Title.Type
+
+const artistNone = ts('None')
+const artistSome = ts('Some', { name: NonEmptyString })
+/** Artist. */
+export const Artist = withMembers(S.Union([artistNone, artistSome]), {
+  None: artistNone,
+  Some: artistSome,
+})
+/** Artist. */
+export type Artist = typeof Artist.Type
+
+const keyNone = ts('None')
+const keySome = ts('Some', { pitch: Pitch })
+/** Original key. */
+export const Key = withMembers(S.Union([keyNone, keySome]), {
+  None: keyNone,
+  Some: keySome,
+})
+/** Original key. */
+export type Key = typeof Key.Type
+
 const empty = ts('Empty')
 const idle = ts('Idle', {
   items: S.NonEmptyArray(Section),
 })
 
-/** No typed draft. */
-export const DraftNone = ts('None')
-/** A typed draft. */
-export const DraftSome = ts('Some', { text: NonEmptyString })
+const draftNone = ts('None')
+const draftSome = ts('Some', { text: NonEmptyString })
 /** Lyrics or chord draft. */
-export const Draft = S.Union([DraftNone, DraftSome])
+export const Draft = withMembers(S.Union([draftNone, draftSome]), {
+  None: draftNone,
+  Some: draftSome,
+})
 /** Lyrics or chord draft. */
 export type Draft = typeof Draft.Type
 
@@ -265,10 +267,10 @@ export const blankSong = (id: SongId): Song =>
   Song.make({
     id,
     title: Untitled(),
-    artist: ArtistNone(),
-    key: KeyNone(),
+    artist: Artist.None(),
+    key: Key.None(),
     transpose: Unison(),
-    capo: CapoNone(),
+    capo: Capo.None(),
     sections: empty(),
   })
 
@@ -372,14 +374,14 @@ function upsertPlaced(line: Line, placed: Placed): Line {
     onEmpty: () =>
       Line.make({
         ...line,
-        body: Words.make({ items: body.items, chords: ChordsNone() }),
+        body: Words.make({ items: body.items, chords: Chords.None() }),
       }),
     onNonEmpty: items =>
       Line.make({
         ...line,
         body: Words.make({
           items: body.items,
-          chords: ChordsSome.make({ items }),
+          chords: Chords.Some.make({ items }),
         }),
       }),
   })
@@ -401,21 +403,21 @@ function clearPlaced(line: Line, wordId: lineWord['id']): Line {
     onEmpty: () =>
       Line.make({
         ...line,
-        body: Words.make({ items: body.items, chords: ChordsNone() }),
+        body: Words.make({ items: body.items, chords: Chords.None() }),
       }),
     onNonEmpty: items =>
       Line.make({
         ...line,
         body: Words.make({
           items: body.items,
-          chords: ChordsSome.make({ items }),
+          chords: Chords.Some.make({ items }),
         }),
       }),
   })
 }
 
 const chordsOfLine = (line: Line): Chords =>
-  line.body._tag === 'Words' ? line.body.chords : ChordsNone()
+  line.body._tag === 'Words' ? line.body.chords : Chords.None()
 
 const lineOfWord = (word: typeof Word.Type): Line => {
   const reconstructed = Line.make({
@@ -449,13 +451,13 @@ const sectionOfWord = (word: typeof Word.Type): Section => {
 /** Draft from typed host text. Empty is None. */
 export const draftFromText = (text: string): Draft =>
   Str.isEmpty(text)
-    ? DraftNone()
-    : DraftSome.make({ text: NonEmptyString.make(text) })
+    ? Draft.None()
+    : Draft.Some.make({ text: NonEmptyString.make(text) })
 
 /** Draft of stored section lyrics. Empty lines are None. */
 export const draftOfSection = (section: Section): Draft => {
   if (section.lines._tag === 'Empty') {
-    return DraftNone()
+    return Draft.None()
   }
   return draftFromText(
     pipe(section.lines.items, Array.map(lyricOf), Array.join('\n')),
@@ -680,16 +682,16 @@ const CAPO_FRET_VALUES: ReadonlyArray<CapoFret> = [
 
 const nextFret = (fret: number): Capo => {
   if (fret <= 0) {
-    return CapoNone()
+    return Capo.None()
   }
   if (fret > 12) {
-    return CapoFretted.make({ fret: 12 })
+    return Capo.Fretted.make({ fret: 12 })
   }
   const maybeFret = Array.findFirst(CAPO_FRET_VALUES, value => value === fret)
   if (Option.isNone(maybeFret)) {
-    return CapoNone()
+    return Capo.None()
   }
-  return CapoFretted.make({ fret: maybeFret.value })
+  return Capo.Fretted.make({ fret: maybeFret.value })
 }
 
 /** Moves capo up one fret. */
