@@ -1,5 +1,12 @@
+import { Processor } from 'foldkit'
 import { readFileSync } from 'node:fs'
-import { SyncedPuzzle, readyPuzzle } from 'puzzle-core-example'
+import {
+  SyncedPuzzle,
+  hangingSyncedEngine,
+  readyPuzzle,
+  startSyncedPuzzleHandle,
+  waitForSyncedHandle,
+} from 'puzzle-core-example'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -34,6 +41,27 @@ describe('Puzzle Foldkit Instant host chrome', () => {
     expect(container.querySelector('button')).toBeNull()
     expect(container.querySelectorAll('a')).toHaveLength(0)
     expect(paintPuzzleHostStatus(container, readyPuzzle())).toBe(false)
+  })
+
+  it('paints Failed when Instant subscribe never settles', async () => {
+    const handle = startSyncedPuzzleHandle(
+      hangingSyncedEngine(Processor.Host.Foldkit()),
+      { settleMs: 50 },
+    )
+    try {
+      const snapshot = await waitForSyncedHandle(handle, 1000)
+      expect(shouldPaintPuzzleHostStatus(snapshot)).toBe(true)
+      const container = document.createElement('div')
+      expect(paintPuzzleHostStatus(container, snapshot)).toBe(true)
+      expect(container.textContent).toContain(
+        'This Processor never became Ready.',
+      )
+      expect(container.textContent).toContain('start did not settle')
+      expect(container.textContent).not.toContain('TransportFailed')
+      expect(container.querySelector('button')).toBeNull()
+    } finally {
+      await handle.stop()
+    }
   })
 
   it('keeps host chrome off Starting so Foldkit can paint puzzleScreen', () => {

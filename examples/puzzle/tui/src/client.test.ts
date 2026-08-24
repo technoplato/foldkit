@@ -3,6 +3,7 @@ import { Processor } from 'foldkit'
 import {
   GuessedYes,
   emptyModel,
+  hangingSyncedEngine,
   memorySyncedEngine,
   readyPuzzle,
   startSyncedPuzzleHandle,
@@ -26,6 +27,38 @@ const keyInput = (name: string): Terminal.UserInput => ({
 })
 
 describe('Puzzle TUI Client', () => {
+  it('paints Failed when Instant subscribe never settles', async () => {
+    const handle = startSyncedPuzzleHandle(
+      hangingSyncedEngine(Processor.Host.Tui()),
+      { settleMs: 50 },
+    )
+    const screens: Array<string> = []
+    const layer = Layer.succeed(
+      Terminal.Terminal,
+      Terminal.make({
+        columns: Effect.succeed(80),
+        rows: Effect.succeed(24),
+        readInput: Effect.gen(function* () {
+          const queue = yield* Queue.unbounded<Terminal.UserInput>()
+          yield* Queue.offer(queue, keyInput('q'))
+          return queue
+        }),
+        readLine: Effect.succeed(''),
+        display: text =>
+          Effect.sync(() => {
+            screens.push(text)
+          }),
+      }),
+    )
+
+    await Effect.runPromise(runPuzzleTui(handle).pipe(Effect.provide(layer)))
+
+    const painted = screens.join('\n')
+    expect(painted).toContain('This Processor never became Ready.')
+    expect(painted).toContain('start did not settle')
+    expect(painted).not.toContain('TransportFailed')
+  })
+
   it('subscribes and sends Starting, Failed, and Ready through the handle', async () => {
     const handle = startSyncedPuzzleHandle(
       memorySyncedEngine(Processor.Host.Tui()),

@@ -1,11 +1,14 @@
 import { Effect } from 'effect'
+import { Processor } from 'foldkit'
 import {
   App,
   ResetTape,
   SyncedPuzzle,
   demoModel,
+  hangingSyncedEngine,
   makeMemorySnapshotLogTransport,
   readyPuzzle,
+  startSyncedPuzzleHandle,
   waitForSyncedHandle,
   waitForSyncedHandleWrite,
 } from 'puzzle-core-example'
@@ -39,6 +42,22 @@ describe('Puzzle headless printer', () => {
     const text = formatHeadlessStatus(readyPuzzle())
     expect(text).toContain('https://puzzle.knophy.com')
     expect(text).not.toContain('github.com')
+  })
+
+  it('paints Failed when Instant subscribe never settles', async () => {
+    const handle = startSyncedPuzzleHandle(
+      hangingSyncedEngine(Processor.Host.Headless()),
+      { settleMs: 50 },
+    )
+    try {
+      const snapshot = await waitForSyncedHandle(handle, 1000)
+      const text = formatHeadlessStatus(snapshot)
+      expect(text).toContain('This Processor never became Ready.')
+      expect(text).toContain('start did not settle')
+      expect(text).not.toContain('TransportFailed')
+    } finally {
+      await handle.stop()
+    }
   })
 
   it('prints Failed without reading count', () => {
