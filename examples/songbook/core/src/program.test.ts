@@ -6,8 +6,12 @@ import { SongbookProgram, songbookScreen, songbookValid } from './program.js'
 describe('SongbookProgram', () => {
   it('owns valid and screen on Program.make', () => {
     const empty = emptyModel()
+    const screen = SongbookProgram.screen
     expect(SongbookProgram.valid).toBe(songbookValid)
-    expect(SongbookProgram.screen).toBe(songbookScreen)
-    expect(SongbookProgram.screen(empty)).toEqual(songbookScreen(empty))
+    expect(screen).toBe(songbookScreen)
+    if (screen === undefined) {
+      return
+    }
+    expect(screen(empty)).toEqual(songbookScreen(empty))
   })
 })

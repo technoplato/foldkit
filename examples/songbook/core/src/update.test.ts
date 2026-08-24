@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AddedSection,
   AppliedLyrics,
+  CancelledWord,
   ClickedCopy,
   ClickedEdit,
   ClickedNew,
@@ -16,6 +17,7 @@ import {
   OpenedWord,
   RequestedDelete,
   SucceededGeneratedIds,
+  TypedChord,
   TypedLyrics,
   TypedSearch,
 } from './message.js'
@@ -24,7 +26,7 @@ import { songbookScreen } from './program.js'
 import { update } from './update.js'
 
 describe('songbook update', () => {
-  it('creates a named chart and applies lyrics from a None | Some draft', () => {
+  it('creates a named chart and applies lyrics from a typed draft', () => {
     const empty = emptyModel()
     const [, createCommands] = update(empty, ClickedNew())
     expect(createCommands[0]?.name).toBe('GenerateIds')
@@ -38,7 +40,11 @@ describe('songbook update', () => {
     if (created.library.place._tag !== 'Chart') {
       return
     }
-    expect(created.library.place.current.title._tag).toBe('Untitled')
+    expect(created.library.place.working._tag).toBe('Editing')
+    if (created.library.place.working._tag !== 'Editing') {
+      return
+    }
+    expect(created.library.place.working.current.title._tag).toBe('Untitled')
 
     const [named] = update(created, NamedTitle({ name: 'Midnight Train' }))
     expect(named.library._tag).toBe('Populated')
@@ -48,9 +54,15 @@ describe('songbook update', () => {
     ) {
       return
     }
-    expect(named.library.place.current.title._tag).toBe('Named')
-    if (named.library.place.current.title._tag === 'Named') {
-      expect(named.library.place.current.title.name).toBe('Midnight Train')
+    expect(named.library.place.working._tag).toBe('Editing')
+    if (named.library.place.working._tag !== 'Editing') {
+      return
+    }
+    expect(named.library.place.working.current.title._tag).toBe('Named')
+    if (named.library.place.working.current.title._tag === 'Named') {
+      expect(named.library.place.working.current.title.name).toBe(
+        'Midnight Train',
+      )
     }
 
     const [withSection] = update(named, AddedSection({ kind: 'Verse' }))
@@ -61,12 +73,16 @@ describe('songbook update', () => {
     ) {
       return
     }
-    expect(withSection.library.place.current.sections._tag).toBe('Idle')
-    if (withSection.library.place.current.sections._tag !== 'Idle') {
+    expect(withSection.library.place.working._tag).toBe('Editing')
+    if (withSection.library.place.working._tag !== 'Editing') {
+      return
+    }
+    expect(withSection.library.place.working.current.sections._tag).toBe('Idle')
+    if (withSection.library.place.working.current.sections._tag !== 'Idle') {
       return
     }
     const maybeSection = Array.head(
-      withSection.library.place.current.sections.items,
+      withSection.library.place.working.current.sections.items,
     )
     expect(Option.isSome(maybeSection)).toBe(true)
     if (Option.isNone(maybeSection)) {
@@ -85,35 +101,36 @@ describe('songbook update', () => {
       return
     }
     expect(lyrics.library.place.working._tag).toBe('Editing')
-    expect(lyrics.library.place.current.sections._tag).toBe('Lyrics')
-    if (lyrics.library.place.current.sections._tag !== 'Lyrics') {
+    if (lyrics.library.place.working._tag !== 'Editing') {
       return
     }
-    expect(lyrics.library.place.current.sections.draft._tag).toBe('None')
-    expect(lyrics.library.place.current.sections.current.id).toBe(
+    expect(lyrics.library.place.working.current.sections._tag).toBe('Lyrics')
+    if (lyrics.library.place.working.current.sections._tag !== 'Lyrics') {
+      return
+    }
+    expect(lyrics.library.place.working.current.sections.draft._tag).toBe(
+      'None',
+    )
+    expect(lyrics.library.place.working.current.sections.id).toBe(
       maybeSection.value.id,
     )
-    expect(
-      Array.some(
-        zipperItems(
-          lyrics.library.place.current.sections.before,
-          lyrics.library.place.current.sections.current,
-          lyrics.library.place.current.sections.after,
-        ),
-        section => section.id === maybeSection.value.id,
-      ),
-    ).toBe(true)
+    expect('current' in lyrics.library.place.working.current.sections).toBe(
+      false,
+    )
 
     const [drafted] = update(lyrics, TypedLyrics({ text: 'going away' }))
     expect(drafted.library._tag).toBe('Populated')
     if (
       drafted.library._tag !== 'Populated' ||
       drafted.library.place._tag !== 'Chart' ||
-      drafted.library.place.current.sections._tag !== 'Lyrics'
+      drafted.library.place.working._tag !== 'Editing' ||
+      drafted.library.place.working.current.sections._tag !== 'Lyrics'
     ) {
       return
     }
-    expect(drafted.library.place.current.sections.draft._tag).toBe('Some')
+    expect(drafted.library.place.working.current.sections.draft._tag).toBe(
+      'Some',
+    )
 
     const [applied] = update(drafted, AppliedLyrics())
     expect(applied.library._tag).toBe('Populated')
@@ -124,7 +141,10 @@ describe('songbook update', () => {
       return
     }
     expect(applied.library.place.working._tag).toBe('Editing')
-    expect(applied.library.place.current.sections._tag).toBe('Idle')
+    if (applied.library.place.working._tag !== 'Editing') {
+      return
+    }
+    expect(applied.library.place.working.current.sections._tag).toBe('Idle')
 
     const [, copyCommands] = update(applied, ClickedCopy())
     expect(copyCommands[0]?.name).toBe('CopyChart')
@@ -199,7 +219,7 @@ describe('songbook update', () => {
     ).toContain('new')
   })
 
-  it('flattens a lyrics zipper to Idle when play starts', () => {
+  it('nests play current as stored Idle so Playing cannot hold Lyrics', () => {
     const empty = emptyModel()
     const [created] = update(empty, SucceededGeneratedIds({ songId: 'song-a' }))
     const [named] = update(created, NamedTitle({ name: 'Midnight Train' }))
@@ -208,12 +228,13 @@ describe('songbook update', () => {
     if (
       withSection.library._tag !== 'Populated' ||
       withSection.library.place._tag !== 'Chart' ||
-      withSection.library.place.current.sections._tag !== 'Idle'
+      withSection.library.place.working._tag !== 'Editing' ||
+      withSection.library.place.working.current.sections._tag !== 'Idle'
     ) {
       return
     }
     const maybeSection = Array.head(
-      withSection.library.place.current.sections.items,
+      withSection.library.place.working.current.sections.items,
     )
     expect(Option.isSome(maybeSection)).toBe(true)
     if (Option.isNone(maybeSection)) {
@@ -223,16 +244,18 @@ describe('songbook update', () => {
       withSection,
       OpenedLyrics({ sectionId: maybeSection.value.id }),
     )
-    expect(lyrics.library._tag).toBe('Populated')
+    const [drafted] = update(lyrics, TypedLyrics({ text: 'going away' }))
+    expect(drafted.library._tag).toBe('Populated')
     if (
-      lyrics.library._tag !== 'Populated' ||
-      lyrics.library.place._tag !== 'Chart'
+      drafted.library._tag !== 'Populated' ||
+      drafted.library.place._tag !== 'Chart' ||
+      drafted.library.place.working._tag !== 'Editing'
     ) {
       return
     }
-    expect(lyrics.library.place.current.sections._tag).toBe('Lyrics')
+    expect(drafted.library.place.working.current.sections._tag).toBe('Lyrics')
 
-    const [playing] = update(lyrics, ClickedPlay())
+    const [playing] = update(drafted, ClickedPlay())
     expect(playing.library._tag).toBe('Populated')
     if (
       playing.library._tag !== 'Populated' ||
@@ -241,7 +264,21 @@ describe('songbook update', () => {
       return
     }
     expect(playing.library.place.working._tag).toBe('Playing')
-    expect(playing.library.place.current.sections._tag).toBe('Idle')
+    if (playing.library.place.working._tag !== 'Playing') {
+      return
+    }
+    expect(playing.library.place.working.current.sections._tag).toBe('Idle')
+    if (playing.library.place.working.current.sections._tag !== 'Idle') {
+      return
+    }
+    const maybePlayed = Array.head(
+      playing.library.place.working.current.sections.items,
+    )
+    expect(Option.isSome(maybePlayed)).toBe(true)
+    if (Option.isNone(maybePlayed)) {
+      return
+    }
+    expect(maybePlayed.value.lines._tag).toBe('Populated')
 
     const [editing] = update(playing, ClickedEdit())
     expect(editing.library._tag).toBe('Populated')
@@ -252,7 +289,10 @@ describe('songbook update', () => {
       return
     }
     expect(editing.library.place.working._tag).toBe('Editing')
-    expect(editing.library.place.current.sections._tag).toBe('Idle')
+    if (editing.library.place.working._tag !== 'Editing') {
+      return
+    }
+    expect(editing.library.place.working.current.sections._tag).toBe('Idle')
   })
 
   it('opens a word zipper that is a member of the current song', () => {
@@ -264,12 +304,13 @@ describe('songbook update', () => {
     if (
       withSection.library._tag !== 'Populated' ||
       withSection.library.place._tag !== 'Chart' ||
-      withSection.library.place.current.sections._tag !== 'Idle'
+      withSection.library.place.working._tag !== 'Editing' ||
+      withSection.library.place.working.current.sections._tag !== 'Idle'
     ) {
       return
     }
     const maybeSection = Array.head(
-      withSection.library.place.current.sections.items,
+      withSection.library.place.working.current.sections.items,
     )
     expect(Option.isSome(maybeSection)).toBe(true)
     if (Option.isNone(maybeSection)) {
@@ -285,12 +326,13 @@ describe('songbook update', () => {
     if (
       applied.library._tag !== 'Populated' ||
       applied.library.place._tag !== 'Chart' ||
-      applied.library.place.current.sections._tag !== 'Idle'
+      applied.library.place.working._tag !== 'Editing' ||
+      applied.library.place.working.current.sections._tag !== 'Idle'
     ) {
       return
     }
     const maybeIdleSection = Array.head(
-      applied.library.place.current.sections.items,
+      applied.library.place.working.current.sections.items,
     )
     expect(Option.isSome(maybeIdleSection)).toBe(true)
     if (Option.isNone(maybeIdleSection)) {
@@ -320,23 +362,87 @@ describe('songbook update', () => {
       return
     }
     expect(word.library.place.working._tag).toBe('Editing')
-    expect(word.library.place.current.sections._tag).toBe('Word')
-    if (word.library.place.current.sections._tag !== 'Word') {
+    if (word.library.place.working._tag !== 'Editing') {
       return
     }
-    expect(word.library.place.current.sections.word.id).toBe(maybeWord.value.id)
-    expect(
+    expect(word.library.place.working.current.sections._tag).toBe('Word')
+    if (word.library.place.working.current.sections._tag !== 'Word') {
+      return
+    }
+    expect(word.library.place.working.current.sections.word.id).toBe(
+      maybeWord.value.id,
+    )
+    expect(word.library.place.working.current.sections.id).toBe(
+      maybeIdleSection.value.id,
+    )
+    expect(word.library.place.working.current.sections.lineId).toBe(
+      maybeLine.value.id,
+    )
+    expect('section' in word.library.place.working.current.sections).toBe(false)
+    expect('line' in word.library.place.working.current.sections).toBe(false)
+    const focusedChords = word.library.place.working.current.sections.chords
+    const hasStoredChord =
+      focusedChords._tag === 'Some' &&
       Array.some(
-        zipperItems(
-          word.library.place.current.sections.sectionsBefore,
-          word.library.place.current.sections.section,
-          word.library.place.current.sections.sectionsAfter,
-        ),
-        section => section.id === maybeIdleSection.value.id,
-      ),
-    ).toBe(true)
+        focusedChords.items,
+        placed => placed.word.id === maybeWord.value.id,
+      )
+    expect(hasStoredChord).toBe(false)
     expect(
       Array.map(textsOf(songbookScreen(word)), text => text.content),
     ).toContain('Word')
+
+    const [typed] = update(word, TypedChord({ text: 'G' }))
+    expect(typed.library._tag).toBe('Populated')
+    if (
+      typed.library._tag !== 'Populated' ||
+      typed.library.place._tag !== 'Chart' ||
+      typed.library.place.working._tag !== 'Editing' ||
+      typed.library.place.working.current.sections._tag !== 'Word'
+    ) {
+      return
+    }
+    expect(typed.library.place.working.current.sections.draft._tag).toBe('Some')
+
+    const [kept] = update(typed, CancelledWord())
+    expect(kept.library._tag).toBe('Populated')
+    if (
+      kept.library._tag !== 'Populated' ||
+      kept.library.place._tag !== 'Chart' ||
+      kept.library.place.working._tag !== 'Editing' ||
+      kept.library.place.working.current.sections._tag !== 'Idle'
+    ) {
+      return
+    }
+    const maybeKeptSection = Array.head(
+      kept.library.place.working.current.sections.items,
+    )
+    expect(Option.isSome(maybeKeptSection)).toBe(true)
+    if (
+      Option.isNone(maybeKeptSection) ||
+      maybeKeptSection.value.lines._tag !== 'Populated'
+    ) {
+      return
+    }
+    const maybeKeptLine = Array.head(maybeKeptSection.value.lines.items)
+    expect(Option.isSome(maybeKeptLine)).toBe(true)
+    if (
+      Option.isNone(maybeKeptLine) ||
+      maybeKeptLine.value.body._tag !== 'Words'
+    ) {
+      return
+    }
+    expect(maybeKeptLine.value.body.chords._tag).toBe('Some')
+    if (maybeKeptLine.value.body.chords._tag !== 'Some') {
+      return
+    }
+    expect(
+      Array.some(
+        maybeKeptLine.value.body.chords.items,
+        placed =>
+          placed.word.id === maybeWord.value.id &&
+          placed.chord._tag === 'Sounding',
+      ),
+    ).toBe(true)
   })
 })

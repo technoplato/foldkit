@@ -21,17 +21,16 @@ import {
   SECTION_KINDS,
   type SectionKind,
   type Sections,
-  SectionsIdle,
   Song,
   Untitled,
-  WordFocus,
+  Word,
   addSection,
+  asSong,
   blankSong,
   capoDown,
   capoUp,
   clearChord,
   draftFromText,
-  draftText,
   emptySection,
   findSection,
   findSongWord,
@@ -40,17 +39,14 @@ import {
   lyricsAt,
   lyricsDraft,
   nextSectionId,
-  parseChord,
   parsePitch,
-  placeChord,
   printChord,
   removeSection,
   removingAt,
-  replaceLyrics,
   toChartText,
   transposeDown,
   transposeUp,
-  wordFocusAt,
+  wordAt,
   zipperItems,
 } from './domain/index.js'
 import {
@@ -75,6 +71,7 @@ import {
   PopulatedShelf,
   PopulatedUnknown,
   Searching,
+  currentSong,
   failedNotice,
   findSong,
   replaceCurrent,
@@ -167,11 +164,15 @@ const withChart = (model: Model, chart: Chart): Model =>
 const withCurrent = (model: Model, chart: Chart, current: Song): Model =>
   withChart(model, replaceCurrent(chart, current))
 
+const withFlattened = (model: Model, chart: Chart, current: Song): Model =>
+  withCurrent(model, chart, asSong(flattenSong(current)))
+
 const withCurrentSections = (
   model: Model,
   chart: Chart,
   sections: Sections,
-): Model => withCurrent(model, chart, Song.make({ ...chart.current, sections }))
+): Model =>
+  withCurrent(model, chart, Song.make({ ...currentSong(chart), sections }))
 
 const lookingOf = (query: string) =>
   Str.isEmpty(query)
@@ -200,7 +201,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     M.tagsExhaustive({
       ClickedNew: () => [model, [GenerateIds()]],
       SucceededGeneratedIds: ({ songId }) => {
-        const song = blankSong(songId)
+        const song = flattenSong(blankSong(songId))
         const asChart = (
           songs: ReturnType<typeof songsOfPopulated>,
         ): UpdateReturn =>
@@ -259,8 +260,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                     withChart(
                       model,
                       PopulatedChart.make({
-                        ...chart,
-                        working: Playing(),
+                        before: chart.before,
+                        after: chart.after,
+                        working: Playing.make({
+                          current: song,
+                        }),
                       }),
                     ),
                     [],
@@ -308,7 +312,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                         looking: shelf.looking,
                         deleting: Confirming.make({
                           before: chart.before,
-                          current: chart.current,
+                          current: song,
                           after: chart.after,
                         }),
                       }),
@@ -383,9 +387,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             withChart(
               model,
               PopulatedChart.make({
-                ...chart,
-                current: flattenSong(chart.current),
-                working: Playing(),
+                before: chart.before,
+                after: chart.after,
+                working: Playing.make({
+                  current: flattenSong(currentSong(chart)),
+                }),
               }),
             ),
             [],
@@ -398,9 +404,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             withChart(
               model,
               PopulatedChart.make({
-                ...chart,
-                current: flattenSong(chart.current),
-                working: Editing(),
+                before: chart.before,
+                after: chart.after,
+                working: Editing.make({
+                  current: asSong(flattenSong(currentSong(chart))),
+                }),
               }),
             ),
             [],
@@ -410,7 +418,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => [
-            withCurrent(model, chart, transposeUp(chart.current)),
+            withCurrent(model, chart, transposeUp(currentSong(chart))),
             [],
           ],
         }),
@@ -418,7 +426,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => [
-            withCurrent(model, chart, transposeDown(chart.current)),
+            withCurrent(model, chart, transposeDown(currentSong(chart))),
             [],
           ],
         }),
@@ -426,7 +434,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => [
-            withCurrent(model, chart, capoUp(chart.current)),
+            withCurrent(model, chart, capoUp(currentSong(chart))),
             [],
           ],
         }),
@@ -434,14 +442,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => [
-            withCurrent(model, chart, capoDown(chart.current)),
+            withCurrent(model, chart, capoDown(currentSong(chart))),
             [],
           ],
         }),
       ClickedCopy: () =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
-          onSome: chart => [model, [CopyChart({ song: chart.current })]],
+          onSome: chart => [model, [CopyChart({ song: currentSong(chart) })]],
         }),
       SucceededCopiedChart: ({ text }) => [
         succeededNotice(model, 'Copied', text),
@@ -518,7 +526,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             withCurrent(
               model,
               chart,
-              Song.make({ ...chart.current, title: Named.make({ name }) }),
+              Song.make({ ...currentSong(chart), title: Named.make({ name }) }),
             ),
             [],
           ],
@@ -530,7 +538,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             withCurrent(
               model,
               chart,
-              Song.make({ ...chart.current, title: Untitled() }),
+              Song.make({ ...currentSong(chart), title: Untitled() }),
             ),
             [],
           ],
@@ -543,7 +551,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               model,
               chart,
               Song.make({
-                ...chart.current,
+                ...currentSong(chart),
                 artist: ArtistSome.make({ name }),
               }),
             ),
@@ -557,7 +565,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             withCurrent(
               model,
               chart,
-              Song.make({ ...chart.current, artist: ArtistNone() }),
+              Song.make({ ...currentSong(chart), artist: ArtistNone() }),
             ),
             [],
           ],
@@ -573,7 +581,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                   model,
                   chart,
                   Song.make({
-                    ...chart.current,
+                    ...currentSong(chart),
                     key: KeySome.make({ pitch: parsed }),
                   }),
                 ),
@@ -588,7 +596,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             withCurrent(
               model,
               chart,
-              Song.make({ ...chart.current, key: KeyNone() }),
+              Song.make({ ...currentSong(chart), key: KeyNone() }),
             ),
             [],
           ],
@@ -604,8 +612,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                   model,
                   chart,
                   addSection(
-                    chart.current,
-                    emptySection(nextSectionId(chart.current), parsed),
+                    currentSong(chart),
+                    emptySection(nextSectionId(currentSong(chart)), parsed),
                   ),
                 ),
                 [],
@@ -616,11 +624,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            const bag = flattenSections(chart.current.sections)
+            const bag = flattenSections(currentSong(chart).sections)
             if (bag._tag === 'Empty') {
               return keep(model)
             }
-            return Option.match(findSection(chart.current, sectionId), {
+            return Option.match(findSection(currentSong(chart), sectionId), {
               onNone: () => keep(model),
               onSome: section =>
                 Option.match(
@@ -647,7 +655,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             if (chart.working._tag !== 'Editing') {
               return keep(model)
             }
-            const sections = chart.current.sections
+            const sections = currentSong(chart).sections
             if (sections._tag !== 'Lyrics') {
               return keep(model)
             }
@@ -671,35 +679,17 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             if (chart.working._tag !== 'Editing') {
               return keep(model)
             }
-            const sections = chart.current.sections
-            if (sections._tag !== 'Lyrics') {
+            if (currentSong(chart).sections._tag !== 'Lyrics') {
               return keep(model)
             }
-            const nextSection = replaceLyrics(
-              sections.current,
-              draftText(sections.draft),
-            )
-            return [
-              withCurrentSections(
-                model,
-                chart,
-                SectionsIdle.make({
-                  items: zipperItems(
-                    sections.before,
-                    nextSection,
-                    sections.after,
-                  ),
-                }),
-              ),
-              [],
-            ]
+            return [withFlattened(model, chart, currentSong(chart)), []]
           },
         }),
       CancelledLyrics: () =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => [
-            withCurrent(model, chart, flattenSong(chart.current)),
+            withFlattened(model, chart, currentSong(chart)),
             [],
           ],
         }),
@@ -707,7 +697,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart =>
-            Option.match(findSongWord(chart.current, wordId), {
+            Option.match(findSongWord(currentSong(chart), wordId), {
               onNone: () => keep(model),
               onSome: found => {
                 const maybePlaced =
@@ -725,7 +715,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                       text: NonEmptyString.make(printChord(placed.chord)),
                     }),
                 })
-                return Option.match(wordFocusAt(chart.current, wordId, draft), {
+                return Option.match(wordAt(currentSong(chart), wordId, draft), {
                   onNone: () => keep(model),
                   onSome: word => [withCurrentSections(model, chart, word), []],
                 })
@@ -739,42 +729,21 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             if (chart.working._tag !== 'Editing') {
               return keep(model)
             }
-            const sections = chart.current.sections
+            const sections = currentSong(chart).sections
             if (sections._tag !== 'Word') {
               return keep(model)
             }
-            const word = sections.word
-            const nextDraft = draftFromText(text)
-            return Option.match(parseChord(text), {
-              onNone: () => [
-                withCurrentSections(
-                  model,
-                  chart,
-                  WordFocus.make({
-                    ...sections,
-                    draft: nextDraft,
-                  }),
-                ),
-                [],
-              ],
-              onSome: chord => {
-                const nextSong = placeChord(chart.current, word, chord)
-                return Option.match(wordFocusAt(nextSong, word.id, nextDraft), {
-                  onNone: () => [
-                    withCurrent(model, chart, flattenSong(nextSong)),
-                    [],
-                  ],
-                  onSome: nextWord => [
-                    withCurrentSections(
-                      model,
-                      replaceCurrent(chart, nextSong),
-                      nextWord,
-                    ),
-                    [],
-                  ],
-                })
-              },
-            })
+            return [
+              withCurrentSections(
+                model,
+                chart,
+                Word.make({
+                  ...sections,
+                  draft: draftFromText(text),
+                }),
+              ),
+              [],
+            ]
           },
         }),
       ClearedChord: () =>
@@ -784,19 +753,19 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             if (chart.working._tag !== 'Editing') {
               return keep(model)
             }
-            const sections = chart.current.sections
+            const sections = currentSong(chart).sections
             if (sections._tag !== 'Word') {
               return keep(model)
             }
-            const nextSong = clearChord(chart.current, sections.word.id)
-            return [withCurrent(model, chart, flattenSong(nextSong)), []]
+            const nextSong = clearChord(currentSong(chart), sections.word.id)
+            return [withFlattened(model, chart, nextSong), []]
           },
         }),
       CancelledWord: () =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => [
-            withCurrent(model, chart, flattenSong(chart.current)),
+            withFlattened(model, chart, currentSong(chart)),
             [],
           ],
         }),
@@ -804,11 +773,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => {
-            const bag = flattenSections(chart.current.sections)
+            const bag = flattenSections(currentSong(chart).sections)
             if (bag._tag === 'Empty') {
               return keep(model)
             }
-            return Option.match(findSection(chart.current, sectionId), {
+            return Option.match(findSection(currentSong(chart), sectionId), {
               onNone: () => keep(model),
               onSome: section =>
                 Option.match(removingAt(bag.items, section), {
@@ -825,7 +794,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         Option.match(maybeChart(model), {
           onNone: () => keep(model),
           onSome: chart => [
-            withCurrent(model, chart, flattenSong(chart.current)),
+            withFlattened(model, chart, currentSong(chart)),
             [],
           ],
         }),
@@ -836,12 +805,15 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             if (chart.working._tag !== 'Editing') {
               return keep(model)
             }
-            const sections = chart.current.sections
+            const sections = currentSong(chart).sections
             if (sections._tag !== 'Removing') {
               return keep(model)
             }
-            const nextSong = removeSection(chart.current, sections.current.id)
-            return [withCurrent(model, chart, flattenSong(nextSong)), []]
+            const nextSong = removeSection(
+              currentSong(chart),
+              sections.current.id,
+            )
+            return [withFlattened(model, chart, nextSong), []]
           },
         }),
     }),
