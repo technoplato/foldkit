@@ -119,11 +119,17 @@ export const parseChord = (name: string): Option.Option<Chord> => {
   )
 }
 
-const printRest = (rest: Sounding['rest']): string => {
-  if (rest._tag === 'None') {
-    return ''
+const printSounding = (
+  root: Pitch,
+  rest: Rest,
+  bassPitch: Option.Option<Pitch>,
+): string => {
+  const rootText = printPitch(root)
+  const quality = rest._tag === 'None' ? rootText : `${rootText}${rest.text}`
+  if (Option.isNone(bassPitch)) {
+    return quality
   }
-  return rest.text
+  return `${quality}/${printPitch(bassPitch.value)}`
 }
 
 /** Prints a chord in the original key. */
@@ -131,9 +137,11 @@ export const printChord = (chord: Chord): string => {
   if (chord._tag === 'Silent') {
     return 'N.C.'
   }
-  const bass =
-    chord.bass._tag === 'None' ? '' : `/${printPitch(chord.bass.pitch)}`
-  return `${printPitch(chord.root)}${printRest(chord.rest)}${bass}`
+  return printSounding(
+    chord.root,
+    chord.rest,
+    chord.bass._tag === 'None' ? Option.none() : Option.some(chord.bass.pitch),
+  )
 }
 
 /** Display name after transpose and capo. Stored chords stay in the original key. */
@@ -146,10 +154,11 @@ export const displayChord = (
     return 'N.C.'
   }
   const shift = transposeSteps - capo
-  const root = transposePitch(chord.root, shift)
-  const bass =
+  return printSounding(
+    transposePitch(chord.root, shift),
+    chord.rest,
     chord.bass._tag === 'None'
-      ? ''
-      : `/${printPitch(transposePitch(chord.bass.pitch, shift))}`
-  return `${printPitch(root)}${printRest(chord.rest)}${bass}`
+      ? Option.none()
+      : Option.some(transposePitch(chord.bass.pitch, shift)),
+  )
 }
