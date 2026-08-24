@@ -75,33 +75,25 @@ export type After = typeof After.Type
 
 /** Viewing the chart. */
 export const Viewing = ts('Viewing')
-/** No typed lyrics draft. */
-export const LyricsDraftNone = ts('None')
-/** A typed lyrics draft. */
-export const LyricsDraftSome = ts('Some', { text: NonEmptyString })
-/** Lyrics draft while a section is focused. */
-export const LyricsDraft = S.Union([LyricsDraftNone, LyricsDraftSome])
-/** Lyrics draft while a section is focused. */
-export type LyricsDraft = typeof LyricsDraft.Type
+/** No typed draft. */
+export const DraftNone = ts('None')
+/** A typed draft. */
+export const DraftSome = ts('Some', { text: NonEmptyString })
+/** Lyrics or chord draft. */
+export const Draft = S.Union([DraftNone, DraftSome])
+/** Lyrics or chord draft. */
+export type Draft = typeof Draft.Type
 
 /** Editing lyrics of a section member. */
 export const Lyrics = ts('Lyrics', {
   section: Section,
-  draft: LyricsDraft,
+  draft: Draft,
 })
-/** No typed chord draft. */
-export const DraftNone = ts('None')
-/** A typed chord draft. */
-export const DraftSome = ts('Some', { text: NonEmptyString })
-/** Chord draft while a word is focused. */
-export const ChordDraft = S.Union([DraftNone, DraftSome])
-/** Chord draft while a word is focused. */
-export type ChordDraft = typeof ChordDraft.Type
 
 /** Placing a chord on a word member. */
 export const WordFocus = ts('Word', {
   word: Word,
-  draft: ChordDraft,
+  draft: Draft,
 })
 /** Removing a section member. */
 export const Removing = ts('Removing', { section: Section })
@@ -124,9 +116,9 @@ export const EmptyShelf = ts('Shelf', { looking: Looking })
 /** Empty library on an unknown path. */
 export const EmptyUnknown = ts('Unknown', { path: NonEmptyString })
 /** Empty library place. */
-export const EmptyPlace = S.Union([EmptyShelf, EmptyUnknown])
+export const Place = S.Union([EmptyShelf, EmptyUnknown])
 /** Empty library place. */
-export type EmptyPlace = typeof EmptyPlace.Type
+export type Place = typeof Place.Type
 
 /** Populated library on the shelf. */
 export const PopulatedShelf = ts('Shelf', {
@@ -156,7 +148,7 @@ export const PopulatedPlace = S.Union([
 export type PopulatedPlace = typeof PopulatedPlace.Type
 
 /** A library with no songs. */
-export const LibraryEmpty = ts('Empty', { place: EmptyPlace })
+export const LibraryEmpty = ts('Empty', { place: Place })
 /** A library with songs. */
 export const LibraryPopulated = ts('Populated', { place: PopulatedPlace })
 /** Song library. */
@@ -274,24 +266,14 @@ export const shownSongs = (
   })
 }
 
-/** Lyrics draft from typed text. Empty is None. */
-export const lyricsDraftFromText = (text: string): LyricsDraft =>
-  Str.isEmpty(text)
-    ? LyricsDraftNone()
-    : LyricsDraftSome.make({ text: NonEmptyString.make(text) })
-
-/** Editable lyrics text from a draft. None is empty. */
-export const lyricsDraftText = (draft: LyricsDraft): string =>
-  draft._tag === 'None' ? '' : draft.text
-
-/** Chord draft from typed text. Empty is None. */
-export const chordDraftFromText = (text: string): ChordDraft =>
+/** Draft from typed text. Empty is None. */
+export const draftFromText = (text: string): Draft =>
   Str.isEmpty(text)
     ? DraftNone()
     : DraftSome.make({ text: NonEmptyString.make(text) })
 
-/** Editable chord text from a draft. None is empty. */
-export const chordDraftText = (draft: ChordDraft): string =>
+/** Editable draft text. None is empty. */
+export const draftText = (draft: Draft): string =>
   draft._tag === 'None' ? '' : draft.text
 
 /** Clears a notice. */

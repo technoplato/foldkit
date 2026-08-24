@@ -206,6 +206,9 @@ describe('Issue Tracker Program', () => {
     expect(
       Array.map(textsOf(issuesScreen(withPeers)), text => text.content),
     ).toContain('issues-viewer  viewer  issues.knophy.com')
+    expect(
+      Array.map(textsOf(issuesScreen(withPeers)), text => text.content),
+    ).toContain('Quorum present')
     const [dismissed, dismissedCommands] = update(
       withPeers,
       DismissedIssueDetail.make({}),

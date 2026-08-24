@@ -69,11 +69,10 @@ import {
   Searching,
   Viewing,
   WordFocus,
-  chordDraftFromText,
+  draftFromText,
+  draftText,
   failedNotice,
   findSong,
-  lyricsDraftFromText,
-  lyricsDraftText,
   replaceCurrent,
   songsOfPopulated,
   succeededNotice,
@@ -612,7 +611,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                     chart,
                     Lyrics.make({
                       section,
-                      draft: lyricsDraftFromText(lyricsDraft(section)),
+                      draft: draftFromText(lyricsDraft(section)),
                     }),
                   ),
                 ),
@@ -637,7 +636,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                   chart,
                   Lyrics.make({
                     section: chart.working.focus.section,
-                    draft: lyricsDraftFromText(text),
+                    draft: draftFromText(text),
                   }),
                 ),
               ),
@@ -659,7 +658,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             const nextSong = updateSection(
               chart.current,
               focus.section.id,
-              section => replaceLyrics(section, lyricsDraftText(focus.draft)),
+              section => replaceLyrics(section, draftText(focus.draft)),
             )
             return [
               withChart(
@@ -724,7 +723,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               return keep(model)
             }
             const word = chart.working.focus.word
-            const nextDraft = chordDraftFromText(text)
+            const nextDraft = draftFromText(text)
             const nextSong = Option.match(parseChord(text), {
               onNone: () => chart.current,
               onSome: chord => placeChord(chart.current, word, chord),

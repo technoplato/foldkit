@@ -6,6 +6,7 @@ import {
   type IssueStatus,
   type IssueWorkLogEntry,
 } from '@foldkit/instant-tools/issues'
+import { leftoverRoomRequired } from '@foldkit/instant-tools/leftover'
 
 /** Leftover workflow offered to operators. Stored IssueStatus stays the wide union. */
 export const LeftoverStatus = S.Literals(['Open', 'Blocked', 'Closed'])
@@ -35,6 +36,9 @@ export const leftoverUnclosableIssueIds: ReadonlyArray<string> = [
   '242',
   '243',
 ]
+
+/** Peers required before leftover quorum is present. Does not call done. */
+export const leftoverQuorumRequired = leftoverRoomRequired
 
 const closedStored: ReadonlyArray<IssueStatus> = [
   'Closed',
