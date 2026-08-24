@@ -1,4 +1,5 @@
-import { Array, Option, Schema as S, pipe } from 'effect'
+import { Array, Option, Schema as S, String as Str, pipe } from 'effect'
+import { NonEmptyString } from 'foldkit/adt'
 import { ts } from 'foldkit/schema'
 
 import { type LineId, SectionId, lineIdAt } from './ids.js'
@@ -90,13 +91,19 @@ export const emptySection = (id: SectionId, kind: SectionKind): Section =>
   })
 
 /** Replaces lyrics, clearing chords whose words disappeared. */
-export const replaceLyrics = (section: Section, draft: string): Section => {
-  const rawLines = draft.split('\n')
+export const replaceLyrics = (
+  section: Section,
+  draft: typeof NonEmptyString.Type,
+): Section => {
   const next = pipe(
-    rawLines,
-    Array.map((lyric, index) =>
-      lineFromLyric(lineIdAt(section.id, index), lyric),
-    ),
+    Array.fromIterable(draft.split('\n')),
+    Array.map((lyric, index) => {
+      const lineId = lineIdAt(section.id, index)
+      if (Str.isEmpty(lyric)) {
+        return Line.make({ id: lineId, body: Line.Blank() })
+      }
+      return lineFromLyric(lineId, NonEmptyString.make(lyric))
+    }),
   )
   return Array.match(next, {
     onEmpty: () =>
