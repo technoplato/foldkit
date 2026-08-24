@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 4:33:28 a.m. EDT — `540e1f1c11f7` feat(songbook): take nonempty notice heading and detail
+
+- **Implementation commit:** `540e1f1c11f76a398e5ca4a3d89494657e0c49c0`
+- **Change:** Take nonempty notice heading and detail for leftover #241 hole 1 failedNotice.
+- **Details:**
+  - failedNotice and succeededNotice take NonEmptyString heading and Detail.
+  - Empty detail is Detail.None at the caller, never a host empty string.
+  - Leftover tests drive emptyModel through FailedGeneratedIds, FailedCopiedChart, SucceededCopiedChart, and DismissedNotice.
+- **Files:**
+  - `examples/songbook/core/src/model.ts` — failedNotice and succeededNotice take NonEmpty heading and Detail.
+  - `examples/songbook/core/src/update.ts` — Callers pass NonEmptyString headings and Detail.Some reasons.
+  - `examples/songbook/core/src/update.test.ts` — Leftover tests drive failedNotice NonEmpty heading and Detail.
+- **User context (verbatim):**
+  > issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work
+  > then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; no durable SpecStory URI in this session.
+
 ## August 24th, 2026 at 4:21:02 a.m. EDT — `c7b137e0fbb9` feat(songbook): take nonempty text for lyrics drafts
 
 - **Implementation commit:** `c7b137e0fbb935f08293f72cf67d0c5e41a71d76`
