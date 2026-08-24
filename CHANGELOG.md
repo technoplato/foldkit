@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 2:23:52 p.m. EDT — `62c2eff4760f` feat(counters): generate expo-router files and draft ADR 0009
+
+- **Implementation commit:** `62c2eff4760f3feffcac15c07bdc909948d05567`
+- **Change:** Generate deterministic expo-router files; draft navigation adapter ADR
+- **Details:**
+  - expo-router becomes a build artifact of the Program route table with byte-deterministic generation tested for destination parity. ADR 0009 documents the Navigator contract, the per-surface router matrix, and compose.forEach adoption. With this, file-based routing, deep links, and native pushes all derive from one source of truth.
+- **Files:**
+  - `examples/counters/core/src/expoRouterCodegen.ts` — Deterministic app-directory emission from the route table
+  - `examples/counters/core/src/expoRouterCodegen.test.ts` — Stability, parity, and modal-presentation assertions
+  - `docs/adr/0009-portable-navigation-adapters.md` — Adapter contract, router mapping matrix, forEach adoption path
+- **User context (verbatim):**
+  > i think we have to codegen from our program code, but that is okay, so long as it is deterministic and declarative and higher order. we want one source of truth.
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 2:23:26 p.m. EDT — `8d4d062a0b3a` feat(counters): project navigation transitions for router adapters
 
 - **Implementation commit:** `8d4d062a0b3a67d94ebcf72271d9658735d57983`
