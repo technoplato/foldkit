@@ -9,10 +9,13 @@ import {
 } from 'foldkit/renderers'
 
 import {
+  type Artist,
   CHORD_CHOICES,
+  type Draft,
   SECTION_KINDS,
   type Section,
   Song,
+  type Title,
   asSong,
   displayTitle,
   flattenSections,
@@ -38,20 +41,71 @@ import {
 const labelOf = (action: Action): string =>
   Option.getOrElse(Array.head(action.keys ?? []), () => tokenOf(action))
 
-const lookingNodes = (looking: Looking): ReadonlyArray<UiNode> => [
-  ...M.value(looking).pipe(
+const lookingNodes = (looking: Looking): ReadonlyArray<UiNode> =>
+  M.value(looking).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      Idle: () => [Text('Idle')],
-      Searching: searching => [Text('Searching'), Text(searching.query)],
+      Idle: () => [Text('Idle'), Text('Search')],
+      Searching: searching => [
+        Text('Searching'),
+        Text(searching.query),
+        TextInput({
+          placeholder: 'Search',
+          token: 'search:',
+          value: searching.query,
+        }),
+      ],
     }),
-  ),
-  TextInput({
-    placeholder: 'Search',
-    token: 'search:',
-    value: looking._tag === 'Idle' ? '' : looking.query,
-  }),
-]
+  )
+
+const draftNodes = (
+  draft: Draft,
+  placeholder: string,
+  token: string,
+): ReadonlyArray<UiNode> =>
+  M.value(draft).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      None: () => [Text(placeholder)],
+      Some: some => [
+        TextInput({
+          placeholder,
+          token,
+          value: some.text,
+        }),
+      ],
+    }),
+  )
+
+const titleNodes = (title: Title): ReadonlyArray<UiNode> =>
+  M.value(title).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      Untitled: () => [Text('Title')],
+      Named: named => [
+        TextInput({
+          placeholder: 'Title',
+          token: 'title:',
+          value: named.name,
+        }),
+      ],
+    }),
+  )
+
+const artistNodes = (artist: Artist): ReadonlyArray<UiNode> =>
+  M.value(artist).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      None: () => [Text('Artist')],
+      Some: some => [
+        TextInput({
+          placeholder: 'Artist',
+          token: 'artist:',
+          value: some.name,
+        }),
+      ],
+    }),
+  )
 
 const deletingNodes = (deleting: Deleting): ReadonlyArray<UiNode> =>
   M.value(deleting).pipe(
@@ -111,16 +165,8 @@ const sectionNodes = (song: Song): ReadonlyArray<UiNode> => {
 }
 
 const songFields = (song: Song): ReadonlyArray<UiNode> => [
-  TextInput({
-    placeholder: 'Title',
-    token: 'title:',
-    value: song.title._tag === 'Untitled' ? '' : song.title.name,
-  }),
-  TextInput({
-    placeholder: 'Artist',
-    token: 'artist:',
-    value: song.artist._tag === 'None' ? '' : song.artist.name,
-  }),
+  ...titleNodes(song.title),
+  ...artistNodes(song.artist),
 ]
 
 const viewingNodes = (song: Song): ReadonlyArray<UiNode> => [
@@ -138,20 +184,12 @@ const editingNodes = (song: Song): ReadonlyArray<UiNode> =>
       Lyrics: lyrics => [
         Text('Lyrics'),
         Text(kindLabel(lyrics.kind)),
-        TextInput({
-          placeholder: 'Lyrics',
-          token: 'draft:',
-          value: lyrics.draft._tag === 'None' ? '' : lyrics.draft.text,
-        }),
+        ...draftNodes(lyrics.draft, 'Lyrics', 'draft:'),
       ],
       Word: word => [
         Text('Word'),
         Text(word.word.text),
-        TextInput({
-          placeholder: 'Chord',
-          token: 'chord:',
-          value: word.draft._tag === 'None' ? '' : word.draft.text,
-        }),
+        ...draftNodes(word.draft, 'Chord', 'chord:'),
         ...Array.map(CHORD_CHOICES, choice =>
           Button({
             token: `chord:${choice}`,
