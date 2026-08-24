@@ -15,8 +15,8 @@ import {
 import {
   type Chart,
   Idle,
-  Looking,
   type Model,
+  Search,
   Searching,
   songsOfPopulated,
 } from './model.js'
@@ -29,17 +29,17 @@ const chartOf = (model: Model): Chart | undefined => {
   if (model.library._tag !== 'Populated') {
     return undefined
   }
-  if (model.library.place._tag !== 'Chart') {
+  if (model.library.page._tag !== 'Chart') {
     return undefined
   }
-  return model.library.place
+  return model.library.page
 }
 
 const isShelf = (model: Model): boolean => {
   if (model.library._tag === 'Empty') {
-    return model.library.place._tag === 'Shelf'
+    return model.library.page._tag === 'Shelf'
   }
-  return model.library.place._tag === 'Shelf'
+  return model.library.page._tag === 'Shelf'
 }
 
 const isChart = (model: Model): boolean => chartOf(model) !== undefined
@@ -49,7 +49,7 @@ const isEditing = (model: Model): boolean => {
   if (chart === undefined) {
     return false
   }
-  return chart.use._tag === 'Editing'
+  return chart.work._tag === 'Editing'
 }
 
 const isPlaying = (model: Model): boolean => {
@@ -57,70 +57,70 @@ const isPlaying = (model: Model): boolean => {
   if (chart === undefined) {
     return false
   }
-  return chart.use._tag === 'Playing'
+  return chart.work._tag === 'Playing'
 }
 
 const isViewing = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.use._tag !== 'Editing') {
+  if (chart === undefined || chart.work._tag !== 'Editing') {
     return false
   }
-  const tag = chart.use.current.sections._tag
+  const tag = chart.work.current.sections._tag
   return tag === 'Empty' || tag === 'Idle'
 }
 
 const isLyrics = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.use._tag !== 'Editing') {
+  if (chart === undefined || chart.work._tag !== 'Editing') {
     return false
   }
-  return chart.use.current.sections._tag === 'Lyrics'
+  return chart.work.current.sections._tag === 'Lyrics'
 }
 
 const isWord = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.use._tag !== 'Editing') {
+  if (chart === undefined || chart.work._tag !== 'Editing') {
     return false
   }
-  return chart.use.current.sections._tag === 'Word'
+  return chart.work.current.sections._tag === 'Word'
 }
 
 const isRemoving = (model: Model): boolean => {
   const chart = chartOf(model)
-  if (chart === undefined || chart.use._tag !== 'Editing') {
+  if (chart === undefined || chart.work._tag !== 'Editing') {
     return false
   }
-  return chart.use.current.sections._tag === 'Removing'
+  return chart.work.current.sections._tag === 'Removing'
 }
 
 const isConfirming = (model: Model): boolean => {
   if (model.library._tag !== 'Populated') {
     return false
   }
-  if (model.library.place._tag !== 'Shelf') {
+  if (model.library.page._tag !== 'Shelf') {
     return false
   }
-  return model.library.place.deleting._tag === 'Confirming'
+  return model.library.page.deleting._tag === 'Confirming'
 }
 
 const isSearching = (model: Model): boolean => {
   if (model.library._tag === 'Empty') {
     return (
-      model.library.place._tag === 'Shelf' &&
-      model.library.place.looking._tag === 'Searching'
+      model.library.page._tag === 'Shelf' &&
+      model.library.page.search._tag === 'Searching'
     )
   }
   return (
-    model.library.place._tag === 'Shelf' &&
-    model.library.place.looking._tag === 'Searching'
+    model.library.page._tag === 'Shelf' &&
+    model.library.page.search._tag === 'Searching'
   )
 }
 
 const isUnknown = (model: Model): boolean => {
   if (model.library._tag === 'Empty') {
-    return model.library.place._tag === 'Unknown'
+    return model.library.page._tag === 'Unknown'
   }
-  return model.library.place._tag === 'Unknown'
+  return model.library.page._tag === 'Unknown'
 }
 
 const hiddenUnless = (
@@ -184,7 +184,7 @@ export const ClickedShelf = md('ClickedShelf', {
   spoken: ['shelf'],
   command: 'shelf',
   event: 'clicked-shelf',
-  mutate: 'place becomes shelf',
+  mutate: 'page becomes shelf',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) =>
     isChart(model) || isUnknown(model),
@@ -205,15 +205,14 @@ export const OpenedChart = md('OpenedChart', {
   spoken: ['open'],
   command: 'open',
   event: 'opened-chart',
-  mutate: 'place becomes chart editing',
+  mutate: 'page becomes chart editing',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) =>
-    model.library._tag === 'Populated' && model.library.place._tag === 'Shelf',
+    model.library._tag === 'Populated' && model.library.page._tag === 'Shelf',
   hiddenBecause: (model: Model) =>
     hiddenUnless(
       model,
-      model.library._tag === 'Populated' &&
-        model.library.place._tag === 'Shelf',
+      model.library._tag === 'Populated' && model.library.page._tag === 'Shelf',
       'not on a populated shelf',
     ),
 })
@@ -227,15 +226,14 @@ export const OpenedPlay = md('OpenedPlay', {
   spoken: ['play song'],
   command: 'play-song',
   event: 'opened-play',
-  mutate: 'place becomes chart playing',
+  mutate: 'page becomes chart playing',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) =>
-    model.library._tag === 'Populated' && model.library.place._tag === 'Shelf',
+    model.library._tag === 'Populated' && model.library.page._tag === 'Shelf',
   hiddenBecause: (model: Model) =>
     hiddenUnless(
       model,
-      model.library._tag === 'Populated' &&
-        model.library.place._tag === 'Shelf',
+      model.library._tag === 'Populated' && model.library.page._tag === 'Shelf',
       'not on a populated shelf',
     ),
 })
@@ -249,7 +247,7 @@ export const OpenedUnknown = md('OpenedUnknown', {
   spoken: ['unknown'],
   command: 'unknown',
   event: 'opened-unknown',
-  mutate: 'place becomes unknown',
+  mutate: 'page becomes unknown',
   sideEffects: '(none)',
   valid: () => true,
 })
@@ -267,14 +265,14 @@ export const RequestedDelete = md('RequestedDelete', {
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) =>
     model.library._tag === 'Populated' &&
-    model.library.place._tag === 'Shelf' &&
-    model.library.place.deleting._tag === 'Idle',
+    model.library.page._tag === 'Shelf' &&
+    model.library.page.deleting._tag === 'Idle',
   hiddenBecause: (model: Model) =>
     hiddenUnless(
       model,
       model.library._tag === 'Populated' &&
-        model.library.place._tag === 'Shelf' &&
-        model.library.place.deleting._tag === 'Idle',
+        model.library.page._tag === 'Shelf' &&
+        model.library.page.deleting._tag === 'Idle',
       'not idle on a populated shelf',
     ),
 })
@@ -319,7 +317,7 @@ export const ClickedPlay = md('ClickedPlay', {
   spoken: ['play'],
   command: 'play',
   event: 'clicked-play',
-  mutate: 'use becomes playing',
+  mutate: 'work becomes playing',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) => isEditing(model),
   hiddenBecause: (model: Model) =>
@@ -335,7 +333,7 @@ export const ClickedEdit = md('ClickedEdit', {
   spoken: ['edit'],
   command: 'edit',
   event: 'clicked-edit',
-  mutate: 'use becomes editing viewing',
+  mutate: 'work becomes editing viewing',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) => isPlaying(model),
   hiddenBecause: (model: Model) =>
@@ -465,14 +463,14 @@ export const DismissedNotice = md('DismissedNotice', {
 
 /** Types a shelf search query. */
 export const TypedSearch = md('TypedSearch', {
-  fields: { looking: Looking },
+  fields: { search: Search },
   what: 'Types a search query',
   why: 'Triggered when the player searches the shelf',
   tokens: ['search'],
   spoken: ['search'],
   command: 'search',
   event: 'typed-search',
-  mutate: 'looking idle or searching',
+  mutate: 'search idle or searching',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) => isShelf(model),
   hiddenBecause: (model: Model) =>
@@ -487,7 +485,7 @@ export const ClearedSearch = md('ClearedSearch', {
   spoken: ['clear search'],
   command: 'clear-search',
   event: 'cleared-search',
-  mutate: 'looking idle',
+  mutate: 'search idle',
   sideEffects: '(none)',
   valid: (model: Model, _context: Context) => isSearching(model),
   hiddenBecause: (model: Model) =>
@@ -1048,10 +1046,10 @@ export const messageFromToken = (
   if (token.startsWith('search:')) {
     const rest = token.slice('search:'.length)
     if (Str.isEmpty(rest)) {
-      return TypedSearch({ looking: Idle() })
+      return TypedSearch({ search: Idle() })
     }
     return TypedSearch({
-      looking: Searching.make({ query: NonEmptyString.make(rest) }),
+      search: Searching.make({ query: NonEmptyString.make(rest) }),
     })
   }
   if (token.startsWith('title:')) {

@@ -27,11 +27,11 @@ import {
   type Chart,
   type Deleting,
   type Library,
-  type Looking,
   type Model,
   type Notice,
-  type Place,
+  type Page,
   Populated,
+  type Search,
   currentSong,
   shownSongs,
   songsOfDeleting,
@@ -41,8 +41,8 @@ import {
 const labelOf = (action: Action): string =>
   Option.getOrElse(Array.head(action.keys ?? []), () => tokenOf(action))
 
-const lookingNodes = (looking: Looking): ReadonlyArray<UiNode> =>
-  M.value(looking).pipe(
+const searchNodes = (search: Search): ReadonlyArray<UiNode> =>
+  M.value(search).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
       Idle: () => [Text('Idle'), Text('Search')],
@@ -204,8 +204,8 @@ const editingNodes = (song: Song): ReadonlyArray<UiNode> =>
     }),
   )
 
-const useNodes = (use: Chart['use']): ReadonlyArray<UiNode> =>
-  M.value(use).pipe(
+const workNodes = (work: Chart['work']): ReadonlyArray<UiNode> =>
+  M.value(work).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
       Editing: editing => [Text('Editing'), ...editingNodes(editing.current)],
@@ -217,7 +217,7 @@ const useNodes = (use: Chart['use']): ReadonlyArray<UiNode> =>
     }),
   )
 
-const songRow = (song: typeof Song.Stored.Type): ReadonlyArray<UiNode> => [
+const songRow = (song: typeof Song.Saved.Type): ReadonlyArray<UiNode> => [
   Text(displayTitle(song)),
   Button({
     token: `open:${song.id}`,
@@ -233,34 +233,34 @@ const songRow = (song: typeof Song.Stored.Type): ReadonlyArray<UiNode> => [
   }),
 ]
 
-const emptyPlaceNodes = (place: Place): ReadonlyArray<UiNode> =>
-  M.value(place).pipe(
+const emptyPageNodes = (page: Page): ReadonlyArray<UiNode> =>
+  M.value(page).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      Shelf: shelf => [Text('Shelf'), ...lookingNodes(shelf.looking)],
+      Shelf: shelf => [Text('Shelf'), ...searchNodes(shelf.search)],
       Unknown: unknown => [Text('Unknown'), Text(unknown.path)],
     }),
   )
 
-const populatedPlaceNodes = (
-  place: (typeof Populated.Type)['place'],
+const populatedPageNodes = (
+  page: (typeof Populated.Type)['page'],
 ): ReadonlyArray<UiNode> =>
-  M.value(place).pipe(
+  M.value(page).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
       Shelf: shelf => [
         Text('Shelf'),
-        ...lookingNodes(shelf.looking),
+        ...searchNodes(shelf.search),
         ...deletingNodes(shelf.deleting),
         ...Array.flatMap(
-          shownSongs(songsOfDeleting(shelf.deleting), shelf.looking),
+          shownSongs(songsOfDeleting(shelf.deleting), shelf.search),
           songRow,
         ),
       ],
       Chart: chart => [
         Text('Chart'),
         Text(displayTitle(currentSong(chart))),
-        ...useNodes(chart.use),
+        ...workNodes(chart.work),
       ],
       Unknown: unknown => [
         Text('Unknown'),
@@ -274,10 +274,10 @@ const libraryNodes = (library: Library): ReadonlyArray<UiNode> =>
   M.value(library).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      Empty: empty => [Text('Empty'), ...emptyPlaceNodes(empty.place)],
+      Empty: empty => [Text('Empty'), ...emptyPageNodes(empty.page)],
       Populated: populated => [
         Text('Populated'),
-        ...populatedPlaceNodes(populated.place),
+        ...populatedPageNodes(populated.page),
       ],
     }),
   )
@@ -308,7 +308,7 @@ const noticeNodes = (notice: Notice): ReadonlyArray<UiNode> =>
     }),
   )
 
-/** Product tree: notice, library place, and valid Actions. */
+/** Product tree: notice, library page, and valid Actions. */
 export const productView = (model: Model): UiNode => {
   const buttons = Array.map(
     Array.filter(actions, action => action.valid(model, {})),

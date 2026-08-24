@@ -78,13 +78,13 @@ export type Notice = typeof Notice.Type
 export const Idle = ts('Idle')
 /** A search query. */
 export const Searching = ts('Searching', { query: NonEmptyString })
-/** Library looking. */
-export const Looking = S.Union([Idle, Searching])
-/** Library looking. */
-export type Looking = typeof Looking.Type
+/** Library search. */
+export const Search = S.Union([Idle, Searching])
+/** Library search. */
+export type Search = typeof Search.Type
 
 const beforeNone = ts('None')
-const beforeSome = ts('Some', { items: S.NonEmptyArray(Song.Stored) })
+const beforeSome = ts('Some', { items: S.NonEmptyArray(Song.Saved) })
 /** Songs before the current chart song. */
 export const Before = withMembers(S.Union([beforeNone, beforeSome]), {
   None: beforeNone,
@@ -94,7 +94,7 @@ export const Before = withMembers(S.Union([beforeNone, beforeSome]), {
 export type Before = typeof Before.Type
 
 const afterNone = ts('None')
-const afterSome = ts('Some', { items: S.NonEmptyArray(Song.Stored) })
+const afterSome = ts('Some', { items: S.NonEmptyArray(Song.Saved) })
 /** Songs after the current chart song. */
 export const After = withMembers(S.Union([afterNone, afterSome]), {
   None: afterNone,
@@ -104,12 +104,12 @@ export const After = withMembers(S.Union([afterNone, afterSome]), {
 export type After = typeof After.Type
 
 const deletingIdle = ts('Idle', {
-  songs: S.NonEmptyArray(Song.Stored),
+  songs: S.NonEmptyArray(Song.Saved),
 })
 /** Confirming delete of the zipper current. Current is a member. */
 export const Confirming = ts('Confirming', {
   before: Before,
-  current: Song.Stored,
+  current: Song.Saved,
   after: After,
 })
 /** Shelf delete. Idle owns the bag so Confirming is the zipper. */
@@ -123,26 +123,26 @@ export type Deleting = typeof Deleting.Type
 /** Editing a chart. Current song may hold section zippers. */
 export const Editing = ts('Editing', { current: Song })
 /** Playing a chart. Current song is stored Empty or Idle only. */
-export const Playing = ts('Playing', { current: Song.Stored })
-const use = withMembers(S.Union([Editing, Playing]), {
+export const Playing = ts('Playing', { current: Song.Saved })
+const work = withMembers(S.Union([Editing, Playing]), {
   Editing,
   Playing,
 })
 
-const emptyShelf = ts('Shelf', { looking: Looking })
+const emptyShelf = ts('Shelf', { search: Search })
 const emptyUnknown = ts('Unknown', { path: NonEmptyString })
-/** Empty library place. */
-export const Place = S.Union([emptyShelf, emptyUnknown])
-/** Empty library place. */
-export type Place = typeof Place.Type
+/** Empty library page. */
+export const Page = S.Union([emptyShelf, emptyUnknown])
+/** Empty library page. */
+export type Page = typeof Page.Type
 /** A library with no songs. */
-export const Empty = withMembers(ts('Empty', { place: Place }), {
+export const Empty = withMembers(ts('Empty', { page: Page }), {
   Shelf: emptyShelf,
   Unknown: emptyUnknown,
 })
 
 const populatedShelf = ts('Shelf', {
-  looking: Looking,
+  search: Search,
   deleting: Deleting,
 })
 /** Populated library on a chart. */
@@ -150,26 +150,23 @@ export const Chart = withMembers(
   ts('Chart', {
     before: Before,
     after: After,
-    use,
+    work,
   }),
   { Editing, Playing },
 )
 /** Populated library on a chart. */
 export type Chart = typeof Chart.Type
 const populatedUnknown = ts('Unknown', {
-  songs: S.NonEmptyArray(Song.Stored),
+  songs: S.NonEmptyArray(Song.Saved),
   path: NonEmptyString,
 })
-const populatedPlace = S.Union([populatedShelf, Chart, populatedUnknown])
+const populatedPage = S.Union([populatedShelf, Chart, populatedUnknown])
 /** A library with songs. */
-export const Populated = withMembers(
-  ts('Populated', { place: populatedPlace }),
-  {
-    Shelf: populatedShelf,
-    Chart,
-    Unknown: populatedUnknown,
-  },
-)
+export const Populated = withMembers(ts('Populated', { page: populatedPage }), {
+  Shelf: populatedShelf,
+  Chart,
+  Unknown: populatedUnknown,
+})
 /** Song library. */
 export const Library = S.Union([Empty, Populated])
 /** Song library. */
@@ -191,28 +188,28 @@ export const emptyModel = (): Model =>
   Model.make({
     notice: Notice.None(),
     library: Empty.make({
-      place: Empty.Shelf.make({ looking: Idle() }),
+      page: Empty.Shelf.make({ search: Idle() }),
     }),
   })
 
 /** Current chart song. Playing current is stored Empty or Idle. */
 export const currentSong = (chart: typeof Chart.Type): Song => {
-  if (chart.use._tag === 'Editing') {
-    return chart.use.current
+  if (chart.work._tag === 'Editing') {
+    return chart.work.current
   }
-  return asSong(chart.use.current)
+  return asSong(chart.work.current)
 }
 
 /** Songs of a chart zipper. Current is always a member. Zippers flatten. */
 export const songsOfChart = (
   chart: typeof Chart.Type,
-): Array.NonEmptyReadonlyArray<typeof Song.Stored.Type> =>
+): Array.NonEmptyReadonlyArray<typeof Song.Saved.Type> =>
   zipperItems(chart.before, flattenSong(currentSong(chart)), chart.after)
 
 /** Songs of a shelf delete zipper or idle bag. */
 export const songsOfDeleting = (
   deleting: Deleting,
-): Array.NonEmptyReadonlyArray<typeof Song.Stored.Type> => {
+): Array.NonEmptyReadonlyArray<typeof Song.Saved.Type> => {
   if (deleting._tag === 'Idle') {
     return deleting.songs
   }
@@ -221,21 +218,21 @@ export const songsOfDeleting = (
 
 /** Songs of a populated library. */
 export const songsOfPopulated = (
-  place: (typeof Populated.Type)['place'],
-): Array.NonEmptyReadonlyArray<typeof Song.Stored.Type> => {
-  if (place._tag === 'Chart') {
-    return songsOfChart(place)
+  page: (typeof Populated.Type)['page'],
+): Array.NonEmptyReadonlyArray<typeof Song.Saved.Type> => {
+  if (page._tag === 'Chart') {
+    return songsOfChart(page)
   }
-  if (place._tag === 'Unknown') {
-    return place.songs
+  if (page._tag === 'Unknown') {
+    return page.songs
   }
-  return songsOfDeleting(place.deleting)
+  return songsOfDeleting(page.deleting)
 }
 
 /** Splits a populated list at a member. */
 export const zipperAt = (
-  songs: Array.NonEmptyReadonlyArray<typeof Song.Stored.Type>,
-  member: typeof Song.Stored.Type,
+  songs: Array.NonEmptyReadonlyArray<typeof Song.Saved.Type>,
+  member: typeof Song.Saved.Type,
 ): Option.Option<typeof Chart.Type> =>
   Option.map(
     zipperAtMember(
@@ -250,7 +247,7 @@ export const zipperAt = (
       Chart.make({
         before: zip.before,
         after: zip.after,
-        use: Editing.make({ current: asSong(zip.current) }),
+        work: Editing.make({ current: asSong(zip.current) }),
       }),
   )
 
@@ -262,21 +259,21 @@ export const replaceCurrent = (
   Chart.make({
     before: chart.before,
     after: chart.after,
-    use:
-      chart.use._tag === 'Playing'
+    work:
+      chart.work._tag === 'Playing'
         ? Playing.make({ current: flattenSong(current) })
         : Editing.make({ current }),
   })
 
-/** Shown shelf rows. Derived from songs and looking. */
+/** Shown shelf rows. Derived from songs and search. */
 export const shownSongs = (
-  songs: Array.NonEmptyReadonlyArray<typeof Song.Stored.Type>,
-  looking: Looking,
-): ReadonlyArray<typeof Song.Stored.Type> => {
-  if (looking._tag === 'Idle') {
+  songs: Array.NonEmptyReadonlyArray<typeof Song.Saved.Type>,
+  search: Search,
+): ReadonlyArray<typeof Song.Saved.Type> => {
+  if (search._tag === 'Idle') {
     return songs
   }
-  const query = pipe(looking.query, Str.toLowerCase)
+  const query = pipe(search.query, Str.toLowerCase)
   return Array.filter(songs, song => {
     const titleText = pipe(displayTitle(song), Str.toLowerCase)
     if (pipe(titleText, Str.includes(query))) {
@@ -316,19 +313,19 @@ export const succeededNotice = (
 
 /** Finds a library member by id. */
 export const findSong = (
-  songs: Array.NonEmptyReadonlyArray<typeof Song.Stored.Type>,
-  songId: (typeof Song.Stored.Type)['id'],
-): Option.Option<typeof Song.Stored.Type> =>
+  songs: Array.NonEmptyReadonlyArray<typeof Song.Saved.Type>,
+  songId: (typeof Song.Saved.Type)['id'],
+): Option.Option<typeof Song.Saved.Type> =>
   Array.findFirst(songs, song => song.id === songId)
 
-/** Replaces a populated library place. */
-export const withPlace = (
+/** Replaces a populated library page. */
+export const withPage = (
   model: Model,
-  place: (typeof Populated.Type)['place'],
+  page: (typeof Populated.Type)['page'],
 ): Model =>
   Model.make({
     ...model,
-    library: Populated.make({ place }),
+    library: Populated.make({ page }),
   })
 
 /** Replaces the whole library. */
