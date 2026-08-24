@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 1:50:44 a.m. EDT — `1f194d564fb4` feat(puzzle): paint Failed when Instant subscribe hangs
+
+- **Implementation commit:** `1f194d564fb48cb77e5bcd90dd8c50cfbce1f494`
+- **Change:** Paint Failed when Instant subscribe hangs without bouncing 5209.
+- **Details:**
+  - hangingSyncedEngine never reads or subscribes so Runtime.start stays Starting until settleMs.
+  - Foldkit, React, TUI, and headless tests drive the shipped host paint from that hanging start.
+  - Live 5209 still paints puzzleScreen on Instant. Hang leftover is proven on test hosts, not by bouncing the demo.
+- **Files:**
+  - `examples/puzzle/core/src/startSynced.ts` — Shared hanging Instant engine and HangLive layer for Failed paint.
+  - `examples/puzzle/core/src/startSynced.test.ts` — Asserts Failed TransportFailed cause start did not settle.
+  - `examples/puzzle/foldkit/src/instantHost.test.ts` — Paints Failed host chrome from a hanging Foldkit subscribe.
+  - `examples/puzzle/react/src/App.test.tsx` — React App paints Failed copy from a hanging subscribe.
+  - `examples/puzzle/react-bindings/src/windowHooks.test.tsx` — useModel becomes Failed when Instant subscribe hangs.
+  - `examples/puzzle/tui/src/client.test.ts` — TUI displays Failed when Instant subscribe hangs.
+  - `examples/puzzle/headless/src/print.test.ts` — Headless status paints Failed from a hanging subscribe.
+- **User context (verbatim):**
+  > pick up on and complete all of the in flight tasks for me!
+  > issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work
+- **SpecStory:** unavailable — Codex desktop session; no durable public SpecStory URI
+
 ## August 24th, 2026 at 1:39:10 a.m. EDT — `1e1ed9932bcb` feat(songbook): nest spoken parents and host closed text
 
 - **Implementation commit:** `1e1ed9932bcb9bf6ccc95b3e1e50c83dbb6530b8`
