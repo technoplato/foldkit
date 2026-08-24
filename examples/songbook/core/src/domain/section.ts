@@ -1,8 +1,8 @@
 import { Array, Option, Schema as S, pipe } from 'effect'
 import { ts } from 'foldkit/schema'
 
-import { SectionId, lineIdAt } from './ids.js'
-import { Line, LineId, Word, findWord, lineFromLyric, lyricOf } from './line.js'
+import { type LineId, SectionId, lineIdAt } from './ids.js'
+import { Line, Word, findWord, lineFromLyric, lyricOf } from './line.js'
 
 /** Named section kinds a chart can hold. */
 export const SectionKind = S.Literals([

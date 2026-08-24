@@ -56,7 +56,7 @@ const isViewing = (model: Model): boolean => {
   if (chart === undefined || chart.working._tag !== 'Editing') {
     return false
   }
-  const tag = chart.current.sections._tag
+  const tag = chart.working.current.sections._tag
   return tag === 'Empty' || tag === 'Idle'
 }
 
@@ -65,7 +65,7 @@ const isLyrics = (model: Model): boolean => {
   if (chart === undefined || chart.working._tag !== 'Editing') {
     return false
   }
-  return chart.current.sections._tag === 'Lyrics'
+  return chart.working.current.sections._tag === 'Lyrics'
 }
 
 const isWord = (model: Model): boolean => {
@@ -73,7 +73,7 @@ const isWord = (model: Model): boolean => {
   if (chart === undefined || chart.working._tag !== 'Editing') {
     return false
   }
-  return chart.current.sections._tag === 'Word'
+  return chart.working.current.sections._tag === 'Word'
 }
 
 const isRemoving = (model: Model): boolean => {
@@ -81,7 +81,7 @@ const isRemoving = (model: Model): boolean => {
   if (chart === undefined || chart.working._tag !== 'Editing') {
     return false
   }
-  return chart.current.sections._tag === 'Removing'
+  return chart.working.current.sections._tag === 'Removing'
 }
 
 const isConfirming = (model: Model): boolean => {
@@ -115,7 +115,7 @@ const isUnknown = (model: Model): boolean => {
 }
 
 const hiddenUnless = (
-  model: Model,
+  _model: Model,
   allowed: boolean,
   reason: string,
 ): string | undefined => (allowed ? undefined : reason)
@@ -813,7 +813,7 @@ export const tokenOf = (action: Action): string =>
   Option.getOrElse(Array.head(action.tokens ?? []), () => action.command ?? '')
 
 const afterPrefix = (token: string, prefix: string): Option.Option<string> => {
-  if (!Str.startsWith(token, prefix)) {
+  if (!token.startsWith(prefix)) {
     return Option.none()
   }
   const rest = token.slice(prefix.length)
@@ -889,46 +889,46 @@ export const whatForToken = (token: string): string => {
   if (action !== undefined) {
     return action.doc.what
   }
-  if (Str.startsWith(token, 'open:')) {
+  if (token.startsWith('open:')) {
     return 'Opens a chart for editing'
   }
-  if (Str.startsWith(token, 'play:')) {
+  if (token.startsWith('play:')) {
     return 'Opens a chart for playing'
   }
-  if (Str.startsWith(token, 'delete:')) {
+  if (token.startsWith('delete:')) {
     return 'Asks to delete a library member'
   }
-  if (Str.startsWith(token, 'unknown:')) {
+  if (token.startsWith('unknown:')) {
     return 'Opens an unknown path'
   }
-  if (Str.startsWith(token, 'search:')) {
+  if (token.startsWith('search:')) {
     return 'Types a search query'
   }
-  if (Str.startsWith(token, 'title:')) {
+  if (token.startsWith('title:')) {
     return 'Names the current song'
   }
-  if (Str.startsWith(token, 'artist:')) {
+  if (token.startsWith('artist:')) {
     return 'Names the current artist'
   }
-  if (Str.startsWith(token, 'key:')) {
+  if (token.startsWith('key:')) {
     return 'Sets the original key'
   }
-  if (Str.startsWith(token, 'add:')) {
+  if (token.startsWith('add:')) {
     return 'Adds a section'
   }
-  if (Str.startsWith(token, 'lyrics:')) {
+  if (token.startsWith('lyrics:')) {
     return 'Opens lyrics of a section'
   }
-  if (Str.startsWith(token, 'draft:')) {
+  if (token.startsWith('draft:')) {
     return 'Types lyrics'
   }
-  if (Str.startsWith(token, 'word:')) {
+  if (token.startsWith('word:')) {
     return 'Focuses a lyric word'
   }
-  if (Str.startsWith(token, 'chord:')) {
+  if (token.startsWith('chord:')) {
     return 'Places a chord on the focused word'
   }
-  if (Str.startsWith(token, 'remove:')) {
+  if (token.startsWith('remove:')) {
     return 'Asks to remove a section'
   }
   return token
@@ -938,6 +938,77 @@ export const whatForToken = (token: string): string => {
  * Resolves a screen Button token against the current Model.
  * Parameterized tokens carry their payload after `:`.
  */
+const messageFromAction = (action: Action): Message | undefined => {
+  const command = action.command ?? tokenOf(action)
+  if (command === 'new') {
+    return ClickedNew()
+  }
+  if (command === 'shelf') {
+    return ClickedShelf()
+  }
+  if (command === 'cancel-delete') {
+    return CancelledDelete()
+  }
+  if (command === 'confirm-delete') {
+    return ConfirmedDelete()
+  }
+  if (command === 'play') {
+    return ClickedPlay()
+  }
+  if (command === 'edit') {
+    return ClickedEdit()
+  }
+  if (command === 'transpose-up') {
+    return ClickedTransposeUp()
+  }
+  if (command === 'transpose-down') {
+    return ClickedTransposeDown()
+  }
+  if (command === 'capo-up') {
+    return ClickedCapoUp()
+  }
+  if (command === 'capo-down') {
+    return ClickedCapoDown()
+  }
+  if (command === 'copy') {
+    return ClickedCopy()
+  }
+  if (command === 'dismiss') {
+    return DismissedNotice()
+  }
+  if (command === 'clear-search') {
+    return ClearedSearch()
+  }
+  if (command === 'untitled') {
+    return ClearedTitle()
+  }
+  if (command === 'artist-clear') {
+    return ClearedArtist()
+  }
+  if (command === 'key-clear') {
+    return ClearedKey()
+  }
+  if (command === 'apply-lyrics') {
+    return AppliedLyrics()
+  }
+  if (command === 'cancel-lyrics') {
+    return CancelledLyrics()
+  }
+  if (command === 'clear-chord') {
+    return ClearedChord()
+  }
+  if (command === 'view') {
+    return CancelledWord()
+  }
+  if (command === 'cancel-remove') {
+    return CancelledRemove()
+  }
+  if (command === 'confirm-remove') {
+    return ConfirmedRemove()
+  }
+  return undefined
+}
+
 export const messageFromToken = (
   token: string,
   model: Model,
@@ -947,7 +1018,7 @@ export const messageFromToken = (
     if (!action.valid(model, {})) {
       return undefined
     }
-    return action()
+    return messageFromAction(action)
   }
   const maybeOpen = afterPrefix(token, 'open:')
   if (Option.isSome(maybeOpen)) {
@@ -965,17 +1036,17 @@ export const messageFromToken = (
   if (Option.isSome(maybeUnknown)) {
     return OpenedUnknown({ path: NonEmptyString.make(maybeUnknown.value) })
   }
-  if (Str.startsWith(token, 'search:')) {
+  if (token.startsWith('search:')) {
     return TypedSearch({ query: token.slice('search:'.length) })
   }
-  if (Str.startsWith(token, 'title:')) {
+  if (token.startsWith('title:')) {
     const rest = token.slice('title:'.length)
     if (Str.isEmpty(rest)) {
       return ClearedTitle()
     }
     return NamedTitle({ name: NonEmptyString.make(rest) })
   }
-  if (Str.startsWith(token, 'artist:')) {
+  if (token.startsWith('artist:')) {
     const rest = token.slice('artist:'.length)
     if (Str.isEmpty(rest)) {
       return ClearedArtist()
@@ -994,14 +1065,14 @@ export const messageFromToken = (
   if (Option.isSome(maybeLyrics)) {
     return OpenedLyrics({ sectionId: NonEmptyString.make(maybeLyrics.value) })
   }
-  if (Str.startsWith(token, 'draft:')) {
+  if (token.startsWith('draft:')) {
     return TypedLyrics({ text: token.slice('draft:'.length) })
   }
   const maybeWord = afterPrefix(token, 'word:')
   if (Option.isSome(maybeWord)) {
     return OpenedWord({ wordId: NonEmptyString.make(maybeWord.value) })
   }
-  if (Str.startsWith(token, 'chord:')) {
+  if (token.startsWith('chord:')) {
     return TypedChord({ text: token.slice('chord:'.length) })
   }
   const maybeRemove = afterPrefix(token, 'remove:')

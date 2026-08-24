@@ -4,13 +4,15 @@ import { ts } from 'foldkit/schema'
 
 import {
   Song,
+  StoredSong,
+  asSong,
   displayTitle,
   flattenSong,
   zipperAtMember,
   zipperItems,
 } from './domain/index.js'
 
-export { flattenSong, zipperItems }
+export { asSong, flattenSong, zipperItems }
 
 // MODEL
 
@@ -57,7 +59,7 @@ export type Looking = typeof Looking.Type
 /** No songs before the current chart song. */
 export const BeforeNone = ts('None')
 /** Songs before the current chart song. */
-export const BeforeSome = ts('Some', { items: S.NonEmptyArray(Song) })
+export const BeforeSome = ts('Some', { items: S.NonEmptyArray(StoredSong) })
 /** Songs before the current chart song. */
 export const Before = S.Union([BeforeNone, BeforeSome])
 /** Songs before the current chart song. */
@@ -66,7 +68,7 @@ export type Before = typeof Before.Type
 /** No songs after the current chart song. */
 export const AfterNone = ts('None')
 /** Songs after the current chart song. */
-export const AfterSome = ts('Some', { items: S.NonEmptyArray(Song) })
+export const AfterSome = ts('Some', { items: S.NonEmptyArray(StoredSong) })
 /** Songs after the current chart song. */
 export const After = S.Union([AfterNone, AfterSome])
 /** Songs after the current chart song. */
@@ -74,12 +76,12 @@ export type After = typeof After.Type
 
 /** Shelf idle. The songs bag lives here so Confirming is the zipper. */
 export const DeletingIdle = ts('Idle', {
-  songs: S.NonEmptyArray(Song),
+  songs: S.NonEmptyArray(StoredSong),
 })
 /** Confirming delete of the zipper current. Current is a member. */
 export const Confirming = ts('Confirming', {
   before: Before,
-  current: Song,
+  current: StoredSong,
   after: After,
 })
 /** Shelf delete. */
@@ -87,11 +89,11 @@ export const Deleting = S.Union([DeletingIdle, Confirming])
 /** Shelf delete. */
 export type Deleting = typeof Deleting.Type
 
-/** Editing a chart. Section zippers live on the current song. */
-export const Editing = ts('Editing')
-/** Playing a chart. */
-export const Playing = ts('Playing')
-/** Chart working. */
+/** Editing a chart. Current song may hold section zippers. */
+export const Editing = ts('Editing', { current: Song })
+/** Playing a chart. Current song is stored Empty or Idle only. */
+export const Playing = ts('Playing', { current: StoredSong })
+/** Chart working. Current lives here so Playing cannot hold a zipper. */
 export const Working = S.Union([Editing, Playing])
 /** Chart working. */
 export type Working = typeof Working.Type
@@ -113,13 +115,12 @@ export const PopulatedShelf = ts('Shelf', {
 /** Populated library on a chart. */
 export const PopulatedChart = ts('Chart', {
   before: Before,
-  current: Song,
   after: After,
   working: Working,
 })
 /** Populated library on an unknown path. */
 export const PopulatedUnknown = ts('Unknown', {
-  songs: S.NonEmptyArray(Song),
+  songs: S.NonEmptyArray(StoredSong),
   path: NonEmptyString,
 })
 /** Populated library place. */
@@ -160,53 +161,55 @@ export const emptyModel = (): Model =>
     }),
   })
 
-const flattenSongs = (
-  songs: Array.NonEmptyReadonlyArray<Song>,
-): Array.NonEmptyReadonlyArray<Song> => Array.map(songs, flattenSong)
+/** Current chart song. Playing current is stored Empty or Idle. */
+export const currentSong = (chart: typeof PopulatedChart.Type): Song => {
+  if (chart.working._tag === 'Editing') {
+    return chart.working.current
+  }
+  return asSong(chart.working.current)
+}
 
 /** Songs of a chart zipper. Current is always a member. Zippers flatten. */
 export const songsOfChart = (
   chart: typeof PopulatedChart.Type,
-): Array.NonEmptyReadonlyArray<Song> =>
-  flattenSongs(zipperItems(chart.before, chart.current, chart.after))
+): Array.NonEmptyReadonlyArray<StoredSong> =>
+  zipperItems(chart.before, flattenSong(currentSong(chart)), chart.after)
 
 /** Songs of a shelf delete zipper or idle bag. */
 export const songsOfDeleting = (
   deleting: Deleting,
-): Array.NonEmptyReadonlyArray<Song> => {
+): Array.NonEmptyReadonlyArray<StoredSong> => {
   if (deleting._tag === 'Idle') {
-    return flattenSongs(deleting.songs)
+    return deleting.songs
   }
-  return flattenSongs(
-    zipperItems(deleting.before, deleting.current, deleting.after),
-  )
+  return zipperItems(deleting.before, deleting.current, deleting.after)
 }
 
 /** Songs of a populated library. */
 export const songsOfPopulated = (
   place: PopulatedPlace,
-): Array.NonEmptyReadonlyArray<Song> => {
+): Array.NonEmptyReadonlyArray<StoredSong> => {
   if (place._tag === 'Chart') {
     return songsOfChart(place)
   }
   if (place._tag === 'Unknown') {
-    return flattenSongs(place.songs)
+    return place.songs
   }
   return songsOfDeleting(place.deleting)
 }
 
 /** Splits a populated list at a member. */
 export const zipperAt = (
-  songs: Array.NonEmptyReadonlyArray<Song>,
-  member: Song,
+  songs: Array.NonEmptyReadonlyArray<StoredSong>,
+  member: StoredSong,
 ): Option.Option<typeof PopulatedChart.Type> =>
   Option.map(
     zipperAtMember(songs, member, BeforeSome, BeforeNone, AfterSome, AfterNone),
     zip =>
       PopulatedChart.make({
-        ...zip,
-        current: flattenSong(zip.current),
-        working: Editing(),
+        before: zip.before,
+        after: zip.after,
+        working: Editing.make({ current: asSong(zip.current) }),
       }),
   )
 
@@ -216,15 +219,19 @@ export const replaceCurrent = (
   current: Song,
 ): typeof PopulatedChart.Type =>
   PopulatedChart.make({
-    ...chart,
-    current,
+    before: chart.before,
+    after: chart.after,
+    working:
+      chart.working._tag === 'Playing'
+        ? Playing.make({ current: flattenSong(current) })
+        : Editing.make({ current }),
   })
 
 /** Shown shelf rows. Derived from songs and looking. */
 export const shownSongs = (
-  songs: Array.NonEmptyReadonlyArray<Song>,
+  songs: Array.NonEmptyReadonlyArray<StoredSong>,
   looking: Looking,
-): ReadonlyArray<Song> => {
+): ReadonlyArray<StoredSong> => {
   if (looking._tag === 'Idle') {
     return songs
   }
@@ -268,9 +275,10 @@ export const succeededNotice = (
 
 /** Finds a library member by id. */
 export const findSong = (
-  songs: Array.NonEmptyReadonlyArray<Song>,
-  songId: Song['id'],
-): Option.Option<Song> => Array.findFirst(songs, song => song.id === songId)
+  songs: Array.NonEmptyReadonlyArray<StoredSong>,
+  songId: StoredSong['id'],
+): Option.Option<StoredSong> =>
+  Array.findFirst(songs, song => song.id === songId)
 
 /** Replaces a populated library place. */
 export const withPlace = (model: Model, place: PopulatedPlace): Model =>
@@ -309,10 +317,10 @@ export {
   DraftSome,
   Lyrics,
   Removing,
-  WordFocus,
+  Word,
   draftFromText,
   draftText,
   lyricsAt,
   removingAt,
-  wordFocusAt,
+  wordAt,
 } from './domain/index.js'

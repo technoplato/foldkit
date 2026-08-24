@@ -13,6 +13,8 @@ import {
   SECTION_KINDS,
   type Section,
   type Song,
+  type StoredSong,
+  asSong,
   displayTitle,
   flattenSections,
   kindLabel,
@@ -28,6 +30,7 @@ import {
   type Place,
   type PopulatedPlace,
   type Working,
+  currentSong,
   draftText,
   shownSongs,
   songsOfDeleting,
@@ -136,7 +139,7 @@ const editingNodes = (song: Song): ReadonlyArray<UiNode> =>
       Idle: () => viewingNodes(song),
       Lyrics: lyrics => [
         Text('Lyrics'),
-        Text(kindLabel(lyrics.current.kind)),
+        Text(kindLabel(lyrics.kind)),
         TextInput({
           placeholder: 'Lyrics',
           token: 'draft:',
@@ -165,20 +168,20 @@ const editingNodes = (song: Song): ReadonlyArray<UiNode> =>
     }),
   )
 
-const workingNodes = (working: Working, song: Song): ReadonlyArray<UiNode> =>
+const workingNodes = (working: Working): ReadonlyArray<UiNode> =>
   M.value(working).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      Editing: () => [Text('Editing'), ...editingNodes(song)],
-      Playing: () => [
+      Editing: editing => [Text('Editing'), ...editingNodes(editing.current)],
+      Playing: playing => [
         Text('Playing'),
-        Text(displayTitle(song)),
-        Text(toChartText(song)),
+        Text(displayTitle(playing.current)),
+        Text(toChartText(asSong(playing.current))),
       ],
     }),
   )
 
-const songRow = (song: Song): ReadonlyArray<UiNode> => [
+const songRow = (song: StoredSong): ReadonlyArray<UiNode> => [
   Text(displayTitle(song)),
   Button({
     token: `open:${song.id}`,
@@ -218,8 +221,8 @@ const populatedPlaceNodes = (place: PopulatedPlace): ReadonlyArray<UiNode> =>
       ],
       Chart: chart => [
         Text('Chart'),
-        Text(displayTitle(chart.current)),
-        ...workingNodes(chart.working, chart.current),
+        Text(displayTitle(currentSong(chart))),
+        ...workingNodes(chart.working),
       ],
       Unknown: unknown => [
         Text('Unknown'),
