@@ -71,7 +71,7 @@ const restOfGroup = (maybeText: Option.Option<string>): Rest => {
 }
 
 const parsePitchToken = (
-  token: string,
+  token: typeof NonEmptyString.Type,
 ): Option.Option<Readonly<{ pitch: Pitch; rest: Rest }>> => {
   const maybeParts = Option.fromNullishOr(PITCH_HEAD.exec(token))
   if (Option.isNone(maybeParts)) {
@@ -79,13 +79,16 @@ const parsePitchToken = (
   }
   const groups = Array.fromIterable(maybeParts.value)
   const maybeRoot = Array.get(groups, 1)
-  if (Option.isNone(maybeRoot)) {
+  if (Option.isNone(maybeRoot) || Str.isEmpty(maybeRoot.value)) {
     return Option.none()
   }
-  return Option.map(parsePitch(maybeRoot.value), pitch => ({
-    pitch,
-    rest: restOfGroup(Array.get(groups, 2)),
-  }))
+  return Option.map(
+    parsePitch(NonEmptyString.make(maybeRoot.value)),
+    pitch => ({
+      pitch,
+      rest: restOfGroup(Array.get(groups, 2)),
+    }),
+  )
 }
 
 /** Parses a typed chord name. */
@@ -104,9 +107,10 @@ export const parseChord = (
   ) {
     return Option.some(Silent())
   }
-  const maybeSlash = Str.indexOf('/')(trimmed)
+  const nextName = NonEmptyString.make(trimmed)
+  const maybeSlash = Str.indexOf('/')(nextName)
   if (Option.isNone(maybeSlash)) {
-    return Option.map(parsePitchToken(trimmed), ({ pitch, rest }) =>
+    return Option.map(parsePitchToken(nextName), ({ pitch, rest }) =>
       Sounding.make({
         root: pitch,
         rest,
@@ -114,19 +118,21 @@ export const parseChord = (
       }),
     )
   }
-  const rootPart = trimmed.slice(0, maybeSlash.value)
-  const bassPart = trimmed.slice(maybeSlash.value + 1)
-  if (Str.isEmpty(rootPart)) {
+  const rootPart = nextName.slice(0, maybeSlash.value)
+  const bassPart = nextName.slice(maybeSlash.value + 1)
+  if (Str.isEmpty(rootPart) || Str.isEmpty(bassPart)) {
     return Option.none()
   }
-  return Option.flatMap(parsePitchToken(rootPart), ({ pitch, rest }) =>
-    Option.map(parsePitch(bassPart), bass =>
-      Sounding.make({
-        root: pitch,
-        rest,
-        bass: BassSome.make({ pitch: bass }),
-      }),
-    ),
+  return Option.flatMap(
+    parsePitchToken(NonEmptyString.make(rootPart)),
+    ({ pitch, rest }) =>
+      Option.map(parsePitch(NonEmptyString.make(bassPart)), bass =>
+        Sounding.make({
+          root: pitch,
+          rest,
+          bass: BassSome.make({ pitch: bass }),
+        }),
+      ),
   )
 }
 

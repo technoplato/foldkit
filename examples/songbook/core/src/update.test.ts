@@ -923,6 +923,14 @@ describe('songbook update', () => {
     expect(Option.isNone(Domain.parseChord(NonEmptyString.make('nope')))).toBe(
       true,
     )
+    const maybePitch = Domain.parsePitch(NonEmptyString.make('G'))
+    expect(Option.isSome(maybePitch)).toBe(true)
+    if (Option.isSome(maybePitch)) {
+      expect(Domain.printPitch(maybePitch.value)).toBe('G')
+    }
+    expect(Option.isNone(Domain.parsePitch(NonEmptyString.make('Z')))).toBe(
+      true,
+    )
   })
 
   it('round-trips blank lyric lines through lyrics draft without empty lyricOf sentinels', () => {

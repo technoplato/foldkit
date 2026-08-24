@@ -864,7 +864,7 @@ const emptyChordRow: Readonly<{
 }
 
 const chordRowOf = (
-  lyric: string,
+  lyric: typeof NonEmptyString.Type,
   items: Array.NonEmptyReadonlyArray<Placed>,
   transpose: number,
   capo: number,

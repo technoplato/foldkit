@@ -1070,7 +1070,7 @@ export const messageFromToken = (
   }
   const maybeKey = afterPrefix(token, 'key:')
   if (Option.isSome(maybeKey)) {
-    return Option.match(parsePitch(maybeKey.value), {
+    return Option.match(parsePitch(NonEmptyString.make(maybeKey.value)), {
       onNone: () => undefined,
       onSome: pitch => ChoseKey({ pitch }),
     })
