@@ -296,18 +296,15 @@ export const withoutNotice = (model: Model): Model =>
 /** Sets a succeeded notice. */
 export const succeededNotice = (
   model: Model,
-  heading: string,
-  detail?: string,
+  heading: typeof NonEmptyString.Type,
+  detail: Detail,
 ): Model =>
   Model.make({
     ...model,
     notice: Notice.Some.make({
       kind: Succeeded(),
-      title: NonEmptyString.make(heading),
-      detail:
-        detail === undefined || Str.isEmpty(detail)
-          ? Detail.None()
-          : Detail.Some.make({ text: NonEmptyString.make(detail) }),
+      title: heading,
+      detail,
     }),
   })
 
@@ -338,18 +335,15 @@ export const withLibrary = (model: Model, library: Library): Model =>
 /** Sets a failed notice. */
 export const failedNotice = (
   model: Model,
-  heading: string,
-  detail?: string,
+  heading: typeof NonEmptyString.Type,
+  detail: Detail,
 ): Model =>
   Model.make({
     ...model,
     notice: Notice.Some.make({
       kind: Failed(),
-      title: NonEmptyString.make(heading),
-      detail:
-        detail === undefined || Str.isEmpty(detail)
-          ? Detail.None()
-          : Detail.Some.make({ text: NonEmptyString.make(detail) }),
+      title: heading,
+      detail,
     }),
   })
 

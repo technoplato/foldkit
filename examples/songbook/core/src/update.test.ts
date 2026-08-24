@@ -19,11 +19,15 @@ import {
   ClickedShelf,
   ClickedTransposeUp,
   ConfirmedDelete,
+  DismissedNotice,
+  FailedCopiedChart,
+  FailedGeneratedIds,
   NamedArtist,
   NamedTitle,
   OpenedLyrics,
   OpenedWord,
   RequestedDelete,
+  SucceededCopiedChart,
   SucceededGeneratedIds,
   TypedChord,
   TypedLyrics,
@@ -749,6 +753,74 @@ describe('songbook update', () => {
       return
     }
     expect(clearedArtist.library.page.song.current.artist._tag).toBe('None')
+
+    const [failedNew] = update(
+      empty,
+      FailedGeneratedIds({
+        reason: NonEmptyString.make('Could not create a song id'),
+      }),
+    )
+    expect(failedNew.notice._tag).toBe('Some')
+    if (failedNew.notice._tag !== 'Some') {
+      return
+    }
+    expect(failedNew.notice.kind._tag).toBe('Failed')
+    expect(failedNew.notice.title).toBe('New song failed')
+    expect(failedNew.notice.detail._tag).toBe('Some')
+    if (failedNew.notice.detail._tag === 'Some') {
+      expect(failedNew.notice.detail.text).toBe('Could not create a song id')
+    }
+    expect(
+      Array.map(textsOf(songbookScreen(failedNew)), text => text.content),
+    ).toContain('New song failed')
+
+    const failedWithoutDetail = Model.failedNotice(
+      empty,
+      NonEmptyString.make('Copy failed'),
+      Model.Detail.None(),
+    )
+    expect(failedWithoutDetail.notice._tag).toBe('Some')
+    if (failedWithoutDetail.notice._tag !== 'Some') {
+      return
+    }
+    expect(failedWithoutDetail.notice.kind._tag).toBe('Failed')
+    expect(failedWithoutDetail.notice.title).toBe('Copy failed')
+    expect(failedWithoutDetail.notice.detail._tag).toBe('None')
+
+    const [copied] = update(
+      created,
+      SucceededCopiedChart({ text: NonEmptyString.make('Untitled') }),
+    )
+    expect(copied.notice._tag).toBe('Some')
+    if (copied.notice._tag !== 'Some') {
+      return
+    }
+    expect(copied.notice.kind._tag).toBe('Succeeded')
+    expect(copied.notice.title).toBe('Copied')
+    expect(copied.notice.detail._tag).toBe('Some')
+    if (copied.notice.detail._tag === 'Some') {
+      expect(copied.notice.detail.text).toBe('Untitled')
+    }
+
+    const [copyFailed] = update(
+      created,
+      FailedCopiedChart({
+        reason: NonEmptyString.make('Chart text was empty'),
+      }),
+    )
+    expect(copyFailed.notice._tag).toBe('Some')
+    if (copyFailed.notice._tag !== 'Some') {
+      return
+    }
+    expect(copyFailed.notice.kind._tag).toBe('Failed')
+    expect(copyFailed.notice.title).toBe('Copy failed')
+    expect(copyFailed.notice.detail._tag).toBe('Some')
+    if (copyFailed.notice.detail._tag === 'Some') {
+      expect(copyFailed.notice.detail.text).toBe('Chart text was empty')
+    }
+
+    const [dismissed] = update(copyFailed, DismissedNotice())
+    expect(dismissed.notice._tag).toBe('None')
   })
 
   it('prints chart and chords from present fields, not empty omit-lines', () => {

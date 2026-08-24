@@ -53,6 +53,7 @@ import {
   Chart,
   Confirming,
   Deleting,
+  Detail,
   Editing,
   Empty,
   Idle,
@@ -196,7 +197,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         })
       },
       FailedGeneratedIds: ({ reason }) => [
-        failedNotice(model, 'New song failed', reason),
+        failedNotice(
+          model,
+          NonEmptyString.make('New song failed'),
+          Detail.Some.make({ text: reason }),
+        ),
         [],
       ],
       ClickedShelf: () =>
@@ -433,11 +438,19 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           onSome: chart => [model, [CopyChart({ song: currentSong(chart) })]],
         }),
       SucceededCopiedChart: ({ text }) => [
-        succeededNotice(model, 'Copied', text),
+        succeededNotice(
+          model,
+          NonEmptyString.make('Copied'),
+          Detail.Some.make({ text }),
+        ),
         [],
       ],
       FailedCopiedChart: ({ reason }) => [
-        failedNotice(model, 'Copy failed', reason),
+        failedNotice(
+          model,
+          NonEmptyString.make('Copy failed'),
+          Detail.Some.make({ text: reason }),
+        ),
         [],
       ],
       DismissedNotice: () => [withoutNotice(model), []],
