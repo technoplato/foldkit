@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 2:55:23 a.m. EDT — `9d352681307f` feat(songbook): round-trip blank lyrics without empty lyricOf
+
+- **Implementation commit:** `9d352681307fc37186fe9eaea5df5cbb8af2b29d`
+- **Change:** Round-trip songbook blank lyric lines without empty lyricOf sentinels
+- **Details:**
+  - lyricOf returns Option.none for Blank and NonEmpty for Words
+  - draftOfSection reduces from the first line and appends a newline for Blank
+- **Files:**
+  - `examples/songbook/core/src/domain/line.ts` — lyricOf Blank is Option.none, not empty string
+  - `examples/songbook/core/src/domain/song.ts` — draftOfSection reconstructs lyrics without lyricOf empty
+  - `examples/songbook/core/src/update.test.ts` — leftover test drives OpenedLyrics blank round-trip from emptyModel
+- **User context (verbatim):**
+  > Then execute the unblocked rows. Logging the grade without picking up work is not catch-up.
+  > Next: hole 1 lyrics-draft round-trip (lyricOf Blank still returns empty so draftOfSection can join a host lyrics string).
+- **SpecStory:** unavailable — Grok Build CLI leftover catch-up; no durable SpecStory URI for this session
+
 ## August 24th, 2026 at 2:41:28 a.m. EDT — `bb9603e95aa6` feat(songbook): print blank chart lines without empty pads
 
 - **Implementation commit:** `bb9603e95aa6e242ec846e660c3161750c989833`
