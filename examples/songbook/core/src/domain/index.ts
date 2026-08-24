@@ -6,8 +6,6 @@ export * from './song.js'
 export {
   Blank,
   Chords,
-  ChordsNone,
-  ChordsSome,
   Line,
   Placed,
   Words,

@@ -21,23 +21,6 @@ export const Placed = S.Struct({
 /** A chord sitting on a word in this line. */
 export type Placed = typeof Placed.Type
 
-/** No chords on a line. */
-export const ChordsNone = ts('None')
-/** Chords placed on words of this line. */
-export const ChordsSome = ts('Some', { items: S.NonEmptyArray(Placed) })
-/** Chords on a lyric line. */
-export const Chords = S.Union([ChordsNone, ChordsSome])
-/** Chords on a lyric line. */
-export type Chords = typeof Chords.Type
-
-/** A blank lyric line. */
-export const Blank = ts('Blank')
-/** A line with words. Chords are members of those words. */
-export const Words = ts('Words', {
-  items: S.NonEmptyArray(Word),
-  chords: Chords,
-})
-
 const withMembers = <Schema extends object, Members extends object>(
   schema: Schema,
   members: Members,
@@ -63,6 +46,24 @@ const withMembers = <Schema extends object, Members extends object>(
   }
   return new Proxy(schema, handler) as Schema & Members
 }
+
+const chordsNone = ts('None')
+const chordsSome = ts('Some', { items: S.NonEmptyArray(Placed) })
+/** Chords on a lyric line. */
+export const Chords = withMembers(S.Union([chordsNone, chordsSome]), {
+  None: chordsNone,
+  Some: chordsSome,
+})
+/** Chords on a lyric line. */
+export type Chords = typeof Chords.Type
+
+/** A blank lyric line. */
+export const Blank = ts('Blank')
+/** A line with words. Chords are members of those words. */
+export const Words = ts('Words', {
+  items: S.NonEmptyArray(Word),
+  chords: Chords,
+})
 
 /** One lyric line. Body is Blank or Words. */
 export const Line = withMembers(
@@ -106,7 +107,7 @@ export const lineFromLyric = (lineId: LineId, lyric: string): Line => {
         id: lineId,
         body: Words.make({
           items: words,
-          chords: ChordsNone(),
+          chords: Chords.None(),
         }),
       }),
   })

@@ -3,18 +3,21 @@ import { NonEmptyString } from 'foldkit/adt'
 import { buttonsOf, inputsOf, textsOf } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
-import { DraftNone, Song, draftFromText } from './domain/index.js'
+import * as Domain from './domain/index.js'
+import { Draft, Song, draftFromText } from './domain/index.js'
 import {
   AddedSection,
   AppliedLyrics,
   CancelledWord,
   ChoseKey,
+  ClearedArtist,
   ClickedCopy,
   ClickedEdit,
   ClickedNew,
   ClickedPlay,
   ClickedShelf,
   ConfirmedDelete,
+  NamedArtist,
   NamedTitle,
   OpenedLyrics,
   OpenedWord,
@@ -25,6 +28,7 @@ import {
   TypedSearch,
   messageFromToken,
 } from './message.js'
+import * as Model from './model.js'
 import { Searching, emptyModel, flattenSong, zipperItems } from './model.js'
 import { songbookScreen } from './program.js'
 import { update } from './update.js'
@@ -507,7 +511,7 @@ describe('songbook update', () => {
       withSection,
       OpenedLyrics({ sectionId: maybeSection.value.id }),
     )
-    const [cleared] = update(lyrics, TypedLyrics({ draft: DraftNone() }))
+    const [cleared] = update(lyrics, TypedLyrics({ draft: Draft.None() }))
     expect(cleared.library._tag).toBe('Populated')
     if (
       cleared.library._tag !== 'Populated' ||
@@ -576,5 +580,73 @@ describe('songbook update', () => {
     if (maybeAdd?._tag === 'AddedSection') {
       expect(maybeAdd.kind).toBe('Verse')
     }
+  })
+
+  it('nests Capo Artist Key Draft Notice Detail Chords as parent members', () => {
+    expect(Domain.Capo.None()._tag).toBe('None')
+    expect(Domain.Artist.None()._tag).toBe('None')
+    expect(Domain.Key.None()._tag).toBe('None')
+    expect(Domain.Draft.None()._tag).toBe('None')
+    expect(Domain.Chords.None()._tag).toBe('None')
+    expect(Model.Notice.None()._tag).toBe('None')
+    expect(Model.Detail.None()._tag).toBe('None')
+    expect('CapoNone' in Domain).toBe(false)
+    expect('CapoFretted' in Domain).toBe(false)
+    expect('ArtistNone' in Domain).toBe(false)
+    expect('ArtistSome' in Domain).toBe(false)
+    expect('KeyNone' in Domain).toBe(false)
+    expect('KeySome' in Domain).toBe(false)
+    expect('DraftNone' in Domain).toBe(false)
+    expect('DraftSome' in Domain).toBe(false)
+    expect('ChordsNone' in Domain).toBe(false)
+    expect('ChordsSome' in Domain).toBe(false)
+    expect('NoticeNone' in Model).toBe(false)
+    expect('NoticeSome' in Model).toBe(false)
+    expect('DetailNone' in Model).toBe(false)
+    expect('DetailSome' in Model).toBe(false)
+
+    const empty = emptyModel()
+    expect(empty.notice._tag).toBe('None')
+    const [created] = update(empty, SucceededGeneratedIds({ songId: 'song-a' }))
+    expect(created.library._tag).toBe('Populated')
+    if (
+      created.library._tag !== 'Populated' ||
+      created.library.place._tag !== 'Chart' ||
+      created.library.place.use._tag !== 'Editing'
+    ) {
+      return
+    }
+    const song = created.library.place.use.current
+    expect(song.artist._tag).toBe('None')
+    expect(song.key._tag).toBe('None')
+    expect(song.capo._tag).toBe('None')
+    expect(song.title._tag).toBe('Untitled')
+
+    const [namedArtist] = update(
+      created,
+      NamedArtist({ name: NonEmptyString.make('Aretha') }),
+    )
+    expect(namedArtist.library._tag).toBe('Populated')
+    if (
+      namedArtist.library._tag !== 'Populated' ||
+      namedArtist.library.place._tag !== 'Chart' ||
+      namedArtist.library.place.use._tag !== 'Editing'
+    ) {
+      return
+    }
+    expect(namedArtist.library.place.use.current.artist._tag).toBe('Some')
+    if (namedArtist.library.place.use.current.artist._tag === 'Some') {
+      expect(namedArtist.library.place.use.current.artist.name).toBe('Aretha')
+    }
+    const [clearedArtist] = update(namedArtist, ClearedArtist())
+    expect(clearedArtist.library._tag).toBe('Populated')
+    if (
+      clearedArtist.library._tag !== 'Populated' ||
+      clearedArtist.library.place._tag !== 'Chart' ||
+      clearedArtist.library.place.use._tag !== 'Editing'
+    ) {
+      return
+    }
+    expect(clearedArtist.library.place.use.current.artist._tag).toBe('None')
   })
 })

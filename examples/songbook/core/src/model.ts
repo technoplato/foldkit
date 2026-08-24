@@ -24,37 +24,6 @@ export const NoticeKind = S.Union([Succeeded, Failed])
 /** Notice kind. */
 export type NoticeKind = typeof NoticeKind.Type
 
-/** No extra notice detail. */
-export const DetailNone = ts('None')
-/** Extra notice detail. */
-export const DetailSome = ts('Some', { text: NonEmptyString })
-/** Notice detail. */
-export const Detail = S.Union([DetailNone, DetailSome])
-/** Notice detail. */
-export type Detail = typeof Detail.Type
-
-/** No notice. */
-export const NoticeNone = ts('None')
-/** A notice. */
-export const NoticeSome = ts('Some', {
-  kind: NoticeKind,
-  title: NonEmptyString,
-  detail: Detail,
-})
-/** Transient notice. */
-export const Notice = S.Union([NoticeNone, NoticeSome])
-/** Transient notice. */
-export type Notice = typeof Notice.Type
-
-/** No search query. */
-export const Idle = ts('Idle')
-/** A search query. */
-export const Searching = ts('Searching', { query: NonEmptyString })
-/** Library looking. */
-export const Looking = S.Union([Idle, Searching])
-/** Library looking. */
-export type Looking = typeof Looking.Type
-
 const withMembers = <Schema extends object, Members extends object>(
   schema: Schema,
   members: Members,
@@ -80,6 +49,39 @@ const withMembers = <Schema extends object, Members extends object>(
   }
   return new Proxy(schema, handler) as Schema & Members
 }
+
+const detailNone = ts('None')
+const detailSome = ts('Some', { text: NonEmptyString })
+/** Notice detail. */
+export const Detail = withMembers(S.Union([detailNone, detailSome]), {
+  None: detailNone,
+  Some: detailSome,
+})
+/** Notice detail. */
+export type Detail = typeof Detail.Type
+
+const noticeNone = ts('None')
+const noticeSome = ts('Some', {
+  kind: NoticeKind,
+  title: NonEmptyString,
+  detail: Detail,
+})
+/** Transient notice. */
+export const Notice = withMembers(S.Union([noticeNone, noticeSome]), {
+  None: noticeNone,
+  Some: noticeSome,
+})
+/** Transient notice. */
+export type Notice = typeof Notice.Type
+
+/** No search query. */
+export const Idle = ts('Idle')
+/** A search query. */
+export const Searching = ts('Searching', { query: NonEmptyString })
+/** Library looking. */
+export const Looking = S.Union([Idle, Searching])
+/** Library looking. */
+export type Looking = typeof Looking.Type
 
 const beforeNone = ts('None')
 const beforeSome = ts('Some', { items: S.NonEmptyArray(Song.Stored) })
@@ -187,7 +189,7 @@ export const title = 'Songbook'
 /** Empty library on the shelf. */
 export const emptyModel = (): Model =>
   Model.make({
-    notice: NoticeNone(),
+    notice: Notice.None(),
     library: Empty.make({
       place: Empty.Shelf.make({ looking: Idle() }),
     }),
@@ -291,7 +293,7 @@ export const shownSongs = (
 export const withoutNotice = (model: Model): Model =>
   Model.make({
     ...model,
-    notice: NoticeNone(),
+    notice: Notice.None(),
   })
 
 /** Sets a succeeded notice. */
@@ -302,13 +304,13 @@ export const succeededNotice = (
 ): Model =>
   Model.make({
     ...model,
-    notice: NoticeSome.make({
+    notice: Notice.Some.make({
       kind: Succeeded(),
       title: NonEmptyString.make(heading),
       detail:
         detail === undefined || Str.isEmpty(detail)
-          ? DetailNone()
-          : DetailSome.make({ text: NonEmptyString.make(detail) }),
+          ? Detail.None()
+          : Detail.Some.make({ text: NonEmptyString.make(detail) }),
     }),
   })
 
@@ -344,19 +346,17 @@ export const failedNotice = (
 ): Model =>
   Model.make({
     ...model,
-    notice: NoticeSome.make({
+    notice: Notice.Some.make({
       kind: Failed(),
       title: NonEmptyString.make(heading),
       detail:
         detail === undefined || Str.isEmpty(detail)
-          ? DetailNone()
-          : DetailSome.make({ text: NonEmptyString.make(detail) }),
+          ? Detail.None()
+          : Detail.Some.make({ text: NonEmptyString.make(detail) }),
     }),
   })
 
 export {
-  DraftNone,
-  DraftSome,
   Lyrics,
   Removing,
   Word,
