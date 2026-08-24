@@ -784,4 +784,144 @@ describe('songbook update', () => {
       ),
     ).toBe('C/G')
   })
+
+  it('prints blank lyric lines and chord rows from present parts, not empty pad sentinels', () => {
+    const empty = emptyModel()
+    const [created] = update(empty, SucceededGeneratedIds({ songId: 'song-a' }))
+    const [named] = update(created, NamedTitle({ name: 'Midnight Train' }))
+    const [withSection] = update(named, AddedSection({ kind: 'Verse' }))
+    expect(withSection.library._tag).toBe('Populated')
+    if (
+      withSection.library._tag !== 'Populated' ||
+      withSection.library.place._tag !== 'Chart' ||
+      withSection.library.place.use._tag !== 'Editing' ||
+      withSection.library.place.use.current.sections._tag !== 'Idle'
+    ) {
+      return
+    }
+    const maybeSection = Array.head(
+      withSection.library.place.use.current.sections.items,
+    )
+    expect(Option.isSome(maybeSection)).toBe(true)
+    if (Option.isNone(maybeSection)) {
+      return
+    }
+    const [lyrics] = update(
+      withSection,
+      OpenedLyrics({ sectionId: maybeSection.value.id }),
+    )
+    const [drafted] = update(
+      lyrics,
+      TypedLyrics({ draft: draftFromText('going away\n\ncoming home') }),
+    )
+    const [applied] = update(drafted, AppliedLyrics())
+    expect(applied.library._tag).toBe('Populated')
+    if (
+      applied.library._tag !== 'Populated' ||
+      applied.library.place._tag !== 'Chart' ||
+      applied.library.place.use._tag !== 'Editing' ||
+      applied.library.place.use.current.sections._tag !== 'Idle'
+    ) {
+      return
+    }
+    const maybeIdleSection = Array.head(
+      applied.library.place.use.current.sections.items,
+    )
+    expect(Option.isSome(maybeIdleSection)).toBe(true)
+    if (
+      Option.isNone(maybeIdleSection) ||
+      maybeIdleSection.value.lines._tag !== 'Populated'
+    ) {
+      return
+    }
+    expect(Array.length(maybeIdleSection.value.lines.items)).toBe(3)
+    const maybeFirst = Array.head(maybeIdleSection.value.lines.items)
+    const maybeBlank = Array.get(maybeIdleSection.value.lines.items, 1)
+    const maybeLast = Array.last(maybeIdleSection.value.lines.items)
+    expect(Option.isSome(maybeFirst)).toBe(true)
+    expect(Option.isSome(maybeBlank)).toBe(true)
+    expect(Option.isSome(maybeLast)).toBe(true)
+    if (
+      Option.isNone(maybeFirst) ||
+      Option.isNone(maybeBlank) ||
+      Option.isNone(maybeLast) ||
+      maybeFirst.value.body._tag !== 'Words' ||
+      maybeLast.value.body._tag !== 'Words'
+    ) {
+      return
+    }
+    expect(maybeBlank.value.body._tag).toBe('Blank')
+    const maybeWord = Array.head(maybeFirst.value.body.items)
+    expect(Option.isSome(maybeWord)).toBe(true)
+    if (Option.isNone(maybeWord)) {
+      return
+    }
+
+    const [word] = update(applied, OpenedWord({ wordId: maybeWord.value.id }))
+    const [typed] = update(word, TypedChord({ draft: draftFromText('G') }))
+    const [kept] = update(typed, CancelledWord())
+    expect(kept.library._tag).toBe('Populated')
+    if (
+      kept.library._tag !== 'Populated' ||
+      kept.library.place._tag !== 'Chart' ||
+      kept.library.place.use._tag !== 'Editing'
+    ) {
+      return
+    }
+    const chart = Domain.toChartText(kept.library.place.use.current)
+    const lines = chart.split('\n')
+    expect(lines).toContain('Midnight Train')
+    expect(lines).toContain('[Verse]')
+    expect(lines).toContain('G')
+    expect(lines).toContain('going away')
+    expect(lines).toContain('coming home')
+    const maybeGoing = Array.findFirstIndex(
+      lines,
+      line => line === 'going away',
+    )
+    const maybeComing = Array.findFirstIndex(
+      lines,
+      line => line === 'coming home',
+    )
+    expect(Option.isSome(maybeGoing)).toBe(true)
+    expect(Option.isSome(maybeComing)).toBe(true)
+    if (Option.isNone(maybeGoing) || Option.isNone(maybeComing)) {
+      return
+    }
+    expect(maybeComing.value).toBeGreaterThan(maybeGoing.value)
+    const between = lines.slice(maybeGoing.value + 1, maybeComing.value)
+    expect(between).toContain('')
+    const maybeChordRow = Array.get(lines, maybeGoing.value - 1)
+    expect(Option.isSome(maybeChordRow)).toBe(true)
+    if (Option.isNone(maybeChordRow)) {
+      return
+    }
+    expect(maybeChordRow.value.startsWith('G')).toBe(true)
+    const [, copyCommands] = update(kept, ClickedCopy())
+    expect(copyCommands[0]?.name).toBe('CopyChart')
+
+    const maybeC = Domain.parseChord(NonEmptyString.make('C'))
+    expect(Option.isSome(maybeC)).toBe(true)
+    if (Option.isSome(maybeC)) {
+      expect(Domain.printChord(maybeC.value)).toBe('C')
+    }
+    const maybeMinor = Domain.parseChord(NonEmptyString.make('Cm'))
+    expect(Option.isSome(maybeMinor)).toBe(true)
+    if (Option.isSome(maybeMinor)) {
+      expect(Domain.printChord(maybeMinor.value)).toBe('Cm')
+    }
+    const maybeSlash = Domain.parseChord(NonEmptyString.make('C/G'))
+    expect(Option.isSome(maybeSlash)).toBe(true)
+    if (Option.isSome(maybeSlash)) {
+      expect(Domain.printChord(maybeSlash.value)).toBe('C/G')
+    }
+    const maybeSilent = Domain.parseChord(NonEmptyString.make('N.C.'))
+    expect(Option.isSome(maybeSilent)).toBe(true)
+    if (Option.isSome(maybeSilent)) {
+      expect(maybeSilent.value._tag).toBe('Silent')
+    }
+    expect(Option.isNone(Domain.parseChord(NonEmptyString.make('nope')))).toBe(
+      true,
+    )
+  })
 })
