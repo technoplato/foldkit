@@ -50,7 +50,7 @@ const withMembers = <Schema extends object, Members extends object>(
   return new Proxy(schema, handler) as Schema & Members
 }
 
-/** Transpose of zero. Stored chords are already in this key. */
+/** Transpose of zero. Saved chords are already in this key. */
 export const Unison = ts('Unison')
 /** Transpose steps excluding zero. */
 export const TransposeSteps = S.Literals([
@@ -229,13 +229,13 @@ export const Sections = withMembers(
 /** Sections of a song. */
 export type Sections = typeof Sections.Type
 
-/** Stored sections. Playing and the shelf cannot hold zippers. */
-export const Stored = withMembers(S.Union([empty, idle]), {
+/** Saved sections. Playing and the shelf cannot hold zippers. */
+export const Saved = withMembers(S.Union([empty, idle]), {
   Empty: empty,
   Idle: idle,
 })
-/** Stored sections. */
-export type Stored = typeof Stored.Type
+/** Saved sections. */
+export type Saved = typeof Saved.Type
 
 const songFields = {
   id: SongId,
@@ -246,9 +246,9 @@ const songFields = {
   capo: Capo,
 }
 
-const stored = S.Struct({
+const saved = S.Struct({
   ...songFields,
-  sections: Stored,
+  sections: Saved,
 })
 
 /** One song in the library. Zippers inhabit only while editing. */
@@ -257,7 +257,7 @@ export const Song = withMembers(
     ...songFields,
     sections: Sections,
   }),
-  { Stored: stored },
+  { Saved: saved },
 )
 /** One song in the library. */
 export type Song = typeof Song.Type
@@ -481,7 +481,7 @@ const lyricsSection = (lyrics: typeof Lyrics.Type): Section => {
 }
 
 /** Idle bag or empty. Zippers flatten to the members they hold. */
-export const flattenSections = (sections: Sections): Stored => {
+export const flattenSections = (sections: Sections): Saved => {
   if (sections._tag === 'Empty') {
     return empty()
   }
@@ -512,8 +512,8 @@ export const flattenSections = (sections: Sections): Stored => {
 }
 
 /** Song whose sections zipper is flattened to Empty or Idle. */
-export const flattenSong = (song: Song): typeof Song.Stored.Type =>
-  Song.Stored.make({
+export const flattenSong = (song: Song): typeof Song.Saved.Type =>
+  Song.Saved.make({
     id: song.id,
     title: song.title,
     artist: song.artist,
@@ -523,8 +523,8 @@ export const flattenSong = (song: Song): typeof Song.Stored.Type =>
     sections: flattenSections(song.sections),
   })
 
-/** Stored song as a Song. Sections stay Empty or Idle. */
-export const asSong = (song: typeof Song.Stored.Type): Song =>
+/** Saved song as a Song. Sections stay Empty or Idle. */
+export const asSong = (song: typeof Song.Saved.Type): Song =>
   Song.make({
     id: song.id,
     title: song.title,
