@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 2:27:18 p.m. EDT — `2b2fe53c7b96` test(counters): prove compose.forEach children over the counter core
+
+- **Implementation commit:** `2b2fe53c7b96cccc05a0dc4dc1f83fd189c738bc`
+- **Change:** Demonstrate compose.forEach child collections over the counter core
+- **Details:**
+  - Reference test importing the real CounterProgram into Program.compose.forEach: identity-routed GotChild increments, add and remove rows, retired identities ignored, wrap helper shape pinned. Baseline for migrating counters hand-rolled GotCounterMessage arms onto the combinator.
+- **Files:**
+  - `examples/counters/core/src/forEachComposition.test.ts` — ForEachStore-shaped child routing proven against the imported core Program
+- **User context (verbatim):**
+  > REUSE ( MUST IMPORT ) core counter program in order to show our compose.forEach child similar to tca
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 2:23:52 p.m. EDT — `62c2eff4760f` feat(counters): generate expo-router files and draft ADR 0009
 
 - **Implementation commit:** `62c2eff4760f3feffcac15c07bdc909948d05567`
