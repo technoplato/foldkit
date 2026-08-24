@@ -113,15 +113,21 @@ export const lineFromLyric = (lineId: LineId, lyric: string): Line => {
   })
 }
 
-/** Prints the lyric text of a line. */
-export const lyricOf = (line: Line): string => {
+/** Prints the lyric text of a line. Blank is none. */
+export const lyricOf = (
+  line: Line,
+): Option.Option<typeof NonEmptyString.Type> => {
   if (line.body._tag === 'Blank') {
-    return ''
+    return Option.none()
   }
-  return pipe(
-    line.body.items,
-    Array.map(word => word.text),
-    Array.join(' '),
+  return Option.some(
+    NonEmptyString.make(
+      pipe(
+        line.body.items,
+        Array.map(word => word.text),
+        Array.join(' '),
+      ),
+    ),
   )
 }
 

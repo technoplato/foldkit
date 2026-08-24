@@ -924,4 +924,113 @@ describe('songbook update', () => {
       true,
     )
   })
+
+  it('round-trips blank lyric lines through lyrics draft without empty lyricOf sentinels', () => {
+    const empty = emptyModel()
+    const [created] = update(empty, SucceededGeneratedIds({ songId: 'song-a' }))
+    const [named] = update(created, NamedTitle({ name: 'Midnight Train' }))
+    const [withSection] = update(named, AddedSection({ kind: 'Verse' }))
+    expect(withSection.library._tag).toBe('Populated')
+    if (
+      withSection.library._tag !== 'Populated' ||
+      withSection.library.place._tag !== 'Chart' ||
+      withSection.library.place.use._tag !== 'Editing' ||
+      withSection.library.place.use.current.sections._tag !== 'Idle'
+    ) {
+      return
+    }
+    const maybeSection = Array.head(
+      withSection.library.place.use.current.sections.items,
+    )
+    expect(Option.isSome(maybeSection)).toBe(true)
+    if (Option.isNone(maybeSection)) {
+      return
+    }
+    const [lyrics] = update(
+      withSection,
+      OpenedLyrics({ sectionId: maybeSection.value.id }),
+    )
+    const [drafted] = update(
+      lyrics,
+      TypedLyrics({ draft: draftFromText('going away\n\ncoming home') }),
+    )
+    const [applied] = update(drafted, AppliedLyrics())
+    expect(applied.library._tag).toBe('Populated')
+    if (
+      applied.library._tag !== 'Populated' ||
+      applied.library.place._tag !== 'Chart' ||
+      applied.library.place.use._tag !== 'Editing' ||
+      applied.library.place.use.current.sections._tag !== 'Idle'
+    ) {
+      return
+    }
+    const maybeIdleSection = Array.head(
+      applied.library.place.use.current.sections.items,
+    )
+    expect(Option.isSome(maybeIdleSection)).toBe(true)
+    if (
+      Option.isNone(maybeIdleSection) ||
+      maybeIdleSection.value.lines._tag !== 'Populated'
+    ) {
+      return
+    }
+    expect(Array.length(maybeIdleSection.value.lines.items)).toBe(3)
+    const maybeFirst = Array.head(maybeIdleSection.value.lines.items)
+    const maybeBlank = Array.get(maybeIdleSection.value.lines.items, 1)
+    const maybeLast = Array.last(maybeIdleSection.value.lines.items)
+    expect(Option.isSome(maybeFirst)).toBe(true)
+    expect(Option.isSome(maybeBlank)).toBe(true)
+    expect(Option.isSome(maybeLast)).toBe(true)
+    if (
+      Option.isNone(maybeFirst) ||
+      Option.isNone(maybeBlank) ||
+      Option.isNone(maybeLast)
+    ) {
+      return
+    }
+    expect(maybeBlank.value.body._tag).toBe('Blank')
+    expect(Option.isNone(Domain.lyricOf(maybeBlank.value))).toBe(true)
+    const maybeGoing = Domain.lyricOf(maybeFirst.value)
+    const maybeComing = Domain.lyricOf(maybeLast.value)
+    expect(Option.isSome(maybeGoing)).toBe(true)
+    expect(Option.isSome(maybeComing)).toBe(true)
+    if (Option.isNone(maybeGoing) || Option.isNone(maybeComing)) {
+      return
+    }
+    expect(maybeGoing.value).toBe('going away')
+    expect(maybeComing.value).toBe('coming home')
+
+    const roundTrip = Domain.draftOfSection(maybeIdleSection.value)
+    expect(roundTrip._tag).toBe('Some')
+    if (roundTrip._tag !== 'Some') {
+      return
+    }
+    expect(roundTrip.text).toBe('going away\n\ncoming home')
+
+    const [reopened] = update(
+      applied,
+      OpenedLyrics({ sectionId: maybeIdleSection.value.id }),
+    )
+    expect(reopened.library._tag).toBe('Populated')
+    if (
+      reopened.library._tag !== 'Populated' ||
+      reopened.library.place._tag !== 'Chart' ||
+      reopened.library.place.use._tag !== 'Editing' ||
+      reopened.library.place.use.current.sections._tag !== 'Lyrics'
+    ) {
+      return
+    }
+    expect(reopened.library.place.use.current.sections.draft._tag).toBe('Some')
+    if (reopened.library.place.use.current.sections.draft._tag !== 'Some') {
+      return
+    }
+    expect(reopened.library.place.use.current.sections.draft.text).toBe(
+      'going away\n\ncoming home',
+    )
+    const screen = songbookScreen(reopened)
+    expect(Array.map(inputsOf(screen), input => input.token ?? '')).toContain(
+      'draft:',
+    )
+    expect(Array.map(textsOf(screen), text => text.content)).toContain('Lyrics')
+  })
 })
