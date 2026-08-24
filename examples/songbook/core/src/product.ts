@@ -14,13 +14,13 @@ import {
   type Section,
   type Song,
   displayTitle,
+  flattenSections,
   kindLabel,
   toChartText,
 } from './domain/index.js'
 import { type Action, actions, tokenOf } from './message.js'
 import {
   type Deleting,
-  type Focus,
   type Library,
   type Looking,
   type Model,
@@ -88,11 +88,12 @@ const sectionNodes = (song: Song): ReadonlyArray<UiNode> => {
       label: kindLabel(kind),
     }),
   )
-  if (song.sections._tag === 'Empty') {
+  const bag = flattenSections(song.sections)
+  if (bag._tag === 'Empty') {
     return [Text('Empty'), ...adders]
   }
   return [
-    ...Array.flatMap(song.sections.items, section => [
+    ...Array.flatMap(bag.items, section => [
       Text(kindLabel(section.kind)),
       Button({
         token: `lyrics:${section.id}`,
@@ -121,15 +122,18 @@ const songFields = (song: Song): ReadonlyArray<UiNode> => [
   }),
 ]
 
-const focusNodes = (focus: Focus, song: Song): ReadonlyArray<UiNode> =>
-  M.value(focus).pipe(
+const viewingNodes = (song: Song): ReadonlyArray<UiNode> => [
+  Text('Viewing'),
+  ...songFields(song),
+  ...sectionNodes(song),
+]
+
+const editingNodes = (song: Song): ReadonlyArray<UiNode> =>
+  M.value(song.sections).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      Viewing: () => [
-        Text('Viewing'),
-        ...songFields(song),
-        ...sectionNodes(song),
-      ],
+      Empty: () => viewingNodes(song),
+      Idle: () => viewingNodes(song),
       Lyrics: lyrics => [
         Text('Lyrics'),
         Text(kindLabel(lyrics.current.kind)),
@@ -165,7 +169,7 @@ const workingNodes = (working: Working, song: Song): ReadonlyArray<UiNode> =>
   M.value(working).pipe(
     M.withReturnType<ReadonlyArray<UiNode>>(),
     M.tagsExhaustive({
-      Editing: editing => [Text('Editing'), ...focusNodes(editing.focus, song)],
+      Editing: () => [Text('Editing'), ...editingNodes(song)],
       Playing: () => [
         Text('Playing'),
         Text(displayTitle(song)),

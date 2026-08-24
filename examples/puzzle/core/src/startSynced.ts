@@ -16,12 +16,16 @@ export type SyncedPuzzleHandle = Readonly<{
   subscribe: (listener: () => void) => () => void
 }>
 
+/** How long Runtime.start may stay Starting before the handle fails. */
+export const syncedHandleSettleMs = 30_000
+
 /**
  * Starts SyncedPuzzle on a Scope. Long-lived Hosts must hold this handle
  * and call stop. Do not wrap a long-lived Client in Effect.scoped.
  */
 export const startSyncedPuzzleHandle = (
   sync: Runtime.SyncEngine,
+  options?: { settleMs?: number },
 ): SyncedPuzzleHandle => {
   const scope = Effect.runSync(Scope.make())
   let started:
@@ -35,12 +39,40 @@ export const startSyncedPuzzleHandle = (
   let isStopped = false
   let cachedModel: Program.SyncedModel<AppModel, AppMessage> =
     SyncedPuzzle.Starting()
+  const settleMs = options?.settleMs ?? syncedHandleSettleMs
+  let settleTimer: ReturnType<typeof setTimeout> | undefined
 
   const notify = (): void => {
     for (const listener of listeners) {
       listener()
     }
   }
+
+  const clearSettleTimer = (): void => {
+    if (settleTimer === undefined) {
+      return
+    }
+    clearTimeout(settleTimer)
+    settleTimer = undefined
+  }
+
+  const failSettle = (): void => {
+    settleTimer = undefined
+    if (cachedModel._tag !== 'Starting') {
+      return
+    }
+    cachedModel = SyncedPuzzle.Failed({
+      error: SyncedPuzzle.TransportFailed({
+        what: 'This Processor never became Ready.',
+        meaning: 'Runtime.start did not settle before the handle timeout.',
+        fix: 'Check Instant subscribe and try again.',
+        cause: 'start did not settle',
+      }),
+    })
+    notify()
+  }
+
+  settleTimer = setTimeout(failSettle, settleMs)
 
   const opening = Effect.runPromise(
     Runtime.start({
@@ -51,6 +83,10 @@ export const startSyncedPuzzleHandle = (
 
   opening.then(
     runtime => {
+      if (cachedModel._tag !== 'Starting') {
+        return
+      }
+      clearSettleTimer()
       started = runtime
       cachedModel = runtime.readModel()
       unsubscribeStarted = runtime.observeModel(next => {
@@ -63,6 +99,10 @@ export const startSyncedPuzzleHandle = (
       if (cachedModel._tag === 'Ready') {
         return
       }
+      if (cachedModel._tag !== 'Starting') {
+        return
+      }
+      clearSettleTimer()
       cachedModel = SyncedPuzzle.Failed({
         error: SyncedPuzzle.TransportFailed({
           what: 'This Processor could not start.',
@@ -104,6 +144,7 @@ export const startSyncedPuzzleHandle = (
         return Promise.resolve()
       }
       isStopped = true
+      clearSettleTimer()
       if (unsubscribeStarted !== undefined) {
         unsubscribeStarted()
       }

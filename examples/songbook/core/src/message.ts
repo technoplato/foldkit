@@ -56,7 +56,8 @@ const isViewing = (model: Model): boolean => {
   if (chart === undefined || chart.working._tag !== 'Editing') {
     return false
   }
-  return chart.working.focus._tag === 'Viewing'
+  const tag = chart.current.sections._tag
+  return tag === 'Empty' || tag === 'Idle'
 }
 
 const isLyrics = (model: Model): boolean => {
@@ -64,7 +65,7 @@ const isLyrics = (model: Model): boolean => {
   if (chart === undefined || chart.working._tag !== 'Editing') {
     return false
   }
-  return chart.working.focus._tag === 'Lyrics'
+  return chart.current.sections._tag === 'Lyrics'
 }
 
 const isWord = (model: Model): boolean => {
@@ -72,7 +73,7 @@ const isWord = (model: Model): boolean => {
   if (chart === undefined || chart.working._tag !== 'Editing') {
     return false
   }
-  return chart.working.focus._tag === 'Word'
+  return chart.current.sections._tag === 'Word'
 }
 
 const isRemoving = (model: Model): boolean => {
@@ -80,7 +81,7 @@ const isRemoving = (model: Model): boolean => {
   if (chart === undefined || chart.working._tag !== 'Editing') {
     return false
   }
-  return chart.working.focus._tag === 'Removing'
+  return chart.current.sections._tag === 'Removing'
 }
 
 const isConfirming = (model: Model): boolean => {
