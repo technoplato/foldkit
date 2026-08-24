@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 3:56:03 a.m. EDT — `6d9977a3b3a3` feat(songbook): speak chart song parent instead of work
+
+- **Implementation commit:** `6d9977a3b3a36304b6d9586a13f75b758f8c7b24`
+- **Change:** Speak Chart.song instead of nest jargon work for leftover #241 hole 2.
+- **Details:**
+  - A songbook player would say they are editing or playing a song.
+  - Chart keeps before and after. Placed was not renamed.
+  - Leftover tests drive emptyModel through SucceededGeneratedIds and keep work/working off the page.
+- **Files:**
+  - `examples/songbook/core/src/model.ts` — Chart field and file-private union work became song.
+  - `examples/songbook/core/src/product.ts` — workNodes became songNodes over Chart.song.
+  - `examples/songbook/core/src/message.ts` — chart.work and work-becomes mutate comments became song.
+  - `examples/songbook/core/src/update.ts` — Chart.make and chart.work reads became Chart.song.
+  - `examples/songbook/core/src/update.test.ts` — Leftover tests assert page.song and that work/working stay off the page.
+- **User context (verbatim):**
+  > issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work
+  > then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; no durable SpecStory URI in this session.
+
 ## August 24th, 2026 at 3:35:49 a.m. EDT — `f11560c41e28` feat(songbook): speak search page work and saved parents
 
 - **Implementation commit:** `f11560c41e2813cad24a249ff87ea9f3c9148347`
