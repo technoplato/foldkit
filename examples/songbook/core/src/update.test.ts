@@ -1027,6 +1027,31 @@ describe('songbook update', () => {
     expect(reopened.library.place.use.current.sections.draft.text).toBe(
       'going away\n\ncoming home',
     )
+    const pasted = Domain.replaceLyrics(
+      maybeIdleSection.value,
+      NonEmptyString.make('going away\n\ncoming home'),
+    )
+    expect(pasted.lines._tag).toBe('Populated')
+    if (pasted.lines._tag !== 'Populated') {
+      return
+    }
+    expect(Array.length(pasted.lines.items)).toBe(3)
+    const maybePastedBlank = Array.get(pasted.lines.items, 1)
+    expect(Option.isSome(maybePastedBlank)).toBe(true)
+    if (Option.isNone(maybePastedBlank)) {
+      return
+    }
+    expect(maybePastedBlank.value.body._tag).toBe('Blank')
+    const fromWords = Domain.lineFromLyric(
+      Domain.lineIdAt(maybeIdleSection.value.id, 0),
+      NonEmptyString.make('going away'),
+    )
+    expect(fromWords.body._tag).toBe('Words')
+    const maybeFromWords = Domain.lyricOf(fromWords)
+    expect(Option.isSome(maybeFromWords)).toBe(true)
+    if (Option.isSome(maybeFromWords)) {
+      expect(maybeFromWords.value).toBe('going away')
+    }
     const screen = songbookScreen(reopened)
     expect(Array.map(inputsOf(screen), input => input.token ?? '')).toContain(
       'draft:',

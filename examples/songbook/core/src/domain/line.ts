@@ -79,13 +79,16 @@ export type Line = typeof Line.Type
 const WORD = /\S+/g
 
 /** Splits a lyric into words with stable ids. */
-export const wordsOf = (lineId: LineId, lyric: string): ReadonlyArray<Word> =>
+export const wordsOf = (
+  lineId: LineId,
+  lyric: typeof NonEmptyString.Type,
+): ReadonlyArray<Word> =>
   pipe(
     Array.fromIterable(lyric.matchAll(WORD)),
     Array.flatMap(match => {
       const text = match[0]
       const start = match.index
-      if (text === undefined || start === undefined || text === '') {
+      if (text === undefined || start === undefined) {
         return []
       }
       return [
@@ -98,7 +101,10 @@ export const wordsOf = (lineId: LineId, lyric: string): ReadonlyArray<Word> =>
   )
 
 /** Builds a line from pasted lyric text. */
-export const lineFromLyric = (lineId: LineId, lyric: string): Line => {
+export const lineFromLyric = (
+  lineId: LineId,
+  lyric: typeof NonEmptyString.Type,
+): Line => {
   const items = wordsOf(lineId, lyric)
   return Array.match(items, {
     onEmpty: () => Line.make({ id: lineId, body: Blank() }),
