@@ -17,32 +17,29 @@ import { view } from './view.js'
 
 const instanceLength = 8
 
-/** Paints Starting or Failed host chrome. Ready returns false so Foldkit can draw. */
+/** Paints Failed host chrome. Starting and Ready return false so Foldkit can draw puzzleScreen. */
 export const paintPuzzleHostStatus = (
   container: HTMLElement,
   snapshot: Program.SyncedModel<AppModel, AppMessage>,
 ): boolean => {
-  if (snapshot._tag === 'Ready') {
+  if (snapshot._tag !== 'Failed') {
     return false
   }
   container.replaceChildren()
   const status = document.createElement('p')
-  if (snapshot._tag === 'Starting') {
-    status.textContent = 'Starting Instant Puzzle…'
-  } else {
-    status.textContent = describePuzzleSyncError(snapshot.error)
-  }
+  status.textContent = describePuzzleSyncError(snapshot.error)
   container.append(status)
   return true
 }
 
 /**
- * Starting and Failed paint host chrome. Ready attaches the Instant
- * snapshot. Do not paint Program init / demoModel as Instant-settled.
+ * Failed paints host chrome. Starting attaches puzzleScreen from init
+ * the same way React bindings paint the demo tree. Ready attaches the
+ * Instant snapshot. Starting is not Instant-settled.
  */
 export const shouldPaintPuzzleHostStatus = (
   snapshot: Program.SyncedModel<AppModel, AppMessage>,
-): boolean => snapshot._tag !== 'Ready'
+): boolean => snapshot._tag === 'Failed'
 
 /**
  * Attach failure after Ready stays Ready.

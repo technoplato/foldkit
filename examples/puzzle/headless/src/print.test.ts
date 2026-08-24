@@ -28,6 +28,9 @@ describe('Puzzle headless printer', () => {
       'https://puzzle.knophy.com',
     )
     expect(formatHeadlessStatus(SyncedPuzzle.Starting())).toContain(
+      'https://puzzle.knophy.com',
+    )
+    expect(formatHeadlessStatus(SyncedPuzzle.Starting())).not.toContain(
       'Starting Instant Puzzle',
     )
   })
@@ -206,8 +209,9 @@ describe('Puzzle headless printer', () => {
       timeZone: 'America/New_York',
     }
     const starting = formatHeadlessStatus(SyncedPuzzle.Starting(), time)
-    expect(starting).toContain('Starting Instant Puzzle…  1:52:44 PM')
-    expect(starting).not.toContain('https://puzzle.knophy.com')
+    expect(starting).toContain('https://puzzle.knophy.com')
+    expect(starting).toContain('1:52:44 PM')
+    expect(starting).not.toContain('Starting Instant Puzzle')
     expect(starting).not.toContain('github.com')
     const failed = SyncedPuzzle.Failed({
       error: SyncedPuzzle.TransportFailed({

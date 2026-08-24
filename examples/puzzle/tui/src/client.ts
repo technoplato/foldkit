@@ -85,7 +85,18 @@ const paintActionMenu = (
   ].join('\n')
 }
 
-/** Renders Starting, Failed, or the imported Puzzle chrome. */
+const paintComputerChrome = (
+  product: ReturnType<typeof demoModel>,
+  snapshot: Program.SyncedModel<AppModel, AppMessage>,
+  maybeChosen: Option.Option<string>,
+): string => {
+  const chrome = renderChrome(product, 'computer')
+  const menu = paintActionMenu(snapshot, maybeChosen)
+  const overlay = menu === '' ? '' : `${menu}\n\n`
+  return `${CLEAR_SCREEN}${overlay}${chrome}\n\n[Q] quit  [?] actions\n`
+}
+
+/** Renders Failed host chrome, or puzzleScreen from Starting and Ready. */
 export const renderPuzzleScreen = (
   snapshot: Program.SyncedModel<AppModel, AppMessage>,
   maybeChosen: Option.Option<string> = Option.none(),
@@ -93,16 +104,11 @@ export const renderPuzzleScreen = (
   M.value(snapshot).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      Starting: () =>
-        `${CLEAR_SCREEN}Starting Instant Puzzle…\n\n[Q] quit  [?] actions\n`,
+      Starting: () => paintComputerChrome(demoModel(), snapshot, maybeChosen),
       Failed: ({ error }) =>
         `${CLEAR_SCREEN}${describePuzzleSyncError(error)}\n\n[Q] quit  [?] actions\n`,
-      Ready: ({ product }) => {
-        const chrome = renderChrome(product, 'computer')
-        const menu = paintActionMenu(snapshot, maybeChosen)
-        const overlay = menu === '' ? '' : `${menu}\n\n`
-        return `${CLEAR_SCREEN}${overlay}${chrome}\n\n[Q] quit  [?] actions\n`
-      },
+      Ready: ({ product }) =>
+        paintComputerChrome(product, snapshot, maybeChosen),
     }),
   )
 

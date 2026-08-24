@@ -9,18 +9,12 @@ import {
 } from './instantHost.js'
 
 describe('Puzzle Foldkit Instant host chrome', () => {
-  it('paints Starting and Failed, then leaves Ready to Foldkit', () => {
+  it('paints Failed host chrome and leaves Starting and Ready to Foldkit', () => {
     const container = document.createElement('div')
-    expect(paintPuzzleHostStatus(container, SyncedPuzzle.Starting())).toBe(true)
-    expect(container.textContent).toContain('Starting Instant Puzzle')
-    expect(container.querySelector('h1')).toBeNull()
-    expect(container.textContent).not.toContain('Foldkit - Foldkit Puzzle')
-    expect(container.textContent).not.toContain(
-      'all business logic and sync logic are written in Foldkit',
+    expect(paintPuzzleHostStatus(container, SyncedPuzzle.Starting())).toBe(
+      false,
     )
-    expect(container.querySelectorAll('a')).toHaveLength(0)
-    expect(container.innerHTML).not.toContain('https://')
-    expect(container.innerHTML).not.toContain('github.com')
+    expect(container.textContent).toBe('')
     expect(
       paintPuzzleHostStatus(
         container,
@@ -42,8 +36,8 @@ describe('Puzzle Foldkit Instant host chrome', () => {
     expect(paintPuzzleHostStatus(container, readyPuzzle())).toBe(false)
   })
 
-  it('keeps Foldkit product off the page until Instant is Ready', () => {
-    expect(shouldPaintPuzzleHostStatus(SyncedPuzzle.Starting())).toBe(true)
+  it('keeps host chrome off Starting so Foldkit can paint puzzleScreen', () => {
+    expect(shouldPaintPuzzleHostStatus(SyncedPuzzle.Starting())).toBe(false)
     expect(shouldPaintPuzzleHostStatus(readyPuzzle())).toBe(false)
     expect(
       shouldPaintPuzzleHostStatus(

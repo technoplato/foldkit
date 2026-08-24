@@ -2,7 +2,14 @@ import { Array, Option, Schema as S, String as Str, pipe } from 'effect'
 import { NonEmptyString } from 'foldkit/adt'
 import { ts } from 'foldkit/schema'
 
-import { Section, Song, Word, displayTitle } from './domain/index.js'
+import {
+  Line,
+  Section,
+  Song,
+  Word,
+  displayTitle,
+  findSongWord,
+} from './domain/index.js'
 
 // MODEL
 
@@ -46,15 +53,6 @@ export const Looking = S.Union([Idle, Searching])
 /** Library looking. */
 export type Looking = typeof Looking.Type
 
-/** No delete confirmation. */
-export const DeletingIdle = ts('Idle')
-/** Confirming delete of a library member. */
-export const Confirming = ts('Confirming', { song: Song })
-/** Shelf delete. */
-export const Deleting = S.Union([DeletingIdle, Confirming])
-/** Shelf delete. */
-export type Deleting = typeof Deleting.Type
-
 /** No songs before the current chart song. */
 export const BeforeNone = ts('None')
 /** Songs before the current chart song. */
@@ -73,6 +71,21 @@ export const After = S.Union([AfterNone, AfterSome])
 /** Songs after the current chart song. */
 export type After = typeof After.Type
 
+/** Shelf idle. The songs bag lives here so Confirming is the zipper. */
+export const DeletingIdle = ts('Idle', {
+  songs: S.NonEmptyArray(Song),
+})
+/** Confirming delete of the zipper current. Current is a member. */
+export const Confirming = ts('Confirming', {
+  before: Before,
+  current: Song,
+  after: After,
+})
+/** Shelf delete. */
+export const Deleting = S.Union([DeletingIdle, Confirming])
+/** Shelf delete. */
+export type Deleting = typeof Deleting.Type
+
 /** Viewing the chart. */
 export const Viewing = ts('Viewing')
 /** No typed draft. */
@@ -84,19 +97,91 @@ export const Draft = S.Union([DraftNone, DraftSome])
 /** Lyrics or chord draft. */
 export type Draft = typeof Draft.Type
 
-/** Editing lyrics of a section member. */
+/** No sections before the current section. */
+export const SectionsBeforeNone = ts('None')
+/** Sections before the current section. */
+export const SectionsBeforeSome = ts('Some', {
+  items: S.NonEmptyArray(Section),
+})
+/** Sections before the current section. */
+export const SectionsBefore = S.Union([SectionsBeforeNone, SectionsBeforeSome])
+/** Sections before the current section. */
+export type SectionsBefore = typeof SectionsBefore.Type
+
+/** No sections after the current section. */
+export const SectionsAfterNone = ts('None')
+/** Sections after the current section. */
+export const SectionsAfterSome = ts('Some', {
+  items: S.NonEmptyArray(Section),
+})
+/** Sections after the current section. */
+export const SectionsAfter = S.Union([SectionsAfterNone, SectionsAfterSome])
+/** Sections after the current section. */
+export type SectionsAfter = typeof SectionsAfter.Type
+
+/** No lines before the current line. */
+export const LinesBeforeNone = ts('None')
+/** Lines before the current line. */
+export const LinesBeforeSome = ts('Some', { items: S.NonEmptyArray(Line) })
+/** Lines before the current line. */
+export const LinesBefore = S.Union([LinesBeforeNone, LinesBeforeSome])
+/** Lines before the current line. */
+export type LinesBefore = typeof LinesBefore.Type
+
+/** No lines after the current line. */
+export const LinesAfterNone = ts('None')
+/** Lines after the current line. */
+export const LinesAfterSome = ts('Some', { items: S.NonEmptyArray(Line) })
+/** Lines after the current line. */
+export const LinesAfter = S.Union([LinesAfterNone, LinesAfterSome])
+/** Lines after the current line. */
+export type LinesAfter = typeof LinesAfter.Type
+
+/** No words before the current word. */
+export const WordsBeforeNone = ts('None')
+/** Words before the current word. */
+export const WordsBeforeSome = ts('Some', { items: S.NonEmptyArray(Word) })
+/** Words before the current word. */
+export const WordsBefore = S.Union([WordsBeforeNone, WordsBeforeSome])
+/** Words before the current word. */
+export type WordsBefore = typeof WordsBefore.Type
+
+/** No words after the current word. */
+export const WordsAfterNone = ts('None')
+/** Words after the current word. */
+export const WordsAfterSome = ts('Some', { items: S.NonEmptyArray(Word) })
+/** Words after the current word. */
+export const WordsAfter = S.Union([WordsAfterNone, WordsAfterSome])
+/** Words after the current word. */
+export type WordsAfter = typeof WordsAfter.Type
+
+/** Editing lyrics of the zipper current section. */
 export const Lyrics = ts('Lyrics', {
-  section: Section,
+  before: SectionsBefore,
+  current: Section,
+  after: SectionsAfter,
   draft: Draft,
 })
 
-/** Placing a chord on a word member. */
+/** Placing a chord on the zipper current word. */
 export const WordFocus = ts('Word', {
+  sectionsBefore: SectionsBefore,
+  section: Section,
+  sectionsAfter: SectionsAfter,
+  linesBefore: LinesBefore,
+  line: Line,
+  linesAfter: LinesAfter,
+  wordsBefore: WordsBefore,
   word: Word,
+  wordsAfter: WordsAfter,
   draft: Draft,
 })
-/** Removing a section member. */
-export const Removing = ts('Removing', { section: Section })
+/** Removing the zipper current section. */
+export const Removing = ts('Removing', {
+  before: SectionsBefore,
+  current: Section,
+  after: SectionsAfter,
+})
 /** Editing focus. */
 export const Focus = S.Union([Viewing, Lyrics, WordFocus, Removing])
 /** Editing focus. */
@@ -122,7 +207,6 @@ export type Place = typeof Place.Type
 
 /** Populated library on the shelf. */
 export const PopulatedShelf = ts('Shelf', {
-  songs: S.NonEmptyArray(Song),
   looking: Looking,
   deleting: Deleting,
 })
@@ -176,63 +260,215 @@ export const emptyModel = (): Model =>
     }),
   })
 
-const itemsOf = (side: Before | After): ReadonlyArray<Song> =>
+type Identified = Readonly<{ id: string }>
+
+type Rest<A> =
+  | Readonly<{ _tag: 'None' }>
+  | Readonly<{ _tag: 'Some'; items: Array.NonEmptyReadonlyArray<A> }>
+
+const itemsOf = <A>(side: Rest<A>): ReadonlyArray<A> =>
   side._tag === 'None' ? [] : side.items
 
-const sideOf = (
-  items: ReadonlyArray<Song>,
-  some: typeof BeforeSome | typeof AfterSome,
-  none: typeof BeforeNone | typeof AfterNone,
-): Before | After =>
+const sideOf = <A, Some, None>(
+  items: ReadonlyArray<A>,
+  some: Readonly<{
+    make: (fields: { items: Array.NonEmptyReadonlyArray<A> }) => Some
+  }>,
+  none: () => None,
+): Some | None =>
   Array.match(items, {
     onEmpty: () => none(),
     onNonEmpty: populated => some.make({ items: populated }),
   })
 
+/** Members of a zipper. Current is always in the bag. */
+export const zipperItems = <A>(
+  before: Rest<A>,
+  current: A,
+  after: Rest<A>,
+): Array.NonEmptyReadonlyArray<A> =>
+  Array.match(itemsOf(before), {
+    onEmpty: () => Array.prepend(itemsOf(after), current),
+    onNonEmpty: populated =>
+      Array.appendAll(Array.append(populated, current), itemsOf(after)),
+  })
+
+const zipperAtMember = <
+  A extends Identified,
+  BeforeSomeT,
+  BeforeNoneT,
+  AfterSomeT,
+  AfterNoneT,
+>(
+  items: Array.NonEmptyReadonlyArray<A>,
+  member: A,
+  beforeSome: Readonly<{
+    make: (fields: { items: Array.NonEmptyReadonlyArray<A> }) => BeforeSomeT
+  }>,
+  beforeNone: () => BeforeNoneT,
+  afterSome: Readonly<{
+    make: (fields: { items: Array.NonEmptyReadonlyArray<A> }) => AfterSomeT
+  }>,
+  afterNone: () => AfterNoneT,
+): Option.Option<
+  Readonly<{
+    before: BeforeSomeT | BeforeNoneT
+    current: A
+    after: AfterSomeT | AfterNoneT
+  }>
+> => {
+  const maybeIndex = Array.findFirstIndex(items, item => item.id === member.id)
+  if (Option.isNone(maybeIndex)) {
+    return Option.none()
+  }
+  const beforeItems = pipe(items, Array.take(maybeIndex.value))
+  const afterItems = pipe(items, Array.drop(maybeIndex.value + 1))
+  return Option.some({
+    before: sideOf(beforeItems, beforeSome, beforeNone),
+    current: member,
+    after: sideOf(afterItems, afterSome, afterNone),
+  })
+}
+
 /** Songs of a chart zipper. Current is always a member. */
 export const songsOfChart = (
   chart: typeof PopulatedChart.Type,
-): S.NonEmptyArray<Song>['Type'] => {
-  const items = [
-    ...itemsOf(chart.before),
-    chart.current,
-    ...itemsOf(chart.after),
-  ]
-  return Array.match(items, {
-    onEmpty: () => [chart.current],
-    onNonEmpty: songs => songs,
-  })
+): Array.NonEmptyReadonlyArray<Song> =>
+  zipperItems(chart.before, chart.current, chart.after)
+
+/** Songs of a shelf delete zipper or idle bag. */
+export const songsOfDeleting = (
+  deleting: Deleting,
+): Array.NonEmptyReadonlyArray<Song> => {
+  if (deleting._tag === 'Idle') {
+    return deleting.songs
+  }
+  return zipperItems(deleting.before, deleting.current, deleting.after)
 }
 
 /** Songs of a populated library. */
 export const songsOfPopulated = (
   place: PopulatedPlace,
-): S.NonEmptyArray<Song>['Type'] => {
+): Array.NonEmptyReadonlyArray<Song> => {
   if (place._tag === 'Chart') {
     return songsOfChart(place)
   }
-  return place.songs
+  if (place._tag === 'Unknown') {
+    return place.songs
+  }
+  return songsOfDeleting(place.deleting)
 }
 
 /** Splits a populated list at a member. */
 export const zipperAt = (
-  songs: S.NonEmptyArray<Song>['Type'],
+  songs: Array.NonEmptyReadonlyArray<Song>,
   member: Song,
-): Option.Option<typeof PopulatedChart.Type> => {
-  const maybeIndex = Array.findFirstIndex(songs, song => song.id === member.id)
-  if (Option.isNone(maybeIndex)) {
+): Option.Option<typeof PopulatedChart.Type> =>
+  Option.map(
+    zipperAtMember(songs, member, BeforeSome, BeforeNone, AfterSome, AfterNone),
+    zip =>
+      PopulatedChart.make({
+        ...zip,
+        working: Editing.make({ focus: Viewing() }),
+      }),
+  )
+
+/** Section zipper for lyrics or removing. */
+export const sectionZipperAt = (
+  sections: Array.NonEmptyReadonlyArray<Section>,
+  member: Section,
+) =>
+  zipperAtMember(
+    sections,
+    member,
+    SectionsBeforeSome,
+    SectionsBeforeNone,
+    SectionsAfterSome,
+    SectionsAfterNone,
+  )
+
+/** Lyrics focus from a populated song member. */
+export const lyricsAt = (
+  sections: Array.NonEmptyReadonlyArray<Section>,
+  member: Section,
+  draft: Draft,
+): Option.Option<typeof Lyrics.Type> =>
+  Option.map(sectionZipperAt(sections, member), zip =>
+    Lyrics.make({ ...zip, draft }),
+  )
+
+/** Removing focus from a populated song member. */
+export const removingAt = (
+  sections: Array.NonEmptyReadonlyArray<Section>,
+  member: Section,
+): Option.Option<typeof Removing.Type> =>
+  Option.map(sectionZipperAt(sections, member), zip => Removing.make(zip))
+
+/** Word focus from members of the current song. */
+export const wordFocusAt = (
+  song: Song,
+  wordId: Word['id'],
+  draft: Draft,
+): Option.Option<typeof WordFocus.Type> => {
+  const songSections = song.sections
+  if (songSections._tag === 'Empty') {
     return Option.none()
   }
-  const beforeItems = pipe(songs, Array.take(maybeIndex.value))
-  const afterItems = pipe(songs, Array.drop(maybeIndex.value + 1))
-  return Option.some(
-    PopulatedChart.make({
-      before: sideOf(beforeItems, BeforeSome, BeforeNone),
-      current: member,
-      after: sideOf(afterItems, AfterSome, AfterNone),
-      working: Editing.make({ focus: Viewing() }),
-    }),
-  )
+  return Option.flatMap(findSongWord(song, wordId), found => {
+    const sectionLines = found.section.lines
+    if (sectionLines._tag === 'Empty') {
+      return Option.none()
+    }
+    const lineBody = found.line.body
+    if (lineBody._tag !== 'Words') {
+      return Option.none()
+    }
+    return Option.flatMap(
+      zipperAtMember(
+        songSections.items,
+        found.section,
+        SectionsBeforeSome,
+        SectionsBeforeNone,
+        SectionsAfterSome,
+        SectionsAfterNone,
+      ),
+      sections =>
+        Option.flatMap(
+          zipperAtMember(
+            sectionLines.items,
+            found.line,
+            LinesBeforeSome,
+            LinesBeforeNone,
+            LinesAfterSome,
+            LinesAfterNone,
+          ),
+          lines =>
+            Option.map(
+              zipperAtMember(
+                lineBody.items,
+                found.word,
+                WordsBeforeSome,
+                WordsBeforeNone,
+                WordsAfterSome,
+                WordsAfterNone,
+              ),
+              words =>
+                WordFocus.make({
+                  sectionsBefore: sections.before,
+                  section: sections.current,
+                  sectionsAfter: sections.after,
+                  linesBefore: lines.before,
+                  line: lines.current,
+                  linesAfter: lines.after,
+                  wordsBefore: words.before,
+                  word: words.current,
+                  wordsAfter: words.after,
+                  draft,
+                }),
+            ),
+        ),
+    )
+  })
 }
 
 /** Replaces the current chart song and keeps zipper membership. */
@@ -247,7 +483,7 @@ export const replaceCurrent = (
 
 /** Shown shelf rows. Derived from songs and looking. */
 export const shownSongs = (
-  songs: S.NonEmptyArray<Song>['Type'],
+  songs: Array.NonEmptyReadonlyArray<Song>,
   looking: Looking,
 ): ReadonlyArray<Song> => {
   if (looking._tag === 'Idle') {
@@ -256,13 +492,13 @@ export const shownSongs = (
   const query = pipe(looking.query, Str.toLowerCase)
   return Array.filter(songs, song => {
     const titleText = pipe(displayTitle(song), Str.toLowerCase)
-    if (Str.includes(titleText, query)) {
+    if (pipe(titleText, Str.includes(query))) {
       return true
     }
     if (song.artist._tag === 'None') {
       return false
     }
-    return Str.includes(pipe(song.artist.name, Str.toLowerCase), query)
+    return pipe(song.artist.name, Str.toLowerCase, Str.includes(query))
   })
 }
 
@@ -303,7 +539,7 @@ export const succeededNotice = (
 
 /** Finds a library member by id. */
 export const findSong = (
-  songs: S.NonEmptyArray<Song>['Type'],
+  songs: Array.NonEmptyReadonlyArray<Song>,
   songId: Song['id'],
 ): Option.Option<Song> => Array.findFirst(songs, song => song.id === songId)
 

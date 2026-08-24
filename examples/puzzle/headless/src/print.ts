@@ -18,6 +18,7 @@ import {
   MessageWire,
   type SnapshotLogTransport,
   type SyncedPuzzleHandle,
+  demoModel,
   describePuzzleSyncError,
   puzzleScreen,
   startLivePuzzle,
@@ -236,7 +237,18 @@ const modelDiffLines = (
   return lines
 }
 
-/** Prints Starting, Failed, or the Program screen tree. */
+const paintHeadlessScreen = (
+  product: ReturnType<typeof demoModel>,
+  clock: string | undefined,
+): string => {
+  const painted = renderScreen(puzzleScreen(product))
+  if (clock === undefined) {
+    return painted
+  }
+  return `${painted}\n${clock}`
+}
+
+/** Prints Failed host chrome, or puzzleScreen from Starting and Ready. */
 export const formatHeadlessStatus = (
   snapshot: Program.SyncedModel<AppModel, AppMessage>,
   options?: HeadlessTimeOptions,
@@ -245,16 +257,10 @@ export const formatHeadlessStatus = (
   return M.value(snapshot).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      Starting: () => withOptionalClock('Starting Instant Puzzle…', clock),
+      Starting: () => paintHeadlessScreen(demoModel(), clock),
       Failed: ({ error }) =>
         withOptionalClock(describePuzzleSyncError(error), clock),
-      Ready: ({ product }) => {
-        const painted = renderScreen(puzzleScreen(product))
-        if (clock === undefined) {
-          return painted
-        }
-        return `${painted}\n${clock}`
-      },
+      Ready: ({ product }) => paintHeadlessScreen(product, clock),
     }),
   )
 }
