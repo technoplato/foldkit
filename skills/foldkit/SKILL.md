@@ -41,6 +41,9 @@ the task:
   Mounts, and CustomElements.
 - `$foldkit-client-hosts` for renderer-free Programs, adapters, Ports, replay,
   and browser, native, terminal, CLI, or server clients.
+- `$foldkit-screens` for portable screen trees, atomic design tiers over core
+  logic, ASCII-first iteration, machine-backed components, and adopting
+  Instant sync in new examples.
 - `$generate-program`, `$audit-program`, and `$generate-client-matrix` for the
   existing task-oriented generation, audit, and evidence-matrix workflows.
 
