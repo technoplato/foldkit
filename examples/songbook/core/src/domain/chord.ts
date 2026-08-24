@@ -1,4 +1,4 @@
-import { Option, Schema as S, String as Str } from 'effect'
+import { Array, Option, Schema as S, String as Str } from 'effect'
 import { NonEmptyString } from 'foldkit/adt'
 import { ts } from 'foldkit/schema'
 
@@ -63,27 +63,35 @@ export type Silent = typeof Silent.Type
 /** A sounding chord. */
 export type Sounding = typeof Sounding.Type
 
-const restOf = (suffix: string): Rest => {
-  if (Str.isEmpty(suffix)) {
+const restOfGroup = (maybeText: Option.Option<string>): Rest => {
+  if (Option.isNone(maybeText) || Str.isEmpty(maybeText.value)) {
     return RestNone()
   }
-  return RestSome.make({ text: NonEmptyString.make(suffix) })
+  return RestSome.make({ text: NonEmptyString.make(maybeText.value) })
 }
 
 const parsePitchToken = (
   token: string,
-): Option.Option<Readonly<{ pitch: Pitch; rest: string }>> => {
+): Option.Option<Readonly<{ pitch: Pitch; rest: Rest }>> => {
   const maybeParts = Option.fromNullishOr(PITCH_HEAD.exec(token))
   if (Option.isNone(maybeParts)) {
     return Option.none()
   }
-  const root = maybeParts.value[1] ?? token
-  const rest = maybeParts.value[2] ?? ''
-  return Option.map(parsePitch(root), pitch => ({ pitch, rest }))
+  const groups = Array.fromIterable(maybeParts.value)
+  const maybeRoot = Array.get(groups, 1)
+  if (Option.isNone(maybeRoot)) {
+    return Option.none()
+  }
+  return Option.map(parsePitch(maybeRoot.value), pitch => ({
+    pitch,
+    rest: restOfGroup(Array.get(groups, 2)),
+  }))
 }
 
 /** Parses a typed chord name. */
-export const parseChord = (name: string): Option.Option<Chord> => {
+export const parseChord = (
+  name: typeof NonEmptyString.Type,
+): Option.Option<Chord> => {
   const trimmed = Str.trim(name)
   if (Str.isEmpty(trimmed)) {
     return Option.none()
@@ -96,23 +104,26 @@ export const parseChord = (name: string): Option.Option<Chord> => {
   ) {
     return Option.some(Silent())
   }
-  const slashIndex = trimmed.indexOf('/')
-  if (slashIndex === -1) {
+  const maybeSlash = Str.indexOf('/')(trimmed)
+  if (Option.isNone(maybeSlash)) {
     return Option.map(parsePitchToken(trimmed), ({ pitch, rest }) =>
       Sounding.make({
         root: pitch,
-        rest: restOf(rest),
+        rest,
         bass: BassNone(),
       }),
     )
   }
-  const rootPart = trimmed.slice(0, slashIndex)
-  const bassPart = trimmed.slice(slashIndex + 1)
+  const rootPart = trimmed.slice(0, maybeSlash.value)
+  const bassPart = trimmed.slice(maybeSlash.value + 1)
+  if (Str.isEmpty(rootPart)) {
+    return Option.none()
+  }
   return Option.flatMap(parsePitchToken(rootPart), ({ pitch, rest }) =>
     Option.map(parsePitch(bassPart), bass =>
       Sounding.make({
         root: pitch,
-        rest: restOf(rest),
+        rest,
         bass: BassSome.make({ pitch: bass }),
       }),
     ),

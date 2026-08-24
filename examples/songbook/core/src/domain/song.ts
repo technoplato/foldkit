@@ -846,26 +846,52 @@ export const clearChord = (song: Song, wordId: lineWord['id']): Song =>
       replaceSection(song, replaceLine(section, clearPlaced(line, wordId))),
   })
 
-const padRight = (text: string, width: number): string =>
-  text.length >= width ? text : text + ' '.repeat(width - text.length)
+const emptyChordRow: Readonly<{
+  cursor: number
+  parts: ReadonlyArray<string>
+}> = {
+  cursor: 0,
+  parts: [],
+}
 
-const formatLine = (line: Line, transpose: number, capo: number): string => {
+const chordRowOf = (
+  lyric: string,
+  items: Array.NonEmptyReadonlyArray<Placed>,
+  transpose: number,
+  capo: number,
+): string => {
+  const printed = Array.reduce(items, emptyChordRow, (state, placed) => {
+    const maybeStart = Str.indexOf(placed.word.text)(lyric)
+    const at = Option.getOrElse(maybeStart, () => state.cursor)
+    const name = displayChord(placed.chord, transpose, capo)
+    const gap = at > state.cursor ? at - state.cursor : 0
+    const padded =
+      gap > 0 ? Array.append(state.parts, ' '.repeat(gap)) : state.parts
+    return {
+      cursor: at + name.length,
+      parts: Array.append(padded, name),
+    }
+  })
+  return Str.trimEnd(Array.join(printed.parts, ''))
+}
+
+const formatLine = (
+  line: Line,
+  transpose: number,
+  capo: number,
+): Option.Option<string> => {
   if (line.body._tag === 'Blank') {
-    return ''
+    return Option.none()
   }
   const lyric = lyricOf(line)
   if (line.body.chords._tag === 'None') {
-    return lyric
+    return Option.some(lyric)
   }
-  const chordRow = Array.reduce(line.body.chords.items, '', (row, placed) => {
-    const start = lyric.indexOf(placed.word.text)
-    const at = start < 0 ? row.length : start
-    const name = displayChord(placed.chord, transpose, capo)
-    return `${padRight(row, at)}${name}`
-  })
-  return pipe(chordRow, Str.trimEnd, chords =>
-    Str.isNonEmpty(chords) ? `${chords}\n${lyric}` : lyric,
-  )
+  const chords = chordRowOf(lyric, line.body.chords.items, transpose, capo)
+  if (Str.isNonEmpty(chords)) {
+    return Option.some(`${chords}\n${lyric}`)
+  }
+  return Option.some(lyric)
 }
 
 const formatSection = (
@@ -877,12 +903,13 @@ const formatSection = (
   if (section.lines._tag === 'Empty') {
     return heading
   }
-  return pipe(
-    section.lines.items,
-    Array.map(line => formatLine(line, transpose, capo)),
-    Array.join('\n'),
-    body => `${heading}\n${body}`,
-  )
+  return Array.reduce(section.lines.items, heading, (soFar, line) => {
+    const maybeText = formatLine(line, transpose, capo)
+    if (Option.isNone(maybeText)) {
+      return `${soFar}\n`
+    }
+    return `${soFar}\n${maybeText.value}`
+  })
 }
 
 const transposeLine = (transpose: Transpose): Option.Option<string> => {
