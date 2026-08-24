@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 2:29:03 a.m. EDT — `37921751ddd0` feat(songbook): print chart without empty omit-lines
+
+- **Implementation commit:** `37921751ddd061df43c99717070eac9f1cb7b791`
+- **Change:** Songbook chart printer collects present header lines and sounding chord parts without empty-string omit-line intermediates.
+- **Details:**
+  - toChartText uses Array.getSomes for title, artist, key, capo, and transpose instead of empty strings plus filter.
+  - printChord and displayChord concatenate rest and bass only when Some.
+  - Leftover tests drive toChartText and printChord from emptyModel. audit-adr still fail. Do not claim ADT pass. Do not close leftover 241.
+- **Files:**
+  - `examples/songbook/core/src/domain/song.ts` — Collect present chart header lines without empty omit-line strings.
+  - `examples/songbook/core/src/domain/chord.ts` — Print sounding chords without empty rest or bass sentinels.
+  - `examples/songbook/core/src/update.test.ts` — Drive shipped toChartText and printChord from emptyModel.
+- **User context (verbatim):**
+  > pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI session has no durable SpecStory URI
+
 ## August 24th, 2026 at 2:16:41 a.m. EDT — `06cab9c53a40` feat(songbook): host TextInput without empty string
 
 - **Implementation commit:** `06cab9c53a40039c69ef3995df3f11d3379e453c`
