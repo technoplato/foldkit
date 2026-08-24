@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 4:21:02 a.m. EDT — `c7b137e0fbb9` feat(songbook): take nonempty text for lyrics drafts
+
+- **Implementation commit:** `c7b137e0fbb935f08293f72cf67d0c5e41a71d76`
+- **Change:** Take nonempty text for leftover #241 hole 1 draftFromText.
+- **Details:**
+  - draftFromText takes NonEmptyString and returns Draft.Some.
+  - Empty draft: and chord: tokens become Draft.None at the message parser.
+  - Leftover tests drive emptyModel through OpenedLyrics and messageFromToken.
+- **Files:**
+  - `examples/songbook/core/src/domain/song.ts` — draftFromText takes NonEmptyString; draftOfSection of empty lines is Draft.None.
+  - `examples/songbook/core/src/message.ts` — Empty host draft and chord tokens become Draft.None.
+  - `examples/songbook/core/src/update.test.ts` — Leftover tests drive draftFromText NonEmpty and messageFromToken empty drafts.
+- **User context (verbatim):**
+  > issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work
+  > then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; no durable SpecStory URI in this session.
+
 ## August 24th, 2026 at 3:56:03 a.m. EDT — `6d9977a3b3a3` feat(songbook): speak chart song parent instead of work
 
 - **Implementation commit:** `6d9977a3b3a36304b6d9586a13f75b758f8c7b24`
