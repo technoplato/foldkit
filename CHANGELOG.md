@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 2:16:41 a.m. EDT — `06cab9c53a40` feat(songbook): host TextInput without empty string
+
+- **Implementation commit:** `06cab9c53a40039c69ef3995df3f11d3379e453c`
+- **Change:** Host songbook TextInput without empty string at the DOM.
+- **Details:**
+  - Untitled, Artist.None, Idle, and Draft.None paint Text instead of TextInput value empty string.
+  - Named, Some, Searching, and Draft.Some paint TextInput with NonEmpty text. Hold Foldkit 0.150. Do not claim ADT pass. Do not close leftover issues 240-243.
+- **Files:**
+  - `examples/songbook/core/src/product.ts` — Omit TextInput when the domain is absence; pass NonEmpty text only.
+  - `examples/songbook/core/src/update.test.ts` — Assert songbookScreen from emptyModel never inhabits empty string inputs.
+- **User context (verbatim):**
+  > pick up on and complete all of the in flight tasks for me!
+  > issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session
+
 ## August 24th, 2026 at 2:02:02 a.m. EDT — `24c67d8abcac` feat(songbook): nest remaining prefixed None Some members
 
 - **Implementation commit:** `24c67d8abcac4ad6e35891898825bde1830015c9`
