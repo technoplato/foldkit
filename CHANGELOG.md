@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 2:23:26 p.m. EDT — `8d4d062a0b3a` feat(counters): project navigation transitions for router adapters
+
+- **Implementation commit:** `8d4d062a0b3a67d94ebcf72271d9658735d57983`
+- **Change:** Project Navigation transitions into platform-neutral router instructions
+- **Details:**
+  - Outbound half of ADR 0003: navigatorInstructions diffs previous and next Navigation into ordered NavInstruction values, and applyNavigatorInstructions drives a four-call Navigator contract with paths printed from the same routers the carrier parses. Covers show detail, modal on detail (fact alert and delete confirmation), mode swaps, pop to list, and cross-counter detail changes. Router adapters per surface become thin consumers; the mapping matrix lands in ADR 0009.
+- **Files:**
+  - `examples/counters/core/src/navigatorInstructions.ts` — NavInstruction union, pure transition diff, Navigator contract, path printing
+  - `examples/counters/core/src/navigatorInstructions.test.ts` — Eleven transition cases plus fake-navigator application tests
+  - `examples/counters/core/src/index.ts` — Barrel the new module
+- **User context (verbatim):**
+  > start with the rendering i want declarative rendering with navigation built in deterministically and declaratively via our core program and then the paint screen to paint the same thing in each surface
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 12:51:22 p.m. EDT — `918bd67214d3` feat(skills): add foldkit-screens portable screen guide
 
 - **Implementation commit:** `918bd67214d3e4909a75ee7ec770bcb85664f15d`
