@@ -11,11 +11,13 @@ import {
   CancelledWord,
   ChoseKey,
   ClearedArtist,
+  ClickedCapoUp,
   ClickedCopy,
   ClickedEdit,
   ClickedNew,
   ClickedPlay,
   ClickedShelf,
+  ClickedTransposeUp,
   ConfirmedDelete,
   NamedArtist,
   NamedTitle,
@@ -707,5 +709,79 @@ describe('songbook update', () => {
       return
     }
     expect(clearedArtist.library.place.use.current.artist._tag).toBe('None')
+  })
+
+  it('prints chart and chords from present fields, not empty omit-lines', () => {
+    const empty = emptyModel()
+    const [created] = update(empty, SucceededGeneratedIds({ songId: 'song-a' }))
+    expect(created.library._tag).toBe('Populated')
+    if (
+      created.library._tag !== 'Populated' ||
+      created.library.place._tag !== 'Chart' ||
+      created.library.place.use._tag !== 'Editing'
+    ) {
+      return
+    }
+    const untitledChart = Domain.toChartText(created.library.place.use.current)
+    expect(untitledChart).toBe('Untitled')
+    expect(untitledChart.split('\n')).not.toContain('')
+
+    const [named] = update(created, NamedTitle({ name: 'Midnight Train' }))
+    const [namedArtist] = update(
+      named,
+      NamedArtist({ name: NonEmptyString.make('Aretha') }),
+    )
+    const [keyed] = update(namedArtist, ChoseKey({ pitch: 'G' }))
+    const [fretted] = update(keyed, ClickedCapoUp())
+    const [shifted] = update(fretted, ClickedTransposeUp())
+    expect(shifted.library._tag).toBe('Populated')
+    if (
+      shifted.library._tag !== 'Populated' ||
+      shifted.library.place._tag !== 'Chart' ||
+      shifted.library.place.use._tag !== 'Editing'
+    ) {
+      return
+    }
+    const song = shifted.library.place.use.current
+    expect(song.transpose._tag).toBe('Shifted')
+    const chart = Domain.toChartText(song)
+    const lines = chart.split('\n')
+    expect(lines).toContain('Midnight Train')
+    expect(lines).toContain('Aretha')
+    expect(lines).toContain('Key: G')
+    expect(lines).toContain('Capo: 1')
+    expect(Array.some(lines, line => line.startsWith('Transpose: '))).toBe(true)
+    expect(lines).not.toContain('')
+    const [, copyCommands] = update(shifted, ClickedCopy())
+    expect(copyCommands[0]?.name).toBe('CopyChart')
+
+    expect(Domain.printChord(Domain.Silent())).toBe('N.C.')
+    expect(
+      Domain.printChord(
+        Domain.Sounding.make({
+          root: 'C',
+          rest: Domain.RestNone(),
+          bass: Domain.BassNone(),
+        }),
+      ),
+    ).toBe('C')
+    expect(
+      Domain.printChord(
+        Domain.Sounding.make({
+          root: 'C',
+          rest: Domain.RestSome.make({ text: NonEmptyString.make('m') }),
+          bass: Domain.BassNone(),
+        }),
+      ),
+    ).toBe('Cm')
+    expect(
+      Domain.printChord(
+        Domain.Sounding.make({
+          root: 'C',
+          rest: Domain.RestNone(),
+          bass: Domain.BassSome.make({ pitch: 'G' }),
+        }),
+      ),
+    ).toBe('C/G')
   })
 })

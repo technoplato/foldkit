@@ -885,41 +885,49 @@ const formatSection = (
   )
 }
 
+const transposeLine = (transpose: Transpose): Option.Option<string> => {
+  if (transpose._tag === 'Unison') {
+    return Option.none()
+  }
+  const steps = transpose.steps
+  if (steps > 0) {
+    return Option.some(`Transpose: +${String(steps)}`)
+  }
+  return Option.some(`Transpose: ${String(steps)}`)
+}
+
+const headerLinesOf = (song: Song): Array<string> =>
+  Array.getSomes([
+    Option.some(displayTitle(song)),
+    song.artist._tag === 'Some' ? Option.some(song.artist.name) : Option.none(),
+    song.key._tag === 'Some'
+      ? Option.some(`Key: ${printPitch(song.key.pitch)}`)
+      : Option.none(),
+    song.capo._tag === 'Fretted'
+      ? Option.some(`Capo: ${String(song.capo.fret)}`)
+      : Option.none(),
+    transposeLine(song.transpose),
+  ])
+
 /** Text chart for copy and play. */
 export const toChartText = (song: Song): string => {
-  const title = displayTitle(song)
-  const artistLine = song.artist._tag === 'None' ? '' : song.artist.name
-  const keyLine =
-    song.key._tag === 'None' ? '' : `Key: ${printPitch(song.key.pitch)}`
-  const capoLine =
-    song.capo._tag === 'None' ? '' : `Capo: ${String(song.capo.fret)}`
-  const steps = transposeStepsOf(song.transpose)
-  const transposeLine =
-    steps === 0 ? '' : `Transpose: ${steps > 0 ? '+' : ''}${String(steps)}`
-  const header = pipe(
-    [title, artistLine, keyLine, capoLine, transposeLine],
-    Array.filter(Str.isNonEmpty),
-    Array.join('\n'),
-  )
+  const header = Array.join(headerLinesOf(song), '\n')
   const bag = flattenSections(song.sections)
-  const body =
-    bag._tag === 'Empty'
-      ? ''
-      : pipe(
-          bag.items,
-          Array.map(section =>
-            formatSection(
-              section,
-              transposeStepsOf(song.transpose),
-              capoFretOf(song.capo),
-            ),
-          ),
-          Array.join('\n\n'),
-        )
-  return Array.match(pipe([header, body], Array.filter(Str.isNonEmpty)), {
-    onEmpty: () => title,
-    onNonEmpty: parts => Array.join(parts, '\n\n'),
-  })
+  if (bag._tag === 'Empty') {
+    return header
+  }
+  const body = pipe(
+    bag.items,
+    Array.map(section =>
+      formatSection(
+        section,
+        transposeStepsOf(song.transpose),
+        capoFretOf(song.capo),
+      ),
+    ),
+    Array.join('\n\n'),
+  )
+  return `${header}\n\n${body}`
 }
 
 export { findLine, printChord }
