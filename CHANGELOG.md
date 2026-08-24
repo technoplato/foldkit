@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 3:35:49 a.m. EDT — `f11560c41e28` feat(songbook): speak search page work and saved parents
+
+- **Implementation commit:** `f11560c41e2813cad24a249ff87ea9f3c9148347`
+- **Change:** Speak songbook search page work and saved parents
+- **Details:**
+  - Looking became Search, Place became Page, file-private use became work, Stored became Saved
+  - Leftover tests drive emptyModel Search/Page/work/Saved without flattening working onto Chart
+- **Files:**
+  - `examples/songbook/core/src/domain/song.ts` — Stored became Saved; flattenSong returns Song.Saved
+  - `examples/songbook/core/src/model.ts` — Looking became Search, Place became Page, use became work
+  - `examples/songbook/core/src/product.ts` — searchNodes and workNodes use Search/Page/work
+  - `examples/songbook/core/src/message.ts` — TypedSearch search field; mutate comments page/work
+  - `examples/songbook/core/src/update.ts` — withPage and Chart.work Playing/Editing
+  - `examples/songbook/core/src/update.test.ts` — leftover test drives Search/Page/work/Saved from emptyModel
+- **User context (verbatim):**
+  > Then execute the unblocked rows. Logging the grade without picking up work is not catch-up.
+  > Next: hole 1 draftFromText still takes host string (hold Foldkit 0.150). Hole 2 spoken parents Looking/Place/use/Stored. parsePitch/chordRowOf pass. Do not claim ADT pass. Do not bounce 5209.
+- **SpecStory:** unavailable — Grok Build CLI leftover catch-up; no durable SpecStory URI for this session
+
 ## August 24th, 2026 at 3:22:43 a.m. EDT — `03215146179c` feat(songbook): parse pitch and chord rows without empty host tokens
 
 - **Implementation commit:** `03215146179c737f00c92ee8f9edcac3dac64f8c`
