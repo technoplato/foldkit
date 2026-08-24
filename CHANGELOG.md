@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 3:10:06 a.m. EDT — `25b2a88b18c5` feat(songbook): paste lyrics without empty host strings
+
+- **Implementation commit:** `25b2a88b18c53ebc3546298dc603c252256d4c4d`
+- **Change:** Paste songbook lyrics without empty host strings
+- **Details:**
+  - lineFromLyric and replaceLyrics take NonEmptyString
+  - Empty split segments become Line.Blank without lineFromLyric empty
+- **Files:**
+  - `examples/songbook/core/src/domain/line.ts` — lineFromLyric and wordsOf take NonEmptyString
+  - `examples/songbook/core/src/domain/section.ts` — replaceLyrics maps empty split segments to Blank without empty lyric
+  - `examples/songbook/core/src/update.test.ts` — leftover test drives replaceLyrics and lineFromLyric from emptyModel
+- **User context (verbatim):**
+  > Then execute the unblocked rows. Logging the grade without picking up work is not catch-up.
+  > Next: hole 1 paste host lyrics blob (lineFromLyric/replaceLyrics still take host string so blank paste becomes Blank).
+- **SpecStory:** unavailable — Grok Build CLI leftover catch-up; no durable SpecStory URI for this session
+
 ## August 24th, 2026 at 2:55:23 a.m. EDT — `9d352681307f` feat(songbook): round-trip blank lyrics without empty lyricOf
 
 - **Implementation commit:** `9d352681307fc37186fe9eaea5df5cbb8af2b29d`
