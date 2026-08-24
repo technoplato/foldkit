@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 23rd, 2026 at 8:17:34 p.m. EDT — `8e02107c9871` fix: wire leftover Instant presence into the issues React host
+
+- **Implementation commit:** `8e02107c9871927b16df17bb631c3fa02c587053`
+- **Change:** Wire leftover Instant presence into the issues React host
+- **Details:**
+  - The leftover presence layer lives on IssueTrackerResources. The React client had merged Instant tools and identity only, so TypeScript rejected the Layer.
+  - Reuse makeLiveIssueTrackerResources so Foldkit, CLI, and React share one live stack. Do not close leftover issues 240-243.
+- **Files:**
+  - `examples/issues/react/src/client.ts` — Use makeLiveIssueTrackerResources so leftover presence is in the React host Layer.
+- **User context (verbatim):**
+  > go find this grokbot converssation id d7b5bc89-5140-4dbe-b7af-5ae6e582f500 creaste a skill for ctaching up and triaging what work has/hasn't been done issues.knophy.com should be source of truth, but we need to make sure grokbot is honest about logging its work then, pick up on and complete all of the in flight tasks for me!
+- **SpecStory:** unavailable — Grok Build TUI leftover catch-up; SpecStory Codex capture not available for this session.
+
 ## August 23rd, 2026 at 7:25:57 p.m. EDT — `c9ef95930a06` feat: observe leftover Instant catalogs and join leftover rooms
 
 - **Implementation commit:** `c9ef95930a06f6a5dee711723878da6eb5ca9d41`
