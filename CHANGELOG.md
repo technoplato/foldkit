@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 10:36:36 p.m. EDT — `da250fa035e2` feat(counters): derive expo modal presentations from overlay style
+
+- **Implementation commit:** `da250fa035e2c10e6273b9496757a2b3bf4ea1ee`
+- **Change:** Derive expo modal presentations from overlay presentation style
+- **Details:**
+  - Fact alert emits presentation=modal (Sheet) and delete confirmation emits transparentModal (Dialog), matching presentationStyleOf so generated routes, native adapters, and deep links agree on style from one source.
+- **Files:**
+  - `examples/counters/core/src/expoRouterCodegen.ts` — Per-overlay presentation option
+  - `examples/counters/core/src/expoRouterCodegen.test.ts` — Assert distinct presentations
+- **User context (verbatim):**
+  > we need to abstract them in foldkit/slash navigation and then consume them at the point
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 10:35:11 p.m. EDT — `bf1d7bc14c54` feat(foldkit): add router plugins for navigation adapters
 
 - **Implementation commit:** `bf1d7bc14c54d41c79ee26c64d167319251e085e`
