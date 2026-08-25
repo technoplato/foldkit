@@ -5,7 +5,7 @@
  * Under the hood each child Message is tagged `{ _tag: key, message }`.
  * Authors do not hand-write Got* unions or fold arms for catalog children.
  */
-import { Schema as S } from 'effect'
+import { Array, Data, Predicate, Schema as S, type Schema } from 'effect'
 
 import { mapMessages } from '../command/index.js'
 import { actionMenu } from './actionMenu.js'
@@ -147,6 +147,23 @@ const buildModelSchema = <Children extends ChildrenMap>(
   >
 }
 
+/** Union members of one Message Schema. Structs pass through unchanged. */
+const schemaMembers = (schema: unknown): ReadonlyArray<S.Top> => {
+  if (Predicate.hasProperty(schema, 'members')) {
+    const members = schema.members
+    if (Array.isArray(members)) {
+      return members as ReadonlyArray<S.Top>
+    }
+  }
+  return [schema as S.Top]
+}
+
+/** Union members of every field-owner Message Schema. */
+const messageMembersOf = (
+  schemas: ReadonlyArray<S.Top> | undefined,
+): ReadonlyArray<S.Top> =>
+  schemas === undefined ? [] : Array.flatMap(schemas, schemaMembers)
+
 /**
  * Compose child Programs into one parent Program.
  *
@@ -279,6 +296,21 @@ export const compose = <
 
 // ── forEach: identified list of one child Program ───────────────────
 
+/** forEach fields declared a key reserved by the composed Model. */
+export class ForEachReservedFieldError extends Data.TaggedError(
+  'ForEachReservedFieldError',
+)<{
+  readonly field: string
+  readonly reservedKeys: ReadonlyArray<string>
+}> {}
+
+/** forEach fields missing an initial value, so init could not build a complete Model. */
+export class ForEachInitialFieldMissingError extends Data.TaggedError(
+  'ForEachInitialFieldMissingError',
+)<{
+  readonly field: string
+}> {}
+
 export type ForEachRow<ChildModel> = Readonly<{
   id: string
   child: ChildModel
@@ -297,6 +329,88 @@ export type ForEachMessage<ChildMessage> =
       readonly id: string
       readonly message: ChildMessage
     }>
+
+/**
+ * Sibling Model field Schemas composed beside nextId and rows, flattened
+ * like the Ready fields of Program.compose.sync.
+ */
+export type ForEachFields = Readonly<Record<string, S.Top>>
+
+/** Decoded value types of one {@link ForEachFields} bag. */
+export type ForEachFieldValues<Fields extends ForEachFields> = Readonly<{
+  [K in keyof Fields]: Schema.Schema.Type<Fields[K]>
+}>
+
+/** Composed Model with sibling fields: field values beside nextId / rows. */
+export type ForEachWithFieldsModel<
+  Fields extends ForEachFields,
+  ChildModel,
+> = ForEachFieldValues<Fields> & ForEachModel<ChildModel>
+
+/** A field-owner Message arriving beside the row Messages. */
+export type ForEachFieldMessage = Readonly<{ readonly _tag: string }>
+
+/**
+ * App Message when sibling fields compose beside rows: row Messages plus
+ * field-owner Messages unwrapped, mirroring how actionMenu unions product
+ * Messages without a wrapper tag.
+ */
+export type ForEachWithFieldsMessage<ChildMessage> =
+  | ForEachMessage<ChildMessage>
+  | ForEachFieldMessage
+
+/**
+ * Reduces one field-owner Message against the whole composed Model.
+ * Returns the whole next Model, never a patch.
+ */
+export type ForEachFieldsUpdate<
+  Child extends AnyProgram,
+  Fields extends ForEachFields,
+> = (
+  model: ForEachWithFieldsModel<Fields, ModelOf<Child>>,
+  message: ForEachFieldMessage,
+) => readonly [
+  ForEachWithFieldsModel<Fields, ModelOf<Child>>,
+  ReadonlyArray<
+    ProgramCommand<
+      ForEachWithFieldsMessage<MessageOf<Child>> & Readonly<{ _tag: string }>,
+      any
+    >
+  >,
+]
+
+/** Config for {@link forEach} with or without sibling Model fields. */
+export type ForEachWithFieldsConfig<
+  Child extends AnyProgram,
+  Fields extends ForEachFields,
+> = ComposeOptions &
+  Readonly<{
+    /** The one child Program instanced per row. */
+    of: Child
+    /** Starting row count (each row gets a fresh child.init). Default 0. */
+    initialCount?: number
+    /**
+     * Sibling Model field Schemas flattened beside nextId and rows. Keys must
+     * avoid nextId and rows.
+     */
+    fields?: Fields
+    /** Initial value for every sibling field so init returns a complete Model. */
+    initialFields?: Partial<ForEachFieldValues<Fields>>
+    /**
+     * Field-owner Message Schemas unioned flat beside the row Messages, like
+     * actionMenu unions product Messages unwrapped. Replay encodes through
+     * the composed Message Schema, so declare every handled Message here.
+     */
+    messages?: ReadonlyArray<S.Top>
+    /**
+     * Reduces one field-owner Message. Row tags never reach this handler.
+     * Commands return at the parent level unchanged.
+     */
+    updateFields?: ForEachFieldsUpdate<Child, Fields>
+  }>
+
+/** No sibling fields: forEach owns the whole composed Model. */
+export type ForEachNoFields = Readonly<Record<never, S.Top>>
 
 export type ForEachOptions = ComposeOptions &
   Readonly<{
@@ -322,6 +436,28 @@ export type ForEachProgram<Child extends AnyProgram> = Program<
     removeRow: (id: string) => ForEachMessage<MessageOf<Child>>
   }>
 
+/** A Program produced by {@link forEach} with sibling Model fields. */
+export type ForEachWithFieldsProgram<
+  Child extends AnyProgram,
+  Fields extends ForEachFields,
+> = Program<
+  ForEachWithFieldsModel<Fields, ModelOf<Child>>,
+  ForEachWithFieldsMessage<MessageOf<Child>> & Readonly<{ _tag: string }>,
+  any,
+  never,
+  undefined
+> &
+  Readonly<{
+    of: Child
+    /** Wrap a child Message for a row. */
+    childMessage: (
+      id: string,
+      message: MessageOf<Child>,
+    ) => ForEachMessage<MessageOf<Child>>
+    addRow: ForEachMessage<MessageOf<Child>>
+    removeRow: (id: string) => ForEachMessage<MessageOf<Child>>
+  }>
+
 /**
  * Compose many instances of one child Program (list / forEach).
  *
@@ -329,16 +465,50 @@ export type ForEachProgram<Child extends AnyProgram> = Program<
  * const CounterList = Program.compose.forEach({ of: CounterProgram })
  * // model.rows[].child · GotChild({ id, message })
  * ```
+ *
+ * With `fields`, sibling Model fields owned by the host app compose beside
+ * `nextId` and `rows`, and field-owner Messages join the union unwrapped the
+ * way actionMenu unions product Messages. Row tags stay reserved:
+ *
+ * ```ts
+ * const Counters = Program.compose.forEach({
+ *   of: CounterProgram,
+ *   fields: { sortOrder: SortOrder },
+ *   initialFields: { sortOrder: SortAscending() },
+ *   messages: [SortOrder],
+ *   updateFields: (model, message) => [{ ...model, sort: message }, []],
+ * })
+ * ```
  */
-export const forEach = <Child extends AnyProgram>(config: {
-  of: Child
-  id?: string
-  version?: number
-  initialCount?: number
-}): ForEachProgram<Child> => {
+export function forEach<
+  Child extends AnyProgram,
+  Fields extends ForEachFields = ForEachNoFields,
+>(
+  config: ForEachWithFieldsConfig<Child, Fields>,
+): [keyof Fields] extends [never]
+  ? ForEachProgram<Child>
+  : ForEachWithFieldsProgram<Child, Fields> {
   const child = config.of
   type ChildModel = ModelOf<Child>
   type ChildMessage = MessageOf<Child>
+
+  const fields = config.fields
+  const updateFields = config.updateFields
+
+  for (const fieldKey of Object.keys(fields ?? {})) {
+    if (fieldKey === 'nextId' || fieldKey === 'rows') {
+      throw new ForEachReservedFieldError({
+        field: fieldKey,
+        reservedKeys: ['nextId', 'rows'],
+      })
+    }
+    if (
+      config.initialFields === undefined ||
+      !Predicate.hasProperty(config.initialFields, fieldKey)
+    ) {
+      throw new ForEachInitialFieldMissingError({ field: fieldKey })
+    }
+  }
 
   const Row = S.Struct({
     id: S.String,
@@ -346,9 +516,10 @@ export const forEach = <Child extends AnyProgram>(config: {
   })
 
   const Model = S.Struct({
+    ...(fields ?? {}),
     nextId: S.Number,
     rows: S.Array(Row),
-  }) as ProgramSchema<ForEachModel<ChildModel>>
+  }) as unknown as ProgramSchema<ForEachModel<ChildModel>>
 
   const ClickedAddRow = S.Struct({ _tag: S.Literal('ClickedAddRow') })
   const ClickedRemoveRow = S.Struct({
@@ -362,10 +533,13 @@ export const forEach = <Child extends AnyProgram>(config: {
   })
 
   const Message = S.Union([
+    ...messageMembersOf(config.messages),
     ClickedAddRow,
     ClickedRemoveRow,
     GotChild,
-  ]) as ProgramSchema<ForEachMessage<ChildMessage> & Readonly<{ _tag: string }>>
+  ]) as unknown as ProgramSchema<
+    ForEachWithFieldsMessage<ChildMessage> & Readonly<{ _tag: string }>
+  >
 
   const childMessage = (
     id: string,
@@ -411,22 +585,48 @@ export const forEach = <Child extends AnyProgram>(config: {
       rows.push(row)
       commands.push(...rowCommands)
     }
-    return [{ nextId: initialCount, rows }, commands]
+    return [
+      { ...(config.initialFields ?? {}), nextId: initialCount, rows },
+      commands,
+    ]
   }
 
   const update = (
     model: ForEachModel<ChildModel>,
-    message: ForEachMessage<ChildMessage> & Readonly<{ _tag: string }>,
+    message: ForEachWithFieldsMessage<ChildMessage> &
+      Readonly<{ _tag: string }>,
   ): readonly [
     ForEachModel<ChildModel>,
-    ReadonlyArray<ProgramCommand<ForEachMessage<ChildMessage>, any>>,
+    ReadonlyArray<
+      ProgramCommand<
+        ForEachWithFieldsMessage<ChildMessage> & Readonly<{ _tag: string }>,
+        any
+      >
+    >,
   ] => {
-    switch (message._tag) {
+    if (
+      message._tag !== 'ClickedAddRow' &&
+      message._tag !== 'ClickedRemoveRow' &&
+      message._tag !== 'GotChild'
+    ) {
+      if (updateFields === undefined) {
+        return [model, []]
+      }
+      return updateFields(
+        model as ForEachWithFieldsModel<Fields, ChildModel>,
+        message,
+      )
+    }
+
+    const rowMessage = message as ForEachMessage<ChildMessage> &
+      Readonly<{ _tag: string }>
+    switch (rowMessage._tag) {
       case 'ClickedAddRow': {
         const id = String(model.nextId)
         const [row, rowCommands] = makeRow(id)
         return [
           {
+            ...model,
             nextId: model.nextId + 1,
             rows: [...model.rows, row],
           },
@@ -437,27 +637,27 @@ export const forEach = <Child extends AnyProgram>(config: {
         return [
           {
             ...model,
-            rows: model.rows.filter(row => row.id !== message.id),
+            rows: model.rows.filter(row => row.id !== rowMessage.id),
           },
           [],
         ]
       }
       case 'GotChild': {
-        const index = model.rows.findIndex(row => row.id === message.id)
+        const index = model.rows.findIndex(row => row.id === rowMessage.id)
         if (index < 0) {
           return [model, []]
         }
         const row = model.rows[index]!
         const [nextChild, childCommands] = child.update(
           row.child,
-          message.message,
+          rowMessage.message,
         )
         const rows = model.rows.slice()
         rows[index] = { id: row.id, child: nextChild }
         return [
           { ...model, rows },
           mapMessages(childCommands, m =>
-            childMessage(message.id, m as ChildMessage),
+            childMessage(rowMessage.id, m as ChildMessage),
           ),
         ]
       }
@@ -480,7 +680,9 @@ export const forEach = <Child extends AnyProgram>(config: {
     childMessage,
     addRow,
     removeRow,
-  }) as ForEachProgram<Child>
+  }) as [keyof Fields] extends [never]
+    ? ForEachProgram<Child>
+    : ForEachWithFieldsProgram<Child, Fields>
 }
 
 // Attach forEach as compose.forEach for ergonomic import
