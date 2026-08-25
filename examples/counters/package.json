@@ -16,7 +16,7 @@
     "@foldkit/devtools": "workspace:*",
     "@foldkit/instant": "workspace:*",
     "@foldkit/ui": "workspace:*",
-    "@instantdb/core": "1.0.53",
+    "@instantdb/core": "1.0.65",
     "counters-instant-example": "workspace:*",
     "@tailwindcss/vite": "^4.3.1",
     "counter-core-example": "workspace:*",
@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "workspace:*",
-    "@instantdb/admin": "1.0.53",
+    "@instantdb/admin": "1.0.65",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "happy-dom": "^20.10.4",
     "prettier": "^3.8.4",
