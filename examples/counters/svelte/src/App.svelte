@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { useActions, useModel } from './processor.js'
+  import { onMount } from 'svelte'
+
+  import { countersWindowCarrier, useActions, useModel } from './processor.js'
 
   // Injected by vite define from this checkout's own git remote; never hardcoded.
   declare const __GITHUB_SOURCE_URL__: string
@@ -7,9 +9,33 @@
   const listUri = '/counters'
   const counterUri = (counterId: string): string => `/counters/${counterId}`
 
-  let uri = $state(listUri)
+  const carrier = countersWindowCarrier()
+  let uri = $state(
+    typeof window === 'undefined' ? listUri : window.location.pathname,
+  )
   const view = $derived(useModel(uri))
   const actions = $derived(useActions(uri))
+
+  // Carrier -> Program reconciliation: when the browser moves underneath
+  // the Program (back/forward), send the matching action so the Program
+  // and its URI projection agree again.
+  onMount(() => {
+    const reconcile = (): void => {
+      uri = window.location.pathname
+      if (uri !== carrier.programPath()) {
+        if (uri === listUri) {
+          actions.back()
+          return
+        }
+        const match = /\/counters\/([\w-]+)/u.exec(uri)
+        if (match !== null && match[1] !== undefined) {
+          actions.open(match[1])
+        }
+      }
+    }
+    window.addEventListener('popstate', reconcile)
+    return () => window.removeEventListener('popstate', reconcile)
+  })
 </script>
 
 <main>

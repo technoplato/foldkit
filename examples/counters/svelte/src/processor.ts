@@ -1,4 +1,8 @@
-import { type Model, MultipleCountersProgram } from 'counters-core-example'
+import {
+  type Model,
+  MultipleCountersProgram,
+  navigationToPath,
+} from 'counters-core-example'
 import {
   type CountersBrowserHost,
   CountersDemoSignInError,
@@ -169,4 +173,20 @@ export const useActions = (uri: string): CountersWindowActions => {
   const runtime = getCountersWindowRuntime()
   subscribeToRuntime?.()
   return runtime.actions(uri)
+}
+
+/**
+ * The window runtime projected for carrier reconciliation: router-style
+ * hosts read Program navigation and send matching actions when the
+ * carrier moves underneath the Program (browser back/forward).
+ */
+export const countersWindowCarrier = (): {
+  readonly programPath: () => string
+  readonly actions: (uri: string) => CountersWindowActions
+} => {
+  const runtime = getCountersWindowRuntime()
+  return {
+    programPath: () => navigationToPath(runtime.readModel().navigation),
+    actions: runtime.actions,
+  }
 }
