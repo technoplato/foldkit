@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
+import { gitSourceUrl, surfaceLines } from './surfaceLabel.js'
+
 const cliEntryPath = fileURLToPath(new URL('../dist/entry.js', import.meta.url))
 
 const runCli = (args: ReadonlyArray<string>): string => {
@@ -13,9 +15,15 @@ const runCli = (args: ReadonlyArray<string>): string => {
   return result.stdout
 }
 
+/** The label lines every run prints after the screen, built dynamically. */
+const labelFor = (carrierPath: string): string =>
+  `${surfaceLines('CLI (Effect Terminal)', carrierPath).join('\n')}\n`
+
 describe('Multiple Counters CLI process', () => {
   it('prints the default canonical list for show', () => {
-    expect(runCli(['show'])).toBe('Counters\ncounter-1: 0\ncounter-2: 0\n')
+    expect(runCli(['show'])).toBe(
+      `Counters\ncounter-1: 0\ncounter-2: 0\n${labelFor('/counters')}`,
+    )
   })
 
   it('describes --uri as a canonical destination', () => {
@@ -42,7 +50,7 @@ describe('Multiple Counters CLI process', () => {
       output: 'Delete counter-1?\nThis cannot be undone.\n',
     },
   ])('opens the canonical $uri carrier', ({ uri, output }) => {
-    expect(runCli(['show', '--uri', uri])).toBe(output)
+    expect(runCli(['show', '--uri', uri])).toBe(`${output}${labelFor(uri)}`)
   })
 
   it('prints a loaded fact and only the valid modal command', () => {
@@ -57,6 +65,7 @@ describe('Multiple Counters CLI process', () => {
     ).toBe(
       'Counter fact for 1\n' +
         '1 is an integer and therefore has no fractional part.\n' +
+        `${labelFor('/counters/counter-1/fact')}` +
         'Available commands:\n' +
         '  dismiss  Dismiss fact\n',
     )
@@ -65,7 +74,7 @@ describe('Multiple Counters CLI process', () => {
   it('runs from the default canonical list and stays quiet without verbose', () => {
     const output = runCli(['run', 'increment:counter-2', 'open:counter-2'])
 
-    expect(output).toBe('counter-2\nCount: 1\n')
+    expect(output).toBe(`counter-2\nCount: 1\n${labelFor('/counters/counter-2')}`)
     expect(output).not.toContain('Available commands:')
   })
 
@@ -75,6 +84,7 @@ describe('Multiple Counters CLI process', () => {
     ).toBe(
       'Counter fact for 0\n' +
         '0 is the current value of this counter.\n' +
+        `${labelFor('/counters/counter-1/fact')}` +
         'Available commands:\n' +
         '  dismiss  Dismiss fact\n',
     )
@@ -120,4 +130,15 @@ describe('Multiple Counters CLI process', () => {
       expect(`${result.stdout}${result.stderr}`).toContain(errorTag)
     },
   )
+
+  it('derives source attribution from this checkout origin', () => {
+    // The banner never hardcodes its URL; whatever origin exists must
+    // flow through to the printed label.
+    const output = runCli(['show'])
+    if (gitSourceUrl() === '') {
+      expect(output).toContain('Surface: CLI (Effect Terminal)\n')
+    } else {
+      expect(output).toContain(`Source: ${gitSourceUrl()}`)
+    }
+  })
 })
