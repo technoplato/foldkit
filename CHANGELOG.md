@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 9:51:32 p.m. EDT — `6611f79e7e56` feat(counters): scope failure causes and fix overlay field ownership
+
+- **Implementation commit:** `6611f79e7e56ecc6872571158e00eb06bb534ecf`
+- **Change:** Apply complete-ADT repairs to counters fact failures and overlay ownership
+- **Details:**
+  - FactFailureCause (Network | Unreadable) replaces free-form failure strings at the model, message, command, and wire payload surfaces; the interaction graph derives spoken sentences from the cause. Overlay cases drop the parent-owned detailPresentationId along with the belonging filter and dead runtime re-checks. maybeMode rejects encoded null via S.Option. presentationStyleOf derives Push/Sheet/Dialog as a view. Audit hole-26 was reclassified: prefixed ids keep the composite-segment grammar because interactionGraph legitimately mints ids from colon-composite occurrence identities and nothing parses on colons.
+- **Files:**
+  - `examples/counters/core/src/model.ts` — FactFailureCause; overlay structs lose shared field; filter deleted; S.Option
+  - `examples/counters/core/src/message.ts` — FailedLoadCounterFact carries cause
+  - `examples/counters/core/src/update.ts` — failFact cause threading; dead comparisons removed
+  - `examples/counters/core/src/wire.ts` — Payload schema follows cause field
+  - `examples/counters/core/src/presentation.ts` — presentationStyleOf derived view
+  - `examples/counters/core/src/presentationStyle.test.ts` — Four style-derivation cases
+- **User context (verbatim):**
+  > everything needs to be an ADT ... No Booleans that aren't derived
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 9:35:58 p.m. EDT — `062ebc3ce9e4` refactor(foldkit): parameterize Drawer by side
 
 - **Implementation commit:** `062ebc3ce9e467f3eeefdb8f99995daf168f647f`
