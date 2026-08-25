@@ -184,12 +184,16 @@ export const FactStatusView = ({ status }: { status: CounterFactStatus }) =>
           <p className="mt-2 text-sky-100/75">{fact.text}</p>
         </>
       ),
-      FailedCounterFact: ({ reason }) => (
+      FailedCounterFact: ({ cause }) => (
         <>
           <h2 className="text-xl font-semibold text-sky-100">
             Counter fact unavailable
           </h2>
-          <p className="mt-2 text-sky-100/75">{reason}</p>
+          <p className="mt-2 text-sky-100/75">
+            {cause === 'Network'
+              ? 'The network could not reach the fact source'
+              : 'The fact source returned an unreadable body'}
+          </p>
         </>
       ),
     }),

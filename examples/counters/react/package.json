@@ -15,13 +15,15 @@
   },
   "dependencies": {
     "@foldkit/instant": "workspace:*",
+    "@tanstack/react-router": "^1.170.32",
     "counters-core-example": "workspace:*",
     "counters-instant-example": "workspace:*",
     "counters-react-bindings-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-router": "^8.3.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.1",
