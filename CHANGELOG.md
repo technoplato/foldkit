@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 11:21:45 p.m. EDT — `d01281c129ab` docs(adr): draft program-level navigation seam design
+
+- **Implementation commit:** `d01281c129ab3c34bcd4034218e9025a24da41cc`
+- **Change:** Draft ADR 0010: Program-level navigation seam
+- **Details:**
+  - Design blueprint for the owner's root-level navigation requirement: optional Program.navigation config (destination schema, printStack/parseUri biparsers, stackOf/withStack Model projections), runtime-owned URI sync loop over RouterPlugins, nested-stack composition rule, counters uriProjection laws as acceptance tests. Implementation follows review.
+- **Files:**
+  - `docs/adr/0010-program-navigation-seam.md` — Proposed seam types, runtime loop, composition rules, non-goals
+- **User context (verbatim):**
+  > navigation to basically be a root-level thing at the root of the program so that we can eventually compose applications completely deterministically
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 11:20:04 p.m. EDT — `dac4047907f9` test(counters): prove two-processor tape convergence on Memory
 
 - **Implementation commit:** `dac4047907f9eb634c1ebaf420919339ff346edc`
