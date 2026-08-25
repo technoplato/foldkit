@@ -115,7 +115,7 @@ const makeFamily = <Payload>(
 /** The complete Program-owned registry for accepted Multiple Counters events. */
 export const EventRegistry = Effect.runSync(
   Program.makeVersionedEventRegistry<Message>({
-    currentProgramVersion: 3,
+    currentProgramVersion: 4,
     families: [
       makeFamily(
         eventIds.clickedAddCounter,

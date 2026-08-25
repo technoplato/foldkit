@@ -911,9 +911,9 @@ describe('Multiple Counters Program', () => {
         Effect.runSync(maybeFamily.value.decodeCurrent(encodedEvent.payload)),
       ).toStrictEqual(message)
     }
-    expect(EventRegistry.currentProgramVersion).toBe(3)
+    expect(EventRegistry.currentProgramVersion).toBe(4)
     expect(EventRegistry.programId).toBe(MultipleCountersProgram.id)
-    expect(MultipleCountersProgram.version).toBe(3)
+    expect(MultipleCountersProgram.version).toBe(4)
     expect(MultipleCountersProgram.versionedEvents).toBe(EventRegistry)
     expect(MultipleCountersProgram.synchronization).toBe(synchronization)
   })
@@ -936,7 +936,7 @@ describe('Multiple Counters Program', () => {
     expect(error).toMatchObject({
       _tag: 'IncompatibleProgramVersionError',
       actualVersion: 1,
-      expectedVersion: 3,
+      expectedVersion: 4,
       programId: 'multiple-counters',
     })
   })
