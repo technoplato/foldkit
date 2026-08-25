@@ -1,4 +1,4 @@
-import { Match as M, Option } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 
 import { type PresentationStyle, type StackInstruction } from './structure.js'
 
@@ -151,8 +151,10 @@ export const reactNavigationPlugin = <Destination>(config: {
   readonly parsePath: PathParser<Destination>
 }): RouterPlugin<Destination> => ({
   id: 'react-navigation',
-  toNativeCalls: (instruction, print) =>
-    webCallsFor(instruction, print).flatMap(call =>
+  toNativeCalls: (instruction, print): ReadonlyArray<NativeCall> =>
+    Array.flatMap(
+      webCallsFor(instruction, print),
+      (call): ReadonlyArray<NativeCall> =>
       M.value(call).pipe(
         M.withReturnType<ReadonlyArray<NativeCall>>(),
         M.tagsExhaustive({

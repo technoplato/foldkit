@@ -84,7 +84,7 @@ describe('tanstackRouterPlugin', () => {
     )
     adapter.apply([
       push(detail, PushStyle()),
-      push(fact, Dialog),
+      push(fact, Dialog()),
       replaceTop(presented(remove, Dialog())),
       pop(),
       pop(),
@@ -121,7 +121,11 @@ describe('reactNavigationPlugin', () => {
     destination: Destination
   }> => {
     if (path === '/counters') {
-      return Option.some({ route: 'CounterList', params: {}, destination })
+      return Option.some({
+        route: 'CounterList',
+        params: {},
+        destination: destination('/counters'),
+      })
     }
     const segments = path.split('/').filter(segment => segment !== '')
     if (segments[0] !== 'counters') {

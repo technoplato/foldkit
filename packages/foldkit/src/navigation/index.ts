@@ -30,6 +30,7 @@ export {
   replaceTop,
   stackInstructions,
   applyStackInstructions,
+} from './structure.js'
 export {
   type NativeCall,
   PushPathCall,
