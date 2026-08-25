@@ -1,10 +1,11 @@
 import {
+  type Model,
   type NavInstruction,
   type Navigation,
   navigatorInstructions,
   navigationTargetToPath,
 } from 'counters-core-example'
-import { Match as M } from 'effect'
+import { Match as M, Option } from 'effect'
 import {
   createNavigationAdapter,
   type NativeCall,
@@ -132,14 +133,14 @@ export interface NavigationBridge {
 /**
  * Builds the navigation bridge for one web router family. Pure until
  * the port performs; the plugin decides call shape, the port decides
- * platform mechanics. Hosts own previous state and feed every observed
- * transition; the first observation roots the stack without history churn.
+ * platform mechanics. Callers own previous state and feed every observed
+ * transition — use {@link observeNavigation} or seed by skipping the
+ * first diff yourself.
  */
 export const navigationBridgeFor = (
   plugin: RouterPlugin<string>,
   port: WebRouterPort,
 ): NavigationBridge => {
-  let seenFirst: boolean = false
   const adapter = createNavigationAdapter<string>(
     plugin,
     (path: string) => path,
@@ -147,10 +148,6 @@ export const navigationBridgeFor = (
   )
   return {
     apply: (previous, next) => {
-      if (!seenFirst) {
-        seenFirst = true
-        return
-      }
       adapter.apply(navInstructionsToStack(previous, next))
     },
   }
@@ -165,3 +162,42 @@ export const tanstackNavigationBridge = (
 export const reactRouterNavigationBridge = (
   port: WebRouterPort,
 ): NavigationBridge => navigationBridgeFor(reactRouterPlugin<string>(), port)
+
+// LIVE OBSERVER
+
+/** The slice of the window runtime this observer needs. */
+export interface NavigationSource {
+  readonly readModel: () => Model
+  readonly subscribe: (
+    listener: (model: Model) => void,
+  ) => (() => void) | void
+}
+
+/**
+ * Feeds every observed Program navigation change through the bridge.
+ * Returns the stop function so React effects can clean up. The first
+ * observation seeds previous state; every later change performs calls
+ * on the port, so deep links and in-app taps cannot disagree.
+ */
+export const observeNavigation = (
+  source: NavigationSource,
+  bridge: NavigationBridge,
+): (() => void) => {
+  let previous: Option.Option<Navigation> = Option.none()
+  const apply = (model: Model): void => {
+    const next = model.navigation
+    Option.match(previous, {
+      onNone: () => undefined,
+      onSome: before => bridge.apply(before, next),
+    })
+    previous = Option.some(next)
+  }
+  apply(source.readModel())
+  const stopObserving = source.subscribe(apply)
+  return (): void => {
+    if (typeof stopObserving === 'function') {
+      stopObserving()
+    }
+    previous = Option.none()
+  }
+}
