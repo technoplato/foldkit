@@ -43,15 +43,17 @@ export const Popover = ts('Popover', {
 /** Points the destination at the anchored element without covering it. */
 export type Popover = typeof Popover.Type
 
-/** Reveals the destination as a panel sliding in from the leading edge. */
-export const DrawerFromLeft = ts('DrawerFromLeft')
-/** Reveals the destination as a panel sliding in from the leading edge. */
-export type DrawerFromLeft = typeof DrawerFromLeft.Type
+/** The screen edge a drawer panel slides in from. */
+export const Side = S.Literals(['Left', 'Right'])
+/** The screen edge a drawer panel slides in from. */
+export type Side = typeof Side.Type
 
-/** Reveals the destination as a panel sliding in from the trailing edge. */
-export const DrawerFromRight = ts('DrawerFromRight')
-/** Reveals the destination as a panel sliding in from the trailing edge. */
-export type DrawerFromRight = typeof DrawerFromRight.Type
+/** Reveals the destination as a panel sliding in from one screen edge. */
+export const Drawer = ts('Drawer', {
+  from: Side,
+})
+/** Reveals the destination as a panel sliding in from one screen edge. */
+export type Drawer = typeof Drawer.Type
 
 /** How a presented destination overlays the content beneath it. */
 export const PresentationStyle = S.Union([
@@ -61,8 +63,7 @@ export const PresentationStyle = S.Union([
   FullScreenCover,
   Dialog,
   Popover,
-  DrawerFromLeft,
-  DrawerFromRight,
+  Drawer,
 ])
 /** How a presented destination overlays the content beneath it. */
 export type PresentationStyle = typeof PresentationStyle.Type

@@ -35,8 +35,14 @@ describe('PresentationStyle', () => {
     expect(
       Structure.Popover({ anchor: Structure.ElementAnchor.make('trigger') }),
     ).toEqual({ _tag: 'Popover', anchor: 'trigger' })
-    expect(Structure.DrawerFromLeft()).toEqual({ _tag: 'DrawerFromLeft' })
-    expect(Structure.DrawerFromRight()).toEqual({ _tag: 'DrawerFromRight' })
+    expect(Structure.Drawer({ from: 'Left' })).toEqual({
+      _tag: 'Drawer',
+      from: 'Left',
+    })
+    expect(Structure.Drawer({ from: 'Right' })).toEqual({
+      _tag: 'Drawer',
+      from: 'Right',
+    })
   })
 
   it('carries the anchor on a Popover entry', () => {
@@ -347,10 +353,10 @@ describe('applyStackInstructions round trip', () => {
     {
       name: 'joint drawer and popover presentation',
       previous: Structure.stackWithEntries('Home', [
-        entry('Settings', Structure.DrawerFromRight()),
+        entry('Settings', Structure.Drawer({ from: 'Right' })),
       ]),
       next: Structure.stackWithEntries('Home', [
-        entry('Settings', Structure.DrawerFromRight()),
+        entry('Settings', Structure.Drawer({ from: 'Right' })),
         entry(
           'Search',
           Structure.Popover({
@@ -362,7 +368,7 @@ describe('applyStackInstructions round trip', () => {
     {
       name: 'joint presentation retargeting the popover',
       previous: Structure.stackWithEntries('Home', [
-        entry('Settings', Structure.DrawerFromRight()),
+        entry('Settings', Structure.Drawer({ from: 'Right' })),
         entry(
           'Search',
           Structure.Popover({
@@ -371,7 +377,7 @@ describe('applyStackInstructions round trip', () => {
         ),
       ]),
       next: Structure.stackWithEntries('Home', [
-        entry('Settings', Structure.DrawerFromRight()),
+        entry('Settings', Structure.Drawer({ from: 'Right' })),
         entry(
           'Library',
           Structure.Popover({
@@ -383,7 +389,7 @@ describe('applyStackInstructions round trip', () => {
     {
       name: 'joint presentation dismissing both layers',
       previous: Structure.stackWithEntries('Home', [
-        entry('Settings', Structure.DrawerFromRight()),
+        entry('Settings', Structure.Drawer({ from: 'Right' })),
         entry(
           'Search',
           Structure.Popover({
@@ -406,12 +412,12 @@ describe('applyStackInstructions round trip', () => {
     },
   )
 
-  it('keeps a DrawerFromRight entry and a Popover entry stacked together', () => {
+  it('keeps a Drawer entry and a Popover entry stacked together', () => {
     const drawerOpen = Structure.stackWithEntries('Home', [
-      entry('Settings', Structure.DrawerFromRight()),
+      entry('Settings', Structure.Drawer({ from: 'Right' })),
     ])
     const withPopover = Structure.stackWithEntries('Home', [
-      entry('Settings', Structure.DrawerFromRight()),
+      entry('Settings', Structure.Drawer({ from: 'Right' })),
       entry(
         'Search',
         Structure.Popover({
@@ -449,7 +455,7 @@ describe('applyStackInstructions round trip', () => {
 
   it('diffs joint-presentation states into ordered instructions', () => {
     const previous = Structure.stackWithEntries('Home', [
-      entry('Settings', Structure.DrawerFromRight()),
+      entry('Settings', Structure.Drawer({ from: 'Right' })),
       entry(
         'Search',
         Structure.Popover({
@@ -458,7 +464,7 @@ describe('applyStackInstructions round trip', () => {
       ),
     ])
     const next = Structure.stackWithEntries('Library', [
-      entry('Settings', Structure.DrawerFromLeft()),
+      entry('Settings', Structure.Drawer({ from: 'Left' })),
       entry(
         'Search',
         Structure.Popover({
@@ -471,7 +477,7 @@ describe('applyStackInstructions round trip', () => {
     const instructions = Structure.stackInstructions(previous, next)
     expect(instructions).toEqual([
       Structure.pop(),
-      Structure.replaceTop(entry('Settings', Structure.DrawerFromLeft())),
+      Structure.replaceTop(entry('Settings', Structure.Drawer({ from: 'Left' }))),
       Structure.push(
         'Search',
         Structure.Popover({
