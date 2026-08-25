@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 10:35:11 p.m. EDT — `bf1d7bc14c54` feat(foldkit): add router plugins for navigation adapters
+
+- **Implementation commit:** `bf1d7bc14c54d41c79ee26c64d167319251e085e`
+- **Change:** Add router plugins translating stack instructions to native calls
+- **Details:**
+  - Owner-directed pattern: adapters get fed plugins. RouterPlugin.toNativeCalls maps SetRoot/Push/Pop/ReplaceTop onto NativeCall (PushPath, PresentPath(style), Back, Dismiss, ReplacePath, NamedPush, NamedPresent); createNavigationAdapter binds plugin + path printer + host emitter. Web policy shared by tanstackRouterPlugin and reactRouterPlugin; reactNavigationPlugin derives named routes plus card/modal/transparentModal from PresentationStyle via injected path parsing. Pure translation keeps every mapping unit-testable without router dependencies.
+- **Files:**
+  - `packages/foldkit/src/navigation/plugin.ts` — NativeCall vocabulary, plugin contract, web/named-route plugins, adapter
+  - `packages/foldkit/src/navigation/plugin.test.ts` — Six tests: per-plugin mappings, styled swap, full-scenario drive, named-route derivation
+  - `packages/foldkit/src/navigation/index.ts` — Barrel exports
+  - `packages/foldkit/src/navigation/public.ts` — Public exports
+  - `.changeset/navigation-plugins.md` — foldkit minor
+- **User context (verbatim):**
+  > i think we should have plugins that can get fed to our adapters for configuring them for tanstack router / react-router and friends, let's follow that pattern
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 9:54:16 p.m. EDT — `74d1376d74b8` feat(counters): prove state-to-URI projection with round-trip laws
 
 - **Implementation commit:** `74d1376d74b837b181324616e9817311c29b7539`
