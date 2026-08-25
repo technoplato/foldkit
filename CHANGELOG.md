@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 12:34 p.m. EDT — `d178f6b8c` feat(counters): tanstack router demo surface + dynamic source attribution
+
+- **Implementation commit:** `d178f6b8c`
+- **Change:** TanStack Router surface where the Program owns navigation; dynamic GitHub attribution
+- **Details:**
+  - router.html + routerMain.tsx: observeNavigation performs router moves on Program changes; reconcile effect sends actions when the carrier moves underneath the Program.
+  - instant-host runtime exposes readModel/observeModel so any bridge can observe full Program navigation.
+  - demoLabel.tsx renders the checkout's true GitHub URL injected via vite define from git remote — no hardcoded strings.
+  - Repaired counters-instant build: aligned @instantdb/core+admin 1.0.53 → 1.0.65 (duplicate type universes vs packages/instant).
+- **Files:**
+  - `examples/counters/react/router.html`, `src/routerMain.tsx`, `src/demoLabel.tsx` — new
+  - `examples/counters/react/src/App.tsx` — externalUri prop
+  - `examples/counters/react/src/instantHost.ts` — countersWindowNavigationSource
+  - `examples/counters/react/vite.config.ts` — source URL define
+  - `examples/counters/instant-host/src/window.ts` — readModel/observeModel
+  - `examples/counters/instant-host/package.json` — @instantdb alignment
+
 ## August 25th, 2026 at 12:02 p.m. EDT — `b491d1b4f0` feat(counters): observeNavigation live glue for router bridges
 
 - **Implementation commit:** `b491d1b4f`
