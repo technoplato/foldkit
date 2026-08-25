@@ -4,6 +4,37 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 10:47:57 a.m. EDT — `dd20b02a8a71` fix(foldkit): repair navigation barrel and plugin typings
+
+- **Implementation commit:** `dd20b02a8a7194c76b65d5014994d72afd85af8f`
+- **Change:** Repair navigation barrel closer and plugin typings
+- **Details:**
+  - The plugin export insertion replaced the structure module close leaving HEAD unparseable for package builds; adapter tests now invoke style constructors, the react-navigation parse fixture passes a real destination value, and named-route translation uses Array.flatMap with an explicit callback annotation so per-arm unions keep one element type.
+- **Files:**
+  - `packages/foldkit/src/navigation/index.ts` — Restore barrel closer
+  - `packages/foldkit/src/navigation/plugin.test.ts` — Dialog invocation and destination value
+  - `packages/foldkit/src/navigation/plugin.ts` — Array.flatMap annotation
+- **User context (verbatim):**
+  > is the demo runnable right now
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
+## August 25th, 2026 at 10:47:48 a.m. EDT — `f098fe3e2bc8` feat(counters): adopt compose.forEach fields for child rows
+
+- **Implementation commit:** `f098fe3e2bc8524d22d0fe932ce8647edd42d3dd`
+- **Change:** Migrate counters core onto compose.forEach embedded fields
+- **Details:**
+  - Rows live under nextId/rows with GotChild wrapping; app Messages route through a decoded FieldOwnerMessage union via updateFields; rows rename counter to child; wire family MultipleCounters.GotChild; program version 3 for snapshot shape. Checked Model filters, seeded prefixed-id boot, restore, migrations, synchronization and versionedEvents re-attached over the composed Program. Five parity proofs added.
+- **Files:**
+  - `examples/counters/core/src/model.ts` — Rows rename and composition fields
+  - `examples/counters/core/src/message.ts` — GotChild replaces GotCounterMessage
+  - `examples/counters/core/src/update.ts` — updateFields bridge replaces hand-rolled arm
+  - `examples/counters/core/src/program.ts` — Composed Program with preserved extras
+  - `examples/counters/core/src/wire.ts` — GotChild event family version 3
+  - `examples/counters/core/src/forEachAdoption.test.ts` — Five parity proofs
+- **User context (verbatim):**
+  > update counters to use new core and nothing hand-rolled
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 11:21:45 p.m. EDT — `d01281c129ab` docs(adr): draft program-level navigation seam design
 
 - **Implementation commit:** `d01281c129ab3c34bcd4034218e9025a24da41cc`
