@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 9:30:44 p.m. EDT — `0ac30918ac37` feat(foldkit): embed sibling fields beside forEach rows
+
+- **Implementation commit:** `0ac30918ac37c29cb3b1283cd894273b4c9caa24`
+- **Change:** Embed sibling fields beside forEach rows with declared parent messages
+- **Details:**
+  - forEach gains optional fields, initialFields, and an updateFields handler following actionMenu's flat message union pattern; reserved keys throw ForEachReservedFieldError and missing init fields throw ForEachInitialFieldMissingError. Counters can now drop its hand-rolled GotCounterMessage arms once it migrates.
+- **Files:**
+  - `packages/foldkit/src/program/compose.ts` — ForEachFields config, guarded construction, flat field-owner messages
+  - `packages/foldkit/src/program/compose.test.ts` — Five tests: schema inclusion, sibling preservation, handler routing, collision throw, codec round trip
+  - `packages/foldkit/src/program/public.ts` — Export the new symbols and errors
+  - `.changeset/compose-foreach-sibling-fields.md` — foldkit minor
+- **User context (verbatim):**
+  > At four each embedded fields variant so counter drops, it's hand-rolled. Got counter message arms. Uh yeah, nothing hand-rolled.
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 9:30:33 p.m. EDT — `adc2319f71ae` feat(foldkit): add navigation structure vocabulary
 
 - **Implementation commit:** `adc2319f71ae6e92294c9fe1bac6abfcfc10a0d3`
