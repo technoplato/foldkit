@@ -1,4 +1,5 @@
 import {
+  type Model,
   type Navigation,
   CounterDetail,
   CounterFactAlert,
@@ -12,6 +13,7 @@ import {
   type WebRouterPort,
   navInstructionsToStack,
   navigationBridgeFor,
+  observeNavigation,
   reactRouterNavigationBridge,
   tanstackNavigationBridge,
 } from './routerBridge.js'
@@ -113,13 +115,36 @@ describe('plugin parity across web routers', () => {
     }
   })
 
-  it('first observation roots silently; later transitions perform', () => {
+  it('performs every fed transition through the injected plugin policy', () => {
+    const seen: Array<string> = []
+    const spyPlugin = {
+      id: 'spy',
+      toNativeCalls: (
+        instruction:
+          | { readonly _tag: 'SetRoot'; readonly root: string }
+          | {
+              readonly _tag: 'Push'
+              readonly destination: string
+              readonly style: { readonly _tag: string }
+            }
+          | { readonly _tag: 'Pop' }
+          | {
+              readonly _tag: 'ReplaceTop'
+              readonly entry: {
+                readonly destination: string
+                readonly style: { readonly _tag: string }
+              }
+            },
+      ) => {
+        seen.push(instruction._tag)
+        return [{ _tag: 'Back' as const }]
+      },
+    }
     const { calls, port } = recorder()
-    const bridge = tanstackNavigationBridge(port)
-    bridge.apply(list, list)
-    expect(calls).toEqual([])
+    const bridge = navigationBridgeFor(spyPlugin, port)
     bridge.apply(list, detail('counter-c1'))
-    expect(calls).toEqual(['push /counters/counter-c1'])
+    expect(seen).toEqual(['Push'])
+    expect(calls).toEqual(['back'])
   })
 
   it('navigationBridgeFor honors the injected plugin policy', () => {
@@ -155,5 +180,37 @@ describe('plugin parity across web routers', () => {
     bridge.apply(list, detail('counter-c1'))
     expect(seen).toEqual(['Push'])
     expect(calls).toEqual(['back'])
+  })
+})
+
+describe('observeNavigation', () => {
+  it("seeds from readModel and feeds every later model's navigation", () => {
+    const listeners: Array<(model: Model) => void> = []
+    const navigationOf = (counterId: string | null): Navigation =>
+      counterId === null ? list : detail(counterId)
+    let current: Model = {
+      navigation: navigationOf(null),
+    } as unknown as Model
+    const source = {
+      readModel: (): Model => current,
+      subscribe: (listener: (model: Model) => void): (() => void) => {
+        listeners.push(listener)
+        return () => undefined
+      },
+    }
+    const { calls, port } = recorder()
+    const stop = observeNavigation(source, tanstackNavigationBridge(port))
+    // Seeded silently:
+    expect(calls).toEqual([])
+    current = { navigation: navigationOf('counter-c1') } as unknown as Model
+    for (const listener of listeners) listener(current)
+    expect(calls).toEqual(['push /counters/counter-c1'])
+    current = { navigation: navigationOf(null) } as unknown as Model
+    for (const listener of listeners) listener(current)
+    expect(calls).toEqual([
+      'push /counters/counter-c1',
+      'back',
+    ])
+    stop()
   })
 })
