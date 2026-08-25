@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 12:52 p.m. EDT — `b055dcbb8` feat(counters): CLI surface label with carrier URI and dynamic source attribution
+
+- **Implementation commit:** `b055dcbb8`
+- **Change:** CLI runs now label themselves with the canonical carrier URI and their true source URL
+- **Details:**
+  - surfaceLabel.ts derives attribution from the checkout's own git remote at run time (GitHub-only normalization); integration tests compose expectations dynamically so forks stay green.
+  - FailedCounterFact cause sentences (reason→cause rename fallout).
+- **Files:**
+  - `examples/counters/cli/src/surfaceLabel.ts` + test — new
+  - `examples/counters/cli/src/host.ts` — label printing + cause fix
+  - `examples/counters/cli/src/process.integration.test.ts` — dynamic expectations
+
+## August 25th, 2026 at 12:45 p.m. EDT — `1b00e47f8` feat(counters): react-router demo surface over the shared navigation bridge
+
+- **Implementation commit:** `1b00e47f8`
+- **Change:** React Router data router surface with Program-owned navigation
+- **Details:**
+  - Same law as tanstack surface; data router navigate(to)/navigate(-1) implement WebRouterPort; routes mirror the carrier grammar.
+- **Files:**
+  - `examples/counters/react/react-router.html`, `src/reactRouterMain.tsx` — new
+
 ## August 25th, 2026 at 12:34 p.m. EDT — `d178f6b8c` feat(counters): tanstack router demo surface + dynamic source attribution
 
 - **Implementation commit:** `d178f6b8c`
