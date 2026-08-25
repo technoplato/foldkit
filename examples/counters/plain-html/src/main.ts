@@ -1,4 +1,5 @@
 import {
+  type CounterFactClient,
   type Interaction,
   type Message,
   type Model,
@@ -12,6 +13,7 @@ import {
 import { Array, Effect, Option, Result } from 'effect'
 import * as InteractionGraph from 'foldkit/interaction-graph'
 import { Runtime } from 'foldkit'
+import { onUpdate } from 'foldkit/program'
 
 // PLAIN HTML SURFACE
 //
@@ -118,9 +120,20 @@ const render = (model: Model): void => {
   root.append(actions)
 }
 
+/**
+ * Host adoption of the framework decorator vocabulary: every transition
+ * is observed (and could be filtered, tagged, or logged) without touching
+ * the Program's own update or its wire contract.
+ */
+const decorated = onUpdate<Model, Message, CounterFactClient>(({ message, nextModel }) => {
+  console.info(
+    `[plain-html] ${message._tag} -> ${navigationToPath(nextModel.navigation)}`,
+  )
+})(MultipleCountersProgram)
+
 const program = Effect.gen(function* () {
   const runtime = yield* Runtime.makeProgramRuntime({
-    program: MultipleCountersProgram,
+    program: decorated,
     resources: StaticCounterFactClient,
   })
   yield* runtime.initialization

@@ -1,7 +1,5 @@
-import {
-  type Program,
-  type ProgramCommand,
-} from './program.js'
+import { type Program, type ProgramCommand } from './program.js'
+import type { Ports } from '../port/port.js'
 
 // PROGRAM DECORATORS
 //
@@ -18,9 +16,12 @@ import {
 export type ProgramDecorator<
   Model,
   Message extends Readonly<{ _tag: string }>,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
 > = (
-  program: Program<Model, Message>,
-) => Program<Model, Message>
+  program: Program<Model, Message, Resources, ManagedResourceServices, P>,
+) => Program<Model, Message, Resources, ManagedResourceServices, P>
 
 /** Everything one update transition produced, for observers. */
 export interface UpdateTransition<
@@ -36,9 +37,21 @@ export interface UpdateTransition<
  * Observes every update transition without changing it.
  */
 export const onUpdate =
-  <Model, Message extends Readonly<{ _tag: string }>>(
+  <
+    Model,
+    Message extends Readonly<{ _tag: string }>,
+    Resources = never,
+    ManagedResourceServices = never,
+    P extends Ports | undefined = undefined,
+  >(
     observe: (transition: UpdateTransition<Model, Message>) => void,
-  ): ProgramDecorator<Model, Message> =>
+  ): ProgramDecorator<
+    Model,
+    Message,
+    Resources,
+    ManagedResourceServices,
+    P
+  > =>
   program => ({
     ...program,
     update: (model, message) => {
@@ -54,25 +67,56 @@ export const onUpdate =
  * commands for a specific surface. The Model transition is unchanged.
  */
 export const mapCommands =
-  <Model, Message extends Readonly<{ _tag: string }>>(
+  <
+    Model,
+    Message extends Readonly<{ _tag: string }>,
+    Resources = never,
+    ManagedResourceServices = never,
+    P extends Ports | undefined = undefined,
+  >(
     adjust: (
-      commands: ReadonlyArray<ProgramCommand<Message>>,
+      commands: ReadonlyArray<ProgramCommand<Message, Resources>>,
       nextModel: Model,
-    ) => ReadonlyArray<ProgramCommand<Message>>,
-  ): ProgramDecorator<Model, Message> =>
+    ) => ReadonlyArray<ProgramCommand<Message, Resources>>,
+  ): ProgramDecorator<
+    Model,
+    Message,
+    Resources,
+    ManagedResourceServices,
+    P
+  > =>
   program => ({
     ...program,
     update: (model, message) => {
       const [nextModel, commands] = program.update(model, message)
-      return [nextModel, adjust(commands, nextModel)]
+      const adjusted = adjust(
+        commands as ReadonlyArray<ProgramCommand<Message, Resources>>,
+        nextModel,
+      )
+      return [nextModel, adjusted] as [
+        Model,
+        ReadonlyArray<ProgramCommand<Message, Resources>>,
+      ]
     },
   })
 
 /** Derives identity for hosting several instances of one Program shape. */
 export const renamed =
-  <Model, Message extends Readonly<{ _tag: string }>>(
+  <
+    Model,
+    Message extends Readonly<{ _tag: string }>,
+    Resources = never,
+    ManagedResourceServices = never,
+    P extends Ports | undefined = undefined,
+  >(
     id: string,
-  ): ProgramDecorator<Model, Message> =>
+  ): ProgramDecorator<
+    Model,
+    Message,
+    Resources,
+    ManagedResourceServices,
+    P
+  > =>
   program => ({ ...program, id })
 
 /**
