@@ -9,7 +9,7 @@ import {
   ClickedShowCounterFact,
   DismissedCounterDetail,
   DismissedCounterFactAlert,
-  type Message,
+  type FieldOwnerMessage,
   SelectedCounter,
 } from './message.js'
 import {
@@ -33,8 +33,10 @@ const detailPresentationId = 'detail-a1'
 
 type CountersModel = ReturnType<typeof init>[0]
 
-const send = (model: CountersModel, message: Message): CountersModel =>
-  update(model, message)[0]
+const send = (
+  model: CountersModel,
+  message: FieldOwnerMessage,
+): CountersModel => update(model, message)[0]
 
 const navigationOf = (model: CountersModel): Navigation => model.navigation
 
@@ -128,7 +130,7 @@ describe('every interaction reflects to exactly one URI', () => {
     let uri = canonicalNavigationUri(navigationOf(model))
     expect(uri).toBe('/counters')
 
-    const step = (message: Message, expectedUri: string): void => {
+    const step = (message: FieldOwnerMessage, expectedUri: string): void => {
       const next = send(model, message)
       const nextUri = canonicalNavigationUri(navigationOf(next))
       if (Equal.equals(navigationOf(model), navigationOf(next))) {

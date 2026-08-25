@@ -111,8 +111,8 @@ export const ClickedAddCounter = m('ClickedAddCounter', {
   counterId: CounterId,
 })
 /** Routes one child Counter Message to its identified Counter Submodel. */
-export const GotCounterMessage = m('GotCounterMessage', {
-  counterId: CounterId,
+export const GotChild = m('GotChild', {
+  id: CounterId,
   message: Counter.Message,
 })
 /** Records that one counter was selected for detail presentation. */
@@ -174,10 +174,9 @@ export const OpenedNavigation = m('OpenedNavigation', {
   opening: NavigationOpening,
 })
 
-/** Every Message accepted by the Multiple Counters Program. */
-export const Message = S.Union([
+/** Every Message owned by a host-app Model field beside the Counter rows. */
+export const FieldOwnerMessage = S.Union([
   ClickedAddCounter,
-  GotCounterMessage,
   SelectedCounter,
   DismissedCounterDetail,
   ClickedShowCounterFact,
@@ -189,5 +188,10 @@ export const Message = S.Union([
   ConfirmedDeleteCounter,
   OpenedNavigation,
 ])
+/** Every Message owned by a host-app Model field beside the Counter rows. */
+export type FieldOwnerMessage = typeof FieldOwnerMessage.Type
+
+/** Every Message accepted by the Multiple Counters Program. */
+export const Message = S.Union([FieldOwnerMessage, GotChild])
 /** Every Message accepted by the Multiple Counters Program. */
 export type Message = typeof Message.Type

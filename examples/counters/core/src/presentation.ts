@@ -9,7 +9,7 @@ import {
   ConfirmedDeleteCounter,
   DismissedCounterDetail,
   DismissedCounterFactAlert,
-  GotCounterMessage,
+  GotChild,
   Message,
   type NavigationIdentitySource,
   SelectedCounter,
@@ -226,8 +226,8 @@ const counterInteractions = (
     `decrement:${counterId}`,
     'Decrement',
     'Default',
-    GotCounterMessage({
-      counterId,
+    GotChild({
+      id: counterId,
       message: Counter.Decrement(),
     }),
   ),
@@ -236,8 +236,8 @@ const counterInteractions = (
     `increment:${counterId}`,
     'Increment',
     'Default',
-    GotCounterMessage({
-      counterId,
+    GotChild({
+      id: counterId,
       message: Counter.Increment(),
     }),
   ),
@@ -372,8 +372,8 @@ export const interactionsForModel = (
               'reset',
               'Reset',
               'Default',
-              GotCounterMessage({
-                counterId: counter.id,
+              GotChild({
+                id: counter.id,
                 message: Counter.Reset(),
               }),
             ),

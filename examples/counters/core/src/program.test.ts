@@ -23,7 +23,8 @@ import {
   DismissedCounterDetail,
   DismissedCounterFactAlert,
   FailedLoadCounterFact,
-  GotCounterMessage,
+  type FieldOwnerMessage,
+  GotChild,
   type Message,
   type NavigationTarget,
   OpenedNavigation,
@@ -172,8 +173,8 @@ const selectedCounter = (
 
 const representativeMessages = (): ReadonlyArray<Message> => [
   ClickedAddCounter({ counterId: 'counter-3' }),
-  GotCounterMessage({
-    counterId: 'counter-1',
+  GotChild({
+    id: 'counter-1',
     message: Counter.Increment(),
   }),
   selectedCounter('counter-1', 'detail-1'),
@@ -266,10 +267,10 @@ describe('Multiple Counters Program', () => {
 
   it('routes each child Message to the identified Counter Submodel', () => {
     const [initialModel] = init()
-    const [nextModel] = update(
+    const [nextModel] = MultipleCountersProgram.update(
       initialModel,
-      GotCounterMessage({
-        counterId: 'counter-2',
+      GotChild({
+        id: 'counter-2',
         message: Counter.Increment(),
       }),
     )
@@ -282,10 +283,10 @@ describe('Multiple Counters Program', () => {
       row => row.id === 'counter-2',
     )
 
-    expect(Option.map(maybeFirst, row => row.counter.count)).toStrictEqual(
+    expect(Option.map(maybeFirst, row => row.child.count)).toStrictEqual(
       Option.some(0),
     )
-    expect(Option.map(maybeSecond, row => row.counter.count)).toStrictEqual(
+    expect(Option.map(maybeSecond, row => row.child.count)).toStrictEqual(
       Option.some(1),
     )
   })
@@ -517,10 +518,10 @@ describe('Multiple Counters Program', () => {
       deletedModel,
       ClickedAddCounter({ counterId: 'counter-1' }),
     )
-    const [staleCounterMessageModel] = update(
+    const [staleCounterMessageModel] = MultipleCountersProgram.update(
       recreatedModel,
-      GotCounterMessage({
-        counterId: 'counter-1',
+      GotChild({
+        id: 'counter-1',
         message: Counter.Increment(),
       }),
     )
@@ -762,7 +763,10 @@ describe('Multiple Counters Program', () => {
     if (Option.isNone(oldMessage)) {
       throw new Error('Expected the original accepted Domain Message')
     }
-    const [replayedModel, commands] = update(cancelledModel, oldMessage.value)
+    const [replayedModel, commands] = MultipleCountersProgram.update(
+      cancelledModel,
+      oldMessage.value,
+    )
     expect(messageCategory(oldMessage.value)).toBe('Domain')
     expect(replayedModel.retiredCounterIds).toContain('counter-1')
     expect(replayedModel.navigation._tag).toBe('CounterList')
@@ -795,10 +799,10 @@ describe('Multiple Counters Program', () => {
         interaction.anchor._tag === 'CounterRowAnchor' &&
         interaction.anchor.counterId === 'counter-1',
     )
-    const [incrementedModel] = update(
+    const [incrementedModel] = MultipleCountersProgram.update(
       initialModel,
-      GotCounterMessage({
-        counterId: 'counter-1',
+      GotChild({
+        id: 'counter-1',
         message: Counter.Increment(),
       }),
     )
@@ -907,9 +911,9 @@ describe('Multiple Counters Program', () => {
         Effect.runSync(maybeFamily.value.decodeCurrent(encodedEvent.payload)),
       ).toStrictEqual(message)
     }
-    expect(EventRegistry.currentProgramVersion).toBe(2)
+    expect(EventRegistry.currentProgramVersion).toBe(3)
     expect(EventRegistry.programId).toBe(MultipleCountersProgram.id)
-    expect(MultipleCountersProgram.version).toBe(2)
+    expect(MultipleCountersProgram.version).toBe(3)
     expect(MultipleCountersProgram.versionedEvents).toBe(EventRegistry)
     expect(MultipleCountersProgram.synchronization).toBe(synchronization)
   })
@@ -932,7 +936,7 @@ describe('Multiple Counters Program', () => {
     expect(error).toMatchObject({
       _tag: 'IncompatibleProgramVersionError',
       actualVersion: 1,
-      expectedVersion: 2,
+      expectedVersion: 3,
       programId: 'multiple-counters',
     })
   })
@@ -959,7 +963,9 @@ describe('Multiple Counters Program', () => {
         detailPresentationId: 'detail-1',
       }),
     )
-    const cases: ReadonlyArray<readonly [typeof initialModel, Message]> = [
+    const cases: ReadonlyArray<
+      readonly [typeof initialModel, FieldOwnerMessage]
+    > = [
       [initialModel, selectedCounter('counter-1', 'detail-1')],
       [
         detailModel,
@@ -1057,8 +1063,8 @@ describe('Multiple Counters Program', () => {
       }),
     )
     const domainMessages: ReadonlyArray<Message> = [
-      GotCounterMessage({
-        counterId: 'counter-1',
+      GotChild({
+        id: 'counter-1',
         message: Counter.Increment(),
       }),
       ClickedAddCounter({ counterId: 'counter-3' }),
@@ -1077,9 +1083,18 @@ describe('Multiple Counters Program', () => {
         third: counterOneDetailModel,
       },
       (models, message) => {
-        const [nextFirst] = update(models.first, message)
-        const [nextSecond] = update(models.second, message)
-        const [nextThird] = update(models.third, message)
+        const [nextFirst] = MultipleCountersProgram.update(
+          models.first,
+          message,
+        )
+        const [nextSecond] = MultipleCountersProgram.update(
+          models.second,
+          message,
+        )
+        const [nextThird] = MultipleCountersProgram.update(
+          models.third,
+          message,
+        )
         expect(messageCategory(message)).toBe('Domain')
         expect(projectDomain(nextFirst)).toStrictEqual(
           projectDomain(nextSecond),

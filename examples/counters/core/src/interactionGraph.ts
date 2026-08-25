@@ -114,7 +114,7 @@ const sourceForMessage = (message: Message): InteractionSource =>
     M.withReturnType<InteractionSource>(),
     M.tagsExhaustive({
       ClickedAddCounter: () => rootSource,
-      GotCounterMessage: ({ counterId }) => counterSource(counterId),
+      GotChild: ({ id }) => counterSource(id),
       SelectedCounter: ({ counterId }) => counterSource(counterId),
       DismissedCounterDetail: ({ counterId, detailPresentationId }) =>
         detailSource(counterId, detailPresentationId),
@@ -219,7 +219,7 @@ const messageToken = (message: Message): string =>
     M.withReturnType<string>(),
     M.tagsExhaustive({
       ClickedAddCounter: () => 'AddCounter',
-      GotCounterMessage: ({ message }) => counterMessageToken(message),
+      GotChild: ({ message }) => counterMessageToken(message),
       SelectedCounter: () => 'OpenCounter',
       DismissedCounterDetail: () => 'BackToCounters',
       ClickedShowCounterFact: () => 'ShowCounterFact',
@@ -269,7 +269,7 @@ const maybeDestinationForInteraction = (
           M.withReturnType<Option.Option<string>>(),
           M.tagsExhaustive({
             ClickedAddCounter: () => Option.none(),
-            GotCounterMessage: () => Option.none(),
+            GotChild: () => Option.none(),
             SelectedCounter: ({ counterId }) =>
               Option.some(detailDestinationUri(counterId)),
             DismissedCounterDetail: () => Option.some(listDestinationUri()),
@@ -359,7 +359,7 @@ const counterRowGroup = (
         interactionId: interactionId(source, 'CounterValue'),
         label: 'Count',
         role: 'Value',
-        value: counter.counter.count.toString(),
+        value: counter.child.count.toString(),
       }),
       ...actions,
     ],
@@ -488,7 +488,7 @@ const detailProjection = (
       interactionId: interactionId(source, 'CounterValue'),
       label: 'Count',
       role: 'Value',
-      value: counter.counter.count.toString(),
+      value: counter.child.count.toString(),
     })
   const detailContent: Readonly<{
     children: ReadonlyArray<InteractionNode<Interaction>>
