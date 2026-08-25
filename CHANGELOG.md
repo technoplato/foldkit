@@ -4,6 +4,17 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 2:24 p.m. EDT — `4d329fd05` feat(counters): OpenTUI header attribution + stale boot-navigation expectation fix
+
+- **Implementation commit:** `4d329fd05`
+- **Change:** OpenTUI header carries dynamic source attribution; stale boot test fixed
+- **Details:**
+  - Header title derives its source URL from the checkout's own git remote at run time; one extra header line shows the link target.
+  - client.test.ts dropped detailPresentationId from the CounterFactAlert boot expectation (field left the mode in 6611f79e7; pre-existing failure).
+- **Files:**
+  - `examples/counters/opentui/src/surfaceLabel.ts` — new
+  - `examples/counters/opentui/src/host.tsx`, `src/client.test.ts`
+
 ## August 25th, 2026 at 2:15 p.m. EDT — `441cbc8a2` feat(foldkit): ADR 0010 navigation seam — runtime URI sync helpers
 
 - **Implementation commit:** `441cbc8a2`
