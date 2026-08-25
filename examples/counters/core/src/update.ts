@@ -21,6 +21,7 @@ import {
   CounterRow,
   DeleteCounterConfirmation,
   type DeleteCounterConfirmationId,
+  FactFailureCause,
   FailedCounterFact,
   LoadedCounterFact,
   LoadingCounterFact,
@@ -72,7 +73,6 @@ const factAlertNavigation = (
     counterId,
     maybeMode: Option.some(
       CounterFactAlert.make({
-        detailPresentationId,
         requestId,
         status,
       }),
@@ -125,7 +125,6 @@ const deleteNavigation = (
     maybeMode: Option.some(
       DeleteCounterConfirmation.make({
         confirmationId,
-        detailPresentationId,
       }),
     ),
     presentationId: detailPresentationId,
@@ -303,7 +302,7 @@ const failFact = (
   counterId: CounterId,
   detailPresentationId: CounterDetailPresentationId,
   requestId: CounterFactRequestId,
-  reason: string,
+  cause: FactFailureCause,
 ): UpdateReturn => {
   const navigation = model.navigation
   if (
@@ -323,7 +322,7 @@ const failFact = (
         counterId,
         detailPresentationId,
         requestId,
-        FailedCounterFact.make({ reason }),
+        FailedCounterFact.make({ cause }),
       ),
     ),
     [],
@@ -343,7 +342,6 @@ const dismissFact = (
     navigation.presentationId !== detailPresentationId ||
     Option.isNone(navigation.maybeMode) ||
     navigation.maybeMode.value._tag !== 'CounterFactAlert' ||
-    navigation.maybeMode.value.detailPresentationId !== detailPresentationId ||
     navigation.maybeMode.value.requestId !== requestId
   ) {
     return [model, []]
@@ -395,7 +393,6 @@ const cancelDelete = (
     navigation.presentationId !== detailPresentationId ||
     Option.isNone(navigation.maybeMode) ||
     navigation.maybeMode.value._tag !== 'DeleteCounterConfirmation' ||
-    navigation.maybeMode.value.detailPresentationId !== detailPresentationId ||
     navigation.maybeMode.value.confirmationId !== confirmationId
   ) {
     return [model, []]
@@ -476,9 +473,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       FailedLoadCounterFact: ({
         counterId,
         detailPresentationId,
-        reason,
+        cause,
         requestId,
-      }) => failFact(model, counterId, detailPresentationId, requestId, reason),
+      }) => failFact(model, counterId, detailPresentationId, requestId, cause),
       DismissedCounterFactAlert: ({
         counterId,
         detailPresentationId,

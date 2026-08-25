@@ -38,7 +38,7 @@ export const FetchCounterFact = Command.define(
         FailedLoadCounterFact({
           counterId,
           detailPresentationId,
-          reason: 'Counter fact unavailable',
+          cause: 'Network',
           requestId,
         }),
       ),

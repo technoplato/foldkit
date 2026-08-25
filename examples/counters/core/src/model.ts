@@ -1,5 +1,5 @@
 import * as Counter from 'counter-core-example'
-import { Array, Option, Schema as S } from 'effect'
+import { Array, Schema as S } from 'effect'
 
 // MODEL
 
@@ -50,6 +50,11 @@ export const CounterFact = S.Struct({
 /** One number-specific fact. */
 export type CounterFact = typeof CounterFact.Type
 
+/** Why one counter-fact fetch failed. */
+export const FactFailureCause = S.Literals(['Network', 'Unreadable'])
+/** Why one counter-fact fetch failed. */
+export type FactFailureCause = typeof FactFailureCause.Type
+
 /** A counter fact request is in flight. */
 export const LoadingCounterFact = S.TaggedStruct('LoadingCounterFact', {})
 /** A counter fact request completed. */
@@ -58,7 +63,7 @@ export const LoadedCounterFact = S.TaggedStruct('LoadedCounterFact', {
 })
 /** A counter fact request failed. */
 export const FailedCounterFact = S.TaggedStruct('FailedCounterFact', {
-  reason: S.String,
+  cause: FactFailureCause,
 })
 
 /** Every state of a counter fact request. */
@@ -72,7 +77,6 @@ export type CounterFactStatus = typeof CounterFactStatus.Type
 
 /** Presents the fact alert for the selected counter. */
 export const CounterFactAlert = S.TaggedStruct('CounterFactAlert', {
-  detailPresentationId: CounterDetailPresentationId,
   requestId: CounterFactRequestId,
   status: CounterFactStatus,
 })
@@ -81,7 +85,6 @@ export const DeleteCounterConfirmation = S.TaggedStruct(
   'DeleteCounterConfirmation',
   {
     confirmationId: DeleteCounterConfirmationId,
-    detailPresentationId: CounterDetailPresentationId,
   },
 )
 
@@ -98,21 +101,9 @@ export const CounterList = S.TaggedStruct('CounterList', {})
 /** One counter detail is visible, with at most one presentation mode. */
 export const CounterDetail = S.TaggedStruct('CounterDetail', {
   counterId: CounterId,
-  maybeMode: S.OptionFromNullOr(CounterDetailMode),
+  maybeMode: S.Option(CounterDetailMode),
   presentationId: CounterDetailPresentationId,
-}).check(
-  S.makeFilter(detail => {
-    if (Option.isNone(detail.maybeMode)) {
-      return undefined
-    }
-    return detail.maybeMode.value.detailPresentationId === detail.presentationId
-      ? undefined
-      : {
-          path: ['maybeMode'],
-          issue: 'Detail modes must belong to their enclosing presentation',
-        }
-  }),
-)
+})
 
 /** Every representable navigation destination. */
 export const Navigation = S.Union([CounterList, CounterDetail])

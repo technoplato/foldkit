@@ -46,6 +46,36 @@ export const Destination = S.Union([
 /** Every destination presentation a host must handle. */
 export type Destination = typeof Destination.Type
 
+/** The visual role one destination presents with, derived from its kind. */
+export const PresentationStyleTag = S.Literals(['Push', 'Sheet', 'Dialog'])
+/** The visual role one destination presents with, derived from its kind. */
+export type PresentationStyleTag = typeof PresentationStyleTag.Type
+
+const overlayStyleOf = (mode: CounterDetailMode): PresentationStyleTag =>
+  M.value(mode).pipe(
+    M.withReturnType<PresentationStyleTag>(),
+    M.tagsExhaustive({
+      CounterFactAlert: () => 'Sheet',
+      DeleteCounterConfirmation: () => 'Dialog',
+    }),
+  )
+
+/** Derives the visual role of one destination; never stored on the Model. */
+export const presentationStyleOf = (
+  destination: Destination,
+): PresentationStyleTag =>
+  M.value(destination).pipe(
+    M.withReturnType<PresentationStyleTag>(),
+    M.tagsExhaustive({
+      CounterListDestination: () => 'Push',
+      CounterDetailDestination: ({ maybeMode }) =>
+        Option.match(maybeMode, {
+          onNone: () => 'Push',
+          onSome: overlayStyleOf,
+        }),
+    }),
+  )
+
 /** The visual role of one valid interaction. */
 export const InteractionRole = S.Literals(['Default', 'Primary', 'Destructive'])
 /** The visual role of one valid interaction. */
