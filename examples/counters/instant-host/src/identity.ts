@@ -16,6 +16,7 @@ export const countersProcessorIds = {
   headless: 'counters-headless',
   opentui: 'counters-opentui',
   react: 'counters-react',
+  solid: 'counters-solid',
   svelte: 'counters-svelte',
   sveltekit: 'counters-sveltekit',
   terminal: 'counters-terminal',
