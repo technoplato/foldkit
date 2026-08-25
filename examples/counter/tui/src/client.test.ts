@@ -1,5 +1,4 @@
 import {
-  SyncedCounter,
   memorySyncedEngine,
   readyCounter,
   startSyncedCounterHandle,

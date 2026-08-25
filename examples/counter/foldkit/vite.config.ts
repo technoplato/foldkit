@@ -36,7 +36,7 @@ const mobileHostIndex = (): Plugin => ({
   name: 'mobile-host-index',
   configurePreviewServer(server) {
     server.middlewares.use((req, _res, next) => {
-      const host = (req.headers.host ?? '').split(':')[0]
+      const host = ((req.headers.host ?? '').split(':')[0] ?? '').toLowerCase()
       const isPhoneHost =
         host.startsWith('mobile.') ||
         host === 'mobile-counter.knophy.com' ||
