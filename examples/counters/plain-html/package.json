@@ -1,0 +1,22 @@
+{
+  "name": "counters-plain-html-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "prebuild": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "pretypecheck": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "vite",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "counters-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}
