@@ -1,6 +1,36 @@
 import { Effect } from 'effect'
 
 export { UrlRequest, Internal, External } from './urlRequest.js'
+export {
+  ElementAnchor,
+  PresentationStyle,
+  Push,
+  Sheet,
+  BottomSheet,
+  FullScreenCover,
+  Dialog,
+  Popover,
+  DrawerFromLeft,
+  DrawerFromRight,
+  Presented,
+  presented,
+  NothingPresented,
+  PresentingEntries,
+  NavigationStack,
+  stackAtRoot,
+  stackWithEntries,
+  topEntry,
+  pushed,
+  popped,
+  replacedRoot,
+  StackInstruction,
+  setRoot,
+  push,
+  pop,
+  replaceTop,
+  stackInstructions,
+  applyStackInstructions,
+} from './structure.js'
 
 /** Pushes a new URL to browser history and triggers Foldkit's URL change handling. */
 export const pushUrl = (url: string): Effect.Effect<void> =>
