@@ -41,6 +41,8 @@ import * as InteractionGraph from 'foldkit/interaction-graph'
 
 import type { ProgramStoreError } from '@foldkit/instant'
 
+import { attributionSuffix } from './surfaceLabel.js'
+
 const clearScreen = '\u001b[2J\u001b[H'
 
 type CountersAction = InteractionGraph.InteractionAction<Interaction>
@@ -89,7 +91,12 @@ const formatFactStatus = (status: CounterFactStatus): ReadonlyArray<string> =>
         `Counter fact for ${fact.number.toString()}`,
         fact.text,
       ],
-      FailedCounterFact: ({ reason }) => ['Counter fact unavailable', reason],
+      FailedCounterFact: ({ cause }) => [
+        'Counter fact unavailable',
+        cause === 'Network'
+          ? 'The network could not reach the fact source'
+          : 'The fact source returned an unreadable body',
+      ],
     }),
   )
 
@@ -142,7 +149,7 @@ export const renderCountersTerminal = (model: Model): string => {
   return Array.join(
     [
       clearScreen,
-      'Foldkit Multiple Counters | Effect Terminal',
+      attributionSuffix('Foldkit Multiple Counters | Effect Terminal'),
       navigationToPath(model.navigation),
       '',
       ...formatDestination(destinationForModel(model)),
