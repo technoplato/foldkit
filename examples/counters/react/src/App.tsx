@@ -14,14 +14,21 @@ const counterUri = (counterId: string): string => `/counters/${counterId}`
 /** The two React presentation adapters included in this comparison. */
 export type Presenter = 'ReactA' | 'ReactB'
 
-/** Draws Multiple Counters. The window only calls useModel and useActions. */
+/**
+ * Draws Multiple Counters. The window only calls useModel and useActions.
+ * When `externalUri` is provided the window is router-controlled: the
+ * router owns the URI and this component re-renders from it.
+ */
 export const App = ({
   initialDestinationUri = listUri,
+  externalUri,
 }: Readonly<{
   initialDestinationUri?: string
+  externalUri?: string
   presenter?: Presenter
 }> = {}) => {
-  const [uri, setUri] = useState(initialDestinationUri)
+  const [internalUri, setUri] = useState(initialDestinationUri)
+  const uri = externalUri ?? internalUri
   const view = useModel(uri)
   const actions = useActions(uri)
   return <WindowView actions={actions} onOpen={setUri} view={view} />

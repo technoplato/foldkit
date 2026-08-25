@@ -14,6 +14,8 @@ import {
 import { Effect, Exit, Scope } from 'effect'
 import { useMemo, useRef, useSyncExternalStore } from 'react'
 
+import { type NavigationSource } from './routerBridge.js'
+
 const missingAppIdError =
   'VITE_INSTANT_APP_ID is missing. Start through the Instant demo wrapper.'
 
@@ -147,4 +149,20 @@ export const useModel = (uri: string): CountersWindowModel => {
 export const useActions = (uri: string): CountersWindowActions => {
   const runtime = getCountersWindowRuntime()
   return runtime.actions(uri)
+}
+
+/**
+ * The window runtime projected as a router-bridge navigation source.
+ * Router demos observe Program navigation through this and send actions
+ * when the carrier moves underneath the Program (browser back/forward).
+ */
+export const countersWindowNavigationSource = (): NavigationSource & {
+  readonly actions: (uri: string) => CountersWindowActions
+} => {
+  const runtime = getCountersWindowRuntime()
+  return {
+    readModel: () => runtime.readModel(),
+    subscribe: listener => runtime.observeModel(listener),
+    actions: runtime.actions,
+  }
 }
