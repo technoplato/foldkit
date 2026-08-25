@@ -4,6 +4,44 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 12:02 p.m. EDT — `b491d1b4f0` feat(counters): observeNavigation live glue for router bridges
+
+- **Implementation commit:** `b491d1b4f`
+- **Change:** observeNavigation feeds runtime navigation through router bridges
+- **Details:**
+  - `observeNavigation(source, bridge)` seeds from `readModel` silently, then performs every later observed navigation diff on the bridge; returns the runtime stop function for React effect cleanup.
+  - `navigationBridgeFor` drops its internal first-observation guard — seeding is the caller's concern, so a bridge never double-swallows a first diff.
+- **Files:**
+  - `examples/counters/react/src/routerBridge.ts` — observer + contract refinement
+  - `examples/counters/react/src/routerBridge.test.ts` — seeding + stop tests
+
+## August 25th, 2026 at 11:52 a.m. EDT — `ae58780df` feat(counters): web navigation bridges over createNavigationAdapter plugins
+
+- **Implementation commit:** `ae58780df`
+- **Change:** Single translation seam from app NavInstructions to framework StackInstructions over web router plugins
+- **Details:**
+  - `routerBridge.ts` is the only place app-level NavInstruction transitions become framework StackInstructions with canonical counter paths; `WebRouterPort` is the only impure seam; tanstack-router and react-router bridges share one web policy, parity proven by test.
+  - Dismissal maps onto Pop per the stack vocabulary (presented routes leave via history back); fact alert and delete confirmation present as Dialog style.
+  - Fixed pre-existing red at HEAD: view.tsx rendered `.reason` on FailedCounterFact after the field was renamed to `cause` in 6611f79e7; typecheck was broken while vitest stayed green.
+- **Files:**
+  - `examples/counters/react/src/routerBridge.ts` — new
+  - `examples/counters/react/src/routerBridge.test.ts` — new
+  - `examples/counters/react/src/view.tsx` — FailedCounterFact cause sentences
+  - `examples/counters/react/package.json` — @tanstack/react-router, react-router deps
+- **User context (verbatim):**
+  > update counters to use new core and make sure you support react-tanstack router; react-react-router; expo file router navigation; expo dynamica react navigation; cli; opentui; tui; foldkit; svelte; solid; and for the heck of it let's throw in datastar and plain html as well.
+
+## August 25th, 2026 at 11:27 a.m. EDT — `2dddeda49` fix(counter): repair typecheck across core and hosts after shared-vocabulary drift
+
+- **Implementation commit:** `2dddeda49`
+- **Change:** Repair counter example typecheck after the counters core migration
+- **Details:**
+  - factHandles test collector widened to the composed ActionMenuAppMessage sender union; node types enabled via tsconfig for startLive source assertions; vite host-header parse satisfies noUncheckedIndexedAccess; unused tui import dropped. All seven counter packages typecheck clean and test green (core 74, cli 36, react 8, foldkit 15, headless 15, tui 21).
+- **Files:**
+  - `examples/counter/core/src/factHandles.test.ts`, `src/startLive.test.ts` (tsconfig), `core/tsconfig.json`, `core/package.json`
+  - `examples/counter/foldkit/vite.config.ts`
+  - `examples/counter/tui/src/client.test.ts`
+
 ## August 25th, 2026 at 10:48:11 a.m. EDT — `c4bb77f499f7` fix(counters): migrate client hosts to GotChild row vocabulary
 
 - **Implementation commit:** `c4bb77f499f7265c78888d0decaf2094bd7d7c03`
