@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 11:20:04 p.m. EDT — `dac4047907f9` test(counters): prove two-processor tape convergence on Memory
+
+- **Implementation commit:** `dac4047907f9eb634c1ebaf420919339ff346edc`
+- **Change:** Prove counters tape convergence across two Memory processors
+- **Details:**
+  - Five scenarios on Runtime.start + shared MemoryStore over the real Program: identical Ready boots, silent-peer adds, concurrent increments converging, offline queue-replay zero-loss, poison rows surfacing SyncFailed DecodeFailed with Ready preserved. Findings logged for framework follow-up: same-ms UUID tie-break ordering can diverge order-sensitive models (needs refold-on-divergence), and offline-window snapshots need coverage metadata instead of wall-clock staleness.
+- **Files:**
+  - `examples/counters/headless/src/tapeConvergence.test.ts` — Convergence, offline drill, and poison-row posture proofs
+- **User context (verbatim):**
+  > Counter sync tape, single tape versus plus array and snapshot versus per child tapes. Not sure
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 10:36:36 p.m. EDT — `da250fa035e2` feat(counters): derive expo modal presentations from overlay style
 
 - **Implementation commit:** `da250fa035e2c10e6273b9496757a2b3bf4ea1ee`
