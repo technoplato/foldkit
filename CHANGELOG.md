@@ -4,6 +4,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 10:48:11 a.m. EDT — `c4bb77f499f7` fix(counters): migrate client hosts to GotChild row vocabulary
+
+- **Implementation commit:** `c4bb77f499f7265c78888d0decaf2094bd7d7c03`
+- **Change:** Follow GotChild vocabulary in counters client hosts
+- **Details:**
+  - Consumer packages adopt the core renames: wrapper field id, child row reads, updated fixtures; headless convergence proofs and the Instant window runtime pass against rebuilt dist.
+- **Files:**
+  - `examples/counters/cli/src/host.ts` — GotChild id field
+  - `examples/counters/terminal/src/host.ts` — child row reads
+  - `examples/counters/headless/src/host.ts` — child row reads
+  - `examples/counters/headless/src/tapeConvergence.test.ts` — GotChild constructions
+  - `examples/counters/instant-host/src/hostActions.ts` — id shorthand
+  - `examples/counters/instant-host/src/window.ts` — child row reads
+  - `examples/counters/react/src/view.tsx` — child row read
+  - `examples/counters/vue/src/processor.test.ts` — child fixture
+  - `examples/counters/three/src/entry.ts` — child row read
+  - `examples/counters/src/main.ts` — GotChild and child reads
+  - `examples/counters/src/story.test.ts` — GotChild fixture
+- **User context (verbatim):**
+  > did you build the counters example and migrate counter to new whatever you added
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 25th, 2026 at 10:47:57 a.m. EDT — `dd20b02a8a71` fix(foldkit): repair navigation barrel and plugin typings
 
 - **Implementation commit:** `dd20b02a8a7194c76b65d5014994d72afd85af8f`
