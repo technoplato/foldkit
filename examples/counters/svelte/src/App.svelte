@@ -1,6 +1,9 @@
 <script lang="ts">
   import { useActions, useModel } from './processor.js'
 
+  // Injected by vite define from this checkout's own git remote; never hardcoded.
+  declare const __GITHUB_SOURCE_URL__: string
+  const sourceUrl = typeof __GITHUB_SOURCE_URL__ === 'string' ? __GITHUB_SOURCE_URL__ : ''
   const listUri = '/counters'
   const counterUri = (counterId: string): string => `/counters/${counterId}`
 
@@ -10,7 +13,11 @@
 </script>
 
 <main>
-  <p>FOLDKIT COUNTERS</p>
+  <p class="surface-label" data-source={sourceUrl || 'local checkout'}>
+    {sourceUrl === ''
+      ? 'FOLDKIT COUNTERS — SVELTE'
+      : `FOLDKIT COUNTERS — SVELTE · Source: ${sourceUrl}`}
+  </p>
   <h1>Svelte</h1>
   {#if view._tag === 'StartingWindow'}
     <p>Starting Instant Multiple Counters…</p>
