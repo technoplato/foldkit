@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 9:54:16 p.m. EDT — `74d1376d74b8` feat(counters): prove state-to-URI projection with round-trip laws
+
+- **Implementation commit:** `74d1376d74b837b181324616e9817311c29b7539`
+- **Change:** Add URI projection laws over counters navigation state
+- **Details:**
+  - canonicalNavigationUri and navigationFromUri give every Navigation value a canonical, reparseable address with skeleton-level identity comparison that deliberately excludes transient presentation ids. The driven interaction walk proves URI changes iff navigation changes across select/fact/delete/cancel/dismiss, satisfying the always-sync-state-to-URI mandate independent of rendering surface.
+- **Files:**
+  - `examples/counters/core/src/uriProjection.ts` — Canonical print, strict reparse to skeleton, address comparison
+  - `examples/counters/core/src/uriProjection.test.ts` — Law table plus real-Program reflection walk
+- **User context (verbatim):**
+  > we're always syncing our state to the URI regardless of what surface is being rendered ... every state should be deeplinkable, bipriner (parser printable), reflect every state change
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 9:51:32 p.m. EDT — `6611f79e7e56` feat(counters): scope failure causes and fix overlay field ownership
 
 - **Implementation commit:** `6611f79e7e56ecc6872571158e00eb06bb534ecf`
