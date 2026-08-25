@@ -3,7 +3,7 @@ import {
   ClickedAddCounter,
   ClickedShowCounterFact,
   DismissedCounterDetail,
-  GotCounterMessage,
+  GotChild,
   type Message,
   type Model,
   SelectedCounter,
@@ -17,22 +17,22 @@ export const addCounterMessage = (model: Model): Message =>
 
 /** Increments one identified Counter. */
 export const incrementCounterMessage = (counterId: string): Message =>
-  GotCounterMessage({
-    counterId,
+  GotChild({
+    id: counterId,
     message: Counter.Increment(),
   })
 
 /** Decrements one identified Counter. */
 export const decrementCounterMessage = (counterId: string): Message =>
-  GotCounterMessage({
-    counterId,
+  GotChild({
+    id: counterId,
     message: Counter.Decrement(),
   })
 
 /** Resets one identified Counter. */
 export const resetCounterMessage = (counterId: string): Message =>
-  GotCounterMessage({
-    counterId,
+  GotChild({
+    id: counterId,
     message: Counter.Reset(),
   })
 

@@ -1,7 +1,7 @@
 import * as Counter from 'counter-core-example'
 import {
   ClickedAddCounter,
-  GotCounterMessage,
+  GotChild,
   type Message,
   type Model,
   destinationForModel,
@@ -85,7 +85,7 @@ const readyPrint = (model: Model) =>
   ReadyWindow.make({
     counters: Array.map(model.rows, row =>
       WindowCounter.make({
-        count: row.counter.count,
+        count: row.child.count,
         id: row.id,
       }),
     ),
@@ -96,7 +96,7 @@ const printJson = (value: unknown) => Console.log(JSON.stringify(value))
 /** Projects one Model into a renderer-free Ready snapshot. */
 export const snapshotForModel = (model: Model): CountersHeadlessSnapshot => ({
   counters: Array.map(model.rows, row => ({
-    count: row.counter.count,
+    count: row.child.count,
     id: row.id,
   })),
   destination: destinationForModel(model)._tag,
@@ -124,8 +124,8 @@ const messageForTokens = (
         )
       }
       return Effect.succeed(
-        GotCounterMessage({
-          counterId: maybeCounterId.value,
+        GotChild({
+          id: maybeCounterId.value,
           message: Counter.Increment(),
         }),
       )
@@ -140,8 +140,8 @@ const messageForTokens = (
         )
       }
       return Effect.succeed(
-        GotCounterMessage({
-          counterId: maybeCounterId.value,
+        GotChild({
+          id: maybeCounterId.value,
           message: Counter.Decrement(),
         }),
       )

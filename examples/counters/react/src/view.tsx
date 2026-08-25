@@ -77,7 +77,7 @@ export const CounterListView = ({
               {counter.id}
             </button>
             <p className="mt-2 text-4xl font-semibold tabular-nums">
-              {counter.counter.count}
+              {counter.child.count}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -125,7 +125,7 @@ export const CounterDetailView = ({ counter }: { counter: CounterRow }) => {
       </button>
       <p className="mt-6 font-mono text-sm text-amber-400">{counter.id}</p>
       <p className="mt-3 text-7xl font-semibold tabular-nums">
-        {counter.counter.count}
+        {counter.child.count}
       </p>
       <div className="mt-6 flex flex-wrap gap-2">
         <button

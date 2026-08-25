@@ -97,7 +97,7 @@ export type CountersWindowDeps = Readonly<{
 const windowCounters = (model: Model): ReadonlyArray<WindowCounter> =>
   Array.map(model.rows, row =>
     WindowCounter.make({
-      count: row.counter.count,
+      count: row.child.count,
       id: row.id,
     }),
   )
@@ -126,7 +126,7 @@ const countForUri = (
     return { selectedId: maybeId.value }
   }
   return {
-    count: maybeRow.value.counter.count,
+    count: maybeRow.value.child.count,
     selectedId: maybeId.value,
   }
 }

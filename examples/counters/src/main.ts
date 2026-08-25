@@ -34,7 +34,7 @@ export {
   ConfirmedDeleteCounter,
   CounterList,
   DismissedCounterDetail,
-  GotCounterMessage,
+  GotChild,
   Message,
   Model,
   MultipleCountersProgram,
@@ -146,7 +146,7 @@ const destinationView = (destination: Destination): Html => {
                 ),
                 h.strong(
                   [h.Class('text-4xl tabular-nums')],
-                  [counter.counter.count.toString()],
+                  [counter.child.count.toString()],
                 ),
               ],
             ),
@@ -159,7 +159,7 @@ const destinationView = (destination: Destination): Html => {
             h.p([h.Class('font-mono text-sm text-amber-400')], [counter.id]),
             h.p(
               [h.Class('mt-4 text-7xl font-semibold tabular-nums')],
-              [counter.counter.count.toString()],
+              [counter.child.count.toString()],
             ),
             ...(Option.isSome(maybeMode)
               ? [detailModeView(counter.id, maybeMode.value)]

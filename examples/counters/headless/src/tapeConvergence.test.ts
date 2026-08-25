@@ -2,7 +2,7 @@ import * as Counter from 'counter-core-example'
 import {
   ClickedAddCounter,
   CounterRow,
-  GotCounterMessage,
+  GotChild,
   Message,
   Model,
   MultipleCountersProgram,
@@ -98,7 +98,7 @@ const countOfRow = (
 ): Option.Option<number> =>
   Option.map(
     Array.findFirst(rows, row => row.id === counterId),
-    row => row.counter.count,
+    row => row.child.count,
   )
 
 const remoteReceivedCountOf = (runtime: CountersRuntime): number =>
@@ -206,14 +206,14 @@ describe('Counters tape convergence on one shared Memory store', () => {
           yield* Effect.forEach(
             [
               react.runtime.run(
-                GotCounterMessage({
-                  counterId: 'counter-1',
+                GotChild({
+                  id: 'counter-1',
                   message: Counter.Increment(),
                 }),
               ),
               cli.runtime.run(
-                GotCounterMessage({
-                  counterId: 'counter-2',
+                GotChild({
+                  id: 'counter-2',
                   message: Counter.Increment(),
                 }),
               ),
@@ -224,12 +224,12 @@ describe('Counters tape convergence on one shared Memory store', () => {
 
           const expected = SyncedCounters.Ready(
             foldCountersMessages([
-              GotCounterMessage({
-                counterId: 'counter-1',
+              GotChild({
+                id: 'counter-1',
                 message: Counter.Increment(),
               }),
-              GotCounterMessage({
-                counterId: 'counter-2',
+              GotChild({
+                id: 'counter-2',
                 message: Counter.Increment(),
               }),
             ]),
@@ -263,8 +263,8 @@ describe('Counters tape convergence on one shared Memory store', () => {
 
           react.engine.goOffline()
           yield* react.runtime.run(
-            GotCounterMessage({
-              counterId: 'counter-1',
+            GotChild({
+              id: 'counter-1',
               message: Counter.Increment(),
             }),
           )
@@ -278,8 +278,8 @@ describe('Counters tape convergence on one shared Memory store', () => {
           ).toBe(0)
 
           yield* cli.runtime.run(
-            GotCounterMessage({
-              counterId: 'counter-2',
+            GotChild({
+              id: 'counter-2',
               message: Counter.Increment(),
             }),
           )
@@ -292,12 +292,12 @@ describe('Counters tape convergence on one shared Memory store', () => {
 
           const expected = SyncedCounters.Ready(
             foldCountersMessages([
-              GotCounterMessage({
-                counterId: 'counter-1',
+              GotChild({
+                id: 'counter-1',
                 message: Counter.Increment(),
               }),
-              GotCounterMessage({
-                counterId: 'counter-2',
+              GotChild({
+                id: 'counter-2',
                 message: Counter.Increment(),
               }),
             ]),
