@@ -1,3 +1,4 @@
+import type { Program } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -9,11 +10,14 @@ import { Decrement, Increment, type Message, Reset } from './message.js'
 import { Model } from './model.js'
 import { SyncedCounter } from './synced.js'
 
+/** The synced handle sender accepts the composed app message union. */
+type AppMessage = Program.ActionMenuAppMessage<Message>
+
 const collect = (): {
-  sent: Array<Message>
-  send: (message: Message) => void
+  sent: Array<AppMessage>
+  send: (message: AppMessage) => void
 } => {
-  const sent: Array<Message> = []
+  const sent: Array<AppMessage> = []
   return {
     sent,
     send: message => {
