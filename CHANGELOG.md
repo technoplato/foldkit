@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 1:52 p.m. EDT — `5ecd69bfd` fix(foldkit): per-actor seq stamps make same-millisecond fold order causal
+
+- **Implementation commit:** `5ecd69bfd`
+- **Change:** Explicit same-actor causality in the sync fold order
+- **Details:**
+  - fillWriteTime stamps a monotonic per-runtime seq on Message rows; ordering becomes (createdAtMs, from, seq, id). Same-actor pairs can no longer invert on refold; cross-actor ties stay deterministic by actor name.
+  - Snapshot boundary carries maximal stamps so boot echo-skip semantics are unchanged. Counters program v4 + EventRegistry v4.
+  - Fixes the documented 'converges after offline gap with concurrent reset' flake: 6/6 consecutive green runs.
+- **Files:**
+  - `packages/foldkit/src/runtime/syncEngine.ts`, `start.ts`, `rowOrder.test.ts` (new)
+  - `examples/counters/core/src/program.ts` (v4), `wire.ts`, `program.test.ts`
+
 ## August 25th, 2026 at 1:28 p.m. EDT — `feat(foldkit): program decorators`
 
 - **Change:** Higher-order program decorators in the foldkit program module
