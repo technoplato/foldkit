@@ -1,7 +1,7 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { isRowOrderAfter } from './syncEngine.js'
+import { type LogRowOrder, isRowOrderAfter } from './syncEngine.js'
 import { maxRowOrder } from './syncEngine.js'
 import { rowOrderOf } from './syncEngine.js'
 
@@ -12,7 +12,7 @@ const row = (fields: {
   readonly seq?: number
 }): unknown => ({ ...fields })
 
-const orderOf = (row: unknown): ReturnType<typeof rowOrderOf> =>
+const orderOf = (row: unknown): LogRowOrder =>
   Option.getOrThrow(rowOrderOf(row))
 
 describe('rowOrderOf', () => {
