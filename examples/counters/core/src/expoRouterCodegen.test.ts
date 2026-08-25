@@ -67,7 +67,7 @@ describe('expoRouterFiles', () => {
     const remove = Option.getOrThrow(
       expoRouterFileFor('app/counters/[counterId]/delete.tsx'),
     )
-    expect(remove.content).toContain('presentation="modal"')
+    expect(remove.content).toContain('presentation="transparentModal"')
     expect(remove.content).toContain('deletePathFromProps')
   })
 
