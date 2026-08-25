@@ -15,7 +15,7 @@ if (root === null) {
 }
 
 const rowsFromModel = (model: Model) =>
-  model.rows.map(row => ({ id: row.id, count: row.counter.count }))
+  model.rows.map(row => ({ id: row.id, count: row.child.count }))
 
 const failedInstantMessage = (error: unknown) =>
   error instanceof Error

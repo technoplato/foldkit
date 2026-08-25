@@ -3,7 +3,7 @@ import {
   ClickedDeleteCounter,
   ClickedShowCounterFact,
   CounterList,
-  GotCounterMessage,
+  GotChild,
   SelectedCounter,
   modelForNavigation,
   update,
@@ -18,13 +18,13 @@ describe('Multiple Counters update', () => {
       update,
       Story.with(modelForNavigation(CounterList.make({}))),
       Story.message(
-        GotCounterMessage({
-          counterId: 'counter-2',
+        GotChild({
+          id: 'counter-2',
           message: Counter.Increment(),
         }),
       ),
       Story.model(model => {
-        expect(Array.map(model.rows, row => row.counter.count)).toStrictEqual([
+        expect(Array.map(model.rows, row => row.child.count)).toStrictEqual([
           0, 1,
         ])
       }),

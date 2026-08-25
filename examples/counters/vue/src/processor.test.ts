@@ -15,7 +15,7 @@ describe('Multiple Counters Vue processor', () => {
     )
     expect(Option.isSome(maybeFirst)).toBe(true)
     if (Option.isSome(maybeFirst)) {
-      expect(maybeFirst.value.counter.count).toBe(1)
+      expect(maybeFirst.value.child.count).toBe(1)
     }
     await processor.stop()
   })

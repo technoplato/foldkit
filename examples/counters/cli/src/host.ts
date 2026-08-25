@@ -294,14 +294,14 @@ export const formatDestination = (
         'Counters',
         ...Array.map(
           counters,
-          counter => `${counter.id}: ${counter.counter.count.toString()}`,
+          counter => `${counter.id}: ${counter.child.count.toString()}`,
         ),
       ],
       CounterDetailDestination: ({ counter, maybeMode }) => {
         if (Option.isSome(maybeMode)) {
           return formatDetailMode(counter.id, maybeMode.value)
         } else {
-          return [counter.id, `Count: ${counter.counter.count.toString()}`]
+          return [counter.id, `Count: ${counter.child.count.toString()}`]
         }
       },
     }),
