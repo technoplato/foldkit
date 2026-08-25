@@ -30,7 +30,7 @@ const Rows = Program.compose.forEach<
 >({
   of: Counter.CounterProgram,
   id: 'multiple-counters',
-  version: 3,
+  version: 4,
   fields: {
     navigation: Navigation,
     retiredCounterIds: RetiredCounterIds,

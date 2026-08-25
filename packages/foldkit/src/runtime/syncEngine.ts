@@ -255,10 +255,18 @@ export const readRowNumber = (
   return Option.some(value)
 }
 
-/** Log position of one Message row: `createdAtMs`, then `id`. */
+/**
+ * Log position of one Message row: `createdAtMs`, then actor (`from`),
+ * then per-actor `seq`, then `id`. The actor+seq pair carries explicit
+ * same-actor causality: rows one Processor wrote keep their write order
+ * even when they share a millisecond and UUIDs would sort against it.
+ * Legacy rows without actor/seq fall back to `createdAtMs` then `id`.
+ */
 export type LogRowOrder = Readonly<{
   createdAtMs: number
   id: string
+  readonly from?: string | undefined
+  readonly seq?: number | undefined
 }>
 
 /** Reads the log position of a Message row. */
@@ -268,13 +276,45 @@ export const rowOrderOf = (row: unknown): Option.Option<LogRowOrder> => {
   if (Option.isNone(createdAtMs) || Option.isNone(id)) {
     return Option.none()
   }
-  return Option.some({ createdAtMs: createdAtMs.value, id: id.value })
+  const from = readRowString(row, 'from')
+  const seq = readRowNumber(row, 'seq')
+  return Option.some({
+    createdAtMs: createdAtMs.value,
+    id: id.value,
+    ...(Option.isSome(from) && from.value !== '' ? { from: from.value } : {}),
+    ...(Option.isSome(seq) ? { seq: seq.value } : {}),
+  })
 }
 
-/** True when `a` sorts after `b`: `createdAtMs`, then `id`. */
+/** Three-way compare of optional stamps; missing sorts before present. */
+const compareOptionalStamp = <T extends string | number>(
+  a: T | undefined,
+  b: T | undefined,
+): number => {
+  if (a === undefined && b === undefined) {
+    return 0
+  }
+  if (a === undefined) {
+    return -1
+  }
+  if (b === undefined) {
+    return 1
+  }
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+/** True when `a` sorts after `b`: ms, actor, seq, then id. */
 export const isRowOrderAfter = (a: LogRowOrder, b: LogRowOrder): boolean => {
   if (a.createdAtMs !== b.createdAtMs) {
     return a.createdAtMs > b.createdAtMs
+  }
+  const byActor = compareOptionalStamp(a.from, b.from)
+  if (byActor !== 0) {
+    return byActor > 0
+  }
+  const bySeq = compareOptionalStamp(a.seq, b.seq)
+  if (bySeq !== 0) {
+    return bySeq > 0
   }
   return a.id > b.id
 }

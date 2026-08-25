@@ -85,6 +85,7 @@ const fillWriteTime = (
   message: unknown,
   processor: string,
   now: number,
+  seq: number,
 ): SyncWrite => {
   const snapshotRow = asRecord(snapshot)
   const messageRow = asRecord(message)
@@ -103,6 +104,7 @@ const fillWriteTime = (
       ...messageRow,
       id: messageId,
       from: processor,
+      seq,
       createdAtMs: now,
     },
   }
@@ -145,23 +147,32 @@ const asMessage = <Message>(message: unknown): Message => message as Message
 /**
  * The boundary after a snapshot row. `at` is the write time of the
  * last Message the snapshot folded, so rows in the same millisecond
- * are treated as covered.
+ * are treated as covered. The maximal actor/seq/id stamps keep every
+ * real same-millisecond row at-or-before the boundary under the full
+ * (createdAtMs, from, seq, id) comparison.
  */
 const snapshotBoundary = (at: number): LogRowOrder => ({
   createdAtMs: at,
   id: '\u{10FFFF}',
+  from: '\u{10FFFF}',
+  seq: Number.MAX_SAFE_INTEGER,
 })
 
-const logEntryOrder = Order.combine(
-  Order.mapInput(
-    Order.Number,
-    (entry: Readonly<{ order: LogRowOrder; row: unknown }>) =>
-      entry.order.createdAtMs,
-  ),
-  Order.mapInput(
-    Order.String,
-    (entry: Readonly<{ order: LogRowOrder; row: unknown }>) => entry.order.id,
-  ),
+/**
+ * Folds in explicit causality order: same-actor rows keep their write
+ * sequence even inside one millisecond; cross-actor ties stay
+ * deterministic by actor then id.
+ */
+const logEntryOrder = Order.make(
+  (
+    a: Readonly<{ order: LogRowOrder; row: unknown }>,
+    b: Readonly<{ order: LogRowOrder; row: unknown }>,
+  ) =>
+    isRowOrderAfter(a.order, b.order)
+      ? 1
+      : isRowOrderAfter(b.order, a.order)
+        ? -1
+        : 0,
 )
 
 const decodeFailed = <Msg>(fields: {
@@ -211,6 +222,8 @@ export const start = <
     const knownRows = new Map<string, unknown>()
     let lastWrite: Option.Option<SyncWriteResult> = Option.none()
     let lastApplied: Option.Option<LogRowOrder> = Option.none()
+    /** Per-actor monotonic write sequence stamped on every Message row. */
+    let nextSeq = 0
     const [initialChildModel] = program.of.init()
     let bootBase: Readonly<{
       model: unknown
@@ -336,6 +349,7 @@ export const start = <
           encodedMessage.success,
           engine.processor,
           nowMs(),
+          nextSeq++,
         )
         rememberRow(write.message)
         const writtenOrder = rowOrderOf(write.message)
