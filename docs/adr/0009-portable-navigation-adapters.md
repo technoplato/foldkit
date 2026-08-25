@@ -114,3 +114,43 @@ the manual pattern is covered by the same tests.
 - `examples/counters/core/src/navigatorInstructions.ts` (+ test)
 - `examples/counters/core/src/expoRouterCodegen.ts` (+ test)
 - Related: ADR 0003 navigation-as-state, ADR 0008 atomic UI surfaces
+
+## Amendment 2026-08-24 | Destination-carries-style, joint states, and the root seam
+
+Owner review settled the open question about where presentation intent
+lives. The answer: in destination state, generalized in the framework, not
+in per-app instruction unions.
+
+1. `foldkit/navigation` now ships the vocabulary:
+   `PresentationStyle` (Push | Sheet | BottomSheet | FullScreenCover |
+   Dialog | Popover(anchor) | Drawer(from: Side)), `Presented`, and
+   `NavigationStack` with `stackInstructions` / `applyStackInstructions`
+   obeying `apply(diff(a, b), a) == b`. Adapters translate style cases to
+   native presentations; they never decide when to navigate.
+
+2. Vocabulary rule learned from owner review of `DrawerFromLeft` /
+   `DrawerFromRight`: a closed axis with a real reader becomes a named
+   payload ADT on its case (`Drawer { from: Side }`), never suffix-enumerated
+   case names. Suffixes defeat structural grouping and do not scale.
+
+3. Joint presentation composes instead of optionaling: drawer-open-while-
+   popover-presented is two stacked entries. No stored booleans anywhere;
+   style views derive (`presentationStyleOf`) from destination kind.
+
+4. State-to-URI is law, not convention: `canonicalNavigationUri` /
+   `navigationFromUri` prove print-parse round trips at the skeleton level,
+   excluding transient presentation ids by design. A driven walk asserts
+   URI changes iff navigation changes across every interaction. Next step:
+   lift this into a Program-level navigation config so every surface syncs
+   state to URI through one runtime boundary (root-level seam), composing
+   applications deterministically.
+
+5. Hole-26 reclassification: prefixed identity grammar keeps composite
+   segments because interactionGraph legitimately mints ids from colon-
+   composite occurrence identities and nothing parses on colons.
+
+Borrowed from Point-Free SwiftNavigation: per-case concurrent
+presentations, item-over-isPresented discipline (no boolean beside a
+destination), per-entry URI printing. Rejected: binding write-back
+(unidirectional flow), type-erased path values (Schema types print
+directly), imperative dismiss actions (dismissal is Pop).
