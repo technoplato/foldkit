@@ -46,6 +46,7 @@ export default function CounterDetailRoute(props: {
 const modalScreen = (options: {
   readonly componentName: string
   readonly helperName: string
+  readonly presentation: 'modal' | 'transparentModal'
 }): string => `import {
   ${options.helperName},
   CountersRouteScreen,
@@ -57,20 +58,23 @@ export default function ${options.componentName}(props: {
   return (
     <CountersRouteScreen
       path={${options.helperName}(props.params)}
-      presentation="modal"
+      presentation="${options.presentation}"
     />
   )
 }
 `
 
+/** Sheet presents as a content modal; Dialog presents as a transparent decision layer. */
 const factModalScreen = modalScreen({
   componentName: 'CounterFactAlertRoute',
   helperName: 'factPathFromProps',
+  presentation: 'modal',
 })
 
 const deleteModalScreen = modalScreen({
   componentName: 'DeleteCounterConfirmationRoute',
   helperName: 'deletePathFromProps',
+  presentation: 'transparentModal',
 })
 
 const runtimeHelpers = `const MISSING_COUNTER_ID = ''
