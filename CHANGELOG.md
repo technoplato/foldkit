@@ -4,6 +4,14 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 1:28 p.m. EDT — `feat(foldkit): program decorators`
+
+- **Change:** Higher-order program decorators in the foldkit program module
+- **Details:**
+  - decorate/onUpdate/mapCommands/renamed combinators; wire contract untouchable by design; 6 new tests.
+- **Files:**
+  - `packages/foldkit/src/program/decorate.ts` + test, `public.ts` exports — new
+
 ## August 25th, 2026 at 12:52 p.m. EDT — `b055dcbb8` feat(counters): CLI surface label with carrier URI and dynamic source attribution
 
 - **Implementation commit:** `b055dcbb8`
