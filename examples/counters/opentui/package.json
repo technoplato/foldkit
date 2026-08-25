@@ -13,7 +13,7 @@
     "@opentui/core": "0.4.5",
     "@opentui/react": "0.4.5",
     "@foldkit/instant": "workspace:*",
-    "@instantdb/admin": "1.0.53",
+    "@instantdb/admin": "1.0.65",
     "counters-core-example": "workspace:*",
     "counters-instant-example": "workspace:*",
     "effect": "4.0.0-beta.97",

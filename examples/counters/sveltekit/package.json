@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@foldkit/instant": "workspace:*",
-    "@instantdb/core": "1.0.53",
+    "@instantdb/core": "1.0.65",
     "counters-core-example": "workspace:*",
     "counters-instant-example": "workspace:*",
     "effect": "4.0.0-beta.97",
@@ -21,7 +21,7 @@
     "svelte": "^5.38.0"
   },
   "devDependencies": {
-    "@instantdb/admin": "1.0.53",
+    "@instantdb/admin": "1.0.65",
     "@sveltejs/adapter-auto": "^6.1.0",
     "@sveltejs/kit": "^2.36.0",
     "@sveltejs/vite-plugin-svelte": "^6.1.0",
