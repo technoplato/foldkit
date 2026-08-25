@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 9:35:58 p.m. EDT — `062ebc3ce9e4` refactor(foldkit): parameterize Drawer by side
+
+- **Implementation commit:** `062ebc3ce9e467f3eeefdb8f99995daf168f647f`
+- **Change:** Parameterize Drawer presentation by Side instead of suffixed cases
+- **Details:**
+  - Owner review rejected suffix-enumerated subcases: Drawer now carries from: Side (Left | Right) as case-owned data, symmetric with Popover(anchor). Rationale recorded for future vocabulary work: closed axes become named ADTs as payloads when adapters read them; suffix names defeat structural grouping and do not scale.
+- **Files:**
+  - `packages/foldkit/src/navigation/structure.ts` — Side ADT + Drawer{from} replacing DrawerFromLeft/Right
+  - `packages/foldkit/src/navigation/structure.test.ts` — Constructor assertions and joint-stack scenario updated
+  - `packages/foldkit/src/navigation/index.ts` — Export Side/Drawer
+  - `packages/foldkit/src/navigation/public.ts` — Export Side/Drawer
+- **User context (verbatim):**
+  > draw(from side) should be the enum I feel, not drawfromleft/right. we shouldn't enumerate subcases as suffixes of core cases. push back if disagree
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 9:30:44 p.m. EDT — `0ac30918ac37` feat(foldkit): embed sibling fields beside forEach rows
 
 - **Implementation commit:** `0ac30918ac37c29cb3b1283cd894273b4c9caa24`
