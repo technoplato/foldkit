@@ -70,6 +70,10 @@ export type CountersWindowActions = Readonly<{
 
 /** One live Counters window runtime. Adapters subscribe. Windows do not. */
 export type CountersWindowRuntime = Readonly<{
+  /** The full Program Model, including navigation. Router bridges read it. */
+  readModel: () => Model
+  /** Observes every Program Model change; returns the stop function. */
+  observeModel: (listener: (model: Model) => void) => () => void
   actions: (uri: string) => CountersWindowActions
   getSnapshot: (uri: string) => CountersWindowModel
   signIn: () => void
@@ -175,6 +179,7 @@ export const startCountersWindowRuntime = (
     StartingWindow.make({})
   let tape: CountersWindowTape | undefined
   const listeners = new Set<() => void>()
+  const modelListeners = new Set<(model: Model) => void>()
   const snapshots = new Map<string, CountersWindowModel>()
 
   const snapshotFor = (uri: string): CountersWindowModel => {
@@ -201,6 +206,9 @@ export const startCountersWindowRuntime = (
   const becomeReady = (next: Model): void => {
     model = next
     status = { _tag: 'ReadyWindow', model }
+    modelListeners.forEach(listener => {
+      listener(next)
+    })
     notify()
   }
 
@@ -254,6 +262,13 @@ export const startCountersWindowRuntime = (
   begin()
 
   return {
+    readModel: () => model,
+    observeModel: listener => {
+      modelListeners.add(listener)
+      return () => {
+        modelListeners.delete(listener)
+      }
+    },
     actions: uri => {
       if (status._tag !== 'ReadyWindow') {
         return {
