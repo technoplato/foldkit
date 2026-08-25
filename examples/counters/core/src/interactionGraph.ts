@@ -407,7 +407,10 @@ const detailModeLabel = (mode: CounterDetailMode): string =>
           M.tagsExhaustive({
             LoadingCounterFact: () => 'Loading counter fact',
             LoadedCounterFact: ({ fact }) => fact.text,
-            FailedCounterFact: ({ reason }) => reason,
+            FailedCounterFact: ({ cause }) =>
+              cause === 'Network'
+                ? 'The network could not reach the fact source'
+                : 'The fact source returned an unreadable body',
           }),
         ),
       DeleteCounterConfirmation: () => 'Delete this counter?',

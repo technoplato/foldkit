@@ -157,7 +157,6 @@ const modelWithCounterFactStatus = (
       counterId: 'counter-1',
       maybeMode: Option.some(
         CounterFactAlert.make({
-          detailPresentationId: 'detail-restore-1',
           requestId: 'fact-restore-1',
           status,
         }),
@@ -196,7 +195,7 @@ const representativeMessages = (): ReadonlyArray<Message> => [
   FailedLoadCounterFact({
     counterId: 'counter-1',
     detailPresentationId: 'detail-1',
-    reason: 'Numbers API did not return a fact.',
+    cause: 'Network',
     requestId: 'fact-1',
   }),
   DismissedCounterFactAlert({
@@ -327,7 +326,6 @@ describe('Multiple Counters Program', () => {
         _tag: 'Some',
         value: {
           _tag: 'CounterFactAlert',
-          detailPresentationId: 'detail-1',
           requestId: 'fact-1',
           status: { _tag: 'LoadingCounterFact' },
         },
@@ -359,7 +357,7 @@ describe('Multiple Counters Program', () => {
     const failedModel = decodePersistedModel(
       modelWithCounterFactStatus(
         initialModel,
-        FailedCounterFact.make({ reason: 'Previous Processor stopped' }),
+        FailedCounterFact.make({ cause: 'Network' }),
       ),
     )
     const loadedModel = decodePersistedModel(
@@ -425,7 +423,6 @@ describe('Multiple Counters Program', () => {
       presentationId: 'detail-generated-1',
       maybeMode: {
         value: {
-          detailPresentationId: 'detail-generated-1',
           requestId: 'fact-generated-1',
         },
       },
@@ -574,7 +571,6 @@ describe('Multiple Counters Program', () => {
           counterId: 'counter-1',
           maybeMode: {
             _tag: 'CounterFactAlert',
-            detailPresentationId: 'detail-old-1',
             requestId: 'fact-1',
             status: {
               _tag: 'LoadedCounterFact',
@@ -593,7 +589,7 @@ describe('Multiple Counters Program', () => {
     const activeDetail = {
       _tag: 'CounterDetail',
       counterId: 'counter-1',
-      maybeMode: null,
+      maybeMode: Option.none(),
       presentationId: 'detail-active-1',
     }
     const activeModel = S.decodeUnknownSync(Model)({

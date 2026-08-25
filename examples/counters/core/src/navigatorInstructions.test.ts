@@ -45,7 +45,6 @@ const detailWith = (mode: CounterDetailMode): Navigation =>
 
 const factAlert = (): CounterDetailMode =>
   CounterFactAlert.make({
-    detailPresentationId: detailId,
     requestId: 'fact-r1',
     status: LoadingCounterFact.make({}),
   })
@@ -53,7 +52,6 @@ const factAlert = (): CounterDetailMode =>
 const deleteConfirmation = (): CounterDetailMode =>
   DeleteCounterConfirmation.make({
     confirmationId: 'delete-r1',
-    detailPresentationId: detailId,
   })
 
 const tagsOf = (

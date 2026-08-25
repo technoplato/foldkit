@@ -69,7 +69,7 @@ const SucceededLoadCounterFactPayload = S.Struct({
 const FailedLoadCounterFactPayload = S.Struct({
   counterId: FailedLoadCounterFact.fields.counterId,
   detailPresentationId: FailedLoadCounterFact.fields.detailPresentationId,
-  reason: FailedLoadCounterFact.fields.reason,
+  cause: FailedLoadCounterFact.fields.cause,
   requestId: FailedLoadCounterFact.fields.requestId,
 })
 const DismissedCounterFactAlertPayload = S.Struct({
@@ -229,12 +229,12 @@ export const encodeMessage = (message: Message): EncodedEvent =>
       FailedLoadCounterFact: ({
         counterId,
         detailPresentationId,
-        reason,
+        cause,
         requestId,
       }) => ({
         eventId: eventIds.failedLoadCounterFact,
         eventVersion: currentEventVersion,
-        payload: { counterId, detailPresentationId, reason, requestId },
+        payload: { counterId, detailPresentationId, cause, requestId },
       }),
       DismissedCounterFactAlert: ({
         counterId,

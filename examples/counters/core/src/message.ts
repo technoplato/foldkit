@@ -8,6 +8,7 @@ import {
   CounterFactRequestId,
   CounterId,
   DeleteCounterConfirmationId,
+  FactFailureCause,
 } from './model.js'
 
 /** Opens the counter list through an external navigation carrier. */
@@ -141,7 +142,7 @@ export const SucceededLoadCounterFact = m('SucceededLoadCounterFact', {
 export const FailedLoadCounterFact = m('FailedLoadCounterFact', {
   counterId: CounterId,
   detailPresentationId: CounterDetailPresentationId,
-  reason: S.String,
+  cause: FactFailureCause,
   requestId: CounterFactRequestId,
 })
 /** Records that the counter fact alert was dismissed. */

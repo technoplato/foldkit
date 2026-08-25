@@ -259,7 +259,6 @@ describe('Multiple Counters InteractionGraph', () => {
         value: {
           _tag: 'DeleteCounterConfirmation',
           confirmationId: 'delete-occurrence-test',
-          detailPresentationId: 'detail-occurrence-test',
         },
       },
     })
