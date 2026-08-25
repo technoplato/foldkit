@@ -2,7 +2,7 @@
 
 Date: 2026-08-24
 
-Status: Proposed for detailed review
+Status: Accepted in part — seam types + URI sync helpers landed (441cbc8a2); makeApplication integration pending
 
 ## Context
 
