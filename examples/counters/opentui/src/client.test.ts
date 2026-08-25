@@ -77,7 +77,6 @@ describe('Multiple Counters OpenTUI boot navigation', () => {
               _tag: 'Some',
               value: {
                 _tag: 'CounterFactAlert',
-                detailPresentationId: 'detail-boot-1',
                 requestId: 'fact-boot-1',
               },
             },

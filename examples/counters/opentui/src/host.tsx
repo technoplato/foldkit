@@ -38,7 +38,9 @@ import {
   scrollTopForFocusedBounds,
 } from './interactionPresentation.js'
 
-const HEADER_HEIGHT = 6
+import { attributionSuffix, gitSourceUrl } from './surfaceLabel.js'
+
+const HEADER_HEIGHT = 7
 
 /** Runs Multiple Counters through the OpenTUI React reconciler. */
 export const App = ({
@@ -274,7 +276,7 @@ const ProjectedMultipleCountersTerminal = ({
         flexDirection="column"
         height={HEADER_HEIGHT}
         padding={1}
-        title="Foldkit Multiple Counters | OpenTUI React"
+        title={attributionSuffix('Foldkit Multiple Counters | OpenTUI React')}
       >
         <text
           content="One Model. One Message path. One tape."
@@ -284,6 +286,11 @@ const ProjectedMultipleCountersTerminal = ({
         <text
           content={`Replay ${replay.mode} | frame ${replay.frame.toString()} of ${replay.finalFrame.toString()} | ${replay.isBranchable ? 'settled' : 'unsettled'}`}
           fg="#a8a29e"
+          height={1}
+        />
+        <text
+          content={`Source: ${gitSourceUrl() || 'local checkout'}`}
+          fg="#78716c"
           height={1}
         />
         <text content={replayInstruction()} fg="#78716c" height={1} />
