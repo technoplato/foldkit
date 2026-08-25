@@ -53,3 +53,13 @@ export {
   reactNavigationPlugin,
   createNavigationAdapter,
 } from './index.js'
+export type {
+  HistoryPort,
+  ProgramNavigation,
+} from './runtimeSeam.js'
+export type { UriSync } from './runtimeSeam.js'
+export {
+  makeUriSync,
+  parseResultToOption,
+  sameStack,
+} from './runtimeSeam.js'
