@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 24th, 2026 at 9:30:33 p.m. EDT — `adc2319f71ae` feat(foldkit): add navigation structure vocabulary
+
+- **Implementation commit:** `adc2319f71ae6e92294c9fe1bac6abfcfc10a0d3`
+- **Change:** Add navigation structure vocabulary: styles, stacks, diff law
+- **Details:**
+  - foldkit/navigation gains the presentation ADT the owner mandated: every way a destination appears over its parent is a named case, stacks are values with NonEmpty entry discipline, and stackInstructions/applyStackInstructions give adapters an ordered platform-neutral projection with a proven round-trip law. Joint states like drawer-open-while-popover-presented compose as stacked entries; nothing is optional state and no boolean is stored.
+- **Files:**
+  - `packages/foldkit/src/navigation/structure.ts` — PresentationStyle, Presented, NavigationStack, stackInstructions, applyStackInstructions
+  - `packages/foldkit/src/navigation/structure.test.ts` — 36 tests including joint drawer+popover coexistence and the round-trip law
+  - `packages/foldkit/src/navigation/public.ts` — Explicit exports matching sibling style
+  - `packages/foldkit/src/navigation/index.ts` — Re-export the new module
+- **User context (verbatim):**
+  > we handle modals, popovers, bottom sheets, everything that's possible to show. Drawers open, our modes, everything needs to be an ADT ... a drawer can be open and a popover can be presented. So, again, model that exhaustively as an ADT, no optional state.
+- **SpecStory:** unavailable — No SpecStory capture for this Codex desktop task.
+
 ## August 24th, 2026 at 2:27:18 p.m. EDT — `2b2fe53c7b96` test(counters): prove compose.forEach children over the counter core
 
 - **Implementation commit:** `2b2fe53c7b96cccc05a0dc4dc1f83fd189c738bc`
