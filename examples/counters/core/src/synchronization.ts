@@ -12,7 +12,7 @@ export const messageCategory = (
     M.withReturnType<Synchronization.MessageCategory>(),
     M.tagsExhaustive({
       ClickedAddCounter: () => 'Domain',
-      GotCounterMessage: () => 'Domain',
+      GotChild: () => 'Domain',
       SelectedCounter: () => 'Navigation',
       DismissedCounterDetail: () => 'Navigation',
       ClickedShowCounterFact: () => 'Navigation',

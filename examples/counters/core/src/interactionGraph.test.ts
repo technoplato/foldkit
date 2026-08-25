@@ -27,7 +27,7 @@ import {
   ClickedAddCounter,
   ClickedDeleteCounter,
   ConfirmedDeleteCounter,
-  GotCounterMessage,
+  GotChild,
   SelectedCounter,
 } from './message.js'
 import { type Model } from './model.js'
@@ -35,6 +35,7 @@ import {
   type Interaction,
   type InteractionIdentitySource,
 } from './presentation.js'
+import { MultipleCountersProgram } from './program.js'
 import { update } from './update.js'
 
 const identitySource: InteractionIdentitySource = {
@@ -157,10 +158,10 @@ describe('Multiple Counters InteractionGraph', () => {
   it('keeps row semantic ids stable across count changes without array positions', () => {
     const [model] = init()
     const before = actionForToken(projectionSuccess(model), 'IncrementCounter')
-    const [nextModel] = update(
+    const [nextModel] = MultipleCountersProgram.update(
       model,
-      GotCounterMessage({
-        counterId: 'counter-1',
+      GotChild({
+        id: 'counter-1',
         message: Counter.Increment(),
       }),
     )
@@ -247,7 +248,10 @@ describe('Multiple Counters InteractionGraph', () => {
     if (Option.isNone(maybeMessage)) {
       throw new Error('Expected row delete to resolve')
     }
-    const [nextModel] = update(model, maybeMessage.value)
+    const [nextModel] = MultipleCountersProgram.update(
+      model,
+      maybeMessage.value,
+    )
 
     expect(nextModel.rows).toStrictEqual(model.rows)
     expect(nextModel.navigation).toMatchObject({

@@ -113,7 +113,7 @@ export type Navigation = typeof Navigation.Type
 /** One identified Counter Submodel in the list. */
 export const CounterRow = S.Struct({
   id: CounterId,
-  counter: Counter.Model,
+  child: Counter.Model,
 })
 /** One identified Counter Submodel in the list. */
 export type CounterRow = typeof CounterRow.Type
@@ -137,7 +137,7 @@ const CounterRows = S.Array(CounterRow)
   )
 
 /** Counter identities retired permanently after deletion. */
-const RetiredCounterIds = S.Array(CounterId)
+export const RetiredCounterIds = S.Array(CounterId)
   .check(S.isLengthBetween(0, maximumCounterIdentityCount))
   .check(
     S.makeFilter(counterIds =>
@@ -186,6 +186,7 @@ export type Domain = typeof Domain.Type
 const ModelState = S.Struct({
   ...CounterIdentityFields,
   navigation: Navigation,
+  nextId: S.Number,
 })
 type ModelState = typeof ModelState.Type
 

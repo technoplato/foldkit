@@ -17,7 +17,7 @@ const detailWith = (
   mode: CounterDetailMode,
 ): typeof CounterDetailDestination.Type =>
   CounterDetailDestination.make({
-    counter: { id: 'counter-1', counter: { count: 0 } },
+    counter: { id: 'counter-1', child: { count: 0 } },
     detailPresentationId: 'detail-1',
     maybeMode: Option.some(mode),
   })
@@ -31,7 +31,7 @@ describe('presentationStyleOf', () => {
 
   it('derives Push for a plain detail', () => {
     const plain = CounterDetailDestination.make({
-      counter: { id: 'counter-1', counter: { count: 0 } },
+      counter: { id: 'counter-1', child: { count: 0 } },
       detailPresentationId: 'detail-1',
       maybeMode: Option.none(),
     })

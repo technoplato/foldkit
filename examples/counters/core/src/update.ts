@@ -4,11 +4,7 @@ import { Command } from 'foldkit'
 
 import { CounterFactClient } from './counterFactClient.js'
 import { FetchCounterFact } from './fetchCounterFact.js'
-import {
-  GotCounterMessage,
-  type Message,
-  type NavigationOpening,
-} from './message.js'
+import { type FieldOwnerMessage, type NavigationOpening } from './message.js'
 import {
   CounterDetail,
   type CounterDetailPresentationId,
@@ -33,7 +29,7 @@ import {
 
 type UpdateReturn = readonly [
   Model,
-  ReadonlyArray<Command.Command<Message, never, CounterFactClient>>,
+  ReadonlyArray<Command.Command<FieldOwnerMessage, never, CounterFactClient>>,
 ]
 
 const findCounter = (model: Model, counterId: CounterId) =>
@@ -104,7 +100,7 @@ const fetchFact = (
       FetchCounterFact({
         counterId,
         detailPresentationId,
-        number: maybeCounter.value.counter.count,
+        number: maybeCounter.value.child.count,
         requestId,
       }),
     ],
@@ -180,40 +176,10 @@ const addCounter = (model: Model, counterId: CounterId): UpdateReturn => {
     model.rows,
     CounterRow.make({
       id: counterId,
-      counter: Counter.Model.make({ count: Counter.initialCount }),
+      child: Counter.Model.make({ count: Counter.initialCount }),
     }),
   )
   return [Model.make({ ...model, rows: nextRows }), []]
-}
-
-const updateCounter = (
-  model: Model,
-  counterId: CounterId,
-  message: Counter.Message,
-): UpdateReturn => {
-  const maybeCounter = findCounter(model, counterId)
-  if (Option.isNone(maybeCounter)) {
-    return [model, []]
-  }
-
-  const [nextCounter, commands] = Counter.update(
-    maybeCounter.value.counter,
-    message,
-  )
-  const nextRows = Array.map(model.rows, row => {
-    if (row.id === counterId) {
-      return CounterRow.make({ ...row, counter: nextCounter })
-    } else {
-      return row
-    }
-  })
-  const nextModel = Model.make({ ...model, rows: nextRows })
-  return [
-    nextModel,
-    Command.mapMessages(commands, childMessage =>
-      GotCounterMessage({ counterId, message: childMessage }),
-    ),
-  ]
 }
 
 const selectCounter = (
@@ -446,14 +412,15 @@ export const restore = (model: Model): UpdateReturn => {
 
 // UPDATE
 
-/** Applies one Multiple Counters Message to the Model. */
-export const update = (model: Model, message: Message): UpdateReturn =>
+/** Applies one Multiple Counters field-owner Message to the Model. */
+export const update = (
+  model: Model,
+  message: FieldOwnerMessage,
+): UpdateReturn =>
   M.value(message).pipe(
     M.withReturnType<UpdateReturn>(),
     M.tagsExhaustive({
       ClickedAddCounter: ({ counterId }) => addCounter(model, counterId),
-      GotCounterMessage: ({ counterId, message: childMessage }) =>
-        updateCounter(model, counterId, childMessage),
       SelectedCounter: ({ counterId, detailPresentationId }) =>
         selectCounter(model, counterId, detailPresentationId),
       DismissedCounterDetail: ({ counterId, detailPresentationId }) =>

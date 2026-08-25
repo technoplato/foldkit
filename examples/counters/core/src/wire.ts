@@ -10,7 +10,7 @@ import {
   DismissedCounterDetail,
   DismissedCounterFactAlert,
   FailedLoadCounterFact,
-  GotCounterMessage,
+  GotChild,
   type Message,
   OpenedNavigation,
   SelectedCounter,
@@ -34,7 +34,7 @@ const eventIds = {
   confirmedDeleteCounter: 'MultipleCounters.ConfirmedDeleteCounter',
   dismissedCounterDetail: 'MultipleCounters.DismissedCounterDetail',
   dismissedCounterFactAlert: 'MultipleCounters.DismissedCounterFactAlert',
-  gotCounterMessage: 'MultipleCounters.GotCounterMessage',
+  gotChild: 'MultipleCounters.GotChild',
   openedNavigation: 'MultipleCounters.OpenedNavigation',
   selectedCounter: 'MultipleCounters.SelectedCounter',
 }
@@ -43,9 +43,9 @@ const currentEventVersion = 1
 const ClickedAddCounterPayload = S.Struct({
   counterId: ClickedAddCounter.fields.counterId,
 })
-const GotCounterMessagePayload = S.Struct({
-  counterId: GotCounterMessage.fields.counterId,
-  message: GotCounterMessage.fields.message,
+const GotChildPayload = S.Struct({
+  id: GotChild.fields.id,
+  message: GotChild.fields.message,
 })
 const SelectedCounterPayload = S.Struct({
   counterId: SelectedCounter.fields.counterId,
@@ -115,18 +115,14 @@ const makeFamily = <Payload>(
 /** The complete Program-owned registry for accepted Multiple Counters events. */
 export const EventRegistry = Effect.runSync(
   Program.makeVersionedEventRegistry<Message>({
-    currentProgramVersion: 2,
+    currentProgramVersion: 3,
     families: [
       makeFamily(
         eventIds.clickedAddCounter,
         ClickedAddCounterPayload,
         ClickedAddCounter,
       ),
-      makeFamily(
-        eventIds.gotCounterMessage,
-        GotCounterMessagePayload,
-        GotCounterMessage,
-      ),
+      makeFamily(eventIds.gotChild, GotChildPayload, GotChild),
       makeFamily(
         eventIds.selectedCounter,
         SelectedCounterPayload,
@@ -192,10 +188,10 @@ export const encodeMessage = (message: Message): EncodedEvent =>
         eventVersion: currentEventVersion,
         payload: { counterId },
       }),
-      GotCounterMessage: ({ counterId, message }) => ({
-        eventId: eventIds.gotCounterMessage,
+      GotChild: ({ id, message }) => ({
+        eventId: eventIds.gotChild,
         eventVersion: currentEventVersion,
-        payload: { counterId, message },
+        payload: { id, message },
       }),
       SelectedCounter: ({ counterId, detailPresentationId }) => ({
         eventId: eventIds.selectedCounter,
