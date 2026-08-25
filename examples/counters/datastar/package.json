@@ -1,0 +1,26 @@
+{
+  "name": "counters-datastar-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "prebuild": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "pretypecheck": "pnpm --filter counters-core-example build && pnpm --filter counters-instant-example build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@starfederation/datastar": "1.0.0-beta.11",
+    "counters-core-example": "workspace:*",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
