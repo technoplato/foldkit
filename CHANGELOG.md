@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 2:15 p.m. EDT — `441cbc8a2` feat(foldkit): ADR 0010 navigation seam — runtime URI sync helpers
+
+- **Implementation commit:** `441cbc8a2`
+- **Change:** ProgramNavigation seam types + makeUriSync runtime URI loop
+- **Details:**
+  - ProgramNavigation declares printDestination/printStack/parseUri/stackOf/withStack; Model ownership stays in the app.
+  - makeUriSync diffs observed model stacks via stackInstructions and drives history through one HistoryPort; open() rejects unparseable and non-canonical URIs so callers redirect instead of guessing.
+- **Files:**
+  - `packages/foldkit/src/navigation/runtimeSeam.ts` + test — new
+  - `packages/foldkit/src/navigation/public.ts` — exports
+  - `docs/adr/0010-program-navigation-seam.md` — status: accepted in part
+
 ## August 25th, 2026 at 1:52 p.m. EDT — `5ecd69bfd` fix(foldkit): per-actor seq stamps make same-millisecond fold order causal
 
 - **Implementation commit:** `5ecd69bfd`
