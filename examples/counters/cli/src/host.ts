@@ -12,6 +12,7 @@ import {
   destinationForModel,
   interactionIdentitySourceForOccurrence,
   resolveNavigationCarrier,
+  navigationToPath,
 } from 'counters-core-example'
 import {
   type CountersTape,
@@ -264,7 +265,12 @@ const formatFactStatus = (status: CounterFactStatus): ReadonlyArray<string> =>
         `Counter fact for ${fact.number.toString()}`,
         fact.text,
       ],
-      FailedCounterFact: ({ reason }) => ['Counter fact unavailable', reason],
+      FailedCounterFact: ({ cause }) => [
+        'Counter fact unavailable',
+        cause === 'Network'
+          ? 'The network could not reach the fact source'
+          : 'The fact source returned an unreadable body',
+      ],
     }),
   )
 
@@ -317,6 +323,8 @@ const formatInteractions = (
   ),
 ]
 
+import { surfaceLines } from './surfaceLabel.js'
+
 /** Prints the final Program screen and optionally its valid command set. */
 export const runCounters = (
   tokens: ReadonlyArray<string>,
@@ -329,6 +337,12 @@ export const runCounters = (
       destinationForModel(execution.finalModel),
     )
     yield* Console.log(Array.join(screenLines, '\n'))
+    yield* Console.log(
+      Array.join(
+        surfaceLines('CLI (Effect Terminal)', navigationToPath(execution.finalModel.navigation)),
+        '\n',
+      ),
+    )
 
     if (isVerbose) {
       const actions = actionsForModel(execution.finalModel)
