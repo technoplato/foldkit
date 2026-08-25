@@ -50,7 +50,7 @@ Target shape:
    `MultipleCountersInteractionGraph.project(model)` — no cache, because the
    graph is derived from Model and can be re-projected at event time.
 2. Resolution becomes a pure function of `(live model, referenceKey,
-   occurrenceId)`: project, find by reference key, resolve through
+occurrenceId)`: project, find by reference key, resolve through
    `foldkit/interaction-graph`'s admission path. Delete the rendered-action
    registry.
 3. URL classification moves to `foldkit/navigation` via
@@ -98,15 +98,15 @@ and point Story/Scene at it.
 
 ## Ownership map
 
-| Concern                        | Core Program                                     | Foldkit module                                        | Host adapter                                  |
-| ------------------------------ | ------------------------------------------------ | ----------------------------------------------------- | --------------------------------------------- |
-| Valid-interaction projection   | `interactionsForModel`, occurrence identities    | `foldkit/interaction-graph` (project/admission)       | paints labels/roles/keys only                 |
-| Cause resolution               | typed failures per destination                   | `foldkit/interaction-graph` (`resolveWithContext`)    | supplies occurrence id + identity source      |
-| URI spelling                   | route schemas                                    | `foldkit/route` printer/parser pairs                  | none (hosts never build paths)                |
-| Navigation transitions         | `navigatorInstructions` diff                     | `foldkit/navigation` (`StackInstruction`, plugins)    | dumb port: push/pop/present/dismiss           |
-| Browser history/click classes  | `OpenedNavigation` carrier                       | `Runtime.makeApplication` routing or navigation ports | native event enqueue only                     |
-| Effects                        | `FetchCounterFact` Command                       | `Command.define` + injected `Layer` (`CounterFactClient`) | chooses Static/Http Layer                 |
-| Client-local failure reporting | `FailedClientResolution` Message                 | view renders under `Role('alert')`                    | no `document.*` writes outside paint          |
+| Concern                        | Core Program                                  | Foldkit module                                            | Host adapter                             |
+| ------------------------------ | --------------------------------------------- | --------------------------------------------------------- | ---------------------------------------- |
+| Valid-interaction projection   | `interactionsForModel`, occurrence identities | `foldkit/interaction-graph` (project/admission)           | paints labels/roles/keys only            |
+| Cause resolution               | typed failures per destination                | `foldkit/interaction-graph` (`resolveWithContext`)        | supplies occurrence id + identity source |
+| URI spelling                   | route schemas                                 | `foldkit/route` printer/parser pairs                      | none (hosts never build paths)           |
+| Navigation transitions         | `navigatorInstructions` diff                  | `foldkit/navigation` (`StackInstruction`, plugins)        | dumb port: push/pop/present/dismiss      |
+| Browser history/click classes  | `OpenedNavigation` carrier                    | `Runtime.makeApplication` routing or navigation ports     | native event enqueue only                |
+| Effects                        | `FetchCounterFact` Command                    | `Command.define` + injected `Layer` (`CounterFactClient`) | chooses Static/Http Layer                |
+| Client-local failure reporting | `FailedClientResolution` Message              | view renders under `Role('alert')`                        | no `document.*` writes outside paint     |
 
 ## References
 
