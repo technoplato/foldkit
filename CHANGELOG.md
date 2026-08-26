@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 25th, 2026 at 11:22:50 p.m. EDT — `3676a95ede25` feat: land leftover payments, dual-camera, and counters server hosts
+
+- **Implementation commit:** `3676a95ede258ed927d40a8b395e9f096a5aaefe`
+- **Change:** Land leftover payments example, dual-camera stub, and counters Datastar server host.
+- **Details:**
+  - Payments is a renderer-free Program with Stripe, Apple Pay, PayPal, and x402 rails plus CLI, Foldkit, React, and headless hosts.
+  - Counters parent vitest now excludes datastar, plain-html, and solid host trees.
+- **Files:**
+  - `examples/payments/core/src/program.ts` — One payments Program owns model, message, update, and rails.
+  - `examples/counters/src/server.ts` — Datastar SSE server holds MultipleCountersProgram and patches browsers.
+  - `examples/dual-camera/README.md` — Reserved dual-camera example path.
+  - `pnpm-lock.yaml` — Workspace lockfile for the new example packages.
+- **User context (verbatim):**
+  > Commit it all and push and get things into main ASAP.
+- **SpecStory:** unavailable — Grok Build TUI session; no SpecStory URI for this host.
+
 ## August 25th, 2026 at 2:24 p.m. EDT — `4d329fd05` feat(counters): OpenTUI header attribution + stale boot-navigation expectation fix
 
 - **Implementation commit:** `4d329fd05`
