@@ -1,0 +1,31 @@
+{
+  "name": "payments-cli-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "foldkit-payments": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "payments": "node dist/entry.js",
+    "clean": "rimraf dist",
+    "prebuild": "pnpm --filter payments-core-example build",
+    "pretypecheck": "pnpm --filter payments-core-example build",
+    "test": "pnpm run build && vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.97",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "payments-core-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

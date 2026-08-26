@@ -1,0 +1,27 @@
+{
+  "name": "payments-headless-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "foldkit-payments-headless": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/entry.js",
+    "prebuild": "pnpm --filter payments-core-example build",
+    "pretypecheck": "pnpm --filter payments-core-example build"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.97",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "payments-core-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3"
+  }
+}
