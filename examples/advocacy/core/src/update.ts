@@ -50,6 +50,7 @@ import {
   PhoneConnected,
   PhoneDialing,
   PhoneIdle,
+  PhoneNumber,
   PhoneRinging,
   Role,
   RoleAdvocate,
@@ -166,7 +167,7 @@ const failVideo = (error: VideoError) =>
 
 export const PlacePhone = Command.define(
   'PlacePhone',
-  { meetingId: S.String, fromNumber: S.String },
+  { meetingId: S.String, fromNumber: PhoneNumber },
   SucceededPhoneOpened,
   FailedPhone,
 )(({ meetingId, fromNumber }) =>
@@ -241,7 +242,7 @@ export const RingInbound = Command.define(
   'RingInbound',
   {
     meetingId: S.String,
-    fromNumber: S.String,
+    fromNumber: PhoneNumber,
   },
   SucceededInboundRang,
   FailedPhone,

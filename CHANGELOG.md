@@ -4,6 +4,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 27th, 2026 at 12:52:36 p.m. UTC — `a46bbdad9d61` fix(advocacy): fail closed on Instant meeting and call decode
+
+- **Implementation commit:** `a46bbdad9d619b89519a2b2c540048b1b81eac9c`
+- **Change:** Fail closed when Instant advocacy rows omit preferred media or a phone number.
+- **Details:**
+  - Scheduled meetings without preferredTag, start, or end drop instead of becoming PreferredVideo with invented times.
+  - Phone calls without a non-empty fromNumber drop instead of KindPhone with an empty string.
+  - Instant tag fields share one closed set with codec Literals. KindPhone.fromNumber is PhoneNumber.
+- **Files:**
+  - `examples/advocacy/core/src/codec.ts` — Scheduled and phone Instant rows are unions; missing preferredTag or fromNumber fails decode.
+  - `examples/advocacy/core/src/codec.test.ts` — Covers both invent paths and rejects empty-string and PreferredVideo defaults.
+  - `examples/advocacy/core/src/instantTags.ts` — Closed Instant origin, preferred, kind, and role tag sets.
+  - `examples/advocacy/core/src/instantSchema.ts` — Instant string fields are typed to those tag sets.
+  - `examples/advocacy/core/src/model.ts` — KindPhone.fromNumber is PhoneNumber (NonEmptyString).
+  - `examples/advocacy/core/src/message.ts` — Phone success Messages carry PhoneNumber.
+  - `examples/advocacy/core/src/update.ts` — PlacePhone and RingInbound take PhoneNumber.
+  - `examples/advocacy/core/src/index.ts` — Re-exports Instant tag sets.
+- **User context (verbatim):**
+  > Fix a taste-bar failure in Foldkit advocacy Instant codec.
+  > Missing preferredTag on a scheduled Instant row fails closed (decode error or Option/None path), never PreferredVideo().
+  > Missing fromNumber cannot construct KindPhone; use NonEmpty String or a PhoneNumber ADT.
+  > Do not invent sample data in production decode paths.
+- **SpecStory:** unavailable — Cursor Cloud Agent session; no SpecStory URI for this host.
+
 ## August 25th, 2026 at 11:22:50 p.m. EDT — `3676a95ede25` feat: land leftover payments, dual-camera, and counters server hosts
 
 - **Implementation commit:** `3676a95ede258ed927d40a8b395e9f096a5aaefe`
