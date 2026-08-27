@@ -8,7 +8,7 @@ import {
   type UiNode,
 } from 'foldkit/renderers'
 
-import { type Issue } from '@foldkit/instant-tools/issues'
+import { type Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 import { quorumFromPeers } from '@foldkit/instant-tools/leftover'
 
 import {
@@ -234,11 +234,57 @@ const detailNodes = (model: Model): ReadonlyArray<UiNode> =>
     }),
   )
 
+const fileProductNodes = (model: Model): ReadonlyArray<UiNode> =>
+  M.value(model.products).pipe(
+    M.withReturnType<ReadonlyArray<UiNode>>(),
+    M.tagsExhaustive({
+      LoadingProducts: () => [Text('Loading products…')],
+      FailedProducts: ({ reason }) => [Text(reason)],
+      LoadedProducts: ({ products }) => [
+        Row(
+          { gap: 1 },
+          ...Array.map(products, entry =>
+            Button({
+              token: `product:${entry.product.id}`,
+              label: entry.product.name,
+              variant:
+                model.draft.productId === entry.product.id
+                  ? 'Primary'
+                  : 'Ghost',
+            }),
+          ),
+        ),
+      ],
+    }),
+  )
+
 const fileNodes = (model: Model): ReadonlyArray<UiNode> => [
   Text('File issue'),
-  Text(`Title: ${model.draft.title}`),
-  Text(`Product: ${model.draft.productId}`),
-  Text(`Priority: ${model.draft.priority}`),
+  Text('Title'),
+  TextInput({
+    placeholder: 'Title',
+    token: 'title:',
+    value: model.draft.title,
+  }),
+  Text('Details'),
+  TextInput({
+    placeholder: 'Details',
+    token: 'details:',
+    value: model.draft.details,
+  }),
+  Text('Product'),
+  ...fileProductNodes(model),
+  Text('Priority'),
+  Row(
+    { gap: 1 },
+    ...Array.map(IssuePriority.literals, priority =>
+      Button({
+        token: `priority:${priority}`,
+        label: priority,
+        variant: model.draft.priority === priority ? 'Primary' : 'Ghost',
+      }),
+    ),
+  ),
   Text(`State: ${model.draftState._tag}`),
   ...(model.draftState._tag === 'FailedIssueDraft'
     ? [Text(model.draftState.reason)]
