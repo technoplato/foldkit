@@ -1,6 +1,7 @@
 export * from './codec.js'
 export * from './init.js'
 export * from './instantSchema.js'
+export * from './instantTags.js'
 export * from './message.js'
 export * from './model.js'
 export * from './phone.js'

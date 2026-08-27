@@ -1,7 +1,7 @@
 import { Schema as S } from 'effect'
 import { m } from 'foldkit/message'
 
-import { Chat, Graph, Meeting, Participant } from './model.js'
+import { Chat, Graph, Meeting, Participant, PhoneNumber } from './model.js'
 
 export const ClickedOpenDay = m('ClickedOpenDay')
 export const ClickedOpenHistory = m('ClickedOpenHistory')
@@ -73,7 +73,7 @@ export type VideoOperation = typeof VideoOperation.Type
 export const SucceededPhoneOpened = m('SucceededPhoneOpened', {
   meetingId: S.String,
   callId: S.String,
-  fromNumber: S.String,
+  fromNumber: PhoneNumber,
   openedAt: S.Number,
 })
 export const SucceededPhoneConnected = m('SucceededPhoneConnected', {
@@ -87,7 +87,7 @@ export const SucceededPhoneEnded = m('SucceededPhoneEnded', {
 export const SucceededInboundRang = m('SucceededInboundRang', {
   meetingId: S.String,
   callId: S.String,
-  fromNumber: S.String,
+  fromNumber: PhoneNumber,
   openedAt: S.Number,
 })
 export const FailedPhone = m('FailedPhone', {
