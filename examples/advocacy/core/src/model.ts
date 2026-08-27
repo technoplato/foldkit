@@ -1,11 +1,17 @@
 import { Array, Match as M, Option, Order, Schema as S } from 'effect'
+import { NonEmptyString } from 'foldkit/adt'
 import { ts } from 'foldkit/schema'
 import { evo } from 'foldkit/struct'
 
 export const seedNow = Date.UTC(2026, 7, 13, 16, 0, 0)
 export const sessionPersonId = '11111111-1111-4111-8111-111111111111'
-export const advocateFromNumber = '+15550100'
-export const elenaFromNumber = '+15550199'
+/** A non-empty phone number. `""` is not a value. */
+export const PhoneNumber = NonEmptyString
+/** A non-empty phone number. `""` is not a value. */
+export type PhoneNumber = typeof PhoneNumber.Type
+
+export const advocateFromNumber = PhoneNumber.make('+15550100')
+export const elenaFromNumber = PhoneNumber.make('+15550199')
 
 export const advocateJordanId = '11111111-1111-4111-8111-111111111111'
 export const physicianPriyaId = '22222222-2222-4222-8222-222222222222'
@@ -69,7 +75,7 @@ export const Meeting = S.Struct({
 })
 export type Meeting = typeof Meeting.Type
 
-export const KindPhone = ts('KindPhone', { fromNumber: S.String })
+export const KindPhone = ts('KindPhone', { fromNumber: PhoneNumber })
 export const KindVideo = ts('KindVideo')
 export const Kind = S.Union([KindPhone, KindVideo])
 export type Kind = typeof Kind.Type

@@ -2,6 +2,12 @@ import { Array, Match as M, Option, Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 
 import {
+  InstantKindTags,
+  InstantOriginTags,
+  InstantPreferredTags,
+  InstantRoleTags,
+} from './instantTags.js'
+import {
   Call,
   Chat,
   Graph,
@@ -12,6 +18,7 @@ import {
   OriginScheduled,
   Participant,
   Person,
+  PhoneNumber,
   PreferredPhone,
   PreferredVideo,
   RoleAdvocate,
@@ -20,6 +27,13 @@ import {
   Segment,
   Times,
 } from './model.js'
+
+const InstantPreferredTag = S.Literals(InstantPreferredTags)
+const InstantRoleTag = S.Literals(InstantRoleTags)
+const [scheduledOriginTag, impromptuOriginTag] = InstantOriginTags
+const [phonePreferredTag, videoPreferredTag] = InstantPreferredTags
+const [phoneKindTag, videoKindTag] = InstantKindTags
+const [roleAdvocateTag, rolePhysicianTag, rolePatientTag] = InstantRoleTags
 
 export const WritePerson = ts('WritePerson', { person: Person })
 export const WriteMeeting = ts('WriteMeeting', { meeting: Meeting })
@@ -44,35 +58,60 @@ const InstantPerson = S.Struct({
   name: S.String,
 })
 
-const InstantMeeting = S.Struct({
+const InstantMeetingShared = {
   id: S.String,
   createdAt: S.Number,
   notes: S.String,
-  originTag: S.Literals(['scheduled', 'impromptu']),
   canceledAt: S.optionalKey(S.Number),
   finishedAt: S.optionalKey(S.Number),
   patientId: S.optionalKey(S.String),
-  preferredTag: S.optionalKey(S.Literals(['phone', 'video'])),
-  start: S.optionalKey(S.Number),
-  end: S.optionalKey(S.Number),
+}
+
+const InstantScheduledMeeting = S.Struct({
+  ...InstantMeetingShared,
+  originTag: S.Literals([scheduledOriginTag]),
+  preferredTag: InstantPreferredTag,
+  start: S.Number,
+  end: S.Number,
 })
 
-const InstantCall = S.Struct({
+const InstantImpromptuMeeting = S.Struct({
+  ...InstantMeetingShared,
+  originTag: S.Literals([impromptuOriginTag]),
+})
+
+const InstantMeeting = S.Union([
+  InstantScheduledMeeting,
+  InstantImpromptuMeeting,
+])
+
+const InstantCallShared = {
   id: S.String,
   meetingId: S.String,
   openedAt: S.Number,
-  kindTag: S.Literals(['phone', 'video']),
   connectedAt: S.optionalKey(S.Number),
   finishedAt: S.optionalKey(S.Number),
-  fromNumber: S.optionalKey(S.String),
+}
+
+const InstantPhoneCall = S.Struct({
+  ...InstantCallShared,
+  kindTag: S.Literals([phoneKindTag]),
+  fromNumber: PhoneNumber,
 })
+
+const InstantVideoCall = S.Struct({
+  ...InstantCallShared,
+  kindTag: S.Literals([videoKindTag]),
+})
+
+const InstantCall = S.Union([InstantPhoneCall, InstantVideoCall])
 
 const InstantParticipant = S.Struct({
   id: S.String,
   meetingId: S.String,
   personId: S.String,
   invitedAt: S.Number,
-  roleTag: S.Literals(['RoleAdvocate', 'RolePhysician', 'RolePatient']),
+  roleTag: InstantRoleTag,
   admittedAt: S.optionalKey(S.Number),
   arrivedAt: S.optionalKey(S.Number),
   failedAt: S.optionalKey(S.Number),
@@ -154,6 +193,39 @@ const decodeSegments = (rows: ReadonlyArray<unknown>): ReadonlyArray<Segment> =>
 const toPerson = (row: typeof InstantPerson.Type): Person =>
   Person.make({ id: row.id, name: row.name })
 
+const toPreferred = (tag: typeof InstantPreferredTag.Type) => {
+  if (tag === phonePreferredTag) {
+    return PreferredPhone()
+  }
+  return PreferredVideo()
+}
+
+const toOrigin = (row: typeof InstantMeeting.Type) => {
+  if (row.originTag === impromptuOriginTag) {
+    return OriginImpromptu()
+  }
+  return OriginScheduled({
+    preferred: toPreferred(row.preferredTag),
+    times: Times.make({
+      wall: {
+        start: row.start,
+        end: row.end,
+      },
+      relative: {
+        start: 0,
+        end: row.end - row.start,
+      },
+    }),
+  })
+}
+
+const toKind = (row: typeof InstantCall.Type) => {
+  if (row.kindTag === phoneKindTag) {
+    return KindPhone({ fromNumber: row.fromNumber })
+  }
+  return KindVideo()
+}
+
 const toMeeting = (row: typeof InstantMeeting.Type): Meeting =>
   Meeting.make({
     id: row.id,
@@ -162,25 +234,7 @@ const toMeeting = (row: typeof InstantMeeting.Type): Meeting =>
     maybePatientId: maybeString(row.patientId),
     maybeCanceledAt: maybeNumber(row.canceledAt),
     maybeFinishedAt: maybeNumber(row.finishedAt),
-    origin:
-      row.originTag === 'impromptu'
-        ? OriginImpromptu()
-        : OriginScheduled({
-            preferred:
-              row.preferredTag === 'phone'
-                ? PreferredPhone()
-                : PreferredVideo(),
-            times: Times.make({
-              wall: {
-                start: row.start ?? row.createdAt,
-                end: row.end ?? row.createdAt,
-              },
-              relative: {
-                start: 0,
-                end: (row.end ?? row.createdAt) - (row.start ?? row.createdAt),
-              },
-            }),
-          }),
+    origin: toOrigin(row),
   })
 
 const toCall = (row: typeof InstantCall.Type): Call =>
@@ -190,17 +244,14 @@ const toCall = (row: typeof InstantCall.Type): Call =>
     openedAt: row.openedAt,
     maybeConnectedAt: maybeNumber(row.connectedAt),
     maybeFinishedAt: maybeNumber(row.finishedAt),
-    kind:
-      row.kindTag === 'phone'
-        ? KindPhone({ fromNumber: row.fromNumber ?? '' })
-        : KindVideo(),
+    kind: toKind(row),
   })
 
-const toRole = (roleTag: (typeof InstantParticipant.Type)['roleTag']) => {
-  if (roleTag === 'RoleAdvocate') {
+const toRole = (roleTag: typeof InstantRoleTag.Type) => {
+  if (roleTag === roleAdvocateTag) {
     return RoleAdvocate()
   }
-  if (roleTag === 'RolePhysician') {
+  if (roleTag === rolePhysicianTag) {
     return RolePhysician()
   }
   return RolePatient()
@@ -284,16 +335,16 @@ export const encodeWrite = (
           M.withReturnType<Record<string, string | number>>(),
           M.tagsExhaustive({
             OriginImpromptu: () => ({
-              originTag: 'impromptu',
+              originTag: impromptuOriginTag,
             }),
             OriginScheduled: ({ preferred, times }) => ({
-              originTag: 'scheduled',
+              originTag: scheduledOriginTag,
               start: times.wall.start,
               end: times.wall.end,
               preferredTag: M.value(preferred).pipe(
                 M.tagsExhaustive({
-                  PreferredPhone: () => 'phone',
-                  PreferredVideo: () => 'video',
+                  PreferredPhone: () => phonePreferredTag,
+                  PreferredVideo: () => videoPreferredTag,
                 }),
               ),
             }),
@@ -326,11 +377,11 @@ export const encodeWrite = (
         const kindAttrs = M.value(call.kind).pipe(
           M.tagsExhaustive({
             KindPhone: ({ fromNumber }) => ({
-              kindTag: 'phone',
+              kindTag: phoneKindTag,
               fromNumber,
             }),
             KindVideo: () => ({
-              kindTag: 'video',
+              kindTag: videoKindTag,
             }),
           }),
         )
@@ -360,9 +411,9 @@ export const encodeWrite = (
           invitedAt: participant.invitedAt,
           roleTag: M.value(participant.role).pipe(
             M.tagsExhaustive({
-              RoleAdvocate: () => 'RoleAdvocate',
-              RolePhysician: () => 'RolePhysician',
-              RolePatient: () => 'RolePatient',
+              RoleAdvocate: () => roleAdvocateTag,
+              RolePhysician: () => rolePhysicianTag,
+              RolePatient: () => rolePatientTag,
             }),
           ),
         }

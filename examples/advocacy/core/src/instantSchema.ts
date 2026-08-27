@@ -1,6 +1,13 @@
 import { InstantProgramEntities, InstantProgramRooms } from '@foldkit/instant'
 import { InstantCoreDatabase, i } from '@instantdb/core'
 
+import type {
+  InstantKindTag,
+  InstantOriginTag,
+  InstantPreferredTag,
+  InstantRoleTag,
+} from './instantTags.js'
+
 /** Instant schema for advocacy meetings, composed with Foldkit Instant Program entities. */
 export const schema = i.schema({
   entities: {
@@ -20,16 +27,16 @@ export const schema = i.schema({
       end: i.number().optional(),
       finishedAt: i.number().optional(),
       notes: i.string(),
-      originTag: i.string().indexed(),
+      originTag: i.string<InstantOriginTag>().indexed(),
       patientId: i.string().indexed().optional(),
-      preferredTag: i.string().optional(),
+      preferredTag: i.string<InstantPreferredTag>().optional(),
       start: i.number().indexed().optional(),
     }),
     advocacyCalls: i.entity({
       connectedAt: i.number().optional(),
       finishedAt: i.number().optional(),
       fromNumber: i.string().optional(),
-      kindTag: i.string().indexed(),
+      kindTag: i.string<InstantKindTag>().indexed(),
       meetingId: i.string().indexed(),
       openedAt: i.number().indexed(),
     }),
@@ -41,7 +48,7 @@ export const schema = i.schema({
       leftAt: i.number().optional(),
       meetingId: i.string().indexed(),
       personId: i.string().indexed(),
-      roleTag: i.string().indexed(),
+      roleTag: i.string<InstantRoleTag>().indexed(),
     }),
     advocacyChats: i.entity({
       authorId: i.string().indexed(),
