@@ -18,6 +18,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -159,6 +160,21 @@ const paintNative = (
       </Pressable>
     )
   }
+  if (node._tag === 'TextInput') {
+    const token = node.token
+    return (
+      <TextInput
+        onChangeText={value => {
+          if (token !== undefined) {
+            send(`${token}${value}`)
+          }
+        }}
+        placeholder={node.placeholder}
+        style={styles.input}
+        value={node.value}
+      />
+    )
+  }
   if (
     node._tag === 'Column' ||
     node._tag === 'Row' ||
@@ -212,6 +228,15 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   content: { gap: 20, padding: 20 },
+  input: {
+    backgroundColor: '#1c1917',
+    borderColor: '#44403c',
+    borderRadius: 12,
+    borderWidth: 1,
+    color: '#fafaf9',
+    fontSize: 18,
+    padding: 12,
+  },
   muted: { color: '#a8a29e' },
   safeArea: { backgroundColor: '#0c0a09', flex: 1 },
   title: { color: '#fafaf9', fontSize: 32, fontWeight: '700' },

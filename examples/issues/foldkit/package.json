@@ -9,6 +9,8 @@
     "prebuild": "pnpm --filter issues-core-example build",
     "predev": "pnpm --filter issues-core-example build",
     "pretypecheck": "pnpm --filter issues-core-example build",
+    "pretest": "pnpm --filter issues-core-example build",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -29,6 +31,7 @@
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "prettier": "^3.8.4",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
   }
 }

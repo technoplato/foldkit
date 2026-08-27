@@ -1,6 +1,6 @@
 import { Array, Match as M, Option, Schema as S } from 'effect'
 
-import { Issue } from '@foldkit/instant-tools/issues'
+import { Issue, IssuePriority } from '@foldkit/instant-tools/issues'
 
 import {
   AllProducts,
@@ -22,9 +22,13 @@ import {
   Message,
   RetargetedIssueProduct,
   SelectedIssue,
+  SelectedIssuePriority,
+  SelectedIssueProduct,
   SelectedProductFilter,
   SubmittedIssue,
   SubmittedIssueComment,
+  UpdatedIssueDetails,
+  UpdatedIssueTitle,
   UpdatedLeftoverComment,
   UpdatedLeftoverLink,
 } from './message.js'
@@ -208,6 +212,22 @@ export const interactionsForModel = (
       FileIssue: () => [
         interaction('submit', 'Submit issue', SubmittedIssue.make({})),
         interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
+        ...Array.map(IssuePriority.literals, priority =>
+          interaction(
+            `priority:${priority}`,
+            priority,
+            SelectedIssuePriority.make({ priority }),
+          ),
+        ),
+        ...(model.products._tag === 'LoadedProducts'
+          ? Array.map(model.products.products, entry =>
+              interaction(
+                `product:${entry.product.id}`,
+                entry.product.name,
+                SelectedIssueProduct.make({ productId: entry.product.id }),
+              ),
+            )
+          : []),
       ],
       TriageInbox: () => [
         interaction('back', 'Back to issues', DismissedIssueDetail.make({})),
@@ -250,6 +270,36 @@ export const messageForInteractionToken = (
     candidate => candidate.message,
   )
 
+const prefixedValue = (token: string, prefix: string): Option.Option<string> =>
+  token.startsWith(prefix)
+    ? Option.some(token.slice(prefix.length))
+    : Option.none()
+
+const messageForFileIssueToken = (token: string): Option.Option<Message> => {
+  const maybeTitle = prefixedValue(token, 'title:')
+  if (Option.isSome(maybeTitle)) {
+    return Option.some(UpdatedIssueTitle.make({ value: maybeTitle.value }))
+  }
+  const maybeDetails = prefixedValue(token, 'details:')
+  if (Option.isSome(maybeDetails)) {
+    return Option.some(UpdatedIssueDetails.make({ value: maybeDetails.value }))
+  }
+  const maybeProduct = prefixedValue(token, 'product:')
+  if (Option.isSome(maybeProduct)) {
+    return Option.some(
+      SelectedIssueProduct.make({ productId: maybeProduct.value }),
+    )
+  }
+  const maybePriority = prefixedValue(token, 'priority:')
+  if (Option.isSome(maybePriority)) {
+    return Option.map(
+      S.decodeUnknownOption(IssuePriority)(maybePriority.value),
+      priority => SelectedIssuePriority.make({ priority }),
+    )
+  }
+  return Option.none()
+}
+
 /** Resolves a screen or CLI token, including leftover comment/link prefixes. */
 export const messageForScreenToken = (
   model: Model,
@@ -275,6 +325,9 @@ export const messageForScreenToken = (
       )
     }
     return Option.none()
+  }
+  if (model.navigation._tag === 'FileIssue') {
+    return messageForFileIssueToken(token)
   }
   if (model.navigation._tag !== 'IssueDetail') {
     return Option.none()

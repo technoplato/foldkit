@@ -4,6 +4,32 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## August 27th, 2026 at 12:55:30 p.m. UTC — `7f4dbf8759ea` fix(issues): paint File issue title, details, product, and priority controls
+
+- **Implementation commit:** `7f4dbf8759eaae29329961b85ee5bacd99f54e03`
+- **Change:** Paint File issue title, details, product, and priority controls bound to existing draft Messages.
+- **Details:**
+  - FileIssue destination had Text-only Title/Product/Priority labels and no inputs, so web submit could fire with an empty title.
+  - Title and details TextInputs plus product and priority buttons now bind to UpdatedIssueTitle, UpdatedIssueDetails, SelectedIssueProduct, and SelectedIssuePriority.
+  - FileIssue tokens resolve in the shared screen map. Empty titles still fail in update without creating an Issue.
+- **Files:**
+  - `examples/issues/core/src/product.ts` — Paint FileIssue title and details TextInputs plus product and priority buttons.
+  - `examples/issues/core/src/presentation.ts` — Resolve FileIssue title, details, product, and priority tokens for every host.
+  - `examples/issues/core/src/program.test.ts` — Prove FileIssue paints those controls and rejects empty-title submit.
+  - `examples/issues/cli/src/host.ts` — Use the shared screen token map instead of a FileIssue-only CLI path.
+  - `examples/issues/react/src/App.test.tsx` — Prove the React host paints FileIssue inputs and pickers.
+  - `examples/issues/foldkit/src/view.test.ts` — Prove the Foldkit host paints FileIssue inputs and pickers.
+  - `examples/issues/foldkit/package.json` — Add a vitest run script so the Foldkit paint test executes.
+  - `examples/issues/foldkit/vitest.config.ts` — Node environment for the Foldkit FileIssue paint test.
+  - `examples/issues/react-native/src/App.tsx` — Paint shared TextInput nodes so the FileIssue form is editable on native.
+  - `pnpm-lock.yaml` — Lock the Foldkit example vitest dependency.
+- **User context (verbatim):**
+  > Fix the Foldkit Issues web File-issue screen so titles/details/product/priority can actually be entered.
+  > File issue screen paints editable title and details fields, product picker, and priority control bound to the existing Messages.
+  > Submit with empty title is rejected (cannot invent a blank Issue).
+  > PR against ml/exploring-view-agnosticism. No force-push. Do not close Instant leftovers #240–#245.
+- **SpecStory:** unavailable — Cursor Cloud Agent session; no SpecStory URI for this host.
+
 ## August 25th, 2026 at 11:22:50 p.m. EDT — `3676a95ede25` feat: land leftover payments, dual-camera, and counters server hosts
 
 - **Implementation commit:** `3676a95ede258ed927d40a8b395e9f096a5aaefe`
