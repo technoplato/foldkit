@@ -1,12 +1,4 @@
-import {
-  Array,
-  Console,
-  Data,
-  Effect,
-  Match as M,
-  Option,
-  Schema as S,
-} from 'effect'
+import { Array, Console, Data, Effect, Match as M, Option } from 'effect'
 import { Runtime } from 'foldkit'
 import {
   type Destination,
@@ -17,11 +9,7 @@ import {
   type Model,
   type Navigation,
   ObservedProducts,
-  SelectedIssuePriority,
-  SelectedIssueProduct,
   StaticIssueTrackerResources,
-  UpdatedIssueDetails,
-  UpdatedIssueTitle,
   catalogIssueRefsOf,
   destinationForModel,
   interactionsForModel,
@@ -35,7 +23,6 @@ import {
 
 import {
   ApplicationProduct,
-  IssuePriority,
   LibraryProduct,
   ProductCatalogEntry,
 } from '@foldkit/instant-tools/issues'
@@ -134,46 +121,6 @@ const awaitObservations = (
         return Effect.sync(stop)
       }).pipe(Effect.timeout(timeout), Effect.orDie)
 
-const prefixedValue = (token: string, prefix: string): Option.Option<string> =>
-  token.startsWith(prefix)
-    ? Option.some(token.slice(prefix.length))
-    : Option.none()
-
-const messageForCliToken = (
-  model: Model,
-  token: string,
-): Option.Option<Message> => {
-  const known = messageForScreenToken(model, token)
-  if (Option.isSome(known)) {
-    return known
-  }
-  if (model.navigation._tag !== 'FileIssue') {
-    return Option.none()
-  }
-  const maybeTitle = prefixedValue(token, 'title:')
-  if (Option.isSome(maybeTitle)) {
-    return Option.some(UpdatedIssueTitle.make({ value: maybeTitle.value }))
-  }
-  const maybeDetails = prefixedValue(token, 'details:')
-  if (Option.isSome(maybeDetails)) {
-    return Option.some(UpdatedIssueDetails.make({ value: maybeDetails.value }))
-  }
-  const maybeProduct = prefixedValue(token, 'product:')
-  if (Option.isSome(maybeProduct)) {
-    return Option.some(
-      SelectedIssueProduct.make({ productId: maybeProduct.value }),
-    )
-  }
-  const maybePriority = prefixedValue(token, 'priority:')
-  if (Option.isSome(maybePriority)) {
-    return Option.map(
-      S.decodeUnknownOption(IssuePriority)(maybePriority.value),
-      priority => SelectedIssuePriority.make({ priority }),
-    )
-  }
-  return Option.none()
-}
-
 const runTokens = (
   runtime: Runtime.ProgramRuntime<Model, Message>,
   initialModel: Model,
@@ -187,7 +134,7 @@ const runTokens = (
     let nextModel = initialModel
     let messages: ReadonlyArray<Message> = []
     for (const token of tokens) {
-      const maybeMessage = messageForCliToken(nextModel, token)
+      const maybeMessage = messageForScreenToken(nextModel, token)
       if (Option.isNone(maybeMessage)) {
         const validTokens = Array.join(
           Array.map(

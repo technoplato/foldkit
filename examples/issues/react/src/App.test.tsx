@@ -1,4 +1,11 @@
-import { LoadedIssueLogs } from 'issues-core-example'
+import {
+  FileIssue,
+  LoadedIssueLogs,
+  ObservedProducts,
+  issuesScreen,
+  modelForNavigation,
+  update,
+} from 'issues-core-example'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,9 +13,14 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import {
+  ApplicationProduct,
+  ProductCatalogEntry,
+} from '@foldkit/instant-tools/issues'
+import {
   IssueLogEvidence,
   contributingPath,
 } from '@foldkit/instant-tools/logging'
+import { paintReact } from '@foldkit/react'
 
 import { IssueEvidenceRows, IssueFailure } from './App.js'
 
@@ -104,5 +116,25 @@ describe('Issue screenify', () => {
     expect(source).toContain('useScreen')
     expect(source).toContain('paintReact')
     expect(source).toContain('paintReact(screen, sendScreenToken')
+  })
+
+  it('paints FileIssue destination with title, details, product, and priority controls', () => {
+    const product = ApplicationProduct.make({ id: 'scribe', name: 'Scribe' })
+    const [withProducts] = update(
+      modelForNavigation(FileIssue.make({})),
+      ObservedProducts.make({
+        products: [ProductCatalogEntry.make({ product, updatedAtMs: 1_000 })],
+      }),
+    )
+    const html = renderToStaticMarkup(
+      paintReact(issuesScreen(withProducts), () => undefined),
+    )
+    expect(html).toContain('type="text"')
+    expect(html).toContain('placeholder="Title"')
+    expect(html).toContain('placeholder="Details"')
+    expect(html).toContain('Scribe')
+    expect(html).toContain('P0')
+    expect(html).toContain('P2')
+    expect(html).toContain('Submit issue')
   })
 })

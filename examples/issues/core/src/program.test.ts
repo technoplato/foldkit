@@ -33,9 +33,12 @@ import {
   ObservedProducts,
   ObservedTriageCandidates,
   SelectedIssue,
+  SelectedIssuePriority,
+  SelectedIssueProduct,
   SelectedProductFilter,
   SubmittedIssue,
   SubmittedIssueComment,
+  UpdatedIssueDetails,
   UpdatedIssueTitle,
   UpdatedLeftoverComment,
   UpdatedLeftoverLink,
@@ -320,6 +323,65 @@ describe('Issue Tracker Program', () => {
     expect(saving.draftState._tag).toBe('SavingIssueDraft')
     expect(commands).toHaveLength(1)
     expect(commands[0]?.name).toBe('SaveIssue')
+  })
+
+  it('paints FileIssue title, details, product, and priority controls', () => {
+    const initial = modelForNavigation(IssueList.make({}))
+    const [withProducts] = update(
+      initial,
+      ObservedProducts.make({ products: [productEntry] }),
+    )
+    const [filing] = update(withProducts, ClickedFileIssue.make({}))
+    const [titled] = update(
+      filing,
+      UpdatedIssueTitle.make({ value: 'Audio stops unexpectedly' }),
+    )
+    const [detailed] = update(
+      titled,
+      UpdatedIssueDetails.make({
+        value: 'The speaker cuts out after 30 seconds.',
+      }),
+    )
+    const [prioritized] = update(
+      detailed,
+      SelectedIssuePriority.make({ priority: 'P1' }),
+    )
+    expect(
+      messageForScreenToken(filing, 'title:Audio stops unexpectedly'),
+    ).toEqual(
+      Option.some(
+        UpdatedIssueTitle.make({ value: 'Audio stops unexpectedly' }),
+      ),
+    )
+    expect(
+      messageForScreenToken(filing, 'details:The speaker cuts out.'),
+    ).toEqual(
+      Option.some(UpdatedIssueDetails.make({ value: 'The speaker cuts out.' })),
+    )
+    expect(messageForScreenToken(filing, 'product:scribe')).toEqual(
+      Option.some(SelectedIssueProduct.make({ productId: 'scribe' })),
+    )
+    expect(messageForScreenToken(filing, 'priority:P1')).toEqual(
+      Option.some(SelectedIssuePriority.make({ priority: 'P1' })),
+    )
+    const screen = issuesScreen(prioritized)
+    expect(Array.map(inputsOf(screen), input => input.token ?? '')).toEqual([
+      'title:',
+      'details:',
+    ])
+    expect(Array.map(inputsOf(screen), input => input.value)).toEqual([
+      'Audio stops unexpectedly',
+      'The speaker cuts out after 30 seconds.',
+    ])
+    const tokens = Array.map(buttonsOf(screen), button => button.token ?? '')
+    expect(tokens).toContain('product:scribe')
+    expect(tokens).toContain('priority:P0')
+    expect(tokens).toContain('priority:P1')
+    expect(tokens).toContain('priority:P2')
+    expect(tokens).toContain('priority:P3')
+    expect(tokens).toContain('priority:P4')
+    expect(tokens).toContain('submit')
+    expect(destinationForModel(prioritized)._tag).toBe('FileIssueDestination')
   })
 
   it('keeps transcript candidates as drafts until a review Message', () => {
