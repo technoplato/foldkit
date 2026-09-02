@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 2nd, 2026 at 1:27:00 p.m. EDT — `128803a2f652` Revise counters storyboards around page plus overlay.
+
+- **Implementation commit:** `128803a2f6528f6f51ce988e44ebfce5e300f158`
+- **Change:** Revised counters ASCII storyboards so overlays stay on the current page.
+- **Details:**
+  - Delete and fact are a global Overlay ADT printed as query parameters.
+  - Action menu is sibling compose state. Invented count limits were removed.
+- **Files:**
+  - `docs/explorations/view-agnostic-process/COUNTERS-STORYBOARDS.md` — Side-by-side React, CLI snapshot, and TUI frames with the new URI set.
+  - `docs/explorations/view-agnostic-process/PROCESS.md` — Storm only fills gaps Michael left and asks when unspecified.
+- **User context (verbatim):**
+  > We shouldn't navigate away from the page we're on to perform an action that's performable in both the parent and the child.
+  > The modal alerts, sheets, dialogue is all global state. And it's an ADT that can only represent one of those at a time.
+- **SpecStory:** unavailable — Cursor agent session; no SpecStory URI captured for this desktop chat.
+
 ## September 2nd, 2026 at 1:06:11 p.m. EDT — `cde9ecfefc09` Document first-pass counters surface storyboards.
 
 - **Implementation commit:** `cde9ecfefc0966a46f0551bfa92117b7b59aea1b`
