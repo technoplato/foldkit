@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 2nd, 2026 at 9:58:50 a.m. EDT — `abfa239472a1` docs: land ADR 0011 interview, glossary, and clipboard stub
+
+- **Implementation commit:** `abfa239472a17810acd65418541836106286e498`
+- **Change:** Record the in-progress ADR 0011 interview, glossary, document skill, and clipboard stub on view-agnosticism.
+- **Details:**
+  - ADR 0011 captures the one-program hosts-and-ports interview, with qanda, findings, intentions, and Q108 quorum notes.
+  - Shared glossary and document skill become the vocabulary and TSDoc bar; AGENTS.md and CLAUDE.md point at them.
+  - Clipboard adds a README and Tailscale URL helper beside the existing core package manifest, plus the lockfile importer.
+- **Files:**
+  - `docs/adr/0011-one-program-hosts-and-ports/README.md` — Interview home for one Program, hosts, and ports.
+  - `docs/adr/0011-one-program-hosts-and-ports/qanda.md` — Locked and open questions for the interview.
+  - `glossary.md` — Shared vocabulary with concrete examples.
+  - `.agents/skills/document/SKILL.md` — Point-Free TSDoc quality bar.
+  - `examples/clipboard/README.md` — Clipboard Program intent and run instructions.
+  - `examples/clipboard/core/src/url.ts` — Tailscale and LAN websocket URL helper.
+  - `AGENTS.md` — Document skill, glossary, and concrete-example convention.
+  - `pnpm-lock.yaml` — Workspace lockfile importer for clipboard-core-example.
+- **User context (verbatim):**
+  > just commit all of the work in progress to this branch so all work is in view-agnosticism and push
+- **SpecStory:** unavailable — Grok Build TUI session; no SpecStory URI for this host.
+
 ## August 25th, 2026 at 11:22:50 p.m. EDT — `3676a95ede25` feat: land leftover payments, dual-camera, and counters server hosts
 
 - **Implementation commit:** `3676a95ede258ed927d40a8b395e9f096a5aaefe`
