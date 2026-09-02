@@ -4,6 +4,8 @@ Preferences and conventions for Codex and other coding agents working on this re
 
 Repo-local `skills/foldkit`, `skills/generate-program`, and `skills/audit-program` target consumer Foldkit apps. Do not treat them as always-on repo-maintenance guidance unless the user explicitly invokes them.
 
+When writing or reviewing documentation (TSDoc, module docs), load `.agents/skills/document/SKILL.md` (the `document` skill). Point-Free's libraries (the Composable Architecture, Swift Sharing, SQLiteData) are the quality bar. Shared vocabulary lives in `glossary.md`; define new terms there first. In documentation, comments, questions, and explanations, pair every abstract claim with a concrete example ("mounting composes transitively" must be followed by `/counters/counter/c1`).
+
 ## Project Conventions
 
 - "Foldkit" is always capitalized in prose. The only exception is the npm package name (`foldkit`) and import paths.
@@ -77,7 +79,7 @@ Calibrate to the right context: library design when inside `packages/foldkit/src
 
 ## Comments
 
-Do not add inline or block comments to explain code. If code needs explanation, refactor for clarity or use better names. Exceptions:
+Do not add inline or block comments to explain code. If code needs explanation, refactor for clarity or use better names. Comments that do exist always sit on their own line above the code they describe, never trailing to the side on the same line. Exceptions:
 
 - Section headers: `// MODEL`, `// MESSAGE`, `// INIT`, `// UPDATE`, `// VIEW`, `// COMMAND`. One word only.
 - TSDoc on all public exports.
