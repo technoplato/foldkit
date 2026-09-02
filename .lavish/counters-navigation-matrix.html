@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en" data-theme="luxury">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Counters | Portable Navigation Adapters</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      :where(.grid, .flex) > * {
+        min-width: 0;
+      }
+      :where(p, h1, h2, h3, h4, li, td, th, code, pre) {
+        overflow-wrap: anywhere;
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+    </style>
+  </head>
+  <body class="bg-base-200 text-base-content">
+    <main class="mx-auto max-w-6xl px-4 py-8 space-y-8">
+      <header class="space-y-2">
+        <p class="text-sm uppercase tracking-widest opacity-60">
+          Foldkit | examples/counters | ADR 0009
+        </p>
+        <h1 class="text-3xl font-bold">
+          Portable navigation adapters and one painted screen
+        </h1>
+        <p class="max-w-3xl opacity-80">
+          Navigation stays a Schema sum in the Program Model. This session
+          shipped the outbound half: one pure transition projection, one
+          four-call adapter contract, deterministic expo-router generation, and
+          the compose.forEach proof over the imported counter core. Deep links
+          already had the inbound half via the carrier.
+        </p>
+        <div class="flex flex-wrap gap-2 pt-1">
+          <span class="badge badge-success badge-soft">typecheck clean</span>
+          <span class="badge badge-success badge-soft">68/68 tests green</span>
+          <span class="badge badge-ghost mono"
+            >branch ml/exploring-view-agnosticism</span
+          >
+        </div>
+      </header>
+
+      <section class="card card-border bg-base-100">
+        <div class="card-body gap-4">
+          <h2 class="card-title">One source of truth, both directions</h2>
+          <div class="mermaid">
+            flowchart TB Model["Model.Navigation<br />(Schema sum, ADR 0003)"]
+            Printers["route printers<br />navigationTargetToPath"]
+            Carrier["resolveNavigationCarrier<br />(deep link IN ->
+            OpenedNavigation)"] Diff["navigatorInstructions<br />(prev, next) ->
+            instructions"] Contract["Navigator contract<br />push / pop /
+            present / dismiss(path)"] Web["React web<br />tanstack-router
+            history"] RN["React Native<br />react-navigation stack + modal"]
+            Expo["Expo file router<br />generated routes"] Term["CLI / TUI<br />screen
+            switch"] Paint["Same UiNode screen tree painted by every surface<br />(ADR
+            0008 atomic UI)"] Model --> Printers Model --> Diff Printers -->
+            Carrier Carrier -->|OpenedNavigation| Model Diff --> Contract
+            Contract --> Web & RN & Expo & Term Model --> Paint Web & RN & Expo
+            & Term --> Paint
+          </div>
+          <p class="text-sm opacity-70">
+            Adapters never decide navigation. They subscribe to Model
+            transitions, apply projected instructions, and paint whatever tree
+            the Program prints. Paths come from the same printers the carrier
+            parses, so a push and its deep link cannot disagree.
+          </p>
+        </div>
+      </section>
+
+      <section class="card card-border bg-base-100">
+        <div class="card-body gap-4">
+          <h2 class="card-title">Router mapping matrix</h2>
+          <div class="overflow-x-auto">
+            <table class="table table-zebra table-sm">
+              <thead>
+                <tr>
+                  <th>Scenario</th>
+                  <th>Foldkit HTML</th>
+                  <th>React web | tanstack-router</th>
+                  <th>RN | react-navigation</th>
+                  <th>Expo | expo-router</th>
+                  <th>CLI / TUI</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>List at boot</td>
+                  <td>runtime route /counter</td>
+                  <td>root route</td>
+                  <td>initial Stack route</td>
+                  <td>generated app/index redirect</td>
+                  <td>argv default</td>
+                </tr>
+                <tr>
+                  <td>
+                    Show detail
+                    <span class="badge badge-xs badge-info badge-soft ml-1"
+                      >push</span
+                    >
+                  </td>
+                  <td>internal link</td>
+                  <td>history.push(detail)</td>
+                  <td>navigate(CounterDetail)</td>
+                  <td>generated [counterId].tsx</td>
+                  <td>screen switch</td>
+                </tr>
+                <tr>
+                  <td>Modal on detail: fact alert</td>
+                  <td>overlay paint</td>
+                  <td>dialog over route</td>
+                  <td>modal presentation</td>
+                  <td>generated fact.tsx modal</td>
+                  <td>mode row</td>
+                </tr>
+                <tr>
+                  <td>Modal on detail: delete confirm</td>
+                  <td>overlay paint</td>
+                  <td>confirm dialog</td>
+                  <td>modal, destructive</td>
+                  <td>generated delete.tsx modal</td>
+                  <td>gated handle</td>
+                </tr>
+                <tr>
+                  <td>
+                    Modal on home: add sheet
+                    <span class="badge badge-xs badge-warning badge-soft ml-1"
+                      >needs model field</span
+                    >
+                  </td>
+                  <td>overlay paint</td>
+                  <td>sheet on list</td>
+                  <td>presentModal on list</td>
+                  <td>list-modal route</td>
+                  <td>interaction prompt</td>
+                </tr>
+                <tr>
+                  <td>Dismiss / pop</td>
+                  <td>Message only</td>
+                  <td>history.back()</td>
+                  <td>goBack / dismiss</td>
+                  <td>router.back()</td>
+                  <td>Message only</td>
+                </tr>
+                <tr>
+                  <td>Deep link cold start</td>
+                  <td colspan="5" class="text-center">
+                    carrier parse everywhere: pathToNavigationTarget ->
+                    resolveNavigationCarrier -> OpenedNavigation
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="flex flex-wrap gap-2 text-xs">
+            <span class="badge badge-success badge-soft">shipped + tested</span>
+            <span class="badge badge-warning badge-soft"
+              >contract ready, client wiring pending deps</span
+            >
+            <span class="badge badge-error badge-soft"
+              >blocked on model decision below</span
+            >
+          </div>
+        </div>
+      </section>
+
+      <section class="grid gap-4 md:grid-cols-2">
+        <div class="card card-border bg-base-100">
+          <div class="card-body gap-3">
+            <h2 class="card-title">Shipped this session</h2>
+            <ul class="steps steps-vertical steps-sm">
+              <li class="step step-primary" data-step="8d4d062a0">
+                <span
+                  ><span class="mono font-semibold">navigatorInstructions</span
+                  >: NavInstruction ADT, ordered diff, Navigator contract,
+                  printer-shared paths. 11 cases + fake-navigator tests.</span
+                >
+              </li>
+              <li class="step step-primary">
+                <span
+                  ><span class="mono font-semibold">expoRouterFiles</span>:
+                  byte-deterministic app directory from the route table; parity
+                  tested against navigationTargetToPath; modals emit
+                  presentation="modal".</span
+                >
+              </li>
+              <li class="step step-primary">
+                <span
+                  ><span class="mono font-semibold">ADR 0009</span>: contract,
+                  matrix, forEach adoption path.</span
+                >
+              </li>
+              <li class="step step-primary">
+                <span
+                  ><span class="mono font-semibold">compose.forEach proof</span
+                  >: real CounterProgram imported; identity-routed GotChild,
+                  add/remove, retired ids ignored.</span
+                >
+              </li>
+              <li class="step">
+                <span
+                  >tanstack / react-navigation thin adapters (need deps
+                  installed)</span
+                >
+              </li>
+              <li class="step">
+                <span
+                  >Modal-on-home projection (needs CounterListMode field)</span
+                >
+              </li>
+            </ul>
+            <p class="mono text-xs opacity-60">
+              commits: 8d4d062a0 | 62c2eff47 | 2b2fe53c7 (+ change-log ledgers)
+            </p>
+          </div>
+        </div>
+
+        <div class="card card-border bg-base-100">
+          <div class="card-body gap-4">
+            <h2 class="card-title">Decisions for you</h2>
+            <form
+              data-lavish-question="presentation-intent"
+              onsubmit="
+                event.preventDefault()
+                const v = new FormData(event.currentTarget).get('pi')
+                if (v)
+                  window.lavish.queuePrompt(
+                    'Decision presentation-intent: ' + v,
+                    {
+                      tag: 'decision',
+                      data: { question: 'presentation-intent', answer: v },
+                    },
+                  )
+              "
+            >
+              <fieldset class="fieldset bg-base-200 rounded-box p-3">
+                <legend class="fieldset-legend text-sm">
+                  Where does push vs modal intent live?
+                </legend>
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="pi"
+                    value="instructions-carry-intent"
+                    checked
+                    class="radio radio-sm"
+                  />
+                  Instructions carry intent; adapters map to native idiom
+                  (current shape)</label
+                >
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="pi"
+                    value="destination-carries-style"
+                    class="radio radio-sm"
+                  />
+                  Destination values carry style; platform-adaptive rendering
+                  derives it</label
+                >
+                <button type="submit" class="btn btn-primary btn-xs mt-1">
+                  Queue answer
+                </button>
+              </fieldset>
+            </form>
+            <form
+              data-lavish-question="home-modal-model"
+              onsubmit="
+                event.preventDefault()
+                const v = new FormData(event.currentTarget).get('hm')
+                if (v)
+                  window.lavish.queuePrompt('Decision home-modal-model: ' + v, {
+                    tag: 'decision',
+                    data: { question: 'home-modal-model', answer: v },
+                  })
+              "
+            >
+              <fieldset class="fieldset bg-base-200 rounded-box p-3">
+                <legend class="fieldset-legend text-sm">
+                  Extend Navigation with CounterListMode = AddCounterSheet for
+                  modal-on-home?
+                </legend>
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="hm"
+                    value="yes-extend-now"
+                    class="radio radio-sm"
+                  />
+                  Yes, extend next</label
+                >
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="hm"
+                    value="defer"
+                    checked
+                    class="radio radio-sm"
+                  />
+                  Defer; document as designed-pending</label
+                >
+                <button type="submit" class="btn btn-primary btn-xs mt-1">
+                  Queue answer
+                </button>
+              </fieldset>
+            </form>
+            <form
+              data-lavish-question="sync-shape"
+              onsubmit="
+                event.preventDefault()
+                const v = new FormData(event.currentTarget).get('ss')
+                if (v)
+                  window.lavish.queuePrompt('Decision sync-shape: ' + v, {
+                    tag: 'decision',
+                    data: { question: 'sync-shape', answer: v },
+                  })
+              "
+            >
+              <fieldset class="fieldset bg-base-200 rounded-box p-3">
+                <legend class="fieldset-legend text-sm">
+                  Counters sync tape shape?
+                </legend>
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="ss"
+                    value="single-tape-array-snapshot"
+                    checked
+                    class="radio radio-sm"
+                  />
+                  Single tape, array-in-snapshot, child-id-tagged
+                  messages</label
+                >
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="ss"
+                    value="per-child-tapes"
+                    class="radio radio-sm"
+                  />
+                  Per-child tapes</label
+                >
+                <button type="submit" class="btn btn-primary btn-xs mt-1">
+                  Queue answer
+                </button>
+              </fieldset>
+            </form>
+            <form
+              data-lavish-question="codegen-checkin"
+              onsubmit="
+                event.preventDefault()
+                const v = new FormData(event.currentTarget).get('cc')
+                if (v)
+                  window.lavish.queuePrompt('Decision codegen-checkin: ' + v, {
+                    tag: 'decision',
+                    data: { question: 'codegen-checkin', answer: v },
+                  })
+              "
+            >
+              <fieldset class="fieldset bg-base-200 rounded-box p-3">
+                <legend class="fieldset-legend text-sm">
+                  Generated expo files?
+                </legend>
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="cc"
+                    value="check-in"
+                    checked
+                    class="radio radio-sm"
+                  />
+                  Check in + drift test (current)</label
+                >
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="cc"
+                    value="prebuild-only"
+                    class="radio radio-sm"
+                  />
+                  Emit at prebuild only</label
+                >
+                <button type="submit" class="btn btn-primary btn-xs mt-1">
+                  Queue answer
+                </button>
+              </fieldset>
+            </form>
+            <form
+              data-lavish-question="foreach-embedding"
+              onsubmit="
+                event.preventDefault()
+                const v = new FormData(event.currentTarget).get('fe')
+                if (v)
+                  window.lavish.queuePrompt(
+                    'Decision foreach-embedding: ' + v,
+                    {
+                      tag: 'decision',
+                      data: { question: 'foreach-embedding', answer: v },
+                    },
+                  )
+              "
+            >
+              <fieldset class="fieldset bg-base-200 rounded-box p-3">
+                <legend class="fieldset-legend text-sm">
+                  Add forEach embedded-fields variant so counters can drop
+                  hand-rolled GotCounterMessage arms?
+                </legend>
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="fe"
+                    value="yes-next"
+                    checked
+                    class="radio radio-sm"
+                  />
+                  Yes, framework follow-up next</label
+                >
+                <label class="label"
+                  ><input
+                    type="radio"
+                    name="fe"
+                    value="keep-manual"
+                    class="radio radio-sm"
+                  />
+                  Keep manual arms</label
+                >
+                <button type="submit" class="btn btn-primary btn-xs mt-1">
+                  Queue answer
+                </button>
+              </fieldset>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section class="card card-border bg-base-100">
+        <div class="card-body gap-2">
+          <h2 class="card-title">Risks and failure modes</h2>
+          <ul class="list-disc pl-5 space-y-1 text-sm">
+            <li>
+              <strong>Instruction drift vs native gesture stacks.</strong> Rapid
+              mode swaps project dismiss+present pairs; react-navigation can
+              interleave animations. Adapters should coalesce pairs per frame or
+              map onto native replace where available.
+            </li>
+            <li>
+              <strong>Deep-link canonicalization on generated routes.</strong>
+              Generated screens must route params through the carrier, never
+              navigate directly, or two sources of truth reappear.
+            </li>
+            <li>
+              <strong>forEach adoption is not free.</strong> Counters rows use
+              field name <span class="mono">counter</span>; forEach uses
+              <span class="mono">child</span>. Migration touches wire snapshots,
+              so it needs a version bump on the tape schema.
+            </li>
+            <li>
+              <strong>Modal-on-home without a model field</strong> would push
+              presentation state into clients, recreating exactly what ADR 0003
+              forbids. Decide before building the add-sheet.
+            </li>
+          </ul>
+        </div>
+      </section>
+    </main>
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.esm.min.mjs'
+
+      const darkQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      function pageIsDark() {
+        return darkQuery.matches
+      }
+      const diagrams = [...document.querySelectorAll('.mermaid')].map(el => ({
+        el,
+        src: el.textContent,
+      }))
+      let applied
+      async function render() {
+        const theme = pageIsDark() ? 'dark' : 'default'
+        if (theme === applied) return
+        mermaid.initialize({
+          startOnLoad: false,
+          theme,
+          securityLevel: 'strict',
+        })
+        for (const { el, src } of diagrams) {
+          el.removeAttribute('data-processed')
+          el.textContent = src
+        }
+        await mermaid.run({ nodes: diagrams.map(d => d.el) })
+        applied = theme
+      }
+      if (document.readyState === 'complete') render()
+      else window.addEventListener('load', () => void render(), { once: true })
+      darkQuery.addEventListener('change', () => void render())
+    </script>
+  </body>
+</html>

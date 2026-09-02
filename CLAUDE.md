@@ -8,6 +8,8 @@ Preferences and conventions for Claude when working on this codebase. This file 
 
 Read those when a rule needs context.
 
+Also read `AGENTS.md`; it is the canonical convention source when the two files drift. Shared vocabulary lives in `glossary.md`. In all documentation, comments, and explanations, include concrete examples next to theory, never theory alone (e.g. show `/counters/counter/c1` beside any mount-law claim). For documentation quality, follow `.agents/skills/document/SKILL.md`.
+
 ## Project Conventions
 
 - "Foldkit" is always capitalized in prose. The only exception is the npm package name (`foldkit`) and import paths.
