@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 2nd, 2026 at 1:06:11 p.m. EDT — `cde9ecfefc09` Document first-pass counters surface storyboards.
+
+- **Implementation commit:** `cde9ecfefc0966a46f0551bfa92117b7b59aea1b`
+- **Change:** First-pass ASCII storyboards for Multiple Counters destinations across React, non-captive terminal, and TUI.
+- **Details:**
+  - Process step 1 is destination and event storming from the product end.
+- **Files:**
+  - `docs/explorations/view-agnostic-process/COUNTERS-STORYBOARDS.md` — URI, Message, and surface frames for list, detail, fact, and delete.
+  - `docs/explorations/view-agnostic-process/PROCESS.md` — One-sentence process steps for the view-agnostic exploration.
+- **User context (verbatim):**
+  > I want ASCII renderings of various different surfaces, namely React, the non-captive terminal, the TUI, and then kind of simulated interactions, almost like a storyboard of what this will look like in ASCII
+  > In each state, I want the above the storyboards for each surface, I want the URI that will represent that state. Navigation should be represented as state.
+- **SpecStory:** unavailable — Cursor agent session; no SpecStory URI captured for this desktop chat.
+
 ## September 2nd, 2026 at 9:58:50 a.m. EDT — `abfa239472a1` docs: land ADR 0011 interview, glossary, and clipboard stub
 
 - **Implementation commit:** `abfa239472a17810acd65418541836106286e498`
