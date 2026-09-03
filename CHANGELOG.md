@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 3rd, 2026 at 11:22:45 a.m. EDT — `056808ca505d` Add via, NotFound, and navigation patterns to storyboards.
+
+- **Implementation commit:** `056808ca505d73ca976ed4cbde1daaa5f95d3a88`
+- **Change:** Storyboards now carry via, a NotFound page, and Foldkit stack navigation.
+- **Details:**
+  - Action menu prints on the URI. Esc and key hints sit on every keyboard surface.
+- **Files:**
+  - `docs/explorations/view-agnostic-process/COUNTERS-STORYBOARDS.md` — Via, RequestedBack, NotFound, and shared key hints across React, CLI, and TUI.
+- **User context (verbatim):**
+  > yes
+  > Print it. When you say chrome only, what do you mean? I don't think anything should be chrome only.
+  > For unknown IDs, I think we should say not found and then not found route should have a human readable description
+- **SpecStory:** unavailable — Cursor agent session; no SpecStory URI captured for this desktop chat.
+
 ## September 2nd, 2026 at 1:27:00 p.m. EDT — `128803a2f652` Revise counters storyboards around page plus overlay.
 
 - **Implementation commit:** `128803a2f6528f6f51ce988e44ebfce5e300f158`
