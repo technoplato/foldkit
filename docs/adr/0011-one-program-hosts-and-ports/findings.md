@@ -40,6 +40,8 @@ No-shortcut law lives in this folder’s `AGENTS.md`. Repo `AGENTS.md` was not w
 
 **Q116 decided A.** Every catalog Action requires `via`. Same ADT. They did not reopen Q115 to B.
 
+**Q122 decided A.** Add `Keyboard { key, uri }` and `Cli { argv, uri }`. A keydown and a CLI argv are not Button. Stamping Button would lie. Via keeps how the fact arrived.
+
 Chat is **Q118**, still drawing board. Code trace is under Q118: gospel React + is `productView` token → `paintReact` → `sendScreenToken('increment')` → `Increment()`. `App.tsx` does not call `incrementButtonTapped`. That handle is a second wire on the same `createProgramHooks`.
 
 Q03+ Multiple Counters questions are messy and still deferred. Skip them while reading.

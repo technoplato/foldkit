@@ -36,7 +36,7 @@ Sourced 2026-08-26 from code + landing SHAs + architecture audits. “What I thi
 | Q119     | One Enabled ADT; delete prose fields (`spoken` too); meta tier; tag-derived tokens **open**    |
 | Q120     | Navigation slice in the Model, derived into `foldkit/route` + ADR 0010 `runtimeSeam` **open**  |
 | Q121     | bindProgram collapses to `{ program, engine }`, one handle; `restore` defaults **open**        |
-| Q122     | Via cases for keyboard / CLI, or keys stamp Button **open**                                    |
+| Q122     | Via cases for keyboard / CLI, or keys stamp Button **decided A**                               |
 | Q123     | Actions declare relevant destinations (typed refs); page table derives; no strings **asking**  |
 | Q124     | Devtools as a Foldkit Program, host-neutral screen, React Client first **open**                |
 | Q125     | Identity retirement (retiredCounterIds): domain truth or library sync slice? **open**          |
@@ -4433,11 +4433,12 @@ export const counterFactHandles = (model, send) => ({
 
 ## Q122 — Do Via cases exist for keyboard and CLI, or do keys stamp Button?
 
-- **Status:** `open`
+- **Status:** `decided A`
 - **Asked:** 2026-08-26
+- **Decided:** 2026-09-03
 - **Question:** Q115 locked Via = Button | ActionMenu | Agent. A keydown '+' and a CLI `counter increment` are none of those. What do they stamp?
 - Options: **A** add Keyboard { key, path } and Cli { argv } now. **B** keys stamp Button (the key is the visible button's accelerator); CLI gets its case when the CLI Client lands on the new spine. **C** maybeVia (refused in Q116).
-- What I think: **B**; A invents cases before a consumer exists (Q102), C reopens a decided Q.
+- **Answer:** **A.** Via exists so the tape keeps how the fact arrived. A keydown is not a Button. A CLI argv is not a Button. Stamping Button for either would lie. Add `Keyboard { key, uri }` and `Cli { argv, uri }` now. Not C.
 
 ---
 
