@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 3rd, 2026 at 11:39:46 a.m. EDT — `d3d0668f700d` Resolve Q122 and tighten the counters storyboard language.
+
+- **Implementation commit:** `d3d0668f700d54f6da2de0b3906c3f1cf4fd7002`
+- **Change:** Resolved Q122 as Keyboard and Cli Via cases and aligned the counters storyboards.
+- **Details:**
+  - Catalog tags drop Clicked. URIs address destinations. In-screen actions do not change the path.
+- **Files:**
+  - `docs/explorations/view-agnostic-process/COUNTERS-STORYBOARDS.md` — Language, Via A, action-menu query, and URI-versus-in-screen-action rules.
+  - `docs/adr/0011-one-program-hosts-and-ports/qanda.md` — Q122 marked decided A.
+  - `docs/adr/0011-one-program-hosts-and-ports/findings.md` — Q122 finding recorded.
+- **User context (verbatim):**
+  > Remind me what Q122 is and let's resolve it.
+  > Should this be clicked add counter or add counter?
+  > We don't need to change the URI for an action from within the screen.
+- **SpecStory:** unavailable — Cursor agent session; no SpecStory URI captured for this desktop chat.
+
 ## September 3rd, 2026 at 11:22:45 a.m. EDT — `056808ca505d` Add via, NotFound, and navigation patterns to storyboards.
 
 - **Implementation commit:** `056808ca505d73ca976ed4cbde1daaa5f95d3a88`
