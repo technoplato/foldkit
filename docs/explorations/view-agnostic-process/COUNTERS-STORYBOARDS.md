@@ -7,82 +7,176 @@ Sample rows: `c1=3`, `c2=0`, `c3=11` unless a beat changes a count.
 
 `parse(print(d)) == d`. The URI is the destination, not an event log.
 
+Nothing is chrome-only. If it is on screen, it is Model, and it prints.
+
 ---
 
 ## Destination ADT
-
-Two independent sums. Page is where you are. Overlay is the one global
-sheet, dialog, or alert. You never leave the page to delete or show a fact.
 
 ```
 Page
   CounterList
   CounterDetail(counterId)
+  NotFound({ lookedFor, missing })
 
 Overlay                          at most one
   None
   DeleteConfirmation(counterId)
   CounterFact(counterId, Loading | Loaded(text) | Failed(cause))
-
-ActionMenu                       sibling chrome, not a page
-  Closed
-  Open(query, highlightedAction)
+  ActionMenu(query, highlightedAction)
 ```
 
-`Overlay` is what the first draft called `maybeMode`. It is not a field of
-detail. List and detail can both present delete or fact. Fact and delete
-cannot be up at the same time. Action menu is a higher-order wrap
-(`compose.actionMenu`): `{ product, actionMenu }`. Cmd-K / Ctrl-K / `:`
-opens it. Choosing a row sends the same Message the on-screen control would.
+`Overlay` is global. List and detail can both present delete, fact, or the
+action menu. Only one overlay at a time.
 
-Presentation / confirmation / request ids stay out of this artifact. They
-are session occurrence keys in today's core. They are not product state
-and they do not belong on the URI.
+`NotFound` is a page. Foldkit core owns a generic builder: given the URI
+that was looked for and a typed missing resource, produce a human
+description. Counters fills that with "Counter c9 does not exist." The
+builder is not counters-specific.
+
+`compose.actionMenu` still wraps `{ product, actionMenu }`. Opening the
+menu is Overlay.ActionMenu and it prints.
+
+---
+
+## Via
+
+Every catalog Message carries `via`. `update` does not branch on it. The
+tape keeps how the fact arrived.
+
+Decided in ADR 0011 Q115 / Q116:
+
+```
+Via
+  Button     { label, uri }
+  ActionMenu { query, uri, maybeHighlighted }
+  Agent      { question, uri, maybeDurationMs }
+```
+
+Q122 is still open (Keyboard vs stamp Button; CLI case). We need the
+arrival not to vanish, so this artifact stamps:
+
+```
+  Key        { key, uri }
+  Cli        { argv, uri }
+```
+
+Examples:
+
+```
+GotChild({ id: c1, message: Increment, via: Button({ label: '+', uri: '/counters' }) })
+GotChild({ id: c1, message: Increment, via: Key({ key: '+', uri: '/counters?delete=c1' }) })
+GotChild({ id: c1, message: Increment, via: Cli({ argv: 'send increment --id c1', uri: '/counters?delete=c1' }) })
+ClickedDeleteCounter({ counterId: c1, via: ActionMenu({ query: 'del', uri: '/counters?actions=1' }) })
+```
+
+TUI `x` and web click are different `via` values of the same Message.
 
 ---
 
 ## Printed URIs
 
-Page in the path. Overlay in the query, so the page does not change.
-
 ```
 /counters
+/counters?actions=1
 /counters?delete=c1
 /counters?fact=c1
 /counters/c1
+/counters/c1?actions=1
 /counters/c1?delete=c1
 /counters/c1?fact=c1
+/not-found?lookedFor=%2Fcounters%2Fc9
 ```
 
-Action menu is not printed (chrome). Question for Michael: should an open
-menu be in the URI, for example `?actions=1`?
-
-Foldkit Navigation owns this destination. Browser `history`, Expo Router,
-React Navigation, and CLI argv are adapters that parse and print the same
-relative URI. Native Back / gesture / stack pop is `OpenedNavigation` of
-the previous destination, not a host-only side channel.
+`?actions=1` is the open action menu. Filter text can join later
+(`?actions=1&q=inc`) if we want shareable menu query.
 
 ---
 
-## Shared keys
+## Navigation we already have
 
-Same Message catalog, same keys, every keyboard surface.
+`packages/foldkit/src/navigation` already models stack and presentation,
+not only a flat path:
+
+- Styles: Push, Sheet, Dialog, Popover, Drawer, FullScreenCover
+- Stack ops: `push`, `pop`, `replaceTop`, `setRoot`
+- Present / dismiss of an overlay entry
+- Host plugins: TanStack, React Router, React Navigation
+- Effects today: `pushUrl`, `replaceUrl`, `back()` (`window.history.back()`),
+  `forward()`, `load`, `openUrl`
+
+Counters core today flattens delete onto detail and treats unknown ids as
+the list. That is the assumption to replace.
+
+Standard patterns for this Program:
+
+| Pattern | When | Model change | Adapter |
+| --- | --- | --- | --- |
+| Push | open c1 | stack `[List, Detail(c1)]` | push `/counters/c1` |
+| Pop / Back | leave detail | stack `[List]` | native pop / header back / gesture |
+| Present | delete, fact, actions | overlay Some | present Dialog / Sheet / menu |
+| Dismiss | Esc, Cancel, Dismiss | overlay None | dismiss native surface |
+| Replace | confirm delete from detail | stack `[List]`, overlay None | replace `/counters` (cannot pop onto a missing c1) |
+| Set root | deep link, NotFound | stack equals printed URI | set native stack |
+| Forward | host history only | only if Model recorded it | `forward()` after a prior pop |
+
+`RequestedBack` is a Message. It dismisses an overlay if one is up,
+otherwise pops the stack. Browser `popstate`, Expo / RN header, and the
+system back gesture all become `RequestedBack` or `OpenedNavigation` of
+the URI the adapter just landed on. We do not call `history.back()` as
+the source of truth. The Model is. The adapter reconciles.
+
+Esc is `RequestedBack` when it dismisses overlay, on every keyboard
+surface (web frameworks and TUI). React Native keeps the same Message
+when a hardware keyboard is attached; touch still uses the visible
+buttons.
+
+---
+
+## Focus and keys
+
+The core screen tree owns focus. Tab, Shift-Tab, and arrows move among
+the elements the Program declared. We have not landed the exact view
+declaration yet. The storyboard assumes:
+
+- A focused list row is the target of `+` `-` `f` `x` `Enter`
+- Tab lands on Add, each row, then chrome
+- Overlay takes focus while present; Tab stays inside it
+- The same key table is valid on web. React Native shows the hints when
+  a keyboard is present and still accepts them. Touch does not require
+  them.
 
 | Key | Message |
 | --- | --- |
-| `a` | `ClickedAddCounter({ counterId })` |
-| `+` / `=` | `GotChild({ id, message: Increment })` on the focused row |
-| `-` | `GotChild({ id, message: Decrement })` on the focused row |
-| `Enter` | `SelectedCounter({ counterId })` on a list row |
-| `f` | `ClickedShowCounterFact({ counterId })` list row or detail |
-| `x` | `ClickedDeleteCounter({ counterId })` list row or detail |
-| `r` | `GotChild({ id, message: Reset })` detail only |
-| `Esc` | dismiss overlay, or `DismissedCounterDetail` if none |
-| `Cmd-K` / `Ctrl-K` / `:` | open or close ActionMenu |
-| `↑` `↓` | move list / menu highlight |
+| `a` | `ClickedAddCounter({ counterId, via: Key(...) })` |
+| `+` / `=` | `GotChild({ id, message: Increment, via: Key(...) })` |
+| `-` | `GotChild({ id, message: Decrement, via: Key(...) })` |
+| `Enter` | `SelectedCounter` on a focused row, or confirm in a dialog |
+| `f` | `ClickedShowCounterFact` |
+| `x` | `ClickedDeleteCounter` |
+| `r` | `GotChild({ id, message: Reset })` on detail |
+| `Esc` | `RequestedBack` (dismiss overlay, else pop detail) |
+| `Cmd-K` / `Ctrl-K` / `:` | open ActionMenu → `?actions=1` |
+| `Tab` / arrows | move focus (not a product Message until we land Focus) |
 
-Debug / replay keys are **not** drawn until we confirm that menu is ported
-onto this composed Program. Open question.
+---
+
+## Debug / replay plan
+
+Looked: Multiple Counters has `useReplay` on the React and OpenTUI
+**hosts**. It is not `Program.compose` on the core the way action menu
+is on `examples/counter`. Single Counter owns `compose.actionMenu` in
+core. ADR 0011 Q124 (devtools as a host-neutral Program) is still open.
+
+Plan:
+
+1. Port debug / replay utilities into the view-agnostic core paradigm
+   (compose wrapper, screen tree, Messages, URI).
+2. Enable debug mode separately from normal mode.
+3. Then the same replay UI exists on React, CLI snapshot, and TUI
+   when debug is on.
+
+Until that lands, this storyboard is normal mode.
 
 ---
 
@@ -90,56 +184,48 @@ onto this composed Program. Open question.
 
 ```
 ClickedAddCounter(c4)
-  /counters  -->  /counters                 (one more row)
+  /counters  -->  /counters
 
-GotChild(c1, Increment | Decrement)
-  /counters  -->  /counters                 (same dest, new count)
+GotChild(c1, Increment | Decrement)   any via, overlay may stay
+  /counters                 -->  /counters
+  /counters?delete=c1       -->  /counters?delete=c1    (c1 count changes)
+  /counters?actions=1       -->  /counters?actions=1
 
 SelectedCounter(c1)
-  /counters  -->  /counters/c1
+  /counters  -->  /counters/c1                         (Push)
 
-DismissedCounterDetail(c1)
-  or native Back from detail
-  /counters/c1  -->  /counters
+RequestedBack | DismissedCounterDetail(c1)
+  /counters/c1  -->  /counters                         (Pop)
 
-ClickedShowCounterFact(c1) from list
-  /counters  -->  /counters?fact=c1         (Loading, then Loaded or Failed)
-DismissedCounterFactAlert(c1)  [aborts the fetch]
-  /counters?fact=c1  -->  /counters
-
-ClickedShowCounterFact(c1) from detail
+ClickedShowCounterFact(c1)
+  /counters     -->  /counters?fact=c1                 (Present, abort on dismiss)
   /counters/c1  -->  /counters/c1?fact=c1
-DismissedCounterFactAlert(c1)  [aborts the fetch]
-  /counters/c1?fact=c1  -->  /counters/c1
 
-ClickedDeleteCounter(c1) from list
-  /counters  -->  /counters?delete=c1
-CancelledDeleteCounter(c1)
-  /counters?delete=c1  -->  /counters
-ConfirmedDeleteCounter(c1)
-  /counters?delete=c1  -->  /counters       (c1 gone)
-
-ClickedDeleteCounter(c1) from detail
+ClickedDeleteCounter(c1)
+  /counters     -->  /counters?delete=c1               (Present)
   /counters/c1  -->  /counters/c1?delete=c1
-CancelledDeleteCounter(c1)
-  /counters/c1?delete=c1  -->  /counters/c1
+
+CancelledDeleteCounter | RequestedBack
+  /counters?delete=c1      -->  /counters              (Dismiss)
+  /counters/c1?delete=c1   -->  /counters/c1
+
 ConfirmedDeleteCounter(c1)
-  /counters/c1?delete=c1  -->  /counters    (c1 gone, page falls to list)
+  /counters?delete=c1      -->  /counters              (Dismiss)
+  /counters/c1?delete=c1   -->  /counters              (Replace)
 
-OpenedActionMenu / ClosedActionMenu
-  URI unchanged
+ActionMenuCommandTriggered
+  /counters     -->  /counters?actions=1
+  /counters/c1  -->  /counters/c1?actions=1
+
+ActionMenuDismissed | RequestedBack
+  /counters?actions=1  -->  /counters
 ```
-
-Deep link: a fresh Client that opens `/counters?delete=c1` is
-`OpenedNavigation` of `Page: List, Overlay: DeleteConfirmation(c1)`.
 
 ---
 
 ## S0 | empty list
 
 uri: `/counters`
-from: `OpenedNavigation` of CounterList
-to: `/counters` via `ClickedAddCounter({ counterId })`
 
 ```
 React                      CLI snapshot                 TUI
@@ -152,19 +238,17 @@ React                      CLI snapshot                 TUI
 │  │ + Add counter │  │    │  │ + Add counter │  │    │  :  Actions         │
 │  └───────────────┘  │    │  └───────────────┘  │    │                     │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
-a add   Cmd-K actions
+a add   Esc unused   Cmd-K / :  ?actions=1
 ```
 
-CLI `show` is a snapshot of the same tree the TUI paints. Note: share one
-rendering engine (JSX-to-ASCII exploration already exists). Do not print
-raw destination JSON as the human surface.
+CLI `show` snapshots the same tree as the TUI. Share one renderer (JSX
+exploration already exists).
 
 ---
 
 ## S1 | populated list
 
 uri: `/counters`
-from: S0 after three adds (or Instant already has the rows)
 
 ```
 React                      CLI snapshot                 TUI
@@ -177,31 +261,30 @@ React                      CLI snapshot                 TUI
 │                     │    │                     │    │                     │
 │                     │    │                     │    │ a add  : actions    │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
-row title / Enter -> SelectedCounter(c1)        -> /counters/c1
-− / +               -> GotChild Increment|Decrement
-🗑 / x              -> ClickedDeleteCounter(c1) -> /counters?delete=c1
-f                   -> ClickedShowCounterFact(c1) -> /counters?fact=c1
-+ in chrome / a     -> ClickedAddCounter
+Enter     SelectedCounter(c1)          via Button|Key     -> /counters/c1
+− / +     GotChild Increment|Decrement via Button|Key
+🗑 / x    ClickedDeleteCounter(c1)     via Button|Key     -> /counters?delete=c1
+f         ClickedShowCounterFact(c1)   via Key            -> /counters?fact=c1
+a / +     ClickedAddCounter            via Button|Key
 ```
+
+Web paints the same `− + x` / Esc hints as TUI. React Native paints the
+buttons always and the key hints when a keyboard is attached.
 
 ---
 
 ## S1a | increment on the list
 
-uri: `/counters` (unchanged)
-message: `GotChild({ id: c1, message: Increment })`
-c1 becomes 4. Σ 15. Every Client on this Instant account paints 4, including
-a Client sitting on `/counters/c1`.
+uri: `/counters`
+`GotChild({ id: c1, message: Increment, via })`
+c1 becomes 4. Every Client on the account paints 4.
 
 ---
 
 ## S2 | detail
 
 uri: `/counters/c1`
-from: `SelectedCounter({ counterId: c1 })` or
-`OpenedNavigation` of CounterDetail(c1)
-native Back / leading chevron / stack pop: `OpenedNavigation` of CounterList
-in-app back control: `DismissedCounterDetail({ counterId: c1 })`
+Push from list. `RequestedBack` pops to `/counters`.
 
 ```
 React                      CLI snapshot                 TUI
@@ -216,6 +299,7 @@ React                      CLI snapshot                 TUI
 │      [ Fact ]       │    │      [ Fact ]       │    │  r reset            │
 │      [ Delete ]     │    │      [ Delete ]     │    │  f fact             │
 │                     │    │                     │    │  x delete           │
+│ Esc back            │    │ Esc back            │    │ Esc back            │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
 ```
 
@@ -224,9 +308,7 @@ React                      CLI snapshot                 TUI
 ## S3 | fact from the list (Loading)
 
 uri: `/counters?fact=c1`
-from: S1 `ClickedShowCounterFact({ counterId: c1 })`
-Command: `FetchCounterFact` for the current count (3). Dismiss **aborts**
-that Command.
+Present. Dismiss / Esc aborts `FetchCounterFact`.
 
 ```
 React                      CLI snapshot                 TUI
@@ -238,7 +320,8 @@ React                      CLI snapshot                 TUI
 │                     │    │                     │    │                     │
 │  ┌───────────────┐  │    │  ┌───────────────┐  │    │ ┌ Fact about 3 ───┐ │
 │  │ Fact about 3  │  │    │  │ Fact about 3  │  │    │ │ … loading       │ │
-│  │ … loading     │  │    │  │ … loading     │  │    │ │ Esc dismiss     │ │
+│  │ … loading     │  │    │  │ … loading     │  │    │ │                 │ │
+│  │ Esc dismiss   │  │    │  │ Esc dismiss   │  │    │ │ Esc dismiss     │ │
 │  └───────────────┘  │    │  └───────────────┘  │    │ └─────────────────┘ │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
 ```
@@ -248,55 +331,47 @@ React                      CLI snapshot                 TUI
 ## S4 | fact loaded (from list)
 
 uri: `/counters?fact=c1`
-from: S3 `SucceededLoadCounterFact({ counterId: c1, fact })`
-`fact` is the number-specific text. No omitted fields.
+`SucceededLoadCounterFact({ counterId: c1, fact })`
 
 ```
-React / CLI snapshot / TUI share this sheet over the list:
+React / CLI snapshot / TUI
 
 ┌ Fact about 3 ────────────────────────────┐
 │ 3 is the only number that is equal to    │
 │ the sum of all numbers less than it      │
 │ that are divisible by 2 or 3.            │
 │                                          │
-│              [ Dismiss ]                 │
+│         [ Dismiss ]   Esc dismiss        │
 └──────────────────────────────────────────┘
 ```
-
-`DismissedCounterFactAlert({ counterId: c1 })` → `/counters`
 
 ---
 
 ## S5 | fact failed (from list)
 
 uri: `/counters?fact=c1`
-from: S3 `FailedLoadCounterFact({ counterId: c1, cause })`
+`FailedLoadCounterFact({ counterId: c1, cause })`
 
 ```
 ┌ Fact about 3 ────────────────────────────┐
 │ Could not load fact.                     │
 │                                          │
-│              [ Dismiss ]                 │
+│         [ Dismiss ]   Esc dismiss        │
 └──────────────────────────────────────────┘
 ```
-
-Same URI. Same dismiss. Same abort if you dismiss during Loading.
 
 ---
 
 ## S4d | fact from detail
 
 uri: `/counters/c1?fact=c1`
-Same sheet, painted over S2 instead of S1. Dismiss → `/counters/c1`.
+Same sheet over S2. Esc / Dismiss → `/counters/c1`.
 
 ---
 
 ## S6 | delete from the list
 
 uri: `/counters?delete=c1`
-page stays CounterList. Overlay is DeleteConfirmation(c1).
-
-from: S1 `ClickedDeleteCounter({ counterId: c1 })`
 
 ```
 React                      CLI snapshot                 TUI
@@ -308,40 +383,34 @@ React                      CLI snapshot                 TUI
 │                     │    │                     │    │                     │
 │  ┌───────────────┐  │    │  ┌───────────────┐  │    │ ┌ Delete c1? ─────┐ │
 │  │ Delete c1?    │  │    │  │ Delete c1?    │  │    │ │ Cannot undo.    │ │
-│  │ Cannot undo.  │  │    │  │ Cannot undo.  │  │    │ │ [c] cancel      │ │
-│  │ [Cancel][Del] │  │    │  │ [Cancel][Del] │  │    │ │>[x] delete      │ │
+│  │ Cannot undo.  │  │    │  │ Cannot undo.  │  │    │ │                 │ │
+│  │ [c Cancel]    │  │    │  │ [c Cancel]    │  │    │ │ [c] cancel      │ │
+│  │ [x Delete]    │  │    │  │ [x Delete]    │  │    │ │>[x] delete      │ │
+│  │ Esc cancel    │  │    │  │ Esc cancel    │  │    │ │ Esc cancel      │ │
 │  └───────────────┘  │    │  └───────────────┘  │    │ └─────────────────┘ │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
 ```
 
-Cancel → `/counters`. Confirm → `/counters` with c1 gone.
+`c` / Esc / Cancel → `/counters`. `x` / Enter on Delete → `/counters`,
+c1 gone.
 
-One React surface. Delete uses the platform dialog. Fact uses a sheet.
-That is paint, not two Programs.
-
-### CLI while the dialog is up
-
-The overlay does not move you to detail. `show` still snapshots list +
-dialog.
-
-If you ignore the dialog and send a product Message:
+Increment, decrement, add, and action-menu picks still run if they
+arrive while this dialog is up. Example:
 
 ```
 $ counters send increment --id c1
-# GotChild({ id: c1, message: Increment })
-# uri stays /counters?delete=c1
-# c1 is now 4 under the same dialog
+via: Cli({ argv: 'send increment --id c1', uri: '/counters?delete=c1' })
+uri stays /counters?delete=c1
+c1 is now 4 under the same dialog
 ```
 
-Keyboard focus on React/TUI stays on Cancel/Delete. CLI and ActionMenu can
-still send catalog Messages that are valid for the rows. Overlay stays put
-unless the Message was Cancel or Confirm.
-
-If the token names a counter that is not in the list:
+Unknown counter:
 
 ```
 $ counters send delete --id c9
-counter c9 not found. available: c1, c2, c3
+-> /not-found?lookedFor=%2Fcounters%2Fc9
+Counter c9 does not exist.
+Looked for /counters/c9.
 ```
 
 ---
@@ -349,35 +418,29 @@ counter c9 not found. available: c1, c2, c3
 ## S7 | delete from detail
 
 uri: `/counters/c1?delete=c1`
-page stays CounterDetail(c1).
 
-```
-React / CLI / TUI: S2 chrome, same Delete c1? dialog on top.
-Cancel -> /counters/c1
-Confirm -> /counters   (c1 gone, cannot stay on a missing detail)
-```
+Same dialog over S2, same `c` `x` Esc on every keyboard surface.
+Cancel → `/counters/c1`. Confirm → `/counters` (Replace).
 
 ---
 
 ## S8 | after confirmed delete
 
 uri: `/counters`
-rows c2, c3. Deep link `/counters/c1` or `/counters?delete=c1` with no c1
-normalizes to `/counters`.
+rows c2, c3.
 
 ---
 
 ## S9 | after cancelled delete from the list
 
 uri: `/counters`
-You never visited detail.
 
 ---
 
 ## S-AM | action menu over the list
 
-uri: `/counters` (unchanged in this take)
-from: `Cmd-K`
+uri: `/counters?actions=1`
+`ActionMenuCommandTriggered` (Cmd-K / Ctrl-K / `:`)
 
 ```
 React                      CLI snapshot                 TUI
@@ -389,16 +452,41 @@ React                      CLI snapshot                 TUI
 │  │ Filter_       │  │    │  │ Filter_       │  │    │ │ Filter_         │ │
 │  │> Add counter  │  │    │  │> Add counter  │  │    │ │> Add counter    │ │
 │  │  Increment c1 │  │    │  │  Increment c1 │  │    │ │  Increment c1   │ │
-│  │  Decrement c1 │  │    │  │  Decrement c1 │  │    │ │  Fact c1        │ │
-│  │  Fact c1      │  │    │  │  Fact c1      │  │    │ │  Delete c1      │ │
-│  │  Delete c1    │  │    │  │  Delete c1    │  │    │ │  Open c1        │ │
-│  │  Open c1      │  │    │  │  Open c1      │  │    │ └─────────────────┘ │
-│  └───────────────┘  │    │  └───────────────┘  │    │                     │
+│  │  Decrement c1 │  │    │  │  Decrement c1 │  │    │ │  Decrement c1   │ │
+│  │  Fact c1      │  │    │  │  Fact c1      │  │    │ │  Fact c1        │ │
+│  │  Delete c1    │  │    │  │  Delete c1    │  │    │ │  Delete c1      │ │
+│  │  Open c1      │  │    │  │  Open c1      │  │    │ │  Open c1        │ │
+│  │ Esc close     │  │    │  │ Esc close     │  │    │ │ Esc close       │ │
+│  └───────────────┘  │    │  └───────────────┘  │    │ └─────────────────┘ │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
 ```
 
-Rows are `actions valid in this Model`. Enter sends that Message. Esc
-closes the menu.
+Enter sends the highlighted action with `via: ActionMenu`. Esc →
+`/counters`.
+
+---
+
+## S-NF | not found
+
+uri: `/not-found?lookedFor=%2Fcounters%2Fc9`
+
+```
+React                      CLI snapshot                 TUI
+┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│ Not found           │    │ Not found           │    │ Not found           │
+│                     │    │                     │    │                     │
+│ Counter c9 does not │    │ Counter c9 does not │    │ Counter c9 does not │
+│ exist.              │    │ exist.              │    │ exist.              │
+│                     │    │                     │    │                     │
+│ Looked for          │    │ Looked for          │    │ Looked for          │
+│ /counters/c9        │    │ /counters/c9        │    │ /counters/c9        │
+│                     │    │                     │    │                     │
+│ [ Back to counters ]│    │ [ Back to counters ]│    │> Esc  /counters     │
+│ Esc back            │    │ Esc back            │    │                     │
+└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
+```
+
+Core builder, counters-specific fill-in for the missing Counter id.
 
 ---
 
@@ -409,7 +497,7 @@ t0  React /counters          c1=3
     TUI   /counters/c1       c1=3
     CLI   /counters          c1=3
 
-t1  React: GotChild({ id: c1, message: Increment })
+t1  React: GotChild({ id: c1, message: Increment, via: Button(...) })
 
 t2  all three paint c1=4. URIs unchanged.
 ```
@@ -418,61 +506,32 @@ t2  all three paint c1=4. URIs unchanged.
 
 ## Sync | list trash
 
-When navigation is shared across authenticated Clients, the other Client
-sees the delete overlay before confirm.
-
 ```
 t0  both on /counters
-t1  React: ClickedDeleteCounter({ counterId: c1 })
-t2  both paint /counters?delete=c1   (dialog visible)
-t3  React: ConfirmedDeleteCounter({ counterId: c1 })
+t1  React: ClickedDeleteCounter({ counterId: c1, via: Button(...) })
+t2  both paint /counters?delete=c1
+t3  React: ConfirmedDeleteCounter({ counterId: c1, via: Button(...) })
 t4  both paint /counters, c1 absent
 ```
 
 ---
 
-## Completeness (only gaps from the storm)
+## Completeness
 
 ### Last row deleted
 
 Confirm on the only remaining counter → S0 at `/counters`.
 
-### Unknown id
-
-`/counters/ghost` or `/counters?delete=ghost` → list. No NotFound page
-unless you want one. Question: list-as-sink is enough?
-
 ### Stale fact Command
 
-Dismiss (or leave `?fact=`) **aborts** `FetchCounterFact`. A late
-`SucceededLoadCounterFact` does not reopen the sheet.
-
-### Native Back
-
-Core previous destination, adapter pops the stack.
-
-```
-/counters/c1?delete=c1  Back  ->  /counters/c1
-/counters?delete=c1     Back  ->  /counters
-/counters/c1            Back  ->  /counters
-```
-
-Escape on the dialog is `CancelledDeleteCounter`. Browser / Expo / RN Back
-is `OpenedNavigation` of the printed parent. Same destination either way
-from list-delete (both land on `/counters`).
+Dismiss / Esc aborts `FetchCounterFact`. A late success does not reopen
+the sheet.
 
 ### Deep-link fact
 
-Open `/counters?fact=c1` on a fresh Client. Loading, then fetch against
-the **current** count. The number is not in the URI.
+`/counters?fact=c1` loads against the current count.
 
----
+### Debug mode
 
-## Questions
-
-1. Print the action menu on the URI (`?actions=1`) or keep it chrome-only?
-2. Is increment-under-an-open-delete-dialog the CLI/ActionMenu behavior you
-   want, or should those Messages be rejected while an overlay is Some?
-3. Has the debug / replay menu been composed onto this Program yet, or do
-   we leave it off the storyboard?
-4. List-as-sink for unknown ids, or a real NotFound destination?
+After the port: a debug flag composes replay onto the same Program.
+Normal mode URIs above stay free of tape.
