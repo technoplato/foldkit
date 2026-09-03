@@ -18,6 +18,10 @@ Page
   CounterList
   CounterDetail(counterId)
   NotFound({ lookedFor, missing })
+    lookedFor  the URI that failed to parse to a live page
+               e.g. /counters/c9
+    missing    the typed thing that URI named and we could not find
+               e.g. CounterId("c9")
 
 Overlay                          at most one
   None
@@ -34,8 +38,16 @@ that was looked for and a typed missing resource, produce a human
 description. Counters fills that with "Counter c9 does not exist." The
 builder is not counters-specific.
 
-`compose.actionMenu` still wraps `{ product, actionMenu }`. Opening the
-menu is Overlay.ActionMenu and it prints.
+`Program.compose.actionMenu` already lives in Foldkit core
+(`packages/foldkit/src/program/actionMenu.ts`). It wraps a child Program
+so the menu slice cannot collide with that child's fields. Today's field
+name is `product`. That name is leftover "product vs chrome" talk. The
+slot is just the inner Program Model. We do not need the word product.
+A later compose can expose `{ ...inner, actionMenu }` or name the inner
+field after the Program (`counters`). The wrap itself stays: action menu
+is a sibling slice, not a domain field you add by hand in every app.
+
+Opening the menu is Overlay.ActionMenu and it prints.
 
 ---
 
@@ -53,21 +65,25 @@ Via
   Agent      { question, uri, maybeDurationMs }
 ```
 
-Q122 is still open (Keyboard vs stamp Button; CLI case). We need the
-arrival not to vanish, so this artifact stamps:
+Q122 (resolved **A**): Q115 only had Button, ActionMenu, Agent. A keydown
+`+` and `counters send increment --id c1` are neither. Options were
+**A** add Keyboard and Cli now, **B** stamp Button for keys and wait on
+CLI, **C** maybeVia (already refused). **A**: losing how the fact arrived
+is the thing via exists to prevent. Stamping Button for a CLI argv would
+lie.
 
 ```
-  Key        { key, uri }
+  Keyboard   { key, uri }
   Cli        { argv, uri }
 ```
 
 Examples:
 
 ```
-GotChild({ id: c1, message: Increment, via: Button({ label: '+', uri: '/counters' }) })
-GotChild({ id: c1, message: Increment, via: Key({ key: '+', uri: '/counters?delete=c1' }) })
-GotChild({ id: c1, message: Increment, via: Cli({ argv: 'send increment --id c1', uri: '/counters?delete=c1' }) })
-ClickedDeleteCounter({ counterId: c1, via: ActionMenu({ query: 'del', uri: '/counters?actions=1' }) })
+Increment({ id: c1, via: Button({ label: '+', uri: '/counters' }) })
+Increment({ id: c1, via: Keyboard({ key: '+', uri: '/counters?delete=c1' }) })
+Increment({ id: c1, via: Cli({ argv: 'send increment --id c1', uri: '/counters?delete=c1' }) })
+DeleteCounter({ id: c1, via: ActionMenu({ query: 'del', uri: '/counters?actions=1&q=del' }) })
 ```
 
 TUI `x` and web click are different `via` values of the same Message.
@@ -78,18 +94,19 @@ TUI `x` and web click are different `via` values of the same Message.
 
 ```
 /counters
-/counters?actions=1
+/counters?actions=1&q=
+/counters?actions=1&q=inc
 /counters?delete=c1
 /counters?fact=c1
 /counters/c1
-/counters/c1?actions=1
+/counters/c1?actions=1&q=
 /counters/c1?delete=c1
 /counters/c1?fact=c1
 /not-found?lookedFor=%2Fcounters%2Fc9
 ```
 
-`?actions=1` is the open action menu. Filter text can join later
-(`?actions=1&q=inc`) if we want shareable menu query.
+`?actions=1&q=` is the open action menu. `q` is the filter text, empty
+until someone types. `/counters?actions=1&q=inc` is shareable.
 
 ---
 
@@ -105,20 +122,30 @@ not only a flat path:
 - Effects today: `pushUrl`, `replaceUrl`, `back()` (`window.history.back()`),
   `forward()`, `load`, `openUrl`
 
-Counters core today flattens delete onto detail and treats unknown ids as
-the list. That is the assumption to replace.
+What "flatten" meant in the last draft, in today's `examples/counters/core`
+code only (not this storyboard):
+
+- Delete is `CounterDetail(c1, maybeMode: DeleteConfirmation)`.
+- The printer therefore emits `/counters/c1/delete` even when you pressed
+  trash on the list. The list page is left. That is the bug we already
+  replaced with Overlay on the current page (`/counters?delete=c1`).
+- An unknown id such as `/counters/ghost` runs `normalizeNavigation` and
+  silently becomes `/counters`. That is the sink we already replaced with
+  the NotFound page.
+
+This storyboard does neither of those things.
 
 Standard patterns for this Program:
 
-| Pattern | When | Model change | Adapter |
-| --- | --- | --- | --- |
-| Push | open c1 | stack `[List, Detail(c1)]` | push `/counters/c1` |
-| Pop / Back | leave detail | stack `[List]` | native pop / header back / gesture |
-| Present | delete, fact, actions | overlay Some | present Dialog / Sheet / menu |
-| Dismiss | Esc, Cancel, Dismiss | overlay None | dismiss native surface |
-| Replace | confirm delete from detail | stack `[List]`, overlay None | replace `/counters` (cannot pop onto a missing c1) |
-| Set root | deep link, NotFound | stack equals printed URI | set native stack |
-| Forward | host history only | only if Model recorded it | `forward()` after a prior pop |
+| Pattern    | When                       | Model change                 | Adapter                                            |
+| ---------- | -------------------------- | ---------------------------- | -------------------------------------------------- |
+| Push       | open c1                    | stack `[List, Detail(c1)]`   | push `/counters/c1`                                |
+| Pop / Back | leave detail               | stack `[List]`               | native pop / header back / gesture                 |
+| Present    | delete, fact, actions      | overlay Some                 | present Dialog / Sheet / menu                      |
+| Dismiss    | Esc, Cancel, Dismiss       | overlay None                 | dismiss native surface                             |
+| Replace    | confirm delete from detail | stack `[List]`, overlay None | replace `/counters` (cannot pop onto a missing c1) |
+| Set root   | deep link, NotFound        | stack equals printed URI     | set native stack                                   |
+| Forward    | host history only          | only if Model recorded it    | `forward()` after a prior pop                      |
 
 `RequestedBack` is a Message. It dismisses an overlay if one is up,
 otherwise pops the stack. Browser `popstate`, Expo / RN header, and the
@@ -130,6 +157,24 @@ Esc is `RequestedBack` when it dismisses overlay, on every keyboard
 surface (web frameworks and TUI). React Native keeps the same Message
 when a hardware keyboard is attached; touch still uses the visible
 buttons.
+
+---
+
+## Language
+
+Gospel Counter sends `Increment`, not `ClickedIncrement`. The tag is the
+fact. `via` is the gesture. `Clicked*` names the adapter, so we drop it.
+
+| Instead of                             | Write                          |
+| -------------------------------------- | ------------------------------ |
+| `ClickedAddCounter`                    | `AddCounter({ id, via })`      |
+| `SelectedCounter`                      | `OpenCounter({ id, via })`     |
+| `ClickedShowCounterFact`               | `ShowCounterFact({ id, via })` |
+| `ClickedDeleteCounter`                 | `DeleteCounter({ id, via })`   |
+| `GotChild({ id, message: Increment })` | `Increment({ id, via })`       |
+
+`GotChild` can stay as compose routing inside the Program. The catalog
+name a host, CLI, or action menu shows is `Increment`.
 
 ---
 
@@ -146,80 +191,83 @@ declaration yet. The storyboard assumes:
   a keyboard is present and still accepts them. Touch does not require
   them.
 
-| Key | Message |
-| --- | --- |
-| `a` | `ClickedAddCounter({ counterId, via: Key(...) })` |
-| `+` / `=` | `GotChild({ id, message: Increment, via: Key(...) })` |
-| `-` | `GotChild({ id, message: Decrement, via: Key(...) })` |
-| `Enter` | `SelectedCounter` on a focused row, or confirm in a dialog |
-| `f` | `ClickedShowCounterFact` |
-| `x` | `ClickedDeleteCounter` |
-| `r` | `GotChild({ id, message: Reset })` on detail |
-| `Esc` | `RequestedBack` (dismiss overlay, else pop detail) |
-| `Cmd-K` / `Ctrl-K` / `:` | open ActionMenu → `?actions=1` |
-| `Tab` / arrows | move focus (not a product Message until we land Focus) |
+| Key                      | Message                                                     |
+| ------------------------ | ----------------------------------------------------------- |
+| `a`                      | `AddCounter({ id, via: Keyboard({ key: 'a', uri }) })`      |
+| `+` / `=`                | `Increment({ id, via: Keyboard({ key: '+', uri }) })`       |
+| `-`                      | `Decrement({ id, via: Keyboard({ key: '-', uri }) })`       |
+| `Enter`                  | `OpenCounter` on a focused row, or confirm in a dialog      |
+| `f`                      | `ShowCounterFact({ id, via: Keyboard({ key: 'f', uri }) })` |
+| `x`                      | `DeleteCounter({ id, via: Keyboard({ key: 'x', uri }) })`   |
+| `r`                      | `Reset({ id, via: Keyboard({ key: 'r', uri }) })` on detail |
+| `Esc`                    | `RequestedBack({ via: Keyboard({ key: 'Escape', uri }) })`  |
+| `Cmd-K` / `Ctrl-K` / `:` | `ActionMenuCommandTriggered` → `?actions=1&q=`              |
+| `Tab` / arrows           | move focus (not a catalog Message until we land Focus)      |
 
 ---
 
 ## Debug / replay plan
 
-Looked: Multiple Counters has `useReplay` on the React and OpenTUI
-**hosts**. It is not `Program.compose` on the core the way action menu
-is on `examples/counter`. Single Counter owns `compose.actionMenu` in
-core. ADR 0011 Q124 (devtools as a host-neutral Program) is still open.
+`Program.compose.actionMenu` is already Foldkit core. `examples/counter`
+is the first consumer, not the owner. Multiple Counters should use that
+same compose. It does not today.
 
-Plan:
-
-1. Port debug / replay utilities into the view-agnostic core paradigm
-   (compose wrapper, screen tree, Messages, URI).
-2. Enable debug mode separately from normal mode.
-3. Then the same replay UI exists on React, CLI snapshot, and TUI
-   when debug is on.
-
-Until that lands, this storyboard is normal mode.
+Replay today is `useReplay` on the Multiple Counters React and OpenTUI
+**hosts**. That is the host-owned leftover. Q124 is the work: port
+devtools / replay into the same view-agnostic compose (screen tree,
+Messages, URI), then turn debug mode on separately from normal mode.
+This storyboard is normal mode. Debug mode gets its own URI once that
+compose exists.
 
 ---
 
 ## Flow
 
+A URI names an addressable destination. Opening that URI presents that
+destination (list, detail, overlay, NotFound). Increment, decrement,
+reset, and add do not change the URI. They change row state on the
+destination you are already on, including under an open dialog.
+
+URI edges (destination changed):
+
 ```
-ClickedAddCounter(c4)
-  /counters  -->  /counters
-
-GotChild(c1, Increment | Decrement)   any via, overlay may stay
-  /counters                 -->  /counters
-  /counters?delete=c1       -->  /counters?delete=c1    (c1 count changes)
-  /counters?actions=1       -->  /counters?actions=1
-
-SelectedCounter(c1)
+OpenCounter(c1)
   /counters  -->  /counters/c1                         (Push)
 
-RequestedBack | DismissedCounterDetail(c1)
+RequestedBack
   /counters/c1  -->  /counters                         (Pop)
 
-ClickedShowCounterFact(c1)
-  /counters     -->  /counters?fact=c1                 (Present, abort on dismiss)
+ShowCounterFact(c1)
+  /counters     -->  /counters?fact=c1                 (Present)
   /counters/c1  -->  /counters/c1?fact=c1
 
-ClickedDeleteCounter(c1)
+DeleteCounter(c1)
   /counters     -->  /counters?delete=c1               (Present)
   /counters/c1  -->  /counters/c1?delete=c1
 
-CancelledDeleteCounter | RequestedBack
+CancelDeleteCounter | RequestedBack
   /counters?delete=c1      -->  /counters              (Dismiss)
   /counters/c1?delete=c1   -->  /counters/c1
 
-ConfirmedDeleteCounter(c1)
+ConfirmDeleteCounter(c1)
   /counters?delete=c1      -->  /counters              (Dismiss)
   /counters/c1?delete=c1   -->  /counters              (Replace)
 
 ActionMenuCommandTriggered
-  /counters     -->  /counters?actions=1
-  /counters/c1  -->  /counters/c1?actions=1
+  /counters     -->  /counters?actions=1&q=
+  /counters/c1  -->  /counters/c1?actions=1&q=
+
+ActionMenuQueryChanged({ query: 'inc' })
+  /counters?actions=1&q=  -->  /counters?actions=1&q=inc
 
 ActionMenuDismissed | RequestedBack
-  /counters?actions=1  -->  /counters
+  /counters?actions=1&q=  -->  /counters
 ```
+
+Same-URI Messages (no navigation): `AddCounter`, `Increment`,
+`Decrement`, `Reset`. Deep link `/counters?delete=c1` is how you address
+the dialog. Clicking `+` while it is open still sends `Increment` and
+leaves the URI alone.
 
 ---
 
@@ -238,7 +286,7 @@ React                      CLI snapshot                 TUI
 │  │ + Add counter │  │    │  │ + Add counter │  │    │  :  Actions         │
 │  └───────────────┘  │    │  └───────────────┘  │    │                     │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
-a add   Esc unused   Cmd-K / :  ?actions=1
+a add   Esc unused   Cmd-K / :  ?actions=1&q=
 ```
 
 CLI `show` snapshots the same tree as the TUI. Share one renderer (JSX
@@ -261,11 +309,11 @@ React                      CLI snapshot                 TUI
 │                     │    │                     │    │                     │
 │                     │    │                     │    │ a add  : actions    │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
-Enter     SelectedCounter(c1)          via Button|Key     -> /counters/c1
-− / +     GotChild Increment|Decrement via Button|Key
-🗑 / x    ClickedDeleteCounter(c1)     via Button|Key     -> /counters?delete=c1
-f         ClickedShowCounterFact(c1)   via Key            -> /counters?fact=c1
-a / +     ClickedAddCounter            via Button|Key
+Enter     OpenCounter(c1)     via Button|Keyboard  -> /counters/c1
+− / +     Increment|Decrement via Button|Keyboard  (URI unchanged)
+🗑 / x    DeleteCounter(c1)   via Button|Keyboard  -> /counters?delete=c1
+f         ShowCounterFact(c1) via Keyboard         -> /counters?fact=c1
+a         AddCounter          via Button|Keyboard  (URI unchanged)
 ```
 
 Web paints the same `− + x` / Esc hints as TUI. React Native paints the
@@ -276,7 +324,7 @@ buttons always and the key hints when a keyboard is attached.
 ## S1a | increment on the list
 
 uri: `/counters`
-`GotChild({ id: c1, message: Increment, via })`
+`Increment({ id: c1, via })`
 c1 becomes 4. Every Client on the account paints 4.
 
 ---
@@ -439,7 +487,7 @@ uri: `/counters`
 
 ## S-AM | action menu over the list
 
-uri: `/counters?actions=1`
+uri: `/counters?actions=1&q=`
 `ActionMenuCommandTriggered` (Cmd-K / Ctrl-K / `:`)
 
 ```
@@ -497,7 +545,7 @@ t0  React /counters          c1=3
     TUI   /counters/c1       c1=3
     CLI   /counters          c1=3
 
-t1  React: GotChild({ id: c1, message: Increment, via: Button(...) })
+t1  React: Increment({ id: c1, via: Button(...) })
 
 t2  all three paint c1=4. URIs unchanged.
 ```
@@ -508,9 +556,9 @@ t2  all three paint c1=4. URIs unchanged.
 
 ```
 t0  both on /counters
-t1  React: ClickedDeleteCounter({ counterId: c1, via: Button(...) })
+t1  React: DeleteCounter({ id: c1, via: Button(...) })
 t2  both paint /counters?delete=c1
-t3  React: ConfirmedDeleteCounter({ counterId: c1, via: Button(...) })
+t3  React: ConfirmDeleteCounter({ id: c1, via: Button(...) })
 t4  both paint /counters, c1 absent
 ```
 
