@@ -1,0 +1,93 @@
+@import 'tailwindcss';
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  background: #09090b;
+}
+
+.follow-glow {
+  position: absolute;
+  left: 50%;
+  bottom: 0.55rem;
+  z-index: 2;
+  display: flex;
+  width: 3.4rem;
+  height: 1.7rem;
+  transform: translateX(-50%);
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(251 191 36 / 8%);
+  box-shadow: 0 0 22px 4px rgb(251 191 36 / 22%);
+  color: #fbbf24;
+  cursor: pointer;
+}
+
+.follow-glow-arrow {
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 12px rgb(251 191 36 / 70%);
+  animation: follow-glow-pulse 2.6s ease-in-out infinite;
+}
+
+.saved-answer {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.saved-answer-trigger {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+.saved-answer-pop {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.6rem);
+  z-index: 20;
+  max-width: min(48rem, 92vw);
+  padding: 0.85rem 1rem;
+  border: 2px solid #fcd34d;
+  border-radius: 0.85rem;
+  background: #18181b;
+  color: #fef3c7;
+  box-shadow: 0 0 24px 4px rgb(251 191 36 / 18%);
+}
+
+.saved-answer:hover .saved-answer-pop,
+.saved-answer:focus-within .saved-answer-pop {
+  display: block;
+}
+
+.saved-answer-pop-line {
+  font-size: clamp(1rem, 1.8vw, 1.25rem);
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.saved-answer-pop-line + .saved-answer-pop-line {
+  margin-top: 0.65rem;
+}
+
+@keyframes follow-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.28;
+    text-shadow: 0 0 6px rgb(251 191 36 / 25%);
+  }
+
+  50% {
+    opacity: 0.9;
+    text-shadow: 0 0 16px rgb(251 191 36 / 55%);
+  }
+}
