@@ -93,6 +93,7 @@
     "dev:example:todo": "pnpm --filter todo-example dev",
     "dev:example:form": "pnpm --filter form-example dev",
     "dev:example:routing": "pnpm --filter routing-example dev",
+    "dev:example:slides-qanda": "pnpm --filter slides-qanda-example dev",
     "dev:example:route-transitions": "pnpm --filter route-transitions-example dev",
     "dev:example:interrupting-commands": "pnpm --filter interrupting-commands-example dev",
     "dev:example:query-sync": "pnpm --filter query-sync-example dev",

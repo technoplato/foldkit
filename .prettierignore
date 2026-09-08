@@ -13,3 +13,4 @@ packages/oxlint-plugin-foldkit/test/integration/fixtures/
 **/android/**/build/
 **/.gradle/
 **/.look/chrome-profile/
+examples/slides-qanda/answers/*.md

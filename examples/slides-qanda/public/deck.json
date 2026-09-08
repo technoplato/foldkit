@@ -1,0 +1,512 @@
+{
+  "title": "DEATH",
+  "roots": [
+    {
+      "id": "01",
+      "title": "WHO PLAYS?",
+      "mapLines": [
+        "Pay $20 = Alice's attempt (instructions + config).",
+        "Agents YIELD. Alice does not speak.",
+        "Dave tests. Dave says show."
+      ],
+      "story": "Bob does the same in Swift. Eve blogs, no program, scores 0.",
+      "question": "Is this the game?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Yes. Pay is the attempt. Agents yield. Dave tests."
+        },
+        { "letter": "B", "text": "Alice still says READY. Dave is optional." },
+        { "letter": "C", "text": "No contest. Local score sheet only." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": [
+        {
+          "id": "01a",
+          "title": "PAY AGAIN AFTER A ZERO?",
+          "mapLines": [
+            "A failed poke loses the stake.",
+            "A new entry is a new prepaid budget."
+          ],
+          "story": "Alice paid twenty dollars. Her agents said they were done. The published tests sent show, then increment, increment, then show again. The second show was not two higher. She lost that stake. She still has a credit card. We never said whether she may pay a new entry the same day.",
+          "question": "May she pay a new entry after a fail-to-zero?",
+          "options": [
+            { "letter": "A", "text": "Yes. A new payment is a new attempt." },
+            {
+              "letter": "B",
+              "text": "Not the same day. One entry per calendar day."
+            },
+            {
+              "letter": "C",
+              "text": "Not in version 1. One entry, then she is done."
+            }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        }
+      ]
+    },
+    {
+      "id": "02",
+      "title": "HOW DOES DAVE POKE?",
+      "mapLines": [
+        "Dave sends ONE poke list",
+        "to Alice (Foldkit) and Bob (Swift)."
+      ],
+      "story": "Alice built Foldkit. Bob built Swift. Dave runs the hospital. He should poke both the same way.",
+      "question": "What does Dave send?",
+      "options": [
+        { "letter": "A", "text": "Foldkit Messages. Bob is out." },
+        { "letter": "B", "text": "Web URLs only." },
+        {
+          "letter": "C",
+          "text": "show, plus, minus, reset, offline. Each team maps that list."
+        }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": [
+        {
+          "id": "02a",
+          "title": "WHERE DOES THE POKE LAND?",
+          "mapLines": [
+            "Same list for every stack: show, plus, minus, reset, offline.",
+            "The hospital does not write their adapter."
+          ],
+          "story": "The hospital does not write a Foldkit adapter for Bob's Swift program or Eve's React program. It sends the same small list of commands from the outside. We never said what address those commands hit. A URL the bundle names? A binary the hospital starts? A recipe file the submitter must include?",
+          "question": "How does the hospital find the running program?",
+          "options": [
+            {
+              "letter": "A",
+              "text": "The bundle names a URL. The tests hit that URL."
+            },
+            {
+              "letter": "B",
+              "text": "The hospital starts their binary and pokes stdio or a port."
+            },
+            {
+              "letter": "C",
+              "text": "The bundle includes a poke recipe. That file is the address."
+            }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        }
+      ]
+    },
+    {
+      "id": "03",
+      "title": "MONEY IN V1?",
+      "mapLines": [
+        "Gambit: reward if just, penalty if not.",
+        "No Stripe until Qs lock."
+      ],
+      "story": "Alice prepays. The hospital spends that budget. Dave still pokes for free on paper unless we say otherwise.",
+      "question": "Is money live in version 1?",
+      "options": [
+        { "letter": "A", "text": "Free local harness. Money stays on paper." },
+        { "letter": "B", "text": "Real prepaid budget. Fail to zero." },
+        { "letter": "C", "text": "Simulated money now. Real rails later." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": [
+        {
+          "id": "03a",
+          "title": "LIVE HOW?",
+          "mapLines": [
+            "Money is live in v1.",
+            "Dave is a tester, not a person."
+          ],
+          "story": "Alice's prepaid budget can be a real bank or a scored ledger with no bank.",
+          "question": "What does live money mean in version 1?",
+          "options": [
+            {
+              "letter": "A",
+              "text": "Real Stripe or wallet. Fail to zero hits a bank."
+            },
+            {
+              "letter": "B",
+              "text": "Scored ledger. Same rules. No bank yet."
+            },
+            { "letter": "C", "text": "Paper only. I take back live." }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        },
+        {
+          "id": "03b",
+          "title": "WHOSE WALLET SPENDS?",
+          "mapLines": [
+            "Money is live: Stripe or a real wallet.",
+            "Someone's balance hits zero and the agents stop."
+          ],
+          "story": "Alice prepays real money. Her agents spend it until they say they are done, or the balance hits zero. We never said whose account that is. A hospital Stripe customer that Alice tops up? A wallet key Alice still owns, that the agents are allowed to drain?",
+          "question": "Whose account do the agents spend?",
+          "options": [
+            { "letter": "A", "text": "A hospital account Alice tops up." },
+            {
+              "letter": "B",
+              "text": "Alice's own wallet. The agents hold a spend key."
+            },
+            { "letter": "C", "text": "Either. The bundle names which." }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        }
+      ]
+    },
+    {
+      "id": "04",
+      "title": "FIRST PATIENT?",
+      "mapLines": [
+        "Number on screen, then buttons,",
+        "then one count everywhere, then offline."
+      ],
+      "story": "The counter is the first way to play. It is not the whole architecture.",
+      "question": "What must a team yield first?",
+      "options": [
+        { "letter": "A", "text": "Counter ladder. Wallet later." },
+        { "letter": "B", "text": "Wallet first. Paid software now." },
+        { "letter": "C", "text": "No scored patient yet. Docs only." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": [
+        {
+          "id": "04a",
+          "title": "WHAT ARE THE RUNGS?",
+          "mapLines": [
+            "One yield per submit.",
+            "Claiming level N is scored through every earlier level."
+          ],
+          "story": "The submitted agents say they are done once. They claim a highest level N. The tests then run every earlier level too. If plus is broken, claiming sync still scores zero. We never named the rungs. Is the first rung a number on screen, then plus and minus, then the same number on a second surface, then that number while offline?",
+          "question": "What is the first scored ladder?",
+          "options": [
+            {
+              "letter": "A",
+              "text": "Show number, plus, minus, reset, then shared count, then offline."
+            },
+            {
+              "letter": "B",
+              "text": "Only show, plus, minus, reset in version 1. Shared and offline wait."
+            },
+            {
+              "letter": "C",
+              "text": "The submitter names their own rungs in the bundle."
+            }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        }
+      ]
+    },
+    {
+      "id": "05",
+      "title": "WHEN TO SCORE?",
+      "mapLines": [
+        "Agents spend budget, then YIELD.",
+        "Score after yield. Fail poke = 0."
+      ],
+      "story": "Alice's agents burn tokens. Dave only scores the locked program, unless we mix the bills.",
+      "question": "When do tokens, time, LOC, and platforms count?",
+      "options": [
+        { "letter": "A", "text": "Score only Run B. Run A is a dollar line." },
+        { "letter": "B", "text": "One score from first token to last poke." },
+        { "letter": "C", "text": "Two scores: build cost and program quality." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": [
+        {
+          "id": "05a",
+          "title": "ONE NUMBER HOW?",
+          "mapLines": [
+            "Tokens, clock time, lines of code,",
+            "platforms, and binary size become one score."
+          ],
+          "story": "The submitted agents say they are done. The hospital then turns several measurements into one number: tokens spent, clock time, lines of code, how many platforms the program runs on, and how large the binary is. We locked that there is one score. We did not lock how those measurements mix.",
+          "question": "How do those measurements become one number?",
+          "options": [
+            {
+              "letter": "A",
+              "text": "Publish a fixed formula with the public test list."
+            },
+            {
+              "letter": "B",
+              "text": "Rank each measurement, then add the ranks."
+            },
+            {
+              "letter": "C",
+              "text": "Do not mix them. Show a row of separate numbers."
+            }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        }
+      ]
+    },
+    {
+      "id": "06",
+      "title": "BUDGET HITS ZERO?",
+      "mapLines": [
+        "Run A spends prepaid budget.",
+        "Zero before yield is a loss."
+      ],
+      "story": "Alice's agents run out of money before they say yield. Dave never pokes.",
+      "question": "What does Alice lose?",
+      "options": [
+        { "letter": "A", "text": "Budget and entry. Stake is forfeited." },
+        { "letter": "B", "text": "Only the spent budget. One double allowed." },
+        { "letter": "C", "text": "She may yield incomplete. Partial score." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": [
+        {
+          "id": "06a",
+          "title": "NO DOUBLE LEFT?",
+          "mapLines": [
+            "Trusted players get one double.",
+            "Then the budget can still hit zero."
+          ],
+          "story": "Alice already used her double, or she is not a trusted player. The prepaid budget is gone. She has not yielded.",
+          "question": "What does she lose then?",
+          "options": [
+            {
+              "letter": "A",
+              "text": "Budget, entry, and stake. Dave never pokes."
+            },
+            { "letter": "B", "text": "Only the spent budget. Entry stays." },
+            { "letter": "C", "text": "She may still yield incomplete." }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        },
+        {
+          "id": "06b",
+          "title": "WHO GETS THE DOUBLE?",
+          "mapLines": [
+            "One extra prepaid budget exists.",
+            "Only some players may use it."
+          ],
+          "story": "If the first prepaid budget hits zero before the submitted agents say they are done, a trusted or subscribed player may buy one extra prepaid budget. We locked that mercy. We did not say who counts as trusted or subscribed.",
+          "question": "Who may use that one extra prepaid budget?",
+          "options": [
+            { "letter": "A", "text": "Anyone who paid the entry this round." },
+            {
+              "letter": "B",
+              "text": "Only a player the hospital marked trusted before this round."
+            },
+            {
+              "letter": "C",
+              "text": "No extra budget in version 1. Drop the double."
+            }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        }
+      ]
+    },
+    {
+      "id": "07",
+      "title": "PREFIX STAY GREEN?",
+      "mapLines": ["Claim offline.", "Show and plus must still pass."],
+      "story": "Alice claims sync. Plus is now broken. Dave pokes the whole claimed prefix.",
+      "question": "Does a later claim wipe an earlier break?",
+      "options": [
+        { "letter": "A", "text": "Yes. Whole submit scores zero." },
+        { "letter": "B", "text": "Each level scores alone." },
+        { "letter": "C", "text": "Only the new level zeros." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": []
+    },
+    {
+      "id": "08",
+      "title": "DO DEPS COUNT?",
+      "mapLines": ["LOC and growth.", "Framework code is still code."],
+      "story": "Alice ships Foldkit plus a pile of npm. Bob ships Swift plus the stdlib.",
+      "question": "What is code when we count growth?",
+      "options": [
+        { "letter": "A", "text": "All code, including dependencies." },
+        { "letter": "B", "text": "Only the team's own files." },
+        {
+          "letter": "C",
+          "text": "Own files plus priced runtimes. Stdlib free."
+        }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": []
+    },
+    {
+      "id": "09",
+      "title": "IS FOLDKIT THE LAW?",
+      "mapLines": ["Any language may play.", "Foldkit Counter is submit #1."],
+      "story": "Bob yields Swift. Eve yields React. Both answer Dave's poke list.",
+      "question": "May any stack play if it answers the commands?",
+      "options": [
+        { "letter": "A", "text": "Yes. Foldkit is submit #1, not the law." },
+        { "letter": "B", "text": "Foldkit only for v1." },
+        { "letter": "C", "text": "Two leagues: Foldkit and open." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": []
+    },
+    {
+      "id": "10",
+      "title": "WHERE DOES DEATH LIVE?",
+      "mapLines": [
+        "This folder is a temporary house.",
+        "Foldkit stays a submission repo."
+      ],
+      "story": "The hospital sits in Foldkit/DEATH today. Eggbot wanted one repo named DEATH.",
+      "question": "Where does the house move?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Stay here until the counter ward runs. Then extract."
+        },
+        {
+          "letter": "B",
+          "text": "Standalone repo now. This folder is a pointer."
+        },
+        { "letter": "C", "text": "Forever a Foldkit folder." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": [
+        {
+          "id": "10a",
+          "title": "WHAT NAME WHEN WE EXTRACT?",
+          "mapLines": [
+            "Stay in Foldkit until a counter can be scored.",
+            "Then the hospital moves to its own repository."
+          ],
+          "story": "The hospital folder stays in this Foldkit checkout until a counter can be poked with show, increment, decrement, and reset, and then scored. After that, the hospital moves to its own git repository. We locked the timing. We did not lock the repository name.",
+          "question": "What do we call that extracted repository?",
+          "options": [
+            { "letter": "A", "text": "technoplato/death" },
+            {
+              "letter": "B",
+              "text": "Pick the name the week we extract. Not today."
+            },
+            { "letter": "C", "text": "piss-poor-software/death" }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "title": "HOW DO AGENTS TALK?",
+      "mapLines": ["Mailbox files on this Mac.", "Do not poke Grok Bot PIDs."],
+      "story": "Grok Build writes to-grokbot. Grok Bot writes from-grokbot. Michael is not the wire.",
+      "question": "What is the standing channel?",
+      "options": [
+        { "letter": "A", "text": "DEATH/mailbox/ files." },
+        { "letter": "B", "text": "Instant issues only." },
+        { "letter": "C", "text": "SendToAgent, with you in the room." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": []
+    },
+    {
+      "id": "12",
+      "title": "FUNCTIONAL OR META?",
+      "mapLines": [
+        "Functional = a fact the user sees.",
+        "Meta = same facts, new ability."
+      ],
+      "story": "Alice adds offline. The number and plus still mean the same thing. The save path should not be rewritten.",
+      "question": "Which split do we lock?",
+      "options": [
+        { "letter": "A", "text": "Visible facts vs new ability, no rewrite." },
+        {
+          "letter": "B",
+          "text": "Every ward is functional. Meta is rewrite only."
+        },
+        { "letter": "C", "text": "Do not label. Commands only." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": []
+    },
+    {
+      "id": "13",
+      "title": "SYNC AS A WRAP?",
+      "mapLines": [
+        "update : (Model, Message) -> [Model, Commands]",
+        "Wrap records tape. Replay uses the same update."
+      ],
+      "story": "Alice writes a counter. She does not write sync. The wrap folds Messages through a tape.",
+      "question": "Is sync a higher-order wrap around a Program?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Yes. The counter author does not write sync."
+        },
+        { "letter": "B", "text": "A Command service. Wrap is optional sugar." },
+        { "letter": "C", "text": "Defer. Do not pick a shape here." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": []
+    },
+    {
+      "id": "14",
+      "title": "DECLARE THE HUMAN?",
+      "mapLines": ["A person may touch Run A.", "Honest rows."],
+      "story": "Alice edits a file after the agents start. Dave needs to know if a human was in the loop.",
+      "question": "When must a human-in-the-loop be declared?",
+      "options": [
+        { "letter": "A", "text": "At registration. Undeclared edits fail." },
+        { "letter": "B", "text": "Anytime, marked on the row. No fail." },
+        { "letter": "C", "text": "No humans in Run A. Bundle only." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": []
+    },
+    {
+      "id": "15",
+      "title": "EXTRA LLM CHECKS?",
+      "mapLines": ["Alice prepaid a cap.", "Public tasks only past that cap."],
+      "story": "Dave wants extra model checks after yield. Those calls cost money.",
+      "question": "May extra checks bill Alice's cap?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "No. Public tasks only. No extra billed calls."
+        },
+        { "letter": "B", "text": "Yes. The hospital may add billed checks." },
+        { "letter": "C", "text": "Extra checks run. The hospital pays." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": []
+    },
+    {
+      "id": "16",
+      "title": "WHAT DOES YIELD PUBLISH?",
+      "mapLines": [
+        "Program that answers commands.",
+        "Bundle, trace, named OSS license."
+      ],
+      "story": "Alice says yield. Dave needs a public-enough package, not only a binary row.",
+      "question": "What is the minimum public artifact?",
+      "options": [
+        { "letter": "A", "text": "Program, bundle, trace, named license." },
+        {
+          "letter": "B",
+          "text": "Binary and a leaderboard row. Bundle private."
+        },
+        { "letter": "C", "text": "Everything public, secrets-free." }
+      ],
+      "prompt": "Paste A, B, C, or a sentence.",
+      "followUps": [
+        {
+          "id": "16a",
+          "title": "WHICH LICENSE?",
+          "mapLines": [
+            "Yield publishes a named open-source license.",
+            "The hospital has not named the allowed set."
+          ],
+          "story": "When the submitted agents say they are done, they must publish the program, the starting bundle, a trace, and a named open-source license. We never said which licenses count. MIT only? Any OSI license? A hospital list published with the tests?",
+          "question": "Which licenses may a yield name?",
+          "options": [
+            { "letter": "A", "text": "Any OSI license." },
+            {
+              "letter": "B",
+              "text": "A short hospital list published with the tests."
+            },
+            { "letter": "C", "text": "MIT or Apache-2.0 only." }
+          ],
+          "prompt": "Paste A, B, C, or a sentence."
+        }
+      ]
+    }
+  ]
+}
