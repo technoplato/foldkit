@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 8th, 2026 at 10:52:01 a.m. EDT — `e1e3419f38d8` feat(slides-qanda): add a glanceable interview slideshow
+
+- **Implementation commit:** `e1e3419f38d871db31c06c4e4522c1ddf8ebaf3e`
+- **Change:** Add the slides-qanda example as a glanceable DEATH interview deck.
+- **Details:**
+  - Keyboard-first cards with filters for unanswered roots and children.
+  - Follow-up walk and hover reveal the saved stamp.
+- **Files:**
+  - `examples/slides-qanda/public/deck.json` — Interview cards and follow-ups.
+  - `examples/slides-qanda/src/main.ts` — Runtime, filters, and save navigation.
+  - `examples/slides-qanda/src/view.ts` — Slide chrome and saved-answer hover.
+  - `examples/slides-qanda/src/domain/nav.ts` — OPEN and FOLLOW walks.
+  - `examples/slides-qanda/answerPlugin.ts` — Answer files and watch stream.
+  - `package.json` — Workspace script for the example.
+- **User context (verbatim):**
+  > go ahead and commit these slides I liked using them
+- **SpecStory:** unavailable — Cursor desktop session; no SpecStory URI was captured
+
 ## September 3rd, 2026 at 11:39:46 a.m. EDT — `d3d0668f700d` Resolve Q122 and tighten the counters storyboard language.
 
 - **Implementation commit:** `d3d0668f700d54f6da2de0b3906c3f1cf4fd7002`
