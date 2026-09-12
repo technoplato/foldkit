@@ -56,23 +56,31 @@ export const counterCliSocketPath = (): string =>
 const usesCliDaemon = (options: CliTapeOptions): boolean =>
   options.snapshot === undefined && !isMemoryTape()
 
-const startCliHandle = (options: CliTapeOptions): SyncedCounterHandle => {
+const painterReadyTimeoutMs = 8_000
+
+const startHostHandle = (
+  host: Processor.Host.Host,
+  options: CliTapeOptions,
+): SyncedCounterHandle => {
   if (options.snapshot !== undefined) {
     return startLiveCounter(
-      NodeLive(Processor.Host.Cli(), {
+      NodeLive(host, {
         transport: options.snapshot,
       }),
     )
   }
-  return startLiveCounter(NodeLive(Processor.Host.Cli()))
+  return startLiveCounter(NodeLive(host))
 }
+
+const startCliHandle = (options: CliTapeOptions): SyncedCounterHandle =>
+  startHostHandle(Processor.Host.Cli(), options)
 
 const waitReady = (
   handle: SyncedCounterHandle,
 ): Effect.Effect<Model, CounterCliError> =>
   Effect.gen(function* () {
     const settled = yield* Effect.tryPromise({
-      try: () => waitForSyncedHandle(handle),
+      try: () => waitForSyncedHandle(handle, painterReadyTimeoutMs),
       catch: error =>
         new CounterCliError({
           message:
@@ -280,3 +288,23 @@ export const withSession = <A>(
     )
   })
 }
+
+/**
+ * Opens one painter Processor. Instant and memory stay in this process.
+ * Do not use the CLI daemon. `show --surface svelte` starts Host.Svelte().
+ */
+export const withHostSession = <A>(
+  host: Processor.Host.Host,
+  body: (
+    session: CounterCliSession,
+    initialModel: Model,
+  ) => Effect.Effect<A, CounterCliError>,
+  options: CliTapeOptions,
+): Effect.Effect<A, CounterCliError> =>
+  Effect.gen(function* () {
+    const handle = startHostHandle(host, options)
+    const initialModel = yield* waitReady(handle)
+    return yield* body(inProcessSession(handle), initialModel).pipe(
+      Effect.ensuring(Effect.promise(() => handle.stop())),
+    )
+  })

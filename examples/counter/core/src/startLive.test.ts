@@ -85,6 +85,42 @@ describe('startLiveCounter', () => {
     await reader.stop()
   })
 
+  it('lets a Svelte Processor read the CLI public count', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    const writer = startLiveCounter(Processor.Host.Cli(), {
+      transport: snapshot,
+    })
+    await waitForSyncedHandle(writer)
+    writer.send(Increment())
+    await new Promise<void>((resolve, reject) => {
+      const finish = (): void => {
+        const model = writer.readModel()
+        if (model._tag === 'Ready' && model.product.count === 1) {
+          clearTimeout(timeout)
+          stop()
+          resolve()
+        }
+      }
+      const timeout = setTimeout(() => {
+        stop()
+        reject(new Error('Timed out waiting for CLI count 1.'))
+      }, 2000)
+      const stop = writer.subscribe(finish)
+      finish()
+    })
+    await writer.stop()
+
+    const reader = startLiveCounter(Processor.Host.Svelte(), {
+      transport: snapshot,
+    })
+    const ready = await waitForSyncedHandle(reader)
+    expect(ready._tag).toBe('Ready')
+    if (ready._tag === 'Ready') {
+      expect(ready.product.count).toBe(1)
+    }
+    await reader.stop()
+  })
+
   it('shares home occupancy from OpenedNavigation path counter', async () => {
     const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
     const writer = startLiveCounter(Processor.Host.Cli(), {
