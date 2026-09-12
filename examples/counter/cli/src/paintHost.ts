@@ -1,12 +1,15 @@
 import {
+  CounterProgram,
   Device,
   LastAction,
   type Message,
   type Model,
+  actionBySpoken,
   actionByToken,
   counterValid,
   defaultShowContext,
   invalidActionLog,
+  listActions,
   renderReceipt,
   renderShow,
   tokenOf,
@@ -73,6 +76,7 @@ export const paintDoExecution = (
   token: string,
   nextModel: Model,
   link: CliExecution['link'],
+  via: 'argv' | 'palette' | 'spoken' = 'argv',
 ): CliExecution => {
   const last: LastAction = {
     command: action.command ?? token,
@@ -83,7 +87,7 @@ export const paintDoExecution = (
     token: tokenOf(action),
     verb: 'sent',
     from: 'cli',
-    via: 'argv',
+    via,
     command: last.command,
     event: last.event,
     mutate: action.mutate ?? '',
@@ -126,6 +130,44 @@ export const paintInvalidDoExecution = (
   stderr: '',
   exitCode: 0,
 })
+
+/** Paints the Action catalog. No send. */
+export const paintPaletteExecution = (initialModel: Model): CliExecution => {
+  const rows = listActions(CounterProgram, initialModel)
+  const body = ['PALETTE', ...Array.map(rows, row => `  ${row.token}`)].join(
+    '\n',
+  )
+  return {
+    initialModel,
+    maybeMessage: Option.none(),
+    finalModel: initialModel,
+    link: 'offline',
+    stdout: body,
+    stderr: '',
+    exitCode: 0,
+  }
+}
+
+/** Resolves one spoken phrase against the current Model. */
+export const resolveHostSpoken = (
+  utterance: string,
+  initialModel: Model,
+):
+  | Readonly<{ _tag: 'Unknown'; message: string }>
+  | Readonly<{ _tag: 'Invalid'; execution: CliExecution }>
+  | Readonly<{
+      _tag: 'Send'
+      action: NonNullable<ReturnType<typeof actionBySpoken>>
+    }> => {
+  const action = actionBySpoken(utterance)
+  if (action === undefined) {
+    return {
+      _tag: 'Unknown',
+      message: `Unknown utterance "${utterance}". Try "go up" or "start over".`,
+    }
+  }
+  return resolveHostDo(tokenOf(action), initialModel)
+}
 
 /** Resolves one token against the current Model. */
 export const resolveHostDo = (

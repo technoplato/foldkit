@@ -1,17 +1,41 @@
 /** Parsed `counter` argv. This file must not import Effect or foldkit. */
+export type CounterIdentityFlags = Readonly<{
+  readonly subject?: string
+  readonly audience?: string
+}>
+
 export type ParsedCounterArgv =
   | Readonly<{
       readonly _tag: 'Show'
       readonly device?: string
       readonly path?: string
+      readonly subject?: string
+      readonly audience?: string
     }>
   | Readonly<{
       readonly _tag: 'Do'
       readonly token: string
+      readonly via?: 'token' | 'palette' | 'spoken'
+      readonly subject?: string
+      readonly audience?: string
+    }>
+  | Readonly<{
+      readonly _tag: 'Palette'
+      readonly token?: string
+      readonly subject?: string
+      readonly audience?: string
+    }>
+  | Readonly<{
+      readonly _tag: 'Say'
+      readonly utterance: string
+      readonly subject?: string
+      readonly audience?: string
     }>
   | Readonly<{
       readonly _tag: 'Replay'
       readonly tape: string
+      readonly subject?: string
+      readonly audience?: string
     }>
   | Readonly<{
       readonly _tag: 'Help'
@@ -77,6 +101,74 @@ const flagValue = (
   return undefined
 }
 
+const isFlagName = (item: string): boolean =>
+  item === '--device' ||
+  item === '--path' ||
+  item === '--as' ||
+  item === '--audience' ||
+  item === '--tape' ||
+  item.startsWith('--device=') ||
+  item.startsWith('--path=') ||
+  item.startsWith('--as=') ||
+  item.startsWith('--audience=') ||
+  item.startsWith('--tape=')
+
+const positionals = (argv: ReadonlyArray<string>): ReadonlyArray<string> => {
+  const rest: Array<string> = []
+  let index = 0
+  while (index < argv.length) {
+    const item = at(argv, index)
+    if (item === undefined) {
+      break
+    }
+    if (
+      item === '--device' ||
+      item === '--path' ||
+      item === '--as' ||
+      item === '--audience' ||
+      item === '--tape'
+    ) {
+      index += 2
+      continue
+    }
+    if (isFlagName(item)) {
+      index += 1
+      continue
+    }
+    rest.push(item)
+    index += 1
+  }
+  return rest
+}
+
+const identityFrom = (
+  argv: ReadonlyArray<string>,
+): CounterIdentityFlags | Readonly<{ error: string }> => {
+  const subject = flagValue(argv, 'as')
+  if (subject !== undefined && typeof subject !== 'string') {
+    return { error: subject.error }
+  }
+  const audience = flagValue(argv, 'audience')
+  if (audience !== undefined && typeof audience !== 'string') {
+    return { error: audience.error }
+  }
+  if (audience !== undefined && audience !== 'public' && audience !== 'mine') {
+    return { error: 'Unknown audience. Use public or mine.' }
+  }
+  return {
+    ...(subject === undefined ? {} : { subject }),
+    ...(audience === undefined ? {} : { audience }),
+  }
+}
+
+const withIdentity = <T extends object>(
+  parsed: T,
+  identity: CounterIdentityFlags,
+): T & CounterIdentityFlags => ({
+  ...parsed,
+  ...identity,
+})
+
 const isHelp = (argv: ReadonlyArray<string>): boolean => {
   const first = at(argv, 0)
   return first !== undefined && helpTokens.includes(first)
@@ -88,21 +180,35 @@ export const counterUsage = [
   '',
   'USAGE',
   '',
-  '$ counter show [--device watch|phone|tablet|computer|tv] [--path PATH]',
+  '$ counter show [--device watch|phone|tablet|computer|tv] [--path PATH] [--as SUBJECT] [--audience public|mine]',
   '$ counter do <token>',
+  '$ counter palette [token]',
+  '$ counter say <utterance>',
   '$ counter replay --tape <path>',
 ].join('\n')
 
-/** Parses `counter` show / do / replay argv. */
+/** Parses `counter` show / do / palette / say / replay argv. */
 export const parseCounterArgv = (
   argv: ReadonlyArray<string>,
 ): ParsedCounterArgv => {
   if (argv.length === 0 || isHelp(argv)) {
     return { _tag: 'Help' }
   }
-  const command = at(argv, 0)
+  const identity = identityFrom(argv)
+  if ('error' in identity) {
+    return { _tag: 'Failed', message: identity.error, exitCode: 1 }
+  }
+  const words = positionals(argv)
+  const command = at(words, 0)
   if (command === 'show') {
-    const rest = argv.slice(1)
+    if (at(words, 1) !== undefined) {
+      return {
+        _tag: 'Failed',
+        message: 'show does not take a token.',
+        exitCode: 1,
+      }
+    }
+    const rest = argv
     const device = flagValue(rest, 'device')
     if (device !== undefined && typeof device !== 'string') {
       return { _tag: 'Failed', message: device.error, exitCode: 1 }
@@ -111,14 +217,17 @@ export const parseCounterArgv = (
     if (path !== undefined && typeof path !== 'string') {
       return { _tag: 'Failed', message: path.error, exitCode: 1 }
     }
-    return {
-      _tag: 'Show',
-      ...(device === undefined ? {} : { device }),
-      ...(path === undefined ? {} : { path }),
-    }
+    return withIdentity(
+      {
+        _tag: 'Show' as const,
+        ...(device === undefined ? {} : { device }),
+        ...(path === undefined ? {} : { path }),
+      },
+      identity,
+    )
   }
   if (command === 'do') {
-    const token = at(argv, 1)
+    const token = at(words, 1)
     if (token === undefined) {
       return {
         _tag: 'Failed',
@@ -126,18 +235,45 @@ export const parseCounterArgv = (
         exitCode: 1,
       }
     }
-    if (at(argv, 2) !== undefined) {
+    if (at(words, 2) !== undefined) {
       return {
         _tag: 'Failed',
-        message: `Send one token. Got ${argv.slice(1).join(' ')}. Use increment, decrement, or reset.`,
+        message: `Send one token. Got ${words.slice(1).join(' ')}. Use increment, decrement, or reset.`,
         exitCode: 1,
       }
     }
-    return { _tag: 'Do', token }
+    return withIdentity({ _tag: 'Do' as const, token }, identity)
+  }
+  if (command === 'palette') {
+    const token = at(words, 1)
+    if (at(words, 2) !== undefined) {
+      return {
+        _tag: 'Failed',
+        message: `Send one palette token. Got ${words.slice(1).join(' ')}.`,
+        exitCode: 1,
+      }
+    }
+    return withIdentity(
+      {
+        _tag: 'Palette' as const,
+        ...(token === undefined ? {} : { token }),
+      },
+      identity,
+    )
+  }
+  if (command === 'say') {
+    const utterance = words.slice(1).join(' ').trim()
+    if (utterance === '') {
+      return {
+        _tag: 'Failed',
+        message: 'say needs an utterance. Try "go up" or "start over".',
+        exitCode: 1,
+      }
+    }
+    return withIdentity({ _tag: 'Say' as const, utterance }, identity)
   }
   if (command === 'replay') {
-    const rest = argv.slice(1)
-    const tape = flagValue(rest, 'tape')
+    const tape = flagValue(argv, 'tape')
     if (tape === undefined) {
       return {
         _tag: 'Failed',
@@ -148,11 +284,11 @@ export const parseCounterArgv = (
     if (typeof tape !== 'string') {
       return { _tag: 'Failed', message: tape.error, exitCode: 1 }
     }
-    return { _tag: 'Replay', tape }
+    return withIdentity({ _tag: 'Replay' as const, tape }, identity)
   }
   return {
     _tag: 'Failed',
-    message: `Unknown command "${command ?? ''}". Use show, do, or replay.`,
+    message: `Unknown command "${command ?? ''}". Use show, do, palette, say, or replay.`,
     exitCode: 1,
   }
 }

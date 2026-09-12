@@ -2,7 +2,14 @@ import { Console, Effect } from 'effect'
 
 import { NodeRuntime } from '@effect/platform-node'
 
-import { CounterCliError, runDo, runReplay, runShow } from './host.js'
+import {
+  CounterCliError,
+  runDo,
+  runPalette,
+  runReplay,
+  runSay,
+  runShow,
+} from './host.js'
 import {
   type ParsedCounterArgv,
   counterUsage,
@@ -25,6 +32,12 @@ const dispatchCounter = (
   }
   if (parsed._tag === 'Do') {
     return runDo(parsed.token)
+  }
+  if (parsed._tag === 'Palette') {
+    return runPalette(parsed.token)
+  }
+  if (parsed._tag === 'Say') {
+    return runSay(parsed.utterance)
   }
   return runReplay(parsed.tape)
 }

@@ -27,9 +27,26 @@ export type InstantOptions = Readonly<{
   app: InstantApp
   processor: Processor.Host.Host
   instance?: string
+  countId?: string
   database?: import('../snapshotLog/snapshotLog.js').InstantSnapshotLogDatabase
   transport?: SnapshotLogTransport
 }>
+
+/** Owned Instant rooms stamp `-mine-` into Processor `from`. */
+export const isOwnedInstantFrom = (from: string): boolean =>
+  from.includes('-mine-')
+
+/** Public Instant rooms ignore owned Message rows. */
+export const messageBelongsToInstantRoom = (
+  from: string,
+  processor: string,
+): boolean => {
+  const mineIndex = processor.indexOf('-mine-')
+  if (mineIndex >= 0) {
+    return from.includes(processor.slice(mineIndex))
+  }
+  return !isOwnedInstantFrom(from)
+}
 
 /**
  * Instant `from` for one engine occurrence.
@@ -113,7 +130,9 @@ export const fromTransport = (
     transport.read().pipe(
       Effect.map(state => ({
         snapshot: isBlankSnapshot(state.snapshot) ? undefined : state.snapshot,
-        messages: state.messages,
+        messages: state.messages.filter(message =>
+          messageBelongsToInstantRoom(message.from, processor),
+        ),
       })),
       Effect.mapError(error => toTransportError(error, 'Read')),
     ),
@@ -131,6 +150,9 @@ export const fromTransport = (
             })
             for (const message of state.messages) {
               if (seenMessageIds.has(message.id)) {
+                continue
+              }
+              if (!messageBelongsToInstantRoom(message.from, processor)) {
                 continue
               }
               seenMessageIds.add(message.id)

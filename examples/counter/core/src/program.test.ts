@@ -28,7 +28,7 @@ describe('CounterProgram', () => {
     expect(Option.getOrUndefined(Array.get(counterValid(atZero), 2))).toEqual({
       token: 'reset',
       keys: ['r'],
-      spoken: ['reset'],
+      spoken: ['reset', 'start over'],
       valid: false,
       hidden: 'count is already 0',
     })

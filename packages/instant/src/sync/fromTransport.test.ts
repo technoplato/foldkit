@@ -8,7 +8,11 @@ import {
   InstantLogMessageRecord,
   countSnapshotId,
 } from '../snapshotLog/snapshotLog.js'
-import { fromTransport } from './fromTransport.js'
+import {
+  fromTransport,
+  isOwnedInstantFrom,
+  messageBelongsToInstantRoom,
+} from './fromTransport.js'
 
 const burstSize = 200
 
@@ -62,6 +66,21 @@ describe('fromTransport subscribe', () => {
           )
         }),
       ),
+    )
+  })
+})
+
+describe('messageBelongsToInstantRoom', () => {
+  it('keeps public rows off owned rooms and owned rows off the public room', () => {
+    expect(isOwnedInstantFrom('cli-mine-alice')).toBe(true)
+    expect(isOwnedInstantFrom('cli')).toBe(false)
+    expect(messageBelongsToInstantRoom('cli', 'tui')).toBe(true)
+    expect(messageBelongsToInstantRoom('cli-mine-alice', 'tui')).toBe(false)
+    expect(
+      messageBelongsToInstantRoom('cli-mine-alice', 'tui-mine-alice'),
+    ).toBe(true)
+    expect(messageBelongsToInstantRoom('cli-mine-bob', 'tui-mine-alice')).toBe(
+      false,
     )
   })
 })

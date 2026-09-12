@@ -5,6 +5,8 @@ import {
   FoldkitCounterV01,
   Instant,
   InstantSnapshotLogSchema,
+  SnapshotLogError,
+  makeAdminSnapshotLogTransport,
   makeMemorySnapshotLogTransport,
   resolveInstantSyncEngine,
 } from '@foldkit/instant'
@@ -23,11 +25,14 @@ import {
   type SyncedCounterHandle,
   startSyncedCounterHandle,
 } from './startSynced.js'
+import { activeCountId } from './wire.js'
 
 export {
   FoldkitCounterV01,
   Instant,
   InstantSnapshotLogSchema,
+  SnapshotLogError,
+  makeAdminSnapshotLogTransport,
   makeMemorySnapshotLogTransport,
 }
 export { InstantEngine, MemoryLive, isMemoryTape }
@@ -58,12 +63,12 @@ export const NodeLive = (
         ...options,
       })
     }
+    const instance = options?.instance ?? process.env['COUNTER_INSTANT_ROOM']
     return resolveInstantSyncEngine({
       app: FoldkitCounterV01,
       processor,
-      ...(options?.instance === undefined
-        ? {}
-        : { instance: options.instance }),
+      ...(instance === undefined || instance === '' ? {} : { instance }),
+      countId: activeCountId(),
     })
   })
 

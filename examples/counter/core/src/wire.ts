@@ -27,9 +27,37 @@ const AppMessageSchema = S.Union([
  */
 export const COUNT_UUID = 'c0a7c001-0000-4000-8000-000000000001'
 
+const sha1Hex = (value: string): string => {
+  let hash = 0x811c9dc5
+  for (const character of value) {
+    hash ^= character.charCodeAt(0)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  const hex = (hash >>> 0).toString(16).padStart(8, '0')
+  return `${hex}${hex}${hex}`
+}
+
+/** Instant count row for one owned subject. Deterministic UUID. */
+export const ownedCountId = (subject: string): string =>
+  `c0a7c001-0000-4000-8000-${sha1Hex(subject).slice(0, 12)}`
+
+/** Instant count row for this Processor. Public uses {@link COUNT_UUID}. */
+export const activeCountId = (): string => {
+  const explicit = process.env['COUNTER_COUNT_ID']
+  if (explicit !== undefined && explicit !== '') {
+    return explicit
+  }
+  const audience = process.env['COUNTER_AUDIENCE']
+  const subject = process.env['COUNTER_SUBJECT']
+  if (audience === 'mine' && subject !== undefined && subject !== '') {
+    return ownedCountId(subject)
+  }
+  return COUNT_UUID
+}
+
 /** Instant count row. `asOf` and `at` are filled at write time. */
 export const CountRow = S.Struct({
-  id: S.Literal(COUNT_UUID),
+  id: S.String,
   value: S.Number,
   asOf: S.String,
   at: S.Number,
@@ -50,7 +78,7 @@ export const CountProjection = CountRow.pipe(
         actionMenu: Program.Closed(),
       }),
       encode: (model: AppModel) => ({
-        id: COUNT_UUID,
+        id: activeCountId(),
         value: model.product.count,
         asOf: '',
         at: 0,

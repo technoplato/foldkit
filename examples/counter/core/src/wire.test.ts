@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import { Increment } from './message.js'
 import { Model } from './model.js'
-import { COUNT_UUID, CountProjection, MessageWire } from './wire.js'
+import {
+  COUNT_UUID,
+  CountProjection,
+  MessageWire,
+  ownedCountId,
+} from './wire.js'
 
 describe('Counter wire Schemas', () => {
   it('decodes a count row into the Model and encodes it back', () => {
@@ -23,6 +28,15 @@ describe('Counter wire Schemas', () => {
       asOf: '',
       at: 0,
     })
+  })
+
+  it('prints a UUID count row for an owned subject', () => {
+    expect(ownedCountId('alice')).toMatch(
+      /^c0a7c001-0000-4000-8000-[0-9a-f]{12}$/,
+    )
+    expect(ownedCountId('alice')).not.toBe(COUNT_UUID)
+    expect(ownedCountId('alice')).toBe(ownedCountId('alice'))
+    expect(ownedCountId('bob')).not.toBe(ownedCountId('alice'))
   })
 
   it('decodes a Message row into Increment', () => {

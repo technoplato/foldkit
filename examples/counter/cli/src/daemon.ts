@@ -17,9 +17,10 @@ import {
   Model,
   NodeLive,
   startLiveCounter,
+  tokenOf,
 } from 'counter-core-example'
 import { Effect, Option } from 'effect'
-import { Processor } from 'foldkit'
+import { Processor, Program } from 'foldkit'
 import {
   CliDaemonError,
   type CliDaemonFlags,
@@ -32,9 +33,11 @@ import { NodeRuntime } from '@effect/platform-node'
 import { CounterCliError, readyCount } from './cliError.js'
 import {
   paintDoExecution,
+  paintPaletteExecution,
   paintShowExecution,
   parseDevice,
   resolveHostDo,
+  resolveHostSpoken,
 } from './paintHost.js'
 import {
   paintScreenDo,
@@ -117,6 +120,10 @@ const showHost = (
   flags: CliDaemonFlags,
 ): Effect.Effect<CliDaemonPaintedResult, CliDaemonError> =>
   Effect.gen(function* () {
+    if (flags['palette'] === '1') {
+      const model = yield* readyCount(handle.readModel())
+      return paintedOf(paintPaletteExecution(model))
+    }
     const device = parseDevice(flags['device'])
     if (device._tag === 'Failed') {
       return paintedOf({ stdout: '', stderr: device.error, exitCode: 1 })
@@ -133,10 +140,15 @@ const showHost = (
 const doHost = (
   handle: ReturnType<typeof startLiveCounter>,
   token: string,
+  flags: CliDaemonFlags,
 ): Effect.Effect<CliDaemonPaintedResult, CliDaemonError> =>
   Effect.gen(function* () {
     const initialModel = yield* readyCount(handle.readModel())
-    const resolved = resolveHostDo(token, initialModel)
+    const via = flags['via']
+    const resolved =
+      via === 'spoken'
+        ? resolveHostSpoken(token, initialModel)
+        : resolveHostDo(token, initialModel)
     if (resolved._tag === 'Unknown') {
       return paintedOf({
         stdout: '',
@@ -147,18 +159,30 @@ const doHost = (
     if (resolved._tag === 'Invalid') {
       return paintedOf(resolved.execution)
     }
-    handle.send(resolved.action())
+    if (via === 'palette') {
+      handle.send(Program.ActionMenuCommandTriggered())
+      handle.send(
+        Program.ActionCommandMenuSelectionMade({
+          token: tokenOf(resolved.action),
+        }),
+      )
+    } else {
+      handle.send(resolved.action())
+    }
     const settled = yield* settleAfterSend(
       handle,
       'CLI daemon could not append the Instant tape.',
     )
+    const receiptVia =
+      via === 'palette' ? 'palette' : via === 'spoken' ? 'spoken' : 'argv'
     return paintedOf(
       paintDoExecution(
         initialModel,
         resolved.action,
-        token,
+        tokenOf(resolved.action),
         settled.model,
         linkOf(settled.write),
+        receiptVia,
       ),
     )
   }).pipe(Effect.mapError(toDaemonError), Effect.withSpan('cli.paint'))
@@ -213,7 +237,9 @@ const runDaemon = Effect.gen(function* () {
       show: flags =>
         isScreenView(flags) ? showScreen(handle) : showHost(handle, flags),
       do: (token, flags) =>
-        isScreenView(flags) ? doScreen(handle, token) : doHost(handle, token),
+        isScreenView(flags)
+          ? doScreen(handle, token)
+          : doHost(handle, token, flags),
     },
   }).pipe(
     Effect.mapError(

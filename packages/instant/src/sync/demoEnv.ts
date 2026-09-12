@@ -68,6 +68,7 @@ export type ResolveInstantSyncEngineOptions = Readonly<{
   app: InstantApp
   processor: Processor.Host.Host
   instance?: string
+  countId?: string
 }>
 
 /**
@@ -82,6 +83,8 @@ export const resolveInstantSyncEngine = (
 ): Runtime.SyncEngine => {
   const instance =
     options.instance === undefined ? {} : { instance: options.instance }
+  const countId =
+    options.countId === undefined ? {} : { countId: options.countId }
   if (process.env['COUNTER_TAPE'] === 'memory') {
     return Runtime.Memory({ processor: options.processor })
   }
@@ -92,6 +95,7 @@ export const resolveInstantSyncEngine = (
       processor: options.processor,
       transport: makeFileSnapshotLogTransport(tapePath),
       ...instance,
+      ...countId,
     })
   }
   loadInstantDemoEnv()
@@ -99,5 +103,6 @@ export const resolveInstantSyncEngine = (
     app: options.app,
     processor: options.processor,
     ...instance,
+    ...countId,
   })
 }

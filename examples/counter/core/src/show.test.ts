@@ -28,7 +28,7 @@ describe('renderShow', () => {
     expect(output).toContain('focus    increment')
     expect(output).toContain('keys           [+, =]')
     expect(output).toContain('tokens         [increment]')
-    expect(output).toContain('spoken         ["increment"]')
+    expect(output).toContain('spoken         ["increment", "go up"]')
     expect(output).toContain('what           Increments the count by one')
     expect(output).toContain(
       'why            Triggered when the user indicates a desire to increment the count',
