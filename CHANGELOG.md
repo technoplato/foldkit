@@ -4,6 +4,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 12th, 2026 at 1:36:19 a.m. EDT — `562a278c7206` feat(counter): live-poke tweet painters on named-share
+
+- **Implementation commit:** `562a278c72068b5d0de5169ded5ee1ab802dff94`
+- **Change:** Replay live tweet painters onto the L9 named-share product.
+- **Details:**
+  - Explicit show --surface starts that Processor Host and paints that host chrome.
+  - Bare show stays on the CLI daemon. TUI remains a live Instant peer.
+  - Named-share occupancy is unchanged. Did not overwrite the protected L8 or L9 yield files.
+- **Files:**
+  - `examples/counter/core/src/hostSurface.ts` — Map tweet painters to Processor Hosts.
+  - `examples/counter/core/src/hostSurface.test.ts` — Cover painter ids and Host mapping.
+  - `examples/counter/core/src/show.ts` — Paint IDENTITY and STATE for the occupied surface.
+  - `examples/counter/core/src/show.test.ts` — Paint Svelte chrome on show.
+  - `examples/counter/core/src/startLive.test.ts` — Let a Svelte Processor read the CLI count.
+  - `examples/counter/cli/src/parseArgv.ts` — Parse show --surface next to named-share flags.
+  - `examples/counter/cli/src/parseArgv.test.ts` — Cover svelte, react-screen, and unknown surface.
+  - `examples/counter/cli/src/paintHost.ts` — Pass surface into renderShow.
+  - `examples/counter/cli/src/session.ts` — Open a one-shot painter Processor.
+  - `examples/counter/cli/src/host.ts` — Route explicit --surface to that Host.
+  - `examples/counter/cli/src/host.test.ts` — Share one snapshot across tweet painters.
+  - `examples/counter/cli/src/inProcess.ts` — Dispatch parsed surface to runShow.
+  - `examples/counter/cli/src/entry.ts` — Keep painter shows off the CLI daemon.
+  - `examples/counter/cli/src/process.integration.test.ts` — Poke each Dave surface on a file Instant tape.
+- **User context (verbatim):**
+  > Put live-painters onto the L9 branch so one product has both.
+- **SpecStory:** unavailable — Cursor cloud agent session; no SpecStory capture for this desktop-less run.
+
 ## September 12th, 2026 at 5:13:47 a.m. UTC — `7bf34be67aa3` feat(counter): add L9 named-share occupancy
 
 - **Implementation commit:** `7bf34be67aa3adfaaf94f87c3269566cecac4d2b`
