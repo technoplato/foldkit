@@ -133,7 +133,12 @@ const argv = process.argv.slice(2)
 const parsed = parseCounterArgv(argv)
 const identity = identityOf(parsed)
 applyCounterIdentity(identity.subject, identity.audience)
-if (isCounterCliMemory() || parsed._tag === 'Replay') {
+const isOwnPainterShow =
+  parsed._tag === 'Show' &&
+  parsed.surface !== undefined &&
+  parsed.surface !== 'cli-screen'
+
+if (isCounterCliMemory() || parsed._tag === 'Replay' || isOwnPainterShow) {
   const { runInProcessCounter } = await import('./inProcess.js')
   runInProcessCounter(argv)
 } else {

@@ -1,3 +1,6 @@
+import { Option, Schema as S } from 'effect'
+import { Processor } from 'foldkit'
+
 /** GitHub owner for the exploring-view-agnosticism fork. */
 export const githubOwner = 'technoplato'
 
@@ -21,18 +24,50 @@ export type HostSurface = Readonly<{
 /**
  * Host id a window uses to look up Program-owned chrome.
  * Windows look up. They do not invent title or description.
+ *
+ * `show --surface svelte` starts a Svelte Processor. `react-screen`
+ * is the React screen window (`?window=screen`), not a second Host.
  */
-export type HostId =
-  | 'opentui'
-  | 'react'
-  | 'react-screen'
-  | 'svelte'
-  | 'expo'
-  | 'foldkit'
-  | 'tui'
-  | 'tui-screen'
-  | 'cli'
-  | 'cli-screen'
+export const HostId = S.Literals([
+  'opentui',
+  'react',
+  'react-screen',
+  'svelte',
+  'expo',
+  'foldkit',
+  'tui',
+  'tui-screen',
+  'cli',
+  'cli-screen',
+])
+/** Host id a window uses to look up Program-owned chrome. */
+export type HostId = typeof HostId.Type
+
+/**
+ * Tweet write-once painters. L10 live-pokes each one.
+ * TUI is the Instant peer. The others are `show --surface`.
+ */
+export const tweetPainterIds: ReadonlyArray<HostId> = [
+  'foldkit',
+  'svelte',
+  'react',
+  'react-screen',
+  'expo',
+  'cli',
+  'tui',
+  'opentui',
+]
+
+/** Surfaces Dave sends as `show --surface`. TUI is the Instant peer. */
+export const tweetShowPainterIds: ReadonlyArray<HostId> = [
+  'foldkit',
+  'svelte',
+  'react',
+  'react-screen',
+  'expo',
+  'cli',
+  'opentui',
+]
 
 const renderedBy = (host: string): string =>
   `all business logic and sync logic are written in Foldkit; consumed and rendered by ${host}.`
@@ -107,6 +142,51 @@ export const hostSurfaces: Readonly<Record<HostId, HostSurface>> = {
 
 /** Looks up Program-owned chrome for one host id. */
 export const surfaceFor = (id: HostId): HostSurface => hostSurfaces[id]
+
+/** Decodes a `show --surface` token. */
+export const parseHostId = (raw: string): Option.Option<HostId> =>
+  S.decodeUnknownOption(HostId)(raw)
+
+/**
+ * Processor Host for one surface. `react-screen` is Host.React().
+ * `expo` is Host.ExpoIos() on Node. Windows do not invent a Host.
+ *
+ * @example
+ * ```typescript
+ * startLiveCounter(processorHostFor('svelte'))
+ * startLiveCounter(processorHostFor('react-screen'))
+ * ```
+ */
+export const processorHostFor = (id: HostId): Processor.Host.Host => {
+  if (id === 'foldkit') {
+    return Processor.Host.Foldkit()
+  }
+  if (id === 'svelte') {
+    return Processor.Host.Svelte()
+  }
+  if (id === 'react' || id === 'react-screen') {
+    return Processor.Host.React()
+  }
+  if (id === 'expo') {
+    return Processor.Host.ExpoIos()
+  }
+  if (id === 'opentui') {
+    return Processor.Host.OpenTui()
+  }
+  if (id === 'tui' || id === 'tui-screen') {
+    return Processor.Host.Tui()
+  }
+  return Processor.Host.Cli()
+}
+
+/**
+ * True when `show --surface` starts that Host as a one-shot Processor.
+ * Bare `show` stays on the CLI daemon. Explicit `--surface cli` starts
+ * Host.Cli() so Dave does not depend on a leftover daemon binary.
+ * `cli-screen` stays on the screen-window CLI view.
+ */
+export const usesOwnPainterProcessor = (id: HostId): boolean =>
+  id !== 'cli-screen'
 
 /** OpenTUI host chrome. */
 export const openTuiSurface = surfaceFor('opentui')

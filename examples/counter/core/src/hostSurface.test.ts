@@ -1,3 +1,5 @@
+import { Option } from 'effect'
+import { Processor } from 'foldkit'
 import { describe, expect, test } from 'vitest'
 
 import {
@@ -6,7 +8,12 @@ import {
   githubOwner,
   githubRepo,
   hostSurfaces,
+  parseHostId,
+  processorHostFor,
   surfaceFor,
+  tweetPainterIds,
+  tweetShowPainterIds,
+  usesOwnPainterProcessor,
 } from './hostSurface.js'
 
 const renderedBy = (host: string): string =>
@@ -57,5 +64,46 @@ describe('hostSurface', () => {
     expect(chrome).toContain('Foldkit - OpenTUI Counter')
     expect(chrome).toContain(renderedBy('OpenTUI'))
     expect(chrome).toContain(surfaceFor('opentui').sourceUrl)
+  })
+
+  test('names the tweet painters Dave live-pokes', () => {
+    expect(tweetPainterIds).toEqual([
+      'foldkit',
+      'svelte',
+      'react',
+      'react-screen',
+      'expo',
+      'cli',
+      'tui',
+      'opentui',
+    ])
+    expect(tweetShowPainterIds).toEqual([
+      'foldkit',
+      'svelte',
+      'react',
+      'react-screen',
+      'expo',
+      'cli',
+      'opentui',
+    ])
+    expect(parseHostId('svelte')).toEqual(Option.some('svelte'))
+    expect(parseHostId('2e')).toEqual(Option.none())
+  })
+
+  test('maps each surface to a Processor Host', () => {
+    expect(processorHostFor('foldkit')).toEqual(Processor.Host.Foldkit())
+    expect(processorHostFor('svelte')).toEqual(Processor.Host.Svelte())
+    expect(processorHostFor('react')).toEqual(Processor.Host.React())
+    expect(processorHostFor('react-screen')).toEqual(Processor.Host.React())
+    expect(processorHostFor('expo')).toEqual(Processor.Host.ExpoIos())
+    expect(processorHostFor('cli')).toEqual(Processor.Host.Cli())
+    expect(processorHostFor('cli-screen')).toEqual(Processor.Host.Cli())
+    expect(processorHostFor('opentui')).toEqual(Processor.Host.OpenTui())
+    expect(processorHostFor('tui')).toEqual(Processor.Host.Tui())
+    expect(processorHostFor('tui-screen')).toEqual(Processor.Host.Tui())
+    expect(usesOwnPainterProcessor('svelte')).toBe(true)
+    expect(usesOwnPainterProcessor('react-screen')).toBe(true)
+    expect(usesOwnPainterProcessor('cli')).toBe(true)
+    expect(usesOwnPainterProcessor('cli-screen')).toBe(false)
   })
 })

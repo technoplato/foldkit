@@ -26,6 +26,7 @@ describe('renderShow', () => {
     expect(output).not.toContain('device')
     expect(output).toContain('STATE')
     expect(output).toContain('count    0')
+    expect(output).toContain('surface  cli')
     expect(output).toContain('focus    increment')
     expect(output).toContain('keys           [+, =]')
     expect(output).toContain('tokens         [increment]')
@@ -109,6 +110,24 @@ describe('renderShow', () => {
     expect(output).toContain('path     counter')
     expect(output).toContain('  increment')
     expect(output).toContain('  decrement')
+  })
+
+  test('paints Svelte chrome when show is that surface', () => {
+    const output = renderShow(Model.make({ count: 3 }), {
+      ...defaultShowContext,
+      surface: 'svelte',
+    })
+
+    expect(output).toContain('Foldkit - Svelte Counter')
+    expect(output).toContain(
+      'all business logic and sync logic are written in Foldkit; consumed and rendered by Svelte.',
+    )
+    expect(output).toContain(
+      'https://github.com/technoplato/foldkit/blob/ml/exploring-view-agnosticism/examples/counter/svelte/src/App.svelte',
+    )
+    expect(output).toContain('count    3')
+    expect(output).toContain('surface  svelte')
+    expect(output).not.toContain('Foldkit - CLI Counter')
   })
 
   test('can filter to one Action path', () => {

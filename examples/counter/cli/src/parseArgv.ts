@@ -9,6 +9,7 @@ export type ParsedCounterArgv =
       readonly _tag: 'Show'
       readonly device?: string
       readonly path?: string
+      readonly surface?: string
       readonly subject?: string
       readonly audience?: string
     }>
@@ -63,6 +64,30 @@ export type ParsedScreenArgv =
 
 const helpTokens = ['help', '--help', '-h']
 
+const showSurfaces = [
+  'opentui',
+  'react',
+  'react-screen',
+  'svelte',
+  'expo',
+  'foldkit',
+  'tui',
+  'tui-screen',
+  'cli',
+  'cli-screen',
+] as const
+
+const isShowSurface = (
+  value: string,
+): value is (typeof showSurfaces)[number] => {
+  for (const surface of showSurfaces) {
+    if (surface === value) {
+      return true
+    }
+  }
+  return false
+}
+
 const at = (argv: ReadonlyArray<string>, index: number): string | undefined => {
   if (index < 0 || index >= argv.length) {
     return undefined
@@ -104,11 +129,13 @@ const flagValue = (
 const isFlagName = (item: string): boolean =>
   item === '--device' ||
   item === '--path' ||
+  item === '--surface' ||
   item === '--as' ||
   item === '--audience' ||
   item === '--tape' ||
   item.startsWith('--device=') ||
   item.startsWith('--path=') ||
+  item.startsWith('--surface=') ||
   item.startsWith('--as=') ||
   item.startsWith('--audience=') ||
   item.startsWith('--tape=')
@@ -124,6 +151,7 @@ const positionals = (argv: ReadonlyArray<string>): ReadonlyArray<string> => {
     if (
       item === '--device' ||
       item === '--path' ||
+      item === '--surface' ||
       item === '--as' ||
       item === '--audience' ||
       item === '--tape'
@@ -180,7 +208,7 @@ export const counterUsage = [
   '',
   'USAGE',
   '',
-  '$ counter show [--device watch|phone|tablet|computer|tv] [--path PATH] [--as SUBJECT] [--audience public|mine]',
+  '$ counter show [--device watch|phone|tablet|computer|tv] [--path PATH] [--surface foldkit|svelte|react|react-screen|expo|cli|tui|opentui] [--as SUBJECT] [--audience public|mine]',
   '$ counter do <token>',
   '$ counter palette [token]',
   '$ counter say <utterance>',
@@ -217,11 +245,23 @@ export const parseCounterArgv = (
     if (path !== undefined && typeof path !== 'string') {
       return { _tag: 'Failed', message: path.error, exitCode: 1 }
     }
+    const surface = flagValue(rest, 'surface')
+    if (surface !== undefined && typeof surface !== 'string') {
+      return { _tag: 'Failed', message: surface.error, exitCode: 1 }
+    }
+    if (surface !== undefined && !isShowSurface(surface)) {
+      return {
+        _tag: 'Failed',
+        message: `Unknown surface "${surface}". Use foldkit, svelte, react, react-screen, expo, cli, tui, or opentui.`,
+        exitCode: 1,
+      }
+    }
     return withIdentity(
       {
         _tag: 'Show' as const,
         ...(device === undefined ? {} : { device }),
         ...(path === undefined ? {} : { path }),
+        ...(surface === undefined ? {} : { surface }),
       },
       identity,
     )
