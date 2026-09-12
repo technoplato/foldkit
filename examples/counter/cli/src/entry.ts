@@ -152,9 +152,18 @@ const shareDenied =
   parsed._tag === 'Share' && identity.subject !== undefined
     ? grantNamedShareWith(parsed.name, identity.subject, parsed.with)
     : undefined
+const isOwnPainterShow =
+  parsed._tag === 'Show' &&
+  parsed.surface !== undefined &&
+  parsed.surface !== 'cli-screen'
+
 if (shareDenied?._tag === 'Denied') {
   writeFailed(shareDenied.message, 1)
-} else if (isCounterCliMemory() || parsed._tag === 'Replay') {
+} else if (
+  isCounterCliMemory() ||
+  parsed._tag === 'Replay' ||
+  isOwnPainterShow
+) {
   const { runInProcessCounter } = await import('./inProcess.js')
   runInProcessCounter(argv)
 } else {

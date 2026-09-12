@@ -178,6 +178,39 @@ describe('Counter CLI host', () => {
     expect(Reset.valid(shown.finalModel, {})).toBe(true)
   })
 
+  it('lets tweet painters read the same public count', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    await Effect.runPromise(executeDo('increment', { snapshot }))
+    const svelte = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }, 'svelte'),
+    )
+    const reactScreen = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }, 'react-screen'),
+    )
+    const expo = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }, 'expo'),
+    )
+    const foldkit = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }, 'foldkit'),
+    )
+    const opentui = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }, 'opentui'),
+    )
+
+    expect(svelte.finalModel.count).toBe(1)
+    expect(svelte.stdout).toContain('Foldkit - Svelte Counter')
+    expect(svelte.stdout).toContain('count    1')
+    expect(svelte.stdout).toContain('surface  svelte')
+    expect(reactScreen.stdout).toContain('Foldkit - React screen Counter')
+    expect(reactScreen.stdout).toContain('count    1')
+    expect(expo.stdout).toContain('Foldkit - Expo Counter')
+    expect(expo.stdout).toContain('count    1')
+    expect(foldkit.stdout).toContain('Foldkit - Foldkit Counter')
+    expect(foldkit.stdout).toContain('count    1')
+    expect(opentui.stdout).toContain('Foldkit - OpenTUI Counter')
+    expect(opentui.stdout).toContain('count    1')
+  })
+
   it('lets a second Processor read the same count snapshot', async () => {
     const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
     await Effect.runPromise(executeDo('increment', { snapshot }))

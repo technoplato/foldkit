@@ -106,6 +106,24 @@ describe('Counter CLI process', () => {
     )
   })
 
+  it('shows each tweet painter on its own Host', () => {
+    const svelte = runCli(['show', '--surface', 'svelte'])
+    expect(svelte.status, svelte.stderr).toBe(0)
+    expect(svelte.stdout).toContain('Foldkit - Svelte Counter')
+    expect(svelte.stdout).toContain('count    0')
+    expect(svelte.stdout).toContain('surface  svelte')
+    expect(svelte.stdout).not.toContain('Foldkit - CLI Counter')
+
+    const reactScreen = runCli(['show', '--surface', 'react-screen'])
+    expect(reactScreen.status, reactScreen.stderr).toBe(0)
+    expect(reactScreen.stdout).toContain('Foldkit - React screen Counter')
+    expect(reactScreen.stdout).toContain('surface  react-screen')
+
+    const unknown = runCli(['show', '--surface', '2e'])
+    expect(unknown.status).not.toBe(0)
+    expect(`${unknown.stdout}${unknown.stderr}`).toContain('Unknown surface')
+  })
+
   it('starts each process at count 0', () => {
     runCli(['do', 'increment'])
     const shown = runCli(['show'])
@@ -208,6 +226,53 @@ describe('Counter CLI process', () => {
     )
     rmSync(directory, { force: true, recursive: true })
   }, 30_000)
+
+  it('lets live painters read the same file Instant tape count', async () => {
+    const cacheRoot = join(homedir(), '.cache')
+    mkdirSync(cacheRoot, { recursive: true })
+    const directory = mkdtempSync(join(cacheRoot, 'foldkit-counter-cli-'))
+    const tapePath = join(directory, 'tape.json')
+    const env = { ...process.env, COUNTER_TAPE_PATH: tapePath }
+
+    const incremented = spawnSync(
+      process.execPath,
+      [cliEntryPath, 'do', 'increment'],
+      { encoding: 'utf8', env, timeout: 25_000 },
+    )
+    expect(incremented.status, incremented.stderr).toBe(0)
+    expect(incremented.stdout).toContain('count    1')
+
+    const painters = [
+      ['foldkit', 'Foldkit - Foldkit Counter'],
+      ['svelte', 'Foldkit - Svelte Counter'],
+      ['react', 'Foldkit - React Counter'],
+      ['react-screen', 'Foldkit - React screen Counter'],
+      ['expo', 'Foldkit - Expo Counter'],
+      ['cli', 'Foldkit - CLI Counter'],
+      ['opentui', 'Foldkit - OpenTUI Counter'],
+    ] as const
+    for (const [surface, title] of painters) {
+      const shown = spawnSync(
+        process.execPath,
+        [cliEntryPath, 'show', '--surface', surface],
+        { encoding: 'utf8', env, timeout: 25_000 },
+      )
+      expect(shown.status, `${surface}: ${shown.stderr}`).toBe(0)
+      expect(shown.stdout).toContain(title)
+      expect(shown.stdout).toContain('count    1')
+      expect(shown.stdout).toContain(`surface  ${surface}`)
+    }
+
+    await Effect.runPromise(
+      stopCliDaemon(
+        cliDaemonSocketPath({
+          programId: FoldkitCounterV01.id,
+          isolationKey: tapePath,
+        }),
+      ),
+    )
+    rmSync(directory, { force: true, recursive: true })
+  }, 60_000)
 
   it('lets bob increment kitchen and keeps carol and public off it', async () => {
     const cacheRoot = join(homedir(), '.cache')

@@ -1,4 +1,5 @@
-import { Console, Effect } from 'effect'
+import { parseHostId } from 'counter-core-example'
+import { Console, Effect, Option } from 'effect'
 
 import { NodeRuntime } from '@effect/platform-node'
 
@@ -29,7 +30,18 @@ const dispatchCounter = (
     return Effect.fail(new CounterCliError({ message: parsed.message }))
   }
   if (parsed._tag === 'Show') {
-    return runShow(parsed.device, parsed.path)
+    if (parsed.surface === undefined) {
+      return runShow(parsed.device, parsed.path)
+    }
+    const maybeSurface = parseHostId(parsed.surface)
+    if (Option.isNone(maybeSurface)) {
+      return Effect.fail(
+        new CounterCliError({
+          message: `Unknown surface "${parsed.surface}". Use foldkit, svelte, react, react-screen, expo, cli, tui, or opentui.`,
+        }),
+      )
+    }
+    return runShow(parsed.device, parsed.path, maybeSurface.value)
   }
   if (parsed._tag === 'Do') {
     return runDo(parsed.token)
