@@ -17,12 +17,14 @@ import {
   occupancyToOpen,
   paintDoExecution,
   paintPaletteExecution,
+  paintShareExecution,
   paintShowExecution,
   parseDevice,
   resolveHostDo,
   resolveHostSpoken,
 } from './paintHost.js'
 import { type CliTapeOptions, withSession } from './session.js'
+import { grantNamedShareWith } from './shareLedger.js'
 
 export { CounterCliError, readyCount } from './cliError.js'
 export type { CliTapeOptions } from './session.js'
@@ -154,6 +156,40 @@ export const executeSay = (
       options,
     )
   })
+
+/** Grants occupancy of a named share, then occupies that URI. */
+export const executeShare = (
+  name: string,
+  withSubject: string,
+  owner: string,
+  options: CliTapeOptions = {},
+): Effect.Effect<CliExecution, CounterCliError> =>
+  Effect.gen(function* () {
+    const granted = grantNamedShareWith(name, owner, withSubject)
+    if (granted._tag === 'Denied') {
+      return yield* Effect.fail(
+        new CounterCliError({ message: granted.message }),
+      )
+    }
+    return yield* withSession(
+      (session, initialModel) =>
+        Effect.gen(function* () {
+          const maybeOpen = occupancyToOpen(undefined, undefined)
+          if (Option.isNone(maybeOpen)) {
+            return paintShareExecution(name, owner, withSubject, initialModel)
+          }
+          const ran = yield* session.run(maybeOpen.value)
+          return {
+            ...paintShareExecution(name, owner, withSubject, ran.model),
+            initialModel,
+            maybeMessage: Option.some(maybeOpen.value),
+            finalModel: ran.model,
+            link: ran.link,
+          }
+        }),
+      options,
+    )
+  }).pipe(Effect.withSpan('counter.share'))
 
 /** Sends one semantic token, then auto-shows. */
 export const executeDo = (
@@ -346,6 +382,17 @@ export const runSay = (
     const execution = yield* executeSay(utterance)
     yield* Console.log(execution.stdout).pipe(Effect.withSpan('cli.print'))
   }).pipe(Effect.withSpan('counter.say'))
+
+/** Runs `share` and prints the grant plus occupied show. */
+export const runShare = (
+  name: string,
+  withSubject: string,
+  owner: string,
+): Effect.Effect<void, CounterCliError> =>
+  Effect.gen(function* () {
+    const execution = yield* executeShare(name, withSubject, owner)
+    yield* Console.log(execution.stdout).pipe(Effect.withSpan('cli.print'))
+  }).pipe(Effect.withSpan('counter.share'))
 
 /** Runs `replay` and prints each tape frame. */
 export const runReplay = (

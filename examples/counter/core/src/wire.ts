@@ -5,6 +5,7 @@ import { Device } from 'foldkit/renderers/devices'
 import { type AppMessage, type AppModel } from './app.js'
 import { Decrement, Increment, OpenedNavigation, Reset } from './message.js'
 import { Model } from './model.js'
+import { namedShareCountId } from './share.js'
 
 const AppSnapshot = S.Struct({
   product: S.Struct({
@@ -52,6 +53,10 @@ export const activeCountId = (): string => {
   const explicit = process.env['COUNTER_COUNT_ID']
   if (explicit !== undefined && explicit !== '') {
     return explicit
+  }
+  const shareName = process.env['COUNTER_SHARE_NAME']
+  if (shareName !== undefined && shareName !== '') {
+    return namedShareCountId(shareName)
   }
   const audience = process.env['COUNTER_AUDIENCE']
   const subject = process.env['COUNTER_SUBJECT']

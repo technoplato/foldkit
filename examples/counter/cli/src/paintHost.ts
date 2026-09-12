@@ -12,6 +12,7 @@ import {
   defaultShowContext,
   invalidActionLog,
   listActions,
+  namedShareUri,
   renderReceipt,
   renderShow,
   tokenOf,
@@ -53,15 +54,33 @@ const showContext = (device: Device | undefined) => ({
   ...(device === undefined ? {} : { device }),
 })
 
+const occupiedShareName = (): string | undefined => {
+  const name = process.env['COUNTER_SHARE_NAME']
+  if (name === undefined || name === '') {
+    return undefined
+  }
+  return name
+}
+
 /**
- * Occupancy Message for `show --device` / `--path`.
+ * Occupancy Message for `show --device` / `--path` / `--name`.
  * Bare show does not send this. `counter` and `/counter` occupy home.
- * `counter.increment` occupies `/counter/increment`.
+ * `counter.increment` occupies `/counter/increment`. `--name kitchen`
+ * occupies `/kitchen`.
  */
 export const occupancyToOpen = (
   device: Device | undefined,
   path: string | undefined,
 ): Option.Option<ReturnType<typeof OpenedNavigation>> => {
+  const shareName = occupiedShareName()
+  if (shareName !== undefined) {
+    return Option.some(
+      OpenedNavigation({
+        ...(device === undefined ? {} : { device }),
+        path: shareName,
+      }),
+    )
+  }
   const maybePath = canonicalShowPath(path)
   if (device === undefined && Option.isNone(maybePath)) {
     return Option.none()
@@ -72,6 +91,30 @@ export const occupancyToOpen = (
       ...(Option.isSome(maybePath) ? { path: maybePath.value } : {}),
     }),
   )
+}
+
+/** Receipt printed by `share --name --with`. */
+export const paintShareExecution = (
+  name: string,
+  owner: string,
+  withSubject: string,
+  model: Model,
+): CliExecution => {
+  const receipt = [
+    `shared ${name} with ${withSubject}`,
+    `  owner          ${owner}`,
+    `  with           ${withSubject}`,
+    `  uri            ${namedShareUri(name)}`,
+  ].join('\n')
+  return {
+    initialModel: model,
+    maybeMessage: Option.some(OpenedNavigation({ path: name })),
+    finalModel: model,
+    link: 'delivered',
+    stdout: [receipt, '', renderShow(model, defaultShowContext)].join('\n'),
+    stderr: '',
+    exitCode: 0,
+  }
 }
 
 /** Paints IDENTITY and ACESS. Optional `--device` wraps the product tree. */

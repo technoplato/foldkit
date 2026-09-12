@@ -95,6 +95,21 @@ describe('renderShow', () => {
     expect(output).toContain('[ + ]')
   })
 
+  test('paints named-share occupancy as /kitchen', () => {
+    const output = renderShow(
+      Model.make({
+        count: 1,
+        maybePath: Option.some('kitchen'),
+      }),
+      defaultShowContext,
+    )
+
+    expect(output).toContain('uri      /kitchen')
+    expect(output).not.toContain('uri      /counter/kitchen')
+    expect(output).toContain('path     kitchen')
+    expect(output).toContain('count    1')
+  })
+
   test('paints occupied home as /counter and keeps decrement', () => {
     const output = renderShow(
       Model.make({

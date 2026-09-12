@@ -2,6 +2,7 @@
 export type CounterIdentityFlags = Readonly<{
   readonly subject?: string
   readonly audience?: string
+  readonly name?: string
 }>
 
 export type ParsedCounterArgv =
@@ -11,6 +12,7 @@ export type ParsedCounterArgv =
       readonly path?: string
       readonly subject?: string
       readonly audience?: string
+      readonly name?: string
     }>
   | Readonly<{
       readonly _tag: 'Do'
@@ -18,22 +20,33 @@ export type ParsedCounterArgv =
       readonly via?: 'token' | 'palette' | 'spoken'
       readonly subject?: string
       readonly audience?: string
+      readonly name?: string
     }>
   | Readonly<{
       readonly _tag: 'Palette'
       readonly token?: string
       readonly subject?: string
       readonly audience?: string
+      readonly name?: string
     }>
   | Readonly<{
       readonly _tag: 'Say'
       readonly utterance: string
       readonly subject?: string
       readonly audience?: string
+      readonly name?: string
     }>
   | Readonly<{
       readonly _tag: 'Replay'
       readonly tape: string
+      readonly subject?: string
+      readonly audience?: string
+      readonly name?: string
+    }>
+  | Readonly<{
+      readonly _tag: 'Share'
+      readonly name: string
+      readonly with: string
       readonly subject?: string
       readonly audience?: string
     }>
@@ -107,11 +120,15 @@ const isFlagName = (item: string): boolean =>
   item === '--as' ||
   item === '--audience' ||
   item === '--tape' ||
+  item === '--name' ||
+  item === '--with' ||
   item.startsWith('--device=') ||
   item.startsWith('--path=') ||
   item.startsWith('--as=') ||
   item.startsWith('--audience=') ||
-  item.startsWith('--tape=')
+  item.startsWith('--tape=') ||
+  item.startsWith('--name=') ||
+  item.startsWith('--with=')
 
 const positionals = (argv: ReadonlyArray<string>): ReadonlyArray<string> => {
   const rest: Array<string> = []
@@ -126,7 +143,9 @@ const positionals = (argv: ReadonlyArray<string>): ReadonlyArray<string> => {
       item === '--path' ||
       item === '--as' ||
       item === '--audience' ||
-      item === '--tape'
+      item === '--tape' ||
+      item === '--name' ||
+      item === '--with'
     ) {
       index += 2
       continue
@@ -140,6 +159,8 @@ const positionals = (argv: ReadonlyArray<string>): ReadonlyArray<string> => {
   }
   return rest
 }
+
+const shareNamePattern = /^[A-Za-z][A-Za-z0-9-]*$/
 
 const identityFrom = (
   argv: ReadonlyArray<string>,
@@ -155,9 +176,20 @@ const identityFrom = (
   if (audience !== undefined && audience !== 'public' && audience !== 'mine') {
     return { error: 'Unknown audience. Use public or mine.' }
   }
+  const name = flagValue(argv, 'name')
+  if (name !== undefined && typeof name !== 'string') {
+    return { error: name.error }
+  }
+  if (name !== undefined && !shareNamePattern.test(name)) {
+    return {
+      error:
+        'Unknown share name. Use a letter, then letters, digits, or dashes.',
+    }
+  }
   return {
     ...(subject === undefined ? {} : { subject }),
     ...(audience === undefined ? {} : { audience }),
+    ...(name === undefined ? {} : { name }),
   }
 }
 
@@ -180,14 +212,15 @@ export const counterUsage = [
   '',
   'USAGE',
   '',
-  '$ counter show [--device watch|phone|tablet|computer|tv] [--path PATH] [--as SUBJECT] [--audience public|mine]',
+  '$ counter show [--device watch|phone|tablet|computer|tv] [--path PATH] [--as SUBJECT] [--audience public|mine] [--name SHARE]',
   '$ counter do <token>',
   '$ counter palette [token]',
   '$ counter say <utterance>',
+  '$ counter share --name SHARE --with SUBJECT --as SUBJECT',
   '$ counter replay --tape <path>',
 ].join('\n')
 
-/** Parses `counter` show / do / palette / say / replay argv. */
+/** Parses `counter` show / do / palette / say / share / replay argv. */
 export const parseCounterArgv = (
   argv: ReadonlyArray<string>,
 ): ParsedCounterArgv => {
@@ -200,6 +233,17 @@ export const parseCounterArgv = (
   }
   const words = positionals(argv)
   const command = at(words, 0)
+  if (
+    identity.name !== undefined &&
+    identity.subject === undefined &&
+    command !== 'share'
+  ) {
+    return {
+      _tag: 'Failed',
+      message: 'named share needs --as SUBJECT.',
+      exitCode: 1,
+    }
+  }
   if (command === 'show') {
     if (at(words, 1) !== undefined) {
       return {
@@ -286,9 +330,61 @@ export const parseCounterArgv = (
     }
     return withIdentity({ _tag: 'Replay' as const, tape }, identity)
   }
+  if (command === 'share') {
+    if (at(words, 1) !== undefined) {
+      return {
+        _tag: 'Failed',
+        message: 'share does not take a token. Use --name and --with.',
+        exitCode: 1,
+      }
+    }
+    const name = identity.name
+    const withSubject = flagValue(argv, 'with')
+    if (withSubject !== undefined && typeof withSubject !== 'string') {
+      return { _tag: 'Failed', message: withSubject.error, exitCode: 1 }
+    }
+    if (name === undefined) {
+      return {
+        _tag: 'Failed',
+        message: 'share needs --name NAME.',
+        exitCode: 1,
+      }
+    }
+    if (withSubject === undefined) {
+      return {
+        _tag: 'Failed',
+        message: 'share needs --with SUBJECT.',
+        exitCode: 1,
+      }
+    }
+    if (!shareNamePattern.test(withSubject)) {
+      return {
+        _tag: 'Failed',
+        message:
+          'Unknown --with subject. Use a letter, then letters, digits, or dashes.',
+        exitCode: 1,
+      }
+    }
+    if (identity.subject === undefined) {
+      return {
+        _tag: 'Failed',
+        message: 'share needs --as SUBJECT.',
+        exitCode: 1,
+      }
+    }
+    return {
+      _tag: 'Share',
+      name,
+      with: withSubject,
+      subject: identity.subject,
+      ...(identity.audience === undefined
+        ? {}
+        : { audience: identity.audience }),
+    }
+  }
   return {
     _tag: 'Failed',
-    message: `Unknown command "${command ?? ''}". Use show, do, palette, say, or replay.`,
+    message: `Unknown command "${command ?? ''}". Use show, do, palette, say, share, or replay.`,
     exitCode: 1,
   }
 }

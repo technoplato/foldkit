@@ -22,9 +22,10 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { readyCount } from './cliError.js'
-import { executeDo, executeReplay, executeShow } from './host.js'
-import { counterCliProgramId } from './isolation.js'
+import { executeDo, executeReplay, executeShare, executeShow } from './host.js'
+import { applyCounterIdentity, counterCliProgramId } from './isolation.js'
 import { settleAfterSend, waitForReadyCountChange } from './session.js'
+import { resetMemoryShareLedger } from './shareLedger.js'
 
 process.env['COUNTER_TAPE'] = 'memory'
 
@@ -248,6 +249,48 @@ describe('Counter CLI host', () => {
     expect(shown.stdout).toContain('path     counter.increment')
     expect(shown.stdout).toContain('  increment')
     expect(shown.stdout).not.toContain('  decrement')
+  })
+
+  it('lets bob increment alice kitchen without moving public', async () => {
+    resetMemoryShareLedger()
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    applyCounterIdentity('alice', undefined, 'kitchen')
+    const shared = await Effect.runPromise(
+      executeShare('kitchen', 'bob', 'alice', { snapshot }),
+    )
+    expect(shared.stdout).toContain('shared kitchen with bob')
+    expect(shared.stdout).toContain('uri            /kitchen')
+    expect(shared.finalModel.maybePath).toEqual(Option.some('kitchen'))
+
+    applyCounterIdentity('bob', undefined, 'kitchen')
+    const incremented = await Effect.runPromise(
+      executeDo('increment', { snapshot }),
+    )
+    expect(incremented.finalModel.count).toBe(1)
+    expect(incremented.stdout).toContain('uri      /kitchen')
+
+    applyCounterIdentity('alice', undefined, 'kitchen')
+    const alice = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }),
+    )
+    expect(alice.finalModel.count).toBe(1)
+    expect(alice.stdout).toContain('uri      /kitchen')
+
+    applyCounterIdentity('carol', undefined, 'kitchen')
+    const carolSnapshot = await Effect.runPromise(
+      makeMemorySnapshotLogTransport(),
+    )
+    const carol = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot: carolSnapshot }),
+    )
+    expect(carol.finalModel.count).toBe(0)
+    expect(carol.stdout).not.toContain('count    1')
+
+    delete process.env['COUNTER_SHARE_NAME']
+    delete process.env['COUNTER_SUBJECT']
+    delete process.env['COUNTER_INSTANT_ROOM']
+    delete process.env['COUNTER_COUNT_ID']
+    resetMemoryShareLedger()
   })
 
   it('lets increment keep occupancy on a shared snapshot', async () => {

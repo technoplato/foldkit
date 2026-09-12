@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Increment, OpenedNavigation } from './message.js'
 import { Model } from './model.js'
+import { namedShareCountId } from './share.js'
 import {
   COUNT_UUID,
   CountProjection,
@@ -63,6 +64,12 @@ describe('Counter wire Schemas', () => {
     expect(ownedCountId('alice')).not.toBe(COUNT_UUID)
     expect(ownedCountId('alice')).toBe(ownedCountId('alice'))
     expect(ownedCountId('bob')).not.toBe(ownedCountId('alice'))
+  })
+
+  it('keeps named-share count rows off L6 mine and public', () => {
+    expect(namedShareCountId('kitchen')).not.toBe(COUNT_UUID)
+    expect(namedShareCountId('kitchen')).not.toBe(ownedCountId('alice'))
+    expect(namedShareCountId('kitchen')).not.toBe(ownedCountId('kitchen'))
   })
 
   it('decodes a Message row into Increment', () => {

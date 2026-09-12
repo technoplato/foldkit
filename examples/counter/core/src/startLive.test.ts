@@ -127,6 +127,43 @@ describe('startLiveCounter', () => {
     await reader.stop()
   })
 
+  it('shares kitchen occupancy across two Memory Processors', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    const writer = startLiveCounter(Processor.Host.Cli(), {
+      transport: snapshot,
+    })
+    await waitForSyncedHandle(writer)
+    writer.send(OpenedNavigation({ path: 'kitchen' }))
+    await new Promise<void>((resolve, reject) => {
+      const finish = (): void => {
+        const model = writer.readModel()
+        if (
+          model._tag === 'Ready' &&
+          Option.isSome(model.product.maybePath) &&
+          model.product.maybePath.value === 'kitchen'
+        ) {
+          clearTimeout(timeout)
+          stop()
+          resolve()
+        }
+      }
+      const timeout = setTimeout(() => {
+        stop()
+        reject(new Error('Timed out waiting for kitchen occupancy.'))
+      }, 2000)
+      const stop = writer.subscribe(finish)
+      finish()
+    })
+    await writer.stop()
+
+    const reader = startLiveCounter(Processor.Host.Tui(), {
+      transport: snapshot,
+    })
+    const ready = await waitForSyncedHandle(reader)
+    expect(navigationOfReady(ready)).toEqual({ path: 'kitchen' })
+    await reader.stop()
+  })
+
   it('forwards instance into Node Instant resolve', () => {
     const source = readFileSync(
       new URL('./startLive.ts', import.meta.url),

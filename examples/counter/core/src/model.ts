@@ -28,7 +28,8 @@ const nonePath = Effect.succeed(Option.none<string>())
  * `maybeDevice` and `maybePath` are occupancy, not paint-only flags.
  * `show --device phone` and `show --path /counter` write these fields so
  * Instant peers paint the same chrome. `show --path counter.increment`
- * occupies `/counter/increment`. Bare show (no `--path`) stays none.
+ * occupies `/counter/increment`. `--name kitchen` occupies `/kitchen`.
+ * Bare show (no `--path` / `--name`) stays none.
  */
 export const Model = S.Struct({
   count: S.Number,

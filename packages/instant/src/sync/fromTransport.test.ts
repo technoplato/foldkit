@@ -10,6 +10,7 @@ import {
 } from '../snapshotLog/snapshotLog.js'
 import {
   fromTransport,
+  isNamedShareInstantFrom,
   isOwnedInstantFrom,
   messageBelongsToInstantRoom,
 } from './fromTransport.js'
@@ -117,5 +118,29 @@ describe('messageBelongsToInstantRoom', () => {
     expect(messageBelongsToInstantRoom('cli-mine-bob', 'tui-mine-alice')).toBe(
       false,
     )
+  })
+
+  it('keeps public rows off named-share rooms and share rows off public', () => {
+    expect(isNamedShareInstantFrom('cli-share-kitchen')).toBe(true)
+    expect(isNamedShareInstantFrom('cli')).toBe(false)
+    expect(messageBelongsToInstantRoom('cli-share-kitchen', 'tui')).toBe(false)
+    expect(
+      messageBelongsToInstantRoom('cli-share-kitchen', 'tui-share-kitchen'),
+    ).toBe(true)
+    expect(
+      messageBelongsToInstantRoom(
+        'cli-share-kitchen-denied-carol',
+        'tui-share-kitchen',
+      ),
+    ).toBe(false)
+    expect(
+      messageBelongsToInstantRoom(
+        'cli-share-kitchen-denied-carol',
+        'tui-share-kitchen-denied-carol',
+      ),
+    ).toBe(true)
+    expect(
+      messageBelongsToInstantRoom('cli-mine-alice', 'tui-share-kitchen'),
+    ).toBe(false)
   })
 })

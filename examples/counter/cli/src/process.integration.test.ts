@@ -209,6 +209,102 @@ describe('Counter CLI process', () => {
     rmSync(directory, { force: true, recursive: true })
   }, 30_000)
 
+  it('lets bob increment kitchen and keeps carol and public off it', async () => {
+    const cacheRoot = join(homedir(), '.cache')
+    mkdirSync(cacheRoot, { recursive: true })
+    const directory = mkdtempSync(join(cacheRoot, 'foldkit-counter-share-'))
+    const tapePath = join(directory, 'tape.json')
+    const env = { ...process.env, COUNTER_TAPE_PATH: tapePath }
+    delete env['COUNTER_TAPE']
+
+    const run = (args: ReadonlyArray<string>) =>
+      spawnSync(process.execPath, [cliEntryPath, ...args], {
+        encoding: 'utf8',
+        env,
+        timeout: 25_000,
+      })
+
+    const publicBefore = run(['show'])
+    expect(publicBefore.status, publicBefore.stderr).toBe(0)
+    expect(publicBefore.stdout).toContain('count    0')
+    expect(publicBefore.stdout).toContain('uri      /counter')
+
+    const aliceBefore = run(['--as', 'alice', '--name', 'kitchen', 'show'])
+    expect(aliceBefore.status, aliceBefore.stderr).toBe(0)
+    expect(aliceBefore.stdout).toContain('uri      /kitchen')
+    expect(aliceBefore.stdout).toContain('path     kitchen')
+    expect(aliceBefore.stdout).toContain('count    0')
+
+    const shared = run([
+      '--as',
+      'alice',
+      'share',
+      '--name',
+      'kitchen',
+      '--with',
+      'bob',
+    ])
+    expect(shared.status, shared.stderr).toBe(0)
+    expect(shared.stdout).toContain('shared kitchen with bob')
+    expect(shared.stdout).toContain('uri            /kitchen')
+
+    const bobInc = run(['--as', 'bob', '--name', 'kitchen', 'do', 'increment'])
+    expect(bobInc.status, bobInc.stderr).toBe(0)
+    expect(bobInc.stdout).toContain('increment sent')
+    expect(bobInc.stdout).toContain('count    1')
+    expect(bobInc.stdout).toContain('uri      /kitchen')
+
+    const aliceAfter = run(['--as', 'alice', '--name', 'kitchen', 'show'])
+    expect(aliceAfter.status, aliceAfter.stderr).toBe(0)
+    expect(aliceAfter.stdout).toContain('count    1')
+    expect(aliceAfter.stdout).toContain('uri      /kitchen')
+
+    const bobAfter = run(['--as', 'bob', '--name', 'kitchen', 'show'])
+    expect(bobAfter.status, bobAfter.stderr).toBe(0)
+    expect(bobAfter.stdout).toContain('count    1')
+
+    const carol = run(['--as', 'carol', '--name', 'kitchen', 'show'])
+    expect(carol.status, carol.stderr).toBe(0)
+    expect(carol.stdout).toContain('count    0')
+    expect(carol.stdout).not.toMatch(/count\s+1/)
+
+    const publicAfter = run(['show'])
+    expect(publicAfter.status, publicAfter.stderr).toBe(0)
+    expect(publicAfter.stdout).toContain('count    0')
+    expect(publicAfter.stdout).toContain('uri      /counter')
+    expect(publicAfter.stdout).not.toContain('uri      /kitchen')
+
+    const mine = run(['--as', 'alice', '--audience', 'mine', 'show'])
+    expect(mine.status, mine.stderr).toBe(0)
+    expect(mine.stdout).toContain('count    0')
+
+    await Effect.runPromise(
+      stopCliDaemon(
+        cliDaemonSocketPath({
+          programId: FoldkitCounterV01.id,
+          isolationKey: `${tapePath}.share-kitchen`,
+        }),
+      ),
+    )
+    await Effect.runPromise(
+      stopCliDaemon(
+        cliDaemonSocketPath({
+          programId: FoldkitCounterV01.id,
+          isolationKey: `${tapePath}.share-kitchen-denied-carol`,
+        }),
+      ),
+    )
+    await Effect.runPromise(
+      stopCliDaemon(
+        cliDaemonSocketPath({
+          programId: FoldkitCounterV01.id,
+          isolationKey: tapePath,
+        }),
+      ),
+    )
+    rmSync(directory, { force: true, recursive: true })
+  }, 45_000)
+
   it('rejects an unknown token without crashing', () => {
     const result = runCli(['do', 'ClickedIncrement'])
     expect(result.status).not.toBe(0)
