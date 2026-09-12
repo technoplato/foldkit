@@ -4,6 +4,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 12th, 2026 at 12:22:23 a.m. EDT — `025fbd72d89d` feat(counter): occupy home from show --path /counter
+
+- **Implementation commit:** `025fbd72d89de6c6e734e0fb3ac49d2ba2800b38`
+- **Change:** Occupy home when show --path /counter is sent so Instant peers sync that destination.
+- **Details:**
+  - Bare show stays none. /counter writes OpenedNavigation with path counter and still prints URI /counter.
+  - Decrement still persists on a shared snapshot. No L9 stub.
+- **Files:**
+  - `examples/counter/core/src/path.ts` — Treat /counter as occupied home instead of none.
+  - `examples/counter/core/src/path.test.ts` — Cover home occupancy canonicalization.
+  - `examples/counter/core/src/model.ts` — Document /counter occupancy.
+  - `examples/counter/core/src/show.ts` — Treat occupied home as all Actions.
+  - `examples/counter/core/src/show.test.ts` — Paint occupied home without /counter/counter.
+  - `examples/counter/core/src/update.test.ts` — OpenedNavigation occupies home.
+  - `examples/counter/cli/src/paintHost.ts` — Send OpenedNavigation for /counter.
+  - `examples/counter/cli/src/host.test.ts` — Persist /counter and decrement on a snapshot.
+- **User context (verbatim):**
+  > Replication dry-run is done. Do not re-run that same walk. It still does not prove decrement or nav-state. Keep the worktree on those two product gaps. No L9 stubs.
+- **SpecStory:** unavailable — Cursor cloud agent session; no SpecStory capture for this desktop-less run.
+
 ## September 11th, 2026 at 11:58:30 p.m. EDT — `94f47e56efa3` feat: sync counter navigation occupancy on Instant
 
 - **Implementation commit:** `94f47e56efa3e2c50f2b6c42a3362528f0498aa4`
