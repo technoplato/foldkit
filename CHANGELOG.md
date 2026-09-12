@@ -4,6 +4,29 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 12th, 2026 at 5:13:47 a.m. UTC — `7bf34be67aa3` feat(counter): add L9 named-share occupancy
+
+- **Implementation commit:** `7bf34be67aa3adfaaf94f87c3269566cecac4d2b`
+- **Change:** Add L9 named-share occupancy so others occupy a named counter by URI.
+- **Details:**
+  - share --name kitchen --with bob grants Bob occupancy of /kitchen. Alice and Bob share that count. Carol cannot. Public /counter does not move.
+  - --as / --audience remains L6 mine versus public. Named share uses share-kitchen rooms and a grant ledger.
+  - File tapes fork a sibling tape per share so the public snapshot is not clobbered. Instant public rooms ignore -share- rows.
+- **Files:**
+  - `.changeset/counter-named-share.md` — Record the Instant named-share room filter.
+  - `examples/counter/core/src/share.ts` — Define named-share count ids, rooms, URI, and grant rules.
+  - `examples/counter/core/src/share.test.ts` — Prove kitchen is not public or L6 mine.
+  - `examples/counter/core/src/path.ts` — Print /kitchen for named-share occupancy.
+  - `examples/counter/cli/src/parseArgv.ts` — Parse share --name --with and --name on show/do.
+  - `examples/counter/cli/src/shareLedger.ts` — Persist named-share grants next to the tape.
+  - `examples/counter/cli/src/isolation.ts` — Bind --name kitchen to share-kitchen, not mine-alice.
+  - `examples/counter/cli/src/entry.ts` — Dispatch share before the daemon starts.
+  - `examples/counter/cli/src/process.integration.test.ts` — Prove Dave argv: Bob increments kitchen, Carol and public do not.
+  - `packages/instant/src/sync/fromTransport.ts` — Keep -share- Instant rows off the public tape.
+- **User context (verbatim):**
+  > L9: a named counter others occupy by URI. share --name kitchen --with bob. Bob can increment kitchen. Carol cannot. Public count does not move. Distinct from L6 --as/--audience.
+- **SpecStory:** unavailable — Cursor cloud agent session; no SpecStory capture for this desktop-less run.
+
 ## September 12th, 2026 at 12:27:08 a.m. EDT — `462d84ef6eb2` test(counter): prove decrement and /counter occupancy argv
 
 - **Implementation commit:** `462d84ef6eb23b95a4181095d6d96f6a41385266`
