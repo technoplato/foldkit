@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 11th, 2026 at 10:56:27 p.m. EDT — `ef4265858cd3` feat: add Instant outbox, owned rooms, and counter palette/speech
+
+- **Implementation commit:** `ef4265858cd3fd96d3ce7c935ad3437834b12c33`
+- **Change:** Retry Instant writes from an outbox, isolate owned count rooms, and add counter palette/say/identity commands for the Architectural Benchmark climb.
+- **Details:**
+  - Runtime.start queues a failed Instant write and retries the same Message id.
+  - Public Instant Processors ignore -mine- rows; owned rooms use a dedicated count UUID.
+  - counter palette and counter say go through Action-menu and spoken metadata. --as/--audience select public vs owned Instant rooms.
+- **Files:**
+  - `packages/foldkit/src/runtime/start.ts` — Retry the same Instant write after a partition.
+  - `packages/instant/src/sync/fromTransport.ts` — Keep owned Instant rows off the public room.
+  - `examples/counter/cli/src/parseArgv.ts` — Parse palette, say, --as, and --audience.
+  - `examples/counter/cli/src/daemon.ts` — Paint palette and spoken sends on the Instant daemon.
+  - `examples/counter/core/src/message.ts` — Resolve go up and start over from spoken metadata.
+  - `examples/counter/core/src/wire.ts` — Give each owned subject its own Instant count row.
+- **User context (verbatim):**
+  > Keep going: implement honest L4 Instant partition (then L5–L8), add real outside-command probes, dry-run submit, record the new score in the wiki.
+- **SpecStory:** unavailable — Cursor cloud agent session; no SpecStory capture for this desktop-less run.
+
 ## September 8th, 2026 at 10:52:01 a.m. EDT — `e1e3419f38d8` feat(slides-qanda): add a glanceable interview slideshow
 
 - **Implementation commit:** `e1e3419f38d871db31c06c4e4522c1ddf8ebaf3e`
