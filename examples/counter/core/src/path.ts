@@ -2,6 +2,12 @@ import { Option, pipe } from 'effect'
 import { Route } from 'foldkit'
 import { literal, r } from 'foldkit/route'
 
+import {
+  isNamedShareOccupancy,
+  namedShareNameFromPath,
+  namedShareUri,
+} from './share.js'
+
 /** Counter Path. Pass `Path()` to `useModel`. Do not pass `'/counter'`. */
 export const Path = r('Counter')
 /** Counter Path. Pass `Path()` to `useModel`. Do not pass `'/counter'`. */
@@ -55,9 +61,16 @@ export const canonicalShowPath = (
 /**
  * Prints the occupiable URI for a show path.
  * None and occupied home print `/counter`. `counter.increment` prints
- * `/counter/increment`.
+ * `/counter/increment`. Named-share occupancy `kitchen` prints
+ * `/kitchen`, not `/counter/kitchen`.
  */
 export const printDestination = (path: string | undefined): string => {
+  if (isNamedShareOccupancy(path)) {
+    const name = namedShareNameFromPath(path)
+    if (name !== undefined) {
+      return namedShareUri(name)
+    }
+  }
   const maybePath = canonicalShowPath(path)
   if (Option.isNone(maybePath) || maybePath.value === homeOccupancy) {
     return pathRouter()

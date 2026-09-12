@@ -35,6 +35,7 @@ import {
   occupancyToOpen,
   paintDoExecution,
   paintPaletteExecution,
+  paintShareExecution,
   paintShowExecution,
   parseDevice,
   resolveHostDo,
@@ -124,6 +125,21 @@ const showHost = (
     if (flags['palette'] === '1') {
       const model = yield* readyCount(handle.readModel())
       return paintedOf(paintPaletteExecution(model))
+    }
+    if (flags['share'] === '1') {
+      const name = flags['name'] ?? ''
+      const withSubject = flags['with'] ?? ''
+      const owner = flags['as'] ?? ''
+      const maybeOpen = occupancyToOpen(undefined, undefined)
+      if (Option.isSome(maybeOpen)) {
+        handle.send(maybeOpen.value)
+        yield* settleAfterSend(
+          handle,
+          'CLI daemon could not append the Instant tape.',
+        )
+      }
+      const model = yield* readyCount(handle.readModel())
+      return paintedOf(paintShareExecution(name, owner, withSubject, model))
     }
     const device = parseDevice(flags['device'])
     if (device._tag === 'Failed') {

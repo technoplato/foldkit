@@ -36,16 +36,24 @@ export type InstantOptions = Readonly<{
 export const isOwnedInstantFrom = (from: string): boolean =>
   from.includes('-mine-')
 
-/** Public Instant rooms ignore owned Message rows. */
+/** Named-share Instant rooms stamp `-share-` into Processor `from`. */
+export const isNamedShareInstantFrom = (from: string): boolean =>
+  from.includes('-share-')
+
+/** Public Instant rooms ignore owned and named-share Message rows. */
 export const messageBelongsToInstantRoom = (
   from: string,
   processor: string,
 ): boolean => {
+  const shareIndex = processor.indexOf('-share-')
+  if (shareIndex >= 0) {
+    return from.endsWith(processor.slice(shareIndex))
+  }
   const mineIndex = processor.indexOf('-mine-')
   if (mineIndex >= 0) {
     return from.includes(processor.slice(mineIndex))
   }
-  return !isOwnedInstantFrom(from)
+  return !isOwnedInstantFrom(from) && !isNamedShareInstantFrom(from)
 }
 
 /**

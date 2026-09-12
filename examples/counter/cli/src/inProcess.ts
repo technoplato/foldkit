@@ -8,6 +8,7 @@ import {
   runPalette,
   runReplay,
   runSay,
+  runShare,
   runShow,
 } from './host.js'
 import {
@@ -38,6 +39,9 @@ const dispatchCounter = (
   }
   if (parsed._tag === 'Say') {
     return runSay(parsed.utterance)
+  }
+  if (parsed._tag === 'Share') {
+    return runShare(parsed.name, parsed.with, parsed.subject ?? '')
   }
   return runReplay(parsed.tape)
 }

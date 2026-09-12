@@ -11,6 +11,7 @@
  *   counter do increment
  *   counter palette [token]
  *   counter say <utterance>
+ *   counter share --name kitchen --with bob
  *   counter replay --tape tape.json
  */
 import {
@@ -32,6 +33,7 @@ import {
   counterUsage,
   parseCounterArgv,
 } from './parseArgv.js'
+import { grantNamedShareWith } from './shareLedger.js'
 
 const daemonScriptPath = fileURLToPath(new URL('./daemon.js', import.meta.url))
 
@@ -49,13 +51,14 @@ const writeFailed = (message: string, exitCode: number): void => {
 
 const identityOf = (
   parsed: ParsedCounterArgv,
-): Readonly<{ subject?: string; audience?: string }> => {
+): Readonly<{ subject?: string; audience?: string; name?: string }> => {
   if (parsed._tag === 'Help' || parsed._tag === 'Failed') {
     return {}
   }
   return {
     ...(parsed.subject === undefined ? {} : { subject: parsed.subject }),
     ...(parsed.audience === undefined ? {} : { audience: parsed.audience }),
+    ...(parsed.name === undefined ? {} : { name: parsed.name }),
   }
 }
 
@@ -64,6 +67,7 @@ const daemonRequest = (parsed: ParsedCounterArgv) => {
   const identityFlags = {
     ...(identity.subject === undefined ? {} : { as: identity.subject }),
     ...(identity.audience === undefined ? {} : { audience: identity.audience }),
+    ...(identity.name === undefined ? {} : { name: identity.name }),
   }
   if (parsed._tag === 'Show') {
     return {
@@ -93,6 +97,17 @@ const daemonRequest = (parsed: ParsedCounterArgv) => {
       _tag: 'Do' as const,
       token: parsed.utterance,
       flags: { ...identityFlags, via: 'spoken' },
+    }
+  }
+  if (parsed._tag === 'Share') {
+    return {
+      _tag: 'Show' as const,
+      flags: {
+        ...identityFlags,
+        name: parsed.name,
+        with: parsed.with,
+        share: '1',
+      },
     }
   }
   return {
@@ -132,8 +147,14 @@ const runDaemonView = async (parsed: ParsedCounterArgv): Promise<void> => {
 const argv = process.argv.slice(2)
 const parsed = parseCounterArgv(argv)
 const identity = identityOf(parsed)
-applyCounterIdentity(identity.subject, identity.audience)
-if (isCounterCliMemory() || parsed._tag === 'Replay') {
+applyCounterIdentity(identity.subject, identity.audience, identity.name)
+const shareDenied =
+  parsed._tag === 'Share' && identity.subject !== undefined
+    ? grantNamedShareWith(parsed.name, identity.subject, parsed.with)
+    : undefined
+if (shareDenied?._tag === 'Denied') {
+  writeFailed(shareDenied.message, 1)
+} else if (isCounterCliMemory() || parsed._tag === 'Replay') {
   const { runInProcessCounter } = await import('./inProcess.js')
   runInProcessCounter(argv)
 } else {

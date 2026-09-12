@@ -129,6 +129,19 @@ describe('update', () => {
     )
   })
 
+  test('OpenedNavigation occupies named-share /kitchen', () => {
+    Story.story(
+      update,
+      Story.with(Model.make({ count: 0 })),
+      Story.message(OpenedNavigation({ path: 'kitchen' })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.count).toBe(0)
+        expect(model.maybePath).toEqual(Option.some('kitchen'))
+      }),
+    )
+  })
+
   test('OpenedNavigation occupies home /counter', () => {
     Story.story(
       update,

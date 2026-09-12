@@ -34,4 +34,10 @@ describe('Counter Path', () => {
     expect(printDestination('/counter')).toBe('/counter')
     expect(printDestination('counter.increment')).toBe('/counter/increment')
   })
+
+  it('prints named-share occupancy as /kitchen', () => {
+    expect(printDestination('kitchen')).toBe('/kitchen')
+    expect(printDestination('/kitchen')).toBe('/kitchen')
+    expect(printDestination('kitchen')).not.toBe('/counter/kitchen')
+  })
 })
