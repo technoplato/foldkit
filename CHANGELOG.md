@@ -4,6 +4,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 11th, 2026 at 11:58:30 p.m. EDT — `94f47e56efa3` feat: sync counter navigation occupancy on Instant
+
+- **Implementation commit:** `94f47e56efa3e2c50f2b6c42a3362528f0498aa4`
+- **Change:** Put counter device and path occupancy on the Program Model and Instant count snapshot so show --device and --path sync across painters.
+- **Details:**
+  - show --device and --path send OpenedNavigation instead of painting locally.
+  - The Instant count snapshot stores optional device and path so boot does not drop occupancy as asOf.
+  - Increment, decrement, and reset keep occupancy. Home stays /counter.
+- **Files:**
+  - `packages/instant/src/snapshotLog/snapshotLog.ts` — Store optional occupancy on the Instant count row.
+  - `packages/instant/src/snapshotLog/admin.ts` — Transact device and path when present.
+  - `packages/instant/src/snapshotLog/core.ts` — Transact device and path when present.
+  - `examples/counter/core/src/model.ts` — Hold occupiable device and path on the Model.
+  - `examples/counter/core/src/message.ts` — Add OpenedNavigation as a fact, not a palette Action.
+  - `examples/counter/core/src/wire.ts` — Encode occupancy on the count snapshot and Message tag.
+  - `examples/counter/cli/src/host.ts` — Send OpenedNavigation from show --device and --path.
+  - `examples/counter/cli/src/cliError.ts` — Read the Ready product including occupancy.
+- **User context (verbatim):**
+  > Still: nav-state sync (`show --device` / `--path` must actually sync) and a real decrement. No L9 stubs.
+- **SpecStory:** unavailable — Cursor cloud agent session; no SpecStory capture for this desktop-less run.
+
 ## September 11th, 2026 at 10:56:27 p.m. EDT — `ef4265858cd3` feat: add Instant outbox, owned rooms, and counter palette/speech
 
 - **Implementation commit:** `ef4265858cd3fd96d3ce7c935ad3437834b12c33`
