@@ -55,8 +55,8 @@ const showContext = (device: Device | undefined) => ({
 
 /**
  * Occupancy Message for `show --device` / `--path`.
- * Home (`counter`, `/counter`) is none. `counter.increment` occupies
- * `/counter/increment`. Bare show does not send this.
+ * Bare show does not send this. `counter` and `/counter` occupy home.
+ * `counter.increment` occupies `/counter/increment`.
  */
 export const occupancyToOpen = (
   device: Device | undefined,

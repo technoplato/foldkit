@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   Path,
   canonicalShowPath,
+  homeOccupancy,
   pathRouter,
   printDestination,
 } from './path.js'
@@ -16,8 +17,9 @@ describe('Counter Path', () => {
 
   it('canonicalizes CLI --path into occupancy', () => {
     expect(canonicalShowPath(undefined)).toEqual(Option.none())
-    expect(canonicalShowPath('counter')).toEqual(Option.none())
-    expect(canonicalShowPath('/counter')).toEqual(Option.none())
+    expect(canonicalShowPath('')).toEqual(Option.none())
+    expect(canonicalShowPath('counter')).toEqual(Option.some(homeOccupancy))
+    expect(canonicalShowPath('/counter')).toEqual(Option.some(homeOccupancy))
     expect(canonicalShowPath('counter.increment')).toEqual(
       Option.some('counter.increment'),
     )
@@ -29,6 +31,7 @@ describe('Counter Path', () => {
   it('prints occupied destinations', () => {
     expect(printDestination(undefined)).toBe('/counter')
     expect(printDestination('counter')).toBe('/counter')
+    expect(printDestination('/counter')).toBe('/counter')
     expect(printDestination('counter.increment')).toBe('/counter/increment')
   })
 })

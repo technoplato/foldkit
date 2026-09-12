@@ -95,6 +95,22 @@ describe('renderShow', () => {
     expect(output).toContain('[ + ]')
   })
 
+  test('paints occupied home as /counter and keeps decrement', () => {
+    const output = renderShow(
+      Model.make({
+        count: 0,
+        maybePath: Option.some('counter'),
+      }),
+      defaultShowContext,
+    )
+
+    expect(output).toContain('uri      /counter')
+    expect(output).not.toContain('uri      /counter/counter')
+    expect(output).toContain('path     counter')
+    expect(output).toContain('  increment')
+    expect(output).toContain('  decrement')
+  })
+
   test('can filter to one Action path', () => {
     const output = renderShow(Model.make({ count: 0 }), {
       ...defaultShowContext,
