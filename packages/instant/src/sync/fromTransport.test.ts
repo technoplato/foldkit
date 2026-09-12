@@ -16,6 +16,41 @@ import {
 
 const burstSize = 200
 
+describe('fromTransport occupancy', () => {
+  it('keeps device and path through write and read', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const transport = yield* makeMemorySnapshotLogTransport()
+        const engine = fromTransport(transport, 'cli')
+        yield* engine.write({
+          message: InstantLogMessageRecord.make({
+            createdAtMs: 1,
+            from: 'cli',
+            id: 'nav-1',
+            tag: 'OpenedNavigation:{"device":"phone"}',
+          }),
+          snapshot: InstantCountSnapshotRecord.make({
+            asOf: 'cli',
+            at: 1,
+            id: countSnapshotId,
+            value: 0,
+            device: 'phone',
+            path: 'counter.increment',
+          }),
+        })
+        const state = yield* engine.read()
+        expect(state.snapshot).toEqual(
+          expect.objectContaining({
+            device: 'phone',
+            path: 'counter.increment',
+            value: 0,
+          }),
+        )
+      }),
+    )
+  })
+})
+
 describe('fromTransport subscribe', () => {
   it('enqueues each Message once across a 200-write burst, not the triangular replay', async () => {
     await Effect.runPromise(

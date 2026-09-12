@@ -13,14 +13,22 @@ import {
  */
 export const countSnapshotId = 'c0a7c001-0000-4000-8000-000000000001'
 
-/** The durable count snapshot. Startup reads this row. */
+/**
+ * The durable count snapshot. Startup reads this row.
+ *
+ * `device` and `path` are occupancy. Old rows without them decode as
+ * none. Example: `phone` plus `counter.increment` for
+ * `/counter/increment`. Home `/counter` omits both.
+ */
 export const InstantCountSnapshotRecord = S.Struct({
   asOf: S.String,
   at: S.Int,
   id: S.String,
   value: S.Int,
+  device: S.optionalKey(S.String),
+  path: S.optionalKey(S.String),
 })
-/** The durable count snapshot. Startup reads this row. */
+/** A decoded Instant count snapshot, including optional occupancy. */
 export type InstantCountSnapshotRecord = typeof InstantCountSnapshotRecord.Type
 
 /** One user-intent row on the Instant Message log. */
@@ -71,6 +79,8 @@ export const InstantSnapshotLogEntities = {
     asOf: i.string(),
     at: i.number().indexed(),
     value: i.number(),
+    device: i.string().optional(),
+    path: i.string().optional(),
   }),
   message: i.entity({
     createdAtMs: i.number().indexed(),
@@ -149,6 +159,8 @@ const LooseCountRow = S.Struct({
   at: S.Number,
   id: S.String,
   value: S.Number,
+  device: S.optionalKey(S.String),
+  path: S.optionalKey(S.String),
 })
 
 const LooseMessageRow = S.Struct({
@@ -212,6 +224,8 @@ const decodeCountRow = (row: unknown): InstantCountSnapshotRecord => {
     at: record.at,
     id: record.id,
     value: record.value,
+    ...(record.device === undefined ? {} : { device: record.device }),
+    ...(record.path === undefined ? {} : { path: record.path }),
   })
 }
 

@@ -4,8 +4,10 @@ import {
   LastAction,
   type Message,
   type Model,
+  OpenedNavigation,
   actionBySpoken,
   actionByToken,
+  canonicalShowPath,
   counterValid,
   defaultShowContext,
   invalidActionLog,
@@ -50,6 +52,27 @@ const showContext = (device: Device | undefined) => ({
   ...defaultShowContext,
   ...(device === undefined ? {} : { device }),
 })
+
+/**
+ * Occupancy Message for `show --device` / `--path`.
+ * Home (`counter`, `/counter`) is none. `counter.increment` occupies
+ * `/counter/increment`. Bare show does not send this.
+ */
+export const occupancyToOpen = (
+  device: Device | undefined,
+  path: string | undefined,
+): Option.Option<ReturnType<typeof OpenedNavigation>> => {
+  const maybePath = canonicalShowPath(path)
+  if (device === undefined && Option.isNone(maybePath)) {
+    return Option.none()
+  }
+  return Option.some(
+    OpenedNavigation({
+      ...(device === undefined ? {} : { device }),
+      ...(Option.isSome(maybePath) ? { path: maybePath.value } : {}),
+    }),
+  )
+}
 
 /** Paints IDENTITY and ACESS. Optional `--device` wraps the product tree. */
 export const paintShowExecution = (

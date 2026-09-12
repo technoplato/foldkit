@@ -1,12 +1,17 @@
-import { Match as M, Schema as S, SchemaTransformation } from 'effect'
+import { Match as M, Option, Schema as S, SchemaTransformation } from 'effect'
 import { Program } from 'foldkit'
+import { Device } from 'foldkit/renderers/devices'
 
 import { type AppMessage, type AppModel } from './app.js'
-import { Decrement, Increment, Reset } from './message.js'
+import { Decrement, Increment, OpenedNavigation, Reset } from './message.js'
 import { Model } from './model.js'
 
 const AppSnapshot = S.Struct({
-  product: Model,
+  product: S.Struct({
+    count: S.Number,
+    maybeDevice: S.Option(Device),
+    maybePath: S.Option(S.String),
+  }),
   actionMenu: Program.ActionMenuModel,
 })
 
@@ -14,6 +19,7 @@ const AppMessageSchema = S.Union([
   Increment,
   Decrement,
   Reset,
+  OpenedNavigation,
   Program.ActionMenuCommandTriggered,
   Program.ActionMenuDismissed,
   Program.ActionMenuFocusMoved,
@@ -55,26 +61,36 @@ export const activeCountId = (): string => {
   return COUNT_UUID
 }
 
-/** Instant count row. `asOf` and `at` are filled at write time. */
+/**
+ * Instant count row. `asOf` and `at` are filled at write time.
+ * `device` and `path` are occupancy. Old rows without them decode as none.
+ */
 export const CountRow = S.Struct({
   id: S.String,
   value: S.Number,
   asOf: S.String,
   at: S.Number,
+  device: S.optionalKey(Device),
+  path: S.optionalKey(S.String),
 })
 /** Instant count row. `asOf` and `at` are filled at write time. */
 export type CountRow = typeof CountRow.Type
 
 /**
  * Door from an Instant count row to the App Model.
- * Count lives in the snapshot. Menu Open is a Message, so boot is Closed.
+ * Count and navigation live in the snapshot. Menu Open is a Message,
+ * so boot is Closed.
  */
 export const CountProjection = CountRow.pipe(
   S.decodeTo(
     AppSnapshot,
     SchemaTransformation.transform({
       decode: (row): AppModel => ({
-        product: Model.make({ count: row.value }),
+        product: Model.make({
+          count: row.value,
+          maybeDevice: Option.fromNullishOr(row.device),
+          maybePath: Option.fromNullishOr(row.path),
+        }),
         actionMenu: Program.Closed(),
       }),
       encode: (model: AppModel) => ({
@@ -82,6 +98,12 @@ export const CountProjection = CountRow.pipe(
         value: model.product.count,
         asOf: '',
         at: 0,
+        ...(Option.isSome(model.product.maybeDevice)
+          ? { device: model.product.maybeDevice.value }
+          : {}),
+        ...(Option.isSome(model.product.maybePath)
+          ? { path: model.product.maybePath.value }
+          : {}),
       }),
     }),
   ),
@@ -100,6 +122,7 @@ export type MessageRow = typeof MessageRow.Type
 const focusMovedPrefix = 'ActionMenuFocusMoved:'
 const selectionPrefix = 'ActionCommandMenuSelectionMade:'
 const queryPrefix = 'ActionMenuQueryChanged:'
+const openedNavigationPrefix = 'OpenedNavigation:'
 
 const tagFromMessage = (message: AppMessage): string =>
   M.value(message).pipe(
@@ -108,6 +131,11 @@ const tagFromMessage = (message: AppMessage): string =>
       Increment: () => 'Increment',
       Decrement: () => 'Decrement',
       Reset: () => 'Reset',
+      OpenedNavigation: ({ device, path }) =>
+        `${openedNavigationPrefix}${JSON.stringify({
+          ...(device === undefined ? {} : { device }),
+          ...(path === undefined ? {} : { path }),
+        })}`,
       ActionMenuCommandTriggered: () => 'ActionMenuCommandTriggered',
       ActionMenuDismissed: () => 'ActionMenuDismissed',
       ActionMenuFocusMoved: ({ direction }) =>
@@ -127,6 +155,25 @@ const messageFromTag = (tag: string): AppMessage => {
   }
   if (tag === 'Reset') {
     return Reset()
+  }
+  if (tag.startsWith(openedNavigationPrefix)) {
+    const raw = tag.slice(openedNavigationPrefix.length)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return OpenedNavigation({})
+    }
+    const maybePayload = S.decodeUnknownOption(
+      S.Struct({
+        device: S.optionalKey(Device),
+        path: S.optionalKey(S.String),
+      }),
+    )(parsed)
+    if (Option.isNone(maybePayload)) {
+      return OpenedNavigation({})
+    }
+    return OpenedNavigation(maybePayload.value)
   }
   if (tag === 'ActionMenuCommandTriggered') {
     return Program.ActionMenuCommandTriggered()

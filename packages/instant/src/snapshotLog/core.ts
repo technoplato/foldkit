@@ -27,6 +27,12 @@ const transactSnapshotLogWrite = (
       asOf: write.snapshot.asOf,
       at: write.snapshot.at,
       value: write.snapshot.value,
+      ...(write.snapshot.device === undefined
+        ? {}
+        : { device: write.snapshot.device }),
+      ...(write.snapshot.path === undefined
+        ? {}
+        : { path: write.snapshot.path }),
     }),
     messageEntity.update({
       createdAtMs: write.message.createdAtMs,

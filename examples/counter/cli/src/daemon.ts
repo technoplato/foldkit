@@ -32,6 +32,7 @@ import { NodeRuntime } from '@effect/platform-node'
 
 import { CounterCliError, readyCount } from './cliError.js'
 import {
+  occupancyToOpen,
   paintDoExecution,
   paintPaletteExecution,
   paintShowExecution,
@@ -128,12 +129,19 @@ const showHost = (
     if (device._tag === 'Failed') {
       return paintedOf({ stdout: '', stderr: device.error, exitCode: 1 })
     }
-    const model = yield* readyCount(handle.readModel())
-    const painted = paintShowExecution(
-      model,
+    const maybeOpen = occupancyToOpen(
       device._tag === 'None' ? undefined : device.device,
       flags['path'],
     )
+    if (Option.isSome(maybeOpen)) {
+      handle.send(maybeOpen.value)
+      yield* settleAfterSend(
+        handle,
+        'CLI daemon could not append the Instant tape.',
+      )
+    }
+    const model = yield* readyCount(handle.readModel())
+    const painted = paintShowExecution(model, undefined, undefined)
     return paintedOf(painted)
   }).pipe(Effect.mapError(toDaemonError), Effect.withSpan('cli.paint'))
 

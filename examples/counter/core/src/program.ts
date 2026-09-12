@@ -1,4 +1,4 @@
-import { Array } from 'effect'
+import { Array, Option } from 'effect'
 import { type ActionContext } from 'foldkit/message'
 import * as Program from 'foldkit/program'
 import { type UiNode } from 'foldkit/renderers'
@@ -6,7 +6,8 @@ import { wrapDevice } from 'foldkit/renderers/devices'
 
 import { init, restore } from './init.js'
 import { Message, actionByToken, actions, tokenOf } from './message.js'
-import { Model, uri } from './model.js'
+import { Model } from './model.js'
+import { printDestination } from './path.js'
 import { productView } from './product.js'
 import { update } from './update.js'
 
@@ -30,16 +31,25 @@ export const counterValid: Program.ProgramValid<Model> = (
     }
   })
 
-/** Builds the Counter screen tree. Device chrome is optional context. */
+/** Builds the Counter screen tree. Device chrome follows occupancy. */
 export const counterScreen: Program.ProgramScreen<Model> = (
   model,
   context: ActionContext = {},
 ): UiNode => {
   const product = productView(model)
-  if (context.device === undefined) {
+  const device =
+    context.device !== undefined
+      ? context.device
+      : Option.isSome(model.maybeDevice)
+        ? model.maybeDevice.value
+        : undefined
+  if (device === undefined) {
     return product
   }
-  return wrapDevice(context.device, product, { title: uri })
+  const path = Option.isSome(model.maybePath)
+    ? model.maybePath.value
+    : undefined
+  return wrapDevice(device, product, { title: printDestination(path) })
 }
 
 /**
@@ -50,7 +60,7 @@ export const CounterProgram: Program.Program<Model, Message> &
   Readonly<{ actionByToken: typeof actionByToken }> = Object.assign(
   Program.make({
     id: 'counter',
-    version: 2,
+    version: 3,
     Model,
     Message,
     init,

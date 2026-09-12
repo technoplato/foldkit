@@ -1,11 +1,18 @@
+import { Effect, Option } from 'effect'
 import { Processor } from 'foldkit'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import { InstantEngine } from './instantEngine.js'
-import { Increment } from './message.js'
-import { MemoryLive, startLiveCounter } from './startLive.js'
+import { Increment, OpenedNavigation } from './message.js'
+import { Model } from './model.js'
+import {
+  MemoryLive,
+  makeMemorySnapshotLogTransport,
+  startLiveCounter,
+} from './startLive.js'
 import { waitForSyncedHandle } from './startSynced.js'
+import { navigationOfReady } from './synced.js'
 
 describe('startLiveCounter', () => {
   it('reaches Ready on the Memory Instant Layer', async () => {
@@ -13,7 +20,7 @@ describe('startLiveCounter', () => {
     const ready = await waitForSyncedHandle(handle)
     expect(ready).toEqual({
       _tag: 'Ready',
-      product: { count: 0 },
+      product: Model.make({ count: 0 }),
       actionMenu: { _tag: 'Closed' },
     })
     handle.send(Increment())
@@ -35,10 +42,47 @@ describe('startLiveCounter', () => {
     })
     expect(handle.readModel()).toEqual({
       _tag: 'Ready',
-      product: { count: 1 },
+      product: Model.make({ count: 1 }),
       actionMenu: { _tag: 'Closed' },
     })
     handle.stop()
+  })
+
+  it('shares occupancy across two Memory Processors', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    const writer = startLiveCounter(Processor.Host.Cli(), {
+      transport: snapshot,
+    })
+    await waitForSyncedHandle(writer)
+    writer.send(OpenedNavigation({ device: 'phone' }))
+    await new Promise<void>((resolve, reject) => {
+      const finish = (): void => {
+        const model = writer.readModel()
+        if (
+          model._tag === 'Ready' &&
+          Option.isSome(model.product.maybeDevice) &&
+          model.product.maybeDevice.value === 'phone'
+        ) {
+          clearTimeout(timeout)
+          stop()
+          resolve()
+        }
+      }
+      const timeout = setTimeout(() => {
+        stop()
+        reject(new Error('Timed out waiting for phone occupancy.'))
+      }, 2000)
+      const stop = writer.subscribe(finish)
+      finish()
+    })
+    await writer.stop()
+
+    const reader = startLiveCounter(Processor.Host.Tui(), {
+      transport: snapshot,
+    })
+    const ready = await waitForSyncedHandle(reader)
+    expect(navigationOfReady(ready)).toEqual({ device: 'phone' })
+    await reader.stop()
   })
 
   it('forwards instance into Node Instant resolve', () => {

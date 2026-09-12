@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 import { describe, expect, test } from 'vitest'
 
 import { Model } from './model.js'
@@ -73,6 +74,25 @@ describe('renderShow', () => {
     expect(output).toContain('link  offline')
     expect(output).not.toContain('hidden         count is already 0')
     expect(output).not.toContain('laptop')
+  })
+
+  test('paints Model occupancy when show context has no device or path', () => {
+    const output = renderShow(
+      Model.make({
+        count: 0,
+        maybeDevice: Option.some('phone'),
+        maybePath: Option.some('counter.increment'),
+      }),
+      defaultShowContext,
+    )
+
+    expect(output).toContain('uri      /counter/increment')
+    expect(output).toContain('count    0')
+    expect(output).toContain('device   phone')
+    expect(output).toContain('path     counter.increment')
+    expect(output).toContain('  increment')
+    expect(output).not.toContain('  decrement')
+    expect(output).toContain('[ + ]')
   })
 
   test('can filter to one Action path', () => {

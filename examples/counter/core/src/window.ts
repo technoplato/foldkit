@@ -1,7 +1,7 @@
 import { Array, Equal, Match as M, Schema as S } from 'effect'
 
 import { Decrement, Increment, type Message, Reset } from './message.js'
-import { type Model, initialCount, uri } from './model.js'
+import { Model, initialCount, uri } from './model.js'
 import { counterValid } from './program.js'
 import { localCounterSubjectId } from './tapeIdentity.js'
 import { update } from './update.js'
@@ -122,7 +122,7 @@ export const projectCounterWindow = (
 
 /** In-memory Program tape. The process dies with the count. */
 export const memoryCounterTape = (): CounterWindowTape => {
-  let model: Model = { count: initialCount }
+  let model: Model = Model.make({ count: initialCount })
   const listeners = new Set<(next: Model) => void>()
   return {
     readModel: () => model,
@@ -159,7 +159,7 @@ export const startMemoryCounterWindow = (): CounterWindowRuntime =>
 export const startCounterWindowRuntime = (
   deps: CounterWindowDeps,
 ): CounterWindowRuntime => {
-  let model: Model = { count: initialCount }
+  let model: Model = Model.make({ count: initialCount })
   let status:
     | StartingWindow
     | FailedWindow

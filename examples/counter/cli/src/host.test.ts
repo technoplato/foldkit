@@ -5,6 +5,7 @@ import {
   Increment,
   type Message,
   Model,
+  OpenedNavigation,
   Reset,
   SyncedCounter,
   type SyncedCounterHandle,
@@ -64,6 +65,10 @@ describe('Counter CLI host', () => {
   it('wraps the product tree when --device phone is set', async () => {
     const execution = await Effect.runPromise(executeShow('phone', undefined))
 
+    expect(execution.maybeMessage).toEqual(
+      Option.some(OpenedNavigation({ device: 'phone' })),
+    )
+    expect(execution.finalModel.maybeDevice).toEqual(Option.some('phone'))
     expect(execution.stdout).toContain('device   phone')
     expect(execution.stdout).toContain('[ + ]')
     expect(execution.stdout).toContain('[ - ]')
@@ -183,6 +188,52 @@ describe('Counter CLI host', () => {
     expect(shown.finalModel).toEqual(Model.make({ count: 1 }))
     expect(again.finalModel).toEqual(Model.make({ count: 2 }))
     expect(again.link).toBe('delivered')
+  })
+
+  it('persists --device phone on a shared snapshot', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    await Effect.runPromise(executeShow('phone', undefined, { snapshot }))
+    const shown = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }),
+    )
+
+    expect(shown.finalModel.maybeDevice).toEqual(Option.some('phone'))
+    expect(shown.maybeMessage).toEqual(Option.none())
+    expect(shown.stdout).toContain('device   phone')
+    expect(shown.stdout).toContain('count    0')
+  })
+
+  it('persists --path counter.increment on a shared snapshot', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    await Effect.runPromise(
+      executeShow(undefined, 'counter.increment', { snapshot }),
+    )
+    const shown = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }),
+    )
+
+    expect(shown.finalModel.maybePath).toEqual(Option.some('counter.increment'))
+    expect(shown.stdout).toContain('uri      /counter/increment')
+    expect(shown.stdout).toContain('path     counter.increment')
+    expect(shown.stdout).toContain('  increment')
+    expect(shown.stdout).not.toContain('  decrement')
+  })
+
+  it('lets increment keep occupancy on a shared snapshot', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    await Effect.runPromise(executeShow('phone', undefined, { snapshot }))
+    const incremented = await Effect.runPromise(
+      executeDo('increment', { snapshot }),
+    )
+
+    expect(incremented.finalModel).toEqual(
+      Model.make({
+        count: 1,
+        maybeDevice: Option.some('phone'),
+      }),
+    )
+    expect(incremented.stdout).toContain('device   phone')
+    expect(incremented.stdout).toContain('count    1')
   })
 
   it('replays a Program tape through Runtime.replayToFrame', async () => {
