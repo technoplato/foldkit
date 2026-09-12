@@ -55,9 +55,10 @@ export const Reset = md('Reset', {
 /**
  * Occupies Device chrome and an action path.
  *
- * `show --device phone` and `show --path counter.increment` send this so
- * Instant peers share navigation, not only the count. Not a palette
- * Action. Example: phone chrome plus `/counter/increment`.
+ * `show --device phone` and `show --path /counter` send this so Instant
+ * peers share navigation, not only the count. `counter.increment` occupies
+ * `/counter/increment`. Not a palette Action. Example: phone chrome on
+ * `/counter`.
  */
 export const OpenedNavigation = md('OpenedNavigation', {
   what: 'Occupies Device chrome and an action path',
