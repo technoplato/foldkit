@@ -1,7 +1,7 @@
 import { Array, Option, Schema as S } from 'effect'
 
 import { Device, renderChrome } from './chrome.js'
-import { surfaceFor } from './hostSurface.js'
+import { HostId, surfaceFor } from './hostSurface.js'
 import { type Action, actions, tokenOf } from './message.js'
 import { type Model, title } from './model.js'
 import { homeOccupancy, printDestination } from './path.js'
@@ -27,6 +27,7 @@ export const ShowContext = S.Struct({
   focus: Focus,
   path: S.optionalKey(S.String),
   last: S.optionalKey(LastAction),
+  surface: S.optionalKey(HostId),
 })
 /** Adapter input for `show`. */
 export type ShowContext = typeof ShowContext.Type
@@ -193,11 +194,14 @@ const occupiedPath = (
   return undefined
 }
 
+const occupiedSurface = (context: ShowContext): HostId =>
+  context.surface ?? 'cli'
+
 const identityLines = (
   model: Model,
   context: ShowContext,
 ): ReadonlyArray<string> => {
-  const surface = surfaceFor('cli')
+  const surface = surfaceFor(occupiedSurface(context))
   const device = occupiedDevice(model, context)
   const lines = [
     'IDENTITY',
@@ -231,7 +235,9 @@ export const renderShow = (model: Model, context: ShowContext): string => {
     renderAction(action, model, context.focus),
   ).join('\n')
   const device = occupiedDevice(model, context)
+  const surface = occupiedSurface(context)
   const stateLines = ['STATE', identityField('count', model.count.toString())]
+  stateLines.push(identityField('surface', surface))
   if (device !== undefined) {
     stateLines.push(identityField('device', device))
   }
@@ -241,7 +247,7 @@ export const renderShow = (model: Model, context: ShowContext): string => {
   stateLines.push(identityField('focus', context.focus))
 
   return [
-    surfaceFor('cli').title,
+    surfaceFor(surface).title,
     ...identityLines(model, context),
     '',
     ...stateLines,

@@ -1,9 +1,11 @@
 import {
   CounterProgram,
   type Device,
+  type HostId,
   type Message,
   type Model,
   counterScreen,
+  processorHostFor,
   tokenOf,
 } from 'counter-core-example'
 import { Array, Console, Effect, Match as M, Option } from 'effect'
@@ -23,7 +25,12 @@ import {
   resolveHostDo,
   resolveHostSpoken,
 } from './paintHost.js'
-import { type CliTapeOptions, withSession } from './session.js'
+import {
+  type CliTapeOptions,
+  type CounterCliSession,
+  withHostSession,
+  withSession,
+} from './session.js'
 import { grantNamedShareWith } from './shareLedger.js'
 
 export { CounterCliError, readyCount } from './cliError.js'
@@ -48,29 +55,45 @@ export const executeShow = (
   deviceRaw: string | undefined,
   path: string | undefined,
   options: CliTapeOptions = {},
+  surface?: HostId,
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
     const device = yield* decodeDevice(deviceRaw)
-    return yield* withSession(
-      (session, initialModel) =>
-        Effect.gen(function* () {
-          const maybeOpen = occupancyToOpen(device, path)
-          if (Option.isNone(maybeOpen)) {
-            return yield* Effect.sync(() =>
-              paintShowExecution(initialModel, undefined, undefined),
-            ).pipe(Effect.withSpan('cli.paint'))
-          }
-          const ran = yield* session.run(maybeOpen.value)
-          return yield* Effect.sync(() => ({
-            ...paintShowExecution(ran.model, undefined, undefined),
-            initialModel,
-            maybeMessage: Option.some(maybeOpen.value),
-            finalModel: ran.model,
-            link: ran.link,
-          })).pipe(Effect.withSpan('cli.paint'))
-        }),
-      options,
-    )
+    const paintedSurface = surface ?? 'cli'
+    const body = (
+      session: CounterCliSession,
+      initialModel: Model,
+    ): Effect.Effect<CliExecution, CounterCliError> =>
+      Effect.gen(function* () {
+        const maybeOpen = occupancyToOpen(device, path)
+        if (Option.isNone(maybeOpen)) {
+          return yield* Effect.sync(() =>
+            paintShowExecution(
+              initialModel,
+              undefined,
+              undefined,
+              paintedSurface,
+            ),
+          ).pipe(Effect.withSpan('cli.paint'))
+        }
+        const ran = yield* session.run(maybeOpen.value)
+        return yield* Effect.sync(() => ({
+          ...paintShowExecution(
+            ran.model,
+            undefined,
+            undefined,
+            paintedSurface,
+          ),
+          initialModel,
+          maybeMessage: Option.some(maybeOpen.value),
+          finalModel: ran.model,
+          link: ran.link,
+        })).pipe(Effect.withSpan('cli.paint'))
+      })
+    if (surface !== undefined && surface !== 'cli-screen') {
+      return yield* withHostSession(processorHostFor(surface), body, options)
+    }
+    return yield* withSession(body, options)
   })
 
 /** Lists Actions, or sends one token through the Action menu. */
@@ -352,9 +375,10 @@ export const executeReplay = (
 export const runShow = (
   deviceRaw: string | undefined,
   path: string | undefined,
+  surface?: HostId,
 ): Effect.Effect<void, CounterCliError> =>
   Effect.gen(function* () {
-    const execution = yield* executeShow(deviceRaw, path)
+    const execution = yield* executeShow(deviceRaw, path, {}, surface)
     yield* Console.log(execution.stdout).pipe(Effect.withSpan('cli.print'))
   }).pipe(Effect.withSpan('counter.show'))
 

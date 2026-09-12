@@ -1,6 +1,7 @@
 import {
   CounterProgram,
   Device,
+  type HostId,
   LastAction,
   type Message,
   type Model,
@@ -49,9 +50,10 @@ export const parseDevice = (raw: string | undefined): ParsedDevice => {
   return { _tag: 'Ok', device: decoded.value }
 }
 
-const showContext = (device: Device | undefined) => ({
+const showContext = (device: Device | undefined, surface: HostId = 'cli') => ({
   ...defaultShowContext,
   ...(device === undefined ? {} : { device }),
+  ...(surface === 'cli' ? {} : { surface }),
 })
 
 const occupiedShareName = (): string | undefined => {
@@ -122,13 +124,14 @@ export const paintShowExecution = (
   initialModel: Model,
   device: Device | undefined,
   path: string | undefined,
+  surface: HostId = 'cli',
 ): CliExecution => ({
   initialModel,
   maybeMessage: Option.none(),
   finalModel: initialModel,
   link: 'offline',
   stdout: renderShow(initialModel, {
-    ...showContext(device),
+    ...showContext(device, surface),
     ...(path === undefined ? {} : { path }),
   }),
   stderr: '',
