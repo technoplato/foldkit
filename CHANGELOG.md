@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 12th, 2026 at 12:27:08 a.m. EDT — `462d84ef6eb2` test(counter): prove decrement and /counter occupancy argv
+
+- **Implementation commit:** `462d84ef6eb23b95a4181095d6d96f6a41385266`
+- **Change:** Prove do decrement, show --device phone, and show --path /counter as Program occupancy argv.
+- **Details:**
+  - Process tests send the unconstrained L8 argv. Two Memory Processors share home occupancy.
+  - L9 named-share stays unstubbed. Did not overwrite the two L8 yield files.
+- **Files:**
+  - `examples/counter/cli/src/process.integration.test.ts` — Send decrement and /counter across CLI processes.
+  - `examples/counter/core/src/startLive.test.ts` — Share home occupancy across two Processors.
+  - `examples/counter/core/src/program.test.ts` — Occupied home still has decrement.
+  - `examples/counter/core/src/message.ts` — Document /counter occupancy on OpenedNavigation.
+- **User context (verbatim):**
+  > Judge-side L8+ is on shrinkbench PR 3: L2 must send do decrement; unconstrained L8 must send show --device phone and show --path /counter. L9 named-share and L10 live-painters are defined but not stubs.
+- **SpecStory:** unavailable — Cursor cloud agent session; no SpecStory capture for this desktop-less run.
+
 ## September 12th, 2026 at 12:22:23 a.m. EDT — `025fbd72d89d` feat(counter): occupy home from show --path /counter
 
 - **Implementation commit:** `025fbd72d89de6c6e734e0fb3ac49d2ba2800b38`
