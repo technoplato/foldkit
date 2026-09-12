@@ -14,8 +14,15 @@ export type Path = typeof Path.Type
 export const pathRouter = pipe(literal('counter'), Route.mapTo(Path))
 
 /**
- * Canonical CLI `--path` for one Action. `counter.increment` occupies
- * `/counter/increment`. Home (`counter`, `/counter`, empty) is none.
+ * Occupied home token. `show --path /counter` writes `counter` onto the
+ * Instant count row so peers occupy `/counter`. Bare show stays none.
+ */
+export const homeOccupancy = 'counter'
+
+/**
+ * Canonical CLI `--path` occupancy.
+ * Bare show (`undefined` or empty) is none. `counter` and `/counter`
+ * occupy home. `counter.increment` occupies `/counter/increment`.
  */
 export const canonicalShowPath = (
   path: string | undefined,
@@ -24,8 +31,11 @@ export const canonicalShowPath = (
     return Option.none()
   }
   const trimmed = path.trim()
-  if (trimmed === '' || trimmed === 'counter' || trimmed === '/counter') {
+  if (trimmed === '') {
     return Option.none()
+  }
+  if (trimmed === homeOccupancy || trimmed === '/counter') {
+    return Option.some(homeOccupancy)
   }
   if (trimmed.startsWith('counter.')) {
     return Option.some(trimmed)
@@ -44,12 +54,12 @@ export const canonicalShowPath = (
 
 /**
  * Prints the occupiable URI for a show path.
- * None and `counter` print `/counter`. `counter.increment` prints
+ * None and occupied home print `/counter`. `counter.increment` prints
  * `/counter/increment`.
  */
 export const printDestination = (path: string | undefined): string => {
   const maybePath = canonicalShowPath(path)
-  if (Option.isNone(maybePath)) {
+  if (Option.isNone(maybePath) || maybePath.value === homeOccupancy) {
     return pathRouter()
   }
   const token = maybePath.value.startsWith('counter.')

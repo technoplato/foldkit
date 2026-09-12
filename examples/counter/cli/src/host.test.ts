@@ -203,6 +203,37 @@ describe('Counter CLI host', () => {
     expect(shown.stdout).toContain('count    0')
   })
 
+  it('persists decrement on a shared snapshot', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    await Effect.runPromise(executeDo('increment', { snapshot }))
+    await Effect.runPromise(executeDo('increment', { snapshot }))
+    const decremented = await Effect.runPromise(
+      executeDo('decrement', { snapshot }),
+    )
+    const shown = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }),
+    )
+
+    expect(decremented.maybeMessage).toEqual(Option.some(Decrement()))
+    expect(decremented.finalModel.count).toBe(1)
+    expect(shown.finalModel.count).toBe(1)
+    expect(shown.stdout).toContain('count    1')
+  })
+
+  it('persists --path /counter on a shared snapshot', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    await Effect.runPromise(executeShow(undefined, '/counter', { snapshot }))
+    const shown = await Effect.runPromise(
+      executeShow(undefined, undefined, { snapshot }),
+    )
+
+    expect(shown.finalModel.maybePath).toEqual(Option.some('counter'))
+    expect(shown.stdout).toContain('uri      /counter')
+    expect(shown.stdout).not.toContain('uri      /counter/counter')
+    expect(shown.stdout).toContain('path     counter')
+    expect(shown.stdout).toContain('  decrement')
+  })
+
   it('persists --path counter.increment on a shared snapshot', async () => {
     const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
     await Effect.runPromise(

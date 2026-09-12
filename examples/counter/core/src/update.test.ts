@@ -129,6 +129,19 @@ describe('update', () => {
     )
   })
 
+  test('OpenedNavigation occupies home /counter', () => {
+    Story.story(
+      update,
+      Story.with(Model.make({ count: 0 })),
+      Story.message(OpenedNavigation({ path: 'counter' })),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.count).toBe(0)
+        expect(model.maybePath).toEqual(Option.some('counter'))
+      }),
+    )
+  })
+
   test('Increment keeps occupancy', () => {
     Story.story(
       update,

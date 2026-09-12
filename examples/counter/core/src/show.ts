@@ -4,7 +4,7 @@ import { Device, renderChrome } from './chrome.js'
 import { surfaceFor } from './hostSurface.js'
 import { type Action, actions, tokenOf } from './message.js'
 import { type Model, title } from './model.js'
-import { printDestination } from './path.js'
+import { homeOccupancy, printDestination } from './path.js'
 import { counterValid } from './program.js'
 
 /** Focus among valid Actions. TV chrome can stay on increment. */
@@ -95,7 +95,7 @@ const renderAction = (action: Action, model: Model, focus: Focus): string => {
 }
 
 const pathToken = (path: string | undefined): Option.Option<string> => {
-  if (path === undefined || path === 'counter') {
+  if (path === undefined || path === homeOccupancy) {
     return Option.none()
   }
   if (path.startsWith('counter.')) {
