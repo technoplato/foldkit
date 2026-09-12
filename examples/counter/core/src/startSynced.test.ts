@@ -2,6 +2,7 @@ import { Effect } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
+import { Model } from './model.js'
 import {
   describeCounterSyncError,
   memorySyncedEngine,
@@ -24,7 +25,7 @@ describe('startSyncedCounterHandle', () => {
     const ready = await waitForSyncedHandle(handle)
     expect(ready).toEqual({
       _tag: 'Ready',
-      product: { count: 0 },
+      product: Model.make({ count: 0 }),
       actionMenu: { _tag: 'Closed' },
     })
     handle.actions().incrementButtonTapped()
@@ -46,7 +47,7 @@ describe('startSyncedCounterHandle', () => {
     })
     expect(handle.readModel()).toEqual({
       _tag: 'Ready',
-      product: { count: 1 },
+      product: Model.make({ count: 1 }),
       actionMenu: { _tag: 'Closed' },
     })
     handle.stop()
@@ -59,7 +60,7 @@ describe('startSyncedCounterHandle', () => {
       const ready = await waitForSyncedHandle(handle, 10_000)
       expect(ready).toEqual({
         _tag: 'Ready',
-        product: { count: 0 },
+        product: Model.make({ count: 0 }),
         actionMenu: { _tag: 'Closed' },
       })
     } finally {

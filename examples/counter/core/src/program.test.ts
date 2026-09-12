@@ -25,6 +25,19 @@ describe('CounterProgram', () => {
     expect(
       Array.map(buttonsOf(counterScreen(atTwo)), button => button.token),
     ).toEqual(['increment', 'decrement', 'reset'])
+    expect(
+      Array.map(
+        buttonsOf(
+          counterScreen(
+            Model.make({
+              count: 0,
+              maybeDevice: Option.some('phone'),
+            }),
+          ),
+        ),
+        button => button.token,
+      ),
+    ).toEqual(['increment', 'decrement'])
     expect(Option.getOrUndefined(Array.get(counterValid(atZero), 2))).toEqual({
       token: 'reset',
       keys: ['r'],

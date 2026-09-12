@@ -92,6 +92,65 @@ describe('Instant snapshot log', () => {
     }),
   )
 
+  it.effect('keeps occupancy on the count snapshot row', () =>
+    Effect.gen(function* () {
+      const transport = yield* makeMemorySnapshotLogTransport()
+      const message = logMessage(
+        'nav-1',
+        'OpenedNavigation:{"device":"phone"}',
+        'cli',
+        1_000,
+      )
+      const snapshot = InstantCountSnapshotRecord.make({
+        asOf: 'nav-1',
+        at: 1_000,
+        id: countSnapshotId,
+        value: 0,
+        device: 'phone',
+        path: 'counter.increment',
+      })
+
+      yield* writeSnapshotLog(transport, { message, snapshot })
+      const state = yield* transport.read()
+
+      expect(state.snapshot.device).toBe('phone')
+      expect(state.snapshot.path).toBe('counter.increment')
+    }),
+  )
+
+  it('decodes occupancy from Instant count rows', () => {
+    const state = decodeSnapshotLogState({
+      count: [
+        {
+          asOf: 'nav',
+          at: 1,
+          id: countSnapshotId,
+          value: 0,
+          device: 'phone',
+          path: 'counter.increment',
+        },
+      ],
+    })
+    expect(state.snapshot.device).toBe('phone')
+    expect(state.snapshot.path).toBe('counter.increment')
+  })
+
+  it('decodes old count rows without occupancy', () => {
+    const state = decodeSnapshotLogState({
+      count: [
+        {
+          asOf: 'old',
+          at: 1,
+          id: countSnapshotId,
+          value: 3,
+        },
+      ],
+    })
+    expect(state.snapshot.value).toBe(3)
+    expect(state.snapshot.device).toBeUndefined()
+    expect(state.snapshot.path).toBeUndefined()
+  })
+
   it('uses a UUID for the one count snapshot row', () => {
     expect(countSnapshotId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,

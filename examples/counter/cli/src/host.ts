@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 import { CounterCliError } from './cliError.js'
 import {
   type CliExecution,
+  occupancyToOpen,
   paintDoExecution,
   paintPaletteExecution,
   paintShowExecution,
@@ -40,7 +41,7 @@ const decodeDevice = (
   return Effect.succeed(decoded.device)
 }
 
-/** Prints IDENTITY and ACESS. Optional `--device` wraps the product tree. */
+/** Prints IDENTITY and ACESS. `--device` / `--path` occupy the Model. */
 export const executeShow = (
   deviceRaw: string | undefined,
   path: string | undefined,
@@ -49,10 +50,23 @@ export const executeShow = (
   Effect.gen(function* () {
     const device = yield* decodeDevice(deviceRaw)
     return yield* withSession(
-      (_session, initialModel) =>
-        Effect.sync(() => paintShowExecution(initialModel, device, path)).pipe(
-          Effect.withSpan('cli.paint'),
-        ),
+      (session, initialModel) =>
+        Effect.gen(function* () {
+          const maybeOpen = occupancyToOpen(device, path)
+          if (Option.isNone(maybeOpen)) {
+            return yield* Effect.sync(() =>
+              paintShowExecution(initialModel, undefined, undefined),
+            ).pipe(Effect.withSpan('cli.paint'))
+          }
+          const ran = yield* session.run(maybeOpen.value)
+          return yield* Effect.sync(() => ({
+            ...paintShowExecution(ran.model, undefined, undefined),
+            initialModel,
+            maybeMessage: Option.some(maybeOpen.value),
+            finalModel: ran.model,
+            link: ran.link,
+          })).pipe(Effect.withSpan('cli.paint'))
+        }),
       options,
     )
   })

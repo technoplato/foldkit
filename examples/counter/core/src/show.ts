@@ -3,7 +3,8 @@ import { Array, Option, Schema as S } from 'effect'
 import { Device, renderChrome } from './chrome.js'
 import { surfaceFor } from './hostSurface.js'
 import { type Action, actions, tokenOf } from './message.js'
-import { type Model, title, uri } from './model.js'
+import { type Model, title } from './model.js'
+import { printDestination } from './path.js'
 import { counterValid } from './program.js'
 
 /** Focus among valid Actions. TV chrome can stay on increment. */
@@ -166,45 +167,84 @@ export const renderReceipt = (receipt: Receipt): string =>
 export const invalidActionLog = (token: string, model: Model): string =>
   `log  attempted to invoke invalid action ${token}\n     state  count ${model.count}`
 
-const identityLines = (context: ShowContext): ReadonlyArray<string> => {
+const occupiedDevice = (
+  model: Model,
+  context: ShowContext,
+): Device | undefined => {
+  if (context.device !== undefined) {
+    return context.device
+  }
+  if (Option.isSome(model.maybeDevice)) {
+    return model.maybeDevice.value
+  }
+  return undefined
+}
+
+const occupiedPath = (
+  model: Model,
+  context: ShowContext,
+): string | undefined => {
+  if (context.path !== undefined) {
+    return context.path
+  }
+  if (Option.isSome(model.maybePath)) {
+    return model.maybePath.value
+  }
+  return undefined
+}
+
+const identityLines = (
+  model: Model,
+  context: ShowContext,
+): ReadonlyArray<string> => {
   const surface = surfaceFor('cli')
+  const device = occupiedDevice(model, context)
   const lines = [
     'IDENTITY',
     identityField('title', title),
-    identityField('uri', uri),
+    identityField('uri', printDestination(occupiedPath(model, context))),
     `  ${surface.description}`,
     `  ${surface.sourceUrl}`,
   ]
-  if (context.device === undefined) {
+  if (device === undefined) {
     return lines
   }
-  return [...lines, identityField('device', context.device)]
+  return [...lines, identityField('device', device)]
 }
 
 const chromeLines = (
   model: Model,
   context: ShowContext,
 ): ReadonlyArray<string> => {
-  if (context.device === undefined) {
+  const device = occupiedDevice(model, context)
+  if (device === undefined) {
     return []
   }
-  return ['', renderChrome(model, context.device)]
+  return ['', renderChrome(model, device)]
 }
 
-/** Prints IDENTITY, ACESS, and optional Device chrome. `show` is not a Message. */
+/** Prints IDENTITY, ACESS, occupancy, and optional Device chrome. */
 export const renderShow = (model: Model, context: ShowContext): string => {
-  const selected = actionsForPath(context.path)
+  const path = occupiedPath(model, context)
+  const selected = actionsForPath(path)
   const actionBlock = Array.map(selected, action =>
     renderAction(action, model, context.focus),
   ).join('\n')
+  const device = occupiedDevice(model, context)
+  const stateLines = ['STATE', identityField('count', model.count.toString())]
+  if (device !== undefined) {
+    stateLines.push(identityField('device', device))
+  }
+  if (path !== undefined) {
+    stateLines.push(identityField('path', path))
+  }
+  stateLines.push(identityField('focus', context.focus))
 
   return [
     surfaceFor('cli').title,
-    ...identityLines(context),
+    ...identityLines(model, context),
     '',
-    'STATE',
-    identityField('count', model.count.toString()),
-    identityField('focus', context.focus),
+    ...stateLines,
     '',
     'ACTIONS',
     actionBlock,

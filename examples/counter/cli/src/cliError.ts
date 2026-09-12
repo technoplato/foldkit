@@ -1,8 +1,4 @@
-import {
-  Model as CounterModel,
-  type Model,
-  countOfReady,
-} from 'counter-core-example'
+import { type Model, countOfReady, modelOfReady } from 'counter-core-example'
 import { Data, Effect } from 'effect'
 import { Program } from 'foldkit'
 
@@ -13,20 +9,20 @@ export class CounterCliError extends Data.TaggedError('CounterCliError')<{
 
 export { countOfReady }
 
-/** Reads the Ready count or fails with the sync error. */
+/** Reads the Ready product, including occupancy, or fails with the sync error. */
 export const readyCount = (
   model: Program.SyncedModel<unknown, unknown>,
 ): Effect.Effect<Model, CounterCliError> => {
   if (model._tag === 'Ready') {
-    const count = countOfReady(model)
-    if (count === undefined) {
+    const product = modelOfReady(model)
+    if (product === undefined) {
       return Effect.fail(
         new CounterCliError({
           message: 'CLI Ready Model has no count.',
         }),
       )
     }
-    return Effect.succeed(CounterModel.make({ count }))
+    return Effect.succeed(product)
   }
   if (model._tag === 'Failed') {
     return Effect.fail(

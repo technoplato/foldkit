@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { type CounterWindowModel, Increment, uri } from './index.js'
+import { type CounterWindowModel, Increment, Model, uri } from './index.js'
 import {
   FailedCounterSession,
   SignedInCounterSession,
@@ -29,7 +29,7 @@ describe('Counter window runtime', () => {
   it('projects ReadyWindow count for /counter', () => {
     const snapshot = projectCounterWindow(uri, {
       _tag: 'ReadyWindow',
-      model: { count: 4 },
+      model: Model.make({ count: 4 }),
     })
     expect(snapshot).toEqual({ _tag: 'ReadyWindow', count: 4 })
   })

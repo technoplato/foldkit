@@ -1,5 +1,6 @@
 import { Array, Option, Schema as S } from 'effect'
 import { type ActionContext, md } from 'foldkit/message'
+import { Device } from 'foldkit/renderers/devices'
 
 import { type Model } from './model.js'
 
@@ -51,8 +52,25 @@ export const Reset = md('Reset', {
     model.count === 0 ? 'count is already 0' : undefined,
 })
 
+/**
+ * Occupies Device chrome and an action path.
+ *
+ * `show --device phone` and `show --path counter.increment` send this so
+ * Instant peers share navigation, not only the count. Not a palette
+ * Action. Example: phone chrome plus `/counter/increment`.
+ */
+export const OpenedNavigation = md('OpenedNavigation', {
+  what: 'Occupies Device chrome and an action path',
+  why: 'show --device and --path must sync across painters, not paint locally',
+  fields: {
+    device: S.optionalKey(Device),
+    path: S.optionalKey(S.String),
+  },
+  valid: (_model: Model, _context: Context) => true,
+})
+
 /** Every Message accepted by the Counter Program. */
-export const Message = S.Union([Increment, Decrement, Reset])
+export const Message = S.Union([Increment, Decrement, Reset, OpenedNavigation])
 /** A Counter Message value. */
 export type Message = typeof Message.Type
 
