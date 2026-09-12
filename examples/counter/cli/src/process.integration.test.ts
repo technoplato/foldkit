@@ -67,6 +67,18 @@ describe('Counter CLI process', () => {
     expect(incremented.status, incremented.stderr).toBe(0)
     expect(incremented.stdout).toContain('increment sent')
     expect(incremented.stdout).toContain('count    1')
+
+    const decremented = runCli(['do', 'decrement'])
+    expect(decremented.status, decremented.stderr).toBe(0)
+    expect(decremented.stdout).toContain('decrement sent')
+    expect(decremented.stdout).toContain('count    -1')
+
+    const occupied = runCli(['show', '--path', '/counter'])
+    expect(occupied.status, occupied.stderr).toBe(0)
+    expect(occupied.stdout).toContain('uri      /counter')
+    expect(occupied.stdout).not.toContain('uri      /counter/counter')
+    expect(occupied.stdout).toContain('path     counter')
+    expect(occupied.stdout).toContain('  decrement')
   })
 
   it('lists palette tokens and increments through palette and speech', () => {
@@ -123,6 +135,69 @@ describe('Counter CLI process', () => {
     })
     expect(shown.status, shown.stderr).toBe(0)
     expect(shown.stdout).toContain('count    1')
+    await Effect.runPromise(
+      stopCliDaemon(
+        cliDaemonSocketPath({
+          programId: FoldkitCounterV01.id,
+          isolationKey: tapePath,
+        }),
+      ),
+    )
+    rmSync(directory, { force: true, recursive: true })
+  }, 30_000)
+
+  it('persists decrement and --path /counter across processes on a file Instant tape', async () => {
+    const cacheRoot = join(homedir(), '.cache')
+    mkdirSync(cacheRoot, { recursive: true })
+    const directory = mkdtempSync(join(cacheRoot, 'foldkit-counter-cli-'))
+    const tapePath = join(directory, 'tape.json')
+    const env = { ...process.env, COUNTER_TAPE_PATH: tapePath }
+
+    const incremented = spawnSync(
+      process.execPath,
+      [cliEntryPath, 'do', 'increment'],
+      { encoding: 'utf8', env, timeout: 25_000 },
+    )
+    expect(incremented.status, incremented.stderr).toBe(0)
+    expect(incremented.stdout).toContain('count    1')
+
+    const decremented = spawnSync(
+      process.execPath,
+      [cliEntryPath, 'do', 'decrement'],
+      { encoding: 'utf8', env, timeout: 25_000 },
+    )
+    expect(decremented.status, decremented.stderr).toBe(0)
+    expect(decremented.stdout).toContain('decrement sent')
+    expect(decremented.stdout).toContain('count    0')
+
+    const phone = spawnSync(
+      process.execPath,
+      [cliEntryPath, 'show', '--device', 'phone'],
+      { encoding: 'utf8', env, timeout: 25_000 },
+    )
+    expect(phone.status, phone.stderr).toBe(0)
+    expect(phone.stdout).toContain('device   phone')
+
+    const occupied = spawnSync(
+      process.execPath,
+      [cliEntryPath, 'show', '--path', '/counter'],
+      { encoding: 'utf8', env, timeout: 25_000 },
+    )
+    expect(occupied.status, occupied.stderr).toBe(0)
+    expect(occupied.stdout).toContain('path     counter')
+    expect(occupied.stdout).toContain('device   phone')
+
+    const shown = spawnSync(process.execPath, [cliEntryPath, 'show'], {
+      encoding: 'utf8',
+      env,
+      timeout: 25_000,
+    })
+    expect(shown.status, shown.stderr).toBe(0)
+    expect(shown.stdout).toContain('count    0')
+    expect(shown.stdout).toContain('device   phone')
+    expect(shown.stdout).toContain('path     counter')
+    expect(shown.stdout).toContain('uri      /counter')
+    expect(shown.stdout).not.toContain('uri      /counter/counter')
     await Effect.runPromise(
       stopCliDaemon(
         cliDaemonSocketPath({

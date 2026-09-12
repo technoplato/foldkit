@@ -32,6 +32,7 @@ describe('CounterProgram', () => {
             Model.make({
               count: 0,
               maybeDevice: Option.some('phone'),
+              maybePath: Option.some('counter'),
             }),
           ),
         ),
