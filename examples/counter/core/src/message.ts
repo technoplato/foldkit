@@ -13,7 +13,7 @@ export const Increment = md('Increment', {
   why: 'Triggered when the user indicates a desire to increment the count',
   keys: ['+', '='],
   tokens: ['increment'],
-  spoken: ['increment'],
+  spoken: ['increment', 'go up'],
   command: 'increment',
   event: 'incremented',
   mutate: 'count = count + 1',
@@ -27,7 +27,7 @@ export const Decrement = md('Decrement', {
   why: 'Triggered when the user indicates a desire to decrement the count',
   keys: ['-'],
   tokens: ['decrement'],
-  spoken: ['decrement'],
+  spoken: ['decrement', 'go down'],
   command: 'decrement',
   event: 'decremented',
   mutate: 'count = count - 1',
@@ -41,7 +41,7 @@ export const Reset = md('Reset', {
   why: 'Triggered when the user indicates a desire to reset the count',
   keys: ['r'],
   tokens: ['reset'],
-  spoken: ['reset'],
+  spoken: ['reset', 'start over'],
   command: 'reset',
   event: 'reset',
   mutate: 'count = 0',
@@ -66,6 +66,20 @@ export type Action = (typeof actions)[number]
 export const actionByToken = (token: string): Action | undefined => {
   const maybeAction = Array.findFirst(actions, action =>
     Array.contains(action.tokens ?? [], token),
+  )
+  if (Option.isSome(maybeAction)) {
+    return maybeAction.value
+  }
+  return undefined
+}
+
+const spokenOf = (action: Action): ReadonlyArray<string> => action.spoken ?? []
+
+/** Finds a constructor by a spoken phrase. */
+export const actionBySpoken = (utterance: string): Action | undefined => {
+  const phrase = utterance.trim().toLowerCase()
+  const maybeAction = Array.findFirst(actions, action =>
+    Array.contains(spokenOf(action), phrase),
   )
   if (Option.isSome(maybeAction)) {
     return maybeAction.value

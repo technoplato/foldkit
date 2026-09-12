@@ -1,11 +1,13 @@
 import {
   Array,
+  Duration,
   Effect,
   Layer,
   Option,
   Order,
   Result,
   Schema as S,
+  Schedule,
   Scope,
   pipe,
 } from 'effect'
@@ -224,6 +226,8 @@ export const start = <
     let lastApplied: Option.Option<LogRowOrder> = Option.none()
     /** Per-actor monotonic write sequence stamped on every Message row. */
     let nextSeq = 0
+    const outbox: Array<SyncWrite> = []
+    const outboxFlushMs = 250
     const [initialChildModel] = program.of.init()
     let bootBase: Readonly<{
       model: unknown
@@ -358,6 +362,7 @@ export const start = <
         }
         const written = yield* engine.write(write).pipe(Effect.result)
         if (Result.isFailure(written)) {
+          outbox.push(write)
           lastWrite = Option.some({ link: 'queued' })
           runtime.send(
             asMessage<Message>(
@@ -375,6 +380,23 @@ export const start = <
           return
         }
         lastWrite = Option.some(written.success)
+      })
+
+    const flushOutbox = (): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        if (Array.isArrayEmpty(outbox)) {
+          return
+        }
+        const pending = outbox.splice(0, outbox.length)
+        for (const write of pending) {
+          const written = yield* engine.write(write).pipe(Effect.result)
+          if (Result.isFailure(written)) {
+            outbox.unshift(write)
+            lastWrite = Option.some({ link: 'queued' })
+            return
+          }
+          lastWrite = Option.some(written.success)
+        }
       })
 
     const applyBoot = yield* engine.read().pipe(Effect.result)
@@ -495,6 +517,10 @@ export const start = <
     }
 
     yield* engine.subscribe(onEvent)
+    yield* flushOutbox().pipe(
+      Effect.repeat(Schedule.spaced(Duration.millis(outboxFlushMs))),
+      Effect.forkScoped,
+    )
 
     return {
       ...runtime,

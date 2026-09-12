@@ -115,13 +115,14 @@ const closeAdminSubscription = (subscription: unknown): void => {
 export const makeAdminSnapshotLogTransport = (
   appId: string,
   adminToken: string,
+  countId?: string,
 ): SnapshotLogTransport => {
   const admin = init({
     adminToken,
     appId,
     schema: InstantSnapshotLogSchema,
   })
-  const decode = createSnapshotLogStateDecoder()
+  const decode = createSnapshotLogStateDecoder(countId)
 
   const read = () =>
     Effect.tryPromise({

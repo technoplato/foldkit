@@ -187,6 +187,41 @@ describe('Runtime.start Memory', () => {
     )
   })
 
+  it('retries a failed Instant write onto a shared store', async () => {
+    const expectEventually = (
+      read: () => unknown,
+      expected: unknown,
+    ): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        for (let attempt = 0; attempt < 200; attempt += 1) {
+          if (JSON.stringify(read()) === JSON.stringify(expected)) {
+            break
+          }
+          yield* Effect.sleep('5 millis')
+        }
+        expect(read()).toEqual(expected)
+      })
+    await runScoped(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = makeMemoryStore()
+          const writer = Memory({ processor: Host.Cli(), store })
+          const reader = Memory({ processor: Host.Tui(), store })
+          const runtime = yield* start({ program: Synced, sync: writer })
+          const peer = yield* start({ program: Synced, sync: reader })
+          writer.failNextWrite('Instant is partitioned.')
+          yield* runtime.run(Increment())
+          expect(runtime.readModel()).toEqual({ _tag: 'Ready', count: 1 })
+          expect(peer.readModel()).toEqual({ _tag: 'Ready', count: 0 })
+          yield* expectEventually(() => peer.readModel(), {
+            _tag: 'Ready',
+            count: 1,
+          })
+        }),
+      ),
+    )
+  })
+
   it('converges to one number after an offline gap with a concurrent reset', async () => {
     const expectEventually = (
       read: () => unknown,

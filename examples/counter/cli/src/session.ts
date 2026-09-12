@@ -1,4 +1,5 @@
 import {
+  type AppMessage,
   Message,
   Model,
   NodeLive,
@@ -31,7 +32,7 @@ export type CliTapeOptions = Readonly<{
 /** One view of the CLI Processor. Memory stays in-process. Instant uses the daemon. */
 export type CounterCliSession = Readonly<{
   read: () => Effect.Effect<Model, CounterCliError>
-  run: (message: Message) => Effect.Effect<
+  run: (message: AppMessage) => Effect.Effect<
     Readonly<{
       previous: Model
       model: Model

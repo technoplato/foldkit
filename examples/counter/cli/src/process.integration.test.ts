@@ -69,6 +69,31 @@ describe('Counter CLI process', () => {
     expect(incremented.stdout).toContain('count    1')
   })
 
+  it('lists palette tokens and increments through palette and speech', () => {
+    const listed = runCli(['palette'])
+    expect(listed.status, listed.stderr).toBe(0)
+    expect(listed.stdout).toContain('PALETTE')
+    expect(listed.stdout).toContain('increment')
+    expect(listed.stdout).toContain('decrement')
+    expect(listed.stdout).toContain('reset')
+
+    const paletted = runCli(['palette', 'increment'])
+    expect(paletted.status, paletted.stderr).toBe(0)
+    expect(paletted.stdout).toContain('increment sent')
+    expect(paletted.stdout).toContain('count    1')
+
+    const spoken = runCli(['say', 'go', 'up'])
+    expect(spoken.status, spoken.stderr).toBe(0)
+    expect(spoken.stdout).toContain('increment sent')
+    expect(spoken.stdout).toContain('count    1')
+
+    const reset = runCli(['say', 'start', 'over'])
+    expect(reset.status, reset.stderr).toBe(0)
+    expect(reset.stdout).toContain(
+      'log  attempted to invoke invalid action reset',
+    )
+  })
+
   it('starts each process at count 0', () => {
     runCli(['do', 'increment'])
     const shown = runCli(['show'])

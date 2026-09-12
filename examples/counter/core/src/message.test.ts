@@ -5,6 +5,7 @@ import {
   Increment,
   Message,
   Reset,
+  actionBySpoken,
   actionByToken,
   actions,
 } from './index.js'
@@ -17,7 +18,7 @@ describe('actions', () => {
     expect(Increment.doc.what).toBe('Increments the count by one')
     expect(Increment.keys).toEqual(['+', '='])
     expect(Increment.tokens).toEqual(['increment'])
-    expect(Increment.spoken).toEqual(['increment'])
+    expect(Increment.spoken).toEqual(['increment', 'go up'])
     expect(Increment.command).toBe('increment')
     expect(Increment.event).toBe('incremented')
     expect(Increment.mutate).toBe('count = count + 1')
@@ -50,5 +51,14 @@ describe('actions', () => {
     expect(actionByToken('decrement')).toBe(Decrement)
     expect(actionByToken('reset')).toBe(Reset)
     expect(actionByToken('ClickedIncrement')).toBeUndefined()
+  })
+
+  test('spoken phrases resolve the same constructors as tokens', () => {
+    expect(actionBySpoken('go up')).toBe(Increment)
+    expect(actionBySpoken('GO UP')).toBe(Increment)
+    expect(actionBySpoken('go down')).toBe(Decrement)
+    expect(actionBySpoken('start over')).toBe(Reset)
+    expect(actionBySpoken('increment')).toBe(Increment)
+    expect(actionBySpoken('please go up')).toBeUndefined()
   })
 })

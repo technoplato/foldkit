@@ -4,9 +4,10 @@ import {
   type Message,
   type Model,
   counterScreen,
+  tokenOf,
 } from 'counter-core-example'
 import { Array, Console, Effect, Match as M, Option } from 'effect'
-import { Runtime } from 'foldkit'
+import { Program, Runtime } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 import { readFileSync } from 'node:fs'
 
@@ -14,9 +15,11 @@ import { CounterCliError } from './cliError.js'
 import {
   type CliExecution,
   paintDoExecution,
+  paintPaletteExecution,
   paintShowExecution,
   parseDevice,
   resolveHostDo,
+  resolveHostSpoken,
 } from './paintHost.js'
 import { type CliTapeOptions, withSession } from './session.js'
 
@@ -50,6 +53,90 @@ export const executeShow = (
         Effect.sync(() => paintShowExecution(initialModel, device, path)).pipe(
           Effect.withSpan('cli.paint'),
         ),
+      options,
+    )
+  })
+
+/** Lists Actions, or sends one token through the Action menu. */
+export const executePalette = (
+  token: string | undefined,
+  options: CliTapeOptions = {},
+): Effect.Effect<CliExecution, CounterCliError> =>
+  Effect.gen(function* () {
+    return yield* withSession(
+      (session, initialModel) =>
+        Effect.gen(function* () {
+          if (token === undefined) {
+            return yield* Effect.sync(() =>
+              paintPaletteExecution(initialModel),
+            ).pipe(Effect.withSpan('cli.paint'))
+          }
+          const resolved = resolveHostDo(token, initialModel)
+          if (resolved._tag === 'Unknown') {
+            return yield* Effect.fail(
+              new CounterCliError({
+                message: resolved.message,
+              }),
+            )
+          }
+          if (resolved._tag === 'Invalid') {
+            return yield* Effect.sync(() => resolved.execution).pipe(
+              Effect.withSpan('cli.paint'),
+            )
+          }
+          yield* session.run(Program.ActionMenuCommandTriggered())
+          const ran = yield* session.run(
+            Program.ActionCommandMenuSelectionMade({ token }),
+          )
+          return yield* Effect.sync(() =>
+            paintDoExecution(
+              initialModel,
+              resolved.action,
+              token,
+              ran.model,
+              ran.link,
+              'palette',
+            ),
+          ).pipe(Effect.withSpan('cli.paint'))
+        }),
+      options,
+    )
+  })
+
+/** Sends one spoken phrase, then auto-shows. */
+export const executeSay = (
+  utterance: string,
+  options: CliTapeOptions = {},
+): Effect.Effect<CliExecution, CounterCliError> =>
+  Effect.gen(function* () {
+    return yield* withSession(
+      (session, initialModel) =>
+        Effect.gen(function* () {
+          const resolved = resolveHostSpoken(utterance, initialModel)
+          if (resolved._tag === 'Unknown') {
+            return yield* Effect.fail(
+              new CounterCliError({
+                message: resolved.message,
+              }),
+            )
+          }
+          if (resolved._tag === 'Invalid') {
+            return yield* Effect.sync(() => resolved.execution).pipe(
+              Effect.withSpan('cli.paint'),
+            )
+          }
+          const ran = yield* session.run(resolved.action())
+          return yield* Effect.sync(() =>
+            paintDoExecution(
+              initialModel,
+              resolved.action,
+              tokenOf(resolved.action),
+              ran.model,
+              ran.link,
+              'spoken',
+            ),
+          ).pipe(Effect.withSpan('cli.paint'))
+        }),
       options,
     )
   })
@@ -227,6 +314,24 @@ export const runDo = (token: string): Effect.Effect<void, CounterCliError> =>
     const execution = yield* executeDo(token)
     yield* Console.log(execution.stdout).pipe(Effect.withSpan('cli.print'))
   }).pipe(Effect.withSpan('counter.do'))
+
+/** Runs `palette` and prints the catalog or a receipt. */
+export const runPalette = (
+  token: string | undefined,
+): Effect.Effect<void, CounterCliError> =>
+  Effect.gen(function* () {
+    const execution = yield* executePalette(token)
+    yield* Console.log(execution.stdout).pipe(Effect.withSpan('cli.print'))
+  }).pipe(Effect.withSpan('counter.palette'))
+
+/** Runs `say` and prints the receipt plus auto-show. */
+export const runSay = (
+  utterance: string,
+): Effect.Effect<void, CounterCliError> =>
+  Effect.gen(function* () {
+    const execution = yield* executeSay(utterance)
+    yield* Console.log(execution.stdout).pipe(Effect.withSpan('cli.print'))
+  }).pipe(Effect.withSpan('counter.say'))
 
 /** Runs `replay` and prints each tape frame. */
 export const runReplay = (

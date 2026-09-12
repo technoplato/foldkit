@@ -17,7 +17,7 @@ export const countSnapshotId = 'c0a7c001-0000-4000-8000-000000000001'
 export const InstantCountSnapshotRecord = S.Struct({
   asOf: S.String,
   at: S.Int,
-  id: S.Literal(countSnapshotId),
+  id: S.String,
   value: S.Int,
 })
 /** The durable count snapshot. Startup reads this row. */
@@ -210,7 +210,7 @@ const decodeCountRow = (row: unknown): InstantCountSnapshotRecord => {
   return InstantCountSnapshotRecord.make({
     asOf: record.asOf,
     at: record.at,
-    id: countSnapshotId,
+    id: record.id,
     value: record.value,
   })
 }
@@ -281,6 +281,7 @@ export type SnapshotLogQueryData = Readonly<{
 export const decodeSnapshotLogState = (
   data: SnapshotLogQueryData,
   cache?: Map<string, InstantLogMessageRecord>,
+  countId: string = countSnapshotId,
 ): SnapshotLogState => {
   const countRows = data.count ?? []
   const messageRows = data.message ?? []
@@ -289,7 +290,7 @@ export const decodeSnapshotLogState = (
     if (Option.isNone(decoded)) {
       return false
     }
-    return decoded.value.id === countSnapshotId
+    return decoded.value.id === countId
   })
   const snapshot = (() => {
     if (Option.isSome(maybeCount)) {
@@ -312,11 +313,11 @@ export const decodeSnapshotLogState = (
  * One decoder per subscribeQuery. A burst must not Schema-decode the
  * whole log on every push.
  */
-export const createSnapshotLogStateDecoder = (): ((
-  data: SnapshotLogQueryData,
-) => SnapshotLogState) => {
+export const createSnapshotLogStateDecoder = (
+  countId: string = countSnapshotId,
+): ((data: SnapshotLogQueryData) => SnapshotLogState) => {
   const cache = new Map<string, InstantLogMessageRecord>()
-  return data => decodeSnapshotLogState(data, cache)
+  return data => decodeSnapshotLogState(data, cache, countId)
 }
 
 /** Empty snapshot and no Messages. */
@@ -342,6 +343,7 @@ export type CommitSnapshotLogOptions = Readonly<{
   processorId: string
   tag: string
   transport: SnapshotLogTransport
+  countId?: string
 }>
 
 /**
@@ -366,7 +368,7 @@ export const commitSnapshotLog = (
     const snapshot = InstantCountSnapshotRecord.make({
       asOf: id,
       at: createdAtMs,
-      id: countSnapshotId,
+      id: options.countId ?? countSnapshotId,
       value: nextValue,
     })
     const outcome = yield* writeSnapshotLog(options.transport, {

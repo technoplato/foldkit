@@ -46,8 +46,11 @@ describe('startLiveCounter', () => {
       new URL('./startLive.ts', import.meta.url),
       'utf8',
     )
-    expect(source).toContain('instance: options.instance')
+    expect(source).toContain(
+      "options?.instance ?? process.env['COUNTER_INSTANT_ROOM']",
+    )
     expect(source).toContain('resolveInstantSyncEngine')
+    expect(source).toContain('countId: activeCountId()')
   })
 
   it('names InstantEngine as a Context.Service', () => {

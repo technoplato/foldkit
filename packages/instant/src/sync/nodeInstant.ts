@@ -50,7 +50,7 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
     return missingAdminToken(processor)
   }
   return fromTransport(
-    makeAdminSnapshotLogTransport(options.app.id, adminToken),
+    makeAdminSnapshotLogTransport(options.app.id, adminToken, options.countId),
     processor,
   )
 }
