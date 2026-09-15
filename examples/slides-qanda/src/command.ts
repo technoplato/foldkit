@@ -7,6 +7,7 @@ import {
   AnswerLog,
   AnswersIndex,
   Deck,
+  ExploreScope,
   SlideFilter,
   SlideId,
   decodeDeck,
@@ -19,6 +20,7 @@ import {
   FailedFetchAnswer,
   FailedFetchAnswers,
   FailedFetchDeck,
+  FailedFetchFile,
   FailedSaveAnswer,
   FailedSaveDeck,
   HeardWatch,
@@ -26,6 +28,7 @@ import {
   SucceededFetchAnswer,
   SucceededFetchAnswers,
   SucceededFetchDeck,
+  SucceededFetchFile,
   SucceededSaveAnswer,
   SucceededSaveDeck,
 } from './message'
@@ -108,13 +111,44 @@ export const SaveDeck = Command.define(
   FailedSaveDeck,
 )(({ deck }) => Effect.provide(saveDeckEffect(deck), Http.layer))
 
-const saveAnswerEffect = (slideId: SlideId, text: string) =>
+const saveAnswerBody = (
+  text: string,
+  maybeExploreScope: Option.Option<ExploreScope>,
+  asNote: boolean,
+): string => {
+  if (Option.isSome(maybeExploreScope)) {
+    if (asNote) {
+      return JSON.stringify({
+        verbatim: text,
+        scope: maybeExploreScope.value,
+        asNote: true,
+      })
+    }
+    return JSON.stringify({
+      verbatim: text,
+      scope: maybeExploreScope.value,
+    })
+  }
+  if (asNote) {
+    return JSON.stringify({ verbatim: text, asNote: true })
+  }
+  return JSON.stringify({ verbatim: text })
+}
+
+const saveAnswerEffect = (
+  slideId: SlideId,
+  text: string,
+  maybeExploreScope: Option.Option<ExploreScope>,
+  asNote: boolean,
+) =>
   Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient
     const response = yield* client.execute(
       HttpClientRequest.post(`/answers/${slideId}`).pipe(
-        HttpClientRequest.setHeader('content-type', 'text/plain'),
-        HttpClientRequest.bodyText(text),
+        HttpClientRequest.setHeader('content-type', 'application/json'),
+        HttpClientRequest.bodyText(
+          saveAnswerBody(text, maybeExploreScope, asNote),
+        ),
       ),
     )
     if (response.status !== 200) {
@@ -131,12 +165,49 @@ const saveAnswerEffect = (slideId: SlideId, text: string) =>
 
 export const SaveAnswer = Command.define(
   'SaveAnswer',
-  { slideId: SlideId, text: S.String },
+  {
+    slideId: SlideId,
+    text: S.String,
+    maybeExploreScope: S.Option(ExploreScope),
+    asNote: S.Boolean,
+  },
   SucceededSaveAnswer,
   FailedSaveAnswer,
-)(({ slideId, text }) =>
-  Effect.provide(saveAnswerEffect(slideId, text), Http.layer),
+)(({ slideId, text, maybeExploreScope, asNote }) =>
+  Effect.provide(
+    saveAnswerEffect(slideId, text, maybeExploreScope, asNote),
+    Http.layer,
+  ),
 )
+
+const fetchFileEffect = (file: string) =>
+  Effect.gen(function* () {
+    const client = yield* HttpClient.HttpClient
+    const response = yield* client.execute(
+      HttpClientRequest.get(`/${file}`),
+    )
+    if (response.status !== 200) {
+      return FailedFetchFile({
+        file,
+        error: `GET /${file} returned HTTP ${response.status}.`,
+      })
+    }
+    const text = yield* response.text
+    return SucceededFetchFile({ file, text })
+  }).pipe(
+    Effect.catch(() =>
+      Effect.succeed(
+        FailedFetchFile({ file, error: `Could not read /${file}` }),
+      ),
+    ),
+  )
+
+export const FetchFile = Command.define(
+  'FetchFile',
+  { file: S.String },
+  SucceededFetchFile,
+  FailedFetchFile,
+)(({ file }) => Effect.provide(fetchFileEffect(file), Http.layer))
 
 const fetchAnswerEffect = (slideId: SlideId) =>
   Effect.gen(function* () {

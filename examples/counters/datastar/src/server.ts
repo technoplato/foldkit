@@ -1,8 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import http from 'node:http'
-import path from 'node:path'
-
 import {
   CounterFactClient,
   type Message,
@@ -11,15 +6,19 @@ import {
   StaticCounterFactClient,
 } from 'counters-core-example'
 import { Effect, Scope } from 'effect'
-import * as InteractionGraph from 'foldkit/interaction-graph'
 import { Runtime } from 'foldkit'
+import * as InteractionGraph from 'foldkit/interaction-graph'
 import { onUpdate } from 'foldkit/program'
+import { existsSync, readFileSync } from 'node:fs'
+import http from 'node:http'
+import { createRequire } from 'node:module'
+import path from 'node:path'
 
 import {
+  type SurfaceIdentity,
   patchEvent,
   resolveToken,
   screenFragment,
-  type SurfaceIdentity,
 } from './render.js'
 import { gitSourceUrl } from './surfaceLabel.js'
 
@@ -38,8 +37,7 @@ const identity: SurfaceIdentity = {
   sourceUrl: gitSourceUrl(),
 }
 
-const occurrenceId =
-  InteractionGraph.InteractionOccurrenceId.make('datastar-1')
+const occurrenceId = InteractionGraph.InteractionOccurrenceId.make('datastar-1')
 
 let send: ((message: Message) => void) | undefined = undefined
 let currentModel: Model | undefined = undefined
@@ -103,7 +101,10 @@ li{margin:.3rem 0}
 </body>
 </html>`
 
-const handleRequest = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+const handleRequest = (
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): void => {
   const url = req.url ?? '/'
   if (url === '/datastar.js') {
     if (bundleFile === undefined || !existsSync(bundleFile)) {
@@ -154,13 +155,11 @@ void Effect.runPromise(
   Effect.gen(function* () {
     // Decorator adoption: observe every transition server-side without
     // touching the Program's update.
-    const decorated = onUpdate<
-      Model,
-      Message,
-      CounterFactClient
-    >(({ message }) => {
-      console.info(`[datastar] ${message._tag}`)
-    })(MultipleCountersProgram)
+    const decorated = onUpdate<Model, Message, CounterFactClient>(
+      ({ message }) => {
+        console.info(`[datastar] ${message._tag}`)
+      },
+    )(MultipleCountersProgram)
 
     const runtime = yield* Runtime.makeProgramRuntime({
       program: decorated,

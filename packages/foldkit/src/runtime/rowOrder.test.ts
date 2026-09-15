@@ -17,7 +17,9 @@ const orderOf = (row: unknown): LogRowOrder =>
 
 describe('rowOrderOf', () => {
   it('reads actor and seq stamps when present', () => {
-    expect(orderOf(row({ createdAtMs: 5, id: 'a', from: 'cli', seq: 3 }))).toEqual({
+    expect(
+      orderOf(row({ createdAtMs: 5, id: 'a', from: 'cli', seq: 3 })),
+    ).toEqual({
       createdAtMs: 5,
       id: 'a',
       from: 'cli',

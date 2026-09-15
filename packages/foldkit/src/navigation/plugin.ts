@@ -155,51 +155,51 @@ export const reactNavigationPlugin = <Destination>(config: {
     Array.flatMap(
       webCallsFor(instruction, print),
       (call): ReadonlyArray<NativeCall> =>
-      M.value(call).pipe(
-        M.withReturnType<ReadonlyArray<NativeCall>>(),
-        M.tagsExhaustive({
-          PushPath: ({ path }) =>
-            Option.match(config.parsePath(path), {
-              onNone: () => [],
-              onSome: parsed => [
-                {
-                  _tag: 'NamedPush',
-                  route: parsed.route,
-                  params: parsed.params,
-                },
-              ],
-            }),
-          PresentPath: ({ path, style }) =>
-            Option.match(config.parsePath(path), {
-              onNone: () => [],
-              onSome: parsed => [
-                {
-                  _tag: 'NamedPresent',
-                  route: parsed.route,
-                  params: parsed.params,
-                  presentation:
-                    style._tag === 'Push' ? 'card' : presentStyleOf(style),
-                },
-              ],
-            }),
-          ReplacePath: ({ path }) =>
-            Option.match(config.parsePath(path), {
-              onNone: () => [],
-              onSome: parsed => [
-                { _tag: 'Back' },
-                {
-                  _tag: 'NamedPush',
-                  route: parsed.route,
-                  params: parsed.params,
-                },
-              ],
-            }),
-          Back: () => [{ _tag: 'Back' }],
-          Dismiss: () => [{ _tag: 'Dismiss' }],
-          NamedPush: call => [call],
-          NamedPresent: call => [call],
-        }),
-      ),
+        M.value(call).pipe(
+          M.withReturnType<ReadonlyArray<NativeCall>>(),
+          M.tagsExhaustive({
+            PushPath: ({ path }) =>
+              Option.match(config.parsePath(path), {
+                onNone: () => [],
+                onSome: parsed => [
+                  {
+                    _tag: 'NamedPush',
+                    route: parsed.route,
+                    params: parsed.params,
+                  },
+                ],
+              }),
+            PresentPath: ({ path, style }) =>
+              Option.match(config.parsePath(path), {
+                onNone: () => [],
+                onSome: parsed => [
+                  {
+                    _tag: 'NamedPresent',
+                    route: parsed.route,
+                    params: parsed.params,
+                    presentation:
+                      style._tag === 'Push' ? 'card' : presentStyleOf(style),
+                  },
+                ],
+              }),
+            ReplacePath: ({ path }) =>
+              Option.match(config.parsePath(path), {
+                onNone: () => [],
+                onSome: parsed => [
+                  { _tag: 'Back' },
+                  {
+                    _tag: 'NamedPush',
+                    route: parsed.route,
+                    params: parsed.params,
+                  },
+                ],
+              }),
+            Back: () => [{ _tag: 'Back' }],
+            Dismiss: () => [{ _tag: 'Dismiss' }],
+            NamedPush: call => [call],
+            NamedPresent: call => [call],
+          }),
+        ),
     ),
 })
 

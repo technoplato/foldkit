@@ -38,10 +38,9 @@ export const surfaceLines = (
   surface: string,
   carrierPath: string,
   sourceUrl: string = gitSourceUrl(),
-): ReadonlyArray<string> =>
-  [
-    sourceUrl === ''
-      ? `Surface: ${surface}`
-      : `Surface: ${surface} · Source: ${sourceUrl}`,
-    `Carrier: ${carrierPath}`,
-  ]
+): ReadonlyArray<string> => [
+  sourceUrl === ''
+    ? `Surface: ${surface}`
+    : `Surface: ${surface} · Source: ${sourceUrl}`,
+  `Carrier: ${carrierPath}`,
+]

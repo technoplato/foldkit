@@ -1,18 +1,19 @@
 import {
+  navigationTargetToPath,
+  pathToNavigationTarget,
+} from 'counters-core-example'
+import { type JSX, useEffect } from 'react'
+import { createRoot } from 'react-dom/client'
+
+import {
+  Outlet,
+  RouterProvider,
   createBrowserHistory,
   createRootRoute,
   createRoute,
   createRouter,
-  Outlet,
-  RouterProvider,
   useRouterState,
 } from '@tanstack/react-router'
-import {
-  navigationTargetToPath,
-  pathToNavigationTarget,
-} from 'counters-core-example'
-import { useEffect, type JSX } from 'react'
-import { createRoot } from 'react-dom/client'
 
 import { App } from './App.js'
 import { DemoLabel } from './demoLabel.js'

@@ -29,7 +29,12 @@ export const DemoLabel = ({
       {sourceUrl === '' ? null : (
         <>
           {' · '}
-          <a className="underline" href={sourceUrl} rel="noreferrer" target="_blank">
+          <a
+            className="underline"
+            href={sourceUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
             source
           </a>
         </>

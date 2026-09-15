@@ -1,11 +1,7 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import {
-  type HistoryPort,
-  makeUriSync,
-  sameStack,
-} from './runtimeSeam.js'
+import { type HistoryPort, makeUriSync, sameStack } from './runtimeSeam.js'
 import {
   type NavigationStack,
   presented,
@@ -53,7 +49,10 @@ const navigation = {
   },
   stackOf: (model: unknown): NavigationStack<Destination> =>
     (model as AppModel).stack,
-  withStack: (model: unknown, stack: NavigationStack<Destination>): unknown => ({
+  withStack: (
+    model: unknown,
+    stack: NavigationStack<Destination>,
+  ): unknown => ({
     ...(model as AppModel),
     stack,
   }),

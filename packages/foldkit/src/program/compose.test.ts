@@ -2,7 +2,7 @@ import { Effect, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { m } from '../message/public.js'
-import { compose, forEach, ForEachReservedFieldError } from './compose.js'
+import { ForEachReservedFieldError, compose, forEach } from './compose.js'
 import { make } from './program.js'
 
 const ClickedIncrement = m('ClickedIncrement')
@@ -161,9 +161,11 @@ describe('Program.compose.forEach fields', () => {
 
   it('composes field schemas beside nextId and rows', () => {
     const SortedList = makeSortedList()
-    const fields = (SortedList.Model as unknown as {
-      readonly fields: Record<string, unknown>
-    }).fields
+    const fields = (
+      SortedList.Model as unknown as {
+        readonly fields: Record<string, unknown>
+      }
+    ).fields
     expect(Object.keys(fields)).toEqual(['sortOrder', 'nextId', 'rows'])
   })
 
@@ -194,7 +196,9 @@ describe('Program.compose.forEach fields', () => {
     })
     const [descended, commands] = SortedList.update(model, decoded)
     expect(descended.sortOrder).toEqual(ClickedSortDescending())
-    expect(commands).toEqual([{ name: 'SortedRows', effect: expect.anything() }])
+    expect(commands).toEqual([
+      { name: 'SortedRows', effect: expect.anything() },
+    ])
 
     const [ascended] = SortedList.update(descended, ClickedSortAscending())
     expect(ascended.sortOrder).toEqual(ClickedSortAscending())

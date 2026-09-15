@@ -20,7 +20,13 @@ const headKey = raw => {
     if (newest === null || typeof newest !== 'object') {
       return raw
     }
-    return `${String(newest.at)}\n${String(newest.verbatim)}`
+    const notes = Array.isArray(newest.notes) ? newest.notes : []
+    const newestNote = notes[0]
+    const noteKey =
+      newestNote !== null && typeof newestNote === 'object'
+        ? `${String(newestNote.at)}\n${String(newestNote.verbatim)}`
+        : ''
+    return `${String(newest.at)}\n${String(newest.verbatim)}\n${notes.length}\n${noteKey}`
   } catch {
     return raw
   }

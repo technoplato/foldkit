@@ -1,6 +1,5 @@
-import { execSync } from 'node:child_process'
-
 import { countersDemoSession } from 'counters-instant-example/vite'
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 
 import { hostedIdentity } from '@foldkit/instant/hosted-identity/vite'

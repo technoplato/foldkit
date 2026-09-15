@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 15th, 2026 at 1:33:15 p.m. EDT — `3046454bd26a` feat: save slides-qanda, counters hosts, and personal-cfo work
+
+- **Implementation commit:** `3046454bd26afe6e8d779098dcde984f32516c2e`
+- **Change:** Save slides-qanda, counters hosts, personal-cfo, and DEATH notes.
+- **Details:**
+  - Keep compose-forEach sibling fields, counters surface labels, slides-qanda persist/explore, the personal-cfo example, DEATH interview notes, and the Instant sync exploration.
+- **Files:**
+  - `packages/foldkit/src/program/decorate.ts` — Compose sibling Model fields beside forEach rows.
+  - `examples/slides-qanda/src/main.ts` — Persist answers and paint the explore path.
+  - `examples/personal-cfo/README.md` — Add the personal-cfo example.
+  - `DEATH/qanda.md` — Keep the DEATH interview questions.
+  - `internal/architectural-benchmark/instant-sync-counter-exploration.md` — Record the Instant sync counter audit.
+- **User context (verbatim):**
+  > find all of the latest benchmark and foldkit code/workspaces, get everything committed and pushed to remote.
+- **SpecStory:** unavailable — Grok Build session; no SpecStory URI was captured.
+
 ## September 12th, 2026 at 1:36:19 a.m. EDT — `562a278c7206` feat(counter): live-poke tweet painters on named-share
 
 - **Implementation commit:** `562a278c72068b5d0de5169ded5ee1ab802dff94`
