@@ -3,6 +3,7 @@ import {
   type Device,
   type Message,
   type Model,
+  SharedNamedCounter,
   counterScreen,
   tokenOf,
 } from 'counter-core-example'
@@ -17,6 +18,7 @@ import {
   occupancyToOpen,
   paintDoExecution,
   paintPaletteExecution,
+  paintShareExecution,
   paintShowExecution,
   parseDevice,
   resolveHostDo,
@@ -46,13 +48,14 @@ export const executeShow = (
   deviceRaw: string | undefined,
   path: string | undefined,
   options: CliTapeOptions = {},
+  shareName?: string,
 ): Effect.Effect<CliExecution, CounterCliError> =>
   Effect.gen(function* () {
     const device = yield* decodeDevice(deviceRaw)
     return yield* withSession(
       (session, initialModel) =>
         Effect.gen(function* () {
-          const maybeOpen = occupancyToOpen(device, path)
+          const maybeOpen = occupancyToOpen(device, path, shareName)
           if (Option.isNone(maybeOpen)) {
             return yield* Effect.sync(() =>
               paintShowExecution(initialModel, undefined, undefined),
@@ -316,9 +319,10 @@ export const executeReplay = (
 export const runShow = (
   deviceRaw: string | undefined,
   path: string | undefined,
+  shareName?: string,
 ): Effect.Effect<void, CounterCliError> =>
   Effect.gen(function* () {
-    const execution = yield* executeShow(deviceRaw, path)
+    const execution = yield* executeShow(deviceRaw, path, {}, shareName)
     yield* Console.log(execution.stdout).pipe(Effect.withSpan('cli.print'))
   }).pipe(Effect.withSpan('counter.show'))
 
@@ -328,6 +332,46 @@ export const runDo = (token: string): Effect.Effect<void, CounterCliError> =>
     const execution = yield* executeDo(token)
     yield* Console.log(execution.stdout).pipe(Effect.withSpan('cli.print'))
   }).pipe(Effect.withSpan('counter.do'))
+
+/** Grants a named counter others occupy by URI, then auto-shows. */
+export const executeShare = (
+  name: string,
+  owner: string,
+  grantedTo: string,
+  options: CliTapeOptions = {},
+): Effect.Effect<CliExecution, CounterCliError> =>
+  Effect.gen(function* () {
+    return yield* withSession(
+      (session, initialModel) =>
+        Effect.gen(function* () {
+          const ran = yield* session.run(
+            SharedNamedCounter({ name, owner, grantedTo }),
+          )
+          return yield* Effect.sync(() =>
+            paintShareExecution(
+              initialModel,
+              name,
+              owner,
+              grantedTo,
+              ran.model,
+              ran.link,
+            ),
+          ).pipe(Effect.withSpan('cli.paint'))
+        }),
+      options,
+    )
+  }).pipe(Effect.withSpan('counter.share'))
+
+/** Runs `share` and prints the receipt plus auto-show. */
+export const runShare = (
+  name: string,
+  owner: string,
+  grantedTo: string,
+): Effect.Effect<void, CounterCliError> =>
+  Effect.gen(function* () {
+    const execution = yield* executeShare(name, owner, grantedTo)
+    yield* Console.log(execution.stdout).pipe(Effect.withSpan('cli.print'))
+  }).pipe(Effect.withSpan('counter.share'))
 
 /** Runs `palette` and prints the catalog or a receipt. */
 export const runPalette = (

@@ -60,7 +60,7 @@ export const CounterProgram: Program.Program<Model, Message> &
   Readonly<{ actionByToken: typeof actionByToken }> = Object.assign(
   Program.make({
     id: 'counter',
-    version: 3,
+    version: 4,
     Model,
     Message,
     init,

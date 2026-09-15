@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url'
 
 import {
   applyCounterIdentity,
+  applyCounterShare,
   counterCliIsolationKey,
   counterCliProgramId,
   isCounterCliMemory,
@@ -49,13 +50,22 @@ const writeFailed = (message: string, exitCode: number): void => {
 
 const identityOf = (
   parsed: ParsedCounterArgv,
-): Readonly<{ subject?: string; audience?: string }> => {
+): Readonly<{
+  subject?: string
+  audience?: string
+  name?: string
+  grantedTo?: string
+}> => {
   if (parsed._tag === 'Help' || parsed._tag === 'Failed') {
     return {}
   }
   return {
     ...(parsed.subject === undefined ? {} : { subject: parsed.subject }),
     ...(parsed.audience === undefined ? {} : { audience: parsed.audience }),
+    ...('name' in parsed && parsed.name !== undefined ? { name: parsed.name } : {}),
+    ...('grantedTo' in parsed && parsed.grantedTo !== undefined
+      ? { grantedTo: parsed.grantedTo }
+      : {}),
   }
 }
 
@@ -64,6 +74,14 @@ const daemonRequest = (parsed: ParsedCounterArgv) => {
   const identityFlags = {
     ...(identity.subject === undefined ? {} : { as: identity.subject }),
     ...(identity.audience === undefined ? {} : { audience: identity.audience }),
+    ...(identity.name === undefined ? {} : { name: identity.name }),
+    ...(identity.grantedTo === undefined ? {} : { with: identity.grantedTo }),
+  }
+  if (parsed._tag === 'Share') {
+    return {
+      _tag: 'Show' as const,
+      flags: { ...identityFlags, share: '1' },
+    }
   }
   if (parsed._tag === 'Show') {
     return {
@@ -133,6 +151,11 @@ const argv = process.argv.slice(2)
 const parsed = parseCounterArgv(argv)
 const identity = identityOf(parsed)
 applyCounterIdentity(identity.subject, identity.audience)
+applyCounterShare(
+  identity.name,
+  identity.grantedTo,
+  parsed._tag === 'Share',
+)
 if (isCounterCliMemory() || parsed._tag === 'Replay') {
   const { runInProcessCounter } = await import('./inProcess.js')
   runInProcessCounter(argv)

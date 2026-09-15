@@ -8,6 +8,7 @@ import {
   runPalette,
   runReplay,
   runSay,
+  runShare,
   runShow,
 } from './host.js'
 import {
@@ -28,7 +29,10 @@ const dispatchCounter = (
     return Effect.fail(new CounterCliError({ message: parsed.message }))
   }
   if (parsed._tag === 'Show') {
-    return runShow(parsed.device, parsed.path)
+    return runShow(parsed.device, parsed.path, parsed.name)
+  }
+  if (parsed._tag === 'Share') {
+    return runShare(parsed.name, parsed.subject, parsed.grantedTo)
   }
   if (parsed._tag === 'Do') {
     return runDo(parsed.token)

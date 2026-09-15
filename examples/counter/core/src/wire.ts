@@ -3,14 +3,20 @@ import { Program } from 'foldkit'
 import { Device } from 'foldkit/renderers/devices'
 
 import { type AppMessage, type AppModel } from './app.js'
-import { Decrement, Increment, OpenedNavigation, Reset } from './message.js'
+import { Decrement, Increment, OpenedNavigation, Reset, SharedNamedCounter } from './message.js'
 import { Model } from './model.js'
+import { COUNT_UUID, namedCountId, ownedCountId, resolveCountIdFromRows } from './share.js'
+
+export { COUNT_UUID, namedCountId, ownedCountId, resolveCountIdFromRows }
 
 const AppSnapshot = S.Struct({
   product: S.Struct({
     count: S.Number,
     maybeDevice: S.Option(Device),
     maybePath: S.Option(S.String),
+    maybeShareName: S.Option(S.String),
+    maybeOwner: S.Option(S.String),
+    maybeGranted: S.Option(S.String),
   }),
   actionMenu: Program.ActionMenuModel,
 })
@@ -20,6 +26,7 @@ const AppMessageSchema = S.Union([
   Decrement,
   Reset,
   OpenedNavigation,
+  SharedNamedCounter,
   Program.ActionMenuCommandTriggered,
   Program.ActionMenuDismissed,
   Program.ActionMenuFocusMoved,
@@ -28,42 +35,16 @@ const AppMessageSchema = S.Union([
 ])
 
 /**
- * Instant entity id for the one count snapshot row.
- * Instant requires a UUID. This constant is that one row.
+ * Instant count row for this Processor. Public uses {@link COUNT_UUID}.
+ * Named shares resolve through {@link resolveCountIdFromRows}.
  */
-export const COUNT_UUID = 'c0a7c001-0000-4000-8000-000000000001'
-
-const sha1Hex = (value: string): string => {
-  let hash = 0x811c9dc5
-  for (const character of value) {
-    hash ^= character.charCodeAt(0)
-    hash = Math.imul(hash, 0x01000193)
-  }
-  const hex = (hash >>> 0).toString(16).padStart(8, '0')
-  return `${hex}${hex}${hex}`
-}
-
-/** Instant count row for one owned subject. Deterministic UUID. */
-export const ownedCountId = (subject: string): string =>
-  `c0a7c001-0000-4000-8000-${sha1Hex(subject).slice(0, 12)}`
-
-/** Instant count row for this Processor. Public uses {@link COUNT_UUID}. */
-export const activeCountId = (): string => {
-  const explicit = process.env['COUNTER_COUNT_ID']
-  if (explicit !== undefined && explicit !== '') {
-    return explicit
-  }
-  const audience = process.env['COUNTER_AUDIENCE']
-  const subject = process.env['COUNTER_SUBJECT']
-  if (audience === 'mine' && subject !== undefined && subject !== '') {
-    return ownedCountId(subject)
-  }
-  return COUNT_UUID
-}
+export const activeCountId = (): string => resolveCountIdFromRows([])
 
 /**
  * Instant count row. `asOf` and `at` are filled at write time.
- * `device` and `path` are occupancy. Old rows without them decode as none.
+ * `device` and `path` are occupancy. `name`, `owner`, and `granted`
+ * are named-share ACL. Old rows without them decode as none.
+ * Example: kitchen is `/counter/kitchen` with owner alice and granted bob.
  */
 export const CountRow = S.Struct({
   id: S.String,
@@ -72,6 +53,9 @@ export const CountRow = S.Struct({
   at: S.Number,
   device: S.optionalKey(Device),
   path: S.optionalKey(S.String),
+  name: S.optionalKey(S.String),
+  owner: S.optionalKey(S.String),
+  granted: S.optionalKey(S.String),
 })
 /** Instant count row. `asOf` and `at` are filled at write time. */
 export type CountRow = typeof CountRow.Type
@@ -90,6 +74,9 @@ export const CountProjection = CountRow.pipe(
           count: row.value,
           maybeDevice: Option.fromNullishOr(row.device),
           maybePath: Option.fromNullishOr(row.path),
+          maybeShareName: Option.fromNullishOr(row.name),
+          maybeOwner: Option.fromNullishOr(row.owner),
+          maybeGranted: Option.fromNullishOr(row.granted),
         }),
         actionMenu: Program.Closed(),
       }),
@@ -103,6 +90,15 @@ export const CountProjection = CountRow.pipe(
           : {}),
         ...(Option.isSome(model.product.maybePath)
           ? { path: model.product.maybePath.value }
+          : {}),
+        ...(Option.isSome(model.product.maybeShareName)
+          ? { name: model.product.maybeShareName.value }
+          : {}),
+        ...(Option.isSome(model.product.maybeOwner)
+          ? { owner: model.product.maybeOwner.value }
+          : {}),
+        ...(Option.isSome(model.product.maybeGranted)
+          ? { granted: model.product.maybeGranted.value }
           : {}),
       }),
     }),
@@ -123,6 +119,7 @@ const focusMovedPrefix = 'ActionMenuFocusMoved:'
 const selectionPrefix = 'ActionCommandMenuSelectionMade:'
 const queryPrefix = 'ActionMenuQueryChanged:'
 const openedNavigationPrefix = 'OpenedNavigation:'
+const sharedNamedCounterPrefix = 'SharedNamedCounter:'
 
 const tagFromMessage = (message: AppMessage): string =>
   M.value(message).pipe(
@@ -135,6 +132,12 @@ const tagFromMessage = (message: AppMessage): string =>
         `${openedNavigationPrefix}${JSON.stringify({
           ...(device === undefined ? {} : { device }),
           ...(path === undefined ? {} : { path }),
+        })}`,
+      SharedNamedCounter: ({ name, owner, grantedTo }) =>
+        `${sharedNamedCounterPrefix}${JSON.stringify({
+          name,
+          owner,
+          grantedTo,
         })}`,
       ActionMenuCommandTriggered: () => 'ActionMenuCommandTriggered',
       ActionMenuDismissed: () => 'ActionMenuDismissed',
@@ -174,6 +177,26 @@ const messageFromTag = (tag: string): AppMessage => {
       return OpenedNavigation({})
     }
     return OpenedNavigation(maybePayload.value)
+  }
+  if (tag.startsWith(sharedNamedCounterPrefix)) {
+    const raw = tag.slice(sharedNamedCounterPrefix.length)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return SharedNamedCounter({ name: '', owner: '', grantedTo: '' })
+    }
+    const maybePayload = S.decodeUnknownOption(
+      S.Struct({
+        name: S.String,
+        owner: S.String,
+        grantedTo: S.String,
+      }),
+    )(parsed)
+    if (Option.isNone(maybePayload)) {
+      return SharedNamedCounter({ name: '', owner: '', grantedTo: '' })
+    }
+    return SharedNamedCounter(maybePayload.value)
   }
   if (tag === 'ActionMenuCommandTriggered') {
     return Program.ActionMenuCommandTriggered()

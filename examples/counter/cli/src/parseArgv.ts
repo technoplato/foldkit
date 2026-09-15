@@ -1,8 +1,12 @@
 /** Parsed `counter` argv. This file must not import Effect or foldkit. */
-export type CounterIdentityFlags = Readonly<{
+export type CounterSessionFlags = Readonly<{
   readonly subject?: string
   readonly audience?: string
+  readonly name?: string
+  readonly grantedTo?: string
 }>
+
+export type CounterIdentityFlags = CounterSessionFlags
 
 export type ParsedCounterArgv =
   | Readonly<{
@@ -11,6 +15,8 @@ export type ParsedCounterArgv =
       readonly path?: string
       readonly subject?: string
       readonly audience?: string
+      readonly name?: string
+      readonly grantedTo?: string
     }>
   | Readonly<{
       readonly _tag: 'Do'
@@ -18,23 +24,38 @@ export type ParsedCounterArgv =
       readonly via?: 'token' | 'palette' | 'spoken'
       readonly subject?: string
       readonly audience?: string
+      readonly name?: string
+      readonly grantedTo?: string
     }>
   | Readonly<{
       readonly _tag: 'Palette'
       readonly token?: string
       readonly subject?: string
       readonly audience?: string
+      readonly name?: string
+      readonly grantedTo?: string
     }>
   | Readonly<{
       readonly _tag: 'Say'
       readonly utterance: string
       readonly subject?: string
       readonly audience?: string
+      readonly name?: string
+      readonly grantedTo?: string
     }>
   | Readonly<{
       readonly _tag: 'Replay'
       readonly tape: string
       readonly subject?: string
+      readonly audience?: string
+      readonly name?: string
+      readonly grantedTo?: string
+    }>
+  | Readonly<{
+      readonly _tag: 'Share'
+      readonly name: string
+      readonly grantedTo: string
+      readonly subject: string
       readonly audience?: string
     }>
   | Readonly<{
@@ -107,11 +128,15 @@ const isFlagName = (item: string): boolean =>
   item === '--as' ||
   item === '--audience' ||
   item === '--tape' ||
+  item === '--name' ||
+  item === '--with' ||
   item.startsWith('--device=') ||
   item.startsWith('--path=') ||
   item.startsWith('--as=') ||
   item.startsWith('--audience=') ||
-  item.startsWith('--tape=')
+  item.startsWith('--tape=') ||
+  item.startsWith('--name=') ||
+  item.startsWith('--with=')
 
 const positionals = (argv: ReadonlyArray<string>): ReadonlyArray<string> => {
   const rest: Array<string> = []
@@ -126,7 +151,9 @@ const positionals = (argv: ReadonlyArray<string>): ReadonlyArray<string> => {
       item === '--path' ||
       item === '--as' ||
       item === '--audience' ||
-      item === '--tape'
+      item === '--tape' ||
+      item === '--name' ||
+      item === '--with'
     ) {
       index += 2
       continue
@@ -141,9 +168,31 @@ const positionals = (argv: ReadonlyArray<string>): ReadonlyArray<string> => {
   return rest
 }
 
-const identityFrom = (
+const reservedShareNames = ['increment', 'decrement', 'reset', 'counter']
+
+const shareNameFromPathFlag = (path: string | undefined): string | undefined => {
+  if (path === undefined) {
+    return undefined
+  }
+  const trimmed = path.trim()
+  if (trimmed === '' || trimmed === '/counter' || trimmed === 'counter') {
+    return undefined
+  }
+  let token = trimmed
+  if (trimmed.startsWith('/counter/')) {
+    token = trimmed.slice('/counter/'.length)
+  } else if (trimmed.startsWith('counter.')) {
+    token = trimmed.slice('counter.'.length)
+  }
+  if (token === '' || reservedShareNames.includes(token) || token.includes('/')) {
+    return undefined
+  }
+  return token
+}
+
+const sessionFrom = (
   argv: ReadonlyArray<string>,
-): CounterIdentityFlags | Readonly<{ error: string }> => {
+): CounterSessionFlags | Readonly<{ error: string }> => {
   const subject = flagValue(argv, 'as')
   if (subject !== undefined && typeof subject !== 'string') {
     return { error: subject.error }
@@ -155,18 +204,31 @@ const identityFrom = (
   if (audience !== undefined && audience !== 'public' && audience !== 'mine') {
     return { error: 'Unknown audience. Use public or mine.' }
   }
+  const name = flagValue(argv, 'name')
+  if (name !== undefined && typeof name !== 'string') {
+    return { error: name.error }
+  }
+  const grantedTo = flagValue(argv, 'with')
+  if (grantedTo !== undefined && typeof grantedTo !== 'string') {
+    return { error: grantedTo.error }
+  }
+  if (name !== undefined && reservedShareNames.includes(name)) {
+    return { error: 'share --name must not be an Action token.' }
+  }
   return {
     ...(subject === undefined ? {} : { subject }),
     ...(audience === undefined ? {} : { audience }),
+    ...(name === undefined ? {} : { name }),
+    ...(grantedTo === undefined ? {} : { grantedTo }),
   }
 }
 
-const withIdentity = <T extends object>(
+const withSession = <T extends object>(
   parsed: T,
-  identity: CounterIdentityFlags,
-): T & CounterIdentityFlags => ({
+  session: CounterSessionFlags,
+): T & CounterSessionFlags => ({
   ...parsed,
-  ...identity,
+  ...session,
 })
 
 const isHelp = (argv: ReadonlyArray<string>): boolean => {
@@ -180,11 +242,12 @@ export const counterUsage = [
   '',
   'USAGE',
   '',
-  '$ counter show [--device watch|phone|tablet|computer|tv] [--path PATH] [--as SUBJECT] [--audience public|mine]',
+  '$ counter show [--device watch|phone|tablet|computer|tv] [--path PATH] [--as SUBJECT] [--audience public|mine] [--name NAME]',
   '$ counter do <token>',
   '$ counter palette [token]',
   '$ counter say <utterance>',
   '$ counter replay --tape <path>',
+  '$ counter --as SUBJECT share --name NAME --with SUBJECT',
 ].join('\n')
 
 /** Parses `counter` show / do / palette / say / replay argv. */
@@ -194,9 +257,9 @@ export const parseCounterArgv = (
   if (argv.length === 0 || isHelp(argv)) {
     return { _tag: 'Help' }
   }
-  const identity = identityFrom(argv)
-  if ('error' in identity) {
-    return { _tag: 'Failed', message: identity.error, exitCode: 1 }
+  const session = sessionFrom(argv)
+  if ('error' in session) {
+    return { _tag: 'Failed', message: session.error, exitCode: 1 }
   }
   const words = positionals(argv)
   const command = at(words, 0)
@@ -217,14 +280,58 @@ export const parseCounterArgv = (
     if (path !== undefined && typeof path !== 'string') {
       return { _tag: 'Failed', message: path.error, exitCode: 1 }
     }
-    return withIdentity(
+    const pathName =
+      typeof path === 'string' ? shareNameFromPathFlag(path) : undefined
+    return withSession(
       {
         _tag: 'Show' as const,
         ...(device === undefined ? {} : { device }),
         ...(path === undefined ? {} : { path }),
       },
-      identity,
+      {
+        ...session,
+        ...(session.name === undefined && pathName !== undefined
+          ? { name: pathName }
+          : {}),
+      },
     )
+  }
+  if (command === 'share') {
+    if (session.subject === undefined || session.subject === '') {
+      return {
+        _tag: 'Failed',
+        message: 'share needs --as <subject>.',
+        exitCode: 1,
+      }
+    }
+    if (session.name === undefined || session.name === '') {
+      return {
+        _tag: 'Failed',
+        message: 'share needs --name <name>.',
+        exitCode: 1,
+      }
+    }
+    if (session.grantedTo === undefined || session.grantedTo === '') {
+      return {
+        _tag: 'Failed',
+        message: 'share needs --with <subject>.',
+        exitCode: 1,
+      }
+    }
+    if (at(words, 1) !== undefined) {
+      return {
+        _tag: 'Failed',
+        message: 'share does not take a token.',
+        exitCode: 1,
+      }
+    }
+    return {
+      _tag: 'Share',
+      name: session.name,
+      grantedTo: session.grantedTo,
+      subject: session.subject,
+      ...(session.audience === undefined ? {} : { audience: session.audience }),
+    }
   }
   if (command === 'do') {
     const token = at(words, 1)
@@ -242,7 +349,7 @@ export const parseCounterArgv = (
         exitCode: 1,
       }
     }
-    return withIdentity({ _tag: 'Do' as const, token }, identity)
+    return withSession({ _tag: 'Do' as const, token }, session)
   }
   if (command === 'palette') {
     const token = at(words, 1)
@@ -253,12 +360,12 @@ export const parseCounterArgv = (
         exitCode: 1,
       }
     }
-    return withIdentity(
+    return withSession(
       {
         _tag: 'Palette' as const,
         ...(token === undefined ? {} : { token }),
       },
-      identity,
+      session,
     )
   }
   if (command === 'say') {
@@ -270,7 +377,7 @@ export const parseCounterArgv = (
         exitCode: 1,
       }
     }
-    return withIdentity({ _tag: 'Say' as const, utterance }, identity)
+    return withSession({ _tag: 'Say' as const, utterance }, session)
   }
   if (command === 'replay') {
     const tape = flagValue(argv, 'tape')
@@ -284,11 +391,11 @@ export const parseCounterArgv = (
     if (typeof tape !== 'string') {
       return { _tag: 'Failed', message: tape.error, exitCode: 1 }
     }
-    return withIdentity({ _tag: 'Replay' as const, tape }, identity)
+    return withSession({ _tag: 'Replay' as const, tape }, session)
   }
   return {
     _tag: 'Failed',
-    message: `Unknown command "${command ?? ''}". Use show, do, palette, say, or replay.`,
+    message: `Unknown command "${command ?? ''}". Use show, do, palette, say, replay, or share.`,
     exitCode: 1,
   }
 }

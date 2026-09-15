@@ -23,6 +23,8 @@ export const homeOccupancy = 'counter'
  * Canonical CLI `--path` occupancy.
  * Bare show (`undefined` or empty) is none. `counter` and `/counter`
  * occupy home. `counter.increment` occupies `/counter/increment`.
+ * `kitchen` and `/counter/kitchen` occupy the named share URI
+ * `/counter/kitchen`.
  */
 export const canonicalShowPath = (
   path: string | undefined,
@@ -55,7 +57,7 @@ export const canonicalShowPath = (
 /**
  * Prints the occupiable URI for a show path.
  * None and occupied home print `/counter`. `counter.increment` prints
- * `/counter/increment`.
+ * `/counter/increment`. `counter.kitchen` prints `/counter/kitchen`.
  */
 export const printDestination = (path: string | undefined): string => {
   const maybePath = canonicalShowPath(path)

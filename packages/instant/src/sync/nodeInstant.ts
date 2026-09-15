@@ -41,7 +41,10 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
   }
   if (options.database !== undefined) {
     return fromTransport(
-      makeInstantCoreSnapshotLogTransport(options.database),
+      makeInstantCoreSnapshotLogTransport(
+        options.database,
+        options.selectCountId ?? options.countId,
+      ),
       processor,
     )
   }
@@ -50,7 +53,11 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
     return missingAdminToken(processor)
   }
   return fromTransport(
-    makeAdminSnapshotLogTransport(options.app.id, adminToken, options.countId),
+    makeAdminSnapshotLogTransport(
+      options.app.id,
+      adminToken,
+      options.selectCountId ?? options.countId,
+    ),
     processor,
   )
 }

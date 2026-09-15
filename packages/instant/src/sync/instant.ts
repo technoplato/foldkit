@@ -72,7 +72,10 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
     return fromTransport(options.transport, processor)
   }
   return fromTransport(
-    makeInstantCoreSnapshotLogTransport(resolveDatabase(options)),
+    makeInstantCoreSnapshotLogTransport(
+      resolveDatabase(options),
+      options.selectCountId ?? options.countId,
+    ),
     processor,
   )
 }

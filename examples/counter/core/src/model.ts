@@ -21,6 +21,7 @@ export const description =
 
 const noneDevice = Effect.succeed(Option.none<Device>())
 const nonePath = Effect.succeed(Option.none<string>())
+const noneShare = Effect.succeed(Option.none<string>())
 
 /**
  * The Counter Model: the count plus occupiable navigation.
@@ -29,6 +30,9 @@ const nonePath = Effect.succeed(Option.none<string>())
  * `show --device phone` and `show --path /counter` write these fields so
  * Instant peers paint the same chrome. `show --path counter.increment`
  * occupies `/counter/increment`. Bare show (no `--path`) stays none.
+ * `share --name kitchen --with bob` occupies `/counter/kitchen` and
+ * stores ACL on `maybeOwner` / `maybeGranted`. That is not L6
+ * `--audience mine`.
  */
 export const Model = S.Struct({
   count: S.Number,
@@ -39,6 +43,18 @@ export const Model = S.Struct({
   maybePath: S.Option(S.String).pipe(
     S.withDecodingDefaultKey(nonePath),
     S.withConstructorDefault(nonePath),
+  ),
+  maybeShareName: S.Option(S.String).pipe(
+    S.withDecodingDefaultKey(noneShare),
+    S.withConstructorDefault(noneShare),
+  ),
+  maybeOwner: S.Option(S.String).pipe(
+    S.withDecodingDefaultKey(noneShare),
+    S.withConstructorDefault(noneShare),
+  ),
+  maybeGranted: S.Option(S.String).pipe(
+    S.withDecodingDefaultKey(noneShare),
+    S.withConstructorDefault(noneShare),
   ),
 })
 /** A Counter Model value. */

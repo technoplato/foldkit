@@ -10,7 +10,9 @@ import {
   type SnapshotLogState,
   type SnapshotLogTransport,
   type SnapshotLogWrite,
+  type CountIdSelector,
   createSnapshotLogStateDecoder,
+  countSnapshotWriteFields,
   snapshotLogQuery,
 } from './snapshotLog.js'
 
@@ -40,17 +42,7 @@ const transactSnapshotLogWrite = async (
     throw new Error('Expected a Message log transaction entity.')
   }
   await admin.transact([
-    countEntity.update({
-      asOf: write.snapshot.asOf,
-      at: write.snapshot.at,
-      value: write.snapshot.value,
-      ...(write.snapshot.device === undefined
-        ? {}
-        : { device: write.snapshot.device }),
-      ...(write.snapshot.path === undefined
-        ? {}
-        : { path: write.snapshot.path }),
-    }),
+    countEntity.update(countSnapshotWriteFields(write.snapshot)),
     messageEntity.update({
       createdAtMs: write.message.createdAtMs,
       from: write.message.from,
@@ -121,7 +113,7 @@ const closeAdminSubscription = (subscription: unknown): void => {
 export const makeAdminSnapshotLogTransport = (
   appId: string,
   adminToken: string,
-  countId?: string,
+  countId?: string | CountIdSelector,
 ): SnapshotLogTransport => {
   const admin = init({
     adminToken,

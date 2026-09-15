@@ -2,7 +2,7 @@ import { Array, Option, Schema as S } from 'effect'
 
 import { Device, renderChrome } from './chrome.js'
 import { surfaceFor } from './hostSurface.js'
-import { type Action, actions, tokenOf } from './message.js'
+import { type Action, actionByToken, actions, tokenOf } from './message.js'
 import { type Model, title } from './model.js'
 import { homeOccupancy, printDestination } from './path.js'
 import { counterValid } from './program.js'
@@ -107,6 +107,10 @@ const pathToken = (path: string | undefined): Option.Option<string> => {
 const actionsForPath = (path: string | undefined): ReadonlyArray<Action> => {
   const maybeToken = pathToken(path)
   if (Option.isNone(maybeToken)) {
+    return actions
+  }
+  const maybeAction = actionByToken(maybeToken.value)
+  if (maybeAction === undefined) {
     return actions
   }
   return Array.filter(actions, action => tokenOf(action) === maybeToken.value)

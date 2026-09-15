@@ -16,6 +16,7 @@ import {
   Message,
   Model,
   NodeLive,
+  SharedNamedCounter,
   startLiveCounter,
   tokenOf,
 } from 'counter-core-example'
@@ -35,6 +36,7 @@ import {
   occupancyToOpen,
   paintDoExecution,
   paintPaletteExecution,
+  paintShareExecution,
   paintShowExecution,
   parseDevice,
   resolveHostDo,
@@ -121,6 +123,41 @@ const showHost = (
   flags: CliDaemonFlags,
 ): Effect.Effect<CliDaemonPaintedResult, CliDaemonError> =>
   Effect.gen(function* () {
+    if (flags['share'] === '1') {
+      const name = flags['name']
+      const grantedTo = flags['with']
+      const owner = flags['as']
+      if (
+        name === undefined ||
+        name === '' ||
+        grantedTo === undefined ||
+        grantedTo === '' ||
+        owner === undefined ||
+        owner === ''
+      ) {
+        return paintedOf({
+          stdout: '',
+          stderr: 'share needs --as, --name, and --with.',
+          exitCode: 1,
+        })
+      }
+      const initialModel = yield* readyCount(handle.readModel())
+      handle.send(SharedNamedCounter({ name, owner, grantedTo }))
+      const settled = yield* settleAfterSend(
+        handle,
+        'CLI daemon could not append the Instant tape.',
+      )
+      return paintedOf(
+        paintShareExecution(
+          initialModel,
+          name,
+          owner,
+          grantedTo,
+          settled.model,
+          linkOf(settled.write),
+        ),
+      )
+    }
     if (flags['palette'] === '1') {
       const model = yield* readyCount(handle.readModel())
       return paintedOf(paintPaletteExecution(model))
@@ -132,6 +169,7 @@ const showHost = (
     const maybeOpen = occupancyToOpen(
       device._tag === 'None' ? undefined : device.device,
       flags['path'],
+      flags['name'],
     )
     if (Option.isSome(maybeOpen)) {
       handle.send(maybeOpen.value)
