@@ -1,19 +1,18 @@
-import {
-  type Model,
-  MultipleCountersProgram,
-} from 'counters-core-example'
+import { type Model, MultipleCountersProgram } from 'counters-core-example'
 import * as InteractionGraph from 'foldkit/interaction-graph'
 import { describe, expect, it } from 'vitest'
 
-import { renderCarrier, renderRows, resolveToken, screenFragment } from './render.js'
+import {
+  renderCarrier,
+  renderRows,
+  resolveToken,
+  screenFragment,
+} from './render.js'
 
 const identity = { surface: 'Datastar (SSE server)', sourceUrl: '' }
 
 /** Boots a model and applies one resolved token through the Program. */
-const applyToken = (
-  start: Model,
-  token: string,
-): Model => {
+const applyToken = (start: Model, token: string): Model => {
   const message = resolveToken(start, token, occurrenceId)
   expect(message).toBeDefined()
   const [next] = MultipleCountersProgram.update(start, message!)

@@ -149,13 +149,5 @@ export type {
   SavedReplayRoute,
   StateRoute,
 } from './route.js'
-export type {
-  ProgramDecorator,
-  UpdateTransition,
-} from './decorate.js'
-export {
-  decorate,
-  mapCommands,
-  onUpdate,
-  renamed,
-} from './decorate.js'
+export type { ProgramDecorator, UpdateTransition } from './decorate.js'
+export { decorate, mapCommands, onUpdate, renamed } from './decorate.js'

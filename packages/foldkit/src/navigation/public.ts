@@ -18,24 +18,30 @@ export {
   Popover,
   Side,
   Drawer,
-  Presented,
   presented,
   NothingPresented,
   PresentingEntries,
-  NavigationStack,
   stackAtRoot,
   stackWithEntries,
   topEntry,
   pushed,
   popped,
   replacedRoot,
-  StackInstruction,
   setRoot,
   push,
   pop,
   replaceTop,
   stackInstructions,
   applyStackInstructions,
+  tanstackRouterPlugin,
+  reactRouterPlugin,
+  reactNavigationPlugin,
+  createNavigationAdapter,
+} from './index.js'
+export type {
+  Presented,
+  NavigationStack,
+  StackInstruction,
   NativeCall,
   PushPathCall,
   BackCall,
@@ -48,18 +54,7 @@ export {
   RouterPlugin,
   NativeEmitter,
   PathParser,
-  tanstackRouterPlugin,
-  reactRouterPlugin,
-  reactNavigationPlugin,
-  createNavigationAdapter,
 } from './index.js'
-export type {
-  HistoryPort,
-  ProgramNavigation,
-} from './runtimeSeam.js'
+export type { HistoryPort, ProgramNavigation } from './runtimeSeam.js'
 export type { UriSync } from './runtimeSeam.js'
-export {
-  makeUriSync,
-  parseResultToOption,
-  sameStack,
-} from './runtimeSeam.js'
+export { makeUriSync, parseResultToOption, sameStack } from './runtimeSeam.js'

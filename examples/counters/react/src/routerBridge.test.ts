@@ -1,10 +1,10 @@
 import {
-  type Model,
-  type Navigation,
   CounterDetail,
   CounterFactAlert,
   CounterList,
   LoadingCounterFact,
+  type Model,
+  type Navigation,
 } from 'counters-core-example'
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
@@ -61,7 +61,9 @@ const recorder = (): { calls: Array<string>; port: WebRouterPort } => {
 describe('navInstructionsToStack', () => {
   it('same state yields no instructions', () => {
     expect(navInstructionsToStack(list, list)).toEqual([])
-    expect(navInstructionsToStack(detail('counter-c1'), detail('counter-c1'))).toEqual([])
+    expect(
+      navInstructionsToStack(detail('counter-c1'), detail('counter-c1')),
+    ).toEqual([])
   })
 
   it('list -> detail is a Push with the canonical detail path', () => {
@@ -207,10 +209,7 @@ describe('observeNavigation', () => {
     expect(calls).toEqual(['push /counters/counter-c1'])
     current = { navigation: navigationOf(null) } as unknown as Model
     for (const listener of listeners) listener(current)
-    expect(calls).toEqual([
-      'push /counters/counter-c1',
-      'back',
-    ])
+    expect(calls).toEqual(['push /counters/counter-c1', 'back'])
     stop()
   })
 })

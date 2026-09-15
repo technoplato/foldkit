@@ -11,6 +11,8 @@ export const ClickedLink = m('ClickedLink', { request: UrlRequest })
 export const ChangedUrl = m('ChangedUrl', { url: Url })
 
 export const PressedTurn = m('PressedTurn', { turn: Turn })
+export const PressedExplore = m('PressedExplore')
+export const TurnedExplore = m('TurnedExplore', { turn: Turn })
 export const PressedFilter = m('PressedFilter')
 export const PressedFollowUp = m('PressedFollowUp')
 export const PressedRoot = m('PressedRoot')
@@ -40,6 +42,14 @@ export const SucceededFetchAnswers = m('SucceededFetchAnswers', {
   logs: S.Array(AnswerLog),
 })
 export const FailedFetchAnswers = m('FailedFetchAnswers', { error: S.String })
+export const SucceededFetchFile = m('SucceededFetchFile', {
+  file: S.String,
+  text: S.String,
+})
+export const FailedFetchFile = m('FailedFetchFile', {
+  file: S.String,
+  error: S.String,
+})
 
 export const Message = S.Union([
   CompletedNavigateInternal,
@@ -47,6 +57,8 @@ export const Message = S.Union([
   ClickedLink,
   ChangedUrl,
   PressedTurn,
+  PressedExplore,
+  TurnedExplore,
   PressedFilter,
   PressedFollowUp,
   PressedRoot,
@@ -66,5 +78,7 @@ export const Message = S.Union([
   FailedFetchAnswer,
   SucceededFetchAnswers,
   FailedFetchAnswers,
+  SucceededFetchFile,
+  FailedFetchFile,
 ])
 export type Message = typeof Message.Type

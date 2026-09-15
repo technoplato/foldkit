@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { decorate, type ProgramDecorator } from './decorate.js'
+import { type ProgramDecorator, decorate } from './decorate.js'
 import { mapCommands } from './decorate.js'
 import { onUpdate } from './decorate.js'
 import { renamed } from './decorate.js'
@@ -35,7 +35,9 @@ const makeProgram = (): Program<TestModel, TestMessage> => ({
 describe('renamed', () => {
   it('changes identity and nothing else', () => {
     const original = makeProgram()
-    const decorated = renamed<TestModel, TestMessage>('hosted-instance-7')(original)
+    const decorated = renamed<TestModel, TestMessage>('hosted-instance-7')(
+      original,
+    )
     expect(decorated.id).toBe('hosted-instance-7')
     expect(decorated.version).toBe(original.version)
     // Identity-only decoration preserves the update reference:
@@ -86,10 +88,12 @@ describe('mapCommands', () => {
       name: 'log',
       effect: undefined as never,
     }
-    const decorated = mapCommands<TestModel, TestMessage>((commands: ReadonlyArray<ProgramCommand<TestMessage>>) => [
-      ...commands,
-      command,
-    ])(makeProgram())
+    const decorated = mapCommands<TestModel, TestMessage>(
+      (commands: ReadonlyArray<ProgramCommand<TestMessage>>) => [
+        ...commands,
+        command,
+      ],
+    )(makeProgram())
 
     const [, commands] = decorated.update({ count: 9 }, { _tag: 'Reset' })
     expect(commands).toHaveLength(1)

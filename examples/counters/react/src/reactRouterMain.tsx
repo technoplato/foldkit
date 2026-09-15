@@ -1,21 +1,24 @@
 import {
-  createBrowserRouter,
-  Outlet,
-  RouteObject,
-  RouterProvider,
-  useLocation,
-} from 'react-router'
-import {
   navigationTargetToPath,
   pathToNavigationTarget,
 } from 'counters-core-example'
-import { useEffect, type JSX } from 'react'
+import { type JSX, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
+import {
+  Outlet,
+  RouteObject,
+  RouterProvider,
+  createBrowserRouter,
+  useLocation,
+} from 'react-router'
 
 import { App } from './App.js'
 import { DemoLabel } from './demoLabel.js'
 import { countersWindowNavigationSource } from './instantHost.js'
-import { observeNavigation, reactRouterNavigationBridge } from './routerBridge.js'
+import {
+  observeNavigation,
+  reactRouterNavigationBridge,
+} from './routerBridge.js'
 
 // REACT ROUTER SURFACE
 //

@@ -11,8 +11,8 @@ import {
   navigationToPath,
 } from 'counters-core-example'
 import { Array, Effect, Option, Result } from 'effect'
-import * as InteractionGraph from 'foldkit/interaction-graph'
 import { Runtime } from 'foldkit'
+import * as InteractionGraph from 'foldkit/interaction-graph'
 import { onUpdate } from 'foldkit/program'
 
 // PLAIN HTML SURFACE
@@ -44,13 +44,11 @@ type CountersAction = InteractionGraph.InteractionAction<Interaction>
 const actionsForModel = (
   model: Model,
 ): Result.Result<ReadonlyArray<CountersAction>, unknown> =>
-  Result.map(
-    MultipleCountersInteractionGraph.project(model),
-    projection =>
-      Array.filter(
-        InteractionGraph.interactiveNodes(projection.root),
-        (node): node is CountersAction => node._tag === 'InteractionAction',
-      ),
+  Result.map(MultipleCountersInteractionGraph.project(model), projection =>
+    Array.filter(
+      InteractionGraph.interactiveNodes(projection.root),
+      (node): node is CountersAction => node._tag === 'InteractionAction',
+    ),
   )
 
 const resolveToken = (model: Model, token: string): Message | undefined => {
@@ -125,11 +123,13 @@ const render = (model: Model): void => {
  * is observed (and could be filtered, tagged, or logged) without touching
  * the Program's own update or its wire contract.
  */
-const decorated = onUpdate<Model, Message, CounterFactClient>(({ message, nextModel }) => {
-  console.info(
-    `[plain-html] ${message._tag} -> ${navigationToPath(nextModel.navigation)}`,
-  )
-})(MultipleCountersProgram)
+const decorated = onUpdate<Model, Message, CounterFactClient>(
+  ({ message, nextModel }) => {
+    console.info(
+      `[plain-html] ${message._tag} -> ${navigationToPath(nextModel.navigation)}`,
+    )
+  },
+)(MultipleCountersProgram)
 
 const program = Effect.gen(function* () {
   const runtime = yield* Runtime.makeProgramRuntime({

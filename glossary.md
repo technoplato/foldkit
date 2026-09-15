@@ -143,3 +143,25 @@ draft }) | Saving({ base, draft })`. It may PROJECT into a URI
   Model/Message/route composition. e.g. today's `examples/showcase`:
   empty `CounterScene {}` structs, hand-mirrored `urlToNavigation` /
   `navigationToPath`, children booted as separate apps. Not canonical.
+
+## DEATH (temporary house)
+
+Terms for `DEATH/`, the Distributed Elm Architecture Teaching Hospital.
+This folder is a temporary house, not Foldkit public API.
+
+- **DEATH**: Distributed Elm Architecture Teaching Hospital. The benchmark
+  and contest. e.g. a team yields a counter that still answers increment
+  after offline sync. Not DEF. Not ShrinkBench.
+- **Gambit**: a wager with upside and downside. e.g. prepaid model budget
+  plus optional stake: you get scored if the yielded program answers every
+  claimed command; you lose the entry if the budget hits zero first. Not a
+  gamble.
+- **Patient**: the program under care. First patient: Foldkit Counter
+  (`examples/counter`), visible number then plus then minus then shared
+  then offline.
+- **Yield**: the team locks Run A and asks for Run B. Scoring starts.
+  e.g. agents stop, harness sends increment, program must answer.
+- **Tape (DEATH)**: Messages recorded by a sync engine, then replayed onto
+  programs and surfaces. e.g. peer `Increment` lands on the tape and folds
+  through the same `update`. This is not glossary **Carrier** (URI
+  spelling). Do not say "carriers" for sync replay.
