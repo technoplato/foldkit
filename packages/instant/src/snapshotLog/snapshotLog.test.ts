@@ -135,6 +135,42 @@ describe('Instant snapshot log', () => {
     expect(state.snapshot.path).toBe('counter.increment')
   })
 
+  it('selects a named count row without clobbering public', () => {
+    const publicRow = {
+      asOf: 'pub',
+      at: 1,
+      id: countSnapshotId,
+      value: 7,
+    }
+    const kitchenId = 'c0a7c009-0000-4000-8000-aaaaaaaaaaaa'
+    const kitchen = {
+      asOf: 'share',
+      at: 2,
+      id: kitchenId,
+      value: 1,
+      path: 'counter.kitchen',
+      name: 'kitchen',
+      owner: 'alice',
+      granted: 'bob',
+    }
+    const publicState = decodeSnapshotLogState(
+      { count: [publicRow, kitchen] },
+      undefined,
+      countSnapshotId,
+    )
+    const kitchenState = decodeSnapshotLogState(
+      { count: [publicRow, kitchen] },
+      undefined,
+      kitchenId,
+    )
+    expect(publicState.snapshot.value).toBe(7)
+    expect(publicState.snapshot.name).toBeUndefined()
+    expect(kitchenState.snapshot.value).toBe(1)
+    expect(kitchenState.snapshot.name).toBe('kitchen')
+    expect(kitchenState.snapshot.owner).toBe('alice')
+    expect(kitchenState.snapshot.granted).toBe('bob')
+  })
+
   it('decodes old count rows without occupancy', () => {
     const state = decodeSnapshotLogState({
       count: [

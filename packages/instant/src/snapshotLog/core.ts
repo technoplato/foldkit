@@ -6,7 +6,9 @@ import {
   SnapshotLogError,
   type SnapshotLogTransport,
   type SnapshotLogWrite,
+  type CountIdSelector,
   createSnapshotLogStateDecoder,
+  countSnapshotWriteFields,
   snapshotLogQuery,
 } from './snapshotLog.js'
 
@@ -23,17 +25,7 @@ const transactSnapshotLogWrite = (
     throw new Error('Expected a Message log transaction entity.')
   }
   return database.transact([
-    countEntity.update({
-      asOf: write.snapshot.asOf,
-      at: write.snapshot.at,
-      value: write.snapshot.value,
-      ...(write.snapshot.device === undefined
-        ? {}
-        : { device: write.snapshot.device }),
-      ...(write.snapshot.path === undefined
-        ? {}
-        : { path: write.snapshot.path }),
-    }),
+    countEntity.update(countSnapshotWriteFields(write.snapshot)),
     messageEntity.update({
       createdAtMs: write.message.createdAtMs,
       from: write.message.from,
@@ -45,8 +37,9 @@ const transactSnapshotLogWrite = (
 /** Instant core transport. Browser Processors use this. */
 export const makeInstantCoreSnapshotLogTransport = (
   database: InstantSnapshotLogDatabase,
+  countId?: string | CountIdSelector,
 ): SnapshotLogTransport => {
-  const decode = createSnapshotLogStateDecoder()
+  const decode = createSnapshotLogStateDecoder(countId)
   return {
     read: () =>
       Effect.tryPromise({
