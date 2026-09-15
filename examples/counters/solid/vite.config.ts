@@ -1,6 +1,5 @@
-import { execSync } from 'node:child_process'
-
 import { countersDemoSession } from 'counters-instant-example/vite'
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import solid from 'vite-plugin-solid'
 

@@ -74,7 +74,9 @@ describe('Multiple Counters CLI process', () => {
   it('runs from the default canonical list and stays quiet without verbose', () => {
     const output = runCli(['run', 'increment:counter-2', 'open:counter-2'])
 
-    expect(output).toBe(`counter-2\nCount: 1\n${labelFor('/counters/counter-2')}`)
+    expect(output).toBe(
+      `counter-2\nCount: 1\n${labelFor('/counters/counter-2')}`,
+    )
     expect(output).not.toContain('Available commands:')
   })
 

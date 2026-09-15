@@ -5,7 +5,9 @@ import { Deck, locate } from './deck'
 import {
   ShowAll,
   ShowFollowUp,
+  ShowUnanswered,
   cycleFilter,
+  emptyFilterTitle,
   latestUnansweredFollowUp,
   neighborRoot,
   nextFollowUp,
@@ -101,6 +103,12 @@ describe('neighborRoot', () => {
   })
 })
 
+describe('emptyFilterTitle', () => {
+  test('OPEN prints NONE OPEN', () => {
+    expect(emptyFilterTitle(ShowUnanswered())).toBe('NONE OPEN')
+  })
+})
+
 describe('cycleFilter', () => {
   test('walks All to OPEN to DONE to FOLLOW', () => {
     expect(cycleFilter(ShowAll())._tag).toBe('Unanswered')
@@ -135,7 +143,7 @@ describe('visibleRoots', () => {
       ],
       ShowFollowUp(),
     )
-    expect(Array.isArrayEmpty(visible)).toBe(true)
+    expect(Option.isNone(Array.head(visible))).toBe(true)
   })
 })
 
@@ -179,7 +187,7 @@ describe('unansweredSlideIds', () => {
         ],
       },
     ])
-    expect(Array.isArrayEmpty(open)).toBe(true)
+    expect(Option.isNone(Array.head(open))).toBe(true)
   })
 })
 

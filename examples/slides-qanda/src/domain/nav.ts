@@ -56,6 +56,10 @@ export const filterLabel = (filter: SlideFilter): string =>
     }),
   )
 
+/** Title when the filtered walk has no cards. Example: OPEN with every stamp is NONE OPEN. */
+export const emptyFilterTitle = (filter: SlideFilter): string =>
+  `NONE ${filterLabel(filter)}`
+
 /** True when this root has a nested follow-up. Example: `03` has `03a`. */
 export const hasFollowUp = (root: Root): boolean =>
   Array.match(root.followUps, {

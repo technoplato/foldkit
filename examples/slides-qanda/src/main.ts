@@ -6,6 +6,7 @@ import { toString as urlToString } from 'foldkit/url'
 import {
   FetchAnswers,
   FetchDeck,
+  FetchFile,
   LoadExternal,
   NavigateInternal,
   ReplaceInternal,
@@ -16,19 +17,32 @@ import {
   watchStream,
 } from './command'
 import {
+  AnswerLog,
   AtRoot,
   Deck,
+  Proposition,
+  PropositionId,
   SlideId,
+  cardOf,
   classifyPaste,
   cycleFilter,
+  firstProposition,
   firstRoot,
   firstUnansweredSlideId,
+  findProposition,
+  hasAnswer,
+  latestExploreStamp,
+  latestStamp,
   latestUnansweredFollowUp,
+  logForSlide,
   locate,
+  maybePublicFile,
+  neighborProposition,
   neighborSlideId,
   nextAfterAnswer,
   nextNeededFollowUp,
   previewOfLog,
+  propositionsOf,
   replaceLog,
   rootOf,
 } from './domain'
@@ -39,6 +53,7 @@ import {
   EndedPointer,
   Message,
   PastedText,
+  PressedExplore,
   PressedFilter,
   PressedFollowUp,
   PressedRoot,
@@ -46,6 +61,9 @@ import {
 } from './message'
 import {
   ErrorDeck,
+  FileBusy,
+  FileFail,
+  FileReady,
   MissingDeck,
   Model,
   ReadyDeck,
@@ -56,7 +74,9 @@ import {
   emptyModel,
 } from './model'
 import {
+  SIM_ANSWER_ID,
   SlideRoute,
+  exploreOf,
   filterOf as routeFilter,
   slideHref,
   urlToAppRoute,
@@ -67,6 +87,8 @@ export {
   AppRoute,
   HomeRoute,
   NotFoundRoute,
+  SIM_ANSWER_ID,
+  SimRoute,
   SlideRoute,
   urlToAppRoute,
 } from './route'
@@ -85,29 +107,57 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = url => {
 type UpdateReturn = readonly [Model, ReadonlyArray<Command.Command<Message>>]
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
 
+const loadExploreFile = (model: Model, deck: Deck): UpdateReturn => {
+  const maybeExploreId = exploreOf(model.route)
+  if (Option.isNone(maybeExploreId)) {
+    return [model, []]
+  }
+  const maybeCard = maybeCurrentCard(model, deck)
+  if (Option.isNone(maybeCard)) {
+    return [model, []]
+  }
+  const maybeProposition = findProposition(
+    propositionsOf(maybeCard.value),
+    maybeExploreId.value,
+  )
+  if (Option.isNone(maybeProposition)) {
+    return [model, []]
+  }
+  return withExploreFileLoad(model, maybeProposition.value)
+}
+
 const commandsForLoadedDeck = (
   model: Model,
   deck: Deck,
-): ReadonlyArray<Command.Command<Message>> =>
+): UpdateReturn =>
   M.value(model.route).pipe(
-    M.withReturnType<ReadonlyArray<Command.Command<Message>>>(),
+    withUpdateReturn,
     M.tag('Slide', ({ slideId }) => {
       const filter = routeFilter(model.route)
       if (Option.isNone(locate(deck, slideId))) {
-        return maybeReplaceFirstSlide(firstRoot(deck), filter)
+        return [model, maybeReplaceFirstSlide(firstRoot(deck), filter)]
       }
-      return [FetchAnswers(), ...maybeFetchAnswer(slideId)]
+      const [withFile, fileCommands] = loadExploreFile(model, deck)
+      return [
+        withFile,
+        [FetchAnswers(), ...maybeFetchAnswer(slideId), ...fileCommands],
+      ]
     }),
-    M.orElse(() =>
+    M.tag('Sim', () => [
+      model,
+      [FetchAnswers(), ...maybeFetchAnswer(SIM_ANSWER_ID)],
+    ]),
+    M.orElse(() => [
+      model,
       maybeReplaceFirstSlide(firstRoot(deck), routeFilter(model.route)),
-    ),
+    ]),
   )
 
 const afterReadyDeck = (model: Model, deck: Deck): UpdateReturn => {
   const ready = evo(model, {
     deckStatus: () => ReadyDeck({ deck }),
   })
-  return [ready, commandsForLoadedDeck(ready, deck)]
+  return commandsForLoadedDeck(ready, deck)
 }
 
 const goToId = (model: Model, slideId: SlideId): UpdateReturn => [
@@ -119,8 +169,129 @@ const goToId = (model: Model, slideId: SlideId): UpdateReturn => [
   ],
 ]
 
-const turnFrom = (model: Model, turn: 'Prev' | 'Next'): UpdateReturn =>
-  M.value(model.deckStatus).pipe(
+const goExplore = (
+  model: Model,
+  maybeExplore: Option.Option<PropositionId>,
+): UpdateReturn =>
+  M.value(model.route).pipe(
+    withUpdateReturn,
+    M.tag('Slide', ({ slideId }) => [
+      model,
+      [
+        NavigateInternal({
+          url: slideHref(slideId, routeFilter(model.route), maybeExplore),
+        }),
+      ],
+    ]),
+    M.orElse(() => [model, []]),
+  )
+
+const maybeCurrentCard = (model: Model, deck: Deck) =>
+  M.value(model.route).pipe(
+    M.tag('Slide', ({ slideId }) =>
+      Option.map(locate(deck, slideId), cardOf),
+    ),
+    M.orElse(() => Option.none()),
+  )
+
+const saveAsNote = (
+  logs: ReadonlyArray<AnswerLog>,
+  slideId: SlideId,
+  isExplore: boolean,
+): boolean => {
+  const maybeLog = logForSlide(logs, slideId)
+  if (Option.isNone(maybeLog)) {
+    return false
+  }
+  if (isExplore) {
+    return Option.isSome(latestExploreStamp(maybeLog.value))
+  }
+  return Option.isSome(latestStamp(maybeLog.value))
+}
+
+const isAnswerLogForRoute = (model: Model, slideId: SlideId): boolean =>
+  M.value(model.route).pipe(
+    M.tag('Slide', route => route.slideId === slideId),
+    M.tag('Sim', () => slideId === SIM_ANSWER_ID),
+    M.orElse(() => false),
+  )
+
+const commandsForProposition = (
+  model: Model,
+  proposition: Proposition,
+): ReadonlyArray<Command.Command<Message>> => {
+  if (proposition._tag !== 'File') {
+    return []
+  }
+  const maybeFile = maybePublicFile(proposition.file)
+  if (Option.isNone(maybeFile)) {
+    return []
+  }
+  const file = maybeFile.value
+  if (Object.hasOwn(model.fileCache, file)) {
+    return []
+  }
+  return [FetchFile({ file })]
+}
+
+const withExploreFileLoad = (
+  model: Model,
+  proposition: Proposition,
+): UpdateReturn => {
+  const commands = commandsForProposition(model, proposition)
+  if (proposition._tag !== 'File') {
+    return [model, commands]
+  }
+  if (Option.isNone(Array.head(commands))) {
+    return [model, commands]
+  }
+  const maybeFile = maybePublicFile(proposition.file)
+  if (Option.isNone(maybeFile)) {
+    return [model, []]
+  }
+  const file = maybeFile.value
+  return [
+    evo(model, {
+      fileCache: current => ({
+        ...current,
+        [file]: FileBusy(),
+      }),
+    }),
+    commands,
+  ]
+}
+
+const turnExplore = (model: Model, turn: 'Prev' | 'Next'): UpdateReturn => {
+  const maybeHere = exploreOf(model.route)
+  if (Option.isNone(maybeHere)) {
+    return [model, []]
+  }
+  return M.value(model.deckStatus).pipe(
+    withUpdateReturn,
+    M.tag('Ready', ({ deck }) => {
+      const maybeCard = maybeCurrentCard(model, deck)
+      if (Option.isNone(maybeCard)) {
+        return [model, []]
+      }
+      const maybeNext = neighborProposition(
+        propositionsOf(maybeCard.value),
+        maybeHere.value,
+        turn,
+      )
+      if (Option.isNone(maybeNext)) {
+        return [model, []]
+      }
+      return goExplore(model, Option.some(maybeNext.value.id))
+    }),
+    M.orElse(() => [model, []]),
+  )
+}
+
+const turnFrom = (model: Model, turn: 'Prev' | 'Next'): UpdateReturn => {
+  if (Option.isSome(exploreOf(model.route))) {
+    return turnExplore(model, turn)
+  }
+  return M.value(model.deckStatus).pipe(
     withUpdateReturn,
     M.tag('Ready', ({ deck }) => {
       const filter = routeFilter(model.route)
@@ -145,6 +316,7 @@ const turnFrom = (model: Model, turn: 'Prev' | 'Next'): UpdateReturn =>
     }),
     M.orElse(() => [model, []]),
   )
+}
 
 // UPDATE
 
@@ -176,15 +348,36 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         })
         return M.value(model.deckStatus).pipe(
           withUpdateReturn,
-          M.tag('Ready', ({ deck }) => [
-            nextModel,
-            commandsForLoadedDeck(nextModel, deck),
-          ]),
+          M.tag('Ready', ({ deck }) => commandsForLoadedDeck(nextModel, deck)),
           M.orElse(() => [nextModel, []]),
         )
       },
 
       PressedTurn: ({ turn }) => turnFrom(model, turn),
+
+      PressedExplore: () =>
+        M.value(model.deckStatus).pipe(
+          withUpdateReturn,
+          M.tag('Ready', ({ deck }) => {
+            const maybeCard = maybeCurrentCard(model, deck)
+            if (Option.isNone(maybeCard)) {
+              return [model, []]
+            }
+            if (Option.isSome(exploreOf(model.route))) {
+              return goExplore(model, Option.none())
+            }
+            const maybeFirst = firstProposition(
+              propositionsOf(maybeCard.value),
+            )
+            if (Option.isNone(maybeFirst)) {
+              return [model, []]
+            }
+            return goExplore(model, Option.some(maybeFirst.value.id))
+          }),
+          M.orElse(() => [model, []]),
+        ),
+
+      TurnedExplore: ({ turn }) => turnExplore(model, turn),
 
       PressedFilter: () =>
         M.value(model.route).pipe(
@@ -316,7 +509,36 @@ export const update = (model: Model, message: Message): UpdateReturn =>
                 withUpdateReturn,
                 M.tag('Slide', ({ slideId }) => [
                   evo(model, { saveStatus: () => SaveBusy() }),
-                  [SaveAnswer({ slideId, text: answer })],
+                  [
+                    SaveAnswer({
+                      slideId,
+                      text: answer,
+                      maybeExploreScope: Option.map(
+                        exploreOf(model.route),
+                        () => 'explore',
+                      ),
+                      asNote: saveAsNote(
+                        model.answerLogs,
+                        slideId,
+                        Option.isSome(exploreOf(model.route)),
+                      ),
+                    }),
+                  ],
+                ]),
+                M.tag('Sim', () => [
+                  evo(model, { saveStatus: () => SaveBusy() }),
+                  [
+                    SaveAnswer({
+                      slideId: SIM_ANSWER_ID,
+                      text: answer,
+                      maybeExploreScope: Option.none(),
+                      asNote: saveAsNote(
+                        model.answerLogs,
+                        SIM_ANSWER_ID,
+                        false,
+                      ),
+                    }),
+                  ],
                 ]),
                 M.orElse(() => [model, []]),
               ),
@@ -329,7 +551,21 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           withUpdateReturn,
           M.tag('Slide', ({ slideId }) => [
             evo(model, { saveStatus: () => SaveBusy() }),
-            [SaveAnswer({ slideId, text: letter })],
+            [
+              SaveAnswer({
+                slideId,
+                text: letter,
+                maybeExploreScope: Option.map(
+                  exploreOf(model.route),
+                  () => 'explore',
+                ),
+                asNote: saveAsNote(
+                  model.answerLogs,
+                  slideId,
+                  Option.isSome(exploreOf(model.route)),
+                ),
+              }),
+            ],
           ]),
           M.orElse(() => [model, []]),
         ),
@@ -388,12 +624,18 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           saveStatus: () => SaveOk({ preview: previewOfLog(log) }),
           answerLogs: () => nextLogs,
         })
+        if (Option.isSome(exploreOf(model.route))) {
+          return [nextModel, []]
+        }
         return M.value(model.deckStatus).pipe(
           withUpdateReturn,
           M.tag('Ready', ({ deck }) =>
             M.value(model.route).pipe(
               withUpdateReturn,
               M.tag('Slide', ({ slideId }) => {
+                if (hasAnswer(model.answerLogs, slideId)) {
+                  return [nextModel, []]
+                }
                 const maybeAt = locate(deck, slideId)
                 if (Option.isNone(maybeAt)) {
                   return [nextModel, []]
@@ -434,10 +676,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
 
       SucceededFetchAnswer: ({ log }) => {
-        if (
-          model.route._tag !== 'Slide' ||
-          model.route.slideId !== log.slideId
-        ) {
+        if (!isAnswerLogForRoute(model, log.slideId)) {
           return [model, []]
         }
         return [
@@ -450,7 +689,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       },
 
       MissedFetchAnswer: ({ slideId }) => {
-        if (model.route._tag !== 'Slide' || model.route.slideId !== slideId) {
+        if (!isAnswerLogForRoute(model, slideId)) {
           return [model, []]
         }
         return [evo(model, { saveStatus: () => SaveIdle() }), []]
@@ -471,6 +710,26 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
 
       FailedFetchAnswers: () => [model, []],
+
+      SucceededFetchFile: ({ file, text }) => [
+        evo(model, {
+          fileCache: current => ({
+            ...current,
+            [file]: FileReady({ text }),
+          }),
+        }),
+        [],
+      ],
+
+      FailedFetchFile: ({ file, error }) => [
+        evo(model, {
+          fileCache: current => ({
+            ...current,
+            [file]: FileFail({ error }),
+          }),
+        }),
+        [],
+      ],
     }),
   )
 
@@ -512,6 +771,10 @@ export const subscriptions = Subscription.make<Model, Message>()(() => ({
         if (event.key === 'f' || event.key === 'F') {
           event.preventDefault()
           return Option.some(PressedFilter())
+        }
+        if (event.key === 'e' || event.key === 'E') {
+          event.preventDefault()
+          return Option.some(PressedExplore())
         }
         return Option.none()
       },

@@ -75,6 +75,10 @@ body,
   white-space: pre-wrap;
 }
 
+.explore-code {
+  scrollbar-color: #52525b #18181b;
+}
+
 .saved-answer-pop-line + .saved-answer-pop-line {
   margin-top: 0.65rem;
 }

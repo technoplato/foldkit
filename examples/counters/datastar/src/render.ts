@@ -44,22 +44,17 @@ export const renderCarrier = (model: Model): string =>
 
 export const renderRows = (model: Model): string =>
   model.rows
-    .map(
-      row =>
-        `<li>${escapeHtml(row.id)}: ${row.child.count.toString()}</li>`,
-    )
+    .map(row => `<li>${escapeHtml(row.id)}: ${row.child.count.toString()}</li>`)
     .join('')
 
 export const actionsForModel = (
   model: Model,
 ): Result.Result<ReadonlyArray<CountersAction>, unknown> =>
-  Result.map(
-    MultipleCountersInteractionGraph.project(model),
-    projection =>
-      Array.filter(
-        InteractionGraph.interactiveNodes(projection.root),
-        (node): node is CountersAction => node._tag === 'InteractionAction',
-      ),
+  Result.map(MultipleCountersInteractionGraph.project(model), projection =>
+    Array.filter(
+      InteractionGraph.interactiveNodes(projection.root),
+      (node): node is CountersAction => node._tag === 'InteractionAction',
+    ),
   )
 
 /**
@@ -109,12 +104,10 @@ const actionsForModelHtml = (model: Model): string => {
   if (Result.isFailure(projected)) {
     return ''
   }
-  return Array
-    .map(projected.success, action => {
-      const hrefToken = encodeURIComponent(action.descriptor.token)
-      return `<button type="button" data-on-click="@post('/action/${hrefToken}', {selector:'#screen'})">${escapeHtml(action.descriptor.token)}</button>`
-    })
-    .join('')
+  return Array.map(projected.success, action => {
+    const hrefToken = encodeURIComponent(action.descriptor.token)
+    return `<button type="button" data-on-click="@post('/action/${hrefToken}', {selector:'#screen'})">${escapeHtml(action.descriptor.token)}</button>`
+  }).join('')
 }
 
 /** Wraps a fragment as a Datastar element-patch SSE event body. */

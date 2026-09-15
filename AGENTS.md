@@ -4,6 +4,16 @@ Preferences and conventions for Codex and other coding agents working on this re
 
 Repo-local `skills/foldkit`, `skills/generate-program`, and `skills/audit-program` target consumer Foldkit apps. Do not treat them as always-on repo-maintenance guidance unless the user explicitly invokes them.
 
+## DEATH (temporary house)
+
+`DEATH/` is the Distributed Elm Architecture Teaching Hospital. It is a temporary house for describing and implementing this benchmark and its gambits (wager with upside and downside). It is not Foldkit public API.
+
+- Read `DEATH/README.md` and `DEATH/AGENTS.md` before changing hospital rules, scoring, or naming.
+- The name is DEATH. Not DEF. Not ShrinkBench.
+- Talk to Grok Bot through `DEATH/mailbox/`. Do not poke Grok Bot PIDs.
+- `bench/` is a rehearsal against `https://counter.knophy.com`. It is not DEATH.
+- Interview questions live in `DEATH/qanda.md`. Chat asks one at a time.
+
 When writing or reviewing documentation (TSDoc, module docs), load `.agents/skills/document/SKILL.md` (the `document` skill). Point-Free's libraries (the Composable Architecture, Swift Sharing, SQLiteData) are the quality bar. Shared vocabulary lives in `glossary.md`; define new terms there first. In documentation, comments, questions, and explanations, pair every abstract claim with a concrete example ("mounting composes transitively" must be followed by `/counters/counter/c1`).
 
 ## Project Conventions

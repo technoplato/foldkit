@@ -1,0 +1,11 @@
+#!/bin/sh
+ENV_FILE="${PERSONAL_CFO_INSTANT_ENV:-$HOME/.config/personal-cfo/instant.env}"
+if [ ! -f "$ENV_FILE" ]; then
+  printf 'Missing %s. Run examples/personal-cfo/scripts/provision-instant.mjs\n' "$ENV_FILE" >&2
+  exit 78
+fi
+set -a
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+set +a
+exec "$@"

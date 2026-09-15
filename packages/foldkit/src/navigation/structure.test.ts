@@ -477,7 +477,9 @@ describe('applyStackInstructions round trip', () => {
     const instructions = Structure.stackInstructions(previous, next)
     expect(instructions).toEqual([
       Structure.pop(),
-      Structure.replaceTop(entry('Settings', Structure.Drawer({ from: 'Left' }))),
+      Structure.replaceTop(
+        entry('Settings', Structure.Drawer({ from: 'Left' })),
+      ),
       Structure.push(
         'Search',
         Structure.Popover({

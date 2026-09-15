@@ -11,8 +11,8 @@ import {
   activatedInteraction,
   destinationForModel,
   interactionIdentitySourceForOccurrence,
-  resolveNavigationCarrier,
   navigationToPath,
+  resolveNavigationCarrier,
 } from 'counters-core-example'
 import {
   type CountersTape,
@@ -33,6 +33,8 @@ import {
 } from 'effect'
 import { Runtime } from 'foldkit'
 import * as InteractionGraph from 'foldkit/interaction-graph'
+
+import { surfaceLines } from './surfaceLabel.js'
 
 /** A CLI token is not valid in the current state and mode. */
 export class CountersCliError extends Data.TaggedError('CountersCliError')<{
@@ -323,8 +325,6 @@ const formatInteractions = (
   ),
 ]
 
-import { surfaceLines } from './surfaceLabel.js'
-
 /** Prints the final Program screen and optionally its valid command set. */
 export const runCounters = (
   tokens: ReadonlyArray<string>,
@@ -339,7 +339,10 @@ export const runCounters = (
     yield* Console.log(Array.join(screenLines, '\n'))
     yield* Console.log(
       Array.join(
-        surfaceLines('CLI (Effect Terminal)', navigationToPath(execution.finalModel.navigation)),
+        surfaceLines(
+          'CLI (Effect Terminal)',
+          navigationToPath(execution.finalModel.navigation),
+        ),
         '\n',
       ),
     )

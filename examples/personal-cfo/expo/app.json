@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Personal CFO",
+    "slug": "personal-cfo",
+    "scheme": "personal-cfo",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.knophy.personalcfo.dev",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.knophy.personalcfo.dev"
+    }
+  }
+}
