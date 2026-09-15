@@ -14,6 +14,10 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `packages/instant/src/snapshotLog/snapshotLog.ts` — Keep occupancy in file and memory snapshot logs.
   - `examples/counter/cli/src/parseArgv.ts` — Parse unconstrained L8 occupancy argv.
   - `examples/counter/core/src/share.ts` — Share the live count occupancy.
+- **User context (verbatim):**
+  > find all of the latest benchmark and foldkit code/workspaces, get everything committed and pushed to remote.
+- **SpecStory:** unavailable — Grok Build session; no SpecStory URI was captured.
+
 ## September 15th, 2026 at 1:33:15 p.m. EDT — `3046454bd26a` feat: save slides-qanda, counters hosts, and personal-cfo work
 
 - **Implementation commit:** `3046454bd26afe6e8d779098dcde984f32516c2e`
