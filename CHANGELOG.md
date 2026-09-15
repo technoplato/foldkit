@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 15th, 2026 at 1:33:15 p.m. EDT — `ff0429cb50d8` feat(counter): keep Instant snapshot occupancy and named share
+
+- **Implementation commit:** `ff0429cb50d875af0c0052e0398e2586ed8bb9e7`
+- **Change:** Keep Instant snapshot occupancy and named share on the counter CLI.
+- **Details:**
+  - File and memory snapshot logs hold occupancy. The counter CLI parses unconstrained L8 occupancy argv and shares the live count.
+- **Files:**
+  - `packages/instant/src/snapshotLog/snapshotLog.ts` — Keep occupancy in file and memory snapshot logs.
+  - `examples/counter/cli/src/parseArgv.ts` — Parse unconstrained L8 occupancy argv.
+  - `examples/counter/core/src/share.ts` — Share the live count occupancy.
+- **User context (verbatim):**
+  > find all of the latest benchmark and foldkit code/workspaces, get everything committed and pushed to remote.
+- **SpecStory:** unavailable — Grok Build session; no SpecStory URI was captured.
+
 ## September 12th, 2026 at 12:27:08 a.m. EDT — `462d84ef6eb2` test(counter): prove decrement and /counter occupancy argv
 
 - **Implementation commit:** `462d84ef6eb23b95a4181095d6d96f6a41385266`
