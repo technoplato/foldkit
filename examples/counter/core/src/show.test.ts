@@ -111,6 +111,24 @@ describe('renderShow', () => {
     expect(output).toContain('  decrement')
   })
 
+  test('paints named share occupancy as /counter/kitchen and keeps decrement', () => {
+    const output = renderShow(
+      Model.make({
+        count: 0,
+        maybePath: Option.some('counter.kitchen'),
+        maybeShareName: Option.some('kitchen'),
+        maybeOwner: Option.some('alice'),
+        maybeGranted: Option.some('bob'),
+      }),
+      defaultShowContext,
+    )
+
+    expect(output).toContain('uri      /counter/kitchen')
+    expect(output).toContain('path     counter.kitchen')
+    expect(output).toContain('  increment')
+    expect(output).toContain('  decrement')
+  })
+
   test('can filter to one Action path', () => {
     const output = renderShow(Model.make({ count: 0 }), {
       ...defaultShowContext,

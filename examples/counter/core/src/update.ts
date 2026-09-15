@@ -3,6 +3,7 @@ import type * as Command from 'foldkit/command'
 
 import { type Message } from './message.js'
 import { Model, initialCount } from './model.js'
+import { namedShareOccupancy } from './share.js'
 
 // UPDATE
 
@@ -15,6 +16,9 @@ const withCount = (model: Model, count: number): Model =>
     count,
     maybeDevice: model.maybeDevice,
     maybePath: model.maybePath,
+    maybeShareName: model.maybeShareName,
+    maybeOwner: model.maybeOwner,
+    maybeGranted: model.maybeGranted,
   })
 
 /** Applies one Counter Message to the current Model. */
@@ -36,6 +40,20 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           maybeDevice:
             device === undefined ? model.maybeDevice : Option.some(device),
           maybePath: path === undefined ? model.maybePath : Option.some(path),
+          maybeShareName: model.maybeShareName,
+          maybeOwner: model.maybeOwner,
+          maybeGranted: model.maybeGranted,
+        }),
+        [],
+      ],
+      SharedNamedCounter: ({ name, owner, grantedTo }) => [
+        Model.make({
+          count: model.count,
+          maybeDevice: model.maybeDevice,
+          maybePath: Option.some(namedShareOccupancy(name)),
+          maybeShareName: Option.some(name),
+          maybeOwner: Option.some(owner),
+          maybeGranted: Option.some(grantedTo),
         }),
         [],
       ],

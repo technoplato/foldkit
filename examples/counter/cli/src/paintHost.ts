@@ -5,6 +5,7 @@ import {
   type Message,
   type Model,
   OpenedNavigation,
+  SharedNamedCounter,
   actionBySpoken,
   actionByToken,
   canonicalShowPath,
@@ -12,6 +13,7 @@ import {
   defaultShowContext,
   invalidActionLog,
   listActions,
+  occupiesNamedShare,
   renderReceipt,
   renderShow,
   tokenOf,
@@ -54,15 +56,24 @@ const showContext = (device: Device | undefined) => ({
 })
 
 /**
- * Occupancy Message for `show --device` / `--path`.
+ * Occupancy Message for `show --device` / `--path` / `--name`.
  * Bare show does not send this. `counter` and `/counter` occupy home.
- * `counter.increment` occupies `/counter/increment`.
+ * `counter.increment` occupies `/counter/increment`. `kitchen`
+ * occupies `/counter/kitchen` only when this Processor is bound to that
+ * named count.
  */
 export const occupancyToOpen = (
   device: Device | undefined,
   path: string | undefined,
+  shareName?: string,
 ): Option.Option<ReturnType<typeof OpenedNavigation>> => {
-  const maybePath = canonicalShowPath(path)
+  const occupyPath =
+    path !== undefined && path !== ''
+      ? path
+      : shareName !== undefined && occupiesNamedShare(shareName)
+        ? shareName
+        : undefined
+  const maybePath = canonicalShowPath(occupyPath)
   if (device === undefined && Option.isNone(maybePath)) {
     return Option.none()
   }
@@ -72,6 +83,52 @@ export const occupancyToOpen = (
       ...(Option.isSome(maybePath) ? { path: maybePath.value } : {}),
     }),
   )
+}
+
+/** Paints a `share` receipt plus auto-show. Occupancy is `/counter/kitchen`. */
+export const paintShareExecution = (
+  initialModel: Model,
+  name: string,
+  owner: string,
+  grantedTo: string,
+  nextModel: Model,
+  link: CliExecution['link'],
+): CliExecution => {
+  const last: LastAction = {
+    command: 'share',
+    event: 'shared',
+    sideEffects: ['tape append', `link  ${link}`],
+  }
+  const receipt = renderReceipt({
+    token: name,
+    verb: 'sent',
+    from: 'cli',
+    via: 'argv',
+    command: 'share',
+    event: 'shared',
+    mutate: '(none)',
+    sideEffects: `granted ${grantedTo}`,
+    tape: 'appended',
+    link,
+  })
+  return {
+    initialModel,
+    maybeMessage: Option.some(
+      SharedNamedCounter({ name, owner, grantedTo }),
+    ),
+    finalModel: nextModel,
+    link,
+    stdout: [
+      receipt,
+      '',
+      renderShow(nextModel, {
+        ...showContext(undefined),
+        last,
+      }),
+    ].join('\n'),
+    stderr: '',
+    exitCode: 0,
+  }
 }
 
 /** Paints IDENTITY and ACESS. Optional `--device` wraps the product tree. */

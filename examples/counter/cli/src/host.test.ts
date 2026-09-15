@@ -7,6 +7,7 @@ import {
   Model,
   OpenedNavigation,
   Reset,
+  namedCountId,
   SyncedCounter,
   type SyncedCounterHandle,
   makeMemorySnapshotLogTransport,
@@ -22,7 +23,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { readyCount } from './cliError.js'
-import { executeDo, executeReplay, executeShow } from './host.js'
+import { executeDo, executeReplay, executeShare, executeShow } from './host.js'
 import { counterCliProgramId } from './isolation.js'
 import { settleAfterSend, waitForReadyCountChange } from './session.js'
 
@@ -265,6 +266,57 @@ describe('Counter CLI host', () => {
     )
     expect(incremented.stdout).toContain('device   phone')
     expect(incremented.stdout).toContain('count    1')
+  })
+
+  it('lets bob increment kitchen without moving public', async () => {
+    const snapshot = await Effect.runPromise(makeMemorySnapshotLogTransport())
+    const previous = {
+      subject: process.env['COUNTER_SUBJECT'],
+      shareName: process.env['COUNTER_SHARE_NAME'],
+      create: process.env['COUNTER_SHARE_CREATE'],
+      countId: process.env['COUNTER_COUNT_ID'],
+    }
+    try {
+      process.env['COUNTER_SUBJECT'] = 'alice'
+      process.env['COUNTER_SHARE_NAME'] = 'kitchen'
+      process.env['COUNTER_SHARE_CREATE'] = '1'
+      process.env['COUNTER_COUNT_ID'] = namedCountId('kitchen')
+      const shared = await Effect.runPromise(
+        executeShare('kitchen', 'alice', 'bob', { snapshot }),
+      )
+      expect(shared.finalModel.maybeShareName).toEqual(Option.some('kitchen'))
+      expect(shared.stdout).toContain('uri      /counter/kitchen')
+      expect(shared.stdout).toContain('  decrement')
+
+      delete process.env['COUNTER_SHARE_CREATE']
+      process.env['COUNTER_SUBJECT'] = 'bob'
+      const incremented = await Effect.runPromise(
+        executeDo('increment', { snapshot }),
+      )
+      expect(incremented.finalModel.count).toBe(1)
+      expect(incremented.stdout).toContain('uri      /counter/kitchen')
+
+      delete process.env['COUNTER_COUNT_ID']
+      delete process.env['COUNTER_SHARE_NAME']
+      delete process.env['COUNTER_SUBJECT']
+      const publicShown = await Effect.runPromise(
+        executeShow(undefined, undefined, { snapshot }),
+      )
+      expect(publicShown.finalModel.count).toBe(0)
+
+      process.env['COUNTER_SHARE_NAME'] = 'kitchen'
+      process.env['COUNTER_SUBJECT'] = 'carol'
+      const carol = await Effect.runPromise(
+        executeShow(undefined, undefined, { snapshot }, 'kitchen'),
+      )
+      expect(carol.finalModel.count).toBe(0)
+      expect(carol.stdout).not.toContain('uri      /counter/kitchen')
+    } finally {
+      setEnv('COUNTER_SUBJECT', previous.subject)
+      setEnv('COUNTER_SHARE_NAME', previous.shareName)
+      setEnv('COUNTER_SHARE_CREATE', previous.create)
+      setEnv('COUNTER_COUNT_ID', previous.countId)
+    }
   })
 
   it('replays a Program tape through Runtime.replayToFrame', async () => {

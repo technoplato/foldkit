@@ -2,9 +2,11 @@ import { Deferred, Effect, Schema as S, Stream } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 
 import {
+  type CountIdSelector,
   InstantCountSnapshotRecord,
   InstantLogMessageRecord,
   SnapshotLogError,
+  type InstantSnapshotLogDatabase,
   type SnapshotLogTransport,
   emptyCountSnapshot,
 } from '../snapshotLog/snapshotLog.js'
@@ -28,7 +30,8 @@ export type InstantOptions = Readonly<{
   processor: Processor.Host.Host
   instance?: string
   countId?: string
-  database?: import('../snapshotLog/snapshotLog.js').InstantSnapshotLogDatabase
+  selectCountId?: CountIdSelector
+  database?: InstantSnapshotLogDatabase
   transport?: SnapshotLogTransport
 }>
 

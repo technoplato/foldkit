@@ -6,6 +6,7 @@ import {
   Instant,
   InstantSnapshotLogSchema,
   SnapshotLogError,
+  listFileCountSnapshots,
   makeAdminSnapshotLogTransport,
   makeMemorySnapshotLogTransport,
   resolveInstantSyncEngine,
@@ -25,6 +26,7 @@ import {
   type SyncedCounterHandle,
   startSyncedCounterHandle,
 } from './startSynced.js'
+import { namedCountId, resolveCountIdFromRows } from './share.js'
 import { activeCountId } from './wire.js'
 
 export {
@@ -63,12 +65,42 @@ export const NodeLive = (
         ...options,
       })
     }
+    const shareName = process.env['COUNTER_SHARE_NAME']
+    const isCreate = process.env['COUNTER_SHARE_CREATE'] === '1'
+    if (isCreate && shareName !== undefined && shareName !== '') {
+      process.env['COUNTER_COUNT_ID'] = namedCountId(shareName)
+    }
+    const tapePath = process.env['COUNTER_TAPE_PATH']
+    if (tapePath !== undefined && tapePath !== '') {
+      process.env['COUNTER_COUNT_ID'] = resolveCountIdFromRows(
+        listFileCountSnapshots(tapePath),
+      )
+    }
     const instance = options?.instance ?? process.env['COUNTER_INSTANT_ROOM']
+    const selectCountId =
+      shareName !== undefined &&
+      shareName !== '' &&
+      !isCreate &&
+      (tapePath === undefined || tapePath === '')
+        ? (
+            rows: ReadonlyArray<{
+              readonly id: string
+              readonly name?: string
+              readonly owner?: string
+              readonly granted?: string
+            }>,
+          ) => {
+            const id = resolveCountIdFromRows(rows)
+            process.env['COUNTER_COUNT_ID'] = id
+            return id
+          }
+        : undefined
     return resolveInstantSyncEngine({
       app: FoldkitCounterV01,
       processor,
       ...(instance === undefined || instance === '' ? {} : { instance }),
       countId: activeCountId(),
+      ...(selectCountId === undefined ? {} : { selectCountId }),
     })
   })
 
