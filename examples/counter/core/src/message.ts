@@ -70,8 +70,31 @@ export const OpenedNavigation = md('OpenedNavigation', {
   valid: (_model: Model, _context: Context) => true,
 })
 
+/**
+ * Grants a named counter others occupy by URI.
+ *
+ * `share --name kitchen --with bob` writes this. Occupancy is
+ * `/counter/kitchen`. Not an Action. Not L6 `--audience mine`.
+ */
+export const SharedNamedCounter = md('SharedNamedCounter', {
+  what: 'Grants a named counter others occupy by URI',
+  why: 'Alice shares kitchen with Bob; Carol cannot occupy /counter/kitchen',
+  fields: {
+    name: S.String,
+    owner: S.String,
+    grantedTo: S.String,
+  },
+  valid: (_model: Model, _context: Context) => true,
+})
+
 /** Every Message accepted by the Counter Program. */
-export const Message = S.Union([Increment, Decrement, Reset, OpenedNavigation])
+export const Message = S.Union([
+  Increment,
+  Decrement,
+  Reset,
+  OpenedNavigation,
+  SharedNamedCounter,
+])
 /** A Counter Message value. */
 export type Message = typeof Message.Type
 

@@ -5,6 +5,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { makeFileSnapshotLogTransport } from '../snapshotLog/file.js'
+import { type CountIdSelector } from '../snapshotLog/snapshotLog.js'
 import { type InstantApp } from './fromTransport.js'
 import { Instant } from './nodeInstant.js'
 
@@ -69,6 +70,7 @@ export type ResolveInstantSyncEngineOptions = Readonly<{
   processor: Processor.Host.Host
   instance?: string
   countId?: string
+  selectCountId?: CountIdSelector
 }>
 
 /**
@@ -85,6 +87,10 @@ export const resolveInstantSyncEngine = (
     options.instance === undefined ? {} : { instance: options.instance }
   const countId =
     options.countId === undefined ? {} : { countId: options.countId }
+  const selectCountId =
+    options.selectCountId === undefined
+      ? {}
+      : { selectCountId: options.selectCountId }
   if (process.env['COUNTER_TAPE'] === 'memory') {
     return Runtime.Memory({ processor: options.processor })
   }
@@ -93,9 +99,10 @@ export const resolveInstantSyncEngine = (
     return Instant({
       app: options.app,
       processor: options.processor,
-      transport: makeFileSnapshotLogTransport(tapePath),
+      transport: makeFileSnapshotLogTransport(tapePath, options.countId),
       ...instance,
       ...countId,
+      ...selectCountId,
     })
   }
   loadInstantDemoEnv()
@@ -104,5 +111,6 @@ export const resolveInstantSyncEngine = (
     processor: options.processor,
     ...instance,
     ...countId,
+    ...selectCountId,
   })
 }

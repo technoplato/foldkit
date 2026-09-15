@@ -4,6 +4,16 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 15th, 2026 at 1:33:15 p.m. EDT — `ff0429cb50d8` feat(counter): keep Instant snapshot occupancy and named share
+
+- **Implementation commit:** `ff0429cb50d875af0c0052e0398e2586ed8bb9e7`
+- **Change:** Keep Instant snapshot occupancy and named share on the counter CLI.
+- **Details:**
+  - File and memory snapshot logs hold occupancy. The counter CLI parses unconstrained L8 occupancy argv and shares the live count.
+- **Files:**
+  - `packages/instant/src/snapshotLog/snapshotLog.ts` — Keep occupancy in file and memory snapshot logs.
+  - `examples/counter/cli/src/parseArgv.ts` — Parse unconstrained L8 occupancy argv.
+  - `examples/counter/core/src/share.ts` — Share the live count occupancy.
 ## September 15th, 2026 at 1:33:15 p.m. EDT — `3046454bd26a` feat: save slides-qanda, counters hosts, and personal-cfo work
 
 - **Implementation commit:** `3046454bd26afe6e8d779098dcde984f32516c2e`

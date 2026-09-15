@@ -26,6 +26,10 @@ describe('Counter Path', () => {
     expect(canonicalShowPath('/counter/increment')).toEqual(
       Option.some('counter.increment'),
     )
+    expect(canonicalShowPath('/counter/kitchen')).toEqual(
+      Option.some('counter.kitchen'),
+    )
+    expect(canonicalShowPath('kitchen')).toEqual(Option.some('counter.kitchen'))
   })
 
   it('prints occupied destinations', () => {
@@ -33,6 +37,8 @@ describe('Counter Path', () => {
     expect(printDestination('counter')).toBe('/counter')
     expect(printDestination('/counter')).toBe('/counter')
     expect(printDestination('counter.increment')).toBe('/counter/increment')
+    expect(printDestination('/counter/kitchen')).toBe('/counter/kitchen')
+    expect(printDestination('kitchen')).toBe('/counter/kitchen')
   })
 
   it('prints named-share occupancy as /kitchen', () => {

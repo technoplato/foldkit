@@ -8,6 +8,7 @@ import {
   Model,
   OpenedNavigation,
   Reset,
+  SharedNamedCounter,
   init,
   initialCount,
   restore,
@@ -171,6 +172,52 @@ describe('update', () => {
         expect(model.count).toBe(2)
         expect(model.maybeDevice).toEqual(Option.some('phone'))
         expect(model.maybePath).toEqual(Option.some('counter.increment'))
+      }),
+    )
+  })
+
+  test('SharedNamedCounter occupies /counter/kitchen and stores ACL', () => {
+    Story.story(
+      update,
+      Story.with(Model.make({ count: 4 })),
+      Story.message(
+        SharedNamedCounter({
+          name: 'kitchen',
+          owner: 'alice',
+          grantedTo: 'bob',
+        }),
+      ),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.count).toBe(4)
+        expect(model.maybePath).toEqual(Option.some('counter.kitchen'))
+        expect(model.maybeShareName).toEqual(Option.some('kitchen'))
+        expect(model.maybeOwner).toEqual(Option.some('alice'))
+        expect(model.maybeGranted).toEqual(Option.some('bob'))
+      }),
+    )
+  })
+
+  test('Increment keeps named-share ACL', () => {
+    Story.story(
+      update,
+      Story.with(
+        Model.make({
+          count: 0,
+          maybePath: Option.some('counter.kitchen'),
+          maybeShareName: Option.some('kitchen'),
+          maybeOwner: Option.some('alice'),
+          maybeGranted: Option.some('bob'),
+        }),
+      ),
+      Story.message(Increment()),
+      Story.Command.expectNone(),
+      Story.model(model => {
+        expect(model.count).toBe(1)
+        expect(model.maybePath).toEqual(Option.some('counter.kitchen'))
+        expect(model.maybeShareName).toEqual(Option.some('kitchen'))
+        expect(model.maybeOwner).toEqual(Option.some('alice'))
+        expect(model.maybeGranted).toEqual(Option.some('bob'))
       }),
     )
   })

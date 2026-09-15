@@ -18,7 +18,8 @@ export const countSnapshotId = 'c0a7c001-0000-4000-8000-000000000001'
  *
  * `device` and `path` are occupancy. Old rows without them decode as
  * none. Example: `phone` plus `counter.increment` for
- * `/counter/increment`. Home `/counter` omits both.
+ * `/counter/increment`. Home `/counter` omits both. Named share
+ * `kitchen` stores `name`, `owner`, and `granted` on the same row.
  */
 export const InstantCountSnapshotRecord = S.Struct({
   asOf: S.String,
@@ -27,6 +28,9 @@ export const InstantCountSnapshotRecord = S.Struct({
   value: S.Int,
   device: S.optionalKey(S.String),
   path: S.optionalKey(S.String),
+  name: S.optionalKey(S.String),
+  owner: S.optionalKey(S.String),
+  granted: S.optionalKey(S.String),
 })
 /** A decoded Instant count snapshot, including optional occupancy. */
 export type InstantCountSnapshotRecord = typeof InstantCountSnapshotRecord.Type
@@ -42,13 +46,46 @@ export const InstantLogMessageRecord = S.Struct({
 export type InstantLogMessageRecord = typeof InstantLogMessageRecord.Type
 
 /** Missing count row. Value is 0. */
-export const emptyCountSnapshot: InstantCountSnapshotRecord =
+export const emptyCountSnapshotFor = (
+  id: string,
+): InstantCountSnapshotRecord =>
   InstantCountSnapshotRecord.make({
     asOf: '',
     at: 0,
-    id: countSnapshotId,
+    id,
     value: 0,
   })
+
+/** Missing public count row. Value is 0. */
+export const emptyCountSnapshot: InstantCountSnapshotRecord =
+  emptyCountSnapshotFor(countSnapshotId)
+
+/**
+ * Instant `count.update` fields for one snapshot write.
+ * Occupancy and named-share ACL are omitted when absent so old rows
+ * stay compatible. Example: kitchen writes `name: kitchen`.
+ */
+export const countSnapshotWriteFields = (
+  snapshot: InstantCountSnapshotRecord,
+): Readonly<{
+  readonly asOf: string
+  readonly at: number
+  readonly value: number
+  readonly device?: string
+  readonly path?: string
+  readonly name?: string
+  readonly owner?: string
+  readonly granted?: string
+}> => ({
+  asOf: snapshot.asOf,
+  at: snapshot.at,
+  value: snapshot.value,
+  ...(snapshot.device === undefined ? {} : { device: snapshot.device }),
+  ...(snapshot.path === undefined ? {} : { path: snapshot.path }),
+  ...(snapshot.name === undefined ? {} : { name: snapshot.name }),
+  ...(snapshot.owner === undefined ? {} : { owner: snapshot.owner }),
+  ...(snapshot.granted === undefined ? {} : { granted: snapshot.granted }),
+})
 
 /** Count snapshot plus the Message log. */
 export const SnapshotLogState = S.Struct({
@@ -81,6 +118,9 @@ export const InstantSnapshotLogEntities = {
     value: i.number(),
     device: i.string().optional(),
     path: i.string().optional(),
+    name: i.string().optional(),
+    owner: i.string().optional(),
+    granted: i.string().optional(),
   }),
   message: i.entity({
     createdAtMs: i.number().indexed(),
@@ -161,6 +201,9 @@ const LooseCountRow = S.Struct({
   value: S.Number,
   device: S.optionalKey(S.String),
   path: S.optionalKey(S.String),
+  name: S.optionalKey(S.String),
+  owner: S.optionalKey(S.String),
+  granted: S.optionalKey(S.String),
 })
 
 const LooseMessageRow = S.Struct({
@@ -226,6 +269,9 @@ const decodeCountRow = (row: unknown): InstantCountSnapshotRecord => {
     value: record.value,
     ...(record.device === undefined ? {} : { device: record.device }),
     ...(record.path === undefined ? {} : { path: record.path }),
+    ...(record.name === undefined ? {} : { name: record.name }),
+    ...(record.owner === undefined ? {} : { owner: record.owner }),
+    ...(record.granted === undefined ? {} : { granted: record.granted }),
   })
 }
 
@@ -291,27 +337,32 @@ export type SnapshotLogQueryData = Readonly<{
   readonly message?: ReadonlyArray<unknown>
 }>
 
+/** Decodes every Instant count row. Filter happens in {@link decodeSnapshotLogState}. */
+export const decodeCountRows = (
+  data: SnapshotLogQueryData,
+): ReadonlyArray<InstantCountSnapshotRecord> =>
+  Array.filterMap(data.count ?? [], row => {
+    const decoded = S.decodeUnknownOption(LooseCountRow)(row)
+    if (Option.isNone(decoded)) {
+      return Option.none()
+    }
+    return Option.some(decodeCountRow(row))
+  })
+
 /** Decodes Instant query rows into a snapshot and a sorted Message log. */
 export const decodeSnapshotLogState = (
   data: SnapshotLogQueryData,
   cache?: Map<string, InstantLogMessageRecord>,
   countId: string = countSnapshotId,
 ): SnapshotLogState => {
-  const countRows = data.count ?? []
+  const maybeCount = Array.findFirst(
+    decodeCountRows(data),
+    row => row.id === countId,
+  )
+  const snapshot = Option.isSome(maybeCount)
+    ? maybeCount.value
+    : emptyCountSnapshotFor(countId)
   const messageRows = data.message ?? []
-  const maybeCount = Array.findFirst(countRows, row => {
-    const decoded = S.decodeUnknownOption(LooseCountRow)(row)
-    if (Option.isNone(decoded)) {
-      return false
-    }
-    return decoded.value.id === countId
-  })
-  const snapshot = (() => {
-    if (Option.isSome(maybeCount)) {
-      return decodeCountRow(maybeCount.value)
-    }
-    return emptyCountSnapshot
-  })()
   const decodeOne =
     cache === undefined
       ? decodeMessageRow
@@ -322,16 +373,30 @@ export const decodeSnapshotLogState = (
   }
 }
 
+export type CountIdSelector = (
+  rows: ReadonlyArray<InstantCountSnapshotRecord>,
+) => string
+
 /**
  * Decodes Instant query rows and reuses Messages that did not change.
  * One decoder per subscribeQuery. A burst must not Schema-decode the
- * whole log on every push.
+ * whole log on every push. Pass a selector to pick kitchen vs public
+ * after reading every count row. The first decode locks the id.
  */
 export const createSnapshotLogStateDecoder = (
-  countId: string = countSnapshotId,
+  countId: string | CountIdSelector = countSnapshotId,
 ): ((data: SnapshotLogQueryData) => SnapshotLogState) => {
   const cache = new Map<string, InstantLogMessageRecord>()
-  return data => decodeSnapshotLogState(data, cache, countId)
+  let locked: string | undefined
+  return data => {
+    const requested =
+      locked ??
+      (typeof countId === 'function'
+        ? countId(decodeCountRows(data))
+        : countId)
+    locked = requested
+    return decodeSnapshotLogState(data, cache, requested)
+  }
 }
 
 /** Empty snapshot and no Messages. */
