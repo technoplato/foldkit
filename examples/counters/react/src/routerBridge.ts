@@ -2,19 +2,19 @@ import {
   type Model,
   type NavInstruction,
   type Navigation,
-  navigatorInstructions,
   navigationTargetToPath,
+  navigatorInstructions,
 } from 'counters-core-example'
 import { Match as M, Option } from 'effect'
 import {
-  createNavigationAdapter,
   type NativeCall,
-  push as pushEntry,
   type PresentationStyle,
-  reactRouterPlugin,
   type RouterPlugin,
-  tanstackRouterPlugin,
   type StackInstruction,
+  createNavigationAdapter,
+  push as pushEntry,
+  reactRouterPlugin,
+  tanstackRouterPlugin,
 } from 'foldkit/navigation'
 
 // INSTRUCTION BRIDGE
@@ -168,9 +168,7 @@ export const reactRouterNavigationBridge = (
 /** The slice of the window runtime this observer needs. */
 export interface NavigationSource {
   readonly readModel: () => Model
-  readonly subscribe: (
-    listener: (model: Model) => void,
-  ) => (() => void) | void
+  readonly subscribe: (listener: (model: Model) => void) => (() => void) | void
 }
 
 /**

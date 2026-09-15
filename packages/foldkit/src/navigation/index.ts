@@ -12,18 +12,15 @@ export {
   Popover,
   Side,
   Drawer,
-  Presented,
   presented,
   NothingPresented,
   PresentingEntries,
-  NavigationStack,
   stackAtRoot,
   stackWithEntries,
   topEntry,
   pushed,
   popped,
   replacedRoot,
-  StackInstruction,
   setRoot,
   push,
   pop,
@@ -31,8 +28,19 @@ export {
   stackInstructions,
   applyStackInstructions,
 } from './structure.js'
+export type {
+  Presented,
+  NavigationStack,
+  StackInstruction,
+} from './structure.js'
 export {
-  type NativeCall,
+  tanstackRouterPlugin,
+  reactRouterPlugin,
+  reactNavigationPlugin,
+  createNavigationAdapter,
+} from './plugin.js'
+export type {
+  NativeCall,
   PushPathCall,
   BackCall,
   PresentPathCall,
@@ -40,14 +48,10 @@ export {
   DismissCall,
   NamedPushCall,
   NamedPresentCall,
-  type PathPrinter,
-  type RouterPlugin,
-  type NativeEmitter,
-  type PathParser,
-  tanstackRouterPlugin,
-  reactRouterPlugin,
-  reactNavigationPlugin,
-  createNavigationAdapter,
+  PathPrinter,
+  RouterPlugin,
+  NativeEmitter,
+  PathParser,
 } from './plugin.js'
 
 /** Pushes a new URL to browser history and triggers Foldkit's URL change handling. */

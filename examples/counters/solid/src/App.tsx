@@ -1,5 +1,8 @@
-import { type CountersWindowActions, type CountersWindowModel } from 'counters-instant-example'
-import { createSignal, type JSX, onCleanup, onMount } from 'solid-js'
+import {
+  type CountersWindowActions,
+  type CountersWindowModel,
+} from 'counters-instant-example'
+import { type JSX, createSignal, onCleanup, onMount } from 'solid-js'
 
 import {
   countersWindowCarrier,
@@ -84,9 +87,15 @@ export const App = (): JSX.Element => {
         <>
           <p>{view.selectedId}</p>
           <p>{view.count}</p>
-          <button onclick={() => actions.increment()} type="button">+</button>
-          <button onclick={() => actions.decrement()} type="button">-</button>
-          <button onclick={() => actions.showFact()} type="button">Fact</button>
+          <button onclick={() => actions.increment()} type="button">
+            +
+          </button>
+          <button onclick={() => actions.decrement()} type="button">
+            -
+          </button>
+          <button onclick={() => actions.showFact()} type="button">
+            Fact
+          </button>
           <button
             onclick={() => {
               actions.back()

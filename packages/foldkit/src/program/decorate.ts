@@ -1,5 +1,5 @@
-import { type Program, type ProgramCommand } from './program.js'
 import type { Ports } from '../port/port.js'
+import { type Program, type ProgramCommand } from './program.js'
 
 // PROGRAM DECORATORS
 //
@@ -45,13 +45,7 @@ export const onUpdate =
     P extends Ports | undefined = undefined,
   >(
     observe: (transition: UpdateTransition<Model, Message>) => void,
-  ): ProgramDecorator<
-    Model,
-    Message,
-    Resources,
-    ManagedResourceServices,
-    P
-  > =>
+  ): ProgramDecorator<Model, Message, Resources, ManagedResourceServices, P> =>
   program => ({
     ...program,
     update: (model, message) => {
@@ -78,13 +72,7 @@ export const mapCommands =
       commands: ReadonlyArray<ProgramCommand<Message, Resources>>,
       nextModel: Model,
     ) => ReadonlyArray<ProgramCommand<Message, Resources>>,
-  ): ProgramDecorator<
-    Model,
-    Message,
-    Resources,
-    ManagedResourceServices,
-    P
-  > =>
+  ): ProgramDecorator<Model, Message, Resources, ManagedResourceServices, P> =>
   program => ({
     ...program,
     update: (model, message) => {
@@ -110,22 +98,13 @@ export const renamed =
     P extends Ports | undefined = undefined,
   >(
     id: string,
-  ): ProgramDecorator<
-    Model,
-    Message,
-    Resources,
-    ManagedResourceServices,
-    P
-  > =>
+  ): ProgramDecorator<Model, Message, Resources, ManagedResourceServices, P> =>
   program => ({ ...program, id })
 
 /**
  * Applies decorators left to right: decorate(program, a, b) === b(a(program)).
  */
-export const decorate = <
-  Model,
-  Message extends Readonly<{ _tag: string }>,
->(
+export const decorate = <Model, Message extends Readonly<{ _tag: string }>>(
   program: Program<Model, Message>,
   ...decorators: ReadonlyArray<ProgramDecorator<Model, Message>>
 ): Program<Model, Message> =>

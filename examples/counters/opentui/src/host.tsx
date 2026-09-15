@@ -37,7 +37,6 @@ import {
   referenceForSemanticInteraction,
   scrollTopForFocusedBounds,
 } from './interactionPresentation.js'
-
 import { attributionSuffix, gitSourceUrl } from './surfaceLabel.js'
 
 const HEADER_HEIGHT = 7

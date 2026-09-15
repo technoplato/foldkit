@@ -1,4 +1,5 @@
 export * from './answer'
 export * from './deck'
+export * from './explore'
 export * from './nav'
 export * from './slide'

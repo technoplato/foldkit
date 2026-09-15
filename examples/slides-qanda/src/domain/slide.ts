@@ -1,6 +1,8 @@
 import { Array, Match as M, Option, Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 
+import { PropositionJson } from './explore'
+
 /**
  * One URL segment for a question card. `01` prints as `/q/01`. Slashes are
  * not a value. Example: `01`.
@@ -68,6 +70,9 @@ const questionFields = {
   prompt: S.String.annotate({ title: 'prompt' }).annotateKey({
     messageMissingKey: 'Each slide needs a prompt such as Paste A, B, or C.',
   }),
+  propositions: S.optionalKey(S.Array(PropositionJson)).annotate({
+    title: 'explore propositions',
+  }),
 }
 
 /**
@@ -122,8 +127,19 @@ export const cardOf = (at: At): Question =>
   M.value(at).pipe(
     M.tagsExhaustive({
       AtFollowUp: ({ followUp }) => followUp,
-      AtRoot: ({ root }) =>
-        Question.make({
+      AtRoot: ({ root }) => {
+        if (root.propositions === undefined) {
+          return Question.make({
+            id: root.id,
+            title: root.title,
+            mapLines: root.mapLines,
+            story: root.story,
+            question: root.question,
+            options: root.options,
+            prompt: root.prompt,
+          })
+        }
+        return Question.make({
           id: root.id,
           title: root.title,
           mapLines: root.mapLines,
@@ -131,7 +147,9 @@ export const cardOf = (at: At): Question =>
           question: root.question,
           options: root.options,
           prompt: root.prompt,
-        }),
+          propositions: root.propositions,
+        })
+      },
     }),
   )
 

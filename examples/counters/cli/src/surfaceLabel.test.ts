@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { gitSourceUrl, normalizeRemoteUrl, surfaceLines } from './surfaceLabel.js'
+import {
+  gitSourceUrl,
+  normalizeRemoteUrl,
+  surfaceLines,
+} from './surfaceLabel.js'
 
 describe('normalizeRemoteUrl', () => {
   it('normalizes scp-style GitHub remotes', () => {
@@ -10,9 +14,9 @@ describe('normalizeRemoteUrl', () => {
   })
 
   it('passes https remotes through normalized', () => {
-    expect(
-      normalizeRemoteUrl('https://github.com/foldkit/foldkit.git'),
-    ).toBe('https://github.com/foldkit/foldkit')
+    expect(normalizeRemoteUrl('https://github.com/foldkit/foldkit.git')).toBe(
+      'https://github.com/foldkit/foldkit',
+    )
   })
 
   it('returns empty for unknown hosts so the banner omits attribution', () => {
