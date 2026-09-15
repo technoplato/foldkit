@@ -31,6 +31,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   > Put live-painters onto the L9 branch so one product has both.
 - **SpecStory:** unavailable — Cursor cloud agent session; no SpecStory capture for this desktop-less run.
 
+## September 12th, 2026 at 12:46:35 a.m. EDT — `c1439087a710` feat(counter): live-poke tweet painters via show --surface
+
+- **Implementation commit:** `c1439087a71096aa34972fba55ef94d950b849e1`
+- **Change:** Live-poke tweet painters with show --surface on Instant.
+- **Details:**
+  - Each explicit surface starts that Processor Host and paints that host chrome.
+  - Bare show stays on the CLI daemon. TUI remains a live Instant peer.
+  - Did not stub named-share. Did not overwrite the L8 yield files.
+- **Files:**
+  - `examples/counter/core/src/hostSurface.ts` — Map tweet painters to Processor Hosts.
+  - `examples/counter/core/src/hostSurface.test.ts` — Cover painter ids and Host mapping.
+  - `examples/counter/core/src/show.ts` — Paint IDENTITY and STATE for the occupied surface.
+  - `examples/counter/core/src/show.test.ts` — Paint Svelte chrome on show.
+  - `examples/counter/core/src/startLive.test.ts` — Let a Svelte Processor read the CLI count.
+  - `examples/counter/cli/src/parseArgv.ts` — Parse show --surface.
+  - `examples/counter/cli/src/parseArgv.test.ts` — Cover svelte, react-screen, and unknown surface.
+  - `examples/counter/cli/src/paintHost.ts` — Pass surface into renderShow.
+  - `examples/counter/cli/src/session.ts` — Open a one-shot painter Processor.
+  - `examples/counter/cli/src/host.ts` — Route explicit --surface to that Host.
+  - `examples/counter/cli/src/host.test.ts` — Share one snapshot across tweet painters.
+  - `examples/counter/cli/src/inProcess.ts` — Dispatch parsed surface to runShow.
+  - `examples/counter/cli/src/entry.ts` — Keep painter shows off the CLI daemon.
+  - `examples/counter/cli/src/process.integration.test.ts` — Poke each Dave surface on a file Instant tape.
+- **User context (verbatim):**
+  > Implement L10 live-painters on FoldKit: many painters live on one counter, a live poke, not manifest platforms=7.
+- **SpecStory:** unavailable — Cursor cloud agent session; no SpecStory capture for this desktop-less run.
+
 ## September 12th, 2026 at 5:13:47 a.m. UTC — `7bf34be67aa3` feat(counter): add L9 named-share occupancy
 
 - **Implementation commit:** `7bf34be67aa3adfaaf94f87c3269566cecac4d2b`
