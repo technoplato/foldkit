@@ -1,5 +1,5 @@
 import { Array, Option } from 'effect'
-import type { Catalog, Interaction } from 'foldkit'
+import { type Catalog, Interaction } from 'foldkit'
 import type { ButtonNode } from 'foldkit/renderers'
 import {
   type ReactElement,
@@ -11,6 +11,8 @@ import {
 } from 'react'
 
 import { type PaintClassNames, paintTree } from '../paintReact/paintReact.js'
+
+export type { PaintClassNames } from '../paintReact/paintReact.js'
 
 /**
  * Any bound Program, with its Model and Message erased. Components read
@@ -242,10 +244,13 @@ export const ActionMenuDialog = ({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Actions"
+          aria-labelledby="fk-action-menu-title"
           className={className ?? 'fk-action-menu'}
           data-style={menu.style._tag}
         >
+          <h2 id="fk-action-menu-title" className="fk-action-menu-title">
+            Actions
+          </h2>
           <input
             role="combobox"
             aria-expanded="true"
@@ -298,24 +303,6 @@ export const ActionMenuDialog = ({
 
 // KEYS
 
-const typingKeys: ReadonlySet<string> = new Set(['Backspace', 'Delete'])
-
-const isTypingIntoField = (event: KeyboardEvent): boolean => {
-  const target = event.target
-  if (!(target instanceof HTMLElement)) {
-    return false
-  }
-  const isEditable =
-    target.isContentEditable ||
-    ((target instanceof HTMLInputElement ||
-      target instanceof HTMLTextAreaElement) &&
-      !target.readOnly)
-  const isTypingKey =
-    (event.key.length === 1 && !event.metaKey && !event.ctrlKey) ||
-    typingKeys.has(event.key)
-  return isEditable && isTypingKey
-}
-
 /**
  * Routes document key presses to the bound Program: `+` sends Increment,
  * Cmd-K opens the action menu, arrows and Escape move through it. Typing
@@ -328,23 +315,6 @@ export const useKeyBindings = (): void => {
     if (typeof document === 'undefined') {
       return undefined
     }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.isComposing || isTypingIntoField(event)) {
-        return
-      }
-      const isHandled = bound.pressKey({
-        key: event.key,
-        isMeta: event.metaKey,
-        isControl: event.ctrlKey,
-        isShift: event.shiftKey,
-      })
-      if (isHandled) {
-        event.preventDefault()
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-    }
+    return Interaction.listenToDocumentKeys(bound, document)
   }, [bound])
 }

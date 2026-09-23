@@ -16,6 +16,7 @@ export {
   cliDaemonSocketPath,
   removeCliDaemonFiles,
 } from './paths.js'
+export { parseProgramArgv, type ProgramArgv } from './argv.js'
 
 /** Ready wait copied from the Effect client so this file never imports Effect. */
 export const cliViewReadyTimeoutMs = 20_000

@@ -59,6 +59,7 @@ export const startHandle = <Child extends SyncChild>(
   const program = config.program
   const scope = Effect.runSync(Scope.make())
   const listeners = new Set<() => void>()
+  const writesInFlight = new Set<Promise<unknown>>()
   let cachedModel: Model = program.init()[0]
   let maybeStarted: Option.Option<StartedProgram<Model, Message>> =
     Option.none()
@@ -117,18 +118,23 @@ export const startHandle = <Child extends SyncChild>(
     },
     send: message => {
       if (Option.isSome(maybeStarted)) {
-        maybeStarted.value.send(message)
-        cachedModel = maybeStarted.value.readModel()
+        const started = maybeStarted.value
+        const write = Effect.runPromise(started.run(message)).finally(() => {
+          writesInFlight.delete(write)
+        })
+        writesInFlight.add(write)
+        cachedModel = started.readModel()
         notify()
       }
     },
-    stop: () => {
+    stop: async () => {
       if (isStopped) {
-        return Promise.resolve()
+        return
       }
       isStopped = true
       listeners.clear()
-      return Effect.runPromise(Scope.close(scope, Exit.void))
+      await Promise.allSettled([...writesInFlight])
+      await Effect.runPromise(Scope.close(scope, Exit.void))
     },
   }
 }

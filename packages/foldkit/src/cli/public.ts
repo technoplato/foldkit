@@ -26,3 +26,12 @@ export {
 } from './index.js'
 
 export type { CliDaemonPaintedResult, CliDaemonSurface } from './index.js'
+
+export {
+  paintProgram,
+  programCliSurface,
+  programUsage,
+  runProgramCommand,
+} from './program.js'
+
+export { keyInputOfTerminal, runProgramTui } from './tui.js'
