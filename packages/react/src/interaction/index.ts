@@ -1,2 +1,1 @@
 export * from './interaction.js'
-export * from './bind.js'

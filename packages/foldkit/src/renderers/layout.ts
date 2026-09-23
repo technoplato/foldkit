@@ -88,7 +88,10 @@ const layoutNode = (
         const w = Math.min(glyph.length, availableW)
         const action: HotspotAction | undefined = button.disabled
           ? undefined
-          : { _tag: 'custom', id: button.token ?? button.label }
+          : {
+              _tag: 'custom',
+              id: button.action ?? button.token ?? button.label,
+            }
         return {
           id: ids.next('button'),
           x,

@@ -131,8 +131,13 @@ export function action(
 
 // CATALOG
 
-/** Any declared Action. */
-export type AnyAction = Action<string, any, any>
+/**
+ * Any declared Action, with or without fields. Structural so a Catalog can
+ * mix `Increment()` and `SetCount({ count })`.
+ */
+export type AnyAction = S.Top &
+  ActionDeclaration<string, any> &
+  Readonly<{ make: (input: any) => any }>
 
 /**
  * The single ordered value of every Action a Program offers. Buttons, menu

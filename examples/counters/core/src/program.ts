@@ -83,12 +83,15 @@ const updateBoundary = (model: Model, message: Message): UpdateReturn => {
  * boundary: row entries renamed their Counter payload to `child`, the child
  * wrapper became `GotChild`, and the derived Model carries `nextId`.
  */
-// The composition declares optional Subscription and ManagedResource slots
-// typed against its widest internal vocabulary; this boundary carries none
-// and narrows every Message to the exported Schema.
+// The composition declares optional Subscription, ManagedResource,
+// interaction, and navigation slots typed against its widest internal
+// vocabulary; this boundary carries none and narrows every Message to the
+// exported Schema.
 const {
   subscriptions: _composedSubscriptions,
   managedResources: _composedManagedResources,
+  interaction: _composedInteraction,
+  navigation: _composedNavigation,
   ...ComposedRows
 } = Rows
 

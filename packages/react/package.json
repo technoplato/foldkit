@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./interaction": {
+      "types": "./dist/interaction/index.d.ts",
+      "import": "./dist/interaction/index.js"
     }
   },
   "sideEffects": false,

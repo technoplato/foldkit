@@ -1,3 +1,6 @@
+import { Array, Match as M } from 'effect'
+
+import type { Entry } from '../catalog/catalog.js'
 import type {
   BoxNode,
   ButtonNode,
@@ -28,15 +31,49 @@ export const Text = (
 export const Button = (props: {
   readonly label: string
   readonly token?: string
+  readonly action?: string
+  readonly because?: string
   readonly variant?: 'Primary' | 'Ghost' | 'Destructive'
   readonly disabled?: boolean
 }): ButtonNode => ({
   _tag: 'Button',
   label: props.label,
   ...(props.token === undefined ? {} : { token: props.token }),
+  ...(props.action === undefined ? {} : { action: props.action }),
+  ...(props.because === undefined ? {} : { because: props.because }),
   ...(props.variant === undefined ? {} : { variant: props.variant }),
   ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
 })
+
+/**
+ * One Button per Catalog entry, in Catalog order. A Disabled entry paints
+ * as a disabled Button carrying its sentence, so every painter shows the
+ * same reason.
+ *
+ * @example
+ * ```typescript
+ * Row({}, ...actionButtons(Catalog.entries(catalog, model)))
+ * // count 0: [+] [-] [Reset (disabled: count is already 0)]
+ * ```
+ */
+export const actionButtons = (
+  entries: ReadonlyArray<Entry>,
+): ReadonlyArray<ButtonNode> =>
+  Array.map(entries, entry =>
+    M.value(entry.availability).pipe(
+      M.withReturnType<ButtonNode>(),
+      M.tagsExhaustive({
+        Enabled: () => Button({ label: entry.label, action: entry.tag }),
+        Disabled: ({ because }) =>
+          Button({
+            label: entry.label,
+            action: entry.tag,
+            because,
+            disabled: true,
+          }),
+      }),
+    ),
+  )
 
 /** A Model-bound text field. */
 export const TextInput = (props: {
