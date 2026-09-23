@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 23rd, 2026 at 7:12:12 a.m. EDT — `ab7d221d47a8` feat(foldkit): add Catalog, ActionMenu navigation, and sync modes
+
+- **Implementation commit:** `ab7d221d47a8fd75c7d0131732e4aa1a2d0e3c1a`
+- **Change:** Add Catalog, Interaction, ActionMenu navigation, and synchronization modes to Foldkit core.
+- **Details:**
+  - The action menu is a presented navigation destination with a Focus ADT and core key routing. Runtime.start applies Mirror, SharedDomain, or Follow per synced Message.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — Declare Actions once with availability and presentation meta.
+  - `packages/foldkit/src/interaction/interaction.ts` — Give every Client one contract for presses, keys, and the menu.
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Present the action menu as navigation state over any Program.
+  - `packages/foldkit/src/runtime/start.ts` — Apply synced Messages by session policy audience.
+- **User context (verbatim):**
+  > I was imagining action menu as navigational state, a la swift navigation.
+  > I do want different navigation synchronization modes.
+  > We want our adapter layers to be able to do that generically over any program set.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 15th, 2026 at 1:33:15 p.m. EDT — `ff0429cb50d8` feat(counter): keep Instant snapshot occupancy and named share
 
 - **Implementation commit:** `ff0429cb50d875af0c0052e0398e2586ed8bb9e7`
