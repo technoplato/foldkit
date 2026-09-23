@@ -17,6 +17,11 @@
       "import": "./dist/adt/public.js",
       "default": "./dist/adt/public.js"
     },
+    "./action-menu": {
+      "types": "./dist/actionMenu/public.d.ts",
+      "import": "./dist/actionMenu/public.js",
+      "default": "./dist/actionMenu/public.js"
+    },
     "./attention": {
       "types": "./dist/attention/public.d.ts",
       "import": "./dist/attention/public.js",
@@ -51,6 +56,11 @@
       "types": "./dist/canvas/public.d.ts",
       "import": "./dist/canvas/public.js",
       "default": "./dist/canvas/public.js"
+    },
+    "./catalog": {
+      "types": "./dist/catalog/public.d.ts",
+      "import": "./dist/catalog/public.js",
+      "default": "./dist/catalog/public.js"
     },
     "./command": {
       "types": "./dist/command/public.d.ts",
@@ -91,6 +101,11 @@
       "types": "./dist/http/public.d.ts",
       "import": "./dist/http/public.js",
       "default": "./dist/http/public.js"
+    },
+    "./interaction": {
+      "types": "./dist/interaction/public.d.ts",
+      "import": "./dist/interaction/public.js",
+      "default": "./dist/interaction/public.js"
     },
     "./interaction-graph": {
       "types": "./dist/interactionGraph/public.d.ts",

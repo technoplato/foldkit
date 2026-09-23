@@ -1,7 +1,13 @@
 import type { Effect, Schema } from 'effect'
 
+import type { AnyCatalog } from '../catalog/catalog.js'
 import type { EffectManifest } from '../command/effectManifest.js'
+import {
+  type ProgramInteraction,
+  fromCatalog,
+} from '../interaction/interaction.js'
 import type { ManagedResources } from '../managedResource/managedResource.js'
+import type { NavigationStack } from '../navigation/structure.js'
 import type { Ports } from '../port/port.js'
 import type { UiNode } from '../renderers/types.js'
 import type { ActionContext } from '../schema/index.js'
@@ -56,6 +62,24 @@ export type ProgramSynchronization<Model, Message> = Readonly<{
 }>
 
 /**
+ * The destinations a Program can present. `root` is the named destination
+ * that is always beneath everything else. `stackOf` is present when the
+ * Model holds a stack, for example after `ActionMenu.compose` adds the
+ * menu as a presented destination.
+ *
+ * @example
+ * ```typescript
+ * const Counter = ts('Counter')
+ * const navigation = { Destination: Counter, root: Counter() }
+ * ```
+ */
+export type ProgramNavigation<Model, Destination> = Readonly<{
+  Destination: ProgramSchema<Destination>
+  root: Destination
+  stackOf?: (model: Model) => NavigationStack<Destination>
+}>
+
+/**
  * A renderer-free Foldkit Program.
  *
  * The Program owns the Model, Message protocol, init, update, valid, and
@@ -106,11 +130,19 @@ export type Program<
   migrations?: ReadonlyArray<Migration>
   synchronization?: ProgramSynchronization<Model, Message>
   versionedEvents?: VersionedEventRegistry<Message>
+  /** @deprecated Declare a `catalog`; its entries carry availability. */
   valid?: ProgramValid<Model>
   screen?: ProgramScreen<Model>
+  catalog?: AnyCatalog
+  interaction?: ProgramInteraction<Model, Message>
+  navigation?: ProgramNavigation<Model, any>
 }>
 
-/** Defines a renderer-free Foldkit Program while preserving inferred types. */
+/**
+ * Defines a renderer-free Foldkit Program while preserving inferred types.
+ * A Program that declares a `catalog` and no `interaction` gets one derived
+ * from the catalog, so every Client can press its Actions.
+ */
 export const make = <
   Model,
   Message extends Readonly<{ _tag: string }>,
@@ -119,7 +151,15 @@ export const make = <
   P extends Ports | undefined = undefined,
 >(
   program: Program<Model, Message, Resources, ManagedResourceServices, P>,
-): Program<Model, Message, Resources, ManagedResourceServices, P> => program
+): Program<Model, Message, Resources, ManagedResourceServices, P> => {
+  if (program.interaction === undefined && program.catalog !== undefined) {
+    const interaction = fromCatalog(
+      program.catalog,
+    ) as unknown as ProgramInteraction<Model, Message>
+    return { ...program, interaction }
+  }
+  return program
+}
 
 /** Extracts the Model type from a Program. */
 export type ModelOf<Definition> =

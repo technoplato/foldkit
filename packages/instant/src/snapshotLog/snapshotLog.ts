@@ -1,4 +1,13 @@
-import { Array, Data, Effect, Option, Order, Schema as S, Stream } from 'effect'
+import {
+  Array,
+  Data,
+  Effect,
+  Option,
+  Order,
+  Result,
+  Schema as S,
+  Stream,
+} from 'effect'
 
 import { InstantCoreDatabase, i } from '@instantdb/core'
 
@@ -46,9 +55,7 @@ export const InstantLogMessageRecord = S.Struct({
 export type InstantLogMessageRecord = typeof InstantLogMessageRecord.Type
 
 /** Missing count row. Value is 0. */
-export const emptyCountSnapshotFor = (
-  id: string,
-): InstantCountSnapshotRecord =>
+export const emptyCountSnapshotFor = (id: string): InstantCountSnapshotRecord =>
   InstantCountSnapshotRecord.make({
     asOf: '',
     at: 0,
@@ -344,9 +351,9 @@ export const decodeCountRows = (
   Array.filterMap(data.count ?? [], row => {
     const decoded = S.decodeUnknownOption(LooseCountRow)(row)
     if (Option.isNone(decoded)) {
-      return Option.none()
+      return Result.failVoid
     }
-    return Option.some(decodeCountRow(row))
+    return Result.succeed(decodeCountRow(row))
   })
 
 /** Decodes Instant query rows into a snapshot and a sorted Message log. */
@@ -391,9 +398,7 @@ export const createSnapshotLogStateDecoder = (
   return data => {
     const requested =
       locked ??
-      (typeof countId === 'function'
-        ? countId(decodeCountRows(data))
-        : countId)
+      (typeof countId === 'function' ? countId(decodeCountRows(data)) : countId)
     locked = requested
     return decodeSnapshotLogState(data, cache, requested)
   }

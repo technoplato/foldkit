@@ -2,8 +2,14 @@
  * Program.compose.sync — wrap one Program so Instant I/O can feed
  * SnapshotReceived and RemoteMessageReceived into update.
  */
-import { Array, Predicate, Schema as S } from 'effect'
+import { Array, Option, Predicate, Schema as S } from 'effect'
 
+import { Disabled } from '../catalog/catalog.js'
+import {
+  Failed as FailedStatus,
+  type ProgramInteraction,
+  Starting as StartingStatus,
+} from '../interaction/interaction.js'
 import { ts } from '../schema/index.js'
 import type {
   MessageOf,
@@ -428,6 +434,90 @@ export const sync = <Child extends SyncChild>(config: {
           return child.screen!(stripReady(model) as ChildModel, context)
         }
 
+  const childInteraction:
+    | ProgramInteraction<ChildModel, ChildMessage>
+    | undefined = child.interaction
+
+  const notReadyBecause = (model: Model): string =>
+    model._tag === 'Failed'
+      ? 'Sync failed. This Processor cannot send yet.'
+      : 'Waiting for the first sync snapshot.'
+
+  const liftInteraction = (
+    inner: ProgramInteraction<ChildModel, ChildMessage>,
+  ): ProgramInteraction<Model, Message> => {
+    const whenReady = <A>(
+      model: Model,
+      onReady: (childModel: ChildModel) => A,
+      otherwise: A,
+    ): A =>
+      model._tag === 'Ready'
+        ? onReady(stripReady(model) as ChildModel)
+        : otherwise
+    const asMessages = (
+      messages: ReadonlyArray<ChildMessage>,
+    ): ReadonlyArray<Message> => messages as ReadonlyArray<Message>
+    return {
+      status: model => {
+        if (isFailed(model)) {
+          return FailedStatus({
+            description: describeSyncError(model.error, readTag),
+          })
+        } else if (model._tag === 'Ready') {
+          return inner.status(stripReady(model) as ChildModel)
+        } else {
+          return StartingStatus()
+        }
+      },
+      entries: model =>
+        whenReady(
+          model,
+          inner.entries,
+          Array.map(inner.entries(child.init()[0] as ChildModel), entry => ({
+            ...entry,
+            availability: Disabled({ because: notReadyBecause(model) }),
+          })),
+        ),
+      press: (model, tag) =>
+        whenReady(
+          model,
+          childModel => asMessages(inner.press(childModel, tag)),
+          [],
+        ),
+      pressKey: (model, input) =>
+        whenReady(
+          model,
+          childModel => asMessages(inner.pressKey(childModel, input)),
+          [],
+        ),
+      menu: model => whenReady(model, inner.menu, Option.none()),
+      openMenu: model =>
+        whenReady(
+          model,
+          childModel => asMessages(inner.openMenu(childModel)),
+          [],
+        ),
+      dismissMenu: model =>
+        whenReady(
+          model,
+          childModel => asMessages(inner.dismissMenu(childModel)),
+          [],
+        ),
+      typeInMenu: (model, query) =>
+        whenReady(
+          model,
+          childModel => asMessages(inner.typeInMenu(childModel, query)),
+          [],
+        ),
+      chooseFromMenu: (model, tag) =>
+        whenReady(
+          model,
+          childModel => asMessages(inner.chooseFromMenu(childModel, tag)),
+          [],
+        ),
+    }
+  }
+
   const program = make({
     id: config.id ?? `sync:${child.id}`,
     version: config.version ?? child.version,
@@ -438,6 +528,10 @@ export const sync = <Child extends SyncChild>(config: {
     update,
     ...(valid === undefined ? {} : { valid }),
     ...(screen === undefined ? {} : { screen }),
+    ...(child.catalog === undefined ? {} : { catalog: child.catalog }),
+    ...(childInteraction === undefined
+      ? {}
+      : { interaction: liftInteraction(childInteraction) }),
   })
 
   return Object.assign(program, {

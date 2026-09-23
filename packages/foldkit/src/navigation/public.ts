@@ -19,6 +19,7 @@ export {
   Side,
   Drawer,
   presented,
+  NavigationStack,
   NothingPresented,
   PresentingEntries,
   stackAtRoot,
@@ -40,7 +41,6 @@ export {
 } from './index.js'
 export type {
   Presented,
-  NavigationStack,
   StackInstruction,
   NativeCall,
   PushPathCall,
