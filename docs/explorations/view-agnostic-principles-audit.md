@@ -10,8 +10,9 @@ path confirmed it. **Plausible** means the code implies it but nobody
 reproduced it.
 
 **Follow-up, September 23, 2026:** branch `claude/canonical-counter` acts on
-this audit for the Counter. The Counter core and all nine Counter hosts
-typecheck and pass. The Catalog (`Enabled | Disabled` included) is the only
+this audit for the Counter. The Counter core, its seven hosts, and the
+headless tail typecheck and pass. The legacy react-bindings client stays only
+for react-native-showcase. The Catalog (`Enabled | Disabled` included) is the only
 place Actions are declared. The action menu is a presented `NavigationStack`
 destination. Hosts drive the Program through `Interaction.bind` and generic
 adapters instead of hand-written key maps and handles. Mirror, SharedDomain,
