@@ -14,12 +14,21 @@ import {
 
 import type { Ports } from '../port/port.js'
 import type { AnyProgram } from '../program/compose.js'
-import type { Program } from '../program/program.js'
+import type { Program, ProgramSynchronization } from '../program/program.js'
 import {
   type SyncedMessage,
   type SyncedModel,
   isChildMessage,
 } from '../program/sync.js'
+import {
+  type MessageCategory,
+  type MissingProgramSynchronization,
+  type SessionPolicy,
+  includesProcessor,
+  legacyMirrorSessionPolicy,
+  resolveAudience,
+  validateProgramSynchronization,
+} from '../synchronization/synchronization.js'
 import type { ProgramRuntime } from './programRuntime.js'
 import {
   type ProgramRuntimeStartError,
@@ -45,12 +54,20 @@ export type SyncStartProgram<
   Message extends Readonly<{ _tag: string }>,
 > = Program<Model, Message, any, any, any> &
   Readonly<{
-    of: AnyProgram
+    of: AnyProgram &
+      Readonly<{ synchronization?: ProgramSynchronization<any, any> }>
     snapshot: S.Top
     message: S.Top
   }>
 
-/** Runtime.start options. Engine is a Host argument. The Program stays pure. */
+/**
+ * Runtime.start options. Engine is a Host argument. The Program stays pure.
+ *
+ * `policy` decides who applies each synced Message (ADR 0004). Mirror, the
+ * default, applies everything everywhere. SharedDomain applies Navigation
+ * Messages only on the Processor that sent them, so the count syncs while
+ * each device keeps its own action menu.
+ */
 export type StartConfig<
   Model,
   Message extends Readonly<{ _tag: string }>,
@@ -59,6 +76,7 @@ export type StartConfig<
   program: SyncStartProgram<Model, Message>
   sync: SyncEngine
   resources?: Layer.Layer<Resources>
+  policy?: SessionPolicy
 }>
 
 /** A live synced runtime. `lastWrite` is the last Instant write result. */
@@ -215,12 +233,48 @@ export const start = <
   config: StartConfig<Model, Message, Resources>,
 ): Effect.Effect<
   StartedProgram<Model, Message>,
-  ProgramRuntimeStartError,
+  ProgramRuntimeStartError | MissingProgramSynchronization,
   Scope.Scope
 > =>
   Effect.gen(function* () {
     const program = config.program
     const engine = config.sync
+    const policy = config.policy ?? legacyMirrorSessionPolicy()
+    yield* validateProgramSynchronization(policy, program.of)
+    const childSynchronization = program.of.synchronization
+
+    const categoryOf = (message: unknown): MessageCategory =>
+      childSynchronization === undefined
+        ? 'Domain'
+        : childSynchronization.messageCategory(message)
+
+    const appliesTo = (
+      message: unknown,
+      originatingProcessor: string,
+      processor: string,
+    ): boolean => {
+      const decision = resolveAudience(
+        policy,
+        categoryOf(message),
+        originatingProcessor,
+      )
+      return (
+        decision._tag !== 'ReadOnlyFollowerRejected' &&
+        includesProcessor(decision, processor)
+      )
+    }
+
+    const appliesHere = (message: unknown, row: unknown): boolean =>
+      appliesTo(
+        message,
+        Option.getOrElse(readRowString(row, 'from'), () => ''),
+        engine.processor,
+      )
+
+    const isRejectedLocally = (message: Message): boolean =>
+      isChildMessage(message) &&
+      !appliesTo(message, engine.processor, engine.processor)
+
     const knownRows = new Map<string, unknown>()
     let lastWrite: Option.Option<SyncWriteResult> = Option.none()
     let lastApplied: Option.Option<LogRowOrder> = Option.none()
@@ -292,7 +346,7 @@ export const start = <
       )
       const model = Array.reduce(entries, bootBase.model, (folded, entry) => {
         const decoded = decodeUnknown(program.message, entry.row)
-        if (Option.isNone(decoded)) {
+        if (Option.isNone(decoded) || !appliesHere(decoded.value, entry.row)) {
           return folded
         }
         const [next] = program.of.update(folded, decoded.value)
@@ -489,6 +543,9 @@ export const start = <
         )
         return
       }
+      if (!appliesHere(decoded.value, event.row)) {
+        return
+      }
       const order = rowOrderOf(event.row)
       const isOutOfOrder =
         Option.isSome(order) &&
@@ -525,11 +582,18 @@ export const start = <
     return {
       ...runtime,
       send: (message: Message, options) => {
+        if (isRejectedLocally(message)) {
+          return
+        }
         runtime.send(message, options)
         Effect.runFork(persist(message))
       },
       run: (message: Message, options) =>
-        runtime.run(message, options).pipe(Effect.tap(() => persist(message))),
+        isRejectedLocally(message)
+          ? Effect.sync(() => runtime.readModel())
+          : runtime
+              .run(message, options)
+              .pipe(Effect.tap(() => persist(message))),
       lastWrite: () => lastWrite,
     }
   })

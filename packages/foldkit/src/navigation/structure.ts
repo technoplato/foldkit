@@ -117,6 +117,31 @@ export type NavigationStack<Destination> = Readonly<{
   presented: NothingPresented | PresentingEntries<Destination>
 }>
 
+/**
+ * Schema for a {@link NavigationStack} over one Destination Schema, so a
+ * Model can hold its stack and still decode, replay, and sync.
+ *
+ * @example
+ * ```typescript
+ * const Model = S.Struct({
+ *   count: S.Number,
+ *   navigation: NavigationStack(S.Union([Counter, ActionMenu])),
+ * })
+ * ```
+ */
+export const NavigationStack = <D extends S.Top>(Destination: D) =>
+  S.Struct({
+    root: Destination,
+    presented: S.Union([
+      S.TaggedStruct('NothingPresented', {}),
+      S.TaggedStruct('PresentingEntries', {
+        entries: S.NonEmptyArray(
+          S.Struct({ destination: Destination, style: PresentationStyle }),
+        ),
+      }),
+    ]),
+  })
+
 /** Builds a stack showing only its bare root. */
 export const stackAtRoot = <Destination>(
   root: Destination,

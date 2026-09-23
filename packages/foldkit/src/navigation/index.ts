@@ -13,6 +13,7 @@ export {
   Side,
   Drawer,
   presented,
+  NavigationStack,
   NothingPresented,
   PresentingEntries,
   stackAtRoot,
@@ -28,11 +29,7 @@ export {
   stackInstructions,
   applyStackInstructions,
 } from './structure.js'
-export type {
-  Presented,
-  NavigationStack,
-  StackInstruction,
-} from './structure.js'
+export type { Presented, StackInstruction } from './structure.js'
 export {
   tanstackRouterPlugin,
   reactRouterPlugin,

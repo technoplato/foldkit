@@ -366,3 +366,56 @@ export function ts<Tag extends string, Fields extends S.Struct.Fields>(
 export function ts(tag: string, fields: S.Struct.Fields = {}): any {
   return makeCallable(S.TaggedStruct(tag, fields))
 }
+
+/**
+ * Wraps `Schema.TaggedStruct` as a callable constructor that also exposes
+ * the given declaration properties. Used by `Catalog.action` so a declared
+ * Action is both its Message constructor and its declaration.
+ *
+ * Declaration properties hang on the callable only. Wire values stay
+ * `{ _tag, ...fields }`.
+ *
+ * @example
+ * ```typescript
+ * const Increment = callableWith(S.TaggedStruct('Increment', {}), {
+ *   what: 'Increments the count by one',
+ * })
+ * Increment() // { _tag: 'Increment' }
+ * Increment.what // 'Increments the count by one'
+ * ```
+ */
+export const callableWith = <
+  Tag extends string,
+  Fields extends S.Struct.Fields,
+  Declaration extends Readonly<Record<string, unknown>>,
+>(
+  schema: S.TaggedStruct<Tag, Fields>,
+  declaration: Declaration,
+): CallableTaggedStruct<Tag, Fields> & Declaration =>
+  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+  new Proxy(function () {} as unknown as object, {
+    apply(_target, _thisArg, argumentsList) {
+      return schema.make(argumentsList[0] ?? {})
+    },
+    get(_target, property, receiver) {
+      if (
+        typeof property === 'string' &&
+        Object.hasOwn(declaration, property)
+      ) {
+        return declaration[property]
+      }
+      return Reflect.get(schema, property, receiver)
+    },
+    has(_target, property) {
+      if (
+        typeof property === 'string' &&
+        Object.hasOwn(declaration, property)
+      ) {
+        return true
+      }
+      return Reflect.has(schema, property)
+    },
+    getPrototypeOf() {
+      return Reflect.getPrototypeOf(schema)
+    },
+  }) as unknown as CallableTaggedStruct<Tag, Fields> & Declaration

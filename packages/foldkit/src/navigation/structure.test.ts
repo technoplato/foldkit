@@ -1,4 +1,4 @@
-import { Option } from 'effect'
+import { Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import * as Structure from './structure.js'
@@ -506,5 +506,32 @@ describe('applyStackInstructions round trip', () => {
         Structure.replaceTop(entry('Search', Structure.Push())),
       ]),
     ).toEqual(bare)
+  })
+})
+
+describe('NavigationStack schema', () => {
+  const StackSchema = Structure.NavigationStack(
+    S.Literals(['Home', 'Library', 'Search', 'Settings', 'Profile']),
+  )
+
+  it('round-trips a bare root and a presented run', () => {
+    const bare = stackAtRoot('Home')
+    const deep = Structure.stackWithEntries<Destination>('Home', [
+      entry('Search', Structure.Sheet()),
+      entry('Profile', Structure.Dialog()),
+    ])
+    expect(
+      S.decodeUnknownSync(StackSchema)(S.encodeSync(StackSchema)(bare)),
+    ).toEqual(bare)
+    expect(S.decodeUnknownSync(StackSchema)(deep)).toEqual(deep)
+  })
+
+  it('rejects an empty presented run', () => {
+    expect(() =>
+      S.decodeUnknownSync(StackSchema)({
+        root: 'Home',
+        presented: { _tag: 'PresentingEntries', entries: [] },
+      }),
+    ).toThrow()
   })
 })
