@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 import {
+  type CounterHandle,
   Increment,
-  type SnapshotLogTransport,
-  type SyncedCounterHandle,
-  countOfReady,
-  makeMemorySnapshotLogTransport,
-  startLiveCounter,
-  waitForSyncedHandle,
+  type SyncedCounterModel,
+  startCounterOn,
 } from 'counter-core-example'
 import { Array, Effect, Exit, Option, Scope } from 'effect'
 import { Processor } from 'foldkit'
 
-import { fromTransport } from '@foldkit/instant'
+import {
+  FoldkitCounterV01,
+  Instant,
+  type SnapshotLogTransport,
+  fromTransport,
+  makeMemorySnapshotLogTransport,
+} from '@foldkit/instant'
 
 import { formatHeadlessHumanClock, parseHeadlessTimeFormat } from './print.js'
 
@@ -39,22 +42,42 @@ export const envInteger = (key: string, fallback: number): number => {
   return parsed
 }
 
-export type WaitForCountMode = 'exact' | 'atLeast'
+/**
+ * Starts one Counter Processor on a snapshot-log transport. Every Processor
+ * started on the same transport shares one tape.
+ *
+ * @example
+ * ```typescript
+ * startCounterOnTransport(transport, Processor.Host.Cli(), 'writer')
+ * ```
+ */
+export const startCounterOnTransport = (
+  transport: SnapshotLogTransport,
+  host: Processor.Host.Host,
+  instance: string,
+): CounterHandle =>
+  startCounterOn(
+    Instant({ app: FoldkitCounterV01, processor: host, instance, transport }),
+  )
 
-export const waitForCount = (
-  read: () => unknown,
-  subscribe: (listener: () => void) => () => void,
-  count: number,
-  options?: Readonly<{ mode?: WaitForCountMode; timeoutMs?: number }>,
+/** The Ready count, or None while the Counter is Starting or Failed. */
+export const readyCountOf = (
+  model: SyncedCounterModel,
+): Option.Option<number> =>
+  model._tag === 'Ready' ? Option.some(model.count) : Option.none()
+
+const countOrMissing = (handle: CounterHandle): number =>
+  Option.getOrElse(readyCountOf(handle.readModel()), () => -1)
+
+const waitFor = (
+  handle: CounterHandle,
+  isDone: (model: SyncedCounterModel) => boolean,
+  what: string,
+  timeoutMs: number,
 ): Promise<void> =>
   new Promise((resolve, reject) => {
-    const mode = options?.mode ?? 'exact'
-    const timeoutMs = options?.timeoutMs ?? settleTimeoutMs
-    const matches = (value: number): boolean =>
-      mode === 'atLeast' ? value >= count : value === count
-    const finish = (): void => {
-      const value = countOfReady(read())
-      if (value !== undefined && matches(value)) {
+    const check = (): void => {
+      if (isDone(handle.readModel())) {
         clearTimeout(timeout)
         stop()
         resolve()
@@ -62,15 +85,38 @@ export const waitForCount = (
     }
     const timeout = setTimeout(() => {
       stop()
-      reject(new Error(`Timed out waiting for count ${count.toString()}.`))
+      reject(new Error(`Timed out waiting for ${what}.`))
     }, timeoutMs)
-    const stop = subscribe(finish)
-    finish()
+    const stop = handle.subscribe(check)
+    check()
   })
 
-/** Ready count, or none when Instant is still Starting or Failed. */
-export const readyCountOf = (model: unknown): Option.Option<number> =>
-  Option.fromNullishOr(countOfReady(model))
+/** Resolves once the Counter leaves Starting for Ready. */
+export const waitForReady = (
+  handle: CounterHandle,
+  timeoutMs: number = settleTimeoutMs,
+): Promise<void> =>
+  waitFor(handle, model => model._tag === 'Ready', 'Ready', timeoutMs)
+
+export type WaitForCountMode = 'exact' | 'atLeast'
+
+/** Resolves once the Ready count reaches `count`. */
+export const waitForCount = (
+  handle: CounterHandle,
+  count: number,
+  options?: Readonly<{ mode?: WaitForCountMode; timeoutMs?: number }>,
+): Promise<void> => {
+  const isAtLeast = options?.mode === 'atLeast'
+  return waitFor(
+    handle,
+    model =>
+      Option.exists(readyCountOf(model), value =>
+        isAtLeast ? value >= count : value === count,
+      ),
+    `count ${count.toString()}`,
+    options?.timeoutMs ?? settleTimeoutMs,
+  )
+}
 
 /** One Host reader after a shared-tape burst. */
 export type CrossSurfaceReader = Readonly<{
@@ -87,83 +133,82 @@ export type CrossSurfaceResult = Readonly<{
   writerCount: number
 }>
 
+/** One reader Processor per Host, all on one transport. */
 export const startHostReaders = (
   transport: SnapshotLogTransport,
   instance: string,
-): ReadonlyArray<
-  Readonly<{
-    handle: SyncedCounterHandle
-    host: string
-  }>
-> =>
+): ReadonlyArray<Readonly<{ handle: CounterHandle; host: string }>> =>
   Array.map(Processor.Host.Host.members, member => {
     const host = member.make({})
     return {
-      handle: startLiveCounter(host, { instance, transport }),
+      handle: startCounterOnTransport(transport, host, instance),
       host: Processor.Host.print(host),
     }
   })
 
+const burst = (writer: CounterHandle, n: number): void => {
+  Array.forEach(Array.range(1, n), () => {
+    writer.send(Increment())
+  })
+}
+
 /**
- * Bursts N Increments through one Memory tape. Every Host tag must
- * reach N. This is the cross-surface Processor proof, including
- * Expo iOS and Expo Android.
+ * Bursts N Increments through one Memory tape. Every Host tag must reach
+ * N. This is the cross-surface Processor proof, including Expo iOS and Expo
+ * Android.
  */
 export const runMemoryCrossSurfaceBurst = async (
   n: number,
 ): Promise<CrossSurfaceResult> => {
   const transport = await Effect.runPromise(makeMemorySnapshotLogTransport())
-  const writer = startLiveCounter(Processor.Host.Cli(), {
-    instance: 'cross-writer',
+  const writer = startCounterOnTransport(
     transport,
-  })
-  const readers = startHostReaders(transport, 'cross-reader')
-  await waitForSyncedHandle(writer)
-  await Promise.all(
-    Array.map(readers, reader => waitForSyncedHandle(reader.handle)),
+    Processor.Host.Cli(),
+    'cross-writer',
   )
+  const readers = startHostReaders(transport, 'cross-reader')
+  await waitForReady(writer)
+  await Promise.all(Array.map(readers, reader => waitForReady(reader.handle)))
 
   const started = performance.now()
-  Array.forEach(Array.range(1, n), () => {
-    writer.send(Increment())
-  })
+  burst(writer, n)
   const settled = await Promise.all(
     Array.map(readers, async reader => {
       const readerStarted = performance.now()
-      await waitForCount(reader.handle.readModel, reader.handle.subscribe, n)
-      const model = reader.handle.readModel()
+      await waitForCount(reader.handle, n)
       return {
-        count: Option.getOrElse(readyCountOf(model), () => -1),
+        count: countOrMissing(reader.handle),
         elapsedMs: performance.now() - readerStarted,
         host: reader.host,
       }
     }),
   )
   const elapsedMs = performance.now() - started
-  const writerModel = writer.readModel()
-  writer.stop()
+  const writerCount = countOrMissing(writer)
+  await writer.stop()
   await Promise.all(Array.map(readers, reader => reader.handle.stop()))
 
-  return {
-    elapsedMs,
-    n,
-    readers: settled,
-    writerCount: Option.getOrElse(readyCountOf(writerModel), () => -1),
-  }
+  return { elapsedMs, n, readers: settled, writerCount }
 }
 
 /**
- * Bursts N Increments through one Memory snapshot-log tape.
- * A second Processor must reach N. Message events must stay linear.
+ * Bursts N Increments through one Memory snapshot-log tape. A second
+ * Processor must reach N, and the tape must carry exactly one Message event
+ * per Increment.
  */
 export const runMemoryBurst = async (n: number): Promise<StressResult> => {
   const transport = await Effect.runPromise(makeMemorySnapshotLogTransport())
   const messageEvents: Array<string> = []
-  const writer = startLiveCounter(Processor.Host.Cli(), { transport })
-  const reader = startLiveCounter(Processor.Host.Headless(), {
-    instance: 'stress',
+  const writer = startCounterOnTransport(
     transport,
-  })
+    Processor.Host.Cli(),
+    'writer',
+  )
+  const reader = startCounterOnTransport(
+    transport,
+    Processor.Host.Headless(),
+    'stress',
+  )
   const probe = fromTransport(transport, 'probe')
   const probeScope = Effect.runSync(Scope.make())
   await Effect.runPromise(
@@ -176,28 +221,26 @@ export const runMemoryBurst = async (n: number): Promise<StressResult> => {
       .pipe(Effect.provideService(Scope.Scope, probeScope)),
   )
 
-  await waitForSyncedHandle(writer)
-  await waitForSyncedHandle(reader)
+  await waitForReady(writer)
+  await waitForReady(reader)
 
   const started = performance.now()
-  Array.forEach(Array.range(1, n), () => {
-    writer.send(Increment())
-  })
-  await waitForCount(reader.readModel, reader.subscribe, n)
+  burst(writer, n)
+  await waitForCount(reader, n)
   const elapsedMs = performance.now() - started
 
-  const writerModel = writer.readModel()
-  const readerModel = reader.readModel()
-  writer.stop()
-  reader.stop()
+  const writerCount = countOrMissing(writer)
+  const readerCount = countOrMissing(reader)
+  await writer.stop()
+  await reader.stop()
   await Effect.runPromise(Scope.close(probeScope, Exit.void))
 
   return {
     elapsedMs,
     messageEvents: messageEvents.length,
     n,
-    readerCount: readerModel._tag === 'Ready' ? readerModel.product.count : -1,
-    writerCount: writerModel._tag === 'Ready' ? writerModel.product.count : -1,
+    readerCount,
+    writerCount,
   }
 }
 

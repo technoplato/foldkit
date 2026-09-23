@@ -106,3 +106,59 @@ button:hover {
 .fk-button:hover {
   background: #374151;
 }
+
+.counter-menu-button {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.fk-action-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  border: none;
+  background: rgb(15 23 42 / 0.35);
+}
+
+.fk-action-menu {
+  position: fixed;
+  inset: 15vh 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(28rem, calc(100vw - 2rem));
+  margin: 0 auto;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  box-shadow: 0 24px 48px rgb(0 0 0 / 0.18);
+}
+
+.fk-action-menu-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fk-action-menu-row {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.fk-action-menu-row[aria-selected='true'] {
+  background: #f3f4f6;
+}
+
+.fk-action-menu-row[data-focused='true'] {
+  outline: 2px solid #111827;
+}
+
+.fk-action-menu-row[aria-disabled='true'] {
+  color: #9ca3af;
+}

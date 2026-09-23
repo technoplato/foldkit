@@ -1,1 +1,68 @@
 @import 'tailwindcss';
+
+.fk-action-menu {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin: 15vh auto auto;
+  width: min(28rem, calc(100vw - 2rem));
+  height: fit-content;
+  padding: 0.75rem;
+  border: 1px solid rgb(229 231 235);
+  border-radius: 0.75rem;
+  background: white;
+  box-shadow: 0 24px 48px rgb(0 0 0 / 0.18);
+}
+
+.fk-action-menu-filter {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgb(209 213 219);
+  border-radius: 0.5rem;
+  font-size: 1rem;
+}
+
+.fk-action-menu-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.fk-action-menu-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.fk-action-menu-row[aria-selected='true'] {
+  background: rgb(243 244 246);
+}
+
+.fk-action-menu-row[data-focused='true'] {
+  outline: 2px solid rgb(17 24 39);
+}
+
+.fk-action-menu-row[aria-disabled='true'] {
+  color: rgb(156 163 175);
+  cursor: not-allowed;
+}
+
+.fk-action-menu-label {
+  min-width: 3rem;
+  font-weight: 600;
+}
+
+.fk-action-menu-what {
+  flex: 1;
+}
+
+.fk-action-menu-because,
+.fk-action-menu-empty {
+  font-size: 0.875rem;
+  color: rgb(107 114 128);
+}

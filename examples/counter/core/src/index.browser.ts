@@ -1,2 +1,2 @@
 export * from './public.js'
-export * from './startLive.browser.js'
+export * from './live.browser.js'

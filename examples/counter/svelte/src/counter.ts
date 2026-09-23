@@ -1,22 +1,18 @@
 import {
-  SyncedCounter,
+  bindCounter,
   newProcessorInstance,
   startCounter,
   syncPolicyOf,
 } from 'counter-core-example'
 import { Option } from 'effect'
-import { Interaction, Processor } from 'foldkit'
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import { Processor } from 'foldkit'
 
-import { ProgramProvider } from '@foldkit/react/interaction'
-
-import { App } from './App.js'
+import { reactive } from './reactive.js'
 
 const searchParams = new URLSearchParams(window.location.search)
 
 const handle = startCounter({
-  host: Processor.Host.React(),
+  host: Processor.Host.Svelte(),
   instance: newProcessorInstance(),
   tape: import.meta.env.VITE_COUNTER_TAPE === 'memory' ? 'Memory' : 'Instant',
   ...Option.match(syncPolicyOf(searchParams.get('sync') ?? ''), {
@@ -32,15 +28,5 @@ if (hot !== undefined) {
   })
 }
 
-const rootElement = document.getElementById('root')
-if (rootElement === null) {
-  throw new Error('Root element not found')
-}
-
-createRoot(rootElement).render(
-  <StrictMode>
-    <ProgramProvider bound={Interaction.bind(SyncedCounter, handle)}>
-      <App />
-    </ProgramProvider>
-  </StrictMode>,
-)
+/** The one running Counter this Svelte window paints. */
+export const counter = reactive(bindCounter(handle))

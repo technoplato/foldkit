@@ -48,7 +48,7 @@ const settingsCoreEntry = path.resolve(
 /**
  * Vite aliases that keep Node Instant stores out of browser bundles.
  * A package-root file alias does not match `@foldkit/instant/browser`.
- * counter-core-example must resolve to the browser Instant, not startLive.ts.
+ * counter-core-example must resolve to the browser Instant, not live.ts.
  */
 export const instantBrowserAlias = {
   '@foldkit/instant/browser': instantBrowserEntry,

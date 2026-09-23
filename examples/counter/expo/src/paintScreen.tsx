@@ -1,5 +1,5 @@
 import { Array, Match as M } from 'effect'
-import type { UiNode } from 'foldkit/renderers'
+import type { ButtonNode, UiNode } from 'foldkit/renderers'
 import type { ReactNode } from 'react'
 import { Linking, Pressable, Text, View } from 'react-native'
 
@@ -19,27 +19,28 @@ const labelStyle = {
 }
 
 const childKey = (child: UiNode, index: number): string => {
-  if (child._tag === 'Button' && child.token !== undefined) {
-    return `button-${child.token}`
+  if (child._tag === 'Button' && child.action !== undefined) {
+    return `button-${child.action}`
   }
   return `${child._tag}-${index.toString()}`
 }
 
 const paintChildren = (
   children: ReadonlyArray<UiNode>,
-  sendToken: (token: string) => void,
+  onPress: (button: ButtonNode) => void,
 ): ReadonlyArray<ReactNode> =>
   Array.map(children, (child, index) => (
-    <View key={childKey(child, index)}>{paintScreen(child, sendToken)}</View>
+    <View key={childKey(child, index)}>{paintScreen(child, onPress)}</View>
   ))
 
 /**
- * Maps a Program screen tree to React Native. The painter does not
- * invent hosts.
+ * Maps a Program screen tree to React Native. A Button press reports the
+ * node, so the window sends its Catalog `action`; a disabled Button reads
+ * its `because` sentence as the accessibility hint.
  */
 export const paintScreen = (
   node: UiNode,
-  sendToken: (token: string) => void,
+  onPress: (button: ButtonNode) => void,
 ): ReactNode =>
   M.value(node).pipe(
     M.withReturnType<ReactNode>(),
@@ -48,10 +49,7 @@ export const paintScreen = (
         const href = text.href
         if (href === undefined) {
           return (
-            <Text
-              accessibilityLabel={`count ${text.content}`}
-              style={textStyle}
-            >
+            <Text accessibilityLabel={text.label} style={textStyle}>
               {text.content}
             </Text>
           )
@@ -69,17 +67,16 @@ export const paintScreen = (
         )
       },
       Button: button => {
-        const token = button.token
-        const isDisabled = button.disabled === true || token === undefined
+        const isDisabled = button.disabled === true
         return (
           <Pressable
             accessibilityLabel={button.label}
+            accessibilityHint={button.because}
             accessibilityRole="button"
+            accessibilityState={{ disabled: isDisabled }}
             disabled={isDisabled}
             onPress={() => {
-              if (token !== undefined && button.disabled !== true) {
-                sendToken(token)
-              }
+              onPress(button)
             }}
             style={{
               backgroundColor: '#111827',
@@ -105,21 +102,21 @@ export const paintScreen = (
             marginTop: 24,
           }}
         >
-          {paintChildren(row.children, sendToken)}
+          {paintChildren(row.children, onPress)}
         </View>
       ),
       Column: column => (
         <View style={{ alignItems: 'center', gap: 16 }}>
-          {paintChildren(column.children, sendToken)}
+          {paintChildren(column.children, onPress)}
         </View>
       ),
       Box: box => (
         <View style={{ padding: box.padding }}>
-          {paintChildren(box.children, sendToken)}
+          {paintChildren(box.children, onPress)}
         </View>
       ),
       DeviceShell: shell => (
-        <View>{paintChildren(shell.children, sendToken)}</View>
+        <View>{paintChildren(shell.children, onPress)}</View>
       ),
     }),
   )
