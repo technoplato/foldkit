@@ -4,6 +4,68 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 23rd, 2026 at 8:30:16 a.m. EDT — `64b45461a2a7` docs: add Foldkit principles and the view-agnostic audit
+
+- **Implementation commit:** `64b45461a2a72720d1aef2562fe2bfb9fd5d9c42`
+- **Change:** Add Foldkit principles and the view-agnostic audit.
+- **Details:**
+  - PRINCIPLES.md names six principles, each with a test and a Counter example. The audit records where Counter and Counters stood on main and what this branch resolved.
+- **Files:**
+  - `PRINCIPLES.md` — State the design principles with tests and examples.
+  - `docs/explorations/view-agnostic-principles-audit.md` — Record the audit and its follow-up status.
+- **User context (verbatim):**
+  > We want to define it once. We want to use higher-order composability. These are the guiding principles. We should have a principles.md for those kinds of things.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 23rd, 2026 at 8:30:16 a.m. EDT — `00c0aa61b145` refactor(counter)!: make Counter the canonical Program on generic adapters
+
+- **Implementation commit:** `00c0aa61b1459ac6bbd91adb59f63660630bab61`
+- **Change:** Make Counter the canonical Program on generic adapters.
+- **Details:**
+  - Counter declares its Actions once in a Catalog, presents the action menu as navigation, and runs on seven hosts and a headless tail through Interaction.bind. The legacy react-bindings client stays only for react-native-showcase. Mirror is the default; SharedDomain keeps each device menu local. The named share, occupancy, surface launcher, window runtime, and counter-screen bin are removed.
+- **Files:**
+  - `examples/counter/core/src/message.ts` — Declare Increment, Decrement, and Reset once as Catalog Actions.
+  - `examples/counter/core/src/app.ts` — Compose the action menu over the Counter as a navigation destination.
+  - `examples/counter/core/src/startConfig.ts` — Choose the tape and synchronization mode for one Processor.
+  - `examples/counter/react/src/App.tsx` — Paint the Counter through the generic React adapter.
+  - `examples/counter/headless/src/print.ts` — Tail the tape and print TCA-style changes for the canonical App.
+- **User context (verbatim):**
+  > I want the uh the counter application to the counter example to be our canonical example here.
+  > The action menu syncs to every device. That was actually intentional, but I do want different navigation synchronization modes.
+  > So let's get counter working canoncially and idealistially
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 23rd, 2026 at 8:30:16 a.m. EDT — `b790f3ccf66c` feat(foldkit): add generic CLI, TUI, gesture, and document-key Clients
+
+- **Implementation commit:** `b790f3ccf66cde1cdba88e15df3723b5cb92c602`
+- **Change:** Add generic CLI, TUI, gesture, and document-key Clients.
+- **Details:**
+  - foldkit/cli derives commands, usage, and exit codes from the Catalog, runProgramTui runs a live terminal UI, Interaction.Gesture serves Message-based painters, and listenToDocumentKeys routes web keys. Runtime.start keeps its original error type without a policy.
+- **Files:**
+  - `packages/foldkit/src/cli/program.ts` — Derive a CLI from any bound Program Catalog.
+  - `packages/foldkit/src/cli/tui.ts` — Run a live terminal UI over any bound Program.
+  - `packages/foldkit/src/interaction/gesture.ts` — Let Message-based painters report presses without naming Messages.
+  - `packages/foldkit/src/interaction/documentKeys.ts` — Route document keys through the interaction for every web Client.
+  - `packages/foldkit/src/runtime/start.ts` — Keep the original start error type when no policy is passed.
+- **User context (verbatim):**
+  > We don't want every host to still rebuild actions. We want our adapter layers to be able to do that generically over any program set.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## September 23rd, 2026 at 8:30:15 a.m. EDT — `838071fd5c0a` feat(foldkit): bind any Program to Clients through its interaction
+
+- **Implementation commit:** `838071fd5c0aef029aa3a7a84df456ccbb9b2fe4`
+- **Change:** Bind any Program to Clients through its interaction.
+- **Details:**
+  - Runtime.startHandle returns a plain handle and Interaction.bind joins it to the Program interaction, so hosts press, key, and choose from the menu without knowing Messages. @foldkit/react/interaction and snapshotLogMessageWire build on it.
+- **Files:**
+  - `packages/foldkit/src/interaction/bind.ts` — Join a Program interaction to a live handle.
+  - `packages/foldkit/src/runtime/handle.ts` — Start a synced Program as a handle any Client can drive.
+  - `packages/react/src/interaction/interaction.tsx` — Give React generic hooks and components over any bound Program.
+  - `packages/instant/src/snapshotLog/messageWire.ts` — Write any Message Schema to the Instant log, failing closed.
+- **User context (verbatim):**
+  > We don't want every host to still rebuild actions. We want our adapter layers to be able to do that generically over any program set.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 23rd, 2026 at 7:12:12 a.m. EDT — `ab7d221d47a8` feat(foldkit): add Catalog, ActionMenu navigation, and sync modes
 
 - **Implementation commit:** `ab7d221d47a8fd75c7d0131732e4aa1a2d0e3c1a`
