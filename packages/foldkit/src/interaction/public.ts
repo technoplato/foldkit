@@ -1,5 +1,6 @@
 export {
   Failed,
+  bind,
   KeyInput,
   Ready,
   Starting,
@@ -10,4 +11,11 @@ export {
   normalizeKey,
 } from './index.js'
 
-export type { MenuRow, MenuView, ProgramInteraction } from './index.js'
+export type {
+  BindableProgram,
+  BoundInteraction,
+  MenuRow,
+  MenuView,
+  ProgramHandle,
+  ProgramInteraction,
+} from './index.js'

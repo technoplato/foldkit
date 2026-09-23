@@ -72,16 +72,22 @@ const CountProjection = CountRow.pipe(
   ),
 )
 
+const AppDestination = S.Union([Counter, ActionMenu.ActionMenu])
+type AppDestination = typeof AppDestination.Type
+
 const AppModelSchema = S.Struct({
   count: S.Number,
-  navigation: NavigationStack(S.Union([Counter, ActionMenu.ActionMenu])),
+  navigation: NavigationStack(AppDestination),
 })
 
 const AppSnapshot = CountProjection.pipe(
   S.decodeTo(
     AppModelSchema,
     SchemaTransformation.transform({
-      decode: ({ count }) => ({ count, navigation: stackAtRoot(Counter()) }),
+      decode: ({ count }): typeof AppModelSchema.Encoded => ({
+        count,
+        navigation: stackAtRoot<AppDestination>(Counter()),
+      }),
       encode: model => ({ count: model.count }),
     }),
   ),

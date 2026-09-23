@@ -30,6 +30,7 @@ export {
   type StartedProgram,
   type SyncStartProgram,
 } from './start.js'
+export { startHandle, type SyncedHandle } from './handle.js'
 export {
   Memory,
   SyncTransportError,

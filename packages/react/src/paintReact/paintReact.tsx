@@ -1,21 +1,35 @@
 import { Array, Match as M } from 'effect'
-import type { UiNode } from 'foldkit/renderers'
+import type { ButtonNode, UiNode } from 'foldkit/renderers'
 import { Fragment, type ReactElement } from 'react'
 
 /** Extra class per node kind, appended after the fk-* base class. */
 export type PaintClassNames = Partial<Record<UiNode['_tag'], string>>
 
-/** Paints a Program screen tree as React elements. A Button token becomes a click. */
-export const paintReact = (
+/** How a painted tree reports presses and text input. */
+export type PaintHandlers = Readonly<{
+  onPress: (button: ButtonNode) => void
+  onInput?: (token: string, value: string) => void
+  classNames?: PaintClassNames
+}>
+
+/**
+ * Paints a Program screen tree as React elements. A Button press reports
+ * the whole node, so a Client can send its Catalog `action` or its legacy
+ * `token`. A disabled Button carries its `because` sentence as the title.
+ */
+export const paintTree = (
   node: UiNode,
-  sendToken: (token: string) => void,
-  classNames: PaintClassNames = {},
+  handlers: PaintHandlers,
 ): ReactElement => {
+  const classNames = handlers.classNames ?? {}
   const classFor = (kind: UiNode['_tag'], base: string): string => {
     const extra = classNames[kind]
     return extra === undefined ? base : `${base} ${extra}`
   }
   const keyFor = (child: UiNode, index: number): string => {
+    if (child._tag === 'Button' && child.action !== undefined) {
+      return `button-${child.action}`
+    }
     if (child._tag === 'Button' && child.token !== undefined) {
       return `button-${child.token}`
     }
@@ -45,25 +59,24 @@ export const paintReact = (
             </div>
           )
         },
-        Button: button => {
-          const token = button.token
-          const onClick =
-            token === undefined || button.disabled === true
-              ? undefined
-              : () => {
-                  sendToken(token)
-                }
-          return (
-            <button
-              type="button"
-              className={classFor('Button', 'fk-button')}
-              disabled={button.disabled === true}
-              onClick={onClick}
-            >
-              {button.label}
-            </button>
-          )
-        },
+        Button: button => (
+          <button
+            type="button"
+            className={classFor('Button', 'fk-button')}
+            disabled={button.disabled === true}
+            title={button.because}
+            data-action={button.action}
+            onClick={
+              button.disabled === true
+                ? undefined
+                : () => {
+                    handlers.onPress(button)
+                  }
+            }
+          >
+            {button.label}
+          </button>
+        ),
         TextInput: input => {
           const token = input.token
           return (
@@ -74,8 +87,8 @@ export const paintReact = (
               placeholder={input.placeholder}
               autoFocus={input.focused === true}
               onChange={event => {
-                if (token !== undefined) {
-                  sendToken(`${token}${event.currentTarget.value}`)
+                if (token !== undefined && handlers.onInput !== undefined) {
+                  handlers.onInput(token, event.currentTarget.value)
                 }
               }}
             />
@@ -111,3 +124,21 @@ export const paintReact = (
     )
   return paint(node)
 }
+
+/** Paints a Program screen tree as React elements. A Button token becomes a click. */
+export const paintReact = (
+  node: UiNode,
+  sendToken: (token: string) => void,
+  classNames: PaintClassNames = {},
+): ReactElement =>
+  paintTree(node, {
+    classNames,
+    onPress: button => {
+      if (button.token !== undefined) {
+        sendToken(button.token)
+      }
+    },
+    onInput: (token, value) => {
+      sendToken(`${token}${value}`)
+    },
+  })

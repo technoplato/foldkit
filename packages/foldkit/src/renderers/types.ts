@@ -16,11 +16,16 @@ export type TextNode = Readonly<{
   readonly width?: number
 }>
 
-/** A pressable control. The label is product data. */
+/**
+ * A pressable control. The label is product data. `action` is the Catalog
+ * tag a press sends; `because` is the sentence a disabled control shows.
+ */
 export type ButtonNode = Readonly<{
   readonly _tag: 'Button'
   readonly label: string
   readonly token?: string
+  readonly action?: string
+  readonly because?: string
   readonly variant?: 'Primary' | 'Ghost' | 'Destructive'
   readonly disabled?: boolean
 }>
