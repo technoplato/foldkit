@@ -4,14 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "bin": {
-    "counter": "./dist/entry.js",
-    "counter-screen": "./dist/screenEntry.js"
+    "counter": "./dist/entry.js"
   },
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "counter": "./scripts/run.sh",
-    "counter-screen": "node dist/screenEntry.js",
     "counter:instant": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh",
     "count": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh show",
     "increment": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh do increment",

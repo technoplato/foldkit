@@ -1,19 +1,4 @@
-import { CounterProgram } from 'counter-core-example'
-import { Layer } from 'effect'
-import { Runtime } from 'foldkit'
+import { startFoldkitCounter } from './startFoldkitCounter.js'
+import { phoneView } from './view.js'
 
-import { overlay } from '@foldkit/devtools'
-
-import { view } from './mobile.js'
-
-const application = Runtime.makeFoldkitApplication({
-  container: document.getElementById('root'),
-  devTools: {
-    overlay,
-  },
-  program: CounterProgram,
-  resources: Layer.empty,
-  view,
-})
-
-Runtime.run(application)
+startFoldkitCounter(phoneView)

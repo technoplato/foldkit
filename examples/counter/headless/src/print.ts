@@ -1,14 +1,14 @@
 import {
   App,
-  type AppMessage,
   type AppModel,
+  type BoundCounter,
   MessageWire,
-  type SnapshotLogTransport,
-  type SyncedCounterHandle,
-  countOfReady,
+  type SyncedCounterModel,
+  bindCounter,
   counterScreen,
-  describeCounterSyncError,
-  startLiveCounter,
+  newProcessorInstance,
+  startCounter,
+  startCounterOn,
 } from 'counter-core-example'
 import {
   Array,
@@ -20,14 +20,17 @@ import {
   Schema as S,
   Scope,
   Stream,
+  String,
+  pipe,
 } from 'effect'
-import { Processor, Program } from 'foldkit'
+import { ActionMenu, Processor, Program } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 
 import {
   FoldkitCounterV01,
   Instant,
   InstantLogMessageRecord,
+  type SnapshotLogTransport,
 } from '@foldkit/instant'
 
 /** One Instant Message row printed by the headless tail. */
@@ -45,11 +48,10 @@ export type HeadlessTimeOptions = Readonly<{
 
 const actionWidth = 32
 const whoWidth = 12
+const kindWidth = 10
+const detailWidth = 9
 const columnGap = '  '
 const absentCell = '·'
-const selectionPrefix = 'ActionCommandMenuSelectionMade:'
-const focusPrefix = 'ActionMenuFocusMoved:'
-const queryPrefix = 'ActionMenuQueryChanged:'
 
 const partValue = (
   parts: ReadonlyArray<Intl.DateTimeFormatPart>,
@@ -111,7 +113,7 @@ export const formatHeadlessVerboseClock = (
     second: '2-digit',
     hour12: true,
   })
-  const millis = String(createdAtMs % 1000).padStart(3, '0')
+  const millis = (createdAtMs % 1000).toString().padStart(3, '0')
   const weekday = partValue(parts, 'weekday')
   const month = partValue(parts, 'month')
   const day = partValue(parts, 'day')
@@ -176,7 +178,7 @@ const formatStatusRow = (
   who: string,
   time: string,
 ): string =>
-  `${padCell(kind, 10)}${columnGap}${padCell(detail, 9)}${columnGap}${padCell(who, whoWidth)}${columnGap}${time}`
+  `${padCell(kind, kindWidth)}${columnGap}${padCell(detail, detailWidth)}${columnGap}${padCell(who, whoWidth)}${columnGap}${time}`
 
 const withOptionalClock = (body: string, clock: string | undefined): string => {
   if (clock === undefined) {
@@ -204,91 +206,86 @@ const statusTimeCell = (options?: HeadlessTimeOptions): string => {
   return clock
 }
 
-const actionNameOf = (tag: string): string => {
-  if (tag.startsWith(selectionPrefix)) {
-    return 'ActionCommandMenuSelectionMade'
-  }
-  if (tag.startsWith(focusPrefix)) {
-    return 'ActionMenuFocusMoved'
-  }
-  if (tag.startsWith(queryPrefix)) {
-    return 'ActionMenuQueryChanged'
-  }
-  return tag
-}
+/**
+ * The Message name in one tag column. Payload Messages are written as
+ * `Tag:{json}`, so `ChoseActionMenuAction:{"tag":"Reset"}` prints
+ * `ChoseActionMenuAction`.
+ */
+export const actionNameOf = (tag: string): string =>
+  pipe(tag, String.split(':'), Array.headNonEmpty)
 
-const queryCell = (menu: AppModel['actionMenu']): string => {
-  if (menu._tag === 'Closed') {
-    return absentCell
-  }
-  return Option.getOrElse(menu.maybeQuery, () => absentCell)
-}
+const menuCell = (model: AppModel): string =>
+  Option.match(ActionMenu.menuOf(model.navigation), {
+    onNone: () => 'Closed',
+    onSome: () => 'Open',
+  })
 
-const menuCell = (menu: AppModel['actionMenu']): string => menu._tag
+const queryCell = (model: AppModel): string =>
+  Option.match(ActionMenu.menuOf(model.navigation), {
+    onNone: () => absentCell,
+    onSome: menu => (String.isEmpty(menu.query) ? absentCell : menu.query),
+  })
+
+const focusCell = (model: AppModel): string =>
+  Option.match(ActionMenu.menuOf(model.navigation), {
+    onNone: () => absentCell,
+    onSome: menu =>
+      M.value(menu.focus).pipe(
+        M.withReturnType<string>(),
+        M.tagsExhaustive({
+          OnFilter: () => 'filter',
+          OnAction: ({ tag }) => tag,
+        }),
+      ),
+  })
+
+const fieldChange = (
+  name: string,
+  before: string,
+  after: string,
+): ReadonlyArray<string> =>
+  before === after ? [] : [`  ${name}  ${before} → ${after}`]
 
 const modelDiffLines = (
   before: AppModel,
   after: AppModel,
-): ReadonlyArray<string> => {
-  const lines: Array<string> = []
-  if (before.product.count !== after.product.count) {
-    lines.push(
-      `  count  ${before.product.count.toString()} → ${after.product.count.toString()}`,
-    )
-  }
-  if (menuCell(before.actionMenu) !== menuCell(after.actionMenu)) {
-    lines.push(
-      `  actionMenu  ${menuCell(before.actionMenu)} → ${menuCell(after.actionMenu)}`,
-    )
-  }
-  if (
-    before.actionMenu._tag === 'Open' &&
-    after.actionMenu._tag === 'Open' &&
-    before.actionMenu.focus !== after.actionMenu.focus
-  ) {
-    lines.push(
-      `  focus  ${before.actionMenu.focus.toString()} → ${after.actionMenu.focus.toString()}`,
-    )
-  }
-  if (queryCell(before.actionMenu) !== queryCell(after.actionMenu)) {
-    lines.push(
-      `  maybeQuery  ${queryCell(before.actionMenu)} → ${queryCell(after.actionMenu)}`,
-    )
-  }
-  return lines
-}
+): ReadonlyArray<string> => [
+  ...fieldChange('count', before.count.toString(), after.count.toString()),
+  ...fieldChange('actionMenu', menuCell(before), menuCell(after)),
+  ...fieldChange('focus', focusCell(before), focusCell(after)),
+  ...fieldChange('query', queryCell(before), queryCell(after)),
+]
 
-/** Prints Starting, Failed, or the live count. Never assumes Ready.count. */
+/** Prints Starting, Failed, or the live count and screen. */
 export const formatHeadlessStatus = (
-  snapshot: Program.SyncedModel<AppModel, AppMessage>,
+  model: SyncedCounterModel,
   options?: HeadlessTimeOptions,
 ): string => {
   const clock = statusClock(options)
-  return M.value(snapshot).pipe(
+  return M.value(model).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
       Starting: () => withOptionalClock('Starting Instant Counter…', clock),
       Failed: ({ error }) =>
-        withOptionalClock(describeCounterSyncError(error), clock),
-      Ready: ready => {
-        const count = countOfReady(ready)
-        const detail = count === undefined ? '(none)' : count.toString()
-        const status = formatStatusRow(
-          'count',
-          detail,
-          absentCell,
-          statusTimeCell(options),
-        )
-        if (count === undefined) {
-          return status
-        }
-        return [status, renderScreen(counterScreen(ready.product))].join('\n')
-      },
+        withOptionalClock(
+          Program.describeSyncError(error, message => message._tag),
+          clock,
+        ),
+      Ready: ready =>
+        [
+          formatStatusRow(
+            'count',
+            ready.count.toString(),
+            absentCell,
+            statusTimeCell(options),
+          ),
+          renderScreen(counterScreen(ready)),
+        ].join('\n'),
     }),
   )
 }
 
-/** Prints one Instant Message row. Action, who, time. */
+/** Prints one Instant Message row: action, who, time. */
 export const formatHeadlessMessage = (
   message: HeadlessMessage,
   options?: HeadlessTimeOptions,
@@ -300,74 +297,64 @@ export const formatHeadlessMessage = (
   )
 
 /**
- * Prints one composed App change the way TCA printChanges does.
- * Action first, then each Model field that moved.
+ * Prints one App change the way TCA printChanges does: the Message first,
+ * then each Model field that moved.
  */
 export const formatPrintChanges = (
   message: HeadlessMessage,
   before: AppModel,
   after: AppModel,
   options?: HeadlessTimeOptions,
-): string => {
-  const header = formatHeadlessMessage(message, options)
-  const diffs = modelDiffLines(before, after)
-  return Array.match(diffs, {
-    onEmpty: () => header,
-    onNonEmpty: lines => [header, ...lines].join('\n'),
+): string =>
+  Array.match(modelDiffLines(before, after), {
+    onEmpty: () => formatHeadlessMessage(message, options),
+    onNonEmpty: lines =>
+      [formatHeadlessMessage(message, options), ...lines].join('\n'),
   })
-}
 
-/** One headless printer. Status is the live count. Tail is new Messages. */
+/** One headless printer. Status is the live count; the tail is new Messages. */
 export type HeadlessPrinter = Readonly<{
-  handle: SyncedCounterHandle
+  counter: BoundCounter
   lines: () => ReadonlyArray<string>
-  stop: () => void
+  stop: () => Promise<void>
 }>
 
-const decodeAppMessage = (message: HeadlessMessage): AppMessage =>
-  S.decodeUnknownSync(MessageWire)({
-    createdAtMs: message.createdAtMs,
-    from: message.from,
-    id: message.id,
-    tag: message.tag,
-  })
+type Tail = { model: AppModel }
 
 const pushNewMessage = (
   seen: Set<string>,
-  previous: { model: AppModel },
+  tail: Tail,
   push: (line: string) => void,
   row: unknown,
   options?: HeadlessTimeOptions,
 ): void => {
-  const maybeMessage = S.decodeUnknownOption(InstantLogMessageRecord)(row)
-  if (Option.isNone(maybeMessage)) {
+  const maybeRecord = S.decodeUnknownOption(InstantLogMessageRecord)(row)
+  if (Option.isNone(maybeRecord) || seen.has(maybeRecord.value.id)) {
     return
   }
-  const message = maybeMessage.value
-  if (seen.has(message.id)) {
-    return
-  }
-  seen.add(message.id)
-  const decoded = decodeAppMessage(message)
-  const [after] = App.update(previous.model, decoded)
-  push(formatPrintChanges(message, previous.model, after, options))
-  previous.model = after
+  const record = maybeRecord.value
+  seen.add(record.id)
+  Option.match(S.decodeUnknownOption(MessageWire)(record), {
+    onNone: () => {
+      push(`${formatHeadlessMessage(record, options)}  (unreadable)`)
+    },
+    onSome: message => {
+      const [after] = App.update(tail.model, message)
+      push(formatPrintChanges(record, tail.model, after, options))
+      tail.model = after
+    },
+  })
 }
 
 const tailTransport = (
   transport: SnapshotLogTransport,
-  seen: Set<string>,
-  previous: { model: AppModel },
-  push: (line: string) => void,
-  options?: HeadlessTimeOptions,
+  onRow: (row: unknown) => void,
 ): (() => void) => {
   const fiber = Effect.runFork(
     transport.subscribe.pipe(
       Stream.runForEach(state =>
         Effect.sync(() => {
-          for (const message of state.messages) {
-            pushNewMessage(seen, previous, push, message, options)
-          }
+          Array.forEach(state.messages, onRow)
         }),
       ),
     ),
@@ -377,12 +364,7 @@ const tailTransport = (
   }
 }
 
-const tailLiveInstant = (
-  seen: Set<string>,
-  previous: { model: AppModel },
-  push: (line: string) => void,
-  options?: HeadlessTimeOptions,
-): (() => void) => {
+const tailLiveInstant = (onRow: (row: unknown) => void): (() => void) => {
   const scope = Effect.runSync(Scope.make())
   const engine = Instant({
     app: FoldkitCounterV01,
@@ -393,7 +375,7 @@ const tailLiveInstant = (
     engine
       .subscribe(event => {
         if (event._tag === 'Message') {
-          pushNewMessage(seen, previous, push, event.row, options)
+          onRow(event.row)
         }
       })
       .pipe(Effect.provideService(Scope.Scope, scope)),
@@ -403,8 +385,31 @@ const tailLiveInstant = (
   }
 }
 
+const startPrinterCounter = (
+  maybeTransport: Option.Option<SnapshotLogTransport>,
+): BoundCounter =>
+  bindCounter(
+    Option.match(maybeTransport, {
+      onNone: () =>
+        startCounter({
+          host: Processor.Host.Headless(),
+          instance: newProcessorInstance(),
+        }),
+      onSome: transport =>
+        startCounterOn(
+          Instant({
+            app: FoldkitCounterV01,
+            processor: Processor.Host.Headless(),
+            instance: 'printer',
+            transport,
+          }),
+        ),
+    }),
+  )
+
 /**
- * Starts the Headless Processor. Prints current count. Tails Messages.
+ * Starts the Headless Processor: prints the current count and tails every
+ * Message on the tape. Pass `transport` in tests.
  */
 export const startHeadlessPrinter = (options?: {
   readonly time?: HeadlessTimeFormat
@@ -414,38 +419,34 @@ export const startHeadlessPrinter = (options?: {
   const time: HeadlessTimeOptions =
     options?.timeZone === undefined
       ? { format: options?.time ?? 'human' }
-      : {
-          format: options?.time ?? 'human',
-          timeZone: options.timeZone,
-        }
-  const handle = startLiveCounter(
-    Processor.Host.Headless(),
-    options?.transport === undefined
-      ? undefined
-      : { transport: options.transport },
-  )
+      : { format: options?.time ?? 'human', timeZone: options.timeZone }
+  const maybeTransport = Option.fromNullishOr(options?.transport)
+  const counter = startPrinterCounter(maybeTransport)
   const lines: Array<string> = []
   const seen = new Set<string>()
-  const previous = { model: App.init()[0] }
+  const tail: Tail = { model: App.init()[0] }
   const push = (line: string): void => {
     lines.push(line)
   }
-  const printStatus = (): void => {
-    push(formatHeadlessStatus(handle.readModel(), time))
+  const onRow = (row: unknown): void => {
+    pushNewMessage(seen, tail, push, row, time)
   }
-  const stopSubscribe = handle.subscribe(printStatus)
+  const printStatus = (): void => {
+    push(formatHeadlessStatus(counter.readModel(), time))
+  }
+  const stopWatching = counter.subscribe(printStatus)
   printStatus()
-  const stopTail =
-    options?.transport === undefined
-      ? tailLiveInstant(seen, previous, push, time)
-      : tailTransport(options.transport, seen, previous, push, time)
+  const stopTail = Option.match(maybeTransport, {
+    onNone: () => tailLiveInstant(onRow),
+    onSome: transport => tailTransport(transport, onRow),
+  })
   return {
-    handle,
+    counter,
     lines: () => lines,
-    stop: () => {
-      stopSubscribe()
+    stop: async () => {
+      stopWatching()
       stopTail()
-      handle.stop()
+      await counter.stop()
     },
   }
 }

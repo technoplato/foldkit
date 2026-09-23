@@ -21,12 +21,13 @@ const flush = (): void => {
   }
 }
 
-printer.handle.subscribe(flush)
+printer.counter.subscribe(flush)
 flush()
 
 const shutdown = (): void => {
-  printer.stop()
-  process.exit(0)
+  void printer.stop().then(() => {
+    process.exit(0)
+  })
 }
 
 process.on('SIGINT', shutdown)

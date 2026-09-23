@@ -1,25 +1,18 @@
 <script lang="ts">
-  import type { UiNode } from 'foldkit/renderers'
+  import type { ButtonNode, UiNode } from 'foldkit/renderers'
 
   import PaintScreen from './PaintScreen.svelte'
 
   type Props = Readonly<{
     node: UiNode
-    sendToken: (token: string) => void
+    onPress: (button: ButtonNode) => void
   }>
 
-  const { node, sendToken }: Props = $props()
-
-  const tap = (token: string | undefined, disabled: boolean | undefined) => {
-    if (token === undefined || disabled === true) {
-      return
-    }
-    sendToken(token)
-  }
+  const { node, onPress }: Props = $props()
 
   const childKey = (child: UiNode, index: number): string => {
-    if (child._tag === 'Button' && child.token !== undefined) {
-      return `button-${child.token}`
+    if (child._tag === 'Button' && child.action !== undefined) {
+      return `button-${child.action}`
     }
     return `${child._tag}-${index.toString()}`
   }
@@ -38,8 +31,9 @@
     class="fk-button"
     disabled={node.disabled === true}
     onclick={() => {
-      tap(node.token, node.disabled)
+      onPress(node)
     }}
+    title={node.because}
     type="button"
   >
     {node.label}
@@ -51,25 +45,25 @@
 {:else if node._tag === 'Row'}
   <div class="fk-row">
     {#each node.children as child, index (childKey(child, index))}
-      <PaintScreen {sendToken} node={child} />
+      <PaintScreen {onPress} node={child} />
     {/each}
   </div>
 {:else if node._tag === 'Column'}
   <div class="fk-column">
     {#each node.children as child, index (childKey(child, index))}
-      <PaintScreen {sendToken} node={child} />
+      <PaintScreen {onPress} node={child} />
     {/each}
   </div>
 {:else if node._tag === 'Box'}
   <div class="fk-box">
     {#each node.children as child, index (childKey(child, index))}
-      <PaintScreen {sendToken} node={child} />
+      <PaintScreen {onPress} node={child} />
     {/each}
   </div>
 {:else}
   <div class="fk-device">
     {#each node.children as child, index (childKey(child, index))}
-      <PaintScreen {sendToken} node={child} />
+      <PaintScreen {onPress} node={child} />
     {/each}
   </div>
 {/if}

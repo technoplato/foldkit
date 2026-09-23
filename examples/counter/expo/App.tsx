@@ -1,6 +1,16 @@
-import { startInstantCounter } from './src/instantHost'
+import { ProgramProvider } from '@foldkit/react/interaction'
+
+import { App } from './src/App'
 import './src/polyfill'
+import { startExpoCounter } from './src/startExpoCounter'
 
-startInstantCounter()
+const bound = startExpoCounter()
 
-export { App as default } from './src/App'
+/** Expo root: one running Counter, provided to the generic adapter. */
+export default function Root() {
+  return (
+    <ProgramProvider bound={bound}>
+      <App />
+    </ProgramProvider>
+  )
+}

@@ -1,29 +1,40 @@
 #!/usr/bin/env bun
 /**
- * Counter OpenTUI Client.
+ * The Counter on OpenTUI.
  *
  *   bun src/entry.ts
  *
- * Default state syncs on the shared live Instant tape with every
- * other Counter Client. COUNTER_TAPE=memory isolates the process.
- * COUNTER_TAPE_PATH syncs on a local file tape instead.
+ * It joins the shared Instant tape with every other Counter Client.
+ * `COUNTER_TAPE=memory` isolates the process; `COUNTER_SYNC=shared-domain`
+ * keeps the action menu on this terminal.
  */
-import { startLiveCounter } from 'counter-core-example'
+import {
+  bindCounter,
+  newProcessorInstance,
+  startCounter,
+  syncPolicyOf,
+} from 'counter-core-example'
+import { Option } from 'effect'
 import { Processor } from 'foldkit'
 
 import { createCliRenderer } from '@opentui/core'
 
-import { runCounterOpenTui } from './client.js'
+import { runOpenTui } from './runOpenTui.js'
 
-const instanceLength = 8
-
-const handle = startLiveCounter(Processor.Host.OpenTui(), {
-  instance: globalThis.crypto.randomUUID().slice(0, instanceLength),
-})
+const bound = bindCounter(
+  startCounter({
+    host: Processor.Host.OpenTui(),
+    instance: newProcessorInstance(),
+    ...Option.match(syncPolicyOf(process.env['COUNTER_SYNC'] ?? ''), {
+      onNone: () => ({}),
+      onSome: policy => ({ policy }),
+    }),
+  }),
+)
 const renderer = await createCliRenderer({ exitOnCtrlC: true })
 
-await runCounterOpenTui(handle, renderer)
+await runOpenTui(bound, renderer)
 
-handle.stop()
+await bound.stop()
 renderer.destroy()
 process.exit(0)

@@ -1,3 +1,4 @@
-import { startInstantCounter } from './instantHost.js'
+import { startFoldkitCounter } from './startFoldkitCounter.js'
+import { view } from './view.js'
 
-startInstantCounter()
+startFoldkitCounter(view)

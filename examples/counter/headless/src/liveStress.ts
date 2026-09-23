@@ -1,10 +1,5 @@
 #!/usr/bin/env node
-import {
-  FoldkitCounterV01,
-  Increment,
-  startLiveCounter,
-  waitForSyncedHandle,
-} from 'counter-core-example'
+import { FoldkitCounterV01, Increment } from 'counter-core-example'
 import { Array, Effect, Option } from 'effect'
 import { Processor } from 'foldkit'
 import { execFile } from 'node:child_process'
@@ -23,13 +18,16 @@ import {
   defaultBurst,
   envInteger,
   readyCountOf,
+  startCounterOnTransport,
   startHostReaders,
   waitForCount,
+  waitForReady,
 } from './stress.js'
 
 const execFileAsync = promisify(execFile)
 const require = createRequire(import.meta.url)
 const liveSettleTimeoutMs = 45_000
+const firstScreenText = '.fk-text >> nth=0'
 
 /** One painted Host after the live Instant burst. */
 export type SurfaceProbe = Readonly<{
@@ -392,14 +390,17 @@ export const runLiveCrossSurfaceBurst = async (
     FoldkitCounterV01.id,
     adminToken(),
   )
-  const writer = startLiveCounter(Processor.Host.Cli(), {
-    instance: 'live-stress-writer',
+  const writer = startCounterOnTransport(
     transport,
-  })
+    Processor.Host.Cli(),
+    'live-stress-writer',
+  )
   const readers = startHostReaders(transport, 'live-stress-reader')
-  await waitForSyncedHandle(writer)
+  await waitForReady(writer, liveSettleTimeoutMs)
   await Promise.all(
-    Array.map(readers, reader => waitForSyncedHandle(reader.handle)),
+    Array.map(readers, reader =>
+      waitForReady(reader.handle, liveSettleTimeoutMs),
+    ),
   )
 
   const baseline = Option.getOrElse(readyCountOf(writer.readModel()), () => {
@@ -414,12 +415,10 @@ export const runLiveCrossSurfaceBurst = async (
   const settled: ReadonlyArray<CrossSurfaceReader> = await Promise.all(
     Array.map(readers, async reader => {
       const readerStarted = performance.now()
-      await waitForCount(
-        reader.handle.readModel,
-        reader.handle.subscribe,
-        target,
-        { mode: 'atLeast', timeoutMs: liveSettleTimeoutMs },
-      )
+      await waitForCount(reader.handle, target, {
+        mode: 'atLeast',
+        timeoutMs: liveSettleTimeoutMs,
+      })
       return {
         count: Option.getOrElse(
           readyCountOf(reader.handle.readModel()),
@@ -435,20 +434,20 @@ export const runLiveCrossSurfaceBurst = async (
     () => -1,
   )
   const elapsedMs = performance.now() - started
-  writer.stop()
+  await writer.stop()
   await Promise.all(Array.map(readers, reader => reader.handle.stop()))
 
   const surfaces = await Promise.all([
     probeBrowser(
       'react',
       'http://localhost:5216/',
-      page => countFromCss(page, 'div.text-7xl'),
+      page => countFromCss(page, firstScreenText),
       target,
     ),
     probeBrowser(
       'svelte',
       'http://localhost:5218/',
-      page => countFromCss(page, 'div.count'),
+      page => countFromCss(page, firstScreenText),
       target,
     ),
     probeBrowser('foldkit', 'http://localhost:5215/', countFromTitle, target),

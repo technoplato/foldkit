@@ -1,16 +1,15 @@
-import { Program } from 'foldkit'
+import { ActionMenu } from 'foldkit'
 
 import { CounterProgram } from './program.js'
 
 /**
- * Counter plus the one global Action menu.
- * Instant sync wraps this Program so Open/Closed is shared.
+ * The Counter with the one global action menu presented over it. The menu
+ * is navigation state, so the session's synchronization mode decides
+ * whether it mirrors across devices.
  */
-export const App = Program.compose.actionMenu({
-  of: CounterProgram,
-})
+export const App = ActionMenu.compose({ of: CounterProgram })
 
-/** App Model: product count plus the Action menu slice. */
+/** App Model: the count, flat, plus the navigation stack. */
 export type AppModel = typeof App.Model.Type
-/** App Message: product Actions plus Action menu Messages. */
+/** App Message: Counter Actions plus action menu Messages. */
 export type AppMessage = typeof App.Message.Type

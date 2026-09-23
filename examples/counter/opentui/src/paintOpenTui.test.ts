@@ -1,20 +1,40 @@
 import { describe, expect, it } from 'bun:test'
-import { Model, counterScreen } from 'counter-core-example'
+import { App, SyncedCounter, counterScreen } from 'counter-core-example'
+import { Option } from 'effect'
 
 import { createTestRenderer } from '@opentui/core/testing'
 
-import { counterKeysForToken } from './client.js'
-import { paintOpenTui, paintOpenTuiFrame } from './paintOpenTui.js'
+import { paintOpenTuiFrame } from './paintOpenTui.js'
 
-const testScreenSize = { width: 64, height: 16 }
+const testScreenSize = { width: 72, height: 18 }
 
-const paintFrame = async (count: number): Promise<string> => {
+const keysOf = (action: string): ReadonlyArray<string> =>
+  (SyncedCounter.of.of.catalog?.actions ?? [])
+    .filter(declaration => declaration.tag === action)
+    .flatMap(declaration => declaration.meta.keys)
+
+const paintFrame = async (
+  count: number,
+  isMenuOpen: boolean,
+): Promise<string> => {
   const { renderer, renderOnce, captureCharFrame } =
     await createTestRenderer(testScreenSize)
-  const painted = paintOpenTui(renderer, counterScreen(Model.make({ count })), {
-    keysForToken: counterKeysForToken,
-    onTap: () => {},
-  })
+  const closed = { ...App.init()[0], count }
+  const model = isMenuOpen
+    ? App.update(closed, { _tag: 'OpenedActionMenu' })[0]
+    : closed
+  const interaction = App.interaction
+  const painted = paintOpenTuiFrame(
+    renderer,
+    Option.some(counterScreen({ count })),
+    interaction === undefined ? Option.none() : interaction.menu(model),
+    {
+      keysOf,
+      onPress: () => {},
+      onChoose: () => {},
+      onDismiss: () => {},
+    },
+  )
   renderer.root.add(painted)
   await renderOnce()
   const frame = captureCharFrame()
@@ -22,62 +42,19 @@ const paintFrame = async (count: number): Promise<string> => {
   return frame
 }
 
-describe('paintOpenTui', () => {
-  it('paints the count and key-hinted Buttons from the screen tree', async () => {
-    const frame = await paintFrame(0)
-
+describe('paintOpenTuiFrame', () => {
+  it('paints the count and Catalog-hinted Buttons', async () => {
+    const frame = await paintFrame(0, false)
     expect(frame).toContain('0')
     expect(frame).toContain('[+] increment')
     expect(frame).toContain('[-] decrement')
+    expect(frame).toContain('[r] reset (count is already 0)')
   })
 
-  it('hides reset at 0 because the tree already filtered it', async () => {
-    const frame = await paintFrame(0)
-
-    expect(frame).not.toContain('reset')
-  })
-
-  it('paints reset with its key hint above 0', async () => {
-    const frame = await paintFrame(2)
-
-    expect(frame).toContain('2')
-    expect(frame).toContain('[r] reset')
-  })
-
-  it('floats the Action menu over the product tree', async () => {
-    const { renderer, renderOnce, captureCharFrame } =
-      await createTestRenderer(testScreenSize)
-    const painted = paintOpenTuiFrame(
-      renderer,
-      counterScreen(Model.make({ count: 0 })),
-      {
-        focus: 0,
-        rows: [
-          { token: 'increment', disabled: false, label: '[ + ] increment' },
-          { token: 'decrement', disabled: false, label: '[ - ] decrement' },
-          {
-            token: 'reset',
-            disabled: true,
-            label: '[ r ] reset: count is already 0',
-          },
-        ],
-        onDismiss: () => {},
-        onSelect: () => {},
-      },
-      {
-        keysForToken: counterKeysForToken,
-        onTap: () => {},
-      },
-    )
-    renderer.root.add(painted)
-    await renderOnce()
-    const frame = captureCharFrame()
-    renderer.destroy()
-
-    expect(frame).toContain('0')
+  it('floats the presented action menu over the screen', async () => {
+    const frame = await paintFrame(2, true)
     expect(frame).toContain('Actions')
-    expect(frame).toContain('> [ + ] increment')
-    expect(frame).toContain('[?] open  [esc] close')
-    expect(frame).not.toContain('action-menu:increment')
+    expect(frame).toContain('> increment')
+    expect(frame).toContain('reset  Sets the count to 0')
   })
 })

@@ -1,20 +1,9 @@
 // @vitest-environment jsdom
-import { Path } from 'counter-core-example'
-import {
-  memorySyncedEngine,
-  startSyncedCounterHandle,
-  waitForSyncedHandle,
-} from 'counter-core-example'
-import {
-  installScreenCounterHandle,
-  installSyncedCounterHandle,
-  resetScreenCounterHandle,
-  resetSyncedCounterHandle,
-} from 'counter-react-bindings-example'
-import { Processor } from 'foldkit'
+import { SyncedCounter, startCounterOn } from 'counter-core-example'
+import { Interaction, Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { ProgramKeyBindings } from '@foldkit/react'
+import { ProgramProvider } from '@foldkit/react/interaction'
 import {
   cleanup,
   fireEvent,
@@ -25,119 +14,74 @@ import {
 
 import { App } from './App.js'
 
-afterEach(() => {
-  resetSyncedCounterHandle()
-  resetScreenCounterHandle()
+const handles: Array<{ stop: () => Promise<void> }> = []
+
+afterEach(async () => {
   cleanup()
+  await Promise.all(handles.splice(0).map(handle => handle.stop()))
 })
 
-const renderReadyApp = async () => {
-  const handle = startSyncedCounterHandle(
-    memorySyncedEngine(Processor.Host.React()),
+const renderApp = async () => {
+  const handle = startCounterOn(Runtime.Memory({ processor: 'react-test' }))
+  handles.push(handle)
+  render(
+    <ProgramProvider bound={Interaction.bind(SyncedCounter, handle)}>
+      <App />
+    </ProgramProvider>,
   )
-  installSyncedCounterHandle(handle)
-  installScreenCounterHandle(handle)
-  await waitForSyncedHandle(handle)
+  await waitFor(() => {
+    expect(screen.getByText('0')).toBeDefined()
+  })
   return handle
 }
 
-describe('Counter window', () => {
-  it('drops the reset button at 0 and shows it after one tap', async () => {
-    const handle = await renderReadyApp()
-    render(<App />)
-    await waitFor(() => {
-      expect(screen.getByText('0')).toBeDefined()
-    })
-    expect(screen.queryByRole('button', { name: 'reset' })).toBeNull()
+describe('React Counter', () => {
+  it('shows Starting until the first snapshot', () => {
+    const handle = startCounterOn(Runtime.Memory({ processor: 'react-slow' }))
+    handles.push(handle)
+    render(
+      <ProgramProvider bound={Interaction.bind(SyncedCounter, handle)}>
+        <App />
+      </ProgramProvider>,
+    )
+    expect(screen.getByText('Starting Instant Counter…')).toBeDefined()
+  })
 
+  it('presses the Program buttons and disables Reset at zero', async () => {
+    await renderApp()
+    const reset = screen.getByRole('button', { name: 'Reset' })
+    expect(reset.hasAttribute('disabled')).toBe(true)
+    expect(reset.getAttribute('title')).toBe('count is already 0')
     fireEvent.click(screen.getByRole('button', { name: '+' }))
     await waitFor(() => {
       expect(screen.getByText('1')).toBeDefined()
     })
-    const reset = screen.getByRole('button', { name: 'reset' })
-
-    fireEvent.click(reset)
-    await waitFor(() => {
-      expect(screen.getByText('0')).toBeDefined()
-    })
-    expect(screen.queryByRole('button', { name: 'reset' })).toBeNull()
-    handle.stop()
-  })
-
-  it('sends Increment from the + key while the menu is Closed', async () => {
-    const handle = await renderReadyApp()
-    render(
-      <ProgramKeyBindings path={Path()}>
-        <App />
-      </ProgramKeyBindings>,
-    )
-    await waitFor(() => {
-      expect(screen.getByText('0')).toBeDefined()
-    })
-    fireEvent.keyDown(document, { key: '+' })
-    await waitFor(() => {
-      expect(screen.getByText('1')).toBeDefined()
-    })
-    handle.stop()
-  })
-
-  it('fires + while Open, flashes the row, and dismisses', async () => {
-    const handle = await renderReadyApp()
-    render(
-      <ProgramKeyBindings path={Path()}>
-        <App />
-      </ProgramKeyBindings>,
-    )
-    await waitFor(() => {
-      expect(screen.getByText('0')).toBeDefined()
-    })
-    fireEvent.keyDown(document, { key: '?' })
-    await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: 'Action menu' })).toBeDefined()
-    })
     expect(
-      screen.getByRole('button', { name: '[ + ] increment' }),
-    ).toBeDefined()
-    fireEvent.keyDown(document, { key: '+' })
+      screen.getByRole('button', { name: 'Reset' }).hasAttribute('disabled'),
+    ).toBe(false)
+  })
+
+  it('routes declared keys to the Program', async () => {
+    await renderApp()
+    fireEvent.keyDown(document, { key: '=' })
     await waitFor(() => {
       expect(screen.getByText('1')).toBeDefined()
     })
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Action menu' })).toBeNull()
-    })
-    handle.stop()
   })
 
-  it('keeps the menu Open when hidden r is a no-op', async () => {
-    const handle = await renderReadyApp()
-    render(
-      <ProgramKeyBindings path={Path()}>
-        <App />
-      </ProgramKeyBindings>,
-    )
+  it('opens the action menu and chooses Reset by name', async () => {
+    await renderApp()
+    fireEvent.keyDown(document, { key: '+' })
+    fireEvent.keyDown(document, { key: '+' })
+    fireEvent.click(screen.getByRole('button', { name: 'Actions (⌘K)' }))
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: 'reset' },
+    })
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    fireEvent.keyDown(document, { key: 'Enter' })
     await waitFor(() => {
       expect(screen.getByText('0')).toBeDefined()
     })
-    fireEvent.keyDown(document, { key: '?' })
-    await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: 'Action menu' })).toBeDefined()
-    })
-    fireEvent.keyDown(document, { key: 'r' })
-    expect(screen.getByText('0')).toBeDefined()
-    expect(screen.getByRole('dialog', { name: 'Action menu' })).toBeDefined()
-    handle.stop()
-  })
-
-  it('decrements through the painted screen Button', async () => {
-    const handle = await renderReadyApp()
-    render(<App />)
-    await waitFor(() => {
-      expect(screen.getByText('0')).toBeDefined()
-    })
-    fireEvent.click(screen.getByRole('button', { name: '-' }))
-    await waitFor(() => {
-      expect(screen.getByText('-1')).toBeDefined()
-    })
-    handle.stop()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

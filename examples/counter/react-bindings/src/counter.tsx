@@ -29,7 +29,11 @@ export const initialCounterRoute: CounterInitialRoute = Program.state(
   Model.make({ count: initialCount }),
 )
 
-/** The canonical React and React Native client for the Counter Program. */
+/**
+ * A replayable Counter client for `examples/react-native-showcase`, which
+ * still hand-writes pointer causes. Canonical Counter hosts bind through
+ * `@foldkit/react/interaction` instead; retire this with the showcase.
+ */
 export const CounterClient = createReplayableReactProgramClient<
   Model,
   Message,

@@ -1,47 +1,41 @@
 <script lang="ts">
-  import {
-    Path,
-    counterScreen,
-    describeCounterSyncError,
-    initialCount,
-    Model,
-  } from 'counter-core-example'
+  import { Option } from 'effect'
+  import { Interaction } from 'foldkit'
+  import type { ButtonNode } from 'foldkit/renderers'
 
+  import ActionMenu from './ActionMenu.svelte'
+  import { counter } from './counter.js'
   import PaintScreen from './PaintScreen.svelte'
-  import { useActions, useModel } from './processor.js'
 
-  const view = $derived(useModel(Path()))
-  const actions = $derived(useActions(Path()))
+  $effect(() => Interaction.listenToDocumentKeys(counter.bound, document))
 
-  const sendToken = (token: string) => {
-    if (token === 'increment') {
-      actions.incrementButtonTapped()
-      return
-    }
-    if (token === 'decrement') {
-      actions.decrementButtonTapped()
-      return
-    }
-    if (token === 'reset' && actions.resetButtonTapped._tag === 'Tappable') {
-      actions.resetButtonTapped.tap()
+  const press = (button: ButtonNode) => {
+    if (button.action !== undefined) {
+      counter.bound.press(button.action)
     }
   }
-
-  const screen = $derived(
-    view._tag === 'Ready'
-      ? counterScreen(view.product)
-      : counterScreen(Model.make({ count: initialCount })),
-  )
 </script>
 
 <main>
   <section>
-    {#if view._tag === 'Starting'}
+    {#if counter.status._tag === 'Starting'}
       <p>Starting Instant Counter…</p>
-    {:else if view._tag === 'Failed'}
-      <p>{describeCounterSyncError(view.error)}</p>
+    {:else if counter.status._tag === 'Failed'}
+      <p class="counter-failed">{counter.status.description}</p>
     {:else}
-      <PaintScreen node={screen} {sendToken} />
+      {#if Option.isSome(counter.screen)}
+        <PaintScreen node={counter.screen.value} onPress={press} />
+      {/if}
+      <button
+        class="counter-menu-button"
+        onclick={() => counter.bound.openMenu()}
+        type="button"
+      >
+        Actions (⌘K)
+      </button>
+      {#if Option.isSome(counter.menu)}
+        <ActionMenu bound={counter.bound} menu={counter.menu.value} />
+      {/if}
     {/if}
   </section>
 </main>

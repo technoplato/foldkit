@@ -26,17 +26,3 @@ describe('Expo Metro config', () => {
     expect(source).toContain('packages/foldkit')
   })
 })
-
-describe('Expo Instant imports', () => {
-  it('loads Instant through ExpoLive, not Instant in the window', () => {
-    const host = readFileSync(join(expoSrc, 'instantHost.ts'), 'utf8')
-    const expoLive = readFileSync(join(expoSrc, 'expoLive.ts'), 'utf8')
-    expect(host).toContain('startLiveCounter')
-    expect(host).toContain('ExpoLive')
-    expect(host).not.toContain('@foldkit/instant')
-    expect(host).not.toContain('@instantdb/admin')
-    expect(expoLive).toContain('counter-core-example')
-    expect(expoLive).not.toContain('@foldkit/instant')
-    expect(expoLive).not.toContain('@instantdb/admin')
-  })
-})

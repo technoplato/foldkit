@@ -1,5 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
-import { type UiNode } from 'foldkit/renderers'
+import { Catalog, type Interaction } from 'foldkit'
+import { type ButtonNode, type UiNode } from 'foldkit/renderers'
 
 import {
   BoxRenderable,
@@ -13,37 +14,33 @@ import {
 
 const buttonPaddingX = 1
 
-/** Wires Button tokens to taps and key hints. */
+/** How a painted OpenTUI tree finds key hints and reports presses. */
 export type PaintOpenTuiOptions = Readonly<{
-  keysForToken: (token: string) => ReadonlyArray<string>
-  onTap: (token: string) => void
+  keysOf: (action: string) => ReadonlyArray<string>
+  onPress: (button: ButtonNode) => void
 }>
 
-/** One Action menu row painted as overlay chrome, not a product Button. */
-export type PaintOpenTuiMenuRow = Readonly<{
-  token: string
-  disabled: boolean
-  label: string
-}>
-
-/** Overlay chrome for an Open Action menu. */
-export type PaintOpenTuiMenu = Readonly<{
-  focus: number
-  rows: ReadonlyArray<PaintOpenTuiMenuRow>
-  maybeChosen?: Option.Option<string>
+/** How a painted action menu reports choices and dismissal. */
+export type PaintOpenTuiMenuOptions = Readonly<{
+  onChoose: (tag: string) => void
   onDismiss: () => void
-  onSelect: (token: string) => void
 }>
 
-const keyHint = (
-  label: string,
-  token: string | undefined,
-  keysForToken: PaintOpenTuiOptions['keysForToken'],
+const buttonText = (
+  button: ButtonNode,
+  options: PaintOpenTuiOptions,
 ): string => {
-  if (token === undefined) {
-    return label
+  if (button.action === undefined) {
+    return button.label
   }
-  return Option.getOrElse(Array.head(keysForToken(token)), () => label)
+  const hint = Option.getOrElse(
+    Array.head(options.keysOf(button.action)),
+    () => button.label,
+  )
+  const word = Catalog.commandOf(button.action)
+  return button.because === undefined
+    ? `[${hint}] ${word}`
+    : `[${hint}] ${word} (${button.because})`
 }
 
 const addChildren = (
@@ -52,18 +49,17 @@ const addChildren = (
   children: ReadonlyArray<UiNode>,
   options: PaintOpenTuiOptions,
 ): Renderable => {
-  for (const child of children) {
+  Array.forEach(children, child => {
     parent.add(paintOpenTui(ctx, child, options))
-  }
+  })
   return parent
 }
 
 /**
  * Maps a Program screen tree to an OpenTUI renderable tree. A Button
- * becomes a bordered box: its key hint comes from the Action `keys`
- * metadata and a mouse press taps its token. The painter makes zero
- * business decisions; a Button absent from the tree is simply never
- * constructed.
+ * becomes a bordered box hinted with its Catalog key; a mouse press reports
+ * the node so the Client presses its `action`. A disabled Button paints dim
+ * with its sentence.
  */
 export const paintOpenTui = (
   ctx: RenderContext,
@@ -81,29 +77,23 @@ export const paintOpenTui = (
               : t`${bold(text.content)}`,
         }),
       Button: button => {
-        const hint = keyHint(button.label, button.token, options.keysForToken)
-        const name = button.token === undefined ? button.label : button.token
-        const isTappable =
-          button.token !== undefined && button.disabled !== true
-        const token = button.token
+        const isPressable = button.disabled !== true
         const box = new BoxRenderable(ctx, {
           border: true,
           paddingLeft: buttonPaddingX,
           paddingRight: buttonPaddingX,
-          ...(isTappable && token !== undefined
+          ...(isPressable
             ? {
                 onMouseDown: () => {
-                  options.onTap(token)
+                  options.onPress(button)
                 },
               }
             : {}),
         })
+        const label = buttonText(button, options)
         box.add(
           new TextRenderable(ctx, {
-            content:
-              button.disabled === true
-                ? t`${dim(`[${hint}] ${name}`)}`
-                : t`${bold(`[${hint}]`)} ${name}`,
+            content: isPressable ? t`${bold(label)}` : t`${dim(label)}`,
           }),
         )
         return box
@@ -113,10 +103,7 @@ export const paintOpenTui = (
       Row: row =>
         addChildren(
           ctx,
-          new BoxRenderable(ctx, {
-            flexDirection: 'row',
-            columnGap: row.gap,
-          }),
+          new BoxRenderable(ctx, { flexDirection: 'row', columnGap: row.gap }),
           row.children,
           options,
         ),
@@ -146,7 +133,7 @@ export const paintOpenTui = (
           new BoxRenderable(ctx, {
             flexDirection: 'column',
             border: true,
-            title: shell.title === undefined ? shell.device : shell.title,
+            title: shell.title ?? shell.device,
           }),
           shell.children,
           options,
@@ -154,37 +141,16 @@ export const paintOpenTui = (
     }),
   )
 
-const menuHint = '[?] open  [esc] close'
+const menuHint = '[type] filter  [↑↓] move  [enter] choose  [esc] close'
 
-const rowMark = (isChosen: boolean, isFocused: boolean): string => {
-  if (isChosen) {
-    return '* '
-  }
-  if (isFocused) {
-    return '> '
-  }
-  return '  '
-}
+const rowMark = (row: Interaction.MenuRow): string =>
+  row.isHighlighted ? '> ' : '  '
 
-/**
- * Paints the product tree, then floats the Action menu over it.
- * Menu rows are overlay chrome. They are not product Buttons.
- */
-export const paintOpenTuiFrame = (
+const paintMenu = (
   ctx: RenderContext,
-  product: UiNode,
-  maybeMenu: PaintOpenTuiMenu | undefined,
-  options: PaintOpenTuiOptions,
+  menu: Interaction.MenuView,
+  options: PaintOpenTuiMenuOptions,
 ): Renderable => {
-  const frame = new BoxRenderable(ctx, {
-    flexDirection: 'column',
-    flexGrow: 1,
-    position: 'relative',
-  })
-  frame.add(paintOpenTui(ctx, product, options))
-  if (maybeMenu === undefined) {
-    return frame
-  }
   const overlay = new BoxRenderable(ctx, {
     backgroundColor: '#0f172a',
     border: true,
@@ -195,46 +161,64 @@ export const paintOpenTuiFrame = (
     top: 0,
     zIndex: 20,
   })
+  overlay.add(new TextRenderable(ctx, { content: t`${dim(menuHint)}` }))
   overlay.add(
     new TextRenderable(ctx, {
-      content: t`${dim(menuHint)}`,
+      content: menu.isFilterFocused
+        ? t`${bold(`filter: ${menu.query}_`)}`
+        : t`${dim(`filter: ${menu.query}`)}`,
     }),
   )
-  const maybeChosen = maybeMenu.maybeChosen ?? Option.none()
-  for (const [index, row] of maybeMenu.rows.entries()) {
-    const isChosen =
-      Option.isSome(maybeChosen) && maybeChosen.value === row.token
-    const isFocused = !isChosen && index === maybeMenu.focus
-    const mark = rowMark(isChosen, isFocused)
-    const label = `${mark}${row.label}`
+  Array.forEach(menu.rows, row => {
+    const isDisabled = row.entry.availability._tag === 'Disabled'
+    const label = `${rowMark(row)}${Catalog.commandOf(row.entry.tag)}  ${row.entry.what}`
     const rowBox = new BoxRenderable(ctx, {
-      ...(isChosen ? { backgroundColor: '#1d4ed8' } : {}),
-      ...(row.disabled
+      ...(row.isFocused ? { backgroundColor: '#1d4ed8' } : {}),
+      ...(isDisabled
         ? {}
         : {
             onMouseDown: () => {
-              maybeMenu.onSelect(row.token)
+              options.onChoose(row.entry.tag)
             },
           }),
     })
     rowBox.add(
       new TextRenderable(ctx, {
-        content: row.disabled ? t`${dim(label)}` : t`${bold(label)}`,
+        content: isDisabled ? t`${dim(label)}` : t`${bold(label)}`,
       }),
     )
     overlay.add(rowBox)
-  }
+  })
   const close = new BoxRenderable(ctx, {
     onMouseDown: () => {
-      maybeMenu.onDismiss()
+      options.onDismiss()
     },
   })
-  close.add(
-    new TextRenderable(ctx, {
-      content: t`${dim('[esc] Close')}`,
-    }),
-  )
+  close.add(new TextRenderable(ctx, { content: t`${dim('[esc] Close')}` }))
   overlay.add(close)
-  frame.add(overlay)
+  return overlay
+}
+
+/**
+ * Paints the screen tree, then floats the presented action menu over it.
+ * Menu rows come from the generic MenuView; they are not screen Buttons.
+ */
+export const paintOpenTuiFrame = (
+  ctx: RenderContext,
+  maybeScreen: Option.Option<UiNode>,
+  maybeMenu: Option.Option<Interaction.MenuView>,
+  options: PaintOpenTuiOptions & PaintOpenTuiMenuOptions,
+): Renderable => {
+  const frame = new BoxRenderable(ctx, {
+    flexDirection: 'column',
+    flexGrow: 1,
+    position: 'relative',
+  })
+  if (Option.isSome(maybeScreen)) {
+    frame.add(paintOpenTui(ctx, maybeScreen.value, options))
+  }
+  if (Option.isSome(maybeMenu)) {
+    frame.add(paintMenu(ctx, maybeMenu.value, options))
+  }
   return frame
 }

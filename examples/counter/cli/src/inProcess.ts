@@ -1,107 +1,20 @@
-import { parseHostId } from 'counter-core-example'
-import { Console, Effect, Option } from 'effect'
+import { runProgramCommand } from 'foldkit/cli'
+import { writeCliViewResult } from 'foldkit/cli/view'
 
-import { NodeRuntime } from '@effect/platform-node'
+import { openCounterSession } from './session.js'
+import { type CounterCliTape } from './settings.js'
 
-import {
-  CounterCliError,
-  runDo,
-  runPalette,
-  runReplay,
-  runSay,
-  runShare,
-  runShow,
-} from './host.js'
-import {
-  type ParsedCounterArgv,
-  counterUsage,
-  parseCounterArgv,
-} from './parseArgv.js'
-import { runScreenDo, runScreenShow } from './screenHost.js'
-import { withCliTrace } from './trace.js'
-
-const dispatchCounter = (
-  parsed: ParsedCounterArgv,
-): Effect.Effect<void, CounterCliError> => {
-  if (parsed._tag === 'Help') {
-    return Console.log(counterUsage)
-  }
-  if (parsed._tag === 'Failed') {
-    return Effect.fail(new CounterCliError({ message: parsed.message }))
-  }
-  if (parsed._tag === 'Show') {
-    if (parsed.surface === undefined) {
-      return runShow(parsed.device, parsed.path)
-    }
-    const maybeSurface = parseHostId(parsed.surface)
-    if (Option.isNone(maybeSurface)) {
-      return Effect.fail(
-        new CounterCliError({
-          message: `Unknown surface "${parsed.surface}". Use foldkit, svelte, react, react-screen, expo, cli, tui, or opentui.`,
-        }),
-      )
-    }
-    return runShow(parsed.device, parsed.path, maybeSurface.value)
-  }
-  if (parsed._tag === 'Do') {
-    return runDo(parsed.token)
-  }
-  if (parsed._tag === 'Palette') {
-    return runPalette(parsed.token)
-  }
-  if (parsed._tag === 'Say') {
-    return runSay(parsed.utterance)
-  }
-  if (parsed._tag === 'Share') {
-    return runShare(parsed.name, parsed.with, parsed.subject ?? '')
-  }
-  return runReplay(parsed.tape)
-}
-
-const failToStderr = (error: CounterCliError): Effect.Effect<void> =>
-  Effect.flatMap(Console.error(error.message), () =>
-    Effect.sync(() => {
-      process.exitCode = 1
-    }),
-  )
-
-/** Memory tape and replay stay in this process. Instant uses the slim view. */
-export const runInProcessCounter = (argv: ReadonlyArray<string>): void => {
-  dispatchCounter(parseCounterArgv(argv)).pipe(
-    Effect.catchTag('CounterCliError', failToStderr),
-    Effect.withSpan('counter.invoke'),
-    withCliTrace,
-    NodeRuntime.runMain,
-  )
-}
-
-const dispatchScreen = (
-  argv: ReadonlyArray<string>,
-): Effect.Effect<void, CounterCliError> => {
-  const first = argv.find((_, index) => index === 0)
-  const second = argv.find((_, index) => index === 1)
-  if (second !== undefined) {
-    return Effect.fail(
-      new CounterCliError({
-        message: `Send one command. Got ${argv.join(' ')}.`,
-      }),
-    )
-  }
-  if (
-    first === undefined ||
-    first === 'help' ||
-    first === '--help' ||
-    first === '-h'
-  ) {
-    return runScreenShow()
-  }
-  return runScreenDo(first)
-}
-
-/** Memory tape for the screen-window CLI stays in this process. */
-export const runInProcessScreen = (argv: ReadonlyArray<string>): void => {
-  dispatchScreen(argv).pipe(
-    Effect.catchTag('CounterCliError', failToStderr),
-    NodeRuntime.runMain,
-  )
+/**
+ * Runs one command in this process for Memory and File tapes: start, run,
+ * paint, stop. The count lives in the tape, not in this process.
+ */
+export const runInProcess = async (
+  tape: CounterCliTape,
+  words: ReadonlyArray<string>,
+  flags: Readonly<Record<string, string>>,
+): Promise<void> => {
+  const session = await openCounterSession(tape)
+  const painted = runProgramCommand(session.bound, 'counter', words, flags)
+  await session.stop()
+  writeCliViewResult({ stderr: '', ...painted })
 }
