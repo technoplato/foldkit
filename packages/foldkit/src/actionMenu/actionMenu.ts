@@ -3,7 +3,9 @@ import {
   Data,
   Match as M,
   Option,
+  Order,
   Predicate,
+  Result,
   Schema as S,
   pipe,
 } from 'effect'
@@ -139,15 +141,35 @@ const isSubsequence = (needle: string, haystack: string): boolean =>
       : matched,
   ) === needle.length
 
-const matchesQuery = (entry: Entry, needle: string): boolean =>
-  isSubsequence(needle, `${entry.label} ${entry.tag}`.toLowerCase()) ||
-  entry.what.toLowerCase().includes(needle)
+const PrefixMatch = 0
+const WordMatch = 1
+const DescriptionMatch = 2
+const LooseMatch = 3
+
+const matchRank = (entry: Entry, needle: string): Option.Option<number> => {
+  const words = `${entry.label} ${entry.tag}`.toLowerCase()
+  if (
+    entry.tag.toLowerCase().startsWith(needle) ||
+    entry.label.toLowerCase().startsWith(needle)
+  ) {
+    return Option.some(PrefixMatch)
+  } else if (words.includes(needle)) {
+    return Option.some(WordMatch)
+  } else if (entry.what.toLowerCase().includes(needle)) {
+    return Option.some(DescriptionMatch)
+  } else if (isSubsequence(needle, words)) {
+    return Option.some(LooseMatch)
+  } else {
+    return Option.none()
+  }
+}
 
 /**
- * The rows a query leaves visible, in Catalog order. An empty query keeps
- * every row. A row matches when the query is a case-insensitive subsequence
- * of its label and tag, or a substring of its `what`: `rst` finds Reset,
- * `count by one` finds Increment and Decrement.
+ * The rows a query leaves visible. An empty query keeps every row in
+ * Catalog order. Otherwise rows rank by how they match, then by Catalog
+ * order: a tag or label prefix first, then a substring of the label and
+ * tag, then a substring of `what`, then a loose subsequence. `re` puts
+ * Reset first; `rst` finds only Reset.
  */
 export const visibleEntries = (
   catalogEntries: ReadonlyArray<Entry>,
@@ -157,8 +179,25 @@ export const visibleEntries = (
   if (needle === '') {
     return catalogEntries
   }
-  return Array.filter(catalogEntries, entry => matchesQuery(entry, needle))
+  return pipe(
+    catalogEntries,
+    Array.filterMap((entry, index) =>
+      Option.match(matchRank(entry, needle), {
+        onNone: () => Result.failVoid,
+        onSome: rank => Result.succeed({ entry, rank, index }),
+      }),
+    ),
+    Array.sort(
+      Order.combine(
+        Order.mapInput(Order.Number, (ranked: RankedEntry) => ranked.rank),
+        Order.mapInput(Order.Number, (ranked: RankedEntry) => ranked.index),
+      ),
+    ),
+    Array.map(ranked => ranked.entry),
+  )
 }
+
+type RankedEntry = Readonly<{ entry: Entry; rank: number; index: number }>
 
 const tagsOf = (visible: ReadonlyArray<Entry>): ReadonlyArray<string> =>
   Array.map(visible, entry => entry.tag)
@@ -201,25 +240,22 @@ export const opened = (visible: ReadonlyArray<Entry>): ActionMenu =>
   })
 
 /**
- * The menu after its query changes. A focused or highlighted row that still
- * matches keeps its place; otherwise the filter takes focus and the first
- * remaining row is highlighted.
+ * The menu after its query changes. While the filter has focus, the best
+ * match is highlighted, so Enter sends what the person is typing toward. A
+ * row the person moved focus onto keeps it while the row still matches.
  */
 export const withQuery = (
   menu: ActionMenu,
   query: string,
   visibleAfter: ReadonlyArray<Entry>,
 ): ActionMenu => {
-  const firstRemaining = OnFilter({ maybeHighlighted: firstTag(visibleAfter) })
+  const bestMatch = OnFilter({ maybeHighlighted: firstTag(visibleAfter) })
   const focus = M.value(menu.focus).pipe(
     M.withReturnType<Focus>(),
     M.tagsExhaustive({
-      OnFilter: ({ maybeHighlighted }) =>
-        Option.exists(maybeHighlighted, tag => isVisible(visibleAfter, tag))
-          ? OnFilter({ maybeHighlighted })
-          : firstRemaining,
+      OnFilter: () => bestMatch,
       OnAction: ({ tag }) =>
-        isVisible(visibleAfter, tag) ? OnAction({ tag }) : firstRemaining,
+        isVisible(visibleAfter, tag) ? OnAction({ tag }) : bestMatch,
     }),
   )
   return ActionMenu({ query, focus })

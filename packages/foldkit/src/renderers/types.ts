@@ -6,11 +6,16 @@ export type HotspotAction = Readonly<{
   readonly id: string
 }>
 
-/** A text run. Optional `href` is a link the painters may follow. */
+/**
+ * A text run. Optional `href` is a link the painters may follow. Optional
+ * `label` is what a screen reader announces instead of the bare content,
+ * such as `count 3` for `3`.
+ */
 export type TextNode = Readonly<{
   readonly _tag: 'Text'
   readonly content: string
   readonly href?: string
+  readonly label?: string
   readonly mono?: boolean
   readonly dim?: boolean
   readonly width?: number

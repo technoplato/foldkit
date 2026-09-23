@@ -224,8 +224,25 @@ const decodeFailed = <Msg>(fields: {
  *
  * Hosts must hold a Scope. Do not wrap a long-lived Client in
  * `Effect.scoped(Runtime.start())`.
+ *
+ * Without `policy` the Program runs in Mirror, which needs no Message
+ * classifier, so start cannot fail with MissingProgramSynchronization.
+ * Passing SharedDomain or Follow for a Program without `synchronization`
+ * fails with it instead of guessing which Messages are Navigation.
  */
-export const start = <
+export function start<
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources = never,
+>(
+  config: StartConfig<Model, Message, Resources> &
+    Readonly<{ policy?: undefined }>,
+): Effect.Effect<
+  StartedProgram<Model, Message>,
+  ProgramRuntimeStartError,
+  Scope.Scope
+>
+export function start<
   Model,
   Message extends Readonly<{ _tag: string }>,
   Resources = never,
@@ -235,8 +252,19 @@ export const start = <
   StartedProgram<Model, Message>,
   ProgramRuntimeStartError | MissingProgramSynchronization,
   Scope.Scope
-> =>
-  Effect.gen(function* () {
+>
+export function start<
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources = never,
+>(
+  config: StartConfig<Model, Message, Resources>,
+): Effect.Effect<
+  StartedProgram<Model, Message>,
+  ProgramRuntimeStartError | MissingProgramSynchronization,
+  Scope.Scope
+> {
+  return Effect.gen(function* () {
     const program = config.program
     const engine = config.sync
     const policy = config.policy ?? legacyMirrorSessionPolicy()
@@ -597,6 +625,7 @@ export const start = <
       lastWrite: () => lastWrite,
     }
   })
+}
 
 /**
  * Waits until the synced Model is Ready or Failed.

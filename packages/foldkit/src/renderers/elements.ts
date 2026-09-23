@@ -12,11 +12,20 @@ import type {
   UiNode,
 } from './types.js'
 
-/** A text run. Optional `href` is a link the painters may follow. */
+/**
+ * A text run. Optional `href` is a link the painters may follow. Optional
+ * `label` is what a screen reader announces instead of the bare content.
+ *
+ * @example
+ * ```typescript
+ * Text('3', { label: 'count 3' })
+ * ```
+ */
 export const Text = (
   content: string,
   props: Readonly<{
     href?: string
+    label?: string
     mono?: boolean
     dim?: boolean
     width?: number

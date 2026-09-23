@@ -41,3 +41,12 @@ export {
   spawnCliDaemon,
   stopCliDaemon,
 } from './client.js'
+
+export {
+  paintProgram,
+  programCliSurface,
+  programUsage,
+  runProgramCommand,
+} from './program.js'
+
+export { keyInputOfTerminal, runProgramTui } from './tui.js'
