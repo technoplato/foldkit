@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## September 28th, 2026 at 1:42:42 p.m. EDT — `20afa1a5f283` feat: add React Native, Svelte, and OpenTUI adapter packages
+
+- **Implementation commit:** `20afa1a5f2833a7e3f96b5825ca3953b3d5c0a6b`
+- **Change:** Add React Native, Svelte, and OpenTUI adapter packages.
+- **Details:**
+  - The generic painters that lived in examples/counter now ship as @foldkit/react-native/interaction, @foldkit/svelte/interaction, and @foldkit/opentui/interaction. React Native re-exports the platform-neutral React hooks so an Expo host imports one module; Svelte ships .svelte source with declarations.
+- **Files:**
+  - `packages/react-native/src/interaction/screen.tsx` — Paint any screen tree on React Native with per-node styles.
+  - `packages/react-native/src/interaction/actionMenuModal.tsx` — Present the action menu destination as a React Native Modal.
+  - `packages/svelte/src/interaction/Screen.svelte` — Paint a reactive Program screen in Svelte 5.
+  - `packages/svelte/src/interaction/ActionMenuDialog.svelte` — Present the action menu as an accessible Svelte combo box.
+  - `packages/opentui/src/interaction/runOpenTui.ts` — Run any bound Program on an OpenTUI renderer.
+  - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
+- **User context (verbatim):**
+  > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 23rd, 2026 at 8:30:16 a.m. EDT — `64b45461a2a7` docs: add Foldkit principles and the view-agnostic audit
 
 - **Implementation commit:** `64b45461a2a72720d1aef2562fe2bfb9fd5d9c42`
