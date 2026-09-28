@@ -37,6 +37,15 @@
     "packages/react": {
       "entry": ["src/index.ts"]
     },
+    "packages/react-native": {
+      "entry": ["src/interaction/index.ts"]
+    },
+    "packages/svelte": {
+      "entry": ["src/interaction/index.ts"]
+    },
+    "packages/opentui": {
+      "entry": ["src/interaction/index.ts"]
+    },
     "packages/examples-e2e": {
       "entry": ["page.ts", "e2e/**/*.spec.ts"],
       "ignoreFiles": ["playwright.config.ts"],
@@ -93,6 +102,23 @@
     },
     "examples/counter/tui": {
       "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/counter/expo": {
+      "entry": ["App.tsx", "src/**/*.test.ts"],
+      "ignoreDependencies": [
+        "@instantdb/core",
+        "expo-system-ui",
+        "expo-updates",
+        "prettier"
+      ]
+    },
+    "examples/counter/opentui": {
+      "entry": ["src/entry.ts", "src/**/*.test.ts"],
+      "ignoreDependencies": ["prettier"]
+    },
+    "examples/counter/svelte": {
+      "entry": ["src/**/*.test.ts"],
       "ignoreDependencies": ["prettier"]
     },
     "examples/puzzle/core": {

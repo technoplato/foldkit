@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env vite --port 5218 --strictPort",
-    "predev": "pnpm --filter counter-core-example build",
-    "pretest": "pnpm --filter counter-core-example build",
-    "pretypecheck": "pnpm --filter counter-core-example build",
+    "predev": "pnpm --filter @foldkit/svelte build && pnpm --filter counter-core-example build",
+    "pretest": "pnpm --filter @foldkit/svelte build && pnpm --filter counter-core-example build",
+    "pretypecheck": "pnpm --filter @foldkit/svelte build && pnpm --filter counter-core-example build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@foldkit/svelte": "workspace:*",
     "counter-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",

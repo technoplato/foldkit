@@ -19,6 +19,12 @@ const paintedTreeIndex = 0
  * Runs any bound Program on an OpenTUI renderer until `q`. It repaints on
  * every Model change and routes keys and mouse presses through the
  * Program's interaction.
+ *
+ * @example
+ * ```typescript
+ * const renderer = await createCliRenderer({ exitOnCtrlC: true })
+ * await runOpenTui(bindCounter(handle), renderer)
+ * ```
  */
 export const runOpenTui = <Model, Message>(
   bound: Interaction.BoundInteraction<Model, Message>,

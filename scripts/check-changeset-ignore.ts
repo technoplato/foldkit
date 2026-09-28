@@ -11,6 +11,9 @@ const PUBLISHABLE_PACKAGES = [
   '@foldkit/oxlint-plugin',
   '@foldkit/markdown',
   '@foldkit/react',
+  '@foldkit/react-native',
+  '@foldkit/svelte',
+  '@foldkit/opentui',
   '@foldkit/instant',
   '@foldkit/instant-tools',
 ]

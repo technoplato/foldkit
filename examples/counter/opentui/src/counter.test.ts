@@ -2,9 +2,8 @@ import { describe, expect, it } from 'bun:test'
 import { App, SyncedCounter, counterScreen } from 'counter-core-example'
 import { Option } from 'effect'
 
+import { paintOpenTuiFrame } from '@foldkit/opentui/interaction'
 import { createTestRenderer } from '@opentui/core/testing'
-
-import { paintOpenTuiFrame } from './paintOpenTui.js'
 
 const testScreenSize = { width: 72, height: 18 }
 

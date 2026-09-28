@@ -17,9 +17,8 @@ import {
 import { Option } from 'effect'
 import { Processor } from 'foldkit'
 
+import { runOpenTui } from '@foldkit/opentui/interaction'
 import { createCliRenderer } from '@opentui/core'
-
-import { runOpenTui } from './runOpenTui.js'
 
 const bound = bindCounter(
   startCounter({

@@ -7,7 +7,7 @@ import {
 import { Option } from 'effect'
 import { Processor } from 'foldkit'
 
-import { reactive } from './reactive.js'
+import { reactive } from '@foldkit/svelte/interaction'
 
 const searchParams = new URLSearchParams(window.location.search)
 

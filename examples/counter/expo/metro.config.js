@@ -14,6 +14,7 @@ config.resolver.extraNodeModules = {
   ...(config.resolver.extraNodeModules ?? {}),
   foldkit: path.resolve(workspaceRoot, 'packages/foldkit'),
   '@foldkit/react': path.resolve(workspaceRoot, 'packages/react'),
+  '@foldkit/react-native': path.resolve(workspaceRoot, 'packages/react-native'),
 }
 
 module.exports = config

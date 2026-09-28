@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -8,15 +8,17 @@ const read = (file: string): string => readFileSync(join(expoSrc, file), 'utf8')
 
 describe('Counter Expo boundaries', () => {
   it('keeps the window generic: no Instant, no Counter Actions', () => {
-    const windowSources = [read('App.tsx'), read('ActionMenuModal.tsx')]
-    for (const source of windowSources) {
-      expect(source).not.toContain('@instantdb')
-      expect(source).not.toContain('@foldkit/instant')
-      expect(source).not.toContain('counter-core-example')
-      expect(source).not.toMatch(/\b(Increment|Decrement|Reset)\(/)
-    }
-    expect(read('App.tsx')).toContain('@foldkit/react/interaction')
-    expect(read('ActionMenuModal.tsx')).toContain('onRequestClose')
+    const window = read('App.tsx')
+    expect(window).not.toContain('@instantdb')
+    expect(window).not.toContain('@foldkit/instant')
+    expect(window).not.toContain('counter-core-example')
+    expect(window).not.toMatch(/\b(Increment|Decrement|Reset)\(/)
+    expect(window).toContain('@foldkit/react-native/interaction')
+  })
+
+  it('paints through the package, not a painter of its own', () => {
+    expect(existsSync(join(expoSrc, 'paintScreen.tsx'))).toBe(false)
+    expect(existsSync(join(expoSrc, 'ActionMenuModal.tsx'))).toBe(false)
   })
 
   it('opens Instant once, at the composition root', () => {

@@ -1,18 +1,27 @@
-import { Match as M, Option } from 'effect'
+import { Match as M } from 'effect'
 import { StatusBar } from 'expo-status-bar'
 import type { ReactElement, ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 
-import { useBound, useStatus } from '@foldkit/react/interaction'
+import {
+  ActionMenuModal,
+  type PaintStyles,
+  Screen,
+  useBound,
+  useStatus,
+} from '@foldkit/react-native/interaction'
 
-import { ActionMenuModal } from './ActionMenuModal.js'
-import { paintScreen } from './paintScreen.js'
+const styles: PaintStyles = {
+  Text: { fontSize: 72, fontVariant: ['tabular-nums'], fontWeight: '600' },
+  Button: { borderRadius: 0, paddingVertical: 14 },
+  Row: { marginTop: 24 },
+}
 
 /**
  * The Expo Counter window. It paints the Program's screen, opens the action
  * menu from a floating button, and presents the menu as a Modal, all
- * through the generic adapter. It never names Increment, Decrement, or
+ * through `@foldkit/react-native`. It never names Increment, Decrement, or
  * Reset.
  */
 export const App = (): ReactElement => {
@@ -35,15 +44,7 @@ export const App = (): ReactElement => {
                   padding: 24,
                 }}
               >
-                {Option.match(bound.screen(), {
-                  onNone: () => null,
-                  onSome: screen =>
-                    paintScreen(screen, button => {
-                      if (button.action !== undefined) {
-                        bound.press(button.action)
-                      }
-                    }),
-                })}
+                <Screen styles={styles} />
               </View>
             ),
           }),

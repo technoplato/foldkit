@@ -101,10 +101,10 @@ destination and report user moves back as Messages. They never keep a second
 navigation state machine.
 
 Example: the Counter's action menu is a destination presented on the Model's
-`NavigationStack`. The React Native host shows it as a `Modal` only while the
-Model presents it. Android's back button fires `onRequestClose`, which sends
-`DismissedActionMenu`, and the Model closes the menu. The Modal never keeps an
-open flag of its own.
+`NavigationStack`. `ActionMenuModal` from `@foldkit/react-native/interaction`
+shows it as a `Modal` only while the Model presents it. Android's back button
+fires `onRequestClose`, which sends `DismissedActionMenu`, and the Model closes
+the menu. The Modal never keeps an open flag of its own.
 
 **Test:** remove the carrier (no router, no URL bar) and the Program still
 knows exactly what is on screen. Replay the Message log and you land on the

@@ -1,4 +1,4 @@
-import { ProgramProvider } from '@foldkit/react/interaction'
+import { ProgramProvider } from '@foldkit/react-native/interaction'
 
 import { App } from './src/App'
 import './src/polyfill'

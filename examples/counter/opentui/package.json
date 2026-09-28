@@ -11,12 +11,13 @@
     "clean": "rimraf dist",
     "counter-opentui": "bun src/entry.ts",
     "counter-opentui:instant": "../scripts/with-counter-v01-env bun src/entry.ts",
-    "prebuild": "pnpm --filter counter-core-example build",
-    "pretypecheck": "pnpm --filter counter-core-example build",
+    "prebuild": "pnpm --filter @foldkit/opentui build && pnpm --filter counter-core-example build",
+    "pretypecheck": "pnpm --filter @foldkit/opentui build && pnpm --filter counter-core-example build",
     "test": "pnpm run build && bun test src/",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@foldkit/opentui": "workspace:*",
     "@opentui/core": "^0.5.4",
     "counter-core-example": "workspace:*",
     "effect": "4.0.0-beta.97",

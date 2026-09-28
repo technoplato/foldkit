@@ -202,6 +202,13 @@ const paintMenu = (
 /**
  * Paints the screen tree, then floats the presented action menu over it.
  * Menu rows come from the generic MenuView; they are not screen Buttons.
+ *
+ * @example
+ * ```typescript
+ * renderer.root.add(
+ *   paintOpenTuiFrame(renderer, bound.screen(), bound.menu(), options),
+ * )
+ * ```
  */
 export const paintOpenTuiFrame = (
   ctx: RenderContext,

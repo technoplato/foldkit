@@ -96,8 +96,17 @@ const MenuRow = ({
 
 /**
  * The action menu as a React Native Modal, generic over any bound Program.
- * The Android back button and a tap outside dismiss the menu destination;
- * the filter types into the Program's query.
+ * It renders only while the Model presents the menu. The Android back
+ * button and a tap outside dismiss the menu destination; the filter types
+ * into the Program's query; a row press chooses its Action.
+ *
+ * @example
+ * ```tsx
+ * <ProgramProvider bound={counter}>
+ *   <Screen />
+ *   <ActionMenuModal />
+ * </ProgramProvider>
+ * ```
  */
 export const ActionMenuModal = (): ReactElement | null => {
   const bound = useBound()

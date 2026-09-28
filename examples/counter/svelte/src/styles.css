@@ -107,6 +107,11 @@ button:hover {
   background: #374151;
 }
 
+.fk-button:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+}
+
 .counter-menu-button {
   margin-top: 1rem;
   font-size: 0.875rem;

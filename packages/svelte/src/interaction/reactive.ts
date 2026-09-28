@@ -8,17 +8,23 @@ import { createSubscriber } from 'svelte/reactivity'
  */
 export type ReactiveProgram<Model, Message> = Readonly<{
   bound: Interaction.BoundInteraction<Model, Message>
-  readonly model: Model
-  readonly status: Interaction.Status
-  readonly screen: ReturnType<
-    Interaction.BoundInteraction<Model, Message>['screen']
-  >
-  readonly menu: ReturnType<
-    Interaction.BoundInteraction<Model, Message>['menu']
-  >
+  model: Model
+  status: Interaction.Status
+  screen: ReturnType<Interaction.BoundInteraction<Model, Message>['screen']>
+  menu: ReturnType<Interaction.BoundInteraction<Model, Message>['menu']>
 }>
 
-/** Wraps a bound Program for Svelte 5 components. */
+/**
+ * Wraps a bound Program for Svelte 5 components. Each read subscribes the
+ * reading component, so `{program.status._tag}` repaints when the Model
+ * changes, and presses go through `program.bound`.
+ *
+ * @example
+ * ```typescript
+ * const counter = reactive(Interaction.bind(SyncedCounter, handle))
+ * counter.bound.press('Increment')
+ * ```
+ */
 export const reactive = <Model, Message>(
   bound: Interaction.BoundInteraction<Model, Message>,
 ): ReactiveProgram<Model, Message> => {

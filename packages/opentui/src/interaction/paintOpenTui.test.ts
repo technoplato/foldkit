@@ -1,0 +1,116 @@
+import { describe, expect, it } from 'bun:test'
+import { Array, Match as M, Option, Schema as S } from 'effect'
+import { ActionMenu, Catalog, Program } from 'foldkit'
+import { Column, Row, Text, actionButtons } from 'foldkit/renderers'
+import { ts } from 'foldkit/schema'
+
+import { createTestRenderer } from '@opentui/core/testing'
+
+import { paintOpenTuiFrame } from './paintOpenTui.js'
+
+const testScreenSize = { width: 72, height: 18 }
+
+const Model = S.Struct({ count: S.Number })
+type Model = typeof Model.Type
+
+const Increment = Catalog.action('Increment', {
+  what: 'Increments the count by one',
+  why: 'The person wants a higher count',
+  meta: { label: '+', keys: ['+'] },
+})
+const Reset = Catalog.action('Reset', {
+  what: 'Sets the count to 0',
+  why: 'The person wants to start over',
+  enabled: (model: Model) =>
+    model.count === 0
+      ? Catalog.Disabled({ because: 'count is already 0' })
+      : Catalog.Enabled(),
+  meta: { label: 'Reset', keys: ['r'] },
+})
+const catalog = Catalog.make([Increment, Reset])
+type CounterMessage = typeof catalog.Message.Type
+
+const Counter = ts('Counter')
+
+const App = ActionMenu.compose({
+  of: Program.make({
+    id: 'opentui-counter',
+    version: 1,
+    Model,
+    Message: catalog.Message,
+    init: () => [{ count: 0 }, []],
+    update: (model: Model, message: CounterMessage) =>
+      M.value(message).pipe(
+        M.withReturnType<readonly [Model, ReadonlyArray<never>]>(),
+        M.tagsExhaustive({
+          Increment: () => [{ count: model.count + 1 }, []],
+          Reset: () => [{ count: 0 }, []],
+        }),
+      ),
+    catalog,
+    navigation: { Destination: Counter, root: Counter() },
+  }),
+})
+
+const interaction = Option.getOrThrow(Option.fromNullishOr(App.interaction))
+
+const screenAt = (count: number) =>
+  Column(
+    {},
+    Text(String(count)),
+    Row({}, ...actionButtons(Catalog.entries(catalog, { count }))),
+  )
+
+const keysOf = (action: string): ReadonlyArray<string> =>
+  Option.match(
+    Array.findFirst(
+      Catalog.entries(catalog, { count: 0 }),
+      entry => entry.tag === action,
+    ),
+    { onNone: () => [], onSome: entry => entry.keys },
+  )
+
+const paintFrame = async (
+  count: number,
+  isMenuOpen: boolean,
+): Promise<string> => {
+  const { renderer, renderOnce, captureCharFrame } =
+    await createTestRenderer(testScreenSize)
+  const closed = { ...App.init()[0], count }
+  const model = isMenuOpen
+    ? App.update(closed, ActionMenu.OpenedActionMenu())[0]
+    : closed
+  renderer.root.add(
+    paintOpenTuiFrame(
+      renderer,
+      Option.some(screenAt(count)),
+      interaction.menu(model),
+      {
+        keysOf,
+        onPress: () => {},
+        onChoose: () => {},
+        onDismiss: () => {},
+      },
+    ),
+  )
+  await renderOnce()
+  const frame = captureCharFrame()
+  renderer.destroy()
+  return frame
+}
+
+describe('paintOpenTuiFrame', () => {
+  it('paints the screen with Catalog-hinted Buttons and disabled sentences', async () => {
+    const frame = await paintFrame(0, false)
+    expect(frame).toContain('0')
+    expect(frame).toContain('[+] increment')
+    expect(frame).toContain('[r] reset (count is already 0)')
+  })
+
+  it('floats the presented action menu over the screen', async () => {
+    const frame = await paintFrame(2, true)
+    expect(frame).toContain('Actions')
+    expect(frame).toContain('> increment')
+    expect(frame).toContain('reset  Sets the count to 0')
+  })
+})
