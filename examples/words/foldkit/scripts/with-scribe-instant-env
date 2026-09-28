@@ -1,0 +1,17 @@
+#!/bin/sh
+# Runs a command against Scribe's own Instant app. The app id is public and
+# reaches the browser; the admin token stays in this process for the hosted
+# identity mint and is never given a VITE_ prefix.
+ENV_FILE="${SCRIBE_INSTANT_ENV:-$HOME/.config/instant-tools/scribe-main.env}"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+fi
+export INSTANT_APP_ID="${SCRIBE_MAIN_INSTANT_APP_ID:-$INSTANT_APP_ID}"
+export VITE_INSTANT_APP_ID="$INSTANT_APP_ID"
+export INSTANT_APP_ADMIN_TOKEN="${SCRIBE_MAIN_INSTANT_ADMIN_TOKEN:-$INSTANT_APP_ADMIN_TOKEN}"
+export FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL="${FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL:-owner@example.invalid}"
+unset SCRIBE_MAIN_INSTANT_ADMIN_TOKEN INSTANT_CLI_AUTH_TOKEN
+exec "$@"

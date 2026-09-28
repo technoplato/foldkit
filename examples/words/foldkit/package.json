@@ -1,0 +1,36 @@
+{
+  "name": "words-foldkit-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@foldkit/instant": "workspace:*",
+    "@instantdb/core": "1.0.53",
+    "@tailwindcss/vite": "^4.3.1",
+    "effect": "4.0.0-beta.97",
+    "foldkit": "workspace:*",
+    "tailwindcss": "^4.3.1",
+    "words-core-example": "workspace:*"
+  },
+  "devDependencies": {
+    "@foldkit/vite-plugin": "workspace:*",
+    "@instantdb/admin": "1.0.53",
+    "@types/node": "^25.9.3",
+    "happy-dom": "^20.10.4",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  },
+  "scripts": {
+    "build": "./scripts/with-scribe-instant-env vite build",
+    "dev": "./scripts/with-scribe-instant-env vite --port 5231",
+    "preview": "./scripts/with-scribe-instant-env vite preview --host 127.0.0.1 --port 5232 --strictPort",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prebuild": "pnpm --filter words-core-example build",
+    "predev": "pnpm --filter words-core-example build",
+    "pretest": "pnpm --filter words-core-example build",
+    "pretypecheck": "pnpm --filter words-core-example build"
+  }
+}

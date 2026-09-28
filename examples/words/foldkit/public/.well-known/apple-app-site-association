@@ -1,0 +1,31 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "4EC72DECN9.com.michaellustig.scribesharedios.dev",
+          "4EC72DECN9.com.michaellustig.scribesharedios"
+        ],
+        "components": [
+          {
+            "/": "/recording/new",
+            "exclude": true,
+            "comment": "Starting a recording from a tapped link could interrupt one in progress"
+          },
+          {
+            "/": "/recording/*",
+            "comment": "A recording, one of its transcript sections, or a Stream Interactor thread"
+          },
+          {
+            "/": "/playback/*",
+            "comment": "Playback at a moment, optionally with the route map (focus=route)"
+          },
+          {
+            "/": "/recordings/*",
+            "comment": "The recordings map and search"
+          }
+        ]
+      }
+    ]
+  }
+}
