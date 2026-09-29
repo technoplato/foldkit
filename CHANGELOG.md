@@ -602,6 +602,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 7:09:46 a.m. EDT — `9958fd91c98f` fix(words): name the copy formats the way the iPhone does
+
+- **Implementation commit:** `9958fd91c98f8589f481f926e213588a39186b29`
+- **Change:** Name the copy formats the way the iPhone does.
+- **Details:**
+  - The Copy Transcript menu lists Markdown, Plain Text, and SubRip (SRT), the names and order of the iPhone's Copy Transcript menu, which the design audit's round-1 gap W8 asked for; it read Copy as Plain Text, Copy as Markdown, and Copy as SRT.
+- **Files:**
+  - `examples/words/foldkit/src/view/playback.ts` — Copy Transcript menu items renamed and reordered
+- **User context (verbatim):**
+  > audit the uh visuals of the words.nofi.com
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 6:47:48 a.m. EDT — `653173ee795e` fix(words): keep the connect card's step numbers round
 
 - **Implementation commit:** `653173ee795e909554869b84254167e688ddbe0f`
