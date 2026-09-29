@@ -117,12 +117,14 @@ const microphoneFailureReason = (cause: unknown): string => {
   if (name === 'NotAllowedError' || name === 'SecurityError') {
     return 'The browser did not allow the microphone. Allow it for words.knophy.com and press Record again.'
   } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-    return 'No microphone was found.'
-  } else if (name === 'NotReadableError') {
-    return 'Another app is using the microphone.'
+    return 'No microphone was found. Connect one and press Record again.'
+  } else if (name === 'NotReadableError' || name === 'AbortError') {
+    return 'Another app is using the microphone. Close it and press Record again.'
+  } else if (name === 'NotSupportedError') {
+    return 'This browser cannot record from a microphone on this page.'
   } else {
     return cause instanceof Error
-      ? cause.message
+      ? `The microphone could not open: ${cause.message}`
       : 'The microphone could not open.'
   }
 }
@@ -355,6 +357,9 @@ export const openCaptureSession = (
     }
     const opened = yield* Effect.tryPromise({
       try: async signal => {
+        if (navigator.mediaDevices === undefined) {
+          throw new DOMException('No media devices', 'NotSupportedError')
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             channelCount: 1,

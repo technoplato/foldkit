@@ -67,6 +67,7 @@ const visibilityOption = (
   visibility: Share.Model.ShareVisibility,
   current: Share.Model.ShareVisibility,
   label: string,
+  shortLabel: string,
   iconName: IconName,
 ): Html => {
   const h = html<Message>()
@@ -76,12 +77,17 @@ const visibilityOption = (
       h.Type('button'),
       h.Role('radio'),
       h.AriaChecked(isSelected),
+      h.AriaLabel(label),
       h.OnClick(shareMessage(Share.chooseVisibility({ visibility }))),
       h.Class(
-        `inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[10px] px-3 text-[14px] font-semibold transition ${isSelected ? 'bg-surface text-label shadow-[0_1px_3px_rgb(0_0_0/0.12)]' : 'text-secondary hover:text-label'}`,
+        `inline-flex min-h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] px-3 text-[14px] font-semibold transition ${isSelected ? 'bg-surface text-label shadow-[0_1px_3px_rgb(0_0_0/0.12)]' : 'text-secondary hover:text-label'}`,
       ),
     ],
-    [icon(iconName, 'size-4'), label],
+    [
+      icon(iconName, 'size-4'),
+      h.span([h.Class('sm:hidden')], [shortLabel]),
+      h.span([h.Class('max-sm:hidden')], [label]),
+    ],
   )
 }
 
@@ -337,11 +343,18 @@ const sheetBody = (
           h.Class('flex gap-1 rounded-xl bg-fill p-1'),
         ],
         [
-          visibilityOption('People', sheet.visibility, 'People', 'People'),
+          visibilityOption(
+            'People',
+            sheet.visibility,
+            'People',
+            'People',
+            'People',
+          ),
           visibilityOption(
             'Link',
             sheet.visibility,
             'Anyone with the link',
+            'Link',
             'Link',
           ),
         ],

@@ -26,7 +26,7 @@ import {
 import { type IconName, icon } from './icon.js'
 import { type ViewConfig, backToRecordings } from './shell.js'
 import { transcript } from './transcript.js'
-import { badge, button } from './ui.js'
+import { badge, button, compactButton } from './ui.js'
 
 const SKIP_SECONDS = 15
 
@@ -59,13 +59,14 @@ const copyMenu = (): Html => {
       h.summary(
         [
           h.AriaLabel('Copy the transcript'),
+          h.Title('Copy the transcript'),
           h.Class(
-            'inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full bg-fill px-4 text-[15px] font-semibold text-label transition hover:bg-fill-strong',
+            'inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full bg-fill px-4 text-[15px] font-semibold text-label transition hover:bg-fill-strong max-sm:px-3',
           ),
         ],
         [
           icon('Copy', 'size-[18px]'),
-          'Copy transcript',
+          h.span([h.Class('max-sm:hidden')], ['Copy transcript']),
           icon(
             'ChevronDown',
             'size-4 text-secondary transition group-open:rotate-180',
@@ -170,18 +171,18 @@ const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
             Option.some('Share'),
             !hasFinalSections,
           ),
-          button(
+          compactButton(
             'Copy link',
             ClickedCopyRecordingLink({ recordingID: ready.recordingID }),
             'Gray',
-            Option.some('Link'),
+            'Link',
           ),
           copyMenu(),
-          button(
+          compactButton(
             'Open in Scribe',
             ClickedOpenInApp({ scheme: config.appScheme }),
             'Plain',
-            Option.some('External'),
+            'External',
           ),
         ],
       ),

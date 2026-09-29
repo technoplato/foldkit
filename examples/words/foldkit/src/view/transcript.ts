@@ -65,7 +65,7 @@ const sectionView = (
     [
       h.Key(section.id),
       h.Class(
-        `group/section grid scroll-mt-28 grid-cols-[3.5rem_1fr] gap-x-2 rounded-2xl px-2 py-2.5 transition sm:grid-cols-[4.25rem_1fr] ${surface} ${isFocused ? 'section-focused' : ''}`,
+        `group/section relative grid scroll-mt-28 grid-cols-[3.5rem_1fr] gap-x-2 rounded-2xl px-2 py-2 transition sm:grid-cols-[4.25rem_1fr] ${surface} ${isFocused ? 'section-focused' : ''}`,
       ),
       ...(isScrollTarget
         ? [h.OnMount(ScrollSectionIntoView({ sectionID: section.id }))]
@@ -80,61 +80,26 @@ const sectionView = (
           h.Disabled(!isPlayable),
           h.OnClick(ClickedWord({ seconds: sectionPlaybackStart(section) })),
           h.Class(
-            'tabular self-start rounded-lg px-1.5 py-1 text-right font-mono text-[12px] leading-6 text-tertiary transition enabled:hover:bg-fill enabled:hover:text-tint disabled:cursor-default',
+            'tabular self-start rounded-lg px-1.5 py-[3px] text-right font-mono text-[12px] leading-[22px] text-tertiary transition enabled:hover:bg-fill enabled:hover:text-tint disabled:cursor-default',
           ),
         ],
         [formatClock(section.startSeconds)],
       ),
       h.div(
-        [h.Class('flex min-w-0 flex-col gap-0.5')],
+        [h.Class('flex min-w-0 flex-col gap-0.5 pr-16')],
         [
-          h.div(
-            [h.Class('flex min-h-6 items-center gap-2')],
-            [
-              ...(speakerLabel === undefined
-                ? []
-                : [
-                    h.span(
-                      [h.Class('text-[13px] font-semibold text-secondary')],
-                      [speakerLabel],
+          ...(speakerLabel === undefined
+            ? []
+            : [
+                h.span(
+                  [
+                    h.Class(
+                      'pt-[3px] text-[13px] font-semibold leading-[22px] text-secondary',
                     ),
-                  ]),
-              h.span([h.Class('flex-1')], []),
-              h.span(
-                [
-                  h.Class(
-                    'flex items-center gap-0.5 opacity-0 transition focus-within:opacity-100 group-hover/section:opacity-100 [@media(hover:none)]:opacity-100',
-                  ),
-                ],
-                [
-                  h.button(
-                    [
-                      h.Type('button'),
-                      h.AriaLabel('Copy link to this section'),
-                      h.Title('Copy link'),
-                      h.OnClick(
-                        ClickedCopySectionLink({ sectionID: section.id }),
-                      ),
-                      h.Class(sectionActionClass),
-                    ],
-                    [icon('Link', 'size-4')],
-                  ),
-                  h.button(
-                    [
-                      h.Type('button'),
-                      h.AriaLabel('Copy this section’s text'),
-                      h.Title('Copy text'),
-                      h.OnClick(
-                        ClickedCopySectionText({ sectionID: section.id }),
-                      ),
-                      h.Class(sectionActionClass),
-                    ],
-                    [icon('Copy', 'size-4')],
-                  ),
-                ],
-              ),
-            ],
-          ),
+                  ],
+                  [speakerLabel],
+                ),
+              ]),
           h.p(
             [
               h.Class(
@@ -148,6 +113,35 @@ const sectionView = (
                   wordView(word, word.id === activeWordID, isPlayable),
                 ),
             }),
+          ),
+        ],
+      ),
+      h.span(
+        [
+          h.Class(
+            'absolute right-2 top-2 flex items-center gap-0.5 opacity-0 transition focus-within:opacity-100 group-hover/section:opacity-100 [@media(hover:none)]:opacity-100',
+          ),
+        ],
+        [
+          h.button(
+            [
+              h.Type('button'),
+              h.AriaLabel('Copy link to this section'),
+              h.Title('Copy link'),
+              h.OnClick(ClickedCopySectionLink({ sectionID: section.id })),
+              h.Class(sectionActionClass),
+            ],
+            [icon('Link', 'size-4')],
+          ),
+          h.button(
+            [
+              h.Type('button'),
+              h.AriaLabel('Copy this section’s text'),
+              h.Title('Copy text'),
+              h.OnClick(ClickedCopySectionText({ sectionID: section.id })),
+              h.Class(sectionActionClass),
+            ],
+            [icon('Copy', 'size-4')],
           ),
         ],
       ),

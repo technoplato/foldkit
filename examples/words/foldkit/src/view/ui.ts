@@ -68,6 +68,32 @@ export const button = (
   )
 }
 
+/**
+ * A button whose label collapses to its icon below the small breakpoint, for
+ * toolbars that must fit an iPhone width; the label still names it.
+ */
+export const compactButton = (
+  label: string,
+  message: Message,
+  style: ButtonStyle,
+  iconName: IconName,
+): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.OnClick(message),
+      h.AriaLabel(label),
+      h.Title(label),
+      h.Class(`${buttonClass(style)} max-sm:w-11 max-sm:px-0`),
+    ],
+    [
+      icon(iconName, 'size-[18px]'),
+      h.span([h.Class('max-sm:hidden')], [label]),
+    ],
+  )
+}
+
 /** A 44 point round button that shows only an icon; `label` names it for assistive technology. */
 export const iconButton = (
   label: string,
