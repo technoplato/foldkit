@@ -24,7 +24,7 @@ const step = (number: number, title: string, detail: string): Html => {
         [
           h.AriaHidden(true),
           h.Class(
-            'mt-0.5 inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-tint px-1 text-footnote font-semibold text-white',
+            'mt-0.5 inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center self-start rounded-full bg-tint px-1 text-footnote font-semibold text-white',
           ),
         ],
         [String(number)],
