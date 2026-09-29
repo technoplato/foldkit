@@ -9,8 +9,13 @@ import {
   type Model,
   RecordingRoute,
   type RecordingSummary,
+  SEARCH_FIELD_ID,
+  UpdatedSearchQuery,
   formatClock,
+  recordingsMatching,
   scribeRouteToPath,
+  searchTermsOf,
+  shortcutKeyOf,
 } from 'words-core-example'
 
 import { connectCard } from './connect.js'
@@ -75,14 +80,14 @@ const recordingRow = (recording: RecordingSummary): Html => {
             scribeRouteToPath(RecordingRoute({ recordingID: recording.id })),
           ),
           h.Class(
-            'flex min-w-0 flex-1 gap-3.5 px-4 py-3.5 transition hover:bg-fill/60 active:bg-fill',
+            'flex min-w-0 flex-1 gap-3.5 px-4 py-3.5 transition hover:bg-fill/60 focus-visible:-outline-offset-2 active:bg-fill',
           ),
         ],
         [
           h.span(
             [
               h.Class(
-                `mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-[11px] ${isLive ? 'bg-accent text-white' : 'bg-fill text-secondary'}`,
+                `mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-[11px] ${isLive ? 'bg-accent-fill text-white' : 'bg-fill text-secondary'}`,
               ),
             ],
             [icon(deviceIconOf(recording), 'size-[18px]')],
@@ -91,30 +96,26 @@ const recordingRow = (recording: RecordingSummary): Html => {
             [h.Class('flex min-w-0 flex-1 flex-col gap-0.5')],
             [
               h.span(
-                [h.Class('flex items-center gap-2')],
+                [h.Class('flex flex-wrap items-center gap-x-2 gap-y-1')],
                 [
                   h.span(
                     [
                       h.Class(
-                        'truncate text-[16px] font-semibold tracking-tight text-label',
+                        'line-clamp-2 text-body font-semibold tracking-tight text-label',
                       ),
                     ],
                     [recording.title],
                   ),
-                  ...(isLive ? [badge('Live', 'LIVE')] : []),
+                  ...(isLive ? [badge('Recording', 'Recording')] : []),
                   ...(recording.activity === 'Playing'
-                    ? [badge('Neutral', 'Playing')]
+                    ? [badge('Playing', 'Playing')]
                     : []),
                 ],
               ),
-              h.span([h.Class('tabular text-[13px] text-secondary')], [meta]),
+              h.span([h.Class('tabular text-footnote text-secondary')], [meta]),
               ...Array.map(Array.take(recording.previewLines, 2), line =>
                 h.span(
-                  [
-                    h.Class(
-                      'line-clamp-1 text-[14px] leading-5 text-secondary',
-                    ),
-                  ],
+                  [h.Class('line-clamp-1 text-subhead text-secondary')],
                   [line],
                 ),
               ),
@@ -129,11 +130,11 @@ const recordingRow = (recording: RecordingSummary): Html => {
       h.button(
         [
           h.Type('button'),
-          h.AriaLabel(`Copy link to ${recording.title}`),
-          h.Title('Copy link'),
+          h.AriaLabel(`Copy Link to ${recording.title}`),
+          h.Title('Copy Link to Recording'),
           h.OnClick(ClickedCopyRecordingLink({ recordingID: recording.id })),
           h.Class(
-            'absolute right-10 top-3 inline-flex size-9 items-center justify-center rounded-full bg-surface text-secondary opacity-0 shadow-sm transition hover:text-tint focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:hidden',
+            'absolute right-10 top-2.5 inline-flex size-11 items-center justify-center rounded-full bg-surface text-secondary opacity-0 shadow-sm transition hover:text-tint focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:hidden',
           ),
         ],
         [icon('Link', 'size-4')],
@@ -173,7 +174,7 @@ const dayGroupView = (dayGroup: DayGroup): Html => {
     [h.Key(dayGroup.label), h.Class('flex flex-col')],
     [
       h.h2(
-        [h.Class('px-4 pb-2 pt-6 text-[13px] font-semibold text-secondary')],
+        [h.Class('px-4 pb-2 pt-6 text-footnote font-semibold text-secondary')],
         [dayGroup.label],
       ),
       h.ul(
@@ -206,13 +207,13 @@ const emptyState = (): Html => {
         [icon('Waveform', 'size-8')],
       ),
       h.h2(
-        [h.Class('text-[20px] font-semibold tracking-tight text-label')],
-        ['No recordings yet'],
+        [h.Class('text-title font-semibold tracking-tight text-label')],
+        ['No Recordings Yet'],
       ),
       h.p(
-        [h.Class('max-w-sm text-[15px] leading-6 text-secondary')],
+        [h.Class('max-w-sm text-subhead text-secondary')],
         [
-          'Press Record to start one here, or record on your iPhone. Recordings from both show up here as they happen.',
+          'Press New Recording to start one here, or record on your iPhone. Recordings from both show up here as they happen.',
         ],
       ),
     ],
@@ -227,7 +228,7 @@ const skeletonRows = (): Html => {
       h.div(
         [
           h.Class(
-            'flex items-center gap-2 px-4 pb-1 text-[13px] text-secondary',
+            'flex items-center gap-2 px-4 pb-1 text-footnote text-secondary',
           ),
         ],
         [spinner('size-3.5 text-secondary'), 'Signing in to Scribe'],
@@ -286,8 +287,8 @@ const noticeCard = (
           h.div(
             [h.Class('flex flex-col gap-1')],
             [
-              h.h2([h.Class('text-[17px] font-semibold text-label')], [title]),
-              h.p([h.Class('text-[15px] leading-6 text-secondary')], [body]),
+              h.h2([h.Class('text-body font-semibold text-label')], [title]),
+              h.p([h.Class('text-subhead text-secondary')], [body]),
             ],
           ),
         ],
@@ -298,6 +299,77 @@ const noticeCard = (
           h.div([h.Class('flex flex-wrap gap-2 pl-13')], nonEmpty),
         ],
       }),
+    ],
+  )
+}
+
+const searchField = (model: Model): Html => {
+  const h = html<Message>()
+  const isSearchPage = model.route._tag === 'SearchRecordings'
+  const key = shortcutKeyOf('FocusSearch')
+  return h.div(
+    [h.Role('search'), h.Class('relative mt-4')],
+    [
+      icon(
+        'Search',
+        'pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-secondary',
+      ),
+      h.input([
+        h.Id(SEARCH_FIELD_ID),
+        h.Type('search'),
+        h.AriaLabel('Search Recordings'),
+        h.Title(`Search Recordings (${key})`),
+        h.AriaKeyshortcuts(key),
+        h.Placeholder('Search titles and previews'),
+        h.Autocomplete('off'),
+        h.Value(model.searchQuery),
+        h.OnInput(query => UpdatedSearchQuery({ query })),
+        ...(isSearchPage ? [h.Autofocus(true)] : []),
+        h.Class(
+          'min-h-11 w-full appearance-none rounded-xl border-0 bg-fill pl-10 pr-12 text-body text-label outline-none placeholder:text-secondary focus-visible:ring-2 focus-visible:ring-tint [&::-webkit-search-cancel-button]:hidden',
+        ),
+      ]),
+      ...(model.searchQuery === ''
+        ? []
+        : [
+            h.button(
+              [
+                h.Type('button'),
+                h.AriaLabel('Clear Search'),
+                h.Title('Clear Search'),
+                h.OnClick(UpdatedSearchQuery({ query: '' })),
+                h.Class(
+                  'absolute right-0 top-0 inline-flex size-11 items-center justify-center rounded-xl text-secondary hover:text-label',
+                ),
+              ],
+              [icon('Close', 'size-4')],
+            ),
+          ]),
+    ],
+  )
+}
+
+const noResults = (query: string): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Role('status'),
+      h.Class(
+        'card mt-6 flex flex-col items-center gap-2 rounded-[28px] px-6 py-12 text-center',
+      ),
+    ],
+    [
+      icon('Search', 'size-8 text-secondary'),
+      h.h2(
+        [h.Class('text-title font-semibold tracking-tight text-label')],
+        [`No Results for “${query.trim()}”`],
+      ),
+      h.p(
+        [h.Class('max-w-sm text-subhead text-secondary')],
+        [
+          'Search looks at each recording’s title and the two lines the list shows for it. Check the spelling, or try fewer words.',
+        ],
+      ),
     ],
   )
 }
@@ -317,7 +389,7 @@ const recordingsContent = (model: Model): ReadonlyArray<Html> => {
               h.p(
                 [
                   h.Class(
-                    'mt-4 rounded-2xl bg-caution-soft px-4 py-3 text-[14px] text-caution',
+                    'mt-4 rounded-2xl bg-caution-soft px-4 py-3 text-subhead text-caution',
                   ),
                 ],
                 [
@@ -326,8 +398,14 @@ const recordingsContent = (model: Model): ReadonlyArray<Html> => {
               ),
             ]
           : []),
-        ...Array.match(recordings, {
-          onEmpty: () => [h.div([h.Class('pt-6')], [emptyState()])],
+        ...(Array.isReadonlyArrayNonEmpty(recordings)
+          ? [searchField(model)]
+          : []),
+        ...Array.match(recordingsMatching(recordings, model.searchQuery), {
+          onEmpty: () =>
+            Array.isReadonlyArrayNonEmpty(searchTermsOf(model.searchQuery))
+              ? [noResults(model.searchQuery)]
+              : [h.div([h.Class('pt-6')], [emptyState()])],
           onNonEmpty: nonEmpty =>
             Array.map(dayGroupsOf(nonEmpty), dayGroupView),
         }),
@@ -335,7 +413,7 @@ const recordingsContent = (model: Model): ReadonlyArray<Html> => {
           ? [
               h.div(
                 [h.Class('flex justify-center pt-6')],
-                [button('Show more', ClickedShowMoreRecordings(), 'Gray')],
+                [button('Show More', ClickedShowMoreRecordings(), 'Gray')],
               ),
             ]
           : []),
@@ -362,7 +440,7 @@ const bodyOf = (model: Model): ReadonlyArray<Html> =>
           `${reason} Trying again every few seconds.`,
           [
             button(
-              'Try now',
+              'Try Now',
               GotAccountMessage({
                 message: Account.checkAccountNow(),
               }),
@@ -379,7 +457,7 @@ const bodyOf = (model: Model): ReadonlyArray<Html> =>
           `${reason} Trying again every few seconds.`,
           [
             button(
-              'Try now',
+              'Try Now',
               GotAccountMessage({
                 message: Account.checkAccountNow(),
               }),
@@ -396,7 +474,7 @@ const bodyOf = (model: Model): ReadonlyArray<Html> =>
           'Scribe is signed out in this browser. Sign in again to see your recordings.',
           [
             button(
-              'Sign in again',
+              'Sign In Again',
               GotAccountMessage({
                 message: Account.signInAgain(),
               }),
@@ -417,12 +495,15 @@ const bodyOf = (model: Model): ReadonlyArray<Html> =>
     }),
   )
 
+const countLabelOf = (count: number, isMore: boolean): string =>
+  `${count}${isMore ? '+' : ''} ${count === 1 && !isMore ? 'recording' : 'recordings'}`
+
 const subtitleOf = (model: Model): string =>
   M.value(model.recordings).pipe(
     M.withReturnType<string>(),
     M.tag('LoadedRecordings', ({ recordings }) =>
       model.account.connection._tag === 'ConnectedAccount'
-        ? `${Array.length(recordings)}${Array.length(recordings) >= model.recordingListLimit ? '+' : ''} recordings, live from every device`
+        ? `${countLabelOf(Array.length(recordings), Array.length(recordings) >= model.recordingListLimit)}, live from every device`
         : 'Your recordings, live from every device',
     ),
     M.orElse(() => 'Your recordings, live from every device'),
@@ -438,7 +519,7 @@ export const recordingList = (model: Model): Html => {
         [h.Class('flex flex-col gap-1 px-1')],
         [
           largeTitle('Recordings'),
-          h.p([h.Class('text-[15px] text-secondary')], [subtitleOf(model)]),
+          h.p([h.Class('text-subhead text-secondary')], [subtitleOf(model)]),
         ],
       ),
       ...bodyOf(model),

@@ -10,7 +10,6 @@ import {
   type Message,
   type ReadyPlayback,
   type RecordingDetail,
-  ScrolledTranscriptAway,
   type Section,
   type Word,
   displayedPositionOf,
@@ -18,6 +17,7 @@ import {
   formatClock,
   isLiveRecording,
   sectionAt,
+  sectionElementIDOf,
   sectionPlaybackStart,
   speakerLabelOf,
   speakerRunStartIDsOf,
@@ -25,8 +25,8 @@ import {
   wordAt,
 } from 'words-core-example'
 
-import { ScrollSectionIntoView } from '../mount.js'
-import { icon } from './icon.js'
+import { ObservePlayheadVisibility, TrackWordClicks } from '../mount.js'
+import { type IconName, icon } from './icon.js'
 
 const sectionSlots = createKeyedLazy()
 const transcriptSlot = createLazy()
@@ -37,73 +37,159 @@ const wordView = (word: Word, isActive: boolean, isPlayable: boolean): Html => {
     [
       h.Key(word.id),
       ...(isPlayable
-        ? [h.OnClick(ClickedWord({ seconds: word.startSeconds }))]
+        ? [h.DataAttribute('word-seconds', String(word.startSeconds))]
         : []),
-      h.Class(
-        `${isPlayable ? 'word cursor-pointer' : ''} ${isActive ? 'word-current' : ''}`,
-      ),
+      h.Class(`${isPlayable ? 'word' : ''} ${isActive ? 'word-current' : ''}`),
     ],
     [`${word.text} `],
   )
 }
 
-const sectionActionClass =
-  'inline-flex size-8 items-center justify-center rounded-full text-tertiary transition hover:bg-fill hover:text-label'
+const menuIDOf = (section: Section): string => `section-menu-${section.id}`
+
+const anchorNameOf = (section: Section): string => `--section-${section.id}`
+
+const menuItem = (
+  menuID: string,
+  iconName: IconName,
+  label: string,
+  message: Message,
+  isDisabled = false,
+): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.Popovertarget(menuID),
+      h.Popovertargetaction('hide'),
+      h.OnClick(message),
+      h.Disabled(isDisabled),
+      h.Class(
+        'flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-subhead text-label enabled:hover:bg-fill disabled:opacity-40',
+      ),
+    ],
+    [icon(iconName, 'size-[18px] text-secondary'), label],
+  )
+}
+
+const sectionMenu = (section: Section, isPlayable: boolean): Html => {
+  const h = html<Message>()
+  const menuID = menuIDOf(section)
+  return h.div(
+    [
+      h.Id(menuID),
+      h.Popover('auto'),
+      h.AriaLabel(`Section at ${formatClock(section.startSeconds)}`),
+      h.Style({ positionAnchor: anchorNameOf(section) }),
+      h.Class('menu-popover glass'),
+    ],
+    [
+      menuItem(
+        menuID,
+        'Play',
+        'Play from Here',
+        ClickedWord({ seconds: sectionPlaybackStart(section) }),
+        !isPlayable,
+      ),
+      menuItem(
+        menuID,
+        'Link',
+        'Copy Link to This Moment',
+        ClickedCopySectionLink({ sectionID: section.id }),
+      ),
+      menuItem(
+        menuID,
+        'Copy',
+        'Copy Text',
+        ClickedCopySectionText({ sectionID: section.id }),
+      ),
+    ],
+  )
+}
+
+const timestampClass =
+  'tabular flex min-h-11 items-start justify-end self-start rounded-xl px-1.5 pt-[calc(var(--type-unit)*9)] font-mono text-footnote text-secondary'
+
+const sectionMenuButton = (
+  section: Section,
+  isPlayable: boolean,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  const time = formatClock(section.startSeconds)
+  return [
+    h.button(
+      [
+        h.Type('button'),
+        h.Popovertarget(menuIDOf(section)),
+        h.AriaLabel(`${time}, section actions`),
+        h.Title('Play, copy a link, or copy the text'),
+        h.Style({ anchorName: anchorNameOf(section) }),
+        h.Class(`${timestampClass} transition hover:bg-fill hover:text-label`),
+      ],
+      [time],
+    ),
+    sectionMenu(section, isPlayable),
+  ]
+}
+
+const plainTimestamp = (section: Section): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return [
+    h.span([h.Class(timestampClass)], [formatClock(section.startSeconds)]),
+  ]
+}
+
+const playheadSentinel = (section: Section): Html => {
+  const h = html<Message>()
+  return h.span(
+    [
+      h.AriaHidden(true),
+      h.OnMount(ObservePlayheadVisibility({ sectionID: section.id })),
+      h.Class('pointer-events-none absolute inset-0'),
+    ],
+    [],
+  )
+}
 
 const sectionView = (
   section: Section,
   activeWordID: string | undefined,
   isCurrent: boolean,
   isFocused: boolean,
-  isScrollTarget: boolean,
+  isFollowed: boolean,
   speakerLabel: string | undefined,
   isPlayable: boolean,
+  hasActions: boolean,
 ): Html => {
   const h = html<Message>()
-  const surface = isCurrent ? 'bg-fill/70' : 'hover:bg-fill/40'
+  const surface = isCurrent ? 'bg-fill/70' : ''
   return h.article(
     [
       h.Key(section.id),
+      h.Id(sectionElementIDOf(section.id)),
       h.Class(
-        `group/section relative grid scroll-mt-28 grid-cols-[3.5rem_1fr] gap-x-2 rounded-2xl px-2 py-2 transition sm:grid-cols-[4.25rem_1fr] ${surface} ${isFocused ? 'section-focused' : ''}`,
+        `relative grid scroll-mb-44 scroll-mt-20 grid-cols-[3.5rem_minmax(0,1fr)] gap-x-2 rounded-2xl px-2 py-1 transition sm:grid-cols-[4.25rem_minmax(0,1fr)] ${surface} ${isFocused ? 'section-focused' : ''}`,
       ),
-      ...(isScrollTarget
-        ? [h.OnMount(ScrollSectionIntoView({ sectionID: section.id }))]
-        : []),
     ],
     [
-      h.button(
-        [
-          h.Type('button'),
-          h.Title('Play from here'),
-          h.AriaLabel(`Play from ${formatClock(section.startSeconds)}`),
-          h.Disabled(!isPlayable),
-          h.OnClick(ClickedWord({ seconds: sectionPlaybackStart(section) })),
-          h.Class(
-            'tabular self-start rounded-lg px-1.5 py-[3px] text-right font-mono text-[12px] leading-[22px] text-tertiary transition enabled:hover:bg-fill enabled:hover:text-tint disabled:cursor-default',
-          ),
-        ],
-        [formatClock(section.startSeconds)],
-      ),
+      ...(hasActions
+        ? sectionMenuButton(section, isPlayable)
+        : plainTimestamp(section)),
       h.div(
-        [h.Class('flex min-w-0 flex-col gap-0.5 pr-16')],
+        [h.Class('flex min-w-0 flex-col py-1')],
         [
           ...(speakerLabel === undefined
             ? []
             : [
                 h.span(
-                  [
-                    h.Class(
-                      'pt-[3px] text-[13px] font-semibold leading-[22px] text-secondary',
-                    ),
-                  ],
+                  [h.Class('text-footnote font-semibold text-secondary')],
                   [speakerLabel],
                 ),
               ]),
           h.p(
             [
               h.Class(
-                `text-[17px] leading-[1.65] ${section.isFinal ? 'text-label' : 'text-secondary'}`,
+                `text-body leading-relaxed ${section.isFinal ? 'text-label' : 'text-secondary'}`,
               ),
             ],
             Array.match(section.words, {
@@ -116,35 +202,7 @@ const sectionView = (
           ),
         ],
       ),
-      h.span(
-        [
-          h.Class(
-            'absolute right-2 top-2 flex items-center gap-0.5 opacity-0 transition focus-within:opacity-100 group-hover/section:opacity-100 [@media(hover:none)]:opacity-100',
-          ),
-        ],
-        [
-          h.button(
-            [
-              h.Type('button'),
-              h.AriaLabel('Copy link to this section'),
-              h.Title('Copy link'),
-              h.OnClick(ClickedCopySectionLink({ sectionID: section.id })),
-              h.Class(sectionActionClass),
-            ],
-            [icon('Link', 'size-4')],
-          ),
-          h.button(
-            [
-              h.Type('button'),
-              h.AriaLabel('Copy this section’s text'),
-              h.Title('Copy text'),
-              h.OnClick(ClickedCopySectionText({ sectionID: section.id })),
-              h.Class(sectionActionClass),
-            ],
-            [icon('Copy', 'size-4')],
-          ),
-        ],
-      ),
+      ...(isFollowed ? [playheadSentinel(section)] : []),
     ],
   )
 }
@@ -162,7 +220,7 @@ const clipboardView = (clipboard: ClipboardEntry): Html => {
       h.span(
         [
           h.Class(
-            'flex items-center gap-1.5 text-[12px] font-semibold text-secondary',
+            'flex items-center gap-1.5 text-footnote font-semibold text-secondary',
           ),
         ],
         [
@@ -171,7 +229,7 @@ const clipboardView = (clipboard: ClipboardEntry): Html => {
         ],
       ),
       h.span(
-        [h.Class('line-clamp-4 whitespace-pre-wrap text-[15px] text-label')],
+        [h.Class('line-clamp-4 whitespace-pre-wrap text-subhead text-label')],
         [clipboard.text],
       ),
     ],
@@ -191,7 +249,7 @@ const imageView = (
           h.div(
             [
               h.Class(
-                'flex h-44 items-center justify-center rounded-2xl bg-fill text-[14px] text-secondary',
+                'flex h-44 items-center justify-center rounded-2xl bg-fill text-subhead text-secondary',
               ),
             ],
             ['Loading image'],
@@ -205,7 +263,7 @@ const imageView = (
           ]),
       }),
       h.figcaption(
-        [h.Class('mt-1 font-mono text-[12px] text-tertiary')],
+        [h.Class('tabular mt-1 font-mono text-footnote text-secondary')],
         [formatClock(image.timestampSeconds)],
       ),
     ],
@@ -218,13 +276,13 @@ const timelineView = (
   currentSectionID: string | undefined,
   activeWordID: string | undefined,
   focusedSectionID: string | undefined,
-  scrollTargetID: string | undefined,
+  followedSectionID: string | undefined,
   isPlayable: boolean,
 ): Html => {
   const h = html<Message>()
   const runStartIDs = speakerRunStartIDsOf(detail.sections)
   return h.div(
-    [h.Class('flex flex-col gap-0.5')],
+    [h.OnMount(TrackWordClicks()), h.Class('flex flex-col gap-0.5')],
     Array.map(timelineOf(detail), entry =>
       M.value(entry).pipe(
         M.withReturnType<Html>(),
@@ -235,11 +293,12 @@ const timelineView = (
               section.id === currentSectionID ? activeWordID : undefined,
               section.id === currentSectionID,
               section.id === focusedSectionID,
-              section.id === scrollTargetID,
+              section.id === followedSectionID,
               Array.contains(runStartIDs, section.id)
                 ? Option.getOrUndefined(speakerLabelOf(detail, section))
                 : undefined,
               isPlayable,
+              true,
             ]),
           ClipboardTimelineEntry: ({ clipboard }) => clipboardView(clipboard),
           ImageTimelineEntry: ({ image }) =>
@@ -258,7 +317,7 @@ const sectionIDOf = (
 const hasPlayableAudio = (ready: ReadyPlayback): boolean =>
   ready.detail.audio._tag === 'StoredAudio' && !isLiveRecording(ready)
 
-const waitingForWords = (): Html => {
+const waitingForWords = (isTranscribing: boolean): Html => {
   const h = html<Message>()
   return h.div(
     [
@@ -267,10 +326,14 @@ const waitingForWords = (): Html => {
       ),
     ],
     [
-      icon('Microphone', 'size-7 text-tertiary'),
+      icon('Microphone', 'size-7 text-secondary'),
       h.p(
-        [h.Class('text-[15px] text-secondary')],
-        ['Listening. Words appear here as they are spoken.'],
+        [h.Class('text-subhead text-secondary')],
+        [
+          isTranscribing
+            ? 'Listening. Words appear here as they are spoken.'
+            : 'Recording. There is no live transcript right now.',
+        ],
       ),
     ],
   )
@@ -278,10 +341,14 @@ const waitingForWords = (): Html => {
 
 /**
  * The timeline. The section playing (or, while recording, the newest one)
- * stays on screen until the listener scrolls; a linked section is shown and
- * highlighted first.
+ * stays on screen until the listener scrolls away; a linked section is shown
+ * and highlighted first. Each timestamp opens the section's menu.
  */
-export const transcript = (ready: ReadyPlayback): Html => {
+export const transcript = (
+  ready: ReadyPlayback,
+  isTranscribing: boolean,
+  isFullScreen: boolean,
+): Html => {
   const h = html<Message>()
   const position = displayedPositionOf(ready)
   const maybeCurrent = isLiveRecording(ready)
@@ -293,29 +360,20 @@ export const transcript = (ready: ReadyPlayback): Html => {
     Option.map(word => word.id),
     Option.getOrUndefined,
   )
-  const focusedSectionID = Option.getOrUndefined(ready.maybeFocusedSectionID)
-  const followedSectionID =
-    ready.follow === 'Following'
-      ? sectionIDOf(followedSectionOf(ready))
-      : undefined
   return h.section(
     [
       h.AriaLabel('Transcript'),
-      h.Class('mx-auto w-full max-w-3xl px-2 pb-52 pt-3 sm:px-4'),
-      ...(ready.follow === 'Following'
-        ? [
-            h.OnWheel(ScrolledTranscriptAway()),
-            h.OnTouchMove(ScrolledTranscriptAway()),
-          ]
-        : []),
+      h.Class(
+        `mx-auto w-full max-w-3xl pb-52 sm:px-4 ${isFullScreen ? 'pl-2 pr-10 pt-16' : 'px-2 pt-2'}`,
+      ),
     ],
     [
       Array.match(ready.detail.sections, {
         onEmpty: () =>
           isLiveRecording(ready)
-            ? waitingForWords()
+            ? waitingForWords(isTranscribing)
             : h.p(
-                [h.Class('px-4 text-[15px] text-secondary')],
+                [h.Class('px-4 text-subhead text-secondary')],
                 ['This recording has no transcript.'],
               ),
         onNonEmpty: () =>
@@ -324,8 +382,8 @@ export const transcript = (ready: ReadyPlayback): Html => {
             ready.fileUrls,
             sectionIDOf(maybeCurrent),
             activeWordID,
-            focusedSectionID,
-            focusedSectionID ?? followedSectionID,
+            Option.getOrUndefined(ready.maybeFocusedSectionID),
+            sectionIDOf(followedSectionOf(ready)),
             hasPlayableAudio(ready),
           ]),
       }),
@@ -352,6 +410,7 @@ export const readOnlySections = (
         Array.contains(runStartIDs, section.id)
           ? speakerLabel(section)
           : undefined,
+        false,
         false,
       ),
     ),

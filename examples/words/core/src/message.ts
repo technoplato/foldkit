@@ -4,9 +4,12 @@ import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
 
 import * as Account from './account/message.js'
+import { MediaSessionAction } from './audioPlayer.js'
 import * as Capture from './capture/message.js'
+import { Shortcut } from './keyboard.js'
 import { ScribeAppScheme } from './link.js'
-import { CopyNotice, IdentityState } from './model.js'
+import { CopyNotice, IdentityState, PlayheadVisibility } from './model.js'
+import { Connectivity } from './network.js'
 import { RecordingDetail, RecordingSummary } from './recording.js'
 import * as Share from './share/message.js'
 import { TranscriptFormat } from './transcript.js'
@@ -41,6 +44,10 @@ export const ObservedRecordings = m('ObservedRecordings', {
 export const FailedObserveRecordings = m('FailedObserveRecordings', {
   reason: S.String,
 })
+/** The listener typed in the recording search. */
+export const UpdatedSearchQuery = m('UpdatedSearchQuery', { query: S.String })
+/** Focus moved to the recording search. */
+export const CompletedFocusSearch = m('CompletedFocusSearch')
 /** The listener asked for older recordings. */
 export const ClickedShowMoreRecordings = m('ClickedShowMoreRecordings')
 /** The listener opened a recording from the list. */
@@ -101,6 +108,10 @@ export const HeardAudioPaused = m('HeardAudioPaused')
 export const HeardAudioEnded = m('HeardAudioEnded')
 /** The audio player reported an error, such as an expired URL. */
 export const HeardAudioError = m('HeardAudioError', { reason: S.String })
+/** The system's media controls (lock screen, headphones, media keys) asked for an action. */
+export const HeardMediaSessionAction = m('HeardMediaSessionAction', {
+  action: MediaSessionAction,
+})
 /** The listener asked to load the audio again after it failed. */
 export const ClickedRetryAudio = m('ClickedRetryAudio')
 /** Playing started. */
@@ -111,6 +122,8 @@ export const FailedPlayAudio = m('FailedPlayAudio', { reason: S.String })
 export const CompletedPauseAudio = m('CompletedPauseAudio')
 /** Seeking finished. */
 export const CompletedSeekAudio = m('CompletedSeekAudio')
+/** The system's Now Playing names the open recording. */
+export const CompletedPublishNowPlaying = m('CompletedPublishNowPlaying')
 
 /** The listener pressed Play. */
 export const ClickedPlay = m('ClickedPlay')
@@ -132,6 +145,31 @@ export const ScrolledTranscriptAway = m('ScrolledTranscriptAway')
 export const ClickedReturnToPlayhead = m('ClickedReturnToPlayhead')
 /** The transcript scrolled a section into view. */
 export const CompletedScrollToSection = m('CompletedScrollToSection')
+/** The followed section came on screen or left it, as the listener scrolled or the transcript grew. */
+export const ChangedPlayheadVisibility = m('ChangedPlayheadVisibility', {
+  sectionID: S.String,
+  visibility: PlayheadVisibility,
+})
+/** The listener chose Full Screen for the open recording. */
+export const ClickedEnterFullScreen = m('ClickedEnterFullScreen')
+/** The listener left Full Screen. */
+export const ClickedExitFullScreen = m('ClickedExitFullScreen')
+/** The full-screen wall clock started ticking. */
+export const CompletedRunWallClock = m('CompletedRunWallClock')
+/** The listener chose Skip to Player from the keyboard. */
+export const ClickedSkipToPlayer = m('ClickedSkipToPlayer')
+/** Focus moved to the player. */
+export const CompletedFocusPlayer = m('CompletedFocusPlayer')
+/** The listener pressed a keyboard shortcut. */
+export const PressedShortcut = m('PressedShortcut', { shortcut: Shortcut })
+/** A pause between screen reader announcements of new sections ended. */
+export const ElapsedAnnouncementPause = m('ElapsedAnnouncementPause', {
+  revision: S.Number,
+})
+/** The browser lost or regained its network connection. */
+export const ChangedConnectivity = m('ChangedConnectivity', {
+  connectivity: Connectivity,
+})
 /** A linked section's highlight has shown long enough. */
 export const ElapsedFocusHighlight = m('ElapsedFocusHighlight', {
   revision: S.Number,
@@ -189,6 +227,8 @@ export const Message = S.Union([
   FailedObserveIdentity,
   ObservedRecordings,
   FailedObserveRecordings,
+  UpdatedSearchQuery,
+  CompletedFocusSearch,
   ClickedShowMoreRecordings,
   ClickedRecording,
   ObservedRecording,
@@ -206,11 +246,13 @@ export const Message = S.Union([
   HeardAudioPaused,
   HeardAudioEnded,
   HeardAudioError,
+  HeardMediaSessionAction,
   ClickedRetryAudio,
   CompletedPlayAudio,
   FailedPlayAudio,
   CompletedPauseAudio,
   CompletedSeekAudio,
+  CompletedPublishNowPlaying,
   ClickedPlay,
   ClickedPause,
   ClickedSkip,
@@ -221,6 +263,15 @@ export const Message = S.Union([
   ScrolledTranscriptAway,
   ClickedReturnToPlayhead,
   CompletedScrollToSection,
+  ChangedPlayheadVisibility,
+  ClickedSkipToPlayer,
+  CompletedFocusPlayer,
+  ClickedEnterFullScreen,
+  ClickedExitFullScreen,
+  CompletedRunWallClock,
+  PressedShortcut,
+  ElapsedAnnouncementPause,
+  ChangedConnectivity,
   ElapsedFocusHighlight,
   ClickedCopyRecordingLink,
   ClickedCopySectionLink,

@@ -27,22 +27,35 @@ const brand = (): Html => {
     [
       h.Href(listPath),
       h.AriaLabel('Scribe recordings'),
-      h.Class('flex min-h-11 items-center gap-2.5 rounded-full pr-2'),
+      h.Class('flex min-h-11 shrink-0 items-center gap-2.5 rounded-full pr-2'),
     ],
     [
       h.span(
         [
           h.Class(
-            'inline-flex size-8 items-center justify-center rounded-[10px] bg-gradient-to-b from-[#ff5a4f] to-[#e8261c] text-white shadow-[0_2px_6px_rgb(255_59_48/0.35)]',
+            'inline-flex size-8 items-center justify-center rounded-[10px] bg-accent-fill text-white',
           ),
         ],
         [icon('Waveform', 'size-[18px]')],
       ),
       h.span(
-        [h.Class('text-[17px] font-semibold tracking-tight text-label')],
+        [h.Class('text-body font-semibold tracking-tight text-label')],
         ['Scribe'],
       ),
     ],
+  )
+}
+
+const backButton = (): Html => {
+  const h = html<Message>()
+  return h.a(
+    [
+      h.Href(listPath),
+      h.Class(
+        '-ml-1 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-full pl-1 pr-3 text-body text-tint transition hover:bg-tint-soft',
+      ),
+    ],
+    [icon('ChevronLeft', 'size-6'), 'Recordings'],
   )
 }
 
@@ -51,7 +64,7 @@ const statusDot = (colorClass: string): Html => {
   return h.span(
     [
       h.Class(
-        `absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-[var(--surface)] ${colorClass}`,
+        `absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-[var(--canvas)] ${colorClass}`,
       ),
     ],
     [],
@@ -68,13 +81,13 @@ const chipContent = (
   return [
     leading,
     h.span(
-      [h.Class('hidden min-w-0 flex-col text-left leading-tight sm:flex')],
+      [h.Class('hidden min-w-0 flex-col text-left sm:flex')],
       [
         h.span(
-          [h.Class('max-w-56 truncate text-[13px] font-semibold text-label')],
+          [h.Class('max-w-56 truncate text-footnote font-semibold text-label')],
           [title],
         ),
-        h.span([h.Class(`text-[12px] ${subtitleClass}`)], [subtitle]),
+        h.span([h.Class(`text-footnote ${subtitleClass}`)], [subtitle]),
       ],
     ),
   ]
@@ -137,7 +150,7 @@ const accountChipContent = (model: Model): ReadonlyArray<Html> =>
           avatarWithStatus(access.email, 'bg-accent'),
           access.email,
           'Could not sign in',
-          'text-accent',
+          'text-accent-strong',
         ),
       SignedOutAccount: ({ access }) =>
         chipContent(
@@ -155,42 +168,67 @@ const accountChipContent = (model: Model): ReadonlyArray<Html> =>
         ),
       FailedAccountCheck: () =>
         chipContent(
-          plainLeading(icon('Alert', 'size-[18px] text-accent')),
+          plainLeading(icon('Alert', 'size-[18px] text-accent-strong')),
           'Cannot reach Scribe',
           'Trying again',
-          'text-accent',
+          'text-accent-strong',
         ),
     }),
   )
 
 const accountChipLabel = (model: Model): string =>
   Option.match(Account.Model.accessOf(model.account), {
-    onNone: () => 'Account',
-    onSome: access => `Account: ${access.email}`,
+    onNone: () => 'Settings',
+    onSome: access => `Settings, signed in as ${access.email}`,
   })
 
-/** The top bar: Scribe, and who is signed in with what state, linking to the account page. */
+const foldedTitleOf = (model: Model): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return M.value(model.playback).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tag('ReadyPlayback', ready => [
+      h.span(
+        [
+          h.AriaHidden(true),
+          h.Class(
+            'folded-title min-w-0 flex-1 truncate text-center text-body font-semibold text-label',
+          ),
+        ],
+        [ready.detail.summary.title],
+      ),
+    ]),
+    M.orElse(() => []),
+  )
+}
+
+/**
+ * The top bar: Scribe on the list, or the way back to it elsewhere; the open
+ * recording's title once the page title scrolls under the bar; and who is
+ * signed in with what state, linking to the account page.
+ */
 export const topBar = (model: Model): Html => {
   const h = html<Message>()
   const isOnAccount = model.route._tag === 'Account'
+  const isOnList = model.route._tag === 'RecordingList'
   return h.header(
-    [h.Class('glass sticky top-0 z-30 border-b border-separator/50')],
+    [h.Class('bar sticky top-0 z-30')],
     [
       h.div(
         [
           h.Class(
-            'mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-3 px-3 sm:px-5',
+            'mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-3 sm:px-5',
           ),
         ],
         [
-          brand(),
+          isOnList ? brand() : backButton(),
+          ...foldedTitleOf(model),
           h.a(
             [
               h.Href(accountPath),
               h.AriaLabel(accountChipLabel(model)),
               h.AriaCurrent(isOnAccount ? 'page' : 'false'),
               h.Class(
-                `flex min-h-11 min-w-11 items-center gap-2.5 rounded-full py-1 pl-1 pr-1 transition hover:bg-fill sm:pr-3.5 ${isOnAccount ? 'bg-fill' : ''}`,
+                `ml-auto flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-full py-1 pl-1 pr-1 transition hover:bg-fill sm:pr-3.5 ${isOnAccount ? 'bg-fill' : ''}`,
               ),
             ],
             accountChipContent(model),
@@ -208,7 +246,7 @@ export const toast = (model: Model): Html => {
     [
       h.AriaLive('polite'),
       h.Class(
-        'pointer-events-none fixed inset-x-0 bottom-32 z-50 flex justify-center px-4',
+        'pointer-events-none fixed inset-x-0 bottom-36 z-50 flex justify-center px-4',
       ),
     ],
     Option.match(model.maybeCopyNotice, {
@@ -218,7 +256,7 @@ export const toast = (model: Model): Html => {
           [
             h.Key(`notice-${notice.revision}`),
             h.Class(
-              `animate-rise inline-flex max-w-md items-center gap-2 rounded-full px-4 py-2.5 text-[14px] font-medium shadow-lg ${notice.isFailure ? 'bg-accent text-white' : 'bg-[#1d1d1f] text-white dark:bg-[#f5f5f7] dark:text-[#1d1d1f]'}`,
+              `animate-rise inline-flex max-w-md items-center gap-2 rounded-full px-4 py-2.5 text-subhead font-medium shadow-lg ${notice.isFailure ? 'bg-accent-fill text-white' : 'bg-label text-canvas'}`,
             ),
           ],
           [icon(notice.isFailure ? 'Alert' : 'Check', 'size-4'), notice.text],
@@ -228,27 +266,13 @@ export const toast = (model: Model): Html => {
   )
 }
 
-/** The link back to the recording list at the top of a page. */
-export const backToRecordings = (): Html => {
-  const h = html<Message>()
-  return h.a(
-    [
-      h.Href(listPath),
-      h.Class(
-        '-ml-2 inline-flex min-h-11 items-center gap-1 rounded-full pl-1 pr-3 text-[17px] text-tint transition hover:bg-tint-soft',
-      ),
-    ],
-    [icon('ChevronLeft', 'size-5'), 'Recordings'],
-  )
-}
-
 /** A large title, like an iOS navigation title. */
 export const largeTitle = (text: string): Html => {
   const h = html<Message>()
   return h.h1(
     [
       h.Class(
-        'text-[30px] font-bold leading-[1.15] tracking-tight text-label sm:text-[34px]',
+        'text-large-title font-bold tracking-tight text-label sm:text-display',
       ),
     ],
     [text],

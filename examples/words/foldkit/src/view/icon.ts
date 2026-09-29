@@ -1,4 +1,4 @@
-import { Array, Schema as S } from 'effect'
+import { Array, Match as M, Schema as S } from 'effect'
 import { type Html, html } from 'foldkit/html'
 import type { Message } from 'words-core-example'
 
@@ -30,10 +30,13 @@ export const IconName = S.Literals([
   'Alert',
   'SignOut',
   'Shield',
-  'Back',
-  'Forward',
   'Sparkle',
   'Clock',
+  'Speaker',
+  'Offline',
+  'Expand',
+  'Contract',
+  'Search',
 ])
 /** Every icon web Scribe draws. */
 export type IconName = typeof IconName.Type
@@ -147,13 +150,99 @@ const shapes: Readonly<Record<IconName, Shape>> = {
     'M12 3l7 3v5.5c0 4.4-3 7.9-7 9.5-4-1.6-7-5.1-7-9.5V6z',
     'M8.8 12l2.2 2.2 4.4-4.4',
   ),
-  Back: stroked('M4 12a8 8 0 108-8H9', 'M11.5 1.5L8.5 4l3 2.5'),
-  Forward: stroked('M20 12a8 8 0 11-8-8h3', 'M12.5 1.5l3 2.5-3 2.5'),
   Sparkle: stroked('M12 3.5l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8z'),
   Clock: stroked(
     'M12 3.5a8.5 8.5 0 110 17 8.5 8.5 0 010-17z',
     'M12 7.5V12l3 2',
   ),
+  Speaker: stroked(
+    'M4.5 9.5h3l4.5-4v13l-4.5-4h-3z',
+    'M15.5 9a4 4 0 010 6',
+    'M18 6.5a7.5 7.5 0 010 11',
+  ),
+  Offline: stroked(
+    'M2.5 8.8a14 14 0 0119 0',
+    'M5.8 12.2a9.5 9.5 0 0112.4 0',
+    'M9.2 15.6a4.8 4.8 0 015.6 0',
+    'M12 19.5h.01',
+    'M4 4l16 16',
+  ),
+  Expand: stroked(
+    'M14.5 4H20v5.5',
+    'M20 4l-6 6',
+    'M9.5 20H4v-5.5',
+    'M4 20l6-6',
+  ),
+  Search: stroked(
+    'M10.5 4a6.5 6.5 0 110 13 6.5 6.5 0 010-13z',
+    'M15.5 15.5L20 20',
+  ),
+  Contract: stroked(
+    'M20 9.5h-5.5V4',
+    'M14.5 9.5l6-6',
+    'M4 14.5h5.5V20',
+    'M9.5 14.5l-6 6',
+  ),
+}
+
+/** Which way a skip button moves playback. */
+export const SkipDirection = S.Literals(['Backward', 'Forward'])
+/** Which way a skip button moves playback. */
+export type SkipDirection = typeof SkipDirection.Type
+
+const SKIP_NUMERAL_SIZE = '8.4'
+
+/**
+ * A skip symbol with its seconds inside the arrow, like SF Symbols'
+ * `gobackward.15`: the numeral is part of the drawing, so it scales with the
+ * symbol and reads 11 px or more at the 32 px transport size.
+ */
+export const skipIcon = (
+  direction: SkipDirection,
+  seconds: number,
+  className = 'size-8',
+): Html => {
+  const h = html<Message>()
+  const arcPaths = M.value(direction).pipe(
+    M.withReturnType<ReadonlyArray<string>>(),
+    M.when('Backward', () => ['M4 12a8 8 0 108-8H9', 'M11.5 1.5L8.5 4l3 2.5']),
+    M.when('Forward', () => ['M20 12a8 8 0 11-8-8h3', 'M12.5 1.5l3 2.5-3 2.5']),
+    M.exhaustive,
+  )
+  return h.svg(
+    [
+      h.ViewBox('0 0 24 24'),
+      h.Class(`${className} shrink-0`),
+      h.AriaHidden(true),
+      h.Fill('none'),
+    ],
+    [
+      ...Array.map(arcPaths, path =>
+        h.path(
+          [
+            h.D(path),
+            h.Stroke('currentColor'),
+            h.StrokeWidth('1.9'),
+            h.StrokeLinecap('round'),
+            h.StrokeLinejoin('round'),
+          ],
+          [],
+        ),
+      ),
+      h.text(
+        [
+          h.Attribute('x', '12'),
+          h.Attribute('y', '12.4'),
+          h.TextAnchor('middle'),
+          h.DominantBaseline('central'),
+          h.FontSize(SKIP_NUMERAL_SIZE),
+          h.FontWeight('700'),
+          h.Fill('currentColor'),
+        ],
+        [String(seconds)],
+      ),
+    ],
+  )
 }
 
 /** An icon; decorative unless the caller labels its button. */

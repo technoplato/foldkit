@@ -11,14 +11,20 @@ import {
   pipe,
 } from 'effect'
 import { Command } from 'foldkit'
+import * as Dom from 'foldkit/dom'
 import { load, pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
 import { toString as urlToString } from 'foldkit/url'
 
 import * as Account from './account/index.js'
-import { AudioPlayer, type AudioPlayerService } from './audioPlayer.js'
+import {
+  AudioPlayer,
+  type AudioPlayerService,
+  NowPlaying,
+} from './audioPlayer.js'
 import * as Capture from './capture/index.js'
 import { ClipboardWriter } from './clipboard.js'
+import type { ShortcutContext } from './keyboard.js'
 import {
   PlaybackRoute,
   RecordingListRoute,
@@ -35,13 +41,18 @@ import {
   urlToScribeRoute,
 } from './link.js'
 import {
+  CompletedFocusPlayer,
+  CompletedFocusSearch,
   CompletedLoadExternal,
   CompletedNavigate,
   CompletedPauseAudio,
   CompletedPlayAudio,
+  CompletedPublishNowPlaying,
+  CompletedScrollToSection,
   CompletedSeekAudio,
   ConfirmedMissingRecording,
   ConfirmedRecordingExists,
+  ElapsedAnnouncementPause,
   ElapsedCopyNotice,
   ElapsedFocusHighlight,
   FailedCopy,
@@ -68,13 +79,18 @@ import {
   NoPlayback,
   NotScrubbing,
   OpeningPlayback,
+  PausingAnnouncements,
   type PlaybackRequest,
   ReadyPlayback,
+  ReadyToAnnounce,
+  type ScreenMode,
   Scrubbing,
   SignedOut,
 } from './model.js'
 import type { WordsOrigin } from './origin.js'
 import type { RecordingDetail, Section } from './recording.js'
+import { SectionPlacement, TranscriptScroller } from './scroller.js'
+import { SEARCH_FIELD_ID } from './search.js'
 import * as Share from './share/index.js'
 import { WordsStore } from './store.js'
 import { exportTranscript, sectionAt } from './transcript.js'
@@ -82,8 +98,12 @@ import { exportTranscript, sectionAt } from './transcript.js'
 /** How many recordings the list shows at first, and adds per Show More. */
 export const RECORDING_LIST_PAGE_SIZE = 100
 
+/** How far the skip buttons, arrow keys, and system skip commands move playback. */
+export const SKIP_SECONDS = 15
+
 const FOCUS_HIGHLIGHT_DURATION = Duration.seconds(4)
 const COPY_NOTICE_DURATION = Duration.seconds(2)
+const ANNOUNCEMENT_PAUSE = Duration.seconds(5)
 
 type Services =
   | WordsStore
@@ -94,6 +114,7 @@ type Services =
   | Share.ShareWriter
   | AudioPlayerService
   | Capture.CaptureSessionService
+  | TranscriptScroller
 type Commands = ReadonlyArray<Command.Command<Message, never, Services>>
 type UpdateReturn = readonly [Model, Commands]
 type ReadyReturn = readonly [ReadyPlayback, Commands]
@@ -171,6 +192,72 @@ export const PauseAudio = Command.define(
   ),
 )
 
+/** Names the open recording on the lock screen and in Control Center while it plays. */
+export const PublishNowPlaying = Command.define(
+  'PublishNowPlaying',
+  { nowPlaying: NowPlaying },
+  CompletedPublishNowPlaying,
+)(({ nowPlaying }) =>
+  AudioPlayer.get.pipe(
+    Effect.flatMap(player => player.publishNowPlaying(nowPlaying)),
+    Effect.as(CompletedPublishNowPlaying()),
+    Effect.catchTag('ResourceNotAvailable', () =>
+      Effect.succeed(CompletedPublishNowPlaying()),
+    ),
+  ),
+)
+
+/**
+ * Scrolls the transcript to a section: to the middle of the window while
+ * audio plays, or to the live edge while a recording is in progress.
+ */
+export const ScrollToSection = Command.define(
+  'ScrollToSection',
+  { sectionID: S.String, placement: SectionPlacement },
+  CompletedScrollToSection,
+)(({ sectionID, placement }) =>
+  TranscriptScroller.pipe(
+    Effect.flatMap(scroller => scroller.scrollToSection(sectionID, placement)),
+    Effect.as(CompletedScrollToSection()),
+  ),
+)
+
+/** The element id of the floating player, where Skip to Player moves focus. */
+export const PLAYER_ELEMENT_ID = 'player'
+
+/** Moves keyboard focus to the floating player. */
+export const FocusPlayer = Command.define(
+  'FocusPlayer',
+  CompletedFocusPlayer,
+)(
+  Dom.focus(`#${PLAYER_ELEMENT_ID}`, { makeFocusable: true }).pipe(
+    Effect.ignore,
+    Effect.as(CompletedFocusPlayer()),
+  ),
+)
+
+/** Moves keyboard focus to the recording search. */
+export const FocusSearch = Command.define(
+  'FocusSearch',
+  CompletedFocusSearch,
+)(
+  Dom.focus(`#${SEARCH_FIELD_ID}`).pipe(
+    Effect.ignore,
+    Effect.as(CompletedFocusSearch()),
+  ),
+)
+
+/** Waits, then lets the next finished section of a recording in progress be announced. */
+export const WaitForAnnouncementPause = Command.define(
+  'WaitForAnnouncementPause',
+  { revision: S.Number },
+  ElapsedAnnouncementPause,
+)(({ revision }) =>
+  Effect.sleep(ANNOUNCEMENT_PAUSE).pipe(
+    Effect.as(ElapsedAnnouncementPause({ revision })),
+  ),
+)
+
 /** Moves the audio player to a time. */
 export const SeekAudio = Command.define(
   'SeekAudio',
@@ -243,6 +330,17 @@ export const followedSectionOf = (
   isLiveRecording(ready)
     ? Array.last(ready.detail.sections)
     : sectionAt(ready.detail.sections, ready.positionSeconds)
+
+/** Where the followed section lands when the transcript scrolls to it. */
+export const placementOf = (ready: ReadyPlayback): SectionPlacement =>
+  isLiveRecording(ready) ? 'LiveEdge' : 'Center'
+
+/**
+ * Whether Back to Playhead (or, while recording, Back to Live) shows: the
+ * listener scrolled away and the followed section is off screen.
+ */
+export const isReturnShownOf = (ready: ReadyPlayback): boolean =>
+  ready.follow === 'Detached' && ready.playheadVisibility === 'OffScreen'
 
 /** The playback position, following the scrubber while the listener drags it. */
 export const displayedPositionOf = (ready: ReadyPlayback): number =>
@@ -410,6 +508,53 @@ const startForRequest = (
     ),
   )
 
+const followedSectionIDOf = (ready: ReadyPlayback): Option.Option<string> =>
+  Option.map(followedSectionOf(ready), section => section.id)
+
+const scrollToFollowed = (ready: ReadyPlayback): Commands =>
+  Option.match(followedSectionIDOf(ready), {
+    onNone: () => [],
+    onSome: sectionID => [
+      ScrollToSection({ sectionID, placement: placementOf(ready) }),
+    ],
+  })
+
+const followedExtentOf = (ready: ReadyPlayback): Option.Option<string> =>
+  Option.map(
+    followedSectionOf(ready),
+    section => `${section.id}:${section.text.length}`,
+  )
+
+const isSameExtent = Option.makeEquivalence(Equivalence.String)
+
+/**
+ * Scrolls to the followed section when it changed while following: the
+ * playhead reached another section, or the newest section of a recording in
+ * progress arrived or grew. A recording that just finished stays where the
+ * listener is.
+ */
+const followCommands = (
+  before: ReadyPlayback,
+  after: ReadyPlayback,
+): Commands =>
+  after.follow === 'Following' &&
+  isLiveRecording(before) === isLiveRecording(after) &&
+  !isSameExtent(followedExtentOf(before), followedExtentOf(after))
+    ? scrollToFollowed(after)
+    : []
+
+const openingScrollOf = (
+  ready: ReadyPlayback,
+  request: PlaybackRequest,
+): Commands =>
+  Option.match(request.maybeFocusSectionID, {
+    onSome: sectionID => [ScrollToSection({ sectionID, placement: 'Center' })],
+    onNone: () =>
+      Option.isSome(request.maybeStartSeconds) || isLiveRecording(ready)
+        ? scrollToFollowed(ready)
+        : [],
+  })
+
 const applyRequest = (
   ready: ReadyPlayback,
   request: PlaybackRequest,
@@ -426,13 +571,21 @@ const applyRequest = (
   const highlightCommands: Commands = isFocusing
     ? [ClearFocusHighlightLater({ revision: nextRevision })]
     : []
-  return Option.match(startForRequest(ready.detail, request), {
-    onNone: () => [focused, highlightCommands],
-    onSome: seconds => {
-      const [sought, seekCommands] = seekTo(focused, seconds)
-      return [sought, [...seekCommands, ...highlightCommands]]
+  const [positioned, seekCommands]: ReadyReturn = Option.match(
+    startForRequest(ready.detail, request),
+    {
+      onNone: () => [focused, []],
+      onSome: seconds => seekTo(focused, seconds),
     },
-  })
+  )
+  return [
+    positioned,
+    [
+      ...seekCommands,
+      ...highlightCommands,
+      ...openingScrollOf(positioned, request),
+    ],
+  ]
 }
 
 const withAudioUrl = (ready: ReadyPlayback): ReadyPlayback =>
@@ -460,6 +613,8 @@ const readyFor = (
     positionSeconds: 0,
     transport: 'Paused',
     follow: 'Following',
+    playheadVisibility: 'OnScreen',
+    screenMode: 'Standard',
     scrub: NotScrubbing(),
     audioPlayer: NoAudioPlayer(),
     maybeAudioUrl: Option.none(),
@@ -467,6 +622,9 @@ const readyFor = (
     maybePendingSeekSeconds: Option.none(),
     maybeFocusedSectionID: Option.none(),
     focusRevision: 0,
+    maybeAnnouncedText: Option.none(),
+    announcementPause: ReadyToAnnounce(),
+    announcementRevision: 0,
   })
 
 const openRecording = (
@@ -543,6 +701,8 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       playback: NoPlayback(),
       maybeCopyNotice: Option.none(),
       copyRevision: 0,
+      connectivity: 'Online',
+      searchQuery: '',
     },
     route,
   )[0]
@@ -566,6 +726,141 @@ const evolveReady = (
   model: Model,
   transform: (ready: ReadyPlayback) => ReadyPlayback,
 ): UpdateReturn => updateReady(model, ready => [transform(ready), []])
+
+const announce = (ready: ReadyPlayback, text: string): ReadyReturn => {
+  const revision = ready.announcementRevision + 1
+  return [
+    evo(ready, {
+      maybeAnnouncedText: () => Option.some(text),
+      announcementRevision: () => revision,
+      announcementPause: () =>
+        PausingAnnouncements({ revision, maybeWaitingText: Option.none() }),
+    }),
+    [WaitForAnnouncementPause({ revision })],
+  ]
+}
+
+const newestFinishedTextOf = (
+  before: ReadyPlayback,
+  after: ReadyPlayback,
+): Option.Option<string> => {
+  const wasFinished = (sectionID: string): boolean =>
+    Array.some(
+      before.detail.sections,
+      section => section.id === sectionID && section.isFinal,
+    )
+  return isLiveRecording(after)
+    ? pipe(
+        after.detail.sections,
+        Array.filter(section => section.isFinal && !wasFinished(section.id)),
+        Array.last,
+        Option.map(section => section.text),
+      )
+    : Option.none()
+}
+
+/**
+ * Announces a recording in progress to screen readers as sections finish,
+ * at most once per pause; a section that finishes during a pause waits, and
+ * only the newest waiting one is read when the pause ends.
+ */
+const announceNewSections = (
+  before: ReadyPlayback,
+  after: ReadyPlayback,
+): ReadyReturn =>
+  Option.match(newestFinishedTextOf(before, after), {
+    onNone: () => [after, []],
+    onSome: text =>
+      M.value(after.announcementPause).pipe(
+        M.withReturnType<ReadyReturn>(),
+        M.tagsExhaustive({
+          ReadyToAnnounce: () => announce(after, text),
+          PausingAnnouncements: ({ revision }) => [
+            evo(after, {
+              announcementPause: () =>
+                PausingAnnouncements({
+                  revision,
+                  maybeWaitingText: Option.some(text),
+                }),
+            }),
+            [],
+          ],
+        }),
+      ),
+  })
+
+const scrollToOffScreenFollowed = (ready: ReadyPlayback): Commands =>
+  ready.follow === 'Following' && ready.playheadVisibility === 'OffScreen'
+    ? scrollToFollowed(ready)
+    : []
+
+const play = (ready: ReadyPlayback): ReadyReturn => {
+  if (isAudioPlayerReady(ready)) {
+    return [
+      evo(ready, { transport: () => 'Playing' }),
+      [PlayAudio(), ...scrollToOffScreenFollowed(ready)],
+    ]
+  } else {
+    return [ready, []]
+  }
+}
+
+const pause = (ready: ReadyPlayback): ReadyReturn => [
+  evo(ready, { transport: () => 'Paused' }),
+  [PauseAudio()],
+]
+
+const togglePlayback = (ready: ReadyPlayback): ReadyReturn =>
+  ready.transport === 'Playing' ? pause(ready) : play(ready)
+
+const seekFollowing = (ready: ReadyPlayback, seconds: number): ReadyReturn => {
+  const [sought, seekCommands] = seekTo(ready, seconds)
+  return [sought, [...seekCommands, ...followCommands(ready, sought)]]
+}
+
+const skipBy = (ready: ReadyPlayback, deltaSeconds: number): ReadyReturn =>
+  seekFollowing(
+    ready,
+    Math.min(
+      durationOf(ready),
+      Math.max(0, ready.positionSeconds + deltaSeconds),
+    ),
+  )
+
+const returnToFollowed = (ready: ReadyPlayback): ReadyReturn => {
+  const returned = evo(ready, {
+    follow: () => 'Following',
+    maybeFocusedSectionID: () => Option.none(),
+  })
+  return [returned, scrollToFollowed(returned)]
+}
+
+/**
+ * Enters or leaves Full Screen. The header comes and goes above the
+ * transcript, so a followed playhead or live edge is scrolled back into view.
+ */
+const withScreenMode = (
+  ready: ReadyPlayback,
+  screenMode: ScreenMode,
+): ReadyReturn => {
+  const next = evo(ready, { screenMode: () => screenMode })
+  return [next, next.follow === 'Following' ? scrollToFollowed(next) : []]
+}
+
+const pauseToggleOf = (
+  capture: Capture.Model.Model,
+): Option.Option<Capture.Message.Message> =>
+  M.value(capture.state).pipe(
+    M.withReturnType<Option.Option<Capture.Message.Message>>(),
+    M.tag('Capturing', ({ transport }) =>
+      Option.some(
+        transport === 'Paused'
+          ? Capture.resumeRecording()
+          : Capture.pauseRecording(),
+      ),
+    ),
+    M.orElse(() => Option.none()),
+  )
 
 const observedRecording = (
   model: Model,
@@ -615,19 +910,23 @@ const observedRecording = (
               evo(model, { playback: () => MissingRecording({ recordingID }) }),
               [],
             ],
-            onSome: detail => [
-              evo(model, {
-                playback: () =>
-                  withAudioUrl(
-                    evo(ready, {
-                      detail: () => detail,
-                      skippedCount: () => skippedCount,
-                      maybeSkippedReason: () => maybeSkippedReason,
-                    }),
-                  ),
-              }),
-              [],
-            ],
+            onSome: detail => {
+              const refreshed = withAudioUrl(
+                evo(ready, {
+                  detail: () => detail,
+                  skippedCount: () => skippedCount,
+                  maybeSkippedReason: () => maybeSkippedReason,
+                }),
+              )
+              const [announced, announcementCommands] = announceNewSections(
+                ready,
+                refreshed,
+              )
+              return [
+                evo(model, { playback: () => announced }),
+                [...followCommands(ready, announced), ...announcementCommands],
+              ]
+            },
           })
         }
       },
@@ -750,6 +1049,59 @@ export const captureSessionRequirementsOf = (
   Option.map(Capture.Model.draftOf(model.capture), draft => ({
     recordingID: draft.recordingID,
   }))
+
+/** Whether New Recording is offered: the account is connected and the recording list has loaded. */
+export const isRecordAvailableOf = (model: Model): boolean =>
+  model.account.connection._tag === 'ConnectedAccount' &&
+  model.route._tag === 'RecordingList' &&
+  model.recordings._tag === 'LoadedRecordings'
+
+/** Whether the recording search shows: on the list or the search page, once recordings have loaded. */
+export const isSearchAvailableOf = (model: Model): boolean =>
+  (model.route._tag === 'RecordingList' ||
+    model.route._tag === 'SearchRecordings') &&
+  model.recordings._tag === 'LoadedRecordings'
+
+/** Whether the open recording is the one this browser is recording. */
+export const isOwnRecordingOf = (model: Model, recordingID: string): boolean =>
+  Option.exists(
+    Capture.Model.draftOf(model.capture),
+    draft => draft.recordingID === recordingID,
+  )
+
+type PlaybackShortcuts = Pick<
+  ShortcutContext,
+  'isPlaybackReady' | 'isAwayFromFollowed' | 'isRecordingOpen' | 'isFullScreen'
+>
+
+const playbackShortcutsOf = (model: Model): PlaybackShortcuts =>
+  M.value(model.playback).pipe(
+    M.withReturnType<PlaybackShortcuts>(),
+    M.tag('ReadyPlayback', ready => ({
+      isPlaybackReady:
+        isAudioPlayerReady(ready) &&
+        !isOwnRecordingOf(model, ready.recordingID),
+      isAwayFromFollowed: isReturnShownOf(ready),
+      isRecordingOpen: true,
+      isFullScreen: ready.screenMode === 'FullScreen',
+    })),
+    M.orElse(() => ({
+      isPlaybackReady: false,
+      isAwayFromFollowed: false,
+      isRecordingOpen: false,
+      isFullScreen: false,
+    })),
+  )
+
+/** What the page offers right now, for the keyboard shortcuts. */
+export const shortcutContextOf = (model: Model): ShortcutContext => ({
+  ...playbackShortcutsOf(model),
+  isRecordAvailable:
+    isRecordAvailableOf(model) && Capture.Model.canStart(model.capture),
+  isCapturing: model.capture.state._tag === 'Capturing',
+  isSearchAvailable: isSearchAvailableOf(model),
+  isDialogOpen: model.share.sheet._tag === 'ShareSheetOpen',
+})
 
 const applyCaptureResult = (
   model: Model,
@@ -936,6 +1288,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         evo(model, { recordings: () => FailedRecordings({ reason }) }),
         [],
       ],
+      UpdatedSearchQuery: ({ query }) => [
+        evo(model, { searchQuery: () => query }),
+        [],
+      ],
+      CompletedFocusSearch: () => [model, []],
       ClickedShowMoreRecordings: () => [
         evo(model, {
           recordingListLimit: limit => limit + RECORDING_LIST_PAGE_SIZE,
@@ -1021,11 +1378,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           }),
         ),
       HeardAudioPosition: ({ seconds }) =>
-        evolveReady(model, ready =>
-          ready.scrub._tag === 'Scrubbing'
-            ? ready
-            : evo(ready, { positionSeconds: () => seconds }),
-        ),
+        updateReady(model, ready => {
+          if (ready.scrub._tag === 'Scrubbing') {
+            return [ready, []]
+          } else {
+            const moved = evo(ready, { positionSeconds: () => seconds })
+            return [moved, followCommands(ready, moved)]
+          }
+        }),
       HeardAudioDuration: ({ seconds }) =>
         evolveReady(model, ready =>
           isAudioPlayerReady(ready)
@@ -1038,7 +1398,17 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             : ready,
         ),
       HeardAudioPlaying: () =>
-        evolveReady(model, ready => evo(ready, { transport: () => 'Playing' })),
+        updateReady(model, ready => [
+          evo(ready, { transport: () => 'Playing' }),
+          [
+            PublishNowPlaying({
+              nowPlaying: {
+                title: ready.detail.summary.title,
+                startedAtMs: ready.detail.summary.startedAtMs,
+              },
+            }),
+          ],
+        ]),
       HeardAudioPaused: () =>
         evolveReady(model, ready => evo(ready, { transport: () => 'Paused' })),
       HeardAudioEnded: () =>
@@ -1048,6 +1418,23 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           evo(ready, {
             audioPlayer: () => AudioPlayerFailed({ reason }),
             transport: () => 'Paused',
+          }),
+        ),
+      HeardMediaSessionAction: ({ action }) =>
+        M.value(action).pipe(
+          withUpdateReturn,
+          M.tagsExhaustive({
+            MediaSessionPlay: () => updateReady(model, play),
+            MediaSessionPause: () => updateReady(model, pause),
+            MediaSessionSkip: ({ deltaSeconds }) =>
+              updateReady(model, ready => skipBy(ready, deltaSeconds)),
+            MediaSessionSeek: ({ seconds }) =>
+              updateReady(model, ready =>
+                seekFollowing(
+                  ready,
+                  Math.min(durationOf(ready), Math.max(0, seconds)),
+                ),
+              ),
           }),
         ),
       ClickedRetryAudio: () =>
@@ -1066,28 +1453,12 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         evolveReady(model, ready => evo(ready, { transport: () => 'Paused' })),
       CompletedPauseAudio: () => [model, []],
       CompletedSeekAudio: () => [model, []],
+      CompletedPublishNowPlaying: () => [model, []],
 
-      ClickedPlay: () =>
-        updateReady(model, ready =>
-          isAudioPlayerReady(ready)
-            ? [evo(ready, { transport: () => 'Playing' }), [PlayAudio()]]
-            : [ready, []],
-        ),
-      ClickedPause: () =>
-        updateReady(model, ready => [
-          evo(ready, { transport: () => 'Paused' }),
-          [PauseAudio()],
-        ]),
+      ClickedPlay: () => updateReady(model, play),
+      ClickedPause: () => updateReady(model, pause),
       ClickedSkip: ({ deltaSeconds }) =>
-        updateReady(model, ready =>
-          seekTo(
-            ready,
-            Math.min(
-              durationOf(ready),
-              Math.max(0, ready.positionSeconds + deltaSeconds),
-            ),
-          ),
-        ),
+        updateReady(model, ready => skipBy(ready, deltaSeconds)),
       ClickedWord: ({ seconds }) =>
         updateReady(model, ready => {
           const [sought, seekCommands] = seekTo(
@@ -1113,25 +1484,106 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           evo(ready, { scrub: () => Scrubbing({ seconds }) }),
         ),
       EndedScrub: ({ seconds }) =>
-        updateReady(model, ready =>
-          seekTo(
+        updateReady(model, ready => {
+          const [sought, seekCommands] = seekTo(
             evo(ready, {
               scrub: () => NotScrubbing(),
               follow: () => 'Following',
             }),
             seconds,
-          ),
-        ),
+          )
+          return [sought, [...seekCommands, ...scrollToFollowed(sought)]]
+        }),
       ScrolledTranscriptAway: () =>
         evolveReady(model, ready => evo(ready, { follow: () => 'Detached' })),
-      ClickedReturnToPlayhead: () =>
-        evolveReady(model, ready =>
-          evo(ready, {
-            follow: () => 'Following',
-            maybeFocusedSectionID: () => Option.none(),
-          }),
-        ),
+      ClickedReturnToPlayhead: () => updateReady(model, returnToFollowed),
       CompletedScrollToSection: () => [model, []],
+      ChangedPlayheadVisibility: ({ sectionID, visibility }) =>
+        evolveReady(model, ready =>
+          Option.exists(
+            followedSectionIDOf(ready),
+            followedID => followedID === sectionID,
+          )
+            ? evo(ready, {
+                playheadVisibility: () => visibility,
+                follow: follow =>
+                  follow === 'Detached' && visibility === 'OnScreen'
+                    ? 'Following'
+                    : follow,
+              })
+            : ready,
+        ),
+      PressedShortcut: ({ shortcut }) =>
+        M.value(shortcut).pipe(
+          withUpdateReturn,
+          M.when('TogglePlayback', () => updateReady(model, togglePlayback)),
+          M.when('SkipBackward', () =>
+            updateReady(model, ready => skipBy(ready, -SKIP_SECONDS)),
+          ),
+          M.when('SkipForward', () =>
+            updateReady(model, ready => skipBy(ready, SKIP_SECONDS)),
+          ),
+          M.when('NewRecording', () =>
+            update(
+              model,
+              GotCaptureMessage({ message: Capture.startRecording() }),
+            ),
+          ),
+          M.when('TogglePauseRecording', () =>
+            Option.match(pauseToggleOf(model.capture), {
+              onNone: () => [model, []],
+              onSome: message => update(model, GotCaptureMessage({ message })),
+            }),
+          ),
+          M.when('ReturnToFollowed', () =>
+            updateReady(model, returnToFollowed),
+          ),
+          M.when('ToggleFullScreen', () =>
+            updateReady(model, ready =>
+              withScreenMode(
+                ready,
+                ready.screenMode === 'FullScreen' ? 'Standard' : 'FullScreen',
+              ),
+            ),
+          ),
+          M.when('ExitFullScreen', () =>
+            updateReady(model, ready => withScreenMode(ready, 'Standard')),
+          ),
+          M.when('FocusSearch', () => [model, [FocusSearch()]]),
+          M.exhaustive,
+        ),
+      ElapsedAnnouncementPause: ({ revision }) =>
+        updateReady(model, ready =>
+          M.value(ready.announcementPause).pipe(
+            M.withReturnType<ReadyReturn>(),
+            M.tagsExhaustive({
+              ReadyToAnnounce: () => [ready, []],
+              PausingAnnouncements: pausing =>
+                pausing.revision === revision
+                  ? Option.match(pausing.maybeWaitingText, {
+                      onNone: () => [
+                        evo(ready, {
+                          announcementPause: () => ReadyToAnnounce(),
+                        }),
+                        [],
+                      ],
+                      onSome: text => announce(ready, text),
+                    })
+                  : [ready, []],
+            }),
+          ),
+        ),
+      ChangedConnectivity: ({ connectivity }) => [
+        evo(model, { connectivity: () => connectivity }),
+        [],
+      ],
+      ClickedSkipToPlayer: () => [model, [FocusPlayer()]],
+      CompletedFocusPlayer: () => [model, []],
+      ClickedEnterFullScreen: () =>
+        updateReady(model, ready => withScreenMode(ready, 'FullScreen')),
+      ClickedExitFullScreen: () =>
+        updateReady(model, ready => withScreenMode(ready, 'Standard')),
+      CompletedRunWallClock: () => [model, []],
       ElapsedFocusHighlight: ({ revision }) =>
         evolveReady(model, ready =>
           ready.focusRevision === revision

@@ -8,6 +8,7 @@ import {
   RecordingRoute,
   formatClock,
   scribeRouteToPath,
+  shortcutKeyOf,
 } from 'words-core-example'
 
 import { type IconName, icon } from './icon.js'
@@ -16,12 +17,11 @@ import { button, spinner } from './ui.js'
 
 const LEVEL_MINIMUM_HEIGHT_PX = 3
 const LEVEL_RANGE_PX = 22
+const LEVEL_BAR_SPACING = 5
+const LEVEL_METER_HEIGHT = 28
 
 const captureMessage = (message: Capture.Message.Message): Message =>
   GotCaptureMessage({ message })
-
-const LEVEL_BAR_SPACING = 5
-const LEVEL_METER_HEIGHT = 28
 
 const levelMeterPath = (levels: ReadonlyArray<number>): string =>
   Array.join(
@@ -36,74 +36,89 @@ const levelMeterPath = (levels: ReadonlyArray<number>): string =>
 
 const levelMeter = (levels: ReadonlyArray<number>, isPaused: boolean): Html => {
   const h = html<Message>()
-  return h.svg(
+  const color = isPaused ? 'text-tertiary' : 'text-accent'
+  return h.span(
+    [h.AriaHidden(true), h.Class('hidden items-center sm:flex')],
     [
-      h.AriaHidden(true),
-      h.ViewBox(
-        `0 0 ${levels.length * LEVEL_BAR_SPACING} ${LEVEL_METER_HEIGHT}`,
-      ),
-      h.Class(`h-7 w-[140px] ${isPaused ? 'text-tertiary' : 'text-accent'}`),
-    ],
-    [
-      h.path(
+      h.svg(
         [
-          h.D(levelMeterPath(levels)),
-          h.Stroke('currentColor'),
-          h.StrokeWidth('3'),
-          h.StrokeLinecap('round'),
-          h.Fill('none'),
+          h.ViewBox(
+            `0 0 ${levels.length * LEVEL_BAR_SPACING} ${LEVEL_METER_HEIGHT}`,
+          ),
+          h.Class(`h-7 w-[140px] motion-reduce:hidden ${color}`),
         ],
-        [],
+        [
+          h.path(
+            [
+              h.D(levelMeterPath(levels)),
+              h.Stroke('currentColor'),
+              h.StrokeWidth('3'),
+              h.StrokeLinecap('round'),
+              h.Fill('none'),
+            ],
+            [],
+          ),
+        ],
       ),
+      icon('Waveform', `hidden size-6 motion-reduce:block ${color}`),
     ],
   )
 }
 
-const transcriberLabel = (
-  transcriber: Capture.Model.TranscriberState,
-): string =>
-  M.value(transcriber).pipe(
-    M.withReturnType<string>(),
-    M.when('Connecting', () => 'Connecting live transcription'),
-    M.when('Live', () => 'Transcribing live'),
-    M.when('Reconnecting', () => 'Reconnecting transcription'),
-    M.when('Unavailable', () => 'Transcription unavailable; still recording'),
-    M.exhaustive,
-  )
+type PhaseLine = Readonly<{ phase: string; detail: string }>
 
-const circleButton = (
+const phaseLineOf = (
+  capturing: typeof Capture.Model.Capturing.Type,
+): PhaseLine =>
+  capturing.transport === 'Paused'
+    ? { phase: 'Paused', detail: '' }
+    : M.value(capturing.transcriber).pipe(
+        M.withReturnType<PhaseLine>(),
+        M.when('Live', () => ({
+          phase: 'Recording',
+          detail: ' · Transcribing live',
+        })),
+        M.when('Connecting', () => ({
+          phase: 'Recording',
+          detail: ' · Connecting transcription',
+        })),
+        M.when('Reconnecting', () => ({
+          phase: 'Recording',
+          detail: ' · Reconnecting transcription',
+        })),
+        M.when('Unavailable', () => ({
+          phase: 'Recording',
+          detail: ' · No transcription',
+        })),
+        M.exhaustive,
+      )
+
+const capsuleButton = (
   label: string,
+  visibleLabel: string,
   iconName: IconName,
   message: Message,
   className: string,
+  maybeKey: Option.Option<string> = Option.none(),
 ): Html => {
   const h = html<Message>()
   return h.button(
     [
       h.Type('button'),
       h.AriaLabel(label),
-      h.Title(label),
+      h.Title(
+        Option.match(maybeKey, {
+          onNone: () => label,
+          onSome: key => `${label} (${key})`,
+        }),
+      ),
+      ...Option.toArray(Option.map(maybeKey, key => h.AriaKeyshortcuts(key))),
       h.OnClick(message),
       h.Class(
-        `inline-flex size-12 shrink-0 items-center justify-center rounded-full transition duration-150 active:scale-95 ${className}`,
+        `inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-subhead font-semibold transition duration-150 active:scale-95 ${className}`,
       ),
     ],
-    [icon(iconName, 'size-5')],
-  )
-}
-
-const statusText = (
-  primary: Html,
-  secondary: string,
-  secondaryClass = 'text-secondary',
-): Html => {
-  const h = html<Message>()
-  return h.span(
-    [h.Class('flex min-w-0 flex-col leading-tight')],
-    [
-      primary,
-      h.span([h.Class(`truncate text-[12px] ${secondaryClass}`)], [secondary]),
-    ],
+    [icon(iconName, 'size-[18px]'), h.span([], [visibleLabel])],
   )
 }
 
@@ -113,60 +128,55 @@ const capturingBar = (
 ): Html => {
   const h = html<Message>()
   const isPaused = capturing.transport === 'Paused'
+  const pauseKey = shortcutKeyOf('TogglePauseRecording')
   const timer = h.span(
     [h.Class('flex items-center gap-2')],
     [
-      h.span(
-        [
-          h.Class(
-            `size-2.5 rounded-full ${isPaused ? 'bg-tertiary' : 'bg-accent animate-breathe'}`,
+      isPaused
+        ? icon('Pause', 'size-3 text-caution')
+        : h.span(
+            [h.Class('size-2.5 rounded-full bg-accent animate-breathe')],
+            [],
           ),
-        ],
-        [],
-      ),
       h.span(
-        [h.Class('tabular text-[17px] font-semibold text-label')],
+        [h.Class('tabular text-body font-semibold text-label')],
         [formatClock(capturing.recordedSeconds)],
       ),
     ],
   )
-  const secondary = Option.getOrElse(capturing.maybeWriteProblem, () =>
-    isPaused ? 'Paused' : transcriberLabel(capturing.transcriber),
-  )
+  const { phase, detail } = phaseLineOf(capturing)
+  const secondary = Option.match(capturing.maybeWriteProblem, {
+    onNone: () =>
+      h.span(
+        [
+          h.Class(
+            `text-footnote ${isPaused ? 'font-medium text-caution' : 'text-secondary'}`,
+          ),
+        ],
+        [phase, h.span([h.Class('max-sm:hidden')], [detail])],
+      ),
+    onSome: problem =>
+      h.span(
+        [h.Class('line-clamp-2 text-footnote text-accent-strong')],
+        [problem],
+      ),
+  })
   const status = h.span(
     [h.Class('flex min-w-0 items-center gap-3')],
     [
-      statusText(
-        timer,
-        secondary,
-        Option.isSome(capturing.maybeWriteProblem) ||
-          capturing.transcriber === 'Unavailable'
-          ? 'text-accent'
-          : 'text-secondary',
-      ),
-      h.span(
-        [h.Class('hidden sm:block')],
-        [levelMeter(capturing.levels, isPaused)],
-      ),
+      h.span([h.Class('flex min-w-0 flex-col')], [timer, secondary]),
+      levelMeter(capturing.levels, isPaused),
     ],
   )
   return h.div(
     [
       h.Role('group'),
       h.AriaLabel('Recording controls'),
-      h.Class('glass flex items-center gap-3 rounded-full py-2 pl-5 pr-2'),
+      h.Class('glass flex items-center gap-2 rounded-full py-2 pl-5 pr-2'),
     ],
     [
       isOnRecordingPage
-        ? h.span(
-            [
-              h.Title(
-                Option.getOrElse(capturing.maybeTranscriberNotice, () => ''),
-              ),
-              h.Class('min-w-0 flex-1'),
-            ],
-            [status],
-          )
+        ? h.span([h.Class('min-w-0 flex-1')], [status])
         : h.a(
             [
               h.Href(
@@ -180,24 +190,40 @@ const capturingBar = (
             [status],
           ),
       isPaused
-        ? circleButton(
-            'Resume recording',
-            'Play',
+        ? capsuleButton(
+            'Resume Recording',
+            'Resume',
+            'Record',
             captureMessage(Capture.resumeRecording()),
-            'bg-fill text-label hover:bg-fill-strong',
+            'bg-accent-soft text-accent-strong hover:brightness-95',
+            Option.some(pauseKey),
           )
-        : circleButton(
-            'Pause recording',
+        : capsuleButton(
+            'Pause Recording',
+            'Pause',
             'Pause',
             captureMessage(Capture.pauseRecording()),
             'bg-fill text-label hover:bg-fill-strong',
+            Option.some(pauseKey),
           ),
-      circleButton(
-        'Stop recording',
+      capsuleButton(
+        'Stop Recording',
+        'Stop',
         'Stop',
         captureMessage(Capture.stopRecording()),
-        'bg-accent text-white shadow-[0_4px_14px_rgb(255_59_48/0.35)] hover:bg-accent-strong',
+        'bg-accent-soft text-accent-strong hover:brightness-95',
       ),
+    ],
+  )
+}
+
+const statusText = (primary: string, secondary: string): Html => {
+  const h = html<Message>()
+  return h.span(
+    [h.Class('flex min-w-0 flex-col')],
+    [
+      h.span([h.Class('text-subhead font-semibold text-label')], [primary]),
+      h.span([h.Class('text-footnote text-secondary')], [secondary]),
     ],
   )
 }
@@ -207,135 +233,120 @@ const workingBar = (label: string, detail: string): Html => {
   return h.div(
     [
       h.Role('status'),
-      h.Class('glass flex items-center gap-3 rounded-full px-5 py-3.5'),
+      h.Class('glass flex items-center gap-3 rounded-full px-5 py-3'),
     ],
-    [
-      spinner('size-5 text-accent'),
-      statusText(
-        h.span([h.Class('text-[15px] font-semibold text-label')], [label]),
-        detail,
-      ),
-    ],
+    [spinner('size-5 text-accent'), statusText(label, detail)],
   )
 }
 
-const failedSaveBar = (reason: string): Html => {
-  const h = html<Message>()
-  return h.div(
-    [
-      h.Role('alert'),
-      h.Class(
-        'glass flex flex-col gap-3 rounded-[28px] p-4 sm:flex-row sm:items-center',
-      ),
-    ],
-    [
-      h.span(
-        [h.Class('flex min-w-0 flex-1 items-start gap-3')],
-        [
-          icon('Alert', 'mt-0.5 size-5 text-accent'),
-          statusText(
-            h.span(
-              [h.Class('text-[15px] font-semibold text-label')],
-              ['The audio did not save'],
-            ),
-            `${reason} The transcript is already saved.`,
-          ),
-        ],
-      ),
-      h.span(
-        [h.Class('flex gap-2')],
-        [
-          button(
-            'Keep transcript only',
-            captureMessage(Capture.keepTranscriptOnly()),
-            'Gray',
-          ),
-          button(
-            'Try again',
-            captureMessage(Capture.retrySaveRecording()),
-            'Prominent',
-            Option.some('Refresh'),
-          ),
-        ],
-      ),
-    ],
-  )
-}
-
-const failedStartCard = (reason: string): Html => {
-  const h = html<Message>()
-  return h.div(
-    [
-      h.Role('alert'),
-      h.Class(
-        'glass flex flex-col gap-3 rounded-[28px] p-4 sm:flex-row sm:items-center',
-      ),
-    ],
-    [
-      h.span(
-        [h.Class('flex min-w-0 flex-1 items-start gap-3')],
-        [
-          icon('Microphone', 'mt-0.5 size-5 text-accent'),
-          statusText(
-            h.span(
-              [h.Class('text-[15px] font-semibold text-label')],
-              ['Recording did not start'],
-            ),
-            reason,
-          ),
-        ],
-      ),
-      h.span(
-        [h.Class('flex gap-2')],
-        [
-          button(
-            'Dismiss',
-            captureMessage(Capture.dismissCaptureFailure()),
-            'Gray',
-          ),
-          button(
-            'Try again',
-            captureMessage(Capture.startRecording()),
-            'Prominent',
-            Option.some('Record'),
-          ),
-        ],
-      ),
-    ],
-  )
-}
-
-/** The Record button, red on white like the iPhone's. */
-export const recordButton = (
-  className = 'size-16',
-  label = 'Start recording',
+const problemCard = (
+  iconName: IconName,
+  title: string,
+  detail: string,
+  actions: ReadonlyArray<Html>,
 ): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Role('alert'),
+      h.Class(
+        'glass flex flex-col gap-3 rounded-[28px] p-4 sm:flex-row sm:items-center',
+      ),
+    ],
+    [
+      h.span(
+        [h.Class('flex min-w-0 flex-1 items-start gap-3')],
+        [
+          icon(iconName, 'mt-0.5 size-5 text-accent-strong'),
+          statusText(title, detail),
+        ],
+      ),
+      h.span([h.Class('flex flex-wrap gap-2')], actions),
+    ],
+  )
+}
+
+const failedSaveBar = (reason: string): Html =>
+  problemCard(
+    'Alert',
+    'The audio did not save',
+    `${reason} The transcript is already saved. Try Again uploads the audio again; it stays in this browser until then.`,
+    [
+      button(
+        'Keep Transcript Only',
+        captureMessage(Capture.keepTranscriptOnly()),
+        'Gray',
+      ),
+      button(
+        'Try Again',
+        captureMessage(Capture.retrySaveRecording()),
+        'Prominent',
+        Option.some('Refresh'),
+      ),
+    ],
+  )
+
+const failedStartCard = (reason: string): Html =>
+  problemCard('Microphone', 'Recording did not start', reason, [
+    button('Dismiss', captureMessage(Capture.dismissCaptureFailure()), 'Gray'),
+    button(
+      'Try Again',
+      captureMessage(Capture.startRecording()),
+      'Prominent',
+      Option.some('Record'),
+    ),
+  ])
+
+const recordDot = (sizeClass: string, dotClass: string): Html => {
+  const h = html<Message>()
+  return h.span(
+    [
+      h.AriaHidden(true),
+      h.Class(
+        `inline-flex shrink-0 items-center justify-center rounded-full border-[3px] border-label/15 bg-surface ${sizeClass}`,
+      ),
+    ],
+    [
+      h.svg(
+        [h.ViewBox('0 0 40 40'), h.Class(`${dotClass} text-accent`)],
+        [
+          h.circle(
+            [h.Cx('20'), h.Cy('20'), h.R('20'), h.Fill('currentColor')],
+            [],
+          ),
+        ],
+      ),
+    ],
+  )
+}
+
+const newRecordingKey = shortcutKeyOf('NewRecording')
+
+const recordBar = (): Html => {
   const h = html<Message>()
   return h.button(
     [
       h.Type('button'),
-      h.AriaLabel(label),
-      h.Title(label),
+      h.AriaLabel('New Recording'),
+      h.Title(`New Recording (${newRecordingKey})`),
+      h.AriaKeyshortcuts(newRecordingKey),
       h.OnClick(captureMessage(Capture.startRecording())),
-      h.Class(`record-button shrink-0 rounded-full ${className}`),
+      h.Class(
+        'glass flex items-center gap-3.5 rounded-full py-2 pl-2 pr-6 text-left transition active:scale-[0.98]',
+      ),
     ],
-    [],
-  )
-}
-
-const recordBar = (): Html => {
-  const h = html<Message>()
-  return h.div(
-    [h.Class('glass flex items-center gap-3.5 rounded-full py-2 pl-2 pr-6')],
     [
-      recordButton('size-14'),
+      recordDot('size-14', 'size-10'),
       h.span(
-        [h.Class('flex flex-col leading-tight')],
+        [h.Class('flex flex-col')],
         [
-          h.span([h.Class('text-[16px] font-semibold text-label')], ['Record']),
           h.span(
-            [h.Class('hidden text-[12px] text-secondary sm:block')],
-            ['Transcribes live, saves to your account'],
+            [h.Class('text-body font-semibold text-label')],
+            ['New Recording'],
+          ),
+          h.span(
+            [h.Class('hidden text-footnote text-secondary sm:block')],
+            ['Transcribes live and saves to your account'],
           ),
         ],
       ),
@@ -344,9 +355,9 @@ const recordBar = (): Html => {
 }
 
 /**
- * The recorder in the floating bar, or nothing: Record when a recording can
- * start here, the live controls while recording, and progress or failures
- * while stopping and saving.
+ * The recorder in the floating bar, or nothing: New Recording when a
+ * recording can start here, the live controls while recording, and progress
+ * or failures while stopping and saving.
  */
 export const captureBar = (
   model: Model,
@@ -384,14 +395,14 @@ export const captureBar = (
   )
 }
 
-/** The new recording page: Record from this browser, transcribed live. */
+/** The new recording page: record from this browser, transcribed live. */
 export const newRecordingPage = (model: Model): Html => {
   const h = html<Message>()
   const isConnected = model.account.connection._tag === 'ConnectedAccount'
   return h.main(
     [h.Class('mx-auto flex w-full max-w-2xl flex-col px-4 pb-44 pt-6 sm:px-6')],
     [
-      largeTitle('New recording'),
+      largeTitle('New Recording'),
       h.div(
         [
           h.Class(
@@ -400,17 +411,22 @@ export const newRecordingPage = (model: Model): Html => {
         ],
         [
           isConnected
-            ? recordButton('size-24')
-            : icon('Microphone', 'size-12 text-tertiary'),
+            ? h.button(
+                [
+                  h.Type('button'),
+                  h.AriaLabel('New Recording'),
+                  h.Title(`New Recording (${newRecordingKey})`),
+                  h.OnClick(captureMessage(Capture.startRecording())),
+                  h.Class('rounded-full transition active:scale-95'),
+                ],
+                [recordDot('size-24', 'size-[4.5rem]')],
+              )
+            : icon('Microphone', 'size-12 text-secondary'),
           h.div(
             [h.Class('flex max-w-md flex-col gap-2')],
             [
               h.h2(
-                [
-                  h.Class(
-                    'text-[20px] font-semibold tracking-tight text-label',
-                  ),
-                ],
+                [h.Class('text-title font-semibold tracking-tight text-label')],
                 [
                   isConnected
                     ? 'Record from this browser'
@@ -418,11 +434,11 @@ export const newRecordingPage = (model: Model): Html => {
                 ],
               ),
               h.p(
-                [h.Class('text-[15px] leading-6 text-secondary')],
+                [h.Class('text-subhead text-secondary')],
                 [
                   isConnected
                     ? 'Scribe transcribes as you speak and saves the recording to your account. Your iPhone shows it live, and plays it once the audio is saved.'
-                    : 'Recording on the web needs your Scribe account. Open Account to connect it.',
+                    : 'Recording on the web needs your Scribe account. Open Settings to connect it.',
                 ],
               ),
             ],

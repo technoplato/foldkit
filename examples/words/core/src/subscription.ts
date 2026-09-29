@@ -4,7 +4,9 @@ import { Subscription } from 'foldkit'
 import * as Account from './account/index.js'
 import { AudioPlayer, type AudioPlayerService } from './audioPlayer.js'
 import * as Capture from './capture/index.js'
+import { KeyboardInput, ShortcutContext, shortcutFor } from './keyboard.js'
 import {
+  ChangedConnectivity,
   FailedObserveFileUrls,
   FailedObserveIdentity,
   FailedObserveRecording,
@@ -17,11 +19,18 @@ import {
   ObservedIdentity,
   ObservedRecording,
   ObservedRecordings,
+  PressedShortcut,
 } from './message.js'
 import type { Model } from './model.js'
+import { NetworkStatus } from './network.js'
 import * as Share from './share/index.js'
 import { WordsStore, type WordsStoreError } from './store.js'
-import { fileIDsOf, observedRecordingIDOf, shareLinkTokenOf } from './update.js'
+import {
+  fileIDsOf,
+  observedRecordingIDOf,
+  shareLinkTokenOf,
+  shortcutContextOf,
+} from './update.js'
 
 const reasonOf = (error: WordsStoreError): string =>
   `${error.operation}: ${String(error.cause)}`
@@ -341,7 +350,48 @@ const shareSubscriptions = Subscription.make<Model, Message, WordsStore>()(
   }),
 )
 
-/** Every web Scribe Subscription: the Instant observations, the account recheck, the recorder, and sharing. */
+/**
+ * The page's own inputs: keyboard shortcuts, answered only where they apply
+ * (Space plays on a recording page with audio, R starts a recording where
+ * New Recording shows), and the browser's network connection.
+ */
+const pageSubscriptions = Subscription.make<
+  Model,
+  Message,
+  KeyboardInput | NetworkStatus
+>()(entry => ({
+  shortcuts: entry(
+    { context: ShortcutContext },
+    {
+      modelToDependencies: model => ({ context: shortcutContextOf(model) }),
+      dependenciesToStream: ({ context }) =>
+        Stream.unwrap(
+          KeyboardInput.pipe(
+            Effect.map(keyboard =>
+              keyboard.claimKeyPresses(press =>
+                Option.map(shortcutFor(context, press), shortcut =>
+                  PressedShortcut({ shortcut }),
+                ),
+              ),
+            ),
+          ),
+        ),
+    },
+  ),
+  connectivity: Subscription.persistent(
+    Stream.unwrap(
+      NetworkStatus.pipe(
+        Effect.map(network =>
+          network.changes.pipe(
+            Stream.map(connectivity => ChangedConnectivity({ connectivity })),
+          ),
+        ),
+      ),
+    ),
+  ),
+}))
+
+/** Every web Scribe Subscription: the Instant observations, the account recheck, the recorder, sharing, the keyboard, and the network. */
 export const subscriptions = Subscription.aggregate<
   Model,
   Message,
@@ -349,9 +399,12 @@ export const subscriptions = Subscription.aggregate<
   | AudioPlayerService
   | Capture.CaptureSessionService
   | Capture.CaptureEnvironment
+  | KeyboardInput
+  | NetworkStatus
 >()(
   instantSubscriptions,
   accountSubscriptions,
   captureSubscriptions,
   shareSubscriptions,
+  pageSubscriptions,
 )

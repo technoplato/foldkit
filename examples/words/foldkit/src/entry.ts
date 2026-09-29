@@ -7,11 +7,14 @@ import {
   ChangedUrl,
   ClickedLink,
   type ClipboardWriter,
+  type KeyboardInput,
   type Message,
   type Model,
+  type NetworkStatus,
   RecordingListRoute,
   ScribeAppScheme,
   Share,
+  type TranscriptScroller,
   type WordsOrigin,
   WordsProgram,
   type WordsStore,
@@ -23,8 +26,11 @@ import {
 import {
   browserCaptureEnvironment,
   browserClipboard,
+  browserKeyboardInput,
+  browserNetworkStatus,
   browserOrigin,
   browserOriginLayer,
+  browserTranscriptScroller,
   makeWordsDatabase,
 } from './browser.js'
 import { makeManagedResources } from './resources.js'
@@ -39,6 +45,9 @@ const resources = Layer.mergeAll(
   browserClipboard,
   browserOriginLayer,
   browserCaptureEnvironment,
+  browserTranscriptScroller,
+  browserKeyboardInput,
+  browserNetworkStatus,
 )
 
 const startRoute = Option.match(fromString(window.location.href), {
@@ -61,7 +70,10 @@ const program: Program.Program<
   | WordsOrigin
   | Capture.RecordingWriter
   | Capture.CaptureEnvironment
-  | Share.ShareWriter,
+  | Share.ShareWriter
+  | TranscriptScroller
+  | KeyboardInput
+  | NetworkStatus,
   AudioPlayerService | Capture.CaptureSessionService
 > = Program.make({
   ...WordsProgram,

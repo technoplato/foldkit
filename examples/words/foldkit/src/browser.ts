@@ -1,8 +1,16 @@
 import { Effect, Layer, Option, Stream } from 'effect'
+import { Subscription } from 'foldkit'
+import { afterPaint } from 'foldkit/render'
 import {
   Capture,
   ClipboardWriteError,
   ClipboardWriter,
+  type Connectivity,
+  type KeyPress,
+  type KeyTarget,
+  KeyboardInput,
+  NetworkStatus,
+  TranscriptScroller,
   type WordsDatabase,
   WordsOrigin,
   WordsOriginError,
@@ -14,6 +22,7 @@ import {
   decodeTranscriptionTokenResponse,
   hostedSessionPath,
   scribeSchema,
+  sectionElementIDOf,
   transcriptionTokenPath,
 } from 'words-core-example'
 
@@ -144,3 +153,91 @@ export const browserCaptureEnvironment = Layer.succeed(
     ),
   },
 )
+
+const isReducedMotion = (): boolean =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/**
+ * Scrolls a transcript section into view after the render that shows it: to
+ * the middle of the window during playback, or with its last line above the
+ * controls at the live edge. Reduce Motion jumps instead of gliding.
+ */
+export const browserTranscriptScroller = Layer.succeed(TranscriptScroller, {
+  scrollToSection: (sectionID, placement) =>
+    afterPaint.pipe(
+      Effect.andThen(
+        Effect.sync(() => {
+          const element = document.getElementById(sectionElementIDOf(sectionID))
+          if (element !== null) {
+            element.scrollIntoView({
+              block: placement === 'LiveEdge' ? 'end' : 'center',
+              behavior: isReducedMotion() ? 'auto' : 'smooth',
+            })
+          }
+        }),
+      ),
+    ),
+})
+
+const TEXT_ENTRY_SELECTOR =
+  'input, textarea, select, [contenteditable=""], [contenteditable="true"]'
+const CONTROL_SELECTOR = 'button, a[href], summary, [role="button"]'
+
+const keyTargetOf = (target: EventTarget | null): KeyTarget => {
+  if (!(target instanceof Element)) {
+    return 'Page'
+  } else if (target.closest(TEXT_ENTRY_SELECTOR) !== null) {
+    return 'TextEntry'
+  } else if (target.closest(CONTROL_SELECTOR) !== null) {
+    return 'Control'
+  } else {
+    return 'Page'
+  }
+}
+
+/** Key presses anywhere on the page, from `keydown` on the document. */
+export const browserKeyboardInput = Layer.succeed(KeyboardInput, {
+  claimKeyPresses: <A>(claim: (press: KeyPress) => Option.Option<A>) =>
+    Subscription.fromEventFilterMap<KeyboardEvent, A>({
+      target: () => document,
+      type: 'keydown',
+      toMessage: event => {
+        if (event.defaultPrevented || event.isComposing) {
+          return Option.none()
+        } else {
+          const maybeClaimed = claim({
+            key: event.key,
+            target: keyTargetOf(event.target),
+            isModified: event.metaKey || event.ctrlKey || event.altKey,
+            isRepeat: event.repeat,
+          })
+          if (Option.isSome(maybeClaimed)) {
+            event.preventDefault()
+          }
+          return maybeClaimed
+        }
+      },
+    }),
+})
+
+const connectivityNow = (): Connectivity =>
+  navigator.onLine ? 'Online' : 'Offline'
+
+/** The browser's network connection: now, then each `online` and `offline` event. */
+export const browserNetworkStatus = Layer.succeed(NetworkStatus, {
+  changes: Stream.concat(
+    Stream.fromEffect(Effect.sync(connectivityNow)),
+    Stream.merge(
+      Subscription.fromEvent<Event, Connectivity>({
+        target: () => window,
+        type: 'online',
+        toMessage: () => 'Online',
+      }),
+      Subscription.fromEvent<Event, Connectivity>({
+        target: () => window,
+        type: 'offline',
+        toMessage: () => 'Offline',
+      }),
+    ),
+  ),
+})

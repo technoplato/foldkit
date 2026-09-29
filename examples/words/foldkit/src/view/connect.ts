@@ -24,7 +24,7 @@ const step = (number: number, title: string, detail: string): Html => {
         [
           h.AriaHidden(true),
           h.Class(
-            'mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-tint text-[13px] font-semibold text-white',
+            'mt-0.5 inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-tint px-1 text-footnote font-semibold text-white',
           ),
         ],
         [String(number)],
@@ -32,8 +32,8 @@ const step = (number: number, title: string, detail: string): Html => {
       h.div(
         [h.Class('flex flex-col gap-0.5')],
         [
-          h.span([h.Class('text-[15px] font-semibold text-label')], [title]),
-          h.span([h.Class('text-[14px] leading-5 text-secondary')], [detail]),
+          h.span([h.Class('text-subhead font-semibold text-label')], [title]),
+          h.span([h.Class('text-footnote text-secondary')], [detail]),
         ],
       ),
     ],
@@ -59,7 +59,7 @@ export const connectCard = (access: AccessIdentity): Html => {
       h.div(
         [
           h.Class(
-            'flex items-center gap-2 bg-caution-soft px-5 py-3 text-[13px] font-semibold text-caution sm:px-7',
+            'flex items-center gap-2 bg-caution-soft px-5 py-3 text-footnote font-semibold text-caution sm:px-7',
           ),
         ],
         [icon('Phone', 'size-4'), 'One step left: sign in on your iPhone'],
@@ -84,7 +84,7 @@ export const connectCard = (access: AccessIdentity): Html => {
                 ],
               ),
               h.span(
-                [h.Class('text-[12px] text-secondary')],
+                [h.Class('text-footnote text-secondary')],
                 ['Scan with the iPhone Camera'],
               ),
             ],
@@ -98,14 +98,12 @@ export const connectCard = (access: AccessIdentity): Html => {
                   h.h2(
                     [
                       h.Id('connect-title'),
-                      h.Class(
-                        'text-[22px] font-bold tracking-tight text-label',
-                      ),
+                      h.Class('text-title font-bold tracking-tight text-label'),
                     ],
                     ['Connect Scribe on your iPhone'],
                   ),
                   h.p(
-                    [h.Class('text-[15px] leading-6 text-secondary')],
+                    [h.Class('text-subhead text-secondary')],
                     [
                       'Cloudflare Access signed you in as ',
                       h.strong(
@@ -144,7 +142,7 @@ export const connectCard = (access: AccessIdentity): Html => {
                     [
                       h.Role('status'),
                       h.Class(
-                        'inline-flex items-center gap-2 text-[13px] text-secondary',
+                        'inline-flex items-center gap-2 text-footnote text-secondary',
                       ),
                     ],
                     [
@@ -156,7 +154,7 @@ export const connectCard = (access: AccessIdentity): Html => {
                     [h.Class('flex flex-wrap gap-2')],
                     [
                       button(
-                        'Check now',
+                        'Check Now',
                         GotAccountMessage({
                           message: Account.checkAccountNow(),
                         }),
@@ -164,7 +162,7 @@ export const connectCard = (access: AccessIdentity): Html => {
                         Option.some('Refresh'),
                       ),
                       button(
-                        'Copy link',
+                        'Copy Link',
                         GotAccountMessage({
                           message: Account.copyAccountLink(),
                         }),
@@ -176,12 +174,12 @@ export const connectCard = (access: AccessIdentity): Html => {
                 ],
               ),
               h.details(
-                [h.Class('group rounded-2xl bg-fill px-4 py-3 text-[14px]')],
+                [h.Class('group rounded-2xl bg-fill px-4 py-1 text-subhead')],
                 [
                   h.summary(
                     [
                       h.Class(
-                        'flex cursor-pointer list-none items-center justify-between gap-2 font-semibold text-label',
+                        'flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 font-semibold text-label',
                       ),
                     ],
                     [
@@ -193,7 +191,7 @@ export const connectCard = (access: AccessIdentity): Html => {
                     ],
                   ),
                   h.p(
-                    [h.Class('pt-2 leading-6 text-secondary')],
+                    [h.Class('pb-3 text-secondary')],
                     [
                       'Your iPhone records as a guest account. Signing in there turns that guest into your email account, so every recording stays yours. If the web created the email account first, the iPhone would join it as a linked guest and its older recordings would lose sharing and some uploads (ADR 0012).',
                     ],

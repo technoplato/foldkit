@@ -4,6 +4,7 @@ import { ts } from 'foldkit/schema'
 import * as Account from './account/model.js'
 import * as Capture from './capture/model.js'
 import { ScribeRoute } from './link.js'
+import { Connectivity } from './network.js'
 import { RecordingDetail, RecordingSummary } from './recording.js'
 import * as Share from './share/model.js'
 
@@ -48,12 +49,50 @@ export type Transport = typeof Transport.Type
 
 /**
  * `Following` keeps the playhead (or, while recording, the newest line) on
- * screen. `Detached` means the listener scrolled away and sees Return to
- * Playhead.
+ * screen. `Detached` means the listener scrolled away; once the followed
+ * section leaves the screen they see Back to Playhead (or Back to Live), and
+ * scrolling back to it follows again.
  */
 export const Follow = S.Literals(['Following', 'Detached'])
 /** Whether the transcript keeps the playhead or the newest line on screen. */
 export type Follow = typeof Follow.Type
+
+/**
+ * Whether the section the transcript follows (the playhead's, or while
+ * recording the newest) is on screen. The host reports it as the listener
+ * scrolls; Back to Playhead and Back to Live show only while it is off screen.
+ */
+export const PlayheadVisibility = S.Literals(['OnScreen', 'OffScreen'])
+/** Whether the followed section is on screen. */
+export type PlayheadVisibility = typeof PlayheadVisibility.Type
+
+/**
+ * How the recording page presents: `Standard` with its header and top bar,
+ * or `FullScreen` with only the transcript, the controls, and the rotated
+ * wall clock, like Full Screen on the iPhone.
+ */
+export const ScreenMode = S.Literals(['Standard', 'FullScreen'])
+/** How the recording page presents. */
+export type ScreenMode = typeof ScreenMode.Type
+
+/** The next finished section of a recording in progress is announced at once. */
+export const ReadyToAnnounce = ts('ReadyToAnnounce')
+/**
+ * A section was just announced to screen readers. A newer one waits until the
+ * pause with this revision ends, so announcements come at most every few
+ * seconds and only the newest waiting section is read.
+ */
+export const PausingAnnouncements = ts('PausingAnnouncements', {
+  revision: S.Number,
+  maybeWaitingText: S.Option(S.String),
+})
+/** How finished sections of a recording in progress reach screen readers. */
+export const AnnouncementPause = S.Union([
+  ReadyToAnnounce,
+  PausingAnnouncements,
+])
+/** How finished sections of a recording in progress reach screen readers. */
+export type AnnouncementPause = typeof AnnouncementPause.Type
 
 /** The scrubber is at rest. */
 export const NotScrubbing = ts('NotScrubbing')
@@ -116,6 +155,8 @@ export const ReadyPlayback = ts('ReadyPlayback', {
   positionSeconds: S.Number,
   transport: Transport,
   follow: Follow,
+  playheadVisibility: PlayheadVisibility,
+  screenMode: ScreenMode,
   scrub: Scrub,
   audioPlayer: AudioPlayerState,
   maybeAudioUrl: S.Option(S.String),
@@ -123,6 +164,9 @@ export const ReadyPlayback = ts('ReadyPlayback', {
   maybePendingSeekSeconds: S.Option(S.Number),
   maybeFocusedSectionID: S.Option(S.String),
   focusRevision: S.Number,
+  maybeAnnouncedText: S.Option(S.String),
+  announcementPause: AnnouncementPause,
+  announcementRevision: S.Number,
 })
 /** Where playback stands. */
 export const PlaybackState = S.Union([
@@ -158,6 +202,8 @@ export const Model = S.Struct({
   playback: PlaybackState,
   maybeCopyNotice: S.Option(CopyNotice),
   copyRevision: S.Number,
+  connectivity: Connectivity,
+  searchQuery: S.String,
 })
 /** The web Scribe Model. */
 export type Model = typeof Model.Type

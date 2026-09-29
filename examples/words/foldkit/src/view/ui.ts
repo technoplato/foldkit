@@ -16,7 +16,7 @@ export const ButtonStyle = S.Literals([
 export type ButtonStyle = typeof ButtonStyle.Type
 
 const buttonBase =
-  'inline-flex min-h-11 select-none items-center justify-center gap-2 rounded-full px-5 text-[15px] font-semibold transition duration-150 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100'
+  'inline-flex min-h-11 select-none items-center justify-center gap-2 rounded-full px-5 text-subhead font-semibold transition duration-150 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100'
 
 /** The classes for a button of a given style. */
 export const buttonClass = (style: ButtonStyle): string =>
@@ -24,8 +24,7 @@ export const buttonClass = (style: ButtonStyle): string =>
     M.withReturnType<string>(),
     M.when(
       'Prominent',
-      () =>
-        `${buttonBase} bg-accent text-white shadow-[0_1px_2px_rgb(0_0_0/0.12)] hover:bg-accent-strong`,
+      () => `${buttonBase} bg-accent-fill text-white hover:brightness-110`,
     ),
     M.when(
       'Tinted',
@@ -38,7 +37,8 @@ export const buttonClass = (style: ButtonStyle): string =>
     M.when('Plain', () => `${buttonBase} px-3 text-tint hover:bg-tint-soft`),
     M.when(
       'Destructive',
-      () => `${buttonBase} bg-accent-soft text-accent hover:brightness-95`,
+      () =>
+        `${buttonBase} bg-accent-soft text-accent-strong hover:brightness-95`,
     ),
     M.exhaustive,
   )
@@ -50,6 +50,7 @@ export const button = (
   style: ButtonStyle,
   maybeIcon: Option.Option<IconName> = Option.none(),
   isDisabled = false,
+  maybeTitle: Option.Option<string> = Option.none(),
 ): Html => {
   const h = html<Message>()
   return h.button(
@@ -57,6 +58,7 @@ export const button = (
       h.Type('button'),
       h.OnClick(message),
       h.Disabled(isDisabled),
+      ...Option.toArray(Option.map(maybeTitle, title => h.Title(title))),
       h.Class(buttonClass(style)),
     ],
     [
@@ -77,6 +79,7 @@ export const compactButton = (
   message: Message,
   style: ButtonStyle,
   iconName: IconName,
+  maybeKey: Option.Option<string> = Option.none(),
 ): Html => {
   const h = html<Message>()
   return h.button(
@@ -84,7 +87,13 @@ export const compactButton = (
       h.Type('button'),
       h.OnClick(message),
       h.AriaLabel(label),
-      h.Title(label),
+      h.Title(
+        Option.match(maybeKey, {
+          onNone: () => label,
+          onSome: key => `${label} (${key})`,
+        }),
+      ),
+      ...Option.toArray(Option.map(maybeKey, key => h.AriaKeyshortcuts(key))),
       h.Class(`${buttonClass(style)} max-sm:w-11 max-sm:px-0`),
     ],
     [
@@ -116,17 +125,43 @@ export const iconButton = (
   )
 }
 
-/** The tone of a status badge. */
-export const BadgeTone = S.Literals(['Live', 'Positive', 'Caution', 'Neutral'])
+/**
+ * The tone of a status badge. `Recording`, `Paused`, and `Playing` are the
+ * phases the iPhone, the Mac, and the web share; each carries a symbol as
+ * well as its color.
+ */
+export const BadgeTone = S.Literals([
+  'Recording',
+  'Paused',
+  'Playing',
+  'Positive',
+  'Caution',
+  'Neutral',
+])
 /** The tone of a status badge. */
 export type BadgeTone = typeof BadgeTone.Type
 
-/** A small status capsule; `Live` shows a breathing dot. */
+const badgeSymbol = (tone: BadgeTone): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return M.value(tone).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.when('Recording', () => [
+      h.span([h.Class('size-2 rounded-full bg-accent animate-breathe')], []),
+    ]),
+    M.when('Paused', () => [icon('Pause', 'size-3')]),
+    M.when('Playing', () => [icon('Speaker', 'size-3.5')]),
+    M.orElse(() => []),
+  )
+}
+
+/** A small status capsule with the phase's symbol. */
 export const badge = (tone: BadgeTone, text: string): Html => {
   const h = html<Message>()
   const toneClass = M.value(tone).pipe(
     M.withReturnType<string>(),
-    M.when('Live', () => 'bg-accent text-white'),
+    M.when('Recording', () => 'bg-accent-soft text-accent-strong'),
+    M.when('Paused', () => 'bg-caution-soft text-caution'),
+    M.when('Playing', () => 'bg-tint-soft text-tint'),
     M.when('Positive', () => 'bg-positive-soft text-positive'),
     M.when('Caution', () => 'bg-caution-soft text-caution'),
     M.when('Neutral', () => 'bg-fill text-secondary'),
@@ -135,20 +170,10 @@ export const badge = (tone: BadgeTone, text: string): Html => {
   return h.span(
     [
       h.Class(
-        `inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold tracking-wide ${toneClass}`,
+        `inline-flex min-h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-footnote font-semibold ${toneClass}`,
       ),
     ],
-    [
-      ...(tone === 'Live'
-        ? [
-            h.span(
-              [h.Class('size-1.5 rounded-full bg-white animate-breathe')],
-              [],
-            ),
-          ]
-        : []),
-      text,
-    ],
+    [...badgeSymbol(tone), text],
   )
 }
 
@@ -191,7 +216,7 @@ export const spinner = (className = 'size-4 text-secondary'): Html => {
 export const groupTitle = (text: string): Html => {
   const h = html<Message>()
   return h.h2(
-    [h.Class('px-4 pb-2 pt-7 text-[13px] font-semibold text-secondary')],
+    [h.Class('px-4 pb-2 pt-7 text-footnote font-semibold text-secondary')],
     [text],
   )
 }
@@ -199,10 +224,7 @@ export const groupTitle = (text: string): Html => {
 /** A grouped list's footnote. */
 export const groupFootnote = (children: ReadonlyArray<Html | string>): Html => {
   const h = html<Message>()
-  return h.p(
-    [h.Class('px-4 pt-2 text-[13px] leading-5 text-secondary')],
-    children,
-  )
+  return h.p([h.Class('px-4 pt-2 text-footnote text-secondary')], children)
 }
 
 /** A rounded group of rows separated by inset hairlines, like an inset grouped list. */
@@ -233,12 +255,12 @@ export const groupRow = (
       h.div(
         [h.Class('flex min-w-0 flex-1 flex-col gap-0.5')],
         [
-          h.span([h.Class('text-[15px] text-label')], [title]),
+          h.span([h.Class('text-subhead text-label')], [title]),
           ...Array.match(detail, {
             onEmpty: () => [],
             onNonEmpty: children => [
               h.span(
-                [h.Class('break-words text-[13px] leading-5 text-secondary')],
+                [h.Class('break-words text-footnote text-secondary')],
                 children,
               ),
             ],
@@ -276,7 +298,7 @@ const initialsOf = (email: string): string => {
 /** A round avatar with the email's initials. */
 export const avatar = (
   email: string,
-  className = 'size-8 text-[13px]',
+  className = 'size-8 text-footnote',
 ): Html => {
   const h = html<Message>()
   return h.span(

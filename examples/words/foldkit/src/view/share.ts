@@ -9,8 +9,8 @@ import {
   formatClock,
 } from 'words-core-example'
 
+import { ShowShareDialog } from '../mount.js'
 import { type IconName, icon } from './icon.js'
-import { backToRecordings } from './shell.js'
 import { readOnlySections } from './transcript.js'
 import { badge, button, spinner } from './ui.js'
 
@@ -30,7 +30,7 @@ const sectionOptionLabel = (section: Section): string => {
 const fieldLabel = (text: string, forID: string): Html => {
   const h = html<Message>()
   return h.label(
-    [h.For(forID), h.Class('text-[13px] font-semibold text-secondary')],
+    [h.For(forID), h.Class('text-footnote font-semibold text-secondary')],
     [text],
   )
 }
@@ -47,7 +47,7 @@ const sectionSelect = (
       h.Id(id),
       h.OnChange(value => toMessage(Number(value))),
       h.Class(
-        'min-h-11 w-full appearance-none rounded-xl border-0 bg-fill px-3 pr-9 text-[15px] text-label outline-none focus-visible:ring-2 focus-visible:ring-tint',
+        'min-h-11 w-full appearance-none rounded-xl border-0 bg-fill px-3 pr-9 text-subhead text-label outline-none focus-visible:ring-2 focus-visible:ring-tint',
       ),
     ],
     Array.map(sections, section =>
@@ -80,7 +80,7 @@ const visibilityOption = (
       h.AriaLabel(label),
       h.OnClick(shareMessage(Share.chooseVisibility({ visibility }))),
       h.Class(
-        `inline-flex min-h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] px-3 text-[14px] font-semibold transition ${isSelected ? 'bg-surface text-label shadow-[0_1px_3px_rgb(0_0_0/0.12)]' : 'text-secondary hover:text-label'}`,
+        `inline-flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] px-3 text-subhead font-semibold transition ${isSelected ? 'bg-segment-selected text-label shadow-[0_1px_3px_rgb(0_0_0/0.12)]' : 'text-secondary hover:text-label'}`,
       ),
     ],
     [
@@ -119,7 +119,7 @@ const suggestions = (
                   ),
                 ),
                 h.Class(
-                  'inline-flex min-h-9 items-center gap-1.5 rounded-full bg-tint-soft px-3 text-[13px] font-medium text-tint transition hover:brightness-95',
+                  'inline-flex min-h-11 items-center gap-1.5 rounded-full bg-tint-soft px-3.5 text-footnote font-medium text-tint transition hover:brightness-95',
                 ),
               ],
               [icon('Person', 'size-3.5'), recipient.email],
@@ -152,11 +152,11 @@ const shareRow = (share: Share.Model.RecordingShare): Html => {
         [h.Class('flex min-w-0 flex-1 flex-col')],
         [
           h.span(
-            [h.Class('truncate text-[15px] font-medium text-label')],
+            [h.Class('break-all text-subhead font-medium text-label')],
             [title],
           ),
           h.span(
-            [h.Class('tabular text-[13px] text-secondary')],
+            [h.Class('tabular text-footnote text-secondary')],
             [
               `${formatClock(share.startSeconds)} to ${formatClock(share.endSeconds)} · sections ${share.firstSegmentIndex + 1} to ${share.lastSegmentIndex + 1}`,
             ],
@@ -167,13 +167,13 @@ const shareRow = (share: Share.Model.RecordingShare): Html => {
         [h.Class('flex gap-1')],
         [
           button(
-            'Copy link',
+            'Copy Link',
             shareMessage(Share.copyShareLink({ link })),
             'Plain',
             Option.some('Link'),
           ),
           button(
-            share.visibility === 'Link' ? 'Turn off' : 'Stop sharing',
+            share.visibility === 'Link' ? 'Turn Off' : 'Stop Sharing',
             shareMessage(Share.revokeShare({ shareID: share.id })),
             'Destructive',
           ),
@@ -190,8 +190,8 @@ const existingShares = (model: Model): Html => {
     [h.Class('flex flex-col gap-1 border-t border-separator pt-4')],
     [
       h.h3(
-        [h.Class('text-[13px] font-semibold text-secondary')],
-        ['Who can read it now'],
+        [h.Class('text-footnote font-semibold text-secondary')],
+        ['Who Can Read It Now'],
       ),
       ...(isSharingReady
         ? M.value(model.share.shares).pipe(
@@ -201,14 +201,17 @@ const existingShares = (model: Model): Html => {
                 h.span(
                   [
                     h.Class(
-                      'flex items-center gap-2 py-3 text-[14px] text-secondary',
+                      'flex items-center gap-2 py-3 text-subhead text-secondary',
                     ),
                   ],
                   [spinner(), 'Loading shares'],
                 ),
               ],
               FailedShares: ({ reason }) => [
-                h.p([h.Class('py-3 text-[14px] text-accent')], [reason]),
+                h.p(
+                  [h.Class('py-3 text-subhead text-accent-strong')],
+                  [reason],
+                ),
               ],
               LoadedShares: ({ shares }) =>
                 Array.match(shares, {
@@ -216,7 +219,7 @@ const existingShares = (model: Model): Html => {
                     h.p(
                       [
                         h.Class(
-                          'flex items-center gap-2 py-3 text-[14px] text-secondary',
+                          'flex items-center gap-2 py-3 text-subhead text-secondary',
                         ),
                       ],
                       [
@@ -242,7 +245,7 @@ const existingShares = (model: Model): Html => {
             h.p(
               [
                 h.Class(
-                  'flex items-center gap-2 py-3 text-[14px] text-secondary',
+                  'flex items-center gap-2 py-3 text-subhead text-secondary',
                 ),
               ],
               [
@@ -261,7 +264,7 @@ const awaitingSchemaNotice = (): Html => {
     [
       h.Role('note'),
       h.Class(
-        'flex items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3 text-[14px] leading-5 text-caution',
+        'flex items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3 text-subhead text-caution',
       ),
     ],
     [
@@ -315,20 +318,21 @@ const sheetBody = (
               h.h2(
                 [
                   h.Id('share-title'),
-                  h.Class('text-[22px] font-bold tracking-tight text-label'),
+                  h.Class('text-title font-bold tracking-tight text-label'),
                 ],
                 ['Share'],
               ),
-              h.p([h.Class('truncate text-[14px] text-secondary')], [title]),
+              h.p([h.Class('truncate text-subhead text-secondary')], [title]),
             ],
           ),
           h.button(
             [
               h.Type('button'),
               h.AriaLabel('Close'),
+              h.Title('Close (Esc)'),
               h.OnClick(shareMessage(Share.closeShareSheet())),
               h.Class(
-                'inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-fill text-secondary transition hover:bg-fill-strong hover:text-label',
+                'inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-fill text-secondary transition hover:bg-fill-strong hover:text-label',
               ),
             ],
             [icon('Close', 'size-4')],
@@ -376,12 +380,12 @@ const sheetBody = (
                     shareMessage(Share.typeRecipients({ value })),
                   ),
                   h.Class(
-                    'min-h-11 w-full rounded-xl border-0 bg-fill px-3 text-[15px] text-label outline-none placeholder:text-tertiary focus-visible:ring-2 focus-visible:ring-tint',
+                    'min-h-11 w-full rounded-xl border-0 bg-fill px-3 text-subhead text-label outline-none placeholder:text-secondary focus-visible:ring-2 focus-visible:ring-tint',
                   ),
                 ]),
                 ...suggestions(sheet, model.share.recipients),
                 h.p(
-                  [h.Class('text-[13px] leading-5 text-secondary')],
+                  [h.Class('text-footnote text-secondary')],
                   [
                     'They read it after signing in to Scribe with that email, on the iPhone or here. Scribe does not send email, so send them the link.',
                   ],
@@ -393,7 +397,7 @@ const sheetBody = (
             h.p(
               [
                 h.Class(
-                  'rounded-2xl bg-fill px-4 py-3 text-[14px] leading-5 text-secondary',
+                  'rounded-2xl bg-fill px-4 py-3 text-subhead text-secondary',
                 ),
               ],
               [
@@ -433,7 +437,7 @@ const sheetBody = (
         ],
       ),
       h.p(
-        [h.Class('tabular -mt-2 text-[13px] text-secondary')],
+        [h.Class('tabular -mt-2 text-footnote text-secondary')],
         [rangeSummary],
       ),
       h.div(
@@ -448,7 +452,7 @@ const sheetBody = (
               h.Value(sheet.note),
               h.OnInput(value => shareMessage(Share.typeNote({ value }))),
               h.Class(
-                'w-full resize-none rounded-xl border-0 bg-fill px-3 py-2.5 text-[15px] text-label outline-none placeholder:text-tertiary focus-visible:ring-2 focus-visible:ring-tint',
+                'w-full resize-none rounded-xl border-0 bg-fill px-3 py-2.5 text-subhead text-label outline-none placeholder:text-secondary focus-visible:ring-2 focus-visible:ring-tint',
               ),
             ],
             [],
@@ -461,9 +465,7 @@ const sheetBody = (
           h.p(
             [
               h.Role('alert'),
-              h.Class(
-                'flex items-start gap-2 text-[14px] leading-5 text-accent',
-              ),
+              h.Class('flex items-start gap-2 text-subhead text-accent-strong'),
             ],
             [icon('Alert', 'mt-0.5 size-4'), reason],
           ),
@@ -481,14 +483,14 @@ const sheetBody = (
                 isSaving || !isSharingReady || !Share.Model.isShareReady(sheet),
               ),
               h.Class(
-                'inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-accent px-6 text-[15px] font-semibold text-white transition hover:bg-accent-strong active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40',
+                'inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-accent-fill px-6 text-subhead font-semibold text-white transition hover:brightness-110 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40',
               ),
             ],
             [
               isSaving
                 ? spinner('size-4 text-white')
                 : icon('Share', 'size-[18px]'),
-              sheet.visibility === 'Link' ? 'Create link' : 'Share',
+              sheet.visibility === 'Link' ? 'Create Link' : 'Share',
             ],
           ),
         ],
@@ -498,7 +500,11 @@ const sheetBody = (
   )
 }
 
-/** The share sheet over the recording page, while it is open. */
+/**
+ * The share sheet over the recording page, while it is open: a native modal
+ * `<dialog>`, so focus stays inside, the page behind is inert, and Escape or
+ * a tap outside closes it.
+ */
 export const shareSheet = (
   model: Model,
   title: string,
@@ -508,28 +514,37 @@ export const shareSheet = (
   return M.value(model.share.sheet).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
     M.tag('ShareSheetOpen', sheet => [
-      h.div(
+      h.dialog(
         [
-          h.Class(
-            'fixed inset-0 z-40 flex items-end justify-center bg-black/30 backdrop-blur-[2px] sm:items-center sm:p-6',
-          ),
-          h.OnKeyDownPreventDefault(key =>
-            key === 'Escape'
-              ? Option.some(shareMessage(Share.closeShareSheet()))
-              : Option.none(),
-          ),
+          h.AriaLabelledBy('share-title'),
+          h.OnMount(ShowShareDialog()),
+          h.Class('share-dialog'),
         ],
         [
           h.div(
             [
-              h.Role('dialog'),
-              h.AriaModal(true),
-              h.AriaLabelledBy('share-title'),
+              h.AriaHidden(true),
+              h.OnClick(shareMessage(Share.closeShareSheet())),
+              h.Class('absolute inset-0'),
+            ],
+            [],
+          ),
+          h.div(
+            [
               h.Class(
-                'animate-rise max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-[30px] bg-raised p-5 shadow-2xl sm:rounded-[30px] sm:p-6',
+                'pointer-events-none relative flex min-h-full items-end justify-center sm:items-center sm:p-6',
               ),
             ],
-            [sheetBody(model, sheet, title, sections)],
+            [
+              h.div(
+                [
+                  h.Class(
+                    'animate-rise pointer-events-auto max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-[30px] bg-raised p-5 shadow-2xl sm:rounded-[30px] sm:p-6',
+                  ),
+                ],
+                [sheetBody(model, sheet, title, sections)],
+              ),
+            ],
           ),
         ],
       ),
@@ -546,7 +561,7 @@ const claimLine = (claim: Share.Model.ClaimState): ReadonlyArray<Html> => {
       NoClaim: () => [],
       ClaimingShare: () => [
         h.span(
-          [h.Class('flex items-center gap-2 text-[13px] text-secondary')],
+          [h.Class('flex items-center gap-2 text-footnote text-secondary')],
           [
             spinner('size-3.5'),
             'Adding it to Shared with you on all your devices',
@@ -555,13 +570,13 @@ const claimLine = (claim: Share.Model.ClaimState): ReadonlyArray<Html> => {
       ],
       ClaimedShare: () => [
         h.span(
-          [h.Class('flex items-center gap-2 text-[13px] text-positive')],
+          [h.Class('flex items-center gap-2 text-footnote text-positive')],
           [icon('Check', 'size-4'), 'In Shared with you on all your devices'],
         ),
       ],
       FailedClaim: ({ reason }) => [
         h.span(
-          [h.Class('text-[13px] text-accent')],
+          [h.Class('text-footnote text-accent-strong')],
           [`Could not add it to Shared with you: ${reason}`],
         ),
       ],
@@ -585,10 +600,10 @@ const sharedRangeNotice = (
         [h.Class('flex flex-col gap-1')],
         [
           h.h1(
-            [h.Class('text-[20px] font-semibold tracking-tight text-label')],
+            [h.Class('text-title font-semibold tracking-tight text-label')],
             [title],
           ),
-          h.p([h.Class('text-[15px] leading-6 text-secondary')], [body]),
+          h.p([h.Class('text-subhead text-secondary')], [body]),
         ],
       ),
     ],
@@ -610,7 +625,6 @@ export const sharedRangePage = (model: Model): Html => {
   return h.main(
     [h.Class('mx-auto flex w-full max-w-3xl flex-col px-4 pb-40 pt-4 sm:px-6')],
     [
-      backToRecordings(),
       ...M.value(model.share.sharedRange).pipe(
         M.withReturnType<ReadonlyArray<Html>>(),
         M.tagsExhaustive({
@@ -640,13 +654,13 @@ export const sharedRangePage = (model: Model): Html => {
                 h.h1(
                   [
                     h.Class(
-                      'text-[26px] font-bold leading-tight tracking-tight text-label sm:text-[30px]',
+                      'text-title font-bold tracking-tight text-label sm:text-large-title',
                     ),
                   ],
                   [range.recordingTitle],
                 ),
                 h.p(
-                  [h.Class('tabular text-[15px] text-secondary')],
+                  [h.Class('tabular text-subhead text-secondary')],
                   [
                     `${Option.getOrElse(range.share.maybeSharedBy, () => 'Someone')} shared ${formatClock(range.share.startSeconds)} to ${formatClock(range.share.endSeconds)}, ${Array.length(range.sections)} ${Array.length(range.sections) === 1 ? 'section' : 'sections'}`,
                   ],
@@ -657,7 +671,7 @@ export const sharedRangePage = (model: Model): Html => {
                     h.blockquote(
                       [
                         h.Class(
-                          'rounded-2xl bg-fill px-4 py-3 text-[15px] leading-6 text-label',
+                          'rounded-2xl bg-fill px-4 py-3 text-subhead text-label',
                         ),
                       ],
                       [note],
@@ -676,7 +690,7 @@ export const sharedRangePage = (model: Model): Html => {
               ),
             ),
             h.p(
-              [h.Class('px-2 pt-6 text-[13px] leading-5 text-secondary')],
+              [h.Class('px-2 pt-6 text-footnote text-secondary')],
               [
                 'Audio for shared sections comes with a later update (ADR 0014, question 1).',
               ],

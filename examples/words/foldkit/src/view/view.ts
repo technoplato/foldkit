@@ -1,31 +1,53 @@
-import { Match as M, Option } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
 import {
   Capture,
   ClickedOpenInApp,
+  ClickedSkipToPlayer,
   type Message,
   type Model,
+  PLAYER_ELEMENT_ID,
+  type ReadyPlayback,
+  ScrolledTranscriptAway,
+  isOwnRecordingOf,
+  isRecordAvailableOf,
 } from 'words-core-example'
 
 import { accountPage } from './account.js'
 import { captureBar, newRecordingPage } from './capture.js'
+import { icon } from './icon.js'
 import { recordingList } from './list.js'
-import { playbackBar, playbackNotice, recordingPage } from './playback.js'
-import { shareSheet, sharedRangePage } from './share.js'
 import {
-  type ViewConfig,
-  backToRecordings,
-  largeTitle,
-  toast,
-  topBar,
-} from './shell.js'
+  playbackBar,
+  playbackNotice,
+  recordingPage,
+  returnPill,
+} from './playback.js'
+import { shareSheet, sharedRangePage } from './share.js'
+import { type ViewConfig, largeTitle, toast, topBar } from './shell.js'
 import { button } from './ui.js'
+
+const capturePhaseOf = (
+  capturing: typeof Capture.Model.Capturing.Type,
+): string => (capturing.transport === 'Paused' ? 'Paused' : 'Recording')
+
+const phasePrefixOf = (model: Model, ready: ReadyPlayback): string =>
+  M.value(model.capture.state).pipe(
+    M.withReturnType<string>(),
+    M.tag('Capturing', capturing =>
+      capturing.draft.recordingID === ready.recordingID
+        ? `${capturePhaseOf(capturing)} | `
+        : '',
+    ),
+    M.orElse(() => (ready.transport === 'Playing' ? 'Playing | ' : '')),
+  )
 
 const titleOf = (model: Model): string =>
   M.value(model.route).pipe(
     M.withReturnType<string>(),
-    M.tag('Account', () => 'Account | Scribe'),
-    M.tag('NewRecording', () => 'New recording | Scribe'),
+    M.tag('Account', () => 'Settings | Scribe'),
+    M.tag('NewRecording', () => 'New Recording | Scribe'),
+    M.tag('SearchRecordings', () => 'Search | Scribe'),
     M.tag('Share', () =>
       M.value(model.share.sharedRange).pipe(
         M.withReturnType<string>(),
@@ -41,7 +63,8 @@ const titleOf = (model: Model): string =>
         M.withReturnType<string>(),
         M.tag(
           'ReadyPlayback',
-          ready => `${ready.detail.summary.title} | Scribe`,
+          ready =>
+            `${phasePrefixOf(model, ready)}${ready.detail.summary.title} | Scribe`,
         ),
         M.orElse(() => 'Scribe'),
       ),
@@ -57,12 +80,11 @@ const comingToTheWeb = (
   return h.main(
     [h.Class('mx-auto flex w-full max-w-2xl flex-col px-4 pb-40 pt-4 sm:px-6')],
     [
-      backToRecordings(),
       h.div([h.Class('pb-4 pt-2')], [largeTitle(title)]),
       h.div(
         [h.Class('card flex flex-col items-start gap-4 rounded-[26px] p-6')],
         [
-          h.p([h.Class('text-[15px] leading-6 text-secondary')], [body]),
+          h.p([h.Class('text-subhead text-secondary')], [body]),
           button(
             'Open in Scribe',
             ClickedOpenInApp({ scheme: config.appScheme }),
@@ -93,7 +115,7 @@ const playbackContent = (model: Model, config: ViewConfig): Html =>
         ),
       FailedPlayback: ({ reason }) =>
         playbackNotice('The recording could not load', reason),
-      ReadyPlayback: ready => recordingPage(ready, config),
+      ReadyPlayback: ready => recordingPage(model, ready, config),
     }),
   )
 
@@ -107,18 +129,13 @@ const content = (model: Model, config: ViewConfig): Html =>
       Share: () => sharedRangePage(model),
       RecordingsMap: () =>
         comingToTheWeb(
-          'Recordings map',
+          'Recordings Map',
           'The map of your recordings and their routes is next on the web. Open it in Scribe on your iPhone for now.',
           config,
         ),
-      SearchRecordings: () =>
-        comingToTheWeb(
-          'Search',
-          'Searching your transcripts is next on the web. Open search in Scribe on your iPhone for now.',
-          config,
-        ),
+      SearchRecordings: () => recordingList(model),
       NotFound: () =>
-        comingToTheWeb('Not found', 'This is not a Scribe link.', config),
+        comingToTheWeb('Not Found', 'This is not a Scribe link.', config),
       Recording: () => playbackContent(model, config),
       Section: () => playbackContent(model, config),
       Playback: () => playbackContent(model, config),
@@ -140,34 +157,27 @@ const isRecordingPage = (model: Model): boolean =>
     M.orElse(() => false),
   )
 
-const floatingControls = (model: Model): ReadonlyArray<Html> => {
-  const isConnected = model.account.connection._tag === 'ConnectedAccount'
-  const isRecordAvailable =
-    isConnected &&
-    model.route._tag === 'RecordingList' &&
-    model.recordings._tag === 'LoadedRecordings'
-  const maybeCapturedRecordingID = Option.map(
-    Capture.Model.draftOf(model.capture),
-    draft => draft.recordingID,
-  )
-  const playback = isRecordingPage(model)
+const maybeOpenRecordingOf = (model: Model): Option.Option<ReadyPlayback> =>
+  isRecordingPage(model)
     ? M.value(model.playback).pipe(
-        M.withReturnType<ReadonlyArray<Html>>(),
-        M.tag('ReadyPlayback', ready =>
-          Option.exists(
-            maybeCapturedRecordingID,
-            id => id === ready.recordingID,
-          )
-            ? []
-            : playbackBar(ready),
-        ),
-        M.orElse(() => []),
+        M.withReturnType<Option.Option<ReadyPlayback>>(),
+        M.tag('ReadyPlayback', ready => Option.some(ready)),
+        M.orElse(() => Option.none()),
       )
-    : []
-  return [...captureBar(model, isRecordAvailable), ...playback]
+    : Option.none()
+
+const floatingControls = (model: Model): ReadonlyArray<Html> => {
+  const recorder = captureBar(model, isRecordAvailableOf(model))
+  return Option.match(maybeOpenRecordingOf(model), {
+    onNone: () => recorder,
+    onSome: ready =>
+      isOwnRecordingOf(model, ready.recordingID)
+        ? [...returnPill(ready), ...recorder]
+        : [...recorder, ...playbackBar(ready)],
+  })
 }
 
-const floatingLayer = (model: Model): Html => {
+const floatingLayer = (controls: ReadonlyArray<Html>): Html => {
   const h = html<Message>()
   return h.div(
     [
@@ -178,14 +188,84 @@ const floatingLayer = (model: Model): Html => {
     [
       h.div(
         [
+          h.Id(PLAYER_ELEMENT_ID),
+          h.Role('region'),
+          h.AriaLabel('Player'),
           h.Class(
-            'pointer-events-auto flex w-full max-w-xl flex-col items-center gap-2 [&>*]:max-w-full',
+            'pointer-events-auto flex w-full max-w-xl flex-col items-center gap-2 outline-none [&>*]:max-w-full',
           ),
         ],
-        floatingControls(model),
+        controls,
       ),
     ],
   )
+}
+
+const skipToPlayer = (): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.OnClick(ClickedSkipToPlayer()),
+      h.Class(
+        'glass sr-only z-50 min-h-11 items-center rounded-full px-4 text-subhead font-semibold text-tint focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:inline-flex',
+      ),
+    ],
+    ['Skip to Player'],
+  )
+}
+
+const offlineNotice = (model: Model): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return model.connectivity === 'Offline'
+    ? [
+        h.div(
+          [
+            h.Role('status'),
+            h.Class(
+              'mx-auto mt-3 flex w-[calc(100%-2rem)] max-w-3xl items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3',
+            ),
+          ],
+          [
+            icon('Offline', 'mt-0.5 size-5 shrink-0 text-caution'),
+            h.span(
+              [h.Class('flex min-w-0 flex-col')],
+              [
+                h.span(
+                  [h.Class('text-subhead font-semibold text-label')],
+                  ['You are offline'],
+                ),
+                h.span(
+                  [h.Class('text-subhead text-label')],
+                  [
+                    'What is on screen stays. A recording in progress keeps recording, and Scribe saves and syncs as soon as the network is back.',
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ]
+    : []
+}
+
+const isFullScreenOf = (model: Model): boolean =>
+  Option.exists(
+    maybeOpenRecordingOf(model),
+    ready => ready.screenMode === 'FullScreen',
+  )
+
+const followAttributesOf = (model: Model) => {
+  const h = html<Message>()
+  return Option.exists(
+    maybeOpenRecordingOf(model),
+    ready => ready.follow === 'Following',
+  )
+    ? [
+        h.OnWheel(ScrolledTranscriptAway()),
+        h.OnTouchMove(ScrolledTranscriptAway()),
+      ]
+    : []
 }
 
 const shareOverlay = (model: Model): ReadonlyArray<Html> =>
@@ -202,14 +282,22 @@ export const view =
   (config: ViewConfig) =>
   (model: Model): Document => {
     const h = html<Message>()
+    const controls = floatingControls(model)
     return {
       title: titleOf(model),
       body: h.div(
-        [h.Class('min-h-dvh bg-canvas font-sans text-label antialiased')],
         [
-          topBar(model),
+          h.Class(
+            'folding-title-scope min-h-dvh bg-canvas font-sans text-label antialiased',
+          ),
+          ...followAttributesOf(model),
+        ],
+        [
+          ...(Array.isReadonlyArrayNonEmpty(controls) ? [skipToPlayer()] : []),
+          ...(isFullScreenOf(model) ? [] : [topBar(model)]),
+          ...offlineNotice(model),
           content(model, config),
-          floatingLayer(model),
+          floatingLayer(controls),
           ...shareOverlay(model),
           toast(model),
         ],

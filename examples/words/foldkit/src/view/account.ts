@@ -1,8 +1,9 @@
-import { Match as M, Option } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 import { type Html, html } from 'foldkit/html'
 import {
   type AccessIdentity,
   Account,
+  Capture,
   GotAccountMessage,
   type Message,
   type Model,
@@ -10,7 +11,7 @@ import {
 
 import { connectCard } from './connect.js'
 import { icon } from './icon.js'
-import { backToRecordings, largeTitle } from './shell.js'
+import { largeTitle } from './shell.js'
 import {
   type BadgeTone,
   avatar,
@@ -116,7 +117,7 @@ const heroOf = (model: Model): Html => {
             ],
             [icon('Person', 'size-8')],
           ),
-        onSome: access => avatar(access.email, 'size-16 text-[24px]'),
+        onSome: access => avatar(access.email, 'size-16 text-title'),
       }),
       h.div(
         [h.Class('flex min-w-0 flex-1 flex-col gap-1.5')],
@@ -124,7 +125,7 @@ const heroOf = (model: Model): Html => {
           h.span(
             [
               h.Class(
-                'truncate text-[20px] font-semibold tracking-tight text-label',
+                'truncate text-title font-semibold tracking-tight text-label',
               ),
             ],
             [
@@ -138,10 +139,7 @@ const heroOf = (model: Model): Html => {
             [h.Class('flex flex-wrap items-center gap-2')],
             [badge(status.tone, status.text)],
           ),
-          h.p(
-            [h.Class('text-[14px] leading-5 text-secondary')],
-            [status.detail],
-          ),
+          h.p([h.Class('text-footnote text-secondary')], [status.detail]),
         ],
       ),
     ],
@@ -206,7 +204,7 @@ const userIDRow = (model: Model): ReadonlyArray<Html> => {
             ],
             [
               rowIcon('Sparkle', 'bg-[#5856d6]'),
-              h.span([h.Class('flex-1 text-[15px] text-label')], ['Details']),
+              h.span([h.Class('flex-1 text-subhead text-label')], ['Details']),
               icon(
                 'ChevronDown',
                 'size-4 text-tertiary transition group-open:rotate-180',
@@ -220,7 +218,7 @@ const userIDRow = (model: Model): ReadonlyArray<Html> => {
                 [h.Class('flex flex-col gap-1')],
                 [
                   h.span(
-                    [h.Class('text-[13px] font-medium text-secondary')],
+                    [h.Class('text-footnote font-medium text-secondary')],
                     ['Instant user ID'],
                   ),
                   h.div(
@@ -229,7 +227,7 @@ const userIDRow = (model: Model): ReadonlyArray<Html> => {
                       h.code(
                         [
                           h.Class(
-                            'select-all break-all rounded-lg bg-fill px-2 py-1 font-mono text-[13px] text-label',
+                            'select-all break-all rounded-lg bg-fill px-2 py-1 font-mono text-footnote text-label',
                           ),
                         ],
                         [userID],
@@ -245,7 +243,7 @@ const userIDRow = (model: Model): ReadonlyArray<Html> => {
                 ],
               ),
               h.p(
-                [h.Class('text-[13px] leading-5 text-secondary')],
+                [h.Class('text-footnote text-secondary')],
                 [
                   'The id of your account in Scribe’s Instant app. Your iPhone shows the same account under Settings, Account & Device.',
                 ],
@@ -260,13 +258,8 @@ const userIDRow = (model: Model): ReadonlyArray<Html> => {
 }
 
 const scribeGroup = (model: Model): ReadonlyArray<Html> => [
-  groupTitle('Scribe account'),
+  groupTitle('Scribe Account'),
   group([
-    groupRow(
-      'Status',
-      [statusOf(model).text],
-      Option.some(rowIcon('Person', 'bg-[#34c759]')),
-    ),
     groupRow(
       'Account',
       [accountKindOf(model)],
@@ -278,6 +271,45 @@ const scribeGroup = (model: Model): ReadonlyArray<Html> => [
     'The web and your iPhone use one account in Scribe’s Instant app. Record on either, and the other shows it as it happens.',
   ]),
 ]
+
+type ShortcutRow = Readonly<{ keys: string; action: string }>
+
+const shortcutRows: ReadonlyArray<ShortcutRow> = [
+  { keys: 'Space', action: 'Play or pause the recording you are reading' },
+  { keys: '← →', action: 'Back or forward 15 seconds' },
+  { keys: 'R', action: 'New Recording, on the recording list' },
+  { keys: 'P', action: 'Pause or resume the recording in progress' },
+  { keys: 'L', action: 'Back to Playhead, or Back to Live while recording' },
+  { keys: 'Esc', action: 'Close a menu or the share sheet' },
+]
+
+const shortcutsGroup = (): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return [
+    groupTitle('Keyboard Shortcuts'),
+    group(
+      Array.map(shortcutRows, ({ keys, action }) =>
+        h.div(
+          [h.Key(keys), h.Class('flex min-h-12 items-center gap-3 px-4 py-2')],
+          [
+            h.kbd(
+              [
+                h.Class(
+                  'tabular inline-flex min-h-7 min-w-12 shrink-0 items-center justify-center rounded-lg bg-fill px-2 font-mono text-footnote font-semibold text-label',
+                ),
+              ],
+              [keys],
+            ),
+            h.span([h.Class('text-subhead text-label')], [action]),
+          ],
+        ),
+      ),
+    ),
+    groupFootnote([
+      'Shortcuts work anywhere on the page except while typing in a field.',
+    ]),
+  ]
+}
 
 const sharingGroup = (model: Model): ReadonlyArray<Html> => {
   const isSharingReady = model.account.features.sharing === 'Enabled'
@@ -321,6 +353,22 @@ const sharingGroup = (model: Model): ReadonlyArray<Html> => {
   ]
 }
 
+const signOutNoteOf = (model: Model): string => {
+  const isEndingGoogleLogin =
+    model.account.connection._tag === 'ConnectedAccount' &&
+    Option.exists(
+      Account.Model.accessOf(model.account),
+      access => access.source === 'CloudflareAccess',
+    )
+  if (Capture.Model.isHoldingUnsavedAudio(model.capture)) {
+    return 'Stop the recording in progress and let it save first. Signing out now would lose its audio.'
+  } else if (isEndingGoogleLogin) {
+    return 'Signs out of Scribe in this browser and ends the Google login for knophy.com, so the next visit asks Google again.'
+  } else {
+    return 'Signs out of Scribe in this browser.'
+  }
+}
+
 const actionsOf = (model: Model): ReadonlyArray<Html> => {
   const h = html<Message>()
   return M.value(model.account.connection).pipe(
@@ -330,7 +378,7 @@ const actionsOf = (model: Model): ReadonlyArray<Html> => {
         [h.Class('flex flex-col items-start gap-2 pt-8')],
         [
           button(
-            'Sign in again',
+            'Sign In Again',
             accountMessage(Account.signInAgain()),
             'Prominent',
             Option.some('Person'),
@@ -339,27 +387,20 @@ const actionsOf = (model: Model): ReadonlyArray<Html> => {
       ),
     ]),
     M.tag('CheckingAccount', 'NoAccessIdentity', () => []),
-    M.orElse(connection => [
+    M.orElse(() => [
       h.div(
         [h.Class('flex flex-col items-start gap-2 pt-8')],
         [
           button(
-            'Sign out',
+            'Sign Out',
             accountMessage(Account.signOut()),
             'Destructive',
             Option.some('SignOut'),
+            Capture.Model.isHoldingUnsavedAudio(model.capture),
           ),
           h.p(
-            [h.Class('text-[13px] leading-5 text-secondary')],
-            [
-              connection._tag === 'ConnectedAccount' &&
-              Option.exists(
-                Account.Model.accessOf(model.account),
-                access => access.source === 'CloudflareAccess',
-              )
-                ? 'Signs out of Scribe in this browser and ends the Google login for knophy.com, so the next visit asks Google again.'
-                : 'Signs out of Scribe in this browser.',
-            ],
+            [h.Class('text-footnote text-secondary')],
+            [signOutNoteOf(model)],
           ),
         ],
       ),
@@ -367,15 +408,17 @@ const actionsOf = (model: Model): ReadonlyArray<Html> => {
   )
 }
 
-/** The account page: who Cloudflare Access says you are, your Scribe account, how sharing works, and sign out. */
+/**
+ * Settings: who Cloudflare Access says you are, your Scribe account, how
+ * sharing works, the keyboard shortcuts, and sign out.
+ */
 export const accountPage = (model: Model): Html => {
   const h = html<Message>()
   const maybeAccess = Account.Model.accessOf(model.account)
   return h.main(
     [h.Class('mx-auto flex w-full max-w-2xl flex-col px-4 pb-40 pt-4 sm:px-6')],
     [
-      backToRecordings(),
-      h.div([h.Class('pb-5 pt-2')], [largeTitle('Account')]),
+      h.div([h.Class('pb-5 pt-2')], [largeTitle('Settings')]),
       heroOf(model),
       ...M.value(model.account.connection).pipe(
         M.withReturnType<ReadonlyArray<Html>>(),
@@ -386,7 +429,7 @@ export const accountPage = (model: Model): Html => {
           h.div(
             [
               h.Class(
-                'flex items-center gap-2 px-1 pt-5 text-[14px] text-secondary',
+                'flex items-center gap-2 px-1 pt-5 text-subhead text-secondary',
               ),
             ],
             [spinner(), 'Signing in to Scribe'],
@@ -400,6 +443,7 @@ export const accountPage = (model: Model): Html => {
       }),
       ...scribeGroup(model),
       ...sharingGroup(model),
+      ...shortcutsGroup(),
       ...actionsOf(model),
     ],
   )
