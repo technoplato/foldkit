@@ -602,6 +602,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 1:57:50 a.m. EDT — `a0a6b4d0bf5b` fix(words): say where the Account screen is when Scribe opens without it
+
+- **Implementation commit:** `a0a6b4d0bf5b94faca228a72ae3a25e387206176`
+- **Change:** Say where the Account screen is when Scribe opens without it.
+- **Details:**
+  - Builds of Scribe before the /account route open on a scan of the account QR code but stay on the recording list; the first step now names the Settings path for that case.
+- **Files:**
+  - `examples/words/foldkit/src/view/connect.ts` — Name the Settings path when the scan does not open the Account screen.
+- **User context (verbatim):**
+  > I have no idea what my account is, how to share with it
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 1:43:20 a.m. EDT — `9739dab7bf87` fix(words): align transcript text, explain microphone failures, fit iPhones
 
 - **Implementation commit:** `9739dab7bf87e53af70b06506ba054094be0db49`
