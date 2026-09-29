@@ -91,9 +91,9 @@ const copyMenu = (): ReadonlyArray<Html> => {
         h.Class('menu-popover glass'),
       ],
       [
-        copyFormatItem('PlainText', 'Copy as Plain Text'),
-        copyFormatItem('Markdown', 'Copy as Markdown'),
-        copyFormatItem('Srt', 'Copy as SRT'),
+        copyFormatItem('Markdown', 'Markdown'),
+        copyFormatItem('PlainText', 'Plain Text'),
+        copyFormatItem('Srt', 'SubRip (SRT)'),
       ],
     ),
   ]
