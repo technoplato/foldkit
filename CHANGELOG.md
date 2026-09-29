@@ -602,6 +602,35 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 6:43:00 a.m. EDT — `98d4dbb0ffd1` feat(words): follow playback and apply the round-1 design fixes
+
+- **Implementation commit:** `98d4dbb0ffd10a6b86ef4f3cd0bcdd00cf57e847`
+- **Change:** Follow playback and the live edge, and apply the design audit's round-1 web fixes (W1 to W19 and W22).
+- **Details:**
+  - The transcript follows the playhead and a recording in progress at its live edge through a ScrollToSection Command; Back to Playhead and Back to Live show only once the followed section is off screen, and scrolling back follows again. This clears the web's G3 gate (Return to playhead did nothing).
+  - Type moved to rem tokens with at most four sizes a screen and the iOS text size through -apple-system-body; spacing stays in pixels so controls keep 44 px when text grows.
+  - Contrast tokens, dark Increase Contrast values, one material and one shadow for floating controls, forced-colors outlines, and Reduce Motion handling.
+  - Keyboard shortcuts, Skip to Player, a native modal share dialog, popover menus, a timestamp section menu, 44 px targets, Media Session, a web app manifest and icons, a rate-limited live region, an offline notice, Full Screen with the rotated wall clock, and search that filters as you type.
+  - Names shared with the iPhone and Mac: Back to Live, Back to Playhead, Full Screen, Settings, New Recording; phases Recording, Paused, Playing.
+- **Files:**
+  - `examples/words/core/src/update.ts` — Scroll Commands for following and returning, keyboard shortcuts, Media Session actions, rate-limited announcements, Full Screen, and search.
+  - `examples/words/core/src/keyboard.ts` — Map key presses to shortcuts where the page offers them, and the host keyboard service.
+  - `examples/words/core/src/scroller.ts` — The host service that scrolls a section into view.
+  - `examples/words/core/src/search.ts` — Filter the list by title and preview lines.
+  - `examples/words/core/src/update.test.ts` — Tests for follow, Back to Playhead and Back to Live, the keyboard, Full Screen, announcements, Media Session, and search.
+  - `examples/words/foldkit/src/mount.ts` — Observe playhead visibility, open the share dialog as a native modal, track word clicks, and run the wall clock.
+  - `examples/words/foldkit/src/browser.ts` — Scroll with Reduce Motion in mind, claim shortcut keys, and report the network.
+  - `examples/words/foldkit/src/audio.ts` — Publish Now Playing and answer the system media controls.
+  - `examples/words/foldkit/src/styles.css` — Rem type tokens, contrast and material tokens, the scrubber, popovers, forced colors, Reduce Motion, and the folding title.
+  - `examples/words/foldkit/src/view/playback.ts` — The compact header, the transport, Back to Playhead and Back to Live, and Full Screen.
+  - `examples/words/foldkit/src/view/transcript.ts` — The timestamp section menu and the followed section's visibility observer.
+  - `examples/words/foldkit/src/view/view.ts` — The player region, Skip to Player, the offline notice, and the phase in the tab title.
+  - `examples/words/foldkit/index.html` — Icons, the manifest, and per-appearance theme colors.
+- **User context (verbatim):**
+  > audit the uh visuals of the words.nofi.com
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 1:57:50 a.m. EDT — `a0a6b4d0bf5b` fix(words): say where the Account screen is when Scribe opens without it
 
 - **Implementation commit:** `a0a6b4d0bf5b94faca228a72ae3a25e387206176`
