@@ -602,6 +602,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 6:47:48 a.m. EDT — `653173ee795e` fix(words): keep the connect card's step numbers round
+
+- **Implementation commit:** `653173ee795e909554869b84254167e688ddbe0f`
+- **Change:** Keep the connect card's step numbers round.
+- **Details:**
+  - The round-1 type change let the step numbers grow with the text size, and in the step row they stretched to the height of the step's text; they sit at the top of the row again.
+- **Files:**
+  - `examples/words/foldkit/src/view/connect.ts` — Align the step numbers to the top of the step row.
+- **User context (verbatim):**
+  > audit the uh visuals of the words.nofi.com
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 6:43:00 a.m. EDT — `98d4dbb0ffd1` feat(words): follow playback and apply the round-1 design fixes
 
 - **Implementation commit:** `98d4dbb0ffd10a6b86ef4f3cd0bcdd00cf57e847`
