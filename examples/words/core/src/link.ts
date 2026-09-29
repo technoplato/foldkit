@@ -82,6 +82,15 @@ export const PlaybackRoute = r('Playback', {
   t: S.Option(S.String),
   focus: S.Option(S.String),
 })
+/**
+ * A range share of a recording (ADR 0014). A link share carries its secret
+ * token as `k`, which Instant compares through `ruleParams`.
+ */
+export const ShareRoute = r('Share', {
+  recordingID: S.String,
+  shareID: S.String,
+  k: S.Option(S.String),
+})
 /** A Stream Interactor thread in a recording. */
 export const ThreadRoute = r('Thread', {
   recordingID: S.String,
@@ -97,8 +106,10 @@ export const ThreadResponseRoute = r('ThreadResponse', {
 export const RecordingsMapRoute = r('RecordingsMap')
 /** Recording search. */
 export const SearchRecordingsRoute = r('SearchRecordings')
-/** Start a new recording, which only the Scribe app can do. */
+/** Start a new recording: the web recorder, or a new recording in the Scribe app. */
 export const NewRecordingRoute = r('NewRecording')
+/** The account: who is signed in, and how the web and the iPhone share one account. */
+export const AccountRoute = r('Account')
 /** A path that is not a Scribe link. */
 export const NotFoundRoute = r('NotFound', { path: S.String })
 
@@ -107,12 +118,14 @@ export const ScribeRoute = S.Union([
   RecordingListRoute,
   RecordingRoute,
   SectionRoute,
+  ShareRoute,
   PlaybackRoute,
   ThreadRoute,
   ThreadResponseRoute,
   RecordingsMapRoute,
   SearchRecordingsRoute,
   NewRecordingRoute,
+  AccountRoute,
   NotFoundRoute,
 ])
 /** Every place a Scribe link can open. */
@@ -125,6 +138,8 @@ const newRecordingRouter = pipe(
   slash(literal('new')),
   Route.mapTo(NewRecordingRoute),
 )
+
+const accountRouter = pipe(literal('account'), Route.mapTo(AccountRoute))
 
 const recordingRouter = pipe(
   literal('recording'),
@@ -139,6 +154,15 @@ const sectionRouter = pipe(
   slash(uuidSegment('sectionID')),
   Route.query(S.Struct({ t: S.OptionFromOptional(S.String) })),
   Route.mapTo(SectionRoute),
+)
+
+const shareRouter = pipe(
+  literal('recording'),
+  slash(uuidSegment('recordingID')),
+  slash(literal('share')),
+  slash(uuidSegment('shareID')),
+  Route.query(S.Struct({ k: S.OptionFromOptional(S.String) })),
+  Route.mapTo(ShareRoute),
 )
 
 const threadRouter = pipe(
@@ -187,11 +211,13 @@ const scribeRouteParser = Route.oneOf(
   threadResponseRouter,
   threadRouter,
   sectionRouter,
+  shareRouter,
   newRecordingRouter,
   recordingRouter,
   playbackRouter,
   recordingsMapRouter,
   searchRecordingsRouter,
+  accountRouter,
   recordingListRouter,
 )
 
@@ -208,6 +234,8 @@ export const scribeRouteToPath = (route: ScribeRoute): string =>
       Recording: ({ recordingID }) => recordingRouter({ recordingID }),
       Section: ({ recordingID, sectionID, t }) =>
         sectionRouter({ recordingID, sectionID, t }),
+      Share: ({ recordingID, shareID, k }) =>
+        shareRouter({ recordingID, shareID, k }),
       Playback: ({ recordingID, t, focus }) =>
         playbackRouter({ recordingID, t, focus }),
       Thread: ({ recordingID, threadID }) =>
@@ -217,6 +245,7 @@ export const scribeRouteToPath = (route: ScribeRoute): string =>
       RecordingsMap: () => recordingsMapRouter(),
       SearchRecordings: () => searchRecordingsRouter(),
       NewRecording: () => newRecordingRouter(),
+      Account: () => accountRouter(),
       NotFound: ({ path }) => path,
     }),
   )

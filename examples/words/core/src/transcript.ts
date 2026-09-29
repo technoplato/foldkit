@@ -1,5 +1,6 @@
 import {
   Array,
+  Equivalence,
   Match as M,
   Option,
   Order,
@@ -112,6 +113,34 @@ export const timelineOf = (
       ...Array.map(detail.images, image => ImageTimelineEntry({ image })),
     ],
     byEntrySeconds,
+  )
+
+const isSameSpeaker = Option.makeEquivalence(Equivalence.Number)
+
+/**
+ * The sections that start a run of one speaker. Like the iPhone
+ * (`RecordingSpeakerRuns`), a speaker's name shows once per run, at the first
+ * section whose speaker differs from the previous section's.
+ *
+ * @example
+ * ```ts
+ * // a and b are speaker 0, c is speaker 1
+ * speakerRunStartIDsOf([a, b, c])
+ * // [a.id, c.id]
+ * ```
+ */
+export const speakerRunStartIDsOf = (
+  sections: ReadonlyArray<Section>,
+): ReadonlyArray<string> =>
+  Array.map(
+    Array.filter(sections, (section, index) =>
+      Option.match(Array.get(sections, index - 1), {
+        onNone: () => true,
+        onSome: previous =>
+          !isSameSpeaker(previous.maybeSpeakerID, section.maybeSpeakerID),
+      }),
+    ),
+    section => section.id,
   )
 
 /** The label the iPhone shows for a section's speaker, when it has one. */

@@ -25,11 +25,13 @@ import {
   type Message,
   MovedScrub,
   ObservedFileUrls,
+  ObservedIdentity,
   ObservedRecording,
+  ObservedRecordings,
   ScrolledTranscriptAway,
   StartedScrub,
 } from './message.js'
-import type { Model, ReadyPlayback } from './model.js'
+import { type Model, type ReadyPlayback, SignedIn } from './model.js'
 import {
   type RecordingDetail,
   type Section,
@@ -342,5 +344,28 @@ describe('copying links', () => {
         },
       },
     ])
+  })
+})
+
+describe('signing in', () => {
+  it('forgets a list read under another identity, so nothing stale counts as loaded', () => {
+    const signedOutList = run(opened(RecordingListRoute()), [
+      ObservedRecordings({
+        recordings: [],
+        skippedCount: 0,
+        maybeSkippedReason: Option.none(),
+      }),
+    ])
+    expect(signedOutList.model.recordings._tag).toBe('LoadedRecordings')
+    const signedIn = run(signedOutList.model, [
+      ObservedIdentity({
+        identity: SignedIn({
+          userID: 'user-1',
+          maybeEmail: Option.some('owner@example.com'),
+          isGuest: false,
+        }),
+      }),
+    ])
+    expect(signedIn.model.recordings._tag).toBe('LoadingRecordings')
   })
 })

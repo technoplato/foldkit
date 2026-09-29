@@ -3,8 +3,10 @@ import {
   Cause,
   Context,
   Data,
+  Duration,
   Effect,
   Layer,
+  Match as M,
   Option,
   Queue,
   Record,
@@ -21,6 +23,16 @@ import {
 } from './decode.js'
 import { type IdentityState, SignedIn, SignedOut } from './model.js'
 import type { AppSchema } from './scribeSchema.js'
+import {
+  decodeShareRecipients,
+  decodeSharedRange,
+  decodeShares,
+} from './share/decode.js'
+import type {
+  RecordingShare,
+  ShareRecipient,
+  SharedRange,
+} from './share/model.js'
 
 /** Which store operation failed. */
 export type WordsStoreOperation =
@@ -29,6 +41,12 @@ export type WordsStoreOperation =
   | 'ObserveRecording'
   | 'ObserveFileUrls'
   | 'FetchRecording'
+  | 'CheckSignIn'
+  | 'SignIn'
+  | 'SignOut'
+  | 'ObserveShares'
+  | 'ObserveShareRecipients'
+  | 'ObserveSharedRange'
 
 /** An Instant query, observation, or sign-in check failed. */
 export class WordsStoreError extends Data.TaggedError('WordsStoreError')<{
@@ -38,6 +56,9 @@ export class WordsStoreError extends Data.TaggedError('WordsStoreError')<{
 
 /** Download URLs keyed by Instant file id. */
 export type FileUrls = Readonly<Record<string, string>>
+
+/** The Instant user the browser is signed in as, when it is not a guest. */
+export type InstantMember = Readonly<{ userID: string; email: string }>
 
 /** The Instant reads the web Scribe Program needs. */
 export type WordsStoreService = Readonly<{
@@ -52,6 +73,21 @@ export type WordsStoreService = Readonly<{
     fileIDs: ReadonlyArray<string>,
   ) => Stream.Stream<FileUrls, WordsStoreError>
   hasRecording: (recordingID: string) => Effect.Effect<boolean, WordsStoreError>
+  currentMember: Effect.Effect<Option.Option<InstantMember>, WordsStoreError>
+  signInWithToken: (token: string) => Effect.Effect<void, WordsStoreError>
+  signOut: Effect.Effect<void, WordsStoreError>
+  observeRecordingShares: (
+    recordingID: string,
+    ownerUserID: string,
+  ) => Stream.Stream<ReadonlyArray<RecordingShare>, WordsStoreError>
+  observeShareRecipients: (
+    ownerUserID: string,
+  ) => Stream.Stream<ReadonlyArray<ShareRecipient>, WordsStoreError>
+  observeSharedRange: (
+    shareID: string,
+    maybeLinkToken: Option.Option<string>,
+    maybeViewerUserID: Option.Option<string>,
+  ) => Stream.Stream<Option.Option<SharedRange>, WordsStoreError>
 }>
 
 /** The Instant reads the web Scribe Program needs, chosen by the host. */
@@ -98,6 +134,39 @@ const identityOf = (maybeUser: Option.Option<User>): IdentityState =>
         isGuest: user.isGuest,
       }),
   })
+
+/** How many recent recipients autocomplete reads (ADR 0014). */
+export const SHARE_RECIPIENT_LIMIT = 50
+
+// NOTE: Instant's getAuth reads IndexedDB, which can hang in some browsers,
+// so every auth step is bounded and fails loudly instead of waiting forever.
+const AUTH_TIMEOUT = Duration.seconds(5)
+
+const boundedAuth = <A>(
+  operation: WordsStoreOperation,
+  run: () => Promise<A>,
+): Effect.Effect<A, WordsStoreError> =>
+  Effect.tryPromise({
+    try: run,
+    catch: cause => new WordsStoreError({ operation, cause }),
+  }).pipe(
+    Effect.timeout(AUTH_TIMEOUT),
+    Effect.catchTag('TimeoutError', cause =>
+      Effect.fail(new WordsStoreError({ operation, cause })),
+    ),
+  )
+
+const memberOf = (
+  maybeUser: Option.Option<User>,
+): Option.Option<InstantMember> =>
+  Option.flatMap(maybeUser, user =>
+    user.isGuest
+      ? Option.none()
+      : Option.map(Option.fromNullishOr(user.email), email => ({
+          userID: user.id,
+          email,
+        })),
+  )
 
 const emitResponse = <Data, A>(
   emit: Emit<A>,
@@ -188,6 +257,72 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
       }).pipe(
         Effect.map(result => Array.isArrayNonEmpty(result.data.recordings)),
       ),
+    currentMember: boundedAuth('CheckSignIn', () => database.getAuth()).pipe(
+      Effect.map(user => memberOf(Option.fromNullishOr(user))),
+    ),
+    signInWithToken: token =>
+      boundedAuth('SignIn', () => database.auth.signInWithToken(token)).pipe(
+        Effect.asVoid,
+      ),
+    signOut: boundedAuth('SignOut', () => database.auth.signOut()),
+    observeRecordingShares: (recordingID, ownerUserID) =>
+      observe<ReadonlyArray<RecordingShare>>('ObserveShares', emit =>
+        database.subscribeQuery(
+          {
+            recordingSegmentShares: {
+              $: {
+                where: { recordingID, ownerUserID },
+                order: { createdAtMs: 'desc' },
+              },
+            },
+          },
+          response =>
+            emitResponse(emit, response, data =>
+              decodeShares(data.recordingSegmentShares),
+            ),
+        ),
+      ),
+    observeShareRecipients: ownerUserID =>
+      observe<ReadonlyArray<ShareRecipient>>('ObserveShareRecipients', emit =>
+        database.subscribeQuery(
+          {
+            shareRecipients: {
+              $: {
+                where: { ownerUserID },
+                order: { lastSharedAtMs: 'desc' },
+                limit: SHARE_RECIPIENT_LIMIT,
+              },
+            },
+          },
+          response =>
+            emitResponse(emit, response, data =>
+              decodeShareRecipients(data.shareRecipients),
+            ),
+        ),
+      ),
+    observeSharedRange: (shareID, maybeLinkToken, maybeViewerUserID) =>
+      observe<Option.Option<SharedRange>>('ObserveSharedRange', emit =>
+        database.subscribeQuery(
+          {
+            recordingSegmentShares: {
+              $: { where: { id: shareID } },
+              recording: {},
+              segments: {},
+              readers: {},
+            },
+          },
+          response =>
+            emitResponse(emit, response, data =>
+              decodeSharedRange(data.recordingSegmentShares, maybeViewerUserID),
+            ),
+          {
+            ruleParams: Option.match(maybeLinkToken, {
+              onNone: () => ({}),
+              onSome: k => ({ k }),
+            }),
+          },
+        ),
+      ),
   })
 
 /** Fixed data for one recording, as the static resources serve it. */
@@ -228,5 +363,21 @@ export const makeStaticWordsResources = (
       ),
     hasRecording: recordingID =>
       Effect.succeed(Record.has(recordings, recordingID)),
+    currentMember: Effect.succeed(
+      M.value(identity).pipe(
+        M.withReturnType<Option.Option<InstantMember>>(),
+        M.tag('SignedIn', ({ userID, maybeEmail, isGuest }) =>
+          isGuest
+            ? Option.none()
+            : Option.map(maybeEmail, email => ({ userID, email })),
+        ),
+        M.orElse(() => Option.none()),
+      ),
+    ),
+    signInWithToken: () => Effect.void,
+    signOut: Effect.void,
+    observeRecordingShares: () => Stream.succeed([]),
+    observeShareRecipients: () => Stream.succeed([]),
+    observeSharedRange: () => Stream.succeed(Option.none()),
   })
 }

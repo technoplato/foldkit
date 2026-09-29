@@ -2,6 +2,7 @@ import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import {
+  AccountRoute,
   NewRecordingRoute,
   PlaybackRoute,
   RecordingListRoute,
@@ -10,6 +11,7 @@ import {
   type ScribeRoute,
   SearchRecordingsRoute,
   SectionRoute,
+  ShareRoute,
   ThreadResponseRoute,
   ThreadRoute,
   formatStartSeconds,
@@ -90,6 +92,20 @@ describe('scribeRouteFromLink', () => {
       ['scribe-shared://recordings/map', RecordingsMapRoute()],
       ['scribe-shared://recordings/search', SearchRecordingsRoute()],
       ['scribe-shared://recording/new', NewRecordingRoute()],
+      ['https://words.knophy.com/account', AccountRoute()],
+      [
+        `https://words.knophy.com/recording/${recordingID}/share/${sectionID}?k=abc123`,
+        ShareRoute({
+          recordingID,
+          shareID: sectionID,
+          k: Option.some('abc123'),
+        }),
+      ],
+      [
+        `scribe-shared://recording/${recordingID}/share/${sectionID}`,
+        ShareRoute({ recordingID, shareID: sectionID, k: Option.none() }),
+      ],
+      ['scribe-shared-dev://account', AccountRoute()],
     ]
 
     for (const [link, route] of cases) {
@@ -138,6 +154,16 @@ describe('scribeRouteToShareUrl', () => {
 
     expect(scribeRouteToPath(route)).toBe(
       `/playback/${recordingID}?t=30&focus=route`,
+    )
+  })
+
+  it('prints the account link that opens the Account screen on the iPhone and the account page on the web', () => {
+    const link = scribeRouteToShareUrl(AccountRoute())
+
+    expect(link).toBe('https://words.knophy.com/account')
+    expect(scribeRouteFromLink(link)).toEqual(Option.some(AccountRoute()))
+    expect(scribeRouteToAppUrl(AccountRoute(), 'scribe-shared-dev')).toBe(
+      'scribe-shared-dev://account',
     )
   })
 

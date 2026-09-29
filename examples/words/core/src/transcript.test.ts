@@ -15,6 +15,7 @@ import {
   formatExportTimestamp,
   sectionAt,
   sectionPlaybackStart,
+  speakerRunStartIDsOf,
   timelineOf,
   wordAt,
 } from './transcript.js'
@@ -246,5 +247,25 @@ describe('timeline and export', () => {
     expect(formatExportTimestamp(4_987)).toBe('83:07')
     expect(formatClock(4_987)).toBe('1:23:07')
     expect(formatClock(247)).toBe('4:07')
+  })
+})
+
+describe('speaker runs', () => {
+  it('labels a speaker once per run, like the iPhone', () => {
+    const base = {
+      startSeconds: 0,
+      endSeconds: 1,
+      text: 'x',
+      words: [],
+      isFinal: true,
+    }
+    const sections = [
+      { ...base, id: 'a', index: 0, maybeSpeakerID: Option.some(0) },
+      { ...base, id: 'b', index: 1, maybeSpeakerID: Option.some(0) },
+      { ...base, id: 'c', index: 2, maybeSpeakerID: Option.some(1) },
+      { ...base, id: 'd', index: 3, maybeSpeakerID: Option.none() },
+      { ...base, id: 'e', index: 4, maybeSpeakerID: Option.none() },
+    ]
+    expect(speakerRunStartIDsOf(sections)).toEqual(['a', 'c', 'd'])
   })
 })

@@ -396,3 +396,13 @@ export const decodeRecordingDetail = (
       },
     }),
   )
+
+/** Reads transcript segment rows into sections, in index order, skipping rows that cannot be read. */
+export const decodeSections = (
+  rows: ReadonlyArray<unknown>,
+): ReadonlyArray<Section> =>
+  Array.sort(decodeEach(SegmentRow, rows, sectionOf).values, bySectionIndex)
+
+/** Reads rows that may be a list, one object, or absent, as a list. */
+export const rowsOf = (rows: unknown): ReadonlyArray<unknown> =>
+  presentRows(rows)

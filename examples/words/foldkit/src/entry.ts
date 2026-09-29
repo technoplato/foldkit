@@ -3,6 +3,7 @@ import { Program, Runtime } from 'foldkit'
 import { fromString } from 'foldkit/url'
 import {
   type AudioPlayerService,
+  Capture,
   ChangedUrl,
   ClickedLink,
   type ClipboardWriter,
@@ -10,6 +11,8 @@ import {
   type Model,
   RecordingListRoute,
   ScribeAppScheme,
+  Share,
+  type WordsOrigin,
   WordsProgram,
   type WordsStore,
   makeLiveWordsResources,
@@ -17,17 +20,25 @@ import {
   urlToScribeRoute,
 } from 'words-core-example'
 
-import { withHostedIdentity } from '@foldkit/instant'
-
-import { managedResources } from './audio.js'
-import { browserClipboard, makeWordsDatabase } from './browser.js'
+import {
+  browserCaptureEnvironment,
+  browserClipboard,
+  browserOrigin,
+  browserOriginLayer,
+  makeWordsDatabase,
+} from './browser.js'
+import { makeManagedResources } from './resources.js'
 import { view } from './view/index.js'
 
 const database = makeWordsDatabase()
 
-const resources = withHostedIdentity(
-  Layer.merge(makeLiveWordsResources(database), browserClipboard),
-  database,
+const resources = Layer.mergeAll(
+  makeLiveWordsResources(database),
+  Capture.makeLiveRecordingWriter(database),
+  Share.makeLiveShareWriter(database),
+  browserClipboard,
+  browserOriginLayer,
+  browserCaptureEnvironment,
 )
 
 const startRoute = Option.match(fromString(window.location.href), {
@@ -45,9 +56,17 @@ const appScheme = Option.getOrElse(
 const program: Program.Program<
   Model,
   Message,
-  WordsStore | ClipboardWriter,
-  AudioPlayerService
-> = Program.make({ ...WordsProgram, managedResources })
+  | WordsStore
+  | ClipboardWriter
+  | WordsOrigin
+  | Capture.RecordingWriter
+  | Capture.CaptureEnvironment
+  | Share.ShareWriter,
+  AudioPlayerService | Capture.CaptureSessionService
+> = Program.make({
+  ...WordsProgram,
+  managedResources: makeManagedResources(browserOrigin),
+})
 
 const application = Runtime.makeFoldkitApplication({
   container: document.getElementById('root'),

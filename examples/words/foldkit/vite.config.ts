@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import path from 'path'
 import { defineConfig } from 'vite'
 
@@ -11,8 +12,37 @@ import {
   wordsHostedIdentity,
 } from './vitePlugins'
 
+const gitOutput = (args: ReadonlyArray<string>): string => {
+  try {
+    return execFileSync('git', [...args], {
+      cwd: __dirname,
+      encoding: 'utf8',
+    }).trim()
+  } catch {
+    return ''
+  }
+}
+
+const buildCommit = gitOutput(['rev-parse', 'HEAD'])
+const isDirty = gitOutput(['status', '--porcelain', '--', '..']) !== ''
+
 export default defineConfig({
   appType: 'spa',
+  define: {
+    'import.meta.env.VITE_WORDS_BUILD_COMMIT':
+      buildCommit === ''
+        ? 'undefined'
+        : JSON.stringify(`${buildCommit}${isDirty ? '-dirty' : ''}`),
+    'import.meta.env.VITE_WORDS_BUILD_BRANCH': JSON.stringify(
+      gitOutput(['rev-parse', '--abbrev-ref', 'HEAD']),
+    ),
+    'import.meta.env.VITE_WORDS_BUILD_TIME': JSON.stringify(
+      new Date().toISOString(),
+    ),
+    'import.meta.env.VITE_WORDS_BUILD_WORKTREE': JSON.stringify(
+      gitOutput(['rev-parse', '--show-toplevel']),
+    ),
+  },
   plugins: [
     tailwindcss(),
     foldkit({ devToolsMcpPort: 9996 }),

@@ -2,6 +2,7 @@ import {
   Array,
   Duration,
   Effect,
+  Equivalence,
   Match as M,
   Option,
   Order,
@@ -14,7 +15,9 @@ import { load, pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
 import { toString as urlToString } from 'foldkit/url'
 
+import * as Account from './account/index.js'
 import { AudioPlayer, type AudioPlayerService } from './audioPlayer.js'
+import * as Capture from './capture/index.js'
 import { ClipboardWriter } from './clipboard.js'
 import {
   PlaybackRoute,
@@ -44,6 +47,9 @@ import {
   FailedCopy,
   FailedObserveRecording,
   FailedPlayAudio,
+  GotAccountMessage,
+  GotCaptureMessage,
+  GotShareMessage,
   type Message,
   SucceededCopy,
 } from './message.js'
@@ -67,7 +73,9 @@ import {
   Scrubbing,
   SignedOut,
 } from './model.js'
+import type { WordsOrigin } from './origin.js'
 import type { RecordingDetail, Section } from './recording.js'
+import * as Share from './share/index.js'
 import { WordsStore } from './store.js'
 import { exportTranscript, sectionAt } from './transcript.js'
 
@@ -77,7 +85,15 @@ export const RECORDING_LIST_PAGE_SIZE = 100
 const FOCUS_HIGHLIGHT_DURATION = Duration.seconds(4)
 const COPY_NOTICE_DURATION = Duration.seconds(2)
 
-type Services = WordsStore | ClipboardWriter | AudioPlayerService
+type Services =
+  | WordsStore
+  | ClipboardWriter
+  | WordsOrigin
+  | Capture.RecordingWriter
+  | Capture.CaptureEnvironment
+  | Share.ShareWriter
+  | AudioPlayerService
+  | Capture.CaptureSessionService
 type Commands = ReadonlyArray<Command.Command<Message, never, Services>>
 type UpdateReturn = readonly [Model, Commands]
 type ReadyReturn = readonly [ReadyPlayback, Commands]
@@ -330,6 +346,8 @@ const openingFor = (
       RecordingsMap: () => Option.none(),
       SearchRecordings: () => Option.none(),
       NewRecording: () => Option.none(),
+      Account: () => Option.none(),
+      Share: () => Option.none(),
       NotFound: () => Option.none(),
       Recording: ({ recordingID }) =>
         Option.some({ recordingID, request: noRequest }),
@@ -473,8 +491,37 @@ const openRecording = (
   )
 }
 
+const sharedRangeFor = (
+  route: ScribeRoute,
+  share: Share.Model.Model,
+): Share.Model.SharedRangeState =>
+  M.value(route).pipe(
+    M.withReturnType<Share.Model.SharedRangeState>(),
+    M.tag('Share', ({ shareID }) =>
+      M.value(share.sharedRange).pipe(
+        M.withReturnType<Share.Model.SharedRangeState>(),
+        M.tag(
+          'ReadySharedRange',
+          'MissingSharedRange',
+          'FailedSharedRange',
+          'OpeningSharedRange',
+          current =>
+            current.shareID === shareID
+              ? current
+              : Share.Model.OpeningSharedRange({ shareID }),
+        ),
+        M.orElse(() => Share.Model.OpeningSharedRange({ shareID })),
+      ),
+    ),
+    M.orElse(() => Share.Model.NoSharedRange()),
+  )
+
 const applyRoute = (model: Model, route: ScribeRoute): UpdateReturn => {
-  const routed = evo(model, { route: () => route })
+  const routed = evo(model, {
+    route: () => route,
+    share: share =>
+      evo(share, { sharedRange: () => sharedRangeFor(route, share) }),
+  })
   return Option.match(openingFor(route), {
     onNone: () => [evo(routed, { playback: () => NoPlayback() }), []],
     onSome: ({ recordingID, request }) =>
@@ -488,6 +535,9 @@ export const modelForRoute = (route: ScribeRoute): Model =>
     {
       route: RecordingListRoute(),
       identity: CheckingIdentity(),
+      account: Account.Model.init(),
+      capture: Capture.Model.init(),
+      share: Share.Model.init(),
       recordings: LoadingRecordings(),
       recordingListLimit: RECORDING_LIST_PAGE_SIZE,
       playback: NoPlayback(),
@@ -623,6 +673,204 @@ const sectionNamed = (
 ): Option.Option<Section> =>
   Array.findFirst(ready.detail.sections, section => section.id === sectionID)
 
+const applyAccountResult = (
+  model: Model,
+  [nextAccount, accountCommands, maybeOutMessage]: Account.UpdateReturn,
+): UpdateReturn => {
+  const mappedCommands = Command.mapMessages(accountCommands, message =>
+    GotAccountMessage({ message }),
+  )
+  const nextModel = evo(model, { account: () => nextAccount })
+  return Option.match(maybeOutMessage, {
+    onNone: () => [nextModel, mappedCommands],
+    onSome: outMessage =>
+      M.value(outMessage).pipe(
+        withUpdateReturn,
+        M.tagsExhaustive({
+          RequestedCopy: ({ text, noticeText }) => {
+            const [copiedModel, copyCommands] = copyWithNotice(
+              nextModel,
+              text,
+              noticeText,
+            )
+            return [copiedModel, [...mappedCommands, ...copyCommands]]
+          },
+        }),
+      ),
+  })
+}
+
+const recordingTitleNumberPattern = /^Recording (\d+)/
+
+/**
+ * The number the next web recording's title takes: one past the highest
+ * `Recording N` in the loaded list, as on the iPhone. `None` until the list
+ * has loaded, so a recording started too early never reuses a number.
+ */
+export const nextRecordingTitleNumberOf = (
+  model: Model,
+): Option.Option<number> =>
+  M.value(model.recordings).pipe(
+    M.withReturnType<Option.Option<number>>(),
+    M.tag('LoadedRecordings', ({ recordings }) =>
+      Option.some(
+        Array.reduce(recordings, 0, (highest, recording) =>
+          Option.match(
+            Option.flatMap(
+              Option.fromNullishOr(
+                recordingTitleNumberPattern.exec(recording.title),
+              ),
+              match => Array.get(match, 1),
+            ),
+            {
+              onNone: () => highest,
+              onSome: digits => Math.max(highest, Number(digits)),
+            },
+          ),
+        ) + 1,
+      ),
+    ),
+    M.orElse(() => Option.none()),
+  )
+
+const isSameUserID = Option.makeEquivalence(Equivalence.String)
+
+/** The Instant user this browser is signed in as. */
+export const signedInUserIDOf = (model: Model): Option.Option<string> =>
+  M.value(model.identity).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tag('SignedIn', ({ userID }) => Option.some(userID)),
+    M.orElse(() => Option.none()),
+  )
+
+/** The recording the host's microphone session belongs to, while one is wanted. */
+export const captureSessionRequirementsOf = (
+  model: Model,
+): Option.Option<Readonly<{ recordingID: string }>> =>
+  Option.map(Capture.Model.draftOf(model.capture), draft => ({
+    recordingID: draft.recordingID,
+  }))
+
+const applyCaptureResult = (
+  model: Model,
+  [nextCapture, captureCommands, maybeOutMessage]: Capture.UpdateReturn,
+): UpdateReturn => {
+  const mappedCommands = Command.mapMessages(captureCommands, message =>
+    GotCaptureMessage({ message }),
+  )
+  const nextModel = evo(model, { capture: () => nextCapture })
+  return Option.match(maybeOutMessage, {
+    onNone: () => [nextModel, mappedCommands],
+    onSome: outMessage =>
+      M.value(outMessage).pipe(
+        withUpdateReturn,
+        M.tagsExhaustive({
+          StartedRecording: ({ recordingID }) => [
+            nextModel,
+            [
+              ...mappedCommands,
+              Navigate({
+                url: scribeRouteToPath(RecordingRoute({ recordingID })),
+              }),
+            ],
+          ],
+          SavedRecording: ({ title }) => {
+            const revision = nextModel.copyRevision + 1
+            const [noticed, noticeCommands] = showNotice(
+              evo(nextModel, { copyRevision: () => revision }),
+              { text: `Saved ${title}`, isFailure: false, revision },
+            )
+            return [noticed, [...mappedCommands, ...noticeCommands]]
+          },
+        }),
+      ),
+  })
+}
+
+/** The link token the open share link carries, if any. */
+export const shareLinkTokenOf = (model: Model): Option.Option<string> =>
+  M.value(model.route).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.tag('Share', ({ k }) => k),
+    M.orElse(() => Option.none()),
+  )
+
+/** The sections of the open recording, for picking a range to share. */
+export const openSectionsOf = (model: Model): ReadonlyArray<Section> =>
+  M.value(model.playback).pipe(
+    M.withReturnType<ReadonlyArray<Section>>(),
+    M.tag('ReadyPlayback', ready => ready.detail.sections),
+    M.orElse(() => []),
+  )
+
+const shareContextOf = (model: Model): Share.ShareContext => ({
+  sharing: model.account.features.sharing,
+  maybeOwnerUserID: signedInUserIDOf(model),
+  maybeSharedBy: Option.map(
+    Account.Model.accessOf(model.account),
+    access => access.email,
+  ),
+  sections: openSectionsOf(model),
+  maybeViewer: M.value(model.identity).pipe(
+    M.withReturnType<
+      Option.Option<
+        Readonly<{ userID: string; maybeEmail: Option.Option<string> }>
+      >
+    >(),
+    M.tag('SignedIn', ({ userID, maybeEmail }) =>
+      Option.some({ userID, maybeEmail }),
+    ),
+    M.orElse(() => Option.none()),
+  ),
+  maybeLinkToken: shareLinkTokenOf(model),
+})
+
+const applyShareResult = (
+  model: Model,
+  [nextShare, shareCommands, maybeOutMessage]: Share.UpdateReturn,
+): UpdateReturn => {
+  const mappedCommands = Command.mapMessages(shareCommands, message =>
+    GotShareMessage({ message }),
+  )
+  const nextModel = evo(model, { share: () => nextShare })
+  return Option.match(maybeOutMessage, {
+    onNone: () => [nextModel, mappedCommands],
+    onSome: outMessage =>
+      M.value(outMessage).pipe(
+        withUpdateReturn,
+        M.tagsExhaustive({
+          RequestedShareCopy: ({ text, noticeText }) => {
+            const [copiedModel, copyCommands] = copyWithNotice(
+              nextModel,
+              text,
+              noticeText,
+            )
+            return [copiedModel, [...mappedCommands, ...copyCommands]]
+          },
+          RequestedShareNotice: ({ text, isFailure }) => {
+            const revision = nextModel.copyRevision + 1
+            const [noticed, noticeCommands] = showNotice(
+              evo(nextModel, { copyRevision: () => revision }),
+              { text, isFailure, revision },
+            )
+            return [noticed, [...mappedCommands, ...noticeCommands]]
+          },
+        }),
+      ),
+  })
+}
+
+const captureContextOf = (model: Model): Capture.CaptureContext => ({
+  maybeOwnerUserID: signedInUserIDOf(model),
+  maybeNextTitleNumber: nextRecordingTitleNumberOf(model),
+})
+
+/** The Commands a page load starts: the account check that signs the browser in. */
+export const startupCommands: Commands = Command.mapMessages(
+  [Account.CheckAccess()],
+  message => GotAccountMessage({ message }),
+)
+
 const showNotice = (model: Model, notice: CopyNotice): UpdateReturn => [
   evo(model, { maybeCopyNotice: () => Option.some(notice) }),
   [HideCopyNoticeLater({ revision: notice.revision })],
@@ -648,10 +896,26 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       CompletedNavigate: () => [model, []],
       CompletedLoadExternal: () => [model, []],
 
-      ObservedIdentity: ({ identity }) => [
-        evo(model, { identity: () => identity }),
-        [],
-      ],
+      ObservedIdentity: ({ identity }) => {
+        const isSameUser = isSameUserID(
+          signedInUserIDOf(model),
+          signedInUserIDOf(evo(model, { identity: () => identity })),
+        )
+        const observed = evo(model, {
+          identity: () => identity,
+          recordings: recordings =>
+            isSameUser ? recordings : LoadingRecordings(),
+        })
+        return identity._tag === 'SignedOut'
+          ? applyAccountResult(
+              observed,
+              Account.update(
+                observed.account,
+                Account.reportLostInstantSession(),
+              ),
+            )
+          : [observed, []]
+      },
       FailedObserveIdentity: () => [
         evo(model, { identity: () => SignedOut() }),
         [],
@@ -947,5 +1211,17 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         model,
         [LoadExternal({ href: scribeRouteToAppUrl(model.route, scheme) })],
       ],
+      GotAccountMessage: ({ message }) =>
+        applyAccountResult(model, Account.update(model.account, message)),
+      GotCaptureMessage: ({ message }) =>
+        applyCaptureResult(
+          model,
+          Capture.update(model.capture, message, captureContextOf(model)),
+        ),
+      GotShareMessage: ({ message }) =>
+        applyShareResult(
+          model,
+          Share.update(model.share, message, shareContextOf(model)),
+        ),
     }),
   )

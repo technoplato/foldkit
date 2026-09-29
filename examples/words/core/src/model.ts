@@ -1,8 +1,11 @@
 import { Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 
+import * as Account from './account/model.js'
+import * as Capture from './capture/model.js'
 import { ScribeRoute } from './link.js'
 import { RecordingDetail, RecordingSummary } from './recording.js'
+import * as Share from './share/model.js'
 
 /** Waiting for the first recording list snapshot. */
 export const LoadingRecordings = ts('LoadingRecordings')
@@ -147,6 +150,9 @@ export type CopyNotice = typeof CopyNotice.Type
 export const Model = S.Struct({
   route: ScribeRoute,
   identity: IdentityState,
+  account: Account.Model,
+  capture: Capture.Model,
+  share: Share.Model,
   recordings: RecordingsState,
   recordingListLimit: S.Number,
   playback: PlaybackState,

@@ -1,67 +1,200 @@
-import { Match as M } from 'effect'
+import { Match as M, Option } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
 import {
+  Capture,
+  ClickedOpenInApp,
   type Message,
   type Model,
-  RecordingListRoute,
-  scribeRouteToPath,
 } from 'words-core-example'
 
+import { accountPage } from './account.js'
+import { captureBar, newRecordingPage } from './capture.js'
 import { recordingList } from './list.js'
-import { playbackPage } from './playback.js'
-import { type ViewConfig, copyNotice, header } from './shell.js'
-
-const listPath = scribeRouteToPath(RecordingListRoute())
+import { playbackBar, playbackNotice, recordingPage } from './playback.js'
+import { shareSheet, sharedRangePage } from './share.js'
+import {
+  type ViewConfig,
+  backToRecordings,
+  largeTitle,
+  toast,
+  topBar,
+} from './shell.js'
+import { button } from './ui.js'
 
 const titleOf = (model: Model): string =>
-  M.value(model.playback).pipe(
+  M.value(model.route).pipe(
     M.withReturnType<string>(),
-    M.tag('ReadyPlayback', ready => `${ready.detail.summary.title} | Scribe`),
-    M.orElse(() => 'Scribe'),
+    M.tag('Account', () => 'Account | Scribe'),
+    M.tag('NewRecording', () => 'New recording | Scribe'),
+    M.tag('Share', () =>
+      M.value(model.share.sharedRange).pipe(
+        M.withReturnType<string>(),
+        M.tag(
+          'ReadySharedRange',
+          ({ range }) => `${range.recordingTitle} | Shared | Scribe`,
+        ),
+        M.orElse(() => 'Shared | Scribe'),
+      ),
+    ),
+    M.orElse(() =>
+      M.value(model.playback).pipe(
+        M.withReturnType<string>(),
+        M.tag(
+          'ReadyPlayback',
+          ready => `${ready.detail.summary.title} | Scribe`,
+        ),
+        M.orElse(() => 'Scribe'),
+      ),
+    ),
   )
 
-const placeholder = (title: string, body: string): Html => {
+const comingToTheWeb = (
+  title: string,
+  body: string,
+  config: ViewConfig,
+): Html => {
   const h = html<Message>()
   return h.main(
-    [h.Class('mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-10')],
+    [h.Class('mx-auto flex w-full max-w-2xl flex-col px-4 pb-40 pt-4 sm:px-6')],
     [
-      h.h1([h.Class('text-xl font-semibold text-stone-900')], [title]),
-      h.p([h.Class('text-stone-600')], [body]),
-      h.a(
-        [h.Href(listPath), h.Class('text-sm text-sky-700 hover:underline')],
-        ['← Recordings'],
+      backToRecordings(),
+      h.div([h.Class('pb-4 pt-2')], [largeTitle(title)]),
+      h.div(
+        [h.Class('card flex flex-col items-start gap-4 rounded-[26px] p-6')],
+        [
+          h.p([h.Class('text-[15px] leading-6 text-secondary')], [body]),
+          button(
+            'Open in Scribe',
+            ClickedOpenInApp({ scheme: config.appScheme }),
+            'Tinted',
+            Option.some('External'),
+          ),
+        ],
       ),
     ],
   )
 }
 
-const content = (model: Model): Html =>
+const playbackContent = (model: Model, config: ViewConfig): Html =>
+  M.value(model.playback).pipe(
+    M.withReturnType<Html>(),
+    M.tagsExhaustive({
+      NoPlayback: () =>
+        playbackNotice('Nothing is open', 'Pick a recording from the list.'),
+      OpeningPlayback: () =>
+        playbackNotice(
+          'Opening the recording',
+          'Loading the transcript from Scribe.',
+        ),
+      MissingRecording: () =>
+        playbackNotice(
+          'This recording is not available',
+          'It does not exist, or it is not shared with this account. Ask the owner to share it with you.',
+        ),
+      FailedPlayback: ({ reason }) =>
+        playbackNotice('The recording could not load', reason),
+      ReadyPlayback: ready => recordingPage(ready, config),
+    }),
+  )
+
+const content = (model: Model, config: ViewConfig): Html =>
   M.value(model.route).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
       RecordingList: () => recordingList(model),
+      Account: () => accountPage(model),
+      NewRecording: () => newRecordingPage(model),
+      Share: () => sharedRangePage(model),
       RecordingsMap: () =>
-        placeholder(
+        comingToTheWeb(
           'Recordings map',
-          'The map of recordings is next on the web. Open it in the Scribe app for now.',
+          'The map of your recordings and their routes is next on the web. Open it in Scribe on your iPhone for now.',
+          config,
         ),
       SearchRecordings: () =>
-        placeholder(
+        comingToTheWeb(
           'Search',
-          'Search is next on the web. Open it in the Scribe app for now.',
+          'Searching your transcripts is next on the web. Open search in Scribe on your iPhone for now.',
+          config,
         ),
-      NewRecording: () =>
-        placeholder(
-          'New recording',
-          'Recordings start in the Scribe app on the iPhone or the Mac.',
-        ),
-      NotFound: () => placeholder('Not found', 'This is not a Scribe link.'),
-      Recording: () => playbackPage(model),
-      Section: () => playbackPage(model),
-      Playback: () => playbackPage(model),
-      Thread: () => playbackPage(model),
-      ThreadResponse: () => playbackPage(model),
+      NotFound: () =>
+        comingToTheWeb('Not found', 'This is not a Scribe link.', config),
+      Recording: () => playbackContent(model, config),
+      Section: () => playbackContent(model, config),
+      Playback: () => playbackContent(model, config),
+      Thread: () => playbackContent(model, config),
+      ThreadResponse: () => playbackContent(model, config),
     }),
+  )
+
+const isRecordingPage = (model: Model): boolean =>
+  M.value(model.route).pipe(
+    M.withReturnType<boolean>(),
+    M.tags({
+      Recording: () => true,
+      Section: () => true,
+      Playback: () => true,
+      Thread: () => true,
+      ThreadResponse: () => true,
+    }),
+    M.orElse(() => false),
+  )
+
+const floatingControls = (model: Model): ReadonlyArray<Html> => {
+  const isConnected = model.account.connection._tag === 'ConnectedAccount'
+  const isRecordAvailable =
+    isConnected &&
+    model.route._tag === 'RecordingList' &&
+    model.recordings._tag === 'LoadedRecordings'
+  const maybeCapturedRecordingID = Option.map(
+    Capture.Model.draftOf(model.capture),
+    draft => draft.recordingID,
+  )
+  const playback = isRecordingPage(model)
+    ? M.value(model.playback).pipe(
+        M.withReturnType<ReadonlyArray<Html>>(),
+        M.tag('ReadyPlayback', ready =>
+          Option.exists(
+            maybeCapturedRecordingID,
+            id => id === ready.recordingID,
+          )
+            ? []
+            : playbackBar(ready),
+        ),
+        M.orElse(() => []),
+      )
+    : []
+  return [...captureBar(model, isRecordAvailable), ...playback]
+}
+
+const floatingLayer = (model: Model): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Class(
+        'pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6',
+      ),
+    ],
+    [
+      h.div(
+        [
+          h.Class(
+            'pointer-events-auto flex w-full max-w-xl flex-col items-center gap-2 [&>*]:max-w-full',
+          ),
+        ],
+        floatingControls(model),
+      ),
+    ],
+  )
+}
+
+const shareOverlay = (model: Model): ReadonlyArray<Html> =>
+  M.value(model.playback).pipe(
+    M.withReturnType<ReadonlyArray<Html>>(),
+    M.tag('ReadyPlayback', ready =>
+      shareSheet(model, ready.detail.summary.title, ready.detail.sections),
+    ),
+    M.orElse(() => []),
   )
 
 /** The whole page for a Model. */
@@ -72,8 +205,14 @@ export const view =
     return {
       title: titleOf(model),
       body: h.div(
-        [h.Class('min-h-dvh bg-stone-50 text-stone-900 antialiased')],
-        [header(model, config), content(model), copyNotice(model)],
+        [h.Class('min-h-dvh bg-canvas font-sans text-label antialiased')],
+        [
+          topBar(model),
+          content(model, config),
+          floatingLayer(model),
+          ...shareOverlay(model),
+          toast(model),
+        ],
       ),
     }
   }

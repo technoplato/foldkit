@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
-    "@foldkit/instant": "workspace:*",
     "@instantdb/core": "1.0.53",
+    "@nuintun/qrcode": "5.0.3",
     "@tailwindcss/vite": "^4.3.1",
     "effect": "4.0.0-beta.97",
     "foldkit": "workspace:*",

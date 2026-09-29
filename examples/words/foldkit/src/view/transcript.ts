@@ -20,48 +20,35 @@ import {
   sectionAt,
   sectionPlaybackStart,
   speakerLabelOf,
+  speakerRunStartIDsOf,
   timelineOf,
   wordAt,
 } from 'words-core-example'
 
 import { ScrollSectionIntoView } from '../mount.js'
+import { icon } from './icon.js'
 
 const sectionSlots = createKeyedLazy()
 const transcriptSlot = createLazy()
 
-const wordView = (word: Word, isActive: boolean): Html => {
+const wordView = (word: Word, isActive: boolean, isPlayable: boolean): Html => {
   const h = html<Message>()
   return h.span(
     [
       h.Key(word.id),
-      h.OnClick(ClickedWord({ seconds: word.startSeconds })),
+      ...(isPlayable
+        ? [h.OnClick(ClickedWord({ seconds: word.startSeconds }))]
+        : []),
       h.Class(
-        isActive
-          ? 'cursor-pointer rounded bg-amber-200 text-stone-950'
-          : 'cursor-pointer rounded hover:bg-stone-200',
+        `${isPlayable ? 'word cursor-pointer' : ''} ${isActive ? 'word-current' : ''}`,
       ),
     ],
     [`${word.text} `],
   )
 }
 
-const sectionClass = (
-  isCurrent: boolean,
-  isFocused: boolean,
-  isFinal: boolean,
-): string => {
-  const tone = isFinal ? 'text-stone-900' : 'text-stone-500 italic'
-  if (isFocused) {
-    return `scroll-mt-24 rounded-xl bg-amber-50 px-3 py-2 ring-2 ring-amber-300 transition ${tone}`
-  } else if (isCurrent) {
-    return `scroll-mt-24 rounded-xl bg-sky-50 px-3 py-2 transition ${tone}`
-  } else {
-    return `scroll-mt-24 rounded-xl px-3 py-2 transition ${tone}`
-  }
-}
-
-const smallButtonClass =
-  'min-h-9 rounded-full px-3 text-xs text-stone-500 hover:bg-stone-200 hover:text-stone-900'
+const sectionActionClass =
+  'inline-flex size-8 items-center justify-center rounded-full text-tertiary transition hover:bg-fill hover:text-label'
 
 const sectionView = (
   section: Section,
@@ -70,67 +57,99 @@ const sectionView = (
   isFocused: boolean,
   isScrollTarget: boolean,
   speakerLabel: string | undefined,
+  isPlayable: boolean,
 ): Html => {
   const h = html<Message>()
+  const surface = isCurrent ? 'bg-fill/70' : 'hover:bg-fill/40'
   return h.article(
     [
       h.Key(section.id),
-      h.Class(sectionClass(isCurrent, isFocused, section.isFinal)),
+      h.Class(
+        `group/section grid scroll-mt-28 grid-cols-[3.5rem_1fr] gap-x-2 rounded-2xl px-2 py-2.5 transition sm:grid-cols-[4.25rem_1fr] ${surface} ${isFocused ? 'section-focused' : ''}`,
+      ),
       ...(isScrollTarget
         ? [h.OnMount(ScrollSectionIntoView({ sectionID: section.id }))]
         : []),
     ],
     [
-      h.div(
-        [h.Class('flex flex-wrap items-center gap-1 text-xs text-stone-500')],
+      h.button(
         [
-          h.button(
-            [
-              h.Type('button'),
-              h.Title('Play from here'),
-              h.OnClick(
-                ClickedWord({ seconds: sectionPlaybackStart(section) }),
-              ),
-              h.Class(`${smallButtonClass} font-mono`),
-            ],
-            [formatClock(section.startSeconds)],
-          ),
-          ...(speakerLabel === undefined
-            ? []
-            : [
-                h.span(
-                  [h.Class('font-semibold text-stone-700')],
-                  [speakerLabel],
-                ),
-              ]),
-          h.span([h.Class('flex-1')], []),
-          h.button(
-            [
-              h.Type('button'),
-              h.AriaLabel('Copy link to this moment'),
-              h.OnClick(ClickedCopySectionLink({ sectionID: section.id })),
-              h.Class(smallButtonClass),
-            ],
-            ['Copy link'],
-          ),
-          h.button(
-            [
-              h.Type('button'),
-              h.AriaLabel('Copy this section'),
-              h.OnClick(ClickedCopySectionText({ sectionID: section.id })),
-              h.Class(smallButtonClass),
-            ],
-            ['Copy text'],
+          h.Type('button'),
+          h.Title('Play from here'),
+          h.AriaLabel(`Play from ${formatClock(section.startSeconds)}`),
+          h.Disabled(!isPlayable),
+          h.OnClick(ClickedWord({ seconds: sectionPlaybackStart(section) })),
+          h.Class(
+            'tabular self-start rounded-lg px-1.5 py-1 text-right font-mono text-[12px] leading-6 text-tertiary transition enabled:hover:bg-fill enabled:hover:text-tint disabled:cursor-default',
           ),
         ],
+        [formatClock(section.startSeconds)],
       ),
-      h.p(
-        [h.Class('text-[15px] leading-7')],
-        Array.match(section.words, {
-          onEmpty: () => [section.text],
-          onNonEmpty: words =>
-            Array.map(words, word => wordView(word, word.id === activeWordID)),
-        }),
+      h.div(
+        [h.Class('flex min-w-0 flex-col gap-0.5')],
+        [
+          h.div(
+            [h.Class('flex min-h-6 items-center gap-2')],
+            [
+              ...(speakerLabel === undefined
+                ? []
+                : [
+                    h.span(
+                      [h.Class('text-[13px] font-semibold text-secondary')],
+                      [speakerLabel],
+                    ),
+                  ]),
+              h.span([h.Class('flex-1')], []),
+              h.span(
+                [
+                  h.Class(
+                    'flex items-center gap-0.5 opacity-0 transition focus-within:opacity-100 group-hover/section:opacity-100 [@media(hover:none)]:opacity-100',
+                  ),
+                ],
+                [
+                  h.button(
+                    [
+                      h.Type('button'),
+                      h.AriaLabel('Copy link to this section'),
+                      h.Title('Copy link'),
+                      h.OnClick(
+                        ClickedCopySectionLink({ sectionID: section.id }),
+                      ),
+                      h.Class(sectionActionClass),
+                    ],
+                    [icon('Link', 'size-4')],
+                  ),
+                  h.button(
+                    [
+                      h.Type('button'),
+                      h.AriaLabel('Copy this section’s text'),
+                      h.Title('Copy text'),
+                      h.OnClick(
+                        ClickedCopySectionText({ sectionID: section.id }),
+                      ),
+                      h.Class(sectionActionClass),
+                    ],
+                    [icon('Copy', 'size-4')],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          h.p(
+            [
+              h.Class(
+                `text-[17px] leading-[1.65] ${section.isFinal ? 'text-label' : 'text-secondary'}`,
+              ),
+            ],
+            Array.match(section.words, {
+              onEmpty: () => [section.text],
+              onNonEmpty: words =>
+                Array.map(words, word =>
+                  wordView(word, word.id === activeWordID, isPlayable),
+                ),
+            }),
+          ),
+        ],
       ),
     ],
   )
@@ -142,15 +161,25 @@ const clipboardView = (clipboard: ClipboardEntry): Html => {
     [
       h.Key(clipboard.id),
       h.Class(
-        'mx-3 my-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700',
+        'my-1.5 ml-[3.75rem] mr-2 flex flex-col gap-1 rounded-2xl border border-separator bg-surface px-4 py-3 sm:ml-[4.5rem]',
       ),
     ],
     [
       h.span(
-        [h.Class('mr-2 font-mono text-xs text-stone-400')],
-        [`${formatClock(clipboard.timestampSeconds)} Clipboard`],
+        [
+          h.Class(
+            'flex items-center gap-1.5 text-[12px] font-semibold text-secondary',
+          ),
+        ],
+        [
+          icon('Copy', 'size-3.5'),
+          `Clipboard at ${formatClock(clipboard.timestampSeconds)}`,
+        ],
       ),
-      h.span([h.Class('line-clamp-4 whitespace-pre-wrap')], [clipboard.text]),
+      h.span(
+        [h.Class('line-clamp-4 whitespace-pre-wrap text-[15px] text-label')],
+        [clipboard.text],
+      ),
     ],
   )
 }
@@ -161,28 +190,28 @@ const imageView = (
 ): Html => {
   const h = html<Message>()
   return h.figure(
-    [h.Key(image.id), h.Class('mx-3 my-2')],
+    [h.Key(image.id), h.Class('my-2 ml-[3.75rem] mr-2 sm:ml-[4.5rem]')],
     [
       Option.match(maybeUrl, {
         onNone: () =>
           h.div(
             [
               h.Class(
-                'flex h-40 items-center justify-center rounded-xl bg-stone-200 text-sm text-stone-500',
+                'flex h-44 items-center justify-center rounded-2xl bg-fill text-[14px] text-secondary',
               ),
             ],
-            ['Loading image…'],
+            ['Loading image'],
           ),
         onSome: url =>
           h.img([
             h.Src(url),
             h.Alt(`Image at ${formatClock(image.timestampSeconds)}`),
             h.Loading('lazy'),
-            h.Class('max-h-96 rounded-xl border border-stone-200'),
+            h.Class('max-h-96 rounded-2xl border border-separator'),
           ]),
       }),
       h.figcaption(
-        [h.Class('mt-1 font-mono text-xs text-stone-400')],
+        [h.Class('mt-1 font-mono text-[12px] text-tertiary')],
         [formatClock(image.timestampSeconds)],
       ),
     ],
@@ -196,10 +225,12 @@ const timelineView = (
   activeWordID: string | undefined,
   focusedSectionID: string | undefined,
   scrollTargetID: string | undefined,
+  isPlayable: boolean,
 ): Html => {
   const h = html<Message>()
+  const runStartIDs = speakerRunStartIDsOf(detail.sections)
   return h.div(
-    [h.Class('flex flex-col gap-1')],
+    [h.Class('flex flex-col gap-0.5')],
     Array.map(timelineOf(detail), entry =>
       M.value(entry).pipe(
         M.withReturnType<Html>(),
@@ -211,7 +242,10 @@ const timelineView = (
               section.id === currentSectionID,
               section.id === focusedSectionID,
               section.id === scrollTargetID,
-              Option.getOrUndefined(speakerLabelOf(detail, section)),
+              Array.contains(runStartIDs, section.id)
+                ? Option.getOrUndefined(speakerLabelOf(detail, section))
+                : undefined,
+              isPlayable,
             ]),
           ClipboardTimelineEntry: ({ clipboard }) => clipboardView(clipboard),
           ImageTimelineEntry: ({ image }) =>
@@ -226,6 +260,27 @@ const sectionIDOf = (
   maybeSection: Option.Option<Section>,
 ): string | undefined =>
   Option.getOrUndefined(Option.map(maybeSection, section => section.id))
+
+const hasPlayableAudio = (ready: ReadyPlayback): boolean =>
+  ready.detail.audio._tag === 'StoredAudio' && !isLiveRecording(ready)
+
+const waitingForWords = (): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Class(
+        'flex flex-col items-center gap-2 rounded-3xl border border-dashed border-separator px-6 py-12 text-center',
+      ),
+    ],
+    [
+      icon('Microphone', 'size-7 text-tertiary'),
+      h.p(
+        [h.Class('text-[15px] text-secondary')],
+        ['Listening. Words appear here as they are spoken.'],
+      ),
+    ],
+  )
+}
 
 /**
  * The timeline. The section playing (or, while recording, the newest one)
@@ -251,7 +306,8 @@ export const transcript = (ready: ReadyPlayback): Html => {
       : undefined
   return h.section(
     [
-      h.Class('mx-auto w-full max-w-3xl px-2 pb-48 pt-2'),
+      h.AriaLabel('Transcript'),
+      h.Class('mx-auto w-full max-w-3xl px-2 pb-52 pt-3 sm:px-4'),
       ...(ready.follow === 'Following'
         ? [
             h.OnWheel(ScrolledTranscriptAway()),
@@ -260,14 +316,50 @@ export const transcript = (ready: ReadyPlayback): Html => {
         : []),
     ],
     [
-      transcriptSlot(timelineView, [
-        ready.detail,
-        ready.fileUrls,
-        sectionIDOf(maybeCurrent),
-        activeWordID,
-        focusedSectionID,
-        focusedSectionID ?? followedSectionID,
-      ]),
+      Array.match(ready.detail.sections, {
+        onEmpty: () =>
+          isLiveRecording(ready)
+            ? waitingForWords()
+            : h.p(
+                [h.Class('px-4 text-[15px] text-secondary')],
+                ['This recording has no transcript.'],
+              ),
+        onNonEmpty: () =>
+          transcriptSlot(timelineView, [
+            ready.detail,
+            ready.fileUrls,
+            sectionIDOf(maybeCurrent),
+            activeWordID,
+            focusedSectionID,
+            focusedSectionID ?? followedSectionID,
+            hasPlayableAudio(ready),
+          ]),
+      }),
     ],
+  )
+}
+
+/** A read-only list of sections, for a shared range without audio; speakers labeled once per run. */
+export const readOnlySections = (
+  sections: ReadonlyArray<Section>,
+  speakerLabel: (section: Section) => string | undefined,
+): Html => {
+  const h = html<Message>()
+  const runStartIDs = speakerRunStartIDsOf(sections)
+  return h.div(
+    [h.Class('flex flex-col gap-0.5')],
+    Array.map(sections, section =>
+      sectionView(
+        section,
+        undefined,
+        false,
+        false,
+        false,
+        Array.contains(runStartIDs, section.id)
+          ? speakerLabel(section)
+          : undefined,
+        false,
+      ),
+    ),
   )
 }

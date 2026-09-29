@@ -335,6 +335,7 @@ const _schema = i.schema({
       updatedAtMs: i.number().indexed(),
       youtubeBroadcastURL: i.string().optional(),
     }),
+    // A range share (ADR 0014): one recipient or one secret link per row. The range is fixed when shared.
     recordingSegmentShares: i.entity({
       ownerUserID: i.string().indexed(),
       recordingID: i.string().indexed(),
@@ -342,6 +343,24 @@ const _schema = i.schema({
       lastSegmentID: i.string().indexed(),
       firstSegmentIndex: i.number().indexed(),
       lastSegmentIndex: i.number().indexed(),
+      startSeconds: i.number(),
+      endSeconds: i.number(),
+      // "people" | "link"
+      visibility: i.string().indexed(),
+      recipientEmail: i.string().indexed().optional(),
+      linkToken: i.string().optional(),
+      sharedByDisplayName: i.string().optional(),
+      note: i.string().optional(),
+      createdAtMs: i.number().indexed(),
+      updatedAtMs: i.number().indexed(),
+    }),
+    // Recipient history for autocomplete (ADR 0014): one row per (sharer, email), deterministic id.
+    shareRecipients: i.entity({
+      ownerUserID: i.string().indexed(),
+      email: i.string().indexed(),
+      displayName: i.string().optional(),
+      lastSharedAtMs: i.number().indexed(),
+      shareCount: i.number(),
       createdAtMs: i.number().indexed(),
       updatedAtMs: i.number().indexed(),
     }),
@@ -743,6 +762,19 @@ const _schema = i.schema({
         on: '$users',
         has: 'many',
         label: 'readableSegmentShares',
+      },
+    },
+    shareRecipientOwner: {
+      forward: {
+        on: 'shareRecipients',
+        has: 'one',
+        label: 'owner',
+        onDelete: 'cascade',
+      },
+      reverse: {
+        on: '$users',
+        has: 'many',
+        label: 'shareRecipients',
       },
     },
     recordingSegmentShareRecording: {

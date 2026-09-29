@@ -1,22 +1,14 @@
-import { Duration, Effect, Queue, Schema as S, Stream } from 'effect'
-import { ManagedResource } from 'foldkit'
+import { Duration, Effect, Queue, Stream } from 'effect'
 import {
-  AcquiredAudioPlayer,
-  AudioPlayer,
   AudioPlayerError,
   type AudioPlayerEvent,
   type AudioPlayerHandle,
-  FailedAcquireAudioPlayer,
   HeardAudioDuration,
   HeardAudioEnded,
   HeardAudioError,
   HeardAudioPaused,
   HeardAudioPlaying,
   HeardAudioPosition,
-  type Message,
-  type Model,
-  ReleasedAudioPlayer,
-  audioSourceOf,
 } from 'words-core-example'
 
 const POSITION_INTERVAL_MS = 100
@@ -103,7 +95,10 @@ const handleOf = (element: HTMLAudioElement): AudioPlayerHandle => ({
   events: eventsOf(element),
 })
 
-const openAudio = (url: string): Effect.Effect<AudioPlayerHandle, Error> =>
+/** Opens a recording's audio in a browser audio element once its metadata loads. */
+export const openAudio = (
+  url: string,
+): Effect.Effect<AudioPlayerHandle, Error> =>
   Effect.callback<AudioPlayerHandle, Error>(resume => {
     const element = new Audio()
     const handleReady = () => {
@@ -131,24 +126,3 @@ const openAudio = (url: string): Effect.Effect<AudioPlayerHandle, Error> =>
       ),
     ),
   )
-
-/** The open recording's audio, played by a browser audio element. */
-export const managedResources = ManagedResource.make<Model, Message>()(
-  entry => ({
-    audioPlayer: entry(
-      S.Option(S.Struct({ url: S.String, attempt: S.Number })),
-      {
-        resource: AudioPlayer,
-        modelToMaybeRequirements: audioSourceOf,
-        acquire: ({ url }) => openAudio(url),
-        release: player => player.close,
-        onAcquired: () => AcquiredAudioPlayer(),
-        onReleased: () => ReleasedAudioPlayer(),
-        onAcquireError: error =>
-          FailedAcquireAudioPlayer({
-            reason: error instanceof Error ? error.message : String(error),
-          }),
-      },
-    ),
-  }),
-)

@@ -3,9 +3,12 @@ import { m } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
 
+import * as Account from './account/message.js'
+import * as Capture from './capture/message.js'
 import { ScribeAppScheme } from './link.js'
 import { CopyNotice, IdentityState } from './model.js'
 import { RecordingDetail, RecordingSummary } from './recording.js'
+import * as Share from './share/message.js'
 import { TranscriptFormat } from './transcript.js'
 
 // MESSAGE
@@ -163,6 +166,19 @@ export const ClickedOpenInApp = m('ClickedOpenInApp', {
   scheme: ScribeAppScheme,
 })
 
+/** The account Submodel handled a Message. */
+export const GotAccountMessage = m('GotAccountMessage', {
+  message: Account.Message,
+})
+/** The recorder Submodel handled a Message. */
+export const GotCaptureMessage = m('GotCaptureMessage', {
+  message: Capture.Message,
+})
+/** The share Submodel handled a Message. */
+export const GotShareMessage = m('GotShareMessage', {
+  message: Share.Message,
+})
+
 /** Every web Scribe Message. */
 export const Message = S.Union([
   ClickedLink,
@@ -215,6 +231,9 @@ export const Message = S.Union([
   FailedCopy,
   ElapsedCopyNotice,
   ClickedOpenInApp,
+  GotAccountMessage,
+  GotCaptureMessage,
+  GotShareMessage,
 ])
 /** Every web Scribe Message. */
 export type Message = typeof Message.Type

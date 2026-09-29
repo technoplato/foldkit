@@ -23,6 +23,10 @@
           {
             "/": "/recordings/*",
             "comment": "The recordings map and search"
+          },
+          {
+            "/": "/account",
+            "comment": "The Account screen, where the iPhone signs in so web Scribe can use the same account"
           }
         ]
       }
