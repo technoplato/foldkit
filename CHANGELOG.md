@@ -602,6 +602,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 1:26:32 a.m. EDT — `226d5fd8a3a6` feat(words): account, sharing, and live recording on web Scribe
+
+- **Implementation commit:** `226d5fd8a3a6caaf5ee89129ae18ef822a7ee72b`
+- **Change:** Add the account, sharing, and live recording to web Scribe.
+- **Details:**
+  - words.knophy.com now shows who Cloudflare Access says the listener is and the state of their Scribe account. Without an account it shows a QR code for the iPhone's Account screen and checks every 5 seconds, signing in on its own; creating the account from Access stays off behind WORDS_CREATE_SCRIBE_ACCOUNT_FROM_ACCESS.
+  - Recording runs in the browser: an AudioWorklet records 16 kHz audio, Deepgram transcribes it live with a 30 second token the origin mints, and the Program writes recordings, open-section upserts with words JSON, and the WAV attachment in the iPhone's exact shapes.
+  - Sharing follows ADR 0014: a range of sections with people by email or a secret link, recipient autocomplete, revoke, and share links that show and claim the range. Share writes stay off until the origin reports the sharing schema.
+- **Files:**
+  - `examples/words/foldkit/vitePlugins.ts` — Report the Access identity, gate the session mint, and mint transcription tokens on the origin.
+  - `examples/words/core/src/account/update.ts` — Connect the Access identity to the Scribe account, recheck while waiting, and sign out.
+  - `examples/words/core/src/capture/update.ts` — Record, transcribe live, and save in the iPhone's write shape.
+  - `examples/words/core/src/capture/writer.ts` — Write recordings, sections, and audio exactly as the iPhone does.
+  - `examples/words/core/src/share/update.ts` — Share ranges by email or link, revoke, and claim a share.
+  - `examples/words/core/src/ids.ts` — Derive transcription, section, attachment, and recipient ids like the iPhone.
+  - `examples/words/foldkit/src/capture.ts` — Open the microphone, the capture worklet, and the Deepgram stream.
+  - `examples/words/foldkit/src/view/connect.ts` — Replace the not-signed-in dead end with the QR code and steps.
+  - `examples/words/foldkit/src/view/account.ts` — Show the account, the Access session, sharing, and sign out.
+  - `examples/words/foldkit/src/styles.css` — Define the light and dark palette and glass for floating controls.
+- **User context (verbatim):**
+  > I don't see the account that's logged in. I don't see how to invite people or share links with
+  > I have no idea what my account is, how to share with it, maybe a QR code, I don't know, anything
+  > I don't have the ability to record audio or transcribe anything
+  > I don't want anything that isn't live.
 - **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
 
 ## September 23rd, 2026 at 8:30:16 a.m. EDT — `64b45461a2a7` docs: add Foldkit principles and the view-agnostic audit
