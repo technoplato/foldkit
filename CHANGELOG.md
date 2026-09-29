@@ -602,6 +602,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 1:43:20 a.m. EDT — `9739dab7bf87` fix(words): align transcript text, explain microphone failures, fit iPhones
+
+- **Implementation commit:** `9739dab7bf87e53af70b06506ba054094be0db49`
+- **Change:** Align transcript text, explain microphone failures, and fit iPhone widths.
+- **Details:**
+  - Section text now lines up with its timestamp: the copy actions float over the section's corner and the speaker name renders only where a run starts.
+  - A refused, missing, or busy microphone now says what to do instead of the browser's raw message.
+  - On iPhone widths the recording actions and the share sheet's link option collapse to icons and short labels with their accessible names.
+- **Files:**
+  - `examples/words/foldkit/src/view/transcript.ts` — Float section actions and render speaker names only at run starts.
+  - `examples/words/foldkit/src/capture.ts` — Explain microphone failures in plain words.
+  - `examples/words/foldkit/src/view/ui.ts` — Add a button whose label collapses to its icon on narrow screens.
+  - `examples/words/foldkit/src/view/playback.ts` — Fit the recording actions on one row on iPhones.
+  - `examples/words/foldkit/src/view/share.ts` — Shorten the link option on narrow screens.
+- **User context (verbatim):**
+  > audit the uh visuals of the words.nofi.com
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 1:26:32 a.m. EDT — `226d5fd8a3a6` feat(words): account, sharing, and live recording on web Scribe
 
 - **Implementation commit:** `226d5fd8a3a6caaf5ee89129ae18ef822a7ee72b`
