@@ -123,7 +123,7 @@ export const connectCard = (access: AccessIdentity): Html => {
                   step(
                     1,
                     'Scan the code',
-                    'Scribe opens its Account screen. Without a camera: in Scribe, open Settings, then Account & Device, then Manage account.',
+                    'Scribe opens its Account screen. If it opens without it, or you have no camera: in Scribe, open Settings, then Account & Device, then Manage account.',
                   ),
                   step(
                     2,
