@@ -115,10 +115,13 @@ const capsuleButton = (
       ...Option.toArray(Option.map(maybeKey, key => h.AriaKeyshortcuts(key))),
       h.OnClick(message),
       h.Class(
-        `inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-subhead font-semibold transition duration-150 active:scale-95 ${className}`,
+        `inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-subhead font-semibold transition duration-150 active:scale-95 @max-[18rem]:w-11 @max-[18rem]:px-0 ${className}`,
       ),
     ],
-    [icon(iconName, 'size-[18px]'), h.span([], [visibleLabel])],
+    [
+      icon(iconName, 'size-[18px]'),
+      h.span([h.Class('@max-[18rem]:hidden')], [visibleLabel]),
+    ],
   )
 }
 
@@ -172,7 +175,9 @@ const capturingBar = (
     [
       h.Role('group'),
       h.AriaLabel('Recording controls'),
-      h.Class('glass flex items-center gap-2 rounded-full py-2 pl-5 pr-2'),
+      h.Class(
+        '@container glass flex w-full items-center gap-2 rounded-full py-2 pl-5 pr-2',
+      ),
     ],
     [
       isOnRecordingPage
@@ -233,7 +238,7 @@ const workingBar = (label: string, detail: string): Html => {
   return h.div(
     [
       h.Role('status'),
-      h.Class('glass flex items-center gap-3 rounded-full px-5 py-3'),
+      h.Class('glass flex w-full items-center gap-3 rounded-full px-5 py-3'),
     ],
     [spinner('size-5 text-accent'), statusText(label, detail)],
   )
