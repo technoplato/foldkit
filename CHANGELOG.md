@@ -602,6 +602,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 30th, 2026 at 2:22:34 p.m. EDT — `3dc2547729e7` test(words): tell a late list snapshot apart from the loaded rows
+
+- **Implementation commit:** `3dc2547729e79ff350a9fe46c3ee6c3bac2e699a`
+- **Change:** Make the late list snapshot test tell an accepted snapshot apart from the loaded rows (Scribe #299).
+- **Details:**
+  - The late snapshot now carries a new recording at the top, so taking it would change the rows; with update's window check removed the test fails (it passed before, since the snapshot matched the loaded rows).
+  - Test-only; the deployed bundle is unchanged.
+- **Files:**
+  - `examples/words/core/src/listWindow.test.ts` — the stale snapshot test uses different rows
+- **User context (verbatim):**
+  > I never want to have to manually load more things.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 30th, 2026 at 2:02:31 p.m. EDT — `9f088af149b3` fix(words): keep no Program journal history in production builds
 
 - **Implementation commit:** `9f088af149b37f98af46ea03de4f59d6cb7ad07d`
