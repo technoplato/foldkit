@@ -602,6 +602,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 30th, 2026 at 4:34:17 a.m. EDT — `1f636163ea86` fix(words): title the offline opening card "Waiting for the network"
+
+- **Implementation commit:** `1f636163ea86915c4502bef69e5aa5a4cec8074b`
+- **Change:** Title the offline opening card Waiting for the network (#289 W49, follow-up).
+- **Details:**
+  - Offline, the page's notice already says You are offline; the opening card now says what the recording waits for, and that the browser is offline and the recording opens once the network is back.
+- **Files:**
+  - `examples/words/foldkit/src/view/playback.ts` — the offline opening card's title and line
+- **User context (verbatim):**
+  > the transcript is not loading from within the app, although the word count is.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 30th, 2026 at 4:07:28 a.m. EDT — `b994a01bec07` fix(words): keep the title whole at large text, badges readable on selected rows, two rows beside a live recording, and a wider column from 1600 px
 
 - **Implementation commit:** `b994a01bec07fd7a6866d8ae1cae183a2a2d4c53`
