@@ -602,6 +602,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 9:43:57 p.m. EDT — `fbb602ac3439` fix(words): keep share rows readable on phones and focused timestamps clear of the player
+
+- **Implementation commit:** `fbb602ac343956fd93bda0720e6d22371c27467f`
+- **Change:** Keep share rows readable on phones and focused timestamps clear of the player (#289 W23, W26).
+- **Details:**
+  - W23: share rows keep a 12rem text column with normal word breaking, so Copy Link and Stop Sharing wrap below it at 375 px.
+  - W26: html scroll-padding 4.5rem top and 12rem bottom; tabbing through timestamps on a 375 px phone left 4 of 22 behind the player before and 0 of 25 after.
+- **Files:**
+  - `examples/words/foldkit/src/view/share.ts` — share row text column and button wrap
+  - `examples/words/foldkit/src/styles.css` — root scroll padding for the top bar and the player
+  - `examples/words/foldkit/src/view/transcript.ts` — section scroll margins replaced by the root padding
+  - `examples/words/foldkit/src/view/playback.ts` — title scroll margin replaced by the root padding
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 9:39:47 p.m. EDT — `0832651d1cb8` feat(words): the recording list as a sidebar beside the page from 1024 px
 
 - **Implementation commit:** `0832651d1cb8dacc499dc081c91059c2b4472a57`
