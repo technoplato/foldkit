@@ -602,6 +602,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 10:30:35 p.m. EDT — `da45629315bd` fix(words): one moment link, clearer names, fewer text sizes, no empty landmark
+
+- **Implementation commit:** `da45629315bd03f0ad688ea832853561bb5b21ff`
+- **Change:** One moment link, clearer names, fewer text sizes, no empty landmark (#289 W38, W39, W40, W47).
+- **Details:**
+  - W39: the player's Copy Link to This Moment copies the section link at the playhead with the lead-in (playback form only before the first section); Back to Playhead uses a playhead symbol.
+  - W38: Settings lists F and /; Skip to Controls and the Controls region; no single-key Stop by design (capture safety).
+  - W40: body-size semibold headings on the list's empty states and the Settings email; W47: no empty Controls region.
+- **Files:**
+  - `examples/words/core/src/update.ts` — momentRouteOf
+  - `examples/words/core/src/update.test.ts` — moment link tests
+  - `examples/words/core/src/message.ts` — Skip to Controls doc
+  - `examples/words/foldkit/src/view/icon.ts` — Playhead icon
+  - `examples/words/foldkit/src/view/playback.ts` — Back to Playhead symbol
+  - `examples/words/foldkit/src/view/account.ts` — shortcut list and email size
+  - `examples/words/foldkit/src/view/list.ts` — body-size headings
+  - `examples/words/foldkit/src/view/view.ts` — Skip to Controls; region only with controls
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 10:25:24 p.m. EDT — `94546393c955` feat(words): keep a recording playing while browsing and beside the live one
 
 - **Implementation commit:** `94546393c95535e58293f94980a0f709dae1aca3`
