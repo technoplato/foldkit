@@ -256,9 +256,15 @@ describe('loading the list as it scrolls', () => {
 
   it('ignores a snapshot of a window it no longer asks for', () => {
     const loading = approach(firstLoaded(), 'Older')
-    const late = run(loading, [snapshotOf(firstRecordingWindow, LONG_LIST)])
+    const withNewRecording = listOf(1_001)
+    const late = run(loading, [
+      snapshotOf(firstRecordingWindow, withNewRecording),
+    ])
     expect(late.model).toEqual(loading)
     expect(listPagingOf(late.model)).toBe('LoadingOlder')
+    expect(idsOf(loadedOf(late.model).recordings)).toEqual(
+      idsOf(rowsOf(firstRecordingWindow, LONG_LIST)),
+    )
   })
 
   it('stops at a page that adds nothing, even when the server keeps saying there is more', () => {
