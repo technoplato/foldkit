@@ -602,6 +602,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 9:23:32 p.m. EDT — `dd024f61ead9` feat(words): row actions on touch and a right-click menu on the recording list
+
+- **Implementation commit:** `dd024f61ead95579682e4de26f285a8a72c8d3d7`
+- **Change:** Row actions on touch and a right-click menu on the recording list (#289 W30).
+- **Details:**
+  - Before, on a touch phone no row offered any action (the hover-only Copy Link was hidden); after, 4 of 4 rows show a 44x44 More button whose menu lists Copy Link and Share Link, and Share Link hands the recording's https link to the system share sheet.
+  - On desktop a right-click on a row opens the same menu, and Copy Link puts https://words.knophy.com/recording/<id> on the clipboard (probe-w30.mjs on the fixture host).
+- **Files:**
+  - `examples/words/core/src/linkSharer.ts` — LinkSharer service for the system share sheet
+  - `examples/words/core/src/index.ts` — export the LinkSharer service
+  - `examples/words/core/src/message.ts` — Share Link and context menu Messages
+  - `examples/words/core/src/update.ts` — ShareRecordingLink Command and handlers
+  - `examples/words/core/src/program.ts` — LinkSharer among the Program's resources
+  - `examples/words/core/src/update.test.ts` — Share Link test
+  - `examples/words/foldkit/src/browser.ts` — the Web Share API as the LinkSharer
+  - `examples/words/foldkit/src/entry.ts` — provide LinkSharer; tell views whether the browser can share
+  - `examples/words/foldkit/src/mount.ts` — ShowRowMenuOnContextMenu
+  - `examples/words/foldkit/src/view/list.ts` — More button and row menu
+  - `examples/words/foldkit/src/view/shell.ts` — ViewConfig canShareLinks
+  - `examples/words/foldkit/src/view/view.ts` — pass the view config to the list
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 9:08:20 p.m. EDT — `0db15b6ccc7a` fix(words): keep the recording bar readable at large text and as wide as the player
 
 - **Implementation commit:** `0db15b6ccc7ac1b39489a02b2b12571361bc0ec1`
