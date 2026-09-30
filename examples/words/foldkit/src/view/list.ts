@@ -14,6 +14,7 @@ import {
   SEARCH_FIELD_ID,
   UpdatedSearchQuery,
   formatClock,
+  observedRecordingIDOf,
   recordingsMatching,
   scribeRouteToPath,
   searchTermsOf,
@@ -208,6 +209,10 @@ const recordingRow =
   (recording: RecordingSummary): Html => {
     const h = html<Message>()
     const menuID = `row-menu-${recording.id}`
+    const isOpen = Option.exists(
+      observedRecordingIDOf(model),
+      recordingID => recordingID === recording.id,
+    )
     const status = rowStatusOf(recording, ownCaptureOf(model, recording.id))
     const isLive = status.isLive
     const meta = Array.join(
@@ -230,8 +235,9 @@ const recordingRow =
             h.Href(
               scribeRouteToPath(RecordingRoute({ recordingID: recording.id })),
             ),
+            h.AriaCurrent(isOpen ? 'page' : 'false'),
             h.Class(
-              'flex min-w-0 flex-1 gap-3.5 py-3.5 pl-4 pr-4 transition hover:bg-fill/60 focus-visible:-outline-offset-2 active:bg-fill [@media(hover:none)]:pr-14',
+              `flex min-w-0 flex-1 gap-3.5 py-3.5 pl-4 pr-4 transition hover:bg-fill/60 focus-visible:-outline-offset-2 active:bg-fill [@media(hover:none)]:pr-14 ${isOpen ? 'bg-fill' : ''}`,
             ),
           ],
           [
@@ -665,23 +671,79 @@ const subtitleOf = (model: Model): string =>
     M.orElse(() => 'Your recordings, live from every device'),
   )
 
-/** The recording list, newest first by day, live; or the step that signs this browser in. */
-export const recordingList = (model: Model, config: ViewConfig): Html => {
+const listContent = (model: Model, config: ViewConfig): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return [
+    h.div(
+      [h.Class('flex flex-col gap-1 px-1')],
+      [
+        largeTitle('Recordings'),
+        h.p([h.Class('text-subhead text-secondary')], [subtitleOf(model)]),
+      ],
+    ),
+    ...bodyOf(model, config),
+  ]
+}
+
+const sidebarColumnClass =
+  'lg:sticky lg:top-14 lg:mx-0 lg:h-[calc(100dvh-3.5rem)] lg:max-w-none lg:overflow-y-auto lg:overscroll-contain lg:border-r lg:border-separator lg:px-4 lg:pb-10 lg:[&_h1]:text-large-title'
+
+/**
+ * The recording list, newest first by day, live; or the step that signs this
+ * browser in. With `isSidebarOnWideScreens`, from 1024 px it becomes the
+ * sidebar column beside the page, as on the iPad and the Mac.
+ */
+export const recordingList = (
+  model: Model,
+  config: ViewConfig,
+  isSidebarOnWideScreens: boolean,
+): Html => {
   const h = html<Message>()
   return h.main(
     [
       h.OnMount(ShowRowMenuOnContextMenu()),
-      h.Class('mx-auto flex w-full max-w-3xl flex-col px-4 pb-44 pt-6 sm:px-6'),
+      h.Class(
+        `mx-auto flex w-full max-w-3xl flex-col px-4 pb-44 pt-6 sm:px-6 ${isSidebarOnWideScreens ? sidebarColumnClass : ''}`,
+      ),
+    ],
+    listContent(model, config),
+  )
+}
+
+/** The recording list as the sidebar beside another page, from 1024 px; hidden below. */
+export const recordingSidebar = (model: Model, config: ViewConfig): Html => {
+  const h = html<Message>()
+  return h.aside(
+    [
+      h.AriaLabel('Recordings'),
+      h.OnMount(ShowRowMenuOnContextMenu()),
+      h.Class(`hidden flex-col pt-6 lg:flex ${sidebarColumnClass}`),
+    ],
+    listContent(model, config),
+  )
+}
+
+/** What the page beside the sidebar shows on the recording list, from 1024 px. */
+export const noRecordingChosen = (): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Class(
+        'hidden min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center gap-3 px-6 pb-40 text-center lg:flex',
+      ),
     ],
     [
-      h.div(
-        [h.Class('flex flex-col gap-1 px-1')],
+      icon('Waveform', 'size-10 text-tertiary'),
+      h.h2(
+        [h.Class('text-title font-semibold tracking-tight text-label')],
+        ['Choose a Recording'],
+      ),
+      h.p(
+        [h.Class('max-w-sm text-subhead text-secondary')],
         [
-          largeTitle('Recordings'),
-          h.p([h.Class('text-subhead text-secondary')], [subtitleOf(model)]),
+          `Pick one from the list to read and play it here, or press ${shortcutKeyOf('NewRecording')} for a new recording.`,
         ],
       ),
-      ...bodyOf(model, config),
     ],
   )
 }

@@ -17,6 +17,7 @@ import {
   type Message,
   type Model,
   MovedScrub,
+  RECORDING_TITLE_ELEMENT_ID,
   type ReadyPlayback,
   SKIP_SECONDS,
   Share,
@@ -135,9 +136,9 @@ const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
         [
           h.h1(
             [
-              h.Id('recording-title'),
+              h.Id(RECORDING_TITLE_ELEMENT_ID),
               h.Class(
-                'folding-title text-title font-bold tracking-tight text-label sm:text-large-title lg:text-display',
+                'folding-title scroll-mt-24 text-title font-bold tracking-tight text-label sm:text-large-title lg:text-display',
               ),
             ],
             [summary.title],
@@ -599,11 +600,11 @@ export const recordingPage = (
   const h = html<Message>()
   const isFullScreen = ready.screenMode === 'FullScreen'
   return h.main(
-    [h.AriaLabelledBy('recording-title'), h.Class('flex flex-col')],
+    [h.AriaLabelledBy(RECORDING_TITLE_ELEMENT_ID), h.Class('flex flex-col')],
     [
       isFullScreen
         ? h.h1(
-            [h.Id('recording-title'), h.Class('sr-only')],
+            [h.Id(RECORDING_TITLE_ELEMENT_ID), h.Class('sr-only')],
             [ready.detail.summary.title],
           )
         : recordingHeader(ready, config),

@@ -49,6 +49,7 @@ import {
   CompletedPauseAudio,
   CompletedPlayAudio,
   CompletedPublishNowPlaying,
+  CompletedScrollToRecordingTitle,
   CompletedScrollToSection,
   CompletedSeekAudio,
   CompletedShareRecordingLink,
@@ -233,6 +234,22 @@ export const ScrollToSection = Command.define(
 
 /** The element id of the floating player, where Skip to Player moves focus. */
 export const PLAYER_ELEMENT_ID = 'player'
+
+/** The element id of the open recording's title, where its page starts. */
+export const RECORDING_TITLE_ELEMENT_ID = 'recording-title'
+
+/**
+ * Scrolls a recording's page to its title, so a recording opened without a
+ * moment starts at the top rather than where the last page was scrolled.
+ */
+export const ScrollToRecordingTitle = Command.define(
+  'ScrollToRecordingTitle',
+  CompletedScrollToRecordingTitle,
+)(
+  Dom.scrollIntoViewAfterPaint(`#${RECORDING_TITLE_ELEMENT_ID}`, {
+    block: 'start',
+  }).pipe(Effect.ignore, Effect.as(CompletedScrollToRecordingTitle())),
+)
 
 /** Moves keyboard focus to the floating player. */
 export const FocusPlayer = Command.define(
@@ -652,7 +669,7 @@ const openingScrollOf = (
     onNone: () =>
       Option.isSome(request.maybeStartSeconds) || isLiveRecording(ready)
         ? scrollToFollowed(ready)
-        : [],
+        : [ScrollToRecordingTitle()],
   })
 
 const applyRequest = (
@@ -1738,6 +1755,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         evolveReady(model, ready => evo(ready, { follow: () => 'Detached' })),
       ClickedReturnToPlayhead: () => updateReady(model, returnToFollowed),
       CompletedScrollToSection: () => [model, []],
+      CompletedScrollToRecordingTitle: () => [model, []],
       ChangedPlayheadVisibility: ({ sectionID, visibility }) =>
         evolveReady(model, ready =>
           Option.exists(

@@ -151,6 +151,10 @@ export const ScrolledTranscriptAway = m('ScrolledTranscriptAway')
 export const ClickedReturnToPlayhead = m('ClickedReturnToPlayhead')
 /** The transcript scrolled a section into view. */
 export const CompletedScrollToSection = m('CompletedScrollToSection')
+/** A newly opened recording's page scrolled to its title. */
+export const CompletedScrollToRecordingTitle = m(
+  'CompletedScrollToRecordingTitle',
+)
 /** The followed section came on screen or left it, as the listener scrolled or the transcript grew. */
 export const ChangedPlayheadVisibility = m('ChangedPlayheadVisibility', {
   sectionID: S.String,
@@ -280,6 +284,7 @@ export const Message = S.Union([
   ScrolledTranscriptAway,
   ClickedReturnToPlayhead,
   CompletedScrollToSection,
+  CompletedScrollToRecordingTitle,
   ChangedPlayheadVisibility,
   ClickedSkipToPlayer,
   CompletedFocusPlayer,

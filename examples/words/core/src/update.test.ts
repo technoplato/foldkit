@@ -242,6 +242,12 @@ describe('opening links', () => {
     )
   })
 
+  it('starts a recording opened without a moment at the top of its page', () => {
+    expect(
+      run(opened(RecordingRoute({ recordingID })), [observed()]).commandNames,
+    ).toEqual(['ScrollToRecordingTitle'])
+  })
+
   it('closes playback when the URL returns to the list', () => {
     const start = run(opened(RecordingRoute({ recordingID })), [observed()])
     const list = run(start.model, [

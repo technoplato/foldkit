@@ -22,13 +22,15 @@ export type ViewConfig = Readonly<{
   canShareLinks: boolean
 }>
 
-const brand = (): Html => {
+const brand = (visibilityClass = ''): Html => {
   const h = html<Message>()
   return h.a(
     [
       h.Href(listPath),
       h.AriaLabel('Scribe recordings'),
-      h.Class('flex min-h-11 shrink-0 items-center gap-2.5 rounded-full pr-2'),
+      h.Class(
+        `flex min-h-11 shrink-0 items-center gap-2.5 rounded-full pr-2 ${visibilityClass}`,
+      ),
     ],
     [
       h.span(
@@ -47,13 +49,13 @@ const brand = (): Html => {
   )
 }
 
-const backButton = (): Html => {
+const backButton = (visibilityClass = ''): Html => {
   const h = html<Message>()
   return h.a(
     [
       h.Href(listPath),
       h.Class(
-        '-ml-1 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-full pl-1 pr-3 text-body text-tint transition hover:bg-tint-soft',
+        `-ml-1 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-full pl-1 pr-3 text-body text-tint transition hover:bg-tint-soft ${visibilityClass}`,
       ),
     ],
     [icon('ChevronLeft', 'size-6'), 'Recordings'],
@@ -202,12 +204,27 @@ const foldedTitleOf = (model: Model): ReadonlyArray<Html> => {
   )
 }
 
+const leadingOf = (
+  isOnList: boolean,
+  isSplit: boolean,
+): ReadonlyArray<Html> => {
+  if (isOnList) {
+    return [brand()]
+  } else if (isSplit) {
+    return [backButton('lg:hidden'), brand('hidden lg:flex')]
+  } else {
+    return [backButton()]
+  }
+}
+
 /**
- * The top bar: Scribe on the list, or the way back to it elsewhere; the open
- * recording's title once the page title scrolls under the bar; and who is
- * signed in with what state, linking to the account page.
+ * The top bar: Scribe on the list, or the way back to it elsewhere (Scribe
+ * again from 1024 px, where the list is the sidebar); the open recording's
+ * title once the page title scrolls under the bar; and who is signed in with
+ * what state, linking to the account page. It lines up with the page's
+ * column, or spans the sidebar and the page when they split.
  */
-export const topBar = (model: Model): Html => {
+export const topBar = (model: Model, isSplit: boolean): Html => {
   const h = html<Message>()
   const isOnAccount = model.route._tag === 'Account'
   const isOnList = model.route._tag === 'RecordingList'
@@ -217,11 +234,11 @@ export const topBar = (model: Model): Html => {
       h.div(
         [
           h.Class(
-            'mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-3 sm:px-5',
+            `mx-auto flex h-14 w-full max-w-3xl items-center gap-2 px-4 sm:px-6 ${isSplit ? 'lg:max-w-none lg:px-5' : ''}`,
           ),
         ],
         [
-          isOnList ? brand() : backButton(),
+          ...leadingOf(isOnList, isSplit),
           ...foldedTitleOf(model),
           h.a(
             [
@@ -241,13 +258,13 @@ export const topBar = (model: Model): Html => {
 }
 
 /** The notice after a copy or a save, announced to screen readers. */
-export const toast = (model: Model): Html => {
+export const toast = (model: Model, isSplit: boolean): Html => {
   const h = html<Message>()
   return h.div(
     [
       h.AriaLive('polite'),
       h.Class(
-        'pointer-events-none fixed inset-x-0 bottom-36 z-50 flex justify-center px-4',
+        `pointer-events-none fixed inset-x-0 bottom-36 z-50 flex justify-center px-4 ${isSplit ? 'lg:left-[21rem] xl:left-[24rem]' : ''}`,
       ),
     ],
     Option.match(model.maybeCopyNotice, {

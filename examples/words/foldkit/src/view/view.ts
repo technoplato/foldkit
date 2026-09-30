@@ -18,7 +18,7 @@ import {
 import { accountPage } from './account.js'
 import { captureBar, newRecordingPage } from './capture.js'
 import { icon } from './icon.js'
-import { recordingList } from './list.js'
+import { noRecordingChosen, recordingList, recordingSidebar } from './list.js'
 import {
   playbackBar,
   playbackNotice,
@@ -131,7 +131,7 @@ const content = (model: Model, config: ViewConfig): Html =>
   M.value(model.route).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
-      RecordingList: () => recordingList(model, config),
+      RecordingList: () => recordingList(model, config, isSplitOf(model)),
       Account: () => accountPage(model),
       NewRecording: () => newRecordingPage(model),
       Share: () => sharedRangePage(model),
@@ -141,7 +141,7 @@ const content = (model: Model, config: ViewConfig): Html =>
           'The map of your recordings and their routes is next on the web. Open it in Scribe on your iPhone for now.',
           config,
         ),
-      SearchRecordings: () => recordingList(model, config),
+      SearchRecordings: () => recordingList(model, config, isSplitOf(model)),
       NotFound: () =>
         comingToTheWeb('Not Found', 'This is not a Scribe link.', config),
       Recording: () => playbackContent(model, config),
@@ -185,12 +185,17 @@ const floatingControls = (model: Model): ReadonlyArray<Html> => {
   })
 }
 
-const floatingLayer = (controls: ReadonlyArray<Html>): Html => {
+const detailColumnOffsetClass = 'lg:left-[21rem] xl:left-[24rem]'
+
+const floatingLayer = (
+  controls: ReadonlyArray<Html>,
+  isSplit: boolean,
+): Html => {
   const h = html<Message>()
   return h.div(
     [
       h.Class(
-        'pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6',
+        `pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 ${isSplit ? detailColumnOffsetClass : ''}`,
       ),
     ],
     [
@@ -285,12 +290,72 @@ const shareOverlay = (model: Model): ReadonlyArray<Html> =>
     M.orElse(() => []),
   )
 
+const isListRoute = (model: Model): boolean =>
+  model.route._tag === 'RecordingList' ||
+  model.route._tag === 'SearchRecordings'
+
+/**
+ * Whether the page splits into the recording list and the page beside it from
+ * 1024 px, like the iPad and the Mac: while the browser signs in and once it
+ * is connected, so the layout does not move when the list arrives, and not in
+ * Full Screen. Without a connected account the page is one column, with the
+ * step that signs it in.
+ */
+const isSplitOf = (model: Model): boolean =>
+  !isFullScreenOf(model) &&
+  M.value(model.account.connection).pipe(
+    M.withReturnType<boolean>(),
+    M.tags({
+      CheckingAccount: () => true,
+      ConnectingAccount: () => true,
+      ConnectedAccount: () => true,
+    }),
+    M.orElse(() => false),
+  )
+
+/**
+ * The page's columns. Split, the recording list is the sidebar from 1024 px:
+ * on the list itself it is the page's list, with a placeholder beside it;
+ * elsewhere a sidebar that is hidden below 1024 px. Scrolling the page away
+ * from a followed playhead or live edge detaches following; scrolling the
+ * sidebar does not.
+ */
+const columns = (model: Model, config: ViewConfig): Html => {
+  const h = html<Message>()
+  const page = content(model, config)
+  if (!isSplitOf(model)) {
+    return h.div([...followAttributesOf(model)], [page])
+  } else if (isListRoute(model)) {
+    return h.div(
+      [
+        h.Class(
+          'lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] xl:grid-cols-[24rem_minmax(0,1fr)]',
+        ),
+      ],
+      [page, noRecordingChosen()],
+    )
+  } else {
+    return h.div(
+      [
+        h.Class(
+          'lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] xl:grid-cols-[24rem_minmax(0,1fr)]',
+        ),
+      ],
+      [
+        recordingSidebar(model, config),
+        h.div([h.Class('min-w-0'), ...followAttributesOf(model)], [page]),
+      ],
+    )
+  }
+}
+
 /** The whole page for a Model. */
 export const view =
   (config: ViewConfig) =>
   (model: Model): Document => {
     const h = html<Message>()
     const controls = floatingControls(model)
+    const isSplit = isSplitOf(model)
     return {
       title: titleOf(model),
       body: h.div(
@@ -298,16 +363,15 @@ export const view =
           h.Class(
             'folding-title-scope min-h-dvh bg-canvas font-sans text-label antialiased',
           ),
-          ...followAttributesOf(model),
         ],
         [
           ...(Array.isReadonlyArrayNonEmpty(controls) ? [skipToPlayer()] : []),
-          ...(isFullScreenOf(model) ? [] : [topBar(model)]),
+          ...(isFullScreenOf(model) ? [] : [topBar(model, isSplit)]),
           ...offlineNotice(model),
-          content(model, config),
-          floatingLayer(controls),
+          columns(model, config),
+          floatingLayer(controls, isSplit),
           ...shareOverlay(model),
-          toast(model),
+          toast(model, isSplit),
         ],
       ),
     }
