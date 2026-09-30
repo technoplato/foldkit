@@ -602,6 +602,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 8:22:54 p.m. EDT — `b0f4fd5052f7` fix(words): vendor the Scribe schema that production runs
+
+- **Implementation commit:** `b0f4fd5052f7e984b06d8fe53d7471a0e32d78cd`
+- **Change:** Vendor the Scribe schema that production runs (#282 #289 W48).
+- **Details:**
+  - Production has Scribe main's schema and permissions since the 2026-09-29 push Michael approved; the Scribe drift gate (scripts/instant-drift/check.py, a read-only pull) prints: Instant schema and permissions match the fresh server pull.
+  - The web's copy came from 4edb7e06 and lacked 04c3855c's sharedSettings owner field and link, which the web does not read; it is now main's file at 04c3855c (sha256 1678d1df33de9014).
+- **Files:**
+  - `examples/words/core/src/scribeSchema.ts` — Scribe main's instant.schema.ts at 04c3855c
+  - `examples/words/core/src/scribeSchema.source.json` — source commit and sha256 of the vendored schema
+- **User context (verbatim):**
+  > Uh permission push, I approve.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 8:19:04 p.m. EDT — `767c04a1a3d3` fix(words): open section and moment links where they point on a cold load
 
 - **Implementation commit:** `767c04a1a3d39808ddcdc47e315b6b40f6bcd815`
