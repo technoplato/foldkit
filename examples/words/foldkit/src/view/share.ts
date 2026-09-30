@@ -6,6 +6,7 @@ import {
   type Model,
   type Section,
   Share,
+  displayedSharedRangeOf,
   formatClock,
 } from 'words-core-example'
 
@@ -625,7 +626,7 @@ export const sharedRangePage = (model: Model): Html => {
   return h.main(
     [h.Class('mx-auto flex w-full max-w-3xl flex-col px-4 pb-40 pt-4 sm:px-6')],
     [
-      ...M.value(model.share.sharedRange).pipe(
+      ...M.value(displayedSharedRangeOf(model)).pipe(
         M.withReturnType<ReadonlyArray<Html>>(),
         M.tagsExhaustive({
           NoSharedRange: () => [],

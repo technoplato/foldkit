@@ -45,7 +45,7 @@ export const WordsProgram: Program.Program<
   WordsManagedResources
 > = Program.make<Model, Message, WordsResources, WordsManagedResources>({
   id: 'words',
-  version: 3,
+  version: 4,
   Model,
   Message,
   init: () => [modelForRoute(RecordingListRoute()), startupCommands],

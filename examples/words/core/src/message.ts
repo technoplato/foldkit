@@ -67,13 +67,19 @@ export const FailedObserveRecording = m('FailedObserveRecording', {
   recordingID: S.String,
   reason: S.String,
 })
-/** The server confirmed the recording is missing or not shared with this account. */
+/**
+ * The server confirmed the recording is missing or not shared with the
+ * account the question was asked for; `maybeUserID` is that account, or
+ * `None` before sign-in.
+ */
 export const ConfirmedMissingRecording = m('ConfirmedMissingRecording', {
   recordingID: S.String,
+  maybeUserID: S.Option(S.String),
 })
 /** The server has the recording; its snapshot will follow. */
 export const ConfirmedRecordingExists = m('ConfirmedRecordingExists', {
   recordingID: S.String,
+  maybeUserID: S.Option(S.String),
 })
 /** Download URLs for the open recording's audio and images arrived. */
 export const ObservedFileUrls = m('ObservedFileUrls', {

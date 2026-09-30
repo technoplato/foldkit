@@ -9,6 +9,7 @@ import {
   PLAYER_ELEMENT_ID,
   type ReadyPlayback,
   ScrolledTranscriptAway,
+  displayedPlaybackOf,
   isOwnRecordingOf,
   isRecordAvailableOf,
 } from 'words-core-example'
@@ -98,7 +99,7 @@ const comingToTheWeb = (
 }
 
 const playbackContent = (model: Model, config: ViewConfig): Html =>
-  M.value(model.playback).pipe(
+  M.value(displayedPlaybackOf(model)).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
       NoPlayback: () =>

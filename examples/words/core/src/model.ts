@@ -136,13 +136,19 @@ export const OpeningPlayback = ts('OpeningPlayback', {
   recordingID: S.String,
   request: PlaybackRequest,
 })
-/** The recording does not exist or is not shared with this account. */
+/**
+ * The server found no recording this account can read. It keeps what the link
+ * asked for, because a first answer can come before the browser has signed in:
+ * the recording may still arrive, and it then opens where the link points.
+ */
 export const MissingRecording = ts('MissingRecording', {
   recordingID: S.String,
+  request: PlaybackRequest,
 })
-/** The recording's detail could not be observed. */
+/** The recording's detail could not be observed; a later snapshot still opens it where the link points. */
 export const FailedPlayback = ts('FailedPlayback', {
   recordingID: S.String,
+  request: PlaybackRequest,
   reason: S.String,
 })
 /** A recording is open, playing back or following along live. */

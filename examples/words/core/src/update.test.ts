@@ -229,7 +229,7 @@ describe('opening links', () => {
     expect(afterEmpty.model.playback._tag).toBe('OpeningPlayback')
 
     const missing = run(afterEmpty.model, [
-      ConfirmedMissingRecording({ recordingID }),
+      ConfirmedMissingRecording({ recordingID, maybeUserID: Option.none() }),
     ])
     expect(missing.model.playback._tag).toBe('MissingRecording')
 

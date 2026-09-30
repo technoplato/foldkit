@@ -81,6 +81,7 @@ import {
   OpeningPlayback,
   PausingAnnouncements,
   type PlaybackRequest,
+  type PlaybackState,
   ReadyPlayback,
   ReadyToAnnounce,
   type ScreenMode,
@@ -137,20 +138,24 @@ export const LoadExternal = Command.define(
   CompletedLoadExternal,
 )(({ href }) => load(href).pipe(Effect.as(CompletedLoadExternal())))
 
-/** Asks the server whether a recording that came back empty exists for this account. */
+/**
+ * Asks the server whether a recording that came back empty exists for the
+ * account signed in as `maybeUserID`. The answer names that account, so an
+ * answer given before sign-in is not taken as the signed-in account's.
+ */
 export const ConfirmRecording = Command.define(
   'ConfirmRecording',
-  { recordingID: S.String },
+  { recordingID: S.String, maybeUserID: S.Option(S.String) },
   ConfirmedMissingRecording,
   ConfirmedRecordingExists,
   FailedObserveRecording,
-)(({ recordingID }) =>
+)(({ recordingID, maybeUserID }) =>
   WordsStore.pipe(
     Effect.flatMap(store => store.hasRecording(recordingID)),
     Effect.map(isPresent =>
       isPresent
-        ? ConfirmedRecordingExists({ recordingID })
-        : ConfirmedMissingRecording({ recordingID }),
+        ? ConfirmedRecordingExists({ recordingID, maybeUserID })
+        : ConfirmedMissingRecording({ recordingID, maybeUserID }),
     ),
     Effect.catch(error =>
       Effect.succeed(
@@ -432,6 +437,53 @@ const noRequest: PlaybackRequest = {
   isRouteFocus: false,
 }
 
+/** Where an open recording picks up again if it disappears and comes back: its playback position. */
+const resumeRequestOf = (ready: ReadyPlayback): PlaybackRequest => ({
+  maybeStartSeconds: Option.some(ready.positionSeconds),
+  maybeFocusSectionID: Option.none(),
+  isRouteFocus: false,
+})
+
+/** What the recording being opened was asked to show, or where an open one is. */
+const openRequestOf = (playback: PlaybackState): PlaybackRequest =>
+  M.value(playback).pipe(
+    M.withReturnType<PlaybackRequest>(),
+    M.tagsExhaustive({
+      NoPlayback: () => noRequest,
+      OpeningPlayback: ({ request }) => request,
+      MissingRecording: ({ request }) => request,
+      FailedPlayback: ({ request }) => request,
+      ReadyPlayback: resumeRequestOf,
+    }),
+  )
+
+/**
+ * Playback after the signed-in account changed. A "missing" or "failed"
+ * answer was for the other account, so the recording opens again for this
+ * one and keeps what the link asked for; its observation restarts with the
+ * new account.
+ */
+const reopenedForNewAccount = (playback: PlaybackState): PlaybackState =>
+  M.value(playback).pipe(
+    M.withReturnType<PlaybackState>(),
+    M.tag('MissingRecording', 'FailedPlayback', ({ recordingID, request }) =>
+      OpeningPlayback({ recordingID, request }),
+    ),
+    M.orElse(() => playback),
+  )
+
+/** A share link's page after the signed-in account changed: a "not available" answer was for the other account. */
+const sharedRangeForNewAccount = (
+  sharedRange: Share.Model.SharedRangeState,
+): Share.Model.SharedRangeState =>
+  M.value(sharedRange).pipe(
+    M.withReturnType<Share.Model.SharedRangeState>(),
+    M.tag('MissingSharedRange', 'FailedSharedRange', ({ shareID }) =>
+      Share.Model.OpeningSharedRange({ shareID }),
+    ),
+    M.orElse(() => sharedRange),
+  )
+
 const openingFor = (
   route: ScribeRoute,
 ): Option.Option<Readonly<{ recordingID: string; request: PlaybackRequest }>> =>
@@ -645,6 +697,16 @@ const openRecording = (
         return [opening, []]
       }
     }),
+    M.tag('MissingRecording', 'FailedPlayback', unopened =>
+      unopened.recordingID === recordingID
+        ? [
+            evo(model, {
+              playback: () => evo(unopened, { request: () => request }),
+            }),
+            [],
+          ]
+        : [opening, []],
+    ),
     M.orElse(() => [opening, []]),
   )
 }
@@ -888,18 +950,26 @@ const observedRecording = (
           return [model, []]
         } else {
           return Option.match(maybeDetail, {
-            onNone: () => [model, [ConfirmRecording({ recordingID })]],
+            onNone: () => [
+              model,
+              [
+                ConfirmRecording({
+                  recordingID,
+                  maybeUserID: signedInUserIDOf(model),
+                }),
+              ],
+            ],
             onSome: detail => becomeReady(detail, opening.request),
           })
         }
       },
       MissingRecording: missing =>
         missing.recordingID === recordingID && Option.isSome(maybeDetail)
-          ? becomeReady(maybeDetail.value, noRequest)
+          ? becomeReady(maybeDetail.value, missing.request)
           : [model, []],
       FailedPlayback: failed =>
         failed.recordingID === recordingID && Option.isSome(maybeDetail)
-          ? becomeReady(maybeDetail.value, noRequest)
+          ? becomeReady(maybeDetail.value, failed.request)
           : [model, []],
       ReadyPlayback: ready => {
         if (ready.recordingID !== recordingID) {
@@ -907,7 +977,13 @@ const observedRecording = (
         } else {
           return Option.match(maybeDetail, {
             onNone: () => [
-              evo(model, { playback: () => MissingRecording({ recordingID }) }),
+              evo(model, {
+                playback: () =>
+                  MissingRecording({
+                    recordingID,
+                    request: resumeRequestOf(ready),
+                  }),
+              }),
               [],
             ],
             onSome: detail => {
@@ -1040,6 +1116,59 @@ export const signedInUserIDOf = (model: Model): Option.Option<string> =>
     M.withReturnType<Option.Option<string>>(),
     M.tag('SignedIn', ({ userID }) => Option.some(userID)),
     M.orElse(() => Option.none()),
+  )
+
+/**
+ * Whether signing in has finished, so what Instant answers is what this
+ * account can read. Until the page knows who Cloudflare Access says the
+ * listener is and has signed in to that account, a recording that looks
+ * missing may still arrive.
+ */
+export const isSignInSettledOf = (model: Model): boolean =>
+  model.identity._tag !== 'CheckingIdentity' &&
+  M.value(model.account.connection).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      CheckingAccount: () => false,
+      ConnectingAccount: () => false,
+      ConnectedAccount: () => model.identity._tag === 'SignedIn',
+      NoAccessIdentity: () => true,
+      FailedAccountCheck: () => true,
+      AwaitingIPhone: () => true,
+      FailedConnect: () => true,
+      SignedOutAccount: () => true,
+    }),
+  )
+
+/**
+ * The playback the recording page shows. A recording the server has not
+ * found shows as opening until sign-in settles, so a link opened in a new tab
+ * goes from Opening straight to the moment it points at, never through "not
+ * available".
+ */
+export const displayedPlaybackOf = (model: Model): PlaybackState =>
+  M.value(model.playback).pipe(
+    M.withReturnType<PlaybackState>(),
+    M.tag('MissingRecording', ({ recordingID, request }) =>
+      isSignInSettledOf(model)
+        ? model.playback
+        : OpeningPlayback({ recordingID, request }),
+    ),
+    M.orElse(() => model.playback),
+  )
+
+/** The share link page's state as shown: a share not found yet shows as opening until sign-in settles. */
+export const displayedSharedRangeOf = (
+  model: Model,
+): Share.Model.SharedRangeState =>
+  M.value(model.share.sharedRange).pipe(
+    M.withReturnType<Share.Model.SharedRangeState>(),
+    M.tag('MissingSharedRange', ({ shareID }) =>
+      isSignInSettledOf(model)
+        ? model.share.sharedRange
+        : Share.Model.OpeningSharedRange({ shareID }),
+    ),
+    M.orElse(() => model.share.sharedRange),
   )
 
 /** The recording the host's microphone session belongs to, while one is wanted. */
@@ -1257,6 +1386,12 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           identity: () => identity,
           recordings: recordings =>
             isSameUser ? recordings : LoadingRecordings(),
+          playback: playback =>
+            isSameUser ? playback : reopenedForNewAccount(playback),
+          share: share =>
+            isSameUser
+              ? share
+              : evo(share, { sharedRange: sharedRangeForNewAccount }),
         })
         return identity._tag === 'SignedOut'
           ? applyAccountResult(
@@ -1324,19 +1459,29 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         )
           ? [
               evo(model, {
-                playback: () => FailedPlayback({ recordingID, reason }),
+                playback: playback =>
+                  FailedPlayback({
+                    recordingID,
+                    request: openRequestOf(playback),
+                    reason,
+                  }),
               }),
               [],
             ]
           : [model, []],
-      ConfirmedMissingRecording: ({ recordingID }) =>
+      ConfirmedMissingRecording: ({ recordingID, maybeUserID }) =>
         M.value(model.playback).pipe(
           withUpdateReturn,
           M.tag('OpeningPlayback', opening =>
-            opening.recordingID === recordingID
+            opening.recordingID === recordingID &&
+            isSameUserID(maybeUserID, signedInUserIDOf(model))
               ? [
                   evo(model, {
-                    playback: () => MissingRecording({ recordingID }),
+                    playback: () =>
+                      MissingRecording({
+                        recordingID,
+                        request: opening.request,
+                      }),
                   }),
                   [],
                 ]
