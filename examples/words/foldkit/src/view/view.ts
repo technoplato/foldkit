@@ -236,7 +236,7 @@ const offlineNotice = (model: Model): ReadonlyArray<Html> => {
           [
             h.Role('status'),
             h.Class(
-              'mx-auto mt-3 flex w-[calc(100%-2rem)] max-w-3xl items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3',
+              `mt-3 flex items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3 ${isFullScreenOf(model) ? 'ml-4 mr-16 sm:mx-auto sm:mt-16 sm:w-[calc(100%-2rem)] sm:max-w-3xl' : 'mx-auto w-[calc(100%-2rem)] max-w-3xl'}`,
             ),
           ],
           [

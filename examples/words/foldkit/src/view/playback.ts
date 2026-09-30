@@ -231,7 +231,7 @@ const fullScreenChrome = (): ReadonlyArray<Html> => {
       [
         h.OnMount(RunWallClock()),
         h.Class(
-          'pointer-events-none fixed bottom-0 right-0 top-16 z-20 flex w-8 items-center justify-center',
+          'pointer-events-none fixed bottom-0 right-[max(0px,calc((100vw_-_48rem)/2_-_2.5rem))] top-16 z-20 flex w-8 items-center justify-center',
         ),
       ],
       [
@@ -303,7 +303,7 @@ const transcriptionNoticeOf = (
                 [
                   h.Role('status'),
                   h.Class(
-                    'mx-4 mt-3 flex items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3 sm:mx-auto sm:w-[calc(100%-3rem)] sm:max-w-[calc(48rem-3rem)]',
+                    `mx-4 mt-3 flex items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3 sm:mx-auto sm:w-[calc(100%-3rem)] sm:max-w-[calc(48rem-3rem)] ${ready.screenMode === 'FullScreen' ? 'mr-16 sm:mr-auto sm:mt-16' : ''}`,
                   ),
                 ],
                 [
@@ -359,13 +359,57 @@ const skipButton = (
   )
 }
 
+const scrubberInput = (ready: ReadyPlayback, className: string): Html => {
+  const h = html<Message>()
+  const position = displayedPositionOf(ready)
+  const duration = durationOf(ready)
+  const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0
+  return h.input([
+    h.Type('range'),
+    h.AriaLabel('Playback position'),
+    h.AriaValuetext(`${formatClock(position)} of ${formatClock(duration)}`),
+    h.Min('0'),
+    h.Max(String(duration)),
+    h.Step('0.1'),
+    h.Value(String(position)),
+    h.OnInput(value => MovedScrub({ seconds: Number(value) })),
+    h.OnChange(value => EndedScrub({ seconds: Number(value) })),
+    h.Style({ '--progress': `${progress}%` }),
+    h.Class(`scrubber ${className}`),
+  ])
+}
+
+const playPauseButton = (ready: ReadyPlayback, className: string): Html => {
+  const h = html<Message>()
+  const isPlaying = ready.transport === 'Playing'
+  const playKey = shortcutKeyOf('TogglePlayback')
+  return h.button(
+    [
+      h.Type('button'),
+      h.AriaLabel(isPlaying ? 'Pause' : 'Play'),
+      h.Title(keyHint(isPlaying ? 'Pause' : 'Play', playKey)),
+      h.AriaKeyshortcuts(playKey),
+      h.OnClick(isPlaying ? ClickedPause() : ClickedPlay()),
+      h.Class(
+        `inline-flex shrink-0 items-center justify-center rounded-full text-label transition hover:bg-fill active:scale-95 ${className}`,
+      ),
+    ],
+    [icon(isPlaying ? 'Pause' : 'Play', 'size-8')],
+  )
+}
+
+const clockLabel = (seconds: number): Html => {
+  const h = html<Message>()
+  return h.span(
+    [h.Class('tabular shrink-0 font-mono text-footnote text-secondary')],
+    [formatClock(seconds)],
+  )
+}
+
 const transportBar = (ready: ReadyPlayback): Html => {
   const h = html<Message>()
   const position = displayedPositionOf(ready)
   const duration = durationOf(ready)
-  const isPlaying = ready.transport === 'Playing'
-  const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0
-  const playKey = shortcutKeyOf('TogglePlayback')
   return h.div(
     [
       h.Role('group'),
@@ -373,26 +417,11 @@ const transportBar = (ready: ReadyPlayback): Html => {
       h.Class('glass flex w-full flex-col rounded-[28px] px-4 pb-2 pt-0.5'),
     ],
     [
-      h.input([
-        h.Type('range'),
-        h.AriaLabel('Playback position'),
-        h.AriaValuetext(`${formatClock(position)} of ${formatClock(duration)}`),
-        h.Min('0'),
-        h.Max(String(duration)),
-        h.Step('0.1'),
-        h.Value(String(position)),
-        h.OnInput(value => MovedScrub({ seconds: Number(value) })),
-        h.OnChange(value => EndedScrub({ seconds: Number(value) })),
-        h.Style({ '--progress': `${progress}%` }),
-        h.Class('scrubber w-full'),
-      ]),
+      scrubberInput(ready, 'w-full'),
       h.div(
         [h.Class('-mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2')],
         [
-          h.span(
-            [h.Class('tabular font-mono text-footnote text-secondary')],
-            [formatClock(position)],
-          ),
+          clockLabel(position),
           h.div(
             [h.Class('flex items-center gap-2')],
             [
@@ -403,19 +432,7 @@ const transportBar = (ready: ReadyPlayback): Html => {
                 shortcutKeyOf('SkipBackward'),
                 'Left Arrow',
               ),
-              h.button(
-                [
-                  h.Type('button'),
-                  h.AriaLabel(isPlaying ? 'Pause' : 'Play'),
-                  h.Title(keyHint(isPlaying ? 'Pause' : 'Play', playKey)),
-                  h.AriaKeyshortcuts(playKey),
-                  h.OnClick(isPlaying ? ClickedPause() : ClickedPlay()),
-                  h.Class(
-                    'inline-flex size-12 items-center justify-center rounded-full text-label transition hover:bg-fill active:scale-95',
-                  ),
-                ],
-                [icon(isPlaying ? 'Pause' : 'Play', 'size-8')],
-              ),
+              playPauseButton(ready, 'size-12'),
               skipButton(
                 `Forward ${SKIP_SECONDS} Seconds`,
                 'Forward',
@@ -428,10 +445,7 @@ const transportBar = (ready: ReadyPlayback): Html => {
           h.div(
             [h.Class('flex items-center justify-end')],
             [
-              h.span(
-                [h.Class('tabular font-mono text-footnote text-secondary')],
-                [formatClock(duration)],
-              ),
+              clockLabel(duration),
               h.button(
                 [
                   h.Type('button'),
@@ -448,6 +462,30 @@ const transportBar = (ready: ReadyPlayback): Html => {
           ),
         ],
       ),
+    ],
+  )
+}
+
+/**
+ * The player in Full Screen on a phone: one row with Play or Pause, the
+ * position, the scrubber, and the length, so the transcript keeps more of the
+ * screen. The arrow keys and the system controls still skip.
+ */
+const compactTransportBar = (ready: ReadyPlayback): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Role('group'),
+      h.AriaLabel('Playback'),
+      h.Class(
+        'glass flex w-full items-center gap-2 rounded-full py-1 pl-1 pr-4 sm:hidden',
+      ),
+    ],
+    [
+      playPauseButton(ready, 'size-11'),
+      clockLabel(displayedPositionOf(ready)),
+      scrubberInput(ready, 'min-w-0 flex-1'),
+      clockLabel(durationOf(ready)),
     ],
   )
 }
@@ -579,7 +617,16 @@ export const playbackBar = (ready: ReadyPlayback): ReadonlyArray<Html> => {
                     ),
                   ]),
                 ],
-                AudioPlayerReady: () => [transportBar(ready)],
+                AudioPlayerReady: () =>
+                  ready.screenMode === 'FullScreen'
+                    ? [
+                        compactTransportBar(ready),
+                        h.div(
+                          [h.Class('hidden w-full sm:block')],
+                          [transportBar(ready)],
+                        ),
+                      ]
+                    : [transportBar(ready)],
               }),
             ),
         }),

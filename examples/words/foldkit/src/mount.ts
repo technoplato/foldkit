@@ -230,7 +230,7 @@ const wallClockFaceFormat = (): Intl.DateTimeFormat =>
     month: 'long',
     day: 'numeric',
     year: 'numeric',
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
     second: '2-digit',
     fractionalSecondDigits: 2,
