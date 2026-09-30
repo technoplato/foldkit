@@ -602,6 +602,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 11:05:58 p.m. EDT — `edd500ad530e` fix(words): count a recording in progress elsewhere up each second
+
+- **Implementation commit:** `edd500ad530ef03038a3ead82c6997eb07b8a07b`
+- **Change:** Count a recording in progress elsewhere up each second (#289 W44).
+- **Details:**
+  - The list row and the live bar show the last saved length plus the time since that save, stopping 6 s after saves stop and never running backward.
+  - A one-second live clock Subscription runs only while such a recording is on screen; the live bar's timer sits outside the status region, so screen readers do not hear it each second.
+- **Files:**
+  - `examples/words/core/src/update.ts` — liveDurationSecondsOf, isCountingLiveOf, TickedLiveClock
+  - `examples/words/core/src/subscription.ts` — live clock Subscription
+  - `examples/words/core/src/model.ts` — maybeLiveClockMs
+  - `examples/words/core/src/message.ts` — TickedLiveClock
+  - `examples/words/core/src/recording.ts` — maybeUpdatedAtMs
+  - `examples/words/core/src/decode.ts` — updatedAtMs decode
+  - `examples/words/foldkit/src/view/list.ts` — counting row length
+  - `examples/words/foldkit/src/view/playback.ts` — live bar timer; status region without controls
+  - `examples/words/foldkit/src/view/view.ts` — live clock to the bar
+  - `examples/words/core/src/update.test.ts` — live clock tests
+  - `examples/words/core/src/coldLoad.test.ts` — summary field
+  - `examples/words/core/src/search.test.ts` — summary field
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 10:54:54 p.m. EDT — `b03f1ad0dcc0` feat(words): keep the search in the address bar and open a match at its line
 
 - **Implementation commit:** `b03f1ad0dcc03b45c70e1005dfe839277d940477`
