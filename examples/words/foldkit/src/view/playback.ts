@@ -1089,8 +1089,9 @@ const tryOpeningAgainButton = (): Html =>
 
 /**
  * The page while a recording opens: a spinner and what it loads; offline,
- * that it opens once the network is back; and when Scribe has not answered
- * for a few seconds, that the transcript is still loading, with Try Again.
+ * that it waits for the network (the offline notice above already says "You
+ * are offline"); and when Scribe has not answered for a few seconds, that the
+ * transcript is still loading, with Try Again.
  */
 export const openingNotice = (
   connectivity: Connectivity,
@@ -1098,8 +1099,8 @@ export const openingNotice = (
 ): Html => {
   if (connectivity === 'Offline') {
     return playbackNotice(
-      'You are offline',
-      'The recording opens as soon as the network is back.',
+      'Waiting for the network',
+      'This browser is offline. The recording opens as soon as the network is back.',
       [spinner('size-5 text-caution')],
     )
   } else {
