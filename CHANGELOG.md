@@ -602,6 +602,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 9:50:58 p.m. EDT — `fc511477aeb1` fix(words): give Full Screen more of a phone and keep its clock by the text
+
+- **Implementation commit:** `fc511477aeb16ee2717e02a3ae0e2fa37fdbb2f1`
+- **Change:** Give Full Screen more of a phone and keep its clock by the text (#289 W34, W43, W46).
+- **Details:**
+  - W34: a compact one-row player in Full Screen below 640 px; content share on an 812 px phone 86 to 91.6 percent (player 114 to 68 px); notices clear of Exit.
+  - W43: the wall clock's hour is numeric, no leading zero.
+  - W46: the clock anchors 2.5rem outside the 48rem column (gap 568 to 32 px at 1920 px).
+- **Files:**
+  - `examples/words/foldkit/src/view/playback.ts` — compact Full Screen player; clock position; notice clearance
+  - `examples/words/foldkit/src/view/view.ts` — offline notice clear of Exit in Full Screen
+  - `examples/words/foldkit/src/mount.ts` — numeric hour on the wall clock
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 9:43:57 p.m. EDT — `fbb602ac3439` fix(words): keep share rows readable on phones and focused timestamps clear of the player
 
 - **Implementation commit:** `fbb602ac343956fd93bda0720e6d22371c27467f`
