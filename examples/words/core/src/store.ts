@@ -25,6 +25,7 @@ import { failureTextOf } from './failure.js'
 import { type IdentityState, SignedIn, SignedOut } from './model.js'
 import type { AppSchema } from './scribeSchema.js'
 import {
+  decodeReceivedShares,
   decodeShareRecipients,
   decodeSharedRange,
   decodeShares,
@@ -48,6 +49,7 @@ export type WordsStoreOperation =
   | 'SignOut'
   | 'ObserveShares'
   | 'ObserveShareRecipients'
+  | 'ObserveReceivedShares'
   | 'ObserveSharedRange'
 
 /** An Instant query, observation, or sign-in check failed. */
@@ -70,6 +72,10 @@ const storeFailureOf = (operation: WordsStoreOperation): string =>
     M.when('SignOut', () => 'Signing out did not finish.'),
     M.when('ObserveShares', () => 'The shares did not load.'),
     M.when('ObserveShareRecipients', () => 'The suggestions did not load.'),
+    M.when(
+      'ObserveReceivedShares',
+      () => 'The shares made to this account did not load.',
+    ),
     M.when('ObserveSharedRange', () => 'The shared sections did not load.'),
     M.exhaustive,
   )
@@ -116,6 +122,10 @@ export type WordsStoreService = Readonly<{
   observeShareRecipients: (
     ownerUserID: string,
   ) => Stream.Stream<ReadonlyArray<ShareRecipient>, WordsStoreError>
+  observeReceivedShares: (
+    viewerUserID: string,
+    maybeViewerEmail: Option.Option<string>,
+  ) => Stream.Stream<ReadonlyArray<RecordingShare>, WordsStoreError>
   observeSharedRange: (
     shareID: string,
     maybeLinkToken: Option.Option<string>,
@@ -174,6 +184,9 @@ const identityOf = (maybeUser: Option.Option<User>): IdentityState =>
 
 /** How many recent recipients autocomplete reads (ADR 0014). */
 export const SHARE_RECIPIENT_LIMIT = 50
+
+/** How many of the newest shares made to this account the list reads. */
+export const RECEIVED_SHARE_LIMIT = 200
 
 // NOTE: Instant's getAuth reads IndexedDB, which can hang in some browsers,
 // so every auth step is bounded and fails loudly instead of waiting forever.
@@ -343,6 +356,32 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
             ),
         ),
       ),
+    observeReceivedShares: (viewerUserID, maybeViewerEmail) =>
+      observe<ReadonlyArray<RecordingShare>>('ObserveReceivedShares', emit =>
+        database.subscribeQuery(
+          {
+            recordingSegmentShares: {
+              $: {
+                where: Option.match(maybeViewerEmail, {
+                  onNone: () => ({ 'readers.id': viewerUserID }),
+                  onSome: email => ({
+                    or: [
+                      { recipientEmail: email.toLowerCase() },
+                      { 'readers.id': viewerUserID },
+                    ],
+                  }),
+                }),
+                order: { createdAtMs: 'desc' },
+                limit: RECEIVED_SHARE_LIMIT,
+              },
+            },
+          },
+          response =>
+            emitResponse(emit, response, data =>
+              decodeReceivedShares(data.recordingSegmentShares, viewerUserID),
+            ),
+        ),
+      ),
     observeSharedRange: (shareID, maybeLinkToken, maybeViewerUserID) =>
       observe<Option.Option<SharedRange>>('ObserveSharedRange', emit =>
         database.subscribeQuery(
@@ -430,6 +469,7 @@ export const makeStaticWordsResources = (
     signOut: Effect.void,
     observeRecordingShares: () => Stream.succeed([]),
     observeShareRecipients: () => Stream.succeed([]),
+    observeReceivedShares: () => Stream.succeed([]),
     observeSharedRange: () => Stream.succeed(Option.none()),
     hasSharedRange: () => Effect.succeed(false),
   })

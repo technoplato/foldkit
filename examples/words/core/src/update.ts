@@ -33,6 +33,7 @@ import {
   type ScribeRoute,
   SearchRecordingsRoute,
   SectionRoute,
+  ShareRoute,
   formatStartSeconds,
   isListRoute,
   isRouteFocus,
@@ -1779,6 +1780,92 @@ export const shareLinkTokenOf = (model: Model): Option.Option<string> =>
     M.orElse(() => Option.none()),
   )
 
+/**
+ * The share a recording on screen was shared with this account by: the
+ * newest share another account made to this one of that recording, unless
+ * this account owns it.
+ */
+export const receivedShareOf = (
+  model: Model,
+  summary: RecordingSummary,
+): Option.Option<Share.Model.RecordingShare> => {
+  const isOwnedByViewer = Option.exists(
+    Option.all([summary.maybeOwnerUserID, signedInUserIDOf(model)]),
+    ([ownerUserID, viewerUserID]) => ownerUserID === viewerUserID,
+  )
+  return isOwnedByViewer
+    ? Option.none()
+    : Array.findFirst(
+        model.share.received,
+        share => share.recordingID === summary.id,
+      )
+}
+
+/** The page a share made to this account opens: the share, with its link token if it has one. */
+export const receivedShareRouteOf = (
+  share: Share.Model.RecordingShare,
+): ScribeRoute =>
+  ShareRoute({
+    recordingID: share.recordingID,
+    shareID: share.id,
+    k: share.maybeLinkToken,
+  })
+
+const summaryOnScreenOf = (
+  model: Model,
+  recordingID: string,
+): Option.Option<RecordingSummary> =>
+  Option.orElse(
+    M.value(model.playback).pipe(
+      M.withReturnType<Option.Option<RecordingSummary>>(),
+      M.tag('ReadyPlayback', ready =>
+        ready.recordingID === recordingID
+          ? Option.some(ready.detail.summary)
+          : Option.none(),
+      ),
+      M.orElse(() => Option.none()),
+    ),
+    () =>
+      M.value(model.recordings).pipe(
+        M.withReturnType<Option.Option<RecordingSummary>>(),
+        M.tag('LoadedRecordings', ({ recordings }) =>
+          Array.findFirst(
+            recordings,
+            recording => recording.id === recordingID,
+          ),
+        ),
+        M.orElse(() => Option.none()),
+      ),
+  )
+
+/**
+ * A recording page for a recording someone else shared with this account
+ * opens as that share's page instead, and the address bar follows: the
+ * recording page would offer the owner's actions and could read only the
+ * shared sections.
+ */
+const openingReceivedShare = ([model, commands]: UpdateReturn): UpdateReturn =>
+  pipe(
+    openingFor(model.route),
+    Option.flatMap(({ recordingID }) => summaryOnScreenOf(model, recordingID)),
+    Option.flatMap(summary => receivedShareOf(model, summary)),
+    Option.match({
+      onNone: () => [model, commands],
+      onSome: share => {
+        const route = receivedShareRouteOf(share)
+        const [routed, routeCommands] = applyRoute(model, route)
+        return [
+          routed,
+          [
+            ...commands,
+            ...routeCommands,
+            ReplaceUrl({ url: scribeRouteToPath(route) }),
+          ],
+        ]
+      },
+    }),
+  )
+
 /** The sections of the open recording, for picking a range to share. */
 export const openSectionsOf = (model: Model): ReadonlyArray<Section> =>
   M.value(model.playback).pipe(
@@ -1878,7 +1965,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             External: ({ href }) => [model, [LoadExternal({ href })]],
           }),
         ),
-      ChangedUrl: ({ url }) => applyRoute(model, urlToScribeRoute(url)),
+      ChangedUrl: ({ url }) =>
+        openingReceivedShare(applyRoute(model, urlToScribeRoute(url))),
       CompletedNavigate: () => [model, []],
       CompletedLoadExternal: () => [model, []],
 
@@ -1913,17 +2001,18 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
 
-      ObservedRecordings: ({
-        recordings,
-        skippedCount,
-        maybeSkippedReason,
-      }) => [
-        evo(model, {
-          recordings: () =>
-            LoadedRecordings({ recordings, skippedCount, maybeSkippedReason }),
-        }),
-        [],
-      ],
+      ObservedRecordings: ({ recordings, skippedCount, maybeSkippedReason }) =>
+        openingReceivedShare([
+          evo(model, {
+            recordings: () =>
+              LoadedRecordings({
+                recordings,
+                skippedCount,
+                maybeSkippedReason,
+              }),
+          }),
+          [],
+        ]),
       FailedObserveRecordings: ({ reason }) => [
         evo(model, { recordings: () => FailedRecordings({ reason }) }),
         [],
@@ -1968,12 +2057,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         skippedCount,
         maybeSkippedReason,
       }) =>
-        observedRecording(
-          model,
-          recordingID,
-          maybeDetail,
-          skippedCount,
-          maybeSkippedReason,
+        openingReceivedShare(
+          observedRecording(
+            model,
+            recordingID,
+            maybeDetail,
+            skippedCount,
+            maybeSkippedReason,
+          ),
         ),
       FailedObserveRecording: ({ recordingID, reason }) =>
         Option.exists(
@@ -2371,9 +2462,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           Capture.update(model.capture, message, captureContextOf(model)),
         ),
       GotShareMessage: ({ message }) =>
-        applyShareResult(
-          model,
-          Share.update(model.share, message, shareContextOf(model)),
+        openingReceivedShare(
+          applyShareResult(
+            model,
+            Share.update(model.share, message, shareContextOf(model)),
+          ),
         ),
     }),
   )

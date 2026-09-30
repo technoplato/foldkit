@@ -10,6 +10,7 @@ import {
   FailedObserveRecordingShares,
   FailedObserveSharedRange,
   type Message,
+  ObservedReceivedShares,
   ObservedRecordingShares,
   ObservedShareRecipients,
   ObservedSharedRange,
@@ -70,6 +71,10 @@ export const reportSharesFailure = (
 export const reportRecipients = (
   payload: Parameters<typeof ObservedShareRecipients>[0],
 ): Message => ObservedShareRecipients(payload)
+/** A snapshot of the shares other accounts made to this one arrived. */
+export const reportReceivedShares = (
+  payload: Parameters<typeof ObservedReceivedShares>[0],
+): Message => ObservedReceivedShares(payload)
 /** An opened share arrived, or is not readable. */
 export const reportSharedRange = (
   payload: Parameters<typeof ObservedSharedRange>[0],

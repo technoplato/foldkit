@@ -8,6 +8,7 @@ const OptionalNumber = S.optionalKey(S.NullOr(S.Number))
 
 const ShareRow = S.Struct({
   id: S.String,
+  ownerUserID: OptionalString,
   recordingID: S.String,
   firstSegmentIndex: S.Number,
   lastSegmentIndex: S.Number,
@@ -68,6 +69,24 @@ export const decodeShares = (
     rows,
     Array.map(row => S.decodeUnknownOption(ShareRow)(row)),
     Array.getSomes,
+    Array.map(shareOf),
+    Array.sort(byNewestShare),
+  )
+
+/**
+ * Reads the shares other accounts made to this one (ADR 0014, Shared with
+ * me), newest first. A share this account made itself is left out, so a
+ * recording it owns never shows as shared with it.
+ */
+export const decodeReceivedShares = (
+  rows: ReadonlyArray<unknown>,
+  viewerUserID: string,
+): ReadonlyArray<RecordingShare> =>
+  pipe(
+    rows,
+    Array.map(row => S.decodeUnknownOption(ShareRow)(row)),
+    Array.getSomes,
+    Array.filter(row => row.ownerUserID !== viewerUserID),
     Array.map(shareOf),
     Array.sort(byNewestShare),
   )

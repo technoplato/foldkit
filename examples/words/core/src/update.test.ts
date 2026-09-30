@@ -15,6 +15,7 @@ import {
   RecordingRoute,
   SearchRecordingsRoute,
   SectionRoute,
+  ShareRoute,
   scribeRouteToPath,
   scribeRouteToShareUrl,
 } from './link.js'
@@ -45,6 +46,7 @@ import {
   ElapsedSearchPause,
   EndedScrub,
   FailedObserveRecording,
+  GotShareMessage,
   HeardAudioEnded,
   HeardAudioPaused,
   HeardAudioPlaying,
@@ -76,6 +78,7 @@ import {
   StoredAudio,
   UploadingAudio,
 } from './recording.js'
+import * as Share from './share/index.js'
 import {
   audioSourceOf,
   displayedLengthOf,
@@ -88,6 +91,7 @@ import {
   modelForRoute,
   openingWaitOf,
   playbackPhaseOf,
+  receivedShareOf,
   shortcutContextOf,
   update,
 } from './update.js'
@@ -128,6 +132,7 @@ const detail = (overrides: Partial<RecordingDetail> = {}): RecordingDetail => ({
     startedAtMs: 0,
     durationSeconds: 60,
     maybeUpdatedAtMs: Option.none(),
+    maybeOwnerUserID: Option.none(),
     activity: 'Idle',
     maybeDeviceIcon: Option.none(),
     previewLines: [],
@@ -1480,5 +1485,100 @@ describe('opening a recording that does not answer', () => {
     expect(openingWaitOf(other)).toEqual(
       Option.some({ recordingID: otherRecordingID, attempt: 0 }),
     )
+  })
+})
+
+describe('recordings shared with this account', () => {
+  const viewerID = 'reader-1'
+  const signedInAt = (route: Parameters<typeof modelForRoute>[0]) =>
+    run(opened(route), [
+      ObservedIdentity({
+        identity: SignedIn({
+          userID: viewerID,
+          maybeEmail: Option.some('reader@example.com'),
+          isGuest: false,
+        }),
+      }),
+    ]).model
+  const shareOf = (
+    id: string,
+    createdAtMs: number,
+  ): Share.Model.RecordingShare => ({
+    id,
+    recordingID,
+    visibility: 'People',
+    maybeRecipientEmail: Option.some('reader@example.com'),
+    maybeLinkToken: Option.none(),
+    firstSegmentIndex: 0,
+    lastSegmentIndex: 1,
+    startSeconds: 5,
+    endSeconds: 22,
+    maybeNote: Option.none(),
+    maybeSharedBy: Option.some('owner@example.com'),
+    createdAtMs,
+  })
+  const received = (shares: ReadonlyArray<Share.Model.RecordingShare>) =>
+    GotShareMessage({ message: Share.reportReceivedShares({ shares }) })
+  const othersSummary: RecordingSummary = {
+    ...detail().summary,
+    maybeOwnerUserID: Option.some('owner-1'),
+  }
+  const ownSummary: RecordingSummary = {
+    ...detail().summary,
+    maybeOwnerUserID: Option.some(viewerID),
+  }
+
+  it('marks a recording someone else shared, at its newest share', () => {
+    const model = run(signedInAt(RecordingListRoute()), [
+      ObservedRecordings({
+        recordings: [othersSummary],
+        skippedCount: 0,
+        maybeSkippedReason: Option.none(),
+      }),
+      received([shareOf('newer', 20), shareOf('older', 10)]),
+    ]).model
+    expect(
+      Option.map(receivedShareOf(model, othersSummary), share => share.id),
+    ).toEqual(Option.some('newer'))
+    expect(receivedShareOf(model, ownSummary)).toEqual(Option.none())
+    expect(
+      receivedShareOf(model, { ...othersSummary, id: otherRecordingID }),
+    ).toEqual(Option.none())
+  })
+
+  it('opens the share in place of the recording page, whichever answer comes first', () => {
+    const sharePath = scribeRouteToPath(
+      ShareRoute({ recordingID, shareID: 'newer', k: Option.none() }),
+    )
+    const sharesFirst = run(signedInAt(RecordingRoute({ recordingID })), [
+      received([shareOf('newer', 20)]),
+      observed(detail({ summary: othersSummary })),
+    ])
+    expect(sharesFirst.model.route).toEqual(
+      ShareRoute({ recordingID, shareID: 'newer', k: Option.none() }),
+    )
+    expect(sharesFirst.model.playback._tag).toBe('NoPlayback')
+    expect(sharesFirst.model.share.sharedRange._tag).toBe('OpeningSharedRange')
+
+    const detailFirst = run(signedInAt(RecordingRoute({ recordingID })), [
+      observed(detail({ summary: othersSummary })),
+    ]).model
+    const [redirected, commands] = update(
+      detailFirst,
+      received([shareOf('newer', 20)]),
+    )
+    expect(scribeRouteToPath(redirected.route)).toBe(sharePath)
+    expect(
+      commands.map(command => ({ name: command.name, args: command.args })),
+    ).toContainEqual({ name: 'ReplaceUrl', args: { url: sharePath } })
+  })
+
+  it('keeps the recording page for its owner', () => {
+    const own = run(signedInAt(RecordingRoute({ recordingID })), [
+      received([shareOf('newer', 20)]),
+      observed(detail({ summary: ownSummary })),
+    ]).model
+    expect(own.route._tag).toBe('Recording')
+    expect(own.playback._tag).toBe('ReadyPlayback')
   })
 })

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Section } from '../recording.js'
 import {
+  decodeReceivedShares,
   decodeShareRecipients,
   decodeSharedRange,
   decodeShares,
@@ -13,6 +14,7 @@ import {
   ClickedSuggestedRecipient,
   ConfirmedMissingSharedRange,
   type Message,
+  ObservedReceivedShares,
   ObservedSharedRange,
   OpenedSharedRange,
   SubmittedShareForm,
@@ -382,6 +384,70 @@ describe('share rows', () => {
       ['new', 'Link', 2.5],
       ['old', 'People', 0],
     ])
+  })
+
+  it('reads the shares others made to this account, newest first, and not its own', () => {
+    const received = decodeReceivedShares(
+      [
+        {
+          id: 'older',
+          ownerUserID: 'owner-1',
+          recordingID,
+          firstSegmentIndex: 0,
+          lastSegmentIndex: 1,
+          visibility: 'people',
+          recipientEmail: 'reader@example.com',
+          sharedByDisplayName: 'owner@example.com',
+          createdAtMs: 10,
+        },
+        {
+          id: 'mine',
+          ownerUserID: 'reader-1',
+          recordingID: 'reader-recording',
+          firstSegmentIndex: 0,
+          lastSegmentIndex: 0,
+          createdAtMs: 30,
+        },
+        {
+          id: 'newer',
+          ownerUserID: 'owner-2',
+          recordingID,
+          firstSegmentIndex: 2,
+          lastSegmentIndex: 4,
+          visibility: 'link',
+          linkToken: 'b'.repeat(64),
+          createdAtMs: 20,
+        },
+      ],
+      'reader-1',
+    )
+    expect(Array.map(received, share => share.id)).toEqual(['newer', 'older'])
+    expect(Option.getOrThrow(Array.last(received)).maybeSharedBy).toEqual(
+      Option.some('owner@example.com'),
+    )
+  })
+
+  it('keeps the shares made to this account', () => {
+    const [model] = update(
+      init(),
+      ObservedReceivedShares({
+        shares: decodeReceivedShares(
+          [
+            {
+              id: 'share-1',
+              ownerUserID: 'owner-1',
+              recordingID,
+              firstSegmentIndex: 0,
+              lastSegmentIndex: 1,
+              createdAtMs: 1,
+            },
+          ],
+          'reader-1',
+        ),
+      }),
+      context(),
+    )
+    expect(Array.map(model.received, share => share.id)).toEqual(['share-1'])
   })
 
   it('reads recipients newest first', () => {

@@ -103,6 +103,7 @@ const detail: RecordingDetail = {
     startedAtMs: 0,
     durationSeconds: 60,
     maybeUpdatedAtMs: Option.none(),
+    maybeOwnerUserID: Option.none(),
     activity: 'Idle',
     maybeDeviceIcon: Option.none(),
     previewLines: [],

@@ -160,12 +160,14 @@ export const iconButton = (
 /**
  * The tone of a status badge. `Recording`, `Paused`, and `Playing` are the
  * phases the iPhone, the Mac, and the web share; each carries a symbol as
- * well as its color.
+ * well as its color. `Shared` marks a recording someone else shared with this
+ * account.
  */
 export const BadgeTone = S.Literals([
   'Recording',
   'Paused',
   'Playing',
+  'Shared',
   'Positive',
   'Caution',
   'Neutral',
@@ -182,6 +184,7 @@ const badgeSymbol = (tone: BadgeTone): ReadonlyArray<Html> => {
     ]),
     M.when('Paused', () => [icon('Pause', 'size-3')]),
     M.when('Playing', () => [icon('Speaker', 'size-3.5')]),
+    M.when('Shared', () => [icon('Person', 'size-3.5')]),
     M.orElse(() => []),
   )
 }
@@ -194,6 +197,7 @@ export const badge = (tone: BadgeTone, text: string): Html => {
     M.when('Recording', () => 'bg-accent-soft text-accent-strong'),
     M.when('Paused', () => 'bg-caution-soft text-caution'),
     M.when('Playing', () => 'bg-tint-soft text-tint'),
+    M.when('Shared', () => 'bg-fill text-label'),
     M.when('Positive', () => 'bg-positive-soft text-positive'),
     M.when('Caution', () => 'bg-caution-soft text-caution'),
     M.when('Neutral', () => 'bg-fill text-secondary'),

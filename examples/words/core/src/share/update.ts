@@ -85,7 +85,7 @@ const shareFailureOf = (error: ShareWriteError): string =>
     M.withReturnType<string>(),
     M.when('CreateShares', () => 'The share did not save.'),
     M.when('RevokeShare', () => 'The share is still on.'),
-    M.when('ClaimShare', () => 'It was not added to Shared with you.'),
+    M.when('ClaimShare', () => 'It was not added to Shared with You.'),
     M.exhaustive,
   )
 
@@ -598,6 +598,11 @@ export const update = (
       ],
       ObservedShareRecipients: ({ recipients }) => [
         evo(model, { recipients: () => recipients }),
+        [],
+        noOutMessage,
+      ],
+      ObservedReceivedShares: ({ shares }) => [
+        evo(model, { received: () => shares }),
         [],
         noOutMessage,
       ],

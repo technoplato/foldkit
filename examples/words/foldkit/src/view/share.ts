@@ -570,20 +570,20 @@ const claimLine = (claim: Share.Model.ClaimState): ReadonlyArray<Html> => {
           [h.Class('flex items-center gap-2 text-footnote text-secondary')],
           [
             spinner('size-3.5'),
-            'Adding it to Shared with you on all your devices',
+            'Adding it to Shared with You on all your devices',
           ],
         ),
       ],
       ClaimedShare: () => [
         h.span(
           [h.Class('flex items-center gap-2 text-footnote text-positive')],
-          [icon('Check', 'size-4'), 'In Shared with you on all your devices'],
+          [icon('Check', 'size-4'), 'In Shared with You on all your devices'],
         ),
       ],
       FailedClaim: ({ reason }) => [
         h.span(
           [h.Class('text-footnote text-accent-strong')],
-          [`Could not add it to Shared with you: ${reason}`],
+          [`Could not add it to Shared with You: ${reason}`],
         ),
       ],
     }),
@@ -656,7 +656,7 @@ export const sharedRangePage = (model: Model): Html => {
             h.header(
               [h.Class('flex flex-col gap-2 pb-4 pt-2')],
               [
-                h.div([h.Class('flex')], [badge('Neutral', 'Shared with you')]),
+                h.div([h.Class('flex')], [badge('Shared', 'Shared with You')]),
                 h.h1(
                   [
                     h.Class(

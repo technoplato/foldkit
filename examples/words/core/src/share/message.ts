@@ -73,6 +73,10 @@ export const FailedObserveRecordingShares = m('FailedObserveRecordingShares', {
 export const ObservedShareRecipients = m('ObservedShareRecipients', {
   recipients: S.Array(ShareRecipient),
 })
+/** A snapshot of the shares other accounts made to this one arrived, newest first. */
+export const ObservedReceivedShares = m('ObservedReceivedShares', {
+  shares: S.Array(RecordingShare),
+})
 /** A share link opened; `None` means the share is missing or not shared with this account. */
 export const ObservedSharedRange = m('ObservedSharedRange', {
   shareID: S.String,
@@ -125,6 +129,7 @@ export const Message = S.Union([
   ObservedRecordingShares,
   FailedObserveRecordingShares,
   ObservedShareRecipients,
+  ObservedReceivedShares,
   ObservedSharedRange,
   FailedObserveSharedRange,
   ConfirmedMissingSharedRange,

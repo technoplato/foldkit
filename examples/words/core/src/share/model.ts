@@ -149,12 +149,17 @@ export const SharedRangeState = S.Union([
 /** Where an opened share link stands. */
 export type SharedRangeState = typeof SharedRangeState.Type
 
-/** The share Submodel. */
+/**
+ * The share Submodel. `received` holds the shares other accounts made to this
+ * one, newest first: the list marks their recordings as shared and opens them
+ * at the share.
+ */
 export const Model = S.Struct({
   sheet: ShareSheet,
   shares: SharesState,
   recipients: S.Array(ShareRecipient),
   sharedRange: SharedRangeState,
+  received: S.Array(RecordingShare),
 })
 /** The share Submodel. */
 export type Model = typeof Model.Type
@@ -167,6 +172,7 @@ export const init = (): Model => ({
   shares: LoadingShares(),
   recipients: [],
   sharedRange: NoSharedRange(),
+  received: [],
 })
 
 // SELECTOR

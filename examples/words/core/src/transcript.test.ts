@@ -168,6 +168,24 @@ describe('decodeRecordingList', () => {
   })
 })
 
+describe('the recording owner', () => {
+  it('reads who owns each recording, so one shared by someone else can be told apart', () => {
+    const decoded = decodeRecordingList([
+      { ...recordingRow, id: 'shared', ownerUserID: 'someone-else' },
+      { ...recordingRow, id: 'legacy', startedAtMs: 0 },
+    ])
+    expect(
+      decoded.recordings.map(recording => [
+        recording.id,
+        recording.maybeOwnerUserID,
+      ]),
+    ).toEqual([
+      ['shared', Option.some('someone-else')],
+      ['legacy', Option.none()],
+    ])
+  })
+})
+
 describe('playback position', () => {
   const detail = detailOf(recordingRow)
   const sections: ReadonlyArray<Section> = detail.sections

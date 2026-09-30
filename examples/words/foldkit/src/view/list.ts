@@ -7,6 +7,7 @@ import {
   ClickedShareRecordingLink,
   ClickedShowMoreRecordings,
   GotAccountMessage,
+  GotShareMessage,
   type Message,
   type Model,
   RecordingRoute,
@@ -14,12 +15,15 @@ import {
   SEARCH_FIELD_ID,
   type ScribeRoute,
   SectionRoute,
+  Share,
   UpdatedSearchQuery,
   displayedLengthOf,
   formatClock,
   formatStartSeconds,
   matchedPreviewLineOf,
   observedRecordingIDOf,
+  receivedShareOf,
+  receivedShareRouteOf,
   recordingsMatching,
   scribeRouteToPath,
   searchTermsOf,
@@ -157,15 +161,39 @@ const rowMenuItem = (
 /**
  * A row's actions: Copy Link, and Share Link where the browser has the
  * system share sheet, like the swipe actions in the iPhone's list. The More
- * button opens it; so does a right-click on the row.
+ * button opens it; so does a right-click on the row. A recording someone
+ * else shared with this account copies its share's link, the page this
+ * account can open; it offers no Share Link, since only the owner shares.
  */
 const rowMenu = (
   recording: RecordingSummary,
+  maybeShare: Option.Option<Share.Model.RecordingShare>,
   menuID: string,
   anchorName: string,
   config: ViewConfig,
 ): ReadonlyArray<Html> => {
   const h = html<Message>()
+  const ownItems = [
+    rowMenuItem(
+      menuID,
+      'Link',
+      'Copy Link',
+      ClickedCopyRecordingLink({ recordingID: recording.id }),
+    ),
+    ...(config.canShareLinks
+      ? [
+          rowMenuItem(
+            menuID,
+            'Share',
+            'Share Link…',
+            ClickedShareRecordingLink({
+              recordingID: recording.id,
+              title: recording.title,
+            }),
+          ),
+        ]
+      : []),
+  ]
   return [
     h.button(
       [
@@ -188,36 +216,42 @@ const rowMenu = (
         h.Style({ positionAnchor: anchorName }),
         h.Class('menu-popover glass'),
       ],
-      [
-        rowMenuItem(
-          menuID,
-          'Link',
-          'Copy Link',
-          ClickedCopyRecordingLink({ recordingID: recording.id }),
-        ),
-        ...(config.canShareLinks
-          ? [
-              rowMenuItem(
-                menuID,
-                'Share',
-                'Share Link…',
-                ClickedShareRecordingLink({
-                  recordingID: recording.id,
-                  title: recording.title,
-                }),
-              ),
-            ]
-          : []),
-      ],
+      Option.match(maybeShare, {
+        onNone: () => ownItems,
+        onSome: share => [
+          rowMenuItem(
+            menuID,
+            'Link',
+            'Copy Link',
+            GotShareMessage({
+              message: Share.copyShareLink({ link: Share.shareLinkOf(share) }),
+            }),
+          ),
+        ],
+      }),
     ),
   ]
 }
 
 /**
  * Where a row opens: the recording, or during a search the preview line that
- * holds every word, a second early like a shared moment.
+ * holds every word, a second early like a shared moment. A recording someone
+ * else shared with this account opens at its share, the page made for it.
  */
-const rowRouteOf = (recording: RecordingSummary, query: string): ScribeRoute =>
+const rowRouteOf = (
+  recording: RecordingSummary,
+  maybeShare: Option.Option<Share.Model.RecordingShare>,
+  query: string,
+): ScribeRoute =>
+  Option.match(maybeShare, {
+    onSome: receivedShareRouteOf,
+    onNone: () => ownRowRouteOf(recording, query),
+  })
+
+const ownRowRouteOf = (
+  recording: RecordingSummary,
+  query: string,
+): ScribeRoute =>
   Option.match(matchedPreviewLineOf(recording, query), {
     onNone: () => RecordingRoute({ recordingID: recording.id }),
     onSome: line =>
@@ -250,10 +284,12 @@ const recordingRow =
   (recording: RecordingSummary): Html => {
     const h = html<Message>()
     const menuID = `row-menu-${recording.id}`
-    const isOpen = Option.exists(
-      observedRecordingIDOf(model),
-      recordingID => recordingID === recording.id,
-    )
+    const maybeShare = receivedShareOf(model, recording)
+    const isOpen =
+      Option.exists(
+        observedRecordingIDOf(model),
+        recordingID => recordingID === recording.id,
+      ) || isShareOpenOf(model, recording.id)
     const status = rowStatusOf(
       model,
       recording,
@@ -264,7 +300,12 @@ const recordingRow =
       [
         timeLabel(recording.startedAtMs),
         formatClock(status.durationSeconds),
-        ...Option.toArray(deviceNameOf(recording)),
+        ...Option.match(maybeShare, {
+          onNone: () => Option.toArray(deviceNameOf(recording)),
+          onSome: share => [
+            `Shared by ${Option.getOrElse(share.maybeSharedBy, () => 'someone')}`,
+          ],
+        }),
       ],
       ' · ',
     )
@@ -277,7 +318,11 @@ const recordingRow =
       [
         h.a(
           [
-            h.Href(scribeRouteToPath(rowRouteOf(recording, model.searchQuery))),
+            h.Href(
+              scribeRouteToPath(
+                rowRouteOf(recording, maybeShare, model.searchQuery),
+              ),
+            ),
             h.AriaCurrent(isOpen ? 'page' : 'false'),
             h.Class(
               `flex min-w-0 flex-1 gap-3.5 py-3.5 pl-4 pr-4 transition hover:bg-fill/60 focus-visible:-outline-offset-2 active:bg-fill [@media(hover:none)]:pr-14 ${isOpen ? 'bg-fill' : ''}`,
@@ -310,6 +355,9 @@ const recordingRow =
                       onNone: () => [],
                       onSome: ({ tone, text }) => [badge(tone, text)],
                     }),
+                    ...(Option.isSome(maybeShare)
+                      ? [badge('Shared', 'Shared with You')]
+                      : []),
                   ],
                 ),
                 h.span(
@@ -334,10 +382,24 @@ const recordingRow =
             ),
           ],
         ),
-        ...rowMenu(recording, menuID, `--row-${recording.id}`, config),
+        ...rowMenu(
+          recording,
+          maybeShare,
+          menuID,
+          `--row-${recording.id}`,
+          config,
+        ),
       ],
     )
   }
+
+/** Whether the page shows a share of this recording, so its row is the open one. */
+const isShareOpenOf = (model: Model, recordingID: string): boolean =>
+  M.value(model.route).pipe(
+    M.withReturnType<boolean>(),
+    M.tag('Share', route => route.recordingID === recordingID),
+    M.orElse(() => false),
+  )
 
 type DayGroup = Readonly<{
   label: string

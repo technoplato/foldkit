@@ -232,6 +232,26 @@ const openShareSheetRecordingIDOf = (model: Model): Option.Option<string> =>
       )
     : Option.none()
 
+/** Who is signed in, for the shares made to them; only once the origin says sharing is on. */
+const receivingViewerOf = (
+  model: Model,
+): Option.Option<
+  Readonly<{ userID: string; maybeEmail: Option.Option<string> }>
+> =>
+  Account.Model.isSharingEnabled(model.account)
+    ? M.value(model.identity).pipe(
+        M.withReturnType<
+          Option.Option<
+            Readonly<{ userID: string; maybeEmail: Option.Option<string> }>
+          >
+        >(),
+        M.tag('SignedIn', ({ userID, maybeEmail }) =>
+          Option.some({ userID, maybeEmail }),
+        ),
+        M.orElse(() => Option.none()),
+      )
+    : Option.none()
+
 const openShareIDOf = (model: Model): Option.Option<string> =>
   M.value(model.route).pipe(
     M.withReturnType<Option.Option<string>>(),
@@ -307,6 +327,37 @@ const shareSubscriptions = Subscription.make<Model, Message, WordsStore>()(
                           message: Share.reportRecipients({
                             recipients,
                           }),
+                        }),
+                      ),
+                      Stream.catch(() => Stream.empty),
+                    ),
+                  ),
+                ),
+              ),
+          }),
+      },
+    ),
+    receivedShares: entry(
+      {
+        maybeViewer: S.Option(
+          S.Struct({ userID: S.String, maybeEmail: S.Option(S.String) }),
+        ),
+      },
+      {
+        modelToDependencies: model => ({
+          maybeViewer: receivingViewerOf(model),
+        }),
+        dependenciesToStream: ({ maybeViewer }) =>
+          Option.match(maybeViewer, {
+            onNone: () => Stream.empty,
+            onSome: ({ userID, maybeEmail }) =>
+              Stream.unwrap(
+                WordsStore.pipe(
+                  Effect.map(store =>
+                    store.observeReceivedShares(userID, maybeEmail).pipe(
+                      Stream.map(shares =>
+                        GotShareMessage({
+                          message: Share.reportReceivedShares({ shares }),
                         }),
                       ),
                       Stream.catch(() => Stream.empty),

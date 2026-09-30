@@ -65,7 +65,9 @@ export type PreviewLine = typeof PreviewLine.Type
 /**
  * One row of the recording list. `maybeUpdatedAtMs` is when the row last
  * changed, by the writer's clock; a recording in progress saves its length
- * with it every few seconds.
+ * with it every few seconds. `maybeOwnerUserID` is the account that owns it;
+ * a recording someone else shared with this account has another owner, and
+ * rows written before owners were stamped have none.
  */
 export const RecordingSummary = S.Struct({
   id: S.String,
@@ -73,6 +75,7 @@ export const RecordingSummary = S.Struct({
   startedAtMs: S.Number,
   durationSeconds: S.Number,
   maybeUpdatedAtMs: S.Option(S.Number),
+  maybeOwnerUserID: S.Option(S.String),
   activity: Activity,
   maybeDeviceIcon: S.Option(S.String),
   previewLines: S.Array(PreviewLine),
