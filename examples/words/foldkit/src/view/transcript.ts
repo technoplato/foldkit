@@ -168,7 +168,7 @@ const sectionView = (
       h.Key(section.id),
       h.Id(sectionElementIDOf(section.id)),
       h.Class(
-        `relative grid scroll-mb-44 scroll-mt-20 grid-cols-[3.5rem_minmax(0,1fr)] gap-x-2 rounded-2xl px-2 py-1 transition sm:grid-cols-[4.25rem_minmax(0,1fr)] ${surface} ${isFocused ? 'section-focused' : ''}`,
+        `relative grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-2 rounded-2xl px-2 py-1 transition sm:grid-cols-[4.25rem_minmax(0,1fr)] ${surface} ${isFocused ? 'section-focused' : ''}`,
       ),
     ],
     [

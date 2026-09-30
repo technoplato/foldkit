@@ -138,7 +138,7 @@ const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
             [
               h.Id(RECORDING_TITLE_ELEMENT_ID),
               h.Class(
-                'folding-title scroll-mt-24 text-title font-bold tracking-tight text-label sm:text-large-title lg:text-display',
+                'folding-title text-title font-bold tracking-tight text-label sm:text-large-title lg:text-display',
               ),
             ],
             [summary.title],

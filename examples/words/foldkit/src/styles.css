@@ -151,6 +151,8 @@
 html {
   background: var(--canvas);
   -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 4.5rem;
+  scroll-padding-bottom: 12rem;
 }
 
 body {

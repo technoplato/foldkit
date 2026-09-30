@@ -151,10 +151,10 @@ const shareRow = (share: Share.Model.RecordingShare): Html => {
         [icon(share.visibility === 'Link' ? 'Globe' : 'Person', 'size-4')],
       ),
       h.span(
-        [h.Class('flex min-w-0 flex-1 flex-col')],
+        [h.Class('flex min-w-[12rem] flex-1 flex-col')],
         [
           h.span(
-            [h.Class('break-all text-subhead font-medium text-label')],
+            [h.Class('break-words text-subhead font-medium text-label')],
             [title],
           ),
           h.span(
@@ -166,7 +166,7 @@ const shareRow = (share: Share.Model.RecordingShare): Html => {
         ],
       ),
       h.span(
-        [h.Class('flex gap-1')],
+        [h.Class('ml-auto flex gap-1')],
         [
           button(
             'Copy Link',
