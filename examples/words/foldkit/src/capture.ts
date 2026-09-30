@@ -115,11 +115,11 @@ const levelOf = (rms: number): number => {
 const microphoneFailureReason = (cause: unknown): string => {
   const name = cause instanceof DOMException ? cause.name : ''
   if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return 'The browser did not allow the microphone. Allow it for words.knophy.com and press Record again.'
+    return 'The browser did not allow the microphone. Allow it for words.knophy.com, then choose Try Again.'
   } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-    return 'No microphone was found. Connect one and press Record again.'
+    return 'No microphone was found. Connect one, then choose Try Again.'
   } else if (name === 'NotReadableError' || name === 'AbortError') {
-    return 'Another app is using the microphone. Close it and press Record again.'
+    return 'Another app is using the microphone. Close it, then choose Try Again.'
   } else if (name === 'NotSupportedError') {
     return 'This browser cannot record from a microphone on this page.'
   } else {

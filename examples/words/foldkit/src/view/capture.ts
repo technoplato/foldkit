@@ -275,7 +275,7 @@ const failedSaveBar = (reason: string): Html =>
   problemCard(
     'Alert',
     'The audio did not save',
-    `${reason} The transcript is already saved. Try Again uploads the audio again; it stays in this browser until then.`,
+    `${reason} The transcript is already saved, and the audio stays in this browser until Try Again uploads it.`,
     [
       button(
         'Keep Transcript Only',

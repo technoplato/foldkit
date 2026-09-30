@@ -11,10 +11,11 @@ import {
 import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
 
+import { failureTextOf } from '../failure.js'
 import { ShareRoute, scribeRouteToShareUrl } from '../link.js'
 import { type SharingMode, isSameEmail } from '../origin.js'
 import type { Section } from '../recording.js'
-import { WordsStore } from '../store.js'
+import { WordsStore, storeFailureReasonOf } from '../store.js'
 import {
   ConfirmedMissingSharedRange,
   ConfirmedSharedRangeExists,
@@ -79,8 +80,17 @@ export type UpdateReturn = readonly [Model, Commands, Option.Option<OutMessage>]
 
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
 
+const shareFailureOf = (error: ShareWriteError): string =>
+  M.value(error.operation).pipe(
+    M.withReturnType<string>(),
+    M.when('CreateShares', () => 'The share did not save.'),
+    M.when('RevokeShare', () => 'The share is still on.'),
+    M.when('ClaimShare', () => 'It was not added to Shared with you.'),
+    M.exhaustive,
+  )
+
 const reasonOf = (error: ShareWriteError): string =>
-  `${error.operation}: ${error.cause instanceof Error ? error.cause.message : globalThis.String(error.cause)}`
+  failureTextOf(shareFailureOf(error), error.cause)
 
 /** The link a share opens; a link share carries its secret token as `k`. */
 export const shareLinkOf = (share: RecordingShare): string =>
@@ -211,7 +221,7 @@ export const ConfirmSharedRange = Command.define(
       Effect.succeed(
         FailedObserveSharedRange({
           shareID,
-          reason: `${error.operation}: ${globalThis.String(error.cause)}`,
+          reason: storeFailureReasonOf(error),
         }),
       ),
     ),

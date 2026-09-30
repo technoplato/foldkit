@@ -274,7 +274,7 @@ const awaitingSchemaNotice = (): Html => {
       h.span(
         [],
         [
-          'Sharing is built and waiting for one approval: Scribe’s database needs the sharing fields from ADR 0014. Until then you can see what Share will do, but it cannot save. Links to recordings still work for your own account.',
+          'Sharing is not on for this site yet. You can see what Share will do, but it cannot save until it is. Links to recordings still work for your own account.',
         ],
       ),
     ],
@@ -697,9 +697,7 @@ export const sharedRangePage = (model: Model): Html => {
             ),
             h.p(
               [h.Class('px-2 pt-6 text-footnote text-secondary')],
-              [
-                'Audio for shared sections comes with a later update (ADR 0014, question 1).',
-              ],
+              ['Audio for shared sections comes in a later update.'],
             ),
           ],
         }),

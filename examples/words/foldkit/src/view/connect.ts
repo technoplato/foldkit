@@ -193,7 +193,7 @@ export const connectCard = (access: AccessIdentity): Html => {
                   h.p(
                     [h.Class('pb-3 text-secondary')],
                     [
-                      'Your iPhone records as a guest account. Signing in there turns that guest into your email account, so every recording stays yours. If the web created the email account first, the iPhone would join it as a linked guest and its older recordings would lose sharing and some uploads (ADR 0012).',
+                      'Your iPhone records as a guest account. Signing in there turns that guest into your email account, so every recording stays yours. If the web created the email account first, the iPhone would join it as a linked guest and its older recordings would lose sharing and some uploads.',
                     ],
                   ),
                 ],

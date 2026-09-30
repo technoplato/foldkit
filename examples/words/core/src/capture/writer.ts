@@ -99,7 +99,7 @@ const bounded = <A>(
       Effect.fail(
         new RecordingWriteError({
           operation,
-          cause: `Instant did not confirm the write within ${timeoutMs / MILLISECONDS_PER_SECOND} seconds.`,
+          cause: `Scribe did not confirm the write within ${timeoutMs / MILLISECONDS_PER_SECOND} seconds.`,
         }),
       ),
     ),

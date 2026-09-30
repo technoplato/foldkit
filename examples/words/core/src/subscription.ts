@@ -24,7 +24,11 @@ import {
 import type { Model } from './model.js'
 import { NetworkStatus } from './network.js'
 import * as Share from './share/index.js'
-import { WordsStore, type WordsStoreError } from './store.js'
+import {
+  WordsStore,
+  type WordsStoreError,
+  storeFailureReasonOf,
+} from './store.js'
 import {
   fileIDsOf,
   observedRecordingIDOf,
@@ -32,8 +36,7 @@ import {
   shortcutContextOf,
 } from './update.js'
 
-const reasonOf = (error: WordsStoreError): string =>
-  `${error.operation}: ${String(error.cause)}`
+const reasonOf = (error: WordsStoreError): string => storeFailureReasonOf(error)
 
 const signedInUserIDOf = (model: Model): Option.Option<string> =>
   M.value(model.identity).pipe(

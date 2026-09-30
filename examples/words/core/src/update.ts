@@ -97,7 +97,7 @@ import type { RecordingDetail, Section } from './recording.js'
 import { SectionPlacement, TranscriptScroller } from './scroller.js'
 import { SEARCH_FIELD_ID } from './search.js'
 import * as Share from './share/index.js'
-import { WordsStore } from './store.js'
+import { WordsStore, storeFailureReasonOf } from './store.js'
 import { exportTranscript, sectionAt } from './transcript.js'
 
 /** How many recordings the list shows at first, and adds per Show More. */
@@ -164,7 +164,10 @@ export const ConfirmRecording = Command.define(
     ),
     Effect.catch(error =>
       Effect.succeed(
-        FailedObserveRecording({ recordingID, reason: String(error.cause) }),
+        FailedObserveRecording({
+          recordingID,
+          reason: storeFailureReasonOf(error),
+        }),
       ),
     ),
   ),

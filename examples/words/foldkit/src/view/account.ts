@@ -219,7 +219,7 @@ const userIDRow = (model: Model): ReadonlyArray<Html> => {
                 [
                   h.span(
                     [h.Class('text-footnote font-medium text-secondary')],
-                    ['Instant user ID'],
+                    ['Account ID'],
                   ),
                   h.div(
                     [h.Class('flex flex-wrap items-center gap-2')],
@@ -245,7 +245,7 @@ const userIDRow = (model: Model): ReadonlyArray<Html> => {
               h.p(
                 [h.Class('text-footnote text-secondary')],
                 [
-                  'The id of your account in Scribe’s Instant app. Your iPhone shows the same account under Settings, Account & Device.',
+                  'The ID of your Scribe account. Your iPhone shows the same account under Settings, Account & Device.',
                 ],
               ),
             ],
@@ -268,7 +268,7 @@ const scribeGroup = (model: Model): ReadonlyArray<Html> => [
     ...userIDRow(model),
   ]),
   groupFootnote([
-    'The web and your iPhone use one account in Scribe’s Instant app. Record on either, and the other shows it as it happens.',
+    'The web and your iPhone use one Scribe account. Record on either, and the other shows it as it happens.',
   ]),
 ]
 
@@ -334,7 +334,7 @@ const sharingStatusOf = (model: Model): SharingStatus =>
         })),
         M.when('AwaitingSchema', () => ({
           detail:
-            'Built and waiting for one approval: Scribe’s database needs the sharing fields (ADR 0014). Until then Share shows what it will do but cannot save.',
+            'Not on for this site yet. Until it is, Share shows what it will do but cannot save.',
           iconName: 'Clock',
           colorClass: 'bg-[#ff9500]',
         })),

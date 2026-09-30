@@ -10,7 +10,11 @@ import {
   type WordsOriginError,
   isSameEmail,
 } from '../origin.js'
-import { WordsStore, type WordsStoreError } from '../store.js'
+import {
+  WordsStore,
+  type WordsStoreError,
+  storeFailureReasonOf,
+} from '../store.js'
 import {
   CompletedLeaveForAccessLogout,
   CompletedSignOutOfScribe,
@@ -55,8 +59,7 @@ const reasonOf = (error: WordsStoreError | WordsOriginError): string =>
   M.value(error).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      WordsStoreError: ({ operation, cause }) =>
-        `${operation}: ${String(cause)}`,
+      WordsStoreError: storeFailureReasonOf,
       WordsOriginError: ({ reason }) => reason,
     }),
   )

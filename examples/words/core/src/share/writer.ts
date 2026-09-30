@@ -91,7 +91,7 @@ const bounded = <A>(
       Effect.fail(
         new ShareWriteError({
           operation,
-          cause: 'Instant did not confirm the write within 5 seconds.',
+          cause: 'Scribe did not confirm the write within 5 seconds.',
         }),
       ),
     ),

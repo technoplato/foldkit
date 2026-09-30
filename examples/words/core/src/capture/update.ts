@@ -2,6 +2,7 @@ import { Array, Effect, Match as M, Option, Schema as S, String } from 'effect'
 import { Command } from 'foldkit'
 import { evo } from 'foldkit/struct'
 
+import { failureTextOf } from '../failure.js'
 import { transcriptionIDOf } from '../ids.js'
 import {
   CompletedPauseCapture,
@@ -55,6 +56,7 @@ import {
 } from './session.js'
 import {
   type RecordingWriteError,
+  type RecordingWriteOperation,
   RecordingWriter,
   webTranscriptionConfiguration,
   webTranscriptionConfigurationName,
@@ -83,8 +85,24 @@ export type UpdateReturn = readonly [Model, Commands, Option.Option<OutMessage>]
 
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
 
+const writeFailureOf = (operation: RecordingWriteOperation): string =>
+  M.value(operation).pipe(
+    M.withReturnType<string>(),
+    M.when('ReadClientID', () => 'This browser could not start the recording.'),
+    M.when('CreateRecording', () => 'The new recording did not save.'),
+    M.when('WriteSegment', () => 'The latest words did not save.'),
+    M.when('WriteDuration', () => 'The recording’s length did not save.'),
+    M.when('StopRecording', () => 'The end of the recording did not save.'),
+    M.when('UploadAudio', () => 'The audio did not upload.'),
+    M.when(
+      'LinkAudio',
+      () => 'The uploaded audio was not attached to the recording.',
+    ),
+    M.exhaustive,
+  )
+
 const writeReasonOf = (error: RecordingWriteError): string =>
-  `${error.operation}: ${error.cause instanceof Error ? error.cause.message : globalThis.String(error.cause)}`
+  failureTextOf(writeFailureOf(error.operation), error.cause)
 
 /**
  * A web recording's title, in the iPhone's format: `Recording 019 — Sep 28, 2026`.

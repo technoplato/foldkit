@@ -21,6 +21,7 @@ import {
   decodeRecordingDetail,
   decodeRecordingList,
 } from './decode.js'
+import { failureTextOf } from './failure.js'
 import { type IdentityState, SignedIn, SignedOut } from './model.js'
 import type { AppSchema } from './scribeSchema.js'
 import {
@@ -54,6 +55,37 @@ export class WordsStoreError extends Data.TaggedError('WordsStoreError')<{
   readonly operation: WordsStoreOperation
   readonly cause: unknown
 }> {}
+
+const storeFailureOf = (operation: WordsStoreOperation): string =>
+  M.value(operation).pipe(
+    M.withReturnType<string>(),
+    M.when('ObserveIdentity', () => 'Scribe could not tell who is signed in.'),
+    M.when('ObserveRecordings', () => 'The recordings did not load.'),
+    M.when('ObserveRecording', () => 'The recording did not load.'),
+    M.when('ObserveFileUrls', () => 'The audio and images did not load.'),
+    M.when('FetchRecording', () => 'Scribe could not check the recording.'),
+    M.when('FetchSharedRange', () => 'Scribe could not check the share.'),
+    M.when('CheckSignIn', () => 'Scribe could not check the sign-in.'),
+    M.when('SignIn', () => 'Signing in did not finish.'),
+    M.when('SignOut', () => 'Signing out did not finish.'),
+    M.when('ObserveShares', () => 'The shares did not load.'),
+    M.when('ObserveShareRecipients', () => 'The suggestions did not load.'),
+    M.when('ObserveSharedRange', () => 'The shared sections did not load.'),
+    M.exhaustive,
+  )
+
+/**
+ * A store failure as the page says it: what did not happen, and its cause in
+ * plain words when there is one to act on.
+ *
+ * @example
+ * ```ts
+ * storeFailureReasonOf(new WordsStoreError({ operation: 'ObserveRecording', cause: new TypeError('Failed to fetch') }))
+ * // 'The recording did not load. The network connection dropped.'
+ * ```
+ */
+export const storeFailureReasonOf = (error: WordsStoreError): string =>
+  failureTextOf(storeFailureOf(error.operation), error.cause)
 
 /** Download URLs keyed by Instant file id. */
 export type FileUrls = Readonly<Record<string, string>>

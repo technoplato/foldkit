@@ -140,16 +140,28 @@ const errorNameOf = (body: unknown): string =>
     onSome: ({ error }) => error,
   })
 
+const originFailureOf = (operation: WordsOriginOperation): string =>
+  M.value(operation).pipe(
+    M.withReturnType<string>(),
+    M.when(
+      'CheckAccess',
+      () => 'words.knophy.com could not check your account.',
+    ),
+    M.when('MintSession', () => 'words.knophy.com could not sign you in.'),
+    M.when(
+      'MintTranscriptionToken',
+      () => 'Live transcription could not start.',
+    ),
+    M.exhaustive,
+  )
+
 const reasonForError = (operation: WordsOriginOperation, name: string) =>
   M.value(name).pipe(
     M.withReturnType<string>(),
-    M.when(
-      'MintUnavailable',
-      () => 'words.knophy.com could not reach Scribe’s Instant app.',
-    ),
+    M.when('MintUnavailable', () => 'words.knophy.com could not reach Scribe.'),
     M.when(
       'CheckUnavailable',
-      () => 'words.knophy.com could not reach Scribe’s Instant app.',
+      () => 'words.knophy.com could not reach Scribe.',
     ),
     M.when(
       'ConnectIPhoneFirst',
@@ -165,7 +177,7 @@ const reasonForError = (operation: WordsOriginOperation, name: string) =>
       () =>
         'Live transcription is not set up on words.knophy.com (no speech service key).',
     ),
-    M.orElse(() => `${operation} failed: ${name}.`),
+    M.orElse(() => originFailureOf(operation)),
   )
 
 const failure = (operation: WordsOriginOperation, body: unknown) =>
