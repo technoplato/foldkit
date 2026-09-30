@@ -602,6 +602,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 9:39:47 p.m. EDT — `0832651d1cb8` feat(words): the recording list as a sidebar beside the page from 1024 px
+
+- **Implementation commit:** `0832651d1cb8dacc499dc081c91059c2b4472a57`
+- **Change:** The recording list as a sidebar beside the page from 1024 px (#289 W20, W41).
+- **Details:**
+  - From 1024 px the list is a sticky 21rem sidebar (24rem from 1280 px) with the open recording marked; the list route shows Choose a Recording beside it; the split holds while signing in so the layout does not move; one column without a connected account and in Full Screen; nothing changes below 1024 px.
+  - Measured on the fixture at 1280 px: the page column starts at 384 px, the player centers at 832 px, sidebar wheel scrolling leaves the followed playhead attached, transcript scrolling detaches it, and a sidebar click opens Recording 013 at the top of its page.
+  - W41: the top bar uses the content column's max width and padding, and spans the grid when split.
+- **Files:**
+  - `examples/words/foldkit/src/view/view.ts` — split layout, page column, and offsets
+  - `examples/words/foldkit/src/view/list.ts` — shared list body, sidebar, placeholder, open row marked
+  - `examples/words/foldkit/src/view/shell.ts` — top bar on the content grid; toast offset
+  - `examples/words/foldkit/src/view/playback.ts` — title id constant and scroll margin
+  - `examples/words/core/src/update.ts` — ScrollToRecordingTitle for recordings opened without a moment
+  - `examples/words/core/src/message.ts` — CompletedScrollToRecordingTitle
+  - `examples/words/core/src/update.test.ts` — title scroll test
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 9:27:15 p.m. EDT — `25d1ff80e82e` feat(words): reopen a recording where the listener left it
 
 - **Implementation commit:** `25d1ff80e82e71f7ed6639e52858ae844eef4ecb`
