@@ -1285,7 +1285,9 @@ export const openSectionsOf = (model: Model): ReadonlyArray<Section> =>
   )
 
 const shareContextOf = (model: Model): Share.ShareContext => ({
-  sharing: model.account.features.sharing,
+  sharing: Account.Model.isSharingEnabled(model.account)
+    ? 'Enabled'
+    : 'AwaitingSchema',
   maybeOwnerUserID: signedInUserIDOf(model),
   maybeSharedBy: Option.map(
     Account.Model.accessOf(model.account),

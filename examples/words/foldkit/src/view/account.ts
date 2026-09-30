@@ -10,7 +10,7 @@ import {
 } from 'words-core-example'
 
 import { connectCard } from './connect.js'
-import { icon } from './icon.js'
+import { type IconName, icon } from './icon.js'
 import { largeTitle } from './shell.js'
 import {
   type BadgeTone,
@@ -311,8 +311,39 @@ const shortcutsGroup = (): ReadonlyArray<Html> => {
   ]
 }
 
+type SharingStatus = Readonly<{
+  detail: string
+  iconName: IconName
+  colorClass: string
+}>
+
+const sharingStatusOf = (model: Model): SharingStatus =>
+  Option.match(Account.Model.maybeSharingOf(model.account), {
+    onNone: () => ({
+      detail: 'Checking with words.knophy.com.',
+      iconName: 'Clock',
+      colorClass: 'bg-[#8e8e93]',
+    }),
+    onSome: sharing =>
+      M.value(sharing).pipe(
+        M.withReturnType<SharingStatus>(),
+        M.when('Enabled', () => ({
+          detail: 'Ready.',
+          iconName: 'Check',
+          colorClass: 'bg-[#34c759]',
+        })),
+        M.when('AwaitingSchema', () => ({
+          detail:
+            'Built and waiting for one approval: Scribe’s database needs the sharing fields (ADR 0014). Until then Share shows what it will do but cannot save.',
+          iconName: 'Clock',
+          colorClass: 'bg-[#ff9500]',
+        })),
+        M.exhaustive,
+      ),
+  })
+
 const sharingGroup = (model: Model): ReadonlyArray<Html> => {
-  const isSharingReady = model.account.features.sharing === 'Enabled'
+  const status = sharingStatusOf(model)
   return [
     groupTitle('Sharing'),
     group([
@@ -337,17 +368,8 @@ const sharingGroup = (model: Model): ReadonlyArray<Html> => {
       ),
       groupRow(
         'Sharing on this site',
-        [
-          isSharingReady
-            ? 'Ready.'
-            : 'Built and waiting for one approval: Scribe’s database needs the sharing fields (ADR 0014). Until then Share shows what it will do but cannot save.',
-        ],
-        Option.some(
-          rowIcon(
-            isSharingReady ? 'Check' : 'Clock',
-            isSharingReady ? 'bg-[#34c759]' : 'bg-[#ff9500]',
-          ),
-        ),
+        [status.detail],
+        Option.some(rowIcon(status.iconName, status.colorClass)),
       ),
     ]),
   ]

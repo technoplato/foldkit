@@ -1,6 +1,7 @@
 import {
   Array,
   Effect,
+  Equivalence,
   Match as M,
   Option,
   Schema as S,
@@ -13,9 +14,13 @@ import { evo } from 'foldkit/struct'
 import { ShareRoute, scribeRouteToShareUrl } from '../link.js'
 import { type SharingMode, isSameEmail } from '../origin.js'
 import type { Section } from '../recording.js'
+import { WordsStore } from '../store.js'
 import {
+  ConfirmedMissingSharedRange,
+  ConfirmedSharedRangeExists,
   FailedClaimShare,
   FailedCreateShares,
+  FailedObserveSharedRange,
   FailedRevokeShare,
   type Message,
   type OutMessage,
@@ -65,7 +70,9 @@ export type ShareContext = Readonly<{
   maybeLinkToken: Option.Option<string>
 }>
 
-type Commands = ReadonlyArray<Command.Command<Message, never, ShareWriter>>
+type Commands = ReadonlyArray<
+  Command.Command<Message, never, ShareWriter | WordsStore>
+>
 
 /** The share update's result: the next Model, its Commands, and what it tells the page. */
 export type UpdateReturn = readonly [Model, Commands, Option.Option<OutMessage>]
@@ -176,9 +183,49 @@ export const ClaimShare = Command.define(
   ),
 )
 
+/**
+ * Asks the server whether a share link that came back empty exists for the
+ * viewer signed in as `maybeViewerUserID`. Right after sign-in a new query
+ * can first answer from what the browser read before signing in, so an empty
+ * answer is checked before the page says the share is not available.
+ */
+export const ConfirmSharedRange = Command.define(
+  'ConfirmSharedRange',
+  {
+    shareID: S.String,
+    maybeLinkToken: S.Option(S.String),
+    maybeViewerUserID: S.Option(S.String),
+  },
+  ConfirmedMissingSharedRange,
+  ConfirmedSharedRangeExists,
+  FailedObserveSharedRange,
+)(({ shareID, maybeLinkToken, maybeViewerUserID }) =>
+  WordsStore.pipe(
+    Effect.flatMap(store => store.hasSharedRange(shareID, maybeLinkToken)),
+    Effect.map(isPresent =>
+      isPresent
+        ? ConfirmedSharedRangeExists({ shareID, maybeViewerUserID })
+        : ConfirmedMissingSharedRange({ shareID, maybeViewerUserID }),
+    ),
+    Effect.catch(error =>
+      Effect.succeed(
+        FailedObserveSharedRange({
+          shareID,
+          reason: `${error.operation}: ${globalThis.String(error.cause)}`,
+        }),
+      ),
+    ),
+  ),
+)
+
 // UPDATE
 
 const noOutMessage = Option.none<OutMessage>()
+
+const isSameViewer = Option.makeEquivalence(Equivalence.String)
+
+const viewerUserIDOf = (context: ShareContext): Option.Option<string> =>
+  Option.map(context.maybeViewer, viewer => viewer.userID)
 
 const inOpenSheet = (
   model: Model,
@@ -302,11 +349,30 @@ const observedSharedRange = (
   context: ShareContext,
 ): UpdateReturn =>
   Option.match(maybeRange, {
-    onNone: () => [
-      evo(model, { sharedRange: () => MissingSharedRange({ shareID }) }),
-      [],
-      noOutMessage,
-    ],
+    onNone: () =>
+      M.value(model.sharedRange).pipe(
+        withUpdateReturn,
+        M.tag('OpeningSharedRange', opening =>
+          opening.shareID === shareID
+            ? [
+                model,
+                [
+                  ConfirmSharedRange({
+                    shareID,
+                    maybeLinkToken: context.maybeLinkToken,
+                    maybeViewerUserID: viewerUserIDOf(context),
+                  }),
+                ],
+                noOutMessage,
+              ]
+            : [model, [], noOutMessage],
+        ),
+        M.orElse(() => [
+          evo(model, { sharedRange: () => MissingSharedRange({ shareID }) }),
+          [],
+          noOutMessage,
+        ]),
+      ),
     onSome: range => {
       const currentClaim = M.value(model.sharedRange).pipe(
         M.tag('ReadySharedRange', ready => ready.claim),
@@ -544,6 +610,24 @@ export const update = (
         [],
         noOutMessage,
       ],
+      ConfirmedMissingSharedRange: ({ shareID, maybeViewerUserID }) =>
+        M.value(model.sharedRange).pipe(
+          withUpdateReturn,
+          M.tag('OpeningSharedRange', opening =>
+            opening.shareID === shareID &&
+            isSameViewer(maybeViewerUserID, viewerUserIDOf(context))
+              ? [
+                  evo(model, {
+                    sharedRange: () => MissingSharedRange({ shareID }),
+                  }),
+                  [],
+                  noOutMessage,
+                ]
+              : [model, [], noOutMessage],
+          ),
+          M.orElse(() => [model, [], noOutMessage]),
+        ),
+      ConfirmedSharedRangeExists: () => [model, [], noOutMessage],
       SucceededClaimShare: () =>
         inReadySharedRange(model, ready =>
           evo(ready, { claim: () => ClaimedShare() }),

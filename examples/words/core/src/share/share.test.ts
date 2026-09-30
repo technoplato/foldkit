@@ -11,6 +11,7 @@ import {
   ClickedRevokeShare,
   ClickedShareRecording,
   ClickedSuggestedRecipient,
+  ConfirmedMissingSharedRange,
   type Message,
   ObservedSharedRange,
   OpenedSharedRange,
@@ -277,6 +278,67 @@ describe('opening a share link', () => {
         { ...reader, sharing: 'AwaitingSchema' },
       ).commandNames,
     ).toEqual([])
+  })
+
+  it('checks an empty answer with the server before saying a share is not available', () => {
+    const empty = run(
+      init(),
+      [
+        OpenedSharedRange({ shareID: 'share-1' }),
+        ObservedSharedRange({ shareID: 'share-1', maybeRange: Option.none() }),
+      ],
+      reader,
+    )
+    expect(empty.commandNames).toEqual(['ConfirmSharedRange'])
+    expect(empty.model.sharedRange._tag).toBe('OpeningSharedRange')
+    expect(
+      run(
+        empty.model,
+        [
+          ConfirmedMissingSharedRange({
+            shareID: 'share-1',
+            maybeViewerUserID: Option.some('reader-1'),
+          }),
+        ],
+        reader,
+      ).model.sharedRange._tag,
+    ).toBe('MissingSharedRange')
+  })
+
+  it('ignores an answer that was asked for before the viewer signed in', () => {
+    const answered = run(
+      init(),
+      [
+        OpenedSharedRange({ shareID: 'share-1' }),
+        ConfirmedMissingSharedRange({
+          shareID: 'share-1',
+          maybeViewerUserID: Option.none(),
+        }),
+        ObservedSharedRange({
+          shareID: 'share-1',
+          maybeRange: Option.some(range(true)),
+        }),
+      ],
+      reader,
+    )
+    expect(answered.model.sharedRange._tag).toBe('ReadySharedRange')
+  })
+
+  it('turns a share that was open into not available as soon as it is revoked', () => {
+    const revoked = run(
+      init(),
+      [
+        OpenedSharedRange({ shareID: 'share-1' }),
+        ObservedSharedRange({
+          shareID: 'share-1',
+          maybeRange: Option.some(range(true)),
+        }),
+        ObservedSharedRange({ shareID: 'share-1', maybeRange: Option.none() }),
+      ],
+      reader,
+    )
+    expect(revoked.commandNames).toEqual([])
+    expect(revoked.model.sharedRange._tag).toBe('MissingSharedRange')
   })
 
   it('shows a missing share as not available', () => {

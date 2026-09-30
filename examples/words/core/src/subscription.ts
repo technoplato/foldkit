@@ -197,7 +197,7 @@ const instantSubscriptions = Subscription.make<
 }))
 
 const openShareSheetRecordingIDOf = (model: Model): Option.Option<string> =>
-  model.account.features.sharing === 'Enabled'
+  Account.Model.isSharingEnabled(model.account)
     ? M.value(model.share.sheet).pipe(
         M.withReturnType<Option.Option<string>>(),
         M.tag('ShareSheetOpen', ({ recordingID }) => Option.some(recordingID)),

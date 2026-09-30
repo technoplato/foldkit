@@ -523,7 +523,7 @@ describe('opening the other links in a new tab', () => {
     })
   }
 
-  it('opens a share link after sign-in without saying it is not available first', () => {
+  it('opens a share link after sign-in without saying it is not available first', async () => {
     const range: Share.Model.SharedRange = {
       share: {
         id: shareID,
@@ -549,18 +549,30 @@ describe('opening the other links in a new tab', () => {
         `https://words.knophy.com/recording/${recordingID}/share/${shareID}?k=secret`,
       ),
     )
+    const emptyShare = GotShareMessage({
+      message: Share.reportSharedRange({ shareID, maybeRange: Option.none() }),
+    })
+    const answeredMissingBeforeSignIn = GotShareMessage({
+      message: await Effect.runPromise(
+        Effect.provide(
+          Share.ConfirmSharedRange({
+            shareID,
+            maybeLinkToken: Option.some('secret'),
+            maybeViewerUserID: Option.none(),
+          }).effect,
+          browserWithoutSession,
+        ),
+      ),
+    })
     const shown = Array.reduce(
       [
         noSessionYet,
-        GotShareMessage({
-          message: Share.reportSharedRange({
-            shareID,
-            maybeRange: Option.none(),
-          }),
-        }),
+        emptyShare,
         accessFoundTheAccount,
         signedIn,
         connected,
+        emptyShare,
+        answeredMissingBeforeSignIn,
         GotShareMessage({
           message: Share.reportSharedRange({
             shareID,
@@ -568,17 +580,45 @@ describe('opening the other links in a new tab', () => {
           }),
         }),
       ],
-      { model: start, tags: Array.empty<string>() },
+      {
+        model: start,
+        tags: Array.empty<string>(),
+        confirms: Array.empty<unknown>(),
+      },
       (state, message) => {
-        const [next] = update(state.model, message)
+        const [next, commands] = update(state.model, message)
         return {
           model: next,
           tags: [...state.tags, displayedSharedRangeOf(next)._tag],
+          confirms: [
+            ...state.confirms,
+            ...pipe(
+              commands,
+              Array.filter(command => command.name === 'ConfirmSharedRange'),
+              Array.map(command => command.args),
+            ),
+          ],
         }
       },
     )
+
+    expect(answeredMissingBeforeSignIn.message._tag).toBe(
+      'ConfirmedMissingSharedRange',
+    )
     expect(displayedSharedRangeOf(start)._tag).toBe('OpeningSharedRange')
     expect(shown.tags).not.toContain('MissingSharedRange')
+    expect(shown.confirms).toEqual([
+      {
+        shareID,
+        maybeLinkToken: Option.some('secret'),
+        maybeViewerUserID: Option.none(),
+      },
+      {
+        shareID,
+        maybeLinkToken: Option.some('secret'),
+        maybeViewerUserID: Option.some(userID),
+      },
+    ])
     expect(shown.model.share.sharedRange._tag).toBe('ReadySharedRange')
   })
 })

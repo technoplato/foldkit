@@ -193,10 +193,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     withUpdateReturn,
     M.tagsExhaustive({
       FoundScribeAccount: ({ access, features }) =>
-        foundAccount(evo(model, { features: () => features }), access),
+        foundAccount(
+          evo(model, { maybeFeatures: () => Option.some(features) }),
+          access,
+        ),
       FoundNoScribeAccount: ({ access, features }) => [
         unlessSignedOut(
-          evo(model, { features: () => features }),
+          evo(model, { maybeFeatures: () => Option.some(features) }),
           AwaitingIPhone({ access }),
         ),
         [],

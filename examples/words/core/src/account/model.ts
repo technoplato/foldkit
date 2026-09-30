@@ -1,7 +1,7 @@
 import { Match as M, Option, Schema as S } from 'effect'
 import { ts } from 'foldkit/schema'
 
-import { AccessIdentity, OriginFeatures } from '../origin.js'
+import { AccessIdentity, OriginFeatures, type SharingMode } from '../origin.js'
 
 // MODEL
 
@@ -51,20 +51,24 @@ export const Connection = S.Union([
 /** How the Cloudflare Access identity and the Scribe account connect. */
 export type Connection = typeof Connection.Type
 
-/** The account Submodel: the connection, and what the origin turns on. */
+/**
+ * The account Submodel: the connection, and what the origin turns on. The
+ * features are `None` until the origin first answers the access check, so the
+ * page never claims sharing is off before it knows.
+ */
 export const Model = S.Struct({
   connection: Connection,
-  features: OriginFeatures,
+  maybeFeatures: S.Option(OriginFeatures),
 })
 /** The account Submodel. */
 export type Model = typeof Model.Type
 
 // INIT
 
-/** The account before the first check; sharing waits until the origin says otherwise. */
+/** The account before the first check: nothing is known about it yet. */
 export const init = (): Model => ({
   connection: CheckingAccount(),
-  features: { sharing: 'AwaitingSchema' },
+  maybeFeatures: Option.none(),
 })
 
 // SELECTOR
@@ -84,6 +88,14 @@ export const accessOf = (model: Model): Option.Option<AccessIdentity> =>
       SignedOutAccount: ({ access }) => Option.some(access),
     }),
   )
+
+/** Whether the origin turned sharing on for this site; `None` until it has answered. */
+export const maybeSharingOf = (model: Model): Option.Option<SharingMode> =>
+  Option.map(model.maybeFeatures, features => features.sharing)
+
+/** Whether share writes are on: only once the origin has said so. */
+export const isSharingEnabled = (model: Model): boolean =>
+  Option.exists(maybeSharingOf(model), sharing => sharing === 'Enabled')
 
 /** Whether the page checks the account again on a timer. */
 export const isRechecking = (model: Model): boolean =>

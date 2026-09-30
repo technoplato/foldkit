@@ -41,6 +41,7 @@ export type WordsStoreOperation =
   | 'ObserveRecording'
   | 'ObserveFileUrls'
   | 'FetchRecording'
+  | 'FetchSharedRange'
   | 'CheckSignIn'
   | 'SignIn'
   | 'SignOut'
@@ -88,6 +89,10 @@ export type WordsStoreService = Readonly<{
     maybeLinkToken: Option.Option<string>,
     maybeViewerUserID: Option.Option<string>,
   ) => Stream.Stream<Option.Option<SharedRange>, WordsStoreError>
+  hasSharedRange: (
+    shareID: string,
+    maybeLinkToken: Option.Option<string>,
+  ) => Effect.Effect<boolean, WordsStoreError>
 }>
 
 /** The Instant reads the web Scribe Program needs, chosen by the host. */
@@ -167,6 +172,12 @@ const memberOf = (
           email,
         })),
   )
+
+const ruleParamsOf = (maybeLinkToken: Option.Option<string>) =>
+  Option.match(maybeLinkToken, {
+    onNone: () => ({}),
+    onSome: k => ({ k }),
+  })
 
 const emitResponse = <Data, A>(
   emit: Emit<A>,
@@ -315,12 +326,21 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
             emitResponse(emit, response, data =>
               decodeSharedRange(data.recordingSegmentShares, maybeViewerUserID),
             ),
-          {
-            ruleParams: Option.match(maybeLinkToken, {
-              onNone: () => ({}),
-              onSome: k => ({ k }),
-            }),
-          },
+          { ruleParams: ruleParamsOf(maybeLinkToken) },
+        ),
+      ),
+    hasSharedRange: (shareID, maybeLinkToken) =>
+      Effect.tryPromise({
+        try: () =>
+          database.queryOnce(
+            { recordingSegmentShares: { $: { where: { id: shareID } } } },
+            { ruleParams: ruleParamsOf(maybeLinkToken) },
+          ),
+        catch: cause =>
+          new WordsStoreError({ operation: 'FetchSharedRange', cause }),
+      }).pipe(
+        Effect.map(result =>
+          Array.isArrayNonEmpty(result.data.recordingSegmentShares),
         ),
       ),
   })
@@ -379,5 +399,6 @@ export const makeStaticWordsResources = (
     observeRecordingShares: () => Stream.succeed([]),
     observeShareRecipients: () => Stream.succeed([]),
     observeSharedRange: () => Stream.succeed(Option.none()),
+    hasSharedRange: () => Effect.succeed(false),
   })
 }

@@ -83,6 +83,19 @@ export const FailedObserveSharedRange = m('FailedObserveSharedRange', {
   shareID: S.String,
   reason: S.String,
 })
+/**
+ * The server confirmed the share is missing, turned off, or not shared with
+ * the viewer the question was asked for; `None` before sign-in.
+ */
+export const ConfirmedMissingSharedRange = m('ConfirmedMissingSharedRange', {
+  shareID: S.String,
+  maybeViewerUserID: S.Option(S.String),
+})
+/** The server has the share; its snapshot will follow. */
+export const ConfirmedSharedRangeExists = m('ConfirmedSharedRangeExists', {
+  shareID: S.String,
+  maybeViewerUserID: S.Option(S.String),
+})
 /** The listener opened a share link. */
 export const OpenedSharedRange = m('OpenedSharedRange', { shareID: S.String })
 /** The listener left the share link. */
@@ -114,6 +127,8 @@ export const Message = S.Union([
   ObservedShareRecipients,
   ObservedSharedRange,
   FailedObserveSharedRange,
+  ConfirmedMissingSharedRange,
+  ConfirmedSharedRangeExists,
   OpenedSharedRange,
   ClosedSharedRange,
   SucceededClaimShare,

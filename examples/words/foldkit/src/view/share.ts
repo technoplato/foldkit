@@ -1,6 +1,7 @@
 import { Array, Match as M, Option } from 'effect'
 import { type Html, html } from 'foldkit/html'
 import {
+  Account,
   GotShareMessage,
   type Message,
   type Model,
@@ -186,7 +187,7 @@ const shareRow = (share: Share.Model.RecordingShare): Html => {
 
 const existingShares = (model: Model): Html => {
   const h = html<Message>()
-  const isSharingReady = model.account.features.sharing === 'Enabled'
+  const isSharingReady = Account.Model.isSharingEnabled(model.account)
   return h.section(
     [h.Class('flex flex-col gap-1 border-t border-separator pt-4')],
     [
@@ -303,7 +304,11 @@ const sheetBody = (
     },
   )
   const isSaving = sheet.submission._tag === 'SavingShare'
-  const isSharingReady = model.account.features.sharing === 'Enabled'
+  const isSharingReady = Account.Model.isSharingEnabled(model.account)
+  const isAwaitingSchema = Option.exists(
+    Account.Model.maybeSharingOf(model.account),
+    sharing => sharing === 'AwaitingSchema',
+  )
   return h.form(
     [
       h.OnSubmit(shareMessage(Share.submitShare())),
@@ -340,7 +345,7 @@ const sheetBody = (
           ),
         ],
       ),
-      ...(isSharingReady ? [] : [awaitingSchemaNotice()]),
+      ...(isAwaitingSchema ? [awaitingSchemaNotice()] : []),
       h.div(
         [
           h.Role('radiogroup'),
