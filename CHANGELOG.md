@@ -602,6 +602,26 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 30th, 2026 at 4:06:40 a.m. EDT — `f6f1e11e9e9f` feat(words): stop a recording with Shift-Command-Period, and let floating pieces materialize
+
+- **Implementation commit:** `f6f1e11e9e9f123a734448b9df6165cb300db5d2`
+- **Change:** Stop a recording with Shift-Command-Period, and let floating pieces materialize (#289 W38, W64).
+- **Details:**
+  - W38: Shift-Command-Period (Shift-Control-Period off the Mac) stops the recording in progress, like the Mac app; never while typing, in a dialog, or on key repeat; named on Stop and in Settings.
+  - W64: New Recording, the recorder, the player, and the mini player fade and rise in over 0.2 s when they appear; Reduce Motion turns it off.
+- **Files:**
+  - `examples/words/core/src/keyboard.ts` — StopRecording, the key press's physical key and modifiers, shortcutHintOf
+  - `examples/words/core/src/update.ts` — the StopRecording shortcut stops a capturing recording
+  - `examples/words/foldkit/src/browser.ts` — key presses report code, Shift, and Command or Control
+  - `examples/words/foldkit/src/view/capture.ts` — shortcut hints on Pause and Stop
+  - `examples/words/foldkit/src/view/account.ts` — the Stop shortcut in Settings
+  - `examples/words/foldkit/src/styles.css` — materialize transition for floating pieces
+  - `examples/words/core/src/keyboard.test.ts` — Stop shortcut tests
+  - `examples/words/core/src/update.test.ts` — Stop shortcut update test
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 30th, 2026 at 4:04:37 a.m. EDT — `d91c94787ff7` feat(words): mark recordings shared with this account and open them at their share
 
 - **Implementation commit:** `d91c94787ff79744fd807737a0b4d6d1b43ce505`
