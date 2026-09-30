@@ -602,6 +602,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 9:27:15 p.m. EDT — `25d1ff80e82e` feat(words): reopen a recording where the listener left it
+
+- **Implementation commit:** `25d1ff80e82e71f7ed6639e52858ae844eef4ecb`
+- **Change:** Reopen a recording where the listener left it (#289 W31).
+- **Details:**
+  - resumePositions keeps, per recording, the position where it was left part way through; opening it again without a moment in the link resumes there and scrolls to it; links with t or a section win; played to the end, it starts over.
+- **Files:**
+  - `examples/words/core/src/update.ts` — remember positions when a route leaves a playback; resume links that name no moment
+  - `examples/words/core/src/model.ts` — resumePositions
+  - `examples/words/core/src/update.test.ts` — resume, link, and end-of-audio tests
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 9:23:32 p.m. EDT — `dd024f61ead9` feat(words): row actions on touch and a right-click menu on the recording list
 
 - **Implementation commit:** `dd024f61ead95579682e4de26f285a8a72c8d3d7`
