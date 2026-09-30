@@ -204,8 +204,11 @@ const _schema = i.schema({
       timeline: i.json<SharedTimelineEntry[]>(),
       updatedAtMs: i.number().indexed(),
     }),
+    // One row per account (scope "user:<id>", ADR 0005 amendment). Builds up to 68 wrote one row, scope
+    // "default", that every user shared; the rules keep it write-only for them.
     sharedSettings: i.entity({
       scope: i.string().unique().indexed(),
+      ownerUserID: i.string().indexed().optional(),
       copyMarkdownShortcut: i.json<StoredShortcut>(),
       copyPlainTextShortcut: i.json<StoredShortcut>(),
       copySinceLastCopyShortcut: i.json<StoredShortcut>(),
@@ -762,6 +765,19 @@ const _schema = i.schema({
         on: '$users',
         has: 'many',
         label: 'readableSegmentShares',
+      },
+    },
+    sharedSettingsOwner: {
+      forward: {
+        on: 'sharedSettings',
+        has: 'one',
+        label: 'owner',
+        onDelete: 'cascade',
+      },
+      reverse: {
+        on: '$users',
+        has: 'many',
+        label: 'ownedSettings',
       },
     },
     shareRecipientOwner: {
