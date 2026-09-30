@@ -40,13 +40,118 @@ import { badge, button, compactButton, quietIconButton } from './ui.js'
 const COPY_MENU_ID = 'copy-transcript-menu'
 const COPY_MENU_ANCHOR = '--copy-transcript'
 
-const startedLabel = (startedAtMs: number): string =>
-  new Date(startedAtMs).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
-
 const keyHint = (label: string, key: string): string => `${label} (${key})`
+
+const MORE_MENU_ID = 'recording-more-menu'
+const MORE_MENU_ANCHOR = '--recording-more'
+
+const menuButton = (
+  menuID: string,
+  iconName: IconName,
+  label: string,
+  message: Message,
+): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.Popovertarget(menuID),
+      h.Popovertargetaction('hide'),
+      h.OnClick(message),
+      h.Class(
+        'flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-subhead text-label hover:bg-fill',
+      ),
+    ],
+    [icon(iconName, 'size-[18px] text-secondary'), label],
+  )
+}
+
+const menuGroupLabel = (text: string): Html => {
+  const h = html<Message>()
+  return h.p(
+    [
+      h.AriaHidden(true),
+      h.Class('px-3 pb-1 pt-2 text-footnote font-semibold text-secondary'),
+    ],
+    [text],
+  )
+}
+
+/**
+ * The recording's actions on a phone, beside Share: Copy Link, the transcript
+ * formats, Open in Scribe, and Full Screen, in one More menu, so the header
+ * needs no row of its own.
+ */
+const moreMenu = (
+  ready: ReadyPlayback,
+  config: ViewConfig,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return [
+    h.button(
+      [
+        h.Type('button'),
+        h.Popovertarget(MORE_MENU_ID),
+        h.AriaLabel('More Actions'),
+        h.Title('More Actions'),
+        h.Style({ anchorName: MORE_MENU_ANCHOR }),
+        h.Class(
+          'inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-fill text-label transition hover:bg-fill-strong',
+        ),
+      ],
+      [icon('More', 'size-5')],
+    ),
+    h.div(
+      [
+        h.Id(MORE_MENU_ID),
+        h.Popover('auto'),
+        h.AriaLabel('More Actions'),
+        h.Style({ positionAnchor: MORE_MENU_ANCHOR }),
+        h.Class('menu-popover glass'),
+      ],
+      [
+        menuButton(
+          MORE_MENU_ID,
+          'Link',
+          'Copy Link',
+          ClickedCopyRecordingLink({ recordingID: ready.recordingID }),
+        ),
+        menuGroupLabel('Copy Transcript'),
+        menuButton(
+          MORE_MENU_ID,
+          'Copy',
+          'Markdown',
+          ClickedCopyTranscript({ format: 'Markdown' }),
+        ),
+        menuButton(
+          MORE_MENU_ID,
+          'Copy',
+          'Plain Text',
+          ClickedCopyTranscript({ format: 'PlainText' }),
+        ),
+        menuButton(
+          MORE_MENU_ID,
+          'Copy',
+          'SubRip (SRT)',
+          ClickedCopyTranscript({ format: 'Srt' }),
+        ),
+        h.div([h.Class('my-1 border-t border-separator')], []),
+        menuButton(
+          MORE_MENU_ID,
+          'External',
+          'Open in Scribe',
+          ClickedOpenInApp({ scheme: config.appScheme }),
+        ),
+        menuButton(
+          MORE_MENU_ID,
+          'Expand',
+          'Full Screen',
+          ClickedEnterFullScreen(),
+        ),
+      ],
+    ),
+  ]
+}
 
 const copyFormatItem = (format: TranscriptFormat, label: string): Html => {
   const h = html<Message>()
@@ -115,10 +220,33 @@ const shareRangeOf = (ready: ReadyPlayback): readonly [number, number] => {
   ]
 }
 
-const metaLineOf = (ready: ReadyPlayback): string =>
-  isLiveRecording(ready)
-    ? `Started ${startedLabel(ready.detail.summary.startedAtMs)}`
-    : `${startedLabel(ready.detail.summary.startedAtMs)} · ${formatClock(Math.max(ready.detail.summary.durationSeconds, durationOf(ready)))}`
+const startedDateLabel = (startedAtMs: number): string =>
+  new Date(startedAtMs).toLocaleDateString(undefined, { dateStyle: 'medium' })
+
+const startedTimeLabel = (startedAtMs: number): string =>
+  new Date(startedAtMs).toLocaleTimeString(undefined, { timeStyle: 'short' })
+
+/**
+ * The start date, time, and length under a recording's title. The time and
+ * the length stay together, so a narrow screen wraps after the date.
+ */
+const metaLineOf = (ready: ReadyPlayback): ReadonlyArray<Html | string> => {
+  const h = html<Message>()
+  const startedAtMs = ready.detail.summary.startedAtMs
+  const time = startedTimeLabel(startedAtMs)
+  const date = `${isLiveRecording(ready) ? 'Started ' : ''}${startedDateLabel(startedAtMs)}, `
+  return [
+    date,
+    h.span(
+      [h.Class('whitespace-nowrap')],
+      [
+        isLiveRecording(ready)
+          ? time
+          : `${time} · ${formatClock(Math.max(ready.detail.summary.durationSeconds, durationOf(ready)))}`,
+      ],
+    ),
+  ]
+}
 
 const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
   const h = html<Message>()
@@ -128,8 +256,26 @@ const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
     ready.detail.sections,
     section => section.isFinal,
   )
+  const openShare = GotShareMessage({
+    message: Share.openShareSheet({
+      recordingID: ready.recordingID,
+      rangeStartIndex,
+      rangeEndIndex,
+    }),
+  })
+  const phaseBadges = (visibilityClass: string): ReadonlyArray<Html> =>
+    Option.match(playbackPhaseOf(ready), {
+      onNone: () => [],
+      onSome: phase => [
+        h.span([h.Class(visibilityClass)], [badge(phase, phase)]),
+      ],
+    })
   return h.header(
-    [h.Class('mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pt-3 sm:px-6')],
+    [
+      h.Class(
+        'mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pt-3 max-sm:gap-0 sm:px-6',
+      ),
+    ],
     [
       h.div(
         [h.Class('flex flex-wrap items-center gap-x-2.5 gap-y-1')],
@@ -138,20 +284,44 @@ const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
             [
               h.Id(RECORDING_TITLE_ELEMENT_ID),
               h.Class(
-                'folding-title text-title font-bold tracking-tight text-label sm:text-large-title lg:text-display',
+                'folding-title text-title font-bold tracking-tight text-label max-sm:sr-only sm:text-large-title lg:text-display',
               ),
             ],
             [summary.title],
           ),
-          ...Option.match(playbackPhaseOf(ready), {
-            onNone: () => [],
-            onSome: phase => [badge(phase, phase)],
-          }),
+          ...phaseBadges('inline-flex max-sm:hidden'),
         ],
       ),
-      h.p(
-        [h.Class('tabular text-subhead text-secondary')],
-        [metaLineOf(ready)],
+      h.div(
+        [h.Class('flex items-center gap-2')],
+        [
+          h.p(
+            [h.Class('tabular min-w-0 flex-1 text-subhead text-secondary')],
+            [
+              ...phaseBadges('mr-2 inline-flex align-middle sm:hidden'),
+              ...metaLineOf(ready),
+            ],
+          ),
+          h.div(
+            [h.Class('flex shrink-0 items-center gap-2 sm:hidden')],
+            [
+              h.button(
+                [
+                  h.Type('button'),
+                  h.AriaLabel('Share'),
+                  h.Title('Share'),
+                  h.Disabled(!hasFinalSections),
+                  h.OnClick(openShare),
+                  h.Class(
+                    'inline-flex size-11 items-center justify-center rounded-full bg-tint-soft text-tint transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40',
+                  ),
+                ],
+                [icon('Share', 'size-5')],
+              ),
+              ...moreMenu(ready, config),
+            ],
+          ),
+        ],
       ),
       ...(ready.skippedCount > 0
         ? [
@@ -168,17 +338,11 @@ const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
           ]
         : []),
       h.div(
-        [h.Class('flex flex-wrap items-center gap-2 pt-1')],
+        [h.Class('hidden flex-wrap items-center gap-2 pt-1 sm:flex')],
         [
           button(
             'Share',
-            GotShareMessage({
-              message: Share.openShareSheet({
-                recordingID: ready.recordingID,
-                rangeStartIndex,
-                rangeEndIndex,
-              }),
-            }),
+            openShare,
             'Tinted',
             Option.some('Share'),
             !hasFinalSections,
@@ -414,12 +578,18 @@ const transportBar = (ready: ReadyPlayback): Html => {
     [
       h.Role('group'),
       h.AriaLabel('Playback'),
-      h.Class('glass flex w-full flex-col rounded-[28px] px-4 pb-2 pt-0.5'),
+      h.Class(
+        'glass flex w-full flex-col rounded-[28px] px-4 pb-1.5 pt-0.5 sm:pb-2',
+      ),
     ],
     [
       scrubberInput(ready, 'w-full'),
       h.div(
-        [h.Class('-mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2')],
+        [
+          h.Class(
+            '-mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:-mt-1',
+          ),
+        ],
         [
           clockLabel(position),
           h.div(
@@ -432,7 +602,7 @@ const transportBar = (ready: ReadyPlayback): Html => {
                 shortcutKeyOf('SkipBackward'),
                 'Left Arrow',
               ),
-              playPauseButton(ready, 'size-12'),
+              playPauseButton(ready, 'size-11 sm:size-12'),
               skipButton(
                 `Forward ${SKIP_SECONDS} Seconds`,
                 'Forward',

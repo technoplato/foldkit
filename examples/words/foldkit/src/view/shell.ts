@@ -185,7 +185,12 @@ const accountChipLabel = (model: Model): string =>
     onSome: access => `Settings, signed in as ${access.email}`,
   })
 
-const foldedTitleOf = (model: Model): ReadonlyArray<Html> => {
+/**
+ * The open recording's title in the top bar: always on a phone, like an iOS
+ * inline title, and from 640 px once the page's large title scrolls under
+ * the bar.
+ */
+const barTitleOf = (model: Model): ReadonlyArray<Html> => {
   const h = html<Message>()
   return M.value(model.playback).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
@@ -194,7 +199,16 @@ const foldedTitleOf = (model: Model): ReadonlyArray<Html> => {
         [
           h.AriaHidden(true),
           h.Class(
-            'folded-title min-w-0 flex-1 truncate text-center text-body font-semibold text-label',
+            'min-w-0 flex-1 truncate text-center text-body font-semibold text-label sm:hidden',
+          ),
+        ],
+        [ready.detail.summary.title],
+      ),
+      h.span(
+        [
+          h.AriaHidden(true),
+          h.Class(
+            'folded-title min-w-0 flex-1 truncate text-center text-body font-semibold text-label max-sm:hidden',
           ),
         ],
         [ready.detail.summary.title],
@@ -239,7 +253,7 @@ export const topBar = (model: Model, isSplit: boolean): Html => {
         ],
         [
           ...leadingOf(isOnList, isSplit),
-          ...foldedTitleOf(model),
+          ...barTitleOf(model),
           h.a(
             [
               h.Href(accountPath),
