@@ -523,6 +523,17 @@ describe('opening the other links in a new tab', () => {
     })
   }
 
+  it('opens a search link with its words in the search field', () => {
+    const model = modelForRoute(
+      routeOfPageLoad(
+        'https://words.knophy.com/recordings/search?q=rain%20barrel',
+      ),
+    )
+    expect(model.route._tag).toBe('SearchRecordings')
+    expect(model.searchQuery).toBe('rain barrel')
+    expect(model.playback._tag).toBe('NoPlayback')
+  })
+
   it('opens a share link after sign-in without saying it is not available first', async () => {
     const range: Share.Model.SharedRange = {
       share: {

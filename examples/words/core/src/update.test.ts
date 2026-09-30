@@ -13,7 +13,9 @@ import {
   PlaybackRoute,
   RecordingListRoute,
   RecordingRoute,
+  SearchRecordingsRoute,
   SectionRoute,
+  scribeRouteToPath,
   scribeRouteToShareUrl,
 } from './link.js'
 import {
@@ -37,6 +39,7 @@ import {
   ConfirmedMissingRecording,
   ElapsedAnnouncementPause,
   ElapsedFocusHighlight,
+  ElapsedSearchPause,
   EndedScrub,
   HeardAudioEnded,
   HeardAudioPaused,
@@ -1101,6 +1104,91 @@ describe('searching the list', () => {
     expect(
       run(loaded, [PressedShortcut({ shortcut: 'FocusSearch' })]).commandNames,
     ).toEqual(['FocusSearch'])
+  })
+
+  it('keeps the search in the address bar once typing pauses, as one history entry', () => {
+    const typing = run(loaded, [
+      UpdatedSearchQuery({ query: 'rain' }),
+      UpdatedSearchQuery({ query: 'rain barrel' }),
+    ])
+    expect(typing.commandNames).toEqual([
+      'WaitForSearchPause',
+      'WaitForSearchPause',
+    ])
+
+    const earlierPause = commandsOf(
+      typing.model,
+      ElapsedSearchPause({ query: 'rain' }),
+    )
+    expect(earlierPause.commands).toEqual([])
+    expect(earlierPause.model.route).toEqual(RecordingListRoute())
+
+    const paused = commandsOf(
+      typing.model,
+      ElapsedSearchPause({ query: 'rain barrel' }),
+    )
+    const searchRoute = SearchRecordingsRoute({
+      q: Option.some('rain barrel'),
+    })
+    expect(paused.model.route).toEqual(searchRoute)
+    expect(paused.commands).toEqual([
+      {
+        name: 'ReplaceUrl',
+        args: { url: scribeRouteToPath(searchRoute) },
+      },
+    ])
+    expect(shortcutContextOf(paused.model).isSearchAvailable).toBe(true)
+  })
+
+  it('keeps newer typing when the address bar catches up with an older search', () => {
+    const paused = run(loaded, [
+      UpdatedSearchQuery({ query: 'rain' }),
+      ElapsedSearchPause({ query: 'rain' }),
+      UpdatedSearchQuery({ query: 'rain b' }),
+    ]).model
+    const olderSearch = SearchRecordingsRoute({ q: Option.some('rain') })
+    const echoed = run(paused, [
+      ChangedUrl({ url: urlOf(scribeRouteToShareUrl(olderSearch)) }),
+    ]).model
+    expect(echoed.searchQuery).toBe('rain b')
+  })
+
+  it('shows the search a link or Back asks for, and none on the list itself', () => {
+    const launchSearch = SearchRecordingsRoute({ q: Option.some('launch') })
+    const searched = run(opened(RecordingRoute({ recordingID })), [
+      ChangedUrl({ url: urlOf(scribeRouteToShareUrl(launchSearch)) }),
+    ]).model
+    expect(searched.searchQuery).toBe('launch')
+
+    const listed = run(searched, [
+      ChangedUrl({ url: urlOf('https://words.knophy.com/') }),
+    ]).model
+    expect(listed.searchQuery).toBe('')
+  })
+
+  it('keeps the sidebar search while a result is open, without changing the address bar', () => {
+    const searched = run(loaded, [UpdatedSearchQuery({ query: 'hello' })]).model
+    const result = SectionRoute({
+      recordingID,
+      sectionID: sectionA.id,
+      t: Option.some('4'),
+    })
+    const openedResult = run(searched, [
+      ChangedUrl({ url: urlOf(scribeRouteToShareUrl(result)) }),
+    ]).model
+    expect(openedResult.searchQuery).toBe('hello')
+    expect(
+      run(openedResult, [UpdatedSearchQuery({ query: 'world' })]).commandNames,
+    ).toEqual([])
+  })
+
+  it('leaves the address bar alone for a blank search on the list', () => {
+    const cleared = run(loaded, [
+      UpdatedSearchQuery({ query: ' ' }),
+      ElapsedSearchPause({ query: ' ' }),
+    ])
+    expect(cleared.commandNames).toEqual(['WaitForSearchPause'])
+    expect(cleared.model.route).toEqual(RecordingListRoute())
   })
 
   it('offers search only on the list once recordings loaded', () => {

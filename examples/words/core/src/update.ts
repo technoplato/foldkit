@@ -12,7 +12,7 @@ import {
 } from 'effect'
 import { Command } from 'foldkit'
 import * as Dom from 'foldkit/dom'
-import { load, pushUrl } from 'foldkit/navigation'
+import { load, pushUrl, replaceUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
 import { toString as urlToString } from 'foldkit/url'
 
@@ -30,8 +30,10 @@ import {
   RecordingListRoute,
   RecordingRoute,
   type ScribeRoute,
+  SearchRecordingsRoute,
   SectionRoute,
   formatStartSeconds,
+  isListRoute,
   isRouteFocus,
   scribeRouteToAppUrl,
   scribeRouteToPath,
@@ -49,6 +51,7 @@ import {
   CompletedPauseAudio,
   CompletedPlayAudio,
   CompletedPublishNowPlaying,
+  CompletedReplaceUrl,
   CompletedScrollToRecordingTitle,
   CompletedScrollToSection,
   CompletedSeekAudio,
@@ -58,6 +61,7 @@ import {
   ElapsedAnnouncementPause,
   ElapsedCopyNotice,
   ElapsedFocusHighlight,
+  ElapsedSearchPause,
   FailedCopy,
   FailedObserveRecording,
   FailedPlayAudio,
@@ -95,7 +99,7 @@ import {
 import type { WordsOrigin } from './origin.js'
 import type { RecordingDetail, Section } from './recording.js'
 import { SectionPlacement, TranscriptScroller } from './scroller.js'
-import { SEARCH_FIELD_ID } from './search.js'
+import { SEARCH_FIELD_ID, searchTermsOf } from './search.js'
 import * as Share from './share/index.js'
 import { WordsStore, storeFailureReasonOf } from './store.js'
 import { exportTranscript, sectionAt } from './transcript.js'
@@ -108,6 +112,7 @@ export const SKIP_SECONDS = 15
 
 const FOCUS_HIGHLIGHT_DURATION = Duration.seconds(4)
 const COPY_NOTICE_DURATION = Duration.seconds(2)
+const SEARCH_URL_PAUSE = Duration.millis(400)
 const ANNOUNCEMENT_PAUSE = Duration.seconds(5)
 
 type Services =
@@ -135,6 +140,25 @@ export const Navigate = Command.define(
   { url: S.String },
   CompletedNavigate,
 )(({ url }) => pushUrl(url).pipe(Effect.as(CompletedNavigate())))
+
+/**
+ * Shows a site path in the address bar in place of the current entry, so a
+ * search typed on the list is one history step, not one per keystroke.
+ */
+export const ReplaceUrl = Command.define(
+  'ReplaceUrl',
+  { url: S.String },
+  CompletedReplaceUrl,
+)(({ url }) => replaceUrl(url).pipe(Effect.as(CompletedReplaceUrl())))
+
+/** Waits for a pause in typing before the address bar shows the search. */
+export const WaitForSearchPause = Command.define(
+  'WaitForSearchPause',
+  { query: S.String },
+  ElapsedSearchPause,
+)(({ query }) =>
+  Effect.sleep(SEARCH_URL_PAUSE).pipe(Effect.as(ElapsedSearchPause({ query }))),
+)
 
 /** Loads an outside page, or opens the Scribe app through its URL scheme. */
 export const LoadExternal = Command.define(
@@ -913,9 +937,47 @@ const openRoutedRecording = (
     },
   )
 
+/**
+ * The search a route shows: the `q` of a search link, none on the list
+ * itself, and on other pages the search the sidebar already shows.
+ */
+const searchQueryFor = (route: ScribeRoute, searchQuery: string): string =>
+  M.value(route).pipe(
+    M.withReturnType<string>(),
+    M.tag('SearchRecordings', ({ q }) => Option.getOrElse(q, () => '')),
+    M.tag('RecordingList', () => ''),
+    M.orElse(() => searchQuery),
+  )
+
+/**
+ * The page a search typed on the list shows, when the address bar needs to
+ * change: `/recordings/search?q=rain`, or the search page without `q` once the
+ * search is cleared there. A blank search on the list itself changes nothing.
+ */
+const searchRouteFor = (
+  route: ScribeRoute,
+  query: string,
+): Option.Option<ScribeRoute> =>
+  pipe(
+    Array.match(searchTermsOf(query), {
+      onEmpty: () =>
+        route._tag === 'RecordingList'
+          ? Option.none()
+          : Option.some(SearchRecordingsRoute({ q: Option.none() })),
+      onNonEmpty: () =>
+        Option.some(SearchRecordingsRoute({ q: Option.some(query) })),
+    }),
+    Option.filter(
+      nextRoute => scribeRouteToPath(nextRoute) !== scribeRouteToPath(route),
+    ),
+  )
+
 const applyRoute = (model: Model, route: ScribeRoute): UpdateReturn => {
+  const isSamePage = scribeRouteToPath(route) === scribeRouteToPath(model.route)
   const routed = evo(model, {
     route: () => route,
+    searchQuery: searchQuery =>
+      isSamePage ? searchQuery : searchQueryFor(route, searchQuery),
     share: share =>
       evo(share, { sharedRange: () => sharedRangeFor(route, share) }),
     resumePositions: () => rememberedPositionsOf(model),
@@ -1419,17 +1481,15 @@ export const captureSessionRequirementsOf = (
     recordingID: draft.recordingID,
   }))
 
-/** Whether New Recording is offered: the account is connected and the recording list has loaded. */
+/** Whether New Recording is offered: the account is connected, the list (or a search of it) shows, and it has loaded. */
 export const isRecordAvailableOf = (model: Model): boolean =>
   model.account.connection._tag === 'ConnectedAccount' &&
-  model.route._tag === 'RecordingList' &&
+  isListRoute(model.route) &&
   model.recordings._tag === 'LoadedRecordings'
 
 /** Whether the recording search shows: on the list or the search page, once recordings have loaded. */
 export const isSearchAvailableOf = (model: Model): boolean =>
-  (model.route._tag === 'RecordingList' ||
-    model.route._tag === 'SearchRecordings') &&
-  model.recordings._tag === 'LoadedRecordings'
+  isListRoute(model.route) && model.recordings._tag === 'LoadedRecordings'
 
 /** Whether the open recording is the one this browser is recording. */
 export const isOwnRecordingOf = (model: Model, recordingID: string): boolean =>
@@ -1671,8 +1731,19 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
       UpdatedSearchQuery: ({ query }) => [
         evo(model, { searchQuery: () => query }),
-        [],
+        isListRoute(model.route) ? [WaitForSearchPause({ query })] : [],
       ],
+      ElapsedSearchPause: ({ query }) =>
+        query === model.searchQuery && isListRoute(model.route)
+          ? Option.match(searchRouteFor(model.route, query), {
+              onNone: () => [model, []],
+              onSome: nextRoute => [
+                evo(model, { route: () => nextRoute }),
+                [ReplaceUrl({ url: scribeRouteToPath(nextRoute) })],
+              ],
+            })
+          : [model, []],
+      CompletedReplaceUrl: () => [model, []],
       CompletedFocusSearch: () => [model, []],
       ClickedShowMoreRecordings: () => [
         evo(model, {

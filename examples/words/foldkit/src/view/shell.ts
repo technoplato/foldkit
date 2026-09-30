@@ -7,6 +7,7 @@ import {
   type Model,
   RecordingListRoute,
   type ScribeAppScheme,
+  isListRoute,
   scribeRouteToPath,
 } from 'words-core-example'
 
@@ -241,7 +242,7 @@ const leadingOf = (
 export const topBar = (model: Model, isSplit: boolean): Html => {
   const h = html<Message>()
   const isOnAccount = model.route._tag === 'Account'
-  const isOnList = model.route._tag === 'RecordingList'
+  const isOnList = isListRoute(model.route)
   return h.header(
     [h.Class('bar sticky top-0 z-30')],
     [

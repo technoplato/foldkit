@@ -162,8 +162,8 @@ describe('decodeRecordingList', () => {
     ])
     expect(decoded.recordings[0]?.activity).toBe('Recording')
     expect(decoded.recordings[1]?.previewLines).toEqual([
-      'Hello there',
-      'world again',
+      { sectionID: 'section-a', startSeconds: 5, text: 'Hello there' },
+      { sectionID: 'section-b', startSeconds: 10, text: 'world again' },
     ])
   })
 })

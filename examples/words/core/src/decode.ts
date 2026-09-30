@@ -13,6 +13,7 @@ import {
   type ClipboardEntry,
   type ImageEntry,
   NoAudio,
+  type PreviewLine,
   type RecordingAudio,
   type RecordingDetail,
   type RecordingSummary,
@@ -262,14 +263,18 @@ const clipboardOf = (row: typeof ClipboardRow.Type): ClipboardEntry => ({
   text: row.fullContent,
 })
 
-const previewLinesOf = (row: RecordingRow): ReadonlyArray<string> =>
+const previewLinesOf = (row: RecordingRow): ReadonlyArray<PreviewLine> =>
   pipe(
     [...presentRows(row.previewSegmentA), ...presentRows(row.previewSegmentB)],
     rows => decodeEach(SegmentRow, rows, sectionOf).values,
     Array.dedupeWith((first, second) => first.id === second.id),
     Array.sort(bySectionIndex),
-    Array.map(section => section.text),
-    Array.filter(text => text.trim() !== ''),
+    Array.filter(section => section.text.trim() !== ''),
+    Array.map(section => ({
+      sectionID: section.id,
+      startSeconds: section.startSeconds,
+      text: section.text,
+    })),
   )
 
 const summaryOf = (row: RecordingRow): RecordingSummary => ({

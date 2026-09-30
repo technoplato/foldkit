@@ -53,6 +53,15 @@ export const Activity = S.Literals(['Idle', 'Recording', 'Playing'])
 /** Whether the recording is idle, being recorded, or playing on some device. */
 export type Activity = typeof Activity.Type
 
+/** One of the two newest finished sections a list row previews, with where it starts. */
+export const PreviewLine = S.Struct({
+  sectionID: S.String,
+  startSeconds: S.Number,
+  text: S.String,
+})
+/** One of the sections a list row previews. */
+export type PreviewLine = typeof PreviewLine.Type
+
 /** One row of the recording list. */
 export const RecordingSummary = S.Struct({
   id: S.String,
@@ -61,7 +70,7 @@ export const RecordingSummary = S.Struct({
   durationSeconds: S.Number,
   activity: Activity,
   maybeDeviceIcon: S.Option(S.String),
-  previewLines: S.Array(S.String),
+  previewLines: S.Array(PreviewLine),
 })
 /** One row of the recording list. */
 export type RecordingSummary = typeof RecordingSummary.Type

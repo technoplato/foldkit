@@ -90,7 +90,14 @@ describe('scribeRouteFromLink', () => {
         }),
       ],
       ['scribe-shared://recordings/map', RecordingsMapRoute()],
-      ['scribe-shared://recordings/search', SearchRecordingsRoute()],
+      [
+        'scribe-shared://recordings/search',
+        SearchRecordingsRoute({ q: Option.none() }),
+      ],
+      [
+        'https://words.knophy.com/recordings/search?q=rain%20barrel',
+        SearchRecordingsRoute({ q: Option.some('rain barrel') }),
+      ],
       ['scribe-shared://recording/new', NewRecordingRoute()],
       ['https://words.knophy.com/account', AccountRoute()],
       [
@@ -143,6 +150,21 @@ describe('scribeRouteToShareUrl', () => {
       `https://words.knophy.com/recording/${recordingID}/section/${sectionID}?t=4`,
     )
     expect(scribeRouteFromLink(link)).toEqual(Option.some(route))
+  })
+
+  it('prints a search link that keeps the words, which parses back to the same search', () => {
+    const route = SearchRecordingsRoute({
+      q: Option.some('rain barrel & tools'),
+    })
+    const link = scribeRouteToShareUrl(route)
+
+    expect(
+      link.startsWith('https://words.knophy.com/recordings/search?q='),
+    ).toBe(true)
+    expect(scribeRouteFromLink(link)).toEqual(Option.some(route))
+    expect(scribeRouteToPath(SearchRecordingsRoute({ q: Option.none() }))).toBe(
+      '/recordings/search',
+    )
   })
 
   it('prints a playback link with the route focus', () => {

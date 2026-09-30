@@ -48,6 +48,10 @@ export const FailedObserveRecordings = m('FailedObserveRecordings', {
 export const UpdatedSearchQuery = m('UpdatedSearchQuery', { query: S.String })
 /** Focus moved to the recording search. */
 export const CompletedFocusSearch = m('CompletedFocusSearch')
+/** The listener paused typing in the recording search; `query` is what the search held when they typed. */
+export const ElapsedSearchPause = m('ElapsedSearchPause', { query: S.String })
+/** The address bar shows the current page in place of the previous entry. */
+export const CompletedReplaceUrl = m('CompletedReplaceUrl')
 /** The listener asked for older recordings. */
 export const ClickedShowMoreRecordings = m('ClickedShowMoreRecordings')
 /** The listener opened a recording from the list. */
@@ -252,6 +256,8 @@ export const Message = S.Union([
   FailedObserveRecordings,
   UpdatedSearchQuery,
   CompletedFocusSearch,
+  ElapsedSearchPause,
+  CompletedReplaceUrl,
   ClickedShowMoreRecordings,
   ClickedRecording,
   ObservedRecording,

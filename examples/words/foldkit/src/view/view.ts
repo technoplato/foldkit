@@ -10,6 +10,7 @@ import {
   type ReadyPlayback,
   ScrolledTranscriptAway,
   displayedPlaybackOf,
+  isListRoute,
   isOwnRecordingOf,
   isRecordAvailableOf,
   playbackPhaseOf,
@@ -295,10 +296,6 @@ const shareOverlay = (model: Model): ReadonlyArray<Html> =>
     M.orElse(() => []),
   )
 
-const isListRoute = (model: Model): boolean =>
-  model.route._tag === 'RecordingList' ||
-  model.route._tag === 'SearchRecordings'
-
 /**
  * Whether the page splits into the recording list and the page beside it from
  * 1024 px, like the iPad and the Mac: while the browser signs in and once it
@@ -330,7 +327,7 @@ const columns = (model: Model, config: ViewConfig): Html => {
   const page = content(model, config)
   if (!isSplitOf(model)) {
     return h.div([...followAttributesOf(model)], [page])
-  } else if (isListRoute(model)) {
+  } else if (isListRoute(model.route)) {
     return h.div(
       [
         h.Class(

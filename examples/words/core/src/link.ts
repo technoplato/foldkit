@@ -104,8 +104,13 @@ export const ThreadResponseRoute = r('ThreadResponse', {
 })
 /** The map of recordings and their routes. */
 export const RecordingsMapRoute = r('RecordingsMap')
-/** Recording search. */
-export const SearchRecordingsRoute = r('SearchRecordings')
+/**
+ * Recording search. `q` is the search, kept in the address bar as the
+ * listener types: `/recordings/search?q=rain%20barrel`.
+ */
+export const SearchRecordingsRoute = r('SearchRecordings', {
+  q: S.Option(S.String),
+})
 /** Start a new recording: the web recorder, or a new recording in the Scribe app. */
 export const NewRecordingRoute = r('NewRecording')
 /** The account: who is signed in, and how the web and the iPhone share one account. */
@@ -204,6 +209,7 @@ const recordingsMapRouter = pipe(
 const searchRecordingsRouter = pipe(
   literal('recordings'),
   slash(literal('search')),
+  Route.query(S.Struct({ q: S.OptionFromOptional(S.String) })),
   Route.mapTo(SearchRecordingsRoute),
 )
 
@@ -243,7 +249,7 @@ export const scribeRouteToPath = (route: ScribeRoute): string =>
       ThreadResponse: ({ recordingID, threadID, responseID }) =>
         threadResponseRouter({ recordingID, threadID, responseID }),
       RecordingsMap: () => recordingsMapRouter(),
-      SearchRecordings: () => searchRecordingsRouter(),
+      SearchRecordings: ({ q }) => searchRecordingsRouter({ q }),
       NewRecording: () => newRecordingRouter(),
       Account: () => accountRouter(),
       NotFound: ({ path }) => path,
@@ -324,6 +330,13 @@ export const formatStartSeconds = (seconds: number): string =>
  */
 export const shareableStartSeconds = (seconds: number): number =>
   Math.max(0, Math.floor(seconds) - SHARE_LEAD_IN_SECONDS)
+
+/**
+ * Whether a route shows the recording list: the list itself (`/`) or a search
+ * of it (`/recordings/search?q=rain`).
+ */
+export const isListRoute = (route: ScribeRoute): boolean =>
+  route._tag === 'RecordingList' || route._tag === 'SearchRecordings'
 
 /** Whether a playback link asks to show the recording's route. */
 export const isRouteFocus = (focus: Option.Option<string>): boolean =>

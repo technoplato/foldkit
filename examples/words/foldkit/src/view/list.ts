@@ -12,13 +12,19 @@ import {
   RecordingRoute,
   type RecordingSummary,
   SEARCH_FIELD_ID,
+  type ScribeRoute,
+  SectionRoute,
   UpdatedSearchQuery,
   formatClock,
+  formatStartSeconds,
+  matchedPreviewLineOf,
   observedRecordingIDOf,
   recordingsMatching,
   scribeRouteToPath,
   searchTermsOf,
+  shareableStartSeconds,
   shortcutKeyOf,
+  textPartsOf,
 } from 'words-core-example'
 
 import { ShowRowMenuOnContextMenu } from '../mount.js'
@@ -204,6 +210,38 @@ const rowMenu = (
   ]
 }
 
+/**
+ * Where a row opens: the recording, or during a search the preview line that
+ * holds every word, a second early like a shared moment.
+ */
+const rowRouteOf = (recording: RecordingSummary, query: string): ScribeRoute =>
+  Option.match(matchedPreviewLineOf(recording, query), {
+    onNone: () => RecordingRoute({ recordingID: recording.id }),
+    onSome: line =>
+      SectionRoute({
+        recordingID: recording.id,
+        sectionID: line.sectionID,
+        t: Option.some(
+          formatStartSeconds(shareableStartSeconds(line.startSeconds)),
+        ),
+      }),
+  })
+
+const highlighted = (
+  text: string,
+  query: string,
+): ReadonlyArray<Html | string> => {
+  const h = html<Message>()
+  return Array.map(textPartsOf(text, query), part =>
+    part.isMatch
+      ? h.mark(
+          [h.Class('rounded-[3px] bg-highlight px-px text-label')],
+          [part.text],
+        )
+      : part.text,
+  )
+}
+
 const recordingRow =
   (model: Model, config: ViewConfig) =>
   (recording: RecordingSummary): Html => {
@@ -232,9 +270,7 @@ const recordingRow =
       [
         h.a(
           [
-            h.Href(
-              scribeRouteToPath(RecordingRoute({ recordingID: recording.id })),
-            ),
+            h.Href(scribeRouteToPath(rowRouteOf(recording, model.searchQuery))),
             h.AriaCurrent(isOpen ? 'page' : 'false'),
             h.Class(
               `flex min-w-0 flex-1 gap-3.5 py-3.5 pl-4 pr-4 transition hover:bg-fill/60 focus-visible:-outline-offset-2 active:bg-fill [@media(hover:none)]:pr-14 ${isOpen ? 'bg-fill' : ''}`,
@@ -261,7 +297,7 @@ const recordingRow =
                           'line-clamp-2 text-body font-semibold tracking-tight text-label',
                         ),
                       ],
-                      [recording.title],
+                      highlighted(recording.title, model.searchQuery),
                     ),
                     ...Option.match(status.maybeBadge, {
                       onNone: () => [],
@@ -276,7 +312,7 @@ const recordingRow =
                 ...Array.map(Array.take(recording.previewLines, 2), line =>
                   h.span(
                     [h.Class('line-clamp-1 text-subhead text-secondary')],
-                    [line],
+                    highlighted(line.text, model.searchQuery),
                   ),
                 ),
               ],
