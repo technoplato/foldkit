@@ -602,6 +602,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 10:25:24 p.m. EDT — `94546393c955` feat(words): keep a recording playing while browsing and beside the live one
+
+- **Implementation commit:** `94546393c95535e58293f94980a0f709dae1aca3`
+- **Change:** Keep a recording playing while browsing and beside the live one (#289 W21, F3).
+- **Details:**
+  - maybeBackgroundPlayback keeps a started playback and its audio when the listener leaves for the list, Settings, or this browser's own recording in progress; a mini player shows it; opening another recording replaces it; its title brings it back where it is.
+  - Audio messages, the transport, shortcuts, and Media Session act on audioOwnerOf; page actions stay with the page; background playbacks drop page scrolls.
+  - Fixture probe (probe-w21.mjs): list playback 0:03 to 0:06, Space paused, return at 0:06, Close removed it; F3 live page playback 0:03 to 0:05 with Pause and Stop, back at 0:07.
+- **Files:**
+  - `examples/words/core/src/update.ts` — background playback, audio owner, route rules, close
+  - `examples/words/core/src/model.ts` — maybeBackgroundPlayback
+  - `examples/words/core/src/message.ts` — ClickedCloseMiniPlayer
+  - `examples/words/core/src/subscription.ts` — audio events follow the audio owner
+  - `examples/words/core/src/update.test.ts` — background playback, F3, close, replace, and resume tests
+  - `examples/words/foldkit/src/view/playback.ts` — mini player
+  - `examples/words/foldkit/src/view/view.ts` — mini player in the floating controls
+  - `examples/words/foldkit/src/view/capture.ts` — New Recording full width beside the mini player
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 10:10:17 p.m. EDT — `59e3edcb2d4e` fix(words): fit the recording page's chrome on a phone under 30 percent
 
 - **Implementation commit:** `59e3edcb2d4e12404929b3722c0c1d8627021a04`
