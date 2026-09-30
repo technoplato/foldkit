@@ -602,6 +602,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 30th, 2026 at 2:34:40 p.m. EDT — `a1fbd426fce4` fix(words): forget a focused recording row when its list is replaced
+
+- **Implementation commit:** `a1fbd426fce439eb98726a80a3e885b03fe90375`
+- **Change:** Forget a focused recording row when its list is replaced (Scribe #299).
+- **Details:**
+  - Opening a recording from the list replaces the list with the sidebar (from 1024 px); the report that focus left the old rows was dropped with them, so the clicked row stayed kept and could show as a stray extra row after the window slid past its page.
+  - New rows report the focus as they find it; on the fixture a recording opened from a slid list shows the newest page in the sidebar with 100 rows (101 before).
+- **Files:**
+  - `examples/words/foldkit/src/mount.ts` — TrackRecordingRows reports the focus it finds when it mounts
+- **User context (verbatim):**
+  > I never want to have to manually load more things.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session.
+
 ## September 30th, 2026 at 2:22:34 p.m. EDT — `3dc2547729e7` test(words): tell a late list snapshot apart from the loaded rows
 
 - **Implementation commit:** `3dc2547729e79ff350a9fe46c3ee6c3bac2e699a`
