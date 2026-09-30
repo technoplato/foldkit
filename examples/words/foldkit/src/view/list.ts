@@ -5,13 +5,15 @@ import {
   Capture,
   ClickedCopyRecordingLink,
   ClickedShareRecordingLink,
-  ClickedShowMoreRecordings,
   GotAccountMessage,
   GotShareMessage,
+  type ListPaging,
+  type LoadedRecordings,
   type Message,
   type Model,
   RecordingRoute,
   type RecordingSummary,
+  type RecordingWindow,
   SEARCH_FIELD_ID,
   type ScribeRoute,
   SectionRoute,
@@ -20,10 +22,13 @@ import {
   displayedLengthOf,
   formatClock,
   formatStartSeconds,
+  listPagingOf,
+  listedRecordingsOf,
   matchedPreviewLineOf,
   observedRecordingIDOf,
   receivedShareOf,
   receivedShareRouteOf,
+  recordingCountOf,
   recordingsMatching,
   scribeRouteToPath,
   searchTermsOf,
@@ -32,7 +37,14 @@ import {
   textPartsOf,
 } from 'words-core-example'
 
-import { ShowRowMenuOnContextMenu } from '../mount.js'
+import {
+  HAS_NEWER_ROWS_DATA_KEY,
+  ObserveListEdge,
+  RECORDING_ROW_DATA_KEY,
+  ROWS_SPACER_DATA_KEY,
+  ShowRowMenuOnContextMenu,
+  TrackRecordingRows,
+} from '../mount.js'
 import { connectCard } from './connect.js'
 import { type IconName, icon } from './icon.js'
 import { type ViewConfig, largeTitle } from './shell.js'
@@ -313,6 +325,7 @@ const recordingRow =
       [
         h.Key(recording.id),
         h.DataAttribute('row-menu', menuID),
+        h.DataAttribute(RECORDING_ROW_DATA_KEY, recording.id),
         h.Class('group relative flex items-stretch'),
       ],
       [
@@ -643,6 +656,166 @@ const noResults = (query: string): Html => {
   )
 }
 
+type Loaded = typeof LoadedRecordings.Type
+
+/**
+ * The quiet status at an edge of the rows: a spinner and what loads while a
+ * page loads, nothing otherwise. It keeps its height either way, so a load
+ * starting or ending never moves the rows, and it is a polite status, so a
+ * screen reader hears one short line per load.
+ */
+const edgeStatus = (maybeLoadingText: Option.Option<string>): Html => {
+  const h = html<Message>()
+  return h.p(
+    [
+      h.Role('status'),
+      h.Class(
+        'flex min-h-11 items-center justify-center gap-2 px-4 text-center text-footnote text-secondary',
+      ),
+    ],
+    Option.match(maybeLoadingText, {
+      onNone: () => [],
+      onSome: text => [spinner('size-3.5 shrink-0 text-secondary'), text],
+    }),
+  )
+}
+
+/**
+ * The newer edge of a window that does not start at the newest recording,
+ * with the status while newer recordings load. Each window has its own edge
+ * element, so an edge still on screen after a load reports again.
+ */
+const newerEdge = (window: RecordingWindow, paging: ListPaging): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Key(`newer-edge-${window.firstPage}-${window.pageCount}`),
+      h.OnMount(ObserveListEdge({ edge: 'Newer', window })),
+    ],
+    [
+      edgeStatus(
+        paging === 'LoadingNewer'
+          ? Option.some('Loading newer recordings')
+          : Option.none(),
+      ),
+    ],
+  )
+}
+
+/** The older edge of a window with more recordings past it, and the status while they load. */
+const olderEdge = (window: RecordingWindow, paging: ListPaging): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Key(`older-edge-${window.firstPage}-${window.pageCount}`),
+      h.OnMount(ObserveListEdge({ edge: 'Older', window })),
+    ],
+    [
+      edgeStatus(
+        paging === 'LoadingOlder'
+          ? Option.some('Loading older recordings')
+          : Option.none(),
+      ),
+    ],
+  )
+}
+
+/**
+ * What the rows show when none match: the search's no results, nothing while
+ * older pages may still hold recordings (their edge is on screen and loads
+ * them), or the empty list.
+ */
+const emptyRows = (model: Model, loaded: Loaded): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  if (Array.isReadonlyArrayNonEmpty(searchTermsOf(model.searchQuery))) {
+    return [noResults(model.searchQuery)]
+  } else if (loaded.olderEdge === 'MoreToLoad') {
+    return []
+  } else {
+    return [h.div([h.Class('pt-6')], [emptyState()])]
+  }
+}
+
+/**
+ * The rows of the list's window, grouped by day, between its edges. Rows
+ * load as the listener scrolls near an edge; there is no button to press.
+ * The first child is the spacer that stands in for rows above the window;
+ * its height belongs to `TrackRecordingRows`, which sets it as pages leave
+ * and come back, so the view never styles it. Each edge sits in a slot that
+ * is always there, so a new window's edge replaces the old one inside its
+ * slot and the day sections never move: moving the section that holds a
+ * focused row would drop keyboard focus.
+ */
+const listRows = (
+  model: Model,
+  config: ViewConfig,
+  loaded: Loaded,
+  rows: ReadonlyArray<RecordingSummary>,
+): Html => {
+  const h = html<Message>()
+  const paging = listPagingOf(model)
+  const hasNewerRows = loaded.window.firstPage > 0
+  return h.div(
+    [
+      h.OnMount(TrackRecordingRows()),
+      h.DataAttribute(HAS_NEWER_ROWS_DATA_KEY, hasNewerRows ? 'true' : 'false'),
+      h.Class('flex flex-col [overflow-anchor:none]'),
+    ],
+    [
+      h.div(
+        [h.DataAttribute(ROWS_SPACER_DATA_KEY, ''), h.AriaHidden(true)],
+        [],
+      ),
+      h.div([], hasNewerRows ? [newerEdge(loaded.window, paging)] : []),
+      ...Array.match(rows, {
+        onEmpty: () => emptyRows(model, loaded),
+        onNonEmpty: nonEmpty =>
+          Array.map(dayGroupsOf(nonEmpty), dayGroupView(model, config)),
+      }),
+      h.div(
+        [],
+        loaded.olderEdge === 'MoreToLoad'
+          ? [olderEdge(loaded.window, paging)]
+          : [],
+      ),
+    ],
+  )
+}
+
+const recordingsNoun = (count: number): string =>
+  count === 1 ? 'recording' : 'recordings'
+
+/**
+ * What a search covers when the window does not hold the whole list: the
+ * search looks only at the rows loaded, so it says how many.
+ */
+const searchCoverageNote = (
+  model: Model,
+  loaded: Loaded,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  const count = Array.length(loaded.recordings)
+  const isWholeList =
+    loaded.window.firstPage === 0 && loaded.olderEdge === 'EndOfList'
+  if (
+    Array.isReadonlyArrayNonEmpty(searchTermsOf(model.searchQuery)) &&
+    !isWholeList
+  ) {
+    const text =
+      loaded.window.firstPage === 0
+        ? `Search covers your ${count} newest ${recordingsNoun(count)}. Clear it to browse older ones.`
+        : `Search covers ${count} of your recordings. Clear it to browse the rest.`
+    return [
+      h.p(
+        [h.Class('px-4 pt-4 text-center text-footnote text-secondary')],
+        [text],
+      ),
+    ]
+  } else {
+    return []
+  }
+}
+
 const recordingsContent = (
   model: Model,
   config: ViewConfig,
@@ -655,41 +828,35 @@ const recordingsContent = (
       FailedRecordings: ({ reason }) => [
         noticeCard('Alert', 'The recordings could not load', reason, []),
       ],
-      LoadedRecordings: ({ recordings, skippedCount, maybeSkippedReason }) => [
-        ...(skippedCount > 0
-          ? [
-              h.p(
-                [
-                  h.Class(
-                    'mt-4 rounded-2xl bg-caution-soft px-4 py-3 text-subhead text-caution',
-                  ),
-                ],
-                [
-                  `${skippedCount} recording rows could not be read and are not shown. ${Option.getOrElse(maybeSkippedReason, () => '')}`,
-                ],
-              ),
-            ]
-          : []),
-        ...(Array.isReadonlyArrayNonEmpty(recordings)
-          ? [searchField(model)]
-          : []),
-        ...Array.match(recordingsMatching(recordings, model.searchQuery), {
-          onEmpty: () =>
-            Array.isReadonlyArrayNonEmpty(searchTermsOf(model.searchQuery))
-              ? [noResults(model.searchQuery)]
-              : [h.div([h.Class('pt-6')], [emptyState()])],
-          onNonEmpty: nonEmpty =>
-            Array.map(dayGroupsOf(nonEmpty), dayGroupView(model, config)),
-        }),
-        ...(Array.length(recordings) >= model.recordingListLimit
-          ? [
-              h.div(
-                [h.Class('flex justify-center pt-6')],
-                [button('Show More', ClickedShowMoreRecordings(), 'Gray')],
-              ),
-            ]
-          : []),
-      ],
+      LoadedRecordings: loaded => {
+        const listed = listedRecordingsOf(loaded)
+        return [
+          ...(loaded.skippedCount > 0
+            ? [
+                h.p(
+                  [
+                    h.Class(
+                      'mt-4 rounded-2xl bg-caution-soft px-4 py-3 text-subhead text-caution',
+                    ),
+                  ],
+                  [
+                    `${loaded.skippedCount} recording rows could not be read and are not shown. ${Option.getOrElse(loaded.maybeSkippedReason, () => '')}`,
+                  ],
+                ),
+              ]
+            : []),
+          ...(Array.isReadonlyArrayNonEmpty(listed)
+            ? [searchField(model)]
+            : []),
+          listRows(
+            model,
+            config,
+            loaded,
+            recordingsMatching(listed, model.searchQuery),
+          ),
+          ...searchCoverageNote(model, loaded),
+        ]
+      },
     }),
   )
 }
@@ -767,19 +934,30 @@ const bodyOf = (model: Model, config: ViewConfig): ReadonlyArray<Html> =>
     }),
   )
 
-const countLabelOf = (count: number, isMore: boolean): string =>
-  `${count}${isMore ? '+' : ''} ${count === 1 && !isMore ? 'recording' : 'recordings'}`
+const UNCOUNTED_SUBTITLE = 'Your recordings, live from every device'
 
-const subtitleOf = (model: Model): string =>
-  M.value(model.recordings).pipe(
-    M.withReturnType<string>(),
-    M.tag('LoadedRecordings', ({ recordings }) =>
-      model.account.connection._tag === 'ConnectedAccount'
-        ? `${countLabelOf(Array.length(recordings), Array.length(recordings) >= model.recordingListLimit)}, live from every device`
-        : 'Your recordings, live from every device',
-    ),
-    M.orElse(() => 'Your recordings, live from every device'),
-  )
+/**
+ * The list's subtitle. It names a count only when the list knows one: all of
+ * it (`86 recordings`), at least what loaded from the newest (`100+
+ * recordings`), and no number once the window no longer starts at the
+ * newest recording.
+ */
+const subtitleOf = (model: Model): string => {
+  if (model.account.connection._tag === 'ConnectedAccount') {
+    return M.value(recordingCountOf(model)).pipe(
+      M.withReturnType<string>(),
+      M.tagsExhaustive({
+        ExactCount: ({ count }) =>
+          `${count} ${recordingsNoun(count)}, live from every device`,
+        AtLeastCount: ({ count }) =>
+          `${count}+ recordings, live from every device`,
+        UnknownCount: () => UNCOUNTED_SUBTITLE,
+      }),
+    )
+  } else {
+    return UNCOUNTED_SUBTITLE
+  }
+}
 
 const listContent = (model: Model, config: ViewConfig): ReadonlyArray<Html> => {
   const h = html<Message>()

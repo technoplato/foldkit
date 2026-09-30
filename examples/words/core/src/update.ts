@@ -46,6 +46,21 @@ import {
 } from './link.js'
 import { LinkSharer } from './linkSharer.js'
 import {
+  AtLeastCount,
+  ExactCount,
+  type ListEdge,
+  type ListPaging,
+  type OlderEdge,
+  RECORDING_WINDOW_PAGE_LIMIT,
+  type RecordingCount,
+  type RecordingWindow,
+  UnknownCount,
+  firstRecordingWindow,
+  isSameRecordingWindow,
+  newerRecordingWindowOf,
+  olderRecordingWindowOf,
+} from './listWindow.js'
+import {
   CompletedFocusContent,
   CompletedFocusPlayer,
   CompletedFocusSearch,
@@ -72,6 +87,7 @@ import {
   GotCaptureMessage,
   GotShareMessage,
   type Message,
+  type ObservedRecordings,
   SucceededCopy,
 } from './message.js'
 import {
@@ -95,6 +111,7 @@ import {
   type PlaybackState,
   ReadyPlayback,
   ReadyToAnnounce,
+  type RecordingsState,
   type ScreenMode,
   Scrubbing,
   SignedOut,
@@ -106,9 +123,6 @@ import { SEARCH_FIELD_ID, searchTermsOf } from './search.js'
 import * as Share from './share/index.js'
 import { WordsStore, storeFailureReasonOf } from './store.js'
 import { exportTranscript, sectionAt } from './transcript.js'
-
-/** How many recordings the list shows at first, and adds per Show More. */
-export const RECORDING_LIST_PAGE_SIZE = 100
 
 /** How far the skip buttons, arrow keys, and system skip commands move playback. */
 export const SKIP_SECONDS = 15
@@ -1163,7 +1177,8 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       capture: Capture.Model.init(),
       share: Share.Model.init(),
       recordings: LoadingRecordings(),
-      recordingListLimit: RECORDING_LIST_PAGE_SIZE,
+      recordingWindow: firstRecordingWindow,
+      maybeFocusedRowID: Option.none(),
       playback: NoPlayback(),
       maybeBackgroundPlayback: Option.none(),
       resumePositions: {},
@@ -1177,6 +1192,254 @@ export const modelForRoute = (route: ScribeRoute): Model =>
     },
     route,
   )[0]
+
+type Loaded = typeof LoadedRecordings.Type
+
+const byNewestStart = Order.mapInput(
+  Order.flip(Order.Number),
+  (recording: RecordingSummary) => recording.startedAtMs,
+)
+
+const loadedOfState = (recordings: RecordingsState): Option.Option<Loaded> =>
+  M.value(recordings).pipe(
+    M.withReturnType<Option.Option<Loaded>>(),
+    M.tag('LoadedRecordings', loaded => Option.some(loaded)),
+    M.orElse(() => Option.none()),
+  )
+
+/** The loaded list, only while it shows the rows of the window it asks for. */
+const settledLoadedOf = (model: Model): Option.Option<Loaded> =>
+  Option.filter(loadedOfState(model.recordings), loaded =>
+    isSameRecordingWindow(loaded.window, model.recordingWindow),
+  )
+
+/**
+ * Whether the list is loading a page, and toward which edge: it is loading
+ * while its rows came from a window other than the one it asks for.
+ */
+export const listPagingOf = (model: Model): ListPaging =>
+  Option.match(loadedOfState(model.recordings), {
+    onNone: () => 'Settled',
+    onSome: ({ window }) => {
+      if (isSameRecordingWindow(window, model.recordingWindow)) {
+        return 'Settled'
+      } else if (model.recordingWindow.firstPage < window.firstPage) {
+        return 'LoadingNewer'
+      } else {
+        return 'LoadingOlder'
+      }
+    },
+  })
+
+/**
+ * The rows the list shows: its window's rows, newest first, and the row that
+ * holds keyboard focus when its page has left the window.
+ */
+export const listedRecordingsOf = (
+  loaded: Loaded,
+): ReadonlyArray<RecordingSummary> =>
+  Option.match(loaded.maybeKeptFocusedRow, {
+    onNone: () => loaded.recordings,
+    onSome: kept => Array.sort([kept, ...loaded.recordings], byNewestStart),
+  })
+
+/**
+ * How many recordings the list knows the account has: exactly
+ * the rows it holds once the window starts at the newest recording and the
+ * server reports nothing older; at least that many while more may follow;
+ * none once the window no longer starts at the newest recording, since the
+ * pages it dropped are not counted and may have come back short.
+ */
+export const recordingCountOf = (model: Model): RecordingCount =>
+  Option.match(loadedOfState(model.recordings), {
+    onNone: () => UnknownCount(),
+    onSome: loaded => {
+      const count = Array.length(loaded.recordings)
+      if (loaded.window.firstPage > 0) {
+        return UnknownCount()
+      } else if (loaded.olderEdge === 'EndOfList') {
+        return ExactCount({ count })
+      } else {
+        return AtLeastCount({ count })
+      }
+    },
+  })
+
+const isSearchingOf = (model: Model): boolean =>
+  Array.isReadonlyArrayNonEmpty(searchTermsOf(model.searchQuery))
+
+/**
+ * The window an edge coming near asks for: the next one past that edge, only
+ * while the list shows the rows of the window it asks for (never while a page
+ * loads), only for the edge of that window, and only while there is more past
+ * the edge. During a search the window grows but never slides, so the results
+ * stay put.
+ */
+const windowForApproachOf = (
+  model: Model,
+  edge: ListEdge,
+  window: RecordingWindow,
+): Option.Option<RecordingWindow> =>
+  pipe(
+    settledLoadedOf(model),
+    Option.filter(loaded => isSameRecordingWindow(loaded.window, window)),
+    Option.flatMap(loaded =>
+      M.value(edge).pipe(
+        M.withReturnType<Option.Option<RecordingWindow>>(),
+        M.when('Older', () =>
+          loaded.olderEdge === 'MoreToLoad' &&
+          (!isSearchingOf(model) ||
+            loaded.window.pageCount < RECORDING_WINDOW_PAGE_LIMIT)
+            ? Option.some(olderRecordingWindowOf(loaded.window))
+            : Option.none(),
+        ),
+        M.when('Newer', () =>
+          isSearchingOf(model)
+            ? Option.none()
+            : newerRecordingWindowOf(loaded.window),
+        ),
+        M.exhaustive,
+      ),
+    ),
+  )
+
+/** The window the very top of a slid list asks for: the newest page, in one step. */
+const windowForListTopOf = (
+  model: Model,
+  window: RecordingWindow,
+): Option.Option<RecordingWindow> =>
+  pipe(
+    settledLoadedOf(model),
+    Option.filter(
+      loaded =>
+        isSameRecordingWindow(loaded.window, window) &&
+        loaded.window.firstPage > 0,
+    ),
+    Option.as(firstRecordingWindow),
+  )
+
+const windowEndOf = (window: RecordingWindow): number =>
+  window.firstPage + window.pageCount
+
+/** Whether `next` brought a recording older than every row of `previous`. */
+const addsOlderRecordings = (
+  previous: ReadonlyArray<RecordingSummary>,
+  next: ReadonlyArray<RecordingSummary>,
+): boolean =>
+  Option.match(Array.last(previous), {
+    onNone: () => Array.isReadonlyArrayNonEmpty(next),
+    onSome: oldest => {
+      const previousIDs = new Set(
+        Array.map(previous, recording => recording.id),
+      )
+      return Array.some(
+        next,
+        recording =>
+          !previousIDs.has(recording.id) &&
+          recording.startedAtMs <= oldest.startedAtMs,
+      )
+    },
+  })
+
+/**
+ * What lies past a snapshot's older edge. A load that moved the older edge
+ * but added no older recording is `NothingAdded`, even when the server still
+ * reports more, and live snapshots of the same window keep it so: the edge
+ * asks again only after the window moves, so it cannot loop.
+ */
+const olderEdgeAfter = (
+  maybePrevious: Option.Option<Loaded>,
+  window: RecordingWindow,
+  recordings: ReadonlyArray<RecordingSummary>,
+  hasOlder: boolean,
+): OlderEdge => {
+  if (!hasOlder) {
+    return 'EndOfList'
+  } else if (Option.isNone(maybePrevious)) {
+    return 'MoreToLoad'
+  } else if (isSameRecordingWindow(maybePrevious.value.window, window)) {
+    return maybePrevious.value.olderEdge === 'NothingAdded'
+      ? 'NothingAdded'
+      : 'MoreToLoad'
+  } else if (windowEndOf(window) > windowEndOf(maybePrevious.value.window)) {
+    return addsOlderRecordings(maybePrevious.value.recordings, recordings)
+      ? 'MoreToLoad'
+      : 'NothingAdded'
+  } else {
+    return 'MoreToLoad'
+  }
+}
+
+/**
+ * The row to keep after a snapshot: the row that holds keyboard focus, when
+ * the list showed it before and the snapshot no longer holds it, so a page
+ * leaving the window never takes focus with it.
+ */
+const keptFocusedRowAfter = (
+  maybePrevious: Option.Option<Loaded>,
+  maybeFocusedRowID: Option.Option<string>,
+  recordings: ReadonlyArray<RecordingSummary>,
+): Option.Option<RecordingSummary> =>
+  Option.flatMap(maybeFocusedRowID, focusedRowID =>
+    Array.some(recordings, recording => recording.id === focusedRowID)
+      ? Option.none()
+      : Option.flatMap(maybePrevious, previous =>
+          Array.findFirst(
+            listedRecordingsOf(previous),
+            recording => recording.id === focusedRowID,
+          ),
+        ),
+  )
+
+const loadedRecordingsFrom = (
+  previous: RecordingsState,
+  maybeFocusedRowID: Option.Option<string>,
+  {
+    window,
+    recordings,
+    skippedCount,
+    maybeSkippedReason,
+    hasOlder,
+  }: typeof ObservedRecordings.Type,
+): RecordingsState => {
+  const maybePrevious = loadedOfState(previous)
+  return LoadedRecordings({
+    recordings,
+    skippedCount,
+    maybeSkippedReason,
+    window,
+    olderEdge: olderEdgeAfter(maybePrevious, window, recordings, hasOlder),
+    maybeKeptFocusedRow: keptFocusedRowAfter(
+      maybePrevious,
+      maybeFocusedRowID,
+      recordings,
+    ),
+    highestTitleNumber: Math.max(
+      Option.match(maybePrevious, {
+        onNone: () => 0,
+        onSome: loaded => loaded.highestTitleNumber,
+      }),
+      highestTitleNumberIn(recordings),
+    ),
+  })
+}
+
+const withoutUnfocusedKeptRow = (
+  recordings: RecordingsState,
+  maybeFocusedRowID: Option.Option<string>,
+): RecordingsState =>
+  M.value(recordings).pipe(
+    M.withReturnType<RecordingsState>(),
+    M.tag('LoadedRecordings', loaded =>
+      Option.exists(
+        loaded.maybeKeptFocusedRow,
+        kept => !Option.contains(maybeFocusedRowID, kept.id),
+      )
+        ? evo(loaded, { maybeKeptFocusedRow: () => Option.none() })
+        : loaded,
+    ),
+    M.orElse(() => recordings),
+  )
 
 // UPDATE
 
@@ -1540,35 +1803,35 @@ const applyAccountResult = (
 
 const recordingTitleNumberPattern = /^Recording (\d+)/
 
+const titleNumberOf = (recording: RecordingSummary): Option.Option<number> =>
+  pipe(
+    Option.fromNullishOr(recordingTitleNumberPattern.exec(recording.title)),
+    Option.flatMap(match => Array.get(match, 1)),
+    Option.map(Number),
+  )
+
+const highestTitleNumberIn = (
+  recordings: ReadonlyArray<RecordingSummary>,
+): number =>
+  Array.reduce(recordings, 0, (highest, recording) =>
+    Option.match(titleNumberOf(recording), {
+      onNone: () => highest,
+      onSome: titleNumber => Math.max(highest, titleNumber),
+    }),
+  )
+
 /**
  * The number the next web recording's title takes: one past the highest
- * `Recording N` in the loaded list, as on the iPhone. `None` until the list
- * has loaded, so a recording started too early never reuses a number.
+ * `Recording N` this account's list has shown, as on the iPhone, including
+ * pages that have since left the window. `None` until the list has loaded, so
+ * a recording started too early never reuses a number.
  */
 export const nextRecordingTitleNumberOf = (
   model: Model,
 ): Option.Option<number> =>
-  M.value(model.recordings).pipe(
-    M.withReturnType<Option.Option<number>>(),
-    M.tag('LoadedRecordings', ({ recordings }) =>
-      Option.some(
-        Array.reduce(recordings, 0, (highest, recording) =>
-          Option.match(
-            Option.flatMap(
-              Option.fromNullishOr(
-                recordingTitleNumberPattern.exec(recording.title),
-              ),
-              match => Array.get(match, 1),
-            ),
-            {
-              onNone: () => highest,
-              onSome: digits => Math.max(highest, Number(digits)),
-            },
-          ),
-        ) + 1,
-      ),
-    ),
-    M.orElse(() => Option.none()),
+  Option.map(
+    loadedOfState(model.recordings),
+    loaded => loaded.highestTitleNumber + 1,
   )
 
 const isSameUserID = Option.makeEquivalence(Equivalence.String)
@@ -1979,6 +2242,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           identity: () => identity,
           recordings: recordings =>
             isSameUser ? recordings : LoadingRecordings(),
+          recordingWindow: recordingWindow =>
+            isSameUser ? recordingWindow : firstRecordingWindow,
           playback: playback =>
             isSameUser ? playback : reopenedForNewAccount(playback),
           share: share =>
@@ -2001,22 +2266,24 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
 
-      ObservedRecordings: ({ recordings, skippedCount, maybeSkippedReason }) =>
-        openingReceivedShare([
-          evo(model, {
-            recordings: () =>
-              LoadedRecordings({
-                recordings,
-                skippedCount,
-                maybeSkippedReason,
+      ObservedRecordings: snapshot =>
+        isSameRecordingWindow(snapshot.window, model.recordingWindow)
+          ? openingReceivedShare([
+              evo(model, {
+                recordings: recordings =>
+                  loadedRecordingsFrom(
+                    recordings,
+                    model.maybeFocusedRowID,
+                    snapshot,
+                  ),
               }),
-          }),
-          [],
-        ]),
-      FailedObserveRecordings: ({ reason }) => [
-        evo(model, { recordings: () => FailedRecordings({ reason }) }),
-        [],
-      ],
+              [],
+            ])
+          : [model, []],
+      FailedObserveRecordings: ({ window, reason }) =>
+        isSameRecordingWindow(window, model.recordingWindow)
+          ? [evo(model, { recordings: () => FailedRecordings({ reason }) }), []]
+          : [model, []],
       UpdatedSearchQuery: ({ query }) => [
         evo(model, { searchQuery: () => query }),
         isListRoute(model.route) ? [WaitForSearchPause({ query })] : [],
@@ -2040,9 +2307,27 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       CompletedFocusSearch: () => [model, []],
-      ClickedShowMoreRecordings: () => [
+      ApproachedListEdge: ({ edge, window }) =>
+        Option.match(windowForApproachOf(model, edge, window), {
+          onNone: () => [model, []],
+          onSome: nextRecordingWindow => [
+            evo(model, { recordingWindow: () => nextRecordingWindow }),
+            [],
+          ],
+        }),
+      ReachedListTop: ({ window }) =>
+        Option.match(windowForListTopOf(model, window), {
+          onNone: () => [model, []],
+          onSome: nextRecordingWindow => [
+            evo(model, { recordingWindow: () => nextRecordingWindow }),
+            [],
+          ],
+        }),
+      ChangedListRowFocus: ({ maybeRecordingID }) => [
         evo(model, {
-          recordingListLimit: limit => limit + RECORDING_LIST_PAGE_SIZE,
+          maybeFocusedRowID: () => maybeRecordingID,
+          recordings: recordings =>
+            withoutUnfocusedKeptRow(recordings, maybeRecordingID),
         }),
         [],
       ],

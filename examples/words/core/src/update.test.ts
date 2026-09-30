@@ -19,6 +19,7 @@ import {
   scribeRouteToPath,
   scribeRouteToShareUrl,
 } from './link.js'
+import { firstRecordingWindow } from './listWindow.js'
 import {
   AcquiredAudioPlayer,
   ChangedConnectivity,
@@ -660,9 +661,11 @@ describe('signing in', () => {
   it('forgets a list read under another identity, so nothing stale counts as loaded', () => {
     const signedOutList = run(opened(RecordingListRoute()), [
       ObservedRecordings({
+        window: firstRecordingWindow,
         recordings: [],
         skippedCount: 0,
         maybeSkippedReason: Option.none(),
+        hasOlder: false,
       }),
     ])
     expect(signedOutList.model.recordings._tag).toBe('LoadedRecordings')
@@ -1155,9 +1158,11 @@ describe('skipping to the player', () => {
 describe('searching the list', () => {
   const loaded = run(opened(RecordingListRoute()), [
     ObservedRecordings({
+      window: firstRecordingWindow,
       recordings: [detail().summary],
       skippedCount: 0,
       maybeSkippedReason: Option.none(),
+      hasOlder: false,
     }),
   ]).model
 
@@ -1296,9 +1301,11 @@ describe('the live clock', () => {
     const listOf = (summary: RecordingSummary) =>
       run(opened(RecordingListRoute()), [
         ObservedRecordings({
+          window: firstRecordingWindow,
           recordings: [summary],
           skippedCount: 0,
           maybeSkippedReason: Option.none(),
+          hasOlder: false,
         }),
       ]).model
     expect(isCountingLiveOf(listOf(live))).toBe(true)
@@ -1378,9 +1385,11 @@ describe('the live length of a recording in progress elsewhere', () => {
   })
   const listed = (summary: RecordingSummary) =>
     ObservedRecordings({
+      window: firstRecordingWindow,
       recordings: [summary],
       skippedCount: 0,
       maybeSkippedReason: Option.none(),
+      hasOlder: false,
     })
   const listedLengthOf = (model: Model): number => {
     if (model.recordings._tag !== 'LoadedRecordings') {
@@ -1566,9 +1575,11 @@ describe('recordings shared with this account', () => {
   it('marks a recording someone else shared, at its newest share', () => {
     const model = run(signedInAt(RecordingListRoute()), [
       ObservedRecordings({
+        window: firstRecordingWindow,
         recordings: [othersSummary],
         skippedCount: 0,
         maybeSkippedReason: Option.none(),
+        hasOlder: false,
       }),
       received([shareOf('newer', 20), shareOf('older', 10)]),
     ]).model

@@ -8,6 +8,7 @@ import { MediaSessionAction } from './audioPlayer.js'
 import * as Capture from './capture/message.js'
 import { Shortcut } from './keyboard.js'
 import { ScribeAppScheme } from './link.js'
+import { ListEdge, RecordingWindow } from './listWindow.js'
 import { CopyNotice, IdentityState, PlayheadVisibility } from './model.js'
 import { Connectivity } from './network.js'
 import { RecordingDetail, RecordingSummary } from './recording.js'
@@ -34,15 +35,38 @@ export const FailedObserveIdentity = m('FailedObserveIdentity', {
   reason: S.String,
 })
 
-/** A recording list snapshot arrived. */
+/**
+ * A snapshot of the list window `window` arrived. `hasOlder` is whether the
+ * server has recordings past the window's last page.
+ */
 export const ObservedRecordings = m('ObservedRecordings', {
+  window: RecordingWindow,
   recordings: S.Array(RecordingSummary),
   skippedCount: S.Number,
   maybeSkippedReason: S.Option(S.String),
+  hasOlder: S.Boolean,
 })
-/** The recording list could not be observed. */
+/** The list window `window` could not be observed. */
 export const FailedObserveRecordings = m('FailedObserveRecordings', {
+  window: RecordingWindow,
   reason: S.String,
+})
+/**
+ * The listener scrolled to within about a screen of the loaded rows' newer
+ * or older edge, while the list showed the rows of `window`.
+ */
+export const ApproachedListEdge = m('ApproachedListEdge', {
+  edge: ListEdge,
+  window: RecordingWindow,
+})
+/**
+ * The listener scrolled to the very top of the list while it showed
+ * `window`, which does not start at the newest recording.
+ */
+export const ReachedListTop = m('ReachedListTop', { window: RecordingWindow })
+/** Keyboard focus moved onto a recording row, or off every row. */
+export const ChangedListRowFocus = m('ChangedListRowFocus', {
+  maybeRecordingID: S.Option(S.String),
 })
 /** The listener typed in the recording search. */
 export const UpdatedSearchQuery = m('UpdatedSearchQuery', { query: S.String })
@@ -52,8 +76,6 @@ export const CompletedFocusSearch = m('CompletedFocusSearch')
 export const ElapsedSearchPause = m('ElapsedSearchPause', { query: S.String })
 /** The address bar shows the current page in place of the previous entry. */
 export const CompletedReplaceUrl = m('CompletedReplaceUrl')
-/** The listener asked for older recordings. */
-export const ClickedShowMoreRecordings = m('ClickedShowMoreRecordings')
 /** The listener opened a recording from the list. */
 export const ClickedRecording = m('ClickedRecording', {
   recordingID: S.String,
@@ -279,7 +301,9 @@ export const Message = S.Union([
   CompletedFocusSearch,
   ElapsedSearchPause,
   CompletedReplaceUrl,
-  ClickedShowMoreRecordings,
+  ApproachedListEdge,
+  ReachedListTop,
+  ChangedListRowFocus,
   ClickedRecording,
   ObservedRecording,
   FailedObserveRecording,

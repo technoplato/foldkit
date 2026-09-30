@@ -4,17 +4,30 @@ import { ts } from 'foldkit/schema'
 import * as Account from './account/model.js'
 import * as Capture from './capture/model.js'
 import { ScribeRoute } from './link.js'
+import { OlderEdge, RecordingWindow } from './listWindow.js'
 import { Connectivity } from './network.js'
 import { RecordingDetail, RecordingSummary } from './recording.js'
 import * as Share from './share/model.js'
 
 /** Waiting for the first recording list snapshot. */
 export const LoadingRecordings = ts('LoadingRecordings')
-/** The latest recording list snapshot. */
+/**
+ * The latest snapshot of the window the list shows. `window` is the run of
+ * pages these rows came from, and `olderEdge` what lies past its last row.
+ * `maybeKeptFocusedRow` is a row that holds keyboard focus, kept on screen
+ * after its page left the window so focus never falls off the page.
+ * `highestTitleNumber` is the highest `Recording N` seen in this account's
+ * list, kept when the newest page leaves the window, so a new recording's
+ * title never repeats a number.
+ */
 export const LoadedRecordings = ts('LoadedRecordings', {
   recordings: S.Array(RecordingSummary),
   skippedCount: S.Number,
   maybeSkippedReason: S.Option(S.String),
+  window: RecordingWindow,
+  olderEdge: OlderEdge,
+  maybeKeptFocusedRow: S.Option(RecordingSummary),
+  highestTitleNumber: S.Number,
 })
 /** The recording list could not be observed. */
 export const FailedRecordings = ts('FailedRecordings', { reason: S.String })
@@ -223,7 +236,10 @@ export type CopyNotice = typeof CopyNotice.Type
  * `liveLengthFloors` holds, per such recording, the longest length shown so
  * far, so a save that moves the save time but not the length never makes it
  * run backward. `recordingAttempt` counts Try Again presses; each one asks
- * Scribe for the open recording again.
+ * Scribe for the open recording again. `recordingWindow` is the run of list
+ * pages the list observes; it moves as the listener scrolls near an edge of
+ * the loaded rows. `maybeFocusedRowID` is the recording row that holds
+ * keyboard focus, as the host reports it.
  */
 export const Model = S.Struct({
   route: ScribeRoute,
@@ -232,7 +248,8 @@ export const Model = S.Struct({
   capture: Capture.Model,
   share: Share.Model,
   recordings: RecordingsState,
-  recordingListLimit: S.Number,
+  recordingWindow: RecordingWindow,
+  maybeFocusedRowID: S.Option(S.String),
   playback: PlaybackState,
   maybeBackgroundPlayback: S.Option(ReadyPlayback),
   resumePositions: S.Record(S.String, S.Number),

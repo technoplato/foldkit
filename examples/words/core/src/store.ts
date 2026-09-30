@@ -22,6 +22,7 @@ import {
   decodeRecordingList,
 } from './decode.js'
 import { failureTextOf } from './failure.js'
+import { type RecordingWindow, recordingWindowRangeOf } from './listWindow.js'
 import { type IdentityState, SignedIn, SignedOut } from './model.js'
 import type { AppSchema } from './scribeSchema.js'
 import {
@@ -99,12 +100,64 @@ export type FileUrls = Readonly<Record<string, string>>
 /** The Instant user the browser is signed in as, when it is not a guest. */
 export type InstantMember = Readonly<{ userID: string; email: string }>
 
+/**
+ * One snapshot of a list window: its rows, and whether the server has
+ * recordings past its last page.
+ */
+export type RecordingListSnapshot = DecodedRecordingList &
+  Readonly<{ hasOlder: boolean }>
+
+const NEWEST_FIRST: Readonly<{ startedAtMs: 'desc' }> = { startedAtMs: 'desc' }
+
+/**
+ * The InstaQL the list sends for a window: the recordings newest first, with
+ * the two preview slots. Only the top level is paginated; Instant ignores
+ * pagination below it. The first window sends no offset, so its query is the
+ * one the list has always sent.
+ *
+ * @example
+ * ```ts
+ * recordingListQueryOf({ firstPage: 2, pageCount: 3 })
+ * // { recordings: { $: { order: { startedAtMs: 'desc' }, limit: 300, offset: 200 }, previewSegmentA: {}, previewSegmentB: {} } }
+ * ```
+ */
+export const recordingListQueryOf = (window: RecordingWindow) => {
+  const { limit, offset } = recordingWindowRangeOf(window)
+  return {
+    recordings: {
+      $: {
+        order: NEWEST_FIRST,
+        limit,
+        ...(offset > 0 ? { offset } : {}),
+      },
+      previewSegmentA: {},
+      previewSegmentB: {},
+    },
+  }
+}
+
+/**
+ * Whether the server has recordings past a window: its page info's
+ * `hasNextPage` when it sent one, else whether the window came back full.
+ * Instant computes `hasNextPage` before it applies permissions, so a window
+ * can come back short while this is still true.
+ */
+export const hasOlderRecordingsOf = (
+  rowCount: number,
+  window: RecordingWindow,
+  maybeHasNextPage: Option.Option<boolean>,
+): boolean =>
+  Option.getOrElse(
+    maybeHasNextPage,
+    () => rowCount >= recordingWindowRangeOf(window).limit,
+  )
+
 /** The Instant reads the web Scribe Program needs. */
 export type WordsStoreService = Readonly<{
   observeIdentity: Stream.Stream<IdentityState, WordsStoreError>
   observeRecordings: (
-    limit: number,
-  ) => Stream.Stream<DecodedRecordingList, WordsStoreError>
+    window: RecordingWindow,
+  ) => Stream.Stream<RecordingListSnapshot, WordsStoreError>
   observeRecording: (
     recordingID: string,
   ) => Stream.Stream<DecodedRecordingDetail, WordsStoreError>
@@ -252,20 +305,22 @@ export const makeLiveWordsResources = (database: WordsDatabase) =>
         }
       }),
     ),
-    observeRecordings: limit =>
-      observe<DecodedRecordingList>('ObserveRecordings', emit =>
-        database.subscribeQuery(
-          {
-            recordings: {
-              $: { order: { startedAtMs: 'desc' }, limit },
-              previewSegmentA: {},
-              previewSegmentB: {},
-            },
-          },
-          response =>
-            emitResponse(emit, response, data =>
-              decodeRecordingList(data.recordings),
-            ),
+    observeRecordings: window =>
+      observe<RecordingListSnapshot>('ObserveRecordings', emit =>
+        database.subscribeQuery(recordingListQueryOf(window), response =>
+          emitResponse(emit, response, data => {
+            const list = decodeRecordingList(data.recordings)
+            return {
+              ...list,
+              hasOlder: hasOlderRecordingsOf(
+                Array.length(data.recordings),
+                window,
+                Option.fromNullishOr(
+                  response.pageInfo?.recordings?.hasNextPage,
+                ),
+              ),
+            }
+          }),
         ),
       ),
     observeRecording: recordingID =>
@@ -435,7 +490,7 @@ export const makeStaticWordsResources = (
   )
   return Layer.succeed(WordsStore, {
     observeIdentity: Stream.succeed(identity),
-    observeRecordings: () => Stream.succeed(list),
+    observeRecordings: () => Stream.succeed({ ...list, hasOlder: false }),
     observeRecording: recordingID =>
       Stream.succeed(
         Option.match(Record.get(recordings, recordingID), {

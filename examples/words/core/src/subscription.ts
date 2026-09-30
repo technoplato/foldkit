@@ -13,6 +13,7 @@ import * as Account from './account/index.js'
 import { AudioPlayer, type AudioPlayerService } from './audioPlayer.js'
 import * as Capture from './capture/index.js'
 import { KeyboardInput, ShortcutContext, shortcutFor } from './keyboard.js'
+import { RecordingWindow } from './listWindow.js'
 import {
   ChangedConnectivity,
   ElapsedOpeningPatience,
@@ -63,6 +64,37 @@ const signedInUserIDOf = (model: Model): Option.Option<string> =>
     M.orElse(() => Option.none()),
   )
 
+/**
+ * The list window's snapshots as Messages, each tagged with the window it
+ * answers, so a snapshot that arrives after the window moved is not taken for
+ * the new window's rows.
+ */
+export const observeRecordingWindow = (
+  window: RecordingWindow,
+): Stream.Stream<Message, never, WordsStore> =>
+  Stream.unwrap(
+    WordsStore.pipe(
+      Effect.map(store =>
+        store.observeRecordings(window).pipe(
+          Stream.map(snapshot =>
+            ObservedRecordings({
+              window,
+              recordings: snapshot.recordings,
+              skippedCount: snapshot.skipped.count,
+              maybeSkippedReason: snapshot.skipped.maybeFirstReason,
+              hasOlder: snapshot.hasOlder,
+            }),
+          ),
+          Stream.catch(error =>
+            Stream.make(
+              FailedObserveRecordings({ window, reason: reasonOf(error) }),
+            ),
+          ),
+        ),
+      ),
+    ),
+  )
+
 const accountSubscriptions = Subscription.lift(Account.subscriptions)<
   Model,
   Message
@@ -80,10 +112,11 @@ const captureSubscriptions = Subscription.lift(Capture.subscriptions)<
 })
 
 /**
- * Live Instant observations: who is signed in, the recording list, the open
- * recording, and its file URLs, plus the audio player's events while it is
- * open. Each restarts when the Model value it depends on changes, including
- * the signed-in user, so signing in reloads what the account can read.
+ * Live Instant observations: who is signed in, the recording list's window,
+ * the open recording, and its file URLs, plus the audio player's events while
+ * it is open. Each restarts when the Model value it depends on changes,
+ * including the signed-in user, so signing in reloads what the account can
+ * read, and a moved list window asks for its pages.
  */
 const instantSubscriptions = Subscription.make<
   Model,
@@ -105,33 +138,13 @@ const instantSubscriptions = Subscription.make<
     ),
   ),
   recordings: entry(
-    { limit: S.Number, maybeUserID: S.Option(S.String) },
+    { window: RecordingWindow, maybeUserID: S.Option(S.String) },
     {
       modelToDependencies: model => ({
-        limit: model.recordingListLimit,
+        window: model.recordingWindow,
         maybeUserID: signedInUserIDOf(model),
       }),
-      dependenciesToStream: ({ limit }) =>
-        Stream.unwrap(
-          WordsStore.pipe(
-            Effect.map(store =>
-              store.observeRecordings(limit).pipe(
-                Stream.map(list =>
-                  ObservedRecordings({
-                    recordings: list.recordings,
-                    skippedCount: list.skipped.count,
-                    maybeSkippedReason: list.skipped.maybeFirstReason,
-                  }),
-                ),
-                Stream.catch(error =>
-                  Stream.make(
-                    FailedObserveRecordings({ reason: reasonOf(error) }),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+      dependenciesToStream: ({ window }) => observeRecordingWindow(window),
     },
   ),
   recording: entry(
