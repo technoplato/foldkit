@@ -1,5 +1,6 @@
 import { Layer, Option, Schema as S } from 'effect'
 import { Program, Runtime } from 'foldkit'
+import { retainLatestTransitions } from 'foldkit/program-runtime'
 import { fromString } from 'foldkit/url'
 import {
   type AudioPlayerService,
@@ -95,6 +96,14 @@ const application = Runtime.makeFoldkitApplication({
     onUrlRequest: request => ClickedLink({ request }),
   },
   view: view({ appScheme, canShareLinks }),
+  // NOTE: Foldkit's Program journal keeps every transition by default, for
+  // DevTools and replay tapes. A production page uses neither, and it stays
+  // open for hours while every change to the list window or the open
+  // recording arrives as a new snapshot, so a production build keeps none of
+  // them; the dev server keeps them for DevTools.
+  journal: import.meta.env.PROD
+    ? { archive: retainLatestTransitions({ maximumTransitions: 0 }) }
+    : {},
 })
 
 Runtime.run(application)
