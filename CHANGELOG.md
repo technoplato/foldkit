@@ -602,6 +602,35 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 9:54:58 p.m. EDT — `5c3df9a8ff1d` fix(words): plain-language failures and messages, without internal names
+
+- **Implementation commit:** `5c3df9a8ff1d91f409f2e03a45701e55c299b186`
+- **Change:** Plain-language failures and messages, without internal names (#289 W35, W8).
+- **Details:**
+  - failureTextOf and storeFailureReasonOf turn recorder, share, store, and origin errors into a sentence about what did not happen plus a plain cause (network, or Scribe not answering in time); for example UploadAudio: Failed to fetch now reads The audio did not upload. The network connection dropped.
+  - User text no longer names ADRs or Instant; the microphone failures say choose Try Again (W8).
+- **Files:**
+  - `examples/words/core/src/failure.ts` — plainCauseOf and failureTextOf
+  - `examples/words/core/src/failure.test.ts` — failure text tests
+  - `examples/words/core/src/index.ts` — export the failure text
+  - `examples/words/core/src/capture/update.ts` — recorder failures as sentences
+  - `examples/words/core/src/capture/writer.ts` — timeout wording
+  - `examples/words/core/src/share/update.ts` — share failures as sentences
+  - `examples/words/core/src/share/writer.ts` — timeout wording
+  - `examples/words/core/src/store.ts` — storeFailureReasonOf
+  - `examples/words/core/src/subscription.ts` — observation failures as sentences
+  - `examples/words/core/src/update.ts` — recording check failure as a sentence
+  - `examples/words/core/src/account/update.ts` — sign-in failures as sentences
+  - `examples/words/core/src/origin.ts` — origin failures as sentences
+  - `examples/words/foldkit/src/view/account.ts` — Account ID and plain sharing text
+  - `examples/words/foldkit/src/view/share.ts` — plain sharing and audio notices
+  - `examples/words/foldkit/src/view/connect.ts` — no ADR reference
+  - `examples/words/foldkit/src/view/capture.ts` — save failure wording
+  - `examples/words/foldkit/src/capture.ts` — microphone failures say choose Try Again
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 9:50:58 p.m. EDT — `fc511477aeb1` fix(words): give Full Screen more of a phone and keep its clock by the text
 
 - **Implementation commit:** `fc511477aeb16ee2717e02a3ae0e2fa37fdbb2f1`
