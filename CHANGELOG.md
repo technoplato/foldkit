@@ -602,6 +602,39 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 30th, 2026 at 4:01:05 a.m. EDT — `759ba56f2904` fix(words): say what an opening recording waits for, count live lengths forward, and fix the scrubber and skip links
+
+- **Implementation commit:** `759ba56f2904fd9611f6f3cae1a1adbfb198dd9f`
+- **Change:** Say what an opening recording waits for, count live lengths forward, and fix the scrubber and skip links (#289 W49, W44, W53, W61, W51, W54, W55, W62, W40).
+- **Details:**
+  - W49: the Opening card shows a spinner; after 8 s it says the transcript is still loading, with Try Again (a new attempt restarts the recording Subscription); offline it says the recording opens once the network is back; a recording that failed to load offers Try Again.
+  - W44: a recording in progress elsewhere never shows less than it showed (liveLengthFloors); the web recorder saves the length with each finished section, so its save time and length move together.
+  - W53: the scrubber steps 1 s, so Up and Down Arrow and assistive adjustments change the spoken time; Left and Right Arrow move 5 s; the thumb is drawn at the exact playhead.
+  - W61: Skip to Controls and Skip to Content are the first tab stops; the page scrolls the window, because scrollIntoView moved Chromium's focus navigation starting point past them.
+  - W51: the account chip says Offline while offline, on a phone too. W54: signed in, the list says Loading recordings. W55: the mini player's title link is 44 px. W62: avatar initials are sized to the circle. W40: the recording title keeps the large title size from 1024 px.
+- **Files:**
+  - `examples/words/core/src/update.ts` — displayedLengthOf and liveLengthFloors, openingWaitOf and Try Again, scrubber arrows, Skip to Content, the scroll to the title
+  - `examples/words/core/src/subscription.ts` — the opening patience timer and the recording attempt dependency
+  - `examples/words/core/src/model.ts` — OpeningPatience, liveLengthFloors, recordingAttempt
+  - `examples/words/core/src/message.ts` — PressedScrubberArrow, ElapsedOpeningPatience, ClickedTryOpeningAgain, Skip to Content
+  - `examples/words/core/src/capture/update.ts` — WriteSegment carries the length recorded so far
+  - `examples/words/core/src/capture/writer.ts` — finalSectionRecordingFieldsOf writes the length with the save time
+  - `examples/words/core/src/scroller.ts` — scrollToPageTop
+  - `examples/words/foldkit/src/browser.ts` — window scrolling for follow and the title
+  - `examples/words/foldkit/src/view/playback.ts` — opening notices, scrubber, mini player link, title size
+  - `examples/words/foldkit/src/view/view.ts` — skip links, the content column, the opening notices
+  - `examples/words/foldkit/src/view/shell.ts` — offline chip
+  - `examples/words/foldkit/src/view/list.ts` — Loading recordings; counted lengths
+  - `examples/words/foldkit/src/view/ui.ts` — avatar sizes
+  - `examples/words/foldkit/src/view/account.ts` — the scrubber keys note; the avatar size
+  - `examples/words/foldkit/src/styles.css` — the drawn scrubber thumb
+  - `examples/words/core/src/update.test.ts` — scrubber, live length, opening, and Skip to Content tests
+  - `examples/words/core/src/capture/capture.test.ts` — length with each section tests
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+  > the transcript is not loading from within the app, although the word count is.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 11:05:58 p.m. EDT — `edd500ad530e` fix(words): count a recording in progress elsewhere up each second
 
 - **Implementation commit:** `edd500ad530ef03038a3ead82c6997eb07b8a07b`
