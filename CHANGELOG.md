@@ -602,6 +602,37 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 30th, 2026 at 4:04:37 a.m. EDT — `d91c94787ff7` feat(words): mark recordings shared with this account and open them at their share
+
+- **Implementation commit:** `d91c94787ff79744fd807737a0b4d6d1b43ce505`
+- **Change:** Mark recordings shared with this account and open them at their share (#289 W56).
+- **Details:**
+  - The web reads the range shares other accounts made to this one (addressed to the signed-in email, or claimed), newest first, once sharing is on; the account's own shares are left out.
+  - A shared row says Shared with You and who shared it, opens the share's page, and its menu copies the share's link; a recording page for a shared recording opens as the share's page and the address bar follows.
+  - Recording and share rows decode ownerUserID, so the account's own recordings are never marked as shared.
+- **Files:**
+  - `examples/words/core/src/update.ts` — receivedShareOf, receivedShareRouteOf, opening a received share in place of the recording page
+  - `examples/words/core/src/store.ts` — observeReceivedShares
+  - `examples/words/core/src/subscription.ts` — the received shares Subscription
+  - `examples/words/core/src/share/decode.ts` — decodeReceivedShares; share owners
+  - `examples/words/core/src/share/model.ts` — received shares
+  - `examples/words/core/src/share/message.ts` — ObservedReceivedShares
+  - `examples/words/core/src/share/intent.ts` — reportReceivedShares
+  - `examples/words/core/src/share/update.ts` — keep received shares; wording
+  - `examples/words/core/src/decode.ts` — recording owners
+  - `examples/words/core/src/recording.ts` — maybeOwnerUserID
+  - `examples/words/foldkit/src/view/list.ts` — shared rows: badge, sharer, share link, open row
+  - `examples/words/foldkit/src/view/ui.ts` — Shared badge tone
+  - `examples/words/foldkit/src/view/share.ts` — Shared with You wording and badge
+  - `examples/words/core/src/update.test.ts` — received share tests
+  - `examples/words/core/src/share/share.test.ts` — received share decode and update tests
+  - `examples/words/core/src/transcript.test.ts` — owner decode test
+  - `examples/words/core/src/coldLoad.test.ts` — summary owner field
+  - `examples/words/core/src/search.test.ts` — summary owner field
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 30th, 2026 at 4:01:05 a.m. EDT — `759ba56f2904` fix(words): say what an opening recording waits for, count live lengths forward, and fix the scrubber and skip links
 
 - **Implementation commit:** `759ba56f2904fd9611f6f3cae1a1adbfb198dd9f`
