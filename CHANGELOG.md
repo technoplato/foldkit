@@ -602,6 +602,27 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 30th, 2026 at 4:07:28 a.m. EDT — `b994a01bec07` fix(words): keep the title whole at large text, badges readable on selected rows, two rows beside a live recording, and a wider column from 1600 px
+
+- **Implementation commit:** `b994a01bec07fd7a6866d8ae1cae183a2a2d4c53`
+- **Change:** Keep the title whole at large text, badges readable on selected rows, two rows beside a live recording, and a wider column from 1600 px (#289 W60, W52, W58, W63).
+- **Details:**
+  - W60: under 20rem of page width (large text on a phone) the top bar drops the recording title and the page shows it, wrapping.
+  - W52: badge text tokens keep Recording, Paused, and Playing above 4.5:1 on selected and hovered rows in light, dark, and Increase Contrast.
+  - W58: beside a playback on a phone, the live recorder and the player each take one row; chrome 36.1 to 28.7 percent at 375 px.
+  - W63: from 1600 px text grows by 30 percent, the column is 61rem (about 90 characters per line), the sidebar 35rem; blank per side at 1920 px 20 to 10 percent.
+- **Files:**
+  - `examples/words/foldkit/src/styles.css` — the large-display scale, badge tokens, the one-row pieces, the wrapping title
+  - `examples/words/foldkit/src/view/capture.ts` — the one-row recorder
+  - `examples/words/foldkit/src/view/playback.ts` — the one-row player, the page title at large text, the wider column
+  - `examples/words/foldkit/src/view/view.ts` — the page container, both pieces beside each other, the wider sidebar
+  - `examples/words/foldkit/src/view/shell.ts` — the bar title yields at large text; the toast follows the sidebar
+  - `examples/words/foldkit/src/view/transcript.ts` — the wider column; the gutter and cards scale with text
+  - `examples/words/foldkit/src/view/ui.ts` — badge tokens; avatar initials follow the large-display scale
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 30th, 2026 at 4:06:40 a.m. EDT — `f6f1e11e9e9f` feat(words): stop a recording with Shift-Command-Period, and let floating pieces materialize
 
 - **Implementation commit:** `f6f1e11e9e9f123a734448b9df6165cb300db5d2`
