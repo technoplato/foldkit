@@ -602,6 +602,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 9:08:20 p.m. EDT — `0db15b6ccc7a` fix(words): keep the recording bar readable at large text and as wide as the player
+
+- **Implementation commit:** `0db15b6ccc7ac1b39489a02b2b12571361bc0ec1`
+- **Change:** Keep the recording bar readable at large text and as wide as the player (#289 W29, W45).
+- **Details:**
+  - W29: the recording bar is a size container; below 18rem Pause and Stop are 44 px icon-only buttons. At 200 percent text on a 375 px phone the status ended at 146 px under Pause at 96 px; now Pause starts at 259 px. The default size keeps the labels.
+  - W45: the recording, Finishing, and Saving bars are full width, like the playback bar they stack with.
+- **Files:**
+  - `examples/words/foldkit/src/view/capture.ts` — full-width recorder bars; icon-only Pause and Stop when narrow
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 9:01:47 p.m. EDT — `87e5d124459d` fix(words): one status per recording, a Paused cue, and quieter recording controls
 
 - **Implementation commit:** `87e5d124459d23fba688040df8ed7b60207b8e63`
