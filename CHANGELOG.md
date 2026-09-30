@@ -613,7 +613,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/words/core/src/listWindow.test.ts` — the stale snapshot test uses different rows
 - **User context (verbatim):**
   > I never want to have to manually load more things.
-- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session.
 
 ## September 30th, 2026 at 2:02:31 p.m. EDT — `9f088af149b3` fix(words): keep no Program journal history in production builds
 
@@ -626,7 +626,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/words/foldkit/src/entry.ts` — the production journal keeps no transitions
 - **User context (verbatim):**
   > I never want to have to manually load more things.
-- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session.
 
 ## September 30th, 2026 at 1:59:16 p.m. EDT — `3ff3f97e609f` feat(words): load the recording list by itself as it scrolls, in a window of three pages
 
@@ -655,7 +655,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/words/foldkit/src/view/list.ts` — rows between edge slots, the spacer, the loading status, the count, the search note
 - **User context (verbatim):**
   > make sure that the show latest, show earliest stuff never shows up. I never want to have to manually load more things.
-- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session.
 
 ## September 30th, 2026 at 4:34:17 a.m. EDT — `1f636163ea86` fix(words): title the offline opening card "Waiting for the network"
 
