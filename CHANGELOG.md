@@ -602,6 +602,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 10:10:17 p.m. EDT — `59e3edcb2d4e` fix(words): fit the recording page's chrome on a phone under 30 percent
+
+- **Implementation commit:** `59e3edcb2d4e12404929b3722c0c1d8627021a04`
+- **Change:** Fit the recording page's chrome on a phone under 30 percent (#289 W32).
+- **Details:**
+  - Phones: inline title in the top bar, Share plus a More menu on the meta line, phase badge in the meta line, a slightly tighter player with every control kept. Chrome at rest at 375 by 812 went from 37.3 to 27.6 percent (probe-w32.mjs); from 640 px nothing changes.
+- **Files:**
+  - `examples/words/foldkit/src/view/playback.ts` — phone header with Share and More; meta line pieces; tighter phone player
+  - `examples/words/foldkit/src/view/shell.ts` — inline recording title in the phone top bar
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 9:54:58 p.m. EDT — `5c3df9a8ff1d` fix(words): plain-language failures and messages, without internal names
 
 - **Implementation commit:** `5c3df9a8ff1d91f409f2e03a45701e55c299b186`
