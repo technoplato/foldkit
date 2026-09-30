@@ -562,7 +562,9 @@ const recordingIDOfTarget = (
  * MutationObserver corrects each render before it paints. Focus moving onto a
  * row, or off every row, becomes `ChangedListRowFocus`, so the list keeps a
  * focused row when its page leaves, and a focused row that a render moved
- * keeps its focus.
+ * keeps its focus. New rows report the focus as they find it, so a row that
+ * had focus in rows that are gone (opening a recording replaces the list
+ * with the sidebar) is not kept.
  */
 export const TrackRecordingRows = Mount.defineStream(
   'TrackRecordingRows',
@@ -644,6 +646,19 @@ export const TrackRecordingRows = Mount.defineStream(
         }
         element.addEventListener('focusin', handleFocusIn)
         element.addEventListener('focusout', handleFocusOut)
+        state.maybeFocused = Option.liftPredicate(
+          document.activeElement,
+          (active): active is HTMLElement =>
+            active instanceof HTMLElement && element.contains(active),
+        )
+        Queue.offerUnsafe(
+          queue,
+          ChangedListRowFocus({
+            maybeRecordingID: Option.flatMap(state.maybeFocused, focused =>
+              recordingIDOfTarget(focused),
+            ),
+          }),
+        )
         return {
           mutations,
           handleScroll,
