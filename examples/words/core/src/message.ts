@@ -160,6 +160,8 @@ export const ChangedPlayheadVisibility = m('ChangedPlayheadVisibility', {
   sectionID: S.String,
   visibility: PlayheadVisibility,
 })
+/** The listener closed the player that kept a recording playing while browsing. */
+export const ClickedCloseMiniPlayer = m('ClickedCloseMiniPlayer')
 /** The listener chose Full Screen for the open recording. */
 export const ClickedEnterFullScreen = m('ClickedEnterFullScreen')
 /** The listener left Full Screen. */
@@ -288,6 +290,7 @@ export const Message = S.Union([
   ChangedPlayheadVisibility,
   ClickedSkipToPlayer,
   CompletedFocusPlayer,
+  ClickedCloseMiniPlayer,
   ClickedEnterFullScreen,
   ClickedExitFullScreen,
   CompletedRunWallClock,

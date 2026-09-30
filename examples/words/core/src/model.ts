@@ -204,7 +204,10 @@ export type CopyNotice = typeof CopyNotice.Type
 /**
  * The web Scribe Model. `resumePositions` holds, per recording, where the
  * listener left it part way through in this tab, so opening it again resumes
- * there.
+ * there. `maybeBackgroundPlayback` is a recording whose audio keeps playing
+ * while the page shows something else (the list, Settings, or this browser's
+ * own recording in progress), like the iPhone's playback piece beside its
+ * live chip; opening another recording replaces it.
  */
 export const Model = S.Struct({
   route: ScribeRoute,
@@ -215,6 +218,7 @@ export const Model = S.Struct({
   recordings: RecordingsState,
   recordingListLimit: S.Number,
   playback: PlaybackState,
+  maybeBackgroundPlayback: S.Option(ReadyPlayback),
   resumePositions: S.Record(S.String, S.Number),
   maybeCopyNotice: S.Option(CopyNotice),
   copyRevision: S.Number,

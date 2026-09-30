@@ -1,6 +1,7 @@
 import { Array, Match as M, Option } from 'effect'
 import { type Html, html } from 'foldkit/html'
 import {
+  ClickedCloseMiniPlayer,
   ClickedCopyMomentLink,
   ClickedCopyRecordingLink,
   ClickedCopyTranscript,
@@ -19,6 +20,7 @@ import {
   MovedScrub,
   RECORDING_TITLE_ELEMENT_ID,
   type ReadyPlayback,
+  RecordingRoute,
   SKIP_SECONDS,
   Share,
   type TranscriptFormat,
@@ -28,6 +30,7 @@ import {
   isLiveRecording,
   isReturnShownOf,
   playbackPhaseOf,
+  scribeRouteToPath,
   shortcutKeyOf,
 } from 'words-core-example'
 
@@ -740,6 +743,69 @@ export const returnPill = (ready: ReadyPlayback): ReadonlyArray<Html> => {
         ),
       ]
     : []
+}
+
+/**
+ * The player for a recording that keeps playing while the listener browses,
+ * like the playback piece in the iPhone's bar: Play or Pause, the recording's
+ * title and time (the title opens it again, where it is), and Close.
+ */
+export const miniPlayer = (ready: ReadyPlayback): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  const title = ready.detail.summary.title
+  const time = `${formatClock(displayedPositionOf(ready))} of ${formatClock(durationOf(ready))}`
+  return [
+    h.div(
+      [
+        h.Role('group'),
+        h.AriaLabel('Recording playing in the background'),
+        h.Class(
+          'glass flex w-full items-center gap-2 rounded-full py-1.5 pl-1.5 pr-2',
+        ),
+      ],
+      [
+        playPauseButton(ready, 'size-11'),
+        h.a(
+          [
+            h.Href(
+              scribeRouteToPath(
+                RecordingRoute({ recordingID: ready.recordingID }),
+              ),
+            ),
+            h.AriaLabel(`Open ${title}, ${time}`),
+            h.Class('flex min-w-0 flex-1 flex-col rounded-2xl px-1 py-0.5'),
+          ],
+          [
+            h.span(
+              [h.Class('truncate text-subhead font-semibold text-label')],
+              [title],
+            ),
+            h.span(
+              [h.Class('tabular truncate text-footnote text-secondary')],
+              [
+                Option.match(playbackPhaseOf(ready), {
+                  onNone: () => time,
+                  onSome: phase => `${phase} · ${time}`,
+                }),
+              ],
+            ),
+          ],
+        ),
+        h.button(
+          [
+            h.Type('button'),
+            h.AriaLabel('Close Player'),
+            h.Title('Close Player'),
+            h.OnClick(ClickedCloseMiniPlayer()),
+            h.Class(
+              'inline-flex size-11 shrink-0 items-center justify-center rounded-full text-secondary transition hover:bg-fill hover:text-label',
+            ),
+          ],
+          [icon('Close', 'size-4')],
+        ),
+      ],
+    ),
+  ]
 }
 
 /** The floating controls for the open recording, when this browser is not recording it. */

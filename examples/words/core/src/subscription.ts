@@ -30,6 +30,7 @@ import {
   storeFailureReasonOf,
 } from './store.js'
 import {
+  audioOwnerOf,
   fileIDsOf,
   observedRecordingIDOf,
   shareLinkTokenOf,
@@ -179,9 +180,10 @@ const instantSubscriptions = Subscription.make<
     { isAudioPlayerReady: S.Boolean },
     {
       modelToDependencies: model => ({
-        isAudioPlayerReady:
-          model.playback._tag === 'ReadyPlayback' &&
-          model.playback.audioPlayer._tag === 'AudioPlayerReady',
+        isAudioPlayerReady: Option.exists(
+          audioOwnerOf(model),
+          owner => owner.audioPlayer._tag === 'AudioPlayerReady',
+        ),
       }),
       dependenciesToStream: ({ isAudioPlayerReady }) =>
         Stream.when(

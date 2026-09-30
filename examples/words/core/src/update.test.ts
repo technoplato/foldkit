@@ -21,10 +21,12 @@ import {
   ChangedConnectivity,
   ChangedPlayheadVisibility,
   ChangedUrl,
+  ClickedCloseMiniPlayer,
   ClickedCopyMomentLink,
   ClickedCopySectionLink,
   ClickedEnterFullScreen,
   ClickedExitFullScreen,
+  ClickedPause,
   ClickedPlay,
   ClickedRetryAudio,
   ClickedReturnToPlayhead,
@@ -72,6 +74,7 @@ import {
 } from './update.js'
 
 const recordingID = '7e0f1b2c-3d4e-4f50-8a6b-7c8d9e0f1a2b'
+const otherRecordingID = '8f1a2b3c-4d5e-4f60-9a7b-8c9d0e1f2a3b'
 
 const section = (
   id: string,
@@ -353,9 +356,13 @@ describe('playing', () => {
     const recordingURL = urlOf(
       scribeRouteToShareUrl(RecordingRoute({ recordingID })),
     )
+    const otherURL = urlOf(
+      scribeRouteToShareUrl(RecordingRoute({ recordingID: otherRecordingID })),
+    )
     const left = run(ready, [
       ClickedPlay(),
       HeardAudioPosition({ seconds: 42 }),
+      ChangedUrl({ url: otherURL }),
       ChangedUrl({ url: listURL }),
     ]).model
     const reopened = run(left, [ChangedUrl({ url: recordingURL }), observed()])
@@ -380,6 +387,7 @@ describe('playing', () => {
       observed(),
     ])
 
+    expect(left.maybeBackgroundPlayback).toEqual(Option.none())
     expect(left.resumePositions).toEqual({ [recordingID]: 42 })
     expect(readyOf(reopened.model).positionSeconds).toBe(42)
     expect(readyOf(reopened.model).maybePendingSeekSeconds).toEqual(
@@ -388,6 +396,133 @@ describe('playing', () => {
     expect(reopened.commandNames).toContain('ScrollToSection')
     expect(readyOf(linked.model).positionSeconds).toBe(10)
     expect(readyOf(finished.model).positionSeconds).toBe(0)
+  })
+
+  it('keeps a playing recording playing while the listener browses, and brings it back where it is', () => {
+    const listURL = urlOf(scribeRouteToShareUrl(RecordingListRoute()))
+    const recordingURL = urlOf(
+      scribeRouteToShareUrl(RecordingRoute({ recordingID })),
+    )
+    const playing = run(ready, [
+      ClickedPlay(),
+      HeardAudioPlaying(),
+      HeardAudioPosition({ seconds: 21 }),
+    ]).model
+    const browsing = run(playing, [ChangedUrl({ url: listURL })])
+    const later = run(browsing.model, [
+      HeardAudioPosition({ seconds: 30 }),
+      ClickedPause(),
+    ])
+    const back = run(later.model, [ChangedUrl({ url: recordingURL })])
+
+    expect(browsing.model.playback._tag).toBe('NoPlayback')
+    expect(audioSourceOf(browsing.model)).toEqual(audioSourceOf(playing))
+    expect(
+      Option.map(browsing.model.maybeBackgroundPlayback, background => [
+        background.recordingID,
+        background.transport,
+      ]),
+    ).toEqual(Option.some([recordingID, 'Playing']))
+    expect(later.commandNames).toEqual(['PauseAudio'])
+    expect(
+      Option.map(later.model.maybeBackgroundPlayback, background => [
+        background.positionSeconds,
+        background.transport,
+      ]),
+    ).toEqual(Option.some([30, 'Paused']))
+    expect(readyOf(back.model).positionSeconds).toBe(30)
+    expect(back.model.maybeBackgroundPlayback).toEqual(Option.none())
+    expect(back.commandNames).toEqual(['ScrollToSection'])
+  })
+
+  it('keeps nothing in the background that was never played, and closes it on request', () => {
+    const listURL = urlOf(scribeRouteToShareUrl(RecordingListRoute()))
+    const untouched = run(ready, [ChangedUrl({ url: listURL })]).model
+    const closed = run(ready, [
+      ClickedPlay(),
+      HeardAudioPosition({ seconds: 8 }),
+      ChangedUrl({ url: listURL }),
+      ClickedCloseMiniPlayer(),
+    ]).model
+
+    expect(untouched.maybeBackgroundPlayback).toEqual(Option.none())
+    expect(closed.maybeBackgroundPlayback).toEqual(Option.none())
+    expect(audioSourceOf(closed)).toEqual(Option.none())
+  })
+
+  it("keeps a playback playing beside this browser's own recording in progress, and back again (F3)", () => {
+    const liveID = otherRecordingID
+    const withCapture: Model = evo(ready, {
+      capture: () => ({
+        state: Capture.Model.Capturing({
+          draft: {
+            recordingID: liveID,
+            transcriptionID: 'transcription-1',
+            ownerUserID: 'user-1',
+            activityClientID: 'client-1',
+            startedAtMs: 0,
+            title: 'Recording 019',
+            deviceIcon: 'laptop',
+            maybeBuildInfo: Option.none(),
+          },
+          transport: 'Recording',
+          recordedSeconds: 3,
+          levels: Capture.Model.silentLevels(),
+          transcriber: 'Live',
+          maybeTranscriberNotice: Option.none(),
+          maybeWriteProblem: Option.none(),
+          progress: Capture.Model.emptyProgress(),
+          durationWrittenSeconds: 0,
+        }),
+      }),
+    })
+    const liveURL = urlOf(
+      scribeRouteToShareUrl(RecordingRoute({ recordingID: liveID })),
+    )
+    const playbackURL = urlOf(
+      scribeRouteToShareUrl(RecordingRoute({ recordingID })),
+    )
+    const onLive = run(withCapture, [
+      ClickedPlay(),
+      HeardAudioPosition({ seconds: 12 }),
+      ChangedUrl({ url: liveURL }),
+    ])
+    const toggled = run(onLive.model, [
+      PressedShortcut({ shortcut: 'TogglePlayback' }),
+    ])
+    const backToPlayback = run(onLive.model, [ChangedUrl({ url: playbackURL })])
+
+    expect(onLive.model.playback).toMatchObject({
+      _tag: 'OpeningPlayback',
+      recordingID: liveID,
+    })
+    expect(
+      Option.map(
+        onLive.model.maybeBackgroundPlayback,
+        background => background.recordingID,
+      ),
+    ).toEqual(Option.some(recordingID))
+    expect(audioSourceOf(onLive.model)).toEqual(audioSourceOf(ready))
+    expect(shortcutContextOf(onLive.model).isPlaybackReady).toBe(true)
+    expect(toggled.commandNames).toEqual(['PauseAudio'])
+    expect(readyOf(backToPlayback.model).positionSeconds).toBe(12)
+    expect(backToPlayback.model.maybeBackgroundPlayback).toEqual(Option.none())
+  })
+
+  it('stops the background recording when another recording opens', () => {
+    const otherURL = urlOf(
+      scribeRouteToShareUrl(RecordingRoute({ recordingID: otherRecordingID })),
+    )
+    const listURL = urlOf(scribeRouteToShareUrl(RecordingListRoute()))
+    const replaced = run(ready, [
+      ClickedPlay(),
+      HeardAudioPosition({ seconds: 8 }),
+      ChangedUrl({ url: listURL }),
+      ChangedUrl({ url: otherURL }),
+    ]).model
+
+    expect(replaced.maybeBackgroundPlayback).toEqual(Option.none())
+    expect(audioSourceOf(replaced)).toEqual(Option.none())
   })
 
   it('plays only once the audio player is ready', () => {

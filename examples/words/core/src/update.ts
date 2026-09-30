@@ -452,14 +452,24 @@ export const durationOf = (ready: ReadyPlayback): number =>
 export const audioSourceOf = (
   model: Model,
 ): Option.Option<Readonly<{ url: string; attempt: number }>> =>
-  M.value(model.playback).pipe(
-    M.tag('ReadyPlayback', ready =>
-      Option.map(ready.maybeAudioUrl, url => ({
-        url,
-        attempt: ready.audioAttempt,
-      })),
+  Option.flatMap(audioOwnerOf(model), ready =>
+    Option.map(ready.maybeAudioUrl, url => ({
+      url,
+      attempt: ready.audioAttempt,
+    })),
+  )
+
+/**
+ * The recording whose audio is loaded: the one kept playing in the
+ * background while the page shows something else, or else the open one.
+ */
+export const audioOwnerOf = (model: Model): Option.Option<ReadyPlayback> =>
+  Option.orElse(model.maybeBackgroundPlayback, () =>
+    M.value(model.playback).pipe(
+      M.withReturnType<Option.Option<ReadyPlayback>>(),
+      M.tag('ReadyPlayback', ready => Option.some(ready)),
+      M.orElse(() => Option.none()),
     ),
-    M.orElse(() => Option.none()),
   )
 
 const audioFileIDOf = (detail: RecordingDetail): Option.Option<string> =>
@@ -843,6 +853,66 @@ const resumingRequestOf = (
       }
     : request
 
+/**
+ * What keeps playing when the listener leaves the open recording: that
+ * recording, if they had started it (playing, or paused part way through),
+ * or else whatever was already playing in the background.
+ */
+const backgroundAfterLeavingOf = (model: Model): Option.Option<ReadyPlayback> =>
+  M.value(model.playback).pipe(
+    M.withReturnType<Option.Option<ReadyPlayback>>(),
+    M.tag('ReadyPlayback', ready =>
+      Option.isSome(playbackPhaseOf(ready))
+        ? Option.some(evo(ready, { screenMode: () => 'Standard' }))
+        : model.maybeBackgroundPlayback,
+    ),
+    M.orElse(() => model.maybeBackgroundPlayback),
+  )
+
+const isRequestingNoMoment = (request: PlaybackRequest): boolean =>
+  Option.isNone(request.maybeStartSeconds) &&
+  Option.isNone(request.maybeFocusSectionID)
+
+/**
+ * Opens a recording. The one playing in the background comes back to its
+ * page where it is; this browser's own recording in progress opens beside a
+ * background playback, which keeps playing; any other recording replaces it.
+ */
+const openRoutedRecording = (
+  model: Model,
+  routed: Model,
+  recordingID: string,
+  request: PlaybackRequest,
+): UpdateReturn =>
+  Option.match(
+    Option.filter(
+      model.maybeBackgroundPlayback,
+      background => background.recordingID === recordingID,
+    ),
+    {
+      onSome: background => {
+        const restored = evo(routed, {
+          playback: () => evo(background, { follow: () => 'Following' }),
+          maybeBackgroundPlayback: () => Option.none(),
+        })
+        return isRequestingNoMoment(request)
+          ? [restored, scrollToFollowed(background)]
+          : openRecording(restored, recordingID, request)
+      },
+      onNone: () =>
+        openRecording(
+          evo(routed, {
+            maybeBackgroundPlayback: () =>
+              isOwnRecordingOf(model, recordingID)
+                ? backgroundAfterLeavingOf(model)
+                : Option.none(),
+          }),
+          recordingID,
+          resumingRequestOf(routed, recordingID, request),
+        ),
+    },
+  )
+
 const applyRoute = (model: Model, route: ScribeRoute): UpdateReturn => {
   const routed = evo(model, {
     route: () => route,
@@ -851,13 +921,15 @@ const applyRoute = (model: Model, route: ScribeRoute): UpdateReturn => {
     resumePositions: () => rememberedPositionsOf(model),
   })
   return Option.match(openingFor(route), {
-    onNone: () => [evo(routed, { playback: () => NoPlayback() }), []],
+    onNone: () => [
+      evo(routed, {
+        playback: () => NoPlayback(),
+        maybeBackgroundPlayback: () => backgroundAfterLeavingOf(model),
+      }),
+      [],
+    ],
     onSome: ({ recordingID, request }) =>
-      openRecording(
-        routed,
-        recordingID,
-        resumingRequestOf(routed, recordingID, request),
-      ),
+      openRoutedRecording(model, routed, recordingID, request),
   })
 }
 
@@ -873,6 +945,7 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       recordings: LoadingRecordings(),
       recordingListLimit: RECORDING_LIST_PAGE_SIZE,
       playback: NoPlayback(),
+      maybeBackgroundPlayback: Option.none(),
       resumePositions: {},
       maybeCopyNotice: Option.none(),
       copyRevision: 0,
@@ -901,6 +974,36 @@ const evolveReady = (
   model: Model,
   transform: (ready: ReadyPlayback) => ReadyPlayback,
 ): UpdateReturn => updateReady(model, ready => [transform(ready), []])
+
+const isPageScroll = (command: Commands[number]): boolean =>
+  command.name === 'ScrollToSection'
+
+/**
+ * Applies a change to the recording whose audio is loaded (`audioOwnerOf`).
+ * A recording playing in the background has no page on screen, so the scrolls
+ * its playhead asks for are dropped.
+ */
+const updateAudio = (
+  model: Model,
+  transform: (ready: ReadyPlayback) => ReadyReturn,
+): UpdateReturn =>
+  Option.match(model.maybeBackgroundPlayback, {
+    onSome: background => {
+      const [nextBackground, commands] = transform(background)
+      return [
+        evo(model, {
+          maybeBackgroundPlayback: () => Option.some(nextBackground),
+        }),
+        Array.filter(commands, command => !isPageScroll(command)),
+      ]
+    },
+    onNone: () => updateReady(model, transform),
+  })
+
+const evolveAudio = (
+  model: Model,
+  transform: (ready: ReadyPlayback) => ReadyPlayback,
+): UpdateReturn => updateAudio(model, ready => [transform(ready), []])
 
 const announce = (ready: ReadyPlayback, text: string): ReadyReturn => {
   const revision = ready.announcementRevision + 1
@@ -1316,24 +1419,28 @@ type PlaybackShortcuts = Pick<
   'isPlaybackReady' | 'isAwayFromFollowed' | 'isRecordingOpen' | 'isFullScreen'
 >
 
-const playbackShortcutsOf = (model: Model): PlaybackShortcuts =>
-  M.value(model.playback).pipe(
+const playbackShortcutsOf = (model: Model): PlaybackShortcuts => {
+  const isPlaybackReady = Option.exists(
+    audioOwnerOf(model),
+    owner =>
+      isAudioPlayerReady(owner) && !isOwnRecordingOf(model, owner.recordingID),
+  )
+  return M.value(model.playback).pipe(
     M.withReturnType<PlaybackShortcuts>(),
     M.tag('ReadyPlayback', ready => ({
-      isPlaybackReady:
-        isAudioPlayerReady(ready) &&
-        !isOwnRecordingOf(model, ready.recordingID),
+      isPlaybackReady,
       isAwayFromFollowed: isReturnShownOf(ready),
       isRecordingOpen: true,
       isFullScreen: ready.screenMode === 'FullScreen',
     })),
     M.orElse(() => ({
-      isPlaybackReady: false,
+      isPlaybackReady,
       isAwayFromFollowed: false,
       isRecordingOpen: false,
       isFullScreen: false,
     })),
   )
+}
 
 /** What the page offers right now, for the keyboard shortcuts. */
 export const shortcutContextOf = (model: Model): ShortcutContext => ({
@@ -1612,7 +1719,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       FailedObserveFileUrls: () => [model, []],
 
       AcquiredAudioPlayer: () =>
-        updateReady(model, ready => {
+        updateAudio(model, ready => {
           const acquired = evo(ready, {
             audioPlayer: () =>
               AudioPlayerReady({ maybeDurationSeconds: Option.none() }),
@@ -1624,21 +1731,21 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           })
         }),
       ReleasedAudioPlayer: () =>
-        evolveReady(model, ready =>
+        evolveAudio(model, ready =>
           evo(ready, {
             audioPlayer: () => NoAudioPlayer(),
             transport: () => 'Paused',
           }),
         ),
       FailedAcquireAudioPlayer: ({ reason }) =>
-        evolveReady(model, ready =>
+        evolveAudio(model, ready =>
           evo(ready, {
             audioPlayer: () => AudioPlayerFailed({ reason }),
             transport: () => 'Paused',
           }),
         ),
       HeardAudioPosition: ({ seconds }) =>
-        updateReady(model, ready => {
+        updateAudio(model, ready => {
           if (ready.scrub._tag === 'Scrubbing') {
             return [ready, []]
           } else {
@@ -1647,7 +1754,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           }
         }),
       HeardAudioDuration: ({ seconds }) =>
-        evolveReady(model, ready =>
+        evolveAudio(model, ready =>
           isAudioPlayerReady(ready)
             ? evo(ready, {
                 audioPlayer: () =>
@@ -1658,7 +1765,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             : ready,
         ),
       HeardAudioPlaying: () =>
-        updateReady(model, ready => [
+        updateAudio(model, ready => [
           evo(ready, { transport: () => 'Playing' }),
           [
             PublishNowPlaying({
@@ -1670,11 +1777,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           ],
         ]),
       HeardAudioPaused: () =>
-        evolveReady(model, ready => evo(ready, { transport: () => 'Paused' })),
+        evolveAudio(model, ready => evo(ready, { transport: () => 'Paused' })),
       HeardAudioEnded: () =>
-        evolveReady(model, ready => evo(ready, { transport: () => 'Paused' })),
+        evolveAudio(model, ready => evo(ready, { transport: () => 'Paused' })),
       HeardAudioError: ({ reason }) =>
-        evolveReady(model, ready =>
+        evolveAudio(model, ready =>
           evo(ready, {
             audioPlayer: () => AudioPlayerFailed({ reason }),
             transport: () => 'Paused',
@@ -1684,12 +1791,12 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         M.value(action).pipe(
           withUpdateReturn,
           M.tagsExhaustive({
-            MediaSessionPlay: () => updateReady(model, play),
-            MediaSessionPause: () => updateReady(model, pause),
+            MediaSessionPlay: () => updateAudio(model, play),
+            MediaSessionPause: () => updateAudio(model, pause),
             MediaSessionSkip: ({ deltaSeconds }) =>
-              updateReady(model, ready => skipBy(ready, deltaSeconds)),
+              updateAudio(model, ready => skipBy(ready, deltaSeconds)),
             MediaSessionSeek: ({ seconds }) =>
-              updateReady(model, ready =>
+              updateAudio(model, ready =>
                 seekFollowing(
                   ready,
                   Math.min(durationOf(ready), Math.max(0, seconds)),
@@ -1698,7 +1805,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           }),
         ),
       ClickedRetryAudio: () =>
-        evolveReady(model, ready =>
+        evolveAudio(model, ready =>
           evo(ready, {
             audioAttempt: attempt => attempt + 1,
             audioPlayer: () => NoAudioPlayer(),
@@ -1710,15 +1817,19 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         ),
       CompletedPlayAudio: () => [model, []],
       FailedPlayAudio: () =>
-        evolveReady(model, ready => evo(ready, { transport: () => 'Paused' })),
+        evolveAudio(model, ready => evo(ready, { transport: () => 'Paused' })),
       CompletedPauseAudio: () => [model, []],
       CompletedSeekAudio: () => [model, []],
       CompletedPublishNowPlaying: () => [model, []],
 
-      ClickedPlay: () => updateReady(model, play),
-      ClickedPause: () => updateReady(model, pause),
+      ClickedPlay: () => updateAudio(model, play),
+      ClickedPause: () => updateAudio(model, pause),
       ClickedSkip: ({ deltaSeconds }) =>
-        updateReady(model, ready => skipBy(ready, deltaSeconds)),
+        updateAudio(model, ready => skipBy(ready, deltaSeconds)),
+      ClickedCloseMiniPlayer: () => [
+        evo(model, { maybeBackgroundPlayback: () => Option.none() }),
+        [],
+      ],
       ClickedWord: ({ seconds }) =>
         updateReady(model, ready => {
           const [sought, seekCommands] = seekTo(
@@ -1777,12 +1888,12 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       PressedShortcut: ({ shortcut }) =>
         M.value(shortcut).pipe(
           withUpdateReturn,
-          M.when('TogglePlayback', () => updateReady(model, togglePlayback)),
+          M.when('TogglePlayback', () => updateAudio(model, togglePlayback)),
           M.when('SkipBackward', () =>
-            updateReady(model, ready => skipBy(ready, -SKIP_SECONDS)),
+            updateAudio(model, ready => skipBy(ready, -SKIP_SECONDS)),
           ),
           M.when('SkipForward', () =>
-            updateReady(model, ready => skipBy(ready, SKIP_SECONDS)),
+            updateAudio(model, ready => skipBy(ready, SKIP_SECONDS)),
           ),
           M.when('NewRecording', () =>
             update(

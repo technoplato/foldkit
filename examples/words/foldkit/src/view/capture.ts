@@ -327,7 +327,7 @@ const recordDot = (sizeClass: string, dotClass: string): Html => {
 
 const newRecordingKey = shortcutKeyOf('NewRecording')
 
-const recordBar = (): Html => {
+const recordBar = (isFullWidth: boolean): Html => {
   const h = html<Message>()
   return h.button(
     [
@@ -337,7 +337,7 @@ const recordBar = (): Html => {
       h.AriaKeyshortcuts(newRecordingKey),
       h.OnClick(captureMessage(Capture.startRecording())),
       h.Class(
-        'glass flex items-center gap-3.5 rounded-full py-2 pl-2 pr-6 text-left transition active:scale-[0.98]',
+        `glass flex items-center gap-3.5 rounded-full py-2 pl-2 pr-6 text-left transition active:scale-[0.98] ${isFullWidth ? 'w-full' : ''}`,
       ),
     ],
     [
@@ -377,7 +377,10 @@ export const captureBar = (
   return M.value(model.capture.state).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
     M.tagsExhaustive({
-      NotCapturing: () => (isRecordAvailable ? [recordBar()] : []),
+      NotCapturing: () =>
+        isRecordAvailable
+          ? [recordBar(Option.isSome(model.maybeBackgroundPlayback))]
+          : [],
       PreparingCapture: () => [
         workingBar('Starting', 'Preparing the recording'),
       ],

@@ -20,6 +20,7 @@ import { captureBar, newRecordingPage } from './capture.js'
 import { icon } from './icon.js'
 import { noRecordingChosen, recordingList, recordingSidebar } from './list.js'
 import {
+  miniPlayer,
   playbackBar,
   playbackNotice,
   recordingPage,
@@ -176,11 +177,15 @@ const maybeOpenRecordingOf = (model: Model): Option.Option<ReadyPlayback> =>
 
 const floatingControls = (model: Model): ReadonlyArray<Html> => {
   const recorder = captureBar(model, isRecordAvailableOf(model))
+  const background = Option.match(model.maybeBackgroundPlayback, {
+    onNone: () => [],
+    onSome: miniPlayer,
+  })
   return Option.match(maybeOpenRecordingOf(model), {
-    onNone: () => recorder,
+    onNone: () => [...background, ...recorder],
     onSome: ready =>
       isOwnRecordingOf(model, ready.recordingID)
-        ? [...returnPill(ready), ...recorder]
+        ? [...returnPill(ready), ...background, ...recorder]
         : [...recorder, ...playbackBar(ready)],
   })
 }
