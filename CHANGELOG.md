@@ -602,6 +602,29 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 9:01:47 p.m. EDT — `87e5d124459d` fix(words): one status per recording, a Paused cue, and quieter recording controls
+
+- **Implementation commit:** `87e5d124459d23fba688040df8ed7b60207b8e63`
+- **Change:** One status per recording, a Paused cue, and quieter recording controls (#289 W25, W27, W28, W33, W37).
+- **Details:**
+  - W25 dark contrast: accent-strong #ff8a80 in dark (Stop and Resume 5.21:1, 4.89:1 with reduced transparency) and #ffa198 with more contrast; the share suggestion chip text in the label color (9.51:1); avatar gradient #d32f2f to #b71c1c (white initials 4.98 to 6.57:1).
+  - W27: this browser's own row shows the recorder's phase (Paused or Recording) and running time; no header badge repeats the recording bar.
+  - W33: playbackPhaseOf gives Playing while audio plays and Paused only part way through with the audio loaded; the header shows it as a badge and the tab title as a prefix.
+  - W28 and W37: Play is a plain label-color glyph; only Share is tinted; Open in Scribe and Full Screen are icon-only quiet buttons, so the actions fit one row.
+- **Files:**
+  - `examples/words/core/src/update.ts` — playbackPhaseOf
+  - `examples/words/core/src/model.ts` — PlaybackPhase
+  - `examples/words/core/src/update.test.ts` — playback phase tests
+  - `examples/words/foldkit/src/styles.css` — dark and dark more-contrast accent-strong
+  - `examples/words/foldkit/src/view/list.ts` — own row takes the recorder's phase and time
+  - `examples/words/foldkit/src/view/playback.ts` — header badge from the playback phase; plain Play; quiet icon actions
+  - `examples/words/foldkit/src/view/ui.ts` — quietIconButton; darker avatar gradient
+  - `examples/words/foldkit/src/view/share.ts` — suggestion chip text in the label color
+  - `examples/words/foldkit/src/view/view.ts` — tab title prefix from the playback phase
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 8:40:17 p.m. EDT — `fdbebcd98e15` fix(words): confirm an empty share answer, and know sharing's state before saying it
 
 - **Implementation commit:** `fdbebcd98e1593e74bf9e41777e6ae7e3d792543`
