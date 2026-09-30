@@ -102,6 +102,7 @@ const detail: RecordingDetail = {
     title: 'Recording 018',
     startedAtMs: 0,
     durationSeconds: 60,
+    maybeUpdatedAtMs: Option.none(),
     activity: 'Idle',
     maybeDeviceIcon: Option.none(),
     previewLines: [],

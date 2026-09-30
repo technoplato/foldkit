@@ -4,6 +4,7 @@ import {
   Effect,
   Equivalence,
   Match as M,
+  Number as Number_,
   Option,
   Order,
   Record,
@@ -97,7 +98,7 @@ import {
   SignedOut,
 } from './model.js'
 import type { WordsOrigin } from './origin.js'
-import type { RecordingDetail, Section } from './recording.js'
+import type { RecordingDetail, RecordingSummary, Section } from './recording.js'
 import { SectionPlacement, TranscriptScroller } from './scroller.js'
 import { SEARCH_FIELD_ID, searchTermsOf } from './search.js'
 import * as Share from './share/index.js'
@@ -113,6 +114,8 @@ export const SKIP_SECONDS = 15
 const FOCUS_HIGHLIGHT_DURATION = Duration.seconds(4)
 const COPY_NOTICE_DURATION = Duration.seconds(2)
 const SEARCH_URL_PAUSE = Duration.millis(400)
+const LIVE_COUNT_UP_LIMIT_SECONDS = 6
+const MILLISECONDS_PER_SECOND = 1_000
 const ANNOUNCEMENT_PAUSE = Duration.seconds(5)
 
 type Services =
@@ -391,6 +394,68 @@ export const ClearFocusHighlightLater = Command.define(
 /** Whether the open recording is still being recorded on a device. */
 export const isLiveRecording = (ready: ReadyPlayback): boolean =>
   ready.detail.summary.activity === 'Recording'
+
+/**
+ * The length to show for a recording. One in progress on another device
+ * shows its last saved length plus the time since that save, at most a few
+ * seconds more, so it counts up each second between saves (its writer saves
+ * every few seconds, the web every 5) and stops soon after saves stop, as
+ * when that recording pauses. Others show their saved length.
+ *
+ * @example
+ * ```ts
+ * liveDurationSecondsOf(
+ *   { ...summary, activity: 'Recording', durationSeconds: 60, maybeUpdatedAtMs: Option.some(1_000) },
+ *   Option.some(4_000),
+ * )
+ * // 63
+ * ```
+ */
+export const liveDurationSecondsOf = (
+  summary: RecordingSummary,
+  maybeNowMs: Option.Option<number>,
+): number =>
+  summary.activity === 'Recording'
+    ? Option.match(
+        Option.all({
+          nowMs: maybeNowMs,
+          updatedAtMs: summary.maybeUpdatedAtMs,
+        }),
+        {
+          onNone: () => summary.durationSeconds,
+          onSome: ({ nowMs, updatedAtMs }) =>
+            summary.durationSeconds +
+            Number_.clamp((nowMs - updatedAtMs) / MILLISECONDS_PER_SECOND, {
+              minimum: 0,
+              maximum: LIVE_COUNT_UP_LIMIT_SECONDS,
+            }),
+        },
+      )
+    : summary.durationSeconds
+
+/**
+ * Whether a recording in progress on another device is on screen: a list row
+ * or the open or background recording, not this browser's own recording.
+ * While one is, the live clock ticks each second.
+ */
+export const isCountingLiveOf = (model: Model): boolean => {
+  const isOtherDeviceLive = (summary: RecordingSummary): boolean =>
+    summary.activity === 'Recording' && !isOwnRecordingOf(model, summary.id)
+  const listed = M.value(model.recordings).pipe(
+    M.withReturnType<ReadonlyArray<RecordingSummary>>(),
+    M.tag('LoadedRecordings', ({ recordings }) => recordings),
+    M.orElse(() => []),
+  )
+  const opened = M.value(model.playback).pipe(
+    M.withReturnType<ReadonlyArray<RecordingSummary>>(),
+    M.tag('ReadyPlayback', ready => [ready.detail.summary]),
+    M.orElse(() => []),
+  )
+  const background = Option.toArray(
+    Option.map(model.maybeBackgroundPlayback, ready => ready.detail.summary),
+  )
+  return Array.some([...listed, ...opened, ...background], isOtherDeviceLive)
+}
 
 /** The section the transcript follows: the newest one while recording, else the one playing. */
 export const followedSectionOf = (
@@ -1009,6 +1074,7 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       playback: NoPlayback(),
       maybeBackgroundPlayback: Option.none(),
       resumePositions: {},
+      maybeLiveClockMs: Option.none(),
       maybeCopyNotice: Option.none(),
       copyRevision: 0,
       connectivity: 'Online',
@@ -1744,6 +1810,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             })
           : [model, []],
       CompletedReplaceUrl: () => [model, []],
+      TickedLiveClock: ({ nowMs }) => [
+        evo(model, { maybeLiveClockMs: () => Option.some(nowMs) }),
+        [],
+      ],
       CompletedFocusSearch: () => [model, []],
       ClickedShowMoreRecordings: () => [
         evo(model, {

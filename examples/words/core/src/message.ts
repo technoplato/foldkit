@@ -186,6 +186,8 @@ export const PressedShortcut = m('PressedShortcut', { shortcut: Shortcut })
 export const ElapsedAnnouncementPause = m('ElapsedAnnouncementPause', {
   revision: S.Number,
 })
+/** A second passed while a recording in progress on another device is on screen. */
+export const TickedLiveClock = m('TickedLiveClock', { nowMs: S.Number })
 /** The browser lost or regained its network connection. */
 export const ChangedConnectivity = m('ChangedConnectivity', {
   connectivity: Connectivity,
@@ -303,6 +305,7 @@ export const Message = S.Union([
   CompletedShowRowMenuOnContextMenu,
   PressedShortcut,
   ElapsedAnnouncementPause,
+  TickedLiveClock,
   ChangedConnectivity,
   ElapsedFocusHighlight,
   ClickedCopyRecordingLink,

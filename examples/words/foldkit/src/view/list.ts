@@ -17,6 +17,7 @@ import {
   UpdatedSearchQuery,
   formatClock,
   formatStartSeconds,
+  liveDurationSecondsOf,
   matchedPreviewLineOf,
   observedRecordingIDOf,
   recordingsMatching,
@@ -86,6 +87,7 @@ type RowStatus = Readonly<{
 const rowStatusOf = (
   recording: RecordingSummary,
   maybeOwnCapture: Option.Option<Capturing>,
+  maybeLiveClockMs: Option.Option<number>,
 ): RowStatus =>
   Option.match(maybeOwnCapture, {
     onSome: capturing => ({
@@ -111,7 +113,7 @@ const rowStatusOf = (
         M.when('Idle', () => Option.none()),
         M.exhaustive,
       ),
-      durationSeconds: recording.durationSeconds,
+      durationSeconds: liveDurationSecondsOf(recording, maybeLiveClockMs),
       isLive: recording.activity === 'Recording',
     }),
   })
@@ -251,7 +253,11 @@ const recordingRow =
       observedRecordingIDOf(model),
       recordingID => recordingID === recording.id,
     )
-    const status = rowStatusOf(recording, ownCaptureOf(model, recording.id))
+    const status = rowStatusOf(
+      recording,
+      ownCaptureOf(model, recording.id),
+      model.maybeLiveClockMs,
+    )
     const isLive = status.isLive
     const meta = Array.join(
       [

@@ -207,7 +207,9 @@ export type CopyNotice = typeof CopyNotice.Type
  * there. `maybeBackgroundPlayback` is a recording whose audio keeps playing
  * while the page shows something else (the list, Settings, or this browser's
  * own recording in progress), like the iPhone's playback piece beside its
- * live chip; opening another recording replaces it.
+ * live chip; opening another recording replaces it. `maybeLiveClockMs` is the
+ * browser's clock, ticking each second while a recording in progress on
+ * another device is on screen, so its length counts up between saves.
  */
 export const Model = S.Struct({
   route: ScribeRoute,
@@ -220,6 +222,7 @@ export const Model = S.Struct({
   playback: PlaybackState,
   maybeBackgroundPlayback: S.Option(ReadyPlayback),
   resumePositions: S.Record(S.String, S.Number),
+  maybeLiveClockMs: S.Option(S.Number),
   maybeCopyNotice: S.Option(CopyNotice),
   copyRevision: S.Number,
   connectivity: Connectivity,

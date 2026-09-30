@@ -62,12 +62,17 @@ export const PreviewLine = S.Struct({
 /** One of the sections a list row previews. */
 export type PreviewLine = typeof PreviewLine.Type
 
-/** One row of the recording list. */
+/**
+ * One row of the recording list. `maybeUpdatedAtMs` is when the row last
+ * changed, by the writer's clock; a recording in progress saves its length
+ * with it every few seconds.
+ */
 export const RecordingSummary = S.Struct({
   id: S.String,
   title: S.String,
   startedAtMs: S.Number,
   durationSeconds: S.Number,
+  maybeUpdatedAtMs: S.Option(S.Number),
   activity: Activity,
   maybeDeviceIcon: S.Option(S.String),
   previewLines: S.Array(PreviewLine),

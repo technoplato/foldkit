@@ -55,11 +55,13 @@ import {
   PressedShortcut,
   ScrolledTranscriptAway,
   StartedScrub,
+  TickedLiveClock,
   UpdatedSearchQuery,
 } from './message.js'
 import { type Model, type ReadyPlayback, SignedIn } from './model.js'
 import {
   type RecordingDetail,
+  type RecordingSummary,
   type Section,
   StoredAudio,
   UploadingAudio,
@@ -68,8 +70,10 @@ import {
   audioSourceOf,
   fileIDsOf,
   followedSectionOf,
+  isCountingLiveOf,
   isLiveRecording,
   isReturnShownOf,
+  liveDurationSecondsOf,
   modelForRoute,
   playbackPhaseOf,
   shortcutContextOf,
@@ -111,6 +115,7 @@ const detail = (overrides: Partial<RecordingDetail> = {}): RecordingDetail => ({
     title: 'Recording 018',
     startedAtMs: 0,
     durationSeconds: 60,
+    maybeUpdatedAtMs: Option.none(),
     activity: 'Idle',
     maybeDeviceIcon: Option.none(),
     previewLines: [],
@@ -1199,6 +1204,56 @@ describe('searching the list', () => {
       shortcutContextOf(opened(RecordingRoute({ recordingID })))
         .isSearchAvailable,
     ).toBe(false)
+  })
+})
+
+describe('the live clock', () => {
+  const savedAtMs = 1_790_000_000_000
+  const live: RecordingSummary = {
+    ...detail().summary,
+    activity: 'Recording',
+    durationSeconds: 60,
+    maybeUpdatedAtMs: Option.some(savedAtMs),
+  }
+
+  it('counts a recording in progress elsewhere up from its last saved length, a few seconds at most', () => {
+    expect(liveDurationSecondsOf(live, Option.some(savedAtMs + 3_000))).toBe(63)
+    expect(liveDurationSecondsOf(live, Option.some(savedAtMs + 60_000))).toBe(
+      66,
+    )
+    expect(liveDurationSecondsOf(live, Option.some(savedAtMs - 2_000))).toBe(60)
+    expect(liveDurationSecondsOf(live, Option.none())).toBe(60)
+  })
+
+  it('shows a finished recording, or one with no save time, at its saved length', () => {
+    const now = Option.some(savedAtMs + 3_000)
+    expect(liveDurationSecondsOf({ ...live, activity: 'Idle' }, now)).toBe(60)
+    expect(
+      liveDurationSecondsOf({ ...live, maybeUpdatedAtMs: Option.none() }, now),
+    ).toBe(60)
+  })
+
+  it('ticks only while a recording in progress on another device is on screen', () => {
+    const listOf = (summary: RecordingSummary) =>
+      run(opened(RecordingListRoute()), [
+        ObservedRecordings({
+          recordings: [summary],
+          skippedCount: 0,
+          maybeSkippedReason: Option.none(),
+        }),
+      ]).model
+    expect(isCountingLiveOf(listOf(live))).toBe(true)
+    expect(isCountingLiveOf(listOf(detail().summary))).toBe(false)
+
+    const openLive = run(opened(RecordingRoute({ recordingID })), [
+      observed(detail({ summary: live })),
+    ]).model
+    expect(isCountingLiveOf(openLive)).toBe(true)
+
+    const ticked = run(openLive, [
+      TickedLiveClock({ nowMs: savedAtMs + 2_000 }),
+    ]).model
+    expect(ticked.maybeLiveClockMs).toEqual(Option.some(savedAtMs + 2_000))
   })
 })
 

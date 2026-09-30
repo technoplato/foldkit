@@ -187,7 +187,7 @@ const floatingControls = (model: Model): ReadonlyArray<Html> => {
     onSome: ready =>
       isOwnRecordingOf(model, ready.recordingID)
         ? [...returnPill(ready), ...background, ...recorder]
-        : [...recorder, ...playbackBar(ready)],
+        : [...recorder, ...playbackBar(ready, model.maybeLiveClockMs)],
   })
 }
 

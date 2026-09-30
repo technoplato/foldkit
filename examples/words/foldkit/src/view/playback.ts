@@ -29,6 +29,7 @@ import {
   formatClock,
   isLiveRecording,
   isReturnShownOf,
+  liveDurationSecondsOf,
   playbackPhaseOf,
   scribeRouteToPath,
   shortcutKeyOf,
@@ -663,6 +664,11 @@ const compactTransportBar = (ready: ReadyPlayback): Html => {
   )
 }
 
+/**
+ * A bar that says where the audio stands. Its title and detail are a status
+ * region, so a change is announced; the trailing controls and clocks sit
+ * outside it, so a ticking clock is not read out every second.
+ */
 const statusBar = (
   iconName: IconName,
   title: string,
@@ -672,7 +678,6 @@ const statusBar = (
   const h = html<Message>()
   return h.div(
     [
-      h.Role('status'),
       h.Class(
         'glass flex items-center gap-3 rounded-[26px] py-2.5 pl-5 pr-2.5',
       ),
@@ -680,7 +685,7 @@ const statusBar = (
     [
       icon(iconName, 'size-5 shrink-0 text-secondary'),
       h.span(
-        [h.Class('flex min-w-0 flex-1 flex-col')],
+        [h.Role('status'), h.Class('flex min-w-0 flex-1 flex-col')],
         [
           h.span([h.Class('text-subhead font-semibold text-label')], [title]),
           h.span([h.Class('text-footnote text-secondary')], [detail]),
@@ -808,15 +813,39 @@ export const miniPlayer = (ready: ReadyPlayback): ReadonlyArray<Html> => {
   ]
 }
 
-/** The floating controls for the open recording, when this browser is not recording it. */
-export const playbackBar = (ready: ReadyPlayback): ReadonlyArray<Html> => {
+const liveLengthClock = (seconds: number): Html => {
+  const h = html<Message>()
+  return h.span(
+    [
+      h.Role('timer'),
+      h.AriaLabel(`${formatClock(seconds)} recorded`),
+      h.Class('tabular shrink-0 pr-2.5 text-body font-semibold text-label'),
+    ],
+    [formatClock(seconds)],
+  )
+}
+
+/**
+ * The floating controls for the open recording, when this browser is not
+ * recording it. A recording in progress on another device shows its length
+ * counting up; `maybeLiveClockMs` is the Model's live clock.
+ */
+export const playbackBar = (
+  ready: ReadyPlayback,
+  maybeLiveClockMs: Option.Option<number>,
+): ReadonlyArray<Html> => {
   const h = html<Message>()
   const main = isLiveRecording(ready)
     ? [
         statusBar(
           'Microphone',
-          `Recording on another device · ${formatClock(ready.detail.summary.durationSeconds)}`,
+          'Recording on another device',
           'Following along live. The audio arrives when the recording stops.',
+          [
+            liveLengthClock(
+              liveDurationSecondsOf(ready.detail.summary, maybeLiveClockMs),
+            ),
+          ],
         ),
       ]
     : M.value(ready.detail.audio).pipe(

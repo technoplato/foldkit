@@ -1,4 +1,12 @@
-import { Effect, Match as M, Option, Schema as S, Stream } from 'effect'
+import {
+  Clock,
+  Duration,
+  Effect,
+  Match as M,
+  Option,
+  Schema as S,
+  Stream,
+} from 'effect'
 import { Subscription } from 'foldkit'
 
 import * as Account from './account/index.js'
@@ -20,6 +28,7 @@ import {
   ObservedRecording,
   ObservedRecordings,
   PressedShortcut,
+  TickedLiveClock,
 } from './message.js'
 import type { Model } from './model.js'
 import { NetworkStatus } from './network.js'
@@ -32,12 +41,15 @@ import {
 import {
   audioOwnerOf,
   fileIDsOf,
+  isCountingLiveOf,
   observedRecordingIDOf,
   shareLinkTokenOf,
   shortcutContextOf,
 } from './update.js'
 
 const reasonOf = (error: WordsStoreError): string => storeFailureReasonOf(error)
+
+const LIVE_CLOCK_INTERVAL = Duration.seconds(1)
 
 const signedInUserIDOf = (model: Model): Option.Option<string> =>
   M.value(model.identity).pipe(
@@ -383,6 +395,22 @@ const pageSubscriptions = Subscription.make<
         ),
     },
   ),
+  liveClock: entry(
+    { isCountingLive: S.Boolean },
+    {
+      modelToDependencies: model => ({
+        isCountingLive: isCountingLiveOf(model),
+      }),
+      dependenciesToStream: ({ isCountingLive }) =>
+        Stream.when(
+          Stream.tick(LIVE_CLOCK_INTERVAL).pipe(
+            Stream.mapEffect(() => Clock.currentTimeMillis),
+            Stream.map(nowMs => TickedLiveClock({ nowMs })),
+          ),
+          Effect.sync(() => isCountingLive),
+        ),
+    },
+  ),
   connectivity: Subscription.persistent(
     Stream.unwrap(
       NetworkStatus.pipe(
@@ -396,7 +424,7 @@ const pageSubscriptions = Subscription.make<
   ),
 }))
 
-/** Every web Scribe Subscription: the Instant observations, the account recheck, the recorder, sharing, the keyboard, and the network. */
+/** Every web Scribe Subscription: the Instant observations, the account recheck, the recorder, sharing, the keyboard, the live clock, and the network. */
 export const subscriptions = Subscription.aggregate<
   Model,
   Message,
