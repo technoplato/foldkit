@@ -6,8 +6,10 @@ import {
   type Message,
   type Model,
   RecordingRoute,
+  type Shortcut,
   formatClock,
   scribeRouteToPath,
+  shortcutHintOf,
   shortcutKeyOf,
 } from 'words-core-example'
 
@@ -65,6 +67,14 @@ const levelMeter = (levels: ReadonlyArray<number>, isPaused: boolean): Html => {
   )
 }
 
+/** A control's shortcut: the keys for `aria-keyshortcuts`, and how its tooltip names them. */
+type KeyHint = Readonly<{ ariaKeys: string; hint: string }>
+
+const keyHintOf = (shortcut: Shortcut): KeyHint => ({
+  ariaKeys: shortcutKeyOf(shortcut),
+  hint: shortcutHintOf(shortcut),
+})
+
 type PhaseLine = Readonly<{ phase: string; detail: string }>
 
 const phaseLineOf = (
@@ -99,7 +109,7 @@ const capsuleButton = (
   iconName: IconName,
   message: Message,
   className: string,
-  maybeKey: Option.Option<string> = Option.none(),
+  maybeKeyHint: Option.Option<KeyHint> = Option.none(),
 ): Html => {
   const h = html<Message>()
   return h.button(
@@ -107,12 +117,16 @@ const capsuleButton = (
       h.Type('button'),
       h.AriaLabel(label),
       h.Title(
-        Option.match(maybeKey, {
+        Option.match(maybeKeyHint, {
           onNone: () => label,
-          onSome: key => `${label} (${key})`,
+          onSome: ({ hint }) => `${label} (${hint})`,
         }),
       ),
-      ...Option.toArray(Option.map(maybeKey, key => h.AriaKeyshortcuts(key))),
+      ...Option.toArray(
+        Option.map(maybeKeyHint, ({ ariaKeys }) =>
+          h.AriaKeyshortcuts(ariaKeys),
+        ),
+      ),
       h.OnClick(message),
       h.Class(
         `inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-subhead font-semibold transition duration-150 active:scale-95 @max-[18rem]:w-11 @max-[18rem]:px-0 ${className}`,
@@ -131,7 +145,7 @@ const capturingBar = (
 ): Html => {
   const h = html<Message>()
   const isPaused = capturing.transport === 'Paused'
-  const pauseKey = shortcutKeyOf('TogglePauseRecording')
+  const pauseKey = keyHintOf('TogglePauseRecording')
   const timer = h.span(
     [h.Class('flex items-center gap-2')],
     [
@@ -217,6 +231,7 @@ const capturingBar = (
         'Stop',
         captureMessage(Capture.stopRecording()),
         'bg-accent-soft text-accent-strong hover:brightness-95',
+        Option.some(keyHintOf('StopRecording')),
       ),
     ],
   )

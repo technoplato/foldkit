@@ -5,6 +5,7 @@ import {
   type KeyPress,
   type ShortcutContext,
   shortcutFor,
+  shortcutHintOf,
   shortcutKeyOf,
 } from './keyboard.js'
 
@@ -32,11 +33,23 @@ const nothing: ShortcutContext = {
 
 const press = (key: string, overrides: Partial<KeyPress> = {}): KeyPress => ({
   key,
+  code: '',
   target: 'Page',
   isModified: false,
+  isShiftHeld: false,
+  isCommandHeld: false,
   isRepeat: false,
   ...overrides,
 })
+
+const stopPress = (overrides: Partial<KeyPress> = {}): KeyPress =>
+  press('>', {
+    code: 'Period',
+    isModified: true,
+    isShiftHeld: true,
+    isCommandHeld: true,
+    ...overrides,
+  })
 
 describe('keyboard shortcuts', () => {
   it('maps each key to its shortcut where the page offers it', () => {
@@ -136,8 +149,38 @@ describe('keyboard shortcuts', () => {
     )
   })
 
+  it('stops a recording in progress with Shift-Command-Period, like the Mac, and only then', () => {
+    expect(shortcutFor(everything, stopPress())).toEqual(
+      Option.some('StopRecording'),
+    )
+    expect(
+      shortcutFor({ ...everything, isCapturing: false }, stopPress()),
+    ).toEqual(Option.none())
+    expect(shortcutFor(everything, stopPress({ target: 'TextEntry' }))).toEqual(
+      Option.none(),
+    )
+    expect(shortcutFor(everything, stopPress({ isRepeat: true }))).toEqual(
+      Option.none(),
+    )
+    expect(
+      shortcutFor({ ...everything, isDialogOpen: true }, stopPress()),
+    ).toEqual(Option.none())
+    expect(shortcutFor(everything, stopPress({ isShiftHeld: false }))).toEqual(
+      Option.none(),
+    )
+    expect(
+      shortcutFor(everything, stopPress({ isCommandHeld: false })),
+    ).toEqual(Option.none())
+    expect(shortcutFor(everything, press('.', { code: 'Period' }))).toEqual(
+      Option.none(),
+    )
+  })
+
   it('names the key each shortcut answers', () => {
     expect(shortcutKeyOf('TogglePlayback')).toBe('Space')
     expect(shortcutKeyOf('ReturnToFollowed')).toBe('L')
+    expect(shortcutKeyOf('StopRecording')).toBe('Shift+Meta+. Shift+Control+.')
+    expect(shortcutHintOf('StopRecording')).toBe('Shift-Command-Period')
+    expect(shortcutHintOf('TogglePauseRecording')).toBe('P')
   })
 })

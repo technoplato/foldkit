@@ -7,6 +7,7 @@ export const Shortcut = S.Literals([
   'SkipForward',
   'NewRecording',
   'TogglePauseRecording',
+  'StopRecording',
   'ReturnToFollowed',
   'ToggleFullScreen',
   'ExitFullScreen',
@@ -23,11 +24,20 @@ export const KeyTarget = S.Literals(['TextEntry', 'Control', 'Page'])
 /** What had focus when a key went down. */
 export type KeyTarget = typeof KeyTarget.Type
 
-/** One key press, as the host reports it; `isRepeat` marks a key held down. */
+/**
+ * One key press, as the host reports it. `code` is the physical key
+ * (`Period`), which Shift does not change the way it changes `key` (`>`).
+ * `isModified` means Command, Control, or Option is held; `isCommandHeld`
+ * means Command or Control is held without Option. `isRepeat` marks a key
+ * held down.
+ */
 export const KeyPress = S.Struct({
   key: S.String,
+  code: S.String,
   target: KeyTarget,
   isModified: S.Boolean,
+  isShiftHeld: S.Boolean,
+  isCommandHeld: S.Boolean,
   isRepeat: S.Boolean,
 })
 /** One key press, as the host reports it. */
@@ -54,10 +64,19 @@ const isArrow = (press: KeyPress): boolean =>
   press.key === 'ArrowLeft' || press.key === 'ArrowRight'
 
 /**
+ * Shift-Command-Period (Shift-Control-Period off the Mac): the Mac app's Stop
+ * Recording. It needs two modifiers, so a stray key press never stops a
+ * recording.
+ */
+const isStopRecordingPress = (press: KeyPress): boolean =>
+  press.code === 'Period' && press.isShiftHeld && press.isCommandHeld
+
+/**
  * The shortcut a key press means on the page, if any. Typing in a field,
  * browser shortcuts with Command, Control, or Option, and presses while a
- * dialog is open never count; Space counts only when focus is not on a
- * button, so Space still presses a focused button. Holding an arrow keeps
+ * dialog is open never count, except Shift-Command-Period, which stops the
+ * recording in progress as on the Mac; Space counts only when focus is not on
+ * a button, so Space still presses a focused button. Holding an arrow keeps
  * skipping; holding any other key acts once.
  *
  * @example
@@ -77,10 +96,13 @@ export const shortcutFor = (
 ): Option.Option<Shortcut> => {
   if (
     context.isDialogOpen ||
-    press.isModified ||
     press.target === 'TextEntry' ||
     (press.isRepeat && !isArrow(press))
   ) {
+    return Option.none()
+  } else if (isStopRecordingPress(press)) {
+    return context.isCapturing ? Option.some('StopRecording') : Option.none()
+  } else if (press.isModified) {
     return Option.none()
   } else if (press.key === ' ') {
     return press.target === 'Page' && context.isPlaybackReady
@@ -145,12 +167,28 @@ export const shortcutKeyOf = (shortcut: Shortcut): string =>
     M.when('SkipForward', () => 'ArrowRight'),
     M.when('NewRecording', () => 'R'),
     M.when('TogglePauseRecording', () => 'P'),
+    M.when('StopRecording', () => 'Shift+Meta+. Shift+Control+.'),
     M.when('ReturnToFollowed', () => 'L'),
     M.when('ToggleFullScreen', () => 'F'),
     M.when('ExitFullScreen', () => 'Escape'),
     M.when('FocusSearch', () => '/'),
     M.exhaustive,
   )
+
+/**
+ * How a tooltip names the keys of a shortcut: the key itself, and for Stop
+ * Recording the Mac's name for its chord.
+ *
+ * @example
+ * ```ts
+ * shortcutHintOf('StopRecording')
+ * // 'Shift-Command-Period'
+ * ```
+ */
+export const shortcutHintOf = (shortcut: Shortcut): string =>
+  shortcut === 'StopRecording'
+    ? 'Shift-Command-Period'
+    : shortcutKeyOf(shortcut)
 
 /**
  * Key presses on the page, provided by the host. A press `claim` answers with

@@ -279,6 +279,11 @@ const shortcutRows: ReadonlyArray<ShortcutRow> = [
   { keys: '← →', action: 'Back or forward 15 seconds' },
   { keys: 'R', action: 'New Recording, on the recording list' },
   { keys: 'P', action: 'Pause or resume the recording in progress' },
+  {
+    keys: '⇧⌘.',
+    action:
+      'Stop the recording in progress, as on the Mac (Shift-Control-Period on Windows and Linux)',
+  },
   { keys: 'L', action: 'Back to Playhead, or Back to Live while recording' },
   { keys: 'F', action: 'Full Screen for the recording you are reading' },
   { keys: '/', action: 'Search the recording list' },

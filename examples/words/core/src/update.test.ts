@@ -1062,6 +1062,41 @@ describe('keyboard shortcuts', () => {
         .commandNames,
     ).toEqual([])
   })
+
+  it('stops the recording in progress with its shortcut, as Stop does', () => {
+    const capturing: Model = evo(ready, {
+      capture: () => ({
+        state: Capture.Model.Capturing({
+          draft: {
+            recordingID,
+            transcriptionID: 'transcription-1',
+            ownerUserID: 'user-1',
+            activityClientID: 'client-1',
+            startedAtMs: 0,
+            title: 'Recording 019',
+            deviceIcon: 'laptop',
+            maybeBuildInfo: Option.none(),
+          },
+          transport: 'Recording',
+          recordedSeconds: 3,
+          levels: Capture.Model.silentLevels(),
+          transcriber: 'Live',
+          maybeTranscriberNotice: Option.none(),
+          maybeWriteProblem: Option.none(),
+          progress: Capture.Model.emptyProgress(),
+          durationWrittenSeconds: 0,
+        }),
+      }),
+    })
+    const stopped = run(capturing, [
+      PressedShortcut({ shortcut: 'StopRecording' }),
+    ])
+    expect(stopped.model.capture.state._tag).toBe('StoppingCapture')
+    expect(stopped.commandNames).toEqual(['RequestFinishCapture'])
+    expect(
+      run(ready, [PressedShortcut({ shortcut: 'StopRecording' })]).commandNames,
+    ).toEqual([])
+  })
 })
 
 describe('full screen', () => {

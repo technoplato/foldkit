@@ -2323,6 +2323,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
               onSome: message => update(model, GotCaptureMessage({ message })),
             }),
           ),
+          M.when('StopRecording', () =>
+            model.capture.state._tag === 'Capturing'
+              ? update(
+                  model,
+                  GotCaptureMessage({ message: Capture.stopRecording() }),
+                )
+              : [model, []],
+          ),
           M.when('ReturnToFollowed', () =>
             updateReady(model, returnToFollowed),
           ),

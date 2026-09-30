@@ -259,8 +259,11 @@ export const browserKeyboardInput = Layer.succeed(KeyboardInput, {
         } else {
           const maybeClaimed = claim({
             key: event.key,
+            code: event.code,
             target: keyTargetOf(event.target),
             isModified: event.metaKey || event.ctrlKey || event.altKey,
+            isShiftHeld: event.shiftKey,
+            isCommandHeld: (event.metaKey || event.ctrlKey) && !event.altKey,
             isRepeat: event.repeat,
           })
           if (Option.isSome(maybeClaimed)) {
