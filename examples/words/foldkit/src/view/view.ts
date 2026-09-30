@@ -1,8 +1,10 @@
 import { Array, Match as M, Option } from 'effect'
 import { type Document, type Html, html } from 'foldkit/html'
 import {
+  CONTENT_ELEMENT_ID,
   Capture,
   ClickedOpenInApp,
+  ClickedSkipToContent,
   ClickedSkipToPlayer,
   type Message,
   type Model,
@@ -21,7 +23,9 @@ import { captureBar, newRecordingPage } from './capture.js'
 import { icon } from './icon.js'
 import { noRecordingChosen, recordingList, recordingSidebar } from './list.js'
 import {
+  failedOpeningNotice,
   miniPlayer,
+  openingNotice,
   playbackBar,
   playbackNotice,
   recordingPage,
@@ -113,18 +117,14 @@ const playbackContent = (model: Model, config: ViewConfig): Html =>
     M.tagsExhaustive({
       NoPlayback: () =>
         playbackNotice('Nothing is open', 'Pick a recording from the list.'),
-      OpeningPlayback: () =>
-        playbackNotice(
-          'Opening the recording',
-          'Loading the transcript from Scribe.',
-        ),
+      OpeningPlayback: ({ patience }) =>
+        openingNotice(model.connectivity, patience),
       MissingRecording: () =>
         playbackNotice(
           'This recording is not available',
           'It does not exist, or it is not shared with this account. Ask the owner to share it with you.',
         ),
-      FailedPlayback: ({ reason }) =>
-        playbackNotice('The recording could not load', reason),
+      FailedPlayback: ({ reason }) => failedOpeningNotice(reason),
       ReadyPlayback: ready => recordingPage(model, ready, config),
     }),
   )
@@ -176,6 +176,10 @@ const maybeOpenRecordingOf = (model: Model): Option.Option<ReadyPlayback> =>
       )
     : Option.none()
 
+/**
+ * The floating controls: the recorder, a recording playing in the
+ * background, and the open recording's player.
+ */
 const floatingControls = (model: Model): ReadonlyArray<Html> => {
   const recorder = captureBar(model, isRecordAvailableOf(model))
   const background = Option.match(model.maybeBackgroundPlayback, {
@@ -187,7 +191,7 @@ const floatingControls = (model: Model): ReadonlyArray<Html> => {
     onSome: ready =>
       isOwnRecordingOf(model, ready.recordingID)
         ? [...returnPill(ready), ...background, ...recorder]
-        : [...recorder, ...playbackBar(ready, model.maybeLiveClockMs)],
+        : [...recorder, ...playbackBar(model, ready)],
   })
 }
 
@@ -220,19 +224,29 @@ const floatingLayer = (
   )
 }
 
-const skipToPlayer = (): Html => {
+const skipLink = (label: string, message: Message): Html => {
   const h = html<Message>()
   return h.button(
     [
       h.Type('button'),
-      h.OnClick(ClickedSkipToPlayer()),
+      h.OnClick(message),
       h.Class(
         'glass sr-only z-50 min-h-11 items-center rounded-full px-4 text-subhead font-semibold text-tint focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:inline-flex',
       ),
     ],
-    ['Skip to Controls'],
+    [label],
   )
 }
+
+/**
+ * The page's first tab stops, present from the first paint: Skip to Controls
+ * while the page has floating controls, and Skip to Content, past the top bar
+ * and, from 1024 px, the recording list beside the page.
+ */
+const skipLinks = (hasControls: boolean): ReadonlyArray<Html> => [
+  ...(hasControls ? [skipLink('Skip to Controls', ClickedSkipToPlayer())] : []),
+  skipLink('Skip to Content', ClickedSkipToContent()),
+]
 
 const offlineNotice = (model: Model): ReadonlyArray<Html> => {
   const h = html<Message>()
@@ -315,6 +329,8 @@ const isSplitOf = (model: Model): boolean =>
     M.orElse(() => false),
   )
 
+const splitGridClass =
+  'lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] xl:grid-cols-[24rem_minmax(0,1fr)]'
 /**
  * The page's columns. Split, the recording list is the sidebar from 1024 px:
  * on the list itself it is the page's list, with a placeholder beside it;
@@ -326,26 +342,32 @@ const columns = (model: Model, config: ViewConfig): Html => {
   const h = html<Message>()
   const page = content(model, config)
   if (!isSplitOf(model)) {
-    return h.div([...followAttributesOf(model)], [page])
-  } else if (isListRoute(model.route)) {
     return h.div(
       [
-        h.Class(
-          'lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] xl:grid-cols-[24rem_minmax(0,1fr)]',
-        ),
+        h.Id(CONTENT_ELEMENT_ID),
+        h.Class('outline-none'),
+        ...followAttributesOf(model),
       ],
+      [page],
+    )
+  } else if (isListRoute(model.route)) {
+    return h.div(
+      [h.Id(CONTENT_ELEMENT_ID), h.Class(`outline-none ${splitGridClass}`)],
       [page, noRecordingChosen()],
     )
   } else {
     return h.div(
-      [
-        h.Class(
-          'lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] xl:grid-cols-[24rem_minmax(0,1fr)]',
-        ),
-      ],
+      [h.Class(splitGridClass)],
       [
         recordingSidebar(model, config),
-        h.div([h.Class('min-w-0'), ...followAttributesOf(model)], [page]),
+        h.div(
+          [
+            h.Id(CONTENT_ELEMENT_ID),
+            h.Class('min-w-0 outline-none'),
+            ...followAttributesOf(model),
+          ],
+          [page],
+        ),
       ],
     )
   }
@@ -367,7 +389,7 @@ export const view =
           ),
         ],
         [
-          ...(Array.isReadonlyArrayNonEmpty(controls) ? [skipToPlayer()] : []),
+          ...skipLinks(Array.isReadonlyArrayNonEmpty(controls)),
           ...(isFullScreenOf(model) ? [] : [topBar(model, isSplit)]),
           ...offlineNotice(model),
           columns(model, config),

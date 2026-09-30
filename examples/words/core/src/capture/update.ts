@@ -169,15 +169,26 @@ export const CreateRecording = Command.define(
   ),
 )
 
-/** Writes one transcript section, and on a final section the recording's preview slot and totals. */
+/**
+ * Writes one transcript section, and on a final section the recording's
+ * preview slot, totals, and length (`durationSeconds`, whole seconds recorded
+ * so far), so the save time and the length always move together.
+ */
 export const WriteSegment = Command.define(
   'WriteSegment',
-  { draft: CaptureDraft, write: SegmentWrite, counts: TranscriptCounts },
+  {
+    draft: CaptureDraft,
+    write: SegmentWrite,
+    counts: TranscriptCounts,
+    durationSeconds: S.Number,
+  },
   SucceededWriteSegment,
   FailedWriteSegment,
-)(({ draft, write, counts }) =>
+)(({ draft, write, counts, durationSeconds }) =>
   RecordingWriter.pipe(
-    Effect.flatMap(writer => writer.writeSegment(draft, write, counts)),
+    Effect.flatMap(writer =>
+      writer.writeSegment(draft, write, counts, durationSeconds),
+    ),
     Effect.as(SucceededWriteSegment()),
     Effect.catch(error =>
       Effect.succeed(FailedWriteSegment({ reason: writeReasonOf(error) })),
@@ -302,9 +313,15 @@ const writesFor = (
     progress: TranscriptProgress
     writes: ReadonlyArray<SegmentWrite>
   }>,
+  recordedSeconds: number,
 ): Commands =>
   Array.map(step.writes, write =>
-    WriteSegment({ draft, write, counts: countsOf(step.progress) }),
+    WriteSegment({
+      draft,
+      write,
+      counts: countsOf(step.progress),
+      durationSeconds: Math.floor(recordedSeconds),
+    }),
   )
 
 const shiftLevels = (
@@ -415,7 +432,7 @@ const heardTranscript = (
       )
       return [
         withState(model, evo(capturing, { progress: () => step.progress })),
-        writesFor(capturing.draft, step),
+        writesFor(capturing.draft, step, capturing.recordedSeconds),
         noOutMessage,
       ]
     }),
@@ -427,7 +444,7 @@ const heardTranscript = (
       )
       return [
         withState(model, evo(stopping, { progress: () => step.progress })),
-        writesFor(stopping.draft, step),
+        writesFor(stopping.draft, step, stopping.recordedSeconds),
         noOutMessage,
       ]
     }),

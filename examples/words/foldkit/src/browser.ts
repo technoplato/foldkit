@@ -12,6 +12,7 @@ import {
   LinkShareError,
   LinkSharer,
   NetworkStatus,
+  type SectionPlacement,
   TranscriptScroller,
   type WordsDatabase,
   WordsOrigin,
@@ -171,6 +172,38 @@ export const browserCaptureEnvironment = Layer.succeed(
 const isReducedMotion = (): boolean =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+const scrollBehavior = (): ScrollBehavior =>
+  isReducedMotion() ? 'auto' : 'smooth'
+
+const pixelsOf = (length: string): number => {
+  const pixels = Number.parseFloat(length)
+  return Number.isFinite(pixels) ? pixels : 0
+}
+
+/**
+ * How far the window scrolls to show `element` where `placement` puts it, in
+ * the part of the window the root scroll padding leaves free of the top bar
+ * and the floating controls.
+ */
+const scrollDeltaOf = (
+  element: HTMLElement,
+  placement: SectionPlacement,
+): number => {
+  const rect = element.getBoundingClientRect()
+  const rootStyle = getComputedStyle(document.documentElement)
+  const visibleTop = pixelsOf(rootStyle.scrollPaddingTop)
+  const visibleBottom =
+    window.innerHeight - pixelsOf(rootStyle.scrollPaddingBottom)
+  return placement === 'LiveEdge'
+    ? rect.bottom - visibleBottom
+    : rect.top + rect.height / 2 - (visibleTop + visibleBottom) / 2
+}
+
+// NOTE: these scroll the window rather than call scrollIntoView. In Chromium,
+// scrollIntoView moves the sequential focus navigation starting point, so with
+// nothing focused the next Tab would skip the skip links, the top bar, and the
+// recording list and land in the transcript.
+
 /**
  * Scrolls a transcript section into view after the render that shows it: to
  * the middle of the window during playback, or with its last line above the
@@ -183,14 +216,19 @@ export const browserTranscriptScroller = Layer.succeed(TranscriptScroller, {
         Effect.sync(() => {
           const element = document.getElementById(sectionElementIDOf(sectionID))
           if (element !== null) {
-            element.scrollIntoView({
-              block: placement === 'LiveEdge' ? 'end' : 'center',
-              behavior: isReducedMotion() ? 'auto' : 'smooth',
+            window.scrollTo({
+              top: window.scrollY + scrollDeltaOf(element, placement),
+              behavior: scrollBehavior(),
             })
           }
         }),
       ),
     ),
+  scrollToPageTop: afterPaint.pipe(
+    Effect.andThen(
+      Effect.sync(() => window.scrollTo({ top: 0, behavior: 'auto' })),
+    ),
+  ),
 })
 
 const TEXT_ENTRY_SELECTOR =

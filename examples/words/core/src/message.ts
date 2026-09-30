@@ -71,6 +71,13 @@ export const FailedObserveRecording = m('FailedObserveRecording', {
   recordingID: S.String,
   reason: S.String,
 })
+/** A recording has been opening for a while in this attempt without an answer. */
+export const ElapsedOpeningPatience = m('ElapsedOpeningPatience', {
+  recordingID: S.String,
+  attempt: S.Number,
+})
+/** The listener chose Try Again on a recording that is slow to open or did not load. */
+export const ClickedTryOpeningAgain = m('ClickedTryOpeningAgain')
 /**
  * The server confirmed the recording is missing or not shared with the
  * account the question was asked for; `maybeUserID` is that account, or
@@ -149,6 +156,14 @@ export const StartedScrub = m('StartedScrub', { seconds: S.Number })
 export const MovedScrub = m('MovedScrub', { seconds: S.Number })
 /** The listener let go of the scrubber. */
 export const EndedScrub = m('EndedScrub', { seconds: S.Number })
+/** An arrow key on the scrubber: Left moves playback back, Right forward. */
+export const ScrubberArrow = S.Literals(['Left', 'Right'])
+/** An arrow key on the scrubber. */
+export type ScrubberArrow = typeof ScrubberArrow.Type
+/** The listener pressed Left or Right Arrow on the focused scrubber. */
+export const PressedScrubberArrow = m('PressedScrubberArrow', {
+  arrow: ScrubberArrow,
+})
 /** The listener scrolled the transcript away from the playhead or the newest line. */
 export const ScrolledTranscriptAway = m('ScrolledTranscriptAway')
 /** The listener asked to return to the playhead, or to the newest line while recording. */
@@ -180,6 +195,10 @@ export const CompletedShowRowMenuOnContextMenu = m(
 export const ClickedSkipToPlayer = m('ClickedSkipToPlayer')
 /** Focus moved to the player. */
 export const CompletedFocusPlayer = m('CompletedFocusPlayer')
+/** The listener chose Skip to Content from the keyboard. */
+export const ClickedSkipToContent = m('ClickedSkipToContent')
+/** Focus moved to the start of the page's content. */
+export const CompletedFocusContent = m('CompletedFocusContent')
 /** The listener pressed a keyboard shortcut. */
 export const PressedShortcut = m('PressedShortcut', { shortcut: Shortcut })
 /** A pause between screen reader announcements of new sections ended. */
@@ -264,6 +283,8 @@ export const Message = S.Union([
   ClickedRecording,
   ObservedRecording,
   FailedObserveRecording,
+  ElapsedOpeningPatience,
+  ClickedTryOpeningAgain,
   ConfirmedMissingRecording,
   ConfirmedRecordingExists,
   ObservedFileUrls,
@@ -291,6 +312,7 @@ export const Message = S.Union([
   StartedScrub,
   MovedScrub,
   EndedScrub,
+  PressedScrubberArrow,
   ScrolledTranscriptAway,
   ClickedReturnToPlayhead,
   CompletedScrollToSection,
@@ -298,6 +320,8 @@ export const Message = S.Union([
   ChangedPlayheadVisibility,
   ClickedSkipToPlayer,
   CompletedFocusPlayer,
+  ClickedSkipToContent,
+  CompletedFocusContent,
   ClickedCloseMiniPlayer,
   ClickedEnterFullScreen,
   ClickedExitFullScreen,

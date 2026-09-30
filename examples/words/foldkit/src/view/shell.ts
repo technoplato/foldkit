@@ -80,10 +80,12 @@ const chipContent = (
   title: string,
   subtitle: string,
   subtitleClass: string,
+  phoneLabel: ReadonlyArray<Html> = [],
 ): ReadonlyArray<Html> => {
   const h = html<Message>()
   return [
     leading,
+    ...phoneLabel,
     h.span(
       [h.Class('hidden min-w-0 flex-col text-left sm:flex')],
       [
@@ -117,7 +119,46 @@ const plainLeading = (child: Html): Html => {
   )
 }
 
+/**
+ * The chip while the browser is offline: the account's avatar with a caution
+ * dot and the word Offline, on a phone too (where the chip shows no other
+ * text), so the state stays in the top bar after the offline notice scrolls
+ * away.
+ */
+const offlineChipContent = (model: Model): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  const phoneLabel = [
+    h.span(
+      [h.Class('text-footnote font-semibold text-caution sm:hidden')],
+      ['Offline'],
+    ),
+  ]
+  return Option.match(Account.Model.accessOf(model.account), {
+    onNone: () =>
+      chipContent(
+        plainLeading(icon('Offline', 'size-[18px] text-caution')),
+        'Offline',
+        'Syncs when the network is back',
+        'text-secondary',
+        phoneLabel,
+      ),
+    onSome: access =>
+      chipContent(
+        avatarWithStatus(access.email, 'bg-caution'),
+        access.email,
+        'Offline',
+        'font-medium text-caution',
+        phoneLabel,
+      ),
+  })
+}
+
 const accountChipContent = (model: Model): ReadonlyArray<Html> =>
+  model.connectivity === 'Offline'
+    ? offlineChipContent(model)
+    : onlineChipContent(model)
+
+const onlineChipContent = (model: Model): ReadonlyArray<Html> =>
   M.value(model.account.connection).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
     M.tagsExhaustive({
@@ -180,11 +221,13 @@ const accountChipContent = (model: Model): ReadonlyArray<Html> =>
     }),
   )
 
-const accountChipLabel = (model: Model): string =>
-  Option.match(Account.Model.accessOf(model.account), {
-    onNone: () => 'Settings',
-    onSome: access => `Settings, signed in as ${access.email}`,
+const accountChipLabel = (model: Model): string => {
+  const offline = model.connectivity === 'Offline' ? ', offline' : ''
+  return Option.match(Account.Model.accessOf(model.account), {
+    onNone: () => `Settings${offline}`,
+    onSome: access => `Settings${offline}, signed in as ${access.email}`,
   })
+}
 
 /**
  * The open recording's title in the top bar: always on a phone, like an iOS
@@ -261,7 +304,7 @@ export const topBar = (model: Model, isSplit: boolean): Html => {
               h.AriaLabel(accountChipLabel(model)),
               h.AriaCurrent(isOnAccount ? 'page' : 'false'),
               h.Class(
-                `ml-auto flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-full py-1 pl-1 pr-1 transition hover:bg-fill sm:pr-3.5 ${isOnAccount ? 'bg-fill' : ''}`,
+                `ml-auto flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 rounded-full py-1 pl-1 transition hover:bg-fill sm:pr-3.5 ${model.connectivity === 'Offline' ? 'pr-3' : 'pr-1'} ${isOnAccount ? 'bg-fill' : ''}`,
               ),
             ],
             accountChipContent(model),

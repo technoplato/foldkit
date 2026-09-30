@@ -21,12 +21,13 @@ export type SectionPlacement = typeof SectionPlacement.Type
 export const sectionElementIDOf = (sectionID: string): string =>
   `section-${sectionID}`
 
-/** Scrolls the transcript, provided by the host. */
+/** Scrolls the transcript, and the page back to its top, provided by the host. */
 export type TranscriptScrollerService = Readonly<{
   scrollToSection: (
     sectionID: string,
     placement: SectionPlacement,
   ) => Effect.Effect<void>
+  scrollToPageTop: Effect.Effect<void>
 }>
 
 /** Scrolls the transcript to a section, provided by the host. */

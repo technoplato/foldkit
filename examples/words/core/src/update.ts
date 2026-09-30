@@ -45,6 +45,7 @@ import {
 } from './link.js'
 import { LinkSharer } from './linkSharer.js'
 import {
+  CompletedFocusContent,
   CompletedFocusPlayer,
   CompletedFocusSearch,
   CompletedLoadExternal,
@@ -110,6 +111,13 @@ export const RECORDING_LIST_PAGE_SIZE = 100
 
 /** How far the skip buttons, arrow keys, and system skip commands move playback. */
 export const SKIP_SECONDS = 15
+
+/**
+ * How far Left and Right Arrow move playback while the scrubber has focus.
+ * Up and Down Arrow, and assistive technology, move it by the scrubber's
+ * one-second step.
+ */
+export const SCRUBBER_ARROW_SECONDS = 5
 
 const FOCUS_HIGHLIGHT_DURATION = Duration.seconds(4)
 const COPY_NOTICE_DURATION = Duration.seconds(2)
@@ -265,20 +273,39 @@ export const ScrollToSection = Command.define(
 /** The element id of the floating player, where Skip to Player moves focus. */
 export const PLAYER_ELEMENT_ID = 'player'
 
+/**
+ * The element id of the page's content column, where Skip to Content moves
+ * focus: past the top bar and, from 1024 px, the recording list beside it.
+ */
+export const CONTENT_ELEMENT_ID = 'content'
+
+/** Moves keyboard focus to the start of the page's content. */
+export const FocusContent = Command.define(
+  'FocusContent',
+  CompletedFocusContent,
+)(
+  Dom.focus(`#${CONTENT_ELEMENT_ID}`, { makeFocusable: true }).pipe(
+    Effect.ignore,
+    Effect.as(CompletedFocusContent()),
+  ),
+)
+
 /** The element id of the open recording's title, where its page starts. */
 export const RECORDING_TITLE_ELEMENT_ID = 'recording-title'
 
 /**
- * Scrolls a recording's page to its title, so a recording opened without a
- * moment starts at the top rather than where the last page was scrolled.
+ * Scrolls a recording's page back to the top, where its title is, so a
+ * recording opened without a moment starts there rather than where the last
+ * page was scrolled.
  */
 export const ScrollToRecordingTitle = Command.define(
   'ScrollToRecordingTitle',
   CompletedScrollToRecordingTitle,
 )(
-  Dom.scrollIntoViewAfterPaint(`#${RECORDING_TITLE_ELEMENT_ID}`, {
-    block: 'start',
-  }).pipe(Effect.ignore, Effect.as(CompletedScrollToRecordingTitle())),
+  TranscriptScroller.pipe(
+    Effect.flatMap(scroller => scroller.scrollToPageTop),
+    Effect.as(CompletedScrollToRecordingTitle()),
+  ),
 )
 
 /** Moves keyboard focus to the floating player. */
@@ -438,7 +465,17 @@ export const liveDurationSecondsOf = (
  * or the open or background recording, not this browser's own recording.
  * While one is, the live clock ticks each second.
  */
-export const isCountingLiveOf = (model: Model): boolean => {
+export const isCountingLiveOf = (model: Model): boolean =>
+  Array.isReadonlyArrayNonEmpty(countedLiveSummariesOf(model))
+
+/**
+ * The recordings in progress on another device that are on screen: list rows
+ * and the open or background recording, not this browser's own recording.
+ * One recording can appear more than once (a row and the open page).
+ */
+const countedLiveSummariesOf = (
+  model: Model,
+): ReadonlyArray<RecordingSummary> => {
   const isOtherDeviceLive = (summary: RecordingSummary): boolean =>
     summary.activity === 'Recording' && !isOwnRecordingOf(model, summary.id)
   const listed = M.value(model.recordings).pipe(
@@ -454,8 +491,62 @@ export const isCountingLiveOf = (model: Model): boolean => {
   const background = Option.toArray(
     Option.map(model.maybeBackgroundPlayback, ready => ready.detail.summary),
   )
-  return Array.some([...listed, ...opened, ...background], isOtherDeviceLive)
+  return Array.filter([...listed, ...opened, ...background], isOtherDeviceLive)
 }
+
+/**
+ * The length a recording shows. One in progress on another device counts up
+ * from its last save (`liveDurationSecondsOf`) and never shows less than it
+ * showed before: its writer can save the time of a new section without its
+ * length, which would move the estimate back by up to the few seconds since
+ * the last length save. Others show their saved length.
+ *
+ * @example
+ * ```ts
+ * // shown 0:23 at the last tick; a section save then moved the save time
+ * displayedLengthOf(model, { ...summary, activity: 'Recording', durationSeconds: 20 })
+ * // 23, not 20
+ * ```
+ */
+export const displayedLengthOf = (
+  model: Model,
+  summary: RecordingSummary,
+): number =>
+  summary.activity === 'Recording'
+    ? Math.max(
+        Option.getOrElse(
+          Record.get(model.liveLengthFloors, summary.id),
+          () => 0,
+        ),
+        liveDurationSecondsOf(summary, model.maybeLiveClockMs),
+      )
+    : summary.durationSeconds
+
+/**
+ * The longest length each counted recording has shown, after a tick of the
+ * live clock at `nowMs`. Recordings no longer counted drop out.
+ */
+const liveLengthFloorsAt = (
+  model: Model,
+  nowMs: number,
+): Readonly<Record<string, number>> =>
+  Array.reduce(
+    countedLiveSummariesOf(model),
+    Record.empty<string, number>(),
+    (floors, summary) =>
+      Record.set(
+        floors,
+        summary.id,
+        Math.max(
+          Option.getOrElse(Record.get(floors, summary.id), () => 0),
+          Option.getOrElse(
+            Record.get(model.liveLengthFloors, summary.id),
+            () => 0,
+          ),
+          liveDurationSecondsOf(summary, Option.some(nowMs)),
+        ),
+      ),
+  )
 
 /** The section the transcript follows: the newest one while recording, else the one playing. */
 export const followedSectionOf = (
@@ -634,7 +725,7 @@ const reopenedForNewAccount = (playback: PlaybackState): PlaybackState =>
   M.value(playback).pipe(
     M.withReturnType<PlaybackState>(),
     M.tag('MissingRecording', 'FailedPlayback', ({ recordingID, request }) =>
-      OpeningPlayback({ recordingID, request }),
+      OpeningPlayback({ recordingID, request, patience: 'Loading' }),
     ),
     M.orElse(() => playback),
   )
@@ -852,7 +943,8 @@ const openRecording = (
   request: PlaybackRequest,
 ): UpdateReturn => {
   const opening = evo(model, {
-    playback: () => OpeningPlayback({ recordingID, request }),
+    playback: () =>
+      OpeningPlayback({ recordingID, request, patience: 'Loading' }),
   })
   return M.value(model.playback).pipe(
     withUpdateReturn,
@@ -1075,6 +1167,8 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       maybeBackgroundPlayback: Option.none(),
       resumePositions: {},
       maybeLiveClockMs: Option.none(),
+      liveLengthFloors: {},
+      recordingAttempt: 0,
       maybeCopyNotice: Option.none(),
       copyRevision: 0,
       connectivity: 'Online',
@@ -1520,9 +1614,48 @@ export const displayedPlaybackOf = (model: Model): PlaybackState =>
     M.tag('MissingRecording', ({ recordingID, request }) =>
       isSignInSettledOf(model)
         ? model.playback
-        : OpeningPlayback({ recordingID, request }),
+        : OpeningPlayback({ recordingID, request, patience: 'Loading' }),
     ),
     M.orElse(() => model.playback),
+  )
+
+/**
+ * The recording that is opening in this attempt and has not been slow yet,
+ * with the attempt: while there is one, a timer runs, and when it ends the
+ * page says the transcript is still loading.
+ */
+export const openingWaitOf = (
+  model: Model,
+): Option.Option<Readonly<{ recordingID: string; attempt: number }>> =>
+  M.value(model.playback).pipe(
+    M.withReturnType<
+      Option.Option<Readonly<{ recordingID: string; attempt: number }>>
+    >(),
+    M.tag('OpeningPlayback', ({ recordingID, patience }) =>
+      patience === 'Loading'
+        ? Option.some({ recordingID, attempt: model.recordingAttempt })
+        : Option.none(),
+    ),
+    M.orElse(() => Option.none()),
+  )
+
+/**
+ * Asks Scribe for the open recording again: a slow opening waits anew, and a
+ * recording that did not load opens again with what its link asked for.
+ * Anything else stays as it is.
+ */
+const tryOpeningAgain = (model: Model): UpdateReturn =>
+  M.value(model.playback).pipe(
+    withUpdateReturn,
+    M.tag('OpeningPlayback', 'FailedPlayback', ({ recordingID, request }) => [
+      evo(model, {
+        recordingAttempt: attempt => attempt + 1,
+        playback: () =>
+          OpeningPlayback({ recordingID, request, patience: 'Loading' }),
+      }),
+      [],
+    ]),
+    M.orElse(() => [model, []]),
   )
 
 /** The share link page's state as shown: a share not found yet shows as opening until sign-in settles. */
@@ -1811,7 +1944,10 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           : [model, []],
       CompletedReplaceUrl: () => [model, []],
       TickedLiveClock: ({ nowMs }) => [
-        evo(model, { maybeLiveClockMs: () => Option.some(nowMs) }),
+        evo(model, {
+          maybeLiveClockMs: () => Option.some(nowMs),
+          liveLengthFloors: () => liveLengthFloorsAt(model, nowMs),
+        }),
         [],
       ],
       CompletedFocusSearch: () => [model, []],
@@ -1877,6 +2013,23 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           M.orElse(() => [model, []]),
         ),
       ConfirmedRecordingExists: () => [model, []],
+      ElapsedOpeningPatience: ({ recordingID, attempt }) =>
+        M.value(model.playback).pipe(
+          withUpdateReturn,
+          M.tag('OpeningPlayback', opening =>
+            opening.recordingID === recordingID &&
+            attempt === model.recordingAttempt
+              ? [
+                  evo(model, {
+                    playback: () => evo(opening, { patience: () => 'Slow' }),
+                  }),
+                  [],
+                ]
+              : [model, []],
+          ),
+          M.orElse(() => [model, []]),
+        ),
+      ClickedTryOpeningAgain: () => tryOpeningAgain(model),
       ObservedFileUrls: ({ fileUrls }) =>
         evolveReady(model, ready =>
           withAudioUrl(evo(ready, { fileUrls: () => fileUrls })),
@@ -2030,6 +2183,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           )
           return [sought, [...seekCommands, ...scrollToFollowed(sought)]]
         }),
+      PressedScrubberArrow: ({ arrow }) =>
+        updateAudio(model, ready =>
+          skipBy(
+            ready,
+            arrow === 'Left' ? -SCRUBBER_ARROW_SECONDS : SCRUBBER_ARROW_SECONDS,
+          ),
+        ),
       ScrolledTranscriptAway: () =>
         evolveReady(model, ready => evo(ready, { follow: () => 'Detached' })),
       ClickedReturnToPlayhead: () => updateReady(model, returnToFollowed),
@@ -2116,6 +2276,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
       ClickedSkipToPlayer: () => [model, [FocusPlayer()]],
       CompletedFocusPlayer: () => [model, []],
+      ClickedSkipToContent: () => [model, [FocusContent()]],
+      CompletedFocusContent: () => [model, []],
       ClickedEnterFullScreen: () =>
         updateReady(model, ready => withScreenMode(ready, 'FullScreen')),
       ClickedExitFullScreen: () =>

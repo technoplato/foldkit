@@ -15,6 +15,7 @@ import * as Capture from './capture/index.js'
 import { KeyboardInput, ShortcutContext, shortcutFor } from './keyboard.js'
 import {
   ChangedConnectivity,
+  ElapsedOpeningPatience,
   FailedObserveFileUrls,
   FailedObserveIdentity,
   FailedObserveRecording,
@@ -43,6 +44,7 @@ import {
   fileIDsOf,
   isCountingLiveOf,
   observedRecordingIDOf,
+  openingWaitOf,
   shareLinkTokenOf,
   shortcutContextOf,
 } from './update.js'
@@ -50,6 +52,9 @@ import {
 const reasonOf = (error: WordsStoreError): string => storeFailureReasonOf(error)
 
 const LIVE_CLOCK_INTERVAL = Duration.seconds(1)
+
+/** How long a recording opens before the page says it is still loading and offers Try Again. */
+export const OPENING_PATIENCE = Duration.seconds(8)
 
 const signedInUserIDOf = (model: Model): Option.Option<string> =>
   M.value(model.identity).pipe(
@@ -130,11 +135,16 @@ const instantSubscriptions = Subscription.make<
     },
   ),
   recording: entry(
-    { maybeRecordingID: S.Option(S.String), maybeUserID: S.Option(S.String) },
+    {
+      maybeRecordingID: S.Option(S.String),
+      maybeUserID: S.Option(S.String),
+      attempt: S.Number,
+    },
     {
       modelToDependencies: model => ({
         maybeRecordingID: observedRecordingIDOf(model),
         maybeUserID: signedInUserIDOf(model),
+        attempt: model.recordingAttempt,
       }),
       dependenciesToStream: ({ maybeRecordingID }) =>
         Option.match(maybeRecordingID, {
@@ -370,7 +380,8 @@ const shareSubscriptions = Subscription.make<Model, Message, WordsStore>()(
 /**
  * The page's own inputs: keyboard shortcuts, answered only where they apply
  * (Space plays on a recording page with audio, R starts a recording where
- * New Recording shows), and the browser's network connection.
+ * New Recording shows), the wait before a slow recording says it is still
+ * loading, the live clock, and the browser's network connection.
  */
 const pageSubscriptions = Subscription.make<
   Model,
@@ -393,6 +404,26 @@ const pageSubscriptions = Subscription.make<
             ),
           ),
         ),
+    },
+  ),
+  openingPatience: entry(
+    {
+      maybeWait: S.Option(
+        S.Struct({ recordingID: S.String, attempt: S.Number }),
+      ),
+    },
+    {
+      modelToDependencies: model => ({ maybeWait: openingWaitOf(model) }),
+      dependenciesToStream: ({ maybeWait }) =>
+        Option.match(maybeWait, {
+          onNone: () => Stream.empty,
+          onSome: ({ recordingID, attempt }) =>
+            Stream.fromEffect(
+              Effect.sleep(OPENING_PATIENCE).pipe(
+                Effect.as(ElapsedOpeningPatience({ recordingID, attempt })),
+              ),
+            ),
+        }),
     },
   ),
   liveClock: entry(

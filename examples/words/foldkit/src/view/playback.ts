@@ -13,23 +13,27 @@ import {
   ClickedRetryAudio,
   ClickedReturnToPlayhead,
   ClickedSkip,
+  ClickedTryOpeningAgain,
+  type Connectivity,
   EndedScrub,
   GotShareMessage,
   type Message,
   type Model,
   MovedScrub,
+  type OpeningPatience,
+  PressedScrubberArrow,
   RECORDING_TITLE_ELEMENT_ID,
   type ReadyPlayback,
   RecordingRoute,
   SKIP_SECONDS,
   Share,
   type TranscriptFormat,
+  displayedLengthOf,
   displayedPositionOf,
   durationOf,
   formatClock,
   isLiveRecording,
   isReturnShownOf,
-  liveDurationSecondsOf,
   playbackPhaseOf,
   scribeRouteToPath,
   shortcutKeyOf,
@@ -39,7 +43,7 @@ import { RunWallClock } from '../mount.js'
 import { type IconName, type SkipDirection, icon, skipIcon } from './icon.js'
 import type { ViewConfig } from './shell.js'
 import { transcript } from './transcript.js'
-import { badge, button, compactButton, quietIconButton } from './ui.js'
+import { badge, button, compactButton, quietIconButton, spinner } from './ui.js'
 
 const COPY_MENU_ID = 'copy-transcript-menu'
 const COPY_MENU_ANCHOR = '--copy-transcript'
@@ -288,7 +292,7 @@ const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
             [
               h.Id(RECORDING_TITLE_ELEMENT_ID),
               h.Class(
-                'folding-title text-title font-bold tracking-tight text-label max-sm:sr-only sm:text-large-title lg:text-display',
+                'folding-title text-title font-bold tracking-tight text-label max-sm:sr-only sm:text-large-title',
               ),
             ],
             [summary.title],
@@ -527,24 +531,58 @@ const skipButton = (
   )
 }
 
+/**
+ * The scrubber. It steps one second, so each assistive adjustment and Up or
+ * Down Arrow changes the spoken time; Left and Right Arrow move 5 seconds.
+ * The browser snaps its own thumb to the step, so the thumb it draws is
+ * hidden and one at the exact playhead is drawn over it.
+ */
 const scrubberInput = (ready: ReadyPlayback, className: string): Html => {
   const h = html<Message>()
   const position = displayedPositionOf(ready)
   const duration = durationOf(ready)
-  const progress = duration > 0 ? Math.min(100, (position / duration) * 100) : 0
-  return h.input([
-    h.Type('range'),
-    h.AriaLabel('Playback position'),
-    h.AriaValuetext(`${formatClock(position)} of ${formatClock(duration)}`),
-    h.Min('0'),
-    h.Max(String(duration)),
-    h.Step('0.1'),
-    h.Value(String(position)),
-    h.OnInput(value => MovedScrub({ seconds: Number(value) })),
-    h.OnChange(value => EndedScrub({ seconds: Number(value) })),
-    h.Style({ '--progress': `${progress}%` }),
-    h.Class(`scrubber ${className}`),
-  ])
+  const fraction = duration > 0 ? Math.min(1, position / duration) : 0
+  return h.div(
+    [
+      h.Style({
+        '--progress': `${fraction * 100}%`,
+        '--progress-fraction': String(fraction),
+      }),
+      h.Class(`relative flex items-center ${className}`),
+    ],
+    [
+      h.input([
+        h.Type('range'),
+        h.AriaLabel('Playback position'),
+        h.AriaValuetext(`${formatClock(position)} of ${formatClock(duration)}`),
+        h.Min('0'),
+        h.Max(String(duration)),
+        h.Step('1'),
+        h.Value(String(position)),
+        h.OnInput(value => MovedScrub({ seconds: Number(value) })),
+        h.OnChange(value => EndedScrub({ seconds: Number(value) })),
+        h.OnKeyDownPreventDefault((key, modifiers) =>
+          modifiers.altKey ||
+          modifiers.ctrlKey ||
+          modifiers.metaKey ||
+          modifiers.shiftKey
+            ? Option.none()
+            : M.value(key).pipe(
+                M.withReturnType<Option.Option<Message>>(),
+                M.when('ArrowLeft', () =>
+                  Option.some(PressedScrubberArrow({ arrow: 'Left' })),
+                ),
+                M.when('ArrowRight', () =>
+                  Option.some(PressedScrubberArrow({ arrow: 'Right' })),
+                ),
+                M.orElse(() => Option.none()),
+              ),
+        ),
+        h.Class('scrubber w-full'),
+      ]),
+      h.span([h.AriaHidden(true), h.Class('scrubber-thumb')], []),
+    ],
+  )
 }
 
 const playPauseButton = (ready: ReadyPlayback, className: string): Html => {
@@ -778,7 +816,9 @@ export const miniPlayer = (ready: ReadyPlayback): ReadonlyArray<Html> => {
               ),
             ),
             h.AriaLabel(`Open ${title}, ${time}`),
-            h.Class('flex min-w-0 flex-1 flex-col rounded-2xl px-1 py-0.5'),
+            h.Class(
+              'flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-2xl px-1 py-0.5',
+            ),
           ],
           [
             h.span(
@@ -828,11 +868,11 @@ const liveLengthClock = (seconds: number): Html => {
 /**
  * The floating controls for the open recording, when this browser is not
  * recording it. A recording in progress on another device shows its length
- * counting up; `maybeLiveClockMs` is the Model's live clock.
+ * counting up (`displayedLengthOf`).
  */
 export const playbackBar = (
+  model: Model,
   ready: ReadyPlayback,
-  maybeLiveClockMs: Option.Option<number>,
 ): ReadonlyArray<Html> => {
   const h = html<Message>()
   const main = isLiveRecording(ready)
@@ -841,11 +881,7 @@ export const playbackBar = (
           'Microphone',
           'Recording on another device',
           'Following along live. The audio arrives when the recording stops.',
-          [
-            liveLengthClock(
-              liveDurationSecondsOf(ready.detail.summary, maybeLiveClockMs),
-            ),
-          ],
+          [liveLengthClock(displayedLengthOf(model, ready.detail.summary))],
         ),
       ]
     : M.value(ready.detail.audio).pipe(
@@ -931,22 +967,112 @@ export const recordingPage = (
   )
 }
 
-/** The page while a recording opens, or when it cannot. */
-export const playbackNotice = (title: string, body: string): Html => {
+/**
+ * The page while a recording opens, or when it cannot: a title, what is
+ * happening, and what the listener can do. It is a status region, so a
+ * change (such as "still loading") is announced.
+ */
+export const playbackNotice = (
+  title: string,
+  body: string,
+  leading: ReadonlyArray<Html> = [],
+  actions: ReadonlyArray<Html> = [],
+): Html => {
   const h = html<Message>()
   return h.main(
     [h.Class('mx-auto flex w-full max-w-2xl flex-col px-4 pb-40 pt-4 sm:px-6')],
     [
       h.div(
-        [h.Class('card mt-2 flex flex-col gap-2 rounded-[26px] p-6')],
         [
-          h.h1(
-            [h.Class('text-title font-semibold tracking-tight text-label')],
-            [title],
+          h.Role('status'),
+          h.Class('card mt-2 flex flex-col gap-4 rounded-[26px] p-6'),
+        ],
+        [
+          h.div(
+            [h.Class('flex items-start gap-3')],
+            [
+              ...Array.map(leading, child =>
+                h.span([h.Class('mt-1 flex shrink-0')], [child]),
+              ),
+              h.div(
+                [h.Class('flex min-w-0 flex-col gap-2')],
+                [
+                  h.h1(
+                    [
+                      h.Class(
+                        'text-title font-semibold tracking-tight text-label',
+                      ),
+                    ],
+                    [title],
+                  ),
+                  h.p([h.Class('text-subhead text-secondary')], [body]),
+                ],
+              ),
+            ],
           ),
-          h.p([h.Class('text-subhead text-secondary')], [body]),
+          ...Array.match(actions, {
+            onEmpty: () => [],
+            onNonEmpty: nonEmpty => [
+              h.div([h.Class('flex flex-wrap gap-2')], nonEmpty),
+            ],
+          }),
         ],
       ),
     ],
   )
 }
+
+const tryOpeningAgainButton = (): Html =>
+  button(
+    'Try Again',
+    ClickedTryOpeningAgain(),
+    'Tinted',
+    Option.some('Refresh'),
+  )
+
+/**
+ * The page while a recording opens: a spinner and what it loads; offline,
+ * that it opens once the network is back; and when Scribe has not answered
+ * for a few seconds, that the transcript is still loading, with Try Again.
+ */
+export const openingNotice = (
+  connectivity: Connectivity,
+  patience: OpeningPatience,
+): Html => {
+  if (connectivity === 'Offline') {
+    return playbackNotice(
+      'You are offline',
+      'The recording opens as soon as the network is back.',
+      [spinner('size-5 text-caution')],
+    )
+  } else {
+    return M.value(patience).pipe(
+      M.withReturnType<Html>(),
+      M.when('Loading', () =>
+        playbackNotice(
+          'Opening the recording',
+          'Loading the transcript from Scribe.',
+          [spinner('size-5 text-secondary')],
+        ),
+      ),
+      M.when('Slow', () =>
+        playbackNotice(
+          'Still loading the transcript',
+          'Scribe has not answered yet. It keeps trying; Try Again asks once more.',
+          [spinner('size-5 text-secondary')],
+          [tryOpeningAgainButton()],
+        ),
+      ),
+      M.exhaustive,
+    )
+  }
+}
+
+/** The page when a recording did not load: why, and Try Again. */
+export const failedOpeningNotice = (reason: string): Html =>
+  playbackNotice(
+    'The recording could not load',
+    reason,
+    [icon('Alert', 'size-5 text-accent-strong')],
+    [tryOpeningAgainButton()],
+  )

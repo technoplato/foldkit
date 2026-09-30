@@ -15,9 +15,9 @@ import {
   type ScribeRoute,
   SectionRoute,
   UpdatedSearchQuery,
+  displayedLengthOf,
   formatClock,
   formatStartSeconds,
-  liveDurationSecondsOf,
   matchedPreviewLineOf,
   observedRecordingIDOf,
   recordingsMatching,
@@ -82,12 +82,13 @@ type RowStatus = Readonly<{
 /**
  * What a row says about its recording. This browser's own recording takes the
  * recorder's phase and running time, so the row says Paused when the bar
- * does; other rows take the recording's saved activity and length.
+ * does; other rows take the recording's saved activity and its length, which
+ * counts up while it records on another device (`displayedLengthOf`).
  */
 const rowStatusOf = (
+  model: Model,
   recording: RecordingSummary,
   maybeOwnCapture: Option.Option<Capturing>,
-  maybeLiveClockMs: Option.Option<number>,
 ): RowStatus =>
   Option.match(maybeOwnCapture, {
     onSome: capturing => ({
@@ -113,7 +114,7 @@ const rowStatusOf = (
         M.when('Idle', () => Option.none()),
         M.exhaustive,
       ),
-      durationSeconds: liveDurationSecondsOf(recording, maybeLiveClockMs),
+      durationSeconds: displayedLengthOf(model, recording),
       isLive: recording.activity === 'Recording',
     }),
   })
@@ -254,9 +255,9 @@ const recordingRow =
       recordingID => recordingID === recording.id,
     )
     const status = rowStatusOf(
+      model,
       recording,
       ownCaptureOf(model, recording.id),
-      model.maybeLiveClockMs,
     )
     const isLive = status.isLive
     const meta = Array.join(
@@ -421,18 +422,23 @@ const emptyState = (): Html => {
   )
 }
 
-const skeletonRows = (): Html => {
+/**
+ * Placeholder rows while the list waits, with what it waits for: signing in,
+ * or, once signed in, the recordings themselves.
+ */
+const skeletonRows = (waitingFor: string): Html => {
   const h = html<Message>()
   return h.div(
     [h.Class('flex flex-col gap-2 pt-6')],
     [
       h.div(
         [
+          h.Role('status'),
           h.Class(
             'flex items-center gap-2 px-4 pb-1 text-footnote text-secondary',
           ),
         ],
-        [spinner('size-3.5 text-secondary'), 'Signing in to Scribe'],
+        [spinner('size-3.5 text-secondary'), waitingFor],
       ),
       h.div(
         [
@@ -583,7 +589,7 @@ const recordingsContent = (
   return M.value(model.recordings).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
     M.tagsExhaustive({
-      LoadingRecordings: () => [skeletonRows()],
+      LoadingRecordings: () => [skeletonRows('Loading recordings')],
       FailedRecordings: ({ reason }) => [
         noticeCard('Alert', 'The recordings could not load', reason, []),
       ],
@@ -630,8 +636,8 @@ const bodyOf = (model: Model, config: ViewConfig): ReadonlyArray<Html> =>
   M.value(model.account.connection).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
     M.tagsExhaustive({
-      CheckingAccount: () => [skeletonRows()],
-      ConnectingAccount: () => [skeletonRows()],
+      CheckingAccount: () => [skeletonRows('Signing in to Scribe')],
+      ConnectingAccount: () => [skeletonRows('Signing in to Scribe')],
       ConnectedAccount: () => recordingsContent(model, config),
       AwaitingIPhone: ({ access }) => {
         const h = html<Message>()

@@ -50,6 +50,7 @@ export type RecordingWriterService = Readonly<{
     draft: CaptureDraft,
     write: SegmentWrite,
     counts: TranscriptCounts,
+    durationSeconds: number,
   ) => Effect.Effect<void, RecordingWriteError>
   writeDuration: (
     draft: CaptureDraft,
@@ -116,6 +117,22 @@ const present = <Chunk>(maybeChunk: Chunk | undefined): Chunk => {
 const speakersJSONOf = (speakerIDs: ReadonlyArray<number>) =>
   Array.map(speakerIDs, id => ({ id }))
 
+/**
+ * What a final section writes on its recording: the speakers so far, the
+ * length recorded so far, and the save time. A viewer counts a recording in
+ * progress up from its length and save time, so the two change together; a
+ * save time without the length would make the viewer's count fall back.
+ */
+export const finalSectionRecordingFieldsOf = (
+  counts: TranscriptCounts,
+  durationSeconds: number,
+  writtenAtMs: number,
+) => ({
+  speakers: speakersJSONOf(counts.speakerIDs),
+  durationSeconds,
+  updatedAtMs: writtenAtMs,
+})
+
 const segmentRowOf = (
   draft: CaptureDraft,
   write: SegmentWrite,
@@ -162,6 +179,7 @@ const segmentChunks = (
   draft: CaptureDraft,
   write: SegmentWrite,
   counts: TranscriptCounts,
+  durationSeconds: number,
   writtenAtMs: number,
 ) => {
   const row = segmentRowOf(draft, write, writtenAtMs)
@@ -174,7 +192,7 @@ const segmentChunks = (
     return [segment]
   } else {
     const recording = present(database.tx.recordings[draft.recordingID]).update(
-      { speakers: speakersJSONOf(counts.speakerIDs), updatedAtMs: writtenAtMs },
+      finalSectionRecordingFieldsOf(counts, durationSeconds, writtenAtMs),
       { upsert: false },
     )
     const previewLink =
@@ -241,10 +259,17 @@ export const makeLiveRecordingWriter = (database: WordsDatabase) =>
             .link({ recording: draft.recordingID }),
         ])
       }).pipe(Effect.asVoid),
-    writeSegment: (draft, write, counts) =>
+    writeSegment: (draft, write, counts, durationSeconds) =>
       bounded('WriteSegment', WRITE_TIMEOUT_MS, () =>
         database.transact(
-          segmentChunks(database, draft, write, counts, Date.now()),
+          segmentChunks(
+            database,
+            draft,
+            write,
+            counts,
+            durationSeconds,
+            Date.now(),
+          ),
         ),
       ).pipe(Effect.asVoid),
     writeDuration: (draft, durationSeconds) =>
@@ -277,7 +302,14 @@ export const makeLiveRecordingWriter = (database: WordsDatabase) =>
           const finalChunks = Option.match(stop.maybeFinalWrite, {
             onNone: () => [],
             onSome: write =>
-              segmentChunks(database, draft, write, stop.counts, writtenAtMs),
+              segmentChunks(
+                database,
+                draft,
+                write,
+                stop.counts,
+                stop.durationSeconds,
+                writtenAtMs,
+              ),
           })
           const stopRecording = present(
             database.tx.recordings[draft.recordingID],
@@ -361,10 +393,10 @@ export const makeAcceptingRecordingWriter = (
       Effect.sync(() => {
         written.push(`createRecording ${draft.recordingID}`)
       }),
-    writeSegment: (_draft, write) =>
+    writeSegment: (_draft, write, _counts, durationSeconds) =>
       Effect.sync(() => {
         written.push(
-          `writeSegment ${write.index} ${write.isFinal ? 'final' : 'interim'}`,
+          `writeSegment ${write.index} ${write.isFinal ? 'final' : 'interim'} ${durationSeconds}`,
         )
       }),
     writeDuration: (_draft, durationSeconds) =>

@@ -34,13 +34,17 @@ import {
   ClickedReturnToPlayhead,
   ClickedShareRecordingLink,
   ClickedSkip,
+  ClickedSkipToContent,
   ClickedSkipToPlayer,
+  ClickedTryOpeningAgain,
   ClickedWord,
   ConfirmedMissingRecording,
   ElapsedAnnouncementPause,
   ElapsedFocusHighlight,
+  ElapsedOpeningPatience,
   ElapsedSearchPause,
   EndedScrub,
+  FailedObserveRecording,
   HeardAudioEnded,
   HeardAudioPaused,
   HeardAudioPlaying,
@@ -52,13 +56,19 @@ import {
   ObservedIdentity,
   ObservedRecording,
   ObservedRecordings,
+  PressedScrubberArrow,
   PressedShortcut,
   ScrolledTranscriptAway,
   StartedScrub,
   TickedLiveClock,
   UpdatedSearchQuery,
 } from './message.js'
-import { type Model, type ReadyPlayback, SignedIn } from './model.js'
+import {
+  type Model,
+  OpeningPlayback,
+  type ReadyPlayback,
+  SignedIn,
+} from './model.js'
 import {
   type RecordingDetail,
   type RecordingSummary,
@@ -68,6 +78,7 @@ import {
 } from './recording.js'
 import {
   audioSourceOf,
+  displayedLengthOf,
   fileIDsOf,
   followedSectionOf,
   isCountingLiveOf,
@@ -75,6 +86,7 @@ import {
   isReturnShownOf,
   liveDurationSecondsOf,
   modelForRoute,
+  openingWaitOf,
   playbackPhaseOf,
   shortcutContextOf,
   update,
@@ -1091,6 +1103,13 @@ describe('skipping to the player', () => {
         .commandNames,
     ).toEqual(['FocusPlayer'])
   })
+
+  it('moves keyboard focus to the page content, past the top bar and the list', () => {
+    expect(
+      run(opened(RecordingRoute({ recordingID })), [ClickedSkipToContent()])
+        .commandNames,
+    ).toEqual(['FocusContent'])
+  })
 })
 
 describe('searching the list', () => {
@@ -1267,5 +1286,199 @@ describe('the network connection', () => {
       run(offline, [ChangedConnectivity({ connectivity: 'Online' })]).model
         .connectivity,
     ).toBe('Online')
+  })
+})
+
+describe('the scrubber arrows', () => {
+  const ready = run(opened(RecordingRoute({ recordingID })), [
+    observed(),
+    ObservedFileUrls({ fileUrls: { 'audio-file': 'https://files/audio-1' } }),
+    AcquiredAudioPlayer(),
+    HeardAudioPosition({ seconds: 10 }),
+  ]).model
+
+  it('moves playback 5 seconds for Left and Right Arrow on the scrubber', () => {
+    const forward = commandsOf(ready, PressedScrubberArrow({ arrow: 'Right' }))
+    expect(readyOf(forward.model).positionSeconds).toBe(15)
+    expect(forward.commands).toEqual([
+      { name: 'SeekAudio', args: { seconds: 15 } },
+    ])
+    const back = run(forward.model, [
+      PressedScrubberArrow({ arrow: 'Left' }),
+      PressedScrubberArrow({ arrow: 'Left' }),
+    ]).model
+    expect(readyOf(back).positionSeconds).toBe(5)
+  })
+
+  it('stops at the start and at the end of the recording', () => {
+    const atStart = run(ready, [
+      PressedScrubberArrow({ arrow: 'Left' }),
+      PressedScrubberArrow({ arrow: 'Left' }),
+      PressedScrubberArrow({ arrow: 'Left' }),
+    ]).model
+    expect(readyOf(atStart).positionSeconds).toBe(0)
+    const atEnd = run(ready, [
+      HeardAudioPosition({ seconds: 58 }),
+      PressedScrubberArrow({ arrow: 'Right' }),
+    ]).model
+    expect(readyOf(atEnd).positionSeconds).toBe(60)
+  })
+})
+
+describe('the live length of a recording in progress elsewhere', () => {
+  const savedAtMs = 1_790_000_000_000
+  const liveAt = (
+    durationSeconds: number,
+    updatedAtMs: number,
+  ): RecordingSummary => ({
+    ...detail().summary,
+    activity: 'Recording',
+    durationSeconds,
+    maybeUpdatedAtMs: Option.some(updatedAtMs),
+  })
+  const listed = (summary: RecordingSummary) =>
+    ObservedRecordings({
+      recordings: [summary],
+      skippedCount: 0,
+      maybeSkippedReason: Option.none(),
+    })
+  const listedLengthOf = (model: Model): number => {
+    if (model.recordings._tag !== 'LoadedRecordings') {
+      throw new Error(`Expected LoadedRecordings, got ${model.recordings._tag}`)
+    }
+    const summary = Option.getOrThrow(Array.head(model.recordings.recordings))
+    return displayedLengthOf(model, summary)
+  }
+
+  it('holds what it showed when a section save moves the save time but not the length', () => {
+    const counted = run(opened(RecordingListRoute()), [
+      listed(liveAt(20, savedAtMs)),
+      TickedLiveClock({ nowMs: savedAtMs + 3_000 }),
+    ]).model
+    expect(listedLengthOf(counted)).toBe(23)
+
+    const sectionSaved = run(counted, [
+      listed(liveAt(20, savedAtMs + 3_000)),
+    ]).model
+    expect(listedLengthOf(sectionSaved)).toBe(23)
+
+    const oneSecondLater = run(sectionSaved, [
+      TickedLiveClock({ nowMs: savedAtMs + 4_000 }),
+    ]).model
+    expect(listedLengthOf(oneSecondLater)).toBe(23)
+
+    const caughtUp = run(oneSecondLater, [
+      TickedLiveClock({ nowMs: savedAtMs + 7_000 }),
+    ]).model
+    expect(listedLengthOf(caughtUp)).toBe(24)
+
+    const lengthSaved = run(caughtUp, [
+      listed(liveAt(25, savedAtMs + 7_500)),
+      TickedLiveClock({ nowMs: savedAtMs + 8_000 }),
+    ]).model
+    expect(listedLengthOf(lengthSaved)).toBe(25.5)
+  })
+
+  it('counts the open recording the same way, in its live bar', () => {
+    const openLive = run(opened(RecordingRoute({ recordingID })), [
+      observed(detail({ summary: liveAt(20, savedAtMs) })),
+      TickedLiveClock({ nowMs: savedAtMs + 3_000 }),
+      observed(detail({ summary: liveAt(20, savedAtMs + 3_000) })),
+      TickedLiveClock({ nowMs: savedAtMs + 4_000 }),
+    ]).model
+    expect(displayedLengthOf(openLive, readyOf(openLive).detail.summary)).toBe(
+      23,
+    )
+  })
+
+  it('shows the saved length once the recording stops', () => {
+    const stopped = run(opened(RecordingListRoute()), [
+      listed(liveAt(20, savedAtMs)),
+      TickedLiveClock({ nowMs: savedAtMs + 5_000 }),
+      listed({ ...liveAt(22, savedAtMs + 5_500), activity: 'Idle' }),
+    ]).model
+    expect(listedLengthOf(stopped)).toBe(22)
+  })
+})
+
+describe('opening a recording that does not answer', () => {
+  const patienceOf = (model: Model) => {
+    if (model.playback._tag !== 'OpeningPlayback') {
+      throw new Error(`Expected OpeningPlayback, got ${model.playback._tag}`)
+    }
+    return model.playback.patience
+  }
+
+  it('says it is still loading after 8 seconds, and Try Again asks again', () => {
+    const opening = opened(RecordingRoute({ recordingID }))
+    expect(patienceOf(opening)).toBe('Loading')
+    expect(openingWaitOf(opening)).toEqual(
+      Option.some({ recordingID, attempt: 0 }),
+    )
+
+    const slow = run(opening, [
+      ElapsedOpeningPatience({ recordingID, attempt: 0 }),
+    ]).model
+    expect(patienceOf(slow)).toBe('Slow')
+    expect(openingWaitOf(slow)).toEqual(Option.none())
+
+    const retried = run(slow, [ClickedTryOpeningAgain()]).model
+    expect(retried.recordingAttempt).toBe(1)
+    expect(patienceOf(retried)).toBe('Loading')
+    expect(openingWaitOf(retried)).toEqual(
+      Option.some({ recordingID, attempt: 1 }),
+    )
+
+    const stale = run(retried, [
+      ElapsedOpeningPatience({ recordingID, attempt: 0 }),
+    ]).model
+    expect(patienceOf(stale)).toBe('Loading')
+
+    const answered = run(retried, [observed()]).model
+    expect(answered.playback._tag).toBe('ReadyPlayback')
+    expect(openingWaitOf(answered)).toEqual(Option.none())
+  })
+
+  it('opens a recording that failed to load again on Try Again', () => {
+    const failed = run(opened(RecordingRoute({ recordingID })), [
+      FailedObserveRecording({
+        recordingID,
+        reason: 'The recording did not load.',
+      }),
+    ]).model
+    expect(failed.playback._tag).toBe('FailedPlayback')
+
+    const retried = run(failed, [ClickedTryOpeningAgain()]).model
+    expect(retried.recordingAttempt).toBe(1)
+    expect(retried.playback).toEqual(
+      OpeningPlayback({
+        recordingID,
+        request: {
+          maybeStartSeconds: Option.none(),
+          maybeFocusSectionID: Option.none(),
+          isRouteFocus: false,
+        },
+        patience: 'Loading',
+      }),
+    )
+  })
+
+  it('starts a new wait when another recording opens', () => {
+    const slow = run(opened(RecordingRoute({ recordingID })), [
+      ElapsedOpeningPatience({ recordingID, attempt: 0 }),
+    ]).model
+    const other = run(slow, [
+      ChangedUrl({
+        url: urlOf(
+          scribeRouteToShareUrl(
+            RecordingRoute({ recordingID: otherRecordingID }),
+          ),
+        ),
+      }),
+    ]).model
+    expect(patienceOf(other)).toBe('Loading')
+    expect(openingWaitOf(other)).toEqual(
+      Option.some({ recordingID: otherRecordingID, attempt: 0 }),
+    )
   })
 })

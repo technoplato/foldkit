@@ -117,7 +117,7 @@ const heroOf = (model: Model): Html => {
             ],
             [icon('Person', 'size-8')],
           ),
-        onSome: access => avatar(access.email, 'size-16 text-title'),
+        onSome: access => avatar(access.email, 'Large'),
       }),
       h.div(
         [h.Class('flex min-w-0 flex-1 flex-col gap-1.5')],
@@ -311,7 +311,7 @@ const shortcutsGroup = (): ReadonlyArray<Html> => {
       ),
     ),
     groupFootnote([
-      'Shortcuts work anywhere on the page except while typing in a field.',
+      'Shortcuts work anywhere on the page except while typing in a field. On the scrubber, ← and → move 5 seconds, and ↑ and ↓ move 1 second.',
     ]),
   ]
 }

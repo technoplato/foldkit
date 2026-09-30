@@ -134,12 +134,22 @@ export const PlaybackRequest = S.Struct({
 /** What the opened link asked for: a start time, a section to focus, the route. */
 export type PlaybackRequest = typeof PlaybackRequest.Type
 
+/**
+ * How long a recording has been opening: `Loading` at first, and `Slow` once
+ * Scribe has not answered for a few seconds, when the page says it is still
+ * loading and offers Try Again.
+ */
+export const OpeningPatience = S.Literals(['Loading', 'Slow'])
+/** How long a recording has been opening. */
+export type OpeningPatience = typeof OpeningPatience.Type
+
 /** No recording is open. */
 export const NoPlayback = ts('NoPlayback')
 /** A recording is opening; its detail has not arrived. */
 export const OpeningPlayback = ts('OpeningPlayback', {
   recordingID: S.String,
   request: PlaybackRequest,
+  patience: OpeningPatience,
 })
 /**
  * The server found no recording this account can read. It keeps what the link
@@ -209,7 +219,11 @@ export type CopyNotice = typeof CopyNotice.Type
  * own recording in progress), like the iPhone's playback piece beside its
  * live chip; opening another recording replaces it. `maybeLiveClockMs` is the
  * browser's clock, ticking each second while a recording in progress on
- * another device is on screen, so its length counts up between saves.
+ * another device is on screen, so its length counts up between saves;
+ * `liveLengthFloors` holds, per such recording, the longest length shown so
+ * far, so a save that moves the save time but not the length never makes it
+ * run backward. `recordingAttempt` counts Try Again presses; each one asks
+ * Scribe for the open recording again.
  */
 export const Model = S.Struct({
   route: ScribeRoute,
@@ -223,6 +237,8 @@ export const Model = S.Struct({
   maybeBackgroundPlayback: S.Option(ReadyPlayback),
   resumePositions: S.Record(S.String, S.Number),
   maybeLiveClockMs: S.Option(S.Number),
+  liveLengthFloors: S.Record(S.String, S.Number),
+  recordingAttempt: S.Number,
   maybeCopyNotice: S.Option(CopyNotice),
   copyRevision: S.Number,
   connectivity: Connectivity,

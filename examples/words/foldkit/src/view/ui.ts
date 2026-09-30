@@ -327,17 +327,29 @@ const initialsOf = (email: string): string => {
   }
 }
 
-/** A round avatar with the email's initials. */
-export const avatar = (
-  email: string,
-  className = 'size-8 text-footnote',
-): Html => {
+/** The avatar's size: the top bar's, or the account page's. */
+export const AvatarSize = S.Literals(['Small', 'Large'])
+/** The avatar's size. */
+export type AvatarSize = typeof AvatarSize.Type
+
+/**
+ * A round avatar with the email's initials. The initials are sized to the
+ * circle in pixels, like an image, so a larger text size never pushes them
+ * out of it; the email itself is text elsewhere on the page.
+ */
+export const avatar = (email: string, size: AvatarSize = 'Small'): Html => {
   const h = html<Message>()
+  const sizeClass = M.value(size).pipe(
+    M.withReturnType<string>(),
+    M.when('Small', () => 'size-8 text-[13px]'),
+    M.when('Large', () => 'size-16 text-[26px]'),
+    M.exhaustive,
+  )
   return h.span(
     [
       h.AriaHidden(true),
       h.Class(
-        `inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#d32f2f] to-[#b71c1c] font-semibold text-white ${className}`,
+        `inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#d32f2f] to-[#b71c1c] font-semibold leading-none tracking-tight text-white ${sizeClass}`,
       ),
     ],
     [initialsOf(email)],

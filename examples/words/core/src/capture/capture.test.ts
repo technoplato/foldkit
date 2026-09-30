@@ -34,10 +34,12 @@ import {
   type CaptureContext,
   PrepareCapture,
   SaveRecording,
+  WriteSegment,
   recordingTitleOf,
   update,
 } from './update.js'
 import {
+  finalSectionRecordingFieldsOf,
   makeAcceptingRecordingWriter,
   webTranscriptionConfiguration,
 } from './writer.js'
@@ -270,6 +272,39 @@ describe('recording on the web', () => {
     ])
   })
 
+  it('saves the length with each finished section, so a viewer never counts back', () => {
+    const started = run(init(), [
+      ClickedStartRecording(),
+      PreparedCapture({ draft }),
+      AcquiredCaptureSession(),
+      HeardCaptureProgress({ recordedSeconds: 23.4, level: 0.4 }),
+    ])
+    const [, commands] = update(
+      started.model,
+      HeardTranscript({
+        result: { isFinal: true, words: [word('Settled', 21.8)] },
+      }),
+      signedIn,
+    )
+    expect(Array.map(commands, command => command.name)).toEqual([
+      'WriteSegment',
+    ])
+    expect(Array.map(commands, command => command.args)).toMatchObject([
+      { durationSeconds: 23 },
+    ])
+    expect(
+      finalSectionRecordingFieldsOf(
+        { segmentCount: 1, wordCount: 1, speakerIDs: [0] },
+        23,
+        1_790_000_023_400,
+      ),
+    ).toEqual({
+      speakers: [{ id: 0 }],
+      durationSeconds: 23,
+      updatedAtMs: 1_790_000_023_400,
+    })
+  })
+
   it('finishes the transcript, settles the open section, and saves', () => {
     const started = run(init(), [
       ClickedStartRecording(),
@@ -354,6 +389,26 @@ describe('recorder Commands', () => {
     expect(recordingTitleOf(7, 'Oct 1, 2026')).toBe(
       'Recording 007 — Oct 1, 2026',
     )
+  })
+
+  it('hands the writer the length with the section', async () => {
+    const written: Array<string> = []
+    const write = {
+      id: segmentIDOf(recordingID, 0),
+      index: 0,
+      words: [word('Settled', 21.8)],
+      isFinal: true,
+      isFirstWrite: true,
+    }
+    await Effect.runPromise(
+      WriteSegment({
+        draft,
+        write,
+        counts: { segmentCount: 1, wordCount: 1, speakerIDs: [0] },
+        durationSeconds: 23,
+      }).effect.pipe(Effect.provide(makeAcceptingRecordingWriter(written))),
+    )
+    expect(written).toEqual(['writeSegment 0 final 23'])
   })
 
   it('saves the last section and the WAV the session recorded', async () => {

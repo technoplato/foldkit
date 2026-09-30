@@ -306,14 +306,15 @@ body {
   );
 }
 
+/* NOTE: the browser snaps its own thumb to the one-second step; that thumb only takes the pointer, and .scrubber-thumb draws the playhead where it is. */
 .scrubber::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 18px;
   height: 18px;
   margin-top: -6px;
   border-radius: 9999px;
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  background: transparent;
+  box-shadow: none;
 }
 
 .scrubber::-moz-range-track {
@@ -333,8 +334,21 @@ body {
   height: 18px;
   border: 0;
   border-radius: 9999px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.scrubber-thumb {
+  position: absolute;
+  top: 50%;
+  left: calc(9px + (100% - 18px) * var(--progress-fraction, 0));
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 9999px;
   background: #ffffff;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  pointer-events: none;
 }
 
 .menu-popover {
@@ -442,6 +456,10 @@ dialog::backdrop {
 
   .scrubber::-webkit-slider-thumb {
     -webkit-appearance: auto;
+  }
+
+  .scrubber-thumb {
+    display: none;
   }
 
   .word-current {
