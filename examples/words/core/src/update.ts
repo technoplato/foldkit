@@ -784,16 +784,60 @@ const sharedRangeFor = (
     M.orElse(() => Share.Model.NoSharedRange()),
   )
 
+/**
+ * Where the listener left each recording: the open one's position is kept
+ * when it was left part way through, and dropped when it was played to the
+ * end, so it starts over.
+ */
+const rememberedPositionsOf = (
+  model: Model,
+): Readonly<Record<string, number>> =>
+  M.value(model.playback).pipe(
+    M.withReturnType<Readonly<Record<string, number>>>(),
+    M.tag('ReadyPlayback', ready =>
+      isLiveRecording(ready) ||
+      ready.positionSeconds <= 0 ||
+      ready.positionSeconds >=
+        durationOf(ready) - END_OF_AUDIO_TOLERANCE_SECONDS
+        ? Record.remove(model.resumePositions, ready.recordingID)
+        : Record.set(
+            model.resumePositions,
+            ready.recordingID,
+            ready.positionSeconds,
+          ),
+    ),
+    M.orElse(() => model.resumePositions),
+  )
+
+/** A link that names no moment resumes where the listener left the recording. */
+const resumingRequestOf = (
+  model: Model,
+  recordingID: string,
+  request: PlaybackRequest,
+): PlaybackRequest =>
+  Option.isNone(request.maybeStartSeconds) &&
+  Option.isNone(request.maybeFocusSectionID)
+    ? {
+        ...request,
+        maybeStartSeconds: Record.get(model.resumePositions, recordingID),
+      }
+    : request
+
 const applyRoute = (model: Model, route: ScribeRoute): UpdateReturn => {
   const routed = evo(model, {
     route: () => route,
     share: share =>
       evo(share, { sharedRange: () => sharedRangeFor(route, share) }),
+    resumePositions: () => rememberedPositionsOf(model),
   })
   return Option.match(openingFor(route), {
     onNone: () => [evo(routed, { playback: () => NoPlayback() }), []],
     onSome: ({ recordingID, request }) =>
-      openRecording(routed, recordingID, request),
+      openRecording(
+        routed,
+        recordingID,
+        resumingRequestOf(routed, recordingID, request),
+      ),
   })
 }
 
@@ -809,6 +853,7 @@ export const modelForRoute = (route: ScribeRoute): Model =>
       recordings: LoadingRecordings(),
       recordingListLimit: RECORDING_LIST_PAGE_SIZE,
       playback: NoPlayback(),
+      resumePositions: {},
       maybeCopyNotice: Option.none(),
       copyRevision: 0,
       connectivity: 'Online',

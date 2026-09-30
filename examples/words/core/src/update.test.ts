@@ -342,6 +342,48 @@ describe('playing', () => {
     expect(playbackPhaseOf(readyOf(live))).toEqual(Option.none())
   })
 
+  it('reopens a recording where the listener left it, unless a link names a moment', () => {
+    const listURL = urlOf(scribeRouteToShareUrl(RecordingListRoute()))
+    const recordingURL = urlOf(
+      scribeRouteToShareUrl(RecordingRoute({ recordingID })),
+    )
+    const left = run(ready, [
+      ClickedPlay(),
+      HeardAudioPosition({ seconds: 42 }),
+      ChangedUrl({ url: listURL }),
+    ]).model
+    const reopened = run(left, [ChangedUrl({ url: recordingURL }), observed()])
+    const linked = run(left, [
+      ChangedUrl({
+        url: urlOf(
+          scribeRouteToShareUrl(
+            PlaybackRoute({
+              recordingID,
+              t: Option.some('10'),
+              focus: Option.none(),
+            }),
+          ),
+        ),
+      }),
+      observed(),
+    ])
+    const finished = run(ready, [
+      HeardAudioPosition({ seconds: 60 }),
+      ChangedUrl({ url: listURL }),
+      ChangedUrl({ url: recordingURL }),
+      observed(),
+    ])
+
+    expect(left.resumePositions).toEqual({ [recordingID]: 42 })
+    expect(readyOf(reopened.model).positionSeconds).toBe(42)
+    expect(readyOf(reopened.model).maybePendingSeekSeconds).toEqual(
+      Option.some(42),
+    )
+    expect(reopened.commandNames).toContain('ScrollToSection')
+    expect(readyOf(linked.model).positionSeconds).toBe(10)
+    expect(readyOf(finished.model).positionSeconds).toBe(0)
+  })
+
   it('plays only once the audio player is ready', () => {
     const noPlayer = run(opened(RecordingRoute({ recordingID })), [observed()])
     expect(run(noPlayer.model, [ClickedPlay()]).commandNames).toEqual([])

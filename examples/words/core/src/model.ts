@@ -201,7 +201,11 @@ export const CopyNotice = S.Struct({
 /** The short notice shown after copying. */
 export type CopyNotice = typeof CopyNotice.Type
 
-/** The web Scribe Model. */
+/**
+ * The web Scribe Model. `resumePositions` holds, per recording, where the
+ * listener left it part way through in this tab, so opening it again resumes
+ * there.
+ */
 export const Model = S.Struct({
   route: ScribeRoute,
   identity: IdentityState,
@@ -211,6 +215,7 @@ export const Model = S.Struct({
   recordings: RecordingsState,
   recordingListLimit: S.Number,
   playback: PlaybackState,
+  resumePositions: S.Record(S.String, S.Number),
   maybeCopyNotice: S.Option(CopyNotice),
   copyRevision: S.Number,
   connectivity: Connectivity,
