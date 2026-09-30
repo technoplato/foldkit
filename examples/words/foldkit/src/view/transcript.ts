@@ -168,7 +168,7 @@ const sectionView = (
       h.Key(section.id),
       h.Id(sectionElementIDOf(section.id)),
       h.Class(
-        `relative grid grid-cols-[3.5rem_minmax(0,1fr)] gap-x-2 rounded-2xl px-2 py-1 transition sm:grid-cols-[4.25rem_minmax(0,1fr)] ${surface} ${isFocused ? 'section-focused' : ''}`,
+        `relative grid grid-cols-[calc(var(--type-unit)*56)_minmax(0,1fr)] gap-x-2 rounded-2xl px-2 py-1 transition sm:grid-cols-[calc(var(--type-unit)*68)_minmax(0,1fr)] ${surface} ${isFocused ? 'section-focused' : ''}`,
       ),
     ],
     [
@@ -213,7 +213,7 @@ const clipboardView = (clipboard: ClipboardEntry): Html => {
     [
       h.Key(clipboard.id),
       h.Class(
-        'my-1.5 ml-[3.75rem] mr-2 flex flex-col gap-1 rounded-2xl border border-separator bg-surface px-4 py-3 sm:ml-[4.5rem]',
+        'my-1.5 ml-[calc(var(--type-unit)*60)] mr-2 flex flex-col gap-1 rounded-2xl border border-separator bg-surface px-4 py-3 sm:ml-[calc(var(--type-unit)*72)]',
       ),
     ],
     [
@@ -242,7 +242,12 @@ const imageView = (
 ): Html => {
   const h = html<Message>()
   return h.figure(
-    [h.Key(image.id), h.Class('my-2 ml-[3.75rem] mr-2 sm:ml-[4.5rem]')],
+    [
+      h.Key(image.id),
+      h.Class(
+        'my-2 ml-[calc(var(--type-unit)*60)] mr-2 sm:ml-[calc(var(--type-unit)*72)]',
+      ),
+    ],
     [
       Option.match(maybeUrl, {
         onNone: () =>
@@ -364,7 +369,7 @@ export const transcript = (
     [
       h.AriaLabel('Transcript'),
       h.Class(
-        `mx-auto w-full max-w-3xl pb-52 sm:px-4 ${isFullScreen ? 'pl-2 pr-10 pt-16' : 'px-2 pt-2'}`,
+        `mx-auto w-full max-w-3xl pb-52 sm:px-4 min-[100rem]:max-w-[61rem] ${isFullScreen ? 'pl-2 pr-10 pt-16' : 'px-2 pt-2'}`,
       ),
     ],
     [

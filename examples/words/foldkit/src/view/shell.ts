@@ -232,7 +232,8 @@ const accountChipLabel = (model: Model): string => {
 /**
  * The open recording's title in the top bar: always on a phone, like an iOS
  * inline title, and from 640 px once the page's large title scrolls under
- * the bar.
+ * the bar. With large text on a narrow screen (`.bar-title` in styles.css)
+ * the bar has no room for it, so the page shows its own title, wrapping.
  */
 const barTitleOf = (model: Model): ReadonlyArray<Html> => {
   const h = html<Message>()
@@ -243,7 +244,7 @@ const barTitleOf = (model: Model): ReadonlyArray<Html> => {
         [
           h.AriaHidden(true),
           h.Class(
-            'min-w-0 flex-1 truncate text-center text-body font-semibold text-label sm:hidden',
+            'bar-title min-w-0 flex-1 truncate text-center text-body font-semibold text-label sm:hidden',
           ),
         ],
         [ready.detail.summary.title],
@@ -252,7 +253,7 @@ const barTitleOf = (model: Model): ReadonlyArray<Html> => {
         [
           h.AriaHidden(true),
           h.Class(
-            'folded-title min-w-0 flex-1 truncate text-center text-body font-semibold text-label max-sm:hidden',
+            'bar-title folded-title min-w-0 flex-1 truncate text-center text-body font-semibold text-label max-sm:hidden',
           ),
         ],
         [ready.detail.summary.title],
@@ -322,7 +323,7 @@ export const toast = (model: Model, isSplit: boolean): Html => {
     [
       h.AriaLive('polite'),
       h.Class(
-        `pointer-events-none fixed inset-x-0 bottom-36 z-50 flex justify-center px-4 ${isSplit ? 'lg:left-[21rem] xl:left-[24rem]' : ''}`,
+        `pointer-events-none fixed inset-x-0 bottom-36 z-50 flex justify-center px-4 ${isSplit ? 'lg:left-[21rem] xl:left-[24rem] min-[100rem]:left-[35rem]' : ''}`,
       ),
     ],
     Option.match(model.maybeCopyNotice, {

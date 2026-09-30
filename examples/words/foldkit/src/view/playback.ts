@@ -281,7 +281,7 @@ const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
   return h.header(
     [
       h.Class(
-        'mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pt-3 max-sm:gap-0 sm:px-6',
+        'mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pt-3 max-sm:gap-0 sm:px-6 min-[100rem]:max-w-[61rem]',
       ),
     ],
     [
@@ -292,7 +292,7 @@ const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
             [
               h.Id(RECORDING_TITLE_ELEMENT_ID),
               h.Class(
-                'folding-title text-title font-bold tracking-tight text-label max-sm:sr-only sm:text-large-title',
+                'folding-title page-title-when-large text-title font-bold tracking-tight text-label max-sm:sr-only sm:text-large-title',
               ),
             ],
             [summary.title],
@@ -403,7 +403,7 @@ const fullScreenChrome = (): ReadonlyArray<Html> => {
       [
         h.OnMount(RunWallClock()),
         h.Class(
-          'pointer-events-none fixed bottom-0 right-[max(0px,calc((100vw_-_48rem)/2_-_2.5rem))] top-16 z-20 flex w-8 items-center justify-center',
+          'pointer-events-none fixed bottom-0 right-[max(0px,calc((100vw_-_48rem)/2_-_2.5rem))] top-16 z-20 flex w-8 items-center justify-center min-[100rem]:right-[max(0px,calc((100vw_-_61rem)/2_-_2.5rem))]',
         ),
       ],
       [
@@ -475,7 +475,7 @@ const transcriptionNoticeOf = (
                 [
                   h.Role('status'),
                   h.Class(
-                    `mx-4 mt-3 flex items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3 sm:mx-auto sm:w-[calc(100%-3rem)] sm:max-w-[calc(48rem-3rem)] ${ready.screenMode === 'FullScreen' ? 'mr-16 sm:mr-auto sm:mt-16' : ''}`,
+                    `mx-4 mt-3 flex items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3 sm:mx-auto sm:w-[calc(100%-3rem)] sm:max-w-[calc(48rem-3rem)] min-[100rem]:max-w-[calc(61rem-3rem)] ${ready.screenMode === 'FullScreen' ? 'mr-16 sm:mr-auto sm:mt-16' : ''}`,
                   ),
                 ],
                 [
@@ -703,6 +703,50 @@ const compactTransportBar = (ready: ReadyPlayback): Html => {
 }
 
 /**
+ * The player beside this browser's own live recording on a phone: one row
+ * with Back 15, Play or Pause, Forward 15, the position, the scrubber, and
+ * the length, so the recorder's row and this one leave the transcript most
+ * of the screen. `.beside-compact` shows it only there (styles.css).
+ */
+const besideTransportBar = (ready: ReadyPlayback): Html => {
+  const h = html<Message>()
+  return h.div(
+    [
+      h.Role('group'),
+      h.AriaLabel('Playback'),
+      h.Class(
+        'beside-compact glass w-full items-center gap-1 rounded-full pr-4',
+      ),
+    ],
+    [
+      skipButton(
+        `Back ${SKIP_SECONDS} Seconds`,
+        'Backward',
+        -SKIP_SECONDS,
+        shortcutKeyOf('SkipBackward'),
+        'Left Arrow',
+      ),
+      playPauseButton(ready, 'size-11'),
+      skipButton(
+        `Forward ${SKIP_SECONDS} Seconds`,
+        'Forward',
+        SKIP_SECONDS,
+        shortcutKeyOf('SkipForward'),
+        'Right Arrow',
+      ),
+      h.span(
+        [h.Class('flex min-w-0 flex-1 items-center gap-2 pl-1')],
+        [
+          clockLabel(displayedPositionOf(ready)),
+          scrubberInput(ready, 'min-w-0 flex-1'),
+          clockLabel(durationOf(ready)),
+        ],
+      ),
+    ],
+  )
+}
+
+/**
  * A bar that says where the audio stands. Its title and detail are a status
  * region, so a change is announced; the trailing controls and clocks sit
  * outside it, so a ticking clock is not read out every second.
@@ -868,11 +912,13 @@ const liveLengthClock = (seconds: number): Html => {
 /**
  * The floating controls for the open recording, when this browser is not
  * recording it. A recording in progress on another device shows its length
- * counting up (`displayedLengthOf`).
+ * counting up (`displayedLengthOf`). Beside this browser's own live
+ * recording (`isBesideRecorder`), a phone gets the one-row player.
  */
 export const playbackBar = (
   model: Model,
   ready: ReadyPlayback,
+  isBesideRecorder: boolean,
 ): ReadonlyArray<Html> => {
   const h = html<Message>()
   const main = isLiveRecording(ready)
@@ -918,16 +964,27 @@ export const playbackBar = (
                     ),
                   ]),
                 ],
-                AudioPlayerReady: () =>
-                  ready.screenMode === 'FullScreen'
-                    ? [
-                        compactTransportBar(ready),
-                        h.div(
-                          [h.Class('hidden w-full sm:block')],
-                          [transportBar(ready)],
-                        ),
-                      ]
-                    : [transportBar(ready)],
+                AudioPlayerReady: () => {
+                  if (ready.screenMode === 'FullScreen') {
+                    return [
+                      compactTransportBar(ready),
+                      h.div(
+                        [h.Class('hidden w-full sm:block')],
+                        [transportBar(ready)],
+                      ),
+                    ]
+                  } else if (isBesideRecorder) {
+                    return [
+                      besideTransportBar(ready),
+                      h.div(
+                        [h.Class('beside-full w-full')],
+                        [transportBar(ready)],
+                      ),
+                    ]
+                  } else {
+                    return [transportBar(ready)]
+                  }
+                },
               }),
             ),
         }),

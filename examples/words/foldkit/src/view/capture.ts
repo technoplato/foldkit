@@ -237,6 +237,126 @@ const capturingBar = (
   )
 }
 
+const iconOnlyButton = (
+  label: string,
+  iconName: IconName,
+  message: Message,
+  className: string,
+  maybeKeyHint: Option.Option<KeyHint> = Option.none(),
+): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.AriaLabel(label),
+      h.Title(
+        Option.match(maybeKeyHint, {
+          onNone: () => label,
+          onSome: ({ hint }) => `${label} (${hint})`,
+        }),
+      ),
+      ...Option.toArray(
+        Option.map(maybeKeyHint, ({ ariaKeys }) =>
+          h.AriaKeyshortcuts(ariaKeys),
+        ),
+      ),
+      h.OnClick(message),
+      h.Class(
+        `inline-flex size-11 shrink-0 items-center justify-center rounded-full transition duration-150 active:scale-95 ${className}`,
+      ),
+    ],
+    [icon(iconName, 'size-[18px]')],
+  )
+}
+
+/**
+ * The recorder in one 44 point row, for a phone that also shows a playback:
+ * the live dot or the pause symbol, the recorded time, the phase, Pause or
+ * Resume, and Stop. `.beside-compact` shows it only there (styles.css).
+ */
+const compactCapturingBar = (
+  capturing: typeof Capture.Model.Capturing.Type,
+  isOnRecordingPage: boolean,
+): Html => {
+  const h = html<Message>()
+  const isPaused = capturing.transport === 'Paused'
+  const pauseKey = keyHintOf('TogglePauseRecording')
+  const status = h.span(
+    [h.Class('flex min-h-11 min-w-0 flex-1 items-center gap-2')],
+    [
+      isPaused
+        ? icon('Pause', 'size-3 shrink-0 text-caution')
+        : h.span(
+            [
+              h.Class(
+                'size-2.5 shrink-0 rounded-full bg-accent animate-breathe',
+              ),
+            ],
+            [],
+          ),
+      h.span(
+        [h.Class('tabular shrink-0 text-body font-semibold text-label')],
+        [formatClock(capturing.recordedSeconds)],
+      ),
+      h.span(
+        [
+          h.Class(
+            `truncate text-footnote ${isPaused ? 'font-medium text-caution' : 'text-secondary'}`,
+          ),
+        ],
+        [isPaused ? 'Paused' : 'Recording'],
+      ),
+    ],
+  )
+  return h.div(
+    [
+      h.Role('group'),
+      h.AriaLabel('Recording controls'),
+      h.Class(
+        'beside-compact glass w-full items-center gap-1 rounded-full pl-4',
+      ),
+    ],
+    [
+      isOnRecordingPage
+        ? status
+        : h.a(
+            [
+              h.Href(
+                scribeRouteToPath(
+                  RecordingRoute({ recordingID: capturing.draft.recordingID }),
+                ),
+              ),
+              h.AriaLabel('Open the recording'),
+              h.Class('flex min-w-0 flex-1 rounded-full'),
+            ],
+            [status],
+          ),
+      isPaused
+        ? iconOnlyButton(
+            'Resume Recording',
+            'Record',
+            captureMessage(Capture.resumeRecording()),
+            'bg-accent-soft text-accent-strong hover:brightness-95',
+            Option.some(pauseKey),
+          )
+        : iconOnlyButton(
+            'Pause Recording',
+            'Pause',
+            captureMessage(Capture.pauseRecording()),
+            'bg-fill text-label hover:bg-fill-strong',
+            Option.some(pauseKey),
+          ),
+      iconOnlyButton(
+        'Stop Recording',
+        'Stop',
+        captureMessage(Capture.stopRecording()),
+        'bg-accent-soft text-accent-strong hover:brightness-95',
+        Option.some(keyHintOf('StopRecording')),
+      ),
+    ],
+  )
+}
+
 const statusText = (primary: string, secondary: string): Html => {
   const h = html<Message>()
   return h.span(
@@ -377,12 +497,16 @@ const recordBar = (isFullWidth: boolean): Html => {
 /**
  * The recorder in the floating bar, or nothing: New Recording when a
  * recording can start here, the live controls while recording, and progress
- * or failures while stopping and saving.
+ * or failures while stopping and saving. Beside a playback
+ * (`isBesidePlayback`), a phone gets the one-row recorder, unless a save
+ * problem needs the room to say what went wrong.
  */
 export const captureBar = (
   model: Model,
   isRecordAvailable: boolean,
+  isBesidePlayback = false,
 ): ReadonlyArray<Html> => {
+  const h = html<Message>()
   const isOnRecordingPage = Option.exists(
     Capture.Model.draftOf(model.capture),
     draft =>
@@ -405,7 +529,16 @@ export const captureBar = (
           'Allow the microphone if the browser asks',
         ),
       ],
-      Capturing: capturing => [capturingBar(capturing, isOnRecordingPage)],
+      Capturing: capturing =>
+        isBesidePlayback && Option.isNone(capturing.maybeWriteProblem)
+          ? [
+              compactCapturingBar(capturing, isOnRecordingPage),
+              h.div(
+                [h.Class('beside-full w-full')],
+                [capturingBar(capturing, isOnRecordingPage)],
+              ),
+            ]
+          : [capturingBar(capturing, isOnRecordingPage)],
       StoppingCapture: () => [
         workingBar('Finishing', 'Waiting for the last words'),
       ],

@@ -189,14 +189,18 @@ const badgeSymbol = (tone: BadgeTone): ReadonlyArray<Html> => {
   )
 }
 
-/** A small status capsule with the phase's symbol. */
+/**
+ * A small status capsule with the phase's symbol. The phase colors are the
+ * badge tokens, dark enough (light enough in dark mode) to stay above 4.5:1
+ * on a row that is selected or hovered, whose gray shows through the badge.
+ */
 export const badge = (tone: BadgeTone, text: string): Html => {
   const h = html<Message>()
   const toneClass = M.value(tone).pipe(
     M.withReturnType<string>(),
-    M.when('Recording', () => 'bg-accent-soft text-accent-strong'),
-    M.when('Paused', () => 'bg-caution-soft text-caution'),
-    M.when('Playing', () => 'bg-tint-soft text-tint'),
+    M.when('Recording', () => 'bg-accent-soft text-badge-recording'),
+    M.when('Paused', () => 'bg-caution-soft text-badge-paused'),
+    M.when('Playing', () => 'bg-tint-soft text-badge-playing'),
     M.when('Shared', () => 'bg-fill text-label'),
     M.when('Positive', () => 'bg-positive-soft text-positive'),
     M.when('Caution', () => 'bg-caution-soft text-caution'),
@@ -339,14 +343,21 @@ export type AvatarSize = typeof AvatarSize.Type
 /**
  * A round avatar with the email's initials. The initials are sized to the
  * circle in pixels, like an image, so a larger text size never pushes them
- * out of it; the email itself is text elsewhere on the page.
+ * out of it (they grow only with the large-display scale, like the circle's
+ * neighbors); the email itself is text elsewhere on the page.
  */
 export const avatar = (email: string, size: AvatarSize = 'Small'): Html => {
   const h = html<Message>()
   const sizeClass = M.value(size).pipe(
     M.withReturnType<string>(),
-    M.when('Small', () => 'size-8 text-[13px]'),
-    M.when('Large', () => 'size-16 text-[26px]'),
+    M.when(
+      'Small',
+      () => 'size-8 text-[length:calc(13px*var(--display-scale))]',
+    ),
+    M.when(
+      'Large',
+      () => 'size-16 text-[length:calc(26px*var(--display-scale))]',
+    ),
     M.exhaustive,
   )
   return h.span(

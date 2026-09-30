@@ -178,24 +178,40 @@ const maybeOpenRecordingOf = (model: Model): Option.Option<ReadyPlayback> =>
 
 /**
  * The floating controls: the recorder, a recording playing in the
- * background, and the open recording's player.
+ * background, and the open recording's player. With this browser's own
+ * recording in progress beside another recording's player, each takes one
+ * row on a phone.
  */
 const floatingControls = (model: Model): ReadonlyArray<Html> => {
-  const recorder = captureBar(model, isRecordAvailableOf(model))
   const background = Option.match(model.maybeBackgroundPlayback, {
     onNone: () => [],
     onSome: miniPlayer,
   })
   return Option.match(maybeOpenRecordingOf(model), {
-    onNone: () => [...background, ...recorder],
-    onSome: ready =>
-      isOwnRecordingOf(model, ready.recordingID)
-        ? [...returnPill(ready), ...background, ...recorder]
-        : [...recorder, ...playbackBar(model, ready)],
+    onNone: () => [
+      ...background,
+      ...captureBar(model, isRecordAvailableOf(model)),
+    ],
+    onSome: ready => {
+      if (isOwnRecordingOf(model, ready.recordingID)) {
+        return [
+          ...returnPill(ready),
+          ...background,
+          ...captureBar(model, isRecordAvailableOf(model)),
+        ]
+      } else {
+        const isBesideRecorder = model.capture.state._tag === 'Capturing'
+        return [
+          ...captureBar(model, isRecordAvailableOf(model), isBesideRecorder),
+          ...playbackBar(model, ready, isBesideRecorder),
+        ]
+      }
+    },
   })
 }
 
-const detailColumnOffsetClass = 'lg:left-[21rem] xl:left-[24rem]'
+const detailColumnOffsetClass =
+  'lg:left-[21rem] xl:left-[24rem] min-[100rem]:left-[35rem]'
 
 const floatingLayer = (
   controls: Array.NonEmptyReadonlyArray<Html>,
@@ -256,7 +272,7 @@ const offlineNotice = (model: Model): ReadonlyArray<Html> => {
           [
             h.Role('status'),
             h.Class(
-              `mt-3 flex items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3 ${isFullScreenOf(model) ? 'ml-4 mr-16 sm:mx-auto sm:mt-16 sm:w-[calc(100%-2rem)] sm:max-w-3xl' : 'mx-auto w-[calc(100%-2rem)] max-w-3xl'}`,
+              `mt-3 flex items-start gap-3 rounded-2xl bg-caution-soft px-4 py-3 min-[100rem]:max-w-[61rem] ${isFullScreenOf(model) ? 'ml-4 mr-16 sm:mx-auto sm:mt-16 sm:w-[calc(100%-2rem)] sm:max-w-3xl' : 'mx-auto w-[calc(100%-2rem)] max-w-3xl'}`,
             ),
           ],
           [
@@ -330,7 +346,8 @@ const isSplitOf = (model: Model): boolean =>
   )
 
 const splitGridClass =
-  'lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] xl:grid-cols-[24rem_minmax(0,1fr)]'
+  'lg:grid lg:grid-cols-[21rem_minmax(0,1fr)] xl:grid-cols-[24rem_minmax(0,1fr)] min-[100rem]:grid-cols-[35rem_minmax(0,1fr)]'
+
 /**
  * The page's columns. Split, the recording list is the sidebar from 1024 px:
  * on the list itself it is the page's list, with a placeholder beside it;
@@ -385,7 +402,7 @@ export const view =
       body: h.div(
         [
           h.Class(
-            'folding-title-scope min-h-dvh bg-canvas font-sans text-label antialiased',
+            '@container/page folding-title-scope min-h-dvh bg-canvas font-sans text-label antialiased',
           ),
         ],
         [
