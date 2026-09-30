@@ -602,6 +602,28 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 8:19:04 p.m. EDT — `767c04a1a3d3` fix(words): open section and moment links where they point on a cold load
+
+- **Implementation commit:** `767c04a1a3d39808ddcdc47e315b6b40f6bcd815`
+- **Change:** Open section and moment links where they point on a cold load (#289 W24, the web's G3 gate).
+- **Details:**
+  - A copied section or moment link opened in a new tab landed at 0:00 with nothing selected: before sign-in Instant answered that the recording was missing, MissingRecording dropped the link's start time and section, and the recording opened at the start once the browser signed in (round 3 measured Opening at 121 ms, not available at 539 ms, the recording at 0:00 at 1029 ms).
+  - MissingRecording and FailedPlayback keep the link's request; an account change returns them to OpeningPlayback with the request; ConfirmRecording carries the account it asked for and a stale answer is ignored; the page shows a recording or share that looks missing as opening until sign-in settles (displayedPlaybackOf, displayedSharedRangeOf, isSignInSettledOf).
+  - The iPhone's one-second lead-in holds: a section link without t starts at the whole second before the section (ScribeDeepLink.shareableStartTime); t is used as written.
+  - Fixture check (cold sign-in, no session): before, every link went Opening, not available, 0:00; after, Opening then the moment (0:49 with the section focused, 1:44, 1:23), and Play continued from there.
+- **Files:**
+  - `examples/words/core/src/update.ts` — keep the link's request through missing answers and sign-in; displayed playback and share selectors
+  - `examples/words/core/src/model.ts` — MissingRecording and FailedPlayback carry the request
+  - `examples/words/core/src/message.ts` — confirm answers name the account they were asked for
+  - `examples/words/core/src/program.ts` — Program version 4 for the Model change
+  - `examples/words/core/src/coldLoad.test.ts` — cold-load tests for every link form in the ADR 0012 grammar
+  - `examples/words/core/src/update.test.ts` — existing confirm test passes the new account field
+  - `examples/words/foldkit/src/view/view.ts` — recording page renders the displayed playback
+  - `examples/words/foldkit/src/view/share.ts` — share page renders the displayed shared range
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 7:09:46 a.m. EDT — `9958fd91c98f` fix(words): name the copy formats the way the iPhone does
 
 - **Implementation commit:** `9958fd91c98f8589f481f926e213588a39186b29`
