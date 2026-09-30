@@ -172,7 +172,7 @@ export const CompletedRunWallClock = m('CompletedRunWallClock')
 export const CompletedShowRowMenuOnContextMenu = m(
   'CompletedShowRowMenuOnContextMenu',
 )
-/** The listener chose Skip to Player from the keyboard. */
+/** The listener chose Skip to Controls from the keyboard. */
 export const ClickedSkipToPlayer = m('ClickedSkipToPlayer')
 /** Focus moved to the player. */
 export const CompletedFocusPlayer = m('CompletedFocusPlayer')

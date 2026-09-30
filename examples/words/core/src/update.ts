@@ -1258,6 +1258,30 @@ const copyFromReady = (
     M.orElse(() => [model, []]),
   )
 
+/**
+ * The link Copy Link to This Moment copies from the player: the section at
+ * the playhead with the one-second lead-in, the same form as the section
+ * menu's link and the iPhone's; the playback form only where no section is.
+ */
+const momentRouteOf = (ready: ReadyPlayback): ScribeRoute => {
+  const position = displayedPositionOf(ready)
+  const t = Option.some(formatStartSeconds(shareableStartSeconds(position)))
+  return Option.match(sectionAt(ready.detail.sections, position), {
+    onNone: () =>
+      PlaybackRoute({
+        recordingID: ready.recordingID,
+        t,
+        focus: Option.none(),
+      }),
+    onSome: section =>
+      SectionRoute({
+        recordingID: ready.recordingID,
+        sectionID: section.id,
+        t,
+      }),
+  })
+}
+
 const sectionNamed = (
   ready: ReadyPlayback,
   sectionID: string,
@@ -2000,17 +2024,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ClickedCopyMomentLink: () =>
         copyFromReady(model, ready =>
           Option.some([
-            scribeRouteToShareUrl(
-              PlaybackRoute({
-                recordingID: ready.recordingID,
-                t: Option.some(
-                  formatStartSeconds(
-                    shareableStartSeconds(displayedPositionOf(ready)),
-                  ),
-                ),
-                focus: Option.none(),
-              }),
-            ),
+            scribeRouteToShareUrl(momentRouteOf(ready)),
             'Copied link to this moment',
           ]),
         ),

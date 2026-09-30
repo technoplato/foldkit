@@ -193,7 +193,7 @@ const floatingControls = (model: Model): ReadonlyArray<Html> => {
 const detailColumnOffsetClass = 'lg:left-[21rem] xl:left-[24rem]'
 
 const floatingLayer = (
-  controls: ReadonlyArray<Html>,
+  controls: Array.NonEmptyReadonlyArray<Html>,
   isSplit: boolean,
 ): Html => {
   const h = html<Message>()
@@ -208,7 +208,7 @@ const floatingLayer = (
         [
           h.Id(PLAYER_ELEMENT_ID),
           h.Role('region'),
-          h.AriaLabel('Player'),
+          h.AriaLabel('Controls'),
           h.Class(
             'pointer-events-auto flex w-full max-w-xl flex-col items-center gap-2 outline-none [&>*]:max-w-full',
           ),
@@ -229,7 +229,7 @@ const skipToPlayer = (): Html => {
         'glass sr-only z-50 min-h-11 items-center rounded-full px-4 text-subhead font-semibold text-tint focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:inline-flex',
       ),
     ],
-    ['Skip to Player'],
+    ['Skip to Controls'],
   )
 }
 
@@ -374,7 +374,9 @@ export const view =
           ...(isFullScreenOf(model) ? [] : [topBar(model, isSplit)]),
           ...offlineNotice(model),
           columns(model, config),
-          floatingLayer(controls, isSplit),
+          ...(Array.isReadonlyArrayNonEmpty(controls)
+            ? [floatingLayer(controls, isSplit)]
+            : []),
           ...shareOverlay(model),
           toast(model, isSplit),
         ],

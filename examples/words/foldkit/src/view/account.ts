@@ -125,7 +125,7 @@ const heroOf = (model: Model): Html => {
           h.span(
             [
               h.Class(
-                'truncate text-title font-semibold tracking-tight text-label',
+                'truncate text-body font-semibold tracking-tight text-label',
               ),
             ],
             [
@@ -280,7 +280,12 @@ const shortcutRows: ReadonlyArray<ShortcutRow> = [
   { keys: 'R', action: 'New Recording, on the recording list' },
   { keys: 'P', action: 'Pause or resume the recording in progress' },
   { keys: 'L', action: 'Back to Playhead, or Back to Live while recording' },
-  { keys: 'Esc', action: 'Close a menu or the share sheet' },
+  { keys: 'F', action: 'Full Screen for the recording you are reading' },
+  { keys: '/', action: 'Search the recording list' },
+  {
+    keys: 'Esc',
+    action: 'Leave Full Screen, or close a menu or the share sheet',
+  },
 ]
 
 const shortcutsGroup = (): ReadonlyArray<Html> => {

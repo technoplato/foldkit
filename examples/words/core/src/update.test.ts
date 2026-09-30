@@ -582,6 +582,21 @@ describe('copying links', () => {
     ])
   })
 
+  it('copies the playback form for a moment before the first section', () => {
+    const at = run(ready, [HeardAudioPosition({ seconds: 2.5 })]).model
+    const [, commands] = update(at, ClickedCopyMomentLink())
+    expect(commands.map(command => command.args)).toEqual([
+      {
+        text: `https://words.knophy.com/playback/${recordingID}?t=1`,
+        notice: {
+          text: 'Copied link to this moment',
+          isFailure: false,
+          revision: 1,
+        },
+      },
+    ])
+  })
+
   it("shares a recording's link through the system share sheet, like Share Link in the iPhone's list", () => {
     const [, commands] = update(
       opened(RecordingListRoute()),
@@ -600,12 +615,12 @@ describe('copying links', () => {
     ])
   })
 
-  it('copies a link to the current moment', () => {
+  it('copies a link to the current moment in the section link form, with the lead-in', () => {
     const at = run(ready, [HeardAudioPosition({ seconds: 42.7 })]).model
     const [, commands] = update(at, ClickedCopyMomentLink())
     expect(commands.map(command => command.args)).toEqual([
       {
-        text: `https://words.knophy.com/playback/${recordingID}?t=41`,
+        text: `https://words.knophy.com/recording/${recordingID}/section/${sectionB.id}?t=41`,
         notice: {
           text: 'Copied link to this moment',
           isFailure: false,

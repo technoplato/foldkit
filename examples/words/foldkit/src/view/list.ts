@@ -366,7 +366,7 @@ const emptyState = (): Html => {
         [icon('Waveform', 'size-8')],
       ),
       h.h2(
-        [h.Class('text-title font-semibold tracking-tight text-label')],
+        [h.Class('text-body font-semibold tracking-tight text-label')],
         ['No Recordings Yet'],
       ),
       h.p(
@@ -520,7 +520,7 @@ const noResults = (query: string): Html => {
     [
       icon('Search', 'size-8 text-secondary'),
       h.h2(
-        [h.Class('text-title font-semibold tracking-tight text-label')],
+        [h.Class('text-body font-semibold tracking-tight text-label')],
         [`No Results for “${query.trim()}”`],
       ),
       h.p(
@@ -735,7 +735,7 @@ export const noRecordingChosen = (): Html => {
     [
       icon('Waveform', 'size-10 text-tertiary'),
       h.h2(
-        [h.Class('text-title font-semibold tracking-tight text-label')],
+        [h.Class('text-body font-semibold tracking-tight text-label')],
         ['Choose a Recording'],
       ),
       h.p(

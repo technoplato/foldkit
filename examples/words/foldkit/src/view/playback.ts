@@ -717,7 +717,7 @@ export const returnPill = (ready: ReadyPlayback): ReadonlyArray<Html> => {
             ),
           ],
           [
-            icon(isLive ? 'ChevronDown' : 'Play', 'size-4 shrink-0'),
+            icon(isLive ? 'ChevronDown' : 'Playhead', 'size-4 shrink-0'),
             h.span(
               [h.Class('flex min-w-0 flex-col')],
               [
