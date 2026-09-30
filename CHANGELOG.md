@@ -602,6 +602,35 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 30th, 2026 at 1:59:16 p.m. EDT — `3ff3f97e609f` feat(words): load the recording list by itself as it scrolls, in a window of three pages
+
+- **Implementation commit:** `3ff3f97e609f2d1b7cb6713847580e9b5f72a624`
+- **Change:** Load the recording list by itself as it scrolls, in a window of three pages (Scribe #299); Show More is gone.
+- **Details:**
+  - One Instant query per window (top-level limit and offset, newest first, the same where); snapshots carry their window; hasNextPage says whether older recordings exist.
+  - A request only when an edge of the loaded rows comes within about a screen, at most once per window edge, never while a page loads; a load that adds nothing marks the edge NothingAdded, so a stuck server cannot loop.
+  - At most 300 rows: the page farthest from the listener leaves as the window slides, and comes back when the listener scrolls back; the very top of a slid list goes back to the newest page in one step.
+  - The visible row stays in place in every engine: a spacer stands in for rows above the window, a MutationObserver corrects each render before paint, and the rows keep their height so the first layout cannot clamp the scroll position.
+  - Keyboard focus is never lost: the focused row stays when its page leaves, and a row the renderer moved gets its focus back before paint; edges sit in fixed slots so day sections never move.
+  - A quiet polite status shows only while a page loads; the count names a number only when it knows one; search grows the window but never slides it and says what it covered; new recording titles stay past the highest number shown.
+  - Tests: 17 new in listWindow.test.ts (207 in all); each fails before the change.
+- **Files:**
+  - `examples/words/core/src/listWindow.ts` — the window of pages, its edges, and the count kinds
+  - `examples/words/core/src/listWindow.test.ts` — paging, loop, eviction, focus, search, count, and query tests
+  - `examples/words/core/src/model.ts` — the list's window, older edge, kept focused row, and highest title number
+  - `examples/words/core/src/message.ts` — ApproachedListEdge, ReachedListTop, ChangedListRowFocus; snapshots carry their window; Show More removed
+  - `examples/words/core/src/update.ts` — when an edge asks for a window, what a snapshot means for the older edge, the kept row, the count
+  - `examples/words/core/src/subscription.ts` — the list observes its window
+  - `examples/words/core/src/store.ts` — the window query and the older-rows answer
+  - `examples/words/core/src/update.test.ts` — snapshots in existing tests carry the first window
+  - `examples/words/core/src/index.ts` — exports the window module
+  - `examples/words/core/src/program.ts` — Program version 6
+  - `examples/words/foldkit/src/mount.ts` — ObserveListEdge and TrackRecordingRows
+  - `examples/words/foldkit/src/view/list.ts` — rows between edge slots, the spacer, the loading status, the count, the search note
+- **User context (verbatim):**
+  > make sure that the show latest, show earliest stuff never shows up. I never want to have to manually load more things.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 30th, 2026 at 4:34:17 a.m. EDT — `1f636163ea86` fix(words): title the offline opening card "Waiting for the network"
 
 - **Implementation commit:** `1f636163ea86915c4502bef69e5aa5a4cec8074b`
