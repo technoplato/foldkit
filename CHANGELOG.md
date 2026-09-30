@@ -602,6 +602,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 30th, 2026 at 2:02:31 p.m. EDT — `9f088af149b3` fix(words): keep no Program journal history in production builds
+
+- **Implementation commit:** `9f088af149b37f98af46ea03de4f59d6cb7ad07d`
+- **Change:** Keep no Program journal history in production builds (Scribe #299).
+- **Details:**
+  - Foldkit's Program journal keeps every transition by default, so an open page kept every Instant snapshot it received; production builds now keep none (retainLatestTransitions with a maximum of zero); the dev server keeps them for DevTools.
+  - Fixture, 18 page loads per round trip through 1,004 recordings: heap growth per round trip 6.3 MB with the default journal, 1.9 MB with this one (slow-render diagnostics on), 1.0 MB with those off; the rest comes from Foldkit's Model PubSub replay window, not changed here.
+- **Files:**
+  - `examples/words/foldkit/src/entry.ts` — the production journal keeps no transitions
+- **User context (verbatim):**
+  > I never want to have to manually load more things.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 30th, 2026 at 1:59:16 p.m. EDT — `3ff3f97e609f` feat(words): load the recording list by itself as it scrolls, in a window of three pages
 
 - **Implementation commit:** `3ff3f97e609f2d1b7cb6713847580e9b5f72a624`
