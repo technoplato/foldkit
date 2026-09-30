@@ -4,6 +4,7 @@ import {
   Account,
   Capture,
   ClickedCopyRecordingLink,
+  ClickedShareRecordingLink,
   ClickedShowMoreRecordings,
   GotAccountMessage,
   type Message,
@@ -19,9 +20,10 @@ import {
   shortcutKeyOf,
 } from 'words-core-example'
 
+import { ShowRowMenuOnContextMenu } from '../mount.js'
 import { connectCard } from './connect.js'
 import { type IconName, icon } from './icon.js'
-import { largeTitle } from './shell.js'
+import { type ViewConfig, largeTitle } from './shell.js'
 import { type BadgeTone, badge, button, spinner } from './ui.js'
 
 const timeLabel = (startedAtMs: number): string =>
@@ -121,10 +123,91 @@ const ownCaptureOf = (
     M.orElse(() => Option.none()),
   )
 
+const rowMenuItem = (
+  menuID: string,
+  iconName: IconName,
+  label: string,
+  message: Message,
+): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.Popovertarget(menuID),
+      h.Popovertargetaction('hide'),
+      h.OnClick(message),
+      h.Class(
+        'flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-subhead text-label hover:bg-fill',
+      ),
+    ],
+    [icon(iconName, 'size-[18px] text-secondary'), label],
+  )
+}
+
+/**
+ * A row's actions: Copy Link, and Share Link where the browser has the
+ * system share sheet, like the swipe actions in the iPhone's list. The More
+ * button opens it; so does a right-click on the row.
+ */
+const rowMenu = (
+  recording: RecordingSummary,
+  menuID: string,
+  anchorName: string,
+  config: ViewConfig,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return [
+    h.button(
+      [
+        h.Type('button'),
+        h.Popovertarget(menuID),
+        h.AriaLabel(`More Actions for ${recording.title}`),
+        h.Title('More Actions'),
+        h.Style({ anchorName }),
+        h.Class(
+          'absolute right-2 top-1/2 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface text-secondary opacity-0 shadow-sm transition hover:text-label focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 group-has-[:popover-open]:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:shadow-none',
+        ),
+      ],
+      [icon('More', 'size-5')],
+    ),
+    h.div(
+      [
+        h.Id(menuID),
+        h.Popover('auto'),
+        h.AriaLabel(`${recording.title} actions`),
+        h.Style({ positionAnchor: anchorName }),
+        h.Class('menu-popover glass'),
+      ],
+      [
+        rowMenuItem(
+          menuID,
+          'Link',
+          'Copy Link',
+          ClickedCopyRecordingLink({ recordingID: recording.id }),
+        ),
+        ...(config.canShareLinks
+          ? [
+              rowMenuItem(
+                menuID,
+                'Share',
+                'Share Link…',
+                ClickedShareRecordingLink({
+                  recordingID: recording.id,
+                  title: recording.title,
+                }),
+              ),
+            ]
+          : []),
+      ],
+    ),
+  ]
+}
+
 const recordingRow =
-  (model: Model) =>
+  (model: Model, config: ViewConfig) =>
   (recording: RecordingSummary): Html => {
     const h = html<Message>()
+    const menuID = `row-menu-${recording.id}`
     const status = rowStatusOf(recording, ownCaptureOf(model, recording.id))
     const isLive = status.isLive
     const meta = Array.join(
@@ -136,7 +219,11 @@ const recordingRow =
       ' · ',
     )
     return h.li(
-      [h.Key(recording.id), h.Class('group relative flex items-stretch')],
+      [
+        h.Key(recording.id),
+        h.DataAttribute('row-menu', menuID),
+        h.Class('group relative flex items-stretch'),
+      ],
       [
         h.a(
           [
@@ -144,7 +231,7 @@ const recordingRow =
               scribeRouteToPath(RecordingRoute({ recordingID: recording.id })),
             ),
             h.Class(
-              'flex min-w-0 flex-1 gap-3.5 px-4 py-3.5 transition hover:bg-fill/60 focus-visible:-outline-offset-2 active:bg-fill',
+              'flex min-w-0 flex-1 gap-3.5 py-3.5 pl-4 pr-4 transition hover:bg-fill/60 focus-visible:-outline-offset-2 active:bg-fill [@media(hover:none)]:pr-14',
             ),
           ],
           [
@@ -189,23 +276,16 @@ const recordingRow =
               ],
             ),
             h.span(
-              [h.Class('self-center pl-1 text-tertiary')],
+              [
+                h.Class(
+                  'self-center pl-1 text-tertiary group-focus-within:invisible group-hover:invisible group-has-[:popover-open]:invisible [@media(hover:none)]:hidden',
+                ),
+              ],
               [icon('ChevronRight', 'size-4')],
             ),
           ],
         ),
-        h.button(
-          [
-            h.Type('button'),
-            h.AriaLabel(`Copy Link to ${recording.title}`),
-            h.Title('Copy Link to Recording'),
-            h.OnClick(ClickedCopyRecordingLink({ recordingID: recording.id })),
-            h.Class(
-              'absolute right-10 top-2.5 inline-flex size-11 items-center justify-center rounded-full bg-surface text-secondary opacity-0 shadow-sm transition hover:text-tint focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:hidden',
-            ),
-          ],
-          [icon('Link', 'size-4')],
-        ),
+        ...rowMenu(recording, menuID, `--row-${recording.id}`, config),
       ],
     )
   }
@@ -236,7 +316,7 @@ const dayGroupsOf = (
   )
 
 const dayGroupView =
-  (model: Model) =>
+  (model: Model, config: ViewConfig) =>
   (dayGroup: DayGroup): Html => {
     const h = html<Message>()
     return h.section(
@@ -256,7 +336,7 @@ const dayGroupView =
               'card overflow-hidden rounded-[22px] [&>li+li]:border-t [&>li+li]:border-separator',
             ),
           ],
-          Array.map(dayGroup.recordings, recordingRow(model)),
+          Array.map(dayGroup.recordings, recordingRow(model, config)),
         ),
       ],
     )
@@ -447,7 +527,10 @@ const noResults = (query: string): Html => {
   )
 }
 
-const recordingsContent = (model: Model): ReadonlyArray<Html> => {
+const recordingsContent = (
+  model: Model,
+  config: ViewConfig,
+): ReadonlyArray<Html> => {
   const h = html<Message>()
   return M.value(model.recordings).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
@@ -480,7 +563,7 @@ const recordingsContent = (model: Model): ReadonlyArray<Html> => {
               ? [noResults(model.searchQuery)]
               : [h.div([h.Class('pt-6')], [emptyState()])],
           onNonEmpty: nonEmpty =>
-            Array.map(dayGroupsOf(nonEmpty), dayGroupView(model)),
+            Array.map(dayGroupsOf(nonEmpty), dayGroupView(model, config)),
         }),
         ...(Array.length(recordings) >= model.recordingListLimit
           ? [
@@ -495,13 +578,13 @@ const recordingsContent = (model: Model): ReadonlyArray<Html> => {
   )
 }
 
-const bodyOf = (model: Model): ReadonlyArray<Html> =>
+const bodyOf = (model: Model, config: ViewConfig): ReadonlyArray<Html> =>
   M.value(model.account.connection).pipe(
     M.withReturnType<ReadonlyArray<Html>>(),
     M.tagsExhaustive({
       CheckingAccount: () => [skeletonRows()],
       ConnectingAccount: () => [skeletonRows()],
-      ConnectedAccount: () => recordingsContent(model),
+      ConnectedAccount: () => recordingsContent(model, config),
       AwaitingIPhone: ({ access }) => {
         const h = html<Message>()
         return [h.div([h.Class('pt-6')], [connectCard(access)])]
@@ -583,10 +666,13 @@ const subtitleOf = (model: Model): string =>
   )
 
 /** The recording list, newest first by day, live; or the step that signs this browser in. */
-export const recordingList = (model: Model): Html => {
+export const recordingList = (model: Model, config: ViewConfig): Html => {
   const h = html<Message>()
   return h.main(
-    [h.Class('mx-auto flex w-full max-w-3xl flex-col px-4 pb-44 pt-6 sm:px-6')],
+    [
+      h.OnMount(ShowRowMenuOnContextMenu()),
+      h.Class('mx-auto flex w-full max-w-3xl flex-col px-4 pb-44 pt-6 sm:px-6'),
+    ],
     [
       h.div(
         [h.Class('flex flex-col gap-1 px-1')],
@@ -595,7 +681,7 @@ export const recordingList = (model: Model): Html => {
           h.p([h.Class('text-subhead text-secondary')], [subtitleOf(model)]),
         ],
       ),
-      ...bodyOf(model),
+      ...bodyOf(model, config),
     ],
   )
 }

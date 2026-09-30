@@ -13,6 +13,7 @@ import {
   ChangedPlayheadVisibility,
   ClickedWord,
   CompletedRunWallClock,
+  CompletedShowRowMenuOnContextMenu,
   GotShareMessage,
   Share,
 } from 'words-core-example'
@@ -158,6 +159,66 @@ export const TrackWordClicks = Mount.defineStream(
         Effect.sync(() => element.removeEventListener('click', handleClick)),
     ).pipe(Effect.flatMap(() => Effect.never)),
   ),
+)
+
+const ROW_MENU_SELECTOR = '[data-row-menu]'
+
+// NOTE: a right-click fires `contextmenu` while the button is still down on
+// macOS and Linux, and an auto popover shown then is light-dismissed by the
+// pointerup that follows, so the menu opens once the button is released.
+const showPopoverAfterRelease = (menu: HTMLElement, event: Event): void => {
+  const isButtonHeld = event instanceof MouseEvent && event.buttons !== 0
+  if (isButtonHeld) {
+    window.addEventListener(
+      'pointerup',
+      () => window.setTimeout(() => menu.showPopover()),
+      { once: true },
+    )
+  } else {
+    menu.showPopover()
+  }
+}
+
+/**
+ * Opens a recording row's menu when the row is right-clicked, like the
+ * context menu on the Mac's recording list. One listener serves every row;
+ * each row names its menu in `data-row-menu`.
+ */
+export const ShowRowMenuOnContextMenu = Mount.define(
+  'ShowRowMenuOnContextMenu',
+  CompletedShowRowMenuOnContextMenu,
+)(element =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const handleContextMenu = (event: Event) => {
+        const maybeMenu = pipe(
+          Option.fromNullishOr(event.target),
+          Option.filter(
+            (target): target is Element => target instanceof Element,
+          ),
+          Option.flatMap(target =>
+            Option.fromNullishOr(target.closest(ROW_MENU_SELECTOR)),
+          ),
+          Option.flatMap(row =>
+            Option.fromNullishOr(row.getAttribute('data-row-menu')),
+          ),
+          Option.flatMap(menuID =>
+            Option.fromNullishOr(document.getElementById(menuID)),
+          ),
+        )
+        if (Option.isSome(maybeMenu)) {
+          event.preventDefault()
+          showPopoverAfterRelease(maybeMenu.value, event)
+        }
+      }
+      element.addEventListener('contextmenu', handleContextMenu)
+      return handleContextMenu
+    }),
+    handleContextMenu =>
+      Effect.sync(() =>
+        element.removeEventListener('contextmenu', handleContextMenu),
+      ),
+  ).pipe(Effect.as(CompletedShowRowMenuOnContextMenu())),
 )
 
 const WALL_CLOCK_REDUCED_MOTION_INTERVAL_MS = 100

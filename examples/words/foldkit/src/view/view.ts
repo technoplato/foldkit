@@ -131,7 +131,7 @@ const content = (model: Model, config: ViewConfig): Html =>
   M.value(model.route).pipe(
     M.withReturnType<Html>(),
     M.tagsExhaustive({
-      RecordingList: () => recordingList(model),
+      RecordingList: () => recordingList(model, config),
       Account: () => accountPage(model),
       NewRecording: () => newRecordingPage(model),
       Share: () => sharedRangePage(model),
@@ -141,7 +141,7 @@ const content = (model: Model, config: ViewConfig): Html =>
           'The map of your recordings and their routes is next on the web. Open it in Scribe on your iPhone for now.',
           config,
         ),
-      SearchRecordings: () => recordingList(model),
+      SearchRecordings: () => recordingList(model, config),
       NotFound: () =>
         comingToTheWeb('Not Found', 'This is not a Scribe link.', config),
       Recording: () => playbackContent(model, config),

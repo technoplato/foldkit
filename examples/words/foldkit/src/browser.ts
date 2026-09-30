@@ -9,6 +9,8 @@ import {
   type KeyPress,
   type KeyTarget,
   KeyboardInput,
+  LinkShareError,
+  LinkSharer,
   NetworkStatus,
   TranscriptScroller,
   type WordsDatabase,
@@ -71,6 +73,18 @@ const requestOrigin = <A>(
         reason: 'words.knophy.com did not answer within 5 seconds.',
       }),
   }).pipe(Effect.flatMap(({ status, body }) => decode(status, body)))
+
+/** Whether this browser has a system share sheet for links (the Web Share API). */
+export const canShareLinks = typeof navigator.share === 'function'
+
+/** The system share sheet through the Web Share API, where the browser has one. */
+export const browserLinkSharer = Layer.succeed(LinkSharer, {
+  shareLink: ({ url, title }) =>
+    Effect.tryPromise({
+      try: () => navigator.share({ url, title }),
+      catch: cause => new LinkShareError({ cause }),
+    }),
+})
 
 /** Web Scribe's requests to its own origin, with the Cloudflare Access cookie. */
 export const browserOrigin: WordsOriginService = {

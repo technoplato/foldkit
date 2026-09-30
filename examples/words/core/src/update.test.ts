@@ -28,6 +28,7 @@ import {
   ClickedPlay,
   ClickedRetryAudio,
   ClickedReturnToPlayhead,
+  ClickedShareRecordingLink,
   ClickedSkip,
   ClickedSkipToPlayer,
   ClickedWord,
@@ -393,6 +394,24 @@ describe('copying links', () => {
           text: 'Copied link to this moment',
           isFailure: false,
           revision: 1,
+        },
+      },
+    ])
+  })
+
+  it("shares a recording's link through the system share sheet, like Share Link in the iPhone's list", () => {
+    const [, commands] = update(
+      opened(RecordingListRoute()),
+      ClickedShareRecordingLink({ recordingID, title: 'Recording 018' }),
+    )
+    expect(
+      commands.map(command => ({ name: command.name, args: command.args })),
+    ).toEqual([
+      {
+        name: 'ShareRecordingLink',
+        args: {
+          url: `https://words.knophy.com/recording/${recordingID}`,
+          title: 'Recording 018',
         },
       },
     ])

@@ -19,6 +19,7 @@ const accountPath = scribeRouteToPath(AccountRoute())
 /** Host settings the views read. */
 export type ViewConfig = Readonly<{
   appScheme: ScribeAppScheme
+  canShareLinks: boolean
 }>
 
 const brand = (): Html => {

@@ -8,6 +8,7 @@ import {
   ClickedLink,
   type ClipboardWriter,
   type KeyboardInput,
+  type LinkSharer,
   type Message,
   type Model,
   type NetworkStatus,
@@ -27,10 +28,12 @@ import {
   browserCaptureEnvironment,
   browserClipboard,
   browserKeyboardInput,
+  browserLinkSharer,
   browserNetworkStatus,
   browserOrigin,
   browserOriginLayer,
   browserTranscriptScroller,
+  canShareLinks,
   makeWordsDatabase,
 } from './browser.js'
 import { makeManagedResources } from './resources.js'
@@ -43,6 +46,7 @@ const resources = Layer.mergeAll(
   Capture.makeLiveRecordingWriter(database),
   Share.makeLiveShareWriter(database),
   browserClipboard,
+  browserLinkSharer,
   browserOriginLayer,
   browserCaptureEnvironment,
   browserTranscriptScroller,
@@ -67,6 +71,7 @@ const program: Program.Program<
   Message,
   | WordsStore
   | ClipboardWriter
+  | LinkSharer
   | WordsOrigin
   | Capture.RecordingWriter
   | Capture.CaptureEnvironment
@@ -89,7 +94,7 @@ const application = Runtime.makeFoldkitApplication({
     onUrlChange: url => ChangedUrl({ url }),
     onUrlRequest: request => ClickedLink({ request }),
   },
-  view: view({ appScheme }),
+  view: view({ appScheme, canShareLinks }),
 })
 
 Runtime.run(application)

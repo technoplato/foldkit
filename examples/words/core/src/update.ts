@@ -40,6 +40,7 @@ import {
   startSecondsOf,
   urlToScribeRoute,
 } from './link.js'
+import { LinkSharer } from './linkSharer.js'
 import {
   CompletedFocusPlayer,
   CompletedFocusSearch,
@@ -50,6 +51,7 @@ import {
   CompletedPublishNowPlaying,
   CompletedScrollToSection,
   CompletedSeekAudio,
+  CompletedShareRecordingLink,
   ConfirmedMissingRecording,
   ConfirmedRecordingExists,
   ElapsedAnnouncementPause,
@@ -110,6 +112,7 @@ const ANNOUNCEMENT_PAUSE = Duration.seconds(5)
 type Services =
   | WordsStore
   | ClipboardWriter
+  | LinkSharer
   | WordsOrigin
   | Capture.RecordingWriter
   | Capture.CaptureEnvironment
@@ -298,6 +301,22 @@ export const CopyText = Command.define(
     Effect.catch(() =>
       Effect.succeed(FailedCopy({ notice: failedNotice(notice) })),
     ),
+  ),
+)
+
+/**
+ * Opens the system share sheet with a recording's link. Closing the sheet
+ * without sharing is not a failure, so every outcome completes quietly.
+ */
+export const ShareRecordingLink = Command.define(
+  'ShareRecordingLink',
+  { url: S.String, title: S.String },
+  CompletedShareRecordingLink,
+)(({ url, title }) =>
+  LinkSharer.pipe(
+    Effect.flatMap(sharer => sharer.shareLink({ url, title })),
+    Effect.catch(() => Effect.void),
+    Effect.as(CompletedShareRecordingLink()),
   ),
 )
 
@@ -1760,6 +1779,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ClickedExitFullScreen: () =>
         updateReady(model, ready => withScreenMode(ready, 'Standard')),
       CompletedRunWallClock: () => [model, []],
+      CompletedShowRowMenuOnContextMenu: () => [model, []],
       ElapsedFocusHighlight: ({ revision }) =>
         evolveReady(model, ready =>
           ready.focusRevision === revision
@@ -1773,6 +1793,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
           scribeRouteToShareUrl(RecordingRoute({ recordingID })),
           'Copied link to recording',
         ),
+      ClickedShareRecordingLink: ({ recordingID, title }) => [
+        model,
+        [
+          ShareRecordingLink({
+            url: scribeRouteToShareUrl(RecordingRoute({ recordingID })),
+            title,
+          }),
+        ],
+      ],
+      CompletedShareRecordingLink: () => [model, []],
       ClickedCopySectionLink: ({ sectionID }) =>
         copyFromReady(model, ready =>
           Option.map(sectionNamed(ready, sectionID), section => [

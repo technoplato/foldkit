@@ -162,6 +162,10 @@ export const ClickedEnterFullScreen = m('ClickedEnterFullScreen')
 export const ClickedExitFullScreen = m('ClickedExitFullScreen')
 /** The full-screen wall clock started ticking. */
 export const CompletedRunWallClock = m('CompletedRunWallClock')
+/** Right-clicking a recording row opens its menu from now on. */
+export const CompletedShowRowMenuOnContextMenu = m(
+  'CompletedShowRowMenuOnContextMenu',
+)
 /** The listener chose Skip to Player from the keyboard. */
 export const ClickedSkipToPlayer = m('ClickedSkipToPlayer')
 /** Focus moved to the player. */
@@ -185,6 +189,13 @@ export const ElapsedFocusHighlight = m('ElapsedFocusHighlight', {
 export const ClickedCopyRecordingLink = m('ClickedCopyRecordingLink', {
   recordingID: S.String,
 })
+/** The listener asked to share a recording's link through the system share sheet. */
+export const ClickedShareRecordingLink = m('ClickedShareRecordingLink', {
+  recordingID: S.String,
+  title: S.String,
+})
+/** The system share sheet closed, shared or not. */
+export const CompletedShareRecordingLink = m('CompletedShareRecordingLink')
 /** The listener copied a link to a transcript section. */
 export const ClickedCopySectionLink = m('ClickedCopySectionLink', {
   sectionID: S.String,
@@ -275,11 +286,14 @@ export const Message = S.Union([
   ClickedEnterFullScreen,
   ClickedExitFullScreen,
   CompletedRunWallClock,
+  CompletedShowRowMenuOnContextMenu,
   PressedShortcut,
   ElapsedAnnouncementPause,
   ChangedConnectivity,
   ElapsedFocusHighlight,
   ClickedCopyRecordingLink,
+  ClickedShareRecordingLink,
+  CompletedShareRecordingLink,
   ClickedCopySectionLink,
   ClickedCopyMomentLink,
   ClickedCopySectionText,

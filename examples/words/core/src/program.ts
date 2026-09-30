@@ -9,6 +9,7 @@ import type {
 import type { ClipboardWriter } from './clipboard.js'
 import type { KeyboardInput } from './keyboard.js'
 import { RecordingListRoute } from './link.js'
+import type { LinkSharer } from './linkSharer.js'
 import { Message } from './message.js'
 import { Model } from './model.js'
 import type { NetworkStatus } from './network.js'
@@ -22,6 +23,7 @@ import { modelForRoute, startupCommands, update } from './update.js'
 type WordsResources =
   | WordsStore
   | ClipboardWriter
+  | LinkSharer
   | WordsOrigin
   | RecordingWriter
   | CaptureEnvironment
