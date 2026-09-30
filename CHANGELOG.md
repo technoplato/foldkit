@@ -624,7 +624,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/words/core/src/search.test.ts` — summary field
 - **User context (verbatim):**
   > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
-- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
 
 ## September 29th, 2026 at 10:54:54 p.m. EDT — `b03f1ad0dcc0` feat(words): keep the search in the address bar and open a match at its line
 
@@ -652,7 +652,7 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/words/core/src/transcript.test.ts` — preview line decode
 - **User context (verbatim):**
   > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
-- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
 
 ## September 29th, 2026 at 10:30:35 p.m. EDT — `da45629315bd` fix(words): one moment link, clearer names, fewer text sizes, no empty landmark
 
