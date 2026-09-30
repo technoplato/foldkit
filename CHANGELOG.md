@@ -602,6 +602,34 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 10:54:54 p.m. EDT — `b03f1ad0dcc0` feat(words): keep the search in the address bar and open a match at its line
+
+- **Implementation commit:** `b03f1ad0dcc03b45c70e1005dfe839277d940477`
+- **Change:** Keep the search in the address bar and open a match at its line (#289 W42, web part).
+- **Details:**
+  - Typing on the list replaces the address with /recordings/search?q= after a 400 ms pause, one history entry; a cold load of a search link fills the field; the catch-up never overwrites newer typing; a sidebar search beside an open recording stays out of the address bar.
+  - A result whose preview line holds every word links to that section a second early; matching words are highlighted in the title and preview lines.
+  - Searching every transcript line needs a production index on transcriptionSegments.text (listed for Michael's decision).
+- **Files:**
+  - `examples/words/core/src/link.ts` — SearchRecordingsRoute q, isListRoute
+  - `examples/words/core/src/update.ts` — ReplaceUrl, WaitForSearchPause, search route handling
+  - `examples/words/core/src/search.ts` — matchedPreviewLineOf, textPartsOf
+  - `examples/words/core/src/recording.ts` — PreviewLine
+  - `examples/words/core/src/decode.ts` — preview lines with section and start
+  - `examples/words/core/src/message.ts` — ElapsedSearchPause, CompletedReplaceUrl
+  - `examples/words/core/src/program.ts` — version 5
+  - `examples/words/foldkit/src/view/list.ts` — match link and highlight
+  - `examples/words/foldkit/src/view/shell.ts` — search page top bar
+  - `examples/words/foldkit/src/view/view.ts` — shared list route check
+  - `examples/words/core/src/update.test.ts` — search address bar tests
+  - `examples/words/core/src/search.test.ts` — match and highlight tests
+  - `examples/words/core/src/link.test.ts` — search link tests
+  - `examples/words/core/src/coldLoad.test.ts` — cold load of a search link
+  - `examples/words/core/src/transcript.test.ts` — preview line decode
+- **User context (verbatim):**
+  > For the audit agent, I want to set a goal score of 9.5 out of 10 for design quality.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 10:30:35 p.m. EDT — `da45629315bd` fix(words): one moment link, clearer names, fewer text sizes, no empty landmark
 
 - **Implementation commit:** `da45629315bd03f0ad688ea832853561bb5b21ff`
