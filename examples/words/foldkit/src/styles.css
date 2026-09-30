@@ -81,7 +81,7 @@
     --label-tertiary: rgb(235 235 245 / 0.46);
     --separator: rgb(84 84 88 / 0.6);
     --accent: #ff453a;
-    --accent-strong: #ff6961;
+    --accent-strong: #ff8a80;
     --accent-fill: #d70015;
     --accent-soft: rgb(255 69 58 / 0.2);
     --tint: #4da3ff;
@@ -118,7 +118,7 @@
     --label-tertiary: rgb(235 235 245 / 0.7);
     --separator: rgb(235 235 245 / 0.4);
     --tint: #79b8ff;
-    --accent-strong: #ff8a80;
+    --accent-strong: #ffa198;
     --positive: #4ee07a;
     --caution: #ffb340;
   }

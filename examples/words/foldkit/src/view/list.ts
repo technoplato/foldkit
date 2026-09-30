@@ -2,6 +2,7 @@ import { Array, Match as M, Option, Order } from 'effect'
 import { type Html, html } from 'foldkit/html'
 import {
   Account,
+  Capture,
   ClickedCopyRecordingLink,
   ClickedShowMoreRecordings,
   GotAccountMessage,
@@ -21,7 +22,7 @@ import {
 import { connectCard } from './connect.js'
 import { type IconName, icon } from './icon.js'
 import { largeTitle } from './shell.js'
-import { badge, button, spinner } from './ui.js'
+import { type BadgeTone, badge, button, spinner } from './ui.js'
 
 const timeLabel = (startedAtMs: number): string =>
   new Date(startedAtMs).toLocaleTimeString(undefined, { timeStyle: 'short' })
@@ -60,88 +61,154 @@ const deviceNameOf = (recording: RecordingSummary): Option.Option<string> =>
     ),
   )
 
-const recordingRow = (recording: RecordingSummary): Html => {
-  const h = html<Message>()
-  const isLive = recording.activity === 'Recording'
-  const meta = Array.join(
-    [
-      timeLabel(recording.startedAtMs),
-      formatClock(recording.durationSeconds),
-      ...Option.toArray(deviceNameOf(recording)),
-    ],
-    ' · ',
+type Capturing = typeof Capture.Model.Capturing.Type
+
+type RowStatus = Readonly<{
+  maybeBadge: Option.Option<Readonly<{ tone: BadgeTone; text: string }>>
+  durationSeconds: number
+  isLive: boolean
+}>
+
+/**
+ * What a row says about its recording. This browser's own recording takes the
+ * recorder's phase and running time, so the row says Paused when the bar
+ * does; other rows take the recording's saved activity and length.
+ */
+const rowStatusOf = (
+  recording: RecordingSummary,
+  maybeOwnCapture: Option.Option<Capturing>,
+): RowStatus =>
+  Option.match(maybeOwnCapture, {
+    onSome: capturing => ({
+      maybeBadge: Option.some(
+        capturing.transport === 'Paused'
+          ? { tone: 'Paused', text: 'Paused' }
+          : { tone: 'Recording', text: 'Recording' },
+      ),
+      durationSeconds: capturing.recordedSeconds,
+      isLive: true,
+    }),
+    onNone: () => ({
+      maybeBadge: M.value(recording.activity).pipe(
+        M.withReturnType<
+          Option.Option<Readonly<{ tone: BadgeTone; text: string }>>
+        >(),
+        M.when('Recording', () =>
+          Option.some({ tone: 'Recording', text: 'Recording' }),
+        ),
+        M.when('Playing', () =>
+          Option.some({ tone: 'Playing', text: 'Playing' }),
+        ),
+        M.when('Idle', () => Option.none()),
+        M.exhaustive,
+      ),
+      durationSeconds: recording.durationSeconds,
+      isLive: recording.activity === 'Recording',
+    }),
+  })
+
+const ownCaptureOf = (
+  model: Model,
+  recordingID: string,
+): Option.Option<Capturing> =>
+  M.value(model.capture.state).pipe(
+    M.withReturnType<Option.Option<Capturing>>(),
+    M.tag('Capturing', capturing =>
+      capturing.draft.recordingID === recordingID
+        ? Option.some(capturing)
+        : Option.none(),
+    ),
+    M.orElse(() => Option.none()),
   )
-  return h.li(
-    [h.Key(recording.id), h.Class('group relative flex items-stretch')],
-    [
-      h.a(
-        [
-          h.Href(
-            scribeRouteToPath(RecordingRoute({ recordingID: recording.id })),
-          ),
-          h.Class(
-            'flex min-w-0 flex-1 gap-3.5 px-4 py-3.5 transition hover:bg-fill/60 focus-visible:-outline-offset-2 active:bg-fill',
-          ),
-        ],
-        [
-          h.span(
-            [
-              h.Class(
-                `mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-[11px] ${isLive ? 'bg-accent-fill text-white' : 'bg-fill text-secondary'}`,
-              ),
-            ],
-            [icon(deviceIconOf(recording), 'size-[18px]')],
-          ),
-          h.span(
-            [h.Class('flex min-w-0 flex-1 flex-col gap-0.5')],
-            [
-              h.span(
-                [h.Class('flex flex-wrap items-center gap-x-2 gap-y-1')],
-                [
-                  h.span(
-                    [
-                      h.Class(
-                        'line-clamp-2 text-body font-semibold tracking-tight text-label',
-                      ),
-                    ],
-                    [recording.title],
-                  ),
-                  ...(isLive ? [badge('Recording', 'Recording')] : []),
-                  ...(recording.activity === 'Playing'
-                    ? [badge('Playing', 'Playing')]
-                    : []),
-                ],
-              ),
-              h.span([h.Class('tabular text-footnote text-secondary')], [meta]),
-              ...Array.map(Array.take(recording.previewLines, 2), line =>
-                h.span(
-                  [h.Class('line-clamp-1 text-subhead text-secondary')],
-                  [line],
+
+const recordingRow =
+  (model: Model) =>
+  (recording: RecordingSummary): Html => {
+    const h = html<Message>()
+    const status = rowStatusOf(recording, ownCaptureOf(model, recording.id))
+    const isLive = status.isLive
+    const meta = Array.join(
+      [
+        timeLabel(recording.startedAtMs),
+        formatClock(status.durationSeconds),
+        ...Option.toArray(deviceNameOf(recording)),
+      ],
+      ' · ',
+    )
+    return h.li(
+      [h.Key(recording.id), h.Class('group relative flex items-stretch')],
+      [
+        h.a(
+          [
+            h.Href(
+              scribeRouteToPath(RecordingRoute({ recordingID: recording.id })),
+            ),
+            h.Class(
+              'flex min-w-0 flex-1 gap-3.5 px-4 py-3.5 transition hover:bg-fill/60 focus-visible:-outline-offset-2 active:bg-fill',
+            ),
+          ],
+          [
+            h.span(
+              [
+                h.Class(
+                  `mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-[11px] ${isLive ? 'bg-accent-fill text-white' : 'bg-fill text-secondary'}`,
                 ),
-              ),
-            ],
-          ),
-          h.span(
-            [h.Class('self-center pl-1 text-tertiary')],
-            [icon('ChevronRight', 'size-4')],
-          ),
-        ],
-      ),
-      h.button(
-        [
-          h.Type('button'),
-          h.AriaLabel(`Copy Link to ${recording.title}`),
-          h.Title('Copy Link to Recording'),
-          h.OnClick(ClickedCopyRecordingLink({ recordingID: recording.id })),
-          h.Class(
-            'absolute right-10 top-2.5 inline-flex size-11 items-center justify-center rounded-full bg-surface text-secondary opacity-0 shadow-sm transition hover:text-tint focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:hidden',
-          ),
-        ],
-        [icon('Link', 'size-4')],
-      ),
-    ],
-  )
-}
+              ],
+              [icon(deviceIconOf(recording), 'size-[18px]')],
+            ),
+            h.span(
+              [h.Class('flex min-w-0 flex-1 flex-col gap-0.5')],
+              [
+                h.span(
+                  [h.Class('flex flex-wrap items-center gap-x-2 gap-y-1')],
+                  [
+                    h.span(
+                      [
+                        h.Class(
+                          'line-clamp-2 text-body font-semibold tracking-tight text-label',
+                        ),
+                      ],
+                      [recording.title],
+                    ),
+                    ...Option.match(status.maybeBadge, {
+                      onNone: () => [],
+                      onSome: ({ tone, text }) => [badge(tone, text)],
+                    }),
+                  ],
+                ),
+                h.span(
+                  [h.Class('tabular text-footnote text-secondary')],
+                  [meta],
+                ),
+                ...Array.map(Array.take(recording.previewLines, 2), line =>
+                  h.span(
+                    [h.Class('line-clamp-1 text-subhead text-secondary')],
+                    [line],
+                  ),
+                ),
+              ],
+            ),
+            h.span(
+              [h.Class('self-center pl-1 text-tertiary')],
+              [icon('ChevronRight', 'size-4')],
+            ),
+          ],
+        ),
+        h.button(
+          [
+            h.Type('button'),
+            h.AriaLabel(`Copy Link to ${recording.title}`),
+            h.Title('Copy Link to Recording'),
+            h.OnClick(ClickedCopyRecordingLink({ recordingID: recording.id })),
+            h.Class(
+              'absolute right-10 top-2.5 inline-flex size-11 items-center justify-center rounded-full bg-surface text-secondary opacity-0 shadow-sm transition hover:text-tint focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:hidden',
+            ),
+          ],
+          [icon('Link', 'size-4')],
+        ),
+      ],
+    )
+  }
 
 type DayGroup = Readonly<{
   label: string
@@ -168,26 +235,32 @@ const dayGroupsOf = (
     }),
   )
 
-const dayGroupView = (dayGroup: DayGroup): Html => {
-  const h = html<Message>()
-  return h.section(
-    [h.Key(dayGroup.label), h.Class('flex flex-col')],
-    [
-      h.h2(
-        [h.Class('px-4 pb-2 pt-6 text-footnote font-semibold text-secondary')],
-        [dayGroup.label],
-      ),
-      h.ul(
-        [
-          h.Class(
-            'card overflow-hidden rounded-[22px] [&>li+li]:border-t [&>li+li]:border-separator',
-          ),
-        ],
-        Array.map(dayGroup.recordings, recordingRow),
-      ),
-    ],
-  )
-}
+const dayGroupView =
+  (model: Model) =>
+  (dayGroup: DayGroup): Html => {
+    const h = html<Message>()
+    return h.section(
+      [h.Key(dayGroup.label), h.Class('flex flex-col')],
+      [
+        h.h2(
+          [
+            h.Class(
+              'px-4 pb-2 pt-6 text-footnote font-semibold text-secondary',
+            ),
+          ],
+          [dayGroup.label],
+        ),
+        h.ul(
+          [
+            h.Class(
+              'card overflow-hidden rounded-[22px] [&>li+li]:border-t [&>li+li]:border-separator',
+            ),
+          ],
+          Array.map(dayGroup.recordings, recordingRow(model)),
+        ),
+      ],
+    )
+  }
 
 const emptyState = (): Html => {
   const h = html<Message>()
@@ -407,7 +480,7 @@ const recordingsContent = (model: Model): ReadonlyArray<Html> => {
               ? [noResults(model.searchQuery)]
               : [h.div([h.Class('pt-6')], [emptyState()])],
           onNonEmpty: nonEmpty =>
-            Array.map(dayGroupsOf(nonEmpty), dayGroupView),
+            Array.map(dayGroupsOf(nonEmpty), dayGroupView(model)),
         }),
         ...(Array.length(recordings) >= model.recordingListLimit
           ? [

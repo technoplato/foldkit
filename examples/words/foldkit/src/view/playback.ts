@@ -26,6 +26,7 @@ import {
   formatClock,
   isLiveRecording,
   isReturnShownOf,
+  playbackPhaseOf,
   shortcutKeyOf,
 } from 'words-core-example'
 
@@ -33,7 +34,7 @@ import { RunWallClock } from '../mount.js'
 import { type IconName, type SkipDirection, icon, skipIcon } from './icon.js'
 import type { ViewConfig } from './shell.js'
 import { transcript } from './transcript.js'
-import { type BadgeTone, badge, button, compactButton } from './ui.js'
+import { badge, button, compactButton, quietIconButton } from './ui.js'
 
 const COPY_MENU_ID = 'copy-transcript-menu'
 const COPY_MENU_ANCHOR = '--copy-transcript'
@@ -113,37 +114,12 @@ const shareRangeOf = (ready: ReadyPlayback): readonly [number, number] => {
   ]
 }
 
-type Phase = Readonly<{ tone: BadgeTone; text: string }>
-
-const phaseOf = (model: Model, ready: ReadyPlayback): Option.Option<Phase> => {
-  if (!isLiveRecording(ready)) {
-    return ready.transport === 'Playing'
-      ? Option.some({ tone: 'Playing', text: 'Playing' })
-      : Option.none()
-  } else {
-    return M.value(model.capture.state).pipe(
-      M.withReturnType<Option.Option<Phase>>(),
-      M.tag('Capturing', capturing =>
-        capturing.draft.recordingID === ready.recordingID &&
-        capturing.transport === 'Paused'
-          ? Option.some({ tone: 'Paused', text: 'Paused' })
-          : Option.some({ tone: 'Recording', text: 'Recording' }),
-      ),
-      M.orElse(() => Option.some({ tone: 'Recording', text: 'Recording' })),
-    )
-  }
-}
-
 const metaLineOf = (ready: ReadyPlayback): string =>
   isLiveRecording(ready)
     ? `Started ${startedLabel(ready.detail.summary.startedAtMs)}`
     : `${startedLabel(ready.detail.summary.startedAtMs)} · ${formatClock(Math.max(ready.detail.summary.durationSeconds, durationOf(ready)))}`
 
-const recordingHeader = (
-  model: Model,
-  ready: ReadyPlayback,
-  config: ViewConfig,
-): Html => {
+const recordingHeader = (ready: ReadyPlayback, config: ViewConfig): Html => {
   const h = html<Message>()
   const summary = ready.detail.summary
   const [rangeStartIndex, rangeEndIndex] = shareRangeOf(ready)
@@ -166,9 +142,9 @@ const recordingHeader = (
             ],
             [summary.title],
           ),
-          ...Option.match(phaseOf(model, ready), {
+          ...Option.match(playbackPhaseOf(ready), {
             onNone: () => [],
-            onSome: phase => [badge(phase.tone, phase.text)],
+            onSome: phase => [badge(phase, phase)],
           }),
         ],
       ),
@@ -213,17 +189,15 @@ const recordingHeader = (
             'Link',
           ),
           ...copyMenu(),
-          compactButton(
+          quietIconButton(
             'Open in Scribe',
-            ClickedOpenInApp({ scheme: config.appScheme }),
-            'Plain',
             'External',
+            ClickedOpenInApp({ scheme: config.appScheme }),
           ),
-          compactButton(
+          quietIconButton(
             'Full Screen',
-            ClickedEnterFullScreen(),
-            'Plain',
             'Expand',
+            ClickedEnterFullScreen(),
             Option.some(shortcutKeyOf('ToggleFullScreen')),
           ),
         ],
@@ -436,10 +410,10 @@ const transportBar = (ready: ReadyPlayback): Html => {
                   h.AriaKeyshortcuts(playKey),
                   h.OnClick(isPlaying ? ClickedPause() : ClickedPlay()),
                   h.Class(
-                    'inline-flex size-12 items-center justify-center rounded-full bg-label text-canvas transition active:scale-95',
+                    'inline-flex size-12 items-center justify-center rounded-full text-label transition hover:bg-fill active:scale-95',
                   ),
                 ],
-                [icon(isPlaying ? 'Pause' : 'Play', 'size-6')],
+                [icon(isPlaying ? 'Pause' : 'Play', 'size-8')],
               ),
               skipButton(
                 `Forward ${SKIP_SECONDS} Seconds`,
@@ -632,7 +606,7 @@ export const recordingPage = (
             [h.Id('recording-title'), h.Class('sr-only')],
             [ready.detail.summary.title],
           )
-        : recordingHeader(model, ready, config),
+        : recordingHeader(ready, config),
       ...transcriptionNoticeOf(model, ready),
       transcript(ready, isTranscribingOf(model, ready), isFullScreen),
       h.div(

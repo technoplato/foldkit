@@ -12,6 +12,7 @@ import {
   displayedPlaybackOf,
   isOwnRecordingOf,
   isRecordAvailableOf,
+  playbackPhaseOf,
 } from 'words-core-example'
 
 import { accountPage } from './account.js'
@@ -32,15 +33,21 @@ const capturePhaseOf = (
   capturing: typeof Capture.Model.Capturing.Type,
 ): string => (capturing.transport === 'Paused' ? 'Paused' : 'Recording')
 
+const playbackPrefixOf = (ready: ReadyPlayback): string =>
+  Option.match(playbackPhaseOf(ready), {
+    onNone: () => '',
+    onSome: phase => `${phase} | `,
+  })
+
 const phasePrefixOf = (model: Model, ready: ReadyPlayback): string =>
   M.value(model.capture.state).pipe(
     M.withReturnType<string>(),
     M.tag('Capturing', capturing =>
       capturing.draft.recordingID === ready.recordingID
         ? `${capturePhaseOf(capturing)} | `
-        : '',
+        : playbackPrefixOf(ready),
     ),
-    M.orElse(() => (ready.transport === 'Playing' ? 'Playing | ' : '')),
+    M.orElse(() => playbackPrefixOf(ready)),
   )
 
 const titleOf = (model: Model): string =>

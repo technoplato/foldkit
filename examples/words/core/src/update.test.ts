@@ -35,6 +35,8 @@ import {
   ElapsedAnnouncementPause,
   ElapsedFocusHighlight,
   EndedScrub,
+  HeardAudioEnded,
+  HeardAudioPaused,
   HeardAudioPlaying,
   HeardAudioPosition,
   HeardMediaSessionAction,
@@ -63,6 +65,7 @@ import {
   isLiveRecording,
   isReturnShownOf,
   modelForRoute,
+  playbackPhaseOf,
   shortcutContextOf,
   update,
 } from './update.js'
@@ -306,6 +309,36 @@ describe('playing', () => {
     expect(
       readyOf(run(detached, [ClickedReturnToPlayhead()]).model).follow,
     ).toBe('Following')
+  })
+
+  it('shows Playing while audio plays and Paused only when it stopped part way through', () => {
+    const phaseAt = (model: Model) => playbackPhaseOf(readyOf(model))
+    const playing = run(ready, [ClickedPlay(), HeardAudioPlaying()]).model
+    const pausedPartWay = run(playing, [
+      HeardAudioPosition({ seconds: 12 }),
+      HeardAudioPaused(),
+    ]).model
+    const ended = run(pausedPartWay, [
+      HeardAudioPosition({ seconds: 60 }),
+      HeardAudioEnded(),
+    ]).model
+
+    expect(phaseAt(ready)).toEqual(Option.none())
+    expect(phaseAt(playing)).toEqual(Option.some('Playing'))
+    expect(phaseAt(pausedPartWay)).toEqual(Option.some('Paused'))
+    expect(phaseAt(ended)).toEqual(Option.none())
+  })
+
+  it('shows no playback phase for a recording still in progress', () => {
+    const live = run(opened(RecordingRoute({ recordingID })), [
+      observed(
+        detail({
+          summary: { ...detail().summary, activity: 'Recording' },
+          audio: UploadingAudio({ byteCount: 0 }),
+        }),
+      ),
+    ]).model
+    expect(playbackPhaseOf(readyOf(live))).toEqual(Option.none())
   })
 
   it('plays only once the audio player is ready', () => {

@@ -103,6 +103,38 @@ export const compactButton = (
   )
 }
 
+/**
+ * A 44 point round button in the label color that shows only its icon, for
+ * secondary actions beside tinted ones; `label` names it and shows as its
+ * tooltip, with the shortcut when it has one.
+ */
+export const quietIconButton = (
+  label: string,
+  name: IconName,
+  message: Message,
+  maybeKey: Option.Option<string> = Option.none(),
+): Html => {
+  const h = html<Message>()
+  return h.button(
+    [
+      h.Type('button'),
+      h.OnClick(message),
+      h.AriaLabel(label),
+      h.Title(
+        Option.match(maybeKey, {
+          onNone: () => label,
+          onSome: key => `${label} (${key})`,
+        }),
+      ),
+      ...Option.toArray(Option.map(maybeKey, key => h.AriaKeyshortcuts(key))),
+      h.Class(
+        'inline-flex size-11 shrink-0 items-center justify-center rounded-full text-label transition duration-150 hover:bg-fill active:scale-95',
+      ),
+    ],
+    [icon(name, 'size-5')],
+  )
+}
+
 /** A 44 point round button that shows only an icon; `label` names it for assistive technology. */
 export const iconButton = (
   label: string,
@@ -305,7 +337,7 @@ export const avatar = (
     [
       h.AriaHidden(true),
       h.Class(
-        `inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#ff8a65] to-[#ff3b30] font-semibold text-white ${className}`,
+        `inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#d32f2f] to-[#b71c1c] font-semibold text-white ${className}`,
       ),
     ],
     [initialsOf(email)],

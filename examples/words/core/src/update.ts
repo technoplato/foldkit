@@ -80,6 +80,7 @@ import {
   NotScrubbing,
   OpeningPlayback,
   PausingAnnouncements,
+  type PlaybackPhase,
   type PlaybackRequest,
   type PlaybackState,
   ReadyPlayback,
@@ -365,6 +366,34 @@ const detailDurationOf = (detail: RecordingDetail): number =>
       () => 0,
     ),
   )
+
+const END_OF_AUDIO_TOLERANCE_SECONDS = 0.5
+
+/**
+ * The phase a playback shows beside its title and in the tab title, in the
+ * words the iPhone uses: Playing while audio plays, and Paused when it stopped
+ * part way through. A playback at rest (not started, or played to the end)
+ * and a recording still in progress show none; the recording bar shows a
+ * live recording's phase.
+ */
+export const playbackPhaseOf = (
+  ready: ReadyPlayback,
+): Option.Option<PlaybackPhase> => {
+  const position = displayedPositionOf(ready)
+  if (isLiveRecording(ready)) {
+    return Option.none()
+  } else if (ready.transport === 'Playing') {
+    return Option.some('Playing')
+  } else if (
+    isAudioPlayerReady(ready) &&
+    position > 0 &&
+    position < durationOf(ready) - END_OF_AUDIO_TOLERANCE_SECONDS
+  ) {
+    return Option.some('Paused')
+  } else {
+    return Option.none()
+  }
+}
 
 /** The recording's length: the audio's once it is known, else the transcript's. */
 export const durationOf = (ready: ReadyPlayback): number =>

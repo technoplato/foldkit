@@ -47,6 +47,11 @@ export const Transport = S.Literals(['Paused', 'Playing'])
 /** Whether the listener has audio playing. */
 export type Transport = typeof Transport.Type
 
+/** The phase a playback shows: Playing, or Paused part way through. */
+export const PlaybackPhase = S.Literals(['Playing', 'Paused'])
+/** The phase a playback shows. */
+export type PlaybackPhase = typeof PlaybackPhase.Type
+
 /**
  * `Following` keeps the playhead (or, while recording, the newest line) on
  * screen. `Detached` means the listener scrolled away; once the followed

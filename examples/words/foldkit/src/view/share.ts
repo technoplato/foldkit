@@ -121,10 +121,10 @@ const suggestions = (
                   ),
                 ),
                 h.Class(
-                  'inline-flex min-h-11 items-center gap-1.5 rounded-full bg-tint-soft px-3.5 text-footnote font-medium text-tint transition hover:brightness-95',
+                  'inline-flex min-h-11 items-center gap-1.5 rounded-full bg-tint-soft px-3.5 text-footnote font-medium text-label transition hover:brightness-95',
                 ),
               ],
-              [icon('Person', 'size-3.5'), recipient.email],
+              [icon('Person', 'size-3.5 text-tint'), recipient.email],
             ),
           ),
         ),
