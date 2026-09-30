@@ -602,6 +602,30 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## September 29th, 2026 at 8:40:17 p.m. EDT — `fdbebcd98e15` fix(words): confirm an empty share answer, and know sharing's state before saying it
+
+- **Implementation commit:** `fdbebcd98e1593e74bf9e41777e6ae7e3d792543`
+- **Change:** Confirm an empty share answer, and know sharing's state before saying it (#282 #289 W48, W24).
+- **Details:**
+  - Found by the production check with sharing on: a recipient's cold load of a share link went Opening (146 ms), This share is not available (731 ms), the share (1016 ms); the restarted query first answered from what the browser read before signing in.
+  - ConfirmSharedRange asks the server (queryOnce with ruleParams k) before an opening share is called missing; answers for another viewer are ignored; WordsStore gains hasSharedRange.
+  - Settings read sharing as waiting for approval until the access check answered; the account Model's maybeFeatures is None until then, Settings says Checking with words.knophy.com, and share writes and share queries wait for Enabled.
+- **Files:**
+  - `examples/words/core/src/share/update.ts` — ConfirmSharedRange before a share is called missing; stale answers ignored
+  - `examples/words/core/src/share/message.ts` — ConfirmedMissingSharedRange and ConfirmedSharedRangeExists
+  - `examples/words/core/src/store.ts` — hasSharedRange, a server check with the link token
+  - `examples/words/core/src/account/model.ts` — maybeFeatures, maybeSharingOf, isSharingEnabled
+  - `examples/words/core/src/account/update.ts` — the access check answer sets the features
+  - `examples/words/core/src/subscription.ts` — share queries wait for sharing to be on
+  - `examples/words/core/src/update.ts` — the share context reads the optional features
+  - `examples/words/foldkit/src/view/account.ts` — Settings sharing row says checking until the origin answers
+  - `examples/words/foldkit/src/view/share.ts` — the approval notice shows only when the origin says sharing waits
+  - `examples/words/core/src/share/share.test.ts` — confirm, stale answer, and revoke tests
+  - `examples/words/core/src/coldLoad.test.ts` — the share link cold load follows the production sequence
+- **User context (verbatim):**
+  > Uh permission push, I approve.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 29th, 2026 at 8:22:54 p.m. EDT — `b0f4fd5052f7` fix(words): vendor the Scribe schema that production runs
 
 - **Implementation commit:** `b0f4fd5052f7e984b06d8fe53d7471a0e32d78cd`
