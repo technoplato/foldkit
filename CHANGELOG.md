@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 1st, 2026 at 5:42:47 p.m. EDT — `69161aecd9b2` feat: type domain hooks from the Program and stop over-rendering
+
+- **Implementation commit:** `69161aecd9b2dd21eeb91279c2214c37be2b5325`
+- **Change:** Type domain hooks from the Program and stop over-rendering.
+- **Details:**
+  - useModel, useActions, and useFeature are typed from the Program, Program.make and the combinators keep the exact Catalog type, and one selector hook keeps previous references while selections are structurally equal, so menu moves do not re-render the count, the Actions, or the Screen.
+- **Files:**
+  - `packages/react/src/interaction/interaction.tsx` — Add typed domain hooks and structurally stable selections.
+  - `packages/foldkit/src/program/program.ts` — Keep the exact Catalog type through Program.make.
+  - `packages/foldkit/src/catalog/catalog.ts` — Name the Catalog a composed Program carries.
+  - `packages/foldkit/src/interaction/bind.ts` — Carry the bound Program id for typed hooks.
+- **User context (verbatim):**
+  > So you can have a mention of and use actions and use model or use feature which would have actions and model. And let's also make sure we have referential integrity so we don't over-render.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## September 28th, 2026 at 1:42:42 p.m. EDT — `20afa1a5f283` feat: add React Native, Svelte, and OpenTUI adapter packages
 
 - **Implementation commit:** `20afa1a5f2833a7e3f96b5825ca3953b3d5c0a6b`
