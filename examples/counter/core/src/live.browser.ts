@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { Runtime, type Synchronization } from 'foldkit'
+import { Runtime } from 'foldkit'
 
 import { FoldkitCounterV01, Instant } from '@foldkit/instant/browser'
 
@@ -58,15 +58,8 @@ const engineFor = (config: StartCounterConfig): Runtime.SyncEngine => {
  * ```
  */
 export const startCounter = (config: StartCounterConfig): CounterHandle =>
-  startCounterOn(engineFor(config), config.policy)
+  startCounterOn(engineFor(config))
 
 /** Starts the synced Counter on an engine the caller built. */
-export const startCounterOn = (
-  sync: Runtime.SyncEngine,
-  policy?: Synchronization.SessionPolicy,
-): CounterHandle =>
-  Runtime.startHandle({
-    program: SyncedCounter,
-    sync,
-    ...(policy === undefined ? {} : { policy }),
-  })
+export const startCounterOn = (sync: Runtime.SyncEngine): CounterHandle =>
+  Runtime.startHandle({ program: SyncedCounter, sync })

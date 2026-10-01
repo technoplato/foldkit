@@ -12,7 +12,10 @@ import type { Ports } from '../port/port.js'
 import type { UiNode } from '../renderers/types.js'
 import type { ActionContext } from '../schema/index.js'
 import type { Subscriptions } from '../subscription/subscription.js'
-import type { MessageCategory } from '../synchronization/synchronization.js'
+import type {
+  MessageCategory,
+  SessionPolicy,
+} from '../synchronization/synchronization.js'
 import type { VersionedEventRegistry } from './versionedEvent.js'
 
 /** One Action projected from Program.valid for the current Model. */
@@ -59,6 +62,13 @@ export type ProgramCommand<Message, Resources = never> = Readonly<{
 export type ProgramSynchronization<Model, Message> = Readonly<{
   messageCategory: (message: Message) => MessageCategory
   projectDomain: (model: Model) => unknown
+  /**
+   * The session policy the Model holds, for a Program that keeps it as
+   * state (see `Session.compose`). Every Processor folds the same session
+   * rows, so every Processor reads the same policy at the same log
+   * position, and a Message's audience follows the policy in force there.
+   */
+  sessionPolicyOf?: (model: Model) => SessionPolicy
 }>
 
 /**

@@ -4,16 +4,15 @@ import {
   bindCounter,
   newProcessorInstance,
   startCounter,
-  syncPolicyOf,
 } from 'counter-core-example'
-import { Effect, Exit, Option, Scope } from 'effect'
+import { Effect, Exit, Scope } from 'effect'
 import { Interaction, Processor, Runtime } from 'foldkit'
 import { type Document } from 'foldkit/html'
 
 /**
  * Starts the Foldkit HTML Counter: one synced Counter, a Foldkit view
  * attached to it, and document keys routed through the generic
- * interaction. `?sync=shared-domain` keeps the menu on this tab.
+ * interaction.
  */
 export const startFoldkitCounter = (
   view: (model: SyncedCounterModel) => Document,
@@ -22,15 +21,10 @@ export const startFoldkitCounter = (
   if (container === null) {
     throw new Error('Root element not found')
   }
-  const searchParams = new URLSearchParams(window.location.search)
   const handle = startCounter({
     host: Processor.Host.Foldkit(),
     instance: newProcessorInstance(),
     tape: import.meta.env.VITE_COUNTER_TAPE === 'memory' ? 'Memory' : 'Instant',
-    ...Option.match(syncPolicyOf(searchParams.get('sync') ?? ''), {
-      onNone: () => ({}),
-      onSome: policy => ({ policy }),
-    }),
   })
   const bound = bindCounter(handle)
   const scope = Effect.runSync(Scope.make())

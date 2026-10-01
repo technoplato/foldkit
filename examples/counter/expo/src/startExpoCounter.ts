@@ -5,9 +5,7 @@ import {
   bindCounter,
   newProcessorInstance,
   startCounter,
-  syncPolicyOf,
 } from 'counter-core-example'
-import { Option } from 'effect'
 import { Processor } from 'foldkit'
 import { Platform } from 'react-native'
 
@@ -52,7 +50,6 @@ const expoHost = (): Processor.Host.Host =>
 /**
  * Starts the Expo Counter once per JavaScript runtime and binds it to the
  * generic interaction. `EXPO_PUBLIC_COUNTER_TAPE=memory` keeps the count on
- * the device; `EXPO_PUBLIC_COUNTER_SYNC=shared-domain` keeps the menu on
  * the device.
  */
 export const startExpoCounter = (): BoundCounter => {
@@ -67,13 +64,6 @@ export const startExpoCounter = (): BoundCounter => {
       host: expoHost(),
       instance: newProcessorInstance(),
       ...(isMemory ? { tape: 'Memory' } : { database: nativeDatabase().core }),
-      ...Option.match(
-        syncPolicyOf(process.env['EXPO_PUBLIC_COUNTER_SYNC'] ?? ''),
-        {
-          onNone: () => ({}),
-          onSome: policy => ({ policy }),
-        },
-      ),
     }),
   )
   globals[boundCounterKey] = bound

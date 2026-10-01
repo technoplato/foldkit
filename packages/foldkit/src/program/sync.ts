@@ -379,10 +379,10 @@ export const sync = <Child extends SyncChild>(config: {
       return [model, []]
     }
 
-    const childMessage =
-      readTag(message) === 'RemoteMessageReceived'
-        ? (message as RemoteMessageReceived<ChildMessage>).message
-        : (message as ChildMessage)
+    const isRemote = readTag(message) === 'RemoteMessageReceived'
+    const childMessage = isRemote
+      ? (message as RemoteMessageReceived<ChildMessage>).message
+      : (message as ChildMessage)
 
     const [nextChild, childCommands] = child.update(
       stripReady(model) as ChildModel,
@@ -390,7 +390,9 @@ export const sync = <Child extends SyncChild>(config: {
     )
     return [
       toReady(nextChild as ChildModel),
-      childCommands as ReadonlyArray<ProgramCommand<Message, any>>,
+      isRemote
+        ? []
+        : (childCommands as ReadonlyArray<ProgramCommand<Message, any>>),
     ]
   }
 

@@ -41,7 +41,6 @@ import {
   type SyncTransportError,
   type SyncWrite,
   type SyncWriteResult,
-  isEmptySnapshot,
   isRowOrderAfter,
   readRowNumber,
   readRowString,
@@ -63,10 +62,14 @@ export type SyncStartProgram<
 /**
  * Runtime.start options. Engine is a Host argument. The Program stays pure.
  *
- * `policy` decides who applies each synced Message (ADR 0004). Mirror, the
- * default, applies everything everywhere. SharedDomain applies Navigation
- * Messages only on the Processor that sent them, so the count syncs while
- * each device keeps its own action menu.
+ * `policy` decides who applies each synced Message (ADR 0004) for a Program
+ * that does not keep its session as state. A Program composed with
+ * `Session.compose` ignores it: its folded session state decides, so every
+ * Processor reads the same mode at the same log position. Mirror, the
+ * default, applies everything everywhere; SharedDomain applies Navigation
+ * Messages only on the Processor that sent them.
+ *
+ * `clock` reads wall time in milliseconds. Tests pass a skewed clock.
  */
 export type StartConfig<
   Model,
@@ -77,6 +80,7 @@ export type StartConfig<
   sync: SyncEngine
   resources?: Layer.Layer<Resources>
   policy?: SessionPolicy
+  clock?: () => number
 }>
 
 /** A live synced runtime. `lastWrite` is the last Instant write result. */
@@ -90,6 +94,8 @@ export type StartedProgram<
   }>
 
 const nowMs = (): number => Date.now()
+
+const maximumClockLeadMs = Duration.toMillis(Duration.hours(24))
 
 const newMessageId = (): string => globalThis.crypto.randomUUID()
 
@@ -105,7 +111,6 @@ const fillWriteTime = (
   message: unknown,
   processor: string,
   now: number,
-  seq: number,
 ): SyncWrite => {
   const snapshotRow = asRecord(snapshot)
   const messageRow = asRecord(message)
@@ -124,7 +129,6 @@ const fillWriteTime = (
       ...messageRow,
       id: messageId,
       from: processor,
-      seq,
       createdAtMs: now,
     },
   }
@@ -163,20 +167,6 @@ const transportFailed = <Msg>(fields: {
 })
 
 const asMessage = <Message>(message: unknown): Message => message as Message
-
-/**
- * The boundary after a snapshot row. `at` is the write time of the
- * last Message the snapshot folded, so rows in the same millisecond
- * are treated as covered. The maximal actor/seq/id stamps keep every
- * real same-millisecond row at-or-before the boundary under the full
- * (createdAtMs, from, seq, id) comparison.
- */
-const snapshotBoundary = (at: number): LogRowOrder => ({
-  createdAtMs: at,
-  id: '\u{10FFFF}',
-  from: '\u{10FFFF}',
-  seq: Number.MAX_SAFE_INTEGER,
-})
 
 /**
  * Folds in explicit causality order: same-actor rows keep their write
@@ -267,9 +257,16 @@ export function start<
   return Effect.gen(function* () {
     const program = config.program
     const engine = config.sync
-    const policy = config.policy ?? legacyMirrorSessionPolicy()
-    yield* validateProgramSynchronization(policy, program.of)
+    const configuredPolicy = config.policy ?? legacyMirrorSessionPolicy()
+    yield* validateProgramSynchronization(configuredPolicy, program.of)
     const childSynchronization = program.of.synchronization
+    const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
+    const clock = config.clock ?? nowMs
+
+    const policyOf = (childModel: unknown): SessionPolicy =>
+      childSessionPolicyOf === undefined
+        ? configuredPolicy
+        : childSessionPolicyOf(childModel)
 
     const categoryOf = (message: unknown): MessageCategory =>
       childSynchronization === undefined
@@ -277,6 +274,7 @@ export function start<
         : childSynchronization.messageCategory(message)
 
     const appliesTo = (
+      policy: SessionPolicy,
       message: unknown,
       originatingProcessor: string,
       processor: string,
@@ -292,32 +290,25 @@ export function start<
       )
     }
 
-    const appliesHere = (message: unknown, row: unknown): boolean =>
+    const appliesHere = (
+      policy: SessionPolicy,
+      message: unknown,
+      row: unknown,
+    ): boolean =>
       appliesTo(
+        policy,
         message,
         Option.getOrElse(readRowString(row, 'from'), () => ''),
         engine.processor,
       )
 
-    const isRejectedLocally = (message: Message): boolean =>
-      isChildMessage(message) &&
-      !appliesTo(message, engine.processor, engine.processor)
-
     const knownRows = new Map<string, unknown>()
     let lastWrite: Option.Option<SyncWriteResult> = Option.none()
     let lastApplied: Option.Option<LogRowOrder> = Option.none()
-    /** Per-actor monotonic write sequence stamped on every Message row. */
-    let nextSeq = 0
+    let clockMs = 0
     const outbox: Array<SyncWrite> = []
     const outboxFlushMs = 250
     const [initialChildModel] = program.of.init()
-    let bootBase: Readonly<{
-      model: unknown
-      order: Option.Option<LogRowOrder>
-    }> = {
-      model: initialChildModel,
-      order: Option.none(),
-    }
 
     const runtime = yield* makeProgramRuntime({
       program,
@@ -325,10 +316,40 @@ export function start<
     })
     yield* runtime.initialization
 
+    const currentPolicy = (): SessionPolicy => {
+      const model = runtime.readModel() as SyncedModel<unknown, Message>
+      if (model._tag !== 'Ready') {
+        return policyOf(initialChildModel)
+      }
+      const { _tag: _readyTag, ...childModel } = model
+      return policyOf(childModel)
+    }
+
+    const isRejectedLocally = (message: Message): boolean =>
+      isChildMessage(message) &&
+      !appliesTo(currentPolicy(), message, engine.processor, engine.processor)
+
+    const learnTime = (row: unknown): void => {
+      const createdAtMs = readRowNumber(row, 'createdAtMs')
+      if (
+        Option.isSome(createdAtMs) &&
+        createdAtMs.value <= clock() + maximumClockLeadMs
+      ) {
+        clockMs = Math.max(clockMs, createdAtMs.value)
+      }
+    }
+
+    const stampTime = (): number => {
+      const stamped = Math.max(clock(), clockMs + 1)
+      clockMs = stamped
+      return stamped
+    }
+
     const rememberRow = (row: unknown): void => {
       const id = readRowString(row, 'id')
       if (Option.isSome(id) && id.value !== '') {
         knownRows.set(id.value, row)
+        learnTime(row)
       }
     }
 
@@ -347,9 +368,11 @@ export function start<
     }
 
     /**
-     * Folds the boot base plus every known row after it, ordered by
-     * `createdAtMs` then `id`. Commands from the child update are
-     * discarded: these Messages already happened once.
+     * Folds every known row from the initial Model, in log order. Each
+     * row's audience follows the session policy in force just before it,
+     * so every Processor that holds the same rows reaches the same Model.
+     * Commands from the child update are discarded: these Messages already
+     * happened once.
      */
     const foldLog = (): Readonly<{
       model: unknown
@@ -357,35 +380,33 @@ export function start<
     }> => {
       const entries = pipe(
         Array.fromIterable(knownRows.values()),
-        Array.filterMap(row => {
-          const order = rowOrderOf(row)
-          if (Option.isNone(order)) {
-            return Result.failVoid
-          }
-          if (
-            Option.isSome(bootBase.order) &&
-            !isRowOrderAfter(order.value, bootBase.order.value)
-          ) {
-            return Result.failVoid
-          }
-          return Result.succeed({ order: order.value, row })
-        }),
+        Array.filterMap(row =>
+          Option.match(rowOrderOf(row), {
+            onNone: () => Result.failVoid,
+            onSome: order => Result.succeed({ order, row }),
+          }),
+        ),
         Array.sort(logEntryOrder),
       )
-      const model = Array.reduce(entries, bootBase.model, (folded, entry) => {
-        const decoded = decodeUnknown(program.message, entry.row)
-        if (Option.isNone(decoded) || !appliesHere(decoded.value, entry.row)) {
-          return folded
-        }
-        const [next] = program.of.update(folded, decoded.value)
-        return next
-      })
-      const maxOrder = pipe(
-        Array.last(entries),
-        Option.map(entry => entry.order),
-        Option.orElse(() => bootBase.order),
+      const model = Array.reduce(
+        entries,
+        initialChildModel,
+        (folded, entry) => {
+          const decoded = decodeUnknown(program.message, entry.row)
+          if (
+            Option.isNone(decoded) ||
+            !appliesHere(policyOf(folded), decoded.value, entry.row)
+          ) {
+            return folded
+          }
+          const [next] = program.of.update(folded, decoded.value)
+          return next
+        },
       )
-      return { model, maxOrder }
+      return {
+        model,
+        maxOrder: Option.map(Array.last(entries), entry => entry.order),
+      }
     }
 
     const persist = (message: Message): Effect.Effect<void> =>
@@ -434,13 +455,30 @@ export function start<
           encodedSnapshot.success,
           encodedMessage.success,
           engine.processor,
-          nowMs(),
-          nextSeq++,
+          stampTime(),
         )
         rememberRow(write.message)
         const writtenOrder = rowOrderOf(write.message)
-        if (Option.isSome(writtenOrder)) {
+        const isBeforeApplied =
+          Option.isSome(writtenOrder) &&
+          Option.isSome(lastApplied) &&
+          !isRowOrderAfter(writtenOrder.value, lastApplied.value)
+        if (isBeforeApplied) {
+          const folded = foldLog()
+          lastApplied = folded.maxOrder
+          runtime.send(
+            asMessage<Message>({
+              _tag: 'LogRefolded',
+              model: folded.model,
+            }),
+          )
+        } else if (Option.isSome(writtenOrder)) {
           bumpLastApplied(writtenOrder.value)
+        }
+        if (Array.isArrayNonEmpty(outbox)) {
+          outbox.push(write)
+          lastWrite = Option.some({ link: 'queued' })
+          return
         }
         const written = yield* engine.write(write).pipe(Effect.result)
         if (Result.isFailure(written)) {
@@ -498,46 +536,14 @@ export function start<
       for (const row of applyBoot.success.messages) {
         rememberRow(row)
       }
-      const bootSnapshot = applyBoot.success.snapshot
-      if (isEmptySnapshot(bootSnapshot)) {
-        const folded = foldLog()
-        lastApplied = folded.maxOrder
-        runtime.send(
-          asMessage<Message>({
-            _tag: 'SnapshotReceived',
-            model: folded.model,
-          }),
-        )
-      } else {
-        const decoded = decodeUnknown(program.snapshot, bootSnapshot)
-        if (Option.isSome(decoded)) {
-          const snapshotAt = readRowNumber(bootSnapshot, 'at')
-          bootBase = {
-            model: decoded.value,
-            order: Option.map(snapshotAt, snapshotBoundary),
-          }
-          const folded = foldLog()
-          lastApplied = folded.maxOrder
-          runtime.send(
-            asMessage<Message>({
-              _tag: 'SnapshotReceived',
-              model: folded.model,
-            }),
-          )
-        } else {
-          runtime.send(
-            asMessage<Message>(
-              decodeFailed({
-                what: 'Instant sent a snapshot this Program cannot read.',
-                meaning: 'The count row did not match the snapshot Schema.',
-                fix: 'Do not guess the count. Fix the snapshot Schema.',
-                cause: 'Snapshot Schema decode failed.',
-                raw: bootSnapshot,
-              }),
-            ),
-          )
-        }
-      }
+      const folded = foldLog()
+      lastApplied = folded.maxOrder
+      runtime.send(
+        asMessage<Message>({
+          _tag: 'SnapshotReceived',
+          model: folded.model,
+        }),
+      )
     }
 
     const onEvent = (event: {
@@ -571,9 +577,6 @@ export function start<
         )
         return
       }
-      if (!appliesHere(decoded.value, event.row)) {
-        return
-      }
       const order = rowOrderOf(event.row)
       const isOutOfOrder =
         Option.isSome(order) &&
@@ -590,15 +593,18 @@ export function start<
         )
         return
       }
+      if (Option.isSome(order)) {
+        bumpLastApplied(order.value)
+      }
+      if (!appliesHere(currentPolicy(), decoded.value, event.row)) {
+        return
+      }
       runtime.send(
         asMessage<Message>({
           _tag: 'RemoteMessageReceived',
           message: decoded.value,
         }),
       )
-      if (Option.isSome(order)) {
-        bumpLastApplied(order.value)
-      }
     }
 
     yield* engine.subscribe(onEvent)

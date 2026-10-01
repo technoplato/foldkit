@@ -22,6 +22,11 @@
       "import": "./dist/actionMenu/public.js",
       "default": "./dist/actionMenu/public.js"
     },
+    "./session": {
+      "types": "./dist/session/public.d.ts",
+      "import": "./dist/session/public.js",
+      "default": "./dist/session/public.js"
+    },
     "./attention": {
       "types": "./dist/attention/public.d.ts",
       "import": "./dist/attention/public.js",

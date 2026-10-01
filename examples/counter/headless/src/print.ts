@@ -251,6 +251,7 @@ const modelDiffLines = (
   after: AppModel,
 ): ReadonlyArray<string> => [
   ...fieldChange('count', before.count.toString(), after.count.toString()),
+  ...fieldChange('session', before.session.mode, after.session.mode),
   ...fieldChange('actionMenu', menuCell(before), menuCell(after)),
   ...fieldChange('focus', focusCell(before), focusCell(after)),
   ...fieldChange('query', queryCell(before), queryCell(after)),

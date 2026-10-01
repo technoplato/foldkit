@@ -1,4 +1,10 @@
-import { Effect, Schema as S, SchemaTransformation } from 'effect'
+import {
+  Duration,
+  Effect,
+  Equal,
+  Schema as S,
+  SchemaTransformation,
+} from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { m } from '../message/public.js'
@@ -88,6 +94,20 @@ const Synced = compose.sync({
 const runScoped = <A>(effect: Effect.Effect<A, unknown, never>) =>
   Effect.runPromise(effect)
 
+const settleAttempts = 200
+
+const settled = <A>(read: () => A, isDone: (value: A) => boolean) =>
+  Effect.gen(function* () {
+    for (
+      let attempt = 0;
+      attempt < settleAttempts && !isDone(read());
+      attempt += 1
+    ) {
+      yield* Effect.sleep(Duration.millis(1))
+    }
+    return read()
+  })
+
 describe('Runtime.start Memory', () => {
   it('shares one count across two Processors', async () => {
     await runScoped(
@@ -107,7 +127,7 @@ describe('Runtime.start Memory', () => {
     )
   })
 
-  it('Failed on a non-empty snapshot decode', async () => {
+  it('boots from the log even when the count row is unreadable', async () => {
     await runScoped(
       Effect.scoped(
         Effect.gen(function* () {
@@ -118,12 +138,72 @@ describe('Runtime.start Memory', () => {
             asOf: 'cli',
             at: 1,
           }
+          store.messages = [
+            { id: 'm-plus', tag: 'Increment', from: 'react', createdAtMs: 1 },
+          ]
           const runtime = yield* start({
             program: Synced,
             sync: Memory({ processor: Host.Cli(), store }),
           })
-          const model = runtime.readModel()
-          expect(model._tag).toBe('Failed')
+          expect(runtime.readModel()).toEqual({ _tag: 'Ready', count: 1 })
+        }),
+      ),
+    )
+  })
+
+  it('stamps after every row it has seen, so a slow clock cannot reorder', async () => {
+    await runScoped(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = makeMemoryStore()
+          const laptop = yield* start({
+            program: Synced,
+            sync: Memory({ processor: 'react-laptop', store }),
+            clock: () => 10_000_000,
+          })
+          const phone = yield* start({
+            program: Synced,
+            sync: Memory({ processor: 'expo-phone', store }),
+            clock: () => 6_400_000,
+          })
+          yield* laptop.run(Increment())
+          yield* settled(
+            phone.readModel,
+            model => model._tag === 'Ready' && model.count === 1,
+          )
+          yield* phone.run(Reset())
+          const laptopModel = yield* settled(
+            laptop.readModel,
+            model => model._tag === 'Ready' && model.count === 0,
+          )
+          expect(laptopModel).toEqual({ _tag: 'Ready', count: 0 })
+          expect(phone.readModel()).toEqual({ _tag: 'Ready', count: 0 })
+        }),
+      ),
+    )
+  })
+
+  it('still converges when a peer clock runs past the lead limit', async () => {
+    await runScoped(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const store = makeMemoryStore()
+          const broken = yield* start({
+            program: Synced,
+            sync: Memory({ processor: 'react-broken', store }),
+            clock: () => 6_400_000 + 25 * 60 * 60 * 1000,
+          })
+          const phone = yield* start({
+            program: Synced,
+            sync: Memory({ processor: 'expo-phone', store }),
+            clock: () => 6_400_000,
+          })
+          yield* broken.run(Increment())
+          yield* phone.run(Reset())
+          const brokenModel = yield* settled(broken.readModel, model =>
+            Equal.equals(model, phone.readModel()),
+          )
+          expect(phone.readModel()).toEqual(brokenModel)
         }),
       ),
     )

@@ -771,6 +771,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
   }
 
   const childSynchronization = child.synchronization
+  const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
   const childScreen = child.screen
 
   const program = make({
@@ -799,6 +800,12 @@ export const compose = <Child extends ActionMenuChild>(config: {
         childSynchronization === undefined
           ? childOf(model)
           : childSynchronization.projectDomain(childOf(model)),
+      ...(childSessionPolicyOf === undefined
+        ? {}
+        : {
+            sessionPolicyOf: (model: AppModel) =>
+              childSessionPolicyOf(childOf(model)),
+          }),
     },
     ...(child.catalog === undefined ? {} : { catalog: child.catalog }),
     ...(childScreen === undefined

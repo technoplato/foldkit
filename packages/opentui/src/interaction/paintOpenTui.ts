@@ -185,6 +185,7 @@ const paintMenu = (
     rowBox.add(
       new TextRenderable(ctx, {
         content: isDisabled ? t`${dim(label)}` : t`${bold(label)}`,
+        wrapMode: 'none',
       }),
     )
     overlay.add(rowBox)

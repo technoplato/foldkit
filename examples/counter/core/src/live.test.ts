@@ -1,5 +1,5 @@
-import { Option } from 'effect'
-import { ActionMenu, Interaction, Runtime, Synchronization } from 'foldkit'
+import { Duration, Effect, Equal, Option } from 'effect'
+import { ActionMenu, Interaction, Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { startCounterOn } from './live.js'
@@ -11,6 +11,8 @@ const started: Array<CounterHandle> = []
 afterEach(async () => {
   await Promise.all(started.splice(0).map(handle => handle.stop()))
 })
+
+const settleAttempts = 200
 
 const whenReady = (handle: CounterHandle): Promise<void> =>
   new Promise(resolve => {
@@ -24,12 +26,19 @@ const whenReady = (handle: CounterHandle): Promise<void> =>
     check()
   })
 
-const startOn = async (
-  store: Runtime.MemoryStore,
-  processor: string,
-  policy?: Synchronization.SessionPolicy,
-) => {
-  const handle = startCounterOn(Runtime.Memory({ processor, store }), policy)
+const eventually = async <A>(read: () => A, expected: A): Promise<void> => {
+  for (
+    let attempt = 0;
+    attempt < settleAttempts && !Equal.equals(read(), expected);
+    attempt += 1
+  ) {
+    await Effect.runPromise(Effect.sleep(Duration.millis(1)))
+  }
+  expect(read()).toEqual(expected)
+}
+
+const startOn = async (store: Runtime.MemoryStore, processor: string) => {
+  const handle = startCounterOn(Runtime.Memory({ processor, store }))
   started.push(handle)
   await whenReady(handle)
   return Interaction.bind(SyncedCounter, handle)
@@ -43,6 +52,13 @@ const countOf = (
     throw new Error(`Expected Ready, got ${model._tag}`)
   }
   return model.count
+}
+
+const modeOf = (
+  bound: Readonly<{ readModel: () => SyncedCounterModel }>,
+): string => {
+  const model = bound.readModel()
+  return model._tag === 'Ready' ? model.session.mode : model._tag
 }
 
 describe('startCounterOn', () => {
@@ -61,9 +77,9 @@ describe('startCounterOn', () => {
     const laptop = await startOn(store, 'react-laptop')
     const phone = await startOn(store, 'expo-phone')
     expect(laptop.press('Increment')).toBe(true)
-    expect(countOf(phone)).toBe(1)
+    await eventually(() => countOf(phone), 1)
     expect(phone.press('Reset')).toBe(true)
-    expect(countOf(laptop)).toBe(0)
+    await eventually(() => countOf(laptop), 0)
   })
 
   it('mirrors the action menu by default', async () => {
@@ -71,22 +87,21 @@ describe('startCounterOn', () => {
     const laptop = await startOn(store, 'react-laptop')
     const phone = await startOn(store, 'expo-phone')
     laptop.pressKey(Interaction.keyInput('k', { isMeta: true }))
-    expect(Option.isSome(phone.menu())).toBe(true)
+    await eventually(() => Option.isSome(phone.menu()), true)
   })
 
-  it('keeps each menu on its own device under SharedDomain', async () => {
+  it('keeps every menu local once any device chooses it', async () => {
     const store = Runtime.makeMemoryStore()
-    const policy = Synchronization.SessionPolicy.make({
-      generation: 0,
-      mode: Synchronization.SharedDomain.make({}),
-    })
-    const laptop = await startOn(store, 'react-laptop', policy)
-    const phone = await startOn(store, 'expo-phone', policy)
+    const laptop = await startOn(store, 'react-laptop')
+    const phone = await startOn(store, 'expo-phone')
+    expect(phone.press('KeepNavigationLocal')).toBe(true)
+    await eventually(() => modeOf(laptop), 'SharedDomain')
+
     laptop.openMenu()
     expect(Option.isSome(laptop.menu())).toBe(true)
-    expect(Option.isSome(phone.menu())).toBe(false)
     expect(laptop.chooseFromMenu('Increment')).toBe(true)
-    expect(countOf(phone)).toBe(1)
+    await eventually(() => countOf(phone), 1)
+    expect(Option.isSome(phone.menu())).toBe(false)
     expect(Option.isSome(laptop.menu())).toBe(false)
   })
 

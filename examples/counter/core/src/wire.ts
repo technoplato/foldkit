@@ -1,5 +1,5 @@
 import { Schema as S, SchemaTransformation } from 'effect'
-import { ActionMenu, Navigation } from 'foldkit'
+import { ActionMenu, Navigation, Session } from 'foldkit'
 
 import {
   countSnapshotId,
@@ -14,6 +14,7 @@ type AppDestination = typeof AppDestination.Type
 
 const AppModel = S.Struct({
   count: S.Number,
+  session: Session.SessionState,
   navigation: Navigation.NavigationStack(AppDestination),
 })
 
@@ -32,9 +33,10 @@ export const CountRow = S.Struct({
 export type CountRow = typeof CountRow.Type
 
 /**
- * Door from the Instant count row to the App Model. Only the count travels.
- * Navigation starts at the Counter page on every Processor, so a device that
- * joins never inherits another device's open menu from a snapshot.
+ * Door from the Instant count row to the App Model. Only the count travels,
+ * so counter-swift and the Rust reader keep their wire. Boot folds the
+ * Message log, not this row, so the session and navigation it would reset
+ * come from the log instead.
  */
 export const CountProjection = CountRow.pipe(
   S.decodeTo(
@@ -42,6 +44,7 @@ export const CountProjection = CountRow.pipe(
     SchemaTransformation.transform({
       decode: (row): typeof AppModel.Encoded => ({
         count: row.value,
+        session: { mode: 'Mirror', generation: 0 },
         navigation: Navigation.stackAtRoot<AppDestination>(Counter()),
       }),
       encode: model => ({

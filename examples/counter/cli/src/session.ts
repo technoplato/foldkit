@@ -3,12 +3,10 @@ import {
   bindCounter,
   newProcessorInstance,
   startCounter,
-  syncPolicyOf,
 } from 'counter-core-example'
-import { Option } from 'effect'
 import { Processor } from 'foldkit'
 
-import { type CounterCliTape, counterCliSyncWord } from './settings.js'
+import { type CounterCliTape } from './settings.js'
 
 const readyTimeoutMs = 20_000
 
@@ -31,10 +29,6 @@ export const openCounterSession = (
       host: Processor.Host.Cli(),
       instance: newProcessorInstance(),
       ...(tape._tag === 'Memory' ? { tape: 'Memory' } : {}),
-      ...Option.match(syncPolicyOf(counterCliSyncWord()), {
-        onNone: () => ({}),
-        onSome: policy => ({ policy }),
-      }),
     })
     const bound = bindCounter(handle)
     const timeout = setTimeout(() => {

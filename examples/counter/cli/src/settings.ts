@@ -5,7 +5,6 @@
  * - `COUNTER_TAPE=memory` keeps the count in one process.
  * - `COUNTER_TAPE_PATH=/tmp/counter.json` keeps it in a file.
  * - Otherwise the CLI joins the shared Instant tape through a daemon.
- * - `COUNTER_SYNC=shared-domain` keeps the action menu on this Processor.
  */
 
 /** Where the Counter CLI keeps its count. */
@@ -31,18 +30,8 @@ export const counterCliTape = (
   }
 }
 
-/** The synchronization word from the environment, `mirror` by default. */
-export const counterCliSyncWord = (
-  env: NodeJS.ProcessEnv = process.env,
-): string => {
-  const word = env['COUNTER_SYNC']
-  return word === undefined || word === '' ? 'mirror' : word
-}
-
 /**
- * Separates daemons by tape and synchronization mode, so a Mirror daemon
- * never answers a SharedDomain view.
+ * The one Instant daemon every Counter CLI view shares. The session's mode
+ * lives on the tape, so no launch flag splits daemons.
  */
-export const counterCliIsolationKey = (
-  env: NodeJS.ProcessEnv = process.env,
-): string => `instant:${counterCliSyncWord(env)}`
+export const counterCliIsolationKey = 'instant'

@@ -27,7 +27,11 @@ describe('CountProjection', () => {
         device: 'phone',
         path: 'counter.increment',
       }),
-    ).toEqual({ count: 7, navigation: Navigation.stackAtRoot(Counter()) })
+    ).toEqual({
+      count: 7,
+      session: { mode: 'Mirror', generation: 0 },
+      navigation: Navigation.stackAtRoot(Counter()),
+    })
   })
 
   it('writes the count to the public row and never the menu', () => {

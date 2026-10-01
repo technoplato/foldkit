@@ -1,5 +1,6 @@
 import {
   Deferred,
+  Duration,
   Effect,
   Layer,
   Match as M,
@@ -85,6 +86,21 @@ const makeManifest = (requestId: string) =>
       affinity: AnyProcessor.make({}),
       unavailable: 'Wait',
     }),
+  })
+
+const settleAttempts = 200
+
+const untilComplete = (
+  runtime: Readonly<{ readModel: () => Readonly<{ status: string }> }>,
+): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    for (
+      let attempt = 0;
+      attempt < settleAttempts && runtime.readModel().status !== 'Complete';
+      attempt += 1
+    ) {
+      yield* Effect.sleep(Duration.millis(1))
+    }
   })
 
 describe('ProgramRuntime Command scheduler', () => {
@@ -254,6 +270,8 @@ describe('ProgramRuntime Command scheduler', () => {
 
           yield* Deferred.succeed(releaseCapture, undefined)
           yield* Deferred.await(acceptedResult)
+          yield* untilComplete(browserRuntime)
+          yield* untilComplete(phoneRuntime)
 
           expect(browserRuntime.readModel().status).toBe('Complete')
           expect(phoneRuntime.readModel().status).toBe('Complete')

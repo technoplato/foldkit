@@ -25,7 +25,7 @@ const serve = Effect.gen(function* () {
   return yield* listenCliDaemon({
     socketPath: cliDaemonSocketPath({
       programId: counterCliProgramId,
-      isolationKey: counterCliIsolationKey(),
+      isolationKey: counterCliIsolationKey,
     }),
     Model: SyncedCounter.Model,
     Message: SyncedCounter.Message,

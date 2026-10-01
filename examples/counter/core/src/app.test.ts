@@ -1,5 +1,5 @@
 import { Array, Option } from 'effect'
-import { ActionMenu, Interaction, Navigation } from 'foldkit'
+import { ActionMenu, Interaction, Navigation, Session } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
@@ -38,6 +38,7 @@ describe('App', () => {
   it('starts at the Counter page with the count beside the stack', () => {
     expect(App.init()[0]).toEqual({
       count: 0,
+      session: { mode: 'Mirror', generation: 0 },
       navigation: Navigation.stackAtRoot(Counter()),
     })
   })
@@ -56,6 +57,7 @@ describe('App', () => {
     const chosen = pressAll(filtered, ['Enter'])
     expect(chosen).toEqual({
       count: 0,
+      session: { mode: 'Mirror', generation: 0 },
       navigation: Navigation.stackAtRoot(Counter()),
     })
   })
@@ -72,5 +74,21 @@ describe('App', () => {
       synchronization?.messageCategory(ActionMenu.OpenedActionMenu()),
     ).toBe('Navigation')
     expect(synchronization?.messageCategory(Increment())).toBe('Domain')
+  })
+
+  it('classifies session Actions as Domain so every device switches together', () => {
+    const synchronization = App.synchronization
+    expect(
+      synchronization?.messageCategory(Session.KeepNavigationLocal()),
+    ).toBe('Domain')
+    expect(
+      Option.map(
+        Option.fromNullishOr(synchronization?.sessionPolicyOf),
+        sessionPolicyOf =>
+          sessionPolicyOf(
+            App.update(App.init()[0], Session.KeepNavigationLocal())[0],
+          ).mode._tag,
+      ),
+    ).toEqual(Option.some('SharedDomain'))
   })
 })

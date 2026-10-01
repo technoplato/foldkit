@@ -127,10 +127,11 @@ decides which Processors apply it (ADR 0004):
 - **Follow**: one leader's navigation drives every follower. An Observe
   follower watches and cannot steer; a RemoteControl follower may steer.
 
-Example: open the Counter on two browser tabs. With no flag, `⌘K` on one opens
-the menu on both. With `?sync=shared-domain` on both tabs, `⌘K` opens only
-that tab's menu, and choosing Increment from it still moves the count on
-both.
+Example: open the Counter on two browser tabs. `⌘K` on one opens the menu on
+both. Choose "Keep navigation local" from either tab's menu, and every device
+switches at the same log position: now `⌘K` opens only that tab's menu, and
+choosing Increment from it still moves the count on both. The mode is session
+state folded from the tape, never a launch flag, so two tabs cannot disagree.
 
 **Test:** open the same Program on two Processors in each mode, move only
 navigation on one, and confirm the other follows exactly when the mode says

@@ -39,7 +39,7 @@ if (tape._tag === 'Instant') {
       await runCliView({
         socketPath: cliDaemonSocketPath({
           programId: counterCliProgramId,
-          isolationKey: counterCliIsolationKey(),
+          isolationKey: counterCliIsolationKey,
         }),
         spawn: () =>
           spawnCliViewDaemon({

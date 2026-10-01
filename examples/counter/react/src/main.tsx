@@ -2,9 +2,7 @@ import {
   SyncedCounter,
   newProcessorInstance,
   startCounter,
-  syncPolicyOf,
 } from 'counter-core-example'
-import { Option } from 'effect'
 import { Interaction, Processor } from 'foldkit'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -13,16 +11,10 @@ import { ProgramProvider } from '@foldkit/react/interaction'
 
 import { App } from './App.js'
 
-const searchParams = new URLSearchParams(window.location.search)
-
 const handle = startCounter({
   host: Processor.Host.React(),
   instance: newProcessorInstance(),
   tape: import.meta.env.VITE_COUNTER_TAPE === 'memory' ? 'Memory' : 'Instant',
-  ...Option.match(syncPolicyOf(searchParams.get('sync') ?? ''), {
-    onNone: () => ({}),
-    onSome: policy => ({ policy }),
-  }),
 })
 
 const hot = import.meta.hot

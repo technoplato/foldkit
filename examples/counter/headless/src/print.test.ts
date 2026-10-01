@@ -6,7 +6,7 @@ import {
   type SyncedCounterModel,
 } from 'counter-core-example'
 import { Array, Duration, Effect, String, pipe } from 'effect'
-import { ActionMenu } from 'foldkit'
+import { ActionMenu, Session } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -254,6 +254,29 @@ describe('Counter headless printer', () => {
       [
         'MovedActionMenuFocus              cli           1:52:47 PM',
         '  focus  filter → Reset',
+      ].join('\n'),
+    )
+  })
+
+  it('prints a session mode change', () => {
+    const createdAtMs = Date.UTC(2026, 7, 21, 17, 52, 44, 0)
+    const [local] = App.update(modelAt(2), Session.KeepNavigationLocal())
+    expect(
+      formatPrintChanges(
+        {
+          createdAtMs,
+          from: 'expo-phone',
+          id: 'm5',
+          tag: 'KeepNavigationLocal',
+        },
+        modelAt(2),
+        local,
+        newYorkAt(createdAtMs),
+      ),
+    ).toBe(
+      [
+        'KeepNavigationLocal               expo-phone    1:52:44 PM',
+        '  session  Mirror → SharedDomain',
       ].join('\n'),
     )
   })
