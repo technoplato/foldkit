@@ -4,6 +4,36 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 1st, 2026 at 6:50:16 p.m. EDT — `e5ce79c32455` docs: add the navigation carrier design and the distributed papers review
+
+- **Implementation commit:** `e5ce79c324552ac716ae325681e8c6c491b94a58`
+- **Change:** Add the navigation carrier design and the distributed papers review.
+- **Details:**
+  - Two research reports: a cited navigation design for five carriers with prototyped algorithms, and a review of technoplato/distributed against the synced fold.
+- **Files:**
+  - `docs/explorations/navigation-carriers-design.md` — Specify the core navigation model and five carriers.
+  - `docs/explorations/distributed-papers-sync-review.md` — Ground the sync design in the papers.
+- **User context (verbatim):**
+  > I want you to fire off a navigational adapter to really figure out how to model the core pure JavaScript, TypeScript of navigational logic across all these different platforms
+  > I've created Technoplato distributed with a bunch of papers in it. See if there's anything in there that can just help us reason about how to build this sanely.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 1st, 2026 at 6:50:15 p.m. EDT — `3c17371b98fe` feat: fold one session policy from the log and converge every Processor
+
+- **Implementation commit:** `3c17371b98fe6e91b41fde8dfe2ef638aa9e73d0`
+- **Change:** Fold one session policy from the log and converge every Processor.
+- **Details:**
+  - Session.compose keeps the mode as Model state changed by logged Domain Actions, the runtime reads it at each log position, boot folds the whole log, rows get hybrid-clock stamps, the outbox stays ordered, and remote Messages no longer rerun Commands.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — Keep the session mode as state every Processor folds.
+  - `packages/foldkit/src/runtime/start.ts` — Decide audiences per log position and stamp rows with a hybrid clock.
+  - `packages/foldkit/src/program/sync.ts` — Run a remote Message's Commands only on its sender.
+  - `examples/counter/core/src/app.ts` — Compose Session into the canonical Counter.
+- **User context (verbatim):**
+  > Agreed, two tabs can disagree. Each processor reads its own sync.
+  > each processor is going to maintain its own model, which should receive all of the events from a stream, and then I don't know, they should all be reduced and get to the same point.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 1st, 2026 at 5:42:47 p.m. EDT — `69161aecd9b2` feat: type domain hooks from the Program and stop over-rendering
 
 - **Implementation commit:** `69161aecd9b2dd21eeb91279c2214c37be2b5325`
