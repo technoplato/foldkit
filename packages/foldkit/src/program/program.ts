@@ -141,9 +141,22 @@ export type Program<
 /**
  * Defines a renderer-free Foldkit Program while preserving inferred types.
  * A Program that declares a `catalog` and no `interaction` gets one derived
- * from the catalog, so every Client can press its Actions.
+ * from the catalog, so every Client can press its Actions. The exact
+ * Catalog type survives, so `useActions(program).increment` type-checks.
  */
-export const make = <
+export function make<
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  C extends AnyCatalog,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+>(
+  program: Program<Model, Message, Resources, ManagedResourceServices, P> &
+    Readonly<{ catalog: C }>,
+): Program<Model, Message, Resources, ManagedResourceServices, P> &
+  Readonly<{ catalog: C }>
+export function make<
   Model,
   Message extends Readonly<{ _tag: string }>,
   Resources = never,
@@ -151,7 +164,16 @@ export const make = <
   P extends Ports | undefined = undefined,
 >(
   program: Program<Model, Message, Resources, ManagedResourceServices, P>,
-): Program<Model, Message, Resources, ManagedResourceServices, P> => {
+): Program<Model, Message, Resources, ManagedResourceServices, P>
+export function make<
+  Model,
+  Message extends Readonly<{ _tag: string }>,
+  Resources = never,
+  ManagedResourceServices = never,
+  P extends Ports | undefined = undefined,
+>(
+  program: Program<Model, Message, Resources, ManagedResourceServices, P>,
+): Program<Model, Message, Resources, ManagedResourceServices, P> {
   if (program.interaction === undefined && program.catalog !== undefined) {
     const interaction = fromCatalog(
       program.catalog,

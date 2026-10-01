@@ -1,6 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 import type { ButtonNode, UiNode } from 'foldkit/renderers'
-import { Fragment, type ReactElement } from 'react'
+import { Fragment, type ReactElement, useMemo } from 'react'
 import {
   Linking,
   Pressable,
@@ -10,7 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native'
 
-import { useBound, useModel } from '@foldkit/react/interaction'
+import { useBound, useScreen } from '@foldkit/react/interaction'
 
 /**
  * Extra style per node kind, merged over the neutral default for that kind.
@@ -190,8 +190,8 @@ export const paintTree = (
 }
 
 /**
- * Paints the bound Program's screen tree and repaints on every Model
- * change. A Button press sends its Catalog Action, so the screen needs no
+ * Paints the bound Program's screen tree and repaints only when the tree
+ * changes. A Button press sends its Catalog Action, so the screen needs no
  * token table.
  *
  * @example
@@ -205,17 +205,21 @@ export const Screen = ({
   styles,
 }: Readonly<{ styles?: PaintStyles }>): ReactElement | null => {
   const bound = useBound()
-  useModel(bound)
-  return Option.match(bound.screen(), {
-    onNone: () => null,
-    onSome: tree =>
-      paintTree(tree, {
-        styles: styles ?? {},
-        onPress: button => {
-          if (button.action !== undefined) {
-            bound.press(button.action)
-          }
-        },
+  const maybeTree = useScreen()
+  return useMemo(
+    () =>
+      Option.match(maybeTree, {
+        onNone: () => null,
+        onSome: tree =>
+          paintTree(tree, {
+            styles: styles ?? {},
+            onPress: button => {
+              if (button.action !== undefined) {
+                bound.press(button.action)
+              }
+            },
+          }),
       }),
-  })
+    [bound, maybeTree, styles],
+  )
 }

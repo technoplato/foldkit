@@ -10,7 +10,7 @@ import {
   pipe,
 } from 'effect'
 
-import { type Entry } from '../catalog/catalog.js'
+import { type CatalogCarrierOf, type Entry } from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
 import {
   type KeyInput,
@@ -412,7 +412,8 @@ export type ActionMenuProgram<Child extends ActionMenuChild> = Program<
   never,
   undefined
 > &
-  Readonly<{ of: Child }>
+  Readonly<{ of: Child }> &
+  CatalogCarrierOf<Child>
 
 const structFieldsOf = (
   schema: unknown,

@@ -4,7 +4,7 @@
  */
 import { Array, Option, Predicate, Schema as S } from 'effect'
 
-import { Disabled } from '../catalog/catalog.js'
+import { type CatalogCarrierOf, Disabled } from '../catalog/catalog.js'
 import {
   Failed as FailedStatus,
   type ProgramInteraction,
@@ -145,6 +145,7 @@ export type SyncProgram<Child extends SyncChild> = Program<
   undefined
 > &
   SyncErrorConstructors<MessageOf<Child>> &
+  CatalogCarrierOf<Child> &
   Readonly<{
     of: Child
     snapshot: S.Top
@@ -547,7 +548,7 @@ export const sync = <Child extends SyncChild>(config: {
     SyncFailed,
     DecodeFailed: SyncErrorSchema.DecodeFailed,
     TransportFailed: SyncErrorSchema.TransportFailed,
-  }) as SyncProgram<Child>
+  }) as unknown as SyncProgram<Child>
 }
 
 /** True when the Model is Ready. */

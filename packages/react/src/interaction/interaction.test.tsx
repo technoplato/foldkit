@@ -2,7 +2,8 @@ import { Match as M, Schema as S } from 'effect'
 import { ActionMenu, Catalog, Interaction, Program } from 'foldkit'
 import { Column, Row, Text, actionButtons } from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
-import { afterEach, describe, expect, it } from 'vitest'
+import { Profiler, type ReactNode } from 'react'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
@@ -10,9 +11,13 @@ import {
   ActionButton,
   ActionButtons,
   ActionMenuDialog,
+  type ActionsOf,
   ProgramProvider,
   Screen,
+  useActions,
+  useFeature,
   useKeyBindings,
+  useModel,
 } from './interaction.js'
 
 const Model = S.Struct({ count: S.Number })
@@ -135,12 +140,20 @@ describe('@foldkit/react/interaction', () => {
     expect(model.count).toBe(1)
   })
 
-  it('renders standalone Action buttons with key hints', () => {
+  it('renders typed Action buttons with key hints', () => {
     const bound = Interaction.bind(App, makeHandle())
+    const Standalone = () => {
+      const actions = useActions(App)
+      return (
+        <>
+          <ActionButton action={actions.increment}>Add one</ActionButton>
+          <ActionButtons className="all" />
+        </>
+      )
+    }
     render(
       <ProgramProvider bound={bound}>
-        <ActionButton tag="Increment">Add one</ActionButton>
-        <ActionButtons className="all" />
+        <Standalone />
       </ProgramProvider>,
     )
     const addOne = screen.getByRole('button', { name: 'Add one' })
@@ -149,5 +162,125 @@ describe('@foldkit/react/interaction', () => {
       fireEvent.click(addOne)
     })
     expect(bound.readModel().count).toBe(1)
+  })
+
+  it('types Actions from the Catalog the Program declares', () => {
+    expectTypeOf<keyof ActionsOf<typeof App>>().toEqualTypeOf<
+      'increment' | 'reset'
+    >()
+  })
+
+  it('refuses a provider bound to a different Program', () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const ReadsCounterProgram = () => {
+      useModel(CounterProgram)
+      return null
+    }
+    expect(() =>
+      render(
+        <ProgramProvider bound={Interaction.bind(App, makeHandle())}>
+          <ReadsCounterProgram />
+        </ProgramProvider>,
+      ),
+    ).toThrow(
+      'The nearest ProgramProvider binds actionMenu:react-counter, not react-counter',
+    )
+    quiet.mockRestore()
+  })
+})
+
+describe('referential integrity', () => {
+  const renderCounted = (children: ReactNode) => {
+    const bound = Interaction.bind(App, makeHandle())
+    render(<ProgramProvider bound={bound}>{children}</ProgramProvider>)
+    return bound
+  }
+
+  it('re-renders a selection only when its value changes', () => {
+    const counts: Array<number> = []
+    const Count = () => {
+      counts.push(useModel(App, model => model.count))
+      return null
+    }
+    const bound = renderCounted(<Count />)
+    act(() => {
+      bound.openMenu()
+    })
+    act(() => {
+      bound.typeInMenu('res')
+    })
+    expect(counts).toEqual([0])
+    act(() => {
+      bound.press('Increment')
+    })
+    expect(counts).toEqual([0, 1])
+  })
+
+  it('keeps the typed Actions until an availability changes', () => {
+    const seen: Array<ActionsOf<typeof App>> = []
+    const Actions = () => {
+      seen.push(useActions(App))
+      return null
+    }
+    const bound = renderCounted(<Actions />)
+    act(() => {
+      bound.openMenu()
+    })
+    expect(seen).toHaveLength(1)
+    act(() => {
+      bound.dismissMenu()
+      bound.press('Increment')
+    })
+    expect(seen).toHaveLength(2)
+    expect(seen.at(-1)?.reset.isEnabled).toBe(true)
+    act(() => {
+      bound.press('Increment')
+    })
+    expect(seen).toHaveLength(2)
+  })
+
+  it('does not repaint the Screen when only the menu moves', () => {
+    const commits: Array<string> = []
+    const bound = renderCounted(
+      <Profiler
+        id="screen"
+        onRender={(_id, phase) => {
+          commits.push(phase)
+        }}
+      >
+        <Screen />
+      </Profiler>,
+    )
+    act(() => {
+      bound.openMenu()
+    })
+    act(() => {
+      bound.typeInMenu('incr')
+    })
+    expect(commits).toEqual(['mount'])
+    act(() => {
+      bound.dismissMenu()
+      bound.press('Increment')
+    })
+    expect(commits).toEqual(['mount', 'update'])
+  })
+
+  it('returns the selection and the Actions together', () => {
+    const features: Array<
+      Readonly<{ count: number; isResetEnabled: boolean }>
+    > = []
+    const Feature = () => {
+      const { model, actions } = useFeature(App, model => model.count)
+      features.push({ count: model, isResetEnabled: actions.reset.isEnabled })
+      return null
+    }
+    const bound = renderCounted(<Feature />)
+    act(() => {
+      bound.press('Increment')
+    })
+    expect(features).toEqual([
+      { count: 0, isResetEnabled: false },
+      { count: 1, isResetEnabled: true },
+    ])
   })
 })

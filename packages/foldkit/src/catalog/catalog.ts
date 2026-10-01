@@ -177,6 +177,30 @@ type IntersectModels<Actions> = (
 /** The Model every Action of a Catalog can read. */
 export type ModelOf<C extends AnyCatalog> = IntersectModels<ActionOf<C>>
 
+/**
+ * The exact Catalog a Program declares, kept through composition, so typed
+ * hooks know its Actions.
+ *
+ * @example
+ * ```typescript
+ * type CounterCatalog = CatalogOf<typeof SyncedCounter>
+ * // Catalog<readonly [typeof Increment, typeof Decrement, typeof Reset]>
+ * ```
+ */
+export type CatalogOf<Definition> =
+  Definition extends Readonly<{ catalog: infer C extends AnyCatalog }>
+    ? C
+    : never
+
+/**
+ * The `catalog` field a composed Program carries from its child: the child's
+ * exact Catalog, or nothing when the child declares none.
+ */
+export type CatalogCarrierOf<Child> =
+  Child extends Readonly<{ catalog: infer C extends AnyCatalog }>
+    ? Readonly<{ catalog: C }>
+    : unknown
+
 /** Builds a Catalog from Actions in the order surfaces list them. */
 export const make = <
   const Actions extends Array.NonEmptyReadonlyArray<AnyAction>,

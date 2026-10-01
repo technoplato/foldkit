@@ -36,6 +36,7 @@ export type ProgramHandle<Model, Message> = Readonly<{
  */
 export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
   Readonly<{
+    programId: Option.Option<string>
     status: () => Status
     screen: () => Option.Option<UiNode>
     entries: () => ReadonlyArray<Entry>
@@ -48,8 +49,12 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
     chooseFromMenu: (tag: string) => boolean
   }>
 
-/** The parts of a Program a Client binds to. */
+/**
+ * The parts of a Program a Client binds to. `id` lets typed hooks check
+ * they read the Program the nearest provider bound.
+ */
 export type BindableProgram<Model, Message> = Readonly<{
+  id?: string
   interaction?: ProgramInteraction<Model, Message>
   screen?: (model: Model) => UiNode
 }>
@@ -82,6 +87,7 @@ export const bind = <Model, Message>(
 
   return {
     ...handle,
+    programId: Option.fromNullishOr(program.id),
     status: () =>
       whenInteractive((inner, model) => inner.status(model), Ready()),
     screen: () =>

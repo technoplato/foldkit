@@ -23,6 +23,8 @@ export type {
   AnyAction,
   AnyCatalog,
   Catalog,
+  CatalogCarrierOf,
+  CatalogOf,
   Entry,
   MessageOf,
   ModelOf,
