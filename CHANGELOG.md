@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 1st, 2026 at 7:28:54 p.m. EDT — `4d27c0d9a450` feat(foldkit): declare navigation routes and run every carrier from one loop
+
+- **Implementation commit:** `4d27c0d9a4500d5c5b96839c3cdab8f77491aeea`
+- **Change:** Declare navigation routes and run every carrier from one loop.
+- **Details:**
+  - Pure navigation core: whole-stack print and parse with a NotFound fallback, the OpenedUri and NavigatedBack facts, carrier plans keyed by printed path, and one carrier loop with browser history and keyed native stack drivers. ADR 0012 supersedes the ADR 0010 seam.
+- **Files:**
+  - `packages/foldkit/src/navigation/uri.ts` — Print a whole stack to one URI and parse any URI back.
+  - `packages/foldkit/src/navigation/carrier.ts` — Keep one carrier on the Program's plan.
+  - `packages/foldkit/src/navigation/browserHistory.ts` — Drive browser history from the plan.
+  - `packages/foldkit/src/navigation/keyedStack.ts` — Drive a keyed native stack from the plan.
+  - `docs/adr/0012-navigation-carriers.md` — Record the carrier decision.
+- **User context (verbatim):**
+  > I need navigation considered and built for all of them
+  > we want parser printing, dual parsers, byparsers, I've heard them called, where on a route we can get the from a URI, we can get the object that represents the state of the application in that particular state, and from the state, we can generate a URI. So we want that built-in.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 1st, 2026 at 6:50:16 p.m. EDT — `e5ce79c32455` docs: add the navigation carrier design and the distributed papers review
 
 - **Implementation commit:** `e5ce79c324552ac716ae325681e8c6c491b94a58`
