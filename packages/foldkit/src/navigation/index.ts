@@ -30,6 +30,79 @@ export {
   applyStackInstructions,
 } from './structure.js'
 export type { Presented, StackInstruction } from './structure.js'
+export { entriesOf, stackFrom, truncated, isOpaque } from './structure.js'
+export {
+  Slug,
+  Placement,
+  rootRoute,
+  pushRoute,
+  presentRoute,
+  liftRoute,
+  tagCase,
+  NotFound,
+  isNotFound,
+  notFoundRoute,
+  HistoryMode,
+  routeOf,
+  NavigationDeclarationError,
+  make,
+} from './declaration.js'
+export type {
+  DestinationRoute,
+  RouteOptions,
+  StackLens,
+  ProgramNavigation,
+} from './declaration.js'
+export {
+  splitUri,
+  pathAndUri,
+  pathOf,
+  printStates,
+  printStack,
+  parseStack,
+  canonicalUri,
+  defaultUri,
+} from './uri.js'
+export type { SplitUri, PathAndUri } from './uri.js'
+export {
+  UriVia,
+  Launch,
+  Link,
+  DeepLink,
+  History,
+  Cli,
+  Agent,
+  Following,
+  OpenedUri,
+  NavigatedBack,
+  Message,
+  isMessage,
+} from './message.js'
+export { settled, applyMessage } from './transition.js'
+export {
+  planOf,
+  carrierMove,
+  classifyCarrierChange,
+  launch,
+  backOneEntry,
+  runCarrier,
+} from './carrier.js'
+export type {
+  CarrierEntry,
+  CarrierPlan,
+  CarrierSnapshot,
+  CarrierMove,
+  Expectation,
+  CarrierEvent,
+  CarrierDriver,
+  CarrierSource,
+  CarrierDiagnostic,
+  CarrierOptions,
+} from './carrier.js'
+export { windowUri, browserHistoryDriver } from './browserHistory.js'
+export type { BrowserWindow } from './browserHistory.js'
+export { keyedStackDriver } from './keyedStack.js'
+export type { KeyedRoute, KeyedStack } from './keyedStack.js'
 export {
   tanstackRouterPlugin,
   reactRouterPlugin,

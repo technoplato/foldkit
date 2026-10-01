@@ -2,7 +2,7 @@
 
 Date: 2026-08-24
 
-Status: Accepted in part — seam types + URI sync helpers landed (441cbc8a2); makeApplication integration pending
+Status: Superseded by ADR 0012 (navigation carriers). The seam types and URI sync helpers landed in 441cbc8a2 and were removed when the carrier loop replaced them.
 
 ## Context
 

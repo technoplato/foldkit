@@ -170,6 +170,40 @@ const presentedEntries = <Destination>(
     }),
   )
 
+/**
+ * The entries above the root, oldest first. A bare-root stack has none.
+ *
+ * @example
+ * ```typescript
+ * entriesOf(stackWithEntries(Counter(), [presented(Settings(), Push())]))
+ * // [{ destination: Settings(), style: Push() }]
+ * ```
+ */
+export const entriesOf = <Destination>(
+  stack: NavigationStack<Destination>,
+): ReadonlyArray<Presented<Destination>> => presentedEntries(stack)
+
+/** Builds a stack from its root and any entries above it. */
+export const stackFrom = <Destination>(
+  root: Destination,
+  entries: ReadonlyArray<Presented<Destination>>,
+): NavigationStack<Destination> =>
+  Array.match(entries, {
+    onEmpty: () => stackAtRoot(root),
+    onNonEmpty: nonEmpty => stackWithEntries(root, nonEmpty),
+  })
+
+/** The root plus the first `count` entries. */
+export const truncated = <Destination>(
+  stack: NavigationStack<Destination>,
+  count: number,
+): NavigationStack<Destination> =>
+  stackFrom(stack.root, Array.take(entriesOf(stack), count))
+
+/** True for styles that hide what is beneath them: Push and FullScreenCover. */
+export const isOpaque = (style: PresentationStyle): boolean =>
+  style._tag === 'Push' || style._tag === 'FullScreenCover'
+
 /** Returns the topmost entry, or `Option.none` for a bare-root stack. */
 export const topEntry = <Destination>(
   stack: NavigationStack<Destination>,

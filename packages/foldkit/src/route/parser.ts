@@ -32,10 +32,15 @@ export class ParseError extends Data.TaggedError('ParseError')<{
  */
 export type ParseResult<A> = [A, ReadonlyArray<string>]
 
-type PrintState = {
+/**
+ * The state a Biparser prints into: the path segments so far and the query
+ * parameters. Exported so a navigation stack can print one entry after
+ * another into the same state.
+ */
+export type PrintState = Readonly<{
   segments: ReadonlyArray<string>
   queryParams: QueryParams.QueryParams
-}
+}>
 
 /**
  * A bidirectional parser that can both parse URL segments into a value
@@ -346,6 +351,21 @@ export const root: Biparser<{}> = {
           }),
         ),
     }),
+  print: (_, state) => Effect.succeed(state),
+}
+
+/**
+ * A parser that matches at the current position without consuming a
+ * segment. A navigation root that sits at its Program's slug uses it:
+ * `/counter` is the slug plus `here`.
+ *
+ * @example
+ * ```ts
+ * here.parse(['session']) // succeeds with [{}, ['session']]
+ * ```
+ */
+export const here: Biparser<{}> = {
+  parse: segments => Effect.succeed([{}, segments]),
   print: (_, state) => Effect.succeed(state),
 }
 

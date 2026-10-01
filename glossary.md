@@ -107,12 +107,19 @@ Sheet | BottomSheet | FullScreenCover | Dialog | Popover | Drawer`. This
   derived handles and agent tools so callers never build wrappers by hand.
 - **Carrier**: the host-specific spelling of a URI: browser location, argv
   (`counter show`), custom scheme (`foldkit://counter/c1`), deep link.
-- **HistoryPort**: the three verbs a carrier implements: `push`, `replace`,
-  `back` (`runtimeSeam.ts`).
-- **Seam (ADR 0010)**: `ProgramNavigation` + `HistoryPort` + `makeUriSync`;
-  diffs observed Models' stacks and drives history. e.g. stack `[Gallery]`
-  changing to `[Gallery, Push Detail(c1)]` emits one `history.push
-('/counter/c1')`.
+- **Carrier plan**: what every carrier shows for one Model: the stack's
+  entries root first, each keyed by its printed path, plus the whole
+  stack's URI. e.g. keys `/counter`, `/counter/session`,
+  `/counter/session/menu` with URI `/counter/session/menu?q=re`
+  (`navigation/carrier.ts`).
+- **Carrier driver**: the only code a carrier adapter writes: `read`,
+  `perform`, `subscribe`. e.g. `browserHistoryDriver(window)` for the web,
+  `keyedStackDriver(stack)` for React Navigation and Expo Router.
+- **Carrier loop (ADR 0012)**: `runCarrier(bound, driver)` writes the
+  carrier toward the plan and reports a change the plan did not cause as
+  `OpenedUri` or `NavigatedBack`. e.g. browser Back from
+  `/counter/session` reports `NavigatedBack({ uri: '/counter' })`.
+  Supersedes the ADR 0010 seam (`HistoryPort`, `makeUriSync`).
 - **Deep link law**: every occupiable Destination prints a URI, including
   private ones. Access is permissions, not the absence of a link.
 - **Query parameter**: shareable view configuration on a Destination, via
