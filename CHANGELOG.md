@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 1st, 2026 at 8:05:02 p.m. EDT — `d13820c0f229` feat: compose one navigation stack through Session and the action menu
+
+- **Implementation commit:** `d13820c0f229c223fabd129bd46069e4b0f2d8c3`
+- **Change:** Compose one navigation stack through Session and the action menu.
+- **Details:**
+  - Session owns the stack and adds its settings page, NotFound, Escape as Back, and the mirrored-launch rule; the action menu joins the stack with a URI; the bound interaction exposes the plan and the carrier facts; the Counter declares /counter.
+- **Files:**
+  - `packages/foldkit/src/navigation/compose.ts` — Own or extend one stack per composed Program.
+  - `packages/foldkit/src/session/session.ts` — Add the Session settings page and own the stack.
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Present the menu as a URI on the shared stack.
+  - `packages/foldkit/src/interaction/bind.ts` — Expose the navigation facet every carrier drives.
+  - `examples/counter/core/src/navigation.ts` — Declare the Counter's route at /counter.
+- **User context (verbatim):**
+  > I want all of these to work from one declared code base.
+  > We want the client logic to be very, very thin, and we want these processors to be able to do all to be declared at the core in full.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 1st, 2026 at 7:28:54 p.m. EDT — `4d27c0d9a450` feat(foldkit): declare navigation routes and run every carrier from one loop
 
 - **Implementation commit:** `4d27c0d9a4500d5c5b96839c3cdab8f77491aeea`
