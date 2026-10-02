@@ -2,7 +2,7 @@
 
 Date: 2026-10-01
 
-Status: Accepted. The pure core landed in `packages/foldkit/src/navigation/` (`declaration.ts`, `uri.ts`, `message.ts`, `transition.ts`, `carrier.ts`, `browserHistory.ts`, `keyedStack.ts`). Composition and host carriers are pending. Supersedes ADR 0010.
+Status: Accepted and implemented. The core is in `packages/foldkit/src/navigation/`. Composition is in `Session.compose` and `ActionMenu.compose`. The carriers are the program CLI (`open`, `back`, `where`), OpenTUI, `@foldkit/react/navigation` and `@foldkit/react/react-router` for the web, and `@foldkit/react-native/react-navigation` and `@foldkit/react-native/expo-router` for native. Supersedes ADR 0010.
 
 The full design, with the evidence behind each law, is `docs/explorations/navigation-carriers-design.md`.
 
@@ -28,3 +28,5 @@ ADR 0010 proposed a runtime-owned URI loop: diff `stackOf(previous)` against `st
 - `makeUriSync`, `HistoryPort`, `parseResultToOption`, and `sameStack` are removed from `foldkit/navigation`. `RouterPlugin` and `createNavigationAdapter` stay until Multiple Counters adopts carriers.
 - The web host keeps React Router as a controlled renderer of the plan: `browserHistoryDriver` writes history, and React Router's `<Link>` reports `OpenedUri`.
 - OpenTUI and the CLI have no external carrier. They launch with `launch(bound, uri)` and go back with `backOneEntry(bound)`.
+- Expo Router nests the root layout's stack under a `__root` slot. Its keyed stack resets only that nested stack and spreads in the existing root and layout states, so the layout never remounts and Expo Router's web linking pushes history: browser Back from `/counter/session` returns to `/counter`.
+- Under `MirrorNavigation`, a cold deep link such as `/counter/session` joins the shared screen; under `KeepNavigationLocal` it opens. A deep link that arrives while running always opens.
