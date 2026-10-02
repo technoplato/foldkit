@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 8:06:46 a.m. EDT — `c99e73fa63aa` fix: bound long URIs and keep one Session page and one menu per stack
+
+- **Implementation commit:** `c99e73fa63aaa45cde008917b4f596587be9f793`
+- **Change:** Bound long URIs and keep one Session page and one menu per stack.
+- **Details:**
+  - Second review round: a segment cap fixes a parse blowup, route rules read the whole stack beneath, the interaction declares its menu keys, and the router, native headers, deep links, and CLI get small fixes.
+- **Files:**
+  - `packages/foldkit/src/navigation/uri.ts` — Cap URI segments and pass the stack beneath to route rules.
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Declare menu keys and return to a menu beneath a pushed page.
+  - `packages/foldkit/src/interaction/interaction.ts` — Add menuKeys, isKey, and menuHintOf.
+  - `packages/react/src/reactRouter/reactRouter.tsx` — Load URIs that are not the Program's.
+- **User context (verbatim):**
+  > iterate until all the business logic is out of all the adapters
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 7:34:40 a.m. EDT — `26a3ea7ec807` fix: close the bugs and leaks an adversarial navigation review found
 
 - **Implementation commit:** `26a3ea7ec8073fc10a684ddaff4fd5cd8d789478`
