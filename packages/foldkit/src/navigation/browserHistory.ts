@@ -30,7 +30,7 @@ export type BrowserWindow = Readonly<{
  *
  * @example
  * ```typescript
- * windowUri(window) // '/counter/menu?q=re'
+ * windowUri(window) // '/counter/menu?menu.q=re'
  * ```
  */
 export const windowUri = (window: BrowserWindow): string =>

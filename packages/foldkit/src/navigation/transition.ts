@@ -18,7 +18,7 @@ import { parseStack, pathAndUri, pathOf, printStates } from './uri.js'
  *
  * @example
  * ```typescript
- * settled(navigation, model, parseStack(navigation, '/counter/menu?q=re'))
+ * settled(navigation, model, parseStack(navigation, '/counter/menu?menu.q=re'))
  * // the menu entry highlights Reset, the first row `re` matches
  * ```
  */
@@ -82,7 +82,7 @@ const isAdoptedLaunch = <Model, Destination>(
  *
  * @example
  * ```typescript
- * // stack prints /counter/session/menu?q=re
+ * // stack prints /counter/session/menu?menu.q=re
  * applyMessage(navigation, model, stack, NavigatedBack({ uri: '/counter/session' }))
  * // [Counter, Push SessionSettings]
  * ```

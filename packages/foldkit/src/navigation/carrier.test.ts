@@ -345,13 +345,13 @@ describe('planOf', () => {
           },
           {
             key: '/counter/session/menu',
-            uri: '/counter/session/menu?q=re',
+            uri: '/counter/session/menu?menu.q=re',
             destination: menu('re'),
             maybeStyle: Option.some(Dialog()),
             maybeTitle: Option.some('Actions'),
           },
         ],
-        uri: '/counter/session/menu?q=re',
+        uri: '/counter/session/menu?menu.q=re',
         history: 'Record',
       }),
     )
@@ -391,8 +391,8 @@ describe('carrierMove', () => {
     [
       'same keys with a new query',
       'Reconfigure',
-      snapshotOf(['/counter', '/counter/menu'], '/counter/menu?q=r'),
-      '/counter/menu?q=re',
+      snapshotOf(['/counter', '/counter/menu'], '/counter/menu?menu.q=r'),
+      '/counter/menu?menu.q=re',
     ],
     [
       'a deeper plan',
@@ -532,7 +532,7 @@ describe('runCarrier on browser history', () => {
     expect(browser.uris()).toEqual([
       '/counter',
       '/counter/session',
-      '/counter/session/menu?q=r',
+      '/counter/session/menu?menu.q=r',
     ])
     expect(program.facts).toEqual([])
   })
@@ -588,11 +588,11 @@ describe('runCarrier on browser history', () => {
 
   it('rewrites a non-canonical launch to its canonical spelling', async () => {
     const program = makeProgram()
-    const browser = makeBrowser('/counter/menu?q=re&utm_source=mail')
+    const browser = makeBrowser('/counter/menu?menu.q=re&utm_source=mail')
     runOnBrowser(program, browser)
     await settle()
-    expect(browser.uri()).toBe('/counter/menu?q=re')
-    expect(printed(program.stack())).toBe('/counter/menu?q=re')
+    expect(browser.uri()).toBe('/counter/menu?menu.q=re')
+    expect(printed(program.stack())).toBe('/counter/menu?menu.q=re')
   })
 
   it('keeps an unknown path and lets Back reach the root', async () => {

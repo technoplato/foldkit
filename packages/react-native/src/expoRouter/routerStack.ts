@@ -41,8 +41,8 @@ const queryEntriesOf = (
  *
  * @example
  * ```typescript
- * routerRouteOf({ key: '/counter/menu', uri: '/counter/menu?q=re' })
- * // { key: '/counter/menu', name: '[...path]', params: { q: 're', path: ['counter', 'menu'] } }
+ * routerRouteOf({ key: '/counter/menu', uri: '/counter/menu?menu.q=re' })
+ * // { key: '/counter/menu', name: '[...path]', params: { 'menu.q': 're', path: ['counter', 'menu'] } }
  * ```
  */
 export const routerRouteOf = (route: Navigation.KeyedRoute): RouterRoute => {
@@ -86,8 +86,8 @@ const queryOf = (params: Readonly<Record<string, unknown>>): string =>
  *
  * @example
  * ```typescript
- * uriOfRoute({ name: '[...path]', params: { path: ['counter', 'menu'], q: 're' } })
- * // Some('/counter/menu?q=re')
+ * uriOfRoute({ name: '[...path]', params: { path: ['counter', 'menu'], 'menu.q': 're' } })
+ * // Some('/counter/menu?menu.q=re')
  * ```
  */
 export const uriOfRoute = (

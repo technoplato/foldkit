@@ -117,7 +117,7 @@ export const pushRoute = <Destination, Value>(
  * @example
  * ```typescript
  * presentRoute(menuRouteCase, Dialog(), { title: () => 'Actions' })
- * // `/counter/menu?q=re`
+ * // `/counter/menu?menu.q=re`
  * ```
  */
 export const presentRoute = <Destination, Value>(

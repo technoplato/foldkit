@@ -136,9 +136,9 @@ describe('navigation commands', () => {
 
   it('paints the menu over the screen beneath it', () => {
     const bound = bindApp()
-    runProgramCommand(bound, 'counter', ['open', '/counter/menu?q=re'], {})
+    runProgramCommand(bound, 'counter', ['open', '/counter/menu?menu.q=re'], {})
     const text = paintProgram(bound)
-    expect(text).toContain('at /counter/menu?q=re')
+    expect(text).toContain('at /counter/menu?menu.q=re')
     expect(text).toContain('  > reset       Sets the count to 0')
     expect(text.indexOf('Action menu')).toBeLessThan(text.indexOf('Actions'))
   })

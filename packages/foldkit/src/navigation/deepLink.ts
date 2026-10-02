@@ -23,7 +23,7 @@ const pathAfterHost = (afterScheme: string): string =>
  * @example
  * ```typescript
  * uriOfDeepLink('foldkit-counter://counter/session') // '/counter/session'
- * uriOfDeepLink('https://counter.example/counter/menu?q=re') // '/counter/menu?q=re'
+ * uriOfDeepLink('https://counter.example/counter/menu?menu.q=re') // '/counter/menu?menu.q=re'
  * uriOfDeepLink('/counter') // '/counter'
  * ```
  */

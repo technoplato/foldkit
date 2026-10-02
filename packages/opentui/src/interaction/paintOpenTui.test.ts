@@ -181,7 +181,7 @@ const bindRouted = () => {
 describe('paintOpenTuiNavigationFrame', () => {
   it('paints where it is, the page beneath, and the menu over it', async () => {
     const bound = bindRouted()
-    bound.openUri('/counter/session/menu?q=re', Navigation.Link())
+    bound.openUri('/counter/session/menu?menu.q=re', Navigation.Link())
     const { renderer, renderOnce, captureCharFrame } =
       await createTestRenderer(testScreenSize)
     renderer.root.add(
@@ -199,7 +199,7 @@ describe('paintOpenTuiNavigationFrame', () => {
     await renderOnce()
     const frame = captureCharFrame()
     renderer.destroy()
-    expect(frame).toContain('/counter/session/menu?q=re')
+    expect(frame).toContain('/counter/session/menu?menu.q=re')
     expect(frame).toContain('Actions')
     expect(frame).toContain('> reset')
   })

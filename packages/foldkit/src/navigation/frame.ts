@@ -20,7 +20,7 @@ export type FrameLayer = Readonly<{
  * @example
  * ```typescript
  * frameOf(bound)
- * // Some({ uri: '/counter/session/menu?q=re',
+ * // Some({ uri: '/counter/session/menu?menu.q=re',
  * //   base: { key: '/counter/session', view: Screen(session page) },
  * //   overlays: [{ key: '/counter/session/menu', view: Menu(rows) }] })
  * ```
@@ -44,9 +44,9 @@ export type FrameSource = Readonly<{
  *
  * @example
  * ```typescript
- * // the plan is /counter/session/menu?q=re
+ * // the plan is /counter/session/menu?menu.q=re
  * frameOf(bound)
- * // Some({ uri: '/counter/session/menu?q=re', base: Session page, overlays: [menu] })
+ * // Some({ uri: '/counter/session/menu?menu.q=re', base: Session page, overlays: [menu] })
  * ```
  */
 export const frameOf = (source: FrameSource): Option.Option<Frame> =>

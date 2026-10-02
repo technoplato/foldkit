@@ -99,7 +99,7 @@ describe('NavigationFrame', () => {
     const bound = bindRouted()
     renderWith(bound)
     act(() => {
-      bound.openUri('/counter/menu?q=in', Navigation.Link())
+      bound.openUri('/counter/menu?menu.q=in', Navigation.Link())
     })
     expect(screen.getByText('count 0')).toBeDefined()
     expect(screen.getByRole('combobox').getAttribute('value')).toBe('in')
@@ -119,16 +119,16 @@ describe('useBrowserHistory', () => {
   })
 
   it('opens the launch location once the Program is Ready', async () => {
-    window.history.replaceState(null, '', '/counter/menu?q=in')
+    window.history.replaceState(null, '', '/counter/menu?menu.q=in')
     const bound = bindRouted()
     bound.press('KeepNavigationLocal')
     renderWith(bound, <BrowserPage />)
     await settle()
     expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
-      Option.some('/counter/menu?q=in'),
+      Option.some('/counter/menu?menu.q=in'),
     )
     expect(`${window.location.pathname}${window.location.search}`).toBe(
-      '/counter/menu?q=in',
+      '/counter/menu?menu.q=in',
     )
   })
 

@@ -28,7 +28,7 @@ import { pathAndUri, printStates } from './uri.js'
  *
  * @example
  * ```typescript
- * // { key: '/counter/menu', uri: '/counter/menu?q=re', destination: ActionMenu,
+ * // { key: '/counter/menu', uri: '/counter/menu?menu.q=re', destination: ActionMenu,
  * //   maybeStyle: Some(Dialog()), maybeTitle: Some('Actions') }
  * ```
  */

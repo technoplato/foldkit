@@ -128,7 +128,7 @@ describe('startCounterOn', () => {
     laptop.press('OpenSessionSettings')
     laptop.openMenu()
     laptop.typeInMenu('in')
-    expect(uriOf(laptop)).toBe('/counter/session/menu?q=in')
+    expect(uriOf(laptop)).toBe('/counter/session/menu?menu.q=in')
   })
 
   it('sends a menu choice as the Action itself', async () => {

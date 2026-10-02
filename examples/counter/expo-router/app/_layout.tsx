@@ -47,7 +47,7 @@ const ActionsButton = (): ReactElement => {
 
 /**
  * The Expo Router root layout. Every screen comes from the Counter's
- * declaration: `/counter`, `/counter/session`, and `/counter/menu?q=re`
+ * declaration: `/counter`, `/counter/session`, and `/counter/menu?menu.q=re`
  * render through the one catch-all route, and
  * `foldkit-counter-router://counter/session` opens the Session page. It
  * never names an Action or a route.

@@ -22,7 +22,7 @@ const classNames: PaintClassNames = {
  * plan, paints whatever screen the plan shows, routes keys, and presents
  * the action menu, all through the generic adapters. It never names
  * Increment, Decrement, Reset, or a route: `/counter/session` and
- * `/counter/menu?q=re` come from the declaration.
+ * `/counter/menu?menu.q=re` come from the declaration.
  */
 export const App = (): ReactElement => {
   useKeyBindings()

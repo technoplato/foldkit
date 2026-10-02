@@ -59,6 +59,22 @@ describe('FoldkitRouter', () => {
     )
   })
 
+  it('renders every declared screen with no routes written', () => {
+    const bound = bindRouted()
+    render(
+      <ProgramProvider bound={bound}>
+        <FoldkitRouter />
+      </ProgramProvider>,
+    )
+    expect(screen.getByText('count 0')).toBeDefined()
+    act(() => {
+      bound.press('OpenSessionSettings')
+    })
+    expect(
+      screen.getByText('Every device shows the same screen.'),
+    ).toBeDefined()
+  })
+
   it('follows a move the Program makes on its own', () => {
     const bound = renderRouted()
     act(() => {

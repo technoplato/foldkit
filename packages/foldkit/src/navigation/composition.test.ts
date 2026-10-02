@@ -57,8 +57,8 @@ describe('a composed App', () => {
 
   it('opens a menu URI and settles its highlight against the Catalog', () => {
     const bound = bindApp()
-    expect(bound.openUri('/counter/menu?q=re', Link())).toBe(true)
-    expect(uriOf(bound)).toBe('/counter/menu?q=re')
+    expect(bound.openUri('/counter/menu?menu.q=re', Link())).toBe(true)
+    expect(uriOf(bound)).toBe('/counter/menu?menu.q=re')
     const highlighted = Option.map(bound.menu(), menu =>
       menu.rows.filter(row => row.isHighlighted).map(row => row.entry.tag),
     )
@@ -70,7 +70,7 @@ describe('a composed App', () => {
     bound.press('OpenSessionSettings')
     bound.openMenu()
     bound.typeInMenu('in')
-    expect(uriOf(bound)).toBe('/counter/session/menu?q=in')
+    expect(uriOf(bound)).toBe('/counter/session/menu?menu.q=in')
     bound.navigateBack('/counter/session')
     expect(uriOf(bound)).toBe('/counter/session')
     expect(Option.isNone(bound.menu())).toBe(true)

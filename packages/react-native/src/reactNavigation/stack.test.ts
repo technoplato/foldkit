@@ -169,7 +169,7 @@ describe('entryStateOf', () => {
     expect(
       entryStateOf([
         { key: '/counter', uri: '/counter' },
-        { key: '/counter/menu', uri: '/counter/menu?q=re' },
+        { key: '/counter/menu', uri: '/counter/menu?menu.q=re' },
       ]),
     ).toEqual({
       index: 1,
@@ -178,7 +178,7 @@ describe('entryStateOf', () => {
         {
           key: '/counter/menu',
           name: 'FoldkitEntry',
-          params: { uri: '/counter/menu?q=re' },
+          params: { uri: '/counter/menu?menu.q=re' },
         },
       ],
     })

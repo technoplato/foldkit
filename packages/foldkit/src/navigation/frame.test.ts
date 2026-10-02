@@ -9,9 +9,9 @@ import { Link } from './message.js'
 describe('frameOf', () => {
   it('paints the pushed page with the menu presented over it', () => {
     const bound = bindApp()
-    bound.openUri('/counter/session/menu?q=re', Link())
+    bound.openUri('/counter/session/menu?menu.q=re', Link())
     const frame = Option.getOrThrow(frameOf(bound))
-    expect(frame.uri).toBe('/counter/session/menu?q=re')
+    expect(frame.uri).toBe('/counter/session/menu?menu.q=re')
     expect([frame.base.key, frame.base.view._tag]).toEqual([
       '/counter/session',
       'Screen',

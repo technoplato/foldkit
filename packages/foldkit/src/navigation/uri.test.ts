@@ -1,10 +1,11 @@
-import { Array, Option } from 'effect'
+import { Array, Option, Schema as S, pipe } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import * as Route from '../route/parser.js'
+import { ts } from '../schema/index.js'
 import {
   Counter,
-  type Destination,
+  Destination,
   type Model,
   SessionSettings,
   counterRoute,
@@ -46,9 +47,9 @@ describe('splitUri', () => {
   })
 
   it('drops the fragment, which scrolls a page and names none', () => {
-    expect(splitUri('/counter/menu?q=re#row')).toEqual({
+    expect(splitUri('/counter/menu?menu.q=re#row')).toEqual({
       segments: ['counter', 'menu'],
-      search: 'q=re',
+      search: 'menu.q=re',
     })
   })
 
@@ -62,7 +63,7 @@ describe('splitUri', () => {
 
 describe('pathOf', () => {
   it('drops the query, which is configuration, not identity', () => {
-    expect(pathOf('/counter/menu?q=re')).toBe('/counter/menu')
+    expect(pathOf('/counter/menu?menu.q=re')).toBe('/counter/menu')
   })
 })
 
@@ -71,8 +72,8 @@ describe('parseStack and printStack', () => {
     ['/counter', '/counter'],
     ['/counter/session', '/counter/session'],
     ['/counter/menu', '/counter/menu'],
-    ['/counter/menu?q=re', '/counter/menu?q=re'],
-    ['/counter/session/menu?q=fo', '/counter/session/menu?q=fo'],
+    ['/counter/menu?menu.q=re', '/counter/menu?menu.q=re'],
+    ['/counter/session/menu?menu.q=fo', '/counter/session/menu?menu.q=fo'],
     ['/counter/bogus', '/counter/bogus'],
     ['/counter/bogus/deeper', '/counter/bogus/deeper'],
     ['/elsewhere', '/elsewhere'],
@@ -80,23 +81,23 @@ describe('parseStack and printStack', () => {
     ['', '/counter'],
     ['/counter/', '/counter'],
     ['/counter?utm_source=mail', '/counter'],
-    ['/counter/menu?q=re&utm_source=mail', '/counter/menu?q=re'],
-    ['/counter/menu?q=', '/counter/menu'],
+    ['/counter/menu?menu.q=re&utm_source=mail', '/counter/menu?menu.q=re'],
+    ['/counter/menu?menu.q=', '/counter/menu'],
     ['/counter/session/session', '/counter/session/session'],
     ['/counter/menu/session', '/counter/menu/session'],
-    ['/counter/menu?q=a%20b', '/counter/menu?q=a+b'],
+    ['/counter/menu?menu.q=a%20b', '/counter/menu?menu.q=a+b'],
     ['/counter/a%2Fb', '/counter/a%2Fb'],
-    ['/counter/nope/menu?q=re', '/counter/nope/menu?q=re'],
+    ['/counter/nope/menu?menu.q=re', '/counter/nope/menu?menu.q=re'],
     ['/elsewhere/menu', '/elsewhere/menu'],
     ['/counter/session#top', '/counter/session'],
-    ['/counter/menu?q=re#row', '/counter/menu?q=re'],
+    ['/counter/menu?menu.q=re#row', '/counter/menu?menu.q=re'],
   ])('prints %s as %s and the printed URI is a fixed point', (uri, printed) => {
     expect(print(uri)).toBe(printed)
     expect(print(printed)).toBe(printed)
   })
 
   it('parses a deep URI into the whole stack, root first', () => {
-    expect(parseStack(navigation, '/counter/session/menu?q=fo')).toEqual(
+    expect(parseStack(navigation, '/counter/session/menu?menu.q=fo')).toEqual(
       stackWithEntries<Destination>(Counter(), [
         presented(SessionSettings(), Push()),
         menuEntry('fo'),
@@ -122,7 +123,7 @@ describe('parseStack and printStack', () => {
   })
 
   it('keeps a page presented above NotFound as its own entry', () => {
-    expect(parseStack(navigation, '/counter/nope/menu?q=re')).toEqual(
+    expect(parseStack(navigation, '/counter/nope/menu?menu.q=re')).toEqual(
       stackWithEntries<Destination>(Counter(), [
         presented(Declaration.NotFound({ segments: ['nope'] }), Push()),
         menuEntry('re'),
@@ -186,6 +187,59 @@ describe('parseStack and printStack', () => {
   })
 })
 
+describe('query keys', () => {
+  const SearchPage = ts('SearchPage', { term: S.String })
+  type Wide = Destination | typeof SearchPage.Type
+  const searchRoute = Declaration.pushRoute(
+    Route.caseOf<Wide, { q: string }>(
+      pipe(Route.literal('search'), Route.query(S.Struct({ q: S.String }))),
+      {
+        embed: ({ q }) => SearchPage({ term: q }),
+        extract: destination =>
+          S.is(SearchPage)(destination)
+            ? Option.some({ q: destination.term })
+            : Option.none(),
+      },
+    ),
+  )
+  const narrow = (destination: Wide): Option.Option<Destination> =>
+    S.is(Destination)(destination) ? Option.some(destination) : Option.none()
+  const withSearch = Declaration.make<Model, Wide>({
+    slug: Declaration.Slug.make('counter'),
+    Destination: S.Union([Destination, SearchPage]),
+    root: Counter(),
+    routes: [
+      Declaration.liftRoute(counterRoute, narrow),
+      searchRoute,
+      Declaration.liftRoute(menuRoute, narrow),
+    ],
+  })
+
+  it('prefixes each entry key with its own path, so two `q`s keep their values', () => {
+    const stack = stackWithEntries<Wide>(Counter(), [
+      presented(SearchPage({ term: 'cats' }), Push()),
+      menuEntry('re'),
+    ])
+    const printed = Option.getOrThrow(printStack(withSearch, stack))
+    expect(printed).toBe('/counter/search/menu?search.q=cats&menu.q=re')
+    expect(parseStack(withSearch, printed)).toEqual(stack)
+  })
+
+  it('keeps an empty menu from picking up the page beneath', () => {
+    const stack = stackWithEntries<Wide>(Counter(), [
+      presented(SearchPage({ term: 'cats' }), Push()),
+      menuEntry(''),
+    ])
+    const printed = Option.getOrThrow(printStack(withSearch, stack))
+    expect(printed).toBe('/counter/search/menu?search.q=cats')
+    expect(parseStack(withSearch, printed)).toEqual(stack)
+  })
+
+  it('reads a bare key as the root key, so an old `?q=` no longer filters the menu', () => {
+    expect(print('/counter/menu?q=re')).toBe('/counter/menu')
+  })
+})
+
 describe('ownsUri', () => {
   it.each([
     ['/counter', true],
@@ -202,8 +256,8 @@ describe('ownsUri', () => {
 describe('canonicalUri and defaultUri', () => {
   it('canonicalizes by parsing and printing', () => {
     expect(
-      canonicalUri(navigation, '/counter/menu?q=re&utm_source=mail'),
-    ).toEqual(Option.some('/counter/menu?q=re'))
+      canonicalUri(navigation, '/counter/menu?menu.q=re&utm_source=mail'),
+    ).toEqual(Option.some('/counter/menu?menu.q=re'))
   })
 
   it('prints the root stack as the default', () => {

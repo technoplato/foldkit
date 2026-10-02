@@ -26,7 +26,7 @@ export const counterRoute = Navigation.rootRoute(
  * The Counter's navigation: one root Destination at `/counter`. The
  * combinators add the rest. `Session.compose` adds its settings page at
  * `/counter/session` and keeps any unknown path as NotFound, and
- * `ActionMenu.compose` presents the menu at `/counter/menu?q=re`.
+ * `ActionMenu.compose` presents the menu at `/counter/menu?menu.q=re`.
  *
  * @example
  * ```typescript

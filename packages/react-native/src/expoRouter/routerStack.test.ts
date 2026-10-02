@@ -206,14 +206,14 @@ describe('routerRouteOf and uriOfRoute', () => {
   it('writes the segments as the catch-all path and the query beside them', () => {
     const route: RouterRoute = routerRouteOf({
       key: '/counter/menu',
-      uri: '/counter/menu?q=re',
+      uri: '/counter/menu?menu.q=re',
     })
     expect(route).toEqual({
       key: '/counter/menu',
       name: '[...path]',
-      params: { q: 're', path: ['counter', 'menu'] },
+      params: { 'menu.q': 're', path: ['counter', 'menu'] },
     })
-    expect(uriOfRoute(route)).toEqual(Option.some('/counter/menu?q=re'))
+    expect(uriOfRoute(route)).toEqual(Option.some('/counter/menu?menu.q=re'))
   })
 
   it('reads the index route as the bare root and ignores other routes', () => {
@@ -294,9 +294,12 @@ describe('expoRouterStack', () => {
     const bound = bindApp()
     const container = makeContainer(indexLayout)
     runOn(bound, container)
-    bound.openUri('/counter/menu?q=in', Navigation.Link())
+    bound.openUri('/counter/menu?menu.q=in', Navigation.Link())
     await settle()
-    expect(container.layoutUris()).toEqual(['/counter', '/counter/menu?q=in'])
-    expect(uriOf(bound)).toBe('/counter/menu?q=in')
+    expect(container.layoutUris()).toEqual([
+      '/counter',
+      '/counter/menu?menu.q=in',
+    ])
+    expect(uriOf(bound)).toBe('/counter/menu?menu.q=in')
   })
 })

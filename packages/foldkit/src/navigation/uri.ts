@@ -1,4 +1,4 @@
-import { Array, Effect, Option, Result, String, pipe } from 'effect'
+import { Array, Effect, Option, Result, String, Tuple, pipe } from 'effect'
 
 import type * as Route from '../route/parser.js'
 import * as QueryParams from '../route/queryParams.js'
@@ -77,7 +77,7 @@ export type PathAndUri = Readonly<{ path: string; uri: string }>
  * @example
  * ```typescript
  * pathAndUri({ segments: ['counter', 'menu'], queryParams: q=re })
- * // { path: '/counter/menu', uri: '/counter/menu?q=re' }
+ * // { path: '/counter/menu', uri: '/counter/menu?menu.q=re' }
  * ```
  */
 export const pathAndUri = (state: Route.PrintState): PathAndUri => {
@@ -91,7 +91,7 @@ export const pathAndUri = (state: Route.PrintState): PathAndUri => {
  *
  * @example
  * ```typescript
- * pathOf('/counter/menu?q=re') // '/counter/menu'
+ * pathOf('/counter/menu?menu.q=re') // '/counter/menu'
  * ```
  */
 export const pathOf = (uri: string): string =>
@@ -123,13 +123,39 @@ const runOption = <A>(effect: Effect.Effect<A, unknown>): Option.Option<A> =>
     onSuccess: Option.some,
   })
 
+const scopeOf = (ownSegments: ReadonlyArray<string>): string =>
+  Array.join(ownSegments, '.')
+
+const scopedKey = (scope: string, key: string): string =>
+  String.isEmpty(scope) ? key : `${scope}.${key}`
+
 const printWith = <Destination>(
   route: DestinationRoute<Destination>,
   destination: Destination,
-  state: Route.PrintState,
+  below: Route.PrintState,
 ): Option.Option<Route.PrintState> =>
-  Option.flatMap(route.routeCase.casePath.extract(destination), value =>
-    runOption(route.routeCase.parser.print(value, state)),
+  pipe(
+    route.routeCase.casePath.extract(destination),
+    Option.flatMap(value =>
+      runOption(
+        route.routeCase.parser.print(value, {
+          segments: below.segments,
+          queryParams: QueryParams.empty,
+        }),
+      ),
+    ),
+    Option.map(own => {
+      const scope = scopeOf(Array.drop(own.segments, below.segments.length))
+      return {
+        segments: own.segments,
+        queryParams: Array.appendAll(
+          below.queryParams,
+          Array.map(own.queryParams, ([key, value]) =>
+            Tuple.make(scopedKey(scope, key), value),
+          ),
+        ),
+      }
+    }),
   )
 
 const rootStateOf = <Model, Destination>(
@@ -176,12 +202,13 @@ export const printStates = <Model, Destination>(
 
 /**
  * Prints a whole stack to one URI: the root and every entry in the path,
- * every entry's configuration in the query.
+ * every entry's configuration in the query under that entry's own path
+ * segments, so two entries can use the same key.
  *
  * @example
  * ```typescript
  * printStack(navigation, stackWithEntries(Counter(), [presented(ActionMenu('re'), Dialog())]))
- * // Some('/counter/menu?q=re')
+ * // Some('/counter/menu?menu.q=re')
  * ```
  */
 export const printStack = <Model, Destination>(
@@ -201,19 +228,57 @@ const routesPlaced = <Model, Destination>(
 ): ReadonlyArray<DestinationRoute<Destination>> =>
   Array.filter(routesOf(navigation), route => route.placement === placement)
 
-const parseWith = <Destination>(
+type Parsed<Destination> = Readonly<{
+  destination: Destination
+  remaining: ReadonlyArray<string>
+}>
+
+const scopedSearchOf = (search: string, scope: string): string => {
+  const entries = Array.fromIterable(new URLSearchParams(search).entries())
+  const prefix = `${scope}.`
+  const own = String.isEmpty(scope)
+    ? Array.filter(entries, ([key]) => !String.includes('.')(key))
+    : Array.getSomes(
+        Array.map(entries, ([key, value]) =>
+          String.startsWith(prefix)(key)
+            ? Option.some(Tuple.make(key.slice(prefix.length), value))
+            : Option.none(),
+        ),
+      )
+  return new URLSearchParams(
+    Array.map(own, ([key, value]) => [key, value]),
+  ).toString()
+}
+
+const parseOnce = <Destination>(
   route: DestinationRoute<Destination>,
   segments: ReadonlyArray<string>,
   search: string,
-): Option.Option<
-  Readonly<{ destination: Destination; remaining: ReadonlyArray<string> }>
-> =>
+): Option.Option<Parsed<Destination>> =>
   Option.map(
     runOption(route.routeCase.parser.parse(segments, search)),
     ([value, remaining]) => ({
       destination: route.routeCase.casePath.embed(value),
       remaining,
     }),
+  )
+
+const parseWith = <Destination>(
+  route: DestinationRoute<Destination>,
+  segments: ReadonlyArray<string>,
+  search: string,
+): Option.Option<Parsed<Destination>> =>
+  Array.findFirst(Array.range(0, segments.length), count =>
+    pipe(
+      parseOnce(
+        route,
+        segments,
+        scopedSearchOf(search, scopeOf(Array.take(segments, count))),
+      ),
+      Option.filter(
+        ({ remaining }) => remaining.length === segments.length - count,
+      ),
+    ),
   )
 
 const parseEntries = <Model, Destination>(
@@ -360,7 +425,7 @@ const maximumUriSegments = 32
  *
  * @example
  * ```typescript
- * parseStack(navigation, '/counter/session/menu?q=fo')
+ * parseStack(navigation, '/counter/session/menu?menu.q=fo')
  * // [Counter, Push SessionSettings, Dialog ActionMenu('fo')]
  * parseStack(navigation, '/counter/nope')
  * // [Counter, Push NotFound(['nope'])]
@@ -376,7 +441,7 @@ export const parseStack = <Model, Destination>(
   if (segments.length > maximumUriSegments) {
     return pipe(
       Array.findFirst(routesPlaced(navigation, 'Fallback'), route =>
-        Option.map(parseWith(route, segments, search), ({ destination }) =>
+        Option.map(parseOnce(route, segments, search), ({ destination }) =>
           stackAtRoot(destination),
         ),
       ),
@@ -423,8 +488,8 @@ export const ownsUri = <Model, Destination>(
  *
  * @example
  * ```typescript
- * canonicalUri(navigation, '/counter/menu?q=re&utm_source=mail')
- * // Some('/counter/menu?q=re')
+ * canonicalUri(navigation, '/counter/menu?menu.q=re&utm_source=mail')
+ * // Some('/counter/menu?menu.q=re')
  * ```
  */
 export const canonicalUri = <Model, Destination>(

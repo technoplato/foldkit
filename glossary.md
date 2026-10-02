@@ -110,7 +110,7 @@ Sheet | BottomSheet | FullScreenCover | Dialog | Popover | Drawer`. This
 - **Carrier plan**: what every carrier shows for one Model: the stack's
   entries root first, each keyed by its printed path, plus the whole
   stack's URI. e.g. keys `/counter`, `/counter/session`,
-  `/counter/session/menu` with URI `/counter/session/menu?q=re`
+  `/counter/session/menu` with URI `/counter/session/menu?menu.q=re`
   (`navigation/carrier.ts`).
 - **Carrier driver**: the only code a carrier adapter writes: `read`,
   `perform`, `subscribe`. e.g. `browserHistoryDriver(window)` for the web,

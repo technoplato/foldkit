@@ -5,7 +5,7 @@ import { uriOfDeepLink } from './deepLink.js'
 describe('uriOfDeepLink', () => {
   it.each([
     ['foldkit-counter://counter/session', '/counter/session'],
-    ['foldkit-counter://counter/menu?q=re', '/counter/menu?q=re'],
+    ['foldkit-counter://counter/menu?menu.q=re', '/counter/menu?menu.q=re'],
     ['https://counter.example/counter/session', '/counter/session'],
     ['https://counter.example?q=re', '/?q=re'],
     ['https://counter.example', '/'],

@@ -20,7 +20,7 @@ describe('applyMessage', () => {
         navigation,
         current,
         current.navigation,
-        OpenedUri({ uri: '/counter/menu?q=re', via: Link() }),
+        OpenedUri({ uri: '/counter/menu?menu.q=re', via: Link() }),
       ),
     ).toEqual(stackWithEntries<Destination>(Counter(), [menuEntry('re', 2)]))
   })
@@ -35,7 +35,7 @@ describe('applyMessage', () => {
         navigation,
         model({ preferredFocus: 3 }),
         stack,
-        NavigatedBack({ uri: '/counter/menu?q=other' }),
+        NavigatedBack({ uri: '/counter/menu?menu.q=other' }),
       ),
     ).toEqual(stackWithEntries<Destination>(Counter(), [menuEntry('re', 1)]))
   })

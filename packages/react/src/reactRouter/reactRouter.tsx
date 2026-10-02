@@ -5,6 +5,7 @@ import { type Navigator, Router, type To, createPath } from 'react-router'
 
 import { type AnyBound, useBound } from '../interaction/interaction.js'
 import { useBoundRead } from '../interaction/selected.js'
+import { NavigationFrame } from '../navigation/navigation.js'
 
 // ROUTER
 
@@ -54,16 +55,24 @@ export const navigatorOf = (bound: AnyBound): Navigator => ({
  * Back follow the plan. Until the Program is Ready it routes on the
  * browser's location; with neither, it renders nothing.
  *
+ * With no children it renders every screen the Program declares through
+ * `NavigationFrame`, so a screen added to the Program needs no route here.
+ * Children add the app's own React Router pages beside the Program's; a
+ * link to one of them loads it as a page, because only the Program's URIs
+ * open in the Program.
+ *
  * @example
  * ```tsx
  * <ProgramProvider bound={bound}>
- *   <FoldkitRouter>
- *     <Routes>
- *       <Route path="/counter" element={<CounterPage />} />
- *       <Route path="/counter/session" element={<SessionPage />} />
- *     </Routes>
- *   </FoldkitRouter>
+ *   <FoldkitRouter />
  * </ProgramProvider>
+ *
+ * <FoldkitRouter>
+ *   <Routes>
+ *     <Route path="/about" element={<About />} />
+ *     <Route path="*" element={<NavigationFrame />} />
+ *   </Routes>
+ * </FoldkitRouter>
  * ```
  */
 export const FoldkitRouter = ({
@@ -81,7 +90,7 @@ export const FoldkitRouter = ({
     onNone: () => <></>,
     onSome: location => (
       <Router location={location} navigator={navigator}>
-        {children}
+        {children ?? <NavigationFrame />}
       </Router>
     ),
   })
