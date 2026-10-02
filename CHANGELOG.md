@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 1st, 2026 at 8:13:39 p.m. EDT — `50e350819f65` feat: paint navigation frames in the CLI and OpenTUI
+
+- **Implementation commit:** `50e350819f65ccd99e4ac622c13576eeb97b1690`
+- **Change:** Paint navigation frames in the CLI and OpenTUI.
+- **Details:**
+  - One frame helper for single-surface hosts; CLI open, back, and where; OpenTUI frame painting with a launch URI; unroutable Programs ignore carrier facts.
+- **Files:**
+  - `packages/foldkit/src/navigation/frame.ts` — Describe what a single-surface host paints.
+  - `packages/foldkit/src/cli/program.ts` — Add open, back, and where to the CLI.
+  - `packages/opentui/src/interaction/paintOpenTui.ts` — Paint the navigation frame in a terminal.
+  - `packages/opentui/src/interaction/runOpenTui.ts` — Launch at a URI once the Program is Ready.
+- **User context (verbatim):**
+  > And then OpenTUI and a CLI. And I want all of these to work from one declared code base.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 1st, 2026 at 8:05:02 p.m. EDT — `d13820c0f229` feat: compose one navigation stack through Session and the action menu
 
 - **Implementation commit:** `d13820c0f229c223fabd129bd46069e4b0f2d8c3`
