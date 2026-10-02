@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 6:51:15 a.m. EDT — `09c1863d9936` feat: carry navigation in Expo Router from one catch-all route
+
+- **Implementation commit:** `09c1863d99364cef3640ccf69a095560039813fb`
+- **Change:** Carry navigation in Expo Router from one catch-all route.
+- **Details:**
+  - Expo Router adapter that resets the stack inside the root slot, an Expo Router Counter on the shared composition root, and a browser run of its web build.
+- **Files:**
+  - `packages/react-native/src/expoRouter/routerStack.ts` — Map plans onto Expo Router's nested root state.
+  - `packages/react-native/src/expoRouter/foldkitRouter.tsx` — Keep Expo Router's Stack on the Program's plan.
+  - `examples/counter/expo-router/app/_layout.tsx` — Run the Counter on Expo Router.
+- **User context (verbatim):**
+  > We have expo file navigation and we have React navigation
+  > yes please, and continue
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 1st, 2026 at 8:42:53 p.m. EDT — `a632b40fca3b` feat: carry navigation in React, React Router, and React Navigation
 
 - **Implementation commit:** `a632b40fca3bafb7c352c0a69b55f6cf51a65ea2`
