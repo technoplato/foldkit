@@ -15,9 +15,11 @@ import { type CatalogCarrierOf, type Entry } from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
 import {
   type KeyInput,
+  type MenuHint,
   type MenuRow,
   type MenuView,
   type ProgramInteraction,
+  type TextRun,
   isChord,
   isKey,
   keyInput,
@@ -165,70 +167,210 @@ export const isMessage = S.is(Message)
 
 // FILTER
 
-const isSubsequence = (needle: string, haystack: string): boolean =>
-  Array.reduce(Array.fromIterable(haystack), 0, (matched, character) =>
-    matched < needle.length && needle.charAt(matched) === character
-      ? matched + 1
-      : matched,
-  ) === needle.length
-
 const PrefixMatch = 0
 const WordMatch = 1
-const DescriptionMatch = 2
-const LooseMatch = 3
+const LooseMatch = 2
+const DescriptionMatch = 3
 
-const matchRank = (entry: Entry, needle: string): Option.Option<number> => {
-  const words = `${entry.label} ${entry.tag}`.toLowerCase()
-  if (
-    entry.tag.toLowerCase().startsWith(needle) ||
-    entry.label.toLowerCase().startsWith(needle)
-  ) {
-    return Option.some(PrefixMatch)
-  } else if (words.includes(needle)) {
-    return Option.some(WordMatch)
-  } else if (entry.what.toLowerCase().includes(needle)) {
-    return Option.some(DescriptionMatch)
-  } else if (isSubsequence(needle, words)) {
-    return Option.some(LooseMatch)
-  } else {
-    return Option.none()
-  }
-}
+type Match = Readonly<{
+  rank: number
+  titlePositions: ReadonlyArray<number>
+  descriptionPositions: ReadonlyArray<number>
+}>
 
 /**
- * The rows a query leaves visible. An empty query keeps every row in
- * Catalog order. Otherwise rows rank by how they match, then by Catalog
- * order: a tag or label prefix first, then a substring of the label and
- * tag, then a substring of `what`, then a loose subsequence. `re` puts
- * Reset first; `rst` finds only Reset.
+ * One Catalog row a query kept: the entry, and its title and description
+ * with the matched letters marked.
  */
-export const visibleEntries = (
+export type MatchedEntry = Readonly<{
+  entry: Entry
+  title: ReadonlyArray<TextRun>
+  description: ReadonlyArray<TextRun>
+}>
+
+const isAcronym = (word: string): boolean =>
+  word.length > 1 && word === word.toUpperCase()
+
+/**
+ * An Action's tag as words, the title a menu row shows.
+ *
+ * @example
+ * ```typescript
+ * titleOf('OpenSessionSettings') // 'Open session settings'
+ * titleOf('OpenURL') // 'Open URL'
+ * ```
+ */
+export const titleOf = (tag: string): string =>
+  pipe(
+    tag,
+    String.replace(/([a-z0-9])([A-Z])/g, '$1 $2'),
+    String.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2'),
+    String.split(' '),
+    Array.map((word, index) =>
+      index === 0 || isAcronym(word) ? word : word.toLowerCase(),
+    ),
+    Array.join(' '),
+  )
+
+const substringPositions = (
+  haystack: string,
+  needle: string,
+): Option.Option<ReadonlyArray<number>> =>
+  Option.map(String.indexOf(needle)(haystack.toLowerCase()), start =>
+    Array.range(start, start + needle.length - 1),
+  )
+
+const prefixPositions = (
+  haystack: string,
+  needle: string,
+): Option.Option<ReadonlyArray<number>> =>
+  Option.filter(substringPositions(haystack, needle), positions =>
+    Option.contains(Array.head(positions), 0),
+  )
+
+const subsequencePositions = (
+  haystack: string,
+  needle: string,
+): Option.Option<ReadonlyArray<number>> => {
+  const letters = String.replaceAll(' ', '')(needle)
+  const positions = Array.reduce(
+    String.split(haystack.toLowerCase(), ''),
+    Array.empty<number>(),
+    (matched, character, index) =>
+      matched.length < letters.length &&
+      letters.charAt(matched.length) === character
+        ? Array.append(matched, index)
+        : matched,
+  )
+  return positions.length === letters.length && letters.length > 0
+    ? Option.some(positions)
+    : Option.none()
+}
+
+const inTitle =
+  (rank: number) =>
+  (titlePositions: ReadonlyArray<number>): Match => ({
+    rank,
+    titlePositions,
+    descriptionPositions: [],
+  })
+
+const unmarked = (rank: number): Match => inTitle(rank)([])
+
+const matchOf = (entry: Entry, needle: string): Option.Option<Match> => {
+  const title = titleOf(entry.tag)
+  return pipe(
+    Option.map(prefixPositions(title, needle), inTitle(PrefixMatch)),
+    Option.orElse(() =>
+      Option.map(
+        Option.orElse(prefixPositions(entry.tag, needle), () =>
+          prefixPositions(entry.label, needle),
+        ),
+        () => unmarked(PrefixMatch),
+      ),
+    ),
+    Option.orElse(() =>
+      Option.map(substringPositions(title, needle), inTitle(WordMatch)),
+    ),
+    Option.orElse(() =>
+      Option.map(substringPositions(entry.label, needle), () =>
+        unmarked(WordMatch),
+      ),
+    ),
+    Option.orElse(() =>
+      Option.map(subsequencePositions(title, needle), inTitle(LooseMatch)),
+    ),
+    Option.orElse(() =>
+      Option.map(
+        substringPositions(entry.what, needle),
+        (descriptionPositions): Match => ({
+          rank: DescriptionMatch,
+          titlePositions: [],
+          descriptionPositions,
+        }),
+      ),
+    ),
+  )
+}
+
+const runsOf = (
+  text: string,
+  positions: ReadonlyArray<number>,
+): ReadonlyArray<TextRun> =>
+  String.isEmpty(text)
+    ? []
+    : Array.reduce(
+        String.split(text, ''),
+        Array.empty<TextRun>(),
+        (runs, character, index) => {
+          const isMatch = Array.contains(positions, index)
+          return Option.match(Array.last(runs), {
+            onNone: () => [{ text: character, isMatch }],
+            onSome: last =>
+              last.isMatch === isMatch
+                ? Array.append(Array.dropRight(runs, 1), {
+                    text: `${last.text}${character}`,
+                    isMatch,
+                  })
+                : Array.append(runs, { text: character, isMatch }),
+          })
+        },
+      )
+
+const matchedEntryOf = (entry: Entry, match: Match): MatchedEntry => ({
+  entry,
+  title: runsOf(titleOf(entry.tag), match.titlePositions),
+  description: runsOf(entry.what, match.descriptionPositions),
+})
+
+/**
+ * The rows a query keeps, with the matched letters marked. An empty query
+ * keeps every row in Catalog order. Otherwise rows rank by how they match,
+ * then by Catalog order: a title, tag, or label prefix first, then a
+ * substring of the title or label, then the query's letters in order
+ * through the title, then a substring of `what`. `re` puts Reset first and
+ * marks `Re`; `rs` puts Reset first and marks `R` and `s`, above a row
+ * whose `what` happens to contain `first`.
+ */
+export const matchedEntries = (
   catalogEntries: ReadonlyArray<Entry>,
   query: string,
-): ReadonlyArray<Entry> => {
+): ReadonlyArray<MatchedEntry> => {
   const needle = query.trim().toLowerCase()
   if (needle === '') {
-    return catalogEntries
+    return Array.map(catalogEntries, entry =>
+      matchedEntryOf(entry, unmarked(PrefixMatch)),
+    )
   }
   return pipe(
     catalogEntries,
     Array.filterMap((entry, index) =>
-      Option.match(matchRank(entry, needle), {
+      Option.match(matchOf(entry, needle), {
         onNone: () => Result.failVoid,
-        onSome: rank => Result.succeed({ entry, rank, index }),
+        onSome: match => Result.succeed({ entry, match, index }),
       }),
     ),
     Array.sort(
       Order.combine(
-        Order.mapInput(Order.Number, (ranked: RankedEntry) => ranked.rank),
+        Order.mapInput(
+          Order.Number,
+          (ranked: RankedEntry) => ranked.match.rank,
+        ),
         Order.mapInput(Order.Number, (ranked: RankedEntry) => ranked.index),
       ),
     ),
-    Array.map(ranked => ranked.entry),
+    Array.map(ranked => matchedEntryOf(ranked.entry, ranked.match)),
   )
 }
 
-type RankedEntry = Readonly<{ entry: Entry; rank: number; index: number }>
+/** The entries a query keeps, ranked as {@link matchedEntries} ranks them. */
+export const visibleEntries = (
+  catalogEntries: ReadonlyArray<Entry>,
+  query: string,
+): ReadonlyArray<Entry> =>
+  Array.map(matchedEntries(catalogEntries, query), matched => matched.entry)
+
+type RankedEntry = Readonly<{ entry: Entry; match: Match; index: number }>
 
 const tagsOf = (visible: ReadonlyArray<Entry>): ReadonlyArray<string> =>
   Array.map(visible, entry => entry.tag)
@@ -364,6 +506,76 @@ export const moved = (
       }),
     ),
   })
+
+// VIEW
+
+const menuTitle = 'Actions'
+
+const menuFilterLabel = 'Search actions'
+
+const summaryOf = (query: string, rows: ReadonlyArray<MenuRow>): string =>
+  Array.match(rows, {
+    onEmpty: () =>
+      String.isEmpty(query.trim())
+        ? 'No actions'
+        : `No actions match “${query.trim()}”`,
+    onNonEmpty: nonEmpty =>
+      nonEmpty.length === 1 ? '1 action' : `${nonEmpty.length} actions`,
+  })
+
+const hintsOf = (focus: Focus): ReadonlyArray<MenuHint> => [
+  { keys: ['↑', '↓'], does: 'move' },
+  { keys: ['↵'], does: 'run' },
+  {
+    keys: ['esc'],
+    does: focus._tag === 'OnFilter' ? 'close' : 'back to search',
+  },
+]
+
+const rowOf =
+  (focus: Focus) =>
+  (matched: MatchedEntry): MenuRow => ({
+    entry: matched.entry,
+    title: matched.title,
+    description: matched.description,
+    keys: Array.take(matched.entry.keys, 1),
+    isHighlighted: Option.contains(highlightedTag(focus), matched.entry.tag),
+    isFocused: focus._tag === 'OnAction' && focus.tag === matched.entry.tag,
+  })
+
+/**
+ * The menu as every Client paints it: the Catalog ranked by the query
+ * with matched letters marked, the highlighted and focused rows, a
+ * summary for a screen reader, and the keys that work right now.
+ *
+ * @example
+ * ```typescript
+ * menuViewOf(entries, ActionMenu({ query: 're', focus }), Dialog())
+ * // { title: 'Actions', query: 're', summary: '1 action',
+ * //   rows: [{ title: [{ text: 'Re', isMatch: true }, { text: 'set', isMatch: false }], ... }],
+ * //   hints: [{ keys: ['↑', '↓'], does: 'move' }, ...], ... }
+ * ```
+ */
+export const menuViewOf = (
+  catalogEntries: ReadonlyArray<Entry>,
+  menu: ActionMenu,
+  style: PresentationStyle,
+): MenuView => {
+  const rows = Array.map(
+    matchedEntries(catalogEntries, menu.query),
+    rowOf(menu.focus),
+  )
+  return {
+    title: menuTitle,
+    filterLabel: menuFilterLabel,
+    query: menu.query,
+    isFilterFocused: menu.focus._tag === 'OnFilter',
+    rows,
+    summary: summaryOf(menu.query, rows),
+    hints: hintsOf(menu.focus),
+    style,
+  }
+}
 
 // STACK
 
@@ -860,20 +1072,8 @@ export const compose = <Child extends ActionMenuChild>(config: {
     model: AppModel,
     menu: ActionMenu,
     presentedStyle: PresentationStyle,
-  ): MenuView => ({
-    query: menu.query,
-    isFilterFocused: menu.focus._tag === 'OnFilter',
-    rows: Array.map(visibleOf(model, menu.query), rowOf(menu.focus)),
-    style: presentedStyle,
-  })
-
-  const rowOf =
-    (focus: Focus) =>
-    (entry: Entry): MenuRow => ({
-      entry,
-      isHighlighted: Option.contains(highlightedTag(focus), entry.tag),
-      isFocused: focus._tag === 'OnAction' && focus.tag === entry.tag,
-    })
+  ): MenuView =>
+    menuViewOf(childInteraction.entries(childOf(model)), menu, presentedStyle)
 
   const menuView = (model: AppModel): Option.Option<MenuView> =>
     pipe(

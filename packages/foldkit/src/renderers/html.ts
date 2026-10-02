@@ -1,7 +1,8 @@
 import { Array, Match as M, Option } from 'effect'
 
 import { type Html, html } from '../html/index.js'
-import type { MenuView } from '../interaction/interaction.js'
+import type { MenuView, TextRun } from '../interaction/interaction.js'
+import { menuStylesheet } from '../interaction/menuStyles.js'
 import type { Device } from './device.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import type { UiNode } from './types.js'
@@ -181,7 +182,10 @@ export type MenuMessages<Message> = Readonly<{
 
 /**
  * Paints a presented action menu as Foldkit HTML: a backdrop, a combo box
- * filter, and a listbox of Catalog rows. Keys are routed separately by
+ * filter, a listbox of Catalog rows with matched letters marked and their
+ * shortcut keys, a live summary for screen readers, and a footer of the
+ * keys that work right now. It carries `Interaction.menuStylesheet`, so the
+ * menu looks right with no app CSS. Keys are routed separately by
  * `Interaction.listenToDocumentKeys`; the filter only carries typing.
  *
  * @example
@@ -197,6 +201,16 @@ export const paintMenuHtml = <Message>(
   messages: MenuMessages<Message>,
 ): Html => {
   const h = html<Message>()
+  const runs = (
+    textRuns: ReadonlyArray<TextRun>,
+  ): ReadonlyArray<Html | string> =>
+    Array.map(textRuns, run =>
+      run.isMatch
+        ? h.mark([h.Class('fk-action-menu-match')], [run.text])
+        : run.text,
+    )
+  const keys = (keyLabels: ReadonlyArray<string>): ReadonlyArray<Html> =>
+    Array.map(keyLabels, key => h.kbd([h.Class('fk-action-menu-key')], [key]))
   const activeDescendant = Option.match(
     Array.findFirst(menu.rows, row => row.isHighlighted),
     {
@@ -216,25 +230,44 @@ export const paintMenuHtml = <Message>(
         h.OnClick(messages.chose(row.entry.tag)),
       ],
       [
-        h.span([h.Class('fk-action-menu-label')], [row.entry.label]),
-        h.span([h.Class('fk-action-menu-what')], [row.entry.what]),
-        ...M.value(row.entry.availability).pipe(
-          M.withReturnType<ReadonlyArray<Html>>(),
-          M.tagsExhaustive({
-            Enabled: () => [],
-            Disabled: ({ because }) => [
-              h.span([h.Class('fk-action-menu-because')], [because]),
-            ],
-          }),
+        h.span(
+          [h.Class('fk-action-menu-text')],
+          [
+            h.span([h.Class('fk-action-menu-label')], runs(row.title)),
+            h.span([h.Class('fk-action-menu-what')], runs(row.description)),
+            ...M.value(row.entry.availability).pipe(
+              M.withReturnType<ReadonlyArray<Html>>(),
+              M.tagsExhaustive({
+                Enabled: () => [],
+                Disabled: ({ because }) => [
+                  h.span([h.Class('fk-action-menu-because')], [because]),
+                ],
+              }),
+            ),
+          ],
         ),
+        ...Array.match(row.keys, {
+          onEmpty: () => [],
+          onNonEmpty: rowKeys => [
+            h.span(
+              [h.Class('fk-action-menu-keys'), h.AriaHidden(true)],
+              keys(rowKeys),
+            ),
+          ],
+        }),
       ],
     ),
   )
   return h.div(
     [h.Class('fk-action-menu-layer')],
     [
+      h.style([], [menuStylesheet]),
       h.div(
-        [h.Class('fk-action-menu-backdrop'), h.OnClick(messages.dismissed())],
+        [
+          h.Class('fk-action-menu-backdrop'),
+          h.AriaHidden(true),
+          h.OnClick(messages.dismissed()),
+        ],
         [],
       ),
       h.div(
@@ -248,13 +281,17 @@ export const paintMenuHtml = <Message>(
         [
           h.h2(
             [h.Id('fk-action-menu-title'), h.Class('fk-action-menu-title')],
-            ['Actions'],
+            [menu.title],
           ),
           h.input([
             h.Role('combobox'),
             h.AriaExpanded(true),
             h.AriaControls(menuListId),
-            h.AriaLabel('Filter actions'),
+            h.AriaAutocomplete('list'),
+            h.AriaLabel(menu.filterLabel),
+            h.Placeholder(menu.filterLabel),
+            h.Autocomplete('off'),
+            h.Spellcheck(false),
             h.Class('fk-action-menu-filter'),
             h.Value(menu.query),
             h.Readonly(!menu.isFilterFocused),
@@ -266,16 +303,34 @@ export const paintMenuHtml = <Message>(
             [
               h.Id(menuListId),
               h.Role('listbox'),
+              h.AriaLabel(menu.title),
               h.Class('fk-action-menu-rows'),
             ],
             rows,
           ),
           ...Array.match(menu.rows, {
             onEmpty: () => [
-              h.p([h.Class('fk-action-menu-empty')], ['No matching actions']),
+              h.p([h.Class('fk-action-menu-empty')], [menu.summary]),
             ],
             onNonEmpty: () => [],
           }),
+          h.p(
+            [
+              h.Class('fk-action-menu-status'),
+              h.Role('status'),
+              h.AriaLive('polite'),
+            ],
+            [menu.summary],
+          ),
+          h.p(
+            [h.Class('fk-action-menu-footer'), h.AriaHidden(true)],
+            Array.map(menu.hints, hint =>
+              h.span(
+                [h.Class('fk-action-menu-hint')],
+                [...keys(hint.keys), hint.does],
+              ),
+            ),
+          ),
         ],
       ),
     ],

@@ -137,25 +137,55 @@ export type Status = typeof Status.Type
 // MENU
 
 /**
- * One visible action menu row. `isHighlighted` marks the row Enter sends;
- * `isFocused` marks the row that has the keyboard.
+ * One run of menu text: letters the query matched, or the letters between
+ * them. `Reset` filtered by `rs` is `R` matched, `e`, `s` matched, `et`.
+ */
+export type TextRun = Readonly<{ text: string; isMatch: boolean }>
+
+/** The plain text of runs, for a Client that cannot mark matches. */
+export const textOf = (runs: ReadonlyArray<TextRun>): string =>
+  pipe(
+    runs,
+    Array.map(run => run.text),
+    Array.join(''),
+  )
+
+/** One footer hint: the keys, and what they do, such as `↑ ↓ move`. */
+export type MenuHint = Readonly<{ keys: ReadonlyArray<string>; does: string }>
+
+/**
+ * One visible action menu row. `title` reads the Action's tag as words,
+ * `Open session settings` for `OpenSessionSettings`, and `description` is
+ * its `what`; both mark the letters the query matched. `keys` is the
+ * shortcut shown beside the row, `['r']` for Reset. `isHighlighted` marks
+ * the row Enter sends; `isFocused` marks the row that has the keyboard.
  */
 export type MenuRow = Readonly<{
   entry: Entry
+  title: ReadonlyArray<TextRun>
+  description: ReadonlyArray<TextRun>
+  keys: ReadonlyArray<string>
   isHighlighted: boolean
   isFocused: boolean
 }>
 
 /**
- * The presented action menu as every Client paints it. Rows are the Catalog
- * filtered by `query`, in Catalog order. `style` says how to present it:
- * a centered dialog on web, a modal on React Native, a boxed prompt in a
- * terminal.
+ * The presented action menu as every Client paints it, text included, so
+ * a Client only maps it to its own controls. Rows are the Catalog ranked
+ * by `query`. `filterLabel` names the search field, `Search actions`.
+ * `summary` counts the rows for a screen reader, `3 actions` or
+ * `No actions match “zz”`. `hints` are the keys that work right now.
+ * `style` says how to present it: a centered dialog on web, a modal on
+ * React Native, a boxed prompt in a terminal.
  */
 export type MenuView = Readonly<{
+  title: string
+  filterLabel: string
   query: string
   isFilterFocused: boolean
   rows: ReadonlyArray<MenuRow>
+  summary: string
+  hints: ReadonlyArray<MenuHint>
   style: PresentationStyle
 }>
 

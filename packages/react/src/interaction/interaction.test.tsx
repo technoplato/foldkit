@@ -1,4 +1,4 @@
-import { Match as M, Schema as S } from 'effect'
+import { Array, Match as M, Schema as S } from 'effect'
 import {
   ActionMenu,
   Catalog,
@@ -147,6 +147,49 @@ describe('@foldkit/react/interaction', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     const model = bound.readModel()
     expect(model.count).toBe(1)
+  })
+
+  it('paints the menu the Program describes: marks, summary, keys, and hints', () => {
+    renderApp()
+    fireEvent.keyDown(document, { key: 'k', metaKey: true })
+    const search = screen.getByRole('combobox', { name: 'Search actions' })
+    fireEvent.change(search, { target: { value: 'e' } })
+    const options = screen.getAllByRole('option')
+    expect(options).toHaveLength(2)
+    expect(
+      Array.map(options, option =>
+        Array.map(
+          Array.fromIterable(option.querySelectorAll('mark')),
+          mark => mark.textContent,
+        ),
+      ),
+    ).toEqual([['e'], ['e']])
+    expect(screen.getByRole('status').textContent).toBe('2 actions')
+    expect(search.getAttribute('aria-activedescendant')).toBe(
+      'fk-action-menu-Increment',
+    )
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(search.getAttribute('aria-activedescendant')).toBe(
+      'fk-action-menu-Reset',
+    )
+    expect(
+      document.querySelector('.fk-action-menu-footer')?.textContent,
+    ).toContain('back to search')
+    expect(document.head.querySelector('style')?.textContent).toContain(
+      '.fk-action-menu',
+    )
+  })
+
+  it('closes the menu on a click outside it', () => {
+    renderApp()
+    fireEvent.keyDown(document, { key: 'k', metaKey: true })
+    const backdrop = document.querySelector('.fk-action-menu-backdrop')
+    if (backdrop === null) {
+      throw new Error('The menu has no backdrop')
+    }
+    fireEvent.click(backdrop)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('renders typed Action buttons with key hints', () => {

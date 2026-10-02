@@ -124,11 +124,27 @@ describe('opening and dismissing', () => {
     const model = openMenu(initial())
     expect(interaction.menu(model)).toEqual(
       Option.some({
+        title: 'Actions',
+        filterLabel: 'Search actions',
         query: '',
         isFilterFocused: true,
         style: Dialog(),
+        summary: '3 actions',
+        hints: [
+          { keys: ['↑', '↓'], does: 'move' },
+          { keys: ['↵'], does: 'run' },
+          { keys: ['esc'], does: 'close' },
+        ],
         rows: [
-          expect.objectContaining({ isHighlighted: true, isFocused: false }),
+          expect.objectContaining({
+            title: [{ text: 'Increment', isMatch: false }],
+            description: [
+              { text: 'Increments the count by one', isMatch: false },
+            ],
+            keys: ['+'],
+            isHighlighted: true,
+            isFocused: false,
+          }),
           expect.objectContaining({ isHighlighted: false, isFocused: false }),
           expect.objectContaining({ isHighlighted: false, isFocused: false }),
         ],
@@ -197,6 +213,107 @@ describe('filtering', () => {
     ).toEqual(Option.some(''))
   })
 
+  it('marks the letters a query matched in each row', () => {
+    const titlesOf = (query: string) =>
+      Option.map(
+        interaction.menu(
+          apply(openMenu(initial(3)), [
+            ActionMenu.ChangedActionMenuQuery({ query }),
+          ]),
+        ),
+        menu => menu.rows.map(row => [row.title, row.description]),
+      )
+    expect(titlesOf('re')).toEqual(
+      Option.some([
+        [
+          [
+            { text: 'Re', isMatch: true },
+            { text: 'set', isMatch: false },
+          ],
+          [{ text: 'Sets the count to 0', isMatch: false }],
+        ],
+        [
+          [
+            { text: 'Inc', isMatch: false },
+            { text: 're', isMatch: true },
+            { text: 'ment', isMatch: false },
+          ],
+          [{ text: 'Increments the count by one', isMatch: false }],
+        ],
+        [
+          [
+            { text: 'Dec', isMatch: false },
+            { text: 're', isMatch: true },
+            { text: 'ment', isMatch: false },
+          ],
+          [{ text: 'Decrements the count by one', isMatch: false }],
+        ],
+      ]),
+    )
+    expect(titlesOf('rst')).toEqual(
+      Option.some([
+        [
+          [
+            { text: 'R', isMatch: true },
+            { text: 'e', isMatch: false },
+            { text: 's', isMatch: true },
+            { text: 'e', isMatch: false },
+            { text: 't', isMatch: true },
+          ],
+          [{ text: 'Sets the count to 0', isMatch: false }],
+        ],
+      ]),
+    )
+    expect(titlesOf('by one')).toEqual(
+      Option.some([
+        [
+          [{ text: 'Increment', isMatch: false }],
+          [
+            { text: 'Increments the count ', isMatch: false },
+            { text: 'by one', isMatch: true },
+          ],
+        ],
+        [
+          [{ text: 'Decrement', isMatch: false }],
+          [
+            { text: 'Decrements the count ', isMatch: false },
+            { text: 'by one', isMatch: true },
+          ],
+        ],
+      ]),
+    )
+  })
+
+  it('puts letters in a title above a description that contains the query', () => {
+    const Mirror = Catalog.action('Mirror', {
+      what: 'Shows the first screen',
+      why: 'The person wants every device on one screen',
+      meta: { label: 'Mirror', keys: [] },
+    })
+    const mirrorCatalog = Catalog.make([Mirror, Reset])
+    expect(
+      ActionMenu.matchedEntries(
+        Catalog.entries(mirrorCatalog, { count: 3 }),
+        'rs',
+      ).map(matched => matched.entry.tag),
+    ).toEqual(['Reset', 'Mirror'])
+  })
+
+  it('summarizes the rows for a screen reader', () => {
+    const summaryOf = (query: string) =>
+      Option.map(
+        interaction.menu(
+          apply(openMenu(initial(3)), [
+            ActionMenu.ChangedActionMenuQuery({ query }),
+          ]),
+        ),
+        menu => menu.summary,
+      )
+    expect(summaryOf('')).toEqual(Option.some('3 actions'))
+    expect(summaryOf('rst')).toEqual(Option.some('1 action'))
+    expect(summaryOf('zz')).toEqual(Option.some('No actions match “zz”'))
+  })
+
   it('highlights nothing when nothing matches', () => {
     const model = press(openMenu(initial()), keyInput('z'))
     expect(focusOf(model)).toEqual(
@@ -205,7 +322,26 @@ describe('filtering', () => {
   })
 })
 
+describe('titleOf', () => {
+  it('reads a tag as words and keeps acronyms', () => {
+    expect(ActionMenu.titleOf('OpenSessionSettings')).toBe(
+      'Open session settings',
+    )
+    expect(ActionMenu.titleOf('OpenURL')).toBe('Open URL')
+    expect(ActionMenu.titleOf('Reset')).toBe('Reset')
+  })
+})
+
 describe('focus', () => {
+  it('hints that Escape returns to the search from a row', () => {
+    const inList = press(openMenu(initial()), keyInput('ArrowDown'))
+    expect(
+      Option.map(interaction.menu(inList), menu =>
+        menu.hints.map(hint => hint.does),
+      ),
+    ).toEqual(Option.some(['move', 'run', 'back to search']))
+  })
+
   it('moves from the filter into the list and back up', () => {
     const inList = press(openMenu(initial()), keyInput('ArrowDown'))
     expect(focusOf(inList)).toEqual(

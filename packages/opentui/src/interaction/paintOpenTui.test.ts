@@ -123,8 +123,8 @@ describe('paintOpenTuiFrame', () => {
   it('floats the presented action menu over the screen', async () => {
     const frame = await paintFrame(2, true)
     expect(frame).toContain('Actions')
-    expect(frame).toContain('> increment')
-    expect(frame).toContain('reset  Sets the count to 0')
+    expect(frame).toContain('> Increment')
+    expect(frame).toContain('Reset  Sets the count to 0')
   })
 })
 
@@ -194,6 +194,6 @@ describe('paintOpenTuiNavigationFrame', () => {
     renderer.destroy()
     expect(frame).toContain('/counter/session/menu?menu.q=re')
     expect(frame).toContain('Actions')
-    expect(frame).toContain('> reset')
+    expect(frame).toContain('> Reset')
   })
 })

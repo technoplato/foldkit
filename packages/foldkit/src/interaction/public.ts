@@ -20,14 +20,18 @@ export {
   isKey,
   keyInput,
   menuHintOf,
+  menuStylesheet,
   normalizeKey,
+  textOf,
 } from './index.js'
 
 export type {
   BindableProgram,
   BoundInteraction,
+  MenuHint,
   MenuRow,
   MenuView,
   ProgramHandle,
   ProgramInteraction,
+  TextRun,
 } from './index.js'

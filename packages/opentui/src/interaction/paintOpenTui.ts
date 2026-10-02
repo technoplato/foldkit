@@ -1,4 +1,4 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Match as M, Option, pipe } from 'effect'
 import { Catalog, type Interaction, type Navigation } from 'foldkit'
 import { type ButtonNode, type UiNode } from 'foldkit/renderers'
 
@@ -6,10 +6,14 @@ import {
   BoxRenderable,
   type RenderContext,
   type Renderable,
+  StyledText,
+  type TextChunk,
   TextRenderable,
   bold,
   dim,
+  fg,
   t,
+  underline,
 } from '@opentui/core'
 
 const buttonPaddingX = 1
@@ -141,10 +145,45 @@ export const paintOpenTui = (
     }),
   )
 
-const menuHint = '[type] filter  [↑↓] move  [enter] choose  [esc] close'
+const matchColor = '#a5b4fc'
 
 const rowMark = (row: Interaction.MenuRow): string =>
   row.isHighlighted ? '> ' : '  '
+
+const hintLine = (menu: Interaction.MenuView): string =>
+  pipe(
+    menu.hints,
+    Array.map(hint => `[${Array.join(hint.keys, '')}] ${hint.does}`),
+    Array.join('  '),
+  )
+
+const runChunks = (
+  runs: ReadonlyArray<Interaction.TextRun>,
+  style: (text: string) => TextChunk,
+): Array<TextChunk> =>
+  Array.map(runs, run =>
+    run.isMatch ? underline(fg(matchColor)(bold(run.text))) : style(run.text),
+  )
+
+const rowContent = (row: Interaction.MenuRow): StyledText => {
+  const isDisabled = row.entry.availability._tag === 'Disabled'
+  const keys = Array.match(row.keys, {
+    onEmpty: () => [],
+    onNonEmpty: rowKeys => [dim(`  [${Array.join(rowKeys, ' ')}]`)],
+  })
+  const because =
+    row.entry.availability._tag === 'Disabled'
+      ? [dim(` (${row.entry.availability.because})`)]
+      : []
+  return new StyledText([
+    isDisabled ? dim(rowMark(row)) : bold(rowMark(row)),
+    ...runChunks(row.title, isDisabled ? dim : bold),
+    dim('  '),
+    ...runChunks(row.description, dim),
+    ...because,
+    ...keys,
+  ])
+}
 
 const paintMenu = (
   ctx: RenderContext,
@@ -157,21 +196,20 @@ const paintMenu = (
     left: 2,
     padding: 1,
     position: 'absolute',
-    title: 'Actions',
+    title: menu.title,
     top: 0,
     zIndex: 20,
   })
-  overlay.add(new TextRenderable(ctx, { content: t`${dim(menuHint)}` }))
+  overlay.add(new TextRenderable(ctx, { content: t`${dim(hintLine(menu))}` }))
   overlay.add(
     new TextRenderable(ctx, {
       content: menu.isFilterFocused
-        ? t`${bold(`filter: ${menu.query}_`)}`
-        : t`${dim(`filter: ${menu.query}`)}`,
+        ? t`${bold(`${menu.filterLabel}: ${menu.query}_`)}`
+        : t`${dim(`${menu.filterLabel}: ${menu.query}`)}`,
     }),
   )
   Array.forEach(menu.rows, row => {
     const isDisabled = row.entry.availability._tag === 'Disabled'
-    const label = `${rowMark(row)}${Catalog.commandOf(row.entry.tag)}  ${row.entry.what}`
     const rowBox = new BoxRenderable(ctx, {
       ...(row.isFocused ? { backgroundColor: '#1d4ed8' } : {}),
       ...(isDisabled
@@ -183,13 +221,13 @@ const paintMenu = (
           }),
     })
     rowBox.add(
-      new TextRenderable(ctx, {
-        content: isDisabled ? t`${dim(label)}` : t`${bold(label)}`,
-        wrapMode: 'none',
-      }),
+      new TextRenderable(ctx, { content: rowContent(row), wrapMode: 'none' }),
     )
     overlay.add(rowBox)
   })
+  if (Array.isReadonlyArrayEmpty(menu.rows)) {
+    overlay.add(new TextRenderable(ctx, { content: t`${dim(menu.summary)}` }))
+  }
   const close = new BoxRenderable(ctx, {
     onMouseDown: () => {
       options.onDismiss()

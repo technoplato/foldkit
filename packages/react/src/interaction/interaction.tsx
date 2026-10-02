@@ -2,6 +2,7 @@ import { Array, Equal, Function, Option, Record, String, pipe } from 'effect'
 import { type Catalog, Interaction } from 'foldkit'
 import type { ButtonNode, UiNode } from 'foldkit/renderers'
 import {
+  Fragment,
   type ReactElement,
   type ReactNode,
   createContext,
@@ -362,10 +363,88 @@ const rowIdOf = (tag: string): string => `fk-action-menu-${tag}`
 
 const listId = 'fk-action-menu-list'
 
+const revealRow = (row: HTMLLIElement | null): void => {
+  if (row !== null && typeof row.scrollIntoView === 'function') {
+    row.scrollIntoView({ block: 'nearest' })
+  }
+}
+
+const MatchedText = ({
+  runs,
+}: Readonly<{ runs: ReadonlyArray<Interaction.TextRun> }>): ReactElement => (
+  <>
+    {Array.map(runs, (run, position) =>
+      run.isMatch ? (
+        <mark key={position} className="fk-action-menu-match">
+          {run.text}
+        </mark>
+      ) : (
+        <Fragment key={position}>{run.text}</Fragment>
+      ),
+    )}
+  </>
+)
+
+const KeyCaps = ({
+  keys,
+}: Readonly<{ keys: ReadonlyArray<string> }>): ReactElement => (
+  <>
+    {Array.map(keys, key => (
+      <kbd key={key} className="fk-action-menu-key">
+        {key}
+      </kbd>
+    ))}
+  </>
+)
+
+const MenuRowView = ({
+  row,
+}: Readonly<{ row: Interaction.MenuRow }>): ReactElement => {
+  const bound = useBound()
+  return (
+    <li
+      id={rowIdOf(row.entry.tag)}
+      ref={row.isHighlighted ? revealRow : undefined}
+      role="option"
+      aria-selected={row.isHighlighted}
+      aria-disabled={row.entry.availability._tag === 'Disabled'}
+      data-focused={row.isFocused}
+      className="fk-action-menu-row"
+      onClick={() => {
+        bound.chooseFromMenu(row.entry.tag)
+      }}
+    >
+      <span className="fk-action-menu-text">
+        <span className="fk-action-menu-label">
+          <MatchedText runs={row.title} />
+        </span>
+        <span className="fk-action-menu-what">
+          <MatchedText runs={row.description} />
+        </span>
+        {row.entry.availability._tag === 'Disabled' ? (
+          <span className="fk-action-menu-because">
+            {row.entry.availability.because}
+          </span>
+        ) : null}
+      </span>
+      {Array.isReadonlyArrayNonEmpty(row.keys) ? (
+        <span className="fk-action-menu-keys" aria-hidden="true">
+          <KeyCaps keys={row.keys} />
+        </span>
+      ) : null}
+    </li>
+  )
+}
+
 /**
- * One action menu as an accessible combo box: a filter input and a listbox
- * of Catalog rows. Keys are routed by {@link useKeyBindings}; the input
- * only carries typing. A navigation frame paints its menu layer with it.
+ * One action menu as an accessible combo box over a dimmed backdrop: a
+ * search field, a listbox of Catalog rows with the matched letters marked
+ * and each row's shortcut, a live summary for screen readers, and a footer
+ * of the keys that work right now. All of it, text included, comes from
+ * the Program's `MenuView`, and the look is `Interaction.menuStylesheet`,
+ * which it adds to the document head once. Keys are routed by
+ * {@link useKeyBindings}; the input only carries typing. A navigation
+ * frame paints its menu layer with it.
  *
  * @example
  * ```tsx
@@ -382,60 +461,73 @@ export const ActionMenuPanel = ({
   const bound = useBound()
   const maybeHighlighted = Array.findFirst(menu.rows, row => row.isHighlighted)
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="fk-action-menu-title"
-      className={className ?? 'fk-action-menu'}
-      data-style={menu.style._tag}
-    >
-      <h2 id="fk-action-menu-title" className="fk-action-menu-title">
-        Actions
-      </h2>
-      <input
-        role="combobox"
-        aria-expanded="true"
-        aria-controls={listId}
-        aria-activedescendant={Option.match(maybeHighlighted, {
-          onNone: () => undefined,
-          onSome: row => rowIdOf(row.entry.tag),
-        })}
-        aria-label="Filter actions"
-        className="fk-action-menu-filter"
-        value={menu.query}
-        readOnly={!menu.isFilterFocused}
-        autoFocus
-        onChange={event => {
-          bound.typeInMenu(event.currentTarget.value)
+    <div className="fk-action-menu-layer">
+      <style href="foldkit-action-menu" precedence="foldkit">
+        {Interaction.menuStylesheet}
+      </style>
+      <div
+        className="fk-action-menu-backdrop"
+        aria-hidden="true"
+        onClick={() => {
+          bound.dismissMenu()
         }}
       />
-      <ul id={listId} role="listbox" className="fk-action-menu-rows">
-        {Array.map(menu.rows, row => (
-          <li
-            key={row.entry.tag}
-            id={rowIdOf(row.entry.tag)}
-            role="option"
-            aria-selected={row.isHighlighted}
-            aria-disabled={row.entry.availability._tag === 'Disabled'}
-            data-focused={row.isFocused}
-            className="fk-action-menu-row"
-            onClick={() => {
-              bound.chooseFromMenu(row.entry.tag)
-            }}
-          >
-            <span className="fk-action-menu-label">{row.entry.label}</span>
-            <span className="fk-action-menu-what">{row.entry.what}</span>
-            {row.entry.availability._tag === 'Disabled' ? (
-              <span className="fk-action-menu-because">
-                {row.entry.availability.because}
-              </span>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      {Array.isReadonlyArrayEmpty(menu.rows) ? (
-        <p className="fk-action-menu-empty">No matching actions</p>
-      ) : null}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fk-action-menu-title"
+        className={className ?? 'fk-action-menu'}
+        data-style={menu.style._tag}
+      >
+        <h2 id="fk-action-menu-title" className="fk-action-menu-title">
+          {menu.title}
+        </h2>
+        <input
+          role="combobox"
+          aria-expanded="true"
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={Option.match(maybeHighlighted, {
+            onNone: () => undefined,
+            onSome: row => rowIdOf(row.entry.tag),
+          })}
+          aria-label={menu.filterLabel}
+          placeholder={menu.filterLabel}
+          autoComplete="off"
+          spellCheck={false}
+          className="fk-action-menu-filter"
+          value={menu.query}
+          readOnly={!menu.isFilterFocused}
+          autoFocus
+          onChange={event => {
+            bound.typeInMenu(event.currentTarget.value)
+          }}
+        />
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={menu.title}
+          className="fk-action-menu-rows"
+        >
+          {Array.map(menu.rows, row => (
+            <MenuRowView key={row.entry.tag} row={row} />
+          ))}
+        </ul>
+        {Array.isReadonlyArrayEmpty(menu.rows) ? (
+          <p className="fk-action-menu-empty">{menu.summary}</p>
+        ) : null}
+        <p className="fk-action-menu-status" role="status" aria-live="polite">
+          {menu.summary}
+        </p>
+        <p className="fk-action-menu-footer" aria-hidden="true">
+          {Array.map(menu.hints, hint => (
+            <span key={hint.does} className="fk-action-menu-hint">
+              <KeyCaps keys={hint.keys} />
+              {hint.does}
+            </span>
+          ))}
+        </p>
+      </div>
     </div>
   )
 }

@@ -42,7 +42,7 @@ const menuLines = (menu: MenuView): ReadonlyArray<string> => [
   '',
   `Action menu  query "${menu.query}"  ${menu.isFilterFocused ? 'filter focused' : 'list focused'}`,
   ...Array.match(menu.rows, {
-    onEmpty: () => ['  (no matching actions)'],
+    onEmpty: () => [`  (${menu.summary})`],
     onNonEmpty: rows =>
       Array.map(
         rows,
