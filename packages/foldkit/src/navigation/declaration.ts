@@ -1,4 +1,4 @@
-import { Array, Data, Option, Schema as S } from 'effect'
+import { Array, Data, Option, Record, Schema as S } from 'effect'
 
 import type { MenuView } from '../interaction/interaction.js'
 import type { ProgramSchema } from '../program/program.js'
@@ -266,12 +266,21 @@ export const menuView = (menu: MenuView): EntryView => ({
 })
 
 /**
+ * Marks a declaration built by {@link screens}, {@link make}, or a
+ * navigation combinator, so a Program never takes a hand-written one whose
+ * routes might miss a Destination.
+ */
+export const NavigationTypeId = '~foldkit/navigation'
+
+/**
  * A Program's navigation: its Destinations, their routes, and, once a
- * combinator adds one, the stack its Model holds.
+ * combinator adds one, the stack its Model holds. Build it with
+ * {@link screens}, or with {@link make} when a Destination carries fields
+ * the URI does not.
  *
  * - `slug` is the URL word the Program owns: `counter` in `/counter`.
  * - `routes` print and parse each Destination, relative to the entry
- *   beneath it. A Program without routes is not URL-addressable.
+ *   beneath it. Every Destination has one.
  * - `stack` reads and writes the stack in the Model.
  * - `viewOf` paints one Destination, so a stack carrier can keep several
  *   screens mounted at once. The root falls back to the Program's screen.
@@ -284,26 +293,35 @@ export const menuView = (menu: MenuView): EntryView => ({
  *
  * @example
  * ```typescript
- * const navigation: ProgramNavigation<Model, Counter> = {
- *   slug: Slug.make('counter'),
- *   Destination: Counter,
- *   root: Counter(),
- *   routes: [counterRoute],
- * }
+ * const navigation = screens({
+ *   slug: 'counter',
+ *   root: rootScreen(Counter, Route.here),
+ * })
  * // the root stack prints as `/counter`
  * ```
  */
 export type ProgramNavigation<Model, Destination> = Readonly<{
+  [NavigationTypeId]: typeof NavigationTypeId
   slug?: Slug
   Destination: ProgramSchema<Destination>
   root: Destination
-  routes?: ReadonlyArray<DestinationRoute<Destination>>
+  routes: ReadonlyArray<DestinationRoute<Destination>>
   stack?: StackLens<Model, Destination>
   viewOf?: (model: Model, destination: Destination) => Option.Option<EntryView>
   settleEntry?: (model: Model, destination: Destination) => Destination
   historyOf?: (model: Model) => HistoryMode
   adoptsLaunch?: (model: Model) => boolean
 }>
+
+/**
+ * A declaration that reads no Model: its Destinations and routes only, as
+ * {@link screens} builds. A Program takes it wherever it takes a
+ * {@link ProgramNavigation}.
+ */
+export type DeclaredNavigation<Destination> = Pick<
+  ProgramNavigation<unknown, Destination>,
+  typeof NavigationTypeId | 'slug' | 'Destination' | 'root' | 'routes'
+>
 
 /** A declaration whose Model holds a stack, as every navigation combinator produces. */
 export type StackedNavigation<Model, Destination> = ProgramNavigation<
@@ -409,7 +427,7 @@ export const routeOf = <Model, Destination>(
   navigation: ProgramNavigation<Model, Destination>,
   destination: Destination,
 ): Option.Option<DestinationRoute<Destination>> =>
-  Array.findFirst(navigation.routes ?? [], route =>
+  Array.findFirst(navigation.routes, route =>
     Option.isSome(route.routeCase.casePath.extract(destination)),
   )
 
@@ -420,30 +438,233 @@ export class NavigationDeclarationError extends Data.TaggedError(
   readonly reason: string
 }> {}
 
+/** A Destination that has a tag, as every routed Destination does. */
+export type TaggedDestination = Readonly<{ _tag: string }>
+
 /**
- * Validates a declaration at definition time and returns it: when routes
- * are declared, one Root route must print the root.
+ * One route per Destination tag. A missing tag is a type error, so a
+ * Destination cannot be declared without a route.
  *
  * @example
  * ```typescript
- * make({ slug: Slug.make('counter'), Destination: Counter, root: Counter(), routes: [] })
- * // throws NavigationDeclarationError: no Root route prints the root
+ * const routes: RoutesByTag<Home | Settings> = { Home: homeRoute }
+ * // error: Property 'Settings' is missing
  * ```
  */
-export const make = <Model, Destination>(
-  navigation: ProgramNavigation<Model, Destination>,
+export type RoutesByTag<Destination extends TaggedDestination> = {
+  readonly [Tag in Destination['_tag']]: DestinationRoute<Destination>
+}
+
+/** What {@link make} takes: a declaration whose routes are keyed by tag. */
+export type NavigationConfig<
+  Model,
+  Destination extends TaggedDestination,
+> = Omit<
+  ProgramNavigation<Model, Destination>,
+  typeof NavigationTypeId | 'slug' | 'routes'
+> &
+  Readonly<{ slug?: string; routes: RoutesByTag<Destination> }>
+
+const branded = <Model, Destination>(
+  navigation: Omit<
+    ProgramNavigation<Model, Destination>,
+    typeof NavigationTypeId
+  >,
 ): ProgramNavigation<Model, Destination> => {
-  const routes = navigation.routes ?? []
   const isRootPrinted = Array.some(
-    routes,
+    navigation.routes,
     route =>
       route.placement === 'Root' &&
       Option.isSome(route.routeCase.casePath.extract(navigation.root)),
   )
-  if (Array.isReadonlyArrayNonEmpty(routes) && !isRootPrinted) {
+  if (!isRootPrinted) {
     throw new NavigationDeclarationError({
       reason: 'no Root route prints the root',
     })
   }
-  return navigation
+  return { ...navigation, [NavigationTypeId]: NavigationTypeId }
+}
+
+/**
+ * Declares navigation whose Destinations carry fields the URI does not,
+ * such as the action menu's highlighted row. Routes are keyed by tag, so
+ * every Destination has one; they are tried in the order written. One
+ * route must be a Root route that prints the root.
+ *
+ * @example
+ * ```typescript
+ * make<Model, Counter | ActionMenu>({
+ *   slug: 'counter',
+ *   Destination: S.Union([Counter, ActionMenu]),
+ *   root: Counter(),
+ *   routes: { Counter: counterRoute, ActionMenu: menuRoute },
+ *   settleEntry: (model, destination) => settledMenu(model, destination),
+ * })
+ * ```
+ */
+export const make = <Model, Destination extends TaggedDestination>(
+  config: NavigationConfig<Model, Destination>,
+): ProgramNavigation<Model, Destination> => {
+  const { slug, routes, ...rest } = config
+  return branded<Model, Destination>({
+    ...rest,
+    ...(slug === undefined ? {} : { slug: Slug.make(slug) }),
+    routes: Record.values(routes),
+  })
+}
+
+// SCREENS
+
+/**
+ * A Destination's schema that is also its constructor from its fields, as
+ * every `ts` schema is: `Search({ q: 'cats' })`.
+ */
+export type ScreenDestination<Destination extends TaggedDestination> =
+  ProgramSchema<Destination> &
+    ((fields: Omit<Destination, '_tag'>) => Destination)
+
+/** One screen: its Destination and the route that prints it. */
+export type Screen<Destination> = Readonly<{
+  Destination: ProgramSchema<Destination>
+  route: DestinationRoute<Destination>
+}>
+
+/** The screen every stack starts from: a Destination with no fields. */
+export type RootScreen<Destination> = Screen<Destination> &
+  Readonly<{ root: Destination }>
+
+const fieldsCase = <Destination extends TaggedDestination>(
+  destination: ScreenDestination<Destination>,
+): Route.CasePath<Destination, Omit<Destination, '_tag'>> => ({
+  embed: fields => destination(fields),
+  extract: value => {
+    const { _tag: _ignored, ...fields } = value
+    return Option.some(fields)
+  },
+})
+
+/**
+ * Declares the screen a stack starts from, at the route it parses. The
+ * Destination has no fields.
+ *
+ * @example
+ * ```typescript
+ * rootScreen(Counter, Route.here, { title: () => 'Counter' }) // `/counter`
+ * ```
+ */
+export const rootScreen = <Destination extends TaggedDestination>(
+  destination: ProgramSchema<Destination> & (() => Destination),
+  parser: Route.Biparser<{}>,
+  options?: Pick<RouteOptions<Destination>, 'title'>,
+): RootScreen<Destination> => ({
+  Destination: destination,
+  root: destination(),
+  route: rootRoute(
+    Route.caseOf(
+      parser,
+      tagCase<Destination, Destination>(S.is(destination), destination),
+    ),
+    options,
+  ),
+})
+
+/**
+ * Declares a screen pushed above another. Its route parses exactly the
+ * Destination's fields, so a route that drops a field does not compile.
+ *
+ * @example
+ * ```typescript
+ * const Search = ts('Search', { q: S.String })
+ * pushScreen(Search, pipe(Route.literal('search'), Route.query(S.Struct({ q: S.String }))))
+ * // `/counter/search?search.q=cats` opens Search({ q: 'cats' })
+ * ```
+ */
+export const pushScreen = <Destination extends TaggedDestination>(
+  destination: ScreenDestination<Destination>,
+  parser: Route.Biparser<Omit<Destination, '_tag'>>,
+  options?: RouteOptions<Destination>,
+): Screen<Destination> => ({
+  Destination: destination,
+  route: pushRoute(Route.caseOf(parser, fieldsCase(destination)), options),
+})
+
+/**
+ * Declares a screen presented over another with one style, such as a
+ * sheet or a dialog.
+ *
+ * @example
+ * ```typescript
+ * presentScreen(Share, Route.literal('share'), Sheet()) // `/counter/share`
+ * ```
+ */
+export const presentScreen = <Destination extends TaggedDestination>(
+  destination: ScreenDestination<Destination>,
+  parser: Route.Biparser<Omit<Destination, '_tag'>>,
+  style: PresentationStyle,
+  options?: RouteOptions<Destination>,
+): Screen<Destination> => ({
+  Destination: destination,
+  route: presentRoute(
+    Route.caseOf(parser, fieldsCase(destination)),
+    style,
+    options,
+  ),
+})
+
+/** The Destination a list of screens declares. */
+export type DestinationOfScreens<Screens> =
+  Screens extends ReadonlyArray<Screen<infer Destination>> ? Destination : never
+
+const narrowTo =
+  <Destination>(schema: ProgramSchema<Destination>) =>
+  (destination: unknown): Option.Option<Destination> =>
+    S.is(schema)(destination) ? Option.some(destination) : Option.none()
+
+/**
+ * Declares a Program's navigation from its screens. Each screen is a
+ * Destination and its route, so the Destination union, the routes, and the
+ * root all come from one list, and a screen cannot exist without a route.
+ *
+ * @example
+ * ```typescript
+ * export const navigation = screens({
+ *   slug: 'counter',
+ *   root: rootScreen(Counter, Route.here, { title: () => 'Counter' }),
+ * })
+ * // `/counter`; Session and the action menu add their screens on top
+ * ```
+ */
+export const screens = <
+  Root extends TaggedDestination,
+  const Others extends ReadonlyArray<Screen<any>> = [],
+>(
+  config: Readonly<{
+    slug?: string
+    root: RootScreen<Root>
+    screens?: Others
+  }>,
+): DeclaredNavigation<Root | DestinationOfScreens<Others>> => {
+  type Destination = Root | DestinationOfScreens<Others>
+  const others = config.screens ?? []
+  const Destination: ProgramSchema<Destination> = S.Union([
+    config.root.Destination,
+    ...Array.map(others, screen => screen.Destination),
+  ])
+  return branded<unknown, Destination>({
+    ...(config.slug === undefined ? {} : { slug: Slug.make(config.slug) }),
+    Destination,
+    root: config.root.root,
+    routes: [
+      liftRoute<Root, Destination>(
+        config.root.route,
+        narrowTo(config.root.Destination),
+      ),
+      ...Array.map(others, screen =>
+        liftRoute<DestinationOfScreens<Others>, Destination>(
+          screen.route,
+          narrowTo(screen.Destination),
+        ),
+      ),
+    ],
+  })
 }

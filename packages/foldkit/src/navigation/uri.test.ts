@@ -13,6 +13,7 @@ import {
   menuEntry,
   menuRoute,
   navigation,
+  notFoundRoute,
   sessionEntry,
   sessionRoute,
 } from '../test/apps/navigationCounter.js'
@@ -149,25 +150,14 @@ describe('parseStack and printStack', () => {
     )
   })
 
-  it('prints nothing for a Destination with no route', () => {
-    const counterOnly = Declaration.make<Model, Destination>({
-      ...navigation,
-      routes: [counterRoute],
-    })
-    expect(
-      printStack(
-        counterOnly,
-        stackWithEntries<Destination>(Counter(), [sessionEntry]),
-      ),
-    ).toEqual(Option.none())
-  })
-
   it('prints nothing for an entry that adds no segment of its own', () => {
     const silentSession = Declaration.make<Model, Destination>({
-      ...navigation,
-      routes: [
-        counterRoute,
-        Declaration.pushRoute(
+      slug: 'counter',
+      Destination,
+      root: Counter(),
+      routes: {
+        Counter: counterRoute,
+        SessionSettings: Declaration.pushRoute(
           Route.caseOf(
             Route.here,
             Declaration.tagCase<Destination, SessionSettings>(
@@ -176,7 +166,9 @@ describe('parseStack and printStack', () => {
             ),
           ),
         ),
-      ],
+        ActionMenu: menuRoute,
+        NotFound: notFoundRoute,
+      },
     })
     expect(
       printStack(
@@ -205,14 +197,16 @@ describe('query keys', () => {
   const narrow = (destination: Wide): Option.Option<Destination> =>
     S.is(Destination)(destination) ? Option.some(destination) : Option.none()
   const withSearch = Declaration.make<Model, Wide>({
-    slug: Declaration.Slug.make('counter'),
+    slug: 'counter',
     Destination: S.Union([Destination, SearchPage]),
     root: Counter(),
-    routes: [
-      Declaration.liftRoute(counterRoute, narrow),
-      searchRoute,
-      Declaration.liftRoute(menuRoute, narrow),
-    ],
+    routes: {
+      Counter: Declaration.liftRoute(counterRoute, narrow),
+      SearchPage: searchRoute,
+      SessionSettings: Declaration.liftRoute(sessionRoute, narrow),
+      ActionMenu: Declaration.liftRoute(menuRoute, narrow),
+      NotFound: Declaration.liftRoute(notFoundRoute, narrow),
+    },
   })
 
   it('prefixes each entry key with its own path, so two `q`s keep their values', () => {
@@ -265,8 +259,16 @@ describe('canonicalUri and defaultUri', () => {
   })
 
   it('needs no slug: the root then prints at `/`', () => {
-    const { slug: _slug, ...withoutSlug } = navigation
-    const slugless = Declaration.make<Model, Destination>(withoutSlug)
+    const slugless = Declaration.make<Model, Destination>({
+      Destination,
+      root: Counter(),
+      routes: {
+        Counter: counterRoute,
+        SessionSettings: sessionRoute,
+        ActionMenu: menuRoute,
+        NotFound: notFoundRoute,
+      },
+    })
     expect(defaultUri(slugless)).toEqual(Option.some('/'))
     expect(canonicalUri(slugless, '/session')).toEqual(Option.some('/session'))
   })
@@ -276,16 +278,71 @@ describe('make', () => {
   it('rejects routes without a Root route that prints the root', () => {
     expect(() =>
       Declaration.make<Model, Destination>({
-        ...navigation,
-        routes: [sessionRoute, menuRoute],
+        slug: 'counter',
+        Destination,
+        root: Counter(),
+        routes: {
+          Counter: sessionRoute,
+          SessionSettings: sessionRoute,
+          ActionMenu: menuRoute,
+          NotFound: notFoundRoute,
+        },
       }),
     ).toThrow(Declaration.NavigationDeclarationError)
   })
 
-  it('accepts a Program that is not URL-addressable', () => {
-    const { routes: _routes, ...withoutRoutes } = navigation
-    expect(
-      Declaration.make<Model, Destination>(withoutRoutes).routes,
-    ).toBeUndefined()
+  it('does not compile a Destination without a route', () => {
+    const declareWithoutRoutes = () =>
+      Declaration.make<Model, Destination>({
+        slug: 'counter',
+        Destination,
+        root: Counter(),
+        // @ts-expect-error SessionSettings, ActionMenu, and NotFound have no route
+        routes: { Counter: counterRoute },
+      })
+    expect(declareWithoutRoutes).toBeInstanceOf(Function)
+  })
+
+  it('does not compile a hand-written declaration', () => {
+    const handWritten = () => {
+      // @ts-expect-error only screens, make, and the combinators build one
+      const declaration: Declaration.ProgramNavigation<Model, Destination> = {
+        Destination,
+        root: Counter(),
+        routes: [counterRoute],
+      }
+      return declaration
+    }
+    expect(handWritten).toBeInstanceOf(Function)
+  })
+})
+
+describe('screens', () => {
+  const Search = ts('Search', { q: S.String })
+  const searchScreen = Declaration.pushScreen(
+    Search,
+    pipe(Route.literal('search'), Route.query(S.Struct({ q: S.String }))),
+  )
+  const shop = Declaration.screens({
+    slug: 'shop',
+    root: Declaration.rootScreen(Counter, Route.here),
+    screens: [searchScreen],
+  })
+
+  it('derives the Destinations and routes from the screens', () => {
+    const stack = stackWithEntries<Counter | typeof Search.Type>(Counter(), [
+      presented(Search({ q: 'cats' }), Push()),
+    ])
+    expect(printStack(shop, stack)).toEqual(
+      Option.some('/shop/search?search.q=cats'),
+    )
+    expect(parseStack(shop, '/shop/search?search.q=cats')).toEqual(stack)
+  })
+
+  it('does not compile a route that drops a screen field', () => {
+    const dropsQuery = () =>
+      // @ts-expect-error the route parses no `q`, which Search needs
+      Declaration.pushScreen(Search, Route.literal('search'))
+    expect(dropsQuery).toBeInstanceOf(Function)
   })
 })

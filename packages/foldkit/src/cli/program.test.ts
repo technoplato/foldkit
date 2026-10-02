@@ -166,14 +166,4 @@ describe('navigation commands', () => {
       '/counter/session',
     )
   })
-
-  it('refuses a URI on a Program without routes', () => {
-    const refused = runProgramCommand(
-      bindCounter(),
-      'counter',
-      ['open', '/counter/session'],
-      {},
-    )
-    expect(refused.exitCode).toBe(1)
-  })
 })

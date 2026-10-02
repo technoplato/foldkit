@@ -8,9 +8,18 @@ import {
   type CarrierSnapshot,
   type Expectation,
 } from './carrier.js'
-import { History } from './message.js'
+import { History, Link } from './message.js'
 
 // WINDOW
+
+/**
+ * The event a host dispatches on `window` after it writes a browser entry
+ * itself, such as a link to an app page outside the Program. The driver
+ * reports the new entry as a link.
+ */
+export const locationChangedEvent = 'foldkit:locationchange'
+
+type WindowEvent = 'popstate' | typeof locationChangedEvent
 
 /** The parts of `window` the browser history driver reads and writes. */
 export type BrowserWindow = Readonly<{
@@ -21,9 +30,34 @@ export type BrowserWindow = Readonly<{
     replaceState: (state: unknown, unused: string, url: string) => void
     go: (delta: number) => void
   }>
-  addEventListener: (type: 'popstate', listener: () => void) => void
-  removeEventListener: (type: 'popstate', listener: () => void) => void
+  addEventListener: (type: WindowEvent, listener: () => void) => void
+  removeEventListener: (type: WindowEvent, listener: () => void) => void
+  dispatchEvent: (event: Event) => boolean
 }>
+
+/**
+ * Writes a browser entry for a URI the host shows itself and tells the
+ * driver, so a link to an app page like `/about` moves the address bar
+ * without reloading the Program.
+ *
+ * @example
+ * ```typescript
+ * followHostLink(window, '/about', 'Push') // the carrier parks
+ * followHostLink(window, '/counter', 'Push') // the carrier reports OpenedUri
+ * ```
+ */
+export const followHostLink = (
+  window: BrowserWindow,
+  uri: string,
+  mode: 'Push' | 'Replace',
+): void => {
+  if (mode === 'Push') {
+    window.history.pushState(null, '', uri)
+  } else {
+    window.history.replaceState(null, '', uri)
+  }
+  window.dispatchEvent(new Event(locationChangedEvent))
+}
 
 /**
  * The URI a window shows: its path and its search.
@@ -201,9 +235,14 @@ export const browserHistoryDriver = <Destination>(
       const onPopState = (): void => {
         listener({ snapshot: read(), via: History() })
       }
+      const onHostLink = (): void => {
+        listener({ snapshot: read(), via: Link() })
+      }
       window.addEventListener('popstate', onPopState)
+      window.addEventListener(locationChangedEvent, onHostLink)
       return () => {
         window.removeEventListener('popstate', onPopState)
+        window.removeEventListener(locationChangedEvent, onHostLink)
       }
     },
   }

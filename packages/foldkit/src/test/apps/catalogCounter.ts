@@ -3,8 +3,10 @@ import { Match as M, Option, Schema as S } from 'effect'
 import * as ActionMenu from '../../actionMenu/actionMenu.js'
 import * as Catalog from '../../catalog/catalog.js'
 import { type ProgramHandle, bind } from '../../interaction/bind.js'
+import * as Declaration from '../../navigation/declaration.js'
 import { make } from '../../program/program.js'
 import { Column, Row, Text, actionButtons } from '../../renderers/elements.js'
+import * as Route from '../../route/parser.js'
 import { ts } from '../../schema/index.js'
 
 const Model = S.Struct({ count: S.Number })
@@ -50,7 +52,9 @@ export const App = ActionMenu.compose({
         }),
       ),
     catalog,
-    navigation: { Destination: Counter, root: Counter() },
+    navigation: Declaration.screens({
+      root: Declaration.rootScreen(Counter, Route.here),
+    }),
     screen: (model: Model) =>
       Column(
         {},

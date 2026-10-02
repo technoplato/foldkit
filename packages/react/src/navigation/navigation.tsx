@@ -242,7 +242,10 @@ export const NavigationFrame = ({
 
 /**
  * Keeps browser history showing the bound Program's plan while mounted.
- * The location at mount is the launch URI; browser Back and Forward reach
+ * Every URI is the Program's unless `isCarried` says otherwise; on a URI
+ * it does not carry, such as an app's own `/about`, the carrier parks
+ * while the Program keeps running. The location at mount is the launch
+ * URI; browser Back and Forward reach
  * the Program as `NavigatedBack` and `OpenedUri`. Does nothing where there
  * is no window.
  *
@@ -258,7 +261,12 @@ export const useBrowserHistory = (
   options: Omit<Navigation.CarrierOptions, 'launchUri'> = {},
 ): void => {
   const bound = useBound()
-  const { expectationTimeoutMs, reportTimeoutMs, maximumCorrections } = options
+  const {
+    expectationTimeoutMs,
+    reportTimeoutMs,
+    maximumCorrections,
+    isCarried,
+  } = options
   const onDiagnostic = useRef(options.onDiagnostic)
   onDiagnostic.current = options.onDiagnostic
   useEffect(() => {
@@ -270,6 +278,7 @@ export const useBrowserHistory = (
       Navigation.browserHistoryDriver(window),
       {
         launchUri: Option.some(Navigation.windowUri(window)),
+        ...(isCarried === undefined ? {} : { isCarried }),
         ...(expectationTimeoutMs === undefined ? {} : { expectationTimeoutMs }),
         ...(reportTimeoutMs === undefined ? {} : { reportTimeoutMs }),
         ...(maximumCorrections === undefined ? {} : { maximumCorrections }),
@@ -280,5 +289,11 @@ export const useBrowserHistory = (
         },
       },
     )
-  }, [bound, expectationTimeoutMs, reportTimeoutMs, maximumCorrections])
+  }, [
+    bound,
+    expectationTimeoutMs,
+    reportTimeoutMs,
+    maximumCorrections,
+    isCarried,
+  ])
 }

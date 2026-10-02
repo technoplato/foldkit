@@ -9,9 +9,11 @@ import { describe, expect, it } from 'vitest'
 
 import * as ActionMenu from '../actionMenu/actionMenu.js'
 import * as Catalog from '../catalog/catalog.js'
+import * as Declaration from '../navigation/declaration.js'
 import { NavigationStack, stackAtRoot } from '../navigation/structure.js'
 import { compose } from '../program/compose.js'
 import { make } from '../program/program.js'
+import * as Route from '../route/parser.js'
 import { ts } from '../schema/index.js'
 import {
   Follow,
@@ -49,7 +51,9 @@ const CounterProgram = make({
       }),
     ),
   catalog,
-  navigation: { Destination: Counter, root: Counter() },
+  navigation: Declaration.screens({
+    root: Declaration.rootScreen(Counter, Route.here),
+  }),
 })
 
 const App = ActionMenu.compose({ of: CounterProgram })

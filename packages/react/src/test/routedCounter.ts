@@ -51,18 +51,9 @@ export const RoutedApp = ActionMenu.compose({
           Text('Session settings', { href: '/counter/session' }),
           Row({}, ...actionButtons(Catalog.entries(catalog, model))),
         ),
-      navigation: Navigation.make<Model, Counter>({
-        slug: Navigation.Slug.make('counter'),
-        Destination: Counter,
-        root: Counter(),
-        routes: [
-          Navigation.rootRoute(
-            Route.caseOf(
-              Route.here,
-              Navigation.tagCase<Counter, Counter>(S.is(Counter), Counter),
-            ),
-          ),
-        ],
+      navigation: Navigation.screens({
+        slug: 'counter',
+        root: Navigation.rootScreen(Counter, Route.here),
       }),
     }),
   }),

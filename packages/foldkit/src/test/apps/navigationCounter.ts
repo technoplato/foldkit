@@ -114,7 +114,12 @@ export const navigation = Declaration.make<Model, Destination>({
   slug: Declaration.Slug.make('counter'),
   Destination,
   root: Counter(),
-  routes: [counterRoute, sessionRoute, menuRoute, notFoundRoute],
+  routes: {
+    Counter: counterRoute,
+    SessionSettings: sessionRoute,
+    ActionMenu: menuRoute,
+    NotFound: notFoundRoute,
+  },
   stack: {
     get: model => Option.some(model.navigation),
     set: (model, nextNavigation) => ({ ...model, navigation: nextNavigation }),

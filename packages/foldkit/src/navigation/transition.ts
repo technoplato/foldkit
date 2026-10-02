@@ -93,7 +93,7 @@ export const applyMessage = <Model, Destination>(
   stack: NavigationStack<Destination>,
   message: Message,
 ): NavigationStack<Destination> => {
-  const isAddressable = Array.isReadonlyArrayNonEmpty(navigation.routes ?? [])
+  const isAddressable = Array.isReadonlyArrayNonEmpty(navigation.routes)
   if (!isAddressable || !isAdoptedLaunch(navigation, model, message)) {
     return stack
   }

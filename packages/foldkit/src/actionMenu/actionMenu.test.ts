@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest'
 
 import * as Catalog from '../catalog/catalog.js'
 import { type KeyInput, keyInput } from '../interaction/interaction.js'
+import * as Declaration from '../navigation/declaration.js'
 import { Dialog, stackAtRoot } from '../navigation/structure.js'
 import { make } from '../program/program.js'
+import * as Route from '../route/parser.js'
 import { ts } from '../schema/index.js'
 import * as ActionMenu from './actionMenu.js'
 
@@ -51,7 +53,9 @@ const CounterProgram = make({
       }),
     ),
   catalog,
-  navigation: { Destination: Counter, root: Counter() },
+  navigation: Declaration.screens({
+    root: Declaration.rootScreen(Counter, Route.here),
+  }),
 })
 
 const App = ActionMenu.compose({ of: CounterProgram })

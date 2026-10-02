@@ -1,8 +1,5 @@
-import { Schema as S } from 'effect'
 import { Navigation, Route } from 'foldkit'
 import { ts } from 'foldkit/schema'
-
-import { type Model } from './model.js'
 
 // NAVIGATION
 
@@ -11,19 +8,8 @@ export const Counter = ts('Counter')
 /** The Counter page. */
 export type Counter = typeof Counter.Type
 
-const isCounter = S.is(Counter)
-
-/** The Counter's only route: its root, at the Program's slug. */
-export const counterRoute = Navigation.rootRoute(
-  Route.caseOf(
-    Route.here,
-    Navigation.tagCase<Counter, Counter>(isCounter, Counter),
-  ),
-  { title: () => 'Counter' },
-)
-
 /**
- * The Counter's navigation: one root Destination at `/counter`. The
+ * The Counter's navigation: one screen, its root at `/counter`. The
  * combinators add the rest. `Session.compose` adds its settings page at
  * `/counter/session` and keeps any unknown path as NotFound, and
  * `ActionMenu.compose` presents the menu at `/counter/menu?menu.q=re`.
@@ -33,11 +19,9 @@ export const counterRoute = Navigation.rootRoute(
  * Navigation.defaultUri(navigation) // Some('/counter')
  * ```
  */
-export const navigation = Navigation.make<Model, Counter>({
-  slug: Navigation.Slug.make('counter'),
-  Destination: Counter,
-  root: Counter(),
-  routes: [counterRoute],
+export const navigation = Navigation.screens({
+  slug: 'counter',
+  root: Navigation.rootScreen(Counter, Route.here, { title: () => 'Counter' }),
 })
 
 /** The URI of the Counter page, `/counter`, which its device chrome shows. */

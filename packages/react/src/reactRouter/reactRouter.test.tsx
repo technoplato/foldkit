@@ -11,6 +11,7 @@ import { FoldkitRouter, navigatorOf } from './reactRouter.js'
 const Where = () => <p>at {useLocation().pathname}</p>
 
 const renderRouted = () => {
+  window.history.replaceState(null, '', '/counter')
   const bound = bindRouted()
   render(
     <ProgramProvider bound={bound}>
@@ -53,13 +54,14 @@ describe('FoldkitRouter', () => {
 
   it('leaves a link outside the Program to the browser', () => {
     const bound = bindRouted()
-    navigatorOf(bound).push('/about')
+    navigatorOf(bound, 'WithHostPages').push('/about')
     expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
       Option.some('/counter'),
     )
   })
 
   it('renders every declared screen with no routes written', () => {
+    window.history.replaceState(null, '', '/')
     const bound = bindRouted()
     render(
       <ProgramProvider bound={bound}>
@@ -73,6 +75,43 @@ describe('FoldkitRouter', () => {
     expect(
       screen.getByText('Every device shows the same screen.'),
     ).toBeDefined()
+  })
+
+  it('shows an app page outside the Program without reloading it', () => {
+    window.history.replaceState(null, '', '/counter')
+    const bound = bindRouted()
+    render(
+      <ProgramProvider bound={bound}>
+        <FoldkitRouter>
+          <Routes>
+            <Route
+              path="/about"
+              element={<Link to="/counter">Back to counter</Link>}
+            />
+            <Route path="*" element={<Link to="/about">About</Link>} />
+          </Routes>
+        </FoldkitRouter>
+      </ProgramProvider>,
+    )
+    act(() => {
+      bound.press('Increment')
+    })
+    act(() => {
+      fireEvent.click(screen.getByText('About'))
+    })
+    expect(window.location.pathname).toBe('/about')
+    expect(screen.getByText('Back to counter')).toBeDefined()
+    expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
+      Option.some('/counter'),
+    )
+    expect(bound.viewAt('/counter')).toEqual(
+      Option.some(expect.objectContaining({ _tag: 'Screen' })),
+    )
+    act(() => {
+      fireEvent.click(screen.getByText('Back to counter'))
+    })
+    expect(window.location.pathname).toBe('/counter')
+    expect(screen.getByText('About')).toBeDefined()
   })
 
   it('follows a move the Program makes on its own', () => {

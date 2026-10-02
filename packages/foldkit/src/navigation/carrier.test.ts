@@ -15,6 +15,7 @@ import {
 import {
   type BrowserWindow,
   browserHistoryDriver,
+  followHostLink,
   windowUri,
 } from './browserHistory.js'
 import {
@@ -50,7 +51,7 @@ import {
   stackWithEntries,
 } from './structure.js'
 import { applyMessage } from './transition.js'
-import { canonicalUri, parseStack, printStack } from './uri.js'
+import { canonicalUri, ownsUri, parseStack, printStack } from './uri.js'
 
 // FIXTURES
 
@@ -184,7 +185,16 @@ const makeBrowser = (launchUri: string): FakeBrowser => {
     { uri: launchUri, state: null },
   ]
   let index = 0
-  const listeners = new Set<() => void>()
+  const listeners = new Map<string, Set<() => void>>()
+  const listenersOf = (type: string): Set<() => void> => {
+    const existing = listeners.get(type)
+    if (existing !== undefined) {
+      return existing
+    }
+    const created = new Set<() => void>()
+    listeners.set(type, created)
+    return created
+  }
   const current = (): HistoryEntry =>
     Option.getOrThrow(Array.get(entries, index))
   const pathname = (): string =>
@@ -202,7 +212,7 @@ const makeBrowser = (launchUri: string): FakeBrowser => {
       const nextIndex = Math.max(0, Math.min(entries.length - 1, index + delta))
       if (nextIndex !== index) {
         index = nextIndex
-        listeners.forEach(listener => listener())
+        listenersOf('popstate').forEach(listener => listener())
       }
     }, 0)
   }
@@ -230,11 +240,15 @@ const makeBrowser = (launchUri: string): FakeBrowser => {
       },
       go,
     },
-    addEventListener: (_type, listener) => {
-      listeners.add(listener)
+    addEventListener: (type, listener) => {
+      listenersOf(type).add(listener)
     },
-    removeEventListener: (_type, listener) => {
-      listeners.delete(listener)
+    removeEventListener: (type, listener) => {
+      listenersOf(type).delete(listener)
+    },
+    dispatchEvent: event => {
+      listenersOf(event.type).forEach(listener => listener())
+      return true
     },
   }
   return {
@@ -258,6 +272,7 @@ const runOnBrowser = (
       launchUri: Option.some(windowUri(browser.window)),
       reportTimeoutMs: REPORT_TIMEOUT_MS,
       expectationTimeoutMs: EXPECTATION_TIMEOUT_MS,
+      isCarried: uri => ownsUri(navigation, uri),
       onDiagnostic,
     },
   )
@@ -680,6 +695,48 @@ describe('runCarrier on browser history', () => {
       OpenedUri({ uri: '/counter/menu', via: Launch() }),
     ])
     expect(browser.uris()).toEqual(['/counter', '/counter/session'])
+  })
+
+  it('parks on a page outside the Program and keeps the Program running', async () => {
+    const program = makeProgram()
+    const browser = makeBrowser('/counter')
+    runOnBrowser(program, browser)
+    program.move(atSession)
+    await settle()
+    followHostLink(browser.window, '/about', 'Push')
+    program.move(atSessionMenu(''))
+    await settle(REPORT_TIMEOUT_MS)
+    expect(browser.uri()).toBe('/about')
+    expect(program.facts).toEqual([])
+  })
+
+  it('adopts the current screen on Back from an outside page, without a fact', async () => {
+    const program = makeProgram()
+    const browser = makeBrowser('/counter')
+    runOnBrowser(program, browser)
+    program.move(atSession)
+    await settle()
+    followHostLink(browser.window, '/about', 'Push')
+    program.move(atSessionMenu('re'))
+    await settle()
+    browser.go(-1)
+    await settle(REPORT_TIMEOUT_MS)
+    expect(program.facts).toEqual([])
+    expect(browser.uri()).toBe('/counter/session/menu?menu.q=re')
+  })
+
+  it('reports a link from an outside page back into the Program', async () => {
+    const program = makeProgram()
+    const browser = makeBrowser('/about')
+    runOnBrowser(program, browser)
+    await settle()
+    expect(browser.uri()).toBe('/about')
+    followHostLink(browser.window, '/counter/session', 'Push')
+    await settle(REPORT_TIMEOUT_MS)
+    expect(program.facts).toEqual([
+      OpenedUri({ uri: '/counter/session', via: Link() }),
+    ])
+    expect(browser.uri()).toBe('/counter/session')
   })
 
   it('stops writing and reporting once stopped', async () => {

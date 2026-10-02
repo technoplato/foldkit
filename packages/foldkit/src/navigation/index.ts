@@ -46,6 +46,11 @@ export {
   routeOf,
   NavigationDeclarationError,
   make,
+  NavigationTypeId,
+  screens,
+  rootScreen,
+  pushScreen,
+  presentScreen,
   screenView,
   menuView,
   focusModel,
@@ -56,8 +61,16 @@ export type {
   StackLens,
   ProgramNavigation,
   StackedNavigation,
+  DeclaredNavigation,
   EntryView,
   ModelFocus,
+  RoutesByTag,
+  NavigationConfig,
+  TaggedDestination,
+  Screen,
+  RootScreen,
+  ScreenDestination,
+  DestinationOfScreens,
 } from './declaration.js'
 export {
   splitUri,
@@ -125,7 +138,12 @@ export type {
   CarrierDiagnostic,
   CarrierOptions,
 } from './carrier.js'
-export { windowUri, browserHistoryDriver } from './browserHistory.js'
+export {
+  windowUri,
+  browserHistoryDriver,
+  followHostLink,
+  locationChangedEvent,
+} from './browserHistory.js'
 export type { BrowserWindow } from './browserHistory.js'
 export { frameOf } from './frame.js'
 export { uriOfDeepLink } from './deepLink.js'

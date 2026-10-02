@@ -1,5 +1,5 @@
 import { Array, Match as M, Option, Schema as S, pipe } from 'effect'
-import { ActionMenu, Catalog, Program } from 'foldkit'
+import { ActionMenu, Catalog, Navigation, Program, Route } from 'foldkit'
 import { ts } from 'foldkit/schema'
 import { type ReactElement, isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,7 +64,9 @@ const App = ActionMenu.compose({
         }),
       ),
     catalog,
-    navigation: { Destination: Counter, root: Counter() },
+    navigation: Navigation.screens({
+      root: Navigation.rootScreen(Counter, Route.here),
+    }),
   }),
 })
 

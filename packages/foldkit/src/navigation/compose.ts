@@ -6,6 +6,7 @@ import type { UiNode } from '../renderers/types.js'
 import {
   type DestinationRoute,
   type EntryView,
+  NavigationTypeId,
   NotFound,
   type ProgramNavigation,
   type StackLens,
@@ -253,10 +254,11 @@ export const composeNavigation = <
   const childHistoryOf = child.historyOf
 
   return {
+    [NavigationTypeId]: NavigationTypeId,
     ...(child.slug === undefined ? {} : { slug: child.slug }),
     Destination: config.Destination,
     root: child.root,
-    routes: Array.match(child.routes ?? [], {
+    routes: Array.match(child.routes, {
       onEmpty: () => [],
       onNonEmpty: childRoutes => [
         ...Array.map(childRoutes, route => liftRoute(route, narrow)),

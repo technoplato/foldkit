@@ -1,5 +1,12 @@
 import { Match as M, Schema as S } from 'effect'
-import { ActionMenu, Catalog, Interaction, Program } from 'foldkit'
+import {
+  ActionMenu,
+  Catalog,
+  Interaction,
+  Navigation,
+  Program,
+  Route,
+} from 'foldkit'
 import { Column, Row, Text, actionButtons } from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
 import { Profiler, type ReactNode } from 'react'
@@ -57,7 +64,9 @@ const CounterProgram = Program.make({
       }),
     ),
   catalog,
-  navigation: { Destination: Counter, root: Counter() },
+  navigation: Navigation.screens({
+    root: Navigation.rootScreen(Counter, Route.here),
+  }),
   screen: (model: Model) =>
     Column(
       {},

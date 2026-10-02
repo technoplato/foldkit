@@ -12,9 +12,11 @@ import { describe, expect, it } from 'vitest'
 import * as ActionMenu from '../actionMenu/actionMenu.js'
 import * as Catalog from '../catalog/catalog.js'
 import { NotFound } from '../navigation/declaration.js'
+import * as Declaration from '../navigation/declaration.js'
 import { NavigationStack, stackAtRoot } from '../navigation/structure.js'
 import { compose as composeProgram } from '../program/compose.js'
 import { make } from '../program/program.js'
+import * as Route from '../route/parser.js'
 import { start } from '../runtime/start.js'
 import { Memory, makeMemoryStore } from '../runtime/syncEngine.js'
 import { ts } from '../schema/index.js'
@@ -53,7 +55,9 @@ const CounterProgram = make({
       }),
     ),
   catalog,
-  navigation: { Destination: Counter, root: Counter() },
+  navigation: Declaration.screens({
+    root: Declaration.rootScreen(Counter, Route.here),
+  }),
   synchronization: {
     messageCategory: () => 'Domain',
     projectDomain: model => model,

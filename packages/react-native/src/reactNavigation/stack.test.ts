@@ -51,18 +51,9 @@ const App = ActionMenu.compose({
           }),
         ),
       catalog,
-      navigation: Navigation.make<Model, Counter>({
-        slug: Navigation.Slug.make('counter'),
-        Destination: Counter,
-        root: Counter(),
-        routes: [
-          Navigation.rootRoute(
-            Route.caseOf(
-              Route.here,
-              Navigation.tagCase<Counter, Counter>(S.is(Counter), Counter),
-            ),
-          ),
-        ],
+      navigation: Navigation.screens({
+        slug: 'counter',
+        root: Navigation.rootScreen(Counter, Route.here),
       }),
     }),
   }),

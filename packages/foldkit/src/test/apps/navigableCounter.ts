@@ -37,19 +37,11 @@ export const Counter = ts('Counter')
 /** The Counter page. */
 export type Counter = typeof Counter.Type
 
-const counterNavigation = Declaration.make<CounterModel, Counter>({
-  slug: Declaration.Slug.make('counter'),
-  Destination: Counter,
-  root: Counter(),
-  routes: [
-    Declaration.rootRoute(
-      Route.caseOf(
-        Route.here,
-        Declaration.tagCase<Counter, Counter>(S.is(Counter), Counter),
-      ),
-      { title: () => 'Counter' },
-    ),
-  ],
+const counterNavigation = Declaration.screens({
+  slug: 'counter',
+  root: Declaration.rootScreen(Counter, Route.here, {
+    title: () => 'Counter',
+  }),
 })
 
 /** A Counter that declares its route at `/counter`. */

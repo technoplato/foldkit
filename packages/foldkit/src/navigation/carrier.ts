@@ -411,9 +411,15 @@ export type CarrierDiagnostic =
  * - `maximumCorrections` bounds the writes in a row that leave the carrier
  *   short of one plan, so a carrier that rewrites URIs cannot loop
  *   forever. Reaching the plan starts the count again.
+ * - `isCarried` says which URIs belong to the Program. While the carrier
+ *   shows any other, such as an app's own `/about` page, the loop is
+ *   parked: it reports nothing and writes nothing, and the Program keeps
+ *   running. Coming back with Back adopts the Program's current screen
+ *   without moving anyone; following a link reports it as `OpenedUri`.
  */
 export type CarrierOptions = Readonly<{
   launchUri?: Option.Option<string>
+  isCarried?: (uri: string) => boolean
   expectationTimeoutMs?: number
   reportTimeoutMs?: number
   maximumCorrections?: number
@@ -456,7 +462,12 @@ export const runCarrier = <Destination>(
   const maximumCorrections =
     options.maximumCorrections ?? defaultMaximumCorrections
   let maybePending: Option.Option<Pending> = Option.none()
-  let maybeLaunchUri: Option.Option<string> = options.launchUri ?? Option.none()
+  const isCarried = options.isCarried ?? (() => true)
+  let maybeLaunchUri: Option.Option<string> = Option.filter(
+    options.launchUri ?? Option.none(),
+    isCarried,
+  )
+  let isParked = !isCarried(driver.read().uri)
   let hasLaunched = false
   let maybeWrittenPlanUri: Option.Option<string> = Option.none()
   let writesTowardPlan = 0
@@ -491,6 +502,9 @@ export const runCarrier = <Destination>(
       isOutOfCorrections = false
     }
     const snapshot = driver.read()
+    if (!isCarried(snapshot.uri)) {
+      return
+    }
     const move = carrierMove(snapshot, plan)
     if (move._tag === 'Unchanged') {
       writesTowardPlan = 0
@@ -593,12 +607,24 @@ export const runCarrier = <Destination>(
     if (isStopped) {
       return
     }
+    if (!isCarried(snapshot.uri)) {
+      isParked = true
+      clearPending()
+      return
+    }
     const maybePlan = source.navigation()
     if (Option.isNone(maybePlan)) {
       maybeLaunchUri = Option.some(snapshot.uri)
       return
     }
     const plan = maybePlan.value
+    if (isParked) {
+      isParked = false
+      if (via._tag !== 'Link') {
+        reconcile()
+        return
+      }
+    }
     const isOwnWrite = Option.exists(
       maybePending,
       pending =>

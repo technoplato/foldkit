@@ -1,5 +1,12 @@
 import { Match as M, Option, Schema as S } from 'effect'
-import { ActionMenu, Catalog, Interaction, Program } from 'foldkit'
+import {
+  ActionMenu,
+  Catalog,
+  Interaction,
+  Navigation,
+  Program,
+  Route,
+} from 'foldkit'
 import {
   Column,
   Row,
@@ -53,7 +60,9 @@ const App = ActionMenu.compose({
         }),
       ),
     catalog,
-    navigation: { Destination: Counter, root: Counter() },
+    navigation: Navigation.screens({
+      root: Navigation.rootScreen(Counter, Route.here),
+    }),
     screen: (model: Model): UiNode =>
       Column(
         {},

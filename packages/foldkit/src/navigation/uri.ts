@@ -107,7 +107,7 @@ const emptyPrintState: Route.PrintState = {
 
 const routesOf = <Model, Destination>(
   navigation: ProgramNavigation<Model, Destination>,
-): ReadonlyArray<DestinationRoute<Destination>> => navigation.routes ?? []
+): ReadonlyArray<DestinationRoute<Destination>> => navigation.routes
 
 const slugState = <Model, Destination>(
   navigation: ProgramNavigation<Model, Destination>,
