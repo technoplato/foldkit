@@ -103,6 +103,7 @@ type LayoutRoute = Readonly<{ key: string; name: string; params?: object }>
 type FakeContainer = Readonly<{
   ref: RouterRefLike
   slotKey: () => string
+  lastReset: () => Option.Option<RootReset>
   layoutKeys: () => ReadonlyArray<string>
   layoutUris: () => ReadonlyArray<string>
   swipeBack: () => void
@@ -115,6 +116,7 @@ const makeContainer = (
 ): FakeContainer => {
   let currentSlotKey = slotKey
   let layout: ReadonlyArray<LayoutRoute> = initialLayout
+  let lastReset: Option.Option<RootReset> = Option.none()
   const listeners = new Set<() => void>()
   const emitSoon = (): void => {
     setTimeout(() => listeners.forEach(listener => listener()), 0)
@@ -122,15 +124,18 @@ const makeContainer = (
   return {
     ref: {
       getRootState: () => ({
+        key: 'root-stack-1',
+        stale: false,
         routes: [
           {
             key: currentSlotKey,
             name: '__root',
-            state: { routes: layout },
+            state: { key: 'layout-stack-1', stale: false, routes: layout },
           },
         ],
       }),
       resetRoot: (state: RootReset) => {
+        lastReset = Option.some(state)
         const maybeSlot = Array.head(state.routes)
         if (Option.isSome(maybeSlot)) {
           currentSlotKey = maybeSlot.value.key
@@ -146,6 +151,7 @@ const makeContainer = (
       },
     },
     slotKey: () => currentSlotKey,
+    lastReset: () => lastReset,
     layoutKeys: () => Array.map(layout, route => route.key),
     layoutUris: () =>
       Array.getSomes(
@@ -228,6 +234,30 @@ describe('expoRouterStack', () => {
     await settle()
     expect(container.layoutUris()).toEqual(['/counter', '/counter/session'])
     expect(container.slotKey()).toBe(slotKey)
+  })
+
+  it('keeps the root and layout state keys, so web history pushes', async () => {
+    const bound = bindApp()
+    const container = makeContainer(indexLayout)
+    runOn(bound, container)
+    await settle()
+    expect(container.lastReset()).toEqual(
+      Option.some(
+        expect.objectContaining({
+          key: 'root-stack-1',
+          stale: false,
+          routes: [
+            expect.objectContaining({
+              key: slotKey,
+              state: expect.objectContaining({
+                key: 'layout-stack-1',
+                stale: false,
+              }),
+            }),
+          ],
+        }),
+      ),
+    )
   })
 
   it('launches at the URL Expo Router opened with when navigation is local', async () => {

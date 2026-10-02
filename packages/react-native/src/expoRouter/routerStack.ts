@@ -1,4 +1,12 @@
-import { Array, Option, Record, Schema as S, String, pipe } from 'effect'
+import {
+  Array,
+  Option,
+  Predicate,
+  Record,
+  Schema as S,
+  String,
+  pipe,
+} from 'effect'
 import { Navigation } from 'foldkit'
 
 // ROUTE
@@ -140,6 +148,9 @@ const decodeLayoutState = S.decodeUnknownOption(LayoutState)
 const rootSlotOf = (state: RootState): Option.Option<RootRoute> =>
   Array.findFirst(state.routes, route => route.name === rootSlotName)
 
+const layoutStateOf = (slot: RootRoute): Readonly<Record<string, unknown>> =>
+  Predicate.isObject(slot.state) ? slot.state : {}
+
 type Written = Readonly<{ route: Navigation.KeyedRoute; shown: string }>
 
 /**
@@ -207,19 +218,27 @@ export const expoRouterStack = (
         written.set(route.key, { route, shown: maybeShown.value })
       }
     })
-    const maybeSlot = Option.flatMap(
-      Option.fromNullishOr(ref.getRootState()),
-      rootSlotOf,
-    )
-    if (Option.isSome(maybeSlot)) {
+    const maybeRootState = Option.fromNullishOr(ref.getRootState())
+    const maybeSlot = Option.flatMap(maybeRootState, rootSlotOf)
+    if (Option.isSome(maybeRootState) && Option.isSome(maybeSlot)) {
       lastRoutes = next
+      // NOTE: the root and layout states are spread in, so their keys and
+      // `stale: false` survive. React Navigation then uses them as given
+      // instead of minting new keys, and Expo Router's web linking sees the
+      // same states and pushes or pops browser history instead of
+      // replacing the URL.
       ref.resetRoot({
+        ...maybeRootState.value,
         index: 0,
         routes: [
           {
-            key: maybeSlot.value.key,
+            ...maybeSlot.value,
             name: rootSlotName,
-            state: { index: next.length - 1, routes: nextRoutes },
+            state: {
+              ...layoutStateOf(maybeSlot.value),
+              index: next.length - 1,
+              routes: nextRoutes,
+            },
           },
         ],
       })
