@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Foldkit - Expo Router Counter",
+    "slug": "foldkit-counter-router",
+    "scheme": "foldkit-counter-router",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"],
+    "ios": {
+      "bundleIdentifier": "com.knophy.foldkit.counter.router.dev",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.knophy.foldkit.counter.router.dev"
+    }
+  }
+}

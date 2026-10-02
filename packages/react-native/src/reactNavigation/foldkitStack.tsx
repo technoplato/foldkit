@@ -1,16 +1,9 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Option } from 'effect'
 import { Navigation } from 'foldkit'
-import {
-  type ReactElement,
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react'
+import { type ReactElement, useEffect, useMemo, useState } from 'react'
 
 import { type AnyBound, useBound } from '@foldkit/react/interaction'
-import { useNavigationPlan, useViewAt } from '@foldkit/react/navigation'
+import { useNavigationPlan } from '@foldkit/react/navigation'
 import {
   NavigationContainer,
   createNavigationContainerRef,
@@ -20,8 +13,8 @@ import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack'
 
-import { ActionMenuSheet } from '../interaction/actionMenuModal.js'
-import { type PaintStyles, paintTree } from '../interaction/screen.js'
+import type { PaintStyles } from '../interaction/screen.js'
+import { EntryStylesContext, EntryView, entryStylesOf } from './entryView.js'
 import {
   entryRouteName,
   entryStateOf,
@@ -46,43 +39,11 @@ const entryAt = (
     Array.findFirst(plan.entries, entry => entry.key === key),
   )
 
-const noStyles: PaintStyles = {}
-
-const StylesContext = createContext<PaintStyles>(noStyles)
-
 const EntryScreen = ({
   route,
-}: NativeStackScreenProps<
-  ParamList,
-  typeof entryRouteName
->): ReactElement | null => {
-  const bound = useBound()
-  const styles = useContext(StylesContext)
-  const maybeView = useViewAt(route.key)
-  return useMemo(
-    () =>
-      Option.match(maybeView, {
-        onNone: () => null,
-        onSome: view =>
-          M.value(view).pipe(
-            M.withReturnType<ReactElement>(),
-            M.tagsExhaustive({
-              Screen: ({ node }) =>
-                paintTree(node, {
-                  styles,
-                  onPress: button => {
-                    if (button.action !== undefined) {
-                      bound.press(button.action)
-                    }
-                  },
-                }),
-              Menu: ({ menu }) => <ActionMenuSheet menu={menu} />,
-            }),
-          ),
-      }),
-    [bound, maybeView, styles],
-  )
-}
+}: NativeStackScreenProps<ParamList, typeof entryRouteName>): ReactElement => (
+  <EntryView entryKey={route.key} />
+)
 
 const ReadyStack = ({
   initialPlan,
@@ -167,8 +128,8 @@ export const FoldkitStack = ({
   Option.match(useNavigationPlan(), {
     onNone: () => null,
     onSome: plan => (
-      <StylesContext.Provider value={styles ?? noStyles}>
+      <EntryStylesContext.Provider value={entryStylesOf(styles)}>
         <ReadyStack initialPlan={plan} launchUri={launchUri} />
-      </StylesContext.Provider>
+      </EntryStylesContext.Provider>
     ),
   })

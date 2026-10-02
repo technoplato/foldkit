@@ -11,6 +11,10 @@
     "./react-navigation": {
       "types": "./dist/reactNavigation/index.d.ts",
       "import": "./dist/reactNavigation/index.js"
+    },
+    "./expo-router": {
+      "types": "./dist/expoRouter/index.d.ts",
+      "import": "./dist/expoRouter/index.js"
     }
   },
   "sideEffects": false,
@@ -29,18 +33,22 @@
     "@foldkit/react": "workspace:^0"
   },
   "peerDependencies": {
+    "@react-navigation/native": ">=7.3.14 <8",
+    "@react-navigation/native-stack": ">=7.18.6 <8",
     "effect": "4.0.0-beta.97",
+    "expo-router": ">=57.0.24 <58",
     "foldkit": "workspace:^0",
     "react": ">=19.2.3 <20",
-    "react-native": ">=0.86.0",
-    "@react-navigation/native": ">=7.3.14 <8",
-    "@react-navigation/native-stack": ">=7.18.6 <8"
+    "react-native": ">=0.86.0"
   },
   "peerDependenciesMeta": {
     "@react-navigation/native": {
       "optional": true
     },
     "@react-navigation/native-stack": {
+      "optional": true
+    },
+    "expo-router": {
       "optional": true
     }
   },
@@ -49,6 +57,7 @@
     "@react-navigation/native-stack": "^7.18.6",
     "@types/react": "^19.2.17",
     "effect": "4.0.0-beta.97",
+    "expo-router": "~57.0.24",
     "foldkit": "workspace:*",
     "react": "19.2.3",
     "react-native": "0.86.2",

@@ -34,6 +34,7 @@
     "counter-react-bindings-example",
     "counter-react-native-example",
     "counter-expo-example",
+    "counter-expo-router-example",
     "counter-react-example",
     "counter-tui-example",
     "client-matrix-core-example",
