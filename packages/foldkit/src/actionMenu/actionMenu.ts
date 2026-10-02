@@ -19,6 +19,8 @@ import {
   type MenuView,
   type ProgramInteraction,
   isChord,
+  isKey,
+  keyInput,
   normalizeKey,
 } from '../interaction/interaction.js'
 import {
@@ -41,11 +43,13 @@ import {
   Dialog,
   NavigationStack,
   type PresentationStyle,
+  entriesOf,
   popped,
   presented,
   pushed,
   stackAtRoot,
   topEntry,
+  truncated,
 } from '../navigation/structure.js'
 import { backMessages, foldMessage } from '../navigation/transition.js'
 import type {
@@ -107,7 +111,11 @@ const asMenu = (destination: unknown): Option.Option<ActionMenu> =>
 
 // MESSAGE
 
-/** A person opened the action menu with Cmd-K, `?`, or its button. */
+/**
+ * A person opened the action menu with Cmd-K, `?`, or its button. A stack
+ * holds one menu: if a page was pushed above an open menu, opening it
+ * again returns to that menu.
+ */
 export const OpenedActionMenu = m('OpenedActionMenu')
 /** A person dismissed the action menu with Escape or by clicking outside it. */
 export const DismissedActionMenu = m('DismissedActionMenu')
@@ -369,6 +377,13 @@ export const menuOf = <Destination>(
     Option.filter(isActionMenu),
   )
 
+const menuDepthOf = <Destination>(
+  stack: NavigationStack<Destination>,
+): Option.Option<number> =>
+  Array.findFirstIndex(entriesOf(stack), entry =>
+    isActionMenu(entry.destination),
+  )
+
 const withoutTop = <Destination>(
   stack: NavigationStack<Destination>,
 ): NavigationStack<Destination> => Option.getOrElse(popped(stack), () => stack)
@@ -473,11 +488,17 @@ const structFieldsOf = (
   return schema.fields as S.Struct.Fields
 }
 
-const isToggleChord = (key: string, input: KeyInput): boolean =>
-  isChord(input) && key.toLowerCase() === 'k'
+const menuKeys: ReadonlyArray<KeyInput> = [
+  keyInput('?'),
+  keyInput('k', { isMeta: true }),
+  keyInput('k', { isControl: true }),
+]
 
-const isOpenChord = (key: string, input: KeyInput): boolean =>
-  isToggleChord(key, input) || (!isChord(input) && key === '?')
+const isToggleChord = (input: KeyInput): boolean =>
+  Array.some(menuKeys, declared => isChord(declared) && isKey(declared, input))
+
+const isOpenChord = (input: KeyInput): boolean =>
+  Array.some(menuKeys, declared => isKey(declared, input))
 
 const isPrintable = (key: string, input: KeyInput): boolean =>
   key.length === 1 && !isChord(input)
@@ -572,7 +593,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     ),
     style,
     {
-      isAllowedAbove: below => !isActionMenu(below),
+      isAllowedAbove: beneath => !Array.some(beneath, isActionMenu),
       title: () => 'Actions',
     },
   )
@@ -618,9 +639,9 @@ export const compose = <Child extends ActionMenuChild>(config: {
       M.withReturnType<readonly [AppModel, ReadonlyArray<AppCommand>]>(),
       M.tagsExhaustive({
         OpenedActionMenu: () =>
-          Option.isSome(menuOf(model.navigation))
-            ? [model, []]
-            : withNavigation(
+          Option.match(menuDepthOf(model.navigation), {
+            onNone: () =>
+              withNavigation(
                 model,
                 pushed<AppDestination>(
                   model.navigation,
@@ -630,6 +651,11 @@ export const compose = <Child extends ActionMenuChild>(config: {
                   ),
                 ),
               ),
+            onSome: depth =>
+              Option.isSome(menuOf(model.navigation))
+                ? [model, []]
+                : withNavigation(model, truncated(model.navigation, depth + 1)),
+          }),
         DismissedActionMenu: () =>
           withNavigation(model, dismissMenu<AppDestination>(model.navigation)),
         ChangedActionMenuQuery: ({ query }) =>
@@ -727,7 +753,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     key: string,
     input: KeyInput,
   ): ReadonlyArray<AppMessage> => {
-    if (key === 'Escape' || isToggleChord(key, input)) {
+    if (key === 'Escape' || isToggleChord(input)) {
       return [DismissedActionMenu()]
     }
     if (key === 'Enter') {
@@ -756,7 +782,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     key: string,
     input: KeyInput,
   ): ReadonlyArray<AppMessage> => {
-    if (isToggleChord(key, input)) {
+    if (isToggleChord(input)) {
       return [DismissedActionMenu()]
     }
     if (key === 'Escape') {
@@ -818,9 +844,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     const key = normalizeKey(input.key)
     return Option.match(menuOf(model.navigation), {
       onNone: () =>
-        isOpenChord(key, input)
-          ? [OpenedActionMenu()]
-          : closedKey(model, input),
+        isOpenChord(input) ? [OpenedActionMenu()] : closedKey(model, input),
       onSome: menu =>
         M.value(menu.focus).pipe(
           M.withReturnType<ReadonlyArray<AppMessage>>(),
@@ -862,6 +886,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     )
 
   const interaction: ProgramInteraction<AppModel, AppMessage> = {
+    menuKeys,
     status: model => childInteraction.status(childOf(model)),
     entries: model => childInteraction.entries(childOf(model)),
     press: (model, tag) =>

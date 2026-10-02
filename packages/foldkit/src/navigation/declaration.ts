@@ -36,18 +36,23 @@ export type Placement = typeof Placement.Type
  * One Destination case, its parser-printer relative to the entry beneath
  * it, and its stack rules. A Destination's style and title are functions of
  * the Destination, so one key always keeps one presentation.
+ * `isAllowedAbove` reads every Destination beneath, root first, so a page
+ * can appear once: the Session route refuses a stack that already holds
+ * the Session page.
  */
 export type DestinationRoute<Destination> = Readonly<{
   routeCase: Route.RouteCase<Destination, any>
   placement: Placement
   styleOf: (destination: Destination) => PresentationStyle
-  isAllowedAbove: (below: Destination) => boolean
+  isAllowedAbove: (beneath: Array.NonEmptyReadonlyArray<Destination>) => boolean
   maybeTitleOf: (destination: Destination) => Option.Option<string>
 }>
 
 /** Options shared by the route constructors. */
 export type RouteOptions<Destination> = Readonly<{
-  isAllowedAbove?: (below: Destination) => boolean
+  isAllowedAbove?: (
+    beneath: Array.NonEmptyReadonlyArray<Destination>,
+  ) => boolean
   title?: (destination: Destination) => string
 }>
 
@@ -130,8 +135,8 @@ export const presentRoute = <Destination, Value>(
 /**
  * Lifts a child's route into a wider Destination union, so a combinator
  * composes its child's routes without casts. A child's rule about what it
- * may sit above covers only its own Destinations; above one the child
- * does not know, such as the action menu, its route is allowed.
+ * may sit above reads only its own Destinations beneath; a Destination the
+ * child does not know, such as the action menu, is left out of it.
  *
  * @example
  * ```typescript
@@ -158,10 +163,10 @@ export const liftRoute = <Child extends Parent, Parent>(
       onNone: () => Push(),
       onSome: route.styleOf,
     }),
-  isAllowedAbove: below =>
-    Option.match(narrow(below), {
-      onNone: () => true,
-      onSome: route.isAllowedAbove,
+  isAllowedAbove: beneath =>
+    Array.match(Array.getSomes(Array.map(beneath, narrow)), {
+      onEmpty: () => true,
+      onNonEmpty: route.isAllowedAbove,
     }),
   maybeTitleOf: destination =>
     Option.flatMap(narrow(destination), route.maybeTitleOf),

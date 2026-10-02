@@ -1,4 +1,4 @@
-import { Array, Effect, Match as M, Option, String, pipe } from 'effect'
+import { Array, Effect, Match as M, Option, pipe } from 'effect'
 
 import { type Entry, commandOf } from '../catalog/catalog.js'
 import type { BoundInteraction } from '../interaction/bind.js'
@@ -244,20 +244,21 @@ const runMenu = <Model, Message>(
 
 const runOpen = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
-  uri: string,
-): CliDaemonPaintedResult => {
-  if (String.isEmpty(uri)) {
-    return painted(paintProgram(bound), 2, 'open needs a URI.')
-  } else if (bound.openUri(uri, Cli())) {
-    return painted(paintProgram(bound))
-  } else {
-    return painted(
-      paintProgram(bound),
-      1,
-      `Cannot open ${uri}: no URIs here yet.`,
-    )
-  }
-}
+  words: ReadonlyArray<string>,
+): CliDaemonPaintedResult =>
+  Array.match(words, {
+    onEmpty: () => painted(paintProgram(bound), 2, 'open needs a URI.'),
+    onNonEmpty: uriWords => {
+      const uri = uriWords.join(' ')
+      return bound.openUri(uri, Cli())
+        ? painted(paintProgram(bound))
+        : painted(
+            paintProgram(bound),
+            1,
+            `Cannot open ${uri}: no URIs here yet.`,
+          )
+    },
+  })
 
 const runBack = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
@@ -308,7 +309,7 @@ export const runProgramCommand = <Model, Message>(
     )
     return painted(paintProgram(bound))
   } else if (head === 'open') {
-    return runOpen(bound, rest.join(' '))
+    return runOpen(bound, rest)
   } else if (head === 'back') {
     return runBack(bound)
   } else if (head === 'where') {

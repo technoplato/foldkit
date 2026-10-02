@@ -445,7 +445,7 @@ export const compose = <Child extends SessionChild>(config: {
       ),
     ),
     {
-      isAllowedAbove: below => !isSessionSettings(below),
+      isAllowedAbove: beneath => !Array.some(beneath, isSessionSettings),
       title: () => 'Session',
     },
   )

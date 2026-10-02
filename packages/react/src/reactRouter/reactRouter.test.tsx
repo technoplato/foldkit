@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { ProgramProvider } from '../interaction/interaction.js'
 import { bindRouted } from '../test/routedCounter.js'
-import { FoldkitRouter } from './reactRouter.js'
+import { FoldkitRouter, navigatorOf } from './reactRouter.js'
 
 const Where = () => <p>at {useLocation().pathname}</p>
 
@@ -49,6 +49,14 @@ describe('FoldkitRouter', () => {
     )
     expect(screen.getByText('Session page')).toBeDefined()
     expect(screen.getByText('at /counter/session')).toBeDefined()
+  })
+
+  it('leaves a link outside the Program to the browser', () => {
+    const bound = bindRouted()
+    navigatorOf(bound).push('/about')
+    expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
+      Option.some('/counter'),
+    )
   })
 
   it('follows a move the Program makes on its own', () => {

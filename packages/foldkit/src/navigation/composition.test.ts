@@ -1,4 +1,5 @@
 import {
+  Array,
   Duration,
   Effect,
   Equal,
@@ -107,6 +108,56 @@ describe('a composed App', () => {
     ).toEqual(
       Option.some(['/counter', '/counter/menu', '/counter/menu/session']),
     )
+  })
+
+  it('opens a long alternating URI quickly, at most 32 segments deep', () => {
+    const bound = bindApp()
+    const pairs = Array.join(Array.replicate('session/menu', 600), '/')
+    const startedAt = performance.now()
+    bound.openUri(`/counter/${pairs}/x`, Link())
+    bound.openUri(
+      `/counter/${Array.join(Array.replicate('session/menu', 15), '/')}/x`,
+      Link(),
+    )
+    expect(performance.now() - startedAt).toBeLessThan(200)
+  })
+
+  it('holds the Session page and the menu once each, whatever the URI says', () => {
+    const bound = bindApp()
+    bound.openUri('/counter/session/menu/session', Link())
+    expect(
+      Option.map(bound.navigation(), plan =>
+        plan.entries.map(entry => entry.key),
+      ),
+    ).toEqual(
+      Option.some([
+        '/counter',
+        '/counter/session',
+        '/counter/session/menu',
+        '/counter/session/menu/session',
+      ]),
+    )
+    expect(
+      Option.map(bound.navigation(), plan =>
+        plan.entries.map(entry => entry.maybeTitle),
+      ),
+    ).toEqual(
+      Option.some([
+        Option.some('Counter'),
+        Option.some('Session'),
+        Option.some('Actions'),
+        Option.some('Not found'),
+      ]),
+    )
+  })
+
+  it('returns to a menu beneath a pushed page instead of opening a second', () => {
+    const bound = bindApp()
+    bound.openMenu()
+    bound.press('OpenSessionSettings')
+    expect(uriOf(bound)).toBe('/counter/menu/session')
+    bound.openMenu()
+    expect(uriOf(bound)).toBe('/counter/menu')
   })
 
   it('keeps an unknown path and paints it as not found', () => {

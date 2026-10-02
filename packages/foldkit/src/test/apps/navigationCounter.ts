@@ -1,4 +1,4 @@
-import { Option, Schema as S, String, pipe } from 'effect'
+import { Array, Option, Schema as S, String, pipe } from 'effect'
 
 import * as Declaration from '../../navigation/declaration.js'
 import {
@@ -70,7 +70,10 @@ export const sessionRoute = Declaration.pushRoute(
       SessionSettings,
     ),
   ),
-  { isAllowedAbove: isCounter, title: () => 'Session' },
+  {
+    isAllowedAbove: beneath => isCounter(Array.lastNonEmpty(beneath)),
+    title: () => 'Session',
+  },
 )
 
 export const menuRoute = Declaration.presentRoute(
@@ -86,7 +89,10 @@ export const menuRoute = Declaration.presentRoute(
     },
   ),
   Dialog(),
-  { isAllowedAbove: below => !isActionMenu(below), title: () => 'Actions' },
+  {
+    isAllowedAbove: beneath => !Array.some(beneath, isActionMenu),
+    title: () => 'Actions',
+  },
 )
 
 export const notFoundRoute = Declaration.notFoundRoute<Destination>(

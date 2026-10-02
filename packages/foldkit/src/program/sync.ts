@@ -462,6 +462,7 @@ export const sync = <Child extends SyncChild>(config: {
       messages: ReadonlyArray<ChildMessage>,
     ): ReadonlyArray<Message> => messages as ReadonlyArray<Message>
     return {
+      menuKeys: inner.menuKeys,
       status: model => {
         if (isFailed(model)) {
           return FailedStatus({

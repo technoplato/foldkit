@@ -11,7 +11,8 @@ import { useBound } from '@foldkit/react/interaction'
  * `Navigation.openWhenReady`. The link the app opened with launches, so a
  * session that mirrors navigation keeps the newcomer on the shared screen;
  * a link that arrives later opens as a `DeepLink`, even if it arrives
- * while the Program is still Starting.
+ * while the Program is still Starting. While Starting, the latest link
+ * replaces any link still waiting.
  *
  * @example
  * ```tsx
@@ -26,14 +27,14 @@ export const useDeepLinks = (): void => {
   const bound = useBound()
   useEffect(() => {
     let isStopped = false
-    const pending = new Set<() => void>()
+    let cancelWaiting = (): void => {}
     const openSoon = (url: string, via: Navigation.UriVia): void => {
-      const cancel = Navigation.openWhenReady(
+      cancelWaiting()
+      cancelWaiting = Navigation.openWhenReady(
         bound,
         Navigation.uriOfDeepLink(url),
         via,
       )
-      pending.add(cancel)
     }
     void Linking.getInitialURL().then(url => {
       if (!isStopped && url !== null) {
@@ -45,7 +46,7 @@ export const useDeepLinks = (): void => {
     })
     return () => {
       isStopped = true
-      pending.forEach(cancel => cancel())
+      cancelWaiting()
       subscription.remove()
     }
   }, [bound])

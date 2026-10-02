@@ -220,7 +220,7 @@ const parseEntries = <Model, Destination>(
   navigation: ProgramNavigation<Model, Destination>,
   segments: ReadonlyArray<string>,
   search: string,
-  below: Destination,
+  beneath: Array.NonEmptyReadonlyArray<Destination>,
   isLenient: boolean,
 ): Option.Option<ReadonlyArray<Presented<Destination>>> => {
   if (Array.isReadonlyArrayEmpty(segments)) {
@@ -228,7 +228,7 @@ const parseEntries = <Model, Destination>(
   }
   const allowedAbove = (placement: Placement) =>
     Array.filter(routesPlaced(navigation, placement), route =>
-      route.isAllowedAbove(below),
+      route.isAllowedAbove(beneath),
     )
   return Option.orElse(
     Array.findFirst(allowedAbove('Entry'), route =>
@@ -237,7 +237,13 @@ const parseEntries = <Model, Destination>(
         Option.filter(({ remaining }) => remaining.length < segments.length),
         Option.flatMap(({ destination, remaining }) =>
           Option.map(
-            parseEntries(navigation, remaining, search, destination, isLenient),
+            parseEntries(
+              navigation,
+              remaining,
+              search,
+              Array.append(beneath, destination),
+              isLenient,
+            ),
             above => [
               presented(destination, route.styleOf(destination)),
               ...above,
@@ -254,6 +260,7 @@ const parseEntries = <Model, Destination>(
               route,
               segments,
               search,
+              beneath,
               (destination, above) => [
                 presented(destination, route.styleOf(destination)),
                 ...above,
@@ -264,17 +271,12 @@ const parseEntries = <Model, Destination>(
   )
 }
 
-/**
- * A fallback takes the shortest run of segments after which the rest
- * parses strictly, so a page pushed above NotFound keeps its own route:
- * `/counter/nope/session` is NotFound(['nope']) with Session above it,
- * and `/counter/bogus/deeper` is one NotFound(['bogus', 'deeper']).
- */
 const parseFallback = <Model, Destination, Parsed>(
   navigation: ProgramNavigation<Model, Destination>,
   route: DestinationRoute<Destination>,
   segments: ReadonlyArray<string>,
   search: string,
+  beneath: ReadonlyArray<Destination>,
   toParsed: (
     destination: Destination,
     above: ReadonlyArray<Presented<Destination>>,
@@ -294,7 +296,7 @@ const parseFallback = <Model, Destination, Parsed>(
                 navigation,
                 Array.drop(segments, count),
                 search,
-                destination,
+                Array.append(beneath, destination),
                 false,
               ),
               above => toParsed(destination, above),
@@ -314,7 +316,7 @@ const parseRoots = <Model, Destination>(
       parseWith(route, segments, search),
       ({ destination, remaining }) =>
         Option.map(
-          parseEntries(navigation, remaining, search, destination, isLenient),
+          parseEntries(navigation, remaining, search, [destination], isLenient),
           entries => stackFrom(destination, entries),
         ),
     ),
@@ -326,7 +328,7 @@ const parseFallbackRoot = <Model, Destination>(
   search: string,
 ): Option.Option<NavigationStack<Destination>> =>
   Array.findFirst(routesPlaced(navigation, 'Fallback'), route =>
-    parseFallback(navigation, route, segments, search, stackFrom),
+    parseFallback(navigation, route, segments, search, [], stackFrom),
   )
 
 const withoutSlug = <Model, Destination>(
@@ -343,10 +345,18 @@ const withoutSlug = <Model, Destination>(
       }),
   })
 
+const maximumUriSegments = 32
+
 /**
  * Parses a URI into a stack. Total: a strict parse with backtracking
  * first, then a lenient one whose unmatched tail becomes NotFound, then a
- * NotFound root for a URI outside the slug, then the root stack.
+ * NotFound root for a URI outside the slug, then the root stack. A
+ * fallback takes the shortest run of segments after which the rest parses
+ * strictly, so a page pushed above NotFound keeps its own route:
+ * `/counter/nope/session` is NotFound(['nope']) with Session above it,
+ * and `/counter/bogus/deeper` is one NotFound(['bogus', 'deeper']). A URI
+ * with more than 32 segments names no screen anyone pushed, so it is one
+ * NotFound root and parsing stays fast.
  *
  * @example
  * ```typescript
@@ -363,6 +373,16 @@ export const parseStack = <Model, Destination>(
   uri: string,
 ): NavigationStack<Destination> => {
   const { segments, search } = splitUri(uri)
+  if (segments.length > maximumUriSegments) {
+    return pipe(
+      Array.findFirst(routesPlaced(navigation, 'Fallback'), route =>
+        Option.map(parseWith(route, segments, search), ({ destination }) =>
+          stackAtRoot(destination),
+        ),
+      ),
+      Option.getOrElse(() => stackAtRoot(navigation.root)),
+    )
+  }
   const maybeAfterSlug = withoutSlug(navigation, segments)
   const parseInSlug =
     (isLenient: boolean) => (): Option.Option<NavigationStack<Destination>> =>

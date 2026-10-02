@@ -56,6 +56,7 @@ export type ProgramHandle<Model, Message> = Readonly<{
 export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
   Readonly<{
     programId: Option.Option<string>
+    menuKeys: () => ReadonlyArray<KeyInput>
     status: () => Status
     screen: () => Option.Option<UiNode>
     entries: () => ReadonlyArray<Entry>
@@ -175,6 +176,7 @@ export const bind = <Model, Message>(
   return {
     ...handle,
     programId: Option.fromNullishOr(program.id),
+    menuKeys: () => (interaction === undefined ? [] : interaction.menuKeys),
     status,
     screen: () =>
       screen === undefined

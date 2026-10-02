@@ -1,4 +1,4 @@
-import { Option } from 'effect'
+import { Array, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import * as Route from '../route/parser.js'
@@ -128,6 +128,15 @@ describe('parseStack and printStack', () => {
         menuEntry('re'),
       ]),
     )
+  })
+
+  it('reads an absurdly long URI as one NotFound, quickly', () => {
+    const longUri = `/counter/${Array.join(Array.replicate('menu/x', 600), '/')}`
+    const startedAt = performance.now()
+    const stack = parseStack(navigation, longUri)
+    expect(performance.now() - startedAt).toBeLessThan(50)
+    expect(stack.presented._tag).toBe('NothingPresented')
+    expect(print(longUri)).toBe(longUri)
   })
 
   it('refuses a menu above a menu', () => {

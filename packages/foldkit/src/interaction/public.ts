@@ -17,7 +17,9 @@ export {
   Status,
   fromCatalog,
   isChord,
+  isKey,
   keyInput,
+  menuHintOf,
   normalizeKey,
 } from './index.js'
 

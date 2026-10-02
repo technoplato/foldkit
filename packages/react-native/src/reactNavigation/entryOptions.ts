@@ -6,11 +6,15 @@ import { type NativePresentation, presentationOf } from './stack.js'
 
 // OPTIONS
 
-/** The native stack options one entry asks for. */
+/**
+ * The native stack options one entry asks for. `title` is empty for an
+ * entry without one, because native stack headers fall back to the route
+ * name otherwise.
+ */
 export type EntryOptions = Readonly<{
   presentation: NativePresentation
   headerShown: boolean
-  title?: string
+  title: string
 }>
 
 /**
@@ -37,9 +41,9 @@ export const entryOptionsOf = (bound: AnyBound, key: string): EntryOptions => {
   return {
     presentation,
     headerShown: presentation === 'card',
-    ...Option.match(
+    title: Option.getOrElse(
       Option.flatMap(maybeEntry, entry => entry.maybeTitle),
-      { onNone: () => ({}), onSome: title => ({ title }) },
+      () => '',
     ),
   }
 }

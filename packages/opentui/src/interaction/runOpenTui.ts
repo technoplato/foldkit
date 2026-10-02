@@ -1,5 +1,5 @@
 import { Array, Option } from 'effect'
-import { type Interaction, Navigation } from 'foldkit'
+import { Interaction, Navigation } from 'foldkit'
 import { keyInput, normalizeKey } from 'foldkit/interaction'
 
 import {
@@ -98,8 +98,12 @@ export const runOpenTui = <Model, Message>(
       renderer.requestRender()
     }
 
+    const hint = Option.match(Interaction.menuHintOf(bound.menuKeys()), {
+      onNone: () => quitHint,
+      onSome: menuHint => `${menuHint}  ${quitHint}`,
+    })
     renderer.root.add(
-      new TextRenderable(renderer, { content: t`${dim(quitHint)}` }),
+      new TextRenderable(renderer, { content: t`${dim(hint)}` }),
     )
     paint()
     const stopWatching = bound.subscribe(paint)

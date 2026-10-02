@@ -460,7 +460,7 @@ export const runCarrier = <Destination>(
   let hasLaunched = false
   let maybeWrittenPlanUri: Option.Option<string> = Option.none()
   let writesTowardPlan = 0
-  let hasGivenUp = false
+  let isOutOfCorrections = false
   let isStopped = false
 
   const report = (diagnostic: CarrierDiagnostic): void => {
@@ -488,18 +488,18 @@ export const runCarrier = <Destination>(
     if (!Option.contains(maybeWrittenPlanUri, plan.uri)) {
       maybeWrittenPlanUri = Option.some(plan.uri)
       writesTowardPlan = 0
-      hasGivenUp = false
+      isOutOfCorrections = false
     }
     const snapshot = driver.read()
     const move = carrierMove(snapshot, plan)
     if (move._tag === 'Unchanged') {
       writesTowardPlan = 0
-      hasGivenUp = false
+      isOutOfCorrections = false
       return
     }
     if (writesTowardPlan >= maximumCorrections) {
-      if (!hasGivenUp) {
-        hasGivenUp = true
+      if (!isOutOfCorrections) {
+        isOutOfCorrections = true
         report({ _tag: 'GaveUpCorrecting', uri: plan.uri })
       }
       return

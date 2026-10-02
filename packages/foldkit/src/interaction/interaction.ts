@@ -88,6 +88,38 @@ export const normalizeKey = (key: string): string =>
 export const isChord = (input: KeyInput): boolean =>
   input.isMeta || input.isControl
 
+/**
+ * True when a key press is a declared key: the same key, ignoring case,
+ * with or without a Command or Control chord as declared.
+ *
+ * @example
+ * ```typescript
+ * isKey(keyInput('k', { isMeta: true }), keyInput('K', { isMeta: true })) // true
+ * isKey(keyInput('?'), keyInput('k', { isMeta: true })) // false
+ * ```
+ */
+export const isKey = (declared: KeyInput, input: KeyInput): boolean =>
+  declared.key.toLowerCase() === normalizeKey(input.key).toLowerCase() &&
+  isChord(declared) === isChord(input)
+
+/**
+ * The terminal hint for opening the action menu: its first key a terminal
+ * can type, such as `[?] actions`. None for a Program without a menu.
+ *
+ * @example
+ * ```typescript
+ * menuHintOf([keyInput('?'), keyInput('k', { isMeta: true })]) // Some('[?] actions')
+ * menuHintOf([]) // None
+ * ```
+ */
+export const menuHintOf = (
+  keys: ReadonlyArray<KeyInput>,
+): Option.Option<string> =>
+  Option.map(
+    Array.findFirst(keys, key => !isChord(key)),
+    key => `[${key.key}] actions`,
+  )
+
 // STATUS
 
 /** The Program accepts Actions. */
@@ -133,7 +165,8 @@ export type MenuView = Readonly<{
  * How any Client drives a Program without knowing its Messages. Every
  * function is pure: it reads the current Model and returns the Messages to
  * send, possibly none. Combinators lift this so a composed Program keeps
- * working buttons, keys, and menus.
+ * working buttons, keys, and menus. `menuKeys` are the keys that open the
+ * action menu, so a host can hint at them without naming them.
  *
  * @example
  * ```typescript
@@ -142,6 +175,7 @@ export type MenuView = Readonly<{
  * ```
  */
 export type ProgramInteraction<Model, Message> = Readonly<{
+  menuKeys: ReadonlyArray<KeyInput>
   status: (model: Model) => Status
   entries: (model: Model) => ReadonlyArray<Entry>
   press: (model: Model, tag: string) => ReadonlyArray<Message>
@@ -163,6 +197,7 @@ const noMessages = (): ReadonlyArray<never> => []
 export const fromCatalog = <C extends AnyCatalog>(
   catalog: C,
 ): ProgramInteraction<ModelOf<C>, MessageOf<C>> => ({
+  menuKeys: [],
   status: () => Ready(),
   entries: model => entries(catalog, model),
   press: (model, tag) => Array.fromOption(messageFor(catalog, model, tag)),

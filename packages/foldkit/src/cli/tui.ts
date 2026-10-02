@@ -11,13 +11,22 @@ import type { BoundInteraction } from '../interaction/bind.js'
 import {
   type KeyInput,
   keyInput,
+  menuHintOf,
   normalizeKey,
 } from '../interaction/interaction.js'
 import { paintProgram } from './program.js'
 
 const clearScreen = '\u001b[2J\u001b[H'
 
-const footer = '[?] actions   [q] quit'
+const quitHint = '[q] quit'
+
+const footerOf = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+): string =>
+  Option.match(menuHintOf(bound.menuKeys()), {
+    onNone: () => quitHint,
+    onSome: menuHint => `${menuHint}   ${quitHint}`,
+  })
 
 /**
  * One terminal key event as a KeyInput. Named keys such as `return` and
@@ -73,7 +82,7 @@ export const runProgramTui = <Model, Message>(
 
       const paint = Effect.suspend(() =>
         terminal.display(
-          `${clearScreen}${name}  ${paintProgram(bound)}\n\n${footer}\n`,
+          `${clearScreen}${name}  ${paintProgram(bound)}\n\n${footerOf(bound)}\n`,
         ),
       )
 

@@ -16,18 +16,28 @@ const windowLocation = (): Option.Option<string> =>
     ? Option.none()
     : Option.some(Navigation.windowUri(window))
 
+const follow = (bound: AnyBound, to: To): void => {
+  const href = hrefOf(to)
+  if (bound.ownsUri(href)) {
+    bound.openUri(href, Navigation.Link())
+  } else if (typeof window !== 'undefined') {
+    window.location.assign(href)
+  }
+}
+
 /**
- * The navigator React Router calls. A push or replace opens the URI, so the
- * Program decides where to go; `go` moves browser history, which reaches
- * the Program through the browser history carrier.
+ * The navigator React Router calls. A push or replace to one of the
+ * Program's URIs opens it, so the Program decides where to go; any other
+ * URI loads as a page. `go` moves browser history, which reaches the
+ * Program through the browser history carrier.
  */
 export const navigatorOf = (bound: AnyBound): Navigator => ({
   createHref: hrefOf,
   push: to => {
-    bound.openUri(hrefOf(to), Navigation.Link())
+    follow(bound, to)
   },
   replace: to => {
-    bound.openUri(hrefOf(to), Navigation.Link())
+    follow(bound, to)
   },
   go: delta => {
     if (typeof window !== 'undefined') {
