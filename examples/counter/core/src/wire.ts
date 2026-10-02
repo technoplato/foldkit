@@ -9,7 +9,12 @@ import {
 import { App } from './app.js'
 import { Counter } from './navigation.js'
 
-const AppDestination = S.Union([Counter, ActionMenu.ActionMenu])
+const AppDestination = S.Union([
+  Counter,
+  Session.SessionSettings,
+  Navigation.NotFound,
+  ActionMenu.ActionMenu,
+])
 type AppDestination = typeof AppDestination.Type
 
 const AppModel = S.Struct({

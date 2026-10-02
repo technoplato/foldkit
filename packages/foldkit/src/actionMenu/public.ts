@@ -25,6 +25,7 @@ export type {
   ActionMenuChild,
   ActionMenuMessage,
   ActionMenuModel,
+  ActionMenuDestinationOf,
   ActionMenuProgram,
   DestinationOf,
 } from './index.js'

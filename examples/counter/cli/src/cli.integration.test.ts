@@ -62,7 +62,7 @@ describe('counter CLI on a file tape', () => {
     const unknown = counter('explode')
     expect(unknown.status).toBe(2)
     expect(unknown.stderr).toContain(
-      'Try one of: increment, decrement, reset, mirror-navigation, keep-navigation-local.',
+      'Try one of: increment, decrement, reset, mirror-navigation, keep-navigation-local, open-session-settings, close-session-settings.',
     )
   })
 

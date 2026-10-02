@@ -46,12 +46,18 @@ export {
   routeOf,
   NavigationDeclarationError,
   make,
+  screenView,
+  menuView,
+  focusModel,
 } from './declaration.js'
 export type {
   DestinationRoute,
   RouteOptions,
   StackLens,
   ProgramNavigation,
+  StackedNavigation,
+  EntryView,
+  ModelFocus,
 } from './declaration.js'
 export {
   splitUri,
@@ -78,7 +84,23 @@ export {
   Message,
   isMessage,
 } from './message.js'
-export { settled, applyMessage } from './transition.js'
+export {
+  settled,
+  applyMessage,
+  foldMessage,
+  backMessages,
+} from './transition.js'
+export {
+  holdOf,
+  stackField,
+  composedDestination,
+  composedFields,
+  ownedMessages,
+  fieldLens,
+  notFoundScreen,
+  composeNavigation,
+} from './compose.js'
+export type { StackHold, DestinationOf } from './compose.js'
 export {
   planOf,
   carrierMove,

@@ -7,7 +7,7 @@ import {
   fromCatalog,
 } from '../interaction/interaction.js'
 import type { ManagedResources } from '../managedResource/managedResource.js'
-import type { NavigationStack } from '../navigation/structure.js'
+import type { ProgramNavigation as Navigation } from '../navigation/declaration.js'
 import type { Ports } from '../port/port.js'
 import type { UiNode } from '../renderers/types.js'
 import type { ActionContext } from '../schema/index.js'
@@ -72,22 +72,19 @@ export type ProgramSynchronization<Model, Message> = Readonly<{
 }>
 
 /**
- * The destinations a Program can present. `root` is the named destination
- * that is always beneath everything else. `stackOf` is present when the
- * Model holds a stack, for example after `ActionMenu.compose` adds the
- * menu as a presented destination.
+ * The destinations a Program can present and how they print. See
+ * `Navigation.ProgramNavigation`.
  *
  * @example
  * ```typescript
  * const Counter = ts('Counter')
- * const navigation = { Destination: Counter, root: Counter() }
+ * const navigation = { slug: Slug.make('counter'), Destination: Counter, root: Counter() }
  * ```
  */
-export type ProgramNavigation<Model, Destination> = Readonly<{
-  Destination: ProgramSchema<Destination>
-  root: Destination
-  stackOf?: (model: Model) => NavigationStack<Destination>
-}>
+export type ProgramNavigation<Model, Destination> = Navigation<
+  Model,
+  Destination
+>
 
 /**
  * A renderer-free Foldkit Program.

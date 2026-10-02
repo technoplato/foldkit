@@ -45,7 +45,7 @@ describe('App', () => {
 
   it('opens the menu, filters to Reset, and sends it with Enter', () => {
     const open = apply(withCount(3), interactionOf().openMenu(withCount(3)))
-    const filtered = pressAll(open, ['r', 'e', 's'])
+    const filtered = pressAll(open, ['r', 'e', 's', 'e'])
     expect(
       Option.map(interactionOf().menu(filtered), menu =>
         menu.rows.map(row => row.entry.tag),
@@ -53,7 +53,7 @@ describe('App', () => {
     ).toEqual(Option.some(['Reset']))
     expect(
       interactionOf().pressKey(filtered, Interaction.keyInput('Enter')),
-    ).toEqual([Reset(), ActionMenu.ChoseActionMenuAction({ tag: 'Reset' })])
+    ).toEqual([ActionMenu.ChoseActionMenuAction({ tag: 'Reset' }), Reset()])
     const chosen = pressAll(filtered, ['Enter'])
     expect(chosen).toEqual({
       count: 0,

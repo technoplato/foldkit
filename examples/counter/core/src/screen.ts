@@ -11,7 +11,7 @@ import { wrapDevice } from 'foldkit/renderers/devices'
 
 import { catalog } from './message.js'
 import { type Model } from './model.js'
-import { counterRouter } from './navigation.js'
+import { counterUri } from './navigation.js'
 
 // VIEW
 
@@ -41,6 +41,6 @@ export const counterScreen = (
   if (context.device === undefined) {
     return screen
   } else {
-    return wrapDevice(context.device, screen, { title: counterRouter() })
+    return wrapDevice(context.device, screen, { title: counterUri })
   }
 }

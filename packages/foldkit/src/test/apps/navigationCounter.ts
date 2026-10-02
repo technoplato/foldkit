@@ -1,14 +1,12 @@
-import { Array, Option, Schema as S, String, pipe } from 'effect'
+import { Option, Schema as S, String, pipe } from 'effect'
 
 import * as Declaration from '../../navigation/declaration.js'
 import {
   Dialog,
   type NavigationStack,
   Push,
-  entriesOf,
   presented,
   stackAtRoot,
-  stackFrom,
 } from '../../navigation/structure.js'
 import * as Route from '../../route/parser.js'
 import { ts } from '../../schema/index.js'
@@ -100,22 +98,11 @@ export const notFoundRoute = Declaration.notFoundRoute<Destination>(
 
 const settleMenuFocus = (
   model: Model,
-  stack: NavigationStack<Destination>,
-): NavigationStack<Destination> =>
-  stackFrom(
-    stack.root,
-    Array.map(entriesOf(stack), entry =>
-      isActionMenu(entry.destination)
-        ? presented(
-            ActionMenu({
-              query: entry.destination.query,
-              focus: model.preferredFocus,
-            }),
-            entry.style,
-          )
-        : entry,
-    ),
-  )
+  destination: Destination,
+): Destination =>
+  isActionMenu(destination)
+    ? ActionMenu({ query: destination.query, focus: model.preferredFocus })
+    : destination
 
 export const navigation = Declaration.make<Model, Destination>({
   slug: Declaration.Slug.make('counter'),
@@ -123,10 +110,10 @@ export const navigation = Declaration.make<Model, Destination>({
   root: Counter(),
   routes: [counterRoute, sessionRoute, menuRoute, notFoundRoute],
   stack: {
-    get: model => model.navigation,
+    get: model => Option.some(model.navigation),
     set: (model, nextNavigation) => ({ ...model, navigation: nextNavigation }),
   },
-  settle: settleMenuFocus,
+  settleEntry: settleMenuFocus,
   historyOf: model => (model.isFollowing ? 'Replace' : 'Record'),
 })
 

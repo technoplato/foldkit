@@ -1,5 +1,6 @@
 import { Array, Data, Option, Schema as S } from 'effect'
 
+import type { MenuView } from '../interaction/interaction.js'
 import type { ProgramSchema } from '../program/program.js'
 import type { UiNode } from '../renderers/types.js'
 import * as Route from '../route/parser.js'
@@ -219,9 +220,12 @@ export const notFoundRoute = <Destination>(
 
 // DECLARATION
 
-/** Reads and writes the stack a Model holds. */
+/**
+ * Reads and writes the stack a Model holds. `get` is None while the Model
+ * holds no stack yet, such as a synced Model that is still Starting.
+ */
 export type StackLens<Model, Destination> = Readonly<{
-  get: (model: Model) => NavigationStack<Destination>
+  get: (model: Model) => Option.Option<NavigationStack<Destination>>
   set: (model: Model, stack: NavigationStack<Destination>) => Model
 }>
 
@@ -233,6 +237,23 @@ export const HistoryMode = S.Literals(['Record', 'Replace'])
 /** Whether a carrier records each move as history or replaces in place. */
 export type HistoryMode = typeof HistoryMode.Type
 
+/** What a host paints for one stack entry: a screen tree or the action menu. */
+export type EntryView =
+  | Readonly<{ _tag: 'Screen'; node: UiNode }>
+  | Readonly<{ _tag: 'Menu'; menu: MenuView }>
+
+/** An entry painted as a screen tree. */
+export const screenView = (node: UiNode): EntryView => ({
+  _tag: 'Screen',
+  node,
+})
+
+/** An entry painted as the action menu. */
+export const menuView = (menu: MenuView): EntryView => ({
+  _tag: 'Menu',
+  menu,
+})
+
 /**
  * A Program's navigation: its Destinations, their routes, and, once a
  * combinator adds one, the stack its Model holds.
@@ -241,12 +262,14 @@ export type HistoryMode = typeof HistoryMode.Type
  * - `routes` print and parse each Destination, relative to the entry
  *   beneath it. A Program without routes is not URL-addressable.
  * - `stack` reads and writes the stack in the Model.
- * - `screenOf` paints one Destination, so a stack carrier can keep several
- *   screens mounted at once.
- * - `settle` recomputes Model-dependent fields the URI does not carry, such
- *   as the action menu's highlighted row.
+ * - `viewOf` paints one Destination, so a stack carrier can keep several
+ *   screens mounted at once. The root falls back to the Program's screen.
+ * - `settleEntry` recomputes the fields of a parsed Destination that the
+ *   URI does not carry, such as the action menu's highlighted row.
  * - `historyOf` replaces instead of recording while following someone.
- * - `backKeys` are the keys a terminal or keyboard host treats as Back.
+ * - `adoptsLaunch` is false while a launch URI should not move the stack,
+ *   such as while navigation is mirrored and the newcomer joins the
+ *   shared stack.
  *
  * @example
  * ```typescript
@@ -255,7 +278,6 @@ export type HistoryMode = typeof HistoryMode.Type
  *   Destination: Counter,
  *   root: Counter(),
  *   routes: [counterRoute],
- *   screenOf: model => Option.some(counterScreen(model)),
  * }
  * // the root stack prints as `/counter`
  * ```
@@ -266,14 +288,102 @@ export type ProgramNavigation<Model, Destination> = Readonly<{
   root: Destination
   routes?: ReadonlyArray<DestinationRoute<Destination>>
   stack?: StackLens<Model, Destination>
-  screenOf?: (model: Model, destination: Destination) => Option.Option<UiNode>
-  settle?: (
-    model: Model,
-    stack: NavigationStack<Destination>,
-  ) => NavigationStack<Destination>
+  viewOf?: (model: Model, destination: Destination) => Option.Option<EntryView>
+  settleEntry?: (model: Model, destination: Destination) => Destination
   historyOf?: (model: Model) => HistoryMode
-  backKeys?: ReadonlyArray<string>
+  adoptsLaunch?: (model: Model) => boolean
 }>
+
+/** A declaration whose Model holds a stack, as every navigation combinator produces. */
+export type StackedNavigation<Model, Destination> = ProgramNavigation<
+  Model,
+  Destination
+> &
+  Readonly<{ stack: StackLens<Model, Destination> }>
+
+// FOCUS
+
+/**
+ * How a wider Model holds a narrower one. `childOf` is None while the
+ * wider Model holds none, such as a synced Model that is still Starting.
+ */
+export type ModelFocus<Model, ChildModel> = Readonly<{
+  childOf: (model: Model) => Option.Option<ChildModel>
+  withChild: (model: Model, childModel: ChildModel) => Model
+}>
+
+/**
+ * A declaration read through a wider Model. Each Model-reading field reads
+ * the child's part. While there is none, the stack is absent, nothing is
+ * painted, and a parsed Destination stays as parsed.
+ *
+ * @example
+ * ```typescript
+ * focusModel(app.navigation, {
+ *   childOf: model => (model._tag === 'Ready' ? Option.some(model) : Option.none()),
+ *   withChild: (_model, ready) => ready,
+ * })
+ * ```
+ */
+export const focusModel = <Model, ChildModel, Destination>(
+  navigation: ProgramNavigation<ChildModel, Destination>,
+  focus: ModelFocus<Model, ChildModel>,
+): ProgramNavigation<Model, Destination> => {
+  const { stack, viewOf, settleEntry, historyOf, adoptsLaunch, ...modelFree } =
+    navigation
+  return {
+    ...modelFree,
+    ...(stack === undefined
+      ? {}
+      : {
+          stack: {
+            get: (model: Model) =>
+              Option.flatMap(focus.childOf(model), stack.get),
+            set: (model: Model, nextStack: NavigationStack<Destination>) =>
+              Option.match(focus.childOf(model), {
+                onNone: () => model,
+                onSome: childModel =>
+                  focus.withChild(model, stack.set(childModel, nextStack)),
+              }),
+          },
+        }),
+    ...(viewOf === undefined
+      ? {}
+      : {
+          viewOf: (model: Model, destination: Destination) =>
+            Option.flatMap(focus.childOf(model), childModel =>
+              viewOf(childModel, destination),
+            ),
+        }),
+    ...(settleEntry === undefined
+      ? {}
+      : {
+          settleEntry: (model: Model, destination: Destination) =>
+            Option.match(focus.childOf(model), {
+              onNone: () => destination,
+              onSome: childModel => settleEntry(childModel, destination),
+            }),
+        }),
+    ...(historyOf === undefined
+      ? {}
+      : {
+          historyOf: (model: Model): HistoryMode =>
+            Option.match(focus.childOf(model), {
+              onNone: () => 'Record',
+              onSome: historyOf,
+            }),
+        }),
+    ...(adoptsLaunch === undefined
+      ? {}
+      : {
+          adoptsLaunch: (model: Model) =>
+            Option.match(focus.childOf(model), {
+              onNone: () => true,
+              onSome: adoptsLaunch,
+            }),
+        }),
+  }
+}
 
 /**
  * The route that prints a Destination, when one is declared.

@@ -1,6 +1,16 @@
-import { Array, Option } from 'effect'
+import { Array, Option, Schema as S } from 'effect'
 
 import type { Entry } from '../catalog/catalog.js'
+import { type CarrierPlan, planOf } from '../navigation/carrier.js'
+import {
+  type EntryView,
+  type ProgramNavigation,
+  screenView,
+} from '../navigation/declaration.js'
+import { NavigatedBack, OpenedUri, type UriVia } from '../navigation/message.js'
+import { type NavigationStack, stackAtRoot } from '../navigation/structure.js'
+import { canonicalUri as canonicalUriOf } from '../navigation/uri.js'
+import type { ProgramSchema } from '../program/program.js'
 import type { UiNode } from '../renderers/types.js'
 import {
   type KeyInput,
@@ -27,11 +37,17 @@ export type ProgramHandle<Model, Message> = Readonly<{
  * whether it sent anything, so a keyboard Client knows when to prevent the
  * default.
  *
+ * The navigation facet is what every carrier reads and reports to:
+ * `navigation` is the plan, None until the Program is Ready; `viewAt`
+ * paints one entry by key; `openUri` and `navigateBack` send the carrier
+ * facts. A bound Program is the `CarrierSource` `runCarrier` drives.
+ *
  * @example
  * ```typescript
  * const counter = Interaction.bind(SyncedCounter, handle)
  * counter.press('Increment') // sends Increment()
  * counter.pressKey(keyInput('k', { isMeta: true })) // opens the menu
+ * counter.openUri('/counter/session', Navigation.Link()) // pushes Session
  * ```
  */
 export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
@@ -47,6 +63,11 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
     dismissMenu: () => boolean
     typeInMenu: (query: string) => boolean
     chooseFromMenu: (tag: string) => boolean
+    navigation: () => Option.Option<CarrierPlan<unknown>>
+    viewAt: (key: string) => Option.Option<EntryView>
+    canonicalUri: (uri: string) => Option.Option<string>
+    openUri: (uri: string, via: UriVia) => boolean
+    navigateBack: (uri: string) => boolean
   }>
 
 /**
@@ -55,8 +76,10 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
  */
 export type BindableProgram<Model, Message> = Readonly<{
   id?: string
+  Message?: ProgramSchema<Message>
   interaction?: ProgramInteraction<Model, Message>
   screen?: (model: Model) => UiNode
+  navigation?: ProgramNavigation<Model, any>
 }>
 
 /**
@@ -69,6 +92,8 @@ export const bind = <Model, Message>(
 ): BoundInteraction<Model, Message> => {
   const interaction = program.interaction
   const screen = program.screen
+  const declaration: ProgramNavigation<Model, unknown> | undefined =
+    program.navigation
 
   const sendAll = (messages: ReadonlyArray<Message>): boolean => {
     Array.forEach(messages, message => {
@@ -85,11 +110,68 @@ export const bind = <Model, Message>(
       ? otherwise
       : read(interaction, handle.readModel())
 
+  const status = (): Status =>
+    whenInteractive((inner, model) => inner.status(model), Ready())
+
+  const isReady = (): boolean => status()._tag === 'Ready'
+
+  const stackOf = (
+    navigation: ProgramNavigation<Model, unknown>,
+    model: Model,
+  ): Option.Option<NavigationStack<unknown>> =>
+    navigation.stack === undefined
+      ? Option.some(stackAtRoot(navigation.root))
+      : navigation.stack.get(model)
+
+  const plan = (): Option.Option<CarrierPlan<unknown>> => {
+    if (declaration === undefined || !isReady()) {
+      return Option.none()
+    }
+    const model = handle.readModel()
+    return Option.flatMap(stackOf(declaration, model), stack =>
+      planOf(declaration, model, stack),
+    )
+  }
+
+  const viewAt = (key: string): Option.Option<EntryView> =>
+    Option.flatMap(plan(), currentPlan =>
+      Option.flatMap(
+        Array.findFirst(currentPlan.entries, entry => entry.key === key),
+        entry => {
+          const model = handle.readModel()
+          const isRoot =
+            entry.key === Array.headNonEmpty(currentPlan.entries).key
+          const declared =
+            declaration?.viewOf === undefined
+              ? Option.none()
+              : declaration.viewOf(model, entry.destination)
+          return Option.orElse(declared, () =>
+            isRoot && screen !== undefined
+              ? Option.some(screenView(screen(model)))
+              : Option.none(),
+          )
+        },
+      ),
+    )
+
+  const isProgramMessage =
+    program.Message === undefined
+      ? (_fact: unknown): _fact is Message => false
+      : S.is(program.Message)
+
+  const sendFact = (fact: OpenedUri | NavigatedBack): boolean => {
+    if (isReady() && isProgramMessage(fact)) {
+      handle.send(fact)
+      return true
+    } else {
+      return false
+    }
+  }
+
   return {
     ...handle,
     programId: Option.fromNullishOr(program.id),
-    status: () =>
-      whenInteractive((inner, model) => inner.status(model), Ready()),
+    status,
     screen: () =>
       screen === undefined
         ? Option.none()
@@ -115,5 +197,13 @@ export const bind = <Model, Message>(
       sendAll(
         whenInteractive((inner, model) => inner.chooseFromMenu(model, tag), []),
       ),
+    navigation: plan,
+    viewAt,
+    canonicalUri: uri =>
+      declaration === undefined
+        ? Option.none()
+        : canonicalUriOf(declaration, uri),
+    openUri: (uri, via) => sendFact(OpenedUri({ uri, via })),
+    navigateBack: uri => sendFact(NavigatedBack({ uri })),
   }
 }

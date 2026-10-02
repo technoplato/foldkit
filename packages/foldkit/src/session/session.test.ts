@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 
 import * as ActionMenu from '../actionMenu/actionMenu.js'
 import * as Catalog from '../catalog/catalog.js'
+import { NotFound } from '../navigation/declaration.js'
 import { NavigationStack, stackAtRoot } from '../navigation/structure.js'
 import { compose as composeProgram } from '../program/compose.js'
 import { make } from '../program/program.js'
@@ -20,6 +21,7 @@ import { ts } from '../schema/index.js'
 import {
   KeepNavigationLocal,
   MirrorNavigation,
+  SessionSettings,
   SessionState,
   compose,
 } from './session.js'
@@ -61,7 +63,12 @@ const CounterProgram = make({
 const App = ActionMenu.compose({ of: compose({ of: CounterProgram }) })
 type AppModel = typeof App.Model.Type
 
-const AppDestination = S.Union([Counter, ActionMenu.ActionMenu])
+const AppDestination = S.Union([
+  Counter,
+  SessionSettings,
+  NotFound,
+  ActionMenu.ActionMenu,
+])
 type AppDestination = typeof AppDestination.Type
 
 const AppModelSchema = S.Struct({

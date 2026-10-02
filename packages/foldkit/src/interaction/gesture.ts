@@ -20,8 +20,8 @@ export const ChoseFromMenu = m('ChoseFromMenu', { tag: S.String })
 /**
  * What a Message-based painter reports, such as a Foldkit HTML view. The
  * Client applies each gesture to the bound Program, which turns it into the
- * Program's own Messages: choosing Increment from the menu becomes
- * `Increment` plus the menu's navigation fact.
+ * Program's own Messages: choosing Increment from the menu becomes the
+ * menu's navigation fact, then `Increment`.
  */
 export const Gesture = S.Union([
   PressedAction,

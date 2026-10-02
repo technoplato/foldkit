@@ -1,16 +1,55 @@
-import { Array, Data, Match as M, Predicate, Schema as S } from 'effect'
+import { Array, Data, Match as M, Option, Predicate, Schema as S } from 'effect'
 
 import * as Catalog from '../catalog/catalog.js'
 import type { AnyCatalog, CatalogOf } from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
+import {
+  type KeyInput,
+  type ProgramInteraction,
+  fromCatalog,
+  isChord,
+  normalizeKey,
+} from '../interaction/interaction.js'
+import {
+  type DestinationOf,
+  composeNavigation,
+  composedDestination,
+  composedFields,
+  fieldLens,
+  holdOf,
+  ownedMessages,
+  schemaMembersOf,
+} from '../navigation/compose.js'
+import {
+  type NotFound,
+  pushRoute,
+  screenView,
+  tagCase,
+} from '../navigation/declaration.js'
+import * as NavigationMessage from '../navigation/message.js'
+import {
+  type NavigationStack,
+  Push,
+  entriesOf,
+  presented,
+  pushed,
+  stackAtRoot,
+  truncated,
+} from '../navigation/structure.js'
+import { backMessages, foldMessage } from '../navigation/transition.js'
 import type {
   MessageOf,
   ModelOf,
   Program,
   ProgramCommand,
+  ProgramNavigation,
   ProgramSchema,
 } from '../program/program.js'
 import { make } from '../program/program.js'
+import { Column, Row, Text, actionButtons } from '../renderers/elements.js'
+import type { UiNode } from '../renderers/types.js'
+import * as Route from '../route/parser.js'
+import { ts } from '../schema/index.js'
 import {
   Mirror,
   SessionPolicy,
@@ -69,13 +108,70 @@ export const KeepNavigationLocal = Catalog.action('KeepNavigationLocal', {
   meta: { label: 'Keep navigation local', keys: [] },
 })
 
-/** A session Message: a person changed how the session shares navigation. */
-export const Message = S.Union([MirrorNavigation, KeepNavigationLocal])
+// SETTINGS
+
+/**
+ * The pushed page that shows how the session shares navigation and lets a
+ * person change it. It prints as `session` above the entry beneath it:
+ * `/counter/session`.
+ */
+export const SessionSettings = ts('SessionSettings')
+/** The Session settings page. */
+export type SessionSettings = typeof SessionSettings.Type
+
+/** True for the Session settings page. */
+export const isSessionSettings = S.is(SessionSettings)
+
+type NavigationModel = Readonly<{ navigation: NavigationStack<unknown> }>
+
+const settingsDepthOf = (
+  stack: NavigationStack<unknown>,
+): Option.Option<number> =>
+  Array.findFirstIndex(entriesOf(stack), entry =>
+    isSessionSettings(entry.destination),
+  )
+
+const isSettingsOpen = (model: NavigationModel): boolean =>
+  Option.isSome(settingsDepthOf(model.navigation))
+
+/** A person opened the Session settings page. */
+export const OpenSessionSettings = Catalog.action('OpenSessionSettings', {
+  what: 'Shows how this session shares navigation',
+  why: 'The person wants to see or change whether every device follows',
+  enabled: (model: NavigationModel) =>
+    isSettingsOpen(model)
+      ? Catalog.Disabled({ because: 'session settings are already open' })
+      : Catalog.Enabled(),
+  meta: { label: 'Session settings', keys: [] },
+})
+
+/** A person closed the Session settings page. */
+export const CloseSessionSettings = Catalog.action('CloseSessionSettings', {
+  what: 'Returns to the screen beneath the session settings',
+  why: 'The person is done with the session settings',
+  enabled: (model: NavigationModel) =>
+    isSettingsOpen(model)
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'session settings are not open' }),
+  meta: { label: 'Close', keys: [] },
+})
+
+/** Every session Message. */
+export const Message = S.Union([
+  MirrorNavigation,
+  KeepNavigationLocal,
+  OpenSessionSettings,
+  CloseSessionSettings,
+])
 /** A session Message. */
 export type Message = typeof Message.Type
 
 /** True for the session Messages. */
 export const isMessage = S.is(Message)
+
+const ModeMessage = S.Union([MirrorNavigation, KeepNavigationLocal])
+type ModeMessage = typeof ModeMessage.Type
+const isModeMessage = S.is(ModeMessage)
 
 /**
  * The policy one session state means for the runtime's audience rules.
@@ -99,7 +195,7 @@ export const policyOf = (session: SessionState): SessionPolicy =>
 
 const changedSession = (
   session: SessionState,
-  message: Message,
+  message: ModeMessage,
 ): SessionState =>
   M.value(message).pipe(
     M.withReturnType<SessionState>(),
@@ -115,6 +211,44 @@ const changedSession = (
     }),
   )
 
+// SCREEN
+
+const modeSentence = (mode: SessionMode): string =>
+  M.value(mode).pipe(
+    M.withReturnType<string>(),
+    M.when('Mirror', () => 'Every device shows the same screen.'),
+    M.when(
+      'SharedDomain',
+      () => 'Each device keeps its own screen. Shared data still syncs.',
+    ),
+    M.exhaustive,
+  )
+
+const settingsCatalog = Catalog.make([
+  MirrorNavigation,
+  KeepNavigationLocal,
+  CloseSessionSettings,
+])
+
+/**
+ * The Session settings page every painter draws: the mode in one sentence,
+ * then a button for each settings Action.
+ *
+ * @example
+ * ```typescript
+ * sessionScreen({ session: { mode: 'Mirror', generation: 0 }, navigation })
+ * // Column: Text('Session'), Text('Every device shows the same screen.'),
+ * //   Row: [Mirror navigation (disabled)] [Keep navigation local] [Close]
+ * ```
+ */
+export const sessionScreen = (model: SessionModel & NavigationModel): UiNode =>
+  Column(
+    {},
+    Text('Session', { label: 'Session settings' }),
+    Text(modeSentence(model.session.mode), { dim: true }),
+    Row({}, ...actionButtons(Catalog.entries(settingsCatalog, model))),
+  )
+
 // COMPOSE
 
 /** A composed child's Model had the field the combinator reserves. */
@@ -125,18 +259,46 @@ export class SessionReservedFieldError extends Data.TaggedError(
   readonly programId: string
 }> {}
 
-/** Any Program with a Catalog that a session can wrap. */
+/** A child could not be composed because it declares no navigation. */
+export class SessionChildIncompleteError extends Data.TaggedError(
+  'SessionChildIncompleteError',
+)<{
+  readonly missing: 'navigation'
+  readonly programId: string
+}> {}
+
+/** Any Program with a Catalog and navigation that a session can wrap. */
 export type SessionChild = Program<any, any, any, any, any> &
-  Readonly<{ catalog: AnyCatalog }>
+  Readonly<{
+    catalog: AnyCatalog
+    navigation?: ProgramNavigation<any, any>
+  }>
 
-/** The composed Model: the child's fields, flat, plus `session`. */
-export type SessionModelOf<Child extends SessionChild> = ModelOf<Child> &
-  SessionModel
+/** The Destinations of a session: the child's, Session settings, NotFound. */
+export type SessionDestinationOf<Child extends SessionChild> =
+  | DestinationOf<Child>
+  | SessionSettings
+  | NotFound
 
-/** The composed Message: the child's Messages plus the session Messages. */
+/**
+ * The composed Model: the child's fields, flat, plus `session` and the
+ * navigation stack.
+ */
+export type SessionModelOf<Child extends SessionChild> = Omit<
+  ModelOf<Child>,
+  'navigation'
+> &
+  SessionModel &
+  Readonly<{ navigation: NavigationStack<SessionDestinationOf<Child>> }>
+
+/**
+ * The composed Message: the child's Messages, the session Messages, and
+ * the carrier facts.
+ */
 export type SessionMessageOf<Child extends SessionChild> =
   | MessageOf<Child>
   | Message
+  | NavigationMessage.Message
 
 /** The composed Catalog: the child's Actions, then the session Actions. */
 export type SessionCatalogOf<Child extends SessionChild> = Catalog.Catalog<
@@ -144,6 +306,8 @@ export type SessionCatalogOf<Child extends SessionChild> = Catalog.Catalog<
     ...CatalogOf<Child>['actions'],
     typeof MirrorNavigation,
     typeof KeepNavigationLocal,
+    typeof OpenSessionSettings,
+    typeof CloseSessionSettings,
   ] &
     Array.NonEmptyReadonlyArray<Catalog.AnyAction>
 >
@@ -163,25 +327,29 @@ const structFieldsOf = (schema: unknown): S.Struct.Fields =>
     ? (schema.fields as S.Struct.Fields)
     : {}
 
-const membersOf = (schema: unknown): ReadonlyArray<S.Top> =>
-  Predicate.hasProperty(schema, 'members') && Array.isArray(schema.members)
-    ? (schema.members as ReadonlyArray<S.Top>)
-    : [schema as S.Top]
+const isBackKey = (input: KeyInput): boolean =>
+  !isChord(input) && normalizeKey(input.key) === 'Escape'
 
 /**
- * Wraps a Program with a Catalog in session state every Processor folds
- * from the log. The session's mode decides who applies Navigation
+ * Wraps a Program with a Catalog and navigation in session state every
+ * Processor folds from the log, and in the navigation stack its devices
+ * share or keep. The session's mode decides who applies Navigation
  * Messages: under Mirror every device follows; under SharedDomain each
  * device keeps its own screen while the domain syncs. A mode change is an
  * ordinary logged Action, so every Processor switches at the same log
- * position, and two tabs can never disagree about the mode. Compose it
+ * position, and two tabs can never disagree about the mode.
+ *
+ * The stack starts at the child's root and prints under its slug. Session
+ * adds the settings page at `/session`, a NotFound fallback for any other
+ * path, and Escape as Back. While navigation is mirrored, a launch URI
+ * does not move the stack: a newcomer joins the shared screen. Compose it
  * inside `ActionMenu.compose` so the session Actions appear in the menu.
  *
  * @example
  * ```typescript
  * const App = ActionMenu.compose({ of: Session.compose({ of: CounterProgram }) })
  * // App.Model: { count, session: { mode: 'Mirror', generation: 0 }, navigation }
- * // pressing KeepNavigationLocal on one device switches every device
+ * // OpenSessionSettings pushes `/counter/session`
  * ```
  */
 export const compose = <Child extends SessionChild>(config: {
@@ -195,8 +363,17 @@ export const compose = <Child extends SessionChild>(config: {
   type ChildMessage = MessageOf<Child>
   type AppModel = SessionModelOf<Child>
   type AppMessage = SessionMessageOf<Child> & Readonly<{ _tag: string }>
+  type AppDestination = SessionDestinationOf<Child>
   type AppCommand = ProgramCommand<AppMessage, any>
 
+  const childNavigation = child.navigation
+  if (childNavigation === undefined) {
+    throw new SessionChildIncompleteError({
+      missing: 'navigation',
+      programId: child.id,
+    })
+  }
+  const hold = holdOf(childNavigation)
   const childFields = structFieldsOf(child.Model)
   if (Object.hasOwn(childFields, 'session')) {
     throw new SessionReservedFieldError({
@@ -204,19 +381,33 @@ export const compose = <Child extends SessionChild>(config: {
       programId: child.id,
     })
   }
+  if (hold === 'Owns' && Object.hasOwn(childFields, 'navigation')) {
+    throw new SessionReservedFieldError({
+      field: 'navigation',
+      programId: child.id,
+    })
+  }
 
+  const Destination = composedDestination(
+    childNavigation,
+    [SessionSettings],
+    hold,
+  )
   const Model = S.Struct({
-    ...childFields,
+    ...composedFields(childFields, Destination),
     session: SessionState,
   }) as unknown as ProgramSchema<AppModel>
   const AppMessageSchema = S.Union([
-    ...membersOf(child.Message),
+    ...schemaMembersOf(child.Message),
     ...Message.members,
+    ...ownedMessages(hold),
   ]) as unknown as ProgramSchema<AppMessage>
   const catalog = Catalog.make([
     ...child.catalog.actions,
     MirrorNavigation,
     KeepNavigationLocal,
+    OpenSessionSettings,
+    CloseSessionSettings,
   ]) as unknown as SessionCatalogOf<Child>
 
   const initialSession = SessionState.make({
@@ -225,19 +416,102 @@ export const compose = <Child extends SessionChild>(config: {
   })
 
   const childOf = (model: AppModel): ChildModel => {
-    const { session: _session, ...childModel } = model
-    return childModel as ChildModel
+    const { session: _session, navigation, ...childFieldsOnly } = model
+    return (
+      hold === 'Owns' ? childFieldsOnly : { ...childFieldsOnly, navigation }
+    ) as ChildModel
   }
 
-  const withChild = (model: AppModel, childModel: ChildModel): AppModel => ({
-    ...childModel,
-    session: model.session,
+  const withChild = (model: AppModel, childModel: ChildModel): AppModel =>
+    (hold === 'Owns'
+      ? {
+          ...childModel,
+          session: model.session,
+          navigation: model.navigation,
+        }
+      : { ...childModel, session: model.session }) as AppModel
+
+  const sessionSettingsRoute = pushRoute(
+    Route.caseOf(
+      Route.literal('session'),
+      tagCase<AppDestination, SessionSettings>(
+        isSessionSettings,
+        SessionSettings,
+      ),
+    ),
+    {
+      isAllowedAbove: below => !isSessionSettings(below),
+      title: () => 'Session',
+    },
+  )
+
+  const navigation = composeNavigation<
+    AppModel,
+    ChildModel,
+    AppDestination,
+    DestinationOf<Child>
+  >({
+    child: childNavigation,
+    hold,
+    Destination: Destination as unknown as ProgramSchema<AppDestination>,
+    childOf,
+    stack: fieldLens<AppModel, AppDestination>(),
+    embedNotFound: notFound => notFound,
+    routes: [sessionSettingsRoute],
+    viewOf: (model, destination) =>
+      isSessionSettings(destination)
+        ? Option.some(screenView(sessionScreen(model)))
+        : Option.none(),
+    adoptsLaunch: model => model.session.mode !== 'Mirror',
   })
+
+  const openedSettings = (model: AppModel): AppModel =>
+    isSettingsOpen(model)
+      ? model
+      : {
+          ...model,
+          navigation: pushed<AppDestination>(
+            model.navigation,
+            presented<AppDestination>(SessionSettings(), Push()),
+          ),
+        }
+
+  const closedSettings = (model: AppModel): AppModel =>
+    Option.match(settingsDepthOf(model.navigation), {
+      onNone: () => model,
+      onSome: depth => ({
+        ...model,
+        navigation: truncated(model.navigation, depth),
+      }),
+    })
+
+  const withMode = (model: AppModel, message: ModeMessage): AppModel => ({
+    ...model,
+    session: changedSession(model.session, message),
+  })
+
+  const updateSession = (model: AppModel, message: Message): AppModel => {
+    if (isModeMessage(message)) {
+      return withMode(model, message)
+    } else if (message._tag === 'OpenSessionSettings') {
+      return openedSettings(model)
+    } else {
+      return closedSettings(model)
+    }
+  }
 
   const init = (): readonly [AppModel, ReadonlyArray<AppCommand>] => {
     const [childModel, commands] = child.init()
+    const initialNavigation =
+      hold === 'Owns'
+        ? stackAtRoot<AppDestination>(childNavigation.root)
+        : childModel.navigation
     return [
-      { ...childModel, session: initialSession },
+      {
+        ...childModel,
+        session: initialSession,
+        navigation: initialNavigation,
+      } as AppModel,
       commands as ReadonlyArray<AppCommand>,
     ]
   }
@@ -256,8 +530,11 @@ export const compose = <Child extends SessionChild>(config: {
     model: AppModel,
     message: AppMessage,
   ): readonly [AppModel, ReadonlyArray<AppCommand>] => {
+    if (NavigationMessage.isMessage(message)) {
+      return [foldMessage(navigation, model, message), []]
+    }
     if (isMessage(message)) {
-      return [{ ...model, session: changedSession(model.session, message) }, []]
+      return [updateSession(model, message), []]
     }
     const [childModel, commands] = child.update(
       childOf(model),
@@ -269,8 +546,20 @@ export const compose = <Child extends SessionChild>(config: {
     ]
   }
 
-  const childNavigation = child.navigation
-  const childStackOf = childNavigation?.stackOf
+  const catalogInteraction = fromCatalog(
+    catalog,
+  ) as unknown as ProgramInteraction<AppModel, AppMessage>
+
+  const interaction: ProgramInteraction<AppModel, AppMessage> = {
+    ...catalogInteraction,
+    pressKey: (model, input) =>
+      Array.match(catalogInteraction.pressKey(model, input), {
+        onEmpty: () =>
+          isBackKey(input) ? backMessages(navigation, model) : [],
+        onNonEmpty: messages => messages,
+      }),
+  }
+
   const childSynchronization = child.synchronization
   const childScreen = child.screen
 
@@ -283,25 +572,23 @@ export const compose = <Child extends SessionChild>(config: {
     restore,
     update,
     catalog,
-    ...(childNavigation === undefined
-      ? {}
-      : {
-          navigation: {
-            Destination: childNavigation.Destination,
-            root: childNavigation.root,
-            ...(childStackOf === undefined
-              ? {}
-              : {
-                  stackOf: (model: AppModel) => childStackOf(childOf(model)),
-                }),
-          },
-        }),
+    interaction,
+    navigation,
     synchronization: {
-      messageCategory: message =>
-        isMessage(message)
-          ? 'Domain'
-          : (childSynchronization?.messageCategory(message as ChildMessage) ??
-            'Domain'),
+      messageCategory: message => {
+        if (isModeMessage(message)) {
+          return 'Domain'
+        } else if (isMessage(message)) {
+          return 'Navigation'
+        } else if (hold === 'Owns' && NavigationMessage.isMessage(message)) {
+          return 'Navigation'
+        } else {
+          return (
+            childSynchronization?.messageCategory(message as ChildMessage) ??
+            'Domain'
+          )
+        }
+      },
       projectDomain: model =>
         childSynchronization === undefined
           ? childOf(model)

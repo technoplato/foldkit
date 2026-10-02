@@ -1,5 +1,5 @@
 import { Duration, Effect, Equal, Option } from 'effect'
-import { ActionMenu, Interaction, Runtime } from 'foldkit'
+import { ActionMenu, Interaction, Navigation, Runtime } from 'foldkit'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { startCounterOn } from './live.js'
@@ -54,6 +54,16 @@ const countOf = (
   return model.count
 }
 
+const uriOf = (
+  bound: Readonly<{
+    navigation: () => Option.Option<Navigation.CarrierPlan<unknown>>
+  }>,
+): string =>
+  Option.match(bound.navigation(), {
+    onNone: () => 'no plan',
+    onSome: plan => plan.uri,
+  })
+
 const modeOf = (
   bound: Readonly<{ readModel: () => SyncedCounterModel }>,
 ): string => {
@@ -105,6 +115,22 @@ describe('startCounterOn', () => {
     expect(Option.isSome(laptop.menu())).toBe(false)
   })
 
+  it('opens the Session page from a URI on every device while mirrored', async () => {
+    const store = Runtime.makeMemoryStore()
+    const laptop = await startOn(store, 'react-laptop')
+    const phone = await startOn(store, 'expo-phone')
+    expect(laptop.openUri('/counter/session', Navigation.Link())).toBe(true)
+    await eventually(() => uriOf(phone), '/counter/session')
+  })
+
+  it('prints the menu over the Session page as one URI', async () => {
+    const laptop = await startOn(Runtime.makeMemoryStore(), 'react-laptop')
+    laptop.press('OpenSessionSettings')
+    laptop.openMenu()
+    laptop.typeInMenu('in')
+    expect(uriOf(laptop)).toBe('/counter/session/menu?q=in')
+  })
+
   it('sends a menu choice as the Action itself', async () => {
     const store = Runtime.makeMemoryStore()
     const laptop = await startOn(store, 'react-laptop')
@@ -118,8 +144,8 @@ describe('startCounterOn', () => {
       ),
     ).toEqual([
       'OpenedActionMenu',
-      'Increment',
       `ChoseActionMenuAction:{"tag":"Increment"}`,
+      'Increment',
     ])
     expect(ActionMenu.isMessage(ActionMenu.OpenedActionMenu())).toBe(true)
   })

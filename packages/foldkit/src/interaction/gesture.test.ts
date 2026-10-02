@@ -69,8 +69,8 @@ describe('messagesOfGesture', () => {
         ChoseFromMenu({ tag: 'Increment' }),
       ),
     ).toEqual([
-      Increment(),
       ActionMenu.ChoseActionMenuAction({ tag: 'Increment' }),
+      Increment(),
     ])
   })
 })

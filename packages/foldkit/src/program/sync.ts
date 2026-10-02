@@ -10,6 +10,7 @@ import {
   type ProgramInteraction,
   Starting as StartingStatus,
 } from '../interaction/interaction.js'
+import { focusModel } from '../navigation/declaration.js'
 import { ts } from '../schema/index.js'
 import type {
   MessageOf,
@@ -521,6 +522,18 @@ export const sync = <Child extends SyncChild>(config: {
     }
   }
 
+  const childNavigation = child.navigation
+  const navigation =
+    childNavigation === undefined
+      ? undefined
+      : focusModel<Model, ChildModel, unknown>(childNavigation, {
+          childOf: model =>
+            model._tag === 'Ready'
+              ? Option.some(stripReady(model) as ChildModel)
+              : Option.none(),
+          withChild: (_model, childModel) => toReady(childModel),
+        })
+
   const program = make({
     id: config.id ?? `sync:${child.id}`,
     version: config.version ?? child.version,
@@ -535,6 +548,7 @@ export const sync = <Child extends SyncChild>(config: {
     ...(childInteraction === undefined
       ? {}
       : { interaction: liftInteraction(childInteraction) }),
+    ...(navigation === undefined ? {} : { navigation }),
   })
 
   return Object.assign(program, {

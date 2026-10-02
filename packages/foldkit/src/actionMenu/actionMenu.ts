@@ -7,6 +7,7 @@ import {
   Predicate,
   Result,
   Schema as S,
+  String,
   pipe,
 } from 'effect'
 
@@ -21,6 +22,22 @@ import {
   normalizeKey,
 } from '../interaction/interaction.js'
 import {
+  type DestinationOf,
+  composeNavigation,
+  composedDestination,
+  composedFields,
+  fieldLens,
+  holdOf,
+  ownedMessages,
+  schemaMembersOf,
+} from '../navigation/compose.js'
+import {
+  type NotFound,
+  menuView as menuEntryView,
+  presentRoute,
+} from '../navigation/declaration.js'
+import * as NavigationMessage from '../navigation/message.js'
+import {
   Dialog,
   NavigationStack,
   type PresentationStyle,
@@ -30,15 +47,16 @@ import {
   stackAtRoot,
   topEntry,
 } from '../navigation/structure.js'
+import { backMessages, foldMessage } from '../navigation/transition.js'
 import type {
   MessageOf,
   ModelOf,
   Program,
   ProgramCommand,
-  ProgramNavigation,
   ProgramSchema,
 } from '../program/program.js'
 import { make } from '../program/program.js'
+import * as Route from '../route/parser.js'
 import { m, ts } from '../schema/index.js'
 
 // FOCUS
@@ -84,6 +102,9 @@ export type ActionMenu = typeof ActionMenu.Type
 
 const isActionMenu = S.is(ActionMenu)
 
+const asMenu = (destination: unknown): Option.Option<ActionMenu> =>
+  isActionMenu(destination) ? Option.some(destination) : Option.none()
+
 // MESSAGE
 
 /** A person opened the action menu with Cmd-K, `?`, or its button. */
@@ -111,8 +132,10 @@ export const MovedActionMenuFocus = m('MovedActionMenuFocus', {
   move: FocusMove,
 })
 /**
- * A person chose a row, which closes the menu. The chosen Action is sent as
- * its own Message, so the tape records `Increment`, not a wrapper.
+ * A person chose a row, which closes the menu. It is sent before the chosen
+ * Action, so an Action that moves the stack, such as opening the Session
+ * settings, lands on the entry beneath the menu. The chosen Action is sent
+ * as its own Message, so the tape records `Increment`, not a wrapper.
  */
 export const ChoseActionMenuAction = m('ChoseActionMenuAction', {
   tag: S.String,
@@ -364,6 +387,21 @@ const dismissMenu = <Destination>(
 ): NavigationStack<Destination> =>
   Option.isSome(menuOf(stack)) ? withoutTop(stack) : stack
 
+// URI
+
+const MenuQuery = S.Struct({ q: S.optionalKey(S.String) })
+type MenuQuery = typeof MenuQuery.Type
+
+const menuQueryOf = (query: string): MenuQuery =>
+  String.isEmpty(query) ? {} : { q: query }
+
+/**
+ * The menu a URI opens: its query, and no highlight until the route
+ * settles it against the Catalog.
+ */
+const parsedMenu = (query: string): ActionMenu =>
+  ActionMenu({ query, focus: OnFilter({ maybeHighlighted: Option.none() }) })
+
 // COMPOSE
 
 /** A composed child's Model had a field the combinator reserves. */
@@ -385,24 +423,31 @@ export class ActionMenuChildIncompleteError extends Data.TaggedError(
 /** A child Program the action menu can wrap: it has a Catalog and a root. */
 export type ActionMenuChild = Program<any, any, any, any, any>
 
-/** The destinations a composed child can occupy. */
-export type DestinationOf<Child> =
-  Child extends Readonly<{
-    navigation?: ProgramNavigation<any, infer Destination>
-  }>
-    ? Destination
-    : never
+export type { DestinationOf } from '../navigation/compose.js'
+
+/** The Destinations of the composed Program: the child's, the menu, NotFound. */
+export type ActionMenuDestinationOf<Child extends ActionMenuChild> =
+  | DestinationOf<Child>
+  | ActionMenu
+  | NotFound
 
 /** The composed Model: the child's fields, flat, plus the navigation stack. */
-export type ActionMenuModel<Child extends ActionMenuChild> = ModelOf<Child> &
+export type ActionMenuModel<Child extends ActionMenuChild> = Omit<
+  ModelOf<Child>,
+  'navigation'
+> &
   Readonly<{
-    navigation: NavigationStack<DestinationOf<Child> | ActionMenu>
+    navigation: NavigationStack<ActionMenuDestinationOf<Child>>
   }>
 
-/** The composed Message: the child's Messages unwrapped plus menu Messages. */
+/**
+ * The composed Message: the child's Messages unwrapped, the menu Messages,
+ * and the carrier facts.
+ */
 export type ActionMenuMessage<Child extends ActionMenuChild> =
   | MessageOf<Child>
   | Message
+  | NavigationMessage.Message
 
 /** A Program produced by {@link compose}. */
 export type ActionMenuProgram<Child extends ActionMenuChild> = Program<
@@ -426,16 +471,6 @@ const structFieldsOf = (
     })
   }
   return schema.fields as S.Struct.Fields
-}
-
-const membersOf = (schema: unknown): ReadonlyArray<S.Top> => {
-  if (
-    Predicate.hasProperty(schema, 'members') &&
-    Array.isArray(schema.members)
-  ) {
-    return schema.members as ReadonlyArray<S.Top>
-  }
-  return [schema as S.Top]
 }
 
 const isToggleChord = (key: string, input: KeyInput): boolean =>
@@ -473,7 +508,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
   type ChildMessage = MessageOf<Child>
   type AppModel = ActionMenuModel<Child>
   type AppMessage = ActionMenuMessage<Child> & Readonly<{ _tag: string }>
-  type AppDestination = DestinationOf<Child> | ActionMenu
+  type AppDestination = ActionMenuDestinationOf<Child>
   type AppCommand = ProgramCommand<AppMessage, any>
 
   const childInteraction = child.interaction
@@ -490,8 +525,9 @@ export const compose = <Child extends ActionMenuChild>(config: {
       programId: child.id,
     })
   }
+  const hold = holdOf(childNavigation)
   const childFields = structFieldsOf(child.Model, child.id)
-  if (Object.hasOwn(childFields, 'navigation')) {
+  if (hold === 'Owns' && Object.hasOwn(childFields, 'navigation')) {
     throw new ActionMenuReservedFieldError({
       field: 'navigation',
       programId: child.id,
@@ -499,31 +535,72 @@ export const compose = <Child extends ActionMenuChild>(config: {
   }
   const style = config.style ?? Dialog()
 
-  const Destination = S.Union([
-    ...membersOf(childNavigation.Destination),
-    ActionMenu,
-  ])
-  const Model = S.Struct({
-    ...childFields,
-    navigation: NavigationStack(Destination),
-  }) as unknown as ProgramSchema<AppModel>
+  const Destination = composedDestination(childNavigation, [ActionMenu], hold)
+  const Model = S.Struct(
+    composedFields(childFields, Destination),
+  ) as unknown as ProgramSchema<AppModel>
   const AppMessageSchema = S.Union([
-    ...membersOf(child.Message),
+    ...schemaMembersOf(child.Message),
     ...Message.members,
+    ...ownedMessages(hold),
   ]) as unknown as ProgramSchema<AppMessage>
 
   const childOf = (model: AppModel): ChildModel => {
+    if (hold === 'Extends') {
+      return model as unknown as ChildModel
+    }
     const { navigation: _navigation, ...childModel } = model
     return childModel as ChildModel
   }
 
-  const withChild = (model: AppModel, childModel: ChildModel): AppModel => ({
-    ...childModel,
-    navigation: model.navigation,
-  })
+  const withChild = (model: AppModel, childModel: ChildModel): AppModel =>
+    (hold === 'Extends'
+      ? childModel
+      : { ...childModel, navigation: model.navigation }) as AppModel
 
   const visibleOf = (model: AppModel, query: string): ReadonlyArray<Entry> =>
     visibleEntries(childInteraction.entries(childOf(model)), query)
+
+  const menuRoute = presentRoute(
+    Route.caseOf<AppDestination, MenuQuery>(
+      pipe(Route.literal('menu'), Route.query(MenuQuery)),
+      {
+        embed: ({ q }) => parsedMenu(q ?? ''),
+        extract: destination =>
+          Option.map(asMenu(destination), menu => menuQueryOf(menu.query)),
+      },
+    ),
+    style,
+    {
+      isAllowedAbove: below => !isActionMenu(below),
+      title: () => 'Actions',
+    },
+  )
+
+  const navigation = composeNavigation<
+    AppModel,
+    ChildModel,
+    AppDestination,
+    DestinationOf<Child>
+  >({
+    child: childNavigation,
+    hold,
+    Destination: Destination as unknown as ProgramSchema<AppDestination>,
+    childOf,
+    stack: fieldLens<AppModel, AppDestination>(),
+    embedNotFound: notFound => notFound,
+    routes: [menuRoute],
+    viewOf: (model, destination) =>
+      Option.map(asMenu(destination), menu =>
+        menuEntryView(viewOfMenu(model, menu, style)),
+      ),
+    settleEntry: (model, destination) =>
+      Option.match(asMenu(destination), {
+        onNone: () => destination,
+        onSome: (menu): AppDestination =>
+          withQuery(menu, menu.query, visibleOf(model, menu.query)),
+      }),
+  })
 
   const withNavigation = (
     model: AppModel,
@@ -561,7 +638,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
             onSome: menu =>
               withNavigation(
                 model,
-                replaceMenu<DestinationOf<Child>>(
+                replaceMenu<AppDestination>(
                   model.navigation,
                   withQuery(menu, query, visibleOf(model, query)),
                 ),
@@ -573,7 +650,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
             onSome: menu =>
               withNavigation(
                 model,
-                replaceMenu<DestinationOf<Child>>(
+                replaceMenu<AppDestination>(
                   model.navigation,
                   moved(menu, move, visibleOf(model, menu.query)),
                 ),
@@ -587,7 +664,12 @@ export const compose = <Child extends ActionMenuChild>(config: {
   const init = (): readonly [AppModel, ReadonlyArray<AppCommand>] => {
     const [childModel, commands] = child.init()
     return [
-      { ...childModel, navigation: stackAtRoot(childNavigation.root) },
+      (hold === 'Extends'
+        ? childModel
+        : {
+            ...childModel,
+            navigation: stackAtRoot<AppDestination>(childNavigation.root),
+          }) as AppModel,
       commands as ReadonlyArray<AppCommand>,
     ]
   }
@@ -606,6 +688,9 @@ export const compose = <Child extends ActionMenuChild>(config: {
     model: AppModel,
     message: AppMessage,
   ): readonly [AppModel, ReadonlyArray<AppCommand>] => {
+    if (NavigationMessage.isMessage(message)) {
+      return [foldMessage(navigation, model, message), []]
+    }
     if (isMessage(message)) {
       return updateMenu(model, message)
     }
@@ -629,8 +714,8 @@ export const compose = <Child extends ActionMenuChild>(config: {
     return Array.match(childInteraction.press(childOf(model), tag), {
       onEmpty: () => [],
       onNonEmpty: messages => [
-        ...(messages as ReadonlyArray<AppMessage>),
         ChoseActionMenuAction({ tag }),
+        ...(messages as ReadonlyArray<AppMessage>),
       ],
     })
   }
@@ -708,6 +793,24 @@ export const compose = <Child extends ActionMenuChild>(config: {
     ) as ReadonlyArray<AppMessage>
   }
 
+  const closedKey = (
+    model: AppModel,
+    input: KeyInput,
+  ): ReadonlyArray<AppMessage> =>
+    Array.match(
+      childInteraction.pressKey(
+        childOf(model),
+        input,
+      ) as ReadonlyArray<AppMessage>,
+      {
+        onEmpty: () =>
+          !isChord(input) && normalizeKey(input.key) === 'Escape'
+            ? backMessages(navigation, model)
+            : [],
+        onNonEmpty: messages => messages,
+      },
+    )
+
   const pressKey = (
     model: AppModel,
     input: KeyInput,
@@ -717,10 +820,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
       onNone: () =>
         isOpenChord(key, input)
           ? [OpenedActionMenu()]
-          : (childInteraction.pressKey(
-              childOf(model),
-              input,
-            ) as ReadonlyArray<AppMessage>),
+          : closedKey(model, input),
       onSome: menu =>
         M.value(menu.focus).pipe(
           M.withReturnType<ReadonlyArray<AppMessage>>(),
@@ -731,6 +831,17 @@ export const compose = <Child extends ActionMenuChild>(config: {
         ),
     })
   }
+
+  const viewOfMenu = (
+    model: AppModel,
+    menu: ActionMenu,
+    presentedStyle: PresentationStyle,
+  ): MenuView => ({
+    query: menu.query,
+    isFilterFocused: menu.focus._tag === 'OnFilter',
+    rows: Array.map(visibleOf(model, menu.query), rowOf(menu.focus)),
+    style: presentedStyle,
+  })
 
   const rowOf =
     (focus: Focus) =>
@@ -744,16 +855,10 @@ export const compose = <Child extends ActionMenuChild>(config: {
     pipe(
       topEntry(model.navigation),
       Option.flatMap(entry =>
-        isActionMenu(entry.destination)
-          ? Option.some({ menu: entry.destination, style: entry.style })
-          : Option.none(),
+        Option.map(asMenu(entry.destination), menu =>
+          viewOfMenu(model, menu, entry.style),
+        ),
       ),
-      Option.map(({ menu, style: presentedStyle }) => ({
-        query: menu.query,
-        isFilterFocused: menu.focus._tag === 'OnFilter',
-        rows: Array.map(visibleOf(model, menu.query), rowOf(menu.focus)),
-        style: presentedStyle,
-      })),
     )
 
   const interaction: ProgramInteraction<AppModel, AppMessage> = {
@@ -783,16 +888,11 @@ export const compose = <Child extends ActionMenuChild>(config: {
     restore,
     update,
     interaction,
-    navigation: {
-      Destination: Destination as unknown as ProgramSchema<
-        DestinationOf<Child> | ActionMenu
-      >,
-      root: childNavigation.root,
-      stackOf: (model: AppModel) => model.navigation,
-    },
+    navigation,
     synchronization: {
       messageCategory: message =>
-        isMessage(message)
+        isMessage(message) ||
+        (hold === 'Owns' && NavigationMessage.isMessage(message))
           ? 'Navigation'
           : (childSynchronization?.messageCategory(message as ChildMessage) ??
             'Domain'),

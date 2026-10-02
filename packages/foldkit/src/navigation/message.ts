@@ -48,6 +48,8 @@ export const Following = (processorId: string): UriVia => ({
  * ```
  */
 export const OpenedUri = m('OpenedUri', { uri: S.String, via: UriVia })
+/** Someone opened a URI. */
+export type OpenedUri = typeof OpenedUri.Type
 
 /**
  * A person went back to the entry printed as `uri`: browser Back, a swipe,
@@ -61,6 +63,8 @@ export const OpenedUri = m('OpenedUri', { uri: S.String, via: UriVia })
  * ```
  */
 export const NavigatedBack = m('NavigatedBack', { uri: S.String })
+/** A person went back to the entry printed as `uri`. */
+export type NavigatedBack = typeof NavigatedBack.Type
 
 /** Every carrier navigation Message. All of them are Navigation. */
 export const Message = S.Union([OpenedUri, NavigatedBack])

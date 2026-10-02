@@ -259,11 +259,11 @@ describe('focus', () => {
 })
 
 describe('choosing', () => {
-  it('sends the Action itself, then closes the menu', () => {
+  it('closes the menu, then sends the Action itself', () => {
     const model = openMenu(initial())
     expect(interaction.pressKey(model, keyInput('Enter'))).toEqual([
-      Increment(),
       ActionMenu.ChoseActionMenuAction({ tag: 'Increment' }),
+      Increment(),
     ])
     const chosen = press(model, keyInput('Enter'))
     expect(chosen).toEqual({ count: 1, navigation: stackAtRoot(Counter()) })
