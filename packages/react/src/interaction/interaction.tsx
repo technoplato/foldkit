@@ -8,11 +8,10 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
-  useSyncExternalStore,
 } from 'react'
 
 import { type PaintClassNames, paintTree } from '../paintReact/paintReact.js'
+import { useBoundRead, useSelected } from './selected.js'
 
 export type { PaintClassNames } from '../paintReact/paintReact.js'
 
@@ -56,53 +55,6 @@ export const useBound = (): AnyBound =>
         '@foldkit/react/interaction hooks need a ProgramProvider above them',
       ),
   )
-
-// SELECTION
-
-type Selected<Snapshot, Selection> = Readonly<{
-  snapshot: Snapshot
-  selection: Selection
-}>
-
-const useSelected = <Snapshot, Selection>(
-  subscribe: (listener: () => void) => () => void,
-  getSnapshot: () => Snapshot,
-  select: (snapshot: Snapshot) => Selection,
-  isEqual: (self: Selection, that: Selection) => boolean,
-): Selection => {
-  const committed = useRef<Option.Option<Selection>>(Option.none())
-  const getSelection = useMemo(() => {
-    let maybeSelected: Option.Option<Selected<Snapshot, Selection>> =
-      Option.none()
-    return (): Selection => {
-      const snapshot = getSnapshot()
-      if (
-        Option.isSome(maybeSelected) &&
-        Object.is(maybeSelected.value.snapshot, snapshot)
-      ) {
-        return maybeSelected.value.selection
-      }
-      const next = select(snapshot)
-      const maybePrevious = Option.isSome(maybeSelected)
-        ? Option.some(maybeSelected.value.selection)
-        : committed.current
-      const selection =
-        Option.isSome(maybePrevious) && isEqual(maybePrevious.value, next)
-          ? maybePrevious.value
-          : next
-      maybeSelected = Option.some({ snapshot, selection })
-      return selection
-    }
-  }, [getSnapshot, select, isEqual])
-  const selection = useSyncExternalStore(subscribe, getSelection, getSelection)
-  useEffect(() => {
-    committed.current = Option.some(selection)
-  }, [selection])
-  return selection
-}
-
-const useBoundRead = <Value,>(bound: AnyBound, read: () => Value): Value =>
-  useSelected(bound.subscribe, bound.readModel, read, Equal.equals)
 
 /**
  * Whether the bound Program accepts Actions: Ready, Starting, or Failed.
@@ -411,81 +363,99 @@ const rowIdOf = (tag: string): string => `fk-action-menu-${tag}`
 const listId = 'fk-action-menu-list'
 
 /**
- * The action menu as an accessible combo box: a filter input and a listbox
- * of Catalog rows. It renders nothing while the menu is closed. Keys are
- * routed by {@link useKeyBindings}; the input only carries typing.
+ * One action menu as an accessible combo box: a filter input and a listbox
+ * of Catalog rows. Keys are routed by {@link useKeyBindings}; the input
+ * only carries typing. A navigation frame paints its menu layer with it.
+ *
+ * @example
+ * ```tsx
+ * <ActionMenuPanel menu={menu} />
+ * ```
+ */
+export const ActionMenuPanel = ({
+  menu,
+  className,
+}: Readonly<{
+  menu: Interaction.MenuView
+  className?: string
+}>): ReactElement => {
+  const bound = useBound()
+  const maybeHighlighted = Array.findFirst(menu.rows, row => row.isHighlighted)
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="fk-action-menu-title"
+      className={className ?? 'fk-action-menu'}
+      data-style={menu.style._tag}
+    >
+      <h2 id="fk-action-menu-title" className="fk-action-menu-title">
+        Actions
+      </h2>
+      <input
+        role="combobox"
+        aria-expanded="true"
+        aria-controls={listId}
+        aria-activedescendant={Option.match(maybeHighlighted, {
+          onNone: () => undefined,
+          onSome: row => rowIdOf(row.entry.tag),
+        })}
+        aria-label="Filter actions"
+        className="fk-action-menu-filter"
+        value={menu.query}
+        readOnly={!menu.isFilterFocused}
+        autoFocus
+        onChange={event => {
+          bound.typeInMenu(event.currentTarget.value)
+        }}
+      />
+      <ul id={listId} role="listbox" className="fk-action-menu-rows">
+        {Array.map(menu.rows, row => (
+          <li
+            key={row.entry.tag}
+            id={rowIdOf(row.entry.tag)}
+            role="option"
+            aria-selected={row.isHighlighted}
+            aria-disabled={row.entry.availability._tag === 'Disabled'}
+            data-focused={row.isFocused}
+            className="fk-action-menu-row"
+            onClick={() => {
+              bound.chooseFromMenu(row.entry.tag)
+            }}
+          >
+            <span className="fk-action-menu-label">{row.entry.label}</span>
+            <span className="fk-action-menu-what">{row.entry.what}</span>
+            {row.entry.availability._tag === 'Disabled' ? (
+              <span className="fk-action-menu-because">
+                {row.entry.availability.because}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {Array.isReadonlyArrayEmpty(menu.rows) ? (
+        <p className="fk-action-menu-empty">No matching actions</p>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * The bound Program's action menu while it is presented, painted as an
+ * {@link ActionMenuPanel}. It renders nothing while the menu is closed.
  */
 export const ActionMenuDialog = ({
   className,
-}: Readonly<{ className?: string }>): ReactElement | null => {
-  const bound = useBound()
-  return Option.match(useMenu(), {
+}: Readonly<{ className?: string }>): ReactElement | null =>
+  Option.match(useMenu(), {
     onNone: () => null,
-    onSome: menu => {
-      const maybeHighlighted = Array.findFirst(
-        menu.rows,
-        row => row.isHighlighted,
-      )
-      return (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="fk-action-menu-title"
-          className={className ?? 'fk-action-menu'}
-          data-style={menu.style._tag}
-        >
-          <h2 id="fk-action-menu-title" className="fk-action-menu-title">
-            Actions
-          </h2>
-          <input
-            role="combobox"
-            aria-expanded="true"
-            aria-controls={listId}
-            aria-activedescendant={Option.match(maybeHighlighted, {
-              onNone: () => undefined,
-              onSome: row => rowIdOf(row.entry.tag),
-            })}
-            aria-label="Filter actions"
-            className="fk-action-menu-filter"
-            value={menu.query}
-            readOnly={!menu.isFilterFocused}
-            autoFocus
-            onChange={event => {
-              bound.typeInMenu(event.currentTarget.value)
-            }}
-          />
-          <ul id={listId} role="listbox" className="fk-action-menu-rows">
-            {Array.map(menu.rows, row => (
-              <li
-                key={row.entry.tag}
-                id={rowIdOf(row.entry.tag)}
-                role="option"
-                aria-selected={row.isHighlighted}
-                aria-disabled={row.entry.availability._tag === 'Disabled'}
-                data-focused={row.isFocused}
-                className="fk-action-menu-row"
-                onClick={() => {
-                  bound.chooseFromMenu(row.entry.tag)
-                }}
-              >
-                <span className="fk-action-menu-label">{row.entry.label}</span>
-                <span className="fk-action-menu-what">{row.entry.what}</span>
-                {row.entry.availability._tag === 'Disabled' ? (
-                  <span className="fk-action-menu-because">
-                    {row.entry.availability.because}
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-          {Array.isReadonlyArrayEmpty(menu.rows) ? (
-            <p className="fk-action-menu-empty">No matching actions</p>
-          ) : null}
-        </div>
-      )
-    },
+    onSome: menu => (
+      <ActionMenuPanel
+        menu={menu}
+        {...(className === undefined ? {} : { className })}
+      />
+    ),
   })
-}
 
 // KEYS
 

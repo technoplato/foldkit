@@ -2,13 +2,12 @@ import { Match as M } from 'effect'
 import type { ReactElement, ReactNode } from 'react'
 
 import {
-  ActionMenuDialog,
   type PaintClassNames,
-  Screen,
   useBound,
   useKeyBindings,
   useStatus,
 } from '@foldkit/react/interaction'
+import { NavigationFrame, useBrowserHistory } from '@foldkit/react/navigation'
 
 const classNames: PaintClassNames = {
   Button:
@@ -19,12 +18,15 @@ const classNames: PaintClassNames = {
 }
 
 /**
- * The React Counter window. It paints the Program's screen, routes keys,
- * and presents the action menu, all through the generic adapter. It never
- * names Increment, Decrement, or Reset.
+ * The React Counter window. It keeps the address bar on the Program's
+ * plan, paints whatever screen the plan shows, routes keys, and presents
+ * the action menu, all through the generic adapters. It never names
+ * Increment, Decrement, Reset, or a route: `/counter/session` and
+ * `/counter/menu?q=re` come from the declaration.
  */
 export const App = (): ReactElement => {
   useKeyBindings()
+  useBrowserHistory()
   const bound = useBound()
   return M.value(useStatus()).pipe(
     M.withReturnType<ReactElement>(),
@@ -38,7 +40,7 @@ export const App = (): ReactElement => {
       Ready: () => (
         <main className="min-h-screen bg-white text-gray-900 flex items-center justify-center p-6">
           <section className="w-full max-w-sm text-center space-y-6">
-            <Screen classNames={classNames} />
+            <NavigationFrame classNames={classNames} />
             <button
               type="button"
               className="text-sm text-gray-500 underline-offset-4 hover:underline"
@@ -49,7 +51,6 @@ export const App = (): ReactElement => {
               Actions (⌘K)
             </button>
           </section>
-          <ActionMenuDialog />
         </main>
       ),
     }),

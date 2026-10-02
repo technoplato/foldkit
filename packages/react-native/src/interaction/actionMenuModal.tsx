@@ -95,6 +95,90 @@ const MenuRow = ({
 }
 
 /**
+ * One action menu over a dimmed backdrop: the filter, then a row per
+ * Catalog Action. A tap outside dismisses it. {@link ActionMenuModal}
+ * presents it in a Modal; a native stack presents it as a transparent
+ * route.
+ *
+ * @example
+ * ```tsx
+ * <ActionMenuSheet menu={menu} />
+ * ```
+ */
+export const ActionMenuSheet = ({
+  menu,
+}: Readonly<{ menu: Interaction.MenuView }>): ReactElement => {
+  const bound = useBound()
+  return (
+    <View
+      style={{
+        alignItems: 'center',
+        backgroundColor: 'rgba(15, 23, 42, 0.4)',
+        flex: 1,
+        justifyContent: 'center',
+      }}
+    >
+      <Pressable
+        accessibilityLabel="Dismiss actions"
+        accessibilityRole="button"
+        onPress={() => {
+          bound.dismissMenu()
+        }}
+        style={{
+          bottom: 0,
+          left: 0,
+          position: 'absolute',
+          right: 0,
+          top: 0,
+        }}
+      />
+      <View
+        accessibilityLabel="Action menu"
+        style={{
+          backgroundColor: '#ffffff',
+          borderRadius: 12,
+          minWidth: 300,
+          padding: 16,
+        }}
+      >
+        <TextInput
+          accessibilityLabel="Filter actions"
+          autoFocus
+          onChangeText={query => {
+            bound.typeInMenu(query)
+          }}
+          placeholder="Filter actions"
+          style={{
+            borderColor: '#d1d5db',
+            borderRadius: 8,
+            borderWidth: 1,
+            marginBottom: 12,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+          }}
+          value={menu.query}
+        />
+        {Array.match(menu.rows, {
+          onEmpty: () => (
+            <Text style={{ color: '#6b7280' }}>No matching actions</Text>
+          ),
+          onNonEmpty: rows =>
+            Array.map(rows, row => (
+              <MenuRow
+                key={row.entry.tag}
+                row={row}
+                onChoose={tag => {
+                  bound.chooseFromMenu(tag)
+                }}
+              />
+            )),
+        })}
+      </View>
+    </View>
+  )
+}
+
+/**
  * The action menu as a React Native Modal, generic over any bound Program.
  * It renders only while the Model presents the menu. The Android back
  * button and a tap outside dismiss the menu destination; the filter types
@@ -121,71 +205,7 @@ export const ActionMenuModal = (): ReactElement | null => {
         visible
         {...presentationOf(menu.style)}
       >
-        <View
-          style={{
-            alignItems: 'center',
-            backgroundColor: 'rgba(15, 23, 42, 0.4)',
-            flex: 1,
-            justifyContent: 'center',
-          }}
-        >
-          <Pressable
-            accessibilityLabel="Dismiss actions"
-            accessibilityRole="button"
-            onPress={() => {
-              bound.dismissMenu()
-            }}
-            style={{
-              bottom: 0,
-              left: 0,
-              position: 'absolute',
-              right: 0,
-              top: 0,
-            }}
-          />
-          <View
-            accessibilityLabel="Action menu"
-            style={{
-              backgroundColor: '#ffffff',
-              borderRadius: 12,
-              minWidth: 300,
-              padding: 16,
-            }}
-          >
-            <TextInput
-              accessibilityLabel="Filter actions"
-              autoFocus
-              onChangeText={query => {
-                bound.typeInMenu(query)
-              }}
-              placeholder="Filter actions"
-              style={{
-                borderColor: '#d1d5db',
-                borderRadius: 8,
-                borderWidth: 1,
-                marginBottom: 12,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-              }}
-              value={menu.query}
-            />
-            {Array.match(menu.rows, {
-              onEmpty: () => (
-                <Text style={{ color: '#6b7280' }}>No matching actions</Text>
-              ),
-              onNonEmpty: rows =>
-                Array.map(rows, row => (
-                  <MenuRow
-                    key={row.entry.tag}
-                    row={row}
-                    onChoose={tag => {
-                      bound.chooseFromMenu(tag)
-                    }}
-                  />
-                )),
-            })}
-          </View>
-        </View>
+        <ActionMenuSheet menu={menu} />
       </Modal>
     ),
   })

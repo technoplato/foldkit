@@ -5,10 +5,15 @@ import { Fragment, type ReactElement } from 'react'
 /** Extra class per node kind, appended after the fk-* base class. */
 export type PaintClassNames = Partial<Record<UiNode['_tag'], string>>
 
-/** How a painted tree reports presses and text input. */
+/**
+ * How a painted tree reports presses, text input, and link follows.
+ * `onLink` returns true when it handled the link, such as opening an
+ * in-app URI, so the browser does not load the page.
+ */
 export type PaintHandlers = Readonly<{
   onPress: (button: ButtonNode) => void
   onInput?: (token: string, value: string) => void
+  onLink?: (href: string) => boolean
   classNames?: PaintClassNames
 }>
 
@@ -46,14 +51,27 @@ export const paintTree = (
       M.withReturnType<ReactElement>(),
       M.tagsExhaustive({
         Text: text => {
-          if (text.href === undefined) {
-            return (
-              <div className={classFor('Text', 'fk-text')}>{text.content}</div>
-            )
+          const href = text.href
+          const attributes = {
+            className: classFor('Text', 'fk-text'),
+            ...(text.label === undefined ? {} : { 'aria-label': text.label }),
+            ...(text.dim === true ? { 'data-dim': true } : {}),
+            ...(text.mono === true ? { 'data-mono': true } : {}),
+          }
+          if (href === undefined) {
+            return <div {...attributes}>{text.content}</div>
           }
           return (
-            <div className={classFor('Text', 'fk-text')}>
-              <a className="fk-text-link" href={text.href}>
+            <div {...attributes}>
+              <a
+                className="fk-text-link"
+                href={href}
+                onClick={event => {
+                  if (handlers.onLink !== undefined && handlers.onLink(href)) {
+                    event.preventDefault()
+                  }
+                }}
+              >
                 {text.content}
               </a>
             </div>

@@ -98,6 +98,7 @@ export {
   browserHistoryDriver,
   keyedStackDriver,
   frameOf,
+  uriOfDeepLink,
   tanstackRouterPlugin,
   reactRouterPlugin,
   reactNavigationPlugin,

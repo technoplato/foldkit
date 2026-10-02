@@ -4,7 +4,7 @@ import { ts } from 'foldkit/schema'
 import { type ReactElement, isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ActionMenuModal } from './actionMenuModal.js'
+import { ActionMenuModal, ActionMenuSheet } from './actionMenuModal.js'
 
 const bound = vi.hoisted(() => ({
   chooseFromMenu: vi.fn((_tag: string) => true),
@@ -103,6 +103,17 @@ const callProp = (
 const presentedModal = (): ReactElement =>
   Option.getOrThrow(Option.fromNullishOr(ActionMenuModal()))
 
+const presentedSheet = (): ReactElement => {
+  const sheet = Option.getOrThrow(
+    Array.findFirst(
+      Array.ensure(propsOf(presentedModal())['children']),
+      isValidElement,
+    ),
+  )
+  expect(sheet.type).toBe(ActionMenuSheet)
+  return ActionMenuSheet({ menu: Option.getOrThrow(menuAt(2)) })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -123,7 +134,7 @@ describe('ActionMenuModal', () => {
 
   it('types into the query and chooses a row by its Action tag', () => {
     presented.set('menu', menuAt(2))
-    const tree = [presentedModal(), ...descendants(presentedModal())]
+    const tree = [presentedSheet(), ...descendants(presentedSheet())]
     Array.forEach(
       Array.filter(tree, element => element.type === 'TextInput'),
       input => {

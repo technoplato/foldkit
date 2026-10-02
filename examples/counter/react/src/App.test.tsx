@@ -69,6 +69,27 @@ describe('React Counter', () => {
     })
   })
 
+  it('writes each screen to the address bar, Session settings included', async () => {
+    await renderApp()
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/counter')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Actions (⌘K)' }))
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/counter/menu')
+    })
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: 'session settings' },
+    })
+    fireEvent.keyDown(document, { key: 'Enter' })
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/counter/session')
+    })
+    expect(
+      screen.getByText('Every device shows the same screen.'),
+    ).toBeDefined()
+  })
+
   it('opens the action menu and chooses Reset by name', async () => {
     await renderApp()
     fireEvent.keyDown(document, { key: '+' })

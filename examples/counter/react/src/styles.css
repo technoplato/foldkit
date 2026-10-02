@@ -66,3 +66,13 @@
   font-size: 0.875rem;
   color: rgb(107 114 128);
 }
+
+.fk-text[data-dim] {
+  font-size: 1rem;
+  font-weight: 400;
+  color: rgb(107 114 128);
+}
+
+.fk-text[data-mono] {
+  font-family: ui-monospace, monospace;
+}
