@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 1st, 2026 at 8:42:53 p.m. EDT — `a632b40fca3b` feat: carry navigation in React, React Router, and React Navigation
+
+- **Implementation commit:** `a632b40fca3bafb7c352c0a69b55f6cf51a65ea2`
+- **Change:** Carry navigation in React, React Router, and React Navigation.
+- **Details:**
+  - Web frame painter and browser history carrier, a controlled React Router, a React Navigation native stack driven by the keyed stack driver, and deep links; the web and Expo Counters run on them.
+- **Files:**
+  - `packages/react/src/navigation/navigation.tsx` — Paint the frame and keep browser history on the plan.
+  - `packages/react/src/reactRouter/reactRouter.tsx` — Control React Router with the Program's plan.
+  - `packages/react-native/src/reactNavigation/foldkitStack.tsx` — Show the plan as a React Navigation native stack.
+  - `packages/react-native/src/reactNavigation/stack.ts` — Map plans to keyed React Navigation state.
+  - `examples/counter/expo/src/App.tsx` — Run the Expo Counter on the native stack.
+- **User context (verbatim):**
+  > We have expo file navigation and we have React navigation from with from from within React You know, let's cover the adapters for the top three things there.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 1st, 2026 at 8:13:39 p.m. EDT — `50e350819f65` feat: paint navigation frames in the CLI and OpenTUI
 
 - **Implementation commit:** `50e350819f65ccd99e4ac622c13576eeb97b1690`
