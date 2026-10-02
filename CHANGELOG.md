@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 7:34:40 a.m. EDT — `26a3ea7ec807` fix: close the bugs and leaks an adversarial navigation review found
+
+- **Implementation commit:** `26a3ea7ec8073fc10a684ddaff4fd5cd8d789478`
+- **Change:** Close the bugs and leaks an adversarial navigation review found.
+- **Details:**
+  - Parser fixes for fallbacks, lifted routes, and fragments; a correction budget that counts misses; Mirror reconverges devices; launch and link ownership move into the core; React and native stacks stop over-rendering; Counter knowledge leaves generic code; one flaky test made deterministic.
+- **Files:**
+  - `packages/foldkit/src/navigation/uri.ts` — Parse fallbacks by shortest prefix and drop fragments.
+  - `packages/foldkit/src/navigation/carrier.ts` — Count corrections as misses in a row and add openWhenReady.
+  - `packages/foldkit/src/session/session.ts` — Return every device to the first screen on MirrorNavigation.
+  - `packages/react/src/navigation/navigation.tsx` — Repaint frame layers by their own view.
+  - `packages/react-native/src/reactNavigation/foldkitStack.tsx` — Mount the native stack on readiness only.
+- **User context (verbatim):**
+  > have an adversarial review and iterate until all the business logic is out of all the adapters, and the adapters are completely generic
+  > let's also make sure we have referential integrity so we don't over-render
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 6:54:22 a.m. EDT — `1c898c6fae96` fix(react-native): record Expo Router web moves as browser history
 
 - **Implementation commit:** `1c898c6fae964d329364ae410eff0994d39ffa7b`
