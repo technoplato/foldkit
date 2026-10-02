@@ -36,7 +36,7 @@ import {
   stackAtRoot,
   truncated,
 } from '../navigation/structure.js'
-import { backMessages, foldMessage } from '../navigation/transition.js'
+import { backMessages, foldMessage, settled } from '../navigation/transition.js'
 import type {
   MessageOf,
   ModelOf,
@@ -86,9 +86,14 @@ type SessionModel = Readonly<{ session: SessionState }>
 
 // MESSAGE
 
-/** A person chose to show the same screen on every device in the session. */
+/**
+ * A person chose to show the same screen on every device in the session.
+ * Every device returns to the first screen at this log position, so the
+ * devices that kept their own screens meet again: a laptop on
+ * `/counter/session` and a phone on `/counter` both land on `/counter`.
+ */
 export const MirrorNavigation = Catalog.action('MirrorNavigation', {
-  what: 'Shows the same screen on every device in the session',
+  what: 'Shows the same screen on every device, starting from the first screen',
   why: 'The person wants every device to go where they go',
   enabled: (model: SessionModel) =>
     model.session.mode === 'Mirror'
@@ -490,8 +495,22 @@ export const compose = <Child extends SessionChild>(config: {
     session: changedSession(model.session, message),
   })
 
+  const mirrored = (model: AppModel, message: ModeMessage): AppModel => {
+    const switched = withMode(model, message)
+    return {
+      ...switched,
+      navigation: settled(
+        navigation,
+        switched,
+        stackAtRoot<AppDestination>(childNavigation.root),
+      ),
+    }
+  }
+
   const updateSession = (model: AppModel, message: Message): AppModel => {
-    if (isModeMessage(message)) {
+    if (message._tag === 'MirrorNavigation') {
+      return mirrored(model, message)
+    } else if (isModeMessage(message)) {
       return withMode(model, message)
     } else if (message._tag === 'OpenSessionSettings') {
       return openedSettings(model)

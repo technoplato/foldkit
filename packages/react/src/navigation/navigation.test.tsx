@@ -1,12 +1,19 @@
 import { Option } from 'effect'
 import { Navigation } from 'foldkit'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { type AnyBound, ProgramProvider } from '../interaction/interaction.js'
+import { paintTree } from '../paintReact/paintReact.js'
 import { bindRouted } from '../test/routedCounter.js'
 import { NavigationFrame, useBrowserHistory } from './navigation.js'
+
+vi.mock('../paintReact/paintReact.js', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('../paintReact/paintReact.js')>()
+  return { ...actual, paintTree: vi.fn(actual.paintTree) }
+})
 
 const BrowserPage = () => {
   useBrowserHistory()
@@ -58,6 +65,33 @@ describe('NavigationFrame', () => {
     })
     expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
       Option.some('/counter/session'),
+    )
+  })
+
+  it('leaves the page beneath alone while typing in the menu', () => {
+    const bound = bindRouted()
+    renderWith(bound)
+    act(() => {
+      bound.openMenu()
+    })
+    const paintsBefore = vi.mocked(paintTree).mock.calls.length
+    act(() => {
+      bound.typeInMenu('i')
+    })
+    act(() => {
+      bound.typeInMenu('in')
+    })
+    expect(vi.mocked(paintTree).mock.calls.length).toBe(paintsBefore)
+  })
+
+  it('leaves a Cmd-click on an in-app link to the browser', () => {
+    const bound = bindRouted()
+    renderWith(bound)
+    act(() => {
+      fireEvent.click(screen.getByText('Session settings'), { metaKey: true })
+    })
+    expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
+      Option.some('/counter'),
     )
   })
 

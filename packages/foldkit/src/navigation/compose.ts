@@ -51,12 +51,20 @@ export type DestinationOf<P> =
     ? Destination
     : never
 
-/** How a combinator over this child holds the stack. */
+/**
+ * How a combinator over this child holds the stack.
+ *
+ * @example
+ * ```typescript
+ * holdOf(CounterProgram.navigation) // 'Owns'
+ * holdOf(SessionCounter.navigation) // 'Extends'
+ * ```
+ */
 export const holdOf = (
   childNavigation: ProgramNavigation<any, any>,
 ): StackHold => (childNavigation.stack === undefined ? 'Owns' : 'Extends')
 
-/** The field every navigation combinator keeps the stack in. */
+/** The field every navigation combinator keeps the stack in: `navigation`. */
 export const stackField = 'navigation'
 
 /**
@@ -100,6 +108,12 @@ export const composedDestination = (
 /**
  * The composed Model's fields: the child's, with the `navigation` field
  * added or widened to the composed Destinations.
+ *
+ * @example
+ * ```typescript
+ * composedFields({ count: S.Number }, Destination)
+ * // { count: S.Number, navigation: NavigationStack(Destination) }
+ * ```
  */
 export const composedFields = (
   childFields: S.Struct.Fields,
@@ -112,11 +126,24 @@ export const composedFields = (
 /**
  * The carrier facts a combinator adds to its Message union when it owns
  * the stack: `OpenedUri` and `NavigatedBack`.
+ *
+ * @example
+ * ```typescript
+ * ownedMessages('Owns') // [OpenedUri, NavigatedBack]
+ * ownedMessages('Extends') // []: the child already folds them in
+ * ```
  */
 export const ownedMessages = (hold: StackHold): ReadonlyArray<S.Top> =>
   hold === 'Owns' ? [OpenedUri, NavigatedBack] : []
 
-/** Reads and writes the `navigation` field. */
+/**
+ * Reads and writes the `navigation` field.
+ *
+ * @example
+ * ```typescript
+ * fieldLens<AppModel, AppDestination>().get(model) // Some(model.navigation)
+ * ```
+ */
 export const fieldLens = <
   Model extends Readonly<{ navigation: NavigationStack<Destination> }>,
   Destination,

@@ -28,6 +28,7 @@ import {
   classifyCarrierChange,
   launch,
   layersOf,
+  openWhenReady,
   planOf,
   runCarrier,
 } from './carrier.js'
@@ -333,21 +334,21 @@ describe('planOf', () => {
             uri: '/counter',
             destination: Counter(),
             maybeStyle: Option.none(),
-            title: 'Counter',
+            maybeTitle: Option.some('Counter'),
           },
           {
             key: '/counter/session',
             uri: '/counter/session',
             destination: SessionSettings(),
             maybeStyle: Option.some(Push()),
-            title: 'Session',
+            maybeTitle: Option.some('Session'),
           },
           {
             key: '/counter/session/menu',
             uri: '/counter/session/menu?q=re',
             destination: menu('re'),
             maybeStyle: Option.some(Dialog()),
-            title: 'Actions',
+            maybeTitle: Option.some('Actions'),
           },
         ],
         uri: '/counter/session/menu?q=re',
@@ -472,6 +473,31 @@ describe('classifyCarrierChange', () => {
   })
 })
 
+describe('openWhenReady', () => {
+  it('waits for Ready, then sends the URI once', () => {
+    const program = makeProgram()
+    program.setReady(false)
+    openWhenReady(program.source, '/counter/session', Link())
+    expect(program.facts).toEqual([])
+    program.setReady(true)
+    program.move(atRoot)
+    expect(program.facts).toEqual([
+      OpenedUri({ uri: '/counter/session', via: Link() }),
+    ])
+  })
+
+  it('launches through the launch rule and drops a URI stopped while waiting', () => {
+    const program = makeProgram()
+    expect(openWhenReady(program.source, '/counter/', Launch())).toBeDefined()
+    expect(program.facts).toEqual([])
+    program.setReady(false)
+    const stop = openWhenReady(program.source, '/counter/session', Launch())
+    stop()
+    program.setReady(true)
+    expect(program.facts).toEqual([])
+  })
+})
+
 describe('launch and backOneEntry', () => {
   it('opens a launch URI only when the plan does not already show it', () => {
     const program = makeProgram()
@@ -590,6 +616,21 @@ describe('runCarrier on browser history', () => {
     await settle(REPORT_TIMEOUT_MS)
     expect(browser.uri()).toBe('/counter/session')
     expect(printed(program.stack())).toBe('/counter/session')
+  })
+
+  it('keeps correcting a Program that refuses Back again and again', async () => {
+    const program = makeProgram()
+    const browser = makeBrowser('/counter')
+    runOnBrowser(program, browser)
+    program.move(atSession)
+    program.refuseBack()
+    await settle()
+    for (const _attempt of [1, 2, 3, 4]) {
+      browser.go(-1)
+      await settle(REPORT_TIMEOUT_MS)
+      await settle()
+    }
+    expect(browser.uri()).toBe('/counter/session')
   })
 
   it('lands two quick Backs from three deep at the root', async () => {

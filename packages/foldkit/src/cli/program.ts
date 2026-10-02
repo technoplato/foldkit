@@ -1,4 +1,4 @@
-import { Array, Effect, Match as M, Option, pipe } from 'effect'
+import { Array, Effect, Match as M, Option, String, pipe } from 'effect'
 
 import { type Entry, commandOf } from '../catalog/catalog.js'
 import type { BoundInteraction } from '../interaction/bind.js'
@@ -152,7 +152,7 @@ export const programUsage = <Model, Message>(
     '  menu next|previous Move focus in the action menu',
     '  menu choose <cmd>  Choose one action from the menu',
     '  key <key>          Press a key, with --meta, --ctrl, or --shift',
-    '  open <uri>         Go to a URI, such as /counter/session',
+    "  open <uri>         Go to one of the Program's URIs",
     '  back               Go back one screen',
     '  where              Print the current URI',
     '  help               Print this help',
@@ -245,10 +245,19 @@ const runMenu = <Model, Message>(
 const runOpen = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   uri: string,
-): CliDaemonPaintedResult =>
-  bound.openUri(uri, Cli())
-    ? painted(paintProgram(bound))
-    : painted(paintProgram(bound), 1, `Cannot open ${uri}: no URIs here yet.`)
+): CliDaemonPaintedResult => {
+  if (String.isEmpty(uri)) {
+    return painted(paintProgram(bound), 2, 'open needs a URI.')
+  } else if (bound.openUri(uri, Cli())) {
+    return painted(paintProgram(bound))
+  } else {
+    return painted(
+      paintProgram(bound),
+      1,
+      `Cannot open ${uri}: no URIs here yet.`,
+    )
+  }
+}
 
 const runBack = <Model, Message>(
   bound: BoundInteraction<Model, Message>,

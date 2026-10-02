@@ -1,5 +1,4 @@
-import { Schema as S, SchemaTransformation } from 'effect'
-import { ActionMenu, Navigation, Session } from 'foldkit'
+import { Effect, Schema as S, SchemaTransformation } from 'effect'
 
 import {
   countSnapshotId,
@@ -7,21 +6,10 @@ import {
 } from '@foldkit/instant/snapshot-log'
 
 import { App } from './app.js'
-import { Counter } from './navigation.js'
 
-const AppDestination = S.Union([
-  Counter,
-  Session.SessionSettings,
-  Navigation.NotFound,
-  ActionMenu.ActionMenu,
-])
-type AppDestination = typeof AppDestination.Type
+const CountOnly = S.Struct({ count: S.Number })
 
-const AppModel = S.Struct({
-  count: S.Number,
-  session: Session.SessionState,
-  navigation: Navigation.NavigationStack(AppDestination),
-})
+const [initialModel] = App.init()
 
 /**
  * The Instant count row. `asOf` and `at` are filled at write time. Rows
@@ -39,25 +27,37 @@ export type CountRow = typeof CountRow.Type
 
 /**
  * Door from the Instant count row to the App Model. Only the count travels,
- * so counter-swift and the Rust reader keep their wire. Boot folds the
- * Message log, not this row, so the session and navigation it would reset
- * come from the log instead.
+ * so counter-swift and the Rust reader keep their wire. Decoding starts
+ * from the App's initial Model, so every Destination a combinator adds is
+ * covered without listing it here. Boot folds the Message log, not this
+ * row, so the session and navigation it would reset come from the log
+ * instead.
  */
 export const CountProjection = CountRow.pipe(
   S.decodeTo(
-    AppModel,
-    SchemaTransformation.transform({
-      decode: (row): typeof AppModel.Encoded => ({
-        count: row.value,
-        session: { mode: 'Mirror', generation: 0 },
-        navigation: Navigation.stackAtRoot<AppDestination>(Counter()),
-      }),
-      encode: model => ({
-        id: countSnapshotId,
-        value: model.count,
-        asOf: '',
-        at: 0,
-      }),
+    App.Model,
+    SchemaTransformation.transformOrFail({
+      decode: row =>
+        Effect.mapError(
+          S.encodeUnknownEffect(App.Model)({
+            ...initialModel,
+            count: row.value,
+          }),
+          error => error.issue,
+        ),
+      encode: encoded =>
+        Effect.map(
+          Effect.mapError(
+            S.decodeUnknownEffect(CountOnly)(encoded),
+            error => error.issue,
+          ),
+          ({ count }) => ({
+            id: countSnapshotId,
+            value: count,
+            asOf: '',
+            at: 0,
+          }),
+        ),
     }),
   ),
 )

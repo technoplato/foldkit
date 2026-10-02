@@ -41,6 +41,13 @@ export type FrameSource = Readonly<{
  * The frame a single-surface host paints now. None until the Program is
  * Ready, for a Program without a URI, or when the base entry has no view.
  * An overlay without a view is left out.
+ *
+ * @example
+ * ```typescript
+ * // the plan is /counter/session/menu?q=re
+ * frameOf(bound)
+ * // Some({ uri: '/counter/session/menu?q=re', base: Session page, overlays: [menu] })
+ * ```
  */
 export const frameOf = (source: FrameSource): Option.Option<Frame> =>
   Option.flatMap(source.navigation(), plan => {

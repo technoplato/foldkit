@@ -42,7 +42,7 @@ export type DestinationRoute<Destination> = Readonly<{
   placement: Placement
   styleOf: (destination: Destination) => PresentationStyle
   isAllowedAbove: (below: Destination) => boolean
-  titleOf: (destination: Destination) => string
+  maybeTitleOf: (destination: Destination) => Option.Option<string>
 }>
 
 /** Options shared by the route constructors. */
@@ -51,7 +51,14 @@ export type RouteOptions<Destination> = Readonly<{
   title?: (destination: Destination) => string
 }>
 
-const untitled = (): string => ''
+const titledBy =
+  <Destination>(
+    options?: Readonly<{ title?: (destination: Destination) => string }>,
+  ) =>
+  (destination: Destination): Option.Option<string> =>
+    options?.title === undefined
+      ? Option.none()
+      : Option.some(options.title(destination))
 
 const anywhere = (): boolean => true
 
@@ -74,7 +81,7 @@ export const rootRoute = <Destination, Value>(
   placement: 'Root',
   styleOf: () => Push(),
   isAllowedAbove: () => false,
-  titleOf: options?.title ?? untitled,
+  maybeTitleOf: titledBy(options),
 })
 
 /**
@@ -96,7 +103,7 @@ export const pushRoute = <Destination, Value>(
   placement: 'Entry',
   styleOf: () => Push(),
   isAllowedAbove: options?.isAllowedAbove ?? anywhere,
-  titleOf: options?.title ?? untitled,
+  maybeTitleOf: titledBy(options),
 })
 
 /**
@@ -117,12 +124,14 @@ export const presentRoute = <Destination, Value>(
   placement: 'Entry',
   styleOf: () => style,
   isAllowedAbove: options?.isAllowedAbove ?? anywhere,
-  titleOf: options?.title ?? untitled,
+  maybeTitleOf: titledBy(options),
 })
 
 /**
  * Lifts a child's route into a wider Destination union, so a combinator
- * composes its child's routes without casts.
+ * composes its child's routes without casts. A child's rule about what it
+ * may sit above covers only its own Destinations; above one the child
+ * does not know, such as the action menu, its route is allowed.
  *
  * @example
  * ```typescript
@@ -151,14 +160,11 @@ export const liftRoute = <Child extends Parent, Parent>(
     }),
   isAllowedAbove: below =>
     Option.match(narrow(below), {
-      onNone: () => false,
+      onNone: () => true,
       onSome: route.isAllowedAbove,
     }),
-  titleOf: destination =>
-    Option.match(narrow(destination), {
-      onNone: untitled,
-      onSome: route.titleOf,
-    }),
+  maybeTitleOf: destination =>
+    Option.flatMap(narrow(destination), route.maybeTitleOf),
 })
 
 /**
@@ -179,7 +185,7 @@ export const tagCase = <Destination, Tagged extends Destination>(
     isTagged(destination) ? Option.some({}) : Option.none(),
 })
 
-// NOT FOUND
+// FALLBACK
 
 /**
  * The Destination for a URI no route matched. It keeps the attempted
@@ -215,7 +221,7 @@ export const notFoundRoute = <Destination>(
   placement: 'Fallback',
   styleOf: () => Push(),
   isAllowedAbove: anywhere,
-  titleOf: () => 'Not found',
+  maybeTitleOf: () => Option.some('Not found'),
 })
 
 // DECLARATION

@@ -29,7 +29,7 @@ import { pathAndUri, printStates } from './uri.js'
  * @example
  * ```typescript
  * // { key: '/counter/menu', uri: '/counter/menu?q=re', destination: ActionMenu,
- * //   maybeStyle: Some(Dialog()), title: 'Actions' }
+ * //   maybeStyle: Some(Dialog()), maybeTitle: Some('Actions') }
  * ```
  */
 export type CarrierEntry<Destination> = Readonly<{
@@ -37,7 +37,7 @@ export type CarrierEntry<Destination> = Readonly<{
   uri: string
   destination: Destination
   maybeStyle: Option.Option<PresentationStyle>
-  title: string
+  maybeTitle: Option.Option<string>
 }>
 
 /** What every carrier shows for one Model: entries root first, and the URI. */
@@ -47,14 +47,13 @@ export type CarrierPlan<Destination> = Readonly<{
   history: HistoryMode
 }>
 
-const titleOf = <Model, Destination>(
+const maybeTitleOf = <Model, Destination>(
   navigation: ProgramNavigation<Model, Destination>,
   destination: Destination,
-): string =>
-  Option.match(routeOf(navigation, destination), {
-    onNone: () => '',
-    onSome: route => route.titleOf(destination),
-  })
+): Option.Option<string> =>
+  Option.flatMap(routeOf(navigation, destination), route =>
+    route.maybeTitleOf(destination),
+  )
 
 /**
  * The carrier plan for one stack. None when the Program is not
@@ -88,7 +87,7 @@ export const planOf = <Model, Destination>(
           uri,
           destination: level.destination,
           maybeStyle: level.maybeStyle,
-          title: titleOf(navigation, level.destination),
+          maybeTitle: maybeTitleOf(navigation, level.destination),
         }
       },
     )
@@ -122,7 +121,15 @@ export type PlanLayers<Destination> = Readonly<{
 const hidesBeneath = <Destination>(entry: CarrierEntry<Destination>): boolean =>
   Option.match(entry.maybeStyle, { onNone: () => true, onSome: isOpaque })
 
-/** Splits a plan into the base screen and the entries presented over it. */
+/**
+ * Splits a plan into the base screen and the entries presented over it.
+ *
+ * @example
+ * ```typescript
+ * layersOf(planAt('/counter/session/menu'))
+ * // { base: /counter/session, overlays: [/counter/session/menu] }
+ * ```
+ */
 export const layersOf = <Destination>(
   plan: CarrierPlan<Destination>,
 ): PlanLayers<Destination> => {
@@ -325,6 +332,48 @@ export const launch = <Destination>(
   )
 
 /**
+ * Sends a URI to a Program once it is Ready: a `Launch` goes through
+ * {@link launch}, any other way opens it. A host with no carrier of its
+ * own, such as a terminal or a deep link listener, uses it instead of
+ * tracking readiness itself. The returned stop drops a URI still waiting.
+ *
+ * @example
+ * ```typescript
+ * openWhenReady(bound, '/counter/session', Launch()) // waits for Ready, then launches
+ * openWhenReady(bound, '/counter/menu', DeepLink()) // opens now when Ready
+ * ```
+ */
+export const openWhenReady = <Destination>(
+  source: CarrierSource<Destination>,
+  uri: string,
+  via: UriVia,
+): (() => void) => {
+  const send = (): void => {
+    if (via._tag === 'Launch') {
+      launch(source, uri)
+    } else {
+      source.openUri(uri, via)
+    }
+  }
+  if (Option.isSome(source.navigation())) {
+    send()
+    return () => {}
+  }
+  let isDone = false
+  const stopWatching = source.subscribe(() => {
+    if (!isDone && Option.isSome(source.navigation())) {
+      isDone = true
+      stopWatching()
+      send()
+    }
+  })
+  return () => {
+    isDone = true
+    stopWatching()
+  }
+}
+
+/**
  * Goes back one entry: reports `NavigatedBack` naming the entry beneath
  * the top. False at the root, where Back belongs to the host.
  *
@@ -359,8 +408,9 @@ export type CarrierDiagnostic =
  * - `expectationTimeoutMs` bounds the wait for our own asynchronous write.
  * - `reportTimeoutMs` bounds the wait for the Program to answer a fact;
  *   a Program that refuses one is corrected after it.
- * - `maximumCorrections` bounds the writes toward one plan, so a carrier
- *   that rewrites URIs cannot loop forever.
+ * - `maximumCorrections` bounds the writes in a row that leave the carrier
+ *   short of one plan, so a carrier that rewrites URIs cannot loop
+ *   forever. Reaching the plan starts the count again.
  */
 export type CarrierOptions = Readonly<{
   launchUri?: Option.Option<string>
@@ -410,6 +460,7 @@ export const runCarrier = <Destination>(
   let hasLaunched = false
   let maybeWrittenPlanUri: Option.Option<string> = Option.none()
   let writesTowardPlan = 0
+  let hasGivenUp = false
   let isStopped = false
 
   const report = (diagnostic: CarrierDiagnostic): void => {
@@ -437,14 +488,20 @@ export const runCarrier = <Destination>(
     if (!Option.contains(maybeWrittenPlanUri, plan.uri)) {
       maybeWrittenPlanUri = Option.some(plan.uri)
       writesTowardPlan = 0
+      hasGivenUp = false
     }
     const snapshot = driver.read()
     const move = carrierMove(snapshot, plan)
     if (move._tag === 'Unchanged') {
+      writesTowardPlan = 0
+      hasGivenUp = false
       return
     }
     if (writesTowardPlan >= maximumCorrections) {
-      report({ _tag: 'GaveUpCorrecting', uri: plan.uri })
+      if (!hasGivenUp) {
+        hasGivenUp = true
+        report({ _tag: 'GaveUpCorrecting', uri: plan.uri })
+      }
       return
     }
     writesTowardPlan += 1

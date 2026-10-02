@@ -20,6 +20,7 @@ import { Push, presented, stackAtRoot, stackWithEntries } from './structure.js'
 import {
   canonicalUri,
   defaultUri,
+  ownsUri,
   parseStack,
   pathOf,
   printStack,
@@ -42,6 +43,13 @@ describe('splitUri', () => {
       'counter',
       '%E0%A4%A',
     ])
+  })
+
+  it('drops the fragment, which scrolls a page and names none', () => {
+    expect(splitUri('/counter/menu?q=re#row')).toEqual({
+      segments: ['counter', 'menu'],
+      search: 'q=re',
+    })
   })
 
   it('drops empty segments from repeated and trailing slashes', () => {
@@ -78,6 +86,10 @@ describe('parseStack and printStack', () => {
     ['/counter/menu/session', '/counter/menu/session'],
     ['/counter/menu?q=a%20b', '/counter/menu?q=a+b'],
     ['/counter/a%2Fb', '/counter/a%2Fb'],
+    ['/counter/nope/menu?q=re', '/counter/nope/menu?q=re'],
+    ['/elsewhere/menu', '/elsewhere/menu'],
+    ['/counter/session#top', '/counter/session'],
+    ['/counter/menu?q=re#row', '/counter/menu?q=re'],
   ])('prints %s as %s and the printed URI is a fixed point', (uri, printed) => {
     expect(print(uri)).toBe(printed)
     expect(print(printed)).toBe(printed)
@@ -106,6 +118,15 @@ describe('parseStack and printStack', () => {
       stackAtRoot<Destination>(
         Declaration.NotFound({ segments: ['elsewhere', 'page'] }),
       ),
+    )
+  })
+
+  it('keeps a page presented above NotFound as its own entry', () => {
+    expect(parseStack(navigation, '/counter/nope/menu?q=re')).toEqual(
+      stackWithEntries<Destination>(Counter(), [
+        presented(Declaration.NotFound({ segments: ['nope'] }), Push()),
+        menuEntry('re'),
+      ]),
     )
   })
 
@@ -153,6 +174,19 @@ describe('parseStack and printStack', () => {
         stackWithEntries<Destination>(Counter(), [sessionEntry]),
       ),
     ).toEqual(Option.none())
+  })
+})
+
+describe('ownsUri', () => {
+  it.each([
+    ['/counter', true],
+    ['/counter/session?x=1', true],
+    ['/about', false],
+    ['//cdn.example/counter', false],
+    ['https://counter.example/counter', false],
+    ['counter', false],
+  ])('owns %s: %s', (uri, isOwn) => {
+    expect(ownsUri(navigation, uri)).toBe(isOwn)
   })
 })
 

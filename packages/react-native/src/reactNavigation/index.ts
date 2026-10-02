@@ -1,3 +1,5 @@
 export * from './deepLinks.js'
+export * from './entryOptions.js'
+export * from './entryView.js'
 export * from './foldkitStack.js'
 export * from './stack.js'

@@ -3,27 +3,20 @@ import { Stack, useNavigationContainerRef, useRoute } from 'expo-router'
 import { Navigation } from 'foldkit'
 import { type ReactElement, useEffect, useState } from 'react'
 
-import { type AnyBound, useBound } from '@foldkit/react/interaction'
-import { useNavigationPlan } from '@foldkit/react/navigation'
+import { useBound } from '@foldkit/react/interaction'
+import { useIsNavigationReady } from '@foldkit/react/navigation'
 
 import type { PaintStyles } from '../interaction/screen.js'
+import { entryOptionsOf } from '../reactNavigation/entryOptions.js'
 import {
   EntryStylesContext,
   EntryView,
   entryStylesOf,
 } from '../reactNavigation/entryView.js'
-import { keyedRoutesOf, presentationOf } from '../reactNavigation/stack.js'
+import { keyedRoutesOf } from '../reactNavigation/stack.js'
 import { expoRouterStack } from './routerStack.js'
 
 // LAYOUT
-
-const entryAt = (
-  bound: AnyBound,
-  key: string,
-): Option.Option<Navigation.CarrierEntry<unknown>> =>
-  Option.flatMap(bound.navigation(), plan =>
-    Array.findFirst(plan.entries, entry => entry.key === key),
-  )
 
 const useIsContainerReady = (
   ref: ReturnType<typeof useNavigationContainerRef>,
@@ -74,7 +67,7 @@ export const FoldkitRouterStack = ({
   const bound = useBound()
   const ref = useNavigationContainerRef()
   const isContainerReady = useIsContainerReady(ref)
-  const isPlanReady = Option.isSome(useNavigationPlan())
+  const isPlanReady = useIsNavigationReady()
 
   useEffect(() => {
     if (!isContainerReady || !isPlanReady) {
@@ -95,22 +88,7 @@ export const FoldkitRouterStack = ({
 
   return (
     <EntryStylesContext.Provider value={entryStylesOf(styles)}>
-      <Stack
-        screenOptions={({ route }) => {
-          const maybeEntry = entryAt(bound, route.key)
-          const presentation = presentationOf(
-            Option.flatMap(maybeEntry, entry => entry.maybeStyle),
-          )
-          return {
-            presentation,
-            headerShown: presentation === 'card',
-            title: Option.match(maybeEntry, {
-              onNone: () => '',
-              onSome: entry => entry.title,
-            }),
-          }
-        }}
-      />
+      <Stack screenOptions={({ route }) => entryOptionsOf(bound, route.key)} />
     </EntryStylesContext.Provider>
   )
 }

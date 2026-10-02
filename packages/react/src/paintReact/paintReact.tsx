@@ -5,10 +5,13 @@ import { Fragment, type ReactElement } from 'react'
 /** Extra class per node kind, appended after the fk-* base class. */
 export type PaintClassNames = Partial<Record<UiNode['_tag'], string>>
 
+const primaryButton = 0
+
 /**
  * How a painted tree reports presses, text input, and link follows.
- * `onLink` returns true when it handled the link, such as opening an
- * in-app URI, so the browser does not load the page.
+ * `onLink` sees only plain primary clicks and returns true when it handled
+ * the link, such as opening an in-app URI, so the browser does not load
+ * the page. A modified click, such as Cmd-click, stays with the browser.
  */
 export type PaintHandlers = Readonly<{
   onPress: (button: ButtonNode) => void
@@ -67,7 +70,17 @@ export const paintTree = (
                 className="fk-text-link"
                 href={href}
                 onClick={event => {
-                  if (handlers.onLink !== undefined && handlers.onLink(href)) {
+                  const isPlainClick =
+                    event.button === primaryButton &&
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.shiftKey &&
+                    !event.altKey
+                  if (
+                    isPlainClick &&
+                    handlers.onLink !== undefined &&
+                    handlers.onLink(href)
+                  ) {
                     event.preventDefault()
                   }
                 }}

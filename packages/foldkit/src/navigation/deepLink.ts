@@ -1,6 +1,6 @@
 import { Option, String } from 'effect'
 
-// DEEP LINK
+// LINK
 
 const webSchemes: ReadonlySet<string> = new Set(['http', 'https'])
 

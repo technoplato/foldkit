@@ -183,7 +183,16 @@ export const entriesOf = <Destination>(
   stack: NavigationStack<Destination>,
 ): ReadonlyArray<Presented<Destination>> => presentedEntries(stack)
 
-/** Builds a stack from its root and any entries above it. */
+/**
+ * Builds a stack from its root and any entries above it.
+ *
+ * @example
+ * ```typescript
+ * stackFrom(Counter(), []) // stackAtRoot(Counter())
+ * stackFrom(Counter(), [presented(SessionSettings(), Push())])
+ * // [Counter, Push SessionSettings]
+ * ```
+ */
 export const stackFrom = <Destination>(
   root: Destination,
   entries: ReadonlyArray<Presented<Destination>>,
@@ -193,14 +202,31 @@ export const stackFrom = <Destination>(
     onNonEmpty: nonEmpty => stackWithEntries(root, nonEmpty),
   })
 
-/** The root plus the first `count` entries. */
+/**
+ * The root plus the first `count` entries.
+ *
+ * @example
+ * ```typescript
+ * // stack is [Counter, Push SessionSettings, Dialog ActionMenu]
+ * truncated(stack, 1) // [Counter, Push SessionSettings]
+ * truncated(stack, 0) // [Counter]
+ * ```
+ */
 export const truncated = <Destination>(
   stack: NavigationStack<Destination>,
   count: number,
 ): NavigationStack<Destination> =>
   stackFrom(stack.root, Array.take(entriesOf(stack), count))
 
-/** True for styles that hide what is beneath them: Push and FullScreenCover. */
+/**
+ * True for styles that hide what is beneath them: Push and FullScreenCover.
+ *
+ * @example
+ * ```typescript
+ * isOpaque(Push()) // true: the Session page hides the Counter
+ * isOpaque(Dialog()) // false: the menu floats over the page
+ * ```
+ */
 export const isOpaque = (style: PresentationStyle): boolean =>
   style._tag === 'Push' || style._tag === 'FullScreenCover'
 

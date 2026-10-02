@@ -320,10 +320,16 @@ describe('Runtime.start Memory', () => {
       Effect.scoped(
         Effect.gen(function* () {
           const store = makeMemoryStore()
+          let nowMs = 1_000
+          const clock = () => nowMs
           const reactEngine = Memory({ processor: Host.React(), store })
           const cliEngine = Memory({ processor: Host.Cli(), store })
-          const react = yield* start({ program: Synced, sync: reactEngine })
-          const cli = yield* start({ program: Synced, sync: cliEngine })
+          const react = yield* start({
+            program: Synced,
+            sync: reactEngine,
+            clock,
+          })
+          const cli = yield* start({ program: Synced, sync: cliEngine, clock })
 
           for (let tap = 0; tap < 5; tap += 1) {
             yield* react.run(Increment())
@@ -340,7 +346,7 @@ describe('Runtime.start Memory', () => {
           expect(react.readModel()).toEqual({ _tag: 'Ready', count: 7 })
           expect(cli.readModel()).toEqual({ _tag: 'Ready', count: 5 })
 
-          yield* Effect.sleep('5 millis')
+          nowMs = 2_000
           yield* cli.run(Reset())
           yield* cli.run(Increment())
           expect(cli.readModel()).toEqual({ _tag: 'Ready', count: 1 })
@@ -358,6 +364,7 @@ describe('Runtime.start Memory', () => {
           const tui = yield* start({
             program: Synced,
             sync: Memory({ processor: Host.Tui(), store }),
+            clock,
           })
           expect(tui.readModel()).toEqual({ _tag: 'Ready', count: 1 })
         }),

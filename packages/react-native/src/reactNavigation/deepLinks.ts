@@ -1,17 +1,17 @@
-import { Option } from 'effect'
 import { Navigation } from 'foldkit'
 import { useEffect } from 'react'
 import { Linking } from 'react-native'
 
 import { useBound } from '@foldkit/react/interaction'
 
-// DEEP LINKS
+// LINKS
 
 /**
- * Sends the app's deep links to the bound Program. The link the app opened
- * with launches once the Program is Ready, so a session that mirrors
- * navigation keeps the newcomer on the shared screen; a link that arrives
- * while running opens as a `DeepLink`.
+ * Sends the app's deep links to the bound Program through
+ * `Navigation.openWhenReady`. The link the app opened with launches, so a
+ * session that mirrors navigation keeps the newcomer on the shared screen;
+ * a link that arrives later opens as a `DeepLink`, even if it arrives
+ * while the Program is still Starting.
  *
  * @example
  * ```tsx
@@ -25,30 +25,27 @@ import { useBound } from '@foldkit/react/interaction'
 export const useDeepLinks = (): void => {
   const bound = useBound()
   useEffect(() => {
-    let maybeLaunchUri: Option.Option<string> = Option.none()
     let isStopped = false
-
-    const launchWhenReady = (): void => {
-      if (Option.isSome(maybeLaunchUri) && Option.isSome(bound.navigation())) {
-        const launchUri = maybeLaunchUri.value
-        maybeLaunchUri = Option.none()
-        Navigation.launch(bound, launchUri)
-      }
+    const pending = new Set<() => void>()
+    const openSoon = (url: string, via: Navigation.UriVia): void => {
+      const cancel = Navigation.openWhenReady(
+        bound,
+        Navigation.uriOfDeepLink(url),
+        via,
+      )
+      pending.add(cancel)
     }
-
-    const stopWatching = bound.subscribe(launchWhenReady)
     void Linking.getInitialURL().then(url => {
       if (!isStopped && url !== null) {
-        maybeLaunchUri = Option.some(Navigation.uriOfDeepLink(url))
-        launchWhenReady()
+        openSoon(url, Navigation.Launch())
       }
     })
     const subscription = Linking.addEventListener('url', ({ url }) => {
-      bound.openUri(Navigation.uriOfDeepLink(url), Navigation.DeepLink())
+      openSoon(url, Navigation.DeepLink())
     })
     return () => {
       isStopped = true
-      stopWatching()
+      pending.forEach(cancel => cancel())
       subscription.remove()
     }
   }, [bound])

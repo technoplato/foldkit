@@ -68,6 +68,7 @@ export {
   parseStack,
   canonicalUri,
   defaultUri,
+  ownsUri,
 } from './uri.js'
 export type { SplitUri, PathAndUri } from './uri.js'
 export {
@@ -106,6 +107,7 @@ export {
   carrierMove,
   classifyCarrierChange,
   launch,
+  openWhenReady,
   backOneEntry,
   layersOf,
   runCarrier,

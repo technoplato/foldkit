@@ -9,7 +9,10 @@ import {
 } from '../navigation/declaration.js'
 import { NavigatedBack, OpenedUri, type UriVia } from '../navigation/message.js'
 import { type NavigationStack, stackAtRoot } from '../navigation/structure.js'
-import { canonicalUri as canonicalUriOf } from '../navigation/uri.js'
+import {
+  canonicalUri as canonicalUriOf,
+  ownsUri as ownsUriOf,
+} from '../navigation/uri.js'
 import type { ProgramSchema } from '../program/program.js'
 import type { UiNode } from '../renderers/types.js'
 import {
@@ -66,6 +69,7 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
     navigation: () => Option.Option<CarrierPlan<unknown>>
     viewAt: (key: string) => Option.Option<EntryView>
     canonicalUri: (uri: string) => Option.Option<string>
+    ownsUri: (uri: string) => boolean
     openUri: (uri: string, via: UriVia) => boolean
     navigateBack: (uri: string) => boolean
   }>
@@ -203,6 +207,7 @@ export const bind = <Model, Message>(
       declaration === undefined
         ? Option.none()
         : canonicalUriOf(declaration, uri),
+    ownsUri: uri => declaration !== undefined && ownsUriOf(declaration, uri),
     openUri: (uri, via) => sendFact(OpenedUri({ uri, via })),
     navigateBack: uri => sendFact(NavigatedBack({ uri })),
   }

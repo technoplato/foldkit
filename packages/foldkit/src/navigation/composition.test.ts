@@ -82,6 +82,33 @@ describe('a composed App', () => {
     expect(uriOf(bound)).toBe('/counter/session')
   })
 
+  it('round-trips the Session page pushed above a page no route matched', () => {
+    const bound = bindApp()
+    bound.openUri('/counter/nope', Link())
+    bound.press('OpenSessionSettings')
+    expect(uriOf(bound)).toBe('/counter/nope/session')
+    bound.openUri('/counter/nope/session', Link())
+    expect(uriOf(bound)).toBe('/counter/nope/session')
+    expect(Option.map(bound.navigation(), plan => plan.entries.length)).toEqual(
+      Option.some(3),
+    )
+  })
+
+  it('round-trips a child page pushed above the menu', () => {
+    const bound = bindApp()
+    bound.openMenu()
+    bound.press('OpenSessionSettings')
+    expect(uriOf(bound)).toBe('/counter/menu/session')
+    bound.openUri('/counter/menu/session', Link())
+    expect(
+      Option.map(bound.navigation(), plan =>
+        plan.entries.map(entry => entry.key),
+      ),
+    ).toEqual(
+      Option.some(['/counter', '/counter/menu', '/counter/menu/session']),
+    )
+  })
+
   it('keeps an unknown path and paints it as not found', () => {
     const bound = bindApp()
     bound.openUri('/counter/nope', Link())
@@ -240,7 +267,7 @@ describe('a synced App', () => {
     )
   })
 
-  it('mirrors a carrier move on every Processor, then keeps moves local', async () => {
+  it('mirrors a carrier move, keeps moves local, then brings every Processor back together', async () => {
     const store = makeMemoryStore()
     const laptop = startHandle({
       program: Synced,
@@ -273,6 +300,10 @@ describe('a synced App', () => {
       await eventually(uriOn(laptopBound), Option.some('/counter/menu'))
       await Effect.runPromise(Effect.sleep(Duration.millis(20)))
       expect(uriOn(phoneBound)()).toEqual(Option.some('/counter/session'))
+
+      laptopBound.press('MirrorNavigation')
+      await eventually(uriOn(phoneBound), Option.some('/counter'))
+      await eventually(uriOn(laptopBound), Option.some('/counter'))
     } finally {
       await laptop.stop()
       await phone.stop()

@@ -36,7 +36,7 @@ export type BrowserWindow = Readonly<{
 export const windowUri = (window: BrowserWindow): string =>
   `${window.location.pathname}${window.location.search}`
 
-// ENTRY STATE
+// STATE
 
 const EntryState = S.Struct({
   foldkitNavigation: S.Struct({

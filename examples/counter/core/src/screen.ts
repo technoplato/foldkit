@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 import { Catalog } from 'foldkit'
 import { type ActionContext } from 'foldkit/message'
 import {
@@ -11,7 +12,7 @@ import { wrapDevice } from 'foldkit/renderers/devices'
 
 import { catalog } from './message.js'
 import { type Model } from './model.js'
-import { counterUri } from './navigation.js'
+import { maybeCounterUri } from './navigation.js'
 
 // VIEW
 
@@ -41,6 +42,13 @@ export const counterScreen = (
   if (context.device === undefined) {
     return screen
   } else {
-    return wrapDevice(context.device, screen, { title: counterUri })
+    return wrapDevice(
+      context.device,
+      screen,
+      Option.match(maybeCounterUri, {
+        onNone: () => ({}),
+        onSome: title => ({ title }),
+      }),
+    )
   }
 }

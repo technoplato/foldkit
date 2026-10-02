@@ -153,6 +153,12 @@ describe('navigation commands', () => {
     expect(refused.stderr).toBe('Already at the first screen.')
   })
 
+  it('refuses open without a URI', () => {
+    const refused = runProgramCommand(bindApp(), 'counter', ['open'], {})
+    expect(refused.exitCode).toBe(2)
+    expect(refused.stderr).toBe('open needs a URI.')
+  })
+
   it('prints the current URI', () => {
     const bound = bindApp()
     bound.press('OpenSessionSettings')

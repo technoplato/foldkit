@@ -2,8 +2,8 @@ import { Array, Option } from 'effect'
 import { Navigation } from 'foldkit'
 import { type ReactElement, useEffect, useMemo, useState } from 'react'
 
-import { type AnyBound, useBound } from '@foldkit/react/interaction'
-import { useNavigationPlan } from '@foldkit/react/navigation'
+import { useBound } from '@foldkit/react/interaction'
+import { useIsNavigationReady } from '@foldkit/react/navigation'
 import {
   NavigationContainer,
   createNavigationContainerRef,
@@ -14,12 +14,12 @@ import {
 } from '@react-navigation/native-stack'
 
 import type { PaintStyles } from '../interaction/screen.js'
+import { entryOptionsOf } from './entryOptions.js'
 import { EntryStylesContext, EntryView, entryStylesOf } from './entryView.js'
 import {
   entryRouteName,
   entryStateOf,
   keyedRoutesOf,
-  presentationOf,
   reactNavigationStack,
 } from './stack.js'
 
@@ -31,14 +31,6 @@ type ParamList = {
 
 const Stack = createNativeStackNavigator<ParamList>()
 
-const entryAt = (
-  bound: AnyBound,
-  key: string,
-): Option.Option<Navigation.CarrierEntry<unknown>> =>
-  Option.flatMap(bound.navigation(), plan =>
-    Array.findFirst(plan.entries, entry => entry.key === key),
-  )
-
 const EntryScreen = ({
   route,
 }: NativeStackScreenProps<ParamList, typeof entryRouteName>): ReactElement => (
@@ -46,10 +38,10 @@ const EntryScreen = ({
 )
 
 const ReadyStack = ({
-  initialPlan,
+  initialRoutes,
   launchUri,
 }: Readonly<{
-  initialPlan: Navigation.CarrierPlan<unknown>
+  initialRoutes: Array.NonEmptyReadonlyArray<Navigation.KeyedRoute>
   launchUri: string | undefined
 }>): ReactElement => {
   const bound = useBound()
@@ -57,7 +49,7 @@ const ReadyStack = ({
     () => createNavigationContainerRef<ParamList>(),
     [],
   )
-  const [initialRoutes] = useState(() => keyedRoutesOf(initialPlan))
+  const [routesAtMount] = useState(initialRoutes)
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
@@ -67,35 +59,22 @@ const ReadyStack = ({
     return Navigation.runCarrier(
       bound,
       Navigation.keyedStackDriver(
-        reactNavigationStack(navigationRef, initialRoutes),
+        reactNavigationStack(navigationRef, routesAtMount),
       ),
       { launchUri: Option.fromNullishOr(launchUri) },
     )
-  }, [bound, isReady, navigationRef, initialRoutes, launchUri])
+  }, [bound, isReady, navigationRef, routesAtMount, launchUri])
 
   return (
     <NavigationContainer
       ref={navigationRef}
-      initialState={entryStateOf(initialRoutes)}
+      initialState={entryStateOf(routesAtMount)}
       onReady={() => {
         setIsReady(true)
       }}
     >
       <Stack.Navigator
-        screenOptions={({ route }) => {
-          const maybeEntry = entryAt(bound, route.key)
-          const presentation = presentationOf(
-            Option.flatMap(maybeEntry, entry => entry.maybeStyle),
-          )
-          return {
-            presentation,
-            headerShown: presentation === 'card',
-            title: Option.match(maybeEntry, {
-              onNone: () => '',
-              onSome: entry => entry.title,
-            }),
-          }
-        }}
+        screenOptions={({ route }) => entryOptionsOf(bound, route.key)}
       >
         <Stack.Screen name={entryRouteName} component={EntryScreen} />
       </Stack.Navigator>
@@ -109,7 +88,9 @@ const ReadyStack = ({
  * the header back button, and the Android back button reach the Program
  * as `NavigatedBack`; every Program move resets the stack to its plan,
  * keeping unchanged screens mounted. It renders nothing until the Program
- * is Ready. `launchUri` is a deep link the app opened with.
+ * is Ready, and after that it re-renders only if readiness changes; each
+ * screen repaints its own entry. `launchUri` is a deep link the app
+ * opened with.
  *
  * @example
  * ```tsx
@@ -124,12 +105,18 @@ export const FoldkitStack = ({
 }: Readonly<{
   launchUri?: string
   styles?: PaintStyles
-}>): ReactElement | null =>
-  Option.match(useNavigationPlan(), {
+}>): ReactElement | null => {
+  const bound = useBound()
+  const isNavigationReady = useIsNavigationReady()
+  const maybeRoutes = isNavigationReady
+    ? Option.map(bound.navigation(), keyedRoutesOf)
+    : Option.none()
+  return Option.match(maybeRoutes, {
     onNone: () => null,
-    onSome: plan => (
+    onSome: initialRoutes => (
       <EntryStylesContext.Provider value={entryStylesOf(styles)}>
-        <ReadyStack initialPlan={plan} launchUri={launchUri} />
+        <ReadyStack initialRoutes={initialRoutes} launchUri={launchUri} />
       </EntryStylesContext.Provider>
     ),
   })
+}

@@ -1,4 +1,4 @@
-import { Option, Schema as S } from 'effect'
+import { Schema as S } from 'effect'
 import { Navigation, Route } from 'foldkit'
 import { ts } from 'foldkit/schema'
 
@@ -40,8 +40,5 @@ export const navigation = Navigation.make<Model, Counter>({
   routes: [counterRoute],
 })
 
-/** The URI of the Counter page: `/counter`. */
-export const counterUri = Option.getOrElse(
-  Navigation.defaultUri(navigation),
-  () => '/',
-)
+/** The URI of the Counter page, `/counter`, which its device chrome shows. */
+export const maybeCounterUri = Navigation.defaultUri(navigation)

@@ -31,7 +31,8 @@ const decodeSegment = (segment: string): string =>
   )
 
 /**
- * Splits a relative URI into decoded path segments and its raw search.
+ * Splits a relative URI into decoded path segments and its raw search. A
+ * fragment is dropped: it scrolls a page, it does not name one.
  *
  * @example
  * ```typescript
@@ -39,7 +40,11 @@ const decodeSegment = (segment: string): string =>
  * // { segments: ['counters', 'counter', 'a b'], search: 'q=re' }
  * ```
  */
-export const splitUri = (uri: string): SplitUri => {
+export const splitUri = (fullUri: string): SplitUri => {
+  const uri = Option.match(String.indexOf('#')(fullUri), {
+    onNone: () => fullUri,
+    onSome: fragmentIndex => fullUri.slice(0, fragmentIndex),
+  })
   const maybeQueryIndex = String.indexOf('?')(uri)
   const pathname = Option.match(maybeQueryIndex, {
     onNone: () => uri,
@@ -196,17 +201,6 @@ const routesPlaced = <Model, Destination>(
 ): ReadonlyArray<DestinationRoute<Destination>> =>
   Array.filter(routesOf(navigation), route => route.placement === placement)
 
-const entryRoutes = <Model, Destination>(
-  navigation: ProgramNavigation<Model, Destination>,
-  isLenient: boolean,
-): ReadonlyArray<DestinationRoute<Destination>> =>
-  isLenient
-    ? Array.appendAll(
-        routesPlaced(navigation, 'Entry'),
-        routesPlaced(navigation, 'Fallback'),
-      )
-    : routesPlaced(navigation, 'Entry')
-
 const parseWith = <Destination>(
   route: DestinationRoute<Destination>,
   segments: ReadonlyArray<string>,
@@ -232,11 +226,12 @@ const parseEntries = <Model, Destination>(
   if (Array.isReadonlyArrayEmpty(segments)) {
     return Option.some([])
   }
-  return Array.findFirst(
-    Array.filter(entryRoutes(navigation, isLenient), route =>
+  const allowedAbove = (placement: Placement) =>
+    Array.filter(routesPlaced(navigation, placement), route =>
       route.isAllowedAbove(below),
-    ),
-    route =>
+    )
+  return Option.orElse(
+    Array.findFirst(allowedAbove('Entry'), route =>
       pipe(
         parseWith(route, segments, search),
         Option.filter(({ remaining }) => remaining.length < segments.length),
@@ -250,8 +245,63 @@ const parseEntries = <Model, Destination>(
           ),
         ),
       ),
+    ),
+    () =>
+      isLenient
+        ? Array.findFirst(allowedAbove('Fallback'), route =>
+            parseFallback(
+              navigation,
+              route,
+              segments,
+              search,
+              (destination, above) => [
+                presented(destination, route.styleOf(destination)),
+                ...above,
+              ],
+            ),
+          )
+        : Option.none(),
   )
 }
+
+/**
+ * A fallback takes the shortest run of segments after which the rest
+ * parses strictly, so a page pushed above NotFound keeps its own route:
+ * `/counter/nope/session` is NotFound(['nope']) with Session above it,
+ * and `/counter/bogus/deeper` is one NotFound(['bogus', 'deeper']).
+ */
+const parseFallback = <Model, Destination, Parsed>(
+  navigation: ProgramNavigation<Model, Destination>,
+  route: DestinationRoute<Destination>,
+  segments: ReadonlyArray<string>,
+  search: string,
+  toParsed: (
+    destination: Destination,
+    above: ReadonlyArray<Presented<Destination>>,
+  ) => Parsed,
+): Option.Option<Parsed> =>
+  Array.isReadonlyArrayEmpty(segments)
+    ? Option.none()
+    : Array.findFirst(Array.range(1, segments.length), count =>
+        pipe(
+          parseWith(route, Array.take(segments, count), search),
+          Option.filter(({ remaining }) =>
+            Array.isReadonlyArrayEmpty(remaining),
+          ),
+          Option.flatMap(({ destination }) =>
+            Option.map(
+              parseEntries(
+                navigation,
+                Array.drop(segments, count),
+                search,
+                destination,
+                false,
+              ),
+              above => toParsed(destination, above),
+            ),
+          ),
+        ),
+      )
 
 const parseRoots = <Model, Destination>(
   navigation: ProgramNavigation<Model, Destination>,
@@ -276,11 +326,7 @@ const parseFallbackRoot = <Model, Destination>(
   search: string,
 ): Option.Option<NavigationStack<Destination>> =>
   Array.findFirst(routesPlaced(navigation, 'Fallback'), route =>
-    pipe(
-      parseWith(route, segments, search),
-      Option.filter(({ remaining }) => Array.isReadonlyArrayEmpty(remaining)),
-      Option.map(({ destination }) => stackAtRoot(destination)),
-    ),
+    parseFallback(navigation, route, segments, search, stackFrom),
   )
 
 const withoutSlug = <Model, Destination>(
@@ -330,6 +376,26 @@ export const parseStack = <Model, Destination>(
     Option.getOrElse(() => stackAtRoot(navigation.root)),
   )
 }
+
+/**
+ * Whether a URI is the Program's own: an absolute path under its slug, or
+ * any absolute path when it has no slug. A host follows any other link
+ * itself.
+ *
+ * @example
+ * ```typescript
+ * ownsUri(navigation, '/counter/session') // true
+ * ownsUri(navigation, '/about') // false: another page on the site
+ * ownsUri(navigation, '//cdn.example/x') // false: another host
+ * ```
+ */
+export const ownsUri = <Model, Destination>(
+  navigation: ProgramNavigation<Model, Destination>,
+  uri: string,
+): boolean =>
+  String.startsWith('/')(uri) &&
+  !String.startsWith('//')(uri) &&
+  Option.isSome(withoutSlug(navigation, splitUri(uri).segments))
 
 /**
  * The canonical spelling of a URI: parsed, then printed. A carrier showing

@@ -11,8 +11,10 @@ import { useBoundRead } from '../interaction/selected.js'
 const hrefOf = (to: To): string =>
   typeof to === 'string' ? to : createPath(to)
 
-const fallbackUri = (): string =>
-  typeof window === 'undefined' ? '/' : Navigation.windowUri(window)
+const windowLocation = (): Option.Option<string> =>
+  typeof window === 'undefined'
+    ? Option.none()
+    : Option.some(Navigation.windowUri(window))
 
 /**
  * The navigator React Router calls. A push or replace opens the URI, so the
@@ -39,7 +41,8 @@ export const navigatorOf = (bound: AnyBound): Navigator => ({
  * Program's plan URI, so `useLocation`, `<Routes>`, and `<NavLink>` read
  * the Program, and `<Link>` and `useNavigate` send `OpenedUri` instead of
  * writing history. Pair it with `useBrowserHistory` so the address bar and
- * Back follow the plan.
+ * Back follow the plan. Until the Program is Ready it routes on the
+ * browser's location; with neither, it renders nothing.
  *
  * @example
  * ```tsx
@@ -57,16 +60,19 @@ export const FoldkitRouter = ({
   children,
 }: Readonly<{ children?: ReactNode }>): ReactElement => {
   const bound = useBound()
-  const location = useBoundRead(bound, () =>
-    Option.match(bound.navigation(), {
-      onNone: fallbackUri,
-      onSome: plan => plan.uri,
-    }),
+  const maybeLocation = useBoundRead(bound, () =>
+    Option.orElse(
+      Option.map(bound.navigation(), plan => plan.uri),
+      windowLocation,
+    ),
   )
   const navigator = useMemo(() => navigatorOf(bound), [bound])
-  return (
-    <Router location={location} navigator={navigator}>
-      {children}
-    </Router>
-  )
+  return Option.match(maybeLocation, {
+    onNone: () => <></>,
+    onSome: location => (
+      <Router location={location} navigator={navigator}>
+        {children}
+      </Router>
+    ),
+  })
 }

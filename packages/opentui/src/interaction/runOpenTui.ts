@@ -17,7 +17,7 @@ import {
   paintOpenTuiNavigationFrame,
 } from './paintOpenTui.js'
 
-const quitHint = '[?] actions  [esc] back  [q] quit'
+const quitHint = '[q] quit'
 const paintedTreeIndex = 0
 
 /** Where an OpenTUI run starts. `launchUri` opens once the Program is Ready. */
@@ -44,15 +44,14 @@ export const runOpenTui = <Model, Message>(
 ): Promise<void> =>
   new Promise(resolve => {
     let maybePainted: Option.Option<Renderable> = Option.none()
-    let maybeLaunchUri = Option.fromNullishOr(options.launchUri)
-
-    const launchWhenReady = (): void => {
-      if (Option.isSome(maybeLaunchUri) && Option.isSome(bound.navigation())) {
-        const launchUri = maybeLaunchUri.value
-        maybeLaunchUri = Option.none()
-        Navigation.launch(bound, launchUri)
-      }
-    }
+    const stopLaunching = Option.match(
+      Option.fromNullishOr(options.launchUri),
+      {
+        onNone: () => () => {},
+        onSome: launchUri =>
+          Navigation.openWhenReady(bound, launchUri, Navigation.Launch()),
+      },
+    )
 
     const keysOf = (action: string): ReadonlyArray<string> =>
       Option.match(
@@ -79,7 +78,6 @@ export const runOpenTui = <Model, Message>(
     }
 
     const paint = (): void => {
-      launchWhenReady()
       const next = Option.match(Navigation.frameOf(bound), {
         onNone: () =>
           paintOpenTuiFrame(
@@ -117,6 +115,7 @@ export const runOpenTui = <Model, Message>(
       )
       if (!isHandled && typed === 'q' && Option.isNone(bound.menu())) {
         stopWatching()
+        stopLaunching()
         resolve()
       }
     })
