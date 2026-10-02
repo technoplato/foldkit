@@ -107,11 +107,13 @@ export {
   classifyCarrierChange,
   launch,
   backOneEntry,
+  layersOf,
   runCarrier,
 } from './carrier.js'
 export type {
   CarrierEntry,
   CarrierPlan,
+  PlanLayers,
   CarrierSnapshot,
   CarrierMove,
   Expectation,
@@ -123,6 +125,8 @@ export type {
 } from './carrier.js'
 export { windowUri, browserHistoryDriver } from './browserHistory.js'
 export type { BrowserWindow } from './browserHistory.js'
+export { frameOf } from './frame.js'
+export type { Frame, FrameLayer, FrameSource } from './frame.js'
 export { keyedStackDriver } from './keyedStack.js'
 export type { KeyedRoute, KeyedStack } from './keyedStack.js'
 export {

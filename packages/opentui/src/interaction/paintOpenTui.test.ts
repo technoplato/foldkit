@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'bun:test'
 import { Array, Match as M, Option, Schema as S } from 'effect'
-import { ActionMenu, Catalog, Program } from 'foldkit'
+import {
+  ActionMenu,
+  Catalog,
+  Interaction,
+  Navigation,
+  Program,
+  Route,
+  Session,
+} from 'foldkit'
 import { Column, Row, Text, actionButtons } from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
 
 import { createTestRenderer } from '@opentui/core/testing'
 
-import { paintOpenTuiFrame } from './paintOpenTui.js'
+import {
+  paintOpenTuiFrame,
+  paintOpenTuiNavigationFrame,
+} from './paintOpenTui.js'
 
 const testScreenSize = { width: 72, height: 18 }
 
@@ -112,5 +123,84 @@ describe('paintOpenTuiFrame', () => {
     expect(frame).toContain('Actions')
     expect(frame).toContain('> increment')
     expect(frame).toContain('reset  Sets the count to 0')
+  })
+})
+
+type Counter = typeof Counter.Type
+
+const RoutedApp = ActionMenu.compose({
+  of: Session.compose({
+    of: Program.make({
+      id: 'opentui-routed-counter',
+      version: 1,
+      Model,
+      Message: catalog.Message,
+      init: () => [{ count: 0 }, []],
+      update: (model: Model, message: CounterMessage) =>
+        M.value(message).pipe(
+          M.withReturnType<readonly [Model, ReadonlyArray<never>]>(),
+          M.tagsExhaustive({
+            Increment: () => [{ count: model.count + 1 }, []],
+            Reset: () => [{ count: 0 }, []],
+          }),
+        ),
+      catalog,
+      screen: (model: Model) => screenAt(model.count),
+      navigation: Navigation.make<Model, Counter>({
+        slug: Navigation.Slug.make('counter'),
+        Destination: Counter,
+        root: Counter(),
+        routes: [
+          Navigation.rootRoute(
+            Route.caseOf(
+              Route.here,
+              Navigation.tagCase<Counter, Counter>(S.is(Counter), Counter),
+            ),
+          ),
+        ],
+      }),
+    }),
+  }),
+})
+
+type RoutedModel = typeof RoutedApp.Model.Type
+type RoutedMessage = typeof RoutedApp.Message.Type
+
+const bindRouted = () => {
+  let model: RoutedModel = RoutedApp.init()[0]
+  return Interaction.bind<RoutedModel, RoutedMessage>(RoutedApp, {
+    readModel: () => model,
+    subscribe: () => () => {},
+    send: message => {
+      model = RoutedApp.update(model, message)[0]
+    },
+    stop: () => Promise.resolve(),
+  })
+}
+
+describe('paintOpenTuiNavigationFrame', () => {
+  it('paints where it is, the page beneath, and the menu over it', async () => {
+    const bound = bindRouted()
+    bound.openUri('/counter/session/menu?q=re', Navigation.Link())
+    const { renderer, renderOnce, captureCharFrame } =
+      await createTestRenderer(testScreenSize)
+    renderer.root.add(
+      paintOpenTuiNavigationFrame(
+        renderer,
+        Option.getOrThrow(Navigation.frameOf(bound)),
+        {
+          keysOf,
+          onPress: () => {},
+          onChoose: () => {},
+          onDismiss: () => {},
+        },
+      ),
+    )
+    await renderOnce()
+    const frame = captureCharFrame()
+    renderer.destroy()
+    expect(frame).toContain('/counter/session/menu?q=re')
+    expect(frame).toContain('Actions')
+    expect(frame).toContain('> reset')
   })
 })

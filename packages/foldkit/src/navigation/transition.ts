@@ -77,7 +77,8 @@ const isAdoptedLaunch = <Model, Destination>(
  * unless it is a launch the declaration does not adopt. `NavigatedBack`
  * truncates to the deepest entry printed at that path and keeps the
  * entries' own values beneath it; with no such entry it adopts the URI
- * like `OpenedUri`.
+ * like `OpenedUri`. A declaration without routes ignores both facts,
+ * because it has no URIs to open.
  *
  * @example
  * ```typescript
@@ -92,7 +93,8 @@ export const applyMessage = <Model, Destination>(
   stack: NavigationStack<Destination>,
   message: Message,
 ): NavigationStack<Destination> => {
-  if (!isAdoptedLaunch(navigation, model, message)) {
+  const isAddressable = Array.isReadonlyArrayNonEmpty(navigation.routes ?? [])
+  if (!isAddressable || !isAdoptedLaunch(navigation, model, message)) {
     return stack
   }
   return M.value(message).pipe(

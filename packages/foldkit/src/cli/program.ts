@@ -3,7 +3,12 @@ import { Array, Effect, Match as M, Option, pipe } from 'effect'
 import { type Entry, commandOf } from '../catalog/catalog.js'
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type MenuView, keyInput } from '../interaction/interaction.js'
+import { backOneEntry } from '../navigation/carrier.js'
+import type { EntryView } from '../navigation/declaration.js'
+import { type Frame, frameOf } from '../navigation/frame.js'
+import { Cli } from '../navigation/message.js'
 import { renderScreen } from '../renderers/render.js'
+import type { UiNode } from '../renderers/types.js'
 import type {
   CliDaemonFlags,
   CliDaemonPaintedResult,
@@ -47,6 +52,30 @@ const menuLines = (menu: MenuView): ReadonlyArray<string> => [
   }),
 ]
 
+const treeLines = (tree: UiNode): ReadonlyArray<string> =>
+  Array.map(renderScreen(tree).split('\n'), line => line.trimEnd())
+
+const viewLines = (view: EntryView): ReadonlyArray<string> =>
+  M.value(view).pipe(
+    M.withReturnType<ReadonlyArray<string>>(),
+    M.tagsExhaustive({
+      Screen: ({ node }) => treeLines(node),
+      Menu: ({ menu }) => menuLines(menu),
+    }),
+  )
+
+const frameLines = (frame: Frame): ReadonlyArray<string> => [
+  `at ${frame.uri}`,
+  ...Array.flatMap([frame.base, ...frame.overlays], layer =>
+    viewLines(layer.view),
+  ),
+]
+
+const rootLines = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+): ReadonlyArray<string> =>
+  Option.match(bound.screen(), { onNone: () => [], onSome: treeLines })
+
 const statusLine = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
 ): string =>
@@ -60,39 +89,46 @@ const statusLine = <Model, Message>(
   )
 
 /**
- * Paints a bound Program as terminal text: status, the screen tree, every
- * Action with its CLI word, keys, and disabled sentence, and the action
- * menu when it is presented.
+ * Paints a bound Program as terminal text: status, the screen, every Action
+ * with its CLI word, keys, and disabled sentence. A Program with a URI
+ * paints where it is, its base screen, and each entry presented over it,
+ * such as the action menu. Any other Program paints its screen, then the
+ * menu after the Actions.
  *
  * @example
  * ```text
  * ready
- * 3
- * [ + ] [ - ] [ Reset ]
+ * at /counter/session
+ * Session
+ * [ Mirror navigation ] [ Keep navigation local ] [ Close ]
  *
  * Actions
  *   increment   [+ =]   Increments the count by one
- *   reset       [r]     Sets the count to 0
  * ```
  */
 export const paintProgram = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
 ): string =>
-  [
-    statusLine(bound),
-    ...Option.match(bound.screen(), {
-      onNone: () => [],
-      onSome: tree =>
-        Array.map(renderScreen(tree).split('\n'), line => line.trimEnd()),
-    }),
-    '',
-    'Actions',
-    ...Array.map(bound.entries(), actionLine),
-    ...Option.match(bound.menu(), {
-      onNone: () => [],
-      onSome: menuLines,
-    }),
-  ].join('\n')
+  Option.match(frameOf(bound), {
+    onNone: () => [
+      statusLine(bound),
+      ...rootLines(bound),
+      '',
+      'Actions',
+      ...Array.map(bound.entries(), actionLine),
+      ...Option.match(bound.menu(), {
+        onNone: () => [],
+        onSome: menuLines,
+      }),
+    ],
+    onSome: frame => [
+      statusLine(bound),
+      ...frameLines(frame),
+      '',
+      'Actions',
+      ...Array.map(bound.entries(), actionLine),
+    ],
+  }).join('\n')
 
 /**
  * Usage derived from the Program's Catalog. Every Action is a command; the
@@ -116,6 +152,9 @@ export const programUsage = <Model, Message>(
     '  menu next|previous Move focus in the action menu',
     '  menu choose <cmd>  Choose one action from the menu',
     '  key <key>          Press a key, with --meta, --ctrl, or --shift',
+    '  open <uri>         Go to a URI, such as /counter/session',
+    '  back               Go back one screen',
+    '  where              Print the current URI',
     '  help               Print this help',
   ].join('\n')
 
@@ -203,6 +242,29 @@ const runMenu = <Model, Message>(
   }
 }
 
+const runOpen = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  uri: string,
+): CliDaemonPaintedResult =>
+  bound.openUri(uri, Cli())
+    ? painted(paintProgram(bound))
+    : painted(paintProgram(bound), 1, `Cannot open ${uri}: no URIs here yet.`)
+
+const runBack = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+): CliDaemonPaintedResult =>
+  backOneEntry(bound)
+    ? painted(paintProgram(bound))
+    : painted(paintProgram(bound), 1, 'Already at the first screen.')
+
+const runWhere = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+): CliDaemonPaintedResult =>
+  Option.match(bound.navigation(), {
+    onNone: () => painted('', 1, 'This Program has no URI yet.'),
+    onSome: plan => painted(plan.uri),
+  })
+
 /**
  * Runs one CLI command against a bound Program and paints the result.
  * Words come from argv after flags are removed.
@@ -211,6 +273,7 @@ const runMenu = <Model, Message>(
  * ```typescript
  * runProgramCommand(bound, 'counter', ['increment'], {})
  * runProgramCommand(bound, 'counter', ['menu', 'type', 're'], {})
+ * runProgramCommand(bound, 'counter', ['open', '/counter/session'], {})
  * ```
  */
 export const runProgramCommand = <Model, Message>(
@@ -235,6 +298,12 @@ export const runProgramCommand = <Model, Message>(
       }),
     )
     return painted(paintProgram(bound))
+  } else if (head === 'open') {
+    return runOpen(bound, rest.join(' '))
+  } else if (head === 'back') {
+    return runBack(bound)
+  } else if (head === 'where') {
+    return runWhere(bound)
   } else if (head === 'do') {
     return pressCommand(bound, rest.join(' '), tag => bound.press(tag))
   } else {

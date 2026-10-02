@@ -1,5 +1,5 @@
 import { Array, Option } from 'effect'
-import { type Interaction } from 'foldkit'
+import { type Interaction, Navigation } from 'foldkit'
 import { keyInput, normalizeKey } from 'foldkit/interaction'
 
 import {
@@ -10,28 +10,49 @@ import {
   t,
 } from '@opentui/core'
 
-import { paintOpenTuiFrame } from './paintOpenTui.js'
+import {
+  type PaintOpenTuiMenuOptions,
+  type PaintOpenTuiOptions,
+  paintOpenTuiFrame,
+  paintOpenTuiNavigationFrame,
+} from './paintOpenTui.js'
 
-const quitHint = '[?] actions  [q] quit'
+const quitHint = '[?] actions  [esc] back  [q] quit'
 const paintedTreeIndex = 0
+
+/** Where an OpenTUI run starts. `launchUri` opens once the Program is Ready. */
+export type RunOpenTuiOptions = Readonly<{
+  launchUri?: string
+}>
 
 /**
  * Runs any bound Program on an OpenTUI renderer until `q`. It repaints on
  * every Model change and routes keys and mouse presses through the
- * Program's interaction.
+ * Program's interaction. A Program with a URI paints its navigation frame,
+ * and Escape goes back because the Program reads it as Back.
  *
  * @example
  * ```typescript
  * const renderer = await createCliRenderer({ exitOnCtrlC: true })
- * await runOpenTui(bindCounter(handle), renderer)
+ * await runOpenTui(bindCounter(handle), renderer, { launchUri: '/counter/session' })
  * ```
  */
 export const runOpenTui = <Model, Message>(
   bound: Interaction.BoundInteraction<Model, Message>,
   renderer: CliRenderer,
+  options: RunOpenTuiOptions = {},
 ): Promise<void> =>
   new Promise(resolve => {
     let maybePainted: Option.Option<Renderable> = Option.none()
+    let maybeLaunchUri = Option.fromNullishOr(options.launchUri)
+
+    const launchWhenReady = (): void => {
+      if (Option.isSome(maybeLaunchUri) && Option.isSome(bound.navigation())) {
+        const launchUri = maybeLaunchUri.value
+        maybeLaunchUri = Option.none()
+        Navigation.launch(bound, launchUri)
+      }
+    }
 
     const keysOf = (action: string): ReadonlyArray<string> =>
       Option.match(
@@ -42,20 +63,33 @@ export const runOpenTui = <Model, Message>(
         },
       )
 
+    const paintOptions: PaintOpenTuiOptions & PaintOpenTuiMenuOptions = {
+      keysOf,
+      onPress: button => {
+        if (button.action !== undefined) {
+          bound.press(button.action)
+        }
+      },
+      onChoose: tag => {
+        bound.chooseFromMenu(tag)
+      },
+      onDismiss: () => {
+        bound.dismissMenu()
+      },
+    }
+
     const paint = (): void => {
-      const next = paintOpenTuiFrame(renderer, bound.screen(), bound.menu(), {
-        keysOf,
-        onPress: button => {
-          if (button.action !== undefined) {
-            bound.press(button.action)
-          }
-        },
-        onChoose: tag => {
-          bound.chooseFromMenu(tag)
-        },
-        onDismiss: () => {
-          bound.dismissMenu()
-        },
+      launchWhenReady()
+      const next = Option.match(Navigation.frameOf(bound), {
+        onNone: () =>
+          paintOpenTuiFrame(
+            renderer,
+            bound.screen(),
+            bound.menu(),
+            paintOptions,
+          ),
+        onSome: frame =>
+          paintOpenTuiNavigationFrame(renderer, frame, paintOptions),
       })
       if (Option.isSome(maybePainted)) {
         renderer.root.remove(maybePainted.value)

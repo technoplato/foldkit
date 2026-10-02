@@ -2,7 +2,6 @@ import {
   Duration,
   Effect,
   Equal,
-  Match as M,
   Option,
   Schema as S,
   SchemaTransformation,
@@ -10,128 +9,36 @@ import {
 import { describe, expect, it } from 'vitest'
 
 import * as ActionMenu from '../actionMenu/actionMenu.js'
-import * as Catalog from '../catalog/catalog.js'
-import { type ProgramHandle, bind } from '../interaction/bind.js'
+import { bind } from '../interaction/bind.js'
 import { keyInput } from '../interaction/interaction.js'
 import { compose as composeProgram } from '../program/compose.js'
-import { make } from '../program/program.js'
 import { Text } from '../renderers/elements.js'
-import * as Route from '../route/parser.js'
 import { startHandle } from '../runtime/handle.js'
 import { Memory, makeMemoryStore } from '../runtime/syncEngine.js'
-import { ts } from '../schema/index.js'
 import * as Session from '../session/session.js'
+import {
+  App,
+  type AppMessage,
+  Counter,
+  Increment,
+  bindApp,
+  handleOf,
+  uriOf,
+} from '../test/apps/navigableCounter.js'
 import { notFoundScreen } from './compose.js'
 import * as Declaration from './declaration.js'
 import { Launch, Link, NavigatedBack, OpenedUri } from './message.js'
 import { NavigationStack, stackAtRoot } from './structure.js'
 
-// PROGRAM
-
-const CounterModel = S.Struct({ count: S.Number })
-type CounterModel = typeof CounterModel.Type
-
-const Increment = Catalog.action('Increment', {
-  what: 'Increments the count by one',
-  why: 'The person wants a higher count',
-  meta: { label: '+', keys: ['+'] },
-})
-const Reset = Catalog.action('Reset', {
-  what: 'Sets the count to 0',
-  why: 'The person wants to start over',
-  meta: { label: 'Reset', keys: ['r'] },
-})
-const catalog = Catalog.make([Increment, Reset])
-type CounterMessage = typeof catalog.Message.Type
-
-const Counter = ts('Counter')
-type Counter = typeof Counter.Type
-
-const counterNavigation = Declaration.make<CounterModel, Counter>({
-  slug: Declaration.Slug.make('counter'),
-  Destination: Counter,
-  root: Counter(),
-  routes: [
-    Declaration.rootRoute(
-      Route.caseOf(
-        Route.here,
-        Declaration.tagCase<Counter, Counter>(S.is(Counter), Counter),
-      ),
-      { title: () => 'Counter' },
-    ),
-  ],
-})
-
-const CounterProgram = make({
-  id: 'composition-counter',
-  version: 1,
-  Model: CounterModel,
-  Message: catalog.Message,
-  init: () => [{ count: 0 }, []],
-  update: (model: CounterModel, message: CounterMessage) =>
-    M.value(message).pipe(
-      M.withReturnType<readonly [CounterModel, ReadonlyArray<never>]>(),
-      M.tagsExhaustive({
-        Increment: () => [{ count: model.count + 1 }, []],
-        Reset: () => [{ count: 0 }, []],
-      }),
-    ),
-  catalog,
-  navigation: counterNavigation,
-  screen: (model: CounterModel) => Text(String(model.count)),
-  synchronization: {
-    messageCategory: () => 'Domain',
-    projectDomain: model => model,
-  },
-})
-
-const App = ActionMenu.compose({ of: Session.compose({ of: CounterProgram }) })
-type AppMessage = typeof App.Message.Type
-
-const handleOf = <Model, Message>(
-  program: Readonly<{
-    init: () => readonly [Model, ReadonlyArray<unknown>]
-    update: (
-      model: Model,
-      message: Message,
-    ) => readonly [Model, ReadonlyArray<unknown>]
-  }>,
-): ProgramHandle<Model, Message> => {
-  let current = program.init()[0]
-  const listeners = new Set<() => void>()
-  return {
-    readModel: () => current,
-    subscribe: listener => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    send: message => {
-      current = program.update(current, message)[0]
-      listeners.forEach(listener => listener())
-    },
-    stop: () => Promise.resolve(),
-  }
-}
-
-const boundApp = () => bind(App, handleOf(App))
-
-const uriOf = (bound: ReturnType<typeof boundApp>): string =>
-  Option.match(bound.navigation(), {
-    onNone: () => 'no plan',
-    onSome: plan => plan.uri,
-  })
-
 // APP
 
 describe('a composed App', () => {
   it('starts at the root URI its child declares', () => {
-    expect(uriOf(boundApp())).toBe('/counter')
+    expect(uriOf(bindApp())).toBe('/counter')
   })
 
   it('opens and closes the Session page as a pushed entry', () => {
-    const bound = boundApp()
+    const bound = bindApp()
     expect(bound.press('OpenSessionSettings')).toBe(true)
     expect(uriOf(bound)).toBe('/counter/session')
     expect(bound.press('OpenSessionSettings')).toBe(false)
@@ -140,7 +47,7 @@ describe('a composed App', () => {
   })
 
   it('goes back one entry on Escape and leaves the root alone', () => {
-    const bound = boundApp()
+    const bound = bindApp()
     bound.press('OpenSessionSettings')
     expect(bound.pressKey(keyInput('Escape'))).toBe(true)
     expect(uriOf(bound)).toBe('/counter')
@@ -148,7 +55,7 @@ describe('a composed App', () => {
   })
 
   it('opens a menu URI and settles its highlight against the Catalog', () => {
-    const bound = boundApp()
+    const bound = bindApp()
     expect(bound.openUri('/counter/menu?q=re', Link())).toBe(true)
     expect(uriOf(bound)).toBe('/counter/menu?q=re')
     const highlighted = Option.map(bound.menu(), menu =>
@@ -158,7 +65,7 @@ describe('a composed App', () => {
   })
 
   it('prints the menu above the Session page and returns to it on Back', () => {
-    const bound = boundApp()
+    const bound = bindApp()
     bound.press('OpenSessionSettings')
     bound.openMenu()
     bound.typeInMenu('in')
@@ -169,14 +76,14 @@ describe('a composed App', () => {
   })
 
   it('lands an Action chosen from the menu on the entry beneath it', () => {
-    const bound = boundApp()
+    const bound = bindApp()
     bound.openMenu()
     expect(bound.chooseFromMenu('OpenSessionSettings')).toBe(true)
     expect(uriOf(bound)).toBe('/counter/session')
   })
 
   it('keeps an unknown path and paints it as not found', () => {
-    const bound = boundApp()
+    const bound = bindApp()
     bound.openUri('/counter/nope', Link())
     expect(uriOf(bound)).toBe('/counter/nope')
     expect(bound.viewAt('/counter/nope')).toEqual(
@@ -189,7 +96,7 @@ describe('a composed App', () => {
   })
 
   it('paints the root with the Program screen, Session with its page, and the menu as a menu', () => {
-    const bound = boundApp()
+    const bound = bindApp()
     bound.press('Increment')
     bound.openUri('/counter/session/menu', Link())
     const tagAt = (key: string) =>
@@ -203,7 +110,7 @@ describe('a composed App', () => {
   })
 
   it('ignores a launch while mirrored and adopts it once navigation is local', () => {
-    const bound = boundApp()
+    const bound = bindApp()
     bound.openUri('/counter/session', Launch())
     expect(uriOf(bound)).toBe('/counter')
     bound.press('KeepNavigationLocal')

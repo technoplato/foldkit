@@ -27,6 +27,7 @@ import {
   carrierMove,
   classifyCarrierChange,
   launch,
+  layersOf,
   planOf,
   runCarrier,
 } from './carrier.js'
@@ -359,6 +360,20 @@ describe('planOf', () => {
     expect(planAt('/counter', model({ isFollowing: true })).history).toBe(
       'Replace',
     )
+  })
+})
+
+describe('layersOf', () => {
+  it('paints the deepest pushed entry with every presented entry over it', () => {
+    const { base, overlays } = layersOf(planAt('/counter/session/menu'))
+    expect(base.key).toBe('/counter/session')
+    expect(overlays.map(entry => entry.key)).toEqual(['/counter/session/menu'])
+  })
+
+  it('paints the root alone when nothing is presented', () => {
+    const { base, overlays } = layersOf(planAt('/counter'))
+    expect(base.key).toBe('/counter')
+    expect(overlays).toEqual([])
   })
 })
 

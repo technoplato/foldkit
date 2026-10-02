@@ -16,6 +16,7 @@ import {
   type NavigationStack,
   type PresentationStyle,
   entriesOf,
+  isOpaque,
 } from './structure.js'
 import { pathAndUri, printStates } from './uri.js'
 
@@ -100,6 +101,42 @@ export const planOf = <Model, Destination>(
           : navigation.historyOf(model),
     }
   })
+
+// LAYERS
+
+/**
+ * What a host with one surface paints for a plan: the deepest entry that
+ * hides what is beneath it, and every entry presented over that one.
+ *
+ * @example
+ * ```typescript
+ * layersOf(planAt('/counter/session/menu'))
+ * // { base: /counter/session, overlays: [/counter/session/menu] }
+ * ```
+ */
+export type PlanLayers<Destination> = Readonly<{
+  base: CarrierEntry<Destination>
+  overlays: ReadonlyArray<CarrierEntry<Destination>>
+}>
+
+const hidesBeneath = <Destination>(entry: CarrierEntry<Destination>): boolean =>
+  Option.match(entry.maybeStyle, { onNone: () => true, onSome: isOpaque })
+
+/** Splits a plan into the base screen and the entries presented over it. */
+export const layersOf = <Destination>(
+  plan: CarrierPlan<Destination>,
+): PlanLayers<Destination> => {
+  const baseDepth = Option.getOrElse(
+    Array.findLastIndex(plan.entries, hidesBeneath),
+    () => 0,
+  )
+  return {
+    base: Option.getOrElse(Array.get(plan.entries, baseDepth), () =>
+      Array.headNonEmpty(plan.entries),
+    ),
+    overlays: Array.drop(plan.entries, baseDepth + 1),
+  }
+}
 
 // MOVE
 

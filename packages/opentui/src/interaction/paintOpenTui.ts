@@ -1,5 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
-import { Catalog, type Interaction } from 'foldkit'
+import { Catalog, type Interaction, type Navigation } from 'foldkit'
 import { type ButtonNode, type UiNode } from 'foldkit/renderers'
 
 import {
@@ -229,4 +229,77 @@ export const paintOpenTuiFrame = (
     frame.add(paintMenu(ctx, maybeMenu.value, options))
   }
   return frame
+}
+
+const overlayOffset = 2
+const overlayZIndex = 20
+
+const paintView = (
+  ctx: RenderContext,
+  view: Navigation.EntryView,
+  options: PaintOpenTuiOptions & PaintOpenTuiMenuOptions,
+): Renderable =>
+  M.value(view).pipe(
+    M.withReturnType<Renderable>(),
+    M.tagsExhaustive({
+      Screen: ({ node }) => paintOpenTui(ctx, node, options),
+      Menu: ({ menu }) => paintMenu(ctx, menu, options),
+    }),
+  )
+
+const paintOverlay = (
+  ctx: RenderContext,
+  layer: Navigation.FrameLayer,
+  options: PaintOpenTuiOptions & PaintOpenTuiMenuOptions,
+): Renderable =>
+  M.value(layer.view).pipe(
+    M.withReturnType<Renderable>(),
+    M.tagsExhaustive({
+      Menu: ({ menu }) => paintMenu(ctx, menu, options),
+      Screen: ({ node }) => {
+        const overlay = new BoxRenderable(ctx, {
+          backgroundColor: '#0f172a',
+          border: true,
+          left: overlayOffset,
+          padding: 1,
+          position: 'absolute',
+          top: 0,
+          zIndex: overlayZIndex,
+        })
+        overlay.add(paintOpenTui(ctx, node, options))
+        return overlay
+      },
+    }),
+  )
+
+/**
+ * Paints one navigation frame: where the Program is on its own line, then
+ * the base screen with every entry presented over it, floated in order. The action menu paints
+ * from its MenuView like {@link paintOpenTuiFrame}.
+ *
+ * @example
+ * ```typescript
+ * Option.map(Navigation.frameOf(bound), frame =>
+ *   renderer.root.add(paintOpenTuiNavigationFrame(renderer, frame, options)),
+ * )
+ * ```
+ */
+export const paintOpenTuiNavigationFrame = (
+  ctx: RenderContext,
+  frame: Navigation.Frame,
+  options: PaintOpenTuiOptions & PaintOpenTuiMenuOptions,
+): Renderable => {
+  const box = new BoxRenderable(ctx, { flexDirection: 'column', flexGrow: 1 })
+  const stage = new BoxRenderable(ctx, {
+    flexDirection: 'column',
+    flexGrow: 1,
+    position: 'relative',
+  })
+  stage.add(paintView(ctx, frame.base.view, options))
+  Array.forEach(frame.overlays, layer => {
+    stage.add(paintOverlay(ctx, layer, options))
+  })
+  box.add(new TextRenderable(ctx, { content: t`${dim(frame.uri)}` }))
+  box.add(stage)
+  return box
 }

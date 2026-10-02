@@ -2,6 +2,7 @@ import { Effect, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { bindCounter } from '../test/apps/catalogCounter.js'
+import { bindApp, uriOf } from '../test/apps/navigableCounter.js'
 import {
   paintProgram,
   programCliSurface,
@@ -116,5 +117,57 @@ describe('programCliSurface', () => {
     expect(Option.map(bound.menu(), menu => menu.query)).toEqual(
       Option.some('re'),
     )
+  })
+})
+
+describe('navigation commands', () => {
+  it('paints where the Program is and the screen there', () => {
+    const bound = bindApp()
+    const opened = runProgramCommand(
+      bound,
+      'counter',
+      ['open', '/counter/session'],
+      {},
+    )
+    expect(opened.exitCode).toBe(0)
+    expect(opened.stdout).toContain('at /counter/session')
+    expect(opened.stdout).toContain('Every device shows the same screen.')
+  })
+
+  it('paints the menu over the screen beneath it', () => {
+    const bound = bindApp()
+    runProgramCommand(bound, 'counter', ['open', '/counter/menu?q=re'], {})
+    const text = paintProgram(bound)
+    expect(text).toContain('at /counter/menu?q=re')
+    expect(text).toContain('  > reset       Sets the count to 0')
+    expect(text.indexOf('Action menu')).toBeLessThan(text.indexOf('Actions'))
+  })
+
+  it('goes back one screen and refuses at the first', () => {
+    const bound = bindApp()
+    runProgramCommand(bound, 'counter', ['open', '/counter/session'], {})
+    expect(runProgramCommand(bound, 'counter', ['back'], {}).exitCode).toBe(0)
+    expect(uriOf(bound)).toBe('/counter')
+    const refused = runProgramCommand(bound, 'counter', ['back'], {})
+    expect(refused.exitCode).toBe(1)
+    expect(refused.stderr).toBe('Already at the first screen.')
+  })
+
+  it('prints the current URI', () => {
+    const bound = bindApp()
+    bound.press('OpenSessionSettings')
+    expect(runProgramCommand(bound, 'counter', ['where'], {}).stdout).toBe(
+      '/counter/session',
+    )
+  })
+
+  it('refuses a URI on a Program without routes', () => {
+    const refused = runProgramCommand(
+      bindCounter(),
+      'counter',
+      ['open', '/counter/session'],
+      {},
+    )
+    expect(refused.exitCode).toBe(1)
   })
 })

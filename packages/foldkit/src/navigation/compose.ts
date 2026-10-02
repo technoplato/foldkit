@@ -149,7 +149,8 @@ export const notFoundScreen = (notFound: NotFound): UiNode =>
 /**
  * The composed declaration for a navigation combinator: the child's routes
  * lifted into the wider union, then this combinator's own, then the
- * NotFound fallback when it owns the stack. Views and settling try this
+ * NotFound fallback when it owns the stack. A child without routes is not
+ * URL-addressable, so neither is the composition. Views and settling try this
  * combinator first, then the child. A launch is adopted only when both
  * layers adopt it.
  *
@@ -228,18 +229,21 @@ export const composeNavigation = <
     ...(child.slug === undefined ? {} : { slug: child.slug }),
     Destination: config.Destination,
     root: child.root,
-    routes: [
-      ...Array.map(child.routes ?? [], route => liftRoute(route, narrow)),
-      ...config.routes,
-      ...(config.hold === 'Owns'
-        ? [
-            notFoundRoute<AppDestination>(
-              Option.liftPredicate(isNotFound),
-              config.embedNotFound,
-            ),
-          ]
-        : []),
-    ],
+    routes: Array.match(child.routes ?? [], {
+      onEmpty: () => [],
+      onNonEmpty: childRoutes => [
+        ...Array.map(childRoutes, route => liftRoute(route, narrow)),
+        ...config.routes,
+        ...(config.hold === 'Owns'
+          ? [
+              notFoundRoute<AppDestination>(
+                Option.liftPredicate(isNotFound),
+                config.embedNotFound,
+              ),
+            ]
+          : []),
+      ],
+    }),
     stack: config.stack,
     viewOf: (model, destination) =>
       Option.orElse(

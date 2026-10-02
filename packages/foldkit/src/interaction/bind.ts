@@ -160,7 +160,7 @@ export const bind = <Model, Message>(
       : S.is(program.Message)
 
   const sendFact = (fact: OpenedUri | NavigatedBack): boolean => {
-    if (isReady() && isProgramMessage(fact)) {
+    if (Option.isSome(plan()) && isProgramMessage(fact)) {
       handle.send(fact)
       return true
     } else {
