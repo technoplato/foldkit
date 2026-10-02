@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 12:49:53 p.m. EDT — `44467bce0acc` feat!: make a missing route a compile error and keep host pages beside the Program
+
+- **Implementation commit:** `44467bce0acc4bb3cbfa1684132daa2872a701e8`
+- **Change:** Make a missing route a compile error and keep host pages beside the Program
+- **Details:**
+  - Navigation.screens and keyed Navigation.make routes make a Destination without a route fail to compile; FoldkitRouter runs the carrier and parks it on the app's own pages instead of reloading the Program.
+- **Files:**
+  - `packages/foldkit/src/navigation/declaration.ts` — Add screens, rootScreen, pushScreen, presentScreen, keyed routes, and the navigation brand.
+  - `packages/foldkit/src/navigation/carrier.ts` — Park the carrier while the address bar is outside the Program.
+  - `packages/foldkit/src/navigation/browserHistory.ts` — Add followHostLink and the location changed event.
+  - `packages/react/src/reactRouter/reactRouter.tsx` — Run the carrier in FoldkitRouter and keep host pages beside the Program.
+  - `examples/counter/core/src/navigation.ts` — Declare the Counter's navigation with one screens call.
+- **User context (verbatim):**
+  > We shouldn't allow this foot gun in our program design. We should we should make sure this is a a compilation error, not a runtime error.
+  > There's no way to not restart the program. I don't know. That seems pretty stupid and naïve. I think there can be a better solution. What's uh what's a bad solution and then what's a better solution? Let's go with the better solution.
+  > Yeah, do both layers.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 11:14:57 a.m. EDT — `d37f3b1b25fd` feat: scope each screen's query keys and let FoldkitRouter render screens
 
 - **Implementation commit:** `d37f3b1b25fdceed3cb1c8a639f7730035a513b0`
