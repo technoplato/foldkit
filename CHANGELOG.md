@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 6:54:22 a.m. EDT — `1c898c6fae96` fix(react-native): record Expo Router web moves as browser history
+
+- **Implementation commit:** `1c898c6fae964d329364ae410eff0994d39ffa7b`
+- **Change:** Record Expo Router web moves as browser history.
+- **Details:**
+  - Resets keep the root and layout state keys, so Expo Router's web linking pushes and pops instead of replacing; verified with browser Back and Forward in the web build.
+- **Files:**
+  - `packages/react-native/src/expoRouter/routerStack.ts` — Keep state keys across resets.
+- **User context (verbatim):**
+  > yes please, and continue
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 6:51:15 a.m. EDT — `09c1863d9936` feat: carry navigation in Expo Router from one catch-all route
 
 - **Implementation commit:** `09c1863d99364cef3640ccf69a095560039813fb`
