@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 11:14:57 a.m. EDT — `d37f3b1b25fd` feat: scope each screen's query keys and let FoldkitRouter render screens
+
+- **Implementation commit:** `d37f3b1b25fdceed3cb1c8a639f7730035a513b0`
+- **Change:** Scope each screen's query keys and let FoldkitRouter render screens.
+- **Details:**
+  - Query keys are prefixed with the path segments their entry prints, fixing collisions between a page and the menu; FoldkitRouter renders every declared screen when given no children.
+- **Files:**
+  - `packages/foldkit/src/navigation/uri.ts` — Prefix each entry's query keys with its own path segments.
+  - `packages/react/src/reactRouter/reactRouter.tsx` — Render the Program's screens with no routes written.
+- **User context (verbatim):**
+  > I think our adapter should provide these routes rather than requiring the user to do this. The goal is that we can change the core program and the adapted program doesn't need any changes.
+  > Yeah, I like prefix every screen's keys
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 8:06:46 a.m. EDT — `c99e73fa63aa` fix: bound long URIs and keep one Session page and one menu per stack
 
 - **Implementation commit:** `c99e73fa63aaa45cde008917b4f596587be9f793`
