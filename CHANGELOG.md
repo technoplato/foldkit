@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 2:04:48 p.m. EDT — `5ea6e1cb4fe3` feat: paint the action menu as a keyboard command palette from the core view
+
+- **Implementation commit:** `5ea6e1cb4fe3ba3906522edc8086200c1f587eed`
+- **Change:** Paint the action menu as a keyboard command palette from the core view
+- **Details:**
+  - The core MenuView now carries titles, matched-letter runs, shortcuts, a screen reader summary, and live key hints, plus one shared web stylesheet; every painter maps it instead of writing its own text or matching.
+- **Files:**
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Track matched letters, rank title letters above description hits, and build the full MenuView.
+  - `packages/foldkit/src/interaction/interaction.ts` — Add TextRun, MenuHint, and the new MenuView and MenuRow fields.
+  - `packages/foldkit/src/interaction/menuStyles.ts` — Add the one web stylesheet every web painter uses.
+  - `packages/react/src/interaction/interaction.tsx` — Paint the core view as an accessible combo box with a backdrop.
+  - `packages/svelte/src/interaction/ActionMenuDialog.svelte` — Paint the same core view and stylesheet in Svelte.
+- **User context (verbatim):**
+  > the action menu works but doesn't look like an accessible, keyboard navigable up/down arrows enter to send fuzzy mathcing thing so fix the styling here and get that working, all done from core program
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 12:49:53 p.m. EDT — `44467bce0acc` feat!: make a missing route a compile error and keep host pages beside the Program
 
 - **Implementation commit:** `44467bce0acc4bb3cbfa1684132daa2872a701e8`
