@@ -367,15 +367,40 @@ describe('Session.compose', () => {
     const screen = JSON.stringify(
       sessionScreen(model, [
         {
+          host: Processor.Host.React(),
+          command: 'pnpm --filter counter-react-example start',
+          url: 'http://127.0.0.1:5216/counter',
+        },
+        {
           host: Processor.Host.Tui(),
           command: 'pnpm --filter counter-tui-example start',
         },
       ]),
     )
     expect(screen).toContain('Join this session from another app')
-    expect(screen).toContain('"content":"TUI"')
     expect(screen).toContain(
-      '"content":"pnpm --filter counter-tui-example start","mono":true,"copyable":true',
+      JSON.stringify(
+        Row(
+          {},
+          Text('React', { href: 'http://127.0.0.1:5216/counter' }),
+          Text('pnpm --filter counter-react-example start', {
+            mono: true,
+            copyable: true,
+          }),
+        ),
+      ),
+    )
+    expect(screen).toContain(
+      JSON.stringify(
+        Row(
+          {},
+          Text('TUI'),
+          Text('pnpm --filter counter-tui-example start', {
+            mono: true,
+            copyable: true,
+          }),
+        ),
+      ),
     )
   })
 })

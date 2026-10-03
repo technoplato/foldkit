@@ -223,7 +223,7 @@ These are checked in `core/src/app.test.ts` and `core/src/live.test.ts`:
 
 ## Where each kind of change goes
 
-Counting, adding, and deleting are **Domain** moves: every device applies them. Opening a page and asking the question are **Navigation** moves. Session settings decide what Navigation does:
+Counting, adding, and deleting are **Domain** moves: every device applies them. Opening a page, going Back, and asking the question are **Navigation** moves. Every page above the list has a Back button, and Escape presses it, so the terminals can go back too. Session settings decide what Navigation does:
 
 - **Mirror navigation**: every device moves together. Open Counter 2 on your laptop and your phone shows it too.
 - **Keep navigation local**: each device keeps its own screen, while counts still sync. Your phone can sit on the list while your laptop has Counter 2 open; delete Counter 2 on the phone and the laptop's page closes.
@@ -254,6 +254,8 @@ pnpm counters increment 2
 pnpm counters open 2
 pnpm counters delete 2           # asks "Delete Counter 2?"
 pnpm counters confirm-delete 2   # deletes Counter 2
+pnpm counters back               # go back to the list
+pnpm counters watch              # repaint the list as it changes, from every device
 pnpm counters tail               # print every move as it lands
 ```
 

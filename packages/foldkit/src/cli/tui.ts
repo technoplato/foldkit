@@ -10,7 +10,7 @@ import {
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type KeyInput, terminalKeyInput } from '../interaction/interaction.js'
 import { pressTerminalKey, terminalFooterOf } from '../interaction/terminal.js'
-import { paintProgram } from './program.js'
+import { paintScreen } from './program.js'
 
 const clearScreen = '\u001b[2J\u001b[H'
 
@@ -46,7 +46,8 @@ const isInterrupt = (input: Terminal.UserInput): boolean =>
  * increments and `?` opens the action menu without any host code. Ctrl-C
  * quits, and so does `q` when neither an Action nor the menu takes it.
  * The terminal window's title follows the screen and names the Host the
- * Program was started on, `Session | TUI`.
+ * Program was started on, `Session | TUI`. It paints the screen and the
+ * menu when open, not the list of every Action that `show` prints.
  *
  * @example
  * ```typescript
@@ -76,7 +77,7 @@ export const runProgramTui = <Model, Message>(
 
       const paint = Effect.suspend(() =>
         terminal.display(
-          `${windowTitleSequence(bound)}${clearScreen}${name}  ${paintProgram(bound)}\n\n${terminalFooterOf(bound.menuKeys())}\n`,
+          `${windowTitleSequence(bound)}${clearScreen}${name}  ${paintScreen(bound)}\n\n${terminalFooterOf(bound.menuKeys())}\n`,
         ),
       )
 

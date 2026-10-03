@@ -293,13 +293,13 @@ export type Companion = Readonly<{
 const companionsHeading = 'Join this session from another app'
 
 const companionNode = (companion: Companion): UiNode =>
-  Column(
+  Row(
     {},
-    Text(labelOf(companion.host)),
+    Text(
+      labelOf(companion.host),
+      companion.url === undefined ? {} : { href: companion.url },
+    ),
     Text(companion.command, { mono: true, copyable: true }),
-    ...(companion.url === undefined
-      ? []
-      : [Text(companion.url, { href: companion.url, mono: true, dim: true })]),
   )
 
 const companionsNodes = (
@@ -315,8 +315,9 @@ const companionsNodes = (
 
 /**
  * The Session settings page every painter draws: the mode in one sentence,
- * a button for each settings Action, then the command that starts each
- * companion app, copyable, so another window joins in one paste.
+ * a button for each settings Action, then one line per companion app with
+ * the command that starts it, copyable, so another window joins in one
+ * paste. A web companion's name links to where it opens.
  *
  * @example
  * ```typescript
@@ -324,7 +325,8 @@ const companionsNodes = (
  * // Column: Text('Session'), Text('Every device shows the same screen.'),
  * //   Row: [Mirror navigation (disabled)] [Keep navigation local] [Close],
  * //   Text('Join this session from another app'),
- * //   Column: Text('TUI'), Text('pnpm --filter counter-tui-example start', copyable)
+ * //   Row: Text('React', href '/counter'), Text('pnpm --filter counter-react-example start', copyable),
+ * //   Row: Text('TUI'), Text('pnpm --filter counter-tui-example start', copyable)
  * ```
  */
 export const sessionScreen = (
@@ -561,9 +563,7 @@ export const compose = <Child extends SessionChild>(config: {
     adoptsLaunch: model => model.session.mode !== 'Mirror',
   })
 
-  const isSameDestination = S.toEquivalence(
-    Destination as unknown as S.Codec<AppDestination>,
-  )
+  const isSameDestination = S.toEquivalence(composedNavigation.Destination)
 
   const isTopPage = (model: AppModel, destination: AppDestination): boolean =>
     !isSessionSettings(destination) &&
