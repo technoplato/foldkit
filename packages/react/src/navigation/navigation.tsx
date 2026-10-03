@@ -1,7 +1,14 @@
 import { Array, Match as M, Option } from 'effect'
 import { Navigation } from 'foldkit'
 import type { ButtonNode } from 'foldkit/renderers'
-import { type ReactElement, useEffect, useMemo, useRef } from 'react'
+import {
+  type ReactElement,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react'
 
 import {
   ActionMenuDialog,
@@ -12,7 +19,7 @@ import {
   useBound,
 } from '../interaction/interaction.js'
 import { useBoundRead } from '../interaction/selected.js'
-import { paintTree } from '../paintReact/paintReact.js'
+import { ScreenStyles, paintTree } from '../paintReact/paintReact.js'
 
 // FRAME
 
@@ -92,10 +99,20 @@ const pressOf =
     }
   }
 
-const openInApp =
-  (bound: AnyBound) =>
+const HostPagesContext = createContext<Navigation.HostPages>('ProgramOnly')
+
+/**
+ * Tells every navigation frame inside whether the app shows pages of its
+ * own beside the Program's, so a screen's text link to `/about` shows that
+ * page the way a React Router `<Link>` does. `FoldkitRouter` provides it.
+ */
+export const HostPagesProvider = HostPagesContext.Provider
+
+const followLinkOf =
+  (bound: AnyBound, hostPages: Navigation.HostPages) =>
   (href: string): boolean =>
-    bound.ownsUri(href) && bound.openUri(href, Navigation.Link())
+    typeof window !== 'undefined' &&
+    Navigation.followLink(window, bound, href, hostPages, 'Push')
 
 type LayerShape = Readonly<{
   key: string
@@ -134,6 +151,7 @@ const ScreenView = ({
   classNames: PaintClassNames
 }>): ReactElement | null => {
   const bound = useBound()
+  const hostPages = useContext(HostPagesContext)
   const maybeView = useViewAt(entryKey)
   return useMemo(
     () =>
@@ -143,17 +161,21 @@ const ScreenView = ({
           M.value(view).pipe(
             M.withReturnType<ReactElement>(),
             M.tagsExhaustive({
-              Screen: ({ node }) =>
-                paintTree(node, {
-                  classNames,
-                  onPress: pressOf(bound),
-                  onLink: openInApp(bound),
-                }),
+              Screen: ({ node }) => (
+                <>
+                  <ScreenStyles />
+                  {paintTree(node, {
+                    classNames,
+                    onPress: pressOf(bound),
+                    onLink: followLinkOf(bound, hostPages),
+                  })}
+                </>
+              ),
               Menu: ({ menu }) => <ActionMenuPanel menu={menu} />,
             }),
           ),
       }),
-    [bound, maybeView, classNames],
+    [bound, hostPages, maybeView, classNames],
   )
 }
 

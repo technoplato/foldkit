@@ -318,3 +318,30 @@ export const messageFor = <C extends AnyCatalog>(
     ),
     Option.map(declaration => declaration.make({})),
   )
+
+// TITLE
+
+const isAcronym = (word: string): boolean =>
+  word.length > 1 && word === word.toUpperCase()
+
+/**
+ * An Action's tag as words, the title a menu row or a terminal Button
+ * shows.
+ *
+ * @example
+ * ```typescript
+ * titleOf('OpenSessionSettings') // 'Open session settings'
+ * titleOf('OpenURL') // 'Open URL'
+ * ```
+ */
+export const titleOf = (tag: string): string =>
+  pipe(
+    tag,
+    String.replace(/([a-z0-9])([A-Z])/g, '$1 $2'),
+    String.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2'),
+    String.split(' '),
+    Array.map((word, index) =>
+      index === 0 || isAcronym(word) ? word : word.toLowerCase(),
+    ),
+    Array.join(' '),
+  )

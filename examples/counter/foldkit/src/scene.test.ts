@@ -56,7 +56,7 @@ describe('Foldkit Counter view', () => {
     Scene.scene(
       { update, view },
       Scene.with(ready(4)),
-      Scene.click(Scene.role('button', { name: 'Actions (⌘K)' })),
+      Scene.click(Scene.role('button', { name: 'Actions (Ctrl+K)' })),
       Scene.expect(Scene.text('Actions')).toExist(),
       Scene.click(Scene.role('option', { name: /Sets the count to 0/ })),
       Scene.expect(Scene.text('0')).toExist(),
@@ -68,7 +68,7 @@ describe('Foldkit Counter view', () => {
     Scene.scene(
       { update, view },
       Scene.with(SyncedCounter.init()[0]),
-      Scene.expect(Scene.text('Starting Instant Counter…')).toExist(),
+      Scene.expect(Scene.text('Starting Counter…')).toExist(),
     )
   })
 })

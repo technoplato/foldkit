@@ -1,4 +1,5 @@
 import { Array, Match as M } from 'effect'
+import { Interaction } from 'foldkit'
 import type { ButtonNode, UiNode } from 'foldkit/renderers'
 import { Fragment, type ReactElement } from 'react'
 
@@ -173,3 +174,21 @@ export const paintReact = (
       sendToken(`${token}${value}`)
     },
   })
+
+/**
+ * The shared screen stylesheet, `Interaction.screenStylesheet`, added to
+ * the document head once however many screens render it.
+ *
+ * @example
+ * ```tsx
+ * <>
+ *   <ScreenStyles />
+ *   {paintTree(node, handlers)}
+ * </>
+ * ```
+ */
+export const ScreenStyles = (): ReactElement => (
+  <style href="foldkit-screen" precedence="foldkit">
+    {Interaction.screenStylesheet}
+  </style>
+)

@@ -5,7 +5,11 @@ import { useBound } from '@foldkit/react/interaction'
 import { useViewAt } from '@foldkit/react/navigation'
 
 import { ActionMenuSheet } from '../interaction/actionMenuModal.js'
-import { type PaintStyles, paintTree } from '../interaction/screen.js'
+import {
+  type PaintStyles,
+  openLinkOf,
+  paintTree,
+} from '../interaction/screen.js'
 
 // ENTRY
 
@@ -45,6 +49,7 @@ export const EntryView = ({
                       bound.press(button.action)
                     }
                   },
+                  onLink: openLinkOf(bound),
                 }),
               Menu: ({ menu }) => <ActionMenuSheet menu={menu} />,
             }),

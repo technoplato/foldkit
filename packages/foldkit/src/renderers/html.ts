@@ -3,6 +3,9 @@ import { Array, Match as M, Option } from 'effect'
 import { type Html, html } from '../html/index.js'
 import type { MenuView, TextRun } from '../interaction/interaction.js'
 import { menuStylesheet } from '../interaction/menuStyles.js'
+import { screenStylesheet } from '../interaction/screenStyles.js'
+import type { EntryView } from '../navigation/declaration.js'
+import type { Frame, FrameLayer } from '../navigation/frame.js'
 import type { Device } from './device.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import type { UiNode } from './types.js'
@@ -21,13 +24,18 @@ export const paintHtml = <Message>(
       M.withReturnType<Html>(),
       M.tagsExhaustive({
         Text: text => {
+          const attributes = [
+            h.Class('fk-text'),
+            ...(text.label === undefined ? [] : [h.AriaLabel(text.label)]),
+            ...(text.dim === true ? [h.DataAttribute('dim', 'true')] : []),
+            ...(text.mono === true ? [h.DataAttribute('mono', 'true')] : []),
+          ]
           if (text.href === undefined) {
-            return h.div([h.Class('fk-text')], [text.content])
+            return h.div(attributes, [text.content])
           }
-          return h.div(
-            [h.Class('fk-text')],
-            [h.a([h.Href(text.href), h.Class('fk-text-link')], [text.content])],
-          )
+          return h.div(attributes, [
+            h.a([h.Href(text.href), h.Class('fk-text-link')], [text.content]),
+          ])
         },
         Button: button => {
           const key = button.action ?? button.token
@@ -335,4 +343,68 @@ export const paintMenuHtml = <Message>(
       ),
     ],
   )
+}
+
+/** The Messages a painted navigation frame reports. */
+export type FrameMessages<Message> = Readonly<{
+  toMessage: (token: string) => Message | undefined
+  menu: MenuMessages<Message>
+}>
+
+/**
+ * Paints a navigation frame as Foldkit HTML: the shared screen styles,
+ * the base screen, then each entry presented over it. A presented screen
+ * sits in a dialog whose `data-style` names its presentation; the action
+ * menu paints as {@link paintMenuHtml}.
+ *
+ * @example
+ * ```typescript
+ * Option.match(Interaction.frameOfModel(SyncedCounter, model), {
+ *   onNone: () => [],
+ *   onSome: frame => paintFrameHtml(frame, { toMessage, menu: gestures }),
+ * })
+ * ```
+ */
+export const paintFrameHtml = <Message>(
+  frame: Frame,
+  messages: FrameMessages<Message>,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  const paintView = (view: EntryView): Html =>
+    M.value(view).pipe(
+      M.withReturnType<Html>(),
+      M.tagsExhaustive({
+        Screen: ({ node }) => paintHtml(node, messages.toMessage),
+        Menu: ({ menu }) => paintMenuHtml(menu, messages.menu),
+      }),
+    )
+  const paintOverlay = (layer: FrameLayer): Html =>
+    M.value(layer.view).pipe(
+      M.withReturnType<Html>(),
+      M.tagsExhaustive({
+        Screen: () =>
+          h.div(
+            [
+              h.Role('dialog'),
+              h.AriaModal(true),
+              h.Class('fk-overlay'),
+              h.DataAttribute(
+                'style',
+                Option.match(layer.maybeStyle, {
+                  onNone: () => 'Root',
+                  onSome: style => style._tag,
+                }),
+              ),
+              h.DataAttribute('key', layer.key),
+            ],
+            [paintView(layer.view)],
+          ),
+        Menu: () => paintView(layer.view),
+      }),
+    )
+  return [
+    h.style([], [screenStylesheet]),
+    paintView(frame.base.view),
+    ...Array.map(frame.overlays, paintOverlay),
+  ]
 }

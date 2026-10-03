@@ -75,6 +75,7 @@ export type {
 export {
   splitUri,
   pathAndUri,
+  queryPairsOf,
   pathOf,
   printStates,
   printStack,
@@ -142,8 +143,16 @@ export {
   windowUri,
   browserHistoryDriver,
   followHostLink,
+  followLink,
+  HostPages,
+  LinkTarget,
+  LoadDocument,
+  linkTargetOf,
   locationChangedEvent,
+  OpenInProgram,
+  ShowHostPage,
 } from './browserHistory.js'
+export { maybeTitleOf } from './carrier.js'
 export type { BrowserWindow } from './browserHistory.js'
 export { frameOf } from './frame.js'
 export { uriOfDeepLink } from './deepLink.js'

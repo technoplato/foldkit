@@ -7,18 +7,53 @@
   type Props = Readonly<{
     node: UiNode
     onPress: (button: ButtonNode) => void
+    onInput?: ((token: string, value: string) => void) | undefined
+    onLink?: ((href: string) => boolean) | undefined
     classNames?: PaintClassNames
   }>
 
-  const { node, onPress, classNames = {} }: Props = $props()
+  const { node, onPress, onInput, onLink, classNames = {} }: Props = $props()
+
+  const primaryButton = 0
+
+  const followLink = (event: MouseEvent, href: string): void => {
+    const isPlainClick =
+      event.button === primaryButton &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
+      !event.altKey
+    if (isPlainClick && onLink !== undefined && onLink(href)) {
+      event.preventDefault()
+    }
+  }
 </script>
 
 {#if node._tag === 'Text'}
-  {#if node.href === undefined}
-    <div class={classFor(classNames, 'Text', 'fk-text')}>{node.content}</div>
+  {@const href = node.href}
+  {#if href === undefined}
+    <div
+      aria-label={node.label}
+      class={classFor(classNames, 'Text', 'fk-text')}
+      data-dim={node.dim === true ? true : undefined}
+      data-mono={node.mono === true ? true : undefined}
+    >
+      {node.content}
+    </div>
   {:else}
-    <div class={classFor(classNames, 'Text', 'fk-text')}>
-      <a class="fk-text-link" href={node.href}>{node.content}</a>
+    <div
+      aria-label={node.label}
+      class={classFor(classNames, 'Text', 'fk-text')}
+      data-dim={node.dim === true ? true : undefined}
+      data-mono={node.mono === true ? true : undefined}
+    >
+      <a
+        class="fk-text-link"
+        {href}
+        onclick={event => {
+          followLink(event, href)
+        }}>{node.content}</a
+      >
     </div>
   {/if}
 {:else if node._tag === 'Button'}
@@ -35,27 +70,38 @@
     {node.label}
   </button>
 {:else if node._tag === 'TextInput'}
-  <div class={classFor(classNames, 'TextInput', 'fk-text-input')}>
-    {node.value}
-  </div>
+  {@const token = node.token}
+  <!-- svelte-ignore a11y_autofocus -->
+  <input
+    autofocus={node.focused === true}
+    class={classFor(classNames, 'TextInput', 'fk-text-input')}
+    oninput={event => {
+      if (token !== undefined && onInput !== undefined) {
+        onInput(token, event.currentTarget.value)
+      }
+    }}
+    placeholder={node.placeholder}
+    type="text"
+    value={node.value}
+  />
 {:else if node._tag === 'Spacer'}
   <div class={classFor(classNames, 'Spacer', 'fk-spacer')}></div>
 {:else if node._tag === 'Row'}
   <div class={classFor(classNames, 'Row', 'fk-row')}>
     {#each node.children as child, index (keyFor(child, index))}
-      <PaintTree {classNames} {onPress} node={child} />
+      <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
     {/each}
   </div>
 {:else if node._tag === 'Column'}
   <div class={classFor(classNames, 'Column', 'fk-column')}>
     {#each node.children as child, index (keyFor(child, index))}
-      <PaintTree {classNames} {onPress} node={child} />
+      <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
     {/each}
   </div>
 {:else if node._tag === 'Box'}
   <div class={classFor(classNames, 'Box', 'fk-box')}>
     {#each node.children as child, index (keyFor(child, index))}
-      <PaintTree {classNames} {onPress} node={child} />
+      <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
     {/each}
   </div>
 {:else}
@@ -67,7 +113,7 @@
     )}
   >
     {#each node.children as child, index (keyFor(child, index))}
-      <PaintTree {classNames} {onPress} node={child} />
+      <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
     {/each}
   </div>
 {/if}

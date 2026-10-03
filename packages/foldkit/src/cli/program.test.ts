@@ -22,19 +22,17 @@ describe('paintProgram', () => {
     expect(text).toContain(
       '  reset       [r]     Sets the count to 0  (disabled: count is already 0)',
     )
-    expect(text).not.toContain('Action menu')
+    expect(text).not.toContain('Search actions')
   })
 
   it('paints the presented menu with its query and highlighted row', () => {
     const bound = bindCounter(2)
     bound.openMenu()
     bound.typeInMenu('res')
-    expect(paintProgram(bound)).toContain(
-      [
-        'Action menu  query "res"  filter focused',
-        '  > reset       Sets the count to 0',
-      ].join('\n'),
-    )
+    const painted = paintProgram(bound)
+    expect(painted).toContain('Actions  Search actions: "res"')
+    expect(painted).toMatch(/ {2}> reset +\[r\] +Sets the count to 0/)
+    expect(painted).toContain('[↑↓] move  [↵] run  [esc] close')
   })
 })
 
@@ -139,8 +137,10 @@ describe('navigation commands', () => {
     runProgramCommand(bound, 'counter', ['open', '/counter/menu?menu.q=re'], {})
     const text = paintProgram(bound)
     expect(text).toContain('at /counter/menu?menu.q=re')
-    expect(text).toContain('  > reset       Sets the count to 0')
-    expect(text.indexOf('Action menu')).toBeLessThan(text.indexOf('Actions'))
+    expect(text).toMatch(/ {2}> reset +\[r\] +Sets the count to 0/)
+    expect(text.indexOf('Search actions')).toBeLessThan(
+      text.lastIndexOf('Actions'),
+    )
   })
 
   it('goes back one screen and refuses at the first', () => {

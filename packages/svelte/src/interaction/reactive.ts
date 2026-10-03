@@ -1,4 +1,5 @@
-import { type Interaction } from 'foldkit'
+import type { Option } from 'effect'
+import { type Interaction, Navigation } from 'foldkit'
 import { createSubscriber } from 'svelte/reactivity'
 
 /**
@@ -12,6 +13,7 @@ export type ReactiveProgram<Model, Message> = Readonly<{
   status: Interaction.Status
   screen: ReturnType<Interaction.BoundInteraction<Model, Message>['screen']>
   menu: ReturnType<Interaction.BoundInteraction<Model, Message>['menu']>
+  frame: Option.Option<Navigation.Frame>
 }>
 
 /**
@@ -46,6 +48,10 @@ export const reactive = <Model, Message>(
     get menu() {
       track()
       return bound.menu()
+    },
+    get frame() {
+      track()
+      return Navigation.frameOf(bound)
     },
   }
 }

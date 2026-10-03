@@ -1,4 +1,6 @@
+export { default as ActionMenuButton } from './ActionMenuButton.svelte'
 export { default as ActionMenuDialog } from './ActionMenuDialog.svelte'
+export { default as NavigationFrame } from './NavigationFrame.svelte'
 export { default as PaintTree } from './PaintTree.svelte'
 export { default as Screen } from './Screen.svelte'
 export type { PaintClassNames } from './paint.js'

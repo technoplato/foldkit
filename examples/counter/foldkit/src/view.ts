@@ -1,17 +1,9 @@
-import {
-  SyncedCounter,
-  type SyncedCounterModel,
-  initialCount,
-} from 'counter-core-example'
+import { SyncedCounter, type SyncedCounterModel } from 'counter-core-example'
 import { Match as M, Option } from 'effect'
 import { Interaction } from 'foldkit'
 import { type Document, type Html, html } from 'foldkit/html'
 import { type ActionContext } from 'foldkit/message'
-import {
-  type MenuMessages,
-  paintHtml,
-  paintMenuHtml,
-} from 'foldkit/renderers/html'
+import { type MenuMessages, paintFrameHtml } from 'foldkit/renderers/html'
 
 // VIEW
 
@@ -26,53 +18,70 @@ const menuGestures: MenuMessages<Interaction.Gesture> = {
   dismissed: () => Interaction.DismissedMenu(),
 }
 
-const countOf = (model: SyncedCounterModel): number =>
-  model._tag === 'Ready' ? model.count : initialCount
+const keyPlatform: Interaction.KeyPlatform =
+  typeof navigator === 'undefined'
+    ? 'Other'
+    : Interaction.keyPlatformOf(navigator)
 
 /**
  * The Foldkit HTML Counter window for one painter context. It paints the
- * Program's screen and presented action menu and reports gestures; the
- * Client turns each gesture into the Program's Messages. It never names
- * Increment, Decrement, or Reset.
+ * Program's navigation frame, the screen and whatever is presented over
+ * it, and an opener for the action menu, and reports gestures; the Client
+ * turns each gesture into the Program's Messages. Every word on it, from
+ * `Starting Counter…` to `Actions (⌘K)` and the title, comes from the
+ * Program. It never names Increment, Decrement, or Reset.
  */
 export const makeView =
   (context: ActionContext) =>
   (model: SyncedCounterModel): Document => {
     const h = html<Interaction.Gesture>()
-    const status = (text: string): ReadonlyArray<Html> => [
+    const program = Option.match(Option.fromNullishOr(SyncedCounter.screen), {
+      onNone: () => SyncedCounter,
+      onSome: screen => ({
+        ...SyncedCounter,
+        screen: (current: SyncedCounterModel) => screen(current, context),
+      }),
+    })
+    const maybeFrame = Interaction.frameOfModel(program, model)
+    const status = interaction.status(model)
+    const statusLine = (text: string): ReadonlyArray<Html> => [
       h.p([h.Class('counter-status')], [text]),
     ]
-    const body = M.value(interaction.status(model)).pipe(
+    const body = M.value(status).pipe(
       M.withReturnType<ReadonlyArray<Html>>(),
       M.tagsExhaustive({
-        Starting: () => status('Starting Instant Counter…'),
-        Failed: ({ description }) => status(description),
+        Starting: ({ description }) => statusLine(description),
+        Failed: ({ description }) => statusLine(description),
         Ready: () => [
-          ...Option.match(Option.fromNullishOr(SyncedCounter.screen), {
+          ...Option.match(maybeFrame, {
             onNone: () => [],
-            onSome: screen => [
-              paintHtml(screen(model, context), tag =>
-                Interaction.PressedAction({ tag }),
+            onSome: frame =>
+              paintFrameHtml(frame, {
+                toMessage: tag => Interaction.PressedAction({ tag }),
+                menu: menuGestures,
+              }),
+          }),
+          ...Option.match(Interaction.menuOpenerOf(interaction, keyPlatform), {
+            onNone: () => [],
+            onSome: opener => [
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class('counter-menu-button'),
+                  h.OnClick(Interaction.OpenedMenu()),
+                ],
+                [opener.label],
               ),
             ],
-          }),
-          h.button(
-            [
-              h.Type('button'),
-              h.Class('counter-menu-button'),
-              h.OnClick(Interaction.OpenedMenu()),
-            ],
-            ['Actions (⌘K)'],
-          ),
-          ...Option.match(interaction.menu(model), {
-            onNone: () => [],
-            onSome: menu => [paintMenuHtml(menu, menuGestures)],
           }),
         ],
       }),
     )
     return {
-      title: `Foldkit Counter: ${countOf(model)}`,
+      title: Option.getOrElse(
+        Option.flatMap(maybeFrame, frame => frame.maybeTitle),
+        () => (status._tag === 'Ready' ? '' : status.description),
+      ),
       body: h.div(
         [
           h.Class(

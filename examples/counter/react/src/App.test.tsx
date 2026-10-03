@@ -44,7 +44,7 @@ describe('React Counter', () => {
         <App />
       </ProgramProvider>,
     )
-    expect(screen.getByText('Starting Instant Counter…')).toBeDefined()
+    expect(screen.getByText('Starting Counter…')).toBeDefined()
   })
 
   it('presses the Program buttons and disables Reset at zero', async () => {
@@ -74,7 +74,7 @@ describe('React Counter', () => {
     await waitFor(() => {
       expect(window.location.pathname).toBe('/counter')
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Actions (⌘K)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions (Ctrl+K)' }))
     await waitFor(() => {
       expect(window.location.pathname).toBe('/counter/menu')
     })
@@ -94,7 +94,7 @@ describe('React Counter', () => {
     await renderApp()
     fireEvent.keyDown(document, { key: '+' })
     fireEvent.keyDown(document, { key: '+' })
-    fireEvent.click(screen.getByRole('button', { name: 'Actions (⌘K)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions (Ctrl+K)' }))
     fireEvent.change(screen.getByRole('combobox'), {
       target: { value: 'reset' },
     })

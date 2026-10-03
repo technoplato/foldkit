@@ -23,13 +23,15 @@ export type TextNode = Readonly<{
 
 /**
  * A pressable control. The label is product data. `action` is the Catalog
- * tag a press sends; `because` is the sentence a disabled control shows.
+ * tag a press sends; `keys` are the keys its Action declares, `['+', '=']`
+ * for Increment; `because` is the sentence a disabled control shows.
  */
 export type ButtonNode = Readonly<{
   readonly _tag: 'Button'
   readonly label: string
   readonly token?: string
   readonly action?: string
+  readonly keys?: ReadonlyArray<string>
   readonly because?: string
   readonly variant?: 'Primary' | 'Ghost' | 'Destructive'
   readonly disabled?: boolean

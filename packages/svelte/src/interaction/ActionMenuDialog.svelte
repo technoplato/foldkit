@@ -9,7 +9,11 @@
     class?: string
   }>
 
-  const { program, class: className = 'fk-action-menu' }: Props = $props()
+  const { program, class: className }: Props = $props()
+
+  const panelClass = $derived(
+    className === undefined ? 'fk-action-menu' : `fk-action-menu ${className}`,
+  )
 
   const rowIdOf = (tag: string): string => `fk-action-menu-${tag}`
 
@@ -66,13 +70,14 @@
     <div
       aria-labelledby="fk-action-menu-title"
       aria-modal="true"
-      class={className}
+      class={panelClass}
       data-style={menu.style._tag}
       role="dialog"
     >
       <h2 class="fk-action-menu-title" id="fk-action-menu-title">
         {menu.title}
       </h2>
+      <!-- svelte-ignore a11y_autofocus -->
       <input
         aria-activedescendant={Option.isSome(maybeHighlighted)
           ? rowIdOf(maybeHighlighted.value.entry.tag)
@@ -82,6 +87,7 @@
         aria-expanded="true"
         aria-label={menu.filterLabel}
         autocomplete="off"
+        autofocus
         class="fk-action-menu-filter"
         oninput={event => program.bound.typeInMenu(event.currentTarget.value)}
         placeholder={menu.filterLabel}

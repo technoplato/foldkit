@@ -1,5 +1,6 @@
 import { Array, Match as M, Option, Schema as S } from 'effect'
 
+import { ts } from '../schema/index.js'
 import {
   type CarrierDriver,
   type CarrierEntry,
@@ -8,7 +9,7 @@ import {
   type CarrierSnapshot,
   type Expectation,
 } from './carrier.js'
-import { History, Link } from './message.js'
+import { History, Link, type UriVia } from './message.js'
 
 // WINDOW
 
@@ -100,6 +101,113 @@ const isSingleSwap = (
   popCount: number,
   entries: ReadonlyArray<unknown>,
 ): boolean => popCount === 1 && entries.length === 1
+
+// LINKS
+
+/**
+ * Whether a web app shows pages of its own beside the Program's, such as
+ * an `/about` page in React Router. With host pages, a link to one of
+ * them stays in the app; without them, it loads another document.
+ */
+export const HostPages = S.Literals(['WithHostPages', 'ProgramOnly'])
+/** Whether a web app shows pages of its own beside the Program's. */
+export type HostPages = typeof HostPages.Type
+
+/** The link opens in the Program, which decides where to go. */
+export const OpenInProgram = ts('OpenInProgram')
+/** The link shows one of the host app's own pages without a reload. */
+export const ShowHostPage = ts('ShowHostPage')
+/** The link loads another document, as a plain link does. */
+export const LoadDocument = ts('LoadDocument')
+
+/** Where a followed link goes. */
+export const LinkTarget = S.Union([OpenInProgram, ShowHostPage, LoadDocument])
+/** Where a followed link goes. */
+export type LinkTarget = typeof LinkTarget.Type
+
+const isAppPath = (href: string): boolean =>
+  href.startsWith('/') && !href.startsWith('//')
+
+/**
+ * Where a link goes, decided once for every adapter: a screen's text
+ * link, a React Router `<Link>`, a native link, or a Svelte anchor. A
+ * Program URI opens in the Program, unless the app is showing one of its
+ * own pages, when the link writes the address bar so the Program's carrier
+ * takes it back. Another app path shows a host page when there are host
+ * pages. Anything else loads a document.
+ *
+ * @example
+ * ```typescript
+ * linkTargetOf('/counter/session', { ownsUri, maybeCurrentUri: Option.some('/counter'), hostPages: 'ProgramOnly' })
+ * // OpenInProgram()
+ * linkTargetOf('/about', { ownsUri, maybeCurrentUri: Option.some('/counter'), hostPages: 'WithHostPages' })
+ * // ShowHostPage()
+ * linkTargetOf('https://effect.website', { ownsUri, maybeCurrentUri: Option.none(), hostPages: 'WithHostPages' })
+ * // LoadDocument()
+ * ```
+ */
+export const linkTargetOf = (
+  href: string,
+  context: Readonly<{
+    ownsUri: (uri: string) => boolean
+    maybeCurrentUri: Option.Option<string>
+    hostPages: HostPages
+  }>,
+): LinkTarget => {
+  const hasHostPages = context.hostPages === 'WithHostPages'
+  const isOnHostPage = Option.exists(
+    context.maybeCurrentUri,
+    uri => !context.ownsUri(uri),
+  )
+  if (context.ownsUri(href) && !(hasHostPages && isOnHostPage)) {
+    return OpenInProgram()
+  } else if (hasHostPages && isAppPath(href)) {
+    return ShowHostPage()
+  } else {
+    return LoadDocument()
+  }
+}
+
+/**
+ * Follows a link in a browser by {@link linkTargetOf}: opens it in the
+ * Program, writes the address bar for a host page, or leaves it to the
+ * browser. True when it handled the link, so an anchor click must not
+ * navigate; false when the browser should load it.
+ *
+ * @example
+ * ```typescript
+ * if (followLink(window, bound, href, 'ProgramOnly', 'Push')) {
+ *   event.preventDefault()
+ * }
+ * ```
+ */
+export const followLink = (
+  window: BrowserWindow,
+  source: Readonly<{
+    ownsUri: (uri: string) => boolean
+    openUri: (uri: string, via: UriVia) => boolean
+  }>,
+  href: string,
+  hostPages: HostPages,
+  mode: 'Push' | 'Replace',
+): boolean =>
+  M.value(
+    linkTargetOf(href, {
+      ownsUri: source.ownsUri,
+      maybeCurrentUri: Option.some(windowUri(window)),
+      hostPages,
+    }),
+  ).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      OpenInProgram: () => source.openUri(href, Link()),
+      ShowHostPage: () => {
+        followHostLink(window, href, mode)
+        return true
+      },
+      LoadDocument: () => false,
+    }),
+  )
 
 /**
  * A carrier driver for browser history. Each history entry records the

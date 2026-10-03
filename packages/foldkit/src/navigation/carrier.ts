@@ -47,7 +47,16 @@ export type CarrierPlan<Destination> = Readonly<{
   history: HistoryMode
 }>
 
-const maybeTitleOf = <Model, Destination>(
+/**
+ * The title a Destination's route declares, such as `Counter` for the
+ * Counter's root. None when no route matches or the route has no title.
+ *
+ * @example
+ * ```typescript
+ * maybeTitleOf(navigation, navigation.root) // Some('Counter')
+ * ```
+ */
+export const maybeTitleOf = <Model, Destination>(
   navigation: ProgramNavigation<Model, Destination>,
   destination: Destination,
 ): Option.Option<string> =>

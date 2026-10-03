@@ -2,7 +2,12 @@ import { Array, Effect, Match as M, Option, pipe } from 'effect'
 
 import { type Entry, commandOf } from '../catalog/catalog.js'
 import type { BoundInteraction } from '../interaction/bind.js'
-import { type MenuView, keyInput } from '../interaction/interaction.js'
+import {
+  type MenuView,
+  hintLineOf,
+  keyInput,
+  textOf,
+} from '../interaction/interaction.js'
 import { backOneEntry } from '../navigation/carrier.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, frameOf } from '../navigation/frame.js'
@@ -38,18 +43,25 @@ const availabilityNote = (entry: Entry): string =>
 const actionLine = (entry: Entry): string =>
   `  ${commandOf(entry.tag).padEnd(commandColumnWidth)}${keysOf(entry).padEnd(keysColumnWidth)}${entry.what}${availabilityNote(entry)}`
 
+const rowMark = (row: MenuView['rows'][number]): string =>
+  row.isHighlighted ? '>' : ' '
+
+const menuRowLine = (row: MenuView['rows'][number]): string => {
+  const keys = Array.match(row.keys, {
+    onEmpty: () => '',
+    onNonEmpty: rowKeys => `[${rowKeys.join(' ')}]`,
+  })
+  return `  ${rowMark(row)} ${commandOf(row.entry.tag).padEnd(commandColumnWidth)}${keys.padEnd(keysColumnWidth)}${textOf(row.description)}${availabilityNote(row.entry)}`
+}
+
 const menuLines = (menu: MenuView): ReadonlyArray<string> => [
   '',
-  `Action menu  query "${menu.query}"  ${menu.isFilterFocused ? 'filter focused' : 'list focused'}`,
+  `${menu.title}  ${menu.filterLabel}: "${menu.query}"`,
   ...Array.match(menu.rows, {
     onEmpty: () => [`  (${menu.summary})`],
-    onNonEmpty: rows =>
-      Array.map(
-        rows,
-        row =>
-          `  ${row.isHighlighted ? '>' : ' '} ${commandOf(row.entry.tag).padEnd(commandColumnWidth)}${row.entry.what}${availabilityNote(row.entry)}`,
-      ),
+    onNonEmpty: rows => Array.map(rows, menuRowLine),
   }),
+  `  ${hintLineOf(menu.hints)}`,
 ]
 
 const treeLines = (tree: UiNode): ReadonlyArray<string> =>

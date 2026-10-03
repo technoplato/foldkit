@@ -126,6 +126,7 @@ describe('opening and dismissing', () => {
       Option.some({
         title: 'Actions',
         filterLabel: 'Search actions',
+        dismissLabel: 'Close actions',
         query: '',
         isFilterFocused: true,
         style: Dialog(),
@@ -141,6 +142,7 @@ describe('opening and dismissing', () => {
             description: [
               { text: 'Increments the count by one', isMatch: false },
             ],
+            spokenLabel: 'Increment, Increments the count by one',
             keys: ['+'],
             isHighlighted: true,
             isFocused: false,

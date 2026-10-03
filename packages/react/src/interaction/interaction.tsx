@@ -11,7 +11,11 @@ import {
   useMemo,
 } from 'react'
 
-import { type PaintClassNames, paintTree } from '../paintReact/paintReact.js'
+import {
+  type PaintClassNames,
+  ScreenStyles,
+  paintTree,
+} from '../paintReact/paintReact.js'
 import { useBoundRead, useSelected } from './selected.js'
 
 export type { PaintClassNames } from '../paintReact/paintReact.js'
@@ -343,15 +347,19 @@ export const Screen = ({
     () =>
       Option.match(maybeTree, {
         onNone: () => null,
-        onSome: tree =>
-          paintTree(tree, {
-            classNames: classNames ?? {},
-            onPress: (button: ButtonNode) => {
-              if (button.action !== undefined) {
-                bound.press(button.action)
-              }
-            },
-          }),
+        onSome: tree => (
+          <>
+            <ScreenStyles />
+            {paintTree(tree, {
+              classNames: classNames ?? {},
+              onPress: (button: ButtonNode) => {
+                if (button.action !== undefined) {
+                  bound.press(button.action)
+                }
+              },
+            })}
+          </>
+        ),
       }),
     [bound, maybeTree, classNames],
   )
@@ -476,7 +484,11 @@ export const ActionMenuPanel = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="fk-action-menu-title"
-        className={className ?? 'fk-action-menu'}
+        className={
+          className === undefined
+            ? 'fk-action-menu'
+            : `fk-action-menu ${className}`
+        }
         data-style={menu.style._tag}
       >
         <h2 id="fk-action-menu-title" className="fk-action-menu-title">
@@ -546,6 +558,71 @@ export const ActionMenuDialog = ({
         menu={menu}
         {...(className === undefined ? {} : { className })}
       />
+    ),
+  })
+
+// MENU OPENER
+
+const browserKeyPlatform = (): Interaction.KeyPlatform =>
+  typeof navigator === 'undefined'
+    ? 'Other'
+    : Interaction.keyPlatformOf(navigator)
+
+/**
+ * The bound Program's menu opener for this device, `Actions (⌘K)` on a
+ * Mac and `Actions (Ctrl+K)` elsewhere, and the function that opens the
+ * menu. None for a Program without a menu.
+ *
+ * @example
+ * ```tsx
+ * const maybeOpener = useMenuOpener()
+ * ```
+ */
+export const useMenuOpener = (
+  platform: Interaction.KeyPlatform = browserKeyPlatform(),
+): Option.Option<
+  Readonly<{ opener: Interaction.MenuOpener; open: () => void }>
+> => {
+  const bound = useBound()
+  return useMemo(
+    () =>
+      Option.map(bound.menuOpener(platform), opener => ({
+        opener,
+        open: () => {
+          bound.openMenu()
+        },
+      })),
+    [bound, platform],
+  )
+}
+
+/**
+ * A button that opens the bound Program's action menu, labeled from the
+ * Program: `Actions (⌘K)` on a Mac. It renders nothing for a Program
+ * without a menu.
+ *
+ * @example
+ * ```tsx
+ * <ActionMenuButton className="text-sm underline" />
+ * ```
+ */
+export const ActionMenuButton = ({
+  className,
+  platform,
+}: Readonly<{
+  className?: string
+  platform?: Interaction.KeyPlatform
+}>): ReactElement | null =>
+  Option.match(useMenuOpener(platform), {
+    onNone: () => null,
+    onSome: ({ opener, open }) => (
+      <button
+        type="button"
+        className={className ?? 'fk-action-menu-opener'}
+        onClick={open}
+      >
+        {opener.label}
+      </button>
     ),
   })
 

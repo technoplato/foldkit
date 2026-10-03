@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'bun:test'
-import { App, SyncedCounter, counterScreen } from 'counter-core-example'
+import { App, counterScreen } from 'counter-core-example'
 import { Option } from 'effect'
 
 import { paintOpenTuiFrame } from '@foldkit/opentui/interaction'
 import { createTestRenderer } from '@opentui/core/testing'
 
 const testScreenSize = { width: 72, height: 18 }
-
-const keysOf = (action: string): ReadonlyArray<string> =>
-  (SyncedCounter.of.of.catalog?.actions ?? [])
-    .filter(declaration => declaration.tag === action)
-    .flatMap(declaration => declaration.meta.keys)
 
 const paintFrame = async (
   count: number,
@@ -28,7 +23,6 @@ const paintFrame = async (
     Option.some(counterScreen({ count })),
     interaction === undefined ? Option.none() : interaction.menu(model),
     {
-      keysOf,
       onPress: () => {},
       onChoose: () => {},
       onDismiss: () => {},
@@ -45,9 +39,9 @@ describe('paintOpenTuiFrame', () => {
   it('paints the count and Catalog-hinted Buttons', async () => {
     const frame = await paintFrame(0, false)
     expect(frame).toContain('0')
-    expect(frame).toContain('[+] increment')
-    expect(frame).toContain('[-] decrement')
-    expect(frame).toContain('[r] reset (count is already 0)')
+    expect(frame).toContain('[+] Increment')
+    expect(frame).toContain('[-] Decrement')
+    expect(frame).toContain('[r] Reset (count is already 0)')
   })
 
   it('floats the presented action menu over the screen', async () => {

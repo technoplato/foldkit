@@ -65,6 +65,21 @@ export const splitUri = (fullUri: string): SplitUri => {
   }
 }
 
+/**
+ * The query pairs of a raw search, in order, as every adapter reads them.
+ * A pair that does not decode makes the whole search read as empty.
+ *
+ * @example
+ * ```typescript
+ * queryPairsOf('menu.q=re&search.q=cats')
+ * // [['menu.q', 're'], ['search.q', 'cats']]
+ * ```
+ */
+export const queryPairsOf = (search: string): QueryParams.QueryParams =>
+  Effect.runSync(
+    Effect.orElseSucceed(QueryParams.parse(search), () => QueryParams.empty),
+  )
+
 // PRINT
 
 /** The path and the full URI one print state renders to. */

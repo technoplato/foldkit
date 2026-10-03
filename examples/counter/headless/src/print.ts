@@ -3,9 +3,9 @@ import {
   type AppModel,
   type BoundCounter,
   MessageWire,
+  SyncedCounter,
   type SyncedCounterModel,
   bindCounter,
-  counterScreen,
   newProcessorInstance,
   startCounter,
   startCounterOn,
@@ -257,6 +257,11 @@ const modelDiffLines = (
   ...fieldChange('query', queryCell(before), queryCell(after)),
 ]
 
+const counterInteraction = Option.getOrThrowWith(
+  Option.fromNullishOr(SyncedCounter.interaction),
+  () => new Error('SyncedCounter must carry an interaction'),
+)
+
 /** Prints Starting, Failed, or the live count and screen. */
 export const formatHeadlessStatus = (
   model: SyncedCounterModel,
@@ -266,7 +271,18 @@ export const formatHeadlessStatus = (
   return M.value(model).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      Starting: () => withOptionalClock('Starting Instant Counter…', clock),
+      Starting: () =>
+        withOptionalClock(
+          M.value(counterInteraction.status(model)).pipe(
+            M.withReturnType<string>(),
+            M.tagsExhaustive({
+              Starting: ({ description }) => description,
+              Failed: ({ description }) => description,
+              Ready: () => '',
+            }),
+          ),
+          clock,
+        ),
       Failed: ({ error }) =>
         withOptionalClock(
           Program.describeSyncError(error, message => message._tag),
@@ -280,7 +296,10 @@ export const formatHeadlessStatus = (
             absentCell,
             statusTimeCell(options),
           ),
-          renderScreen(counterScreen(ready)),
+          ...Option.match(Option.fromNullishOr(SyncedCounter.screen), {
+            onNone: () => [],
+            onSome: screen => [renderScreen(screen(model))],
+          }),
         ].join('\n'),
     }),
   )

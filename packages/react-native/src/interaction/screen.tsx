@@ -1,4 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
+import { Navigation } from 'foldkit'
 import type { ButtonNode, UiNode } from 'foldkit/renderers'
 import { Fragment, type ReactElement, useMemo } from 'react'
 import {
@@ -36,8 +37,48 @@ export type PaintStyles = Readonly<{
 /** How a painted tree reports presses and which styles it merges. */
 export type PaintHandlers = Readonly<{
   onPress: (button: ButtonNode) => void
+  onLink?: (href: string) => void
   styles?: PaintStyles
 }>
+
+/**
+ * Follows a screen's text link where `Navigation.linkTargetOf` decides,
+ * the same decision every web adapter makes: `/counter/session` opens in
+ * the Program, and anything else opens through the device.
+ *
+ * @example
+ * ```tsx
+ * paintTree(node, { onPress, onLink: openLinkOf(bound) })
+ * ```
+ */
+export const openLinkOf =
+  (
+    bound: Readonly<{
+      ownsUri: (uri: string) => boolean
+      openUri: (uri: string, via: Navigation.UriVia) => boolean
+    }>,
+  ) =>
+  (href: string): void =>
+    M.value(
+      Navigation.linkTargetOf(href, {
+        ownsUri: bound.ownsUri,
+        maybeCurrentUri: Option.none(),
+        hostPages: 'ProgramOnly',
+      }),
+    ).pipe(
+      M.withReturnType<void>(),
+      M.tagsExhaustive({
+        OpenInProgram: () => {
+          bound.openUri(href, Navigation.Link())
+        },
+        ShowHostPage: () => {
+          void Linking.openURL(href)
+        },
+        LoadDocument: () => {
+          void Linking.openURL(href)
+        },
+      }),
+    )
 
 const disabledOpacity = 0.55
 
@@ -128,7 +169,11 @@ export const paintTree = (
               accessibilityLabel={text.label}
               accessibilityRole="link"
               onPress={() => {
-                void Linking.openURL(href)
+                if (handlers.onLink === undefined) {
+                  void Linking.openURL(href)
+                } else {
+                  handlers.onLink(href)
+                }
               }}
               style={[textStyle, linkStyle, styles.Text]}
             >
@@ -218,6 +263,7 @@ export const Screen = ({
                 bound.press(button.action)
               }
             },
+            onLink: openLinkOf(bound),
           }),
       }),
     [bound, maybeTree, styles],

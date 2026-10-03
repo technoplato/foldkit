@@ -7,6 +7,7 @@ import {
   type ProgramNavigation,
   screenView,
 } from '../navigation/declaration.js'
+import { type Frame, frameOf } from '../navigation/frame.js'
 import { NavigatedBack, OpenedUri, type UriVia } from '../navigation/message.js'
 import { type NavigationStack, stackAtRoot } from '../navigation/structure.js'
 import {
@@ -17,10 +18,13 @@ import type { ProgramSchema } from '../program/program.js'
 import type { UiNode } from '../renderers/types.js'
 import {
   type KeyInput,
+  type KeyPlatform,
+  type MenuOpener,
   type MenuView,
   type ProgramInteraction,
   Ready,
   type Status,
+  menuOpenerOf,
 } from './interaction.js'
 
 /**
@@ -57,6 +61,7 @@ export type BoundInteraction<Model, Message> = ProgramHandle<Model, Message> &
   Readonly<{
     programId: Option.Option<string>
     menuKeys: () => ReadonlyArray<KeyInput>
+    menuOpener: (platform: KeyPlatform) => Option.Option<MenuOpener>
     status: () => Status
     screen: () => Option.Option<UiNode>
     entries: () => ReadonlyArray<Entry>
@@ -177,6 +182,10 @@ export const bind = <Model, Message>(
     ...handle,
     programId: Option.fromNullishOr(program.id),
     menuKeys: () => (interaction === undefined ? [] : interaction.menuKeys),
+    menuOpener: platform =>
+      interaction === undefined
+        ? Option.none()
+        : menuOpenerOf(interaction, platform),
     status,
     screen: () =>
       screen === undefined
@@ -214,3 +223,27 @@ export const bind = <Model, Message>(
     navigateBack: uri => sendFact(NavigatedBack({ uri })),
   }
 }
+
+/**
+ * The navigation frame a pure view paints for one Model: the same frame a
+ * bound Program shows, for a host that renders from the Model it is given
+ * instead of a live handle, such as a Foldkit HTML view.
+ *
+ * @example
+ * ```typescript
+ * frameOfModel(SyncedCounter, model)
+ * // Some({ uri: '/counter/session', maybeTitle: Some('Session'), base, overlays: [] })
+ * ```
+ */
+export const frameOfModel = <Model, Message>(
+  program: BindableProgram<Model, Message>,
+  model: Model,
+): Option.Option<Frame> =>
+  frameOf(
+    bind(program, {
+      readModel: () => model,
+      subscribe: () => () => {},
+      send: () => {},
+      stop: () => Promise.resolve(),
+    }),
+  )

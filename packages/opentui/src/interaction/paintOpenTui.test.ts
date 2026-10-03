@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { Array, Match as M, Option, Schema as S } from 'effect'
+import { Match as M, Option, Schema as S } from 'effect'
 import {
   ActionMenu,
   Catalog,
@@ -74,15 +74,6 @@ const screenAt = (count: number) =>
     Row({}, ...actionButtons(Catalog.entries(catalog, { count }))),
   )
 
-const keysOf = (action: string): ReadonlyArray<string> =>
-  Option.match(
-    Array.findFirst(
-      Catalog.entries(catalog, { count: 0 }),
-      entry => entry.tag === action,
-    ),
-    { onNone: () => [], onSome: entry => entry.keys },
-  )
-
 const paintFrame = async (
   count: number,
   isMenuOpen: boolean,
@@ -99,7 +90,6 @@ const paintFrame = async (
       Option.some(screenAt(count)),
       interaction.menu(model),
       {
-        keysOf,
         onPress: () => {},
         onChoose: () => {},
         onDismiss: () => {},
@@ -116,8 +106,8 @@ describe('paintOpenTuiFrame', () => {
   it('paints the screen with Catalog-hinted Buttons and disabled sentences', async () => {
     const frame = await paintFrame(0, false)
     expect(frame).toContain('0')
-    expect(frame).toContain('[+] increment')
-    expect(frame).toContain('[r] reset (count is already 0)')
+    expect(frame).toContain('[+] Increment')
+    expect(frame).toContain('[r] Reset (count is already 0)')
   })
 
   it('floats the presented action menu over the screen', async () => {
@@ -182,7 +172,6 @@ describe('paintOpenTuiNavigationFrame', () => {
         renderer,
         Option.getOrThrow(Navigation.frameOf(bound)),
         {
-          keysOf,
           onPress: () => {},
           onChoose: () => {},
           onDismiss: () => {},

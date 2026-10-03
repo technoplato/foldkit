@@ -77,7 +77,9 @@ describe('startCounterOn', () => {
     const handle = startCounterOn(Runtime.Memory({ processor: 'cli-1' }))
     started.push(handle)
     const bound = Interaction.bind(SyncedCounter, handle)
-    expect(bound.status()).toEqual(Interaction.Starting())
+    expect(bound.status()).toEqual(
+      Interaction.Starting({ description: 'Starting Counter…' }),
+    )
     expect(
       bound.entries().every(entry => entry.availability._tag === 'Disabled'),
     ).toBe(true)

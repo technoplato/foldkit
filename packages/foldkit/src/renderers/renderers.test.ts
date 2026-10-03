@@ -2,7 +2,14 @@ import { Array, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { wrapDevice } from './devices/devices.js'
-import { Button, Column, Row, Text, TextInput } from './elements.js'
+import {
+  Button,
+  Column,
+  Row,
+  Text,
+  TextInput,
+  terminalCaptionOf,
+} from './elements.js'
 import { Host } from './host.js'
 import { paintHtml, paintMobile } from './html.js'
 import { padOf } from './pad.js'
@@ -200,5 +207,27 @@ describe('paintMobile', () => {
     expect(JSON.stringify(vnode)).toContain('fk-mobile-key')
     expect(JSON.stringify(vnode)).toContain('=')
     expect(JSON.stringify(vnode)).not.toContain('reset')
+  })
+})
+
+describe('terminalCaptionOf', () => {
+  it('shows the first key, the Action as words, and why it is disabled', () => {
+    expect(
+      terminalCaptionOf(
+        Button({ label: '+', action: 'Increment', keys: ['+', '='] }),
+      ),
+    ).toBe('[+] Increment')
+    expect(
+      terminalCaptionOf(
+        Button({
+          label: 'Reset',
+          action: 'Reset',
+          keys: ['r'],
+          because: 'count is already 0',
+          disabled: true,
+        }),
+      ),
+    ).toBe('[r] Reset (count is already 0)')
+    expect(terminalCaptionOf(Button({ label: 'Save' }))).toBe('Save')
   })
 })

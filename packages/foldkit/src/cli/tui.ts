@@ -10,9 +10,8 @@ import {
 import type { BoundInteraction } from '../interaction/bind.js'
 import {
   type KeyInput,
-  keyInput,
   menuHintOf,
-  normalizeKey,
+  terminalKeyInput,
 } from '../interaction/interaction.js'
 import { paintProgram } from './program.js'
 
@@ -39,7 +38,9 @@ const footerOf = <Model, Message>(
  * ```
  */
 export const keyInputOfTerminal = (input: Terminal.UserInput): KeyInput =>
-  keyInput(normalizeKey(Option.getOrElse(input.input, () => input.key.name)), {
+  terminalKeyInput({
+    sequence: Option.getOrElse(input.input, () => ''),
+    name: input.key.name,
     isMeta: input.key.meta,
     isControl: input.key.ctrl,
     isShift: input.key.shift,

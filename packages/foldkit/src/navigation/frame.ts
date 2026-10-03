@@ -15,7 +15,8 @@ export type FrameLayer = Readonly<{
 
 /**
  * Everything a host with one surface paints: where the Program is, the
- * base screen, and each entry presented over it, bottom first.
+ * title of the topmost entry that declares one, the base screen, and each
+ * entry presented over it, bottom first.
  *
  * @example
  * ```typescript
@@ -27,6 +28,7 @@ export type FrameLayer = Readonly<{
  */
 export type Frame = Readonly<{
   uri: string
+  maybeTitle: Option.Option<string>
   base: FrameLayer
   overlays: ReadonlyArray<FrameLayer>
 }>
@@ -60,6 +62,9 @@ export const frameOf = (source: FrameSource): Option.Option<Frame> =>
       }))
     return Option.map(layerOf(base), baseLayer => ({
       uri: plan.uri,
+      maybeTitle: Array.last(
+        Array.getSomes(Array.map(plan.entries, entry => entry.maybeTitle)),
+      ),
       base: baseLayer,
       overlays: Array.getSomes(Array.map(overlays, layerOf)),
     }))

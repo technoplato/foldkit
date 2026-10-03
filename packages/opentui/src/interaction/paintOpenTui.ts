@@ -1,6 +1,10 @@
-import { Array, Match as M, Option, pipe } from 'effect'
-import { Catalog, type Interaction, type Navigation } from 'foldkit'
-import { type ButtonNode, type UiNode } from 'foldkit/renderers'
+import { Array, Match as M, Option } from 'effect'
+import { Interaction, type Navigation } from 'foldkit'
+import {
+  type ButtonNode,
+  type UiNode,
+  terminalCaptionOf,
+} from 'foldkit/renderers'
 
 import {
   BoxRenderable,
@@ -18,9 +22,8 @@ import {
 
 const buttonPaddingX = 1
 
-/** How a painted OpenTUI tree finds key hints and reports presses. */
+/** How a painted OpenTUI tree reports presses. */
 export type PaintOpenTuiOptions = Readonly<{
-  keysOf: (action: string) => ReadonlyArray<string>
   onPress: (button: ButtonNode) => void
 }>
 
@@ -29,23 +32,6 @@ export type PaintOpenTuiMenuOptions = Readonly<{
   onChoose: (tag: string) => void
   onDismiss: () => void
 }>
-
-const buttonText = (
-  button: ButtonNode,
-  options: PaintOpenTuiOptions,
-): string => {
-  if (button.action === undefined) {
-    return button.label
-  }
-  const hint = Option.getOrElse(
-    Array.head(options.keysOf(button.action)),
-    () => button.label,
-  )
-  const word = Catalog.commandOf(button.action)
-  return button.because === undefined
-    ? `[${hint}] ${word}`
-    : `[${hint}] ${word} (${button.because})`
-}
 
 const addChildren = (
   ctx: RenderContext,
@@ -94,7 +80,7 @@ export const paintOpenTui = (
               }
             : {}),
         })
-        const label = buttonText(button, options)
+        const label = terminalCaptionOf(button)
         box.add(
           new TextRenderable(ctx, {
             content: isPressable ? t`${bold(label)}` : t`${dim(label)}`,
@@ -150,13 +136,6 @@ const matchColor = '#a5b4fc'
 const rowMark = (row: Interaction.MenuRow): string =>
   row.isHighlighted ? '> ' : '  '
 
-const hintLine = (menu: Interaction.MenuView): string =>
-  pipe(
-    menu.hints,
-    Array.map(hint => `[${Array.join(hint.keys, '')}] ${hint.does}`),
-    Array.join('  '),
-  )
-
 const runChunks = (
   runs: ReadonlyArray<Interaction.TextRun>,
   style: (text: string) => TextChunk,
@@ -200,7 +179,11 @@ const paintMenu = (
     top: 0,
     zIndex: 20,
   })
-  overlay.add(new TextRenderable(ctx, { content: t`${dim(hintLine(menu))}` }))
+  overlay.add(
+    new TextRenderable(ctx, {
+      content: t`${dim(Interaction.hintLineOf(menu.hints))}`,
+    }),
+  )
   overlay.add(
     new TextRenderable(ctx, {
       content: menu.isFilterFocused
@@ -233,7 +216,7 @@ const paintMenu = (
       options.onDismiss()
     },
   })
-  close.add(new TextRenderable(ctx, { content: t`${dim('[esc] Close')}` }))
+  close.add(new TextRenderable(ctx, { content: t`${dim(menu.dismissLabel)}` }))
   overlay.add(close)
   return overlay
 }

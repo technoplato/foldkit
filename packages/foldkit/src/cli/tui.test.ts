@@ -54,7 +54,7 @@ describe('runProgramTui', () => {
       ),
     )
     expect(bound.readModel().count).toBe(0)
-    expect(frames.some(frame => frame.includes('Action menu'))).toBe(true)
+    expect(frames.some(frame => frame.includes('Search actions'))).toBe(true)
     expect(Option.getOrThrow(Array.head(frames))).toContain('[?] actions')
   })
 })

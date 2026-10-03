@@ -63,3 +63,74 @@ describe('Interaction.normalizeKey', () => {
     expect(Interaction.normalizeKey('+')).toBe('+')
   })
 })
+
+describe('menu opener', () => {
+  const menuKeys = [
+    Interaction.keyInput('?'),
+    Interaction.keyInput('k', { isMeta: true }),
+    Interaction.keyInput('k', { isControl: true }),
+  ]
+  const withMenu = { menuTitle: Option.some('Actions'), menuKeys }
+
+  it('labels the opener with the shortcut each platform uses', () => {
+    expect(
+      Option.map(Interaction.menuOpenerOf(withMenu, 'Mac'), o => o.label),
+    ).toEqual(Option.some('Actions (⌘K)'))
+    expect(
+      Option.map(Interaction.menuOpenerOf(withMenu, 'Other'), o => o.label),
+    ).toEqual(Option.some('Actions (Ctrl+K)'))
+    expect(
+      Option.map(Interaction.menuOpenerOf(withMenu, 'Touch'), o => o.label),
+    ).toEqual(Option.some('Actions'))
+    expect(Interaction.menuOpenerOf(interaction, 'Mac')).toEqual(Option.none())
+  })
+
+  it('reads the key platform a browser reports', () => {
+    expect(
+      Interaction.keyPlatformOf({ platform: 'MacIntel', maxTouchPoints: 0 }),
+    ).toBe('Mac')
+    expect(
+      Interaction.keyPlatformOf({ platform: 'Win32', userAgent: 'Windows' }),
+    ).toBe('Other')
+    expect(
+      Interaction.keyPlatformOf({
+        platform: 'Linux armv8l',
+        userAgent: 'Mozilla/5.0 (Linux; Android 14) Mobile',
+        maxTouchPoints: 5,
+      }),
+    ).toBe('Touch')
+  })
+})
+
+describe('terminalKeyInput', () => {
+  const press = (
+    sequence: string,
+    name: string,
+    modifiers: Partial<Readonly<{ isControl: boolean; isShift: boolean }>> = {},
+  ) =>
+    Interaction.terminalKeyInput({
+      sequence,
+      name,
+      isMeta: false,
+      isControl: modifiers.isControl ?? false,
+      isShift: modifiers.isShift ?? false,
+    }).key
+
+  it('reads the typed character, else the key name', () => {
+    expect(press('J', 'j', { isShift: true })).toBe('J')
+    expect(press('\u000b', 'k', { isControl: true })).toBe('k')
+    expect(press('\u001b[A', 'up')).toBe('ArrowUp')
+    expect(press('\r', 'return')).toBe('Enter')
+  })
+})
+
+describe('hintLineOf', () => {
+  it('prints the hints as one terminal line', () => {
+    expect(
+      Interaction.hintLineOf([
+        { keys: ['↑', '↓'], does: 'move' },
+        { keys: ['esc'], does: 'close' },
+      ]),
+    ).toBe('[↑↓] move  [esc] close')
+  })
+})

@@ -74,12 +74,13 @@ describe('interaction', () => {
 describe('counterScreen', () => {
   it('paints the count and one button per Action', () => {
     expect(buttonsOf(counterScreen({ count: 0 }))).toEqual([
-      { _tag: 'Button', label: '+', action: 'Increment' },
-      { _tag: 'Button', label: '-', action: 'Decrement' },
+      { _tag: 'Button', label: '+', action: 'Increment', keys: ['+', '='] },
+      { _tag: 'Button', label: '-', action: 'Decrement', keys: ['-'] },
       {
         _tag: 'Button',
         label: 'Reset',
         action: 'Reset',
+        keys: ['r'],
         because: 'count is already 0',
         disabled: true,
       },

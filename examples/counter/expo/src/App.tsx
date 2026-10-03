@@ -1,12 +1,12 @@
 import { Match as M } from 'effect'
 import { StatusBar } from 'expo-status-bar'
 import type { ReactElement, ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 
 import {
+  ActionMenuButton,
   type PaintStyles,
-  useBound,
   useStatus,
 } from '@foldkit/react-native/interaction'
 import {
@@ -30,7 +30,6 @@ const styles: PaintStyles = {
  */
 export const App = (): ReactElement => {
   useDeepLinks()
-  const bound = useBound()
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
@@ -38,31 +37,12 @@ export const App = (): ReactElement => {
         {M.value(useStatus()).pipe(
           M.withReturnType<ReactNode>(),
           M.tagsExhaustive({
-            Starting: () => <Status>Starting Instant Counter…</Status>,
+            Starting: ({ description }) => <Status>{description}</Status>,
             Failed: ({ description }) => <Status>{description}</Status>,
             Ready: () => <FoldkitStack styles={styles} />,
           }),
         )}
-        <Pressable
-          accessibilityLabel="Actions"
-          accessibilityRole="button"
-          onPress={() => {
-            bound.openMenu()
-          }}
-          style={{
-            backgroundColor: '#111827',
-            borderRadius: 24,
-            bottom: 24,
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            position: 'absolute',
-            right: 24,
-          }}
-        >
-          <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>
-            Actions
-          </Text>
-        </Pressable>
+        <ActionMenuButton />
       </SafeAreaView>
     </SafeAreaProvider>
   )

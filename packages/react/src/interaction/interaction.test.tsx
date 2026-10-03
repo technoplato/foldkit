@@ -176,9 +176,12 @@ describe('@foldkit/react/interaction', () => {
     expect(
       document.querySelector('.fk-action-menu-footer')?.textContent,
     ).toContain('back to search')
-    expect(document.head.querySelector('style')?.textContent).toContain(
-      '.fk-action-menu',
-    )
+    expect(
+      Array.some(
+        Array.fromIterable(document.head.querySelectorAll('style')),
+        style => (style.textContent ?? '').includes('.fk-action-menu'),
+      ),
+    ).toBe(true)
   })
 
   it('closes the menu on a click outside it', () => {

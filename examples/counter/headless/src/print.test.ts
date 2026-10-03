@@ -70,7 +70,7 @@ describe('Counter headless printer', () => {
   it('status text includes the count', () => {
     expect(formatHeadlessStatus(readyAt(3))).toContain('3')
     expect(formatHeadlessStatus(SyncedCounter.Starting())).toContain(
-      'Starting Instant Counter',
+      'Starting Counter',
     )
   })
 
@@ -318,7 +318,7 @@ describe('Counter headless printer', () => {
     const createdAtMs = Date.UTC(2026, 7, 21, 17, 52, 44, 0)
     const time = newYorkAt(createdAtMs)
     expect(formatHeadlessStatus(SyncedCounter.Starting(), time)).toBe(
-      'Starting Instant Counter…  1:52:44 PM',
+      'Starting Counter…  1:52:44 PM',
     )
     const text = formatHeadlessStatus(failed, time)
     expect(text).toContain('Instant is down.')

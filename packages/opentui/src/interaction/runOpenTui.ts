@@ -1,6 +1,6 @@
-import { Array, Option } from 'effect'
+import { Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
-import { keyInput, normalizeKey } from 'foldkit/interaction'
+import { terminalKeyInput } from 'foldkit/interaction'
 
 import {
   type CliRenderer,
@@ -53,17 +53,7 @@ export const runOpenTui = <Model, Message>(
       },
     )
 
-    const keysOf = (action: string): ReadonlyArray<string> =>
-      Option.match(
-        Array.findFirst(bound.entries(), entry => entry.tag === action),
-        {
-          onNone: () => [],
-          onSome: entry => entry.keys,
-        },
-      )
-
     const paintOptions: PaintOpenTuiOptions & PaintOpenTuiMenuOptions = {
-      keysOf,
       onPress: button => {
         if (button.action !== undefined) {
           bound.press(button.action)
@@ -109,15 +99,15 @@ export const runOpenTui = <Model, Message>(
     const stopWatching = bound.subscribe(paint)
 
     renderer.keyInput.on('keypress', key => {
-      const typed = normalizeKey(key.name === '' ? key.sequence : key.name)
-      const isHandled = bound.pressKey(
-        keyInput(typed, {
-          isMeta: key.meta,
-          isControl: key.ctrl,
-          isShift: key.shift,
-        }),
-      )
-      if (!isHandled && typed === 'q' && Option.isNone(bound.menu())) {
+      const input = terminalKeyInput({
+        sequence: key.sequence,
+        name: key.name,
+        isMeta: key.meta,
+        isControl: key.ctrl,
+        isShift: key.shift,
+      })
+      const isHandled = bound.pressKey(input)
+      if (!isHandled && input.key === 'q' && Option.isNone(bound.menu())) {
         stopWatching()
         stopLaunching()
         resolve()

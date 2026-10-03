@@ -11,7 +11,11 @@ import {
   pipe,
 } from 'effect'
 
-import { type CatalogCarrierOf, type Entry } from '../catalog/catalog.js'
+import {
+  type CatalogCarrierOf,
+  type Entry,
+  titleOf,
+} from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
 import {
   type KeyInput,
@@ -64,6 +68,8 @@ import type {
 import { make } from '../program/program.js'
 import * as Route from '../route/parser.js'
 import { m, ts } from '../schema/index.js'
+
+export { titleOf } from '../catalog/catalog.js'
 
 // FOCUS
 
@@ -187,30 +193,6 @@ export type MatchedEntry = Readonly<{
   title: ReadonlyArray<TextRun>
   description: ReadonlyArray<TextRun>
 }>
-
-const isAcronym = (word: string): boolean =>
-  word.length > 1 && word === word.toUpperCase()
-
-/**
- * An Action's tag as words, the title a menu row shows.
- *
- * @example
- * ```typescript
- * titleOf('OpenSessionSettings') // 'Open session settings'
- * titleOf('OpenURL') // 'Open URL'
- * ```
- */
-export const titleOf = (tag: string): string =>
-  pipe(
-    tag,
-    String.replace(/([a-z0-9])([A-Z])/g, '$1 $2'),
-    String.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2'),
-    String.split(' '),
-    Array.map((word, index) =>
-      index === 0 || isAcronym(word) ? word : word.toLowerCase(),
-    ),
-    Array.join(' '),
-  )
 
 const substringPositions = (
   haystack: string,
@@ -533,12 +515,23 @@ const hintsOf = (focus: Focus): ReadonlyArray<MenuHint> => [
   },
 ]
 
+const spokenLabelOf = (entry: Entry): string =>
+  M.value(entry.availability).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      Enabled: () => `${titleOf(entry.tag)}, ${entry.what}`,
+      Disabled: ({ because }) =>
+        `${titleOf(entry.tag)}, ${entry.what}, unavailable: ${because}`,
+    }),
+  )
+
 const rowOf =
   (focus: Focus) =>
   (matched: MatchedEntry): MenuRow => ({
     entry: matched.entry,
     title: matched.title,
     description: matched.description,
+    spokenLabel: spokenLabelOf(matched.entry),
     keys: Array.take(matched.entry.keys, 1),
     isHighlighted: Option.contains(highlightedTag(focus), matched.entry.tag),
     isFocused: focus._tag === 'OnAction' && focus.tag === matched.entry.tag,
@@ -569,6 +562,7 @@ export const menuViewOf = (
   return {
     title: menuTitle,
     filterLabel: menuFilterLabel,
+    dismissLabel: `Close ${menuTitle.toLowerCase()}`,
     query: menu.query,
     isFilterFocused: menu.focus._tag === 'OnFilter',
     rows,
@@ -1090,6 +1084,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     )
 
   const interaction: ProgramInteraction<AppModel, AppMessage> = {
+    menuTitle: Option.some(menuTitle),
     menuKeys,
     status: model => childInteraction.status(childOf(model)),
     entries: model => childInteraction.entries(childOf(model)),

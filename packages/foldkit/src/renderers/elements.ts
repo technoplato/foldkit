@@ -1,6 +1,6 @@
-import { Array, Match as M } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 
-import type { Entry } from '../catalog/catalog.js'
+import { type Entry, titleOf } from '../catalog/catalog.js'
 import type {
   BoxNode,
   ButtonNode,
@@ -41,6 +41,7 @@ export const Button = (props: {
   readonly label: string
   readonly token?: string
   readonly action?: string
+  readonly keys?: ReadonlyArray<string>
   readonly because?: string
   readonly variant?: 'Primary' | 'Ghost' | 'Destructive'
   readonly disabled?: boolean
@@ -49,6 +50,9 @@ export const Button = (props: {
   label: props.label,
   ...(props.token === undefined ? {} : { token: props.token }),
   ...(props.action === undefined ? {} : { action: props.action }),
+  ...(props.keys === undefined || props.keys.length === 0
+    ? {}
+    : { keys: props.keys }),
   ...(props.because === undefined ? {} : { because: props.because }),
   ...(props.variant === undefined ? {} : { variant: props.variant }),
   ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
@@ -72,11 +76,13 @@ export const actionButtons = (
     M.value(entry.availability).pipe(
       M.withReturnType<ButtonNode>(),
       M.tagsExhaustive({
-        Enabled: () => Button({ label: entry.label, action: entry.tag }),
+        Enabled: () =>
+          Button({ label: entry.label, action: entry.tag, keys: entry.keys }),
         Disabled: ({ because }) =>
           Button({
             label: entry.label,
             action: entry.tag,
+            keys: entry.keys,
             because,
             disabled: true,
           }),
@@ -137,3 +143,26 @@ export const Box = (
   padding: props.padding ?? 0,
   children,
 })
+
+/**
+ * How a terminal shows a Button: its first key in brackets, then the
+ * Action's tag as words, then why it is disabled. A Button without an
+ * Action shows its label.
+ *
+ * @example
+ * ```typescript
+ * terminalCaptionOf(Button({ label: '+', action: 'Increment', keys: ['+', '='] }))
+ * // '[+] Increment'
+ * terminalCaptionOf(Button({ label: 'Reset', action: 'Reset', keys: ['r'], because: 'count is already 0', disabled: true }))
+ * // '[r] Reset (count is already 0)'
+ * ```
+ */
+export const terminalCaptionOf = (button: ButtonNode): string => {
+  const name =
+    button.action === undefined ? button.label : titleOf(button.action)
+  const hinted = Option.match(Array.head(button.keys ?? []), {
+    onNone: () => name,
+    onSome: key => `[${key}] ${name}`,
+  })
+  return button.because === undefined ? hinted : `${hinted} (${button.because})`
+}

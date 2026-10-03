@@ -1,12 +1,4 @@
-import {
-  Array,
-  Option,
-  Predicate,
-  Record,
-  Schema as S,
-  String,
-  pipe,
-} from 'effect'
+import { Array, Option, Predicate, Record, Schema as S, pipe } from 'effect'
 import { Navigation } from 'foldkit'
 
 // ROUTE
@@ -30,11 +22,6 @@ export type RouterRoute = Readonly<{
   params: Readonly<Record<string, string | ReadonlyArray<string>>>
 }>
 
-const queryEntriesOf = (
-  search: string,
-): ReadonlyArray<readonly [string, string]> =>
-  Array.fromIterable(new URLSearchParams(search).entries())
-
 /**
  * The catch-all route that shows one keyed entry: its segments as `path`,
  * its query beside them, as Expo Router writes a URL into params.
@@ -50,7 +37,10 @@ export const routerRouteOf = (route: Navigation.KeyedRoute): RouterRoute => {
   return {
     key: route.key,
     name: catchAllRouteName,
-    params: { ...Record.fromEntries(queryEntriesOf(search)), path: segments },
+    params: {
+      ...Record.fromEntries(Navigation.queryPairsOf(search)),
+      path: segments,
+    },
   }
 }
 
@@ -75,10 +65,10 @@ const queryEntryOf = ([key, value]: readonly [string, unknown]): Option.Option<
     ? Option.some([key, value])
     : Option.none()
 
-const queryOf = (params: Readonly<Record<string, unknown>>): string =>
-  new URLSearchParams(
-    Array.getSomes(Array.map(Record.toEntries(params), queryEntryOf)),
-  ).toString()
+const queryPairsOfParams = (
+  params: Readonly<Record<string, unknown>>,
+): ReadonlyArray<[string, string]> =>
+  Array.getSomes(Array.map(Record.toEntries(params), queryEntryOf))
 
 /**
  * The URI a route of the layout's stack shows: its segments, then its
@@ -100,9 +90,12 @@ export const uriOfRoute = (
     S.decodeUnknownOption(S.Record(S.String, S.Unknown))(route.params),
     () => ({}),
   )
-  const path = `/${Array.join(Array.map(segmentsOf(params), encodeURIComponent), '/')}`
-  const query = queryOf(params)
-  return Option.some(String.isEmpty(query) ? path : `${path}?${query}`)
+  return Option.some(
+    Navigation.pathAndUri({
+      segments: segmentsOf(params),
+      queryParams: queryPairsOfParams(params),
+    }).uri,
+  )
 }
 
 // REF

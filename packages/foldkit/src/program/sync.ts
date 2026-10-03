@@ -10,6 +10,7 @@ import {
   type ProgramInteraction,
   Starting as StartingStatus,
 } from '../interaction/interaction.js'
+import { maybeTitleOf } from '../navigation/carrier.js'
 import { focusModel } from '../navigation/declaration.js'
 import { ts } from '../schema/index.js'
 import type {
@@ -458,6 +459,16 @@ export const sync = <Child extends SyncChild>(config: {
       ? 'Sync failed. This Processor cannot send yet.'
       : 'Waiting for the first sync snapshot.'
 
+  const startingDescription = Option.match(
+    Option.flatMap(Option.fromNullishOr(child.navigation), navigation =>
+      maybeTitleOf(navigation, navigation.root),
+    ),
+    {
+      onNone: () => 'Starting…',
+      onSome: title => `Starting ${title}…`,
+    },
+  )
+
   const liftInteraction = (
     inner: ProgramInteraction<ChildModel, ChildMessage>,
   ): ProgramInteraction<Model, Message> => {
@@ -473,6 +484,7 @@ export const sync = <Child extends SyncChild>(config: {
       messages: ReadonlyArray<ChildMessage>,
     ): ReadonlyArray<Message> => messages as ReadonlyArray<Message>
     return {
+      menuTitle: inner.menuTitle,
       menuKeys: inner.menuKeys,
       status: model => {
         if (isFailed(model)) {
@@ -482,7 +494,7 @@ export const sync = <Child extends SyncChild>(config: {
         } else if (model._tag === 'Ready') {
           return inner.status(stripReady(model) as ChildModel)
         } else {
-          return StartingStatus()
+          return StartingStatus({ description: startingDescription })
         }
       },
       entries: model =>

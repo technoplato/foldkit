@@ -10,7 +10,11 @@ import { type Navigator, Router, type To, createPath } from 'react-router'
 
 import { type AnyBound, useBound } from '../interaction/interaction.js'
 import { useBoundRead } from '../interaction/selected.js'
-import { NavigationFrame, useBrowserHistory } from '../navigation/navigation.js'
+import {
+  HostPagesProvider,
+  NavigationFrame,
+  useBrowserHistory,
+} from '../navigation/navigation.js'
 
 // LOCATION
 
@@ -44,49 +48,32 @@ const useBrowserLocation = (): Option.Option<string> => {
 
 // NAVIGATOR
 
-/**
- * Whether the app shows pages of its own beside the Program's. With them,
- * a link outside the Program stays in the app; without them, it is
- * another page on the site.
- */
-export type HostPages = 'WithHostPages' | 'ProgramOnly'
-
-const isParked = (bound: AnyBound): boolean =>
-  typeof window !== 'undefined' && !bound.ownsUri(Navigation.windowUri(window))
-
 const follow = (
   bound: AnyBound,
-  hostPages: HostPages,
+  hostPages: Navigation.HostPages,
   to: To,
   mode: 'Push' | 'Replace',
 ): void => {
   const href = hrefOf(to)
-  if (typeof window === 'undefined') {
-    return
-  } else if (hostPages === 'ProgramOnly') {
-    if (bound.ownsUri(href)) {
-      bound.openUri(href, Navigation.Link())
-    } else {
-      window.location.assign(href)
-    }
-  } else if (bound.ownsUri(href) && !isParked(bound)) {
-    bound.openUri(href, Navigation.Link())
-  } else {
-    Navigation.followHostLink(window, href, mode)
+  if (
+    typeof window !== 'undefined' &&
+    !Navigation.followLink(window, bound, href, hostPages, mode)
+  ) {
+    window.location.assign(href)
   }
 }
 
 /**
- * The navigator React Router calls. A push or replace to one of the
- * Program's URIs opens it, so the Program decides where to go. With host
- * pages, a link to one of them, such as `/about`, writes the address bar
- * and parks the Program's carrier: no reload, and the Program keeps
- * running. Without them, a link outside the Program loads that page. `go`
- * moves browser history, which reaches the Program through the carrier.
+ * The navigator React Router calls. Each push or replace goes where
+ * `Navigation.followLink` decides, the same decision a screen's text link
+ * makes: a Program URI opens in the Program; with host pages, `/about`
+ * writes the address bar and parks the Program's carrier, with no reload;
+ * anything else loads that page. `go` moves browser history, which reaches
+ * the Program through the carrier.
  */
 export const navigatorOf = (
   bound: AnyBound,
-  hostPages: HostPages,
+  hostPages: Navigation.HostPages,
 ): Navigator => ({
   createHref: hrefOf,
   push: to => {
@@ -137,7 +124,7 @@ export const FoldkitRouter = ({
   children,
 }: Readonly<{ children?: ReactNode }>): ReactElement => {
   const bound = useBound()
-  const hostPages: HostPages =
+  const hostPages: Navigation.HostPages =
     children === undefined ? 'ProgramOnly' : 'WithHostPages'
   useBrowserHistory(
     hostPages === 'WithHostPages' ? { isCarried: bound.ownsUri } : {},
@@ -161,7 +148,9 @@ export const FoldkitRouter = ({
     onNone: () => <></>,
     onSome: location => (
       <Router location={location} navigator={navigator}>
-        {children ?? <NavigationFrame />}
+        <HostPagesProvider value={hostPages}>
+          {children ?? <NavigationFrame />}
+        </HostPagesProvider>
       </Router>
     ),
   })

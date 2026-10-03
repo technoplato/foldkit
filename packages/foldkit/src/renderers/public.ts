@@ -7,6 +7,7 @@ export {
   Text,
   TextInput,
   actionButtons,
+  terminalCaptionOf,
 } from './elements.js'
 export { Host } from './host.js'
 export { padOf } from './pad.js'

@@ -6,9 +6,11 @@ import {
   type ModalProps,
   Platform,
   Pressable,
+  type StyleProp,
   Text,
   TextInput,
   View,
+  type ViewStyle,
 } from 'react-native'
 
 import { useBound, useMenu } from '@foldkit/react/interaction'
@@ -112,7 +114,7 @@ const MenuRow = ({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${Interaction.textOf(row.title)}, ${row.entry.what}`}
+      accessibilityLabel={row.spokenLabel}
       accessibilityState={{
         disabled: isDisabled,
         selected: row.isHighlighted,
@@ -189,7 +191,7 @@ export const ActionMenuSheet = ({
       }}
     >
       <Pressable
-        accessibilityLabel={`Close ${menu.title}`}
+        accessibilityLabel={menu.dismissLabel}
         accessibilityRole="button"
         onPress={() => {
           bound.dismissMenu()
@@ -263,6 +265,49 @@ export const ActionMenuSheet = ({
       </View>
     </View>
   )
+}
+
+const floatingOpenerStyle: StyleProp<ViewStyle> = {
+  backgroundColor: '#111827',
+  borderRadius: 24,
+  bottom: 24,
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  position: 'absolute',
+  right: 24,
+}
+
+/**
+ * A floating button that opens the bound Program's action menu, labeled
+ * from the Program. A touch screen shows no shortcut, so it reads
+ * `Actions`. It renders nothing for a Program without a menu.
+ *
+ * @example
+ * ```tsx
+ * <ActionMenuButton />
+ * ```
+ */
+export const ActionMenuButton = ({
+  style,
+}: Readonly<{ style?: StyleProp<ViewStyle> }>): ReactElement | null => {
+  const bound = useBound()
+  return Option.match(bound.menuOpener('Touch'), {
+    onNone: () => null,
+    onSome: opener => (
+      <Pressable
+        accessibilityLabel={opener.label}
+        accessibilityRole="button"
+        onPress={() => {
+          bound.openMenu()
+        }}
+        style={style ?? floatingOpenerStyle}
+      >
+        <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>
+          {opener.label}
+        </Text>
+      </Pressable>
+    ),
+  })
 }
 
 /**
