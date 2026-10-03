@@ -48,6 +48,21 @@ describe('scribeRouteFromLink', () => {
     )
   })
 
+  it('reads the same place from both web hosts, in any case', () => {
+    const path = `recording/${recordingID}/section/${sectionID}?t=41`
+    const expected = Option.some(
+      SectionRoute({ recordingID, sectionID, t: Option.some('41') }),
+    )
+
+    for (const host of [
+      'words.knophy.com',
+      'words.pisspoursoftware.xyz',
+      'Words.PissPourSoftware.XYZ',
+    ]) {
+      expect(scribeRouteFromLink(`https://${host}/${path}`)).toEqual(expected)
+    }
+  })
+
   it('reads uppercase ids from iPhone links and normalizes them to lowercase', () => {
     expect(
       scribeRouteFromLink(`scribe-shared://recording/${upperRecordingID}`),
@@ -124,6 +139,9 @@ describe('scribeRouteFromLink', () => {
     const links = [
       `https://example.com/recording/${recordingID}`,
       `http://words.knophy.com/recording/${recordingID}`,
+      `http://words.pisspoursoftware.xyz/recording/${recordingID}`,
+      `https://words.pisspoorsoftware.xyz/recording/${recordingID}`,
+      `https://pisspoursoftware.xyz/recording/${recordingID}`,
       `mailto:someone@example.com`,
       `https://words.knophy.com/recording/not-a-uuid`,
       `scribe-shared://recording/${recordingID}/thread/bad/segment`,

@@ -59,12 +59,12 @@ export default defineConfig({
   },
   server: {
     port: 5231,
-    allowedHosts: ['words.knophy.com'],
+    allowedHosts: ['words.knophy.com', 'words.pisspoursoftware.xyz'],
     fs: { allow: ['../../../'] },
   },
   preview: {
     host: '127.0.0.1',
     port: 5232,
-    allowedHosts: ['words.knophy.com'],
+    allowedHosts: ['words.knophy.com', 'words.pisspoursoftware.xyz'],
   },
 })

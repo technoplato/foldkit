@@ -21,7 +21,20 @@ import { type Url, fromString } from 'foldkit/url'
 /** The origin of every shared Scribe link, on the web and on the iPhone. */
 export const scribeLinkOrigin = 'https://words.knophy.com'
 
-const scribeLinkHost = 'words.knophy.com'
+/**
+ * The web hosts whose shared links web Scribe opens: the origin's host, and its
+ * twin on the new domain, which serves the same site. A link on either host
+ * opens the same place, like `https://words.pisspoursoftware.xyz/account`.
+ */
+export const ScribeLinkHost = S.Literals([
+  'words.knophy.com',
+  'words.pisspoursoftware.xyz',
+])
+/**
+ * The web hosts whose shared links web Scribe opens: the origin's host, and its
+ * twin on the new domain, which serves the same site.
+ */
+export type ScribeLinkHost = typeof ScribeLinkHost.Type
 
 /** The custom URL schemes the Scribe iPhone app registers, one per install lane. */
 export const ScribeAppScheme = S.Literals([
@@ -227,7 +240,7 @@ const scribeRouteParser = Route.oneOf(
   recordingListRouter,
 )
 
-/** Parses a browser URL on words.knophy.com into the place it opens. */
+/** Parses a browser URL on either web host into the place it opens. */
 export const urlToScribeRoute: (url: Url) => ScribeRoute =
   Route.parseUrlWithFallback(scribeRouteParser, NotFoundRoute)
 
@@ -272,7 +285,7 @@ const isScribeAppProtocol = (protocol: string): boolean =>
 const webPathOf = (url: Url): Option.Option<string> => {
   const search = Option.getOrElse(url.search, () => '')
   const query = search === '' ? '' : `?${search.replace(/^\?/, '')}`
-  if (url.protocol === 'https:' && url.host === scribeLinkHost) {
+  if (url.protocol === 'https:' && S.is(ScribeLinkHost)(url.host)) {
     return Option.some(`${url.pathname}${query}`)
   } else if (isScribeAppProtocol(url.protocol)) {
     return Option.some(
@@ -284,8 +297,9 @@ const webPathOf = (url: Url): Option.Option<string> => {
 }
 
 /**
- * Parses a shared link, `https://words.knophy.com/...` or `scribe-shared://...`,
- * into the place it opens. Other hosts and schemes are not Scribe links.
+ * Parses a shared link, `https://words.knophy.com/...`,
+ * `https://words.pisspoursoftware.xyz/...` or `scribe-shared://...`, into the
+ * place it opens. Other hosts and schemes are not Scribe links.
  *
  * @example
  * ```ts
