@@ -4,6 +4,49 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 5:27:15 p.m. EDT — `b2700c32c1be` fix(foldkit): show less at once on the Session page and in the TUI
+
+- **Implementation commit:** `b2700c32c1bed61769c88a1de3d70aaa24e1224b`
+- **Change:** Show less at once on the Session page and in the TUI
+- **Details:**
+  - Each companion app is one line on the Session page, its name beside its copyable command; the TUI paints the screen and the open menu without the full Action list after every key.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — One line per companion.
+  - `packages/foldkit/src/cli/tui.ts` — Paint the screen, not the Action list.
+- **User context (verbatim):**
+  > I like the tabbing and whatnot and the key, but um, there's too much information.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 5:18:32 p.m. EDT — `2e164e3cf7be` feat(foldkit): add a CLI watch command and group unavailable choices by reason
+
+- **Implementation commit:** `2e164e3cf7beb0f53427a68aef139fe5e8f4c3c5`
+- **Change:** Add a CLI watch command and group unavailable choices by reason
+- **Details:**
+  - `counter watch` and `counters watch` repaint the screen whenever it changes, from any device, until Ctrl-C; the Action list puts choices that share a reason on one line.
+- **Files:**
+  - `packages/foldkit/src/cli/watch.ts` — `runProgramWatch` and `paintWatch`.
+  - `packages/foldkit/src/cli/program.ts` — `paintScreen` and grouped reasons.
+  - `examples/multiple-counters/cli/src/entry.ts` — The watch command.
+  - `examples/counter/cli/src/watch.ts` — The Counter's watch command.
+- **User context (verbatim):**
+  > do we have a CLI watch command yet? That's always useful to have.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 5:18:22 p.m. EDT — `3d326f8aaec8` feat(foldkit): go back from any screen, and list unavailable Actions under a hairline
+
+- **Implementation commit:** `3d326f8aaec8dfe7ec40c2061c099bdafe25da98`
+- **Change:** Go back from any screen, and list unavailable Actions under a hairline
+- **Details:**
+  - Session adds a `GoBack` Action (Back, Escape) that the top pushed page shows as a button, so OpenTUI and the TUI can go back; the action menu lists unavailable Actions after a hairline.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — `GoBack` and the Back button.
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Unavailable rows last, `isFirstUnavailable`.
+  - `packages/foldkit/src/interaction/terminal.ts` — The terminal hairline.
+  - `packages/foldkit/src/interaction/menuStyles.ts` — The web hairline.
+- **User context (verbatim):**
+  > we need a way to surface go back navigationally at the core. Since I can't actually go back in the open two weeks.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 4:45:51 p.m. EDT — `232b9d580734` feat(multiple-counters): sync every app through Instant, built from the single Counter
 
 - **Implementation commit:** `232b9d5807348279f955a3a1abae42d474f017b2`
