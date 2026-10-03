@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 11:48:07 p.m. EDT — `ca0c23926efa` feat(foldkit): keep a snapshot series and read only unseen rows
+
+- **Implementation commit:** `ca0c23926efab51dd42463d2364af4df2b91c156`
+- **Change:** Keep a snapshot series and read only unseen rows
+- **Details:**
+  - Local state holds spaced snapshots, recent rows, and a server-order cursor; boot reads only rows after the cursor and refolds a late row from the nearest snapshot; rows carry programVersion and the Instant schema gained it.
+- **Files:**
+  - `packages/foldkit/src/runtime/start.ts` — Read past the cursor, refold from the nearest snapshot, and confirm rows before saving them.
+  - `packages/foldkit/src/runtime/localSnapshot.ts` — Add the snapshot series, retention, and extendable watermarks.
+  - `packages/instant/src/snapshotLog/snapshotLog.ts` — Add programVersion, paged reads by server order, and the newest-rows query.
+- **User context (verbatim):**
+  > And does it refold the log from the point? Like it maybe we should have a series of snapshots and limit them and then prune it periodically.
+  > Yeah, make the schema change. Download only the newest rows. Yeah, we want to download rows we haven't acknowledged yet, or I don't know, figure that out.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 11:11:25 p.m. EDT — `732cb8abdc60` feat(foldkit): keep a local snapshot per device and fold only new rows
 
 - **Implementation commit:** `732cb8abdc609f2f8d561dd3e590ab75e483b8ca`
