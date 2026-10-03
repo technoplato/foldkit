@@ -136,9 +136,22 @@ export const InstantSnapshotLogEntities = {
     tag: i.string(),
     programVersion: i.number().optional(),
   }),
+  programMessage: i.entity({
+    app: i.string().indexed(),
+    programVersion: i.number(),
+    tag: i.string(),
+    payload: i.json<Readonly<Record<string, unknown>>>(),
+    from: i.string().indexed(),
+    createdAtMs: i.number().indexed(),
+  }),
 }
 
-/** Instant schema with only the count snapshot and Message log. */
+/**
+ * The one Instant project's schema: the Counter's count snapshot and
+ * Message log, which deployed Counter clients read, and `programMessage`,
+ * the log every other app shares, one row per Message naming its app and
+ * Program version.
+ */
 export const InstantSnapshotLogSchema = i.schema({
   entities: InstantSnapshotLogEntities,
 })
@@ -159,6 +172,14 @@ export const InstantSnapshotLogPermissions = {
     },
   },
   message: {
+    allow: {
+      create: 'true',
+      delete: 'false',
+      update: 'true',
+      view: 'true',
+    },
+  },
+  programMessage: {
     allow: {
       create: 'true',
       delete: 'false',
@@ -396,6 +417,7 @@ const decodeMessageRowCached = (
 export type SnapshotLogQueryData = Readonly<{
   readonly count?: ReadonlyArray<unknown>
   readonly message?: ReadonlyArray<unknown>
+  readonly programMessage?: ReadonlyArray<unknown>
 }>
 
 /** Decodes every Instant count row. Filter happens in {@link decodeSnapshotLogState}. */
@@ -472,6 +494,7 @@ export const createSnapshotLogStateDecoder = (
 export const readLogSince = (
   queryPage: (offset: number) => Promise<ReadonlyArray<unknown>>,
   maybeCursor: Option.Option<string>,
+  decodeRow: (row: unknown) => InstantLogMessageRecord = decodeMessageRow,
 ): Effect.Effect<SnapshotLogPage, SnapshotLogError> =>
   Effect.tryPromise({
     try: async () => {
@@ -490,7 +513,7 @@ export const readLogSince = (
         }
       }
       return {
-        messages: Array.map(Array.flatten(pages), decodeMessageRow),
+        messages: Array.map(Array.flatten(pages), decodeRow),
         cursor: String(offset),
       }
     },

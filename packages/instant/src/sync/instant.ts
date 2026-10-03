@@ -2,6 +2,7 @@ import { Runtime } from 'foldkit'
 
 import { init } from '@instantdb/core'
 
+import { makeInstantCoreProgramLogTransport } from '../programLog/core.js'
 import { makeInstantCoreSnapshotLogTransport } from '../snapshotLog/core.js'
 import {
   type InstantSnapshotLogDatabase,
@@ -70,6 +71,15 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
   const processor = engineProcessorId(options)
   if (options.transport !== undefined) {
     return fromTransport(options.transport, processor)
+  }
+  if (options.programLog !== undefined) {
+    return fromTransport(
+      makeInstantCoreProgramLogTransport(
+        resolveDatabase(options),
+        options.programLog,
+      ),
+      processor,
+    )
   }
   return fromTransport(
     makeInstantCoreSnapshotLogTransport(

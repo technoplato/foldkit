@@ -17,18 +17,27 @@ export type InstantApp = Readonly<{
 }>
 
 /**
- * Dedicated V0.1 Counter Instant app.
- * Schema lives on this app. Do not push onto the Foldkit demo app.
+ * The one Instant project every example syncs through. The Counter keeps
+ * its original `count` and `message` tables, which deployed Counter
+ * clients read; every other app writes `programMessage` rows that name the
+ * app, so one project carries them all. Do not push onto the Foldkit demo
+ * app.
  */
 export const FoldkitCounterV01: InstantApp = {
   id: '5417c2e3-c6b9-476d-a962-2e11c83492aa',
 }
 
-/** Instant() arguments. Engine is a Host argument. Instant has no Model. */
+/**
+ * Instant() arguments. Engine is a Host argument. Instant has no Model.
+ * `programLog` names the app whose rows this engine reads and writes on
+ * the shared `programMessage` log, such as `multiple-counters`; without it
+ * the engine uses the Counter's own tables.
+ */
 export type InstantOptions = Readonly<{
   app: InstantApp
   processor: Processor.Host.Host
   instance?: string
+  programLog?: string
   countId?: string
   selectCountId?: CountIdSelector
   database?: InstantSnapshotLogDatabase

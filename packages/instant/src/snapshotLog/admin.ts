@@ -70,9 +70,11 @@ const queryDataFromUnknown = (data: unknown): SnapshotLogQueryData => {
   }
   const count = data['count']
   const message = data['message']
+  const programMessage = data['programMessage']
   return {
     ...(globalThis.Array.isArray(count) ? { count } : {}),
     ...(globalThis.Array.isArray(message) ? { message } : {}),
+    ...(globalThis.Array.isArray(programMessage) ? { programMessage } : {}),
   }
 }
 

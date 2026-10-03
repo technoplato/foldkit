@@ -1,5 +1,7 @@
 import { Runtime } from 'foldkit'
 
+import { makeAdminProgramLogTransport } from '../programLog/admin.js'
+import { makeInstantCoreProgramLogTransport } from '../programLog/core.js'
 import { makeAdminSnapshotLogTransport } from '../snapshotLog/admin.js'
 import { makeInstantCoreSnapshotLogTransport } from '../snapshotLog/core.js'
 import {
@@ -41,16 +43,31 @@ export const Instant = (options: InstantOptions): Runtime.SyncEngine => {
   }
   if (options.database !== undefined) {
     return fromTransport(
-      makeInstantCoreSnapshotLogTransport(
-        options.database,
-        options.selectCountId ?? options.countId,
-      ),
+      options.programLog === undefined
+        ? makeInstantCoreSnapshotLogTransport(
+            options.database,
+            options.selectCountId ?? options.countId,
+          )
+        : makeInstantCoreProgramLogTransport(
+            options.database,
+            options.programLog,
+          ),
       processor,
     )
   }
   const adminToken = adminTokenFromEnv()
   if (adminToken === undefined) {
     return missingAdminToken(processor)
+  }
+  if (options.programLog !== undefined) {
+    return fromTransport(
+      makeAdminProgramLogTransport(
+        options.app.id,
+        adminToken,
+        options.programLog,
+      ),
+      processor,
+    )
   }
   return fromTransport(
     makeAdminSnapshotLogTransport(
