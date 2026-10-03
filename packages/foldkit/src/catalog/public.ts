@@ -12,6 +12,10 @@ export {
   isEnabled,
   make,
   messageFor,
+  parseRowTag,
+  rowEntries,
+  rowTagOf,
+  titleOf,
 } from './index.js'
 
 export type {
@@ -28,5 +32,6 @@ export type {
   Entry,
   MessageOf,
   ModelOf,
+  Row,
   TagOf,
 } from './index.js'

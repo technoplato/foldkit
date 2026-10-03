@@ -226,6 +226,7 @@ export const make = <
  */
 export type Entry<Tag extends string = string> = Readonly<{
   tag: Tag
+  title: string
   what: string
   why: string
   label: string
@@ -240,6 +241,7 @@ export const entryOf = <Tag extends string, Model>(
   model: Model,
 ): Entry<Tag> => ({
   tag: declaration.tag,
+  title: titleOf(declaration.tag),
   what: declaration.what,
   why: declaration.why,
   label: declaration.meta.label,
@@ -273,16 +275,26 @@ export const findByKey = <C extends AnyCatalog>(
     Array.contains(declaration.meta.keys, key),
   )
 
+const rowSeparator = ':'
+
 /**
- * The CLI word for a tag, derived rather than declared.
+ * The CLI word for a tag, derived rather than declared. A row Action's
+ * tag reads as the word, then the row.
  *
  * @example
  * ```typescript
  * Catalog.commandOf('Increment') // 'increment'
  * Catalog.commandOf('ResetCount') // 'reset-count'
+ * Catalog.commandOf('Increment:3') // 'increment 3'
  * ```
  */
 export const commandOf = (tag: string): string =>
+  Option.match(String.indexOf(rowSeparator)(tag), {
+    onNone: () => wordOf(tag),
+    onSome: index => `${wordOf(tag.slice(0, index))} ${tag.slice(index + 1)}`,
+  })
+
+const wordOf = (tag: string): string =>
   pipe(tag, String.pascalToSnake, String.snakeToKebab)
 
 /** Finds the Action whose derived CLI word is `command`. */
@@ -345,3 +357,74 @@ export const titleOf = (tag: string): string =>
     ),
     Array.join(' '),
   )
+
+// ROWS
+
+/**
+ * One row of a list a row Catalog acts on: the id its tags carry, the name
+ * its titles read, and the row's own Model.
+ *
+ * @example
+ * ```typescript
+ * const row: Catalog.Row<CounterModel> = { id: '3', name: 'counter 3', model: { count: 5 } }
+ * ```
+ */
+export type Row<Model> = Readonly<{ id: string; name: string; model: Model }>
+
+/**
+ * The tag a row's Action presses: the Action's tag, then the row.
+ *
+ * @example
+ * ```typescript
+ * Catalog.rowTagOf('Increment', '3') // 'Increment:3'
+ * ```
+ */
+export const rowTagOf = (tag: string, rowId: string): string =>
+  `${tag}${rowSeparator}${rowId}`
+
+/**
+ * The Action tag and row a row tag names. None for a tag with no row.
+ *
+ * @example
+ * ```typescript
+ * Catalog.parseRowTag('Increment:3') // Some({ tag: 'Increment', rowId: '3' })
+ * Catalog.parseRowTag('Increment') // None
+ * ```
+ */
+export const parseRowTag = (
+  rowTag: string,
+): Option.Option<Readonly<{ tag: string; rowId: string }>> =>
+  pipe(
+    String.indexOf(rowSeparator)(rowTag),
+    Option.filter(index => index > 0 && index < rowTag.length - 1),
+    Option.map(index => ({
+      tag: rowTag.slice(0, index),
+      rowId: rowTag.slice(index + 1),
+    })),
+  )
+
+/**
+ * A row Catalog's entries for one row: each Action against the row's own
+ * Model, so a Disabled Reset says why for that row alone, tagged and
+ * titled for the row. Many rows share one key, so the entries carry keys
+ * only when `hasKeys` says this row owns them, such as the row a detail
+ * page shows.
+ *
+ * @example
+ * ```typescript
+ * Catalog.rowEntries(counterCatalog, { id: '3', name: 'counter 3', model: { count: 0 } })
+ * // [{ tag: 'Increment:3', title: 'Increment counter 3', keys: [], ... },
+ * //  { tag: 'Reset:3', availability: Disabled('count is already 0'), ... }]
+ * ```
+ */
+export const rowEntries = <C extends AnyCatalog>(
+  catalog: C,
+  row: Row<ModelOf<C>>,
+  options: Readonly<{ hasKeys?: boolean }> = {},
+): ReadonlyArray<Entry> =>
+  Array.map(entries(catalog, row.model), entry => ({
+    ...entry,
+    tag: rowTagOf(entry.tag, row.id),
+    title: `${entry.title} ${row.name}`,
+    keys: options.hasKeys === true ? entry.keys : [],
+  }))

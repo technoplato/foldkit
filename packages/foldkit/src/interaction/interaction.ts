@@ -399,6 +399,27 @@ export type ProgramInteraction<Model, Message> = Readonly<{
   chooseFromMenu: (model: Model, tag: string) => ReadonlyArray<Message>
 }>
 
+/**
+ * The entry whose keys include a key press, for a Program whose entries
+ * change with its Model, such as a list whose shown row owns `+`. A chord
+ * owns no entry.
+ *
+ * @example
+ * ```typescript
+ * keyedEntryOf(entries(model), keyInput('+')) // Some(Increment entry)
+ * keyedEntryOf(entries(model), keyInput('k', { isMeta: true })) // None
+ * ```
+ */
+export const keyedEntryOf = (
+  catalogEntries: ReadonlyArray<Entry>,
+  input: KeyInput,
+): Option.Option<Entry> =>
+  isChord(input)
+    ? Option.none()
+    : Array.findFirst(catalogEntries, entry =>
+        Array.contains(entry.keys, normalizeKey(input.key)),
+      )
+
 const noMessages = (): ReadonlyArray<never> => []
 
 /**

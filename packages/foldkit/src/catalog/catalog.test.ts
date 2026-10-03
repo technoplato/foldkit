@@ -65,6 +65,7 @@ describe('Catalog.entries', () => {
     const [increment, reset] = Catalog.entries(catalog, { count: 0 })
     expect(increment).toEqual({
       tag: 'Increment',
+      title: 'Increment',
       what: 'Increments the count by one',
       why: 'The person wants a higher count',
       label: '+',
@@ -124,5 +125,39 @@ describe('Catalog.messageFor', () => {
     expect(Catalog.messageFor(catalog, { count: 0 }, 'Missing')).toEqual(
       Option.none(),
     )
+  })
+})
+
+describe('row Actions', () => {
+  it('tags, titles, and words each Action for its row', () => {
+    const [increment, reset] = Catalog.rowEntries(catalog, {
+      id: '3',
+      name: 'counter 3',
+      model: { count: 0 },
+    })
+    expect(increment?.tag).toBe('Increment:3')
+    expect(increment?.title).toBe('Increment counter 3')
+    expect(increment?.keys).toEqual([])
+    expect(reset?.availability).toEqual(
+      Catalog.Disabled({ because: 'count is already 0' }),
+    )
+    expect(Catalog.commandOf('Increment:3')).toBe('increment 3')
+  })
+
+  it('keeps keys for the row that owns them', () => {
+    const [increment] = Catalog.rowEntries(
+      catalog,
+      { id: '3', name: 'counter 3', model: { count: 0 } },
+      { hasKeys: true },
+    )
+    expect(increment?.keys).toEqual(['+', '='])
+  })
+
+  it('reads a row tag back, and nothing from a bare tag', () => {
+    expect(Catalog.parseRowTag('Increment:3')).toEqual(
+      Option.some({ tag: 'Increment', rowId: '3' }),
+    )
+    expect(Catalog.parseRowTag('Increment')).toEqual(Option.none())
+    expect(Catalog.parseRowTag(':3')).toEqual(Option.none())
   })
 })

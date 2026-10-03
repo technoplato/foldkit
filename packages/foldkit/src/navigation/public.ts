@@ -23,6 +23,7 @@ export {
   ModalStyle,
   isModalStyle,
   hasModal,
+  withoutDestinations,
   stackAtRoot,
   stackWithEntries,
   topEntry,

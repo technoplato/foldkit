@@ -265,6 +265,29 @@ export const popped = <Destination>(
       Option.some(stackFrom(stack.root, Array.initNonEmpty(entries))),
   })
 
+/**
+ * The stack without every page and modal `isGone` names; the root stays.
+ * A Program uses it when what an entry shows stops existing, such as a
+ * deleted counter's page and the dialog asking to delete it.
+ *
+ * @example
+ * ```typescript
+ * withoutDestinations(stack, destination => namesCounter(destination, 3))
+ * // [CounterList, Push CounterDetail(3), Dialog ConfirmDelete(3)] → [CounterList]
+ * ```
+ */
+export const withoutDestinations = <Destination>(
+  stack: NavigationStack<Destination>,
+  isGone: (destination: Destination) => boolean,
+): NavigationStack<Destination> => ({
+  root: stack.root,
+  pages: Array.filter(stack.pages, page => !isGone(page)),
+  maybeModal: Option.filter(
+    stack.maybeModal,
+    modal => !isGone(modal.destination),
+  ),
+})
+
 /** Returns the stack with `nextRoot` beneath the unchanged entries. */
 export const replacedRoot = <Destination>(
   stack: NavigationStack<Destination>,

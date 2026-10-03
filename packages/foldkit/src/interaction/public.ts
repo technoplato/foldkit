@@ -22,6 +22,7 @@ export {
   isChord,
   isKey,
   keyInput,
+  keyedEntryOf,
   keyPlatformOf,
   KeyPlatform,
   menuOpenerOf,

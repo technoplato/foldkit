@@ -35,6 +35,10 @@ export type ScreenLook = Readonly<{
   deviceBorderColor: string
   deviceRadius: number
   deviceWidth: number
+  backdropColor: string
+  panelColor: string
+  panelRadius: number
+  panelWidth: number
 }>
 
 /** The look every graphical painter maps; see {@link ScreenLook}. */
@@ -62,6 +66,10 @@ export const screenLook: ScreenLook = {
   deviceBorderColor: '#3f3f46',
   deviceRadius: 32,
   deviceWidth: 352,
+  backdropColor: 'rgb(15 23 42 / 0.4)',
+  panelColor: '#ffffff',
+  panelRadius: 14,
+  panelWidth: 448,
 }
 
 const px = (value: number): string => `${value.toString()}px`
@@ -72,8 +80,9 @@ const px = (value: number): string => `${value.toString()}px`
  * Display text such as the count large, dim text such as the Session
  * page's explanation smaller and gray, mono text such as a URI in a
  * monospace face, buttons with their hover, disabled, and focus states,
- * the Program's Starting or Failed description, phone chrome, and the
- * action menu opener. Every selector sits in `:where()`, so an app's own
+ * the Program's Starting or Failed description, phone chrome, a screen
+ * presented over the page by its style, such as a Dialog's centered panel
+ * over a dimmed page, and the action menu opener. Every selector sits in `:where()`, so an app's own
  * rule wins without `!important`.
  *
  * @example
@@ -167,6 +176,39 @@ export const screenStylesheet = `
   padding: 24px 16px 32px;
   border: 2px solid ${screenLook.deviceBorderColor};
   border-radius: ${px(screenLook.deviceRadius)};
+}
+
+:where(.fk-overlay) {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: ${screenLook.backdropColor};
+}
+
+:where(.fk-overlay[data-style='Sheet'], .fk-overlay[data-style='BottomSheet']) {
+  align-items: flex-end;
+}
+
+:where(.fk-overlay[data-style='Drawer']) {
+  justify-content: flex-end;
+}
+
+:where(.fk-overlay[data-style='FullScreenCover']) {
+  padding: 0;
+  background: ${screenLook.panelColor};
+}
+
+:where(.fk-overlay > *) {
+  box-sizing: border-box;
+  width: min(100%, ${px(screenLook.panelWidth)});
+  padding: ${px(screenLook.columnGap)};
+  border-radius: ${px(screenLook.panelRadius)};
+  background: ${screenLook.panelColor};
+  box-shadow: 0 24px 64px -12px rgb(15 23 42 / 0.35);
 }
 
 :where(.fk-action-menu-opener) {

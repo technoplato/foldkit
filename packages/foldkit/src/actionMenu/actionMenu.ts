@@ -11,11 +11,7 @@ import {
   pipe,
 } from 'effect'
 
-import {
-  type CatalogCarrierOf,
-  type Entry,
-  titleOf,
-} from '../catalog/catalog.js'
+import { type CatalogCarrierOf, type Entry } from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
 import {
   type KeyInput,
@@ -238,7 +234,7 @@ const inTitle =
 const unmarked = (rank: number): Match => inTitle(rank)([])
 
 const matchOf = (entry: Entry, needle: string): Option.Option<Match> => {
-  const title = titleOf(entry.tag)
+  const title = entry.title
   return pipe(
     Option.map(prefixPositions(title, needle), inTitle(PrefixMatch)),
     Option.orElse(() =>
@@ -299,7 +295,7 @@ const runsOf = (
 
 const matchedEntryOf = (entry: Entry, match: Match): MatchedEntry => ({
   entry,
-  title: runsOf(titleOf(entry.tag), match.titlePositions),
+  title: runsOf(entry.title, match.titlePositions),
   description: runsOf(entry.what, match.descriptionPositions),
 })
 
@@ -517,9 +513,9 @@ const spokenLabelOf = (entry: Entry): string =>
   M.value(entry.availability).pipe(
     M.withReturnType<string>(),
     M.tagsExhaustive({
-      Enabled: () => `${titleOf(entry.tag)}, ${entry.what}`,
+      Enabled: () => `${entry.title}, ${entry.what}`,
       Disabled: ({ because }) =>
-        `${titleOf(entry.tag)}, ${entry.what}, unavailable: ${because}`,
+        `${entry.title}, ${entry.what}, unavailable: ${because}`,
     }),
   )
 

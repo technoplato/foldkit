@@ -613,7 +613,11 @@ export const presentScreen = <Destination extends TaggedDestination>(
 
 /** The Destination a list of screens declares. */
 export type DestinationOfScreens<Screens> =
-  Screens extends ReadonlyArray<Screen<infer Destination>> ? Destination : never
+  Screens extends ReadonlyArray<infer OneScreen>
+    ? OneScreen extends Screen<infer Destination>
+      ? Destination
+      : never
+    : never
 
 const narrowTo =
   <Destination>(schema: ProgramSchema<Destination>) =>
