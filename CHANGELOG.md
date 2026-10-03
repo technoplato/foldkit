@@ -4,6 +4,18 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 9:30:49 p.m. EDT — `8a29790bd693` feat(foldkit): move Up from the action menu search to the last row
+
+- **Implementation commit:** `8a29790bd6930a5c1ae0eccaa7989e1559564f2d`
+- **Change:** Move Up from the action menu search to the last row
+- **Details:**
+  - Up and Shift-Tab from the search now jump to the last row instead of doing nothing; Up from the first row still returns to the search.
+- **Files:**
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Route Up from the search to the last row.
+- **User context (verbatim):**
+  > going up in the uh when the toolbar is focused should uh go to the bottom
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 2:04:48 p.m. EDT — `5ea6e1cb4fe3` feat: paint the action menu as a keyboard command palette from the core view
 
 - **Implementation commit:** `5ea6e1cb4fe3ba3906522edc8086200c1f587eed`
