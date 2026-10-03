@@ -113,4 +113,3 @@ describe('React Multiple Counters', () => {
     ).toBe('n')
   })
 })
-
