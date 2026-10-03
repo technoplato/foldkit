@@ -556,13 +556,34 @@ export function start<
         },
       )
 
+    const newestOrder = (
+      maybeFirst: Option.Option<LogRowOrder>,
+      maybeSecond: Option.Option<LogRowOrder>,
+    ): Option.Option<LogRowOrder> =>
+      Option.match(maybeFirst, {
+        onNone: () => maybeSecond,
+        onSome: first =>
+          Option.match(maybeSecond, {
+            onNone: () => maybeFirst,
+            onSome: second =>
+              Option.some(isRowOrderAfter(second, first) ? second : first),
+          }),
+      })
+
+    // NOTE: a fold from a kept snapshot covers the snapshot's position even
+    // when no row lands after it. Taking only the newest known row would
+    // drop that position on a reload with nothing new, and the live feed's
+    // replay of recent rows would then look unapplied and count twice.
     const foldLog = (): Option.Option<
       Readonly<{ model: ChildModel; maxOrder: Option.Option<LogRowOrder> }>
     > => {
       const entries = orderedRows()
       return Option.map(foldFromBase(entries, engine.processor), folded => ({
         model: folded.model,
-        maxOrder: Option.map(Array.last(entries), entry => entry.order),
+        maxOrder: newestOrder(
+          Option.map(folded.watermark, watermark => watermark.position),
+          Option.map(Array.last(entries), entry => entry.order),
+        ),
       }))
     }
 

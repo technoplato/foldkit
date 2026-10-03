@@ -310,6 +310,45 @@ describe('Runtime.start with a local snapshot', () => {
     expect(cold.folds).toBeGreaterThanOrEqual(22)
   })
 
+  it('counts nothing twice when the live feed replays recent rows after a reload', async () => {
+    const store = makeMemoryStore()
+    const snapshots = LocalSnapshot.memory()
+    await Effect.runPromise(
+      pressAndClose(
+        store,
+        snapshots,
+        Array.makeBy(9, () => Increment()),
+      ),
+    )
+    const engine = Memory({ processor: 'reader', store })
+    const replayingFeed = {
+      ...engine,
+      subscribe: (enqueue: Parameters<typeof engine.subscribe>[0]) =>
+        Effect.andThen(engine.subscribe(enqueue), () =>
+          Effect.sync(() => {
+            Array.forEach(store.messages, message => {
+              enqueue({ _tag: 'Message', row: message })
+            })
+          }),
+        ),
+    }
+    const count = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* start({
+            program: Synced,
+            sync: replayingFeed,
+            localSnapshot: snapshots,
+          })
+          yield* Effect.sleep(Duration.millis(50))
+          const model = runtime.readModel()
+          return model._tag === 'Ready' ? model.count : Number.NaN
+        }),
+      ),
+    )
+    expect(count).toBe(9)
+  })
+
   it('paints the snapshot before the log has been read', async () => {
     const store = makeMemoryStore()
     const snapshots = LocalSnapshot.memory()
