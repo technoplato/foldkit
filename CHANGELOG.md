@@ -4,6 +4,24 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 1:15:05 a.m. EDT — `f0606c693a4f` feat(foldkit): lay terminals out to 80 columns and add tail, labels, and settings
+
+- **Implementation commit:** `f0606c693a4f68c5b093247217d312214a645855`
+- **Change:** Lay terminals out to 80 columns and add tail, labels, and settings
+- **Details:**
+  - CLI and TUI paint aligned 80-column Actions with derived examples; counter tail streams every event; Session adds a settings button and keys; native stacks coalesce resets; windows are titled by screen and app.
+- **Files:**
+  - `packages/foldkit/src/cli/program.ts` — Paint Actions and help in aligned 80-column layout with derived examples.
+  - `packages/foldkit/src/cli/tail.ts` — Print every Message as it lands, from every device.
+  - `packages/foldkit/src/navigation/keyedStack.ts` — Coalesce a burst of keyed-stack resets into one.
+  - `packages/foldkit/src/session/session.ts` — Add the Session settings button and keys.
+- **User context (verbatim):**
+  > can we have a TAIL program that is just a COI that counter tail and says every event that happens.
+  > can we label the windows with which thing they are? Like, is 5393? Is that React? Is that FoldKit?
+  > I'd like a button for settings instead of just uh listed in actions for opening session settings.
+  > can you show examples of invoking these actions? Can we derive that underneath? And can we also format these a little bit nicer so they don't wrap so strangely and they render more cleanly on 80 columns?
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 12:20:40 a.m. EDT — `89271a4a3c42` feat(foldkit): move every word and link decision out of the adapters
 
 - **Implementation commit:** `89271a4a3c42b5c44bbc6ee3a4a1360be1c687f8`
