@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 2:20:33 a.m. EDT — `d7221ea5e672` feat(foldkit): move the screen look, titles, status, and terminal menu into core
+
+- **Implementation commit:** `d7221ea5e6726eec7ece1f7d94febfe33e9ed99c`
+- **Change:** Move the screen look, window titles, status, and terminal menu into core
+- **Details:**
+  - Fixes the eight re-audit leaks: host CSS and React Native styles move to core `screenLook` and `screenStylesheet` with `Display` emphasis; window titles come from the Host the handle was started on; `WhenReady` replaces every host status branch; terminals share core menu lines, footer, and quit rule; `tail` parses in core; the headless printer diffs any Model by its Schema.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — The look every painter maps, and the web stylesheet built from it.
+  - `packages/foldkit/src/interaction/terminal.ts` — Terminal menu lines, footer, and quit rule.
+  - `packages/foldkit/src/interaction/bind.ts` — App label, window title, opener only when Ready, `whenSettled`.
+  - `packages/foldkit/src/program/changes.ts` — Schema-driven Model change lines.
+  - `examples/counter/*` — Hosts reduced to platform glue.
+- **User context (verbatim):**
+  > Ensure that no business navigation or styling logic is contained within React, OpenTUI, our counter2e example, expo, react native, etc.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 1:41:28 a.m. EDT — `4a12d3fe6157` feat(foldkit)!: hold at most one modal, always on top of the pages
 
 - **Implementation commit:** `4a12d3fe6157e701c8b61a9b7b73f38e0ae83dbc`
