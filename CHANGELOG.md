@@ -4,6 +4,48 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 3:17:14 p.m. EDT — `5557fcbd2f04` feat(foldkit): let an Action ask which value it acts on, nested in the menu
+
+- **Implementation commit:** `5557fcbd2f0429599b7742178b11afae53aaee65`
+- **Change:** Let an Action ask which value it acts on, nested in the menu
+- **Details:**
+  - A Catalog Action can declare `choose`; it stays one entry, the action menu opens a nested step of its choices, buttons press one choice, keys take the preferred choice, and the CLI reads `decrement-counter <counter-id>`. Multiple Counters moves onto choosing Actions.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — Choosing Actions, choice tags, and choice projections.
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — The nested choice step.
+  - `packages/foldkit/src/cli/program.ts` — Choice usage, lists, and refusals.
+  - `examples/multiple-counters/core/src/message.ts` — Counter Actions declared once with `choose`.
+- **User context (verbatim):**
+  > I think we need to find a way where an action is really only dispatchable with an ID to have only exposed, say, decrement counter, and then that opens up, if we select that, which counter to decrement or increment, rather than showing all of them in the messages of the action menu.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 2:48:02 p.m. EDT — `385567fb55f6` feat(foldkit): list each companion app on the Session page with a copyable command
+
+- **Implementation commit:** `385567fb55f6908767e71142b58cf7753e2cd511`
+- **Change:** List each companion app on the Session page with a copyable command
+- **Details:**
+  - Session.compose takes `companions`; the Session page lists each app with a copyable start command derived from the Program id and root route; copyable text paints with a copy button on the web and selectable text natively; host packages gain `start` scripts.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — Companions on the Session page.
+  - `examples/counter/core/src/companions.ts` — The Counter's companions.
+  - `examples/multiple-counters/core/src/companions.ts` — The Multiple Counters' companions.
+- **User context (verbatim):**
+  > add the commands to start the companion applications as a copyable thing derived from the core program.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 9:40:53 a.m. EDT — `18440cf97463` fix(foldkit): keep a reload from its snapshot from counting recent rows twice
+
+- **Implementation commit:** `18440cf97463dad518aae2e12a1b2d77a42c5b02`
+- **Change:** Keep a reload from its snapshot from counting recent rows twice
+- **Details:**
+  - A reload from a local snapshot with nothing new kept no last-applied position, so the live feed replay of the newest 100 rows counted again (9 became 18); the fold now keeps the snapshot position.
+- **Files:**
+  - `packages/foldkit/src/runtime/start.ts` — Keep the snapshot position as last applied.
+  - `packages/foldkit/src/runtime/localSnapshot.test.ts` — Regression test with a replaying live feed.
+- **User context (verbatim):**
+  > why doens't counter demo windows sync right now ?
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 2:56:44 a.m. EDT — `52289fb42477` feat(multiple-counters): add React, Svelte, OpenTUI, CLI, and TUI hosts
 
 - **Implementation commit:** `52289fb42477f5a1b88a643e923a1bdfff9d8105`
