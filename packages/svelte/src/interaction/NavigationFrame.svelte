@@ -12,9 +12,10 @@
   type Props = Readonly<{
     program: ReactiveProgram<unknown, never>
     classNames?: PaintClassNames
+    appLabel?: string
   }>
 
-  const { program, classNames = {} }: Props = $props()
+  const { program, classNames = {}, appLabel }: Props = $props()
 
   const press = (button: ButtonNode): void => {
     if (button.action !== undefined) {
@@ -35,6 +36,15 @@
   const stylesheet = `<style id="foldkit-screen">${Interaction.screenStylesheet}</style>`
 
   const maybeFrame = $derived(program.frame)
+
+  $effect(() => {
+    if (appLabel !== undefined && typeof document !== 'undefined') {
+      document.title = Navigation.documentTitleOf(
+        Option.flatMap(maybeFrame, frame => frame.maybeTitle),
+        appLabel,
+      )
+    }
+  })
 </script>
 
 <svelte:head>

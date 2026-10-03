@@ -61,7 +61,7 @@ describe('NavigationFrame', () => {
     const bound = bindRouted()
     renderWith(bound)
     act(() => {
-      fireEvent.click(screen.getByText('Session settings'))
+      fireEvent.click(screen.getByRole('link', { name: 'Session settings' }))
     })
     expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
       Option.some('/counter/session'),
@@ -88,7 +88,9 @@ describe('NavigationFrame', () => {
     const bound = bindRouted()
     renderWith(bound)
     act(() => {
-      fireEvent.click(screen.getByText('Session settings'), { metaKey: true })
+      fireEvent.click(screen.getByRole('link', { name: 'Session settings' }), {
+        metaKey: true,
+      })
     })
     expect(Option.map(bound.navigation(), plan => plan.uri)).toEqual(
       Option.some('/counter'),

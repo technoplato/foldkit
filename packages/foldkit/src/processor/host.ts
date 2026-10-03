@@ -1,4 +1,4 @@
-import { Match as M, Schema as S } from 'effect'
+import { Array, Match as M, Option, Order, Schema as S } from 'effect'
 
 import { ts } from '../schema/index.js'
 
@@ -77,4 +77,60 @@ export const print = (host: Host): string =>
       ExpoIos: () => 'expo-ios',
       ExpoAndroid: () => 'expo-android',
     }),
+  )
+
+/**
+ * The name a person sees for one Host, in a window title or a log line.
+ *
+ * @example
+ * ```typescript
+ * labelOf(Host.Foldkit()) // 'Foldkit HTML'
+ * labelOf(Host.OpenTui()) // 'OpenTUI'
+ * ```
+ */
+export const labelOf = (host: Host): string =>
+  M.value(host).pipe(
+    M.withReturnType<string>(),
+    M.tagsExhaustive({
+      Cli: () => 'CLI',
+      Tui: () => 'TUI',
+      OpenTui: () => 'OpenTUI',
+      Headless: () => 'Headless',
+      Foldkit: () => 'Foldkit HTML',
+      React: () => 'React',
+      Svelte: () => 'Svelte',
+      ExpoIos: () => 'Expo iOS',
+      ExpoAndroid: () => 'Expo Android',
+    }),
+  )
+
+const everyHost: ReadonlyArray<Host> = [
+  Cli(),
+  Tui(),
+  OpenTui(),
+  Headless(),
+  Foldkit(),
+  React(),
+  Svelte(),
+  ExpoIos(),
+  ExpoAndroid(),
+]
+
+/**
+ * The Host a Processor's `from` names, read back from its prefix.
+ *
+ * @example
+ * ```typescript
+ * hostOfFrom('react-ad55df2e') // Some(Host.React())
+ * hostOfFrom('expo-ios-4f2a9c1e') // Some(Host.ExpoIos())
+ * hostOfFrom('someone') // None
+ * ```
+ */
+export const hostOfFrom = (from: string): Option.Option<Host> =>
+  Array.findFirst(
+    Array.sort(
+      everyHost,
+      Order.mapInput(Order.Number, (host: Host) => -print(host).length),
+    ),
+    host => from === print(host) || from.startsWith(`${print(host)}-`),
   )

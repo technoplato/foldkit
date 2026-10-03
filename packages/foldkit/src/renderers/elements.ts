@@ -1,6 +1,6 @@
-import { Array, Match as M, Option } from 'effect'
+import { Array, Match as M } from 'effect'
 
-import { type Entry, titleOf } from '../catalog/catalog.js'
+import type { Entry } from '../catalog/catalog.js'
 import type {
   BoxNode,
   ButtonNode,
@@ -143,26 +143,3 @@ export const Box = (
   padding: props.padding ?? 0,
   children,
 })
-
-/**
- * How a terminal shows a Button: its first key in brackets, then the
- * Action's tag as words, then why it is disabled. A Button without an
- * Action shows its label.
- *
- * @example
- * ```typescript
- * terminalCaptionOf(Button({ label: '+', action: 'Increment', keys: ['+', '='] }))
- * // '[+] Increment'
- * terminalCaptionOf(Button({ label: 'Reset', action: 'Reset', keys: ['r'], because: 'count is already 0', disabled: true }))
- * // '[r] Reset (count is already 0)'
- * ```
- */
-export const terminalCaptionOf = (button: ButtonNode): string => {
-  const name =
-    button.action === undefined ? button.label : titleOf(button.action)
-  const hinted = Option.match(Array.head(button.keys ?? []), {
-    onNone: () => name,
-    onSome: key => `[${key}] ${name}`,
-  })
-  return button.because === undefined ? hinted : `${hinted} (${button.because})`
-}

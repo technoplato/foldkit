@@ -99,7 +99,7 @@ export const MirrorNavigation = Catalog.action('MirrorNavigation', {
     model.session.mode === 'Mirror'
       ? Catalog.Disabled({ because: 'navigation is already mirrored' })
       : Catalog.Enabled(),
-  meta: { label: 'Mirror navigation', keys: [] },
+  meta: { label: 'Mirror navigation', keys: ['m'] },
 })
 
 /** A person chose to keep each device on its own screen. */
@@ -110,7 +110,7 @@ export const KeepNavigationLocal = Catalog.action('KeepNavigationLocal', {
     model.session.mode === 'SharedDomain'
       ? Catalog.Disabled({ because: 'navigation already stays on each device' })
       : Catalog.Enabled(),
-  meta: { label: 'Keep navigation local', keys: [] },
+  meta: { label: 'Keep navigation local', keys: ['l'] },
 })
 
 // SETTINGS
@@ -147,7 +147,7 @@ export const OpenSessionSettings = Catalog.action('OpenSessionSettings', {
     isSettingsOpen(model)
       ? Catalog.Disabled({ because: 'session settings are already open' })
       : Catalog.Enabled(),
-  meta: { label: 'Session settings', keys: [] },
+  meta: { label: 'Session settings', keys: ['s'] },
 })
 
 /** A person closed the Session settings page. */
@@ -228,6 +228,8 @@ const modeSentence = (mode: SessionMode): string =>
     ),
     M.exhaustive,
   )
+
+const openerCatalog = Catalog.make([OpenSessionSettings])
 
 const settingsCatalog = Catalog.make([
   MirrorNavigation,
@@ -345,8 +347,10 @@ const isBackKey = (input: KeyInput): boolean =>
  * position, and two tabs can never disagree about the mode.
  *
  * The stack starts at the child's root and prints under its slug. Session
- * adds the settings page at `/session`, a NotFound fallback for any other
- * path, and Escape as Back. While navigation is mirrored, a launch URI
+ * adds the settings page at `/session`, a `Session settings` button under
+ * the child's screen, a NotFound fallback for any other path, and Escape
+ * as Back. Its Actions have keys, `s` to open the settings and `m` and
+ * `l` to change the mode, so a terminal reaches them without a mouse. While navigation is mirrored, a launch URI
  * does not move the stack: a newcomer joins the shared screen. Compose it
  * inside `ActionMenu.compose` so the session Actions appear in the menu.
  *
@@ -620,7 +624,12 @@ export const compose = <Child extends SessionChild>(config: {
           screen: (
             model: AppModel,
             context?: Parameters<NonNullable<Child['screen']>>[1],
-          ) => childScreen(childOf(model), context),
+          ) =>
+            Column(
+              {},
+              childScreen(childOf(model), context),
+              Row({}, ...actionButtons(Catalog.entries(openerCatalog, model))),
+            ),
         }),
   })
 

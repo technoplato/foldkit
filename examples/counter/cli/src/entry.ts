@@ -10,6 +10,7 @@
  *   counter menu type re    filter it
  *   counter menu choose reset
  *   counter key k --meta    press any key
+ *   counter tail            print every event as it lands
  *   counter help            usage derived from the Catalog
  *
  * This file must not import Effect, Instant, or the Program, so the view
@@ -33,7 +34,10 @@ import {
 const request = parseProgramArgv(process.argv.slice(2))
 const tape = counterCliTape()
 
-if (tape._tag === 'Instant') {
+if (request._tag !== 'Show' && request.token === 'tail') {
+  const { runTail } = await import('./tail.js')
+  await runTail()
+} else if (tape._tag === 'Instant') {
   try {
     writeCliViewResult(
       await runCliView({

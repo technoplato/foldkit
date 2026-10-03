@@ -78,3 +78,49 @@ export const keyedStackDriver = <Destination>(
       }),
   }
 }
+
+// COALESCE
+
+const coalesceWindowMs = 16
+
+/**
+ * A keyed stack whose resets within one frame land as one reset: the last.
+ * Choosing `Open session settings` in the action menu closes the menu and
+ * pushes the Session page in two Program steps. A native stack takes them
+ * as one reset, from `[Counter, menu]` straight to `[Counter, Session]`, so
+ * it never dismisses a modal and pushes a page in separate frames, which a
+ * native stack reports as a screen it lost track of. Until the reset
+ * lands, the stack reads as the routes it will show.
+ *
+ * @example
+ * ```typescript
+ * Navigation.keyedStackDriver(
+ *   Navigation.coalescedStack(reactNavigationStack(navigationRef, routes)),
+ * )
+ * ```
+ */
+export const coalescedStack = (
+  stack: KeyedStack,
+  schedule: (flush: () => void) => void = flush => {
+    setTimeout(flush, coalesceWindowMs)
+  },
+): KeyedStack => {
+  let maybePending = Option.none<Array.NonEmptyReadonlyArray<KeyedRoute>>()
+  const flush = (): void => {
+    Option.map(maybePending, routes => {
+      maybePending = Option.none()
+      stack.reset(routes)
+    })
+  }
+  return {
+    routes: () => Option.getOrElse(maybePending, stack.routes),
+    reset: next => {
+      const isScheduled = Option.isSome(maybePending)
+      maybePending = Option.some(next)
+      if (!isScheduled) {
+        schedule(flush)
+      }
+    },
+    subscribe: stack.subscribe,
+  }
+}

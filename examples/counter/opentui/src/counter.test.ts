@@ -39,9 +39,9 @@ describe('paintOpenTuiFrame', () => {
   it('paints the count and Catalog-hinted Buttons', async () => {
     const frame = await paintFrame(0, false)
     expect(frame).toContain('0')
-    expect(frame).toContain('[+] Increment')
-    expect(frame).toContain('[-] Decrement')
-    expect(frame).toContain('[r] Reset (count is already 0)')
+    expect(frame).toContain('+')
+    expect(frame).toContain('-')
+    expect(frame).toContain('Reset')
   })
 
   it('floats the presented action menu over the screen', async () => {

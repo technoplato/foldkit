@@ -69,3 +69,22 @@ export const frameOf = (source: FrameSource): Option.Option<Frame> =>
       overlays: Array.getSomes(Array.map(overlays, layerOf)),
     }))
   })
+
+/**
+ * A window title: the screen's title, then which app shows it, with the
+ * spaced pipe every Foldkit title uses.
+ *
+ * @example
+ * ```typescript
+ * documentTitleOf(Option.some('Session'), 'Svelte') // 'Session | Svelte'
+ * documentTitleOf(Option.none(), 'OpenTUI') // 'OpenTUI'
+ * ```
+ */
+export const documentTitleOf = (
+  maybeTitle: Option.Option<string>,
+  appLabel: string,
+): string =>
+  Option.match(maybeTitle, {
+    onNone: () => appLabel,
+    onSome: title => `${title} | ${appLabel}`,
+  })

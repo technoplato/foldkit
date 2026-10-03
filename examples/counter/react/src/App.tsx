@@ -7,7 +7,11 @@ import {
   useKeyBindings,
   useStatus,
 } from '@foldkit/react/interaction'
-import { NavigationFrame, useBrowserHistory } from '@foldkit/react/navigation'
+import {
+  NavigationFrame,
+  useBrowserHistory,
+  useDocumentTitle,
+} from '@foldkit/react/navigation'
 
 const classNames: PaintClassNames = {
   Button:
@@ -28,6 +32,7 @@ const classNames: PaintClassNames = {
 export const App = (): ReactElement => {
   useKeyBindings()
   useBrowserHistory()
+  useDocumentTitle('React')
   return M.value(useStatus()).pipe(
     M.withReturnType<ReactElement>(),
     M.tagsExhaustive({

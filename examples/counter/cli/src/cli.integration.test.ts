@@ -34,12 +34,12 @@ describe('counter CLI on a file tape', () => {
     const result = counter()
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('ready')
-    expect(result.stdout).toContain(
-      'increment   [+ =]   Increments the count by one',
+    expect(result.stdout).toMatch(
+      /^ {2}increment +\+ = +Increments the count by one$/m,
     )
-    expect(result.stdout).toContain(
-      'reset       [r]     Sets the count to 0  (disabled: count is already 0)',
-    )
+    expect(result.stdout).toMatch(/^ {2}reset +r +Sets the count to 0$/m)
+    expect(result.stdout).toMatch(/^ +Unavailable: count is already 0$/m)
+    expect(result.stdout).toMatch(/^ +\$ counter increment$/m)
   })
 
   it('keeps the count across processes', () => {
@@ -77,9 +77,10 @@ describe('counter CLI on a file tape', () => {
   it('prints usage derived from the Catalog', () => {
     const counter = counterOnNewTape()
     const help = counter('help')
-    expect(help.stdout).toContain(
-      'increment          Increments the count by one',
+    expect(help.stdout).toMatch(
+      /^ {2}increment +\+ = +Increments the count by one$/m,
     )
     expect(help.stdout).toContain('menu choose <cmd>')
+    expect(help.stdout).toMatch(/^ +\$ counter menu choose increment$/m)
   })
 })

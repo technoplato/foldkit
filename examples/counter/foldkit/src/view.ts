@@ -1,6 +1,6 @@
 import { SyncedCounter, type SyncedCounterModel } from 'counter-core-example'
 import { Match as M, Option } from 'effect'
-import { Interaction } from 'foldkit'
+import { Interaction, Navigation } from 'foldkit'
 import { type Document, type Html, html } from 'foldkit/html'
 import { type ActionContext } from 'foldkit/message'
 import { type MenuMessages, paintFrameHtml } from 'foldkit/renderers/html'
@@ -78,9 +78,15 @@ export const makeView =
       }),
     )
     return {
-      title: Option.getOrElse(
-        Option.flatMap(maybeFrame, frame => frame.maybeTitle),
-        () => (status._tag === 'Ready' ? '' : status.description),
+      title: Navigation.documentTitleOf(
+        Option.orElse(
+          Option.flatMap(maybeFrame, frame => frame.maybeTitle),
+          () =>
+            status._tag === 'Ready'
+              ? Option.none()
+              : Option.some(status.description),
+        ),
+        'Foldkit HTML',
       ),
       body: h.div(
         [

@@ -13,7 +13,7 @@ import * as ActionMenu from '../actionMenu/actionMenu.js'
 import { bind } from '../interaction/bind.js'
 import { keyInput } from '../interaction/interaction.js'
 import { compose as composeProgram } from '../program/compose.js'
-import { Text } from '../renderers/elements.js'
+import { Button, Column, Row, Text } from '../renderers/elements.js'
 import { startHandle } from '../runtime/handle.js'
 import { Memory, makeMemoryStore } from '../runtime/syncEngine.js'
 import * as Session from '../session/session.js'
@@ -180,7 +180,24 @@ describe('a composed App', () => {
     const tagAt = (key: string) =>
       Option.map(bound.viewAt(key), view => view._tag)
     expect(bound.viewAt('/counter')).toEqual(
-      Option.some(Declaration.screenView(Text('1'))),
+      Option.some(
+        Declaration.screenView(
+          Column(
+            {},
+            Text('1'),
+            Row(
+              {},
+              Button({
+                label: 'Session settings',
+                action: 'OpenSessionSettings',
+                keys: ['s'],
+                because: 'session settings are already open',
+                disabled: true,
+              }),
+            ),
+          ),
+        ),
+      ),
     )
     expect(tagAt('/counter/session')).toEqual(Option.some('Screen'))
     expect(tagAt('/counter/session/menu')).toEqual(Option.some('Menu'))

@@ -14,6 +14,7 @@ import { type Frame, frameOf } from '../navigation/frame.js'
 import { Cli } from '../navigation/message.js'
 import { renderScreen } from '../renderers/render.js'
 import type { UiNode } from '../renderers/types.js'
+import { columnRow, underColumn } from './layout.js'
 import type {
   CliDaemonFlags,
   CliDaemonPaintedResult,
@@ -22,47 +23,122 @@ import type {
 
 // PAINT
 
-const commandColumnWidth = 12
-const keysColumnWidth = 8
+const indentWidth = 2
 
-const keysOf = (entry: Entry): string =>
-  Array.match(entry.keys, {
-    onEmpty: () => '',
-    onNonEmpty: keys => `[${keys.join(' ')}]`,
-  })
+const minimumCommandWidth = 12
 
-const availabilityNote = (entry: Entry): string =>
+const minimumKeysWidth = 6
+
+const columnGap = 2
+
+const indent = ' '.repeat(indentWidth)
+
+const keysTextOf = (keys: ReadonlyArray<string>): string => keys.join(' ')
+
+type ActionColumns = Readonly<{
+  commandWidth: number
+  keysWidth: number
+  descriptionColumn: number
+}>
+
+const widestOf = (texts: ReadonlyArray<string>, minimum: number): number =>
+  Array.reduce(texts, minimum, (widest, text) =>
+    Math.max(widest, text.length + columnGap),
+  )
+
+const actionColumnsOf = (entries: ReadonlyArray<Entry>): ActionColumns => {
+  const commandWidth = widestOf(
+    Array.map(entries, entry => `  ${commandOf(entry.tag)}`),
+    minimumCommandWidth,
+  )
+  const keysWidth = widestOf(
+    Array.map(entries, entry => keysTextOf(entry.keys)),
+    minimumKeysWidth,
+  )
+  return {
+    commandWidth,
+    keysWidth,
+    descriptionColumn: indentWidth + commandWidth + keysWidth,
+  }
+}
+
+const unavailableLines = (
+  entry: Entry,
+  column: number,
+): ReadonlyArray<string> =>
   M.value(entry.availability).pipe(
-    M.withReturnType<string>(),
+    M.withReturnType<ReadonlyArray<string>>(),
     M.tagsExhaustive({
-      Enabled: () => '',
-      Disabled: ({ because }) => `  (disabled: ${because})`,
+      Enabled: () => [],
+      Disabled: ({ because }) => underColumn(column, `Unavailable: ${because}`),
     }),
   )
 
-const actionLine = (entry: Entry): string =>
-  `  ${commandOf(entry.tag).padEnd(commandColumnWidth)}${keysOf(entry).padEnd(keysColumnWidth)}${entry.what}${availabilityNote(entry)}`
-
-const rowMark = (row: MenuView['rows'][number]): string =>
-  row.isHighlighted ? '>' : ' '
-
-const menuRowLine = (row: MenuView['rows'][number]): string => {
-  const keys = Array.match(row.keys, {
-    onEmpty: () => '',
-    onNonEmpty: rowKeys => `[${rowKeys.join(' ')}]`,
+const exampleLines = (
+  maybeName: Option.Option<string>,
+  column: number,
+  words: string,
+): ReadonlyArray<string> =>
+  Option.match(maybeName, {
+    onNone: () => [],
+    onSome: name => underColumn(column, `$ ${name} ${words}`),
   })
-  return `  ${rowMark(row)} ${commandOf(row.entry.tag).padEnd(commandColumnWidth)}${keys.padEnd(keysColumnWidth)}${textOf(row.description)}${availabilityNote(row.entry)}`
+
+/**
+ * The Actions table: each Action's CLI word, its keys, and its `what`
+ * wrapped under itself to 80 columns, then why it is unavailable and,
+ * with a Program name, how to run it.
+ */
+const actionTable = (
+  entries: ReadonlyArray<Entry>,
+  maybeName: Option.Option<string>,
+): ReadonlyArray<string> => {
+  const columns = actionColumnsOf(entries)
+  const rowsOf = (entry: Entry): ReadonlyArray<string> => [
+    ...columnRow(
+      [indent, commandOf(entry.tag), keysTextOf(entry.keys)],
+      [indentWidth, columns.commandWidth, columns.keysWidth],
+      entry.what,
+    ),
+    ...unavailableLines(entry, columns.descriptionColumn),
+    ...exampleLines(maybeName, columns.descriptionColumn, commandOf(entry.tag)),
+  ]
+  return Option.match(maybeName, {
+    onNone: () => Array.flatMap(entries, rowsOf),
+    onSome: () =>
+      Array.flatMap(entries, (entry, index) =>
+        index === 0 ? rowsOf(entry) : ['', ...rowsOf(entry)],
+      ),
+  })
 }
 
-const menuLines = (menu: MenuView): ReadonlyArray<string> => [
-  '',
-  `${menu.title}  ${menu.filterLabel}: "${menu.query}"`,
-  ...Array.match(menu.rows, {
-    onEmpty: () => [`  (${menu.summary})`],
-    onNonEmpty: rows => Array.map(rows, menuRowLine),
-  }),
-  `  ${hintLineOf(menu.hints)}`,
-]
+const rowMark = (row: MenuView['rows'][number]): string =>
+  row.isHighlighted ? '> ' : '  '
+
+const menuLines = (menu: MenuView): ReadonlyArray<string> => {
+  const columns = actionColumnsOf(Array.map(menu.rows, row => row.entry))
+  return [
+    '',
+    `${menu.title}  ${menu.filterLabel}: "${menu.query}"`,
+    ...Array.match(menu.rows, {
+      onEmpty: () => [`${indent}(${menu.summary})`],
+      onNonEmpty: rows =>
+        Array.flatMap(rows, row => [
+          ...columnRow(
+            [
+              indent,
+              `${rowMark(row)}${commandOf(row.entry.tag)}`,
+              keysTextOf(row.keys),
+            ],
+            [indentWidth, columns.commandWidth, columns.keysWidth],
+            textOf(row.description),
+          ),
+          ...unavailableLines(row.entry, columns.descriptionColumn),
+        ]),
+    }),
+    `${indent}${hintLineOf(menu.hints)}`,
+  ]
+}
 
 const treeLines = (tree: UiNode): ReadonlyArray<string> =>
   Array.map(renderScreen(tree).split('\n'), line => line.trimEnd())
@@ -101,74 +177,150 @@ const statusLine = <Model, Message>(
   )
 
 /**
- * Paints a bound Program as terminal text: status, the screen, every Action
- * with its CLI word, keys, and disabled sentence. A Program with a URI
- * paints where it is, its base screen, and each entry presented over it,
- * such as the action menu. Any other Program paints its screen, then the
- * menu after the Actions.
+ * Paints a bound Program as terminal text that fits 80 columns: status,
+ * where it is, its screens, then every Action with its CLI word, keys,
+ * description, and why it is unavailable. With the Program's CLI `name`,
+ * each Action also shows how to run it. Everything comes from the
+ * Program's Catalog and navigation; the host writes none of it.
  *
  * @example
  * ```text
  * ready
- * at /counter/session
- * Session
- * [ Mirror navigation ] [ Keep navigation local ] [ Close ]
+ * at /counter
+ * 3
+ * [ + ] [ - ] [ Reset ]
  *
  * Actions
- *   increment   [+ =]   Increments the count by one
+ *   increment               + =   Increments the count by one
+ *                                 $ counter increment
  * ```
  */
 export const paintProgram = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
-): string =>
-  Option.match(frameOf(bound), {
+  name?: string,
+): string => {
+  const maybeName = Option.fromNullishOr(name)
+  const actions = ['', 'Actions', ...actionTable(bound.entries(), maybeName)]
+  return Option.match(frameOf(bound), {
     onNone: () => [
       statusLine(bound),
       ...rootLines(bound),
-      '',
-      'Actions',
-      ...Array.map(bound.entries(), actionLine),
+      ...actions,
       ...Option.match(bound.menu(), {
         onNone: () => [],
         onSome: menuLines,
       }),
     ],
-    onSome: frame => [
-      statusLine(bound),
-      ...frameLines(frame),
-      '',
-      'Actions',
-      ...Array.map(bound.entries(), actionLine),
-    ],
+    onSome: frame => [statusLine(bound), ...frameLines(frame), ...actions],
   }).join('\n')
+}
+
+type Control = Readonly<{ usage: string; what: string; example: string }>
+
+const controlsOf = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  name: string,
+): ReadonlyArray<Control> => {
+  const maybeFirstEnabled = Array.findFirst(
+    bound.entries(),
+    entry => entry.availability._tag === 'Enabled',
+  )
+  const firstCommand = Option.getOrElse(
+    Option.map(maybeFirstEnabled, entry => commandOf(entry.tag)),
+    () => 'help',
+  )
+  const firstKey = Option.getOrElse(
+    Array.findFirst(
+      Array.flatMap(bound.entries(), entry => entry.keys),
+      key => key.length > 0,
+    ),
+    () => 'Escape',
+  )
+  const currentUri = Option.getOrElse(
+    Option.map(bound.navigation(), plan => plan.uri),
+    () => '/',
+  )
+  return [
+    {
+      usage: 'show',
+      what: `Paint the ${name} and its Actions`,
+      example: 'show',
+    },
+    {
+      usage: 'menu open|close',
+      what: 'Present or dismiss the action menu',
+      example: 'menu open',
+    },
+    {
+      usage: 'menu type <text>',
+      what: 'Filter the action menu',
+      example: `menu type ${firstCommand.slice(0, 2)}`,
+    },
+    {
+      usage: 'menu next|previous',
+      what: 'Move focus in the action menu',
+      example: 'menu next',
+    },
+    {
+      usage: 'menu choose <cmd>',
+      what: 'Choose one Action from the menu',
+      example: `menu choose ${firstCommand}`,
+    },
+    {
+      usage: 'key <key>',
+      what: 'Press a key, with --meta, --ctrl, or --shift',
+      example: `key ${firstKey}`,
+    },
+    {
+      usage: 'open <uri>',
+      what: "Go to one of the Program's URIs",
+      example: `open ${currentUri}`,
+    },
+    { usage: 'back', what: 'Go back one screen', example: 'back' },
+    { usage: 'where', what: 'Print the current URI', example: 'where' },
+    {
+      usage: 'tail',
+      what: 'Print every event as it lands, from every device',
+      example: 'tail',
+    },
+    { usage: 'help', what: 'Print this help', example: 'help' },
+  ]
+}
 
 /**
- * Usage derived from the Program's Catalog. Every Action is a command; the
- * menu and raw keys drive navigation.
+ * Usage derived from the Program: every Action is a command, laid out like
+ * `show`, then the controls every Program has, each with an example built
+ * from this Program, such as `$ counter menu choose increment`.
  */
 export const programUsage = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
-): string =>
-  [
-    `Usage: ${name} [command]`,
+): string => {
+  const controls = controlsOf(bound, name)
+  const usageWidth = widestOf(
+    Array.map(controls, control => control.usage),
+    minimumCommandWidth,
+  )
+  const column = indentWidth + usageWidth
+  return [
+    'Usage',
+    `${indent}${name} [command] [--meta] [--ctrl] [--shift]`,
     '',
-    'Commands',
-    `  show               Paint the ${name} and its Actions`,
-    ...Array.map(
-      bound.entries(),
-      entry => `  ${commandOf(entry.tag).padEnd(19)}${entry.what}`,
-    ),
-    '  menu open|close    Present or dismiss the action menu',
-    '  menu type <text>   Filter the action menu',
-    '  menu next|previous Move focus in the action menu',
-    '  menu choose <cmd>  Choose one action from the menu',
-    '  key <key>          Press a key, with --meta, --ctrl, or --shift',
-    "  open <uri>         Go to one of the Program's URIs",
-    '  back               Go back one screen',
-    '  where              Print the current URI',
-    '  help               Print this help',
+    'Actions',
+    ...actionTable(bound.entries(), Option.some(name)),
+    '',
+    'Controls',
+    ...Array.flatMap(controls, (control, index) => [
+      ...(index === 0 ? [] : ['']),
+      ...columnRow(
+        [indent, control.usage],
+        [indentWidth, usageWidth],
+        control.what,
+      ),
+      ...underColumn(column, `$ ${name} ${control.example}`),
+    ]),
   ].join('\n')
+}
 
 // RUN
 
@@ -190,13 +342,14 @@ const findEntry = <Model, Message>(
 
 const pressCommand = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
+  name: string,
   command: string,
   press: (tag: string) => boolean,
 ): CliDaemonPaintedResult =>
   Option.match(findEntry(bound, command), {
     onNone: () =>
       painted(
-        paintProgram(bound),
+        paintProgram(bound, name),
         2,
         `Unknown command "${command}". Try one of: ${Array.map(bound.entries(), entry => commandOf(entry.tag)).join(', ')}.`,
       ),
@@ -206,11 +359,11 @@ const pressCommand = <Model, Message>(
         M.tagsExhaustive({
           Enabled: () => {
             press(entry.tag)
-            return painted(paintProgram(bound))
+            return painted(paintProgram(bound, name))
           },
           Disabled: ({ because }) =>
             painted(
-              paintProgram(bound),
+              paintProgram(bound, name),
               1,
               `${commandOf(entry.tag)} is disabled: ${because}.`,
             ),
@@ -226,29 +379,32 @@ const menuMoves: ReadonlyMap<string, string> = new Map([
 
 const runMenu = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
+  name: string,
   words: ReadonlyArray<string>,
 ): CliDaemonPaintedResult => {
   const [verb = 'open', ...rest] = words
   if (verb === 'open') {
     bound.openMenu()
-    return painted(paintProgram(bound))
+    return painted(paintProgram(bound, name))
   } else if (verb === 'close') {
     bound.dismissMenu()
-    return painted(paintProgram(bound))
+    return painted(paintProgram(bound, name))
   } else if (verb === 'type') {
     bound.openMenu()
     bound.typeInMenu(rest.join(' '))
-    return painted(paintProgram(bound))
+    return painted(paintProgram(bound, name))
   } else if (verb === 'choose') {
     bound.openMenu()
-    return pressCommand(bound, rest.join(' '), tag => bound.chooseFromMenu(tag))
+    return pressCommand(bound, name, rest.join(' '), tag =>
+      bound.chooseFromMenu(tag),
+    )
   } else {
     return Option.match(Option.fromNullishOr(menuMoves.get(verb)), {
       onNone: () =>
-        painted(paintProgram(bound), 2, `Unknown menu verb "${verb}".`),
+        painted(paintProgram(bound, name), 2, `Unknown menu verb "${verb}".`),
       onSome: key => {
         bound.pressKey(keyInput(key))
-        return painted(paintProgram(bound))
+        return painted(paintProgram(bound, name))
       },
     })
   }
@@ -256,16 +412,17 @@ const runMenu = <Model, Message>(
 
 const runOpen = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
+  name: string,
   words: ReadonlyArray<string>,
 ): CliDaemonPaintedResult =>
   Array.match(words, {
-    onEmpty: () => painted(paintProgram(bound), 2, 'open needs a URI.'),
+    onEmpty: () => painted(paintProgram(bound, name), 2, 'open needs a URI.'),
     onNonEmpty: uriWords => {
       const uri = uriWords.join(' ')
       return bound.openUri(uri, Cli())
-        ? painted(paintProgram(bound))
+        ? painted(paintProgram(bound, name))
         : painted(
-            paintProgram(bound),
+            paintProgram(bound, name),
             1,
             `Cannot open ${uri}: no URIs here yet.`,
           )
@@ -274,10 +431,11 @@ const runOpen = <Model, Message>(
 
 const runBack = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
+  name: string,
 ): CliDaemonPaintedResult =>
   backOneEntry(bound)
-    ? painted(paintProgram(bound))
-    : painted(paintProgram(bound), 1, 'Already at the first screen.')
+    ? painted(paintProgram(bound, name))
+    : painted(paintProgram(bound, name), 1, 'Already at the first screen.')
 
 const runWhere = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
@@ -306,11 +464,11 @@ export const runProgramCommand = <Model, Message>(
 ): CliDaemonPaintedResult => {
   const [head = 'show', ...rest] = words
   if (head === 'show') {
-    return painted(paintProgram(bound))
+    return painted(paintProgram(bound, name))
   } else if (head === 'help') {
     return painted(programUsage(bound, name))
   } else if (head === 'menu') {
-    return runMenu(bound, rest)
+    return runMenu(bound, name, rest)
   } else if (head === 'key') {
     bound.pressKey(
       keyInput(rest.join(' '), {
@@ -319,17 +477,17 @@ export const runProgramCommand = <Model, Message>(
         isShift: flags['shift'] === '1',
       }),
     )
-    return painted(paintProgram(bound))
+    return painted(paintProgram(bound, name))
   } else if (head === 'open') {
-    return runOpen(bound, rest)
+    return runOpen(bound, name, rest)
   } else if (head === 'back') {
-    return runBack(bound)
+    return runBack(bound, name)
   } else if (head === 'where') {
     return runWhere(bound)
   } else if (head === 'do') {
-    return pressCommand(bound, rest.join(' '), tag => bound.press(tag))
+    return pressCommand(bound, name, rest.join(' '), tag => bound.press(tag))
   } else {
-    return pressCommand(bound, head, tag => bound.press(tag))
+    return pressCommand(bound, name, head, tag => bound.press(tag))
   }
 }
 
@@ -354,7 +512,7 @@ export const programCliSurface = <Model, Message>(
       bound.send(message)
       return { model: bound.readModel(), previous }
     }),
-  show: () => Effect.sync(() => painted(paintProgram(bound))),
+  show: () => Effect.sync(() => painted(paintProgram(bound, name))),
   do: (token, flags) =>
     Effect.sync(() => runProgramCommand(bound, name, wordsOf(token), flags)),
 })

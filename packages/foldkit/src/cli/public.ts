@@ -36,3 +36,5 @@ export {
 
 export { keyInputOfTerminal, runProgramTui } from './tui.js'
 export { localSnapshotFile, localSnapshotPath } from './localSnapshotFile.js'
+export { formatTailRow, runProgramTail } from './tail.js'
+export { columnRow, terminalWidth, underColumn, wrapWords } from './layout.js'

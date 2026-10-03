@@ -23,6 +23,7 @@ const paintedTreeIndex = 0
 /** Where an OpenTUI run starts. `launchUri` opens once the Program is Ready. */
 export type RunOpenTuiOptions = Readonly<{
   launchUri?: string
+  appLabel?: string
 }>
 
 /**
@@ -68,6 +69,12 @@ export const runOpenTui = <Model, Message>(
     }
 
     const paint = (): void => {
+      renderer.setTerminalTitle(
+        Navigation.documentTitleOf(
+          Option.flatMap(Navigation.frameOf(bound), frame => frame.maybeTitle),
+          options.appLabel ?? 'OpenTUI',
+        ),
+      )
       const next = Option.match(Navigation.frameOf(bound), {
         onNone: () =>
           paintOpenTuiFrame(

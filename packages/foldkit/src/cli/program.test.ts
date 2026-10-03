@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { bindCounter } from '../test/apps/catalogCounter.js'
 import { bindApp, uriOf } from '../test/apps/navigableCounter.js'
+import { terminalWidth } from './layout.js'
 import {
   paintProgram,
   programCliSurface,
@@ -18,11 +19,20 @@ describe('paintProgram', () => {
     const text = paintProgram(bindCounter())
     expect(text).toContain('ready')
     expect(text).toContain('[ + ] [ Reset ]')
-    expect(text).toContain('  increment   [+]     Increments the count by one')
-    expect(text).toContain(
-      '  reset       [r]     Sets the count to 0  (disabled: count is already 0)',
-    )
+    expect(text).toMatch(/^ {2}increment +\+ +Increments the count by one$/m)
+    expect(text).toMatch(/^ {2}reset +r +Sets the count to 0$/m)
+    expect(text).toMatch(/^ +Unavailable: count is already 0$/m)
     expect(text).not.toContain('Search actions')
+    expect(text).not.toContain('$ counter')
+    expect(text.split('\n').every(line => line.length <= terminalWidth)).toBe(
+      true,
+    )
+  })
+
+  it('shows how to run each Action when it knows the CLI name', () => {
+    const text = paintProgram(bindCounter(), 'counter')
+    expect(text).toMatch(/^ +\$ counter increment$/m)
+    expect(text).toMatch(/^ +\$ counter reset$/m)
   })
 
   it('paints the presented menu with its query and highlighted row', () => {
@@ -31,7 +41,7 @@ describe('paintProgram', () => {
     bound.typeInMenu('res')
     const painted = paintProgram(bound)
     expect(painted).toContain('Actions  Search actions: "res"')
-    expect(painted).toMatch(/ {2}> reset +\[r\] +Sets the count to 0/)
+    expect(painted).toMatch(/ {2}> reset +r +Sets the count to 0/)
     expect(painted).toContain('[↑↓] move  [↵] run  [esc] close')
   })
 })
@@ -40,7 +50,7 @@ describe('runProgramCommand', () => {
   it('runs an Action by its CLI word, bare or after do', () => {
     const bound = bindCounter()
     expect(runProgramCommand(bound, 'counter', ['increment'], {})).toEqual({
-      stdout: paintProgram(bound),
+      stdout: paintProgram(bound, 'counter'),
       exitCode: 0,
     })
     runProgramCommand(bound, 'counter', ['do', 'increment'], {})
@@ -97,10 +107,14 @@ describe('runProgramCommand', () => {
     const bound = bindCounter()
     const help = runProgramCommand(bound, 'counter', ['help'], {})
     expect(help.stdout).toBe(programUsage(bound, 'counter'))
-    expect(help.stdout).toContain(
-      '  increment          Increments the count by one',
+    expect(help.stdout).toMatch(
+      /^ {2}increment +\+ +Increments the count by one$/m,
     )
-    expect(help.stdout).toContain('  menu choose <cmd>  ')
+    expect(help.stdout).toMatch(/^ {2}menu choose <cmd> +Choose one Action/m)
+    expect(help.stdout).toMatch(/^ +\$ counter menu choose increment$/m)
+    expect(
+      help.stdout.split('\n').every(line => line.length <= terminalWidth),
+    ).toBe(true)
   })
 })
 
@@ -137,7 +151,7 @@ describe('navigation commands', () => {
     runProgramCommand(bound, 'counter', ['open', '/counter/menu?menu.q=re'], {})
     const text = paintProgram(bound)
     expect(text).toContain('at /counter/menu?menu.q=re')
-    expect(text).toMatch(/ {2}> reset +\[r\] +Sets the count to 0/)
+    expect(text).toMatch(/ {2}> reset +r +Sets the count to 0/)
     expect(text.indexOf('Search actions')).toBeLessThan(
       text.lastIndexOf('Actions'),
     )

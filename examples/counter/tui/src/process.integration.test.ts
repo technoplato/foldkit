@@ -16,7 +16,8 @@ describe('Counter TUI process', () => {
   it('presses Actions from keys and quits on q', () => {
     const result = runTui('++q')
     expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout).toContain('increment   [+ =]')
+    expect(result.stdout).toMatch(/^ {2}increment +\+ = +Increments/m)
+    expect(result.stdout).toContain('\u001b]0;Counter | TUI\u0007')
     expect(result.stdout).toMatch(/^2\s*$/m)
   })
 

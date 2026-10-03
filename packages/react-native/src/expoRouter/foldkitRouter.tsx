@@ -79,7 +79,7 @@ export const FoldkitRouterStack = ({
         const stack = expoRouterStack(ref, keyedRoutesOf(plan))
         return Navigation.runCarrier(
           bound,
-          Navigation.keyedStackDriver(stack),
+          Navigation.keyedStackDriver(Navigation.coalescedStack(stack)),
           { launchUri: Option.some(Array.lastNonEmpty(stack.routes()).uri) },
         )
       },

@@ -115,6 +115,8 @@ export {
   ShowHostPage,
   maybeTitleOf,
   keyedStackDriver,
+  coalescedStack,
+  documentTitleOf,
   frameOf,
   uriOfDeepLink,
   tanstackRouterPlugin,

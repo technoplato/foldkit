@@ -12,6 +12,19 @@ import { SyncedCounter } from './synced.js'
 
 export { FoldkitCounterV01, InstantSnapshotLogSchema } from '@foldkit/instant'
 
+/**
+ * The sync engine a Node Counter runs on, chosen as `startCounter`
+ * chooses it, for a host that reads the log without running the Counter,
+ * such as `counter tail`.
+ *
+ * @example
+ * ```typescript
+ * counterEngine({ host: Processor.Host.Cli(), instance: newProcessorInstance() })
+ * ```
+ */
+export const counterEngine = (config: StartCounterConfig): Runtime.SyncEngine =>
+  engineFor(config)
+
 const engineFor = (config: StartCounterConfig): Runtime.SyncEngine =>
   config.tape === 'Memory'
     ? Runtime.Memory({ processor: `memory-${config.instance}` })

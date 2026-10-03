@@ -1,10 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, type Navigation } from 'foldkit'
-import {
-  type ButtonNode,
-  type UiNode,
-  terminalCaptionOf,
-} from 'foldkit/renderers'
+import { type ButtonNode, type UiNode } from 'foldkit/renderers'
 
 import {
   BoxRenderable,
@@ -80,7 +76,7 @@ export const paintOpenTui = (
               }
             : {}),
         })
-        const label = terminalCaptionOf(button)
+        const label = button.label
         box.add(
           new TextRenderable(ctx, {
             content: isPressable ? t`${bold(label)}` : t`${dim(label)}`,

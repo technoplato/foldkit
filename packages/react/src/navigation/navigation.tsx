@@ -211,6 +211,31 @@ const OverlayView = ({
     M.exhaustive,
   )
 
+/**
+ * Keeps the browser tab's title on the Program's screen and names the app
+ * showing it, so `Session | React` and `Session | Svelte` tell two windows
+ * apart. The title comes from the topmost entry that declares one.
+ *
+ * @example
+ * ```tsx
+ * useDocumentTitle('React') // 'Counter | React', then 'Session | React'
+ * ```
+ */
+export const useDocumentTitle = (appLabel: string): void => {
+  const bound = useBound()
+  const title = useBoundRead(bound, () =>
+    Navigation.documentTitleOf(
+      Option.flatMap(Navigation.frameOf(bound), frame => frame.maybeTitle),
+      appLabel,
+    ),
+  )
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.title = title
+    }
+  }, [title])
+}
+
 const noClassNames: PaintClassNames = {}
 
 /**

@@ -59,7 +59,9 @@ const ReadyStack = ({
     return Navigation.runCarrier(
       bound,
       Navigation.keyedStackDriver(
-        reactNavigationStack(navigationRef, routesAtMount),
+        Navigation.coalescedStack(
+          reactNavigationStack(navigationRef, routesAtMount),
+        ),
       ),
       { launchUri: Option.fromNullishOr(launchUri) },
     )

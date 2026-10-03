@@ -18,7 +18,7 @@
     {:else if counter.status._tag === 'Failed'}
       <p class="counter-failed">{counter.status.description}</p>
     {:else}
-      <NavigationFrame program={counter} />
+      <NavigationFrame appLabel="Svelte" program={counter} />
       <ActionMenuButton class="counter-menu-button" program={counter} />
     {/if}
   </section>

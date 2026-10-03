@@ -154,10 +154,10 @@ export {
 } from './browserHistory.js'
 export { maybeTitleOf } from './carrier.js'
 export type { BrowserWindow } from './browserHistory.js'
-export { frameOf } from './frame.js'
+export { documentTitleOf, frameOf } from './frame.js'
 export { uriOfDeepLink } from './deepLink.js'
 export type { Frame, FrameLayer, FrameSource } from './frame.js'
-export { keyedStackDriver } from './keyedStack.js'
+export { coalescedStack, keyedStackDriver } from './keyedStack.js'
 export type { KeyedRoute, KeyedStack } from './keyedStack.js'
 export {
   tanstackRouterPlugin,
