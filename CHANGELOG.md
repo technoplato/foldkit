@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 2nd, 2026 at 11:11:25 p.m. EDT — `732cb8abdc60` feat(foldkit): keep a local snapshot per device and fold only new rows
+
+- **Implementation commit:** `732cb8abdc609f2f8d561dd3e590ab75e483b8ca`
+- **Change:** Keep a local snapshot per device and fold only new rows
+- **Details:**
+  - Boot paints the device's own fold at once, proves it against the log with a position, count, and id fingerprint, and folds only newer rows; old rows are never replayed as live Messages. Snapshots are typed by the Program's Model and dropped on a version change.
+- **Files:**
+  - `packages/foldkit/src/runtime/localSnapshot.ts` — Add the store, watermark proof, and typed encode and decode.
+  - `packages/foldkit/src/runtime/start.ts` — Paint the local snapshot, reconcile behind it, and save the shared fold.
+  - `packages/foldkit/src/cli/localSnapshotFile.ts` — Add the file store for Node and Bun hosts.
+  - `examples/counter/core/src/live.browser.ts` — Keep the browser snapshot in localStorage and stop replaying the log.
+- **User context (verbatim):**
+  > when I refresh the page, it literally replays every single um event that's ever occurred. I'm wondering if we can Um we should be able to create local snapshots.
+  > I think we need to have the idea that the messages are the source of truth and that local um running processors snapshot their own um accumulations.
+  > The model shouldn't be unknown, it should be generic and it should be determined by the version of the runtime that we're on.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 9:30:49 p.m. EDT — `8a29790bd693` feat(foldkit): move Up from the action menu search to the last row
 
 - **Implementation commit:** `8a29790bd6930a5c1ae0eccaa7989e1559564f2d`
