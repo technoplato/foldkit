@@ -602,6 +602,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
   - `examples/counter/expo/src/App.tsx` — Paint the Expo Counter through @foldkit/react-native.
 - **User context (verbatim):**
   > The Svelte, OpenTUI and React Native painters are generic too, but they still sit inside examples/counter. move these into @foldkit/<platform>/<thing>
+## October 3rd, 2026 at 5:44:18 p.m. EDT — `ffff6bc57a26` feat(words): open shared links on words.pisspoursoftware.xyz beside words.knophy.com
+
+- **Implementation commit:** `ffff6bc57a269c3497182980000b56553805c557`
+- **Change:** Open shared links on words.pisspoursoftware.xyz beside words.knophy.com (Scribe #493).
+- **Details:**
+  - The knophy.com subdomains move to pisspoursoftware.xyz; words.pisspoursoftware.xyz already serves this site through the words tunnel (Host rewritten to words.knophy.com until this deploys).
+  - ScribeLinkHost lists both web hosts; scribeRouteFromLink reads a link on either (any case) as the same place. Links still print on words.knophy.com (scribeRouteToShareUrl) until the redirect phase.
+  - Verified: words core vitest 12 files, 208 tests pass (the new two-host test fails without the change); core and web tsc --noEmit pass.
+- **Files:**
+  - `examples/words/core/src/link.ts` — ScribeLinkHost, and webPathOf accepts either host
+  - `examples/words/core/src/link.test.ts` — both hosts read the same place; the poor lookalike, the apex and http are rejected
+  - `examples/words/foldkit/vite.config.ts` — dev and preview allowedHosts add words.pisspoursoftware.xyz
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
 ## September 30th, 2026 at 2:34:40 p.m. EDT — `a1fbd426fce4` fix(words): forget a focused recording row when its list is replaced
 
 - **Implementation commit:** `a1fbd426fce439eb98726a80a3e885b03fe90375`
