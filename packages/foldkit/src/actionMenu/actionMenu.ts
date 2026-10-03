@@ -456,7 +456,7 @@ const movedFromFilter = (
         focus,
       ),
     ),
-    M.when('Previous', () => focus),
+    M.when('Previous', () => focusOnAction(lastTag(visible), focus)),
     M.when('First', () => focusOnAction(firstTag(visible), focus)),
     M.when('Last', () => focusOnAction(lastTag(visible), focus)),
     M.when('Filter', () => focus),
@@ -488,8 +488,9 @@ const movedFromAction = (
   )
 
 /**
- * The menu after one focus movement. Down from the filter enters the list;
- * Up from the first row returns to the filter; Down on the last row stays.
+ * The menu after one focus movement. Down from the filter enters the list
+ * at the highlighted row; Up from the filter jumps to the last row; Up
+ * from the first row returns to the filter; Down on the last row stays.
  */
 export const moved = (
   menu: ActionMenu,
@@ -976,6 +977,9 @@ export const compose = <Child extends ActionMenuChild>(config: {
     }
     if (key === 'ArrowDown' || (key === 'Tab' && !input.isShift)) {
       return [MovedActionMenuFocus({ move: 'Next' })]
+    }
+    if (key === 'ArrowUp' || (key === 'Tab' && input.isShift)) {
+      return [MovedActionMenuFocus({ move: 'Previous' })]
     }
     if (key === 'Backspace') {
       return menu.query === ''

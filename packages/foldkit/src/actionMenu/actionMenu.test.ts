@@ -360,6 +360,20 @@ describe('focus', () => {
     )
   })
 
+  it('moves Up from the search to the last row', () => {
+    const fromSearch = press(openMenu(initial(3)), keyInput('ArrowUp'))
+    expect(focusOf(fromSearch)).toEqual(
+      Option.some(ActionMenu.OnAction({ tag: 'Reset' })),
+    )
+    const backUp = press(
+      press(openMenu(initial(3)), keyInput('Tab', { isShift: true })),
+      keyInput('ArrowUp'),
+    )
+    expect(focusOf(backUp)).toEqual(
+      Option.some(ActionMenu.OnAction({ tag: 'Decrement' })),
+    )
+  })
+
   it('jumps with J, K, and Cmd-arrows', () => {
     const inList = press(openMenu(initial()), keyInput('Tab'))
     expect(focusOf(press(inList, keyInput('J')))).toEqual(
