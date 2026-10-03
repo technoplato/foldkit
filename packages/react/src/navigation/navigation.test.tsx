@@ -45,16 +45,19 @@ describe('NavigationFrame', () => {
     )
   })
 
-  it('paints the pushed page in place of the screen beneath', () => {
+  it('paints Session settings as a Sheet over the screen beneath', () => {
     const bound = bindRouted()
-    renderWith(bound)
+    const { container } = renderWith(bound)
     act(() => {
       bound.press('OpenSessionSettings')
     })
-    expect(screen.queryByText('count 0')).toBeNull()
+    expect(screen.getByText('count 0')).toBeDefined()
     expect(
       screen.getByText('Every device shows the same screen.'),
     ).toBeDefined()
+    expect(
+      container.querySelector('.fk-overlay[data-style="Sheet"]'),
+    ).not.toBeNull()
   })
 
   it('opens an in-app link in the Program instead of loading the page', () => {

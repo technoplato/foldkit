@@ -38,7 +38,7 @@ export type Placement = typeof Placement.Type
  * the Destination, so one key always keeps one presentation.
  * `isAllowedAbove` reads every Destination beneath, root first, so a page
  * can appear once: the Session route refuses a stack that already holds
- * the Session page.
+ * Session settings.
  */
 export type DestinationRoute<Destination> = Readonly<{
   routeCase: Route.RouteCase<Destination, any>

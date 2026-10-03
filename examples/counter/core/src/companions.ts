@@ -19,7 +19,7 @@ const pageAt = (origin: string): string =>
  * Every app that joins the Counter's session, and how to start it from the
  * repository root. Package names come from the Program's id and web
  * addresses from its root route, so renaming either renames these. The
- * Session page lists them for every painter, copyable.
+ * Session Sheet lists them for every painter, copyable.
  *
  * @example
  * ```typescript

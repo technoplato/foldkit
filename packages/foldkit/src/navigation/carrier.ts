@@ -118,8 +118,8 @@ export const planOf = <Model, Destination>(
  *
  * @example
  * ```typescript
- * layersOf(planAt('/counter/session/menu'))
- * // { base: /counter/session, overlays: [/counter/session/menu] }
+ * layersOf(planAt('/counter/history/menu'))
+ * // { base: /counter/history, overlays: [/counter/history/menu] }
  * ```
  */
 export type PlanLayers<Destination> = Readonly<{
@@ -135,8 +135,8 @@ const hidesBeneath = <Destination>(entry: CarrierEntry<Destination>): boolean =>
  *
  * @example
  * ```typescript
- * layersOf(planAt('/counter/session/menu'))
- * // { base: /counter/session, overlays: [/counter/session/menu] }
+ * layersOf(planAt('/counter/history/menu'))
+ * // { base: /counter/history, overlays: [/counter/history/menu] }
  * ```
  */
 export const layersOf = <Destination>(

@@ -9,16 +9,26 @@ import { Dialog } from './structure.js'
 describe('frameOf', () => {
   it('paints the pushed page with the menu presented over it', () => {
     const bound = bindApp()
-    bound.openUri('/counter/session/menu?menu.q=re', Link())
+    bound.openUri('/counter/history/menu?menu.q=re', Link())
     const frame = Option.getOrThrow(frameOf(bound))
-    expect(frame.uri).toBe('/counter/session/menu?menu.q=re')
+    expect(frame.uri).toBe('/counter/history/menu?menu.q=re')
     expect([frame.base.key, frame.base.view._tag]).toEqual([
-      '/counter/session',
+      '/counter/history',
       'Screen',
     ])
     expect(frame.overlays.map(layer => [layer.key, layer.view._tag])).toEqual([
-      ['/counter/session/menu', 'Menu'],
+      ['/counter/history/menu', 'Menu'],
     ])
+  })
+
+  it('paints Session settings as a Sheet over the page beneath it', () => {
+    const bound = bindApp()
+    bound.press('OpenSessionSettings')
+    const frame = Option.getOrThrow(frameOf(bound))
+    expect(frame.base.key).toBe('/counter')
+    expect(frame.overlays.map(layer => [layer.key, styleTagOf(layer)])).toEqual(
+      [['/counter/session', 'Sheet']],
+    )
   })
 
   it('paints the root alone at the start', () => {

@@ -39,9 +39,9 @@ export const styleTagOf = (
  * @example
  * ```typescript
  * frameOf(bound)
- * // Some({ uri: '/counter/session/menu?menu.q=re',
- * //   base: { key: '/counter/session', view: Screen(session page) },
- * //   overlays: [{ key: '/counter/session/menu', view: Menu(rows) }] })
+ * // Some({ uri: '/counter/history/menu?menu.q=re',
+ * //   base: { key: '/counter/history', view: Screen(history page) },
+ * //   overlays: [{ key: '/counter/history/menu', view: Menu(rows) }] })
  * ```
  */
 export type Frame = Readonly<{
@@ -64,9 +64,9 @@ export type FrameSource = Readonly<{
  *
  * @example
  * ```typescript
- * // the plan is /counter/session/menu?menu.q=re
+ * // the plan is /counter/history/menu?menu.q=re
  * frameOf(bound)
- * // Some({ uri: '/counter/session/menu?menu.q=re', base: Session page, overlays: [menu] })
+ * // Some({ uri: '/counter/history/menu?menu.q=re', base: History page, overlays: [menu] })
  * ```
  */
 export const frameOf = (source: FrameSource): Option.Option<Frame> =>

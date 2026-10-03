@@ -1,7 +1,7 @@
 /**
  * The one look every graphical painter maps, in pixels and hex colors. The
  * web stylesheet is built from it and React Native reads it directly, so
- * the count, the buttons, and the Session page's dim sentence look the
+ * the count, the buttons, and the Session Sheet's dim sentence look the
  * same in React, Svelte, Foldkit HTML, and Expo. Terminals keep only what
  * a terminal can show: Display text paints bold and dim text paints dim.
  *

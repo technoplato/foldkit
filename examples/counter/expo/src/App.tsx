@@ -13,7 +13,7 @@ import {
  * stack, opens the action menu from a floating button, and presents the
  * menu as a transparent route, all through `@foldkit/react-native`. A
  * swipe or the Android back button goes back through the Program, and
- * `foldkit-counter://counter/session` opens the Session page. It never
+ * `foldkit-counter://counter/session` opens the Session Sheet. It never
  * names Increment, Decrement, Reset, or a route, and writes no words or
  * screen styles: `Starting Counter…` and the look of the count come from
  * the Program and Foldkit.

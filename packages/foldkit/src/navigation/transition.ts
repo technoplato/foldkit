@@ -82,9 +82,9 @@ const isAdoptedLaunch = <Model, Destination>(
  *
  * @example
  * ```typescript
- * // stack prints /counter/session/menu?menu.q=re
- * applyMessage(navigation, model, stack, NavigatedBack({ uri: '/counter/session' }))
- * // [Counter, Push SessionSettings]
+ * // stack prints /counter/history/menu?menu.q=re
+ * applyMessage(navigation, model, stack, NavigatedBack({ uri: '/counter/history' }))
+ * // [Counter, Push History]
  * ```
  */
 export const applyMessage = <Model, Destination>(

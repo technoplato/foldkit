@@ -271,7 +271,7 @@ OpenTUI, with mouse clicks:
 pnpm --filter multiple-counters-opentui-example start
 ```
 
-The Session settings page lists these same commands with a copy button, so you can start another app from any window.
+The Session settings Sheet lists these same commands with a copy button, so you can start another app from any window.
 
 ## What is not here yet
 

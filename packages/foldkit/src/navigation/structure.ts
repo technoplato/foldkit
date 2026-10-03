@@ -116,8 +116,8 @@ export type Modal<Destination> = Readonly<{
  * A navigation stack: the root, the pages pushed on it in order, and at
  * most one modal over the topmost page. The shape itself rules out two
  * modals at once and a page pushed over a modal: neither has a value of
- * this type. `[Counter, Session page]` is two pages; `[Counter, menu]` is
- * a page with a Dialog over it.
+ * this type. `[Counter, History]` is two pages; `[Counter, menu]` is a
+ * page with a Dialog over it.
  */
 export type NavigationStack<Destination> = Readonly<{
   root: Destination
@@ -147,13 +147,13 @@ export const stackAtRoot = <Destination>(
 /**
  * The stack a list of entries describes, root first. Pushed pages come
  * first; the first modal sits over them and ends the stack, since nothing
- * can be presented over a modal. `[Push Session, Dialog menu, Dialog menu]`
- * becomes the Session page with one menu over it.
+ * can be presented over a modal. `[Push History, Dialog menu, Dialog menu]`
+ * becomes the History page with one menu over it.
  *
  * @example
  * ```typescript
- * stackFrom(Counter(), [presented(SessionSettings(), Push()), presented(ActionMenu(menu), Dialog())])
- * // { root: Counter, pages: [SessionSettings], maybeModal: Some(menu as a Dialog) }
+ * stackFrom(Counter(), [presented(History(), Push()), presented(ActionMenu(menu), Dialog())])
+ * // { root: Counter, pages: [History], maybeModal: Some(menu as a Dialog) }
  * ```
  */
 export const stackFrom = <Destination>(

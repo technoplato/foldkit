@@ -21,14 +21,14 @@ import {
 import {
   type EntryView,
   type NotFound,
-  pushRoute,
+  presentRoute,
   screenView,
   tagCase,
 } from '../navigation/declaration.js'
 import * as NavigationMessage from '../navigation/message.js'
 import {
   type NavigationStack,
-  Push,
+  Sheet,
   entriesOf,
   presented,
   pushed,
@@ -116,15 +116,15 @@ export const KeepNavigationLocal = Catalog.action('KeepNavigationLocal', {
 // SETTINGS
 
 /**
- * The pushed page that shows how the session shares navigation and lets a
- * person change it. It prints as `session` above the entry beneath it:
- * `/counter/session`.
+ * The Sheet that shows how the session shares navigation and lets a person
+ * change it, over whatever page is open. It prints as `session` above that
+ * page: `/counter/session`, or `/counters/3/session` over Counter 3.
  */
 export const SessionSettings = ts('SessionSettings')
-/** The Session settings page. */
+/** The Session settings Sheet. */
 export type SessionSettings = typeof SessionSettings.Type
 
-/** True for the Session settings page. */
+/** True for the Session settings Sheet. */
 export const isSessionSettings = S.is(SessionSettings)
 
 type NavigationModel = Readonly<{ navigation: NavigationStack<unknown> }>
@@ -139,18 +139,34 @@ const settingsDepthOf = (
 const isSettingsOpen = (model: NavigationModel): boolean =>
   Option.isSome(settingsDepthOf(model.navigation))
 
-/** A person opened the Session settings page. */
+const isOtherModalOpen = (model: NavigationModel): boolean =>
+  Option.exists(
+    model.navigation.maybeModal,
+    modal =>
+      !isSessionSettings(modal.destination) && !isActionMenu(modal.destination),
+  )
+
+/**
+ * A person opened the Session settings Sheet. A stack holds one modal, so
+ * the Sheet waits while a dialog such as "Delete Counter 3?" is open; the
+ * action menu closes before it opens.
+ */
 export const OpenSessionSettings = Catalog.action('OpenSessionSettings', {
   what: 'Shows how this session shares navigation',
   why: 'The person wants to see or change whether every device follows',
-  enabled: (model: NavigationModel) =>
-    isSettingsOpen(model)
-      ? Catalog.Disabled({ because: 'session settings are already open' })
-      : Catalog.Enabled(),
+  enabled: (model: NavigationModel) => {
+    if (isSettingsOpen(model)) {
+      return Catalog.Disabled({ because: 'session settings are already open' })
+    } else if (isOtherModalOpen(model)) {
+      return Catalog.Disabled({ because: 'another screen is open on top' })
+    } else {
+      return Catalog.Enabled()
+    }
+  },
   meta: { label: 'Session settings', keys: ['s'] },
 })
 
-/** A person closed the Session settings page. */
+/** A person closed the Session settings Sheet. */
 export const CloseSessionSettings = Catalog.action('CloseSessionSettings', {
   what: 'Returns to the screen beneath the session settings',
   why: 'The person is done with the session settings',
@@ -273,7 +289,7 @@ const settingsCatalog = Catalog.make([
 /**
  * Another app that joins this session: the Host it runs on, the command
  * that starts it from the repository root, and, for a web app, where it
- * opens. A Program declares its companions once, and the Session page
+ * opens. A Program declares its companions once, and the Session Sheet
  * lists them for every painter.
  *
  * @example
@@ -314,7 +330,7 @@ const companionsNodes = (
   })
 
 /**
- * The Session settings page every painter draws: the mode in one sentence,
+ * The Session settings Sheet every painter draws: the mode in one sentence,
  * a button for each settings Action, then one line per companion app with
  * the command that starts it, copyable, so another window joins in one
  * paste. A web companion's name links to where it opens.
@@ -430,7 +446,7 @@ const structFieldsOf = (schema: unknown): S.Struct.Fields =>
  * position, and two tabs can never disagree about the mode.
  *
  * The stack starts at the child's root and prints under its slug. Session
- * adds the settings page at `/session`, a `Session settings` button under
+ * adds the settings Sheet at `/session`, a `Session settings` button under
  * the child's screen, a NotFound fallback for any other path, and a Back
  * Action, `GoBack`, that Escape presses and the top page shows as a
  * button. Its Actions have keys, `s` to open the settings and `m` and
@@ -445,7 +461,7 @@ const structFieldsOf = (schema: unknown): S.Struct.Fields =>
  * ```typescript
  * const App = ActionMenu.compose({ of: Session.compose({ of: CounterProgram }) })
  * // App.Model: { count, session: { mode: 'Mirror', generation: 0 }, navigation }
- * // OpenSessionSettings pushes `/counter/session`
+ * // OpenSessionSettings presents `/counter/session` as a Sheet
  * ```
  */
 export const compose = <Child extends SessionChild>(config: {
@@ -529,7 +545,7 @@ export const compose = <Child extends SessionChild>(config: {
         }
       : { ...childModel, session: model.session }) as AppModel
 
-  const sessionSettingsRoute = pushRoute(
+  const sessionSettingsRoute = presentRoute(
     Route.caseOf(
       Route.literal('session'),
       tagCase<AppDestination, SessionSettings>(
@@ -537,6 +553,7 @@ export const compose = <Child extends SessionChild>(config: {
         SessionSettings,
       ),
     ),
+    Sheet(),
     {
       isAllowedAbove: beneath => !Array.some(beneath, isSessionSettings),
       title: () => 'Session',
@@ -566,7 +583,6 @@ export const compose = <Child extends SessionChild>(config: {
   const isSameDestination = S.toEquivalence(composedNavigation.Destination)
 
   const isTopPage = (model: AppModel, destination: AppDestination): boolean =>
-    !isSessionSettings(destination) &&
     Option.exists(Array.last(model.navigation.pages), page =>
       isSameDestination(page, destination),
     )
@@ -593,14 +609,21 @@ export const compose = <Child extends SessionChild>(config: {
       ),
   }
 
+  const withoutActionMenu = (
+    stack: NavigationStack<AppDestination>,
+  ): NavigationStack<AppDestination> =>
+    Option.exists(stack.maybeModal, modal => isActionMenu(modal.destination))
+      ? { ...stack, maybeModal: Option.none() }
+      : stack
+
   const openedSettings = (model: AppModel): AppModel =>
     isSettingsOpen(model)
       ? model
       : {
           ...model,
           navigation: pushed<AppDestination>(
-            model.navigation,
-            presented<AppDestination>(SessionSettings(), Push()),
+            withoutActionMenu(model.navigation),
+            presented<AppDestination>(SessionSettings(), Sheet()),
           ),
         }
 

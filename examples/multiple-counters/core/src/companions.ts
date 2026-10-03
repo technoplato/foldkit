@@ -18,7 +18,7 @@ const pageAt = (origin: string): string =>
 /**
  * Every app that shows the Multiple Counters, and how to start it from the
  * repository root. Package names come from the Program's id and web
- * addresses from its root route. The Session page lists them, copyable.
+ * addresses from its root route. The Session Sheet lists them, copyable.
  *
  * @example
  * ```typescript

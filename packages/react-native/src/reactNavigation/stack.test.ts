@@ -200,13 +200,10 @@ describe('reactNavigationStack', () => {
     bound.press('OpenSessionSettings')
     await settle()
     expect(container.keys()).toEqual(['/counter', '/counter/session'])
+    bound.press('CloseSessionSettings')
     bound.openMenu()
     await settle()
-    expect(container.keys()).toEqual([
-      '/counter',
-      '/counter/session',
-      '/counter/session/menu',
-    ])
+    expect(container.keys()).toEqual(['/counter', '/counter/menu'])
   })
 
   it('reports a swipe back as going back to the entry beneath', async () => {

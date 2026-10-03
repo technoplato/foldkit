@@ -166,12 +166,15 @@ describe('startCounterOn', () => {
     await eventually(() => countOf(phone), 1)
   })
 
-  it('prints the menu over the Session page as one URI', async () => {
+  it('prints the menu and its query as one URI, and keeps Session settings the one modal', async () => {
     const laptop = await startOn(Runtime.makeMemoryStore(), 'react-laptop')
-    laptop.press('OpenSessionSettings')
     laptop.openMenu()
     laptop.typeInMenu('in')
-    expect(uriOf(laptop)).toBe('/counter/session/menu?menu.q=in')
+    expect(uriOf(laptop)).toBe('/counter/menu?menu.q=in')
+    laptop.chooseFromMenu('OpenSessionSettings')
+    expect(uriOf(laptop)).toBe('/counter/session')
+    laptop.openMenu()
+    expect(uriOf(laptop)).toBe('/counter/session')
   })
 
   it('sends a menu choice as the Action itself', async () => {

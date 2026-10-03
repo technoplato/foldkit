@@ -38,7 +38,7 @@ describe('a composed App', () => {
     expect(uriOf(bindApp())).toBe('/counter')
   })
 
-  it('opens and closes the Session page as a pushed entry', () => {
+  it('opens and closes Session settings as a Sheet', () => {
     const bound = bindApp()
     expect(bound.press('OpenSessionSettings')).toBe(true)
     expect(uriOf(bound)).toBe('/counter/session')
@@ -65,13 +65,21 @@ describe('a composed App', () => {
     expect(highlighted).toEqual(Option.some(['Reset']))
   })
 
-  it('prints the menu above the Session page and returns to it on Back', () => {
+  it('prints the menu above a pushed page and returns to it on Back', () => {
+    const bound = bindApp()
+    bound.openUri('/counter/history', Link())
+    bound.openMenu()
+    bound.typeInMenu('in')
+    expect(uriOf(bound)).toBe('/counter/history/menu?menu.q=in')
+    bound.navigateBack('/counter/history')
+    expect(uriOf(bound)).toBe('/counter/history')
+    expect(Option.isNone(bound.menu())).toBe(true)
+  })
+
+  it('keeps Session settings the one modal, so the menu waits for it', () => {
     const bound = bindApp()
     bound.press('OpenSessionSettings')
     bound.openMenu()
-    bound.typeInMenu('in')
-    expect(uriOf(bound)).toBe('/counter/session/menu?menu.q=in')
-    bound.navigateBack('/counter/session')
     expect(uriOf(bound)).toBe('/counter/session')
     expect(Option.isNone(bound.menu())).toBe(true)
   })
@@ -95,20 +103,12 @@ describe('a composed App', () => {
     )
   })
 
-  it('opens a child page beneath an open menu, which stays on top', () => {
+  it('replaces an open menu with the Session settings Sheet', () => {
     const bound = bindApp()
     bound.openMenu()
     bound.press('OpenSessionSettings')
-    expect(uriOf(bound)).toBe('/counter/session/menu')
-    expect(Option.isSome(bound.menu())).toBe(true)
-    bound.openUri('/counter/session/menu', Link())
-    expect(
-      Option.map(bound.navigation(), plan =>
-        plan.entries.map(entry => entry.key),
-      ),
-    ).toEqual(
-      Option.some(['/counter', '/counter/session', '/counter/session/menu']),
-    )
+    expect(uriOf(bound)).toBe('/counter/session')
+    expect(Option.isNone(bound.menu())).toBe(true)
   })
 
   it('opens a long alternating URI quickly, at most 32 segments deep', () => {
@@ -125,13 +125,13 @@ describe('a composed App', () => {
 
   it('ends a URI at its first modal, since nothing sits above one', () => {
     const bound = bindApp()
-    bound.openUri('/counter/session/menu/session', Link())
+    bound.openUri('/counter/history/menu/session', Link())
     expect(
       Option.map(bound.navigation(), plan =>
         plan.entries.map(entry => entry.key),
       ),
     ).toEqual(
-      Option.some(['/counter', '/counter/session', '/counter/session/menu']),
+      Option.some(['/counter', '/counter/history', '/counter/history/menu']),
     )
     expect(
       Option.map(bound.navigation(), plan =>
@@ -140,10 +140,12 @@ describe('a composed App', () => {
     ).toEqual(
       Option.some([
         Option.some('Counter'),
-        Option.some('Session'),
+        Option.some('History'),
         Option.some('Actions'),
       ]),
     )
+    bound.openUri('/counter/session/menu', Link())
+    expect(uriOf(bound)).toBe('/counter/session')
   })
 
   it('opens one menu at most, however often it is opened', () => {
@@ -174,10 +176,10 @@ describe('a composed App', () => {
     )
   })
 
-  it('paints the root with the Program screen, Session with its page, and the menu as a menu', () => {
+  it('paints the root with the Program screen, a page with its view, and the menu as a menu', () => {
     const bound = bindApp()
     bound.press('Increment')
-    bound.openUri('/counter/session/menu', Link())
+    bound.openUri('/counter/history/menu', Link())
     const tagAt = (key: string) =>
       Option.map(bound.viewAt(key), view => view._tag)
     expect(bound.viewAt('/counter')).toEqual(
@@ -192,16 +194,14 @@ describe('a composed App', () => {
                 label: 'Session settings',
                 action: 'OpenSessionSettings',
                 keys: ['s'],
-                because: 'session settings are already open',
-                disabled: true,
               }),
             ),
           ),
         ),
       ),
     )
-    expect(tagAt('/counter/session')).toEqual(Option.some('Screen'))
-    expect(tagAt('/counter/session/menu')).toEqual(Option.some('Menu'))
+    expect(tagAt('/counter/history')).toEqual(Option.some('Screen'))
+    expect(tagAt('/counter/history/menu')).toEqual(Option.some('Menu'))
     expect(tagAt('/counter/elsewhere')).toEqual(Option.none())
   })
 

@@ -440,8 +440,10 @@ const maximumUriSegments = 32
  *
  * @example
  * ```typescript
- * parseStack(navigation, '/counter/session/menu?menu.q=fo')
- * // [Counter, Push SessionSettings, Dialog ActionMenu('fo')]
+ * parseStack(navigation, '/counter/history/menu?menu.q=fo')
+ * // [Counter, Push History, Dialog ActionMenu('fo')]
+ * parseStack(navigation, '/counter/session/menu')
+ * // [Counter, Sheet SessionSettings], since nothing sits above a modal
  * parseStack(navigation, '/counter/nope')
  * // [Counter, Push NotFound(['nope'])]
  * parseStack(navigation, '/elsewhere')

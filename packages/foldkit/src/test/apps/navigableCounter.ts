@@ -37,12 +37,28 @@ export const Counter = ts('Counter')
 /** The Counter page. */
 export type Counter = typeof Counter.Type
 
-const counterNavigation = Declaration.screens({
-  slug: 'counter',
-  root: Declaration.rootScreen(Counter, Route.here, {
-    title: () => 'Counter',
+/** The count's history, a page pushed above the Counter at `/counter/history`. */
+export const History = ts('History')
+/** The History page. */
+export type History = typeof History.Type
+
+const counterNavigation = {
+  ...Declaration.screens({
+    slug: 'counter',
+    root: Declaration.rootScreen(Counter, Route.here, {
+      title: () => 'Counter',
+    }),
+    screens: [
+      Declaration.pushScreen(History, Route.literal('history'), {
+        title: () => 'History',
+      }),
+    ],
   }),
-})
+  viewOf: (_model: CounterModel, destination: Counter | History) =>
+    destination._tag === 'History'
+      ? Option.some(Declaration.screenView(Text('History')))
+      : Option.none(),
+}
 
 /** A Counter that declares its route at `/counter`. */
 export const CounterProgram = make({
