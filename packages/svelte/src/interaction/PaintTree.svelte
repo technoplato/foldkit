@@ -2,6 +2,7 @@
   import { Navigation } from 'foldkit'
   import type { ButtonNode, UiNode } from 'foldkit/renderers'
 
+  import CopyButton from './CopyButton.svelte'
   import { type PaintClassNames, classFor, keyFor } from './paint.js'
   import PaintTree from './PaintTree.svelte'
 
@@ -24,7 +25,17 @@
 
 {#if node._tag === 'Text'}
   {@const href = node.href}
-  {#if href === undefined}
+  {#if node.copyable === true}
+    <div
+      aria-label={node.label}
+      class={classFor(classNames, 'Text', 'fk-text')}
+      data-copyable
+      data-mono={node.mono === true ? true : undefined}
+    >
+      <span class="fk-copyable-text">{node.content}</span>
+      <CopyButton text={node.content} />
+    </div>
+  {:else if href === undefined}
     <div
       aria-label={node.label}
       class={classFor(classNames, 'Text', 'fk-text')}

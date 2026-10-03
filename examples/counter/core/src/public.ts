@@ -1,4 +1,5 @@
 export * from './app.js'
+export * from './companions.js'
 export * from './init.js'
 export * from './message.js'
 export * from './model.js'

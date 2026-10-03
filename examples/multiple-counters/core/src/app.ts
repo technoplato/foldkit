@@ -1,5 +1,6 @@
 import { ActionMenu, Session } from 'foldkit'
 
+import { companions } from './companions.js'
 import { CountersProgram } from './program.js'
 
 /**
@@ -9,7 +10,7 @@ import { CountersProgram } from './program.js'
  * moves every device or only this one.
  */
 export const App = ActionMenu.compose({
-  of: Session.compose({ of: CountersProgram }),
+  of: Session.compose({ of: CountersProgram, companions }),
 })
 
 /** App Model: the counters, the session, and the one navigation stack. */

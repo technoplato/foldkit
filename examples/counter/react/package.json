@@ -10,6 +10,7 @@
     "predev": "pnpm --filter @foldkit/react build && pnpm --filter counter-core-example build",
     "pretest": "pnpm --filter @foldkit/react build && pnpm --filter counter-core-example build",
     "pretypecheck": "pnpm --filter @foldkit/react build && pnpm --filter counter-core-example build",
+    "start": "pnpm run dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

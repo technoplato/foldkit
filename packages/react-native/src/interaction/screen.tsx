@@ -186,6 +186,7 @@ export const paintTree = (
             return (
               <Text
                 accessibilityLabel={text.label}
+                selectable={text.copyable === true}
                 style={[...styleOfText(text), styles.Text]}
               >
                 {text.content}

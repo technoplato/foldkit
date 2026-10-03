@@ -9,12 +9,13 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
+    "count": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh show",
     "counter": "./scripts/run.sh",
     "counter:instant": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh",
-    "count": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh show",
     "increment": "../scripts/with-counter-v01-env env COUNTER_TAPE=instant ./scripts/run.sh do increment",
     "prebuild": "pnpm --filter counter-core-example build",
     "pretypecheck": "pnpm --filter counter-core-example build",
+    "start": "pnpm run build && pnpm run counter:instant show",
     "test": "pnpm run build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

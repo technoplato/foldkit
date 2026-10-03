@@ -37,6 +37,7 @@ import {
   truncated,
 } from '../navigation/structure.js'
 import { backMessages, foldMessage, settled } from '../navigation/transition.js'
+import { type Host, labelOf } from '../processor/host.js'
 import type {
   MessageOf,
   ModelOf,
@@ -245,22 +246,72 @@ const settingsCatalog = Catalog.make([
 ])
 
 /**
- * The Session settings page every painter draws: the mode in one sentence,
- * then a button for each settings Action.
+ * Another app that joins this session: the Host it runs on, the command
+ * that starts it from the repository root, and, for a web app, where it
+ * opens. A Program declares its companions once, and the Session page
+ * lists them for every painter.
  *
  * @example
  * ```typescript
- * sessionScreen({ session: { mode: 'Mirror', generation: 0 }, navigation })
- * // Column: Text('Session'), Text('Every device shows the same screen.'),
- * //   Row: [Mirror navigation (disabled)] [Keep navigation local] [Close]
+ * const tui: Session.Companion = {
+ *   host: Processor.Host.Tui(),
+ *   command: 'pnpm --filter counter-tui-example start',
+ * }
  * ```
  */
-export const sessionScreen = (model: SessionModel & NavigationModel): UiNode =>
+export type Companion = Readonly<{
+  host: Host
+  command: string
+  url?: string
+}>
+
+const companionsHeading = 'Join this session from another app'
+
+const companionNode = (companion: Companion): UiNode =>
+  Column(
+    {},
+    Text(labelOf(companion.host)),
+    Text(companion.command, { mono: true, copyable: true }),
+    ...(companion.url === undefined
+      ? []
+      : [Text(companion.url, { href: companion.url, mono: true, dim: true })]),
+  )
+
+const companionsNodes = (
+  companions: ReadonlyArray<Companion>,
+): ReadonlyArray<UiNode> =>
+  Array.match(companions, {
+    onEmpty: () => [],
+    onNonEmpty: nonEmpty => [
+      Text(companionsHeading, { dim: true }),
+      ...Array.map(nonEmpty, companionNode),
+    ],
+  })
+
+/**
+ * The Session settings page every painter draws: the mode in one sentence,
+ * a button for each settings Action, then the command that starts each
+ * companion app, copyable, so another window joins in one paste.
+ *
+ * @example
+ * ```typescript
+ * sessionScreen({ session: { mode: 'Mirror', generation: 0 }, navigation }, companions)
+ * // Column: Text('Session'), Text('Every device shows the same screen.'),
+ * //   Row: [Mirror navigation (disabled)] [Keep navigation local] [Close],
+ * //   Text('Join this session from another app'),
+ * //   Column: Text('TUI'), Text('pnpm --filter counter-tui-example start', copyable)
+ * ```
+ */
+export const sessionScreen = (
+  model: SessionModel & NavigationModel,
+  companions: ReadonlyArray<Companion> = [],
+): UiNode =>
   Column(
     {},
     Text('Session', { label: 'Session settings', emphasis: 'Display' }),
     Text(modeSentence(model.session.mode), { dim: true }),
     Row({}, ...actionButtons(Catalog.entries(settingsCatalog, model))),
+    ...companionsNodes(companions),
   )
 
 // COMPOSE
@@ -374,6 +425,7 @@ const isBackKey = (input: KeyInput): boolean =>
 export const compose = <Child extends SessionChild>(config: {
   of: Child
   initialMode?: SessionMode
+  companions?: ReadonlyArray<Companion>
   id?: string
   version?: number
 }): SessionProgram<Child> => {
@@ -479,7 +531,7 @@ export const compose = <Child extends SessionChild>(config: {
     routes: [sessionSettingsRoute],
     viewOf: (model, destination) =>
       isSessionSettings(destination)
-        ? Option.some(screenView(sessionScreen(model)))
+        ? Option.some(screenView(sessionScreen(model, config.companions)))
         : Option.none(),
     adoptsLaunch: model => model.session.mode !== 'Mirror',
   })

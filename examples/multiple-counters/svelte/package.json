@@ -8,6 +8,7 @@
     "predev": "pnpm --filter @foldkit/svelte build && pnpm --filter multiple-counters-core-example build",
     "pretest": "pnpm --filter @foldkit/svelte build && pnpm --filter multiple-counters-core-example build",
     "pretypecheck": "pnpm --filter @foldkit/svelte build && pnpm --filter multiple-counters-core-example build",
+    "start": "pnpm run dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

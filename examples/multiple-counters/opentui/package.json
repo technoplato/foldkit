@@ -12,6 +12,7 @@
     "counters-opentui": "bun src/entry.ts",
     "prebuild": "pnpm --filter @foldkit/opentui build && pnpm --filter multiple-counters-core-example build",
     "pretypecheck": "pnpm --filter @foldkit/opentui build && pnpm --filter multiple-counters-core-example build",
+    "start": "pnpm run build && pnpm run counters-opentui",
     "test": "pnpm run build && bun test src/",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

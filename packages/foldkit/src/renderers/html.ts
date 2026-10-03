@@ -32,8 +32,15 @@ export const paintHtml = <Message>(
             ...(text.emphasis === undefined
               ? []
               : [h.DataAttribute('emphasis', text.emphasis)]),
+            ...(text.copyable === true
+              ? [h.DataAttribute('copyable', 'true')]
+              : []),
           ]
-          if (text.href === undefined) {
+          if (text.copyable === true) {
+            return h.div(attributes, [
+              h.span([h.Class('fk-copyable-text')], [text.content]),
+            ])
+          } else if (text.href === undefined) {
             return h.div(attributes, [text.content])
           }
           return h.div(attributes, [

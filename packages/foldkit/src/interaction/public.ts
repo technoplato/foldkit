@@ -23,6 +23,7 @@ export {
   isKey,
   keyInput,
   keyedEntryOf,
+  copyButtonLabelOf,
   keyPlatformOf,
   KeyPlatform,
   menuOpenerOf,

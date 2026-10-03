@@ -13,6 +13,7 @@
     "counter-tui:instant": "../scripts/with-counter-v01-env node dist/entry.js",
     "prebuild": "pnpm --filter counter-core-example build",
     "pretypecheck": "pnpm --filter counter-core-example build",
+    "start": "pnpm run build && pnpm run counter-tui:instant",
     "test": "pnpm run build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

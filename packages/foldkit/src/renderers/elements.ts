@@ -17,10 +17,14 @@ import type {
  * A text run. Optional `href` is a link the painters may follow. Optional
  * `label` is what a screen reader announces instead of the bare content.
  * `emphasis: 'Display'` marks the screen's headline, such as the count.
+ * `copyable` marks text a person copies whole, such as a command: the web
+ * selects it in one click and offers a copy button, and React Native makes
+ * it selectable.
  *
  * @example
  * ```typescript
  * Text('3', { label: 'count 3', emphasis: 'Display' })
+ * Text('pnpm --filter counter-tui-example start', { mono: true, copyable: true })
  * ```
  */
 export const Text = (
@@ -31,6 +35,7 @@ export const Text = (
     mono?: boolean
     dim?: boolean
     emphasis?: TextEmphasis
+    copyable?: boolean
     width?: number
   }> = {},
 ): TextNode => ({

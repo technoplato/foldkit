@@ -9,6 +9,8 @@
   "scripts": {
     "android": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env expo start --android --port 8089",
     "ios": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env expo start --ios --port 8089",
+    "preandroid": "pnpm --filter @foldkit/react build && pnpm --filter @foldkit/react-native build && pnpm --filter counter-core-example build",
+    "preios": "pnpm --filter @foldkit/react build && pnpm --filter @foldkit/react-native build && pnpm --filter counter-core-example build",
     "pretest": "pnpm --filter @foldkit/react build && pnpm --filter @foldkit/react-native build && pnpm --filter counter-core-example build",
     "pretypecheck": "pnpm --filter @foldkit/react build && pnpm --filter @foldkit/react-native build && pnpm --filter counter-core-example build",
     "start": "../scripts/with-counter-v01-env ./scripts/with-public-instant-env expo start --port 8089",

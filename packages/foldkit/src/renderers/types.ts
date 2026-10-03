@@ -25,6 +25,7 @@ export type TextNode = Readonly<{
   readonly mono?: boolean
   readonly dim?: boolean
   readonly emphasis?: TextEmphasis
+  readonly copyable?: boolean
   readonly width?: number
 }>
 

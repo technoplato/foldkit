@@ -15,6 +15,7 @@ import { fromCatalog } from '../interaction/interaction.js'
 import { NotFound } from '../navigation/declaration.js'
 import * as Declaration from '../navigation/declaration.js'
 import { NavigationStack, stackAtRoot } from '../navigation/structure.js'
+import * as Processor from '../processor/public.js'
 import { compose as composeProgram } from '../program/compose.js'
 import { make } from '../program/program.js'
 import * as Route from '../route/parser.js'
@@ -27,6 +28,7 @@ import {
   SessionSettings,
   SessionState,
   compose,
+  sessionScreen,
 } from './session.js'
 
 const CounterModel = S.Struct({ count: S.Number })
@@ -286,5 +288,22 @@ describe('Session.compose', () => {
       'OpenSessionSettings',
       'CloseSessionSettings',
     ])
+  })
+
+  it('lists each companion app with its copyable start command', () => {
+    const [model] = App.init()
+    const screen = JSON.stringify(
+      sessionScreen(model, [
+        {
+          host: Processor.Host.Tui(),
+          command: 'pnpm --filter counter-tui-example start',
+        },
+      ]),
+    )
+    expect(screen).toContain('Join this session from another app')
+    expect(screen).toContain('"content":"TUI"')
+    expect(screen).toContain(
+      '"content":"pnpm --filter counter-tui-example start","mono":true,"copyable":true',
+    )
   })
 })

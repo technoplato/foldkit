@@ -17,6 +17,7 @@ export {
 } from './index.js'
 
 export type {
+  Companion,
   SessionCatalogOf,
   SessionChild,
   SessionDestinationOf,

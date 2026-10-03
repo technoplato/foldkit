@@ -10,8 +10,9 @@
     "predev": "pnpm --filter counter-core-example build",
     "pretest": "pnpm --filter counter-core-example build",
     "pretypecheck": "pnpm --filter counter-core-example build",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "start": "pnpm run dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@effect/platform-browser": "4.0.0-beta.97",

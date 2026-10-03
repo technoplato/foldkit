@@ -1,10 +1,41 @@
 import { Array, Match as M } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
 import type { ButtonNode, UiNode } from 'foldkit/renderers'
-import { Fragment, type ReactElement } from 'react'
+import { Fragment, type ReactElement, useEffect, useState } from 'react'
 
 /** Extra class per node kind, appended after the fk-* base class. */
 export type PaintClassNames = Partial<Record<UiNode['_tag'], string>>
+
+const copiedResetMs = 1500
+
+const CopyButton = ({ text }: Readonly<{ text: string }>): ReactElement => {
+  const [isCopied, setIsCopied] = useState(false)
+  useEffect(() => {
+    if (!isCopied) {
+      return undefined
+    }
+    const timer = setTimeout(() => {
+      setIsCopied(false)
+    }, copiedResetMs)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [isCopied])
+  return (
+    <button
+      type="button"
+      className="fk-copy-button"
+      title={text}
+      onClick={() => {
+        void navigator.clipboard.writeText(text).then(() => {
+          setIsCopied(true)
+        })
+      }}
+    >
+      {Interaction.copyButtonLabelOf(isCopied)}
+    </button>
+  )
+}
 
 /**
  * How a painted tree reports presses, text input, and link follows.
@@ -63,7 +94,14 @@ export const paintTree = (
               ? {}
               : { 'data-emphasis': text.emphasis }),
           }
-          if (href === undefined) {
+          if (text.copyable === true) {
+            return (
+              <div {...attributes} data-copyable>
+                <span className="fk-copyable-text">{text.content}</span>
+                <CopyButton text={text.content} />
+              </div>
+            )
+          } else if (href === undefined) {
             return <div {...attributes}>{text.content}</div>
           }
           return (

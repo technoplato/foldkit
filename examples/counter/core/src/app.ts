@@ -1,5 +1,6 @@
 import { ActionMenu, Session } from 'foldkit'
 
+import { companions } from './companions.js'
 import { CounterProgram } from './program.js'
 
 /**
@@ -9,7 +10,7 @@ import { CounterProgram } from './program.js'
  * local" from any device keeps every menu on its own device.
  */
 export const App = ActionMenu.compose({
-  of: Session.compose({ of: CounterProgram }),
+  of: Session.compose({ of: CounterProgram, companions }),
 })
 
 /** App Model: the count and the session, flat, plus the navigation stack. */

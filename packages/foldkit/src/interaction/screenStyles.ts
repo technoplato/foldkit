@@ -39,6 +39,8 @@ export type ScreenLook = Readonly<{
   panelColor: string
   panelRadius: number
   panelWidth: number
+  codeColor: string
+  codeSize: number
 }>
 
 /** The look every graphical painter maps; see {@link ScreenLook}. */
@@ -70,6 +72,8 @@ export const screenLook: ScreenLook = {
   panelColor: '#ffffff',
   panelRadius: 14,
   panelWidth: 448,
+  codeColor: '#f3f4f6',
+  codeSize: 13,
 }
 
 const px = (value: number): string => `${value.toString()}px`
@@ -82,7 +86,8 @@ const px = (value: number): string => `${value.toString()}px`
  * monospace face, buttons with their hover, disabled, and focus states,
  * the Program's Starting or Failed description, phone chrome, a screen
  * presented over the page by its style, such as a Dialog's centered panel
- * over a dimmed page, and the action menu opener. Every selector sits in `:where()`, so an app's own
+ * over a dimmed page, copyable commands with their copy button, and the
+ * action menu opener. Every selector sits in `:where()`, so an app's own
  * rule wins without `!important`.
  *
  * @example
@@ -128,6 +133,39 @@ export const screenStylesheet = `
 
 :where(.fk-text[data-mono]) {
   font-family: ${screenLook.monoFamily};
+}
+
+:where(.fk-text[data-copyable]) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${px(screenLook.rowGap)};
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: ${screenLook.codeColor};
+  font-family: ${screenLook.monoFamily};
+  font-size: ${px(screenLook.codeSize)};
+  text-align: left;
+}
+
+:where(.fk-copyable-text) {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+:where(.fk-copy-button) {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid ${screenLook.dimColor};
+  border-radius: 6px;
+  background: ${screenLook.panelColor};
+  color: ${screenLook.textColor};
+  font-family: inherit;
+  font-size: ${px(screenLook.codeSize)};
+  cursor: pointer;
+  user-select: none;
 }
 
 :where(.fk-status) {

@@ -420,6 +420,19 @@ export const keyedEntryOf = (
         Array.contains(entry.keys, normalizeKey(input.key)),
       )
 
+/**
+ * The words on a copy button: what it does, and what it says once the text
+ * is on the clipboard. Every painter with a clipboard shows these.
+ *
+ * @example
+ * ```typescript
+ * copyButtonLabelOf(false) // 'Copy'
+ * copyButtonLabelOf(true) // 'Copied'
+ * ```
+ */
+export const copyButtonLabelOf = (isCopied: boolean): string =>
+  isCopied ? 'Copied' : 'Copy'
+
 const noMessages = (): ReadonlyArray<never> => []
 
 /**

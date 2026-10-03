@@ -14,7 +14,9 @@
     "counters-tui": "node dist/tui.js",
     "prebuild": "pnpm --filter multiple-counters-core-example build",
     "pretypecheck": "pnpm --filter multiple-counters-core-example build",
+    "start": "pnpm run build && pnpm run counters",
     "test": "pnpm run build && vitest run",
+    "tui": "pnpm run build && pnpm run counters-tui",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
