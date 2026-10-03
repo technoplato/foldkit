@@ -3,7 +3,9 @@
 
   import {
     ActionMenuButton,
+    DocumentTitle,
     NavigationFrame,
+    WhenReady,
   } from '@foldkit/svelte/interaction'
 
   import { counter } from './counter.js'
@@ -11,15 +13,13 @@
   $effect(() => Interaction.listenToDocumentKeys(counter.bound, document))
 </script>
 
+<DocumentTitle program={counter} />
+
 <main>
   <section>
-    {#if counter.status._tag === 'Starting'}
-      <p>{counter.status.description}</p>
-    {:else if counter.status._tag === 'Failed'}
-      <p class="counter-failed">{counter.status.description}</p>
-    {:else}
-      <NavigationFrame appLabel="Svelte" program={counter} />
-      <ActionMenuButton class="counter-menu-button" program={counter} />
-    {/if}
+    <WhenReady program={counter}>
+      <NavigationFrame program={counter} />
+      <ActionMenuButton program={counter} />
+    </WhenReady>
   </section>
 </main>
