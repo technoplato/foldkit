@@ -151,17 +151,41 @@ const positionOf = (order: LogRowOrder): Watermark['position'] => ({
 const idOf = (row: unknown): Option.Option<string> =>
   Option.filter(readRowString(row, 'id'), id => id !== '')
 
-/**
- * The fingerprint of a set of row ids: two order-free sums of 32-bit
- * hashes. `['m1', 'm2']` and `['m2', 'm1']` print the same fingerprint.
- */
-export const fingerprintOf = (ids: ReadonlyArray<string>): string => {
-  const sums = Array.reduce(ids, { first: 0, second: 0 }, (sum, id) => ({
+type FingerprintSums = Readonly<{ first: number; second: number }>
+
+const fingerprintRadix = 36
+
+const addIds = (
+  start: FingerprintSums,
+  ids: ReadonlyArray<string>,
+): FingerprintSums =>
+  Array.reduce(ids, start, (sum, id) => ({
     first: (sum.first + hashOf(id, firstSeed)) >>> 0,
     second: (sum.second + hashOf(id, secondSeed)) >>> 0,
   }))
-  return `${sums.first.toString(36)}.${sums.second.toString(36)}`
+
+const printSums = (sums: FingerprintSums): string =>
+  `${sums.first.toString(fingerprintRadix)}.${sums.second.toString(fingerprintRadix)}`
+
+const parseSums = (fingerprint: string): FingerprintSums => {
+  const parts = fingerprint.split('.')
+  const sumAt = (index: number): number =>
+    Number.parseInt(
+      Option.getOrElse(Array.get(parts, index), () => '0'),
+      fingerprintRadix,
+    )
+  return { first: sumAt(0), second: sumAt(1) }
 }
+
+/**
+ * The fingerprint of a set of row ids: two order-free sums of 32-bit
+ * hashes. `['m1', 'm2']` and `['m2', 'm1']` print the same fingerprint,
+ * and the fingerprint of `['m1', 'm2', 'm3']` is the fingerprint of
+ * `['m1', 'm2']` with `m3` added, so a watermark can grow without the
+ * rows it already covers.
+ */
+export const fingerprintOf = (ids: ReadonlyArray<string>): string =>
+  printSums(addIds({ first: 0, second: 0 }, ids))
 
 /** True when a row sits at or before a log position. */
 export const isAtOrBefore = (row: unknown, position: LogRowOrder): boolean =>
@@ -213,6 +237,39 @@ const positionOrder = Order.make(
 )
 
 /**
+ * A watermark grown by rows after its position: the newest position, the
+ * count plus those rows, and their ids added to the fingerprint. The rows
+ * it already covers are not needed, so a device that kept only the rows
+ * after a snapshot can still print the watermark of the whole log.
+ *
+ * @example
+ * ```typescript
+ * extendWatermark(watermarkOf([m1, m2]), [m3]) // watermarkOf([m1, m2, m3])
+ * ```
+ */
+export const extendWatermark = (
+  watermark: Watermark,
+  rowsAfter: ReadonlyArray<unknown>,
+): Watermark =>
+  Option.match(watermarkOf(rowsAfter), {
+    onNone: () => watermark,
+    onSome: added => ({
+      position: added.position,
+      count: watermark.count + added.count,
+      fingerprint: printSums({
+        first:
+          (parseSums(watermark.fingerprint).first +
+            parseSums(added.fingerprint).first) >>>
+          0,
+        second:
+          (parseSums(watermark.fingerprint).second +
+            parseSums(added.fingerprint).second) >>>
+          0,
+      }),
+    }),
+  })
+
+/**
  * True when the log still holds exactly the rows a watermark names: the
  * same count and fingerprint at or before its position. A row that landed
  * late, behind the position, or a row that vanished, breaks the proof.
@@ -234,16 +291,6 @@ export const isProvenBy = (
 
 // SNAPSHOT
 
-const storedFormat = 1
-
-const StoredSnapshot = S.Struct({
-  format: S.Literal(storedFormat),
-  programId: S.String,
-  programVersion: S.Number,
-  watermark: Watermark,
-  model: S.Unknown,
-})
-
 /**
  * A Program's Model as of a watermark. The Model is the Program's own
  * type, encoded with its own Schema.
@@ -254,10 +301,23 @@ export type LocalSnapshot<Model> = Readonly<{
 }>
 
 /**
- * The parts of a Program a local snapshot is keyed and encoded by. The
- * version is the Program's: a snapshot written by another version is
- * dropped and rebuilt from the log, which every version folds with its
- * own update, so a snapshot never needs migrating.
+ * What one device keeps between runs: a few snapshots, oldest first, the
+ * log rows after the oldest of them, and the engine cursor after the last
+ * row it has received. A reload paints the newest snapshot, asks the
+ * engine only for rows after the cursor, and refolds a row that landed
+ * late from the newest snapshot before it, using the rows kept here.
+ */
+export type LocalState<Model> = Readonly<{
+  snapshots: Array.NonEmptyReadonlyArray<LocalSnapshot<Model>>
+  rows: ReadonlyArray<unknown>
+  maybeCursor: Option.Option<string>
+}>
+
+/**
+ * The parts of a Program a local state is keyed and encoded by. The
+ * version is the Program's: state written by another version is dropped
+ * and rebuilt from the log, which every version folds with its own update,
+ * so a snapshot never needs migrating.
  */
 export type SnapshotProgram<Model> = Readonly<{
   id: string
@@ -265,68 +325,161 @@ export type SnapshotProgram<Model> = Readonly<{
   Model: ProgramSchema<Model>
 }>
 
+/** How many rows apart kept snapshots are, beside the newest one. */
+export const snapshotSpacing = 200
+
+/** How many snapshots one device keeps. */
+export const maximumSnapshots = 4
+
 /**
- * Encodes a local snapshot as text, stamped with the Program's id and
- * version. None when the Model does not encode.
+ * Adds the newest snapshot to a series, oldest first. The newest snapshot
+ * floats: it replaces the previous newest until that one is
+ * `snapshotSpacing` rows past the one before it, then it stays as an
+ * anchor. The series keeps at most `maximumSnapshots`, dropping the
+ * oldest.
  *
  * @example
  * ```typescript
- * LocalSnapshot.encode(CounterProgram, { model: { count: 3 }, watermark })
- * // Some('{"format":1,"programId":"counter","programVersion":5,...}')
+ * // counts in the series: [10, 150], newest count 160
+ * retainedSnapshots(series, next) // counts [10, 160]
+ * // counts in the series: [10, 210], newest count 220
+ * retainedSnapshots(series, next) // counts [10, 210, 220]
+ * ```
+ */
+export const retainedSnapshots = <Model>(
+  series: ReadonlyArray<LocalSnapshot<Model>>,
+  next: LocalSnapshot<Model>,
+): Array.NonEmptyReadonlyArray<LocalSnapshot<Model>> => {
+  const countAt = (index: number): Option.Option<number> =>
+    Option.map(Array.get(series, index), snapshot => snapshot.watermark.count)
+  const isNewestAnchored = Option.match(countAt(series.length - 2), {
+    onNone: () => true,
+    onSome: previousCount =>
+      Option.exists(
+        countAt(series.length - 1),
+        newestCount => newestCount - previousCount >= snapshotSpacing,
+      ),
+  })
+  const kept = isNewestAnchored ? series : Array.dropRight(series, 1)
+  return Array.append(Array.takeRight(kept, maximumSnapshots - 1), next)
+}
+
+/** The rows a series still needs: those after its oldest snapshot. */
+export const rowsAfterOldest = <Model>(
+  snapshots: Array.NonEmptyReadonlyArray<LocalSnapshot<Model>>,
+  rows: ReadonlyArray<unknown>,
+): ReadonlyArray<unknown> =>
+  Array.filter(
+    rows,
+    row => !isAtOrBefore(row, Array.headNonEmpty(snapshots).watermark.position),
+  )
+
+const storedFormat = 2
+
+const StoredSnapshot = S.Struct({
+  watermark: Watermark,
+  model: S.Unknown,
+})
+
+const StoredState = S.Struct({
+  format: S.Literal(storedFormat),
+  programId: S.String,
+  programVersion: S.Number,
+  cursor: S.optionalKey(S.String),
+  snapshots: S.NonEmptyArray(StoredSnapshot),
+  rows: S.Array(S.Unknown),
+})
+
+/**
+ * Encodes a device's local state as text, stamped with the Program's id
+ * and version. None when a Model does not encode.
+ *
+ * @example
+ * ```typescript
+ * LocalSnapshot.encode(CounterProgram, { snapshots, rows, maybeCursor })
+ * // Some('{"format":2,"programId":"counter","programVersion":5,...}')
  * ```
  */
 export const encode = <Model>(
   program: SnapshotProgram<Model>,
-  snapshot: LocalSnapshot<Model>,
-): Option.Option<string> =>
-  pipe(
+  state: LocalState<Model>,
+): Option.Option<string> => {
+  const ModelJson = S.toCodecJson(program.Model)
+  return pipe(
     Result.try(() =>
-      S.encodeSync(S.toCodecJson(program.Model))(snapshot.model),
+      Array.map(state.snapshots, snapshot => ({
+        watermark: snapshot.watermark,
+        model: S.encodeSync(ModelJson)(snapshot.model),
+      })),
     ),
-    Result.map(model =>
+    Result.map(snapshots =>
       JSON.stringify({
         format: storedFormat,
         programId: program.id,
         programVersion: program.version,
-        watermark: snapshot.watermark,
-        model,
+        ...Option.match(state.maybeCursor, {
+          onNone: () => ({}),
+          onSome: cursor => ({ cursor }),
+        }),
+        snapshots,
+        rows: state.rows,
       }),
     ),
     Result.getSuccess,
   )
+}
 
 /**
- * Decodes a local snapshot. None for text from another Program or
+ * Decodes a device's local state. None for text from another Program or
  * version, an old format, or a Model that no longer decodes; the runtime
- * then folds the log instead.
+ * then reads and folds the whole log instead.
  *
  * @example
  * ```typescript
  * LocalSnapshot.decode(CounterProgram, text)
- * // Some({ model: { count: 3 }, watermark }) for version 5 text
+ * // Some({ snapshots, rows, maybeCursor }) for version 5 text
  * // None after the Program moves to version 6
  * ```
  */
 export const decode = <Model>(
   program: SnapshotProgram<Model>,
   text: string,
-): Option.Option<LocalSnapshot<Model>> =>
-  pipe(
+): Option.Option<LocalState<Model>> => {
+  const ModelJson = S.toCodecJson(program.Model)
+  return pipe(
     Result.try(() => JSON.parse(text)),
     Result.getSuccess,
-    Option.flatMap(S.decodeUnknownOption(StoredSnapshot)),
+    Option.flatMap(S.decodeUnknownOption(StoredState)),
     Option.filter(
       stored =>
         stored.programId === program.id &&
         stored.programVersion === program.version,
     ),
     Option.flatMap(stored =>
-      Option.map(
-        S.decodeUnknownOption(S.toCodecJson(program.Model))(stored.model),
-        (model): LocalSnapshot<Model> => ({
-          model,
-          watermark: stored.watermark,
-        }),
+      pipe(
+        Option.all(
+          Array.map(stored.snapshots, snapshot =>
+            Option.map(
+              S.decodeUnknownOption(ModelJson)(snapshot.model),
+              (model): LocalSnapshot<Model> => ({
+                model,
+                watermark: snapshot.watermark,
+              }),
+            ),
+          ),
+        ),
+        Option.flatMap(snapshots =>
+          Array.match(snapshots, {
+            onEmpty: () => Option.none<LocalState<Model>>(),
+            onNonEmpty: nonEmpty =>
+              Option.some({
+                snapshots: nonEmpty,
+                rows: stored.rows,
+                maybeCursor: Option.fromNullishOr(stored.cursor),
+              }),
+          }),
+        ),
       ),
     ),
   )
+}

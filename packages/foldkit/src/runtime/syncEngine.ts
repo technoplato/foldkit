@@ -22,6 +22,17 @@ export type SyncRead = Readonly<{
   messages: ReadonlyArray<unknown>
 }>
 
+/**
+ * Rows the store received after a cursor, in the order it received them,
+ * and the cursor after the last of them. A row written offline and synced
+ * late is received late, so it is never behind a cursor that was read
+ * before it arrived.
+ */
+export type SyncPage = Readonly<{
+  messages: ReadonlyArray<unknown>
+  maybeCursor: Option.Option<string>
+}>
+
 /** One live Instant event. */
 export type SyncEvent =
   | Readonly<{ readonly _tag: 'Snapshot'; readonly row: unknown }>
@@ -41,6 +52,9 @@ export class SyncTransportError extends Data.TaggedError('SyncTransportError')<{
 export type SyncEngine = Readonly<{
   processor: string
   read: () => Effect.Effect<SyncRead, SyncTransportError>
+  readSince?: (
+    maybeCursor: Option.Option<string>,
+  ) => Effect.Effect<SyncPage, SyncTransportError>
   subscribe: (
     enqueue: (event: SyncEvent) => void,
   ) => Effect.Effect<void, never, Scope.Scope>
@@ -59,6 +73,7 @@ export type MemoryStore = {
 /** Memory engine with test hooks. Memory is a fake Instant. */
 export type MemoryEngine = SyncEngine &
   Readonly<{
+    readSince: NonNullable<SyncEngine['readSince']>
     store: MemoryStore
     failNextRead: (cause: string) => void
     failNextWrite: (cause: string) => void
@@ -172,6 +187,26 @@ export const Memory = (options?: {
       return Effect.succeed({
         snapshot: store.snapshot,
         messages: store.messages,
+      })
+    },
+    readSince: maybeCursor => {
+      if (pendingReadFailure !== undefined) {
+        const cause = pendingReadFailure
+        pendingReadFailure = undefined
+        return Effect.fail(
+          new SyncTransportError({
+            cause,
+            operation: 'Read',
+          }),
+        )
+      }
+      const start = Option.getOrElse(
+        Option.map(maybeCursor, cursor => Number.parseInt(cursor, 10)),
+        () => 0,
+      )
+      return Effect.succeed({
+        messages: store.messages.slice(start),
+        maybeCursor: Option.some(String(store.messages.length)),
       })
     },
     subscribe: enqueue =>

@@ -4,16 +4,19 @@ import { init } from '@instantdb/admin'
 
 import { syncedTransactionOutcome } from '../programStore/index.js'
 import {
+  type CountIdSelector,
   InstantSnapshotLogSchema,
   SnapshotLogError,
   type SnapshotLogQueryData,
   type SnapshotLogState,
   type SnapshotLogTransport,
   type SnapshotLogWrite,
-  type CountIdSelector,
-  createSnapshotLogStateDecoder,
   countSnapshotWriteFields,
+  createSnapshotLogStateDecoder,
+  readLogSince,
+  snapshotLogPageQuery,
   snapshotLogQuery,
+  snapshotLogRecentQuery,
 } from './snapshotLog.js'
 
 const querySnapshotLogState = async (
@@ -47,6 +50,9 @@ const transactSnapshotLogWrite = async (
       createdAtMs: write.message.createdAtMs,
       from: write.message.from,
       tag: write.message.tag,
+      ...(write.message.programVersion === undefined
+        ? {}
+        : { programVersion: write.message.programVersion }),
     }),
   ])
 }
@@ -132,8 +138,55 @@ export const makeAdminSnapshotLogTransport = (
         }),
     })
 
+  const observe = (
+    query: typeof snapshotLogQuery | typeof snapshotLogRecentQuery,
+    decodeState: ReturnType<typeof createSnapshotLogStateDecoder>,
+  ): Stream.Stream<SnapshotLogState, SnapshotLogError> =>
+    Stream.callback(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() =>
+          admin.subscribeQuery(query, payload => {
+            applyAdminSubscribePayload(
+              payload,
+              decodeState,
+              state => {
+                Queue.offerUnsafe(queue, state)
+              },
+              cause => {
+                Queue.failCauseUnsafe(
+                  queue,
+                  Cause.fail(
+                    new SnapshotLogError({
+                      cause,
+                      operation: 'Observe',
+                    }),
+                  ),
+                )
+              },
+            )
+          }),
+        ),
+        subscription =>
+          Effect.sync(() => {
+            closeAdminSubscription(subscription)
+          }),
+      ),
+    )
+
   return {
     read,
+    readSince: maybeCursor =>
+      readLogSince(
+        offset =>
+          admin
+            .query(snapshotLogPageQuery(offset))
+            .then(result => result.message),
+        maybeCursor,
+      ),
+    subscribeRecent: observe(
+      snapshotLogRecentQuery,
+      createSnapshotLogStateDecoder(countId),
+    ),
     subscribe: Stream.callback(queue =>
       Effect.acquireRelease(
         Effect.sync(() =>

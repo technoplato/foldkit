@@ -50,6 +50,7 @@ export const InstantLogMessageRecord = S.Struct({
   from: S.String,
   id: S.String,
   tag: S.String,
+  programVersion: S.optionalKey(S.Int),
 })
 /** One user-intent row on the Instant Message log. */
 export type InstantLogMessageRecord = typeof InstantLogMessageRecord.Type
@@ -133,6 +134,7 @@ export const InstantSnapshotLogEntities = {
     createdAtMs: i.number().indexed(),
     from: i.string().indexed(),
     tag: i.string(),
+    programVersion: i.number().optional(),
   }),
 }
 
@@ -172,6 +174,49 @@ export const snapshotLogQuery = {
   message: {},
 } as const
 
+/** Message rows per page when reading the log after a cursor. */
+export const snapshotLogPageSize = 5000
+
+/** How many of the newest Message rows the live feed watches. */
+export const snapshotLogRecentRows = 100
+
+/**
+ * One page of Message rows in the order Instant received them, starting
+ * after the first `offset`. Rows are never deleted, so a count of rows
+ * already read is a stable cursor.
+ */
+export const snapshotLogPageQuery = (offset: number) =>
+  ({
+    message: {
+      $: {
+        limit: snapshotLogPageSize,
+        offset,
+        order: { serverCreatedAt: 'asc' },
+      },
+    },
+  }) as const
+
+/**
+ * The count rows and the newest Message rows Instant received, so a live
+ * Processor follows new rows, including one an offline device synced late,
+ * without downloading the whole log.
+ */
+export const snapshotLogRecentQuery = {
+  count: {},
+  message: {
+    $: {
+      limit: snapshotLogRecentRows,
+      order: { serverCreatedAt: 'desc' },
+    },
+  },
+} as const
+
+/** Message rows Instant received after a cursor, and the cursor after them. */
+export type SnapshotLogPage = Readonly<{
+  messages: ReadonlyArray<InstantLogMessageRecord>
+  cursor: string
+}>
+
 /** A snapshot-log read, write, or observe failed. */
 export class SnapshotLogError extends Data.TaggedError('SnapshotLogError')<{
   readonly cause: unknown
@@ -184,7 +229,11 @@ export class SnapshotLogError extends Data.TaggedError('SnapshotLogError')<{
  */
 export type SnapshotLogTransport = Readonly<{
   read: () => Effect.Effect<SnapshotLogState, SnapshotLogError>
+  readSince?: (
+    maybeCursor: Option.Option<string>,
+  ) => Effect.Effect<SnapshotLogPage, SnapshotLogError>
   subscribe: Stream.Stream<SnapshotLogState, SnapshotLogError>
+  subscribeRecent?: Stream.Stream<SnapshotLogState, SnapshotLogError>
   write: (
     write: SnapshotLogWrite,
   ) => Effect.Effect<ProgramStoreTransactionOutcome, SnapshotLogError>
@@ -218,6 +267,7 @@ const LooseMessageRow = S.Struct({
   from: S.String,
   id: S.String,
   tag: S.String,
+  programVersion: S.optionalKey(S.NullOr(S.Number)),
 })
 
 /** Orders Messages by createdAtMs, then id. */
@@ -289,6 +339,9 @@ const decodeMessageRow = (row: unknown): InstantLogMessageRecord => {
     from: record.from,
     id: record.id,
     tag: record.tag,
+    ...(record.programVersion === undefined || record.programVersion === null
+      ? {}
+      : { programVersion: record.programVersion }),
   })
 }
 
@@ -318,7 +371,8 @@ const messageRowMatchesCache = (
   return (
     row['createdAtMs'] === existing.createdAtMs &&
     row['from'] === existing.from &&
-    row['tag'] === existing.tag
+    row['tag'] === existing.tag &&
+    (row['programVersion'] ?? undefined) === existing.programVersion
   )
 }
 
@@ -403,6 +457,45 @@ export const createSnapshotLogStateDecoder = (
     return decodeSnapshotLogState(data, cache, requested)
   }
 }
+
+/**
+ * Reads every page of Message rows after a cursor through one page query,
+ * such as Instant core's `queryOnce` or the admin `query`. The cursor is
+ * how many rows were read before; the result's cursor counts these too.
+ *
+ * @example
+ * ```typescript
+ * readLogSince(offset => queryRows(snapshotLogPageQuery(offset)), Option.some('3079'))
+ * // { messages: [rows Instant received after the first 3079], cursor: '3081' }
+ * ```
+ */
+export const readLogSince = (
+  queryPage: (offset: number) => Promise<ReadonlyArray<unknown>>,
+  maybeCursor: Option.Option<string>,
+): Effect.Effect<SnapshotLogPage, SnapshotLogError> =>
+  Effect.tryPromise({
+    try: async () => {
+      const start = Option.getOrElse(
+        Option.map(maybeCursor, cursor => Number.parseInt(cursor, 10)),
+        () => 0,
+      )
+      const pages: Array<ReadonlyArray<unknown>> = []
+      let offset = start
+      for (;;) {
+        const page = await queryPage(offset)
+        pages.push(page)
+        offset += page.length
+        if (page.length < snapshotLogPageSize) {
+          break
+        }
+      }
+      return {
+        messages: Array.map(Array.flatten(pages), decodeMessageRow),
+        cursor: String(offset),
+      }
+    },
+    catch: cause => new SnapshotLogError({ cause, operation: 'Read' }),
+  })
 
 /** Empty snapshot and no Messages. */
 export const emptySnapshotLogState: SnapshotLogState = {

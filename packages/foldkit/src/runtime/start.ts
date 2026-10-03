@@ -40,6 +40,7 @@ import {
   type LogRowOrder,
   type SyncEngine,
   type SyncLink,
+  type SyncPage,
   type SyncTransportError,
   type SyncWrite,
   type SyncWriteResult,
@@ -120,6 +121,7 @@ const fillWriteTime = (
   message: unknown,
   processor: string,
   now: number,
+  programVersion: number,
 ): SyncWrite => {
   const snapshotRow = asRecord(snapshot)
   const messageRow = asRecord(message)
@@ -137,6 +139,7 @@ const fillWriteTime = (
     message: {
       ...messageRow,
       id: messageId,
+      programVersion,
       from: processor,
       createdAtMs: now,
     },
@@ -198,12 +201,14 @@ type LogEntry = Readonly<{ order: LogRowOrder; row: unknown }>
 
 /**
  * A fold to start from: the Model after every row at or before
- * `position`, and the ids of those rows.
+ * `position`, the ids of those rows this Processor knows, and the
+ * watermark of every row it covers.
  */
 type FoldBase<ChildModel> = Readonly<{
   model: ChildModel
   position: LogRowOrder
   ids: ReadonlySet<string>
+  watermark: LocalSnapshot.Watermark
 }>
 
 /** The Processor id no row names, so a fold from it sees only shared rows. */
@@ -333,15 +338,23 @@ export function start<
       )
 
     const knownRows = new Map<string, unknown>()
-    let maybeBase: Option.Option<FoldBase<ChildModel>> = Option.none()
+    let bases: ReadonlyArray<FoldBase<ChildModel>> = []
+    let savedSnapshots: ReadonlyArray<LocalSnapshot.LocalSnapshot<ChildModel>> =
+      []
+    let maybeCursor: Option.Option<string> = Option.none()
+    let isLogComplete = false
+    const idsPastCursor = new Set<string>()
     let isLocalSnapshotStale = false
     let isLogRead = false
+    const unconfirmedIds = new Set<string>()
+    let isReadingWholeLog = false
     let lastWrite: Option.Option<SyncWriteResult> = Option.none()
     let lastApplied: Option.Option<LogRowOrder> = Option.none()
     let clockMs = 0
     const outbox: Array<SyncWrite> = []
     const outboxFlushMs = 250
     const localSnapshotSaveMs = 1000
+    const cursorAdvanceMs = 5000
     const [initialChildModel] = program.of.init()
     const snapshotProgram: LocalSnapshot.SnapshotProgram<ChildModel> = {
       id: program.of.id,
@@ -389,7 +402,16 @@ export function start<
         knownRows.set(id.value, row)
         learnTime(row)
         isLocalSnapshotStale = true
+        idsPastCursor.add(id.value)
       }
+    }
+
+    const isOwnRow = (row: unknown): boolean =>
+      Option.contains(readRowString(row, 'from'), engine.processor)
+
+    const rememberEngineRow = (row: unknown): void => {
+      rememberRow(row)
+      unconfirmedIds.delete(idOfRow(row))
     }
 
     const isKnownRow = (row: unknown): boolean => {
@@ -466,77 +488,209 @@ export function start<
                 viewpoint)),
       )
 
+    const idsAtOrBefore = (position: LogRowOrder): ReadonlySet<string> =>
+      new Set(
+        pipe(
+          Array.fromIterable(knownRows.values()),
+          Array.filter(row => LocalSnapshot.isAtOrBefore(row, position)),
+          Array.map(idOfRow),
+        ),
+      )
+
+    const baseOf = (
+      snapshot: LocalSnapshot.LocalSnapshot<ChildModel>,
+    ): FoldBase<ChildModel> => ({
+      model: snapshot.model,
+      position: snapshot.watermark.position,
+      ids: idsAtOrBefore(snapshot.watermark.position),
+      watermark: snapshot.watermark,
+    })
+
+    const entriesAfter = (
+      entries: ReadonlyArray<LogEntry>,
+      position: LogRowOrder,
+    ): ReadonlyArray<LogEntry> =>
+      Array.filter(entries, entry => isRowOrderAfter(entry.order, position))
+
     /**
      * Folds every known row as `viewpoint` sees them, starting from the
-     * base when it still covers exactly the rows before its position, and
-     * from the initial Model otherwise.
+     * newest base that still covers exactly the rows before it, so a row
+     * that landed late refolds from the snapshot just before it. Without
+     * such a base it folds from the initial Model, which needs the whole
+     * log: None when this Processor holds only the rows after its oldest
+     * snapshot.
      */
     const foldFromBase = (
       entries: ReadonlyArray<LogEntry>,
       viewpoint: string,
-    ): ChildModel =>
+    ): Option.Option<
+      Readonly<{
+        model: ChildModel
+        watermark: Option.Option<LocalSnapshot.Watermark>
+      }>
+    > =>
       Option.match(
-        Option.filter(maybeBase, base =>
-          isBaseUsable(base, entries, viewpoint),
-        ),
+        Array.findLast(bases, base => isBaseUsable(base, entries, viewpoint)),
         {
-          onNone: () => foldRows(initialChildModel, entries, viewpoint),
-          onSome: base =>
-            foldRows(
-              base.model,
-              Array.filter(entries, entry =>
-                isRowOrderAfter(entry.order, base.position),
+          onSome: base => {
+            const after = entriesAfter(entries, base.position)
+            return Option.some({
+              model: foldRows(base.model, after, viewpoint),
+              watermark: Option.some(
+                LocalSnapshot.extendWatermark(
+                  base.watermark,
+                  Array.map(after, entry => entry.row),
+                ),
               ),
-              viewpoint,
-            ),
+            })
+          },
+          onNone: () =>
+            isLogComplete
+              ? Option.some({
+                  model: foldRows(initialChildModel, entries, viewpoint),
+                  watermark: LocalSnapshot.watermarkOf(
+                    Array.map(entries, entry => entry.row),
+                  ),
+                })
+              : Option.none(),
         },
       )
 
-    const foldLog = (): Readonly<{
-      model: ChildModel
-      maxOrder: Option.Option<LogRowOrder>
-    }> => {
+    const foldLog = (): Option.Option<
+      Readonly<{ model: ChildModel; maxOrder: Option.Option<LogRowOrder> }>
+    > => {
       const entries = orderedRows()
-      return {
-        model: foldFromBase(entries, engine.processor),
+      return Option.map(foldFromBase(entries, engine.processor), folded => ({
+        model: folded.model,
         maxOrder: Option.map(Array.last(entries), entry => entry.order),
-      }
+      }))
     }
 
     /**
-     * Saves the fold every Processor shares, as of the newest known row,
-     * and keeps it as the base later folds start from.
+     * Saves what this device keeps between runs: the fold every Processor
+     * shares as of the newest confirmed row, added to the snapshot series,
+     * the rows after the oldest snapshot or past the cursor, and the
+     * cursor. The rows past the cursor come back from the next read, and
+     * keeping them tells those already folded from a row that landed late.
+     * A write
+     * that has not come back from the engine yet is left out, so a write
+     * that never lands is never kept.
      */
-    const saveLocalSnapshot = (
-      store: LocalSnapshotStore,
-    ): Effect.Effect<void> =>
+    const saveLocalState = (store: LocalSnapshotStore): Effect.Effect<void> =>
       Effect.suspend(() => {
         isLocalSnapshotStale = false
-        const entries = orderedRows()
-        return Option.match(
-          Option.all({
-            newest: Array.last(entries),
-            watermark: LocalSnapshot.watermarkOf(
-              Array.map(entries, entry => entry.row),
-            ),
-          }),
-          {
-            onNone: () => Effect.void,
-            onSome: ({ newest, watermark }) => {
-              const model = foldFromBase(entries, strangerViewpoint)
-              maybeBase = Option.some({
-                model,
-                position: newest.order,
-                ids: new Set(Array.map(entries, entry => idOfRow(entry.row))),
-              })
-              return Option.match(
-                LocalSnapshot.encode(snapshotProgram, { model, watermark }),
-                { onNone: () => Effect.void, onSome: store.save },
-              )
-            },
-          },
+        const entries = Array.filter(
+          orderedRows(),
+          entry => !unconfirmedIds.has(idOfRow(entry.row)),
         )
+        const maybeNext = Option.flatMap(
+          foldFromBase(entries, strangerViewpoint),
+          folded =>
+            Option.map(
+              folded.watermark,
+              (watermark): LocalSnapshot.LocalSnapshot<ChildModel> => ({
+                model: folded.model,
+                watermark,
+              }),
+            ),
+        )
+        return Option.match(maybeNext, {
+          onNone: () => Effect.void,
+          onSome: next => {
+            const snapshots = LocalSnapshot.retainedSnapshots(
+              savedSnapshots,
+              next,
+            )
+            savedSnapshots = snapshots
+            bases = Array.map(snapshots, baseOf)
+            return Option.match(
+              LocalSnapshot.encode(snapshotProgram, {
+                snapshots,
+                rows: Array.filter(
+                  Array.map(entries, entry => entry.row),
+                  row =>
+                    idsPastCursor.has(idOfRow(row)) ||
+                    !LocalSnapshot.isAtOrBefore(
+                      row,
+                      Array.headNonEmpty(snapshots).watermark.position,
+                    ),
+                ),
+                maybeCursor,
+              }),
+              { onNone: () => Effect.void, onSome: store.save },
+            )
+          },
+        })
       })
+
+    /**
+     * Reads every row the engine holds, from the start. Boot does this
+     * once without local state, and a Processor does it when a row lands
+     * behind every snapshot it kept. A snapshot whose watermark the log
+     * no longer proves is dropped. True when the read succeeded.
+     */
+    const readWholeLog = Effect.gen(function* () {
+      const read =
+        engine.readSince === undefined
+          ? Effect.map(engine.read(), result => ({
+              messages: result.messages,
+              maybeCursor: Option.none<string>(),
+            }))
+          : engine.readSince(Option.none())
+      const result = yield* Effect.result(read)
+      if (Result.isFailure(result)) {
+        return Option.some(result.failure)
+      }
+      for (const row of result.success.messages) {
+        rememberEngineRow(row)
+      }
+      if (Option.isSome(result.success.maybeCursor)) {
+        maybeCursor = result.success.maybeCursor
+        idsPastCursor.clear()
+      }
+      isLogComplete = true
+      isLogRead = true
+      savedSnapshots = Array.filter(savedSnapshots, snapshot =>
+        LocalSnapshot.isProvenBy(snapshot.watermark, result.success.messages),
+      )
+      bases = Array.map(savedSnapshots, baseOf)
+      return Option.none<SyncTransportError>()
+    })
+
+    const sendRefolded = (model: ChildModel): void => {
+      runtime.send(asMessage<Message>({ _tag: 'LogRefolded', model }))
+    }
+
+    /**
+     * Refolds after a row landed behind the last applied one. When no kept
+     * snapshot covers it and this Processor holds only recent rows, it
+     * reads the whole log first, behind the current Model.
+     */
+    const refold = (): void => {
+      Option.match(foldLog(), {
+        onSome: folded => {
+          lastApplied = folded.maxOrder
+          sendRefolded(folded.model)
+        },
+        onNone: () => {
+          if (isReadingWholeLog) {
+            return
+          }
+          isReadingWholeLog = true
+          Effect.runFork(
+            Effect.flatMap(readWholeLog, () =>
+              Effect.sync(() => {
+                isReadingWholeLog = false
+                Option.map(foldLog(), folded => {
+                  lastApplied = folded.maxOrder
+                  sendRefolded(folded.model)
+                })
+              }),
+            ),
+          )
+        },
+      })
+    }
 
     const persist = (message: Message): Effect.Effect<void> =>
       Effect.gen(function* () {
@@ -585,22 +739,17 @@ export function start<
           encodedMessage.success,
           engine.processor,
           stampTime(),
+          program.of.version,
         )
         rememberRow(write.message)
+        unconfirmedIds.add(idOfRow(write.message))
         const writtenOrder = rowOrderOf(write.message)
         const isBeforeApplied =
           Option.isSome(writtenOrder) &&
           Option.isSome(lastApplied) &&
           !isRowOrderAfter(writtenOrder.value, lastApplied.value)
         if (isBeforeApplied) {
-          const folded = foldLog()
-          lastApplied = folded.maxOrder
-          runtime.send(
-            asMessage<Message>({
-              _tag: 'LogRefolded',
-              model: folded.model,
-            }),
-          )
+          refold()
         } else if (Option.isSome(writtenOrder)) {
           bumpLastApplied(writtenOrder.value)
         }
@@ -648,19 +797,130 @@ export function start<
         }
       })
 
-    const maybeLocalSnapshot =
+    const maybeLocalState =
       config.localSnapshot === undefined
-        ? Option.none<LocalSnapshot.LocalSnapshot<ChildModel>>()
+        ? Option.none<LocalSnapshot.LocalState<ChildModel>>()
         : Option.flatMap(yield* config.localSnapshot.load, text =>
             LocalSnapshot.decode(snapshotProgram, text),
           )
-    if (Option.isSome(maybeLocalSnapshot)) {
-      lastApplied = Option.some(maybeLocalSnapshot.value.watermark.position)
+    if (Option.isSome(maybeLocalState)) {
+      const local = maybeLocalState.value
+      for (const row of local.rows) {
+        rememberRow(row)
+      }
+      savedSnapshots = local.snapshots
+      bases = Array.map(local.snapshots, baseOf)
+      maybeCursor = local.maybeCursor
+      const newest = Array.lastNonEmpty(local.snapshots)
+      lastApplied = Option.some(newest.watermark.position)
       runtime.send(
-        asMessage<Message>({
-          _tag: 'SnapshotReceived',
-          model: maybeLocalSnapshot.value.model,
-        }),
+        asMessage<Message>({ _tag: 'SnapshotReceived', model: newest.model }),
+      )
+    }
+
+    const isBehindApplied = (row: unknown): boolean =>
+      Option.exists(rowOrderOf(row), order =>
+        Option.exists(lastApplied, applied => !isRowOrderAfter(order, applied)),
+      )
+
+    /** Sends one remote row this Processor has not applied yet. */
+    const applyRemoteRow = (row: unknown): void => {
+      const decoded = decodeUnknown(program.message, row)
+      if (Option.isNone(decoded)) {
+        runtime.send(
+          asMessage<Message>(
+            decodeFailed({
+              what: 'Instant sent a Message this Program cannot read.',
+              meaning: 'The row did not match the Message Schema.',
+              fix: 'Keep the current count. Check the Message Schema.',
+              cause: 'Message Schema decode failed.',
+              raw: row,
+            }),
+          ),
+        )
+        return
+      }
+      Option.map(rowOrderOf(row), bumpLastApplied)
+      if (appliesHere(currentPolicy(), decoded.value, row)) {
+        runtime.send(
+          asMessage<Message>({
+            _tag: 'RemoteMessageReceived',
+            message: decoded.value,
+          }),
+        )
+      }
+    }
+
+    /**
+     * Takes rows the engine received after the cursor: rows behind the
+     * last applied one landed late, so the log is refolded from the
+     * snapshot before them; newer rows are applied in log order.
+     */
+    const adoptPage = (page: SyncPage): void => {
+      const unseen = pipe(
+        page.messages,
+        Array.filter(
+          row =>
+            !isKnownRow(row) ||
+            readRowString(row, 'from').pipe(Option.contains(engine.processor)),
+        ),
+      )
+      const isAnyLate = Array.some(
+        unseen,
+        row => !isOwnRow(row) && !isKnownRow(row) && isBehindApplied(row),
+      )
+      const fresh = Array.filter(unseen, row => !isKnownRow(row))
+      for (const row of unseen) {
+        rememberEngineRow(row)
+      }
+      if (Option.isSome(page.maybeCursor)) {
+        maybeCursor = page.maybeCursor
+        idsPastCursor.clear()
+      }
+      if (isAnyLate) {
+        refold()
+      } else {
+        pipe(
+          fresh,
+          Array.filter(row => !isOwnRow(row)),
+          Array.filterMap(row =>
+            Result.fromOption(
+              Option.map(rowOrderOf(row), order => ({ order, row })),
+              () => undefined,
+            ),
+          ),
+          Array.sort(logEntryOrder),
+          Array.forEach(entry => {
+            applyRemoteRow(entry.row)
+          }),
+        )
+      }
+    }
+
+    let isCheckingCursor = false
+
+    /**
+     * Asks the engine for rows after the cursor, once at a time. A live
+     * row behind the last applied one may be a row the snapshot already
+     * folded, whose id this device no longer keeps, or a row that landed
+     * late; only the engine's cursor tells them apart.
+     */
+    const checkPastCursor = (): void => {
+      const readSince = engine.readSince
+      if (readSince === undefined || isCheckingCursor) {
+        return
+      }
+      isCheckingCursor = true
+      Effect.runFork(
+        readSince(maybeCursor).pipe(
+          Effect.map(adoptPage),
+          Effect.catch(() => Effect.void),
+          Effect.ensuring(
+            Effect.sync(() => {
+              isCheckingCursor = false
+            }),
+          ),
+        ),
       )
     }
 
@@ -671,132 +931,111 @@ export function start<
       if (event._tag === 'Snapshot') {
         return
       }
-      const from = readRowString(event.row, 'from')
-      if (Option.isSome(from) && from.value === engine.processor) {
-        rememberRow(event.row)
+      if (isOwnRow(event.row)) {
+        rememberEngineRow(event.row)
         return
       }
       if (isKnownRow(event.row)) {
         return
       }
+      if (isBehindApplied(event.row)) {
+        if (engine.readSince === undefined) {
+          rememberRow(event.row)
+          refold()
+        } else {
+          checkPastCursor()
+        }
+        return
+      }
       rememberRow(event.row)
-      const decoded = decodeUnknown(program.message, event.row)
-      if (Option.isNone(decoded)) {
-        runtime.send(
-          asMessage<Message>(
-            decodeFailed({
-              what: 'Instant sent a Message this Program cannot read.',
-              meaning: 'The row did not match the Message Schema.',
-              fix: 'Keep the current count. Check the Message Schema.',
-              cause: 'Message Schema decode failed.',
-              raw: event.row,
-            }),
-          ),
-        )
-        return
-      }
-      const order = rowOrderOf(event.row)
-      const isOutOfOrder =
-        Option.isSome(order) &&
-        Option.isSome(lastApplied) &&
-        !isRowOrderAfter(order.value, lastApplied.value)
-      if (isOutOfOrder) {
-        const folded = foldLog()
-        lastApplied = folded.maxOrder
-        runtime.send(
-          asMessage<Message>({
-            _tag: 'LogRefolded',
-            model: folded.model,
-          }),
-        )
-        return
-      }
-      if (Option.isSome(order)) {
-        bumpLastApplied(order.value)
-      }
-      if (!appliesHere(currentPolicy(), decoded.value, event.row)) {
-        return
-      }
-      runtime.send(
-        asMessage<Message>({
-          _tag: 'RemoteMessageReceived',
-          message: decoded.value,
-        }),
-      )
+      applyRemoteRow(event.row)
     }
 
     const saveWhenStale = Effect.suspend(() =>
       config.localSnapshot !== undefined && isLogRead && isLocalSnapshotStale
-        ? saveLocalSnapshot(config.localSnapshot)
+        ? saveLocalState(config.localSnapshot)
         : Effect.void,
     )
 
     /**
-     * Reads the log, folds what the local snapshot does not cover, then
-     * follows new rows. With a local snapshot already on screen, this runs
-     * behind it, so a reload paints at once instead of waiting on the
-     * network.
+     * Asks the engine for rows after the cursor and handles each like a
+     * live row, so a row the live feed missed still lands, then moves the
+     * cursor past them.
+     */
+    const advanceCursor = Effect.suspend(() => {
+      const readSince = engine.readSince
+      if (readSince === undefined || !isLogRead || idsPastCursor.size === 0) {
+        return Effect.void
+      }
+      return readSince(maybeCursor).pipe(
+        Effect.map(adoptPage),
+        Effect.catch(() => Effect.void),
+      )
+    })
+
+    const readUnseen = Effect.gen(function* () {
+      const readSince = engine.readSince
+      if (
+        readSince === undefined ||
+        Option.isNone(maybeLocalState) ||
+        Option.isNone(maybeCursor)
+      ) {
+        return yield* readWholeLog
+      }
+      const page = yield* Effect.result(readSince(maybeCursor))
+      if (Result.isFailure(page)) {
+        return Option.some(page.failure)
+      }
+      for (const row of page.success.messages) {
+        rememberEngineRow(row)
+      }
+      if (Option.isSome(page.success.maybeCursor)) {
+        maybeCursor = page.success.maybeCursor
+        idsPastCursor.clear()
+      }
+      isLogRead = true
+      return Option.none<SyncTransportError>()
+    })
+
+    /**
+     * Reads what this device has not seen, folds it onto the newest kept
+     * snapshot that covers it, then follows new rows. With local state
+     * already on screen, this runs behind it, so a reload paints at once
+     * instead of waiting on the network.
      */
     const reconcile = Effect.gen(function* () {
-      const applyBoot = yield* engine.read().pipe(Effect.result)
-      if (Result.isFailure(applyBoot)) {
+      const knownBefore = knownRows.size
+      const maybeReadFailure = yield* readUnseen
+      if (Option.isSome(maybeReadFailure)) {
         runtime.send(
           asMessage<Message>(
             transportFailed({
-              what: 'Instant did not return a snapshot.',
+              what: 'Instant did not return the Message log.',
               meaning: 'This Processor could not start from Instant.',
               fix: 'Check the Instant app and try again.',
-              cause: applyBoot.failure.cause,
-              raw: applyBoot.failure.raw,
+              cause: maybeReadFailure.value.cause,
+              raw: maybeReadFailure.value.raw,
             }),
           ),
         )
       } else {
-        for (const row of applyBoot.success.messages) {
-          rememberRow(row)
-        }
-        isLogRead = true
-        const maybeProven = Option.filter(maybeLocalSnapshot, local =>
-          LocalSnapshot.isProvenBy(local.watermark, applyBoot.success.messages),
-        )
-        maybeBase = Option.map(maybeProven, local => ({
-          model: local.model,
-          position: local.watermark.position,
-          ids: new Set(
-            pipe(
-              applyBoot.success.messages,
-              Array.filter(row =>
-                LocalSnapshot.isAtOrBefore(row, local.watermark.position),
-              ),
-              Array.map(idOfRow),
-            ),
-          ),
-        }))
-        const hasRowsPastSnapshot = Option.match(maybeProven, {
-          onNone: () => true,
-          onSome: local =>
-            Array.some(
-              applyBoot.success.messages,
-              row => !LocalSnapshot.isAtOrBefore(row, local.watermark.position),
-            ),
+        const maybeFolded = yield* Option.match(foldLog(), {
+          onSome: folded => Effect.succeed(Option.some(folded)),
+          onNone: () => Effect.map(readWholeLog, () => foldLog()),
         })
-        const folded = foldLog()
-        lastApplied = folded.maxOrder
-        if (Option.isNone(maybeLocalSnapshot)) {
-          runtime.send(
-            asMessage<Message>({
-              _tag: 'SnapshotReceived',
-              model: folded.model,
-            }),
-          )
-        } else if (hasRowsPastSnapshot) {
-          runtime.send(
-            asMessage<Message>({
-              _tag: 'LogRefolded',
-              model: folded.model,
-            }),
-          )
-        }
+        Option.map(maybeFolded, folded => {
+          lastApplied = folded.maxOrder
+          if (Option.isNone(maybeLocalState)) {
+            runtime.send(
+              asMessage<Message>({
+                _tag: 'SnapshotReceived',
+                model: folded.model,
+              }),
+            )
+          } else if (knownRows.size !== knownBefore) {
+            sendRefolded(folded.model)
+          }
+        })
       }
 
       yield* engine.subscribe(onEvent)
@@ -810,11 +1049,17 @@ export function start<
           Effect.repeat(Schedule.spaced(Duration.millis(localSnapshotSaveMs))),
           Effect.forkScoped,
         )
+        yield* advanceCursor.pipe(
+          Effect.repeat(Schedule.spaced(Duration.millis(cursorAdvanceMs))),
+          Effect.forkScoped,
+        )
       }
     })
 
-    yield* Effect.addFinalizer(() => saveWhenStale)
-    if (Option.isSome(maybeLocalSnapshot)) {
+    yield* Effect.addFinalizer(() =>
+      Effect.andThen(advanceCursor, saveWhenStale),
+    )
+    if (Option.isSome(maybeLocalState)) {
       yield* Effect.forkScoped(reconcile)
     } else {
       yield* reconcile

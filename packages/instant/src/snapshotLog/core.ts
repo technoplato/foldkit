@@ -2,14 +2,19 @@ import { Cause, Effect, Queue, Stream } from 'effect'
 
 import { decodeProgramStoreTransactionOutcome } from '../instantProgramStore/index.js'
 import {
+  type CountIdSelector,
   type InstantSnapshotLogDatabase,
   SnapshotLogError,
+  type SnapshotLogQueryData,
+  type SnapshotLogState,
   type SnapshotLogTransport,
   type SnapshotLogWrite,
-  type CountIdSelector,
-  createSnapshotLogStateDecoder,
   countSnapshotWriteFields,
+  createSnapshotLogStateDecoder,
+  readLogSince,
+  snapshotLogPageQuery,
   snapshotLogQuery,
+  snapshotLogRecentQuery,
 } from './snapshotLog.js'
 
 const transactSnapshotLogWrite = (
@@ -30,16 +35,65 @@ const transactSnapshotLogWrite = (
       createdAtMs: write.message.createdAtMs,
       from: write.message.from,
       tag: write.message.tag,
+      ...(write.message.programVersion === undefined
+        ? {}
+        : { programVersion: write.message.programVersion }),
     }),
   ])
 }
 
-/** Instant core transport. Browser Processors use this. */
+const observe = (
+  database: InstantSnapshotLogDatabase,
+  query: typeof snapshotLogQuery | typeof snapshotLogRecentQuery,
+  decode: (data: SnapshotLogQueryData) => SnapshotLogState,
+): Stream.Stream<SnapshotLogState, SnapshotLogError> =>
+  Stream.callback(queue =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        database.subscribeQuery(query, response => {
+          if (response.error !== undefined) {
+            Queue.failCauseUnsafe(
+              queue,
+              Cause.fail(
+                new SnapshotLogError({
+                  cause: response.error,
+                  operation: 'Observe',
+                }),
+              ),
+            )
+          } else {
+            try {
+              Queue.offerUnsafe(queue, decode(response.data))
+            } catch (cause) {
+              Queue.failCauseUnsafe(
+                queue,
+                Cause.fail(
+                  new SnapshotLogError({
+                    cause,
+                    operation: 'Decode',
+                  }),
+                ),
+              )
+            }
+          }
+        }),
+      ),
+      unsubscribe => Effect.sync(unsubscribe),
+    ),
+  )
+
+/**
+ * Instant core transport. Browser Processors use this. `readSince` reads
+ * only the rows Instant received after a cursor, and `subscribeRecent`
+ * follows the newest rows, so a Processor with local state never
+ * downloads the whole log.
+ */
 export const makeInstantCoreSnapshotLogTransport = (
   database: InstantSnapshotLogDatabase,
   countId?: string | CountIdSelector,
 ): SnapshotLogTransport => {
   const decode = createSnapshotLogStateDecoder(countId)
+  const decodeRecent = createSnapshotLogStateDecoder(countId)
   return {
     read: () =>
       Effect.tryPromise({
@@ -53,40 +107,16 @@ export const makeInstantCoreSnapshotLogTransport = (
             operation: 'Read',
           }),
       }),
-    subscribe: Stream.callback(queue =>
-      Effect.acquireRelease(
-        Effect.sync(() =>
-          database.subscribeQuery(snapshotLogQuery, response => {
-            if (response.error !== undefined) {
-              Queue.failCauseUnsafe(
-                queue,
-                Cause.fail(
-                  new SnapshotLogError({
-                    cause: response.error,
-                    operation: 'Observe',
-                  }),
-                ),
-              )
-            } else {
-              try {
-                Queue.offerUnsafe(queue, decode(response.data))
-              } catch (cause) {
-                Queue.failCauseUnsafe(
-                  queue,
-                  Cause.fail(
-                    new SnapshotLogError({
-                      cause,
-                      operation: 'Decode',
-                    }),
-                  ),
-                )
-              }
-            }
-          }),
-        ),
-        unsubscribe => Effect.sync(unsubscribe),
+    readSince: maybeCursor =>
+      readLogSince(
+        offset =>
+          database
+            .queryOnce(snapshotLogPageQuery(offset))
+            .then(response => response.data.message),
+        maybeCursor,
       ),
-    ),
+    subscribe: observe(database, snapshotLogQuery, decode),
+    subscribeRecent: observe(database, snapshotLogRecentQuery, decodeRecent),
     write: write =>
       Effect.tryPromise({
         try: () =>

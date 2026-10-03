@@ -44,6 +44,7 @@ export {
   type SyncEngine,
   type SyncEvent,
   type SyncLink,
+  type SyncPage,
   type SyncRead,
   type SyncWrite,
   type SyncWriteResult,

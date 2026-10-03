@@ -1,12 +1,12 @@
-import { Deferred, Effect, Schema as S, Stream } from 'effect'
+import { Deferred, Effect, Option, Schema as S, Stream } from 'effect'
 import { Processor, Runtime } from 'foldkit'
 
 import {
   type CountIdSelector,
   InstantCountSnapshotRecord,
   InstantLogMessageRecord,
-  SnapshotLogError,
   type InstantSnapshotLogDatabase,
+  SnapshotLogError,
   type SnapshotLogTransport,
   emptyCountSnapshot,
 } from '../snapshotLog/snapshotLog.js'
@@ -128,6 +128,24 @@ const linkOf = (
   return 'queued'
 }
 
+const readSinceOf = (
+  transport: SnapshotLogTransport,
+  processor: string,
+): Option.Option<NonNullable<Runtime.SyncEngine['readSince']>> =>
+  Option.map(
+    Option.fromNullishOr(transport.readSince),
+    readSince => (maybeCursor: Option.Option<string>) =>
+      readSince(maybeCursor).pipe(
+        Effect.map(page => ({
+          messages: page.messages.filter(message =>
+            messageBelongsToInstantRoom(message.from, processor),
+          ),
+          maybeCursor: Option.some(page.cursor),
+        })),
+        Effect.mapError(error => toTransportError(error, 'Read')),
+      ),
+  )
+
 /**
  * Wraps a snapshot-log transport as the Runtime.start SyncEngine.
  * Instant has no Model.
@@ -147,11 +165,15 @@ export const fromTransport = (
       })),
       Effect.mapError(error => toTransportError(error, 'Read')),
     ),
+  ...Option.match(readSinceOf(transport, processor), {
+    onNone: () => ({}),
+    onSome: readSince => ({ readSince }),
+  }),
   subscribe: enqueue =>
     Effect.gen(function* () {
       const ready = yield* Deferred.make<void>()
       const seenMessageIds = new Set<string>()
-      yield* transport.subscribe.pipe(
+      yield* (transport.subscribeRecent ?? transport.subscribe).pipe(
         Stream.tap(() => Deferred.succeed(ready, undefined)),
         Stream.runForEach(state =>
           Effect.sync(() => {
