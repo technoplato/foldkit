@@ -4,6 +4,23 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 12:20:40 a.m. EDT — `89271a4a3c42` feat(foldkit): move every word and link decision out of the adapters
+
+- **Implementation commit:** `89271a4a3c42b5c44bbc6ee3a4a1360be1c687f8`
+- **Change:** Move every word and link decision out of the adapters
+- **Details:**
+  - Fixes the adversarial audit: core now owns the Starting text, the menu opener label per platform, the link decision, URI printing, dismiss and spoken labels, terminal keys and captions, and the navigation frame for Svelte and Foldkit HTML.
+- **Files:**
+  - `packages/foldkit/src/interaction/interaction.ts` — Add the menu opener, key platform, Starting description, terminal keys, and hint line.
+  - `packages/foldkit/src/navigation/browserHistory.ts` — Decide where a link goes once with linkTargetOf and follow it in a browser.
+  - `packages/foldkit/src/renderers/html.ts` — Paint a navigation frame as Foldkit HTML with the shared screen styles.
+  - `packages/svelte/src/interaction/NavigationFrame.svelte` — Paint the navigation frame in Svelte.
+- **User context (verbatim):**
+  > Business text and host actions command K is hard-coded in hosts. Good catch. That needs to be defined at the program core and then adapted to a platform. Starting instant counter is copied in five hosts. Again, that should be part of an ADT for the loading.
+  > Expo router also prints URIs itself instead of using course printer. Well, that needs to be fixed.
+  > Open2e shows a hard-coded escape close that contradicts the core hint. Okay, cool, and it's key handling break, shift J and shift K. The C Line menu still writes its own text. Well, fix all these please
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 2nd, 2026 at 11:48:07 p.m. EDT — `ca0c23926efa` feat(foldkit): keep a snapshot series and read only unseen rows
 
 - **Implementation commit:** `ca0c23926efab51dd42463d2364af4df2b91c156`
