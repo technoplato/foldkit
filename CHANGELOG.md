@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 6:46:56 p.m. EDT — `c0ffe5754c82` fix(foldkit): keep a child's Subscriptions through Session, ActionMenu, and sync
+
+- **Implementation commit:** `c0ffe5754c82405ed5eb5de3e3e7dd423cd07836`
+- **Change:** Keep a child's Subscriptions through Session, ActionMenu, and sync
+- **Details:**
+  - The combinators lift a child's `subscriptions` and `managedResources` through its part of the Model instead of dropping them; `Runtime.startHandle` takes `resources`. Both are needed for a playback clock in the books port.
+- **Files:**
+  - `packages/foldkit/src/program/liftEffects.ts` — Lift a child's effects.
+  - `packages/foldkit/src/runtime/handle.ts` — `resources`.
+  - `packages/foldkit/src/program/liftEffects.test.ts` — A ticking child inside Session, ActionMenu, and sync.
+- **User context (verbatim):**
+  > go and audit the books one and basically we want to port audible into the books example and follow our navigational precedent set and counters here.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 6:31:26 p.m. EDT — `f5a592c32e1a` feat(foldkit): ask which value on Command or Control with an Action's key
 
 - **Implementation commit:** `f5a592c32e1ab6f681dff93df81be465f1854e6d`
