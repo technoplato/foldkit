@@ -12,6 +12,12 @@ Auth, not the other way around. Once Access has the Google email, the origin
 behind Caddy signs that email into Instant automatically. The user does not
 log in a second time.
 
+## Sync: Instant only
+
+- Every example shares its state through Instant from the first run, through `Program.compose.sync`. One Instant project carries every app: each log row names its app and its Program version, such as `multiple-counters` at version 1.
+- Never ship an example that syncs through a Memory engine, a file tape, `localStorage`, `BroadcastChannel`, or any other per-process or per-tab store. `Runtime.Memory` is a fake for unit tests only.
+- When Instant's schema cannot type a Message strictly, wrap the row in an Effect Schema envelope (app, version, tag, payload) that rejects anything else, and evolve the schema. Never fall back to local-only state.
+
 ## Cloudflare Access
 
 One Access application covers every `*.knophy.com` host. Google login as

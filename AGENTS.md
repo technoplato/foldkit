@@ -47,6 +47,12 @@ Calibrate to the right context: library design when inside `packages/foldkit/src
 - Prefix booleans with `is`.
 - Name functions by their precise effect: `enqueueMessage`, not `addMessage`.
 
+## Sync: Instant only
+
+- Every example shares its state through Instant from the first run, through `Program.compose.sync`. One Instant project carries every app: each log row names its app and its Program version, such as `multiple-counters` at version 1.
+- Never ship an example that syncs through a Memory engine, a file tape, `localStorage`, `BroadcastChannel`, or any other per-process or per-tab store. `Runtime.Memory` is a fake for unit tests only.
+- When Instant's schema cannot type a Message strictly, wrap the row in an Effect Schema envelope (app, version, tag, payload) that rejects anything else, and evolve the schema. Never fall back to local-only state.
+
 ## State Modeling
 
 - Encode state in discriminated unions, not booleans or nullable fields. Use `Idle | Loading | Error | Ok`, not `isLoading`.
