@@ -231,6 +231,13 @@ const modeSentence = (mode: SessionMode): string =>
 
 const openerCatalog = Catalog.make([OpenSessionSettings])
 
+const sessionActionsCatalog = Catalog.make([
+  MirrorNavigation,
+  KeepNavigationLocal,
+  OpenSessionSettings,
+  CloseSessionSettings,
+])
+
 const settingsCatalog = Catalog.make([
   MirrorNavigation,
   KeepNavigationLocal,
@@ -350,7 +357,10 @@ const isBackKey = (input: KeyInput): boolean =>
  * adds the settings page at `/session`, a `Session settings` button under
  * the child's screen, a NotFound fallback for any other path, and Escape
  * as Back. Its Actions have keys, `s` to open the settings and `m` and
- * `l` to change the mode, so a terminal reaches them without a mouse. While navigation is mirrored, a launch URI
+ * `l` to change the mode, so a terminal reaches them without a mouse. The
+ * child's own interaction stays in charge of its Actions, so a Program
+ * whose buttons carry their row, such as `Increment:counter-2`, keeps
+ * them; the session's Actions follow. While navigation is mirrored, a launch URI
  * does not move the stack: a newcomer joins the shared screen. Compose it
  * inside `ActionMenu.compose` so the session Actions appear in the menu.
  *
@@ -569,18 +579,54 @@ export const compose = <Child extends SessionChild>(config: {
     ]
   }
 
-  const catalogInteraction = fromCatalog(
-    catalog,
+  const settingsInteraction = fromCatalog(
+    sessionActionsCatalog,
   ) as unknown as ProgramInteraction<AppModel, AppMessage>
 
+  const childInteraction = (child.interaction ??
+    fromCatalog(child.catalog)) as unknown as ProgramInteraction<
+    ChildModel,
+    ChildMessage
+  >
+
+  const asAppMessages = (
+    messages: ReadonlyArray<ChildMessage>,
+  ): ReadonlyArray<AppMessage> => messages as ReadonlyArray<AppMessage>
+
   const interaction: ProgramInteraction<AppModel, AppMessage> = {
-    ...catalogInteraction,
-    pressKey: (model, input) =>
-      Array.match(catalogInteraction.pressKey(model, input), {
-        onEmpty: () =>
-          isBackKey(input) ? backMessages(navigation, model) : [],
+    menuTitle: childInteraction.menuTitle,
+    menuKeys: childInteraction.menuKeys,
+    status: model => childInteraction.status(childOf(model)),
+    entries: model => [
+      ...childInteraction.entries(childOf(model)),
+      ...settingsInteraction.entries(model),
+    ],
+    press: (model, tag) =>
+      Array.match(asAppMessages(childInteraction.press(childOf(model), tag)), {
+        onEmpty: () => settingsInteraction.press(model, tag),
         onNonEmpty: messages => messages,
       }),
+    pressKey: (model, input) =>
+      Array.match(
+        asAppMessages(childInteraction.pressKey(childOf(model), input)),
+        {
+          onEmpty: () =>
+            Array.match(settingsInteraction.pressKey(model, input), {
+              onEmpty: () =>
+                isBackKey(input) ? backMessages(navigation, model) : [],
+              onNonEmpty: messages => messages,
+            }),
+          onNonEmpty: messages => messages,
+        },
+      ),
+    menu: model => childInteraction.menu(childOf(model)),
+    openMenu: model => asAppMessages(childInteraction.openMenu(childOf(model))),
+    dismissMenu: model =>
+      asAppMessages(childInteraction.dismissMenu(childOf(model))),
+    typeInMenu: (model, query) =>
+      asAppMessages(childInteraction.typeInMenu(childOf(model), query)),
+    chooseFromMenu: (model, tag) =>
+      asAppMessages(childInteraction.chooseFromMenu(childOf(model), tag)),
   }
 
   const childSynchronization = child.synchronization

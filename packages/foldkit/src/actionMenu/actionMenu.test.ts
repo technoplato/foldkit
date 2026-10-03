@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import * as Catalog from '../catalog/catalog.js'
 import { type KeyInput, keyInput } from '../interaction/interaction.js'
 import * as Declaration from '../navigation/declaration.js'
-import { Dialog, stackAtRoot } from '../navigation/structure.js'
+import { Dialog, entriesOf, stackAtRoot } from '../navigation/structure.js'
 import { make } from '../program/program.js'
 import * as Route from '../route/parser.js'
 import { ts } from '../schema/index.js'
@@ -177,12 +177,7 @@ describe('opening and dismissing', () => {
       ActionMenu.OpenedActionMenu(),
       ActionMenu.OpenedActionMenu(),
     ])
-    expect(model.navigation.presented._tag).toBe('PresentingEntries')
-    expect(
-      model.navigation.presented._tag === 'PresentingEntries'
-        ? model.navigation.presented.entries.length
-        : 0,
-    ).toBe(1)
+    expect(entriesOf(model.navigation)).toHaveLength(1)
   })
 })
 

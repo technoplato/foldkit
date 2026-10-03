@@ -67,7 +67,7 @@ System`. Same person in two tabs = same actor, two `from`s.
 - **Snapshot**: a cached fold of the tape. e.g. `{ value: 8, at, asOf }`.
 - **Watermark**: the proof of which Messages a snapshot already includes,
   so boot does not double-fold. e.g. the newest row's position, `count:
-  2694`, and a fingerprint of those row ids (ADR 0013).
+2694`, and a fingerprint of those row ids (ADR 0013).
 - **Local snapshot**: one device's own fold of the tape, kept in
   `localStorage`, AsyncStorage, or a file, with its watermark. A reload
   paints it at once and folds only the rows since (ADR 0013).
@@ -86,9 +86,14 @@ schemaSegment(CounterId)))`.
 - **Slug**: the branded URL word a Program owns for itself, declared once.
   e.g. `Counter.slug` prints `counter`; a parent writes `at: Counter.slug`,
   never the raw string.
-- **NavigationStack**: `{ root, presented }` where presented is
-  `NothingPresented | PresentingEntries` (`packages/foldkit/src/navigation/
-structure.ts`). Root always exists, so an empty stack is unrepresentable.
+- **NavigationStack**: `{ root, pages, maybeModal }`
+  (`packages/foldkit/src/navigation/structure.ts`). Root always exists, so
+  an empty stack is unrepresentable. `maybeModal` holds at most one
+  `Modal`, always over the pages, so two modals at once and a page above a
+  modal are unrepresentable too. e.g. `/counter/session/menu` is
+  `{ root: Counter, pages: [SessionSettings], maybeModal: Some(menu) }`.
+- **ModalStyle**: every PresentationStyle except `Push`. A modal covers the
+  pages; pushing a page while one is open puts the page beneath it.
 - **Stack root vs root URI**: stack root = bottom entry of the stack
   (`Gallery()`); root URI = the path `/` that prints for the Program's
   default Destination. Related, not the same word.

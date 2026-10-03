@@ -24,6 +24,7 @@ ADR 0010 proposed a runtime-owned URI loop: diff `stackOf(previous)` against `st
 4. **Identity is the printed path.** A carrier plan lists the entries root first, each keyed by its path: `/counter`, `/counter/session`, `/counter/session/menu`. The query is configuration, so typing in the menu replaces the entry instead of pushing a new one.
 5. **One carrier loop, tiny drivers.** `runCarrier(source, driver)` diffs the carrier against the plan by key, performs one move, and waits for the driver's expectation. A carrier change the plan did not cause becomes a fact. The loop then waits for the Program's answer before it writes again, and gives up after three writes toward one plan. A driver is `read`, `perform`, and `subscribe`: `browserHistoryDriver(window)` for the web, `keyedStackDriver(stack)` for React Navigation and Expo Router.
 6. **The Program decides.** Carriers only report. Under `MirrorNavigation`, for example, the Program ignores a `Launch` so a newcomer adopts the shared stack, and the loop then writes the shared stack to the newcomer's carrier.
+7. **At most one modal, always on top.** Amended 2026-10-03. A `NavigationStack` is `{ root, pages, maybeModal }`, so a second modal or a page above a modal has no value of the type. Pushing a page while the menu is open puts the page beneath it: `/counter/menu` plus Session settings is `/counter/session/menu`. Presenting a second modal changes nothing. A URI is read root first and ends at its first modal, so `/counter/menu/session` parses to `/counter/menu`.
 
 ## Consequences
 

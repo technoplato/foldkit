@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 
 import * as ActionMenu from '../actionMenu/actionMenu.js'
 import * as Catalog from '../catalog/catalog.js'
+import { fromCatalog } from '../interaction/interaction.js'
 import { NotFound } from '../navigation/declaration.js'
 import * as Declaration from '../navigation/declaration.js'
 import { NavigationStack, stackAtRoot } from '../navigation/structure.js'
@@ -254,5 +255,36 @@ describe('Session.compose', () => {
       )
     expect(availability('MirrorNavigation')).toEqual(Option.some('Disabled'))
     expect(availability('KeepNavigationLocal')).toEqual(Option.some('Enabled'))
+  })
+
+  it('keeps the child in charge of its own presses and adds its Actions after', () => {
+    const counterInteraction = fromCatalog(catalog)
+    const RowCounterProgram = make({
+      ...CounterProgram,
+      id: 'session-row-counter',
+      interaction: {
+        ...counterInteraction,
+        press: (model: CounterModel, tag: string) =>
+          tag === 'Increment:row-2'
+            ? [Increment()]
+            : counterInteraction.press(model, tag),
+      },
+    })
+    const RowApp = compose({ of: RowCounterProgram })
+    const [model] = RowApp.init()
+    const interaction = Option.getOrThrow(
+      Option.fromNullishOr(RowApp.interaction),
+    )
+    expect(interaction.press(model, 'Increment:row-2')).toEqual([Increment()])
+    expect(
+      interaction.press(model, 'OpenSessionSettings').map(sent => sent._tag),
+    ).toEqual(['OpenSessionSettings'])
+    expect(interaction.entries(model).map(entry => entry.tag)).toEqual([
+      'Increment',
+      'MirrorNavigation',
+      'KeepNavigationLocal',
+      'OpenSessionSettings',
+      'CloseSessionSettings',
+    ])
   })
 })

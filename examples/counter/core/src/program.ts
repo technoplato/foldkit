@@ -18,7 +18,7 @@ import { update } from './update.js'
  */
 export const CounterProgram = Program.make({
   id: 'counter',
-  version: 5,
+  version: 6,
   Model,
   Message,
   init,

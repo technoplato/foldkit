@@ -87,183 +87,171 @@ export const presented = <Destination>(
 
 // STACK
 
-/** The stack state where only the bare root is visible. */
-export type NothingPresented = Readonly<{ _tag: 'NothingPresented' }>
+/**
+ * Every style that presents a destination over the page beneath instead of
+ * pushing a new page: a sheet, a dialog, a popover, a drawer, or a cover.
+ */
+export const ModalStyle = S.Union([
+  Sheet,
+  BottomSheet,
+  FullScreenCover,
+  Dialog,
+  Popover,
+  Drawer,
+])
+/** Every style that presents a destination over the page beneath. */
+export type ModalStyle = typeof ModalStyle.Type
 
-/** Builds the bare-root presentation state. */
-export const NothingPresented = (): NothingPresented => ({
-  _tag: 'NothingPresented',
-})
+/** True for every style except Push. */
+export const isModalStyle = (style: PresentationStyle): style is ModalStyle =>
+  style._tag !== 'Push'
 
-/** The stack state holding one or more presented entries above the root. */
-export type PresentingEntries<Destination> = Readonly<{
-  _tag: 'PresentingEntries'
-  entries: Array.NonEmptyReadonlyArray<Presented<Destination>>
-}>
-
-/** Builds a presentation state from one or more entries. */
-export const PresentingEntries = <Destination>(
-  entries: Array.NonEmptyReadonlyArray<Presented<Destination>>,
-): PresentingEntries<Destination> => ({
-  _tag: 'PresentingEntries',
-  entries,
-})
-
-/** A navigation stack of presented destinations over a persistent root.
- *  The root stays mounted beneath every entry; popping the last entry
- *  reveals it again. */
-export type NavigationStack<Destination> = Readonly<{
-  root: Destination
-  presented: NothingPresented | PresentingEntries<Destination>
+/** The one destination presented over the pages, with its modal style. */
+export type Modal<Destination> = Readonly<{
+  destination: Destination
+  style: ModalStyle
 }>
 
 /**
- * Schema for a {@link NavigationStack} over one Destination Schema, so a
- * Model can hold its stack and still decode, replay, and sync.
- *
- * @example
- * ```typescript
- * const Model = S.Struct({
- *   count: S.Number,
- *   navigation: NavigationStack(S.Union([Counter, ActionMenu])),
- * })
- * ```
+ * A navigation stack: the root, the pages pushed on it in order, and at
+ * most one modal over the topmost page. The shape itself rules out two
+ * modals at once and a page pushed over a modal: neither has a value of
+ * this type. `[Counter, Session page]` is two pages; `[Counter, menu]` is
+ * a page with a Dialog over it.
  */
+export type NavigationStack<Destination> = Readonly<{
+  root: Destination
+  pages: ReadonlyArray<Destination>
+  maybeModal: Option.Option<Modal<Destination>>
+}>
+
+/** The Schema of a navigation stack over a Destination Schema. */
 export const NavigationStack = <D extends S.Top>(Destination: D) =>
   S.Struct({
     root: Destination,
-    presented: S.Union([
-      S.TaggedStruct('NothingPresented', {}),
-      S.TaggedStruct('PresentingEntries', {
-        entries: S.NonEmptyArray(
-          S.Struct({ destination: Destination, style: PresentationStyle }),
-        ),
-      }),
-    ]),
+    pages: S.Array(Destination),
+    maybeModal: S.Option(
+      S.Struct({ destination: Destination, style: ModalStyle }),
+    ),
   })
 
-/** Builds a stack showing only its bare root. */
+/** A stack showing only its root. */
 export const stackAtRoot = <Destination>(
   root: Destination,
 ): NavigationStack<Destination> => ({
   root,
-  presented: NothingPresented(),
+  pages: [],
+  maybeModal: Option.none(),
 })
-
-/** Builds a stack showing its root beneath the given entries. */
-export const stackWithEntries = <Destination>(
-  root: Destination,
-  entries: Array.NonEmptyReadonlyArray<Presented<Destination>>,
-): NavigationStack<Destination> => ({
-  root,
-  presented: PresentingEntries(entries),
-})
-
-const presentedEntries = <Destination>(
-  stack: NavigationStack<Destination>,
-): ReadonlyArray<Presented<Destination>> =>
-  M.value(stack.presented).pipe(
-    M.withReturnType<ReadonlyArray<Presented<Destination>>>(),
-    M.tagsExhaustive({
-      NothingPresented: () => Array.empty(),
-      PresentingEntries: ({ entries }) => entries,
-    }),
-  )
 
 /**
- * The entries above the root, oldest first. A bare-root stack has none.
+ * The stack a list of entries describes, root first. Pushed pages come
+ * first; the first modal sits over them and ends the stack, since nothing
+ * can be presented over a modal. `[Push Session, Dialog menu, Dialog menu]`
+ * becomes the Session page with one menu over it.
  *
  * @example
  * ```typescript
- * entriesOf(stackWithEntries(Counter(), [presented(Settings(), Push())]))
- * // [{ destination: Settings(), style: Push() }]
- * ```
- */
-export const entriesOf = <Destination>(
-  stack: NavigationStack<Destination>,
-): ReadonlyArray<Presented<Destination>> => presentedEntries(stack)
-
-/**
- * Builds a stack from its root and any entries above it.
- *
- * @example
- * ```typescript
- * stackFrom(Counter(), []) // stackAtRoot(Counter())
- * stackFrom(Counter(), [presented(SessionSettings(), Push())])
- * // [Counter, Push SessionSettings]
+ * stackFrom(Counter(), [presented(SessionSettings(), Push()), presented(ActionMenu(menu), Dialog())])
+ * // { root: Counter, pages: [SessionSettings], maybeModal: Some(menu as a Dialog) }
  * ```
  */
 export const stackFrom = <Destination>(
   root: Destination,
   entries: ReadonlyArray<Presented<Destination>>,
-): NavigationStack<Destination> =>
-  Array.match(entries, {
-    onEmpty: () => stackAtRoot(root),
-    onNonEmpty: nonEmpty => stackWithEntries(root, nonEmpty),
-  })
+): NavigationStack<Destination> => {
+  const maybeModalIndex = Array.findFirstIndex(entries, entry =>
+    isModalStyle(entry.style),
+  )
+  const pageCount = Option.getOrElse(maybeModalIndex, () => entries.length)
+  return {
+    root,
+    pages: Array.map(
+      Array.take(entries, pageCount),
+      entry => entry.destination,
+    ),
+    maybeModal: Option.flatMap(maybeModalIndex, index =>
+      Option.flatMap(Array.get(entries, index), entry =>
+        isModalStyle(entry.style)
+          ? Option.some({ destination: entry.destination, style: entry.style })
+          : Option.none(),
+      ),
+    ),
+  }
+}
+
+/** The stack a non-empty list of entries describes; see {@link stackFrom}. */
+export const stackWithEntries = <Destination>(
+  root: Destination,
+  entries: Array.NonEmptyReadonlyArray<Presented<Destination>>,
+): NavigationStack<Destination> => stackFrom(root, entries)
 
 /**
- * The root plus the first `count` entries.
- *
- * @example
- * ```typescript
- * // stack is [Counter, Push SessionSettings, Dialog ActionMenu]
- * truncated(stack, 1) // [Counter, Push SessionSettings]
- * truncated(stack, 0) // [Counter]
- * ```
+ * Every entry above the root, bottom first: the pages as Push entries,
+ * then the modal.
  */
+export const entriesOf = <Destination>(
+  stack: NavigationStack<Destination>,
+): ReadonlyArray<Presented<Destination>> => [
+  ...Array.map(stack.pages, destination => presented(destination, Push())),
+  ...Option.match(stack.maybeModal, {
+    onNone: () => [],
+    onSome: modal => [presented<Destination>(modal.destination, modal.style)],
+  }),
+]
+
+/** True when a modal is presented, so no second modal can be. */
+export const hasModal = <Destination>(
+  stack: NavigationStack<Destination>,
+): boolean => Option.isSome(stack.maybeModal)
+
+/** The stack keeping only its first `count` entries above the root. */
 export const truncated = <Destination>(
   stack: NavigationStack<Destination>,
   count: number,
 ): NavigationStack<Destination> =>
   stackFrom(stack.root, Array.take(entriesOf(stack), count))
 
-/**
- * True for styles that hide what is beneath them: Push and FullScreenCover.
- *
- * @example
- * ```typescript
- * isOpaque(Push()) // true: the Session page hides the Counter
- * isOpaque(Dialog()) // false: the menu floats over the page
- * ```
- */
+/** True for a style that hides everything beneath it. */
 export const isOpaque = (style: PresentationStyle): boolean =>
   style._tag === 'Push' || style._tag === 'FullScreenCover'
 
-/** Returns the topmost entry, or `Option.none` for a bare-root stack. */
+/** The topmost entry above the root: the modal, else the last page. */
 export const topEntry = <Destination>(
   stack: NavigationStack<Destination>,
-): Option.Option<Presented<Destination>> =>
-  M.value(stack.presented).pipe(
-    M.withReturnType<Option.Option<Presented<Destination>>>(),
-    M.tagsExhaustive({
-      NothingPresented: () => Option.none(),
-      PresentingEntries: ({ entries }) => Array.last(entries),
-    }),
-  )
+): Option.Option<Presented<Destination>> => Array.last(entriesOf(stack))
 
-/** Returns the stack with `entry` presented above everything else. */
+/**
+ * Returns the stack with `entry` presented. A page goes on top of the
+ * pages and beneath any modal, which stays on top. A modal goes over the
+ * pages unless one is already presented: there is at most one, so the
+ * stack comes back unchanged.
+ *
+ * @example
+ * ```typescript
+ * pushed(menuOverCounter, presented(SessionSettings(), Push()))
+ * // { root: Counter, pages: [SessionSettings], maybeModal: Some(menu) }
+ * pushed(menuOverCounter, presented(ConfirmDelete(), Dialog()))
+ * // menuOverCounter, unchanged
+ * ```
+ */
 export const pushed = <Destination>(
   stack: NavigationStack<Destination>,
   entry: Presented<Destination>,
-): NavigationStack<Destination> =>
-  M.value(stack.presented).pipe(
-    M.withReturnType<NavigationStack<Destination>>(),
-    M.tagsExhaustive({
-      NothingPresented: () => stackWithEntries(stack.root, Array.make(entry)),
-      PresentingEntries: ({ entries }) =>
-        stackWithEntries(stack.root, Array.append(entries, entry)),
-    }),
-  )
-
-const remainingAfterPop = <Destination>(
-  entries: Array.NonEmptyReadonlyArray<Presented<Destination>>,
-): Option.Option<Array.NonEmptyReadonlyArray<Presented<Destination>>> => {
-  const withoutLast = Array.initNonEmpty(entries)
-  if (Array.isReadonlyArrayNonEmpty(withoutLast)) {
-    return Option.some(withoutLast)
+): NavigationStack<Destination> => {
+  if (!isModalStyle(entry.style)) {
+    return { ...stack, pages: Array.append(stack.pages, entry.destination) }
+  } else if (hasModal(stack)) {
+    return stack
+  } else {
+    return {
+      ...stack,
+      maybeModal: Option.some({
+        destination: entry.destination,
+        style: entry.style,
+      }),
+    }
   }
-  return Option.none()
 }
 
 /** Returns the stack with its topmost entry removed, or `Option.none` when
@@ -271,28 +259,17 @@ const remainingAfterPop = <Destination>(
 export const popped = <Destination>(
   stack: NavigationStack<Destination>,
 ): Option.Option<NavigationStack<Destination>> =>
-  M.value(stack.presented).pipe(
-    M.withReturnType<Option.Option<NavigationStack<Destination>>>(),
-    M.tagsExhaustive({
-      NothingPresented: () => Option.none(),
-      PresentingEntries: ({ entries }) => {
-        const maybeRemaining = remainingAfterPop(entries)
-        if (Option.isSome(maybeRemaining)) {
-          return Option.some(stackWithEntries(stack.root, maybeRemaining.value))
-        }
-        return Option.some(stackAtRoot(stack.root))
-      },
-    }),
-  )
+  Array.match(entriesOf(stack), {
+    onEmpty: () => Option.none(),
+    onNonEmpty: entries =>
+      Option.some(stackFrom(stack.root, Array.initNonEmpty(entries))),
+  })
 
 /** Returns the stack with `nextRoot` beneath the unchanged entries. */
 export const replacedRoot = <Destination>(
   stack: NavigationStack<Destination>,
   nextRoot: Destination,
-): NavigationStack<Destination> => ({
-  root: nextRoot,
-  presented: stack.presented,
-})
+): NavigationStack<Destination> => ({ ...stack, root: nextRoot })
 
 // INSTRUCTION
 
@@ -423,8 +400,8 @@ export const stackInstructions = <Destination>(
   if (Equal.equals(previous, next)) {
     return []
   }
-  const previousEntries = presentedEntries(previous)
-  const nextEntries = presentedEntries(next)
+  const previousEntries = entriesOf(previous)
+  const nextEntries = entriesOf(next)
   const overlapCount = Math.min(previousEntries.length, nextEntries.length)
   const maybeChange = firstChange(previousEntries, nextEntries, overlapCount)
   const entryInstructions = diffEntries(
@@ -455,17 +432,11 @@ const replaceTopOrKeep = <Destination>(
   stack: NavigationStack<Destination>,
   entry: Presented<Destination>,
 ): NavigationStack<Destination> =>
-  M.value(stack.presented).pipe(
-    M.withReturnType<NavigationStack<Destination>>(),
-    M.tagsExhaustive({
-      NothingPresented: () => stack,
-      PresentingEntries: ({ entries }) =>
-        stackWithEntries(
-          stack.root,
-          Array.append(Array.initNonEmpty(entries), entry),
-        ),
-    }),
-  )
+  Array.match(entriesOf(stack), {
+    onEmpty: () => stack,
+    onNonEmpty: entries =>
+      stackFrom(stack.root, [...Array.initNonEmpty(entries), entry]),
+  })
 
 /** Applies `instructions` left to right to `stack`. A Pop on a bare root
  *  and a ReplaceTop with nothing presented leave the stack unchanged. */

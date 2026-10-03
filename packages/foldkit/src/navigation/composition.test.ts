@@ -95,18 +95,19 @@ describe('a composed App', () => {
     )
   })
 
-  it('round-trips a child page pushed above the menu', () => {
+  it('opens a child page beneath an open menu, which stays on top', () => {
     const bound = bindApp()
     bound.openMenu()
     bound.press('OpenSessionSettings')
-    expect(uriOf(bound)).toBe('/counter/menu/session')
-    bound.openUri('/counter/menu/session', Link())
+    expect(uriOf(bound)).toBe('/counter/session/menu')
+    expect(Option.isSome(bound.menu())).toBe(true)
+    bound.openUri('/counter/session/menu', Link())
     expect(
       Option.map(bound.navigation(), plan =>
         plan.entries.map(entry => entry.key),
       ),
     ).toEqual(
-      Option.some(['/counter', '/counter/menu', '/counter/menu/session']),
+      Option.some(['/counter', '/counter/session', '/counter/session/menu']),
     )
   })
 
@@ -122,7 +123,7 @@ describe('a composed App', () => {
     expect(performance.now() - startedAt).toBeLessThan(200)
   })
 
-  it('holds the Session page and the menu once each, whatever the URI says', () => {
+  it('ends a URI at its first modal, since nothing sits above one', () => {
     const bound = bindApp()
     bound.openUri('/counter/session/menu/session', Link())
     expect(
@@ -130,12 +131,7 @@ describe('a composed App', () => {
         plan.entries.map(entry => entry.key),
       ),
     ).toEqual(
-      Option.some([
-        '/counter',
-        '/counter/session',
-        '/counter/session/menu',
-        '/counter/session/menu/session',
-      ]),
+      Option.some(['/counter', '/counter/session', '/counter/session/menu']),
     )
     expect(
       Option.map(bound.navigation(), plan =>
@@ -146,18 +142,16 @@ describe('a composed App', () => {
         Option.some('Counter'),
         Option.some('Session'),
         Option.some('Actions'),
-        Option.some('Not found'),
       ]),
     )
   })
 
-  it('returns to a menu beneath a pushed page instead of opening a second', () => {
+  it('opens one menu at most, however often it is opened', () => {
     const bound = bindApp()
     bound.openMenu()
-    bound.press('OpenSessionSettings')
-    expect(uriOf(bound)).toBe('/counter/menu/session')
+    bound.typeInMenu('re')
     bound.openMenu()
-    expect(uriOf(bound)).toBe('/counter/menu')
+    expect(uriOf(bound)).toBe('/counter/menu?menu.q=re')
   })
 
   it('keeps an unknown path and paints it as not found', () => {

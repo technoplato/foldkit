@@ -49,13 +49,11 @@ import {
   Dialog,
   NavigationStack,
   type PresentationStyle,
-  entriesOf,
   popped,
   presented,
   pushed,
   stackAtRoot,
   topEntry,
-  truncated,
 } from '../navigation/structure.js'
 import { backMessages, foldMessage } from '../navigation/transition.js'
 import type {
@@ -120,9 +118,9 @@ const asMenu = (destination: unknown): Option.Option<ActionMenu> =>
 // MESSAGE
 
 /**
- * A person opened the action menu with Cmd-K, `?`, or its button. A stack
- * holds one menu: if a page was pushed above an open menu, opening it
- * again returns to that menu.
+ * A person opened the action menu with Cmd-K, `?`, or its button. The
+ * menu is a modal, so while it or any other modal is open, opening it
+ * again changes nothing.
  */
 export const OpenedActionMenu = m('OpenedActionMenu')
 /** A person dismissed the action menu with Escape or by clicking outside it. */
@@ -584,13 +582,6 @@ export const menuOf = <Destination>(
     Option.filter(isActionMenu),
   )
 
-const menuDepthOf = <Destination>(
-  stack: NavigationStack<Destination>,
-): Option.Option<number> =>
-  Array.findFirstIndex(entriesOf(stack), entry =>
-    isActionMenu(entry.destination),
-  )
-
 const withoutTop = <Destination>(
   stack: NavigationStack<Destination>,
 ): NavigationStack<Destination> => Option.getOrElse(popped(stack), () => stack)
@@ -846,23 +837,13 @@ export const compose = <Child extends ActionMenuChild>(config: {
       M.withReturnType<readonly [AppModel, ReadonlyArray<AppCommand>]>(),
       M.tagsExhaustive({
         OpenedActionMenu: () =>
-          Option.match(menuDepthOf(model.navigation), {
-            onNone: () =>
-              withNavigation(
-                model,
-                pushed<AppDestination>(
-                  model.navigation,
-                  presented<AppDestination>(
-                    opened(visibleOf(model, '')),
-                    style,
-                  ),
-                ),
-              ),
-            onSome: depth =>
-              Option.isSome(menuOf(model.navigation))
-                ? [model, []]
-                : withNavigation(model, truncated(model.navigation, depth + 1)),
-          }),
+          withNavigation(
+            model,
+            pushed<AppDestination>(
+              model.navigation,
+              presented<AppDestination>(opened(visibleOf(model, '')), style),
+            ),
+          ),
         DismissedActionMenu: () =>
           withNavigation(model, dismissMenu<AppDestination>(model.navigation)),
         ChangedActionMenuQuery: ({ query }) =>

@@ -60,7 +60,7 @@ describe('builders and accessors', () => {
   it('stackAtRoot shows the bare root with no top entry', () => {
     const stack = stackAtRoot('Home')
     expect(stack.root).toBe('Home')
-    expect(stack.presented).toEqual({ _tag: 'NothingPresented' })
+    expect(Structure.entriesOf(stack)).toEqual([])
     expect(Option.isNone(Structure.topEntry(stack))).toBe(true)
   })
 
@@ -79,10 +79,9 @@ describe('builders and accessors', () => {
       stackAtRoot('Home'),
       entry('Search', Structure.Push()),
     )
-    expect(next.presented).toEqual({
-      _tag: 'PresentingEntries',
-      entries: [entry('Search', Structure.Push())],
-    })
+    expect(Structure.entriesOf(next)).toEqual([
+      entry('Search', Structure.Push()),
+    ])
   })
 
   it('popped removes the top entry and reveals the root when empty', () => {
@@ -109,7 +108,7 @@ describe('builders and accessors', () => {
     ])
     const replaced = Structure.replacedRoot(stack, 'Settings')
     expect(replaced.root).toBe('Settings')
-    expect(replaced.presented).toEqual(stack.presented)
+    expect(Structure.entriesOf(replaced)).toEqual(Structure.entriesOf(stack))
   })
 })
 
@@ -203,18 +202,18 @@ describe('stackInstructions', () => {
     ])
   })
 
-  it('grows by two pushes above the shared prefix', () => {
+  it('grows by a page and a modal above the shared prefix', () => {
     const previous = Structure.pushed(
       stackAtRoot('Home'),
       entry('Library', Structure.Push()),
     )
     const next = Structure.stackWithEntries('Home', [
       entry('Library', Structure.Push()),
-      entry('Settings', Structure.Sheet()),
+      entry('Settings', Structure.Push()),
       entry('Profile', Structure.Dialog()),
     ])
     expect(Structure.stackInstructions(previous, next)).toEqual([
-      Structure.push('Settings', Structure.Sheet()),
+      Structure.push('Settings', Structure.Push()),
       Structure.push('Profile', Structure.Dialog()),
     ])
   })
@@ -412,50 +411,40 @@ describe('applyStackInstructions round trip', () => {
     },
   )
 
-  it('keeps a Drawer entry and a Popover entry stacked together', () => {
-    const drawerOpen = Structure.stackWithEntries('Home', [
-      entry('Settings', Structure.Drawer({ from: 'Right' })),
-    ])
-    const withPopover = Structure.stackWithEntries('Home', [
-      entry('Settings', Structure.Drawer({ from: 'Right' })),
-      entry(
-        'Search',
-        Structure.Popover({
-          anchor: Structure.ElementAnchor.make('search-icon'),
-        }),
-      ),
-    ])
-
-    const presenting = withPopover.presented
-    if (presenting._tag !== 'PresentingEntries') {
-      throw new Error('expected two stacked entries')
-    }
-    expect(presenting.entries).toHaveLength(2)
-    expect(Option.getOrThrow(Structure.topEntry(withPopover))).toEqual(
-      entry(
-        'Search',
-        Structure.Popover({
-          anchor: Structure.ElementAnchor.make('search-icon'),
-        }),
-      ),
+  it('holds at most one modal, so a Popover over a Drawer is not kept', () => {
+    const drawer = entry('Settings', Structure.Drawer({ from: 'Right' }))
+    const popover = entry(
+      'Search',
+      Structure.Popover({
+        anchor: Structure.ElementAnchor.make('search-icon'),
+      }),
     )
-
-    expect(Structure.stackInstructions(drawerOpen, withPopover)).toEqual([
-      Structure.push(
-        'Search',
-        Structure.Popover({
-          anchor: Structure.ElementAnchor.make('search-icon'),
-        }),
-      ),
-    ])
-    expect(Structure.stackInstructions(withPopover, drawerOpen)).toEqual([
-      Structure.pop(),
-    ])
+    const drawerOpen = Structure.stackWithEntries('Home', [drawer])
+    expect(Structure.stackWithEntries('Home', [drawer, popover])).toEqual(
+      drawerOpen,
+    )
+    expect(Structure.pushed(drawerOpen, popover)).toEqual(drawerOpen)
+    expect(Structure.hasModal(drawerOpen)).toBe(true)
   })
 
-  it('diffs joint-presentation states into ordered instructions', () => {
+  it('pushes a page beneath the modal, which stays on top', () => {
+    const drawer = entry('Settings', Structure.Drawer({ from: 'Right' }))
+    expect(
+      Structure.pushed(
+        Structure.stackWithEntries('Home', [drawer]),
+        entry('Profile', Structure.Push()),
+      ),
+    ).toEqual(
+      Structure.stackWithEntries('Home', [
+        entry('Profile', Structure.Push()),
+        drawer,
+      ]),
+    )
+  })
+
+  it('diffs a page change under a modal into ordered instructions', () => {
     const previous = Structure.stackWithEntries('Home', [
-      entry('Settings', Structure.Drawer({ from: 'Right' })),
+      entry('Settings', Structure.Push()),
       entry(
         'Search',
         Structure.Popover({
@@ -464,38 +453,30 @@ describe('applyStackInstructions round trip', () => {
       ),
     ])
     const next = Structure.stackWithEntries('Library', [
-      entry('Settings', Structure.Drawer({ from: 'Left' })),
+      entry('Profile', Structure.Push()),
       entry(
         'Search',
         Structure.Popover({
           anchor: Structure.ElementAnchor.make('library-row'),
         }),
       ),
-      entry('Profile', Structure.Sheet()),
     ])
 
     const instructions = Structure.stackInstructions(previous, next)
     expect(instructions).toEqual([
       Structure.pop(),
-      Structure.replaceTop(
-        entry('Settings', Structure.Drawer({ from: 'Left' })),
-      ),
+      Structure.replaceTop(entry('Profile', Structure.Push())),
       Structure.push(
         'Search',
         Structure.Popover({
           anchor: Structure.ElementAnchor.make('library-row'),
         }),
       ),
-      Structure.push('Profile', Structure.Sheet()),
       Structure.setRoot('Library'),
     ])
-    expect(instructions.map(instruction => instruction._tag)).toEqual([
-      'Pop',
-      'ReplaceTop',
-      'Push',
-      'Push',
-      'SetRoot',
-    ])
+    expect(Structure.applyStackInstructions(previous, instructions)).toEqual(
+      next,
+    )
   })
 
   it('leaves a bare-root stack unchanged under Pop and ReplaceTop', () => {
@@ -514,23 +495,31 @@ describe('NavigationStack schema', () => {
     S.Literals(['Home', 'Library', 'Search', 'Settings', 'Profile']),
   )
 
-  it('round-trips a bare root and a presented run', () => {
+  const StackJson = S.toCodecJson(StackSchema)
+
+  it('round-trips a bare root and pages under a modal through JSON', () => {
     const bare = stackAtRoot('Home')
     const deep = Structure.stackWithEntries<Destination>('Home', [
-      entry('Search', Structure.Sheet()),
+      entry('Library', Structure.Push()),
       entry('Profile', Structure.Dialog()),
     ])
     expect(
-      S.decodeUnknownSync(StackSchema)(S.encodeSync(StackSchema)(bare)),
+      S.decodeUnknownSync(StackJson)(S.encodeSync(StackJson)(bare)),
     ).toEqual(bare)
-    expect(S.decodeUnknownSync(StackSchema)(deep)).toEqual(deep)
+    expect(
+      S.decodeUnknownSync(StackJson)(S.encodeSync(StackJson)(deep)),
+    ).toEqual(deep)
   })
 
-  it('rejects an empty presented run', () => {
+  it('rejects a Push as the modal, since a modal covers the pages', () => {
     expect(() =>
       S.decodeUnknownSync(StackSchema)({
         root: 'Home',
-        presented: { _tag: 'PresentingEntries', entries: [] },
+        pages: [],
+        maybeModal: Option.some({
+          destination: 'Search',
+          style: Structure.Push(),
+        }),
       }),
     ).toThrow()
   })

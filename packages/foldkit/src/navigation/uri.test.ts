@@ -18,7 +18,13 @@ import {
   sessionRoute,
 } from '../test/apps/navigationCounter.js'
 import * as Declaration from './declaration.js'
-import { Push, presented, stackAtRoot, stackWithEntries } from './structure.js'
+import {
+  Push,
+  entriesOf,
+  presented,
+  stackAtRoot,
+  stackWithEntries,
+} from './structure.js'
 import {
   canonicalUri,
   defaultUri,
@@ -85,7 +91,7 @@ describe('parseStack and printStack', () => {
     ['/counter/menu?menu.q=re&utm_source=mail', '/counter/menu?menu.q=re'],
     ['/counter/menu?menu.q=', '/counter/menu'],
     ['/counter/session/session', '/counter/session/session'],
-    ['/counter/menu/session', '/counter/menu/session'],
+    ['/counter/menu/session', '/counter/menu'],
     ['/counter/menu?menu.q=a%20b', '/counter/menu?menu.q=a+b'],
     ['/counter/a%2Fb', '/counter/a%2Fb'],
     ['/counter/nope/menu?menu.q=re', '/counter/nope/menu?menu.q=re'],
@@ -137,7 +143,7 @@ describe('parseStack and printStack', () => {
     const startedAt = performance.now()
     const stack = parseStack(navigation, longUri)
     expect(performance.now() - startedAt).toBeLessThan(50)
-    expect(stack.presented._tag).toBe('NothingPresented')
+    expect(entriesOf(stack)).toEqual([])
     expect(print(longUri)).toBe(longUri)
   })
 
