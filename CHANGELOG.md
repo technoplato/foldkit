@@ -4,6 +4,49 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 2:56:44 a.m. EDT — `52289fb42477` feat(multiple-counters): add React, Svelte, OpenTUI, CLI, and TUI hosts
+
+- **Implementation commit:** `52289fb42477f5a1b88a643e923a1bdfff9d8105`
+- **Change:** Add React, Svelte, OpenTUI, CLI, and TUI hosts and the ELI10 README
+- **Details:**
+  - Every Multiple Counters host is platform glue; the CLI and TUI share a file tape between runs; the README explains the ADTs, the states the types rule out (verified by `@ts-expect-error`), and the shared rules. Core CLI commands match every word, and the tail reads nested Messages as words.
+- **Files:**
+  - `examples/multiple-counters/README.md` — The ELI10 presentation.
+  - `examples/multiple-counters/{react,svelte,opentui,cli}` — Hosts.
+  - `packages/foldkit/src/cli/program.ts` — Match every command word.
+  - `packages/foldkit/src/cli/tail.ts` — Read nested Messages as words.
+- **User context (verbatim):**
+  > You can edit a counter from the list by up, down, reset, or delete. You can create a new counter, which will be appended to the list that you can interact with up, down, reset with the same disabled statuses, and now you can navigate into see a counter and interact with it on the um details screen and um All observers will receive updates to that counter.
+  > Multiple modals should not be possible. Just think about through all the different cases we want to make impossible at the compilation type checking layer through algebraic data types and then implement that. And then give me a presentation of how this is done. Kind of write a read me for an Eli 10.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 2:42:56 a.m. EDT — `0f114891e5b5` refactor(counter): let the Svelte host use WhenReady and DocumentTitle
+
+- **Implementation commit:** `0f114891e5b5b41d9d9ee05d9e52e317b8b9c6da`
+- **Change:** Let the Svelte host use WhenReady and DocumentTitle
+- **Details:**
+  - The Counter's Svelte host change that the core-owned look commit missed.
+- **Files:**
+  - `examples/counter/svelte/src/App.svelte` — WhenReady and DocumentTitle instead of a status branch and an app label.
+- **User context (verbatim):**
+  > Ensure that no business navigation or styling logic is contained within React, OpenTUI, our counter2e example, expo, react native, etc.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 2:42:56 a.m. EDT — `a316fcdfb24c` feat(multiple-counters): add the Multiple Counters core on row Actions and one modal
+
+- **Implementation commit:** `a316fcdfb24cb7593a9b47fb7d9991021f00003f`
+- **Change:** Add the Multiple Counters core on row Actions and one modal
+- **Details:**
+  - The Multiple Counters Program: a list of counters reusing the Counter Program, a page per counter, and a delete Dialog; core gains row Actions, keyedEntryOf, withoutDestinations, overlay styles, and a Navigation.screens typing fix.
+- **Files:**
+  - `examples/multiple-counters/core/src/*` — The Program, its ADTs, and tests.
+  - `packages/foldkit/src/catalog/catalog.ts` — Row Actions and Entry titles.
+  - `packages/foldkit/src/navigation/declaration.ts` — Type every declared screen.
+- **User context (verbatim):**
+  > You can edit a counter from the list by up, down, reset, or delete. You can create a new counter, which will be appended to the list that you can interact with up, down, reset with the same disabled statuses, and now you can navigate into see a counter and interact with it on the um details screen and um All observers will receive updates to that counter.
+  > Multiple modals should not be possible. Just think about through all the different cases we want to make impossible at the compilation type checking layer through algebraic data types and then implement that. And then give me a presentation of how this is done. Kind of write a read me for an Eli 10.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 2:20:33 a.m. EDT — `d7221ea5e672` feat(foldkit): move the screen look, titles, status, and terminal menu into core
 
 - **Implementation commit:** `d7221ea5e6726eec7ece1f7d94febfe33e9ed99c`
