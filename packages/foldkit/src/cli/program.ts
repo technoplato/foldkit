@@ -460,7 +460,7 @@ export const runProgramCommand = <Model, Message>(
   } else if (head === 'do') {
     return pressCommand(bound, name, rest.join(' '), tag => bound.press(tag))
   } else {
-    return pressCommand(bound, name, head, tag => bound.press(tag))
+    return pressCommand(bound, name, words.join(' '), tag => bound.press(tag))
   }
 }
 

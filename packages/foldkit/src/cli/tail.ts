@@ -39,11 +39,23 @@ const clockOf = (createdAtMs: number): string => {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
 }
 
-const fieldText = (value: unknown): string =>
-  typeof value === 'string' ? `"${value}"` : JSON.stringify(value)
+const isTagged = (
+  value: unknown,
+): value is Readonly<{ _tag: unknown }> & object =>
+  Predicate.isObject(value) && Predicate.hasProperty(value, '_tag')
+
+const fieldText = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return `"${value}"`
+  } else if (isTagged(value)) {
+    return describe(value)
+  } else {
+    return JSON.stringify(value)
+  }
+}
 
 const describe = (message: unknown): string => {
-  if (!Predicate.isObject(message) || !Predicate.hasProperty(message, '_tag')) {
+  if (!isTagged(message)) {
     return String(message)
   }
   const fields = pipe(
@@ -64,6 +76,7 @@ const describe = (message: unknown): string => {
  * formatTailRow(SyncedCounter.message, row)
  * // '00:53:05  React         ad55df2e  Increment'
  * // '00:53:09  CLI           4f2a9c1e  Changed action menu query  query "re"'
+ * // '00:53:12  CLI           4f2a9c1e  Got counter message  counterId 2  message Increment'
  * ```
  */
 export const formatTailRow = (

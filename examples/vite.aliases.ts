@@ -20,6 +20,11 @@ const counterCoreBrowserEntry = path.resolve(
   'counter/core/src/index.browser.ts',
 )
 
+const multipleCountersCoreBrowserEntry = path.resolve(
+  import.meta.dirname,
+  'multiple-counters/core/src/index.browser.ts',
+)
+
 const puzzleCoreBrowserEntry = path.resolve(
   import.meta.dirname,
   'puzzle/core/src/index.browser.ts',
@@ -56,6 +61,7 @@ export const instantBrowserAlias = {
   '@foldkit/instant/snapshot-log': instantSnapshotLogEntry,
   '@foldkit/instant': instantBrowserEntry,
   'counter-core-example': counterCoreBrowserEntry,
+  'multiple-counters-core-example': multipleCountersCoreBrowserEntry,
   'puzzle-core-example': puzzleCoreBrowserEntry,
   'songbook-core-example': songbookCoreEntry,
   'ingest-core-example': ingestCoreEntry,
