@@ -4,6 +4,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 6:31:26 p.m. EDT — `f5a592c32e1a` feat(foldkit): ask which value on Command or Control with an Action's key
+
+- **Implementation commit:** `f5a592c32e1ab6f681dff93df81be465f1854e6d`
+- **Change:** Ask which value on Command or Control with an Action's key
+- **Details:**
+  - Command (Control off a Mac) with a choosing Action's key opens the action menu at that Action's choices, from the page or inside the menu; `⌘-` on the counters list asks "Which counter?" for Decrement and cancels the browser's zoom.
+- **Files:**
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — The chord opens the choices.
+  - `packages/foldkit/src/catalog/catalog.ts` — `EntryChoices.keys`.
+  - `examples/multiple-counters/core/src/app.test.ts` — The chord from the list, the menu, and a dialog.
+- **User context (verbatim):**
+  > I should be able to hit command and invoke one of these. And that should be baked into the core program.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 6:25:56 p.m. EDT — `0d7a8dc154f7` feat(foldkit)!: present Session settings as a Sheet over the current page
+
+- **Implementation commit:** `0d7a8dc154f7e4d4c5279654e2471e6bf7aa534a`
+- **Change:** Present Session settings as a Sheet over the current page
+- **Details:**
+  - Session settings is a modal in the core navigation, a Sheet over whatever page is open; the action menu cannot open over it, choosing it from the menu replaces the menu, and it waits while a dialog is open.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — The settings route and opener present a Sheet.
+  - `packages/foldkit/src/test/apps/navigableCounter.ts` — A History page for tests that need a page under the menu.
+- **User context (verbatim):**
+  > should session settings become an overlay anyway? Yes, as a sheet, and make sure that's baked into the core navigational logic.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 5:27:15 p.m. EDT — `b2700c32c1be` fix(foldkit): show less at once on the Session page and in the TUI
 
 - **Implementation commit:** `b2700c32c1bed61769c88a1de3d70aaa24e1224b`
