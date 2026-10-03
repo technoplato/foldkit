@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 1:41:28 a.m. EDT — `4a12d3fe6157` feat(foldkit)!: hold at most one modal, always on top of the pages
+
+- **Implementation commit:** `4a12d3fe6157e701c8b61a9b7b73f38e0ae83dbc`
+- **Change:** Hold at most one modal, always on top of the pages
+- **Details:**
+  - `NavigationStack` is `{ root, pages, maybeModal }`: a second modal or a page above a modal is unrepresentable. A page pushed while a modal is open goes beneath it; a URI ends at its first modal. Session keeps its child's interaction in charge of the child's Actions. Counter moves to version 6.
+- **Files:**
+  - `packages/foldkit/src/navigation/structure.ts` — Replace the presented run with pages and at most one modal.
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Open the menu as the one modal.
+  - `packages/foldkit/src/session/session.ts` — Lift the child's interaction and add the session Actions after it.
+  - `examples/counter/core/src/program.ts` — Bump the Counter Program to version 6.
+- **User context (verbatim):**
+  > Multiple modals should not be possible. Just think about through all the different cases we want to make impossible at the compilation type checking layer through algebraic data types and then implement that.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 1:15:05 a.m. EDT — `f0606c693a4f` feat(foldkit): lay terminals out to 80 columns and add tail, labels, and settings
 
 - **Implementation commit:** `f0606c693a4f68c5b093247217d312214a645855`
