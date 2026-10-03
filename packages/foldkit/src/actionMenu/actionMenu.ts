@@ -844,6 +844,21 @@ const isToggleChord = (input: KeyInput): boolean =>
 const isOpenChord = (input: KeyInput): boolean =>
   Array.some(menuKeys, declared => isKey(declared, input))
 
+const choiceChordEntryOf = (
+  catalogEntries: ReadonlyArray<Entry>,
+  input: KeyInput,
+): Option.Option<Entry> =>
+  isChord(input) && !isToggleChord(input)
+    ? Array.findFirst(
+        catalogEntries,
+        entry =>
+          isEnabled(entry.availability) &&
+          Option.exists(entry.maybeChoices, choices =>
+            Array.contains(choices.keys, normalizeKey(input.key)),
+          ),
+      )
+    : Option.none()
+
 const isPrintable = (key: string, input: KeyInput): boolean =>
   key.length === 1 && !isChord(input)
 
@@ -852,7 +867,9 @@ const isPrintable = (key: string, input: KeyInput): boolean =>
  * global action menu. The menu is a presented destination on a navigation
  * stack whose root is the child's root, so synchronization modes decide
  * whether it mirrors across devices. The composed Model stays flat: the
- * child's fields plus `navigation`.
+ * child's fields plus `navigation`. Command or Control with an Action's
+ * key opens the menu straight at that Action's choices when it asks
+ * which: `⌘-` on the counters list opens "Decrement › Which counter?".
  *
  * @example
  * ```typescript
@@ -860,6 +877,8 @@ const isPrintable = (key: string, input: KeyInput): boolean =>
  * // App.Model: { count, navigation }
  * // App.interaction.pressKey(model, keyInput('k', { isMeta: true }))
  * //   → [OpenedActionMenu()]
+ * // App.interaction.pressKey(model, keyInput('-', { isMeta: true }))
+ * //   → [OpenedActionMenu(), OpenedActionMenuChoices({ tag: 'Decrement' })] for a choosing Decrement
  * ```
  */
 export const compose = <Child extends ActionMenuChild>(config: {
@@ -1246,7 +1265,20 @@ export const compose = <Child extends ActionMenuChild>(config: {
       },
     )
 
-  const pressKey = (
+  const choicesOpenedFor = (
+    model: AppModel,
+    tag: string,
+  ): ReadonlyArray<AppMessage> => {
+    if (isOpen(model)) {
+      return [OpenedActionMenuChoices({ tag })]
+    } else if (Option.isNone(model.navigation.maybeModal)) {
+      return [OpenedActionMenu(), OpenedActionMenuChoices({ tag })]
+    } else {
+      return []
+    }
+  }
+
+  const keyWithMenu = (
     model: AppModel,
     input: KeyInput,
   ): ReadonlyArray<AppMessage> => {
@@ -1264,6 +1296,15 @@ export const compose = <Child extends ActionMenuChild>(config: {
         ),
     })
   }
+
+  const pressKey = (
+    model: AppModel,
+    input: KeyInput,
+  ): ReadonlyArray<AppMessage> =>
+    Option.match(choiceChordEntryOf(entriesOf(model), input), {
+      onNone: () => keyWithMenu(model, input),
+      onSome: entry => choicesOpenedFor(model, entry.tag),
+    })
 
   const viewOfMenu = (
     model: AppModel,

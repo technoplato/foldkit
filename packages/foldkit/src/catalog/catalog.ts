@@ -359,13 +359,16 @@ export type Entry<Tag extends string = string> = Readonly<{
 
 /**
  * What a choosing entry offers: the field it fills, the question, each
- * choice with its own availability, and the choice a bare press takes.
+ * choice with its own availability, the choice a bare press takes, and the
+ * keys the Action declares. A bare key takes the preferred choice; the
+ * same key with Command or Control asks which, so on the list `⌘R` opens
+ * "Reset › Which counter?".
  *
  * @example
  * ```typescript
  * // two counters, Counter 1 at 0, Counter 2's page open
  * Option.getOrThrow(resetEntry.maybeChoices)
- * // { field: 'counterId', prompt: 'Which counter?', maybePreferred: Some('2'),
+ * // { field: 'counterId', prompt: 'Which counter?', maybePreferred: Some('2'), keys: ['r'],
  * //   choices: [{ token: '1', title: 'Counter 1', availability: Disabled('count is already 0') },
  * //             { token: '2', title: 'Counter 2', availability: Enabled() }] }
  * ```
@@ -375,6 +378,7 @@ export type EntryChoices = Readonly<{
   prompt: string
   choices: ReadonlyArray<EntryChoice>
   maybePreferred: Option.Option<string>
+  keys: ReadonlyArray<string>
 }>
 
 const summarized = (
@@ -413,6 +417,7 @@ const choicesEntryOf = <Model>(
       prompt: choose.prompt,
       choices,
       maybePreferred,
+      keys: declaration.meta.keys,
     }),
   }
 }

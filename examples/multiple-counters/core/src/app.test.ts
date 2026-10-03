@@ -262,6 +262,23 @@ describe('the action menu', () => {
     expect(Option.isNone(bound.menu())).toBe(true)
   })
 
+  it('asks which counter on Command with an Action key, from anywhere', () => {
+    const bound = bindApp()
+    bound.press('Add')
+    expect(bound.pressKey(Interaction.keyInput('-', { isMeta: true }))).toBe(
+      true,
+    )
+    expect(uriOf(bound)).toBe('/counters/menu?menu.choose=Decrement')
+    bound.pressKey(Interaction.keyInput('d', { isControl: true }))
+    expect(uriOf(bound)).toBe('/counters/menu?menu.choose=Delete')
+    bound.chooseFromMenu('Delete:2')
+    expect(uriOf(bound)).toBe('/counters/delete/2')
+    expect(bound.pressKey(Interaction.keyInput('-', { isMeta: true }))).toBe(
+      false,
+    )
+    expect(uriOf(bound)).toBe('/counters/delete/2')
+  })
+
   it('goes back from the choices on Escape, and closes on the next', () => {
     const bound = bindApp()
     bound.openMenu()

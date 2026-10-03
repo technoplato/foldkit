@@ -55,6 +55,19 @@ describe('React Multiple Counters', () => {
     expect(screen.getByLabelText('Counter 1 count 0')).toBeDefined()
   })
 
+  it('asks which counter on Command and an Action key, instead of zooming', async () => {
+    await renderApp()
+    const wasNotPrevented = fireEvent.keyDown(document, {
+      key: '-',
+      metaKey: true,
+    })
+    expect(wasNotPrevented).toBe(false)
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Which counter?')).toBeDefined()
+    })
+    expect(window.location.pathname).toBe('/counters/menu')
+  })
+
   it('opens a counter page in the address bar and counts with its keys', async () => {
     await renderApp()
     fireEvent.click(screen.getByRole('button', { name: 'Open' }))
