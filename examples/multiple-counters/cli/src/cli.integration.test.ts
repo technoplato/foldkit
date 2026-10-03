@@ -22,10 +22,14 @@ describe('counters CLI', () => {
   it('keeps counters between runs on one file tape', () => {
     const tapePath = tapeIn()
     expect(run(tapePath, 'add-counter').status).toBe(0)
-    expect(run(tapePath, 'increment', '2').status).toBe(0)
+    expect(run(tapePath, 'increment-counter', '2').status).toBe(0)
     const shown = run(tapePath)
     expect(shown.stdout).toMatch(/^Counter 2 1 /m)
-    expect(shown.stdout).toMatch(/^ +\$ counters increment 2$/m)
+    expect(shown.stdout).toMatch(
+      /^ {2}increment-counter <counter-id> +Increments/m,
+    )
+    expect(shown.stdout).toMatch(/^ +Choose one of: 1, 2$/m)
+    expect(shown.stdout).toMatch(/^ +\$ counters increment-counter 1$/m)
   })
 
   it('refuses a delete nobody was asked about, with its sentence', () => {
@@ -44,6 +48,14 @@ describe('counters CLI', () => {
     const deleted = run(tapePath, 'confirm-delete-counter')
     expect(deleted.status).toBe(0)
     expect(deleted.stdout).toContain('No counters yet.')
+  })
+})
+
+describe('counters CLI choices', () => {
+  it('asks which counter when a counting Action names none', () => {
+    const asked = run(tapeIn(), 'increment-counter')
+    expect(asked.status).toBe(2)
+    expect(asked.stderr.trim()).toBe('increment-counter needs one of: 1.')
   })
 })
 

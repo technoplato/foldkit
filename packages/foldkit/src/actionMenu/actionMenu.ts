@@ -11,7 +11,12 @@ import {
   pipe,
 } from 'effect'
 
-import { type CatalogCarrierOf, type Entry } from '../catalog/catalog.js'
+import {
+  type CatalogCarrierOf,
+  type Entry,
+  choicesAsEntries,
+  isEnabled,
+} from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
 import {
   type KeyInput,
@@ -92,17 +97,24 @@ export type Focus = typeof Focus.Type
 
 /**
  * The presented action menu, carried as a navigation destination the way
- * Swift Navigation carries a presented feature's state.
+ * Swift Navigation carries a presented feature's state. `maybeChoosing` is
+ * the Action whose choices the menu lists, such as Decrement counter's
+ * counters; None while it lists every Action.
  *
  * @example
  * ```typescript
  * ActionMenu({
  *   query: 're',
  *   focus: OnFilter({ maybeHighlighted: Option.some('Reset') }),
+ *   maybeChoosing: Option.none(),
  * })
  * ```
  */
-export const ActionMenu = ts('ActionMenu', { query: S.String, focus: Focus })
+export const ActionMenu = ts('ActionMenu', {
+  query: S.String,
+  focus: Focus,
+  maybeChoosing: S.Option(S.String),
+})
 /** The presented action menu. */
 export type ActionMenu = typeof ActionMenu.Type
 
@@ -151,6 +163,17 @@ export const ChoseActionMenuAction = m('ChoseActionMenuAction', {
   tag: S.String,
 })
 
+/**
+ * A person chose an Action that needs a choice, such as Decrement counter.
+ * The menu now lists its choices, Counter 1 and Counter 2, instead of
+ * sending anything.
+ */
+export const OpenedActionMenuChoices = m('OpenedActionMenuChoices', {
+  tag: S.String,
+})
+/** A person went back from a list of choices to every Action. */
+export const ClosedActionMenuChoices = m('ClosedActionMenuChoices')
+
 /** Every action menu Message. All of them are Navigation. */
 export const Message = S.Union([
   OpenedActionMenu,
@@ -158,6 +181,8 @@ export const Message = S.Union([
   ChangedActionMenuQuery,
   MovedActionMenuFocus,
   ChoseActionMenuAction,
+  OpenedActionMenuChoices,
+  ClosedActionMenuChoices,
 ])
 /** Every action menu Message. */
 export type Message = typeof Message.Type
@@ -386,6 +411,29 @@ export const opened = (visible: ReadonlyArray<Entry>): ActionMenu =>
   ActionMenu({
     query: '',
     focus: OnFilter({ maybeHighlighted: firstTag(visible) }),
+    maybeChoosing: Option.none(),
+  })
+
+/**
+ * The menu listing one Action's choices: empty query, filter focused, the
+ * first choice highlighted.
+ */
+export const choosing = (
+  tag: string,
+  visibleChoices: ReadonlyArray<Entry>,
+): ActionMenu =>
+  ActionMenu({
+    query: '',
+    focus: OnFilter({ maybeHighlighted: firstTag(visibleChoices) }),
+    maybeChoosing: Option.some(tag),
+  })
+
+/** The menu back at every Action, with the Action it came from highlighted. */
+export const backFromChoosing = (tag: string): ActionMenu =>
+  ActionMenu({
+    query: '',
+    focus: OnFilter({ maybeHighlighted: Option.some(tag) }),
+    maybeChoosing: Option.none(),
   })
 
 /**
@@ -407,7 +455,7 @@ export const withQuery = (
         isVisible(visibleAfter, tag) ? OnAction({ tag }) : bestMatch,
     }),
   )
-  return ActionMenu({ query, focus })
+  return ActionMenu({ ...menu, query, focus })
 }
 
 const focusOnAction = (
@@ -474,7 +522,7 @@ export const moved = (
   visible: ReadonlyArray<Entry>,
 ): ActionMenu =>
   ActionMenu({
-    query: menu.query,
+    ...menu,
     focus: M.value(menu.focus).pipe(
       M.withReturnType<Focus>(),
       M.tagsExhaustive({
@@ -490,24 +538,63 @@ const menuTitle = 'Actions'
 
 const menuFilterLabel = 'Search actions'
 
-const summaryOf = (query: string, rows: ReadonlyArray<MenuRow>): string =>
+type RowNoun = Readonly<{ one: string; many: string }>
+
+const actionNoun: RowNoun = { one: 'action', many: 'actions' }
+
+const choiceNoun: RowNoun = { one: 'choice', many: 'choices' }
+
+const summaryOf = (
+  query: string,
+  rows: ReadonlyArray<MenuRow>,
+  noun: RowNoun,
+): string =>
   Array.match(rows, {
     onEmpty: () =>
       String.isEmpty(query.trim())
-        ? 'No actions'
-        : `No actions match “${query.trim()}”`,
+        ? `No ${noun.many}`
+        : `No ${noun.many} match “${query.trim()}”`,
     onNonEmpty: nonEmpty =>
-      nonEmpty.length === 1 ? '1 action' : `${nonEmpty.length} actions`,
+      nonEmpty.length === 1
+        ? `1 ${noun.one}`
+        : `${nonEmpty.length.toString()} ${noun.many}`,
   })
 
-const hintsOf = (focus: Focus): ReadonlyArray<MenuHint> => [
+const escapeHintOf = (focus: Focus, isChoosing: boolean): string => {
+  if (focus._tag === 'OnAction') {
+    return 'back to search'
+  } else if (isChoosing) {
+    return 'back'
+  } else {
+    return 'close'
+  }
+}
+
+const hintsOf = (
+  focus: Focus,
+  isChoosing: boolean,
+): ReadonlyArray<MenuHint> => [
   { keys: ['↑', '↓'], does: 'move' },
   { keys: ['↵'], does: 'run' },
-  {
-    keys: ['esc'],
-    does: focus._tag === 'OnFilter' ? 'close' : 'back to search',
-  },
+  { keys: ['esc'], does: escapeHintOf(focus, isChoosing) },
 ]
+
+/**
+ * The entries a menu lists: every Action, or the choices of the one it is
+ * choosing for.
+ */
+export const stepEntriesOf = (
+  catalogEntries: ReadonlyArray<Entry>,
+  maybeChoosing: Option.Option<string>,
+): ReadonlyArray<Entry> =>
+  Option.match(maybeChoosing, {
+    onNone: () => catalogEntries,
+    onSome: tag =>
+      Option.match(
+        Array.findFirst(catalogEntries, entry => entry.tag === tag),
+        { onNone: () => [], onSome: choicesAsEntries },
+      ),
+  })
 
 const spokenLabelOf = (entry: Entry): string =>
   M.value(entry.availability).pipe(
@@ -527,6 +614,7 @@ const rowOf =
     description: matched.description,
     spokenLabel: spokenLabelOf(matched.entry),
     keys: Array.take(matched.entry.keys, 1),
+    isNested: Option.isSome(matched.entry.maybeChoices),
     isHighlighted: Option.contains(highlightedTag(focus), matched.entry.tag),
     isFocused: focus._tag === 'OnAction' && focus.tag === matched.entry.tag,
   })
@@ -549,19 +637,34 @@ export const menuViewOf = (
   menu: ActionMenu,
   style: PresentationStyle,
 ): MenuView => {
+  const maybeChoosingEntry = Option.flatMap(menu.maybeChoosing, tag =>
+    Array.findFirst(catalogEntries, entry => entry.tag === tag),
+  )
   const rows = Array.map(
-    matchedEntries(catalogEntries, menu.query),
+    matchedEntries(
+      stepEntriesOf(catalogEntries, menu.maybeChoosing),
+      menu.query,
+    ),
     rowOf(menu.focus),
   )
+  const isChoosing = Option.isSome(menu.maybeChoosing)
   return {
-    title: menuTitle,
-    filterLabel: menuFilterLabel,
+    title: Option.match(maybeChoosingEntry, {
+      onNone: () => menuTitle,
+      onSome: entry => entry.title,
+    }),
+    filterLabel: Option.getOrElse(
+      Option.flatMap(maybeChoosingEntry, entry =>
+        Option.map(entry.maybeChoices, choices => choices.prompt),
+      ),
+      () => menuFilterLabel,
+    ),
     dismissLabel: `Close ${menuTitle.toLowerCase()}`,
     query: menu.query,
     isFilterFocused: menu.focus._tag === 'OnFilter',
     rows,
-    summary: summaryOf(menu.query, rows),
-    hints: hintsOf(menu.focus),
+    summary: summaryOf(menu.query, rows, isChoosing ? choiceNoun : actionNoun),
+    hints: hintsOf(menu.focus, isChoosing),
     style,
   }
 }
@@ -598,18 +701,31 @@ const dismissMenu = <Destination>(
 
 // URI
 
-const MenuQuery = S.Struct({ q: S.optionalKey(S.String) })
+const MenuQuery = S.Struct({
+  q: S.optionalKey(S.String),
+  choose: S.optionalKey(S.String),
+})
 type MenuQuery = typeof MenuQuery.Type
 
-const menuQueryOf = (query: string): MenuQuery =>
-  String.isEmpty(query) ? {} : { q: query }
+const menuQueryOf = (menu: ActionMenu): MenuQuery => ({
+  ...(String.isEmpty(menu.query) ? {} : { q: menu.query }),
+  ...Option.match(menu.maybeChoosing, {
+    onNone: () => ({}),
+    onSome: tag => ({ choose: tag }),
+  }),
+})
 
 /**
- * The menu a URI opens: its query, and no highlight until the route
- * settles it against the Catalog.
+ * The menu a URI opens: its query, the Action it is choosing for, and no
+ * highlight until the route settles it against the Catalog.
+ * `/counters/menu?menu.choose=DecrementCounter` lists the counters.
  */
-const parsedMenu = (query: string): ActionMenu =>
-  ActionMenu({ query, focus: OnFilter({ maybeHighlighted: Option.none() }) })
+const parsedMenu = (fields: MenuQuery): ActionMenu =>
+  ActionMenu({
+    query: fields.q ?? '',
+    focus: OnFilter({ maybeHighlighted: Option.none() }),
+    maybeChoosing: Option.fromNullishOr(fields.choose),
+  })
 
 // COMPOSE
 
@@ -773,16 +889,22 @@ export const compose = <Child extends ActionMenuChild>(config: {
       ? childModel
       : { ...childModel, navigation: model.navigation }) as AppModel
 
-  const visibleOf = (model: AppModel, query: string): ReadonlyArray<Entry> =>
-    visibleEntries(childInteraction.entries(childOf(model)), query)
+  const entriesOf = (model: AppModel): ReadonlyArray<Entry> =>
+    childInteraction.entries(childOf(model))
+
+  const visibleOf = (
+    model: AppModel,
+    query: string,
+    maybeChoosing: Option.Option<string> = Option.none(),
+  ): ReadonlyArray<Entry> =>
+    visibleEntries(stepEntriesOf(entriesOf(model), maybeChoosing), query)
 
   const menuRoute = presentRoute(
     Route.caseOf<AppDestination, MenuQuery>(
       pipe(Route.literal('menu'), Route.query(MenuQuery)),
       {
-        embed: ({ q }) => parsedMenu(q ?? ''),
-        extract: destination =>
-          Option.map(asMenu(destination), menu => menuQueryOf(menu.query)),
+        embed: parsedMenu,
+        extract: destination => Option.map(asMenu(destination), menuQueryOf),
       },
     ),
     style,
@@ -813,7 +935,11 @@ export const compose = <Child extends ActionMenuChild>(config: {
       Option.match(asMenu(destination), {
         onNone: () => destination,
         onSome: (menu): AppDestination =>
-          withQuery(menu, menu.query, visibleOf(model, menu.query)),
+          withQuery(
+            menu,
+            menu.query,
+            visibleOf(model, menu.query, menu.maybeChoosing),
+          ),
       }),
   })
 
@@ -850,7 +976,11 @@ export const compose = <Child extends ActionMenuChild>(config: {
                 model,
                 replaceMenu<AppDestination>(
                   model.navigation,
-                  withQuery(menu, query, visibleOf(model, query)),
+                  withQuery(
+                    menu,
+                    query,
+                    visibleOf(model, query, menu.maybeChoosing),
+                  ),
                 ),
               ),
           }),
@@ -862,12 +992,46 @@ export const compose = <Child extends ActionMenuChild>(config: {
                 model,
                 replaceMenu<AppDestination>(
                   model.navigation,
-                  moved(menu, move, visibleOf(model, menu.query)),
+                  moved(
+                    menu,
+                    move,
+                    visibleOf(model, menu.query, menu.maybeChoosing),
+                  ),
                 ),
               ),
           }),
         ChoseActionMenuAction: () =>
           withNavigation(model, dismissMenu<AppDestination>(model.navigation)),
+        OpenedActionMenuChoices: ({ tag }) =>
+          Option.match(menuOf(model.navigation), {
+            onNone: () => [model, []],
+            onSome: () =>
+              withNavigation(
+                model,
+                replaceMenu<AppDestination>(
+                  model.navigation,
+                  choosing(tag, visibleOf(model, '', Option.some(tag))),
+                ),
+              ),
+          }),
+        ClosedActionMenuChoices: () =>
+          Option.match(
+            Option.flatMap(
+              menuOf(model.navigation),
+              menu => menu.maybeChoosing,
+            ),
+            {
+              onNone: () => [model, []],
+              onSome: tag =>
+                withNavigation(
+                  model,
+                  replaceMenu<AppDestination>(
+                    model.navigation,
+                    backFromChoosing(tag),
+                  ),
+                ),
+            },
+          ),
       }),
     )
 
@@ -917,9 +1081,24 @@ export const compose = <Child extends ActionMenuChild>(config: {
   const isOpen = (model: AppModel): boolean =>
     Option.isSome(menuOf(model.navigation))
 
+  const opensChoices = (model: AppModel, tag: string): boolean =>
+    Option.exists(menuOf(model.navigation), menu =>
+      Option.isNone(menu.maybeChoosing),
+    ) &&
+    Array.some(
+      entriesOf(model),
+      entry =>
+        entry.tag === tag &&
+        Option.isSome(entry.maybeChoices) &&
+        isEnabled(entry.availability),
+    )
+
   const choose = (model: AppModel, tag: string): ReadonlyArray<AppMessage> => {
     if (!isOpen(model)) {
       return []
+    }
+    if (opensChoices(model, tag)) {
+      return [OpenedActionMenuChoices({ tag })]
     }
     return Array.match(childInteraction.press(childOf(model), tag), {
       onEmpty: () => [],
@@ -937,8 +1116,13 @@ export const compose = <Child extends ActionMenuChild>(config: {
     key: string,
     input: KeyInput,
   ): ReadonlyArray<AppMessage> => {
-    if (key === 'Escape' || isToggleChord(input)) {
+    if (isToggleChord(input)) {
       return [DismissedActionMenu()]
+    }
+    if (key === 'Escape') {
+      return Option.isSome(menu.maybeChoosing)
+        ? [ClosedActionMenuChoices()]
+        : [DismissedActionMenu()]
     }
     if (key === 'Enter') {
       return Option.match(focus.maybeHighlighted, {
@@ -953,9 +1137,13 @@ export const compose = <Child extends ActionMenuChild>(config: {
       return [MovedActionMenuFocus({ move: 'Previous' })]
     }
     if (key === 'Backspace') {
-      return menu.query === ''
-        ? []
-        : [ChangedActionMenuQuery({ query: menu.query.slice(0, -1) })]
+      if (menu.query !== '') {
+        return [ChangedActionMenuQuery({ query: menu.query.slice(0, -1) })]
+      } else if (Option.isSome(menu.maybeChoosing)) {
+        return [ClosedActionMenuChoices()]
+      } else {
+        return []
+      }
     }
     if (isPrintable(key, input)) {
       return [ChangedActionMenuQuery({ query: `${menu.query}${key}` })]

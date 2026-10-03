@@ -62,7 +62,7 @@ describe('React Multiple Counters', () => {
     })
     fireEvent.keyDown(document, { key: '+' })
     await waitFor(() => {
-      expect(screen.getByLabelText('count 1')).toBeDefined()
+      expect(screen.getByLabelText('Counter 1 count 1')).toBeDefined()
     })
     expect(document.title).toBe('Counter 1 | React')
   })

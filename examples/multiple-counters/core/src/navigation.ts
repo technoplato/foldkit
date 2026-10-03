@@ -62,7 +62,7 @@ const viewOf = (
       Navigation.screenView(
         Option.match(counterOf(model, destination.counterId), {
           onNone: () => missingScreen(destination.counterId),
-          onSome: detailScreen,
+          onSome: row => detailScreen(model, row),
         }),
       ),
     )

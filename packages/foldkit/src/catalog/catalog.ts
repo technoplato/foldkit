@@ -50,6 +50,71 @@ export type ActionMeta = Readonly<{
   keys: ReadonlyArray<string>
 }>
 
+/**
+ * One value a choosing Action can take right now: the value, how a person
+ * reads it, what sets it apart, and whether it is offered. Availability
+ * defaults to Enabled, and the detail to the Action's `what`.
+ *
+ * @example
+ * ```typescript
+ * const choice: Catalog.Choice<CounterId> = { value: 3, title: 'Counter 3', detail: 'count 5' }
+ * ```
+ */
+export type Choice<Value> = Readonly<{
+  value: Value
+  title: string
+  detail?: string
+  availability?: Availability
+}>
+
+/**
+ * How a choosing Action picks the value its one field takes. The Action is
+ * one entry everywhere, and the person picks the value second: the menu
+ * opens a nested step, a button presses one value, the CLI takes it as a
+ * word. `token` prints a value as one word, `3`, for press tags, CLI
+ * commands, and URIs. `preferredOf` is the value a bare press or key takes,
+ * such as the counter whose page is open. `nothingToChoose` is the sentence
+ * when there are no choices.
+ *
+ * @example
+ * ```typescript
+ * const choose: Catalog.Choose<Model, 'counterId', CounterId> = {
+ *   field: 'counterId',
+ *   prompt: 'Which counter?',
+ *   token: CounterIdSegment,
+ *   choicesOf: model => model.counters.map(row => ({ value: row.counterId, title: `Counter ${row.counterId}` })),
+ *   preferredOf: shownOf,
+ *   nothingToChoose: 'there are no counters yet',
+ * }
+ * ```
+ */
+export type Choose<Model, Field extends string, Value> = Readonly<{
+  field: Field
+  prompt: string
+  token: S.Codec<Value, string>
+  choicesOf: (model: Model) => ReadonlyArray<Choice<Value>>
+  preferredOf?: (model: Model) => Option.Option<Value>
+  nothingToChoose: string
+}>
+
+/** One choice as every surface reads it, its value printed as a token. */
+export type EntryChoice = Readonly<{
+  token: string
+  title: string
+  maybeDetail: Option.Option<string>
+  availability: Availability
+}>
+
+/** A Choose with its value printed, as a declaration keeps it. */
+export type ChooseDeclaration<Model> = Readonly<{
+  field: string
+  prompt: string
+  nothingToChoose: string
+  choicesOf: (model: Model) => ReadonlyArray<EntryChoice>
+  preferredOf: (model: Model) => Option.Option<string>
+  valueOf: (token: string) => Option.Option<unknown>
+}>
+
 /** The declaration an Action carries beside its Message constructor. */
 export type ActionDeclaration<Tag extends string, Model> = Readonly<{
   tag: Tag
@@ -58,6 +123,7 @@ export type ActionDeclaration<Tag extends string, Model> = Readonly<{
   enabled: (model: Model) => Availability
   meta: ActionMeta
   isPayloadFree: boolean
+  maybeChoose: Option.Option<ChooseDeclaration<Model>>
 }>
 
 /**
@@ -109,6 +175,19 @@ export function action<Tag extends string, Model = unknown>(
 export function action<
   Tag extends string,
   Fields extends S.Struct.Fields,
+  Field extends keyof Fields & string,
+  Model = unknown,
+>(
+  tag: Tag,
+  config: ActionConfig<Model> &
+    Readonly<{
+      fields: Fields
+      choose: Choose<Model, Field, Fields[Field]['Type']>
+    }>,
+): Action<Tag, Fields, Model>
+export function action<
+  Tag extends string,
+  Fields extends S.Struct.Fields,
   Model = unknown,
 >(
   tag: Tag,
@@ -116,7 +195,11 @@ export function action<
 ): Action<Tag, Fields, Model>
 export function action(
   tag: string,
-  config: ActionConfig<any> & Readonly<{ fields?: S.Struct.Fields }>,
+  config: ActionConfig<any> &
+    Readonly<{
+      fields?: S.Struct.Fields
+      choose?: Choose<any, string, any>
+    }>,
 ): any {
   const fields = config.fields ?? {}
   return callableWith(S.TaggedStruct(tag, fields), {
@@ -126,7 +209,34 @@ export function action(
     enabled: config.enabled ?? alwaysEnabled,
     meta: config.meta,
     isPayloadFree: Array.isReadonlyArrayEmpty(Object.keys(fields)),
+    maybeChoose: Option.map(Option.fromNullishOr(config.choose), chooseOf),
   })
+}
+
+const chooseOf = <Model, Value>(
+  choose: Choose<Model, string, Value>,
+): ChooseDeclaration<Model> => {
+  const printToken = S.encodeSync(choose.token)
+  return {
+    field: choose.field,
+    prompt: choose.prompt,
+    nothingToChoose: choose.nothingToChoose,
+    choicesOf: model =>
+      Array.map(choose.choicesOf(model), choice => ({
+        token: printToken(choice.value),
+        title: choice.title,
+        maybeDetail: Option.fromNullishOr(choice.detail),
+        availability: choice.availability ?? Enabled(),
+      })),
+    preferredOf: model =>
+      Option.map(
+        choose.preferredOf === undefined
+          ? Option.none()
+          : choose.preferredOf(model),
+        printToken,
+      ),
+    valueOf: S.decodeUnknownOption(choose.token),
+  }
 }
 
 // CATALOG
@@ -233,9 +343,74 @@ export type Entry<Tag extends string = string> = Readonly<{
   keys: ReadonlyArray<string>
   availability: Availability
   isPayloadFree: boolean
+  maybeChoices: Option.Option<EntryChoices>
 }>
 
-/** Projects one Action declaration against the current Model. */
+/**
+ * What a choosing entry offers: the field it fills, the question, each
+ * choice with its own availability, and the choice a bare press takes.
+ *
+ * @example
+ * ```typescript
+ * // two counters, Counter 1 at 0, Counter 2's page open
+ * Option.getOrThrow(resetEntry.maybeChoices)
+ * // { field: 'counterId', prompt: 'Which counter?', maybePreferred: Some('2'),
+ * //   choices: [{ token: '1', title: 'Counter 1', availability: Disabled('count is already 0') },
+ * //             { token: '2', title: 'Counter 2', availability: Enabled() }] }
+ * ```
+ */
+export type EntryChoices = Readonly<{
+  field: string
+  prompt: string
+  choices: ReadonlyArray<EntryChoice>
+  maybePreferred: Option.Option<string>
+}>
+
+const summarized = (
+  choices: ReadonlyArray<EntryChoice>,
+  nothingToChoose: string,
+): Availability =>
+  Option.match(Array.head(choices), {
+    onNone: () => Disabled({ because: nothingToChoose }),
+    onSome: first =>
+      Array.some(choices, choice => isEnabled(choice.availability))
+        ? Enabled()
+        : first.availability,
+  })
+
+const choicesEntryOf = <Model>(
+  declaration: ActionDeclaration<string, Model>,
+  choose: ChooseDeclaration<Model>,
+  model: Model,
+): Pick<Entry, 'availability' | 'keys' | 'maybeChoices'> => {
+  const actionAvailability = declaration.enabled(model)
+  const choices = Array.map(choose.choicesOf(model), choice =>
+    isEnabled(actionAvailability)
+      ? choice
+      : { ...choice, availability: actionAvailability },
+  )
+  const maybePreferred = Option.filter(choose.preferredOf(model), token =>
+    Array.some(choices, choice => choice.token === token),
+  )
+  return {
+    availability: isEnabled(actionAvailability)
+      ? summarized(choices, choose.nothingToChoose)
+      : actionAvailability,
+    keys: Option.isSome(maybePreferred) ? declaration.meta.keys : [],
+    maybeChoices: Option.some({
+      field: choose.field,
+      prompt: choose.prompt,
+      choices,
+      maybePreferred,
+    }),
+  }
+}
+
+/**
+ * Projects one Action declaration against the current Model. A choosing
+ * Action is Enabled while any choice is, and carries its keys only while
+ * it has a preferred choice for them to press.
+ */
 export const entryOf = <Tag extends string, Model>(
   declaration: ActionDeclaration<Tag, Model>,
   model: Model,
@@ -245,9 +420,15 @@ export const entryOf = <Tag extends string, Model>(
   what: declaration.what,
   why: declaration.why,
   label: declaration.meta.label,
-  keys: declaration.meta.keys,
-  availability: declaration.enabled(model),
   isPayloadFree: declaration.isPayloadFree,
+  ...Option.match(declaration.maybeChoose, {
+    onNone: () => ({
+      keys: declaration.meta.keys,
+      availability: declaration.enabled(model),
+      maybeChoices: Option.none(),
+    }),
+    onSome: choose => choicesEntryOf(declaration, choose, model),
+  }),
 })
 
 /** Projects every Action of a Catalog against the current Model, in order. */
@@ -275,21 +456,21 @@ export const findByKey = <C extends AnyCatalog>(
     Array.contains(declaration.meta.keys, key),
   )
 
-const rowSeparator = ':'
+const choiceSeparator = ':'
 
 /**
- * The CLI word for a tag, derived rather than declared. A row Action's
- * tag reads as the word, then the row.
+ * The CLI word for a tag, derived rather than declared. A choice tag reads
+ * as the Action's word, then the choice.
  *
  * @example
  * ```typescript
  * Catalog.commandOf('Increment') // 'increment'
  * Catalog.commandOf('ResetCount') // 'reset-count'
- * Catalog.commandOf('Increment:3') // 'increment 3'
+ * Catalog.commandOf('DecrementCounter:3') // 'decrement-counter 3'
  * ```
  */
 export const commandOf = (tag: string): string =>
-  Option.match(String.indexOf(rowSeparator)(tag), {
+  Option.match(String.indexOf(choiceSeparator)(tag), {
     onNone: () => wordOf(tag),
     onSome: index => `${wordOf(tag.slice(0, index))} ${tag.slice(index + 1)}`,
   })
@@ -307,14 +488,70 @@ export const findByCommand = <C extends AnyCatalog>(
     declaration => commandOf(declaration.tag) === command,
   )
 
+const chosenOf = <C extends AnyCatalog>(
+  catalog: C,
+  model: ModelOf<C>,
+  tag: string,
+): Option.Option<Readonly<{ declaration: ActionOf<C>; token: string }>> => {
+  const choosing = (actionTag: string) =>
+    Option.filter(find(catalog, actionTag), declaration =>
+      Option.isSome(declaration.maybeChoose),
+    )
+  return Option.orElse(
+    Option.flatMap(parseChoiceTag(tag), parsed =>
+      Option.map(choosing(parsed.tag), declaration => ({
+        declaration,
+        token: parsed.token,
+      })),
+    ),
+    () =>
+      Option.flatMap(choosing(tag), declaration =>
+        Option.flatMap(
+          Option.flatMap(
+            entryOf(declaration, model).maybeChoices,
+            choices => choices.maybePreferred,
+          ),
+          token => Option.some({ declaration, token }),
+        ),
+      ),
+  )
+}
+
+const choiceMessageFor = <C extends AnyCatalog>(
+  catalog: C,
+  model: ModelOf<C>,
+  tag: string,
+): Option.Option<MessageOf<C>> =>
+  Option.flatMap(chosenOf(catalog, model, tag), ({ declaration, token }) =>
+    Option.flatMap(declaration.maybeChoose, choose => {
+      const isOffered = Option.exists(
+        entryOf(declaration, model).maybeChoices,
+        choices =>
+          Array.some(
+            choices.choices,
+            choice => choice.token === token && isEnabled(choice.availability),
+          ),
+      )
+      return isOffered
+        ? Option.map(choose.valueOf(token), value =>
+            declaration.make({ [choose.field]: value }),
+          )
+        : Option.none()
+    }),
+  )
+
 /**
- * Builds the Message for a payload-free Action that is Enabled for `model`.
- * None when the Action is unknown, needs fields, or is Disabled.
+ * Builds the Message an Enabled Action sends for `model`: a payload-free
+ * Action by its tag, a choosing Action by a choice tag, or by its bare tag
+ * when it has a preferred choice. None when the Action is unknown, needs
+ * other fields, or is Disabled.
  *
  * @example
  * ```typescript
  * Catalog.messageFor(catalog, { count: 3 }, 'Reset') // Some(Reset())
  * Catalog.messageFor(catalog, { count: 0 }, 'Reset') // None
+ * Catalog.messageFor(catalog, model, 'DecrementCounter:2') // Some(DecrementCounter({ counterId: 2 }))
+ * Catalog.messageFor(catalog, onCounter2Page, 'DecrementCounter') // Some(DecrementCounter({ counterId: 2 }))
  * ```
  */
 export const messageFor = <C extends AnyCatalog>(
@@ -322,13 +559,16 @@ export const messageFor = <C extends AnyCatalog>(
   model: ModelOf<C>,
   tag: string,
 ): Option.Option<MessageOf<C>> =>
-  pipe(
-    find(catalog, tag),
-    Option.filter(
-      declaration =>
-        declaration.isPayloadFree && isEnabled(declaration.enabled(model)),
+  Option.orElse(
+    pipe(
+      find(catalog, tag),
+      Option.filter(
+        declaration =>
+          declaration.isPayloadFree && isEnabled(declaration.enabled(model)),
+      ),
+      Option.map(declaration => declaration.make({})),
     ),
-    Option.map(declaration => declaration.make({})),
+    () => choiceMessageFor(catalog, model, tag),
   )
 
 // TITLE
@@ -358,73 +598,100 @@ export const titleOf = (tag: string): string =>
     Array.join(' '),
   )
 
-// ROWS
+// CHOICES
 
 /**
- * One row of a list a row Catalog acts on: the id its tags carry, the name
- * its titles read, and the row's own Model.
+ * The tag that presses a choosing Action with one choice: the Action's
+ * tag, then the choice's token.
  *
  * @example
  * ```typescript
- * const row: Catalog.Row<CounterModel> = { id: '3', name: 'counter 3', model: { count: 5 } }
+ * Catalog.choiceTagOf('DecrementCounter', '2') // 'DecrementCounter:2'
  * ```
  */
-export type Row<Model> = Readonly<{ id: string; name: string; model: Model }>
+export const choiceTagOf = (tag: string, token: string): string =>
+  `${tag}${choiceSeparator}${token}`
 
 /**
- * The tag a row's Action presses: the Action's tag, then the row.
+ * The Action tag and choice token a choice tag names. None for a tag with
+ * no choice.
  *
  * @example
  * ```typescript
- * Catalog.rowTagOf('Increment', '3') // 'Increment:3'
+ * Catalog.parseChoiceTag('DecrementCounter:2') // Some({ tag: 'DecrementCounter', token: '2' })
+ * Catalog.parseChoiceTag('DecrementCounter') // None
  * ```
  */
-export const rowTagOf = (tag: string, rowId: string): string =>
-  `${tag}${rowSeparator}${rowId}`
-
-/**
- * The Action tag and row a row tag names. None for a tag with no row.
- *
- * @example
- * ```typescript
- * Catalog.parseRowTag('Increment:3') // Some({ tag: 'Increment', rowId: '3' })
- * Catalog.parseRowTag('Increment') // None
- * ```
- */
-export const parseRowTag = (
-  rowTag: string,
-): Option.Option<Readonly<{ tag: string; rowId: string }>> =>
+export const parseChoiceTag = (
+  choiceTag: string,
+): Option.Option<Readonly<{ tag: string; token: string }>> =>
   pipe(
-    String.indexOf(rowSeparator)(rowTag),
-    Option.filter(index => index > 0 && index < rowTag.length - 1),
+    String.indexOf(choiceSeparator)(choiceTag),
+    Option.filter(index => index > 0 && index < choiceTag.length - 1),
     Option.map(index => ({
-      tag: rowTag.slice(0, index),
-      rowId: rowTag.slice(index + 1),
+      tag: choiceTag.slice(0, index),
+      token: choiceTag.slice(index + 1),
     })),
   )
 
 /**
- * A row Catalog's entries for one row: each Action against the row's own
- * Model, so a Disabled Reset says why for that row alone, tagged and
- * titled for the row. Many rows share one key, so the entries carry keys
- * only when `hasKeys` says this row owns them, such as the row a detail
- * page shows.
+ * Each choice of a choosing entry as an entry of its own, the rows of the
+ * menu's nested step: titled by the choice, described by the Action, and
+ * pressing the choice tag.
  *
  * @example
  * ```typescript
- * Catalog.rowEntries(counterCatalog, { id: '3', name: 'counter 3', model: { count: 0 } })
- * // [{ tag: 'Increment:3', title: 'Increment counter 3', keys: [], ... },
- * //  { tag: 'Reset:3', availability: Disabled('count is already 0'), ... }]
+ * Catalog.choicesAsEntries(decrementEntry)
+ * // [{ tag: 'DecrementCounter:1', title: 'Counter 1', what: 'count 0', ... }, ...]
  * ```
  */
-export const rowEntries = <C extends AnyCatalog>(
-  catalog: C,
-  row: Row<ModelOf<C>>,
-  options: Readonly<{ hasKeys?: boolean }> = {},
+export const choicesAsEntries = (entry: Entry): ReadonlyArray<Entry> =>
+  Option.match(entry.maybeChoices, {
+    onNone: () => [],
+    onSome: ({ choices }) =>
+      Array.map(choices, choice => ({
+        ...entry,
+        tag: choiceTagOf(entry.tag, choice.token),
+        title: choice.title,
+        what: Option.getOrElse(choice.maybeDetail, () => entry.what),
+        label: choice.title,
+        keys: [],
+        availability: choice.availability,
+        isPayloadFree: true,
+        maybeChoices: Option.none(),
+      })),
+  })
+
+/**
+ * The entries one choice offers, for a screen that shows that choice, such
+ * as a counter's row: every choosing entry that has `token`, pressing it
+ * with that choice, with the Action's own label and, for the preferred
+ * choice, its keys.
+ *
+ * @example
+ * ```typescript
+ * actionButtons(Catalog.entriesFor(Catalog.entries(catalog, model), '2'))
+ * // [+] [-] [Reset] [Open] [Delete] for Counter 2
+ * ```
+ */
+export const entriesFor = (
+  catalogEntries: ReadonlyArray<Entry>,
+  token: string,
 ): ReadonlyArray<Entry> =>
-  Array.map(entries(catalog, row.model), entry => ({
-    ...entry,
-    tag: rowTagOf(entry.tag, row.id),
-    title: `${entry.title} ${row.name}`,
-    keys: options.hasKeys === true ? entry.keys : [],
-  }))
+  Array.flatMap(catalogEntries, entry =>
+    Option.match(entry.maybeChoices, {
+      onNone: () => [],
+      onSome: ({ choices, maybePreferred }) =>
+        Array.map(
+          Array.filter(choices, choice => choice.token === token),
+          choice => ({
+            ...entry,
+            tag: choiceTagOf(entry.tag, token),
+            availability: choice.availability,
+            keys: Option.contains(maybePreferred, token) ? entry.keys : [],
+            isPayloadFree: true,
+            maybeChoices: Option.none(),
+          }),
+        ),
+    }),
+  )

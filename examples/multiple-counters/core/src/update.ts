@@ -1,4 +1,7 @@
 import {
+  Decrement,
+  Increment,
+  Reset,
   update as counterUpdate,
   init as initCounter,
 } from 'counter-core-example'
@@ -14,7 +17,7 @@ import {
   isConfirmDelete,
   namesCounter,
 } from './destination.js'
-import type { Message, RowAction } from './message.js'
+import type { Message } from './message.js'
 import { type CounterRow, type Model, counterOf } from './model.js'
 import { navigation } from './navigation.js'
 
@@ -112,48 +115,43 @@ const withCounter = (
 const countedBy = (
   model: Model,
   counterId: CounterId,
-  action: Parameters<typeof counterUpdate>[1],
+  counterMessage: Parameters<typeof counterUpdate>[1],
 ): Model =>
   withCounter(model, counterId, row => ({
     ...row,
-    counter: counterUpdate(row.counter, action)[0],
+    counter: counterUpdate(row.counter, counterMessage)[0],
   }))
 
-const rowUpdate = (
-  model: Model,
-  counterId: CounterId,
-  action: RowAction,
-): Model =>
-  M.value(action).pipe(
-    M.withReturnType<Model>(),
-    M.tagsExhaustive({
-      Increment: increment => countedBy(model, counterId, increment),
-      Decrement: decrement => countedBy(model, counterId, decrement),
-      Reset: reset => countedBy(model, counterId, reset),
-      OpenCounter: () => openedCounter(model, counterId),
-      DeleteCounter: () => askedToDelete(model, counterId),
-    }),
-  )
-
 /**
- * Applies one Multiple Counters Message. A row Action for a counter that
- * no longer exists changes nothing, since another device may have
- * deleted it first.
+ * Applies one Multiple Counters Message. Counting hands the single
+ * Counter's own Message to the Counter's own update for that one counter.
+ * An Action for a counter that no longer exists changes nothing, since
+ * another device may have deleted it first.
  */
 export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     withUpdateReturn,
     M.tagsExhaustive({
       AddCounter: () => [addedCounter(model), []],
+      IncrementCounter: ({ counterId }) => [
+        countedBy(model, counterId, Increment()),
+        [],
+      ],
+      DecrementCounter: ({ counterId }) => [
+        countedBy(model, counterId, Decrement()),
+        [],
+      ],
+      ResetCounter: ({ counterId }) => [
+        countedBy(model, counterId, Reset()),
+        [],
+      ],
+      OpenCounter: ({ counterId }) => [openedCounter(model, counterId), []],
+      DeleteCounter: ({ counterId }) => [askedToDelete(model, counterId), []],
       ConfirmDeleteCounter: ({ counterId }) => [
         deletedCounter(model, counterId),
         [],
       ],
       CancelDeleteCounter: () => [closedQuestion(model), []],
-      GotCounterMessage: ({ counterId, message: rowMessage }) => [
-        rowUpdate(model, counterId, rowMessage),
-        [],
-      ],
       OpenedUri: fact => [Navigation.foldMessage(navigation, model, fact), []],
       NavigatedBack: fact => [
         Navigation.foldMessage(navigation, model, fact),

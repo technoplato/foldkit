@@ -1,6 +1,12 @@
 import { Array, Effect, Match as M, Option, pipe } from 'effect'
 
-import { type Entry, commandOf } from '../catalog/catalog.js'
+import {
+  type Availability,
+  type Entry,
+  choiceTagOf,
+  commandOf,
+  isEnabled,
+} from '../catalog/catalog.js'
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type MenuView, keyInput } from '../interaction/interaction.js'
 import { terminalLineText, terminalMenuLines } from '../interaction/terminal.js'
@@ -42,9 +48,70 @@ const widestOf = (texts: ReadonlyArray<string>, minimum: number): number =>
     Math.max(widest, text.length + columnGap),
   )
 
+/**
+ * How an Action reads as a CLI command: its word, then the choice it
+ * needs, `decrement-counter <counter-id>`.
+ */
+const usageOf = (entry: Entry): string =>
+  Option.match(entry.maybeChoices, {
+    onNone: () => commandOf(entry.tag),
+    onSome: choices =>
+      `${commandOf(entry.tag)} <${commandOf(capitalized(choices.field))}>`,
+  })
+
+const capitalized = (word: string): string =>
+  `${word.charAt(0).toUpperCase()}${word.slice(1)}`
+
+const offeredTokensOf = (entry: Entry): ReadonlyArray<string> =>
+  Option.match(entry.maybeChoices, {
+    onNone: () => [],
+    onSome: ({ choices }) =>
+      Array.map(
+        Array.filter(choices, choice => isEnabled(choice.availability)),
+        choice => choice.token,
+      ),
+  })
+
+const choiceLines = (entry: Entry, column: number): ReadonlyArray<string> =>
+  Option.match(entry.maybeChoices, {
+    onNone: () => [],
+    onSome: ({ choices }) => {
+      const offered = offeredTokensOf(entry)
+      return [
+        ...(Array.isReadonlyArrayEmpty(offered)
+          ? []
+          : underColumn(column, `Choose one of: ${Array.join(offered, ', ')}`)),
+        ...Array.flatMap(choices, choice =>
+          M.value(choice.availability).pipe(
+            M.withReturnType<ReadonlyArray<string>>(),
+            M.tagsExhaustive({
+              Enabled: () => [],
+              Disabled: ({ because }) =>
+                isEnabled(entry.availability)
+                  ? underColumn(
+                      column,
+                      `Unavailable for ${choice.token}: ${because}`,
+                    )
+                  : [],
+            }),
+          ),
+        ),
+      ]
+    },
+  })
+
+const exampleWordsOf = (entry: Entry): Option.Option<string> =>
+  Option.match(entry.maybeChoices, {
+    onNone: () => Option.some(commandOf(entry.tag)),
+    onSome: () =>
+      Option.map(Array.head(offeredTokensOf(entry)), token =>
+        commandOf(choiceTagOf(entry.tag, token)),
+      ),
+  })
+
 const actionColumnsOf = (entries: ReadonlyArray<Entry>): ActionColumns => {
   const commandWidth = widestOf(
-    Array.map(entries, entry => `  ${commandOf(entry.tag)}`),
+    Array.map(entries, entry => `  ${usageOf(entry)}`),
     minimumCommandWidth,
   )
   const keysWidth = widestOf(
@@ -92,12 +159,17 @@ const actionTable = (
   const columns = actionColumnsOf(entries)
   const rowsOf = (entry: Entry): ReadonlyArray<string> => [
     ...columnRow(
-      [indent, commandOf(entry.tag), keysTextOf(entry.keys)],
+      [indent, usageOf(entry), keysTextOf(entry.keys)],
       [indentWidth, columns.commandWidth, columns.keysWidth],
       entry.what,
     ),
     ...unavailableLines(entry, columns.descriptionColumn),
-    ...exampleLines(maybeName, columns.descriptionColumn, commandOf(entry.tag)),
+    ...choiceLines(entry, columns.descriptionColumn),
+    ...Option.match(exampleWordsOf(entry), {
+      onNone: () => [],
+      onSome: words =>
+        exampleLines(maybeName, columns.descriptionColumn, words),
+    }),
   ]
   return Option.match(maybeName, {
     onNone: () => Array.flatMap(entries, rowsOf),
@@ -307,11 +379,34 @@ const painted = (
   ...(stderr === '' ? {} : { stderr }),
 })
 
-const findEntry = <Model, Message>(
+type Command = Readonly<{
+  entry: Entry
+  tag: string
+  availability: Availability
+}>
+
+const commandFor = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   command: string,
-): Option.Option<Entry> =>
-  Array.findFirst(bound.entries(), entry => commandOf(entry.tag) === command)
+): Option.Option<Command> =>
+  Array.findFirst(
+    Array.flatMap(
+      bound.entries(),
+      (entry): ReadonlyArray<Command> => [
+        { entry, tag: entry.tag, availability: entry.availability },
+        ...Option.match(entry.maybeChoices, {
+          onNone: () => [],
+          onSome: ({ choices }) =>
+            Array.map(choices, choice => ({
+              entry,
+              tag: choiceTagOf(entry.tag, choice.token),
+              availability: choice.availability,
+            })),
+        }),
+      ],
+    ),
+    candidate => commandOf(candidate.tag) === command,
+  )
 
 const pressCommand = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
@@ -319,26 +414,30 @@ const pressCommand = <Model, Message>(
   command: string,
   press: (tag: string) => boolean,
 ): CliDaemonPaintedResult =>
-  Option.match(findEntry(bound, command), {
+  Option.match(commandFor(bound, command), {
     onNone: () =>
       painted(
         paintProgram(bound, name),
         2,
-        `Unknown command "${command}". Try one of: ${Array.map(bound.entries(), entry => commandOf(entry.tag)).join(', ')}.`,
+        `Unknown command "${command}". Try one of: ${Array.map(bound.entries(), usageOf).join(', ')}.`,
       ),
-    onSome: entry =>
-      M.value(entry.availability).pipe(
+    onSome: found =>
+      M.value(found.availability).pipe(
         M.withReturnType<CliDaemonPaintedResult>(),
         M.tagsExhaustive({
-          Enabled: () => {
-            press(entry.tag)
-            return painted(paintProgram(bound, name))
-          },
+          Enabled: () =>
+            press(found.tag) || Option.isNone(found.entry.maybeChoices)
+              ? painted(paintProgram(bound, name))
+              : painted(
+                  paintProgram(bound, name),
+                  2,
+                  `${commandOf(found.entry.tag)} needs one of: ${Array.join(offeredTokensOf(found.entry), ', ')}.`,
+                ),
           Disabled: ({ because }) =>
             painted(
               paintProgram(bound, name),
               1,
-              `${commandOf(entry.tag)} is disabled: ${because}.`,
+              `${command} is disabled: ${because}.`,
             ),
         }),
       ),

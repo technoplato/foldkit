@@ -63,7 +63,7 @@ describe('Multiple Counters on one tape', () => {
     const phone = await startOn(store, Processor.Host.ExpoIos())
     const laptop = await startOn(store, Processor.Host.React())
     phone.press('AddCounter')
-    phone.press('Increment:2')
+    phone.press('IncrementCounter:2')
     await eventually(
       () => countsOf(laptop),
       [

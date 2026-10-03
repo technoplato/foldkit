@@ -104,28 +104,81 @@ Every pile prints as one address you can share:
 ### The moves: `Message`
 
 ```typescript
-export const Message = S.Union([
+export const catalog = Catalog.make([
   AddCounter, // add a counter at the end
+  IncrementCounter, // { counterId: 3 }: Counter 3 goes up by one
+  DecrementCounter, // { counterId: 3 }: Counter 3 goes down by one
+  ResetCounter, // { counterId: 3 }: Counter 3 goes back to 0
+  OpenCounter, // { counterId: 3 }: open Counter 3's page
+  DeleteCounter, // { counterId: 3 }: ask "Delete Counter 3?"
   ConfirmDeleteCounter, // { counterId: 3 }: delete Counter 3
   CancelDeleteCounter, // close the question, keep the counter
-  GotCounterMessage, // { counterId: 3, message: Increment() }
-  Navigation.OpenedUri, // the address bar or a link moved
-  Navigation.NavigatedBack, // Back was pressed
 ])
 ```
 
-`GotCounterMessage` wraps the single Counter's own moves (`Increment`, `Decrement`, `Reset`) plus `OpenCounter` and `DeleteCounter`, and says which counter they are for.
+Every move that touches one counter carries that counter's name tag. There is no "increment" that forgets which counter it means.
+
+### One move, then which counter: choosing Actions
+
+Imagine a vending machine. You don't get a separate button for "cola from row 1", "cola from row 2", and so on. You press "cola", and then the machine asks which row. That keeps the front of the machine short.
+
+The counting moves work the same way. Each is declared once, with a `choose` that says what to ask and which answers exist right now:
+
+```typescript
+export const DecrementCounter = Catalog.action('DecrementCounter', {
+  fields: { counterId: CounterId },
+  choose: {
+    field: 'counterId',
+    prompt: 'Which counter?',
+    token: CounterIdSegment, // how a counter prints in a tag, a command, or a URI: 3
+    choicesOf: model =>
+      model.counters.map(row => ({
+        value: row.counterId,
+        title: counterName(row.counterId), // 'Counter 3'
+        detail: `count ${row.counter.count}`, // 'count 5'
+        availability: Decrement.enabled(row.counter), // the single Counter's own rule
+      })),
+    preferredOf: shownOf, // on Counter 3's page, `-` means Counter 3
+    nothingToChoose: 'there are no counters yet',
+  },
+  what: Decrement.what,
+  why: Decrement.why,
+  enabled: unlessConfirming,
+  meta: Decrement.meta,
+})
+```
+
+Here is what that one declaration gives every window:
+
+| Where                       | What you see                                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Action menu                 | one row, `Decrement counter ›`; choose it and the menu asks "Which counter?", `/counters/menu?menu.choose=DecrementCounter` |
+| A counter's row in the list | a `-` button that presses `DecrementCounter:3`                                                                              |
+| A counter's page            | `-` on the keyboard, because that counter is the preferred choice                                                           |
+| CLI                         | `counters decrement-counter 3`, and `counters decrement-counter` alone answers `needs one of: 1, 2, 3`                      |
+
+Reset shows why this matters. `Reset counter` stays in the menu while any counter can be reset, and inside it Counter 1 is greyed out with "count is already 0", using the exact rule the single Counter uses.
+
+Confirming a delete is a choosing move too, with one possible answer: the counter the open question names. No surface can confirm deleting a counter nobody was asked about.
 
 ### Which moves are allowed right now: entries
 
-Every surface asks the same question: "What can I press right now, and if I can't, why not?" The answer is one list, `entriesOf(model)`:
+Every surface asks the same question: "What can I press right now, and if I can't, why not?" The answer is one list, `Catalog.entries(catalog, model)`:
 
 ```text
-add-counter               a     Adds a counter at the end of the list
-increment 1                     Increments the count by one
-reset 1                         Sets the count to 0
-                                Unavailable: count is already 0
-delete-counter 1                Asks before deleting the counter
+add-counter                            a     Adds a counter at the end of the
+                                             list, starting at 0
+                                             $ counters add-counter
+
+increment-counter <counter-id>               Increments the count by one
+                                             Choose one of: 1, 2
+                                             $ counters increment-counter 1
+
+reset-counter <counter-id>                   Sets the count to 0
+                                             Choose one of: 2
+                                             Unavailable for 1: count is
+                                             already 0
+                                             $ counters reset-counter 2
 ```
 
 The React buttons, the Svelte buttons, the OpenTUI boxes, the CLI commands, the keyboard keys, and the action menu rows are all drawn from that one list. That is why Reset is greyed out with the same sentence everywhere.
@@ -138,24 +191,25 @@ Some mistakes are impossible because the types do not allow them to be written. 
 
 Each line below is in `core/src/impossible.test.ts` with `@ts-expect-error`. If any of them ever compiled, the typecheck would fail.
 
-| You try to write                                                 | Why it does not compile                     |
-| ---------------------------------------------------------------- | ------------------------------------------- |
-| `GotCounterMessage({ counterId: 5, ... })`                       | `5` is a number, not a `CounterId` name tag |
-| `GotCounterMessage({ counterId, message: { _tag: 'Explode' } })` | a counter has no Explode move               |
-| `ConfirmDelete()`                                                | the question must name its counter          |
-| `ConfirmDeleteCounter()`                                         | deleting must name the counter it deletes   |
-| `CounterRow.make({ counterId })`                                 | a counter in the list always has a count    |
-| two modals in `maybeModal`                                       | it holds one modal or none, never a list    |
-| a pushed page as the modal                                       | `Push` is not a modal style                 |
-| a page named `CounterEditor`                                     | it is not one of the four Destinations      |
+| You try to write                     | Why it does not compile                     |
+| ------------------------------------ | ------------------------------------------- |
+| `IncrementCounter({ counterId: 5 })` | `5` is a number, not a `CounterId` name tag |
+| `IncrementCounter()`                 | counting must name the counter it counts    |
+| `ConfirmDelete()`                    | the question must name its counter          |
+| `ConfirmDeleteCounter()`             | deleting must name the counter it deletes   |
+| `CounterRow.make({ counterId })`     | a counter in the list always has a count    |
+| two modals in `maybeModal`           | it holds one modal or none, never a list    |
+| a pushed page as the modal           | `Push` is not a modal style                 |
+| a page named `CounterEditor`         | it is not one of the four Destinations      |
 
 ### Ruled out by one rule every window shares
 
 These are checked in `core/src/app.test.ts` and `core/src/live.test.ts`:
 
-- **Nothing behind the dialog can be pressed.** While "Delete Counter 1?" is open, every other Action says `answer the delete question first`. Clicking is blocked by the dialog, and the CLI and keyboard are blocked by the same entries, so `counters increment 2` is refused too.
-- **The question can only delete the counter it names.** You press `Delete` with no number. The rulebook reads the number from the open question, `ConfirmDelete(1)`, and sends `ConfirmDeleteCounter({ counterId: 1 })`. With no question open, `confirm-delete-counter` is refused: `no delete is waiting for an answer`.
+- **Nothing behind the dialog can be pressed.** While "Delete Counter 1?" is open, every other Action says `answer the delete question first`. Clicking is blocked by the dialog, and the CLI and keyboard are blocked by the same entries, so `counters increment-counter 2` is refused too.
+- **The question can only delete the counter it names.** You press `Delete` with no number. Its only choice is the counter in the open question, `ConfirmDelete(1)`, so it sends `ConfirmDeleteCounter({ counterId: 1 })`. With no question open, `confirm-delete-counter` is refused: `no delete is waiting for an answer`.
 - **The action menu cannot open over the dialog.** It is a modal too, and the pile holds one.
+- **The menu stays short.** Each move is one row however many counters there are; the counters appear only after you pick the move.
 - **A counter's page never sits on another counter's page.** Opening Counter 2 from Counter 1's page swaps the page.
 - **A deleted counter leaves nothing behind.** Deleting Counter 2 removes its page and its question from the pile, on every device that hears about it. If another device deletes it while your page is open, your page closes.
 - **A page for a counter that is gone says so.** Typing `/counters/9` shows "Counter 9 is not in the list" instead of breaking.
@@ -187,7 +241,7 @@ The CLI, one command at a time. The counters live in a file every terminal on th
 cd examples/multiple-counters/cli && pnpm build
 node dist/entry.js                         # paint the list and every Action
 node dist/entry.js add-counter
-node dist/entry.js increment 2
+node dist/entry.js increment-counter 2
 node dist/entry.js open-counter 2
 node dist/entry.js delete-counter 2        # asks "Delete Counter 2?"
 node dist/entry.js confirm-delete-counter  # deletes Counter 2

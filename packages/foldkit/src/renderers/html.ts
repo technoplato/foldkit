@@ -245,6 +245,7 @@ export const paintMenuHtml = <Message>(
         h.AriaSelected(row.isHighlighted),
         h.AriaDisabled(row.entry.availability._tag === 'Disabled'),
         h.DataAttribute('focused', row.isFocused ? 'true' : 'false'),
+        h.DataAttribute('nested', row.isNested ? 'true' : 'false'),
         h.OnClick(messages.chose(row.entry.tag)),
       ],
       [

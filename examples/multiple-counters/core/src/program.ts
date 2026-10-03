@@ -2,7 +2,6 @@ import { Match as M } from 'effect'
 import { Program } from 'foldkit'
 
 import { init } from './init.js'
-import { interaction } from './interaction.js'
 import { Message, catalog } from './message.js'
 import { Model } from './model.js'
 import { navigation } from './navigation.js'
@@ -16,12 +15,13 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
     M.withReturnType<'Domain' | 'Navigation'>(),
     M.tagsExhaustive({
       AddCounter: () => 'Domain',
+      IncrementCounter: () => 'Domain',
+      DecrementCounter: () => 'Domain',
+      ResetCounter: () => 'Domain',
+      OpenCounter: () => 'Navigation',
+      DeleteCounter: () => 'Navigation',
       ConfirmDeleteCounter: () => 'Domain',
       CancelDeleteCounter: () => 'Navigation',
-      GotCounterMessage: ({ message: rowMessage }) =>
-        rowMessage._tag === 'OpenCounter' || rowMessage._tag === 'DeleteCounter'
-          ? 'Navigation'
-          : 'Domain',
       OpenedUri: () => 'Navigation',
       NavigatedBack: () => 'Navigation',
     }),
@@ -29,8 +29,10 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
 
 /**
  * The Multiple Counters Program: a list of counters, each one the Counter
- * Program's own Model and Actions, a page per counter, and a Dialog that
- * asks before deleting. It knows nothing about React, terminals, or a
+ * Program's own Model, counted by the Counter's own Actions asked of one
+ * counter, a page per counter, and a Dialog that asks before deleting.
+ * Every surface derives from the Catalog: the menu shows each Action once
+ * and asks which counter next. It knows nothing about React, terminals, or a
  * tape. Counting, adding, and deleting are Domain, so every device shares
  * them; opening a page and asking a question are Navigation, which the
  * session mirrors or keeps local.
@@ -43,7 +45,6 @@ export const CountersProgram = Program.make({
   init,
   update,
   catalog,
-  interaction,
   navigation,
   screen: listScreen,
   synchronization: {

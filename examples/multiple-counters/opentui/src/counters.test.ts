@@ -41,7 +41,7 @@ const paintAt = async (presses: ReadonlyArray<string>): Promise<string> => {
 
 describe('Multiple Counters on OpenTUI', () => {
   it('paints the list with each counter and its buttons', async () => {
-    const painted = await paintAt(['AddCounter', 'Increment:2'])
+    const painted = await paintAt(['AddCounter', 'IncrementCounter:2'])
     expect(painted).toContain('/counters')
     expect(painted).toContain('Counter 1')
     expect(painted).toContain('Counter 2')

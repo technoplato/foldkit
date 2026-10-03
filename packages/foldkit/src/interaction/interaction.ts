@@ -334,7 +334,8 @@ export const hintLineOf = (hints: ReadonlyArray<MenuHint>): string =>
  * its `what`; both mark the letters the query matched. `spokenLabel` is
  * what a screen reader says for the row, `Reset, Sets the count to 0,
  * unavailable: count is already 0`. `keys` is the shortcut shown beside
- * the row, `['r']` for Reset. `isHighlighted` marks
+ * the row, `['r']` for Reset. `isNested` marks a row that opens a list of
+ * choices instead of running, such as Decrement counter. `isHighlighted` marks
  * the row Enter sends; `isFocused` marks the row that has the keyboard.
  */
 export type MenuRow = Readonly<{
@@ -343,6 +344,7 @@ export type MenuRow = Readonly<{
   description: ReadonlyArray<TextRun>
   spokenLabel: string
   keys: ReadonlyArray<string>
+  isNested: boolean
   isHighlighted: boolean
   isFocused: boolean
 }>

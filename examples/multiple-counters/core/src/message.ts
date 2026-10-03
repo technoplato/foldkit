@@ -1,26 +1,58 @@
-import { Decrement, Increment, Reset } from 'counter-core-example'
-import { Option, Schema as S } from 'effect'
+import {
+  type Model as CounterModel,
+  Decrement,
+  Increment,
+  Reset,
+} from 'counter-core-example'
+import { Array, Option, Schema as S } from 'effect'
 import { Catalog, Navigation } from 'foldkit'
-import { m } from 'foldkit/message'
 
-import { CounterId } from './counterId.js'
-import { confirmingOf } from './stack.js'
+import { CounterId, CounterIdSegment, counterName } from './counterId.js'
+import { type CounterRow, type Model, counterOf } from './model.js'
+import { confirmingOf, shownOf } from './stack.js'
 
 // MESSAGE
 
-type HasStack = Parameters<typeof confirmingOf>[0]
-
 const answerFirst = 'answer the delete question first'
 
-const unlessConfirming = (model: HasStack): Catalog.Availability =>
+const unlessConfirming = (model: Model): Catalog.Availability =>
   Option.isSome(confirmingOf(model))
     ? Catalog.Disabled({ because: answerFirst })
     : Catalog.Enabled()
 
-const onlyWhileConfirming = (model: HasStack): Catalog.Availability =>
+const onlyWhileConfirming = (model: Model): Catalog.Availability =>
   Option.isSome(confirmingOf(model))
     ? Catalog.Enabled()
     : Catalog.Disabled({ because: 'no delete is waiting for an answer' })
+
+const whichCounter = (
+  availabilityOf: (model: Model, row: CounterRow) => Catalog.Availability,
+  preferredOf?: (model: Model) => Option.Option<CounterId>,
+): Catalog.Choose<Model, 'counterId', CounterId> => ({
+  field: 'counterId',
+  prompt: 'Which counter?',
+  token: CounterIdSegment,
+  choicesOf: model =>
+    Array.map(model.counters, row => ({
+      value: row.counterId,
+      title: counterName(row.counterId),
+      detail: `count ${row.counter.count.toString()}`,
+      availability: availabilityOf(model, row),
+    })),
+  ...(preferredOf === undefined ? {} : { preferredOf }),
+  nothingToChoose: 'there are no counters yet',
+})
+
+const asTheCounterAllows =
+  (
+    counterAction: Readonly<{
+      enabled: (model: CounterModel) => Catalog.Availability
+    }>,
+  ) =>
+  (_model: Model, row: CounterRow): Catalog.Availability =>
+    counterAction.enabled(row.counter)
+
+const anyCounter = (): Catalog.Availability => Catalog.Enabled()
 
 /** Adds a counter at the end of the list, starting at 0. `a` presses it. */
 export const AddCounter = Catalog.action('AddCounter', {
@@ -31,16 +63,91 @@ export const AddCounter = Catalog.action('AddCounter', {
 })
 
 /**
- * Deletes the counter the open question names, on every device. It is
- * offered only while that question is open, and the interaction fills in
- * the number from it, so no surface can delete a counter nobody was asked
- * about. `y` presses it.
+ * Raises one counter by one. It is the single Counter's Increment, with
+ * its words and keys, asked of one counter: the menu offers it once and
+ * then asks which counter, and on a counter's page `+` counts that one.
+ */
+export const IncrementCounter = Catalog.action('IncrementCounter', {
+  fields: { counterId: CounterId },
+  choose: whichCounter(asTheCounterAllows(Increment), shownOf),
+  what: Increment.what,
+  why: Increment.why,
+  enabled: unlessConfirming,
+  meta: Increment.meta,
+})
+
+/** Lowers one counter by one, the single Counter's Decrement. */
+export const DecrementCounter = Catalog.action('DecrementCounter', {
+  fields: { counterId: CounterId },
+  choose: whichCounter(asTheCounterAllows(Decrement), shownOf),
+  what: Decrement.what,
+  why: Decrement.why,
+  enabled: unlessConfirming,
+  meta: Decrement.meta,
+})
+
+/**
+ * Sets one counter back to 0, the single Counter's Reset, offered for each
+ * counter that is not already at 0.
+ */
+export const ResetCounter = Catalog.action('ResetCounter', {
+  fields: { counterId: CounterId },
+  choose: whichCounter(asTheCounterAllows(Reset), shownOf),
+  what: Reset.what,
+  why: Reset.why,
+  enabled: unlessConfirming,
+  meta: Reset.meta,
+})
+
+/** Opens one counter on its own page. */
+export const OpenCounter = Catalog.action('OpenCounter', {
+  fields: { counterId: CounterId },
+  choose: whichCounter((model, row) =>
+    Option.contains(shownOf(model), row.counterId)
+      ? Catalog.Disabled({ because: 'it is already open' })
+      : Catalog.Enabled(),
+  ),
+  what: 'Opens the counter on its own page',
+  why: 'The person wants to focus on one count',
+  enabled: unlessConfirming,
+  meta: { label: 'Open', keys: [] },
+})
+
+/** Asks whether to delete one counter. `d` presses it on its page. */
+export const DeleteCounter = Catalog.action('DeleteCounter', {
+  fields: { counterId: CounterId },
+  choose: whichCounter(anyCounter, shownOf),
+  what: 'Asks before deleting the counter',
+  why: 'The person no longer needs this count',
+  enabled: unlessConfirming,
+  meta: { label: 'Delete', keys: ['d'] },
+})
+
+/**
+ * Deletes the counter the open question names, on every device. Its one
+ * choice is that counter, so no surface can delete a counter nobody was
+ * asked about. `y` presses it.
  */
 export const ConfirmDeleteCounter = Catalog.action('ConfirmDeleteCounter', {
   fields: { counterId: CounterId },
+  choose: {
+    field: 'counterId',
+    prompt: 'Delete which counter?',
+    token: CounterIdSegment,
+    choicesOf: (model: Model) =>
+      Array.map(
+        Option.toArray(
+          Option.flatMap(confirmingOf(model), counterId =>
+            counterOf(model, counterId),
+          ),
+        ),
+        row => ({ value: row.counterId, title: counterName(row.counterId) }),
+      ),
+    preferredOf: confirmingOf,
+    nothingToChoose: 'no delete is waiting for an answer',
+  },
   what: 'Deletes the counter the question names',
   why: 'The person is sure they want it gone',
-  enabled: onlyWhileConfirming,
   meta: { label: 'Delete', keys: ['y'] },
 })
 
@@ -53,62 +160,27 @@ export const CancelDeleteCounter = Catalog.action('CancelDeleteCounter', {
 })
 
 /**
- * The Actions of the list as a whole. Buttons, keys, the action menu, and
- * CLI commands all derive from it.
+ * Every Multiple Counters Action in the order surfaces list them. The
+ * action menu shows each once; the five that act on one counter ask which
+ * counter next.
  */
 export const catalog = Catalog.make([
   AddCounter,
-  ConfirmDeleteCounter,
-  CancelDeleteCounter,
-])
-
-/** Opens one counter on its own page. */
-export const OpenCounter = Catalog.action('OpenCounter', {
-  what: 'Opens the counter on its own page',
-  why: 'The person wants to focus on one count',
-  meta: { label: 'Open', keys: ['o'] },
-})
-
-/** Asks whether to delete one counter. `d` presses it on its page. */
-export const DeleteCounter = Catalog.action('DeleteCounter', {
-  what: 'Asks before deleting the counter',
-  why: 'The person no longer needs this count',
-  meta: { label: 'Delete', keys: ['d'] },
-})
-
-/**
- * What one counter can do: the Counter Program's own Actions, with the
- * same keys and the same Disabled Reset at 0, then Open and Delete. Every
- * row presses these against its own count.
- */
-export const rowCatalog = Catalog.make([
-  Increment,
-  Decrement,
-  Reset,
+  IncrementCounter,
+  DecrementCounter,
+  ResetCounter,
   OpenCounter,
   DeleteCounter,
-])
-
-/** One row Action: a Counter Action, Open, or Delete. */
-export type RowAction = typeof rowCatalog.Message.Type
-
-/** A row Action reached counter `counterId`. */
-export const GotCounterMessage = m('GotCounterMessage', {
-  counterId: CounterId,
-  message: rowCatalog.Message,
-})
-/** A row Action reached counter `counterId`. */
-export type GotCounterMessage = typeof GotCounterMessage.Type
-
-/**
- * Every Message the Multiple Counters accept: the list's Actions, one
- * row's Action, and the carrier facts its stack folds.
- */
-export const Message = S.Union([
-  AddCounter,
   ConfirmDeleteCounter,
   CancelDeleteCounter,
-  GotCounterMessage,
+])
+
+/**
+ * Every Message the Multiple Counters accept: the Catalog's Actions and
+ * the carrier facts its stack folds.
+ */
+export const Message = S.Union([
+  ...catalog.Message.members,
   Navigation.OpenedUri,
   Navigation.NavigatedBack,
 ])

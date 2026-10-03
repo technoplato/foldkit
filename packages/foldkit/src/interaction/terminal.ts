@@ -151,6 +151,8 @@ const minimumKeysWidth = 6
 
 const rowMark = (row: MenuRow): string => (row.isHighlighted ? '> ' : '  ')
 
+const nestedMark = ' ›'
+
 const keysTextOf = (row: MenuRow): string => Array.join(row.keys, ' ')
 
 const isDisabledRow = (row: MenuRow): boolean =>
@@ -171,7 +173,7 @@ const menuColumnsOf = (rows: ReadonlyArray<MenuRow>): MenuColumns => ({
         `${rowMark(row)}${Array.join(
           Array.map(row.title, run => run.text),
           '',
-        )}`,
+        )}${row.isNested ? nestedMark : ''}`,
     ),
     minimumTitleWidth,
   ),
@@ -190,6 +192,7 @@ const rowLines = (
       [
         isDisabled ? quiet(rowMark(row)) : strong(rowMark(row)),
         ...tonedRuns(row.title, isDisabled ? 'Quiet' : 'Strong'),
+        ...(row.isNested ? [quiet(nestedMark)] : []),
       ],
       columns.titleWidth,
     ),

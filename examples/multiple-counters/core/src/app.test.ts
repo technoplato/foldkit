@@ -44,24 +44,46 @@ const uriOf = (bound: Bound): string =>
     () => 'no plan',
   )
 
-const availabilityOf = (bound: Bound, tag: string): string =>
-  Option.match(
-    Array.findFirst(bound.entries(), entry => entry.tag === tag),
+const availabilityOf = (bound: Bound, tag: string): string => {
+  const parsed = Catalog.parseChoiceTag(tag)
+  const entryTag = Option.match(parsed, {
+    onNone: () => tag,
+    onSome: choice => choice.tag,
+  })
+  return Option.match(
+    Option.flatMap(
+      Array.findFirst(bound.entries(), entry => entry.tag === entryTag),
+      entry =>
+        Option.match(parsed, {
+          onNone: () => Option.some(entry.availability),
+          onSome: ({ token }) =>
+            Option.flatMap(entry.maybeChoices, choices =>
+              Option.map(
+                Array.findFirst(
+                  choices.choices,
+                  choice => choice.token === token,
+                ),
+                choice => choice.availability,
+              ),
+            ),
+        }),
+    ),
     {
       onNone: () => 'absent',
-      onSome: entry =>
-        Catalog.isEnabled(entry.availability) ? 'Enabled' : 'Disabled',
+      onSome: availability =>
+        Catalog.isEnabled(availability) ? 'Enabled' : 'Disabled',
     },
   )
+}
 
 describe('the list', () => {
   it('starts with Counter 1 at 0, its Reset Disabled like the Counter', () => {
     const bound = bindApp()
     expect(countsOf(bound)).toEqual([[1, 0]])
-    expect(availabilityOf(bound, 'Reset:1')).toBe('Disabled')
-    expect(bound.press('Increment:1')).toBe(true)
+    expect(availabilityOf(bound, 'ResetCounter:1')).toBe('Disabled')
+    expect(bound.press('IncrementCounter:1')).toBe(true)
     expect(countsOf(bound)).toEqual([[1, 1]])
-    expect(availabilityOf(bound, 'Reset:1')).toBe('Enabled')
+    expect(availabilityOf(bound, 'ResetCounter:1')).toBe('Enabled')
   })
 
   it('appends a counter at 0 and never hands a counterId out twice', () => {
@@ -76,13 +98,20 @@ describe('the list', () => {
     ])
   })
 
-  it('titles and words each row Action for its counter', () => {
+  it('offers each counter Action once, asking which counter second', () => {
     const bound = bindApp()
-    const increment = Option.getOrThrow(
-      Array.findFirst(bound.entries(), entry => entry.tag === 'Increment:1'),
+    bound.press('AddCounter')
+    const tags = Array.map(bound.entries(), entry => entry.tag)
+    expect(tags).toContain('IncrementCounter')
+    expect(tags).not.toContain('IncrementCounter:1')
+    const reset = Option.getOrThrow(
+      Array.findFirst(bound.entries(), entry => entry.tag === 'ResetCounter'),
     )
-    expect(increment.title).toBe('Increment counter 1')
-    expect(Catalog.commandOf(increment.tag)).toBe('increment 1')
+    expect(reset.title).toBe('Reset counter')
+    expect(reset.availability).toEqual(
+      Catalog.Disabled({ because: 'count is already 0' }),
+    )
+    expect(Catalog.commandOf('IncrementCounter:2')).toBe('increment-counter 2')
   })
 })
 
@@ -92,7 +121,7 @@ describe('a counter page', () => {
     bound.press('OpenCounter:1')
     expect(uriOf(bound)).toBe('/counters/1')
     bound.pressKey(Interaction.keyInput('+'))
-    bound.press('Increment')
+    bound.press('IncrementCounter')
     expect(countsOf(bound)).toEqual([[1, 2]])
   })
 
@@ -142,10 +171,10 @@ describe('the delete question', () => {
     const bound = bindApp()
     bound.press('AddCounter')
     bound.press('DeleteCounter:1')
-    expect(bound.press('Increment:2')).toBe(false)
+    expect(bound.press('IncrementCounter:2')).toBe(false)
     expect(bound.press('AddCounter')).toBe(false)
     expect(bound.press('DeleteCounter:2')).toBe(false)
-    expect(availabilityOf(bound, 'Increment:2')).toBe('Disabled')
+    expect(availabilityOf(bound, 'IncrementCounter:2')).toBe('Disabled')
     expect(countsOf(bound)).toEqual([
       [1, 0],
       [2, 0],
@@ -182,5 +211,75 @@ describe('deleting elsewhere', () => {
     bound.openUri('/counters/9', Navigation.Link())
     expect(uriOf(bound)).toBe('/counters/9')
     expect(bound.windowTitle()).toBe('Counter 9 | Foldkit')
+  })
+})
+
+describe('the action menu', () => {
+  it('lists each Action once and opens the counters to choose from', () => {
+    const bound = bindApp()
+    bound.press('AddCounter')
+    bound.openMenu()
+    const titles = Option.map(bound.menu(), menu =>
+      menu.rows.map(row => row.title.map(run => run.text).join('')),
+    )
+    expect(titles).toEqual(
+      Option.some([
+        'Add counter',
+        'Increment counter',
+        'Decrement counter',
+        'Reset counter',
+        'Open counter',
+        'Delete counter',
+        'Confirm delete counter',
+        'Cancel delete counter',
+        'Mirror navigation',
+        'Keep navigation local',
+        'Open session settings',
+        'Close session settings',
+      ]),
+    )
+    bound.chooseFromMenu('DecrementCounter')
+    expect(uriOf(bound)).toBe('/counters/menu?menu.choose=DecrementCounter')
+    expect(
+      Option.map(bound.menu(), menu => [
+        menu.title,
+        menu.filterLabel,
+        menu.rows.map(row => row.entry.tag),
+      ]),
+    ).toEqual(
+      Option.some([
+        'Decrement counter',
+        'Which counter?',
+        ['DecrementCounter:1', 'DecrementCounter:2'],
+      ]),
+    )
+    bound.chooseFromMenu('DecrementCounter:2')
+    expect(countsOf(bound)).toEqual([
+      [1, 0],
+      [2, -1],
+    ])
+    expect(Option.isNone(bound.menu())).toBe(true)
+  })
+
+  it('goes back from the choices on Escape, and closes on the next', () => {
+    const bound = bindApp()
+    bound.openMenu()
+    bound.chooseFromMenu('IncrementCounter')
+    bound.pressKey(Interaction.keyInput('Escape'))
+    expect(Option.map(bound.menu(), menu => menu.title)).toEqual(
+      Option.some('Actions'),
+    )
+    bound.pressKey(Interaction.keyInput('Escape'))
+    expect(Option.isNone(bound.menu())).toBe(true)
+  })
+
+  it('opens the choices from a URI and filters them', () => {
+    const bound = bindApp()
+    bound.press('AddCounter')
+    bound.openUri('/counters/menu?menu.choose=ResetCounter', Navigation.Link())
+    bound.typeInMenu('2')
+    expect(
+      Option.map(bound.menu(), menu => menu.rows.map(row => row.entry.tag)),
+    ).toEqual(Option.some(['ResetCounter:2']))
   })
 })

@@ -461,6 +461,7 @@ const MenuRowView = ({
       aria-selected={row.isHighlighted}
       aria-disabled={row.entry.availability._tag === 'Disabled'}
       data-focused={row.isFocused}
+      data-nested={row.isNested}
       className="fk-action-menu-row"
       onClick={() => {
         bound.chooseFromMenu(row.entry.tag)

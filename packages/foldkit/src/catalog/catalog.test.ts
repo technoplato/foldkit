@@ -1,4 +1,4 @@
-import { Option, Schema as S } from 'effect'
+import { Array, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import * as Catalog from './catalog.js'
@@ -72,6 +72,7 @@ describe('Catalog.entries', () => {
       keys: ['+', '='],
       availability: Catalog.Enabled(),
       isPayloadFree: true,
+      maybeChoices: Option.none(),
     })
     expect(reset?.availability).toEqual(
       Catalog.Disabled({ because: 'count is already 0' }),
@@ -128,36 +129,124 @@ describe('Catalog.messageFor', () => {
   })
 })
 
-describe('row Actions', () => {
-  it('tags, titles, and words each Action for its row', () => {
-    const [increment, reset] = Catalog.rowEntries(catalog, {
-      id: '3',
-      name: 'counter 3',
-      model: { count: 0 },
-    })
-    expect(increment?.tag).toBe('Increment:3')
-    expect(increment?.title).toBe('Increment counter 3')
-    expect(increment?.keys).toEqual([])
-    expect(reset?.availability).toEqual(
+const ListModel = S.Struct({
+  counters: S.Array(S.Struct({ id: S.Int, count: S.Number })),
+  maybeShown: S.Option(S.Int),
+})
+type ListModel = typeof ListModel.Type
+
+const ResetCounter = Catalog.action('ResetCounter', {
+  fields: { id: S.Int },
+  choose: {
+    field: 'id',
+    prompt: 'Which counter?',
+    token: S.FiniteFromString.pipe(S.decodeTo(S.Int)),
+    choicesOf: (model: ListModel) =>
+      model.counters.map(counter => ({
+        value: counter.id,
+        title: `Counter ${counter.id.toString()}`,
+        ...(counter.count === 0
+          ? {
+              availability: Catalog.Disabled({ because: 'count is already 0' }),
+            }
+          : {}),
+      })),
+    preferredOf: (model: ListModel) => model.maybeShown,
+    nothingToChoose: 'there are no counters yet',
+  },
+  what: 'Sets one count to 0',
+  why: 'The person wants to start that counter over',
+  meta: { label: 'Reset', keys: ['r'] },
+})
+const listCatalog = Catalog.make([ResetCounter])
+
+const listAt = (
+  counts: ReadonlyArray<number>,
+  maybeShown: Option.Option<number> = Option.none(),
+): ListModel => ({
+  counters: counts.map((count, index) => ({ id: index + 1, count })),
+  maybeShown,
+})
+
+const resetEntryOf = (model: ListModel) =>
+  Option.getOrThrow(Array.head(Catalog.entries(listCatalog, model)))
+
+describe('choosing Actions', () => {
+  it('is one entry that offers each choice with its own availability', () => {
+    const entry = resetEntryOf(listAt([0, 3]))
+    expect(entry.title).toBe('Reset counter')
+    expect(entry.availability).toEqual(Catalog.Enabled())
+    expect(entry.keys).toEqual([])
+    expect(Option.map(entry.maybeChoices, choices => choices.choices)).toEqual(
+      Option.some([
+        {
+          token: '1',
+          title: 'Counter 1',
+          maybeDetail: Option.none(),
+          availability: Catalog.Disabled({ because: 'count is already 0' }),
+        },
+        {
+          token: '2',
+          title: 'Counter 2',
+          maybeDetail: Option.none(),
+          availability: Catalog.Enabled(),
+        },
+      ]),
+    )
+  })
+
+  it('says why when no choice is offered, or there is nothing to choose', () => {
+    expect(resetEntryOf(listAt([0, 0])).availability).toEqual(
       Catalog.Disabled({ because: 'count is already 0' }),
     )
-    expect(Catalog.commandOf('Increment:3')).toBe('increment 3')
+    expect(resetEntryOf(listAt([])).availability).toEqual(
+      Catalog.Disabled({ because: 'there are no counters yet' }),
+    )
   })
 
-  it('keeps keys for the row that owns them', () => {
-    const [increment] = Catalog.rowEntries(
-      catalog,
-      { id: '3', name: 'counter 3', model: { count: 0 } },
-      { hasKeys: true },
+  it('builds the Message from a choice tag, refusing a Disabled choice', () => {
+    const model = listAt([0, 3])
+    expect(Catalog.messageFor(listCatalog, model, 'ResetCounter:2')).toEqual(
+      Option.some(ResetCounter({ id: 2 })),
     )
-    expect(increment?.keys).toEqual(['+', '='])
+    expect(Catalog.messageFor(listCatalog, model, 'ResetCounter:1')).toEqual(
+      Option.none(),
+    )
+    expect(Catalog.messageFor(listCatalog, model, 'ResetCounter:9')).toEqual(
+      Option.none(),
+    )
   })
 
-  it('reads a row tag back, and nothing from a bare tag', () => {
-    expect(Catalog.parseRowTag('Increment:3')).toEqual(
-      Option.some({ tag: 'Increment', rowId: '3' }),
+  it('takes the preferred choice for a bare tag, and only then shows its keys', () => {
+    const onCounter2 = listAt([0, 3], Option.some(2))
+    expect(Catalog.messageFor(listCatalog, onCounter2, 'ResetCounter')).toEqual(
+      Option.some(ResetCounter({ id: 2 })),
     )
-    expect(Catalog.parseRowTag('Increment')).toEqual(Option.none())
-    expect(Catalog.parseRowTag(':3')).toEqual(Option.none())
+    expect(resetEntryOf(onCounter2).keys).toEqual(['r'])
+    expect(
+      Catalog.messageFor(listCatalog, listAt([0, 3]), 'ResetCounter'),
+    ).toEqual(Option.none())
+  })
+
+  it('projects the choices as menu rows and one choice as buttons', () => {
+    const entry = resetEntryOf(listAt([0, 3], Option.some(2)))
+    expect(
+      Catalog.choicesAsEntries(entry).map(choice => [choice.tag, choice.title]),
+    ).toEqual([
+      ['ResetCounter:1', 'Counter 1'],
+      ['ResetCounter:2', 'Counter 2'],
+    ])
+    const [forCounter2] = Catalog.entriesFor([entry], '2')
+    expect(forCounter2?.tag).toBe('ResetCounter:2')
+    expect(forCounter2?.label).toBe('Reset')
+    expect(forCounter2?.keys).toEqual(['r'])
+  })
+
+  it('reads a choice tag back and words it for the CLI', () => {
+    expect(Catalog.parseChoiceTag('ResetCounter:2')).toEqual(
+      Option.some({ tag: 'ResetCounter', token: '2' }),
+    )
+    expect(Catalog.parseChoiceTag('ResetCounter')).toEqual(Option.none())
+    expect(Catalog.commandOf('ResetCounter:2')).toBe('reset-counter 2')
   })
 })

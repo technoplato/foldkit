@@ -134,6 +134,13 @@ export const menuStylesheet = `
   cursor: not-allowed;
 }
 
+:where(.fk-action-menu-row[data-nested='true'])::after {
+  content: '›';
+  flex: none;
+  color: rgb(156 163 175);
+  font-size: 1.125rem;
+}
+
 :where(.fk-action-menu-row[aria-disabled='true'])
   :where(.fk-action-menu-label, .fk-action-menu-what) {
   color: rgb(156 163 175);

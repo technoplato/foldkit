@@ -1,4 +1,3 @@
-import { counterScreen } from 'counter-core-example'
 import { Array, Option, pipe } from 'effect'
 import { Catalog } from 'foldkit'
 import {
@@ -10,7 +9,16 @@ import {
 } from 'foldkit/renderers'
 
 import { type CounterId, counterName } from './counterId.js'
-import { entriesOf, listedEntries, shownEntries } from './entries.js'
+import {
+  AddCounter,
+  CancelDeleteCounter,
+  ConfirmDeleteCounter,
+  DecrementCounter,
+  DeleteCounter,
+  IncrementCounter,
+  ResetCounter,
+  catalog,
+} from './message.js'
 import { type CounterRow, type Model, counterOf } from './model.js'
 
 // VIEW
@@ -21,20 +29,30 @@ const entriesTagged = (
 ): ReadonlyArray<Catalog.Entry> =>
   Array.filter(entries, entry => Array.contains(tags, entry.tag))
 
-const counterLine = (row: CounterRow): UiNode =>
+const forCounter = (
+  model: Model,
+  counterId: CounterId,
+): ReadonlyArray<Catalog.Entry> =>
+  Catalog.entriesFor(Catalog.entries(catalog, model), counterId.toString())
+
+const countText = (row: CounterRow, isDisplay: boolean): UiNode =>
+  Text(row.counter.count.toString(), {
+    label: `${counterName(row.counterId)} count ${row.counter.count.toString()}`,
+    ...(isDisplay ? { emphasis: 'Display' } : {}),
+  })
+
+const counterLine = (model: Model, row: CounterRow): UiNode =>
   Row(
     {},
     Text(counterName(row.counterId)),
-    Text(row.counter.count.toString(), {
-      label: `${counterName(row.counterId)} count ${row.counter.count.toString()}`,
-    }),
-    ...actionButtons(listedEntries(row)),
+    countText(row, false),
+    ...actionButtons(forCounter(model, row.counterId)),
   )
 
 /**
  * The list: every counter with its count and its buttons, `+`, `-`, a
- * Reset Disabled at 0, Open, and Delete, then Add counter. Its buttons
- * come from the same entries every other surface reads.
+ * Reset Disabled at 0, Open, and Delete, then Add counter. Each row's
+ * buttons are the Catalog's choosing Actions for that counter.
  *
  * @example
  * ```typescript
@@ -50,30 +68,55 @@ export const listScreen = (model: Model): UiNode =>
       onEmpty: () => [
         Text('No counters yet. Add one to start counting.', { dim: true }),
       ],
-      onNonEmpty: rows => Array.map(rows, counterLine),
+      onNonEmpty: rows => Array.map(rows, row => counterLine(model, row)),
     }),
-    Row({}, ...actionButtons(entriesTagged(entriesOf(model), ['AddCounter']))),
+    Row(
+      {},
+      ...actionButtons(
+        entriesTagged(Catalog.entries(catalog, model), [AddCounter.tag]),
+      ),
+    ),
   )
 
 /**
- * One counter's page: its name, then the Counter Program's own screen,
- * the same count and buttons the single Counter paints, then Delete.
+ * One counter's page: its name, its count large, the counting buttons,
+ * then Delete. Its keys are the single Counter's, `+`, `-`, and `r`,
+ * because the page's counter is every Action's preferred choice.
  *
  * @example
  * ```typescript
- * detailScreen(row) // Column: Text('Counter 3'), counterScreen({ count: 5 }), [Delete]
+ * detailScreen(model, row) // Column: Text('Counter 3'), Text('5'), [+] [-] [Reset], [Delete]
  * ```
  */
-export const detailScreen = (row: CounterRow): UiNode =>
-  Column(
+export const detailScreen = (model: Model, row: CounterRow): UiNode => {
+  const entries = forCounter(model, row.counterId)
+  const choiceTagsOf = (tags: ReadonlyArray<string>): ReadonlyArray<string> =>
+    Array.map(tags, tag => Catalog.choiceTagOf(tag, row.counterId.toString()))
+  return Column(
     {},
     Text(counterName(row.counterId), { dim: true }),
-    counterScreen(row.counter),
+    countText(row, true),
     Row(
       {},
-      ...actionButtons(entriesTagged(shownEntries(row), ['DeleteCounter'])),
+      ...actionButtons(
+        entriesTagged(
+          entries,
+          choiceTagsOf([
+            IncrementCounter.tag,
+            DecrementCounter.tag,
+            ResetCounter.tag,
+          ]),
+        ),
+      ),
+    ),
+    Row(
+      {},
+      ...actionButtons(
+        entriesTagged(entries, choiceTagsOf([DeleteCounter.tag])),
+      ),
     ),
   )
+}
 
 /**
  * The page for a counter that is not in the list, because another device
@@ -89,9 +132,8 @@ export const missingScreen = (counterId: CounterId): UiNode =>
   )
 
 /**
- * The question "Delete Counter 3?": what goes, then Delete and Cancel.
- * Both buttons come from the list's entries, which offer them only while
- * this question is open.
+ * The question "Delete Counter 3?": what goes, then Delete and Cancel,
+ * which the Catalog offers only while this question is open.
  *
  * @example
  * ```typescript
@@ -116,9 +158,9 @@ export const confirmScreen = (model: Model, counterId: CounterId): UiNode =>
     Row(
       {},
       ...actionButtons(
-        entriesTagged(entriesOf(model), [
-          'ConfirmDeleteCounter',
-          'CancelDeleteCounter',
+        entriesTagged(Catalog.entries(catalog, model), [
+          ConfirmDeleteCounter.tag,
+          CancelDeleteCounter.tag,
         ]),
       ),
     ),

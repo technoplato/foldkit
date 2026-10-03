@@ -1,11 +1,10 @@
-import { Increment } from 'counter-core-example'
 import { Option } from 'effect'
 import { Navigation } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import { CounterId } from './counterId.js'
 import { ConfirmDelete, CounterList, type Destination } from './destination.js'
-import { ConfirmDeleteCounter, GotCounterMessage } from './message.js'
+import { ConfirmDeleteCounter, IncrementCounter } from './message.js'
 import { CounterRow } from './model.js'
 
 const three = CounterId.make(3)
@@ -17,13 +16,10 @@ describe('states the types rule out', () => {
     const rejected: ReadonlyArray<() => unknown> = [
       () =>
         // @ts-expect-error a count is not a counter's identity
-        GotCounterMessage({ counterId: 5, message: Increment() }),
+        IncrementCounter({ counterId: 5 }),
       () =>
-        GotCounterMessage({
-          counterId: three,
-          // @ts-expect-error a counter has no such Action
-          message: { _tag: 'Explode' },
-        }),
+        // @ts-expect-error counting must name the counter it counts
+        IncrementCounter(),
       () =>
         // @ts-expect-error the delete question must name its counter
         ConfirmDelete(),

@@ -92,6 +92,12 @@ schemaSegment(CounterId)))`.
   `Modal`, always over the pages, so two modals at once and a page above a
   modal are unrepresentable too. e.g. `/counter/session/menu` is
   `{ root: Counter, pages: [SessionSettings], maybeModal: Some(menu) }`.
+- **Choosing Action**: a Catalog Action that fills one field from a value
+  the person picks second, declared with `choose`. It is one entry
+  everywhere: the menu shows `Decrement counter ›` and then asks "Which
+  counter?", a button presses `DecrementCounter:3`, the CLI takes
+  `decrement-counter 3`, and a bare press or key takes the preferred
+  choice, such as the counter whose page is open.
 - **ModalStyle**: every PresentationStyle except `Push`. A modal covers the
   pages; pushing a page while one is open puts the page beneath it.
 - **Stack root vs root URI**: stack root = bottom entry of the stack

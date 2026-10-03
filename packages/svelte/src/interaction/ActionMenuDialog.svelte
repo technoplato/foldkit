@@ -108,6 +108,7 @@
             aria-selected={row.isHighlighted}
             class="fk-action-menu-row"
             data-focused={row.isFocused}
+            data-nested={row.isNested}
             id={rowIdOf(row.entry.tag)}
             onclick={() => program.bound.chooseFromMenu(row.entry.tag)}
             onkeydown={() => undefined}
