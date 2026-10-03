@@ -423,6 +423,36 @@ export const keyedEntryOf = (
       )
 
 /**
+ * How a key moves the keyboard between the buttons of a screen presented
+ * over the page, such as "Delete Counter 3?": Tab and the arrows step
+ * through them and wrap, so the dialog keeps the keyboard until it is
+ * answered. None for any other key, which goes to the Program.
+ *
+ * @example
+ * ```typescript
+ * presentedFocusMoveOf(keyInput('Tab')) // Some('Next')
+ * presentedFocusMoveOf(keyInput('Tab', { isShift: true })) // Some('Previous')
+ * presentedFocusMoveOf(keyInput('y')) // None
+ * ```
+ */
+export const presentedFocusMoveOf = (
+  input: KeyInput,
+): Option.Option<'Next' | 'Previous'> => {
+  const key = normalizeKey(input.key)
+  if (input.isMeta || input.isControl) {
+    return Option.none()
+  } else if (key === 'Tab') {
+    return Option.some(input.isShift ? 'Previous' : 'Next')
+  } else if (key === 'ArrowRight' || key === 'ArrowDown') {
+    return Option.some('Next')
+  } else if (key === 'ArrowLeft' || key === 'ArrowUp') {
+    return Option.some('Previous')
+  } else {
+    return Option.none()
+  }
+}
+
+/**
  * The words on a copy button: what it does, and what it says once the text
  * is on the clipboard. Every painter with a clipboard shows these.
  *

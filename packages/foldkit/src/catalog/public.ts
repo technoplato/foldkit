@@ -10,6 +10,7 @@ export {
   findByCommand,
   findByKey,
   isEnabled,
+  lift,
   make,
   messageFor,
   choiceTagOf,
@@ -38,5 +39,9 @@ export type {
   ChooseDeclaration,
   EntryChoice,
   EntryChoices,
+  LiftConfig,
+  LiftedAction,
+  LiftedActions,
+  LiftedRow,
   TagOf,
 } from './index.js'

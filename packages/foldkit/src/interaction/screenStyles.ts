@@ -240,6 +240,17 @@ export const screenStylesheet = `
   background: ${screenLook.panelColor};
 }
 
+:where(.fk-overlay .fk-button[data-keys])::after {
+  content: attr(data-keys);
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid rgb(255 255 255 / 0.4);
+  border-radius: 4px;
+  font-family: ${screenLook.monoFamily};
+  font-size: 12px;
+  opacity: 0.8;
+}
+
 :where(.fk-overlay > *) {
   box-sizing: border-box;
   width: min(100%, ${px(screenLook.panelWidth)});

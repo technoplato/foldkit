@@ -6,6 +6,7 @@
   import ActionMenuDialog from './ActionMenuDialog.svelte'
   import type { PaintClassNames } from './paint.js'
   import PaintTree from './PaintTree.svelte'
+  import { presentedFocus } from './presentedFocus.js'
   import type { ReactiveProgram } from './reactive.js'
   import Screen from './Screen.svelte'
 
@@ -53,6 +54,7 @@
         data-key={layer.key}
         data-style={Navigation.styleTagOf(layer)}
         role="dialog"
+        use:presentedFocus
       >
         <PaintTree
           {classNames}

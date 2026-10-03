@@ -64,8 +64,10 @@
   {/if}
 {:else if node._tag === 'Button'}
   <button
+    aria-keyshortcuts={node.keys?.join(' ')}
     class={classFor(classNames, 'Button', 'fk-button')}
     data-action={node.action}
+    data-keys={node.keys?.join(' ')}
     disabled={node.disabled === true}
     onclick={() => {
       onPress(node)

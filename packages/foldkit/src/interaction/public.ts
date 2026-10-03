@@ -24,6 +24,7 @@ export {
   keyInput,
   keyedEntryOf,
   copyButtonLabelOf,
+  presentedFocusMoveOf,
   keyPlatformOf,
   KeyPlatform,
   menuOpenerOf,

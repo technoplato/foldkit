@@ -1,5 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
-import { Navigation } from 'foldkit'
+import { Interaction, Navigation } from 'foldkit'
 import type { ButtonNode } from 'foldkit/renderers'
 import {
   type ReactElement,
@@ -179,6 +179,90 @@ const ScreenView = ({
   )
 }
 
+const enabledButtonsOf = (
+  root: HTMLElement,
+): ReadonlyArray<HTMLButtonElement> =>
+  globalThis.Array.from(
+    root.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
+  )
+
+const steppedIndex = (
+  maybeCurrent: Option.Option<number>,
+  move: 'Next' | 'Previous',
+  count: number,
+): number =>
+  Option.match(maybeCurrent, {
+    onNone: () => (move === 'Next' ? 0 : count - 1),
+    onSome: current =>
+      (current + (move === 'Next' ? 1 : -1) + count) % Math.max(count, 1),
+  })
+
+/**
+ * A screen presented over the page, such as "Delete Counter 3?". It takes
+ * the keyboard when it opens, on its first button, and keeps it: Tab and
+ * the arrows move between its buttons as `Interaction.presentedFocusMoveOf`
+ * decides, Enter presses, and Escape goes back through the Program.
+ */
+const PresentedScreen = ({
+  layer,
+  classNames,
+}: Readonly<{
+  layer: LayerShape
+  classNames: PaintClassNames
+}>): ReactElement => {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = ref.current
+    if (root !== null) {
+      Option.map(Array.head(enabledButtonsOf(root)), button => {
+        button.focus()
+      })
+    }
+  }, [])
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      className="fk-overlay"
+      data-style={Navigation.styleTagOf(layer)}
+      data-key={layer.key}
+      onKeyDown={event => {
+        const root = ref.current
+        const maybeMove = Interaction.presentedFocusMoveOf(
+          Interaction.keyInput(event.key, {
+            isMeta: event.metaKey,
+            isControl: event.ctrlKey,
+            isShift: event.shiftKey,
+          }),
+        )
+        if (root !== null && Option.isSome(maybeMove)) {
+          const buttons = enabledButtonsOf(root)
+          Option.map(
+            Array.get(
+              buttons,
+              steppedIndex(
+                Array.findFirstIndex(
+                  buttons,
+                  button => button === document.activeElement,
+                ),
+                maybeMove.value,
+                buttons.length,
+              ),
+            ),
+            button => {
+              event.preventDefault()
+              button.focus()
+            },
+          )
+        }
+      }}
+    >
+      <ScreenView entryKey={layer.key} classNames={classNames} />
+    </div>
+  )
+}
+
 const OverlayView = ({
   layer,
   classNames,
@@ -192,15 +276,7 @@ const OverlayView = ({
       <ScreenView entryKey={layer.key} classNames={classNames} />
     )),
     M.when('Screen', () => (
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="fk-overlay"
-        data-style={Navigation.styleTagOf(layer)}
-        data-key={layer.key}
-      >
-        <ScreenView entryKey={layer.key} classNames={classNames} />
-      </div>
+      <PresentedScreen layer={layer} classNames={classNames} />
     )),
     M.exhaustive,
   )

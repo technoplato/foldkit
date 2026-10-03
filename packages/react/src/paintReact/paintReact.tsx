@@ -131,6 +131,8 @@ export const paintTree = (
             disabled={button.disabled === true}
             title={button.because}
             data-action={button.action}
+            data-keys={button.keys?.join(' ')}
+            aria-keyshortcuts={button.keys?.join(' ')}
             onClick={
               button.disabled === true
                 ? undefined

@@ -1,4 +1,12 @@
-import { Array, Option, Schema as S, String, pipe } from 'effect'
+import {
+  Array,
+  Option,
+  Predicate,
+  Record,
+  Schema as S,
+  String,
+  pipe,
+} from 'effect'
 
 import { type CallableTaggedStruct, callableWith, ts } from '../schema/index.js'
 
@@ -37,8 +45,10 @@ const alwaysEnabled = (): Availability => Enabled()
 // DECLARATION
 
 /**
- * How surfaces present an Action. `label` is the button text and menu row.
- * `keys` are the keyboard shortcuts. update never reads this.
+ * How surfaces present an Action. `label` is the button text. `keys` are
+ * the keyboard shortcuts. `title` names the menu row when the tag's words
+ * are too short, `Add counter` for `Add`; the CLI word still comes from
+ * the tag. update never reads this.
  *
  * @example
  * ```typescript
@@ -48,6 +58,7 @@ const alwaysEnabled = (): Availability => Enabled()
 export type ActionMeta = Readonly<{
   label: string
   keys: ReadonlyArray<string>
+  title?: string
 }>
 
 /**
@@ -416,7 +427,7 @@ export const entryOf = <Tag extends string, Model>(
   model: Model,
 ): Entry<Tag> => ({
   tag: declaration.tag,
-  title: titleOf(declaration.tag),
+  title: declaration.meta.title ?? titleOf(declaration.tag),
   what: declaration.what,
   why: declaration.why,
   label: declaration.meta.label,
@@ -695,3 +706,159 @@ export const entriesFor = (
         ),
     }),
   )
+
+// LIFT
+
+/**
+ * One row a lifted Catalog acts on: its id, how a person reads it, what
+ * sets it apart, and the child Program's Model for that row.
+ *
+ * @example
+ * ```typescript
+ * { id: 3, title: 'Counter 3', detail: 'count 5', model: { count: 5 } }
+ * ```
+ */
+export type LiftedRow<Id, ChildModel> = Readonly<{
+  id: Id
+  title: string
+  detail?: string
+  model: ChildModel
+}>
+
+/**
+ * How a child Catalog is lifted over a list: the field each lifted Action
+ * fills with the row's id, how an id prints as one word, the question, the
+ * rows the parent Model holds, the row a bare press takes, and when the
+ * parent offers the Actions at all.
+ */
+export type LiftConfig<
+  Model,
+  ChildModel,
+  Field extends string,
+  IdSchema extends S.Top,
+> = Readonly<{
+  field: Field
+  Id: IdSchema
+  token: S.Codec<IdSchema['Type'], string>
+  prompt: string
+  rowsOf: (
+    model: Model,
+  ) => ReadonlyArray<LiftedRow<IdSchema['Type'], ChildModel>>
+  preferredOf?: (model: Model) => Option.Option<IdSchema['Type']>
+  enabled?: (model: Model) => Availability
+  nothingToChoose: string
+}>
+
+/** One child Action lifted over a list: the same tag, and the row's id. */
+export type LiftedAction<
+  Child extends AnyAction,
+  Field extends string,
+  IdSchema extends S.Top,
+  Model,
+> = Action<Child['tag'], Record<Field, IdSchema>, Model>
+
+/** Every Action of a child Catalog, lifted over a list. */
+export type LiftedActions<
+  Actions extends Array.NonEmptyReadonlyArray<AnyAction>,
+  Field extends string,
+  IdSchema extends S.Top,
+  Model,
+> = {
+  readonly [K in keyof Actions]: LiftedAction<
+    Actions[K],
+    Field,
+    IdSchema,
+    Model
+  >
+}
+
+/**
+ * A child Program's Catalog lifted over a list of rows, so a parent that
+ * holds many children offers each child Action once. `Increment` stays
+ * `Increment`, with the child's words, keys, and rule, and asks which row
+ * second: its choices are the rows, each offered as the child's own
+ * `enabled` says for that row. `childOf` reads a lifted Message back as
+ * the row's id and the child's own Message, for the child's update.
+ *
+ * @example
+ * ```typescript
+ * const counterActions = Catalog.lift(CounterCatalog, {
+ *   field: 'counterId',
+ *   Id: CounterId,
+ *   token: CounterIdSegment,
+ *   prompt: 'Which counter?',
+ *   rowsOf: model => model.counters.map(row => ({ id: row.counterId, title: `Counter ${row.counterId}`, model: row.counter })),
+ *   preferredOf: shownOf,
+ *   nothingToChoose: 'there are no counters yet',
+ * })
+ * counterActions.actions // [Increment, Decrement, Reset], each with { counterId }
+ * counterActions.childOf(Decrement({ counterId: 2 })) // Some({ id: 2, message: Decrement() })
+ * ```
+ */
+export const lift = <
+  const Actions extends Array.NonEmptyReadonlyArray<AnyAction>,
+  Model,
+  Field extends string,
+  IdSchema extends S.Top,
+>(
+  child: Catalog<Actions>,
+  config: LiftConfig<Model, ModelOf<Catalog<Actions>>, Field, IdSchema>,
+): Readonly<{
+  actions: LiftedActions<Actions, Field, IdSchema, Model>
+  childOf: (message: Readonly<{ _tag: string }>) => Option.Option<
+    Readonly<{
+      id: IdSchema['Type']
+      message: MessageOf<Catalog<Actions>>
+    }>
+  >
+}> => {
+  const liftOne = (declaration: AnyAction): AnyAction =>
+    action(declaration.tag, {
+      fields: Record.singleton(config.field, config.Id),
+      choose: {
+        field: config.field,
+        prompt: config.prompt,
+        token: config.token,
+        choicesOf: (model: Model) =>
+          Array.map(config.rowsOf(model), row => ({
+            value: row.id,
+            title: row.title,
+            ...(row.detail === undefined ? {} : { detail: row.detail }),
+            availability: declaration.enabled(row.model),
+          })),
+        ...(config.preferredOf === undefined
+          ? {}
+          : { preferredOf: config.preferredOf }),
+        nothingToChoose: config.nothingToChoose,
+      },
+      what: declaration.what,
+      why: declaration.why,
+      ...(config.enabled === undefined ? {} : { enabled: config.enabled }),
+      meta: declaration.meta,
+    })
+  const actions = Array.map(child.actions, liftOne)
+  const childOf = (message: Readonly<{ _tag: string }>) =>
+    Option.flatMap(
+      Array.findFirst(
+        child.actions,
+        declaration =>
+          declaration.tag === message._tag && declaration.isPayloadFree,
+      ),
+      declaration =>
+        Option.map(
+          Predicate.hasProperty(message, config.field)
+            ? S.decodeUnknownOption(S.toType(config.Id))(message[config.field])
+            : Option.none(),
+          id => ({ id, message: declaration.make({}) }),
+        ),
+    )
+  return {
+    actions: actions as unknown as LiftedActions<
+      Actions,
+      Field,
+      IdSchema,
+      Model
+    >,
+    childOf,
+  }
+}

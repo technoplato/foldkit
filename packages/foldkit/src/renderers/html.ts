@@ -57,6 +57,10 @@ export const paintHtml = <Message>(
           const disabled = button.disabled === true ? [h.Disabled(true)] : []
           const because =
             button.because === undefined ? [] : [h.Title(button.because)]
+          const keys =
+            button.keys === undefined
+              ? []
+              : [h.DataAttribute('keys', button.keys.join(' '))]
           return h.button(
             [
               h.Type('button'),
@@ -64,6 +68,7 @@ export const paintHtml = <Message>(
               ...click,
               ...disabled,
               ...because,
+              ...keys,
             ],
             [button.label],
           )

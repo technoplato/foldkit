@@ -379,6 +379,13 @@ const painted = (
   ...(stderr === '' ? {} : { stderr }),
 })
 
+const needsChoiceSentence = (entry: Entry, name: string): string =>
+  Option.match(Array.head(offeredTokensOf(entry)), {
+    onNone: () => `${commandOf(entry.tag)} has nothing to choose right now.`,
+    onSome: first =>
+      `${usageOf(entry)} needs one of: ${Array.join(offeredTokensOf(entry), ', ')}. Try: ${name} ${commandOf(choiceTagOf(entry.tag, first))}`,
+  })
+
 type Command = Readonly<{
   entry: Entry
   tag: string
@@ -431,7 +438,7 @@ const pressCommand = <Model, Message>(
               : painted(
                   paintProgram(bound, name),
                   2,
-                  `${commandOf(found.entry.tag)} needs one of: ${Array.join(offeredTokensOf(found.entry), ', ')}.`,
+                  needsChoiceSentence(found.entry, name),
                 ),
           Disabled: ({ because }) =>
             painted(
@@ -448,6 +455,12 @@ const menuMoves: ReadonlyMap<string, string> = new Map([
   ['previous', 'ArrowUp'],
   ['enter', 'Enter'],
 ])
+
+const isUriWord = (words: ReadonlyArray<string>): boolean =>
+  Option.match(Array.head(words), {
+    onNone: () => true,
+    onSome: word => word.startsWith('/'),
+  })
 
 const runMenu = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
@@ -550,7 +563,7 @@ export const runProgramCommand = <Model, Message>(
       }),
     )
     return painted(paintProgram(bound, name))
-  } else if (head === 'open') {
+  } else if (head === 'open' && isUriWord(rest)) {
     return runOpen(bound, name, rest)
   } else if (head === 'back') {
     return runBack(bound, name)
