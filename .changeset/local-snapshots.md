@@ -1,0 +1,5 @@
+---
+'foldkit': minor
+---
+
+`Runtime.start` and `Runtime.startHandle` take a `localSnapshot` store, so each device keeps its own fold of the Message log. A reload paints the saved Model at once, reads the log behind it, and folds only the rows written since; old rows are never replayed as live Messages. The snapshot's watermark is the newest row's position, a row count, and an order-free fingerprint of the row ids, and boot trusts it only when the log still holds exactly those rows, so a row that lands late makes the runtime fold the whole log once instead of guessing. A snapshot holds only what every Processor sees, so two tabs can share one store and local navigation never leaks into it. It is the Program's own Model, encoded with its Schema and stamped with its id and version; a snapshot from another version is dropped and rebuilt from the log. Build a store with `Runtime.LocalSnapshot.webStorage(localStorage, key)`, `Runtime.LocalSnapshot.fromPromises({ load, save })` for AsyncStorage, or `localSnapshotFile(localSnapshotPath(name))` from `foldkit/cli` on Node and Bun. `Program.sync`'s `childOfReady` reads the child Model a Ready Model carries.

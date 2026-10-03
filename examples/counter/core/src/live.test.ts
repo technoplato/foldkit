@@ -1,5 +1,6 @@
 import { Duration, Effect, Equal, Option } from 'effect'
 import { ActionMenu, Interaction, Navigation, Runtime } from 'foldkit'
+import { keyInput } from 'foldkit/interaction'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { startCounterOn } from './live.js'
@@ -121,6 +122,46 @@ describe('startCounterOn', () => {
     const phone = await startOn(store, 'expo-phone')
     expect(laptop.openUri('/counter/session', Navigation.Link())).toBe(true)
     await eventually(() => uriOf(phone), '/counter/session')
+  })
+
+  it('keeps mirroring every move when devices boot from a shared local snapshot', async () => {
+    const store = Runtime.makeMemoryStore()
+    const snapshots = Runtime.LocalSnapshot.memory()
+    const saveInterval = Duration.millis(1100)
+    const startShared = async (processor: string) => {
+      const handle = startCounterOn(
+        Runtime.Memory({ processor, store }),
+        snapshots,
+      )
+      started.push(handle)
+      await whenReady(handle)
+      return Interaction.bind(SyncedCounter, handle)
+    }
+    const openSession = (
+      bound: Awaited<ReturnType<typeof startShared>>,
+    ): void => {
+      bound.openMenu()
+      bound.typeInMenu('open session')
+      bound.pressKey(keyInput('Enter'))
+    }
+    const seed = await startShared('react-seed')
+    seed.press('Increment')
+    await Effect.runPromise(Effect.sleep(saveInterval))
+    const laptop = await startShared('react-laptop')
+    const tablet = await startShared('react-tablet')
+    openSession(tablet)
+    await eventually(() => uriOf(laptop), '/counter/session')
+    expect(laptop.navigateBack('/counter')).toBe(true)
+    await eventually(() => uriOf(tablet), '/counter')
+    await Effect.runPromise(Effect.sleep(saveInterval))
+    openSession(tablet)
+    await eventually(() => uriOf(laptop), '/counter/session')
+    const phone = await startShared('expo-phone')
+    await eventually(() => uriOf(phone), '/counter/session')
+    phone.pressKey(keyInput('Escape'))
+    await eventually(() => uriOf(laptop), '/counter')
+    await eventually(() => uriOf(tablet), '/counter')
+    await eventually(() => countOf(phone), 1)
   })
 
   it('prints the menu over the Session page as one URI', async () => {

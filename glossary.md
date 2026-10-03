@@ -66,7 +66,11 @@ System`. Same person in two tabs = same actor, two `from`s.
   law; snapshots are cache.
 - **Snapshot**: a cached fold of the tape. e.g. `{ value: 8, at, asOf }`.
 - **Watermark**: the proof of which Messages a snapshot already includes,
-  so boot does not double-fold (Q108, asking).
+  so boot does not double-fold. e.g. the newest row's position, `count:
+  2694`, and a fingerprint of those row ids (ADR 0013).
+- **Local snapshot**: one device's own fold of the tape, kept in
+  `localStorage`, AsyncStorage, or a file, with its watermark. A reload
+  paints it at once and folds only the rows since (ADR 0013).
 
 ## Navigation
 

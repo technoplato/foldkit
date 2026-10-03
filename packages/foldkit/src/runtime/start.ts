@@ -13,11 +13,11 @@ import {
 } from 'effect'
 
 import type { Ports } from '../port/port.js'
-import type { AnyProgram } from '../program/compose.js'
 import type { Program, ProgramSynchronization } from '../program/program.js'
 import {
   type SyncedMessage,
   type SyncedModel,
+  childOfReady,
   isChildMessage,
 } from '../program/sync.js'
 import {
@@ -29,6 +29,8 @@ import {
   resolveAudience,
   validateProgramSynchronization,
 } from '../synchronization/synchronization.js'
+import * as LocalSnapshot from './localSnapshot.js'
+import type { LocalSnapshotStore } from './localSnapshot.js'
 import type { ProgramRuntime } from './programRuntime.js'
 import {
   type ProgramRuntimeStartError,
@@ -51,9 +53,10 @@ import {
 export type SyncStartProgram<
   Model,
   Message extends Readonly<{ _tag: string }>,
+  ChildModel = any,
 > = Program<Model, Message, any, any, any> &
   Readonly<{
-    of: AnyProgram &
+    of: Program<ChildModel, any, any, any, any> &
       Readonly<{ synchronization?: ProgramSynchronization<any, any> }>
     snapshot: S.Top
     message: S.Top
@@ -70,17 +73,23 @@ export type SyncStartProgram<
  * Messages only on the Processor that sent them.
  *
  * `clock` reads wall time in milliseconds. Tests pass a skewed clock.
+ *
+ * `localSnapshot` keeps this device's fold of the log, so a reload paints
+ * at once and folds only the rows written since. Every Processor on a
+ * device may share one store, such as two tabs sharing `localStorage`.
  */
 export type StartConfig<
   Model,
   Message extends Readonly<{ _tag: string }>,
   Resources = never,
+  ChildModel = any,
 > = Readonly<{
-  program: SyncStartProgram<Model, Message>
+  program: SyncStartProgram<Model, Message, ChildModel>
   sync: SyncEngine
   resources?: Layer.Layer<Resources>
   policy?: SessionPolicy
   clock?: () => number
+  localSnapshot?: LocalSnapshotStore
 }>
 
 /** A live synced runtime. `lastWrite` is the last Instant write result. */
@@ -185,6 +194,24 @@ const logEntryOrder = Order.make(
         : 0,
 )
 
+type LogEntry = Readonly<{ order: LogRowOrder; row: unknown }>
+
+/**
+ * A fold to start from: the Model after every row at or before
+ * `position`, and the ids of those rows.
+ */
+type FoldBase<ChildModel> = Readonly<{
+  model: ChildModel
+  position: LogRowOrder
+  ids: ReadonlySet<string>
+}>
+
+/** The Processor id no row names, so a fold from it sees only shared rows. */
+const strangerViewpoint = ''
+
+const idOfRow = (row: unknown): string =>
+  Option.getOrElse(readRowString(row, 'id'), () => '')
+
 const decodeFailed = <Msg>(fields: {
   readonly what: string
   readonly meaning: string
@@ -224,8 +251,9 @@ export function start<
   Model,
   Message extends Readonly<{ _tag: string }>,
   Resources = never,
+  ChildModel = any,
 >(
-  config: StartConfig<Model, Message, Resources> &
+  config: StartConfig<Model, Message, Resources, ChildModel> &
     Readonly<{ policy?: undefined }>,
 ): Effect.Effect<
   StartedProgram<Model, Message>,
@@ -236,8 +264,9 @@ export function start<
   Model,
   Message extends Readonly<{ _tag: string }>,
   Resources = never,
+  ChildModel = any,
 >(
-  config: StartConfig<Model, Message, Resources>,
+  config: StartConfig<Model, Message, Resources, ChildModel>,
 ): Effect.Effect<
   StartedProgram<Model, Message>,
   ProgramRuntimeStartError | MissingProgramSynchronization,
@@ -247,8 +276,9 @@ export function start<
   Model,
   Message extends Readonly<{ _tag: string }>,
   Resources = never,
+  ChildModel = any,
 >(
-  config: StartConfig<Model, Message, Resources>,
+  config: StartConfig<Model, Message, Resources, ChildModel>,
 ): Effect.Effect<
   StartedProgram<Model, Message>,
   ProgramRuntimeStartError | MissingProgramSynchronization,
@@ -263,7 +293,7 @@ export function start<
     const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
     const clock = config.clock ?? nowMs
 
-    const policyOf = (childModel: unknown): SessionPolicy =>
+    const policyOf = (childModel: Omit<ChildModel, '_tag'>): SessionPolicy =>
       childSessionPolicyOf === undefined
         ? configuredPolicy
         : childSessionPolicyOf(childModel)
@@ -303,12 +333,21 @@ export function start<
       )
 
     const knownRows = new Map<string, unknown>()
+    let maybeBase: Option.Option<FoldBase<ChildModel>> = Option.none()
+    let isLocalSnapshotStale = false
+    let isLogRead = false
     let lastWrite: Option.Option<SyncWriteResult> = Option.none()
     let lastApplied: Option.Option<LogRowOrder> = Option.none()
     let clockMs = 0
     const outbox: Array<SyncWrite> = []
     const outboxFlushMs = 250
+    const localSnapshotSaveMs = 1000
     const [initialChildModel] = program.of.init()
+    const snapshotProgram: LocalSnapshot.SnapshotProgram<ChildModel> = {
+      id: program.of.id,
+      version: program.of.version,
+      Model: program.of.Model,
+    }
 
     const runtime = yield* makeProgramRuntime({
       program,
@@ -317,12 +356,11 @@ export function start<
     yield* runtime.initialization
 
     const currentPolicy = (): SessionPolicy => {
-      const model = runtime.readModel() as SyncedModel<unknown, Message>
+      const model = runtime.readModel() as SyncedModel<ChildModel, Message>
       if (model._tag !== 'Ready') {
         return policyOf(initialChildModel)
       }
-      const { _tag: _readyTag, ...childModel } = model
-      return policyOf(childModel)
+      return policyOf(childOfReady(model))
     }
 
     const isRejectedLocally = (message: Message): boolean =>
@@ -350,6 +388,7 @@ export function start<
       if (Option.isSome(id) && id.value !== '') {
         knownRows.set(id.value, row)
         learnTime(row)
+        isLocalSnapshotStale = true
       }
     }
 
@@ -367,18 +406,8 @@ export function start<
       }
     }
 
-    /**
-     * Folds every known row from the initial Model, in log order. Each
-     * row's audience follows the session policy in force just before it,
-     * so every Processor that holds the same rows reaches the same Model.
-     * Commands from the child update are discarded: these Messages already
-     * happened once.
-     */
-    const foldLog = (): Readonly<{
-      model: unknown
-      maxOrder: Option.Option<LogRowOrder>
-    }> => {
-      const entries = pipe(
+    const orderedRows = (): ReadonlyArray<LogEntry> =>
+      pipe(
         Array.fromIterable(knownRows.values()),
         Array.filterMap(row =>
           Option.match(rowOrderOf(row), {
@@ -388,26 +417,126 @@ export function start<
         ),
         Array.sort(logEntryOrder),
       )
-      const model = Array.reduce(
+
+    /**
+     * Folds rows onto a Model, in log order, as `viewpoint` sees them. Each
+     * row's audience follows the session policy in force just before it,
+     * so every Processor that holds the same rows reaches the same Model.
+     * Commands from the child update are discarded: these Messages already
+     * happened once.
+     */
+    const foldRows = (
+      start: ChildModel,
+      entries: ReadonlyArray<LogEntry>,
+      viewpoint: string,
+    ): ChildModel =>
+      Array.reduce(entries, start, (folded, entry) => {
+        const decoded = decodeUnknown(program.message, entry.row)
+        if (
+          Option.isNone(decoded) ||
+          !appliesTo(
+            policyOf(folded),
+            decoded.value,
+            Option.getOrElse(readRowString(entry.row, 'from'), () => ''),
+            viewpoint,
+          )
+        ) {
+          return folded
+        }
+        const [next] = program.of.update(folded, decoded.value)
+        return next
+      })
+
+    // NOTE: a base is folded as a Processor that wrote none of its rows,
+    // so a base that covers this Processor's own rows cannot stand in for
+    // this Processor's fold. Those rows may be local navigation only it
+    // applies.
+    const isBaseUsable = (
+      base: FoldBase<ChildModel>,
+      entries: ReadonlyArray<LogEntry>,
+      viewpoint: string,
+    ): boolean =>
+      Array.every(
         entries,
-        initialChildModel,
-        (folded, entry) => {
-          const decoded = decodeUnknown(program.message, entry.row)
-          if (
-            Option.isNone(decoded) ||
-            !appliesHere(policyOf(folded), decoded.value, entry.row)
-          ) {
-            return folded
-          }
-          const [next] = program.of.update(folded, decoded.value)
-          return next
+        entry =>
+          isRowOrderAfter(entry.order, base.position) ||
+          (base.ids.has(idOfRow(entry.row)) &&
+            (viewpoint === strangerViewpoint ||
+              Option.getOrElse(readRowString(entry.row, 'from'), () => '') !==
+                viewpoint)),
+      )
+
+    /**
+     * Folds every known row as `viewpoint` sees them, starting from the
+     * base when it still covers exactly the rows before its position, and
+     * from the initial Model otherwise.
+     */
+    const foldFromBase = (
+      entries: ReadonlyArray<LogEntry>,
+      viewpoint: string,
+    ): ChildModel =>
+      Option.match(
+        Option.filter(maybeBase, base =>
+          isBaseUsable(base, entries, viewpoint),
+        ),
+        {
+          onNone: () => foldRows(initialChildModel, entries, viewpoint),
+          onSome: base =>
+            foldRows(
+              base.model,
+              Array.filter(entries, entry =>
+                isRowOrderAfter(entry.order, base.position),
+              ),
+              viewpoint,
+            ),
         },
       )
+
+    const foldLog = (): Readonly<{
+      model: ChildModel
+      maxOrder: Option.Option<LogRowOrder>
+    }> => {
+      const entries = orderedRows()
       return {
-        model,
+        model: foldFromBase(entries, engine.processor),
         maxOrder: Option.map(Array.last(entries), entry => entry.order),
       }
     }
+
+    /**
+     * Saves the fold every Processor shares, as of the newest known row,
+     * and keeps it as the base later folds start from.
+     */
+    const saveLocalSnapshot = (
+      store: LocalSnapshotStore,
+    ): Effect.Effect<void> =>
+      Effect.suspend(() => {
+        isLocalSnapshotStale = false
+        const entries = orderedRows()
+        return Option.match(
+          Option.all({
+            newest: Array.last(entries),
+            watermark: LocalSnapshot.watermarkOf(
+              Array.map(entries, entry => entry.row),
+            ),
+          }),
+          {
+            onNone: () => Effect.void,
+            onSome: ({ newest, watermark }) => {
+              const model = foldFromBase(entries, strangerViewpoint)
+              maybeBase = Option.some({
+                model,
+                position: newest.order,
+                ids: new Set(Array.map(entries, entry => idOfRow(entry.row))),
+              })
+              return Option.match(
+                LocalSnapshot.encode(snapshotProgram, { model, watermark }),
+                { onNone: () => Effect.void, onSome: store.save },
+              )
+            },
+          },
+        )
+      })
 
     const persist = (message: Message): Effect.Effect<void> =>
       Effect.gen(function* () {
@@ -519,29 +648,18 @@ export function start<
         }
       })
 
-    const applyBoot = yield* engine.read().pipe(Effect.result)
-    if (Result.isFailure(applyBoot)) {
-      runtime.send(
-        asMessage<Message>(
-          transportFailed({
-            what: 'Instant did not return a snapshot.',
-            meaning: 'This Processor could not start from Instant.',
-            fix: 'Check the Instant app and try again.',
-            cause: applyBoot.failure.cause,
-            raw: applyBoot.failure.raw,
-          }),
-        ),
-      )
-    } else {
-      for (const row of applyBoot.success.messages) {
-        rememberRow(row)
-      }
-      const folded = foldLog()
-      lastApplied = folded.maxOrder
+    const maybeLocalSnapshot =
+      config.localSnapshot === undefined
+        ? Option.none<LocalSnapshot.LocalSnapshot<ChildModel>>()
+        : Option.flatMap(yield* config.localSnapshot.load, text =>
+            LocalSnapshot.decode(snapshotProgram, text),
+          )
+    if (Option.isSome(maybeLocalSnapshot)) {
+      lastApplied = Option.some(maybeLocalSnapshot.value.watermark.position)
       runtime.send(
         asMessage<Message>({
           _tag: 'SnapshotReceived',
-          model: folded.model,
+          model: maybeLocalSnapshot.value.model,
         }),
       )
     }
@@ -607,11 +725,100 @@ export function start<
       )
     }
 
-    yield* engine.subscribe(onEvent)
-    yield* flushOutbox().pipe(
-      Effect.repeat(Schedule.spaced(Duration.millis(outboxFlushMs))),
-      Effect.forkScoped,
+    const saveWhenStale = Effect.suspend(() =>
+      config.localSnapshot !== undefined && isLogRead && isLocalSnapshotStale
+        ? saveLocalSnapshot(config.localSnapshot)
+        : Effect.void,
     )
+
+    /**
+     * Reads the log, folds what the local snapshot does not cover, then
+     * follows new rows. With a local snapshot already on screen, this runs
+     * behind it, so a reload paints at once instead of waiting on the
+     * network.
+     */
+    const reconcile = Effect.gen(function* () {
+      const applyBoot = yield* engine.read().pipe(Effect.result)
+      if (Result.isFailure(applyBoot)) {
+        runtime.send(
+          asMessage<Message>(
+            transportFailed({
+              what: 'Instant did not return a snapshot.',
+              meaning: 'This Processor could not start from Instant.',
+              fix: 'Check the Instant app and try again.',
+              cause: applyBoot.failure.cause,
+              raw: applyBoot.failure.raw,
+            }),
+          ),
+        )
+      } else {
+        for (const row of applyBoot.success.messages) {
+          rememberRow(row)
+        }
+        isLogRead = true
+        const maybeProven = Option.filter(maybeLocalSnapshot, local =>
+          LocalSnapshot.isProvenBy(local.watermark, applyBoot.success.messages),
+        )
+        maybeBase = Option.map(maybeProven, local => ({
+          model: local.model,
+          position: local.watermark.position,
+          ids: new Set(
+            pipe(
+              applyBoot.success.messages,
+              Array.filter(row =>
+                LocalSnapshot.isAtOrBefore(row, local.watermark.position),
+              ),
+              Array.map(idOfRow),
+            ),
+          ),
+        }))
+        const hasRowsPastSnapshot = Option.match(maybeProven, {
+          onNone: () => true,
+          onSome: local =>
+            Array.some(
+              applyBoot.success.messages,
+              row => !LocalSnapshot.isAtOrBefore(row, local.watermark.position),
+            ),
+        })
+        const folded = foldLog()
+        lastApplied = folded.maxOrder
+        if (Option.isNone(maybeLocalSnapshot)) {
+          runtime.send(
+            asMessage<Message>({
+              _tag: 'SnapshotReceived',
+              model: folded.model,
+            }),
+          )
+        } else if (hasRowsPastSnapshot) {
+          runtime.send(
+            asMessage<Message>({
+              _tag: 'LogRefolded',
+              model: folded.model,
+            }),
+          )
+        }
+      }
+
+      yield* engine.subscribe(onEvent)
+      yield* flushOutbox().pipe(
+        Effect.repeat(Schedule.spaced(Duration.millis(outboxFlushMs))),
+        Effect.forkScoped,
+      )
+      if (config.localSnapshot !== undefined) {
+        yield* saveWhenStale
+        yield* saveWhenStale.pipe(
+          Effect.repeat(Schedule.spaced(Duration.millis(localSnapshotSaveMs))),
+          Effect.forkScoped,
+        )
+      }
+    })
+
+    yield* Effect.addFinalizer(() => saveWhenStale)
+    if (Option.isSome(maybeLocalSnapshot)) {
+      yield* Effect.forkScoped(reconcile)
+    } else {
+      yield* reconcile
+    }
 
     return {
       ...runtime,

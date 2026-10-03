@@ -20,6 +20,9 @@ export type CounterTape = typeof CounterTape.Type
  * How one Counter Processor starts. `instance` must be unique per run so
  * two tabs of the same host never share navigation (Q107). A native Client
  * passes the Instant `database` it opened with `@instantdb/react-native`.
+ * `localSnapshot` keeps this device's fold of the log so a reload paints
+ * at once; a browser defaults to `localStorage` and a terminal host to a
+ * file, and the Memory tape keeps none.
  *
  * @example
  * ```typescript
@@ -35,7 +38,11 @@ export type StartCounterConfig = Readonly<{
   instance: string
   tape?: CounterTape
   database?: InstantSnapshotLogDatabase
+  localSnapshot?: Runtime.LocalSnapshotStore
 }>
+
+/** The key one device keeps the Instant Counter's local snapshot under. */
+export const counterLocalSnapshotKey = 'foldkit-counter-v01'
 
 const instanceLength = 8
 

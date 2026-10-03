@@ -31,6 +31,8 @@ export {
   type SyncStartProgram,
 } from './start.js'
 export { startHandle, type SyncedHandle } from './handle.js'
+export * as LocalSnapshot from './localSnapshot.js'
+export type { LocalSnapshotStore } from './localSnapshot.js'
 export {
   Memory,
   SyncTransportError,

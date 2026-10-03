@@ -203,6 +203,17 @@ const stripReady = <M extends { readonly _tag: string }>(
   return fields
 }
 
+/**
+ * The child Model a Ready Model carries flat, without its `_tag`.
+ *
+ * @example
+ * ```typescript
+ * childOfReady({ _tag: 'Ready', count: 3 }) // { count: 3 }
+ * ```
+ */
+export const childOfReady = <M>(ready: Ready<M>): Omit<M, '_tag'> =>
+  stripReady(ready) as Omit<M, '_tag'>
+
 const toReady = <M>(model: M): Ready<M> => ({
   _tag: 'Ready',
   ...model,

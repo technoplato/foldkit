@@ -35,3 +35,4 @@ export {
 } from './program.js'
 
 export { keyInputOfTerminal, runProgramTui } from './tui.js'
+export { localSnapshotFile, localSnapshotPath } from './localSnapshotFile.js'

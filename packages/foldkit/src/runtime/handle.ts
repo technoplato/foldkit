@@ -9,6 +9,7 @@ import type {
   SyncedModel,
 } from '../program/sync.js'
 import type { SessionPolicy } from '../synchronization/synchronization.js'
+import type { LocalSnapshotStore } from './localSnapshot.js'
 import { type StartedProgram, start } from './start.js'
 import type { SyncEngine } from './syncEngine.js'
 
@@ -50,6 +51,7 @@ export const startHandle = <Child extends SyncChild>(
     program: SyncProgram<Child>
     sync: SyncEngine
     policy?: SessionPolicy
+    localSnapshot?: LocalSnapshotStore
   }>,
 ): SyncedHandle<Child> => {
   type Model = SyncedModel<ModelOf<Child>, MessageOf<Child>>
@@ -76,6 +78,9 @@ export const startHandle = <Child extends SyncChild>(
       program,
       sync: config.sync,
       ...(config.policy === undefined ? {} : { policy: config.policy }),
+      ...(config.localSnapshot === undefined
+        ? {}
+        : { localSnapshot: config.localSnapshot }),
     }).pipe(Effect.provideService(Scope.Scope, scope)),
   )
 
