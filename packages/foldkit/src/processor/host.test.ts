@@ -40,3 +40,20 @@ describe('Processor.Host', () => {
     expect(Host.print(Host.ExpoAndroid())).toBe(printedId.ExpoAndroid)
   })
 })
+
+describe('fromLabelOf', () => {
+  it('reads a from as its app label and instance', () => {
+    expect(Host.fromLabelOf('react-ad55df2e')).toEqual({
+      app: 'React',
+      instance: 'ad55df2e',
+    })
+    expect(Host.fromLabelOf('expo-ios-4f2a')).toEqual({
+      app: 'Expo iOS',
+      instance: '4f2a',
+    })
+  })
+
+  it('keeps a from no Host prints as the app', () => {
+    expect(Host.fromLabelOf('older')).toEqual({ app: 'older', instance: '' })
+  })
+})

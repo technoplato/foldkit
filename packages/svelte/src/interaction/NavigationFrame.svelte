@@ -12,10 +12,9 @@
   type Props = Readonly<{
     program: ReactiveProgram<unknown, never>
     classNames?: PaintClassNames
-    appLabel?: string
   }>
 
-  const { program, classNames = {}, appLabel }: Props = $props()
+  const { program, classNames = {} }: Props = $props()
 
   const press = (button: ButtonNode): void => {
     if (button.action !== undefined) {
@@ -27,24 +26,9 @@
     typeof window !== 'undefined' &&
     Navigation.followLink(window, program.bound, href, 'ProgramOnly', 'Push')
 
-  const styleTagOf = (layer: Navigation.FrameLayer): string =>
-    Option.match(layer.maybeStyle, {
-      onNone: () => 'Root',
-      onSome: style => style._tag,
-    })
-
   const stylesheet = `<style id="foldkit-screen">${Interaction.screenStylesheet}</style>`
 
   const maybeFrame = $derived(program.frame)
-
-  $effect(() => {
-    if (appLabel !== undefined && typeof document !== 'undefined') {
-      document.title = Navigation.documentTitleOf(
-        Option.flatMap(maybeFrame, frame => frame.maybeTitle),
-        appLabel,
-      )
-    }
-  })
 </script>
 
 <svelte:head>
@@ -67,7 +51,7 @@
         aria-modal="true"
         class="fk-overlay"
         data-key={layer.key}
-        data-style={styleTagOf(layer)}
+        data-style={Navigation.styleTagOf(layer)}
         role="dialog"
       >
         <PaintTree

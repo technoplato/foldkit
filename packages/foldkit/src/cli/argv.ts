@@ -8,11 +8,16 @@
  * parseProgramArgv(['increment']) // { _tag: 'Do', token: 'increment', flags: {} }
  * parseProgramArgv(['key', 'k', '--meta'])
  * // { _tag: 'Do', token: 'key k', flags: { meta: '1' } }
+ * parseProgramArgv(['tail']) // { _tag: 'Tail', flags: {} }
  * ```
  */
 export type ProgramArgv =
   | Readonly<{
       _tag: 'Show'
+      flags: Readonly<Record<string, string>>
+    }>
+  | Readonly<{
+      _tag: 'Tail'
       flags: Readonly<Record<string, string>>
     }>
   | Readonly<{
@@ -49,6 +54,9 @@ export const parseProgramArgv = (argv: ReadonlyArray<string>): ProgramArgv => {
   const token = words.join(' ')
   if (token === '' || token === 'show') {
     return { _tag: 'Show', flags }
+  } else if (token === 'tail') {
+    return { _tag: 'Tail', flags }
+  } else {
+    return { _tag: 'Do', token, flags }
   }
-  return { _tag: 'Do', token, flags }
 }

@@ -145,6 +145,7 @@ export {
   browserHistoryDriver,
   followHostLink,
   followLink,
+  isPlainClick,
   HostPages,
   LinkTarget,
   LoadDocument,
@@ -155,7 +156,7 @@ export {
 } from './browserHistory.js'
 export { maybeTitleOf } from './carrier.js'
 export type { BrowserWindow } from './browserHistory.js'
-export { documentTitleOf, frameOf } from './frame.js'
+export { documentTitleOf, frameOf, styleTagOf } from './frame.js'
 export { uriOfDeepLink } from './deepLink.js'
 export type { Frame, FrameLayer, FrameSource } from './frame.js'
 export { coalescedStack, keyedStackDriver } from './keyedStack.js'

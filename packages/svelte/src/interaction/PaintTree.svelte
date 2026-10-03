@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Navigation } from 'foldkit'
   import type { ButtonNode, UiNode } from 'foldkit/renderers'
 
   import { type PaintClassNames, classFor, keyFor } from './paint.js'
@@ -14,16 +15,8 @@
 
   const { node, onPress, onInput, onLink, classNames = {} }: Props = $props()
 
-  const primaryButton = 0
-
   const followLink = (event: MouseEvent, href: string): void => {
-    const isPlainClick =
-      event.button === primaryButton &&
-      !event.metaKey &&
-      !event.ctrlKey &&
-      !event.shiftKey &&
-      !event.altKey
-    if (isPlainClick && onLink !== undefined && onLink(href)) {
+    if (Navigation.isPlainClick(event) && onLink !== undefined && onLink(href)) {
       event.preventDefault()
     }
   }
@@ -37,6 +30,7 @@
       class={classFor(classNames, 'Text', 'fk-text')}
       data-dim={node.dim === true ? true : undefined}
       data-mono={node.mono === true ? true : undefined}
+      data-emphasis={node.emphasis}
     >
       {node.content}
     </div>
@@ -46,6 +40,7 @@
       class={classFor(classNames, 'Text', 'fk-text')}
       data-dim={node.dim === true ? true : undefined}
       data-mono={node.mono === true ? true : undefined}
+      data-emphasis={node.emphasis}
     >
       <a
         class="fk-text-link"

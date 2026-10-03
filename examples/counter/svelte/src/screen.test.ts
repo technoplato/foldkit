@@ -38,7 +38,9 @@ describe('the Counter on @foldkit/svelte', () => {
     )
     counter.bound.press('Increment')
     const { body } = render(Screen, { props: { program: counter } })
-    expect(body).toContain('<div aria-label="count 1" class="fk-text">1</div>')
+    expect(body).toContain(
+      '<div aria-label="count 1" class="fk-text" data-emphasis="Display">1</div>',
+    )
     expect(body).not.toContain('title="count is already 0"')
   })
 })

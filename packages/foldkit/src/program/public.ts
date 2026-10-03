@@ -58,6 +58,7 @@ export {
   type ForEachWithFieldsModel,
   type ForEachWithFieldsProgram,
 } from './compose.js'
+export { modelChangeLines } from './changes.js'
 export {
   describeSyncError,
   isChildMessage,

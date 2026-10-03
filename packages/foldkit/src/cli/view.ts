@@ -268,6 +268,27 @@ export const writeCliViewResult = (
   runtime.exitCode = painted.exitCode
 }
 
+const daemonUnreachable = 'The CLI could not reach its daemon.'
+
+/**
+ * The result a CLI view writes when it cannot reach its daemon: the
+ * cause's message, exit code 1.
+ *
+ * @example
+ * ```typescript
+ * writeCliViewResult(cliViewFailed(new Error('connect ENOENT')))
+ * // stderr 'connect ENOENT', exit code 1
+ * ```
+ */
+export const cliViewFailed = (cause: unknown): CliViewPainted => ({
+  stdout: '',
+  stderr:
+    cause instanceof Error && cause.message !== ''
+      ? cause.message
+      : daemonUnreachable,
+  exitCode: 1,
+})
+
 export type RunCliViewOptions = Readonly<{
   socketPath: string
   spawn: () => ChildProcess

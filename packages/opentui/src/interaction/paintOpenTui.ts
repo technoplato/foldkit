@@ -1,6 +1,6 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, type Navigation } from 'foldkit'
-import { type ButtonNode, type UiNode } from 'foldkit/renderers'
+import { type ButtonNode, type TextNode, type UiNode } from 'foldkit/renderers'
 
 import {
   BoxRenderable,
@@ -12,11 +12,22 @@ import {
   bold,
   dim,
   fg,
+  stringToStyledText,
   t,
   underline,
 } from '@opentui/core'
 
 const buttonPaddingX = 1
+
+const textContentOf = (text: TextNode): StyledText => {
+  if (text.dim === true) {
+    return t`${dim(text.content)}`
+  } else if (text.emphasis === 'Display') {
+    return t`${bold(text.content)}`
+  } else {
+    return stringToStyledText(text.content)
+  }
+}
 
 /** How a painted OpenTUI tree reports presses. */
 export type PaintOpenTuiOptions = Readonly<{
@@ -55,13 +66,7 @@ export const paintOpenTui = (
   M.value(node).pipe(
     M.withReturnType<Renderable>(),
     M.tagsExhaustive({
-      Text: text =>
-        new TextRenderable(ctx, {
-          content:
-            text.dim === true
-              ? t`${dim(text.content)}`
-              : t`${bold(text.content)}`,
-        }),
+      Text: text => new TextRenderable(ctx, { content: textContentOf(text) }),
       Button: button => {
         const isPressable = button.disabled !== true
         const box = new BoxRenderable(ctx, {
@@ -129,35 +134,47 @@ export const paintOpenTui = (
 
 const matchColor = '#a5b4fc'
 
-const rowMark = (row: Interaction.MenuRow): string =>
-  row.isHighlighted ? '> ' : '  '
+const focusColor = '#1d4ed8'
 
-const runChunks = (
-  runs: ReadonlyArray<Interaction.TextRun>,
-  style: (text: string) => TextChunk,
-): Array<TextChunk> =>
-  Array.map(runs, run =>
-    run.isMatch ? underline(fg(matchColor)(bold(run.text))) : style(run.text),
+const menuBackground = '#0f172a'
+
+const menuLeft = 2
+
+const menuChrome = menuLeft + 4
+
+const chunksOf = (run: Interaction.TerminalRun): ReadonlyArray<TextChunk> =>
+  M.value(run.tone).pipe(
+    M.withReturnType<ReadonlyArray<TextChunk>>(),
+    M.when('Plain', () => stringToStyledText(run.text).chunks),
+    M.when('Strong', () => [bold(run.text)]),
+    M.when('Quiet', () => [dim(run.text)]),
+    M.when('Match', () => [underline(fg(matchColor)(bold(run.text)))]),
+    M.exhaustive,
   )
 
-const rowContent = (row: Interaction.MenuRow): StyledText => {
-  const isDisabled = row.entry.availability._tag === 'Disabled'
-  const keys = Array.match(row.keys, {
-    onEmpty: () => [],
-    onNonEmpty: rowKeys => [dim(`  [${Array.join(rowKeys, ' ')}]`)],
+const paintMenuLine = (
+  ctx: RenderContext,
+  line: Interaction.TerminalLine,
+  options: PaintOpenTuiMenuOptions,
+): Renderable => {
+  const lineBox = new BoxRenderable(ctx, {
+    ...(line.isFocused ? { backgroundColor: focusColor } : {}),
+    ...Option.match(line.maybeChoice, {
+      onNone: () => ({}),
+      onSome: tag => ({
+        onMouseDown: () => {
+          options.onChoose(tag)
+        },
+      }),
+    }),
   })
-  const because =
-    row.entry.availability._tag === 'Disabled'
-      ? [dim(` (${row.entry.availability.because})`)]
-      : []
-  return new StyledText([
-    isDisabled ? dim(rowMark(row)) : bold(rowMark(row)),
-    ...runChunks(row.title, isDisabled ? dim : bold),
-    dim('  '),
-    ...runChunks(row.description, dim),
-    ...because,
-    ...keys,
-  ])
+  lineBox.add(
+    new TextRenderable(ctx, {
+      content: new StyledText([...Array.flatMap(line.runs, chunksOf)]),
+      wrapMode: 'none',
+    }),
+  )
+  return lineBox
 }
 
 const paintMenu = (
@@ -166,47 +183,20 @@ const paintMenu = (
   options: PaintOpenTuiMenuOptions,
 ): Renderable => {
   const overlay = new BoxRenderable(ctx, {
-    backgroundColor: '#0f172a',
+    backgroundColor: menuBackground,
     border: true,
-    left: 2,
+    left: menuLeft,
     padding: 1,
     position: 'absolute',
-    title: menu.title,
     top: 0,
     zIndex: 20,
   })
-  overlay.add(
-    new TextRenderable(ctx, {
-      content: t`${dim(Interaction.hintLineOf(menu.hints))}`,
-    }),
+  Array.forEach(
+    Interaction.terminalMenuLines(menu, ctx.width - menuChrome),
+    line => {
+      overlay.add(paintMenuLine(ctx, line, options))
+    },
   )
-  overlay.add(
-    new TextRenderable(ctx, {
-      content: menu.isFilterFocused
-        ? t`${bold(`${menu.filterLabel}: ${menu.query}_`)}`
-        : t`${dim(`${menu.filterLabel}: ${menu.query}`)}`,
-    }),
-  )
-  Array.forEach(menu.rows, row => {
-    const isDisabled = row.entry.availability._tag === 'Disabled'
-    const rowBox = new BoxRenderable(ctx, {
-      ...(row.isFocused ? { backgroundColor: '#1d4ed8' } : {}),
-      ...(isDisabled
-        ? {}
-        : {
-            onMouseDown: () => {
-              options.onChoose(row.entry.tag)
-            },
-          }),
-    })
-    rowBox.add(
-      new TextRenderable(ctx, { content: rowContent(row), wrapMode: 'none' }),
-    )
-    overlay.add(rowBox)
-  })
-  if (Array.isReadonlyArrayEmpty(menu.rows)) {
-    overlay.add(new TextRenderable(ctx, { content: t`${dim(menu.summary)}` }))
-  }
   const close = new BoxRenderable(ctx, {
     onMouseDown: () => {
       options.onDismiss()
@@ -275,7 +265,7 @@ const paintOverlay = (
       Menu: ({ menu }) => paintMenu(ctx, menu, options),
       Screen: ({ node }) => {
         const overlay = new BoxRenderable(ctx, {
-          backgroundColor: '#0f172a',
+          backgroundColor: menuBackground,
           border: true,
           left: overlayOffset,
           padding: 1,

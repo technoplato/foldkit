@@ -179,12 +179,6 @@ const ScreenView = ({
   )
 }
 
-const styleTagOf = (layer: LayerShape): string =>
-  Option.match(layer.maybeStyle, {
-    onNone: () => 'Root',
-    onSome: style => style._tag,
-  })
-
 const OverlayView = ({
   layer,
   classNames,
@@ -202,7 +196,7 @@ const OverlayView = ({
         role="dialog"
         aria-modal="true"
         className="fk-overlay"
-        data-style={styleTagOf(layer)}
+        data-style={Navigation.styleTagOf(layer)}
         data-key={layer.key}
       >
         <ScreenView entryKey={layer.key} classNames={classNames} />
@@ -212,23 +206,19 @@ const OverlayView = ({
   )
 
 /**
- * Keeps the browser tab's title on the Program's screen and names the app
- * showing it, so `Session | React` and `Session | Svelte` tell two windows
- * apart. The title comes from the topmost entry that declares one.
+ * Keeps the browser tab's title on the Program's screen and names the Host
+ * it was started on, so `Session | React` and `Session | Svelte` tell two
+ * windows apart. While the Program is Starting, the title is its own
+ * description, `Starting Counter… | React`.
  *
  * @example
  * ```tsx
- * useDocumentTitle('React') // 'Counter | React', then 'Session | React'
+ * useDocumentTitle() // 'Counter | React', then 'Session | React'
  * ```
  */
-export const useDocumentTitle = (appLabel: string): void => {
+export const useDocumentTitle = (): void => {
   const bound = useBound()
-  const title = useBoundRead(bound, () =>
-    Navigation.documentTitleOf(
-      Option.flatMap(Navigation.frameOf(bound), frame => frame.maybeTitle),
-      appLabel,
-    ),
-  )
+  const title = useBoundRead(bound, bound.windowTitle)
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.title = title

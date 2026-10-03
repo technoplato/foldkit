@@ -7,6 +7,7 @@ import type {
   ColumnNode,
   RowNode,
   SpacerNode,
+  TextEmphasis,
   TextInputNode,
   TextNode,
   UiNode,
@@ -15,10 +16,11 @@ import type {
 /**
  * A text run. Optional `href` is a link the painters may follow. Optional
  * `label` is what a screen reader announces instead of the bare content.
+ * `emphasis: 'Display'` marks the screen's headline, such as the count.
  *
  * @example
  * ```typescript
- * Text('3', { label: 'count 3' })
+ * Text('3', { label: 'count 3', emphasis: 'Display' })
  * ```
  */
 export const Text = (
@@ -28,6 +30,7 @@ export const Text = (
     label?: string
     mono?: boolean
     dim?: boolean
+    emphasis?: TextEmphasis
     width?: number
   }> = {},
 ): TextNode => ({

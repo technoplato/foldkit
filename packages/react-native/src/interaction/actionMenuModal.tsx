@@ -13,7 +13,7 @@ import {
   type ViewStyle,
 } from 'react-native'
 
-import { useBound, useMenu } from '@foldkit/react/interaction'
+import { useBound, useMenu, useMenuOpener } from '@foldkit/react/interaction'
 
 const presentationOf = (
   style: Navigation.PresentationStyle,
@@ -280,7 +280,8 @@ const floatingOpenerStyle: StyleProp<ViewStyle> = {
 /**
  * A floating button that opens the bound Program's action menu, labeled
  * from the Program. A touch screen shows no shortcut, so it reads
- * `Actions`. It renders nothing for a Program without a menu.
+ * `Actions`. It renders nothing for a Program without a menu, and nothing
+ * until the Program is Ready.
  *
  * @example
  * ```tsx
@@ -290,16 +291,13 @@ const floatingOpenerStyle: StyleProp<ViewStyle> = {
 export const ActionMenuButton = ({
   style,
 }: Readonly<{ style?: StyleProp<ViewStyle> }>): ReactElement | null => {
-  const bound = useBound()
-  return Option.match(bound.menuOpener('Touch'), {
+  return Option.match(useMenuOpener('Touch'), {
     onNone: () => null,
-    onSome: opener => (
+    onSome: ({ opener, open }) => (
       <Pressable
         accessibilityLabel={opener.label}
         accessibilityRole="button"
-        onPress={() => {
-          bound.openMenu()
-        }}
+        onPress={open}
         style={style ?? floatingOpenerStyle}
       >
         <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>

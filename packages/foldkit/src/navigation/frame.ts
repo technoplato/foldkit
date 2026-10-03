@@ -14,6 +14,24 @@ export type FrameLayer = Readonly<{
 }>
 
 /**
+ * The word a painter marks a layer with, so a stylesheet can place it: the
+ * style's tag, or `Root` for the entry at the bottom.
+ *
+ * @example
+ * ```typescript
+ * styleTagOf(menuLayer) // 'Dialog'
+ * styleTagOf(rootLayer) // 'Root'
+ * ```
+ */
+export const styleTagOf = (
+  layer: Readonly<{ maybeStyle: Option.Option<PresentationStyle> }>,
+): string =>
+  Option.match(layer.maybeStyle, {
+    onNone: () => 'Root',
+    onSome: style => style._tag,
+  })
+
+/**
  * Everything a host with one surface paints: where the Program is, the
  * title of the topmost entry that declares one, the base screen, and each
  * entry presented over it, bottom first.

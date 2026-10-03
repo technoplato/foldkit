@@ -29,6 +29,7 @@ export type {
   LayoutBox,
   RowNode,
   SpacerNode,
+  TextEmphasis,
   TextInputNode,
   TextNode,
   UiNode,

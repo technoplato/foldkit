@@ -12,7 +12,7 @@ import {
 } from 'effect'
 
 import { titleOf } from '../catalog/catalog.js'
-import { hostOfFrom, labelOf, print } from '../processor/host.js'
+import { fromLabelOf } from '../processor/host.js'
 import {
   type SyncEngine,
   readRowNumber,
@@ -38,17 +38,6 @@ const clockOf = (createdAtMs: number): string => {
   const date = new Date(createdAtMs)
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
 }
-
-const appAndInstanceOf = (
-  from: string,
-): Readonly<{ app: string; instance: string }> =>
-  Option.match(hostOfFrom(from), {
-    onNone: () => ({ app: from, instance: '' }),
-    onSome: host => ({
-      app: labelOf(host),
-      instance: from.slice(print(host).length + 1),
-    }),
-  })
 
 const fieldText = (value: unknown): string =>
   typeof value === 'string' ? `"${value}"` : JSON.stringify(value)
@@ -81,7 +70,7 @@ export const formatTailRow = (
   messageSchema: S.Decoder<unknown>,
   row: unknown,
 ): ReadonlyArray<string> => {
-  const { app, instance } = appAndInstanceOf(
+  const { app, instance } = fromLabelOf(
     Option.getOrElse(readRowString(row, 'from'), () => ''),
   )
   const time = Option.match(readRowNumber(row, 'createdAtMs'), {

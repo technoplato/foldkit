@@ -18,6 +18,7 @@
  */
 import {
   cliDaemonSocketPath,
+  cliViewFailed,
   parseProgramArgv,
   runCliView,
   spawnCliViewDaemon,
@@ -34,7 +35,7 @@ import {
 const request = parseProgramArgv(process.argv.slice(2))
 const tape = counterCliTape()
 
-if (request._tag !== 'Show' && request.token === 'tail') {
+if (request._tag === 'Tail') {
   const { runTail } = await import('./tail.js')
   await runTail()
 } else if (tape._tag === 'Instant') {
@@ -53,12 +54,7 @@ if (request._tag !== 'Show' && request.token === 'tail') {
       }),
     )
   } catch (cause) {
-    writeCliViewResult({
-      stdout: '',
-      stderr:
-        cause instanceof Error ? cause.message : 'The Counter CLI failed.',
-      exitCode: 1,
-    })
+    writeCliViewResult(cliViewFailed(cause))
   }
 } else {
   const { runInProcess } = await import('./inProcess.js')

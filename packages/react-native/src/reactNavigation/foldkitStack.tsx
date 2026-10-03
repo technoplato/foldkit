@@ -14,6 +14,7 @@ import {
 } from '@react-navigation/native-stack'
 
 import type { PaintStyles } from '../interaction/screen.js'
+import { WhenReady } from '../interaction/whenReady.js'
 import { entryOptionsOf } from './entryOptions.js'
 import { EntryStylesContext, EntryView, entryStylesOf } from './entryView.js'
 import {
@@ -89,15 +90,16 @@ const ReadyStack = ({
  * keyed route per plan entry, presented by its declared style. A swipe,
  * the header back button, and the Android back button reach the Program
  * as `NavigatedBack`; every Program move resets the stack to its plan,
- * keeping unchanged screens mounted. It renders nothing until the Program
- * is Ready, and after that it re-renders only if readiness changes; each
- * screen repaints its own entry. `launchUri` is a deep link the app
+ * keeping unchanged screens mounted. Until the Program is Ready it shows
+ * the Program's own description, `Starting Counter…`, and after that it
+ * re-renders only if readiness changes; each screen repaints its own
+ * entry. `launchUri` is a deep link the app
  * opened with.
  *
  * @example
  * ```tsx
  * <ProgramProvider bound={counter}>
- *   <FoldkitStack styles={{ Text: { fontSize: 72 } }} />
+ *   <FoldkitStack />
  * </ProgramProvider>
  * ```
  */
@@ -114,7 +116,7 @@ export const FoldkitStack = ({
     ? Option.map(bound.navigation(), keyedRoutesOf)
     : Option.none()
   return Option.match(maybeRoutes, {
-    onNone: () => null,
+    onNone: () => <WhenReady>{null}</WhenReady>,
     onSome: initialRoutes => (
       <EntryStylesContext.Provider value={entryStylesOf(styles)}>
         <ReadyStack initialRoutes={initialRoutes} launchUri={launchUri} />

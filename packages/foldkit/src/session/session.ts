@@ -258,7 +258,7 @@ const settingsCatalog = Catalog.make([
 export const sessionScreen = (model: SessionModel & NavigationModel): UiNode =>
   Column(
     {},
-    Text('Session', { label: 'Session settings' }),
+    Text('Session', { label: 'Session settings', emphasis: 'Display' }),
     Text(modeSentence(model.session.mode), { dim: true }),
     Row({}, ...actionButtons(Catalog.entries(settingsCatalog, model))),
   )

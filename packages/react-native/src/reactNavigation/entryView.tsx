@@ -10,6 +10,7 @@ import {
   openLinkOf,
   paintTree,
 } from '../interaction/screen.js'
+import { WhenReady } from '../interaction/whenReady.js'
 
 // ENTRY
 
@@ -21,6 +22,7 @@ export const EntryStylesContext = createContext<PaintStyles>(noStyles)
 /**
  * Paints one stack entry by key: its screen tree, or the action menu over
  * a dimmed backdrop. Both native stacks render it inside each route.
+ * Before the Program is Ready it shows the Program's own description.
  *
  * @example
  * ```tsx
@@ -29,14 +31,14 @@ export const EntryStylesContext = createContext<PaintStyles>(noStyles)
  */
 export const EntryView = ({
   entryKey,
-}: Readonly<{ entryKey: string }>): ReactElement | null => {
+}: Readonly<{ entryKey: string }>): ReactElement => {
   const bound = useBound()
   const styles = useContext(EntryStylesContext)
   const maybeView = useViewAt(entryKey)
   return useMemo(
     () =>
       Option.match(maybeView, {
-        onNone: () => null,
+        onNone: () => <WhenReady>{null}</WhenReady>,
         onSome: view =>
           M.value(view).pipe(
             M.withReturnType<ReactElement>(),

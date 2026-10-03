@@ -25,7 +25,7 @@ import { maybeCounterUri } from './navigation.js'
  * @example
  * ```typescript
  * counterScreen({ count: 0 })
- * // Column: Text('0', { label: 'count 0' }),
+ * // Column: Text('0', { label: 'count 0', emphasis: 'Display' }),
  * // Row: [+] [-] [Reset (disabled: count is already 0)]
  * ```
  */
@@ -36,7 +36,7 @@ export const counterScreen = (
   const count = String(model.count)
   const screen = Column(
     {},
-    Text(count, { label: `count ${count}` }),
+    Text(count, { label: `count ${count}`, emphasis: 'Display' }),
     Row({}, ...actionButtons(Catalog.entries(catalog, model))),
   )
   if (context.device === undefined) {

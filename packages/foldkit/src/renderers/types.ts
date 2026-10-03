@@ -11,6 +11,12 @@ export type HotspotAction = Readonly<{
  * `label` is what a screen reader announces instead of the bare content,
  * such as `count 3` for `3`.
  */
+/**
+ * How much a text run stands out. `Display` is the screen's headline, such
+ * as the count: large on graphical painters, bold in a terminal.
+ */
+export type TextEmphasis = 'Display'
+
 export type TextNode = Readonly<{
   readonly _tag: 'Text'
   readonly content: string
@@ -18,6 +24,7 @@ export type TextNode = Readonly<{
   readonly label?: string
   readonly mono?: boolean
   readonly dim?: boolean
+  readonly emphasis?: TextEmphasis
   readonly width?: number
 }>
 

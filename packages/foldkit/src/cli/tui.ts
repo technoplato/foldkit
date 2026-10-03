@@ -8,25 +8,11 @@ import {
 } from 'effect'
 
 import type { BoundInteraction } from '../interaction/bind.js'
-import {
-  type KeyInput,
-  menuHintOf,
-  terminalKeyInput,
-} from '../interaction/interaction.js'
-import { documentTitleOf, frameOf } from '../navigation/frame.js'
+import { type KeyInput, terminalKeyInput } from '../interaction/interaction.js'
+import { pressTerminalKey, terminalFooterOf } from '../interaction/terminal.js'
 import { paintProgram } from './program.js'
 
 const clearScreen = '\u001b[2J\u001b[H'
-
-const quitHint = '[q] quit'
-
-const footerOf = <Model, Message>(
-  bound: BoundInteraction<Model, Message>,
-): string =>
-  Option.match(menuHintOf(bound.menuKeys()), {
-    onNone: () => quitHint,
-    onSome: menuHint => `${menuHint}   ${quitHint}`,
-  })
 
 /**
  * One terminal key event as a KeyInput. Named keys such as `return` and
@@ -49,12 +35,7 @@ export const keyInputOfTerminal = (input: Terminal.UserInput): KeyInput =>
 
 const windowTitleSequence = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
-  appLabel: string,
-): string =>
-  `\u001b]0;${documentTitleOf(
-    Option.flatMap(frameOf(bound), frame => frame.maybeTitle),
-    appLabel,
-  )}\u0007`
+): string => `\u001b]0;${bound.windowTitle()}\u0007`
 
 const isInterrupt = (input: Terminal.UserInput): boolean =>
   input.key.ctrl && input.key.name === 'c'
@@ -64,8 +45,8 @@ const isInterrupt = (input: Terminal.UserInput): boolean =>
  * change and routes each key through the Program's interaction, so `+`
  * increments and `?` opens the action menu without any host code. Ctrl-C
  * quits, and so does `q` when neither an Action nor the menu takes it.
- * The terminal window's title follows the screen and names the app,
- * `Session | TUI`.
+ * The terminal window's title follows the screen and names the Host the
+ * Program was started on, `Session | TUI`.
  *
  * @example
  * ```typescript
@@ -78,7 +59,6 @@ const isInterrupt = (input: Terminal.UserInput): boolean =>
 export const runProgramTui = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
-  options: Readonly<{ appLabel?: string }> = {},
 ): Effect.Effect<
   void,
   Cause.Done | PlatformError.PlatformError,
@@ -96,7 +76,7 @@ export const runProgramTui = <Model, Message>(
 
       const paint = Effect.suspend(() =>
         terminal.display(
-          `${windowTitleSequence(bound, options.appLabel ?? 'TUI')}${clearScreen}${name}  ${paintProgram(bound)}\n\n${footerOf(bound)}\n`,
+          `${windowTitleSequence(bound)}${clearScreen}${name}  ${paintProgram(bound)}\n\n${terminalFooterOf(bound.menuKeys())}\n`,
         ),
       )
 
@@ -108,9 +88,7 @@ export const runProgramTui = <Model, Message>(
           if (isInterrupt(event)) {
             return Effect.void
           }
-          const key = keyInputOfTerminal(event)
-          const isHandled = bound.pressKey(key)
-          if (!isHandled && key.key === 'q' && Option.isNone(bound.menu())) {
+          if (pressTerminalKey(bound, keyInputOfTerminal(event)) === 'Quit') {
             return Effect.void
           }
           return paint.pipe(Effect.andThen(Effect.suspend(() => readKeys)))

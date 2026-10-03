@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { wrapDevice } from './devices/devices.js'
 import { Button, Column, Row, Text, TextInput } from './elements.js'
 import { Host } from './host.js'
-import { paintHtml, paintMobile } from './html.js'
+import { paintHtml, paintMobile, paintStatusHtml } from './html.js'
 import { padOf } from './pad.js'
 import { buttonsOf, inputsOf, textsOf } from './query.js'
 import { renderAscii, renderScreen } from './render.js'
@@ -200,5 +200,21 @@ describe('paintMobile', () => {
     expect(JSON.stringify(vnode)).toContain('fk-mobile-key')
     expect(JSON.stringify(vnode)).toContain('=')
     expect(JSON.stringify(vnode)).not.toContain('reset')
+  })
+})
+
+describe('text emphasis and status', () => {
+  it('marks Display text for the shared stylesheet', () => {
+    expect(
+      JSON.stringify(
+        paintHtml(Text('3', { emphasis: 'Display' }), () => undefined),
+      ),
+    ).toContain('Display')
+  })
+
+  it('paints a status description with the shared styles', () => {
+    const painted = JSON.stringify(paintStatusHtml('Starting Counter…'))
+    expect(painted).toContain('fk-status')
+    expect(painted).toContain('Starting Counter…')
   })
 })

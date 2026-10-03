@@ -2,8 +2,9 @@ import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { bindApp } from '../test/apps/navigableCounter.js'
-import { frameOf } from './frame.js'
+import { frameOf, styleTagOf } from './frame.js'
 import { Link } from './message.js'
+import { Dialog } from './structure.js'
 
 describe('frameOf', () => {
   it('paints the pushed page with the menu presented over it', () => {
@@ -24,5 +25,12 @@ describe('frameOf', () => {
     const frame = Option.getOrThrow(frameOf(bindApp()))
     expect(frame.base.key).toBe('/counter')
     expect(frame.overlays).toEqual([])
+  })
+})
+
+describe('styleTagOf', () => {
+  it('names a presented layer by its style and the bottom one Root', () => {
+    expect(styleTagOf({ maybeStyle: Option.some(Dialog()) })).toBe('Dialog')
+    expect(styleTagOf({ maybeStyle: Option.none() })).toBe('Root')
   })
 })

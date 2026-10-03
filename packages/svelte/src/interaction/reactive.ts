@@ -3,9 +3,10 @@ import { type Interaction, Navigation } from 'foldkit'
 import { createSubscriber } from 'svelte/reactivity'
 
 /**
- * A bound Program as Svelte reactive reads. Reading `status`, `screen`, or
- * `menu` inside a component tracks the Program, so the component repaints
- * on every Model change. Presses go through `bound`.
+ * A bound Program as Svelte reactive reads. Reading `status`, `screen`,
+ * `menu`, `frame`, or `windowTitle` inside a component tracks the Program,
+ * so the component repaints on every Model change. Presses go through
+ * `bound`.
  */
 export type ReactiveProgram<Model, Message> = Readonly<{
   bound: Interaction.BoundInteraction<Model, Message>
@@ -14,6 +15,7 @@ export type ReactiveProgram<Model, Message> = Readonly<{
   screen: ReturnType<Interaction.BoundInteraction<Model, Message>['screen']>
   menu: ReturnType<Interaction.BoundInteraction<Model, Message>['menu']>
   frame: Option.Option<Navigation.Frame>
+  windowTitle: string
 }>
 
 /**
@@ -52,6 +54,10 @@ export const reactive = <Model, Message>(
     get frame() {
       track()
       return Navigation.frameOf(bound)
+    },
+    get windowTitle() {
+      track()
+      return bound.windowTitle()
     },
   }
 }

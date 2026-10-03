@@ -1,12 +1,10 @@
 import { Array, Match as M } from 'effect'
-import { Interaction } from 'foldkit'
+import { Interaction, Navigation } from 'foldkit'
 import type { ButtonNode, UiNode } from 'foldkit/renderers'
 import { Fragment, type ReactElement } from 'react'
 
 /** Extra class per node kind, appended after the fk-* base class. */
 export type PaintClassNames = Partial<Record<UiNode['_tag'], string>>
-
-const primaryButton = 0
 
 /**
  * How a painted tree reports presses, text input, and link follows.
@@ -61,6 +59,9 @@ export const paintTree = (
             ...(text.label === undefined ? {} : { 'aria-label': text.label }),
             ...(text.dim === true ? { 'data-dim': true } : {}),
             ...(text.mono === true ? { 'data-mono': true } : {}),
+            ...(text.emphasis === undefined
+              ? {}
+              : { 'data-emphasis': text.emphasis }),
           }
           if (href === undefined) {
             return <div {...attributes}>{text.content}</div>
@@ -71,14 +72,8 @@ export const paintTree = (
                 className="fk-text-link"
                 href={href}
                 onClick={event => {
-                  const isPlainClick =
-                    event.button === primaryButton &&
-                    !event.metaKey &&
-                    !event.ctrlKey &&
-                    !event.shiftKey &&
-                    !event.altKey
                   if (
-                    isPlainClick &&
+                    Navigation.isPlainClick(event) &&
                     handlers.onLink !== undefined &&
                     handlers.onLink(href)
                   ) {

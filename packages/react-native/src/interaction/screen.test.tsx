@@ -14,6 +14,9 @@ import { paintTree } from './screen.js'
 
 vi.mock('react-native', () => ({
   Linking: { openURL: vi.fn() },
+  Platform: {
+    select: (choices: Readonly<{ default: unknown }>) => choices.default,
+  },
   Pressable: 'Pressable',
   Text: 'Text',
   View: 'View',
@@ -86,9 +89,32 @@ describe('paintTree', () => {
     expect(count['accessibilityLabel']).toBe('count 3')
     expect(count['children']).toBe('3')
     expect(count['style']).toEqual([
-      { color: '#111827', fontSize: 17, textAlign: 'center' },
+      { color: '#111827', fontSize: 16, textAlign: 'center' },
       { fontSize: 72 },
     ])
+  })
+
+  it('maps Display, dim, and mono text onto the core look', () => {
+    const painted = paintTree(
+      Column(
+        {},
+        Text('3', { emphasis: 'Display' }),
+        Text('Every device shows the same screen.', { dim: true }),
+        Text('/counter', { mono: true }),
+      ),
+      { onPress: () => {} },
+    )
+    const [display, dim, mono] = Array.map(
+      hostsOf(painted, 'Text'),
+      text => propsOf(text)['style'],
+    )
+    expect(display).toContainEqual(
+      expect.objectContaining({ fontSize: 72, fontWeight: '600' }),
+    )
+    expect(dim).toContainEqual(
+      expect.objectContaining({ color: '#6b7280', fontSize: 16 }),
+    )
+    expect(mono).toContainEqual({ fontFamily: 'monospace' })
   })
 
   it('reports the pressed Button node with its Catalog action', () => {

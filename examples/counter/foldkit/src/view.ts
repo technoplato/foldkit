@@ -1,9 +1,13 @@
 import { SyncedCounter, type SyncedCounterModel } from 'counter-core-example'
 import { Match as M, Option } from 'effect'
-import { Interaction, Navigation } from 'foldkit'
+import { Interaction, Processor } from 'foldkit'
 import { type Document, type Html, html } from 'foldkit/html'
 import { type ActionContext } from 'foldkit/message'
-import { type MenuMessages, paintFrameHtml } from 'foldkit/renderers/html'
+import {
+  type MenuMessages,
+  paintFrameHtml,
+  paintStatusHtml,
+} from 'foldkit/renderers/html'
 
 // VIEW
 
@@ -17,6 +21,8 @@ const menuGestures: MenuMessages<Interaction.Gesture> = {
   chose: (tag: string) => Interaction.ChoseFromMenu({ tag }),
   dismissed: () => Interaction.DismissedMenu(),
 }
+
+const host = Processor.Host.Foldkit()
 
 const keyPlatform: Interaction.KeyPlatform =
   typeof navigator === 'undefined'
@@ -43,15 +49,11 @@ export const makeView =
       }),
     })
     const maybeFrame = Interaction.frameOfModel(program, model)
-    const status = interaction.status(model)
-    const statusLine = (text: string): ReadonlyArray<Html> => [
-      h.p([h.Class('counter-status')], [text]),
-    ]
-    const body = M.value(status).pipe(
+    const body = M.value(interaction.status(model)).pipe(
       M.withReturnType<ReadonlyArray<Html>>(),
       M.tagsExhaustive({
-        Starting: ({ description }) => statusLine(description),
-        Failed: ({ description }) => statusLine(description),
+        Starting: ({ description }) => paintStatusHtml(description),
+        Failed: ({ description }) => paintStatusHtml(description),
         Ready: () => [
           ...Option.match(maybeFrame, {
             onNone: () => [],
@@ -67,7 +69,7 @@ export const makeView =
               h.button(
                 [
                   h.Type('button'),
-                  h.Class('counter-menu-button'),
+                  h.Class('fk-action-menu-opener'),
                   h.OnClick(Interaction.OpenedMenu()),
                 ],
                 [opener.label],
@@ -78,20 +80,11 @@ export const makeView =
       }),
     )
     return {
-      title: Navigation.documentTitleOf(
-        Option.orElse(
-          Option.flatMap(maybeFrame, frame => frame.maybeTitle),
-          () =>
-            status._tag === 'Ready'
-              ? Option.none()
-              : Option.some(status.description),
-        ),
-        'Foldkit HTML',
-      ),
+      title: Interaction.windowTitleOfModel(program, model, host),
       body: h.div(
         [
           h.Class(
-            'counter-screen min-h-screen bg-white flex flex-col items-center justify-center gap-6 p-6',
+            'min-h-screen bg-white flex flex-col items-center justify-center gap-6 p-6',
           ),
         ],
         body,

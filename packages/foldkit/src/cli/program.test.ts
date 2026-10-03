@@ -41,7 +41,7 @@ describe('paintProgram', () => {
     bound.typeInMenu('res')
     const painted = paintProgram(bound)
     expect(painted).toContain('Actions  Search actions: "res"')
-    expect(painted).toMatch(/ {2}> reset +r +Sets the count to 0/)
+    expect(painted).toMatch(/ {2}> Reset +r +Sets the count to 0/)
     expect(painted).toContain('[↑↓] move  [↵] run  [esc] close')
   })
 })
@@ -151,7 +151,7 @@ describe('navigation commands', () => {
     runProgramCommand(bound, 'counter', ['open', '/counter/menu?menu.q=re'], {})
     const text = paintProgram(bound)
     expect(text).toContain('at /counter/menu?menu.q=re')
-    expect(text).toMatch(/ {2}> reset +r +Sets the count to 0/)
+    expect(text).toMatch(/ {2}> Reset +r +Sets the count to 0/)
     expect(text.indexOf('Search actions')).toBeLessThan(
       text.lastIndexOf('Actions'),
     )

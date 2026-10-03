@@ -5,7 +5,7 @@ import type { MenuView, TextRun } from '../interaction/interaction.js'
 import { menuStylesheet } from '../interaction/menuStyles.js'
 import { screenStylesheet } from '../interaction/screenStyles.js'
 import type { EntryView } from '../navigation/declaration.js'
-import type { Frame, FrameLayer } from '../navigation/frame.js'
+import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import type { UiNode } from './types.js'
@@ -29,6 +29,9 @@ export const paintHtml = <Message>(
             ...(text.label === undefined ? [] : [h.AriaLabel(text.label)]),
             ...(text.dim === true ? [h.DataAttribute('dim', 'true')] : []),
             ...(text.mono === true ? [h.DataAttribute('mono', 'true')] : []),
+            ...(text.emphasis === undefined
+              ? []
+              : [h.DataAttribute('emphasis', text.emphasis)]),
           ]
           if (text.href === undefined) {
             return h.div(attributes, [text.content])
@@ -345,6 +348,26 @@ export const paintMenuHtml = <Message>(
   )
 }
 
+/**
+ * Paints a Program's Starting or Failed description as Foldkit HTML with
+ * the shared screen styles, so a host writes no status text of its own.
+ *
+ * @example
+ * ```typescript
+ * paintStatusHtml('Starting Counter…')
+ * // <style>…</style><p class="fk-status" role="status">Starting Counter…</p>
+ * ```
+ */
+export const paintStatusHtml = <Message>(
+  description: string,
+): ReadonlyArray<Html> => {
+  const h = html<Message>()
+  return [
+    h.style([], [screenStylesheet]),
+    h.p([h.Class('fk-status'), h.Role('status')], [description]),
+  ]
+}
+
 /** The Messages a painted navigation frame reports. */
 export type FrameMessages<Message> = Readonly<{
   toMessage: (token: string) => Message | undefined
@@ -388,13 +411,7 @@ export const paintFrameHtml = <Message>(
               h.Role('dialog'),
               h.AriaModal(true),
               h.Class('fk-overlay'),
-              h.DataAttribute(
-                'style',
-                Option.match(layer.maybeStyle, {
-                  onNone: () => 'Root',
-                  onSome: style => style._tag,
-                }),
-              ),
+              h.DataAttribute('style', styleTagOf(layer)),
               h.DataAttribute('key', layer.key),
             ],
             [paintView(layer.view)],

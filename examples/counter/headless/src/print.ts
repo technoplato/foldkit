@@ -23,7 +23,7 @@ import {
   String,
   pipe,
 } from 'effect'
-import { ActionMenu, Processor, Program } from 'foldkit'
+import { Processor, Program } from 'foldkit'
 import { renderScreen } from 'foldkit/renderers'
 
 import {
@@ -47,11 +47,8 @@ export type HeadlessTimeOptions = Readonly<{
 }>
 
 const actionWidth = 32
-const whoWidth = 12
-const kindWidth = 10
-const detailWidth = 9
+const whoWidth = 22
 const columnGap = '  '
-const absentCell = '·'
 
 const partValue = (
   parts: ReadonlyArray<Intl.DateTimeFormatPart>,
@@ -172,14 +169,6 @@ const padCell = (value: string, width: number): string => {
 const formatHeadlessRow = (action: string, who: string, time: string): string =>
   `${padCell(action, actionWidth)}${columnGap}${padCell(who, whoWidth)}${columnGap}${time}`
 
-const formatStatusRow = (
-  kind: string,
-  detail: string,
-  who: string,
-  time: string,
-): string =>
-  `${padCell(kind, kindWidth)}${columnGap}${padCell(detail, detailWidth)}${columnGap}${padCell(who, whoWidth)}${columnGap}${time}`
-
 const withOptionalClock = (body: string, clock: string | undefined): string => {
   if (clock === undefined) {
     return body
@@ -195,17 +184,6 @@ const statusClock = (options?: HeadlessTimeOptions): string | undefined => {
   return formatHeadlessClock(options?.nowMs ?? Date.now(), options)
 }
 
-const statusTimeCell = (options?: HeadlessTimeOptions): string => {
-  const clock = statusClock(options)
-  if (clock === undefined) {
-    if (options?.nowMs === undefined) {
-      return absentCell
-    }
-    return options.nowMs.toString()
-  }
-  return clock
-}
-
 /**
  * The Message name in one tag column. Payload Messages are written as
  * `Tag:{json}`, so `ChoseActionMenuAction:{"tag":"Reset"}` prints
@@ -214,55 +192,12 @@ const statusTimeCell = (options?: HeadlessTimeOptions): string => {
 export const actionNameOf = (tag: string): string =>
   pipe(tag, String.split(':'), Array.headNonEmpty)
 
-const menuCell = (model: AppModel): string =>
-  Option.match(ActionMenu.menuOf(model.navigation), {
-    onNone: () => 'Closed',
-    onSome: () => 'Open',
-  })
-
-const queryCell = (model: AppModel): string =>
-  Option.match(ActionMenu.menuOf(model.navigation), {
-    onNone: () => absentCell,
-    onSome: menu => (String.isEmpty(menu.query) ? absentCell : menu.query),
-  })
-
-const focusCell = (model: AppModel): string =>
-  Option.match(ActionMenu.menuOf(model.navigation), {
-    onNone: () => absentCell,
-    onSome: menu =>
-      M.value(menu.focus).pipe(
-        M.withReturnType<string>(),
-        M.tagsExhaustive({
-          OnFilter: () => 'filter',
-          OnAction: ({ tag }) => tag,
-        }),
-      ),
-  })
-
-const fieldChange = (
-  name: string,
-  before: string,
-  after: string,
-): ReadonlyArray<string> =>
-  before === after ? [] : [`  ${name}  ${before} → ${after}`]
-
-const modelDiffLines = (
-  before: AppModel,
-  after: AppModel,
-): ReadonlyArray<string> => [
-  ...fieldChange('count', before.count.toString(), after.count.toString()),
-  ...fieldChange('session', before.session.mode, after.session.mode),
-  ...fieldChange('actionMenu', menuCell(before), menuCell(after)),
-  ...fieldChange('focus', focusCell(before), focusCell(after)),
-  ...fieldChange('query', queryCell(before), queryCell(after)),
-]
-
 const counterInteraction = Option.getOrThrowWith(
   Option.fromNullishOr(SyncedCounter.interaction),
   () => new Error('SyncedCounter must carry an interaction'),
 )
 
-/** Prints Starting, Failed, or the live count and screen. */
+/** Prints Starting, Failed, or Ready and the live screen. */
 export const formatHeadlessStatus = (
   model: SyncedCounterModel,
   options?: HeadlessTimeOptions,
@@ -288,14 +223,9 @@ export const formatHeadlessStatus = (
           Program.describeSyncError(error, message => message._tag),
           clock,
         ),
-      Ready: ready =>
+      Ready: () =>
         [
-          formatStatusRow(
-            'count',
-            ready.count.toString(),
-            absentCell,
-            statusTimeCell(options),
-          ),
+          withOptionalClock('ready', clock),
           ...Option.match(Option.fromNullishOr(SyncedCounter.screen), {
             onNone: () => [],
             onSome: screen => [renderScreen(screen(model))],
@@ -305,6 +235,11 @@ export const formatHeadlessStatus = (
   )
 }
 
+const whoOf = (from: string): string => {
+  const { app, instance } = Processor.Host.fromLabelOf(from)
+  return String.isEmpty(instance) ? app : `${app} ${instance}`
+}
+
 /** Prints one Instant Message row: action, who, time. */
 export const formatHeadlessMessage = (
   message: HeadlessMessage,
@@ -312,7 +247,7 @@ export const formatHeadlessMessage = (
 ): string =>
   formatHeadlessRow(
     actionNameOf(message.tag),
-    message.from,
+    whoOf(message.from),
     formatHeadlessClock(message.createdAtMs, options),
   )
 
@@ -326,7 +261,7 @@ export const formatPrintChanges = (
   after: AppModel,
   options?: HeadlessTimeOptions,
 ): string =>
-  Array.match(modelDiffLines(before, after), {
+  Array.match(Program.modelChangeLines(App.Model, before, after), {
     onEmpty: () => formatHeadlessMessage(message, options),
     onNonEmpty: lines =>
       [formatHeadlessMessage(message, options), ...lines].join('\n'),

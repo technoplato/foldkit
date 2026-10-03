@@ -2,12 +2,8 @@ import { Array, Effect, Match as M, Option, pipe } from 'effect'
 
 import { type Entry, commandOf } from '../catalog/catalog.js'
 import type { BoundInteraction } from '../interaction/bind.js'
-import {
-  type MenuView,
-  hintLineOf,
-  keyInput,
-  textOf,
-} from '../interaction/interaction.js'
+import { type MenuView, keyInput } from '../interaction/interaction.js'
+import { terminalLineText, terminalMenuLines } from '../interaction/terminal.js'
 import { backOneEntry } from '../navigation/carrier.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, frameOf } from '../navigation/frame.js'
@@ -112,33 +108,10 @@ const actionTable = (
   })
 }
 
-const rowMark = (row: MenuView['rows'][number]): string =>
-  row.isHighlighted ? '> ' : '  '
-
-const menuLines = (menu: MenuView): ReadonlyArray<string> => {
-  const columns = actionColumnsOf(Array.map(menu.rows, row => row.entry))
-  return [
-    '',
-    `${menu.title}  ${menu.filterLabel}: "${menu.query}"`,
-    ...Array.match(menu.rows, {
-      onEmpty: () => [`${indent}(${menu.summary})`],
-      onNonEmpty: rows =>
-        Array.flatMap(rows, row => [
-          ...columnRow(
-            [
-              indent,
-              `${rowMark(row)}${commandOf(row.entry.tag)}`,
-              keysTextOf(row.keys),
-            ],
-            [indentWidth, columns.commandWidth, columns.keysWidth],
-            textOf(row.description),
-          ),
-          ...unavailableLines(row.entry, columns.descriptionColumn),
-        ]),
-    }),
-    `${indent}${hintLineOf(menu.hints)}`,
-  ]
-}
+const menuLines = (menu: MenuView): ReadonlyArray<string> => [
+  '',
+  ...Array.map(terminalMenuLines(menu), terminalLineText),
+]
 
 const treeLines = (tree: UiNode): ReadonlyArray<string> =>
   Array.map(renderScreen(tree).split('\n'), line => line.trimEnd())
@@ -171,7 +144,7 @@ const statusLine = <Model, Message>(
     M.withReturnType<string>(),
     M.tagsExhaustive({
       Ready: () => 'ready',
-      Starting: () => 'starting',
+      Starting: ({ description }) => description,
       Failed: ({ description }) => `failed\n${description}`,
     }),
   )

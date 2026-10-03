@@ -48,6 +48,6 @@ describe('paintOpenTuiFrame', () => {
     const frame = await paintFrame(2, true)
     expect(frame).toContain('Actions')
     expect(frame).toContain('> Increment')
-    expect(frame).toContain('Reset  Sets the count to 0')
+    expect(frame).toMatch(/Reset +r +Sets the count to 0/)
   })
 })

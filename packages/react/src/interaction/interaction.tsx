@@ -1,4 +1,13 @@
-import { Array, Equal, Function, Option, Record, String, pipe } from 'effect'
+import {
+  Array,
+  Equal,
+  Function,
+  Match as M,
+  Option,
+  Record,
+  String,
+  pipe,
+} from 'effect'
 import { type Catalog, Interaction } from 'foldkit'
 import type { ButtonNode, UiNode } from 'foldkit/renderers'
 import {
@@ -69,6 +78,41 @@ export const useStatus = (): Interaction.Status => {
   const bound = useBound()
   return useBoundRead(bound, bound.status)
 }
+
+const StatusText = ({
+  description,
+}: Readonly<{ description: string }>): ReactElement => (
+  <>
+    <ScreenStyles />
+    <p className="fk-status" role="status">
+      {description}
+    </p>
+  </>
+)
+
+/**
+ * Paints `children` once the Program is Ready, and the Program's own
+ * description while it is Starting or Failed, so a host writes no status
+ * text: `Starting Counter…`, then the count.
+ *
+ * @example
+ * ```tsx
+ * <WhenReady>
+ *   <NavigationFrame />
+ * </WhenReady>
+ * ```
+ */
+export const WhenReady = ({
+  children,
+}: Readonly<{ children: ReactNode }>): ReactElement =>
+  M.value(useStatus()).pipe(
+    M.withReturnType<ReactElement>(),
+    M.tagsExhaustive({
+      Ready: () => <>{children}</>,
+      Starting: ({ description }) => <StatusText description={description} />,
+      Failed: ({ description }) => <StatusText description={description} />,
+    }),
+  )
 
 /**
  * The bound Program's screen tree. It keeps its reference while the tree is
@@ -571,7 +615,7 @@ const browserKeyPlatform = (): Interaction.KeyPlatform =>
 /**
  * The bound Program's menu opener for this device, `Actions (⌘K)` on a
  * Mac and `Actions (Ctrl+K)` elsewhere, and the function that opens the
- * menu. None for a Program without a menu.
+ * menu. None for a Program without a menu, and until the Program is Ready.
  *
  * @example
  * ```tsx
@@ -584,15 +628,16 @@ export const useMenuOpener = (
   Readonly<{ opener: Interaction.MenuOpener; open: () => void }>
 > => {
   const bound = useBound()
+  const maybeOpener = useBoundRead(bound, () => bound.menuOpener(platform))
   return useMemo(
     () =>
-      Option.map(bound.menuOpener(platform), opener => ({
+      Option.map(maybeOpener, opener => ({
         opener,
         open: () => {
           bound.openMenu()
         },
       })),
-    [bound, platform],
+    [bound, maybeOpener],
   )
 }
 

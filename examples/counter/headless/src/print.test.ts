@@ -60,6 +60,9 @@ const eventually = async (isDone: () => boolean): Promise<void> => {
 const isReady = (counter: BoundCounter): boolean =>
   counter.readModel()._tag === 'Ready'
 
+const tailRow = (action: string, who: string, time: string): string =>
+  `${action.padEnd(32)}  ${who.padEnd(22)}  ${time}`
+
 const newYorkAt = (createdAtMs: number) => ({
   format: 'human' as const,
   nowMs: createdAtMs,
@@ -86,13 +89,12 @@ describe('Counter headless printer', () => {
     const printer = startHeadlessPrinter({ time: 'ms', transport })
     await eventually(() => isReady(printer.counter))
     expect(printer.counter.readModel()).toEqual(readyAt(0))
-    expect(printer.lines().join('\n')).toContain('count       0')
+    expect(printer.lines().join('\n')).toContain('ready')
 
     expect(printer.counter.press('Increment')).toBe(true)
     await eventually(() => printer.lines().join('\n').includes('count  0 → 1'))
 
     const text = printer.lines().join('\n')
-    expect(text).toContain('count       1')
     expect(text).toContain('Increment')
     await printer.stop()
   })
@@ -109,7 +111,7 @@ describe('Counter headless printer', () => {
     )
     await eventually(() => printer.lines().join('\n').includes('Square'))
     expect(printer.lines().join('\n')).toContain(
-      'Square                            older         7  (unreadable)',
+      `${tailRow('Square', 'older', '7')}  (unreadable)`,
     )
     await printer.stop()
   })
@@ -122,7 +124,7 @@ describe('Counter headless printer', () => {
         id: 'm1',
         tag: 'Increment',
       }),
-    ).toBe('Increment                         headless      1')
+    ).toBe(tailRow('Increment', 'Headless', '1'))
   })
 
   it('names a payload Message by its tag', () => {
@@ -147,7 +149,7 @@ describe('Counter headless printer', () => {
         },
         { format: 'human', timeZone: 'America/New_York' },
       ),
-    ).toBe('Increment                         tui           4:26:35 PM')
+    ).toBe(tailRow('Increment', 'TUI', '4:26:35 PM'))
     expect(
       formatHeadlessClock(createdAtMs, {
         format: 'both',
@@ -186,39 +188,34 @@ describe('Counter headless printer', () => {
       ),
     ).toBe(
       [
-        'Increment                         react-d7e6fa  1:52:44 PM',
+        tailRow('Increment', 'React d7e6fa6c', '1:52:44 PM'),
         '  count  3 → 4',
       ].join('\n'),
     )
 
     const [open] = App.update(modelAt(4), ActionMenu.OpenedActionMenu())
-    expect(
-      formatPrintChanges(
-        {
-          createdAtMs: createdAtMs + 1000,
-          from: 'expo-ios',
-          id: 'm2',
-          tag: 'OpenedActionMenu',
-        },
-        modelAt(4),
-        open,
-        time,
-      ),
-    ).toBe(
-      [
-        'OpenedActionMenu                  expo-ios      1:52:45 PM',
-        '  actionMenu  Closed → Open',
-        '  focus  · → filter',
-      ].join('\n'),
+    const opened = formatPrintChanges(
+      {
+        createdAtMs: createdAtMs + 1000,
+        from: 'expo-ios-4f2a',
+        id: 'm2',
+        tag: 'OpenedActionMenu',
+      },
+      modelAt(4),
+      open,
+      time,
+    )
+    expect(firstLine(opened)).toBe(
+      tailRow('OpenedActionMenu', 'Expo iOS 4f2a', '1:52:45 PM'),
+    )
+    expect(opened).toContain('  navigation.maybeModal._tag  "None" → "Some"')
+    expect(opened).toContain(
+      '  navigation.maybeModal.value.style._tag  · → "Dialog"',
     )
 
     const [typed] = App.update(
       open,
       ActionMenu.ChangedActionMenuQuery({ query: 'res' }),
-    )
-    const [onRow] = App.update(
-      typed,
-      ActionMenu.MovedActionMenuFocus({ move: 'Next' }),
     )
     expect(
       formatPrintChanges(
@@ -234,26 +231,9 @@ describe('Counter headless printer', () => {
       ),
     ).toBe(
       [
-        'ChangedActionMenuQuery            cli           1:52:46 PM',
-        '  query  · → res',
-      ].join('\n'),
-    )
-    expect(
-      formatPrintChanges(
-        {
-          createdAtMs: createdAtMs + 3000,
-          from: 'cli',
-          id: 'm4',
-          tag: 'MovedActionMenuFocus:{"move":"Next"}',
-        },
-        typed,
-        onRow,
-        time,
-      ),
-    ).toBe(
-      [
-        'MovedActionMenuFocus              cli           1:52:47 PM',
-        '  focus  filter → Reset',
+        tailRow('ChangedActionMenuQuery', 'CLI', '1:52:46 PM'),
+        '  navigation.maybeModal.value.destination.query  "" → "res"',
+        '  navigation.maybeModal.value.destination.focus.maybeHighlighted.value  "Increment" → "Reset"',
       ].join('\n'),
     )
   })
@@ -275,19 +255,18 @@ describe('Counter headless printer', () => {
       ),
     ).toBe(
       [
-        'KeepNavigationLocal               expo-phone    1:52:44 PM',
-        '  session  Mirror → SharedDomain',
+        tailRow('KeepNavigationLocal', 'expo-phone', '1:52:44 PM'),
+        '  session.mode  "Mirror" → "SharedDomain"',
+        '  session.generation  0 → 1',
       ].join('\n'),
     )
   })
 
-  it('aligns count, Increment, and menu rows', () => {
+  it('aligns the status, Increment, and menu rows', () => {
     const createdAtMs = Date.UTC(2026, 7, 21, 17, 52, 44, 0)
     const time = newYorkAt(createdAtMs)
     const status = formatHeadlessStatus(readyAt(3), time)
-    expect(firstLine(status)).toBe(
-      'count       3          ·             1:52:44 PM',
-    )
+    expect(firstLine(status)).toBe('ready  1:52:44 PM')
     expect(status).toContain('[ + ]')
     expect(status).toContain('[ Reset ]')
     expect(
@@ -300,7 +279,7 @@ describe('Counter headless printer', () => {
         },
         time,
       ),
-    ).toBe('Increment                         react-d7e6fa  1:52:44 PM')
+    ).toBe(tailRow('Increment', 'React d7e6fa6c', '1:52:44 PM'))
     expect(
       formatHeadlessMessage(
         {
@@ -311,7 +290,7 @@ describe('Counter headless printer', () => {
         },
         time,
       ),
-    ).toBe('ChoseActionMenuAction             cli           1:52:44 PM')
+    ).toBe(tailRow('ChoseActionMenuAction', 'CLI', '1:52:44 PM'))
   })
 
   it('prints Starting and Failed without reading count', () => {

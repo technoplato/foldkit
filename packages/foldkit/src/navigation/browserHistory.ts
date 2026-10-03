@@ -168,6 +168,34 @@ export const linkTargetOf = (
   }
 }
 
+const primaryButton = 0
+
+/**
+ * True for a click a link should take over: the primary button with no
+ * modifier held. A Cmd-click or a middle click keeps the browser's own
+ * behavior, such as opening a new tab.
+ *
+ * @example
+ * ```typescript
+ * isPlainClick({ button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }) // true
+ * isPlainClick({ button: 0, metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }) // false
+ * ```
+ */
+export const isPlainClick = (
+  click: Readonly<{
+    button: number
+    metaKey: boolean
+    ctrlKey: boolean
+    shiftKey: boolean
+    altKey: boolean
+  }>,
+): boolean =>
+  click.button === primaryButton &&
+  !click.metaKey &&
+  !click.ctrlKey &&
+  !click.shiftKey &&
+  !click.altKey
+
 /**
  * Follows a link in a browser by {@link linkTargetOf}: opens it in the
  * Program, writes the address bar for a host page, or leaves it to the

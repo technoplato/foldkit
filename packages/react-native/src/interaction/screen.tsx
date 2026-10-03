@@ -1,9 +1,10 @@
 import { Array, Match as M, Option } from 'effect'
-import { Navigation } from 'foldkit'
-import type { ButtonNode, UiNode } from 'foldkit/renderers'
+import { Interaction, Navigation } from 'foldkit'
+import type { ButtonNode, TextNode, UiNode } from 'foldkit/renderers'
 import { Fragment, type ReactElement, useMemo } from 'react'
 import {
   Linking,
+  Platform,
   Pressable,
   Text,
   type TextStyle,
@@ -14,12 +15,13 @@ import {
 import { useBound, useScreen } from '@foldkit/react/interaction'
 
 /**
- * Extra style per node kind, merged over the neutral default for that kind.
- * `ButtonLabel` styles the text inside a Button.
+ * Extra style per node kind, merged over the default for that kind, which
+ * comes from `Interaction.screenLook`. `ButtonLabel` styles the text
+ * inside a Button. An app needs none of it to match the other painters.
  *
  * @example
  * ```typescript
- * const styles: PaintStyles = { Text: { fontSize: 72, fontWeight: '600' } }
+ * const styles: PaintStyles = { Button: { borderRadius: 8 } }
  * ```
  */
 export type PaintStyles = Readonly<{
@@ -80,32 +82,51 @@ export const openLinkOf =
       }),
     )
 
-const disabledOpacity = 0.55
+const look = Interaction.screenLook
+
+const monoFamily = Platform.select({ ios: 'Menlo', default: 'monospace' })
 
 const textStyle: TextStyle = {
-  color: '#111827',
-  fontSize: 17,
+  color: look.textColor,
+  fontSize: look.bodySize,
   textAlign: 'center',
 }
 
+const displayTextStyle: TextStyle = {
+  fontSize: look.displaySize,
+  fontVariant: ['tabular-nums'],
+  fontWeight: '600',
+}
+
+const dimTextStyle: TextStyle = {
+  color: look.dimColor,
+  fontSize: look.dimSize,
+  fontWeight: '400',
+}
+
+const monoTextStyle: TextStyle = { fontFamily: monoFamily }
+
 const linkStyle: TextStyle = {
-  color: '#2563eb',
+  color: look.linkColor,
   textDecorationLine: 'underline',
 }
 
 const buttonStyle: ViewStyle = {
-  backgroundColor: '#111827',
-  borderRadius: 8,
-  minWidth: 88,
-  paddingHorizontal: 16,
-  paddingVertical: 12,
+  alignItems: 'center',
+  backgroundColor: look.buttonColor,
+  justifyContent: 'center',
+  minHeight: look.buttonHeight,
+  minWidth: look.buttonMinWidth,
+  paddingHorizontal: look.buttonPaddingX,
 }
 
-const disabledButtonStyle: ViewStyle = { opacity: disabledOpacity }
+const disabledButtonStyle: ViewStyle = {
+  backgroundColor: look.buttonDisabledColor,
+}
 
 const buttonLabelStyle: TextStyle = {
-  color: '#ffffff',
-  fontSize: 16,
+  color: look.buttonLabelColor,
+  fontSize: look.buttonLabelSize,
   fontWeight: '500',
   textAlign: 'center',
 }
@@ -113,11 +134,18 @@ const buttonLabelStyle: TextStyle = {
 const rowStyle: ViewStyle = {
   flexDirection: 'row',
   flexWrap: 'wrap',
-  gap: 12,
+  gap: look.rowGap,
   justifyContent: 'center',
 }
 
-const columnStyle: ViewStyle = { alignItems: 'center', gap: 16 }
+const columnStyle: ViewStyle = { alignItems: 'center', gap: look.columnGap }
+
+const styleOfText = (text: TextNode): ReadonlyArray<TextStyle> => [
+  textStyle,
+  ...(text.emphasis === 'Display' ? [displayTextStyle] : []),
+  ...(text.dim === true ? [dimTextStyle] : []),
+  ...(text.mono === true ? [monoTextStyle] : []),
+]
 
 /**
  * Paints a Program screen tree as React Native elements. A Button press
@@ -129,7 +157,7 @@ const columnStyle: ViewStyle = { alignItems: 'center', gap: 16 }
  * ```tsx
  * paintTree(counterScreen({ count: 3 }), {
  *   onPress: button => console.log(button.action),
- *   styles: { Text: { fontSize: 72 } },
+ *   styles: { Button: { borderRadius: 8 } },
  * })
  * ```
  */
@@ -158,7 +186,7 @@ export const paintTree = (
             return (
               <Text
                 accessibilityLabel={text.label}
-                style={[textStyle, styles.Text]}
+                style={[...styleOfText(text), styles.Text]}
               >
                 {text.content}
               </Text>
@@ -175,7 +203,7 @@ export const paintTree = (
                   handlers.onLink(href)
                 }
               }}
-              style={[textStyle, linkStyle, styles.Text]}
+              style={[...styleOfText(text), linkStyle, styles.Text]}
             >
               {text.content}
             </Text>
@@ -242,7 +270,7 @@ export const paintTree = (
  * @example
  * ```tsx
  * <ProgramProvider bound={counter}>
- *   <Screen styles={{ Text: { fontSize: 72 } }} />
+ *   <Screen />
  * </ProgramProvider>
  * ```
  */

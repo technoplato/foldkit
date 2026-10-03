@@ -1,4 +1,4 @@
-import { Option } from 'effect'
+import { Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
 import { terminalKeyInput } from 'foldkit/interaction'
 
@@ -17,20 +17,21 @@ import {
   paintOpenTuiNavigationFrame,
 } from './paintOpenTui.js'
 
-const quitHint = '[q] quit'
 const paintedTreeIndex = 0
 
 /** Where an OpenTUI run starts. `launchUri` opens once the Program is Ready. */
 export type RunOpenTuiOptions = Readonly<{
   launchUri?: string
-  appLabel?: string
 }>
 
 /**
  * Runs any bound Program on an OpenTUI renderer until `q`. It repaints on
  * every Model change and routes keys and mouse presses through the
- * Program's interaction. A Program with a URI paints its navigation frame,
- * and Escape goes back because the Program reads it as Back.
+ * Program's interaction. While the Program is Starting or Failed it paints
+ * the Program's own description. A Program with a URI paints its
+ * navigation frame, and Escape goes back because the Program reads it as
+ * Back. The terminal title names the screen and the Host, `Session |
+ * OpenTUI`.
  *
  * @example
  * ```typescript
@@ -68,14 +69,8 @@ export const runOpenTui = <Model, Message>(
       },
     }
 
-    const paint = (): void => {
-      renderer.setTerminalTitle(
-        Navigation.documentTitleOf(
-          Option.flatMap(Navigation.frameOf(bound), frame => frame.maybeTitle),
-          options.appLabel ?? 'OpenTUI',
-        ),
-      )
-      const next = Option.match(Navigation.frameOf(bound), {
+    const paintReady = (): Renderable =>
+      Option.match(Navigation.frameOf(bound), {
         onNone: () =>
           paintOpenTuiFrame(
             renderer,
@@ -86,6 +81,19 @@ export const runOpenTui = <Model, Message>(
         onSome: frame =>
           paintOpenTuiNavigationFrame(renderer, frame, paintOptions),
       })
+
+    const paint = (): void => {
+      renderer.setTerminalTitle(bound.windowTitle())
+      const next = M.value(bound.status()).pipe(
+        M.withReturnType<Renderable>(),
+        M.tagsExhaustive({
+          Ready: paintReady,
+          Starting: ({ description }) =>
+            new TextRenderable(renderer, { content: t`${dim(description)}` }),
+          Failed: ({ description }) =>
+            new TextRenderable(renderer, { content: description }),
+        }),
+      )
       if (Option.isSome(maybePainted)) {
         renderer.root.remove(maybePainted.value)
         maybePainted.value.destroy()
@@ -95,12 +103,10 @@ export const runOpenTui = <Model, Message>(
       renderer.requestRender()
     }
 
-    const hint = Option.match(Interaction.menuHintOf(bound.menuKeys()), {
-      onNone: () => quitHint,
-      onSome: menuHint => `${menuHint}  ${quitHint}`,
-    })
     renderer.root.add(
-      new TextRenderable(renderer, { content: t`${dim(hint)}` }),
+      new TextRenderable(renderer, {
+        content: t`${dim(Interaction.terminalFooterOf(bound.menuKeys()))}`,
+      }),
     )
     paint()
     const stopWatching = bound.subscribe(paint)
@@ -113,8 +119,7 @@ export const runOpenTui = <Model, Message>(
         isControl: key.ctrl,
         isShift: key.shift,
       })
-      const isHandled = bound.pressKey(input)
-      if (!isHandled && input.key === 'q' && Option.isNone(bound.menu())) {
+      if (Interaction.pressTerminalKey(bound, input) === 'Quit') {
         stopWatching()
         stopLaunching()
         resolve()

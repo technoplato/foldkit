@@ -4,7 +4,7 @@ import {
   newProcessorInstance,
   startCounter,
 } from 'counter-core-example'
-import { Processor } from 'foldkit'
+import { Interaction, Processor } from 'foldkit'
 
 import { type CounterCliTape } from './settings.js'
 
@@ -21,28 +21,15 @@ export type CounterCliSession = Readonly<{
  * command always prints a real count. The Counter core reads
  * `COUNTER_TAPE` and `COUNTER_TAPE_PATH` to choose the engine.
  */
-export const openCounterSession = (
+export const openCounterSession = async (
   tape: CounterCliTape,
-): Promise<CounterCliSession> =>
-  new Promise((resolve, reject) => {
-    const handle = startCounter({
-      host: Processor.Host.Cli(),
-      instance: newProcessorInstance(),
-      ...(tape._tag === 'Memory' ? { tape: 'Memory' } : {}),
-    })
-    const bound = bindCounter(handle)
-    const timeout = setTimeout(() => {
-      stopListening()
-      reject(new Error('The Counter did not become Ready in time.'))
-    }, readyTimeoutMs)
-    const settle = (): void => {
-      if (bound.status()._tag === 'Starting') {
-        return
-      }
-      clearTimeout(timeout)
-      stopListening()
-      resolve({ bound, stop: handle.stop })
-    }
-    const stopListening = handle.subscribe(settle)
-    settle()
+): Promise<CounterCliSession> => {
+  const handle = startCounter({
+    host: Processor.Host.Cli(),
+    instance: newProcessorInstance(),
+    ...(tape._tag === 'Memory' ? { tape: 'Memory' } : {}),
   })
+  const bound = bindCounter(handle)
+  await Interaction.whenSettled(bound, readyTimeoutMs)
+  return { bound, stop: handle.stop }
+}

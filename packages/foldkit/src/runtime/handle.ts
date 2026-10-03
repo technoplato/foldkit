@@ -1,6 +1,7 @@
 import { Effect, Exit, Option, Scope } from 'effect'
 
 import type { ProgramHandle } from '../interaction/bind.js'
+import type { Host } from '../processor/host.js'
 import type { MessageOf, ModelOf } from '../program/program.js'
 import type {
   SyncChild,
@@ -36,12 +37,14 @@ const causeOf = (error: unknown): string => {
  * never invents a count.
  *
  * Call `stop` when the Client goes away; it closes the runtime's Scope.
+ * Pass the `host` it runs on, so a bound window is titled by it.
  *
  * @example
  * ```typescript
  * const handle = Runtime.startHandle({
  *   program: SyncedCounter,
  *   sync: Runtime.Memory({ processor: 'react-4f2a' }),
+ *   host: Processor.Host.React(),
  * })
  * handle.subscribe(() => paint(handle.readModel()))
  * ```
@@ -52,6 +55,7 @@ export const startHandle = <Child extends SyncChild>(
     sync: SyncEngine
     policy?: SessionPolicy
     localSnapshot?: LocalSnapshotStore
+    host?: Host
   }>,
 ): SyncedHandle<Child> => {
   type Model = SyncedModel<ModelOf<Child>, MessageOf<Child>>
@@ -114,6 +118,7 @@ export const startHandle = <Child extends SyncChild>(
   )
 
   return {
+    ...(config.host === undefined ? {} : { host: config.host }),
     readModel: () => cachedModel,
     subscribe: listener => {
       listeners.add(listener)

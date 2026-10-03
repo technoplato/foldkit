@@ -5,6 +5,7 @@ import {
   LoadDocument,
   OpenInProgram,
   ShowHostPage,
+  isPlainClick,
   linkTargetOf,
 } from './browserHistory.js'
 
@@ -56,5 +57,24 @@ describe('linkTargetOf', () => {
         hostPages: 'WithHostPages',
       }),
     ).toEqual(LoadDocument())
+  })
+})
+
+describe('isPlainClick', () => {
+  const click = {
+    button: 0,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+  }
+
+  it('takes a primary click with no modifier held', () => {
+    expect(isPlainClick(click)).toBe(true)
+  })
+
+  it('leaves a Cmd-click and a middle click to the browser', () => {
+    expect(isPlainClick({ ...click, metaKey: true })).toBe(false)
+    expect(isPlainClick({ ...click, button: 1 })).toBe(false)
   })
 })

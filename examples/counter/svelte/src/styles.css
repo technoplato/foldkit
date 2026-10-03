@@ -1,5 +1,4 @@
 :root {
-  color: #111827;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -17,106 +16,10 @@ main {
 }
 
 section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
   max-width: 24rem;
   text-align: center;
   width: 100%;
-}
-
-header {
-  margin-bottom: 1.5rem;
-}
-
-h1 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0 0 0.5rem;
-}
-
-header p {
-  color: #4b5563;
-  font-size: 0.875rem;
-  line-height: 1.4;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-header a {
-  color: #111827;
-}
-
-.count {
-  font-size: 4.5rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.row {
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 1.5rem;
-}
-
-button {
-  background: #000000;
-  border: 0;
-  color: #ffffff;
-  font-size: 0.875rem;
-  font-weight: 500;
-  height: 3rem;
-  padding: 0 1rem;
-}
-
-button:hover {
-  background: #374151;
-}
-
-.fk-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.fk-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-.fk-text {
-  font-size: 4.5rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.fk-button {
-  background: #000000;
-  border: 0;
-  color: #ffffff;
-  font-size: 0.875rem;
-  font-weight: 500;
-  height: 3rem;
-  min-width: 5rem;
-  padding: 0 1rem;
-}
-
-.fk-button:hover {
-  background: #374151;
-}
-
-.fk-button:disabled {
-  background: #d1d5db;
-  cursor: not-allowed;
-}
-
-.counter-menu-button {
-  margin-top: 1rem;
-  font-size: 0.875rem;
-  color: #6b7280;
-  background: none;
-  border: none;
-  cursor: pointer;
 }

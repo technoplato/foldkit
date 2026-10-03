@@ -1,6 +1,7 @@
 import { Option, String } from 'effect'
 
 import { OptionExt, StringExt } from '../effectExtensions/index.js'
+import { isPlainClick } from '../navigation/browserHistory.js'
 import { External, Internal } from '../navigation/urlRequest.js'
 import { Url } from '../url/index.js'
 import { type TransitionSource, fromNavigation } from './programJournal.js'
@@ -41,12 +42,7 @@ export const addLinkClickListener = <Message>(
   routingConfig: RoutingConfig<Message>,
 ): (() => void) => {
   const onLinkClick = (event: MouseEvent) => {
-    const isNonPrimaryButton = event.button !== 0
-    const isModifierKeyPressed =
-      event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
-    const isDefaultPrevented = event.defaultPrevented
-
-    if (isNonPrimaryButton || isModifierKeyPressed || isDefaultPrevented) {
+    if (!isPlainClick(event) || event.defaultPrevented) {
       return
     }
 

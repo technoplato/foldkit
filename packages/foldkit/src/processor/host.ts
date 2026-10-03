@@ -134,3 +134,25 @@ export const hostOfFrom = (from: string): Option.Option<Host> =>
     ),
     host => from === print(host) || from.startsWith(`${print(host)}-`),
   )
+
+/**
+ * A Processor's `from` as its app's label and its instance, for a line
+ * that names who wrote a Message. A `from` no Host prints keeps its text
+ * as the app.
+ *
+ * @example
+ * ```typescript
+ * fromLabelOf('react-ad55df2e') // { app: 'React', instance: 'ad55df2e' }
+ * fromLabelOf('older') // { app: 'older', instance: '' }
+ * ```
+ */
+export const fromLabelOf = (
+  from: string,
+): Readonly<{ app: string; instance: string }> =>
+  Option.match(hostOfFrom(from), {
+    onNone: () => ({ app: from, instance: '' }),
+    onSome: host => ({
+      app: labelOf(host),
+      instance: from.slice(print(host).length + 1),
+    }),
+  })

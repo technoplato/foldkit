@@ -1,4 +1,4 @@
-import { Runtime } from 'foldkit'
+import { type Processor, Runtime } from 'foldkit'
 
 import { FoldkitCounterV01, Instant } from '@foldkit/instant/browser'
 
@@ -65,7 +65,7 @@ const localSnapshotFor = (
  * ```
  */
 export const startCounter = (config: StartCounterConfig): CounterHandle =>
-  startCounterOn(engineFor(config), localSnapshotFor(config))
+  startCounterOn(engineFor(config), localSnapshotFor(config), config.host)
 
 /**
  * Starts the synced Counter on an engine the caller built, with an
@@ -74,9 +74,11 @@ export const startCounter = (config: StartCounterConfig): CounterHandle =>
 export const startCounterOn = (
   sync: Runtime.SyncEngine,
   localSnapshot?: Runtime.LocalSnapshotStore,
+  host?: Processor.Host.Host,
 ): CounterHandle =>
   Runtime.startHandle({
     program: SyncedCounter,
     sync,
     ...(localSnapshot === undefined ? {} : { localSnapshot }),
+    ...(host === undefined ? {} : { host }),
   })
