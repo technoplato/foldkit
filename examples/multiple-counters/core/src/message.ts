@@ -89,7 +89,7 @@ export const Open = Catalog.action('Open', {
   what: 'Opens the counter on its own page',
   why: 'The person wants to focus on one count',
   enabled: unlessConfirming,
-  meta: { label: 'Open', keys: [], title: 'Open counter' },
+  meta: { label: 'Open', keys: ['o'], title: 'Open counter' },
 })
 
 /** Asks whether to delete one counter. `d` presses it on its page. */

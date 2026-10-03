@@ -11,6 +11,11 @@ import {
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type MenuView, keyInput } from '../interaction/interaction.js'
 import { terminalLineText, terminalMenuLines } from '../interaction/terminal.js'
+import {
+  type TerminalFocus,
+  noTerminalFocus,
+  terminalFrameOf,
+} from '../interaction/terminalFocus.js'
 import { backOneEntry } from '../navigation/carrier.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, frameOf } from '../navigation/frame.js'
@@ -260,6 +265,7 @@ const statusLine = <Model, Message>(
  */
 export const paintScreen = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
+  focus: TerminalFocus = noTerminalFocus,
 ): string =>
   Option.match(frameOf(bound), {
     onNone: () => [
@@ -270,7 +276,10 @@ export const paintScreen = <Model, Message>(
         onSome: menuLines,
       }),
     ],
-    onSome: frame => [statusLine(bound), ...frameLines(frame)],
+    onSome: frame => [
+      statusLine(bound),
+      ...frameLines(terminalFrameOf(frame, focus)),
+    ],
   }).join('\n')
 
 /**
@@ -308,7 +317,11 @@ export const paintProgram = <Model, Message>(
         onSome: menuLines,
       }),
     ],
-    onSome: frame => [statusLine(bound), ...frameLines(frame), ...actions],
+    onSome: frame => [
+      statusLine(bound),
+      ...frameLines(terminalFrameOf(frame, noTerminalFocus)),
+      ...actions,
+    ],
   }).join('\n')
 }
 

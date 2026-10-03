@@ -86,10 +86,10 @@ describe('pressTerminalKey', () => {
 })
 
 describe('terminalFooterOf', () => {
-  it('names the menu key, then how to quit', () => {
+  it('names how to move and press, the menu key, then how to quit', () => {
     expect(terminalFooterOf(bindCounter().menuKeys())).toBe(
-      '[?] actions  [q] quit',
+      '[↑↓←→] move  [↵] press  [?] actions  [q] quit',
     )
-    expect(terminalFooterOf([])).toBe('[q] quit')
+    expect(terminalFooterOf([])).toBe('[↑↓←→] move  [↵] press  [q] quit')
   })
 })

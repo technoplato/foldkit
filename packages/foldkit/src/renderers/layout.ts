@@ -58,7 +58,10 @@ const fit = (content: string, width: number): string => {
   return content.padEnd(width, ' ')
 }
 
-const buttonGlyph = (label: string): string => `[ ${label} ]`
+const buttonGlyph = (
+  button: Readonly<{ label: string; focused?: boolean }>,
+): string =>
+  button.focused === true ? `[>${button.label}<]` : `[ ${button.label} ]`
 
 const layoutNode = (
   node: UiNode,
@@ -84,7 +87,7 @@ const layoutNode = (
         }
       },
       Button: button => {
-        const glyph = buttonGlyph(button.label)
+        const glyph = buttonGlyph(button)
         const w = Math.min(glyph.length, availableW)
         const action: HotspotAction | undefined = button.disabled
           ? undefined

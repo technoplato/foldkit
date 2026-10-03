@@ -27,11 +27,15 @@ const paintAt = async (presses: ReadonlyArray<string>): Promise<string> => {
     throw new Error('Expected a frame')
   }
   renderer.root.add(
-    paintOpenTuiNavigationFrame(renderer, frame.value, {
-      onPress: () => {},
-      onChoose: () => {},
-      onDismiss: () => {},
-    }),
+    paintOpenTuiNavigationFrame(
+      renderer,
+      Interaction.terminalFrameOf(frame.value, Interaction.noTerminalFocus),
+      {
+        onPress: () => {},
+        onChoose: () => {},
+        onDismiss: () => {},
+      },
+    ),
   )
   await renderOnce()
   const painted = captureCharFrame()
@@ -52,6 +56,7 @@ describe('Multiple Counters on OpenTUI', () => {
     const painted = await paintAt(['Open:1', 'Delete'])
     expect(painted).toContain('/counters/1/delete/1')
     expect(painted).toContain('Delete Counter 1?')
-    expect(painted).toContain('Cancel')
+    expect(painted).toContain('Delete (y)')
+    expect(painted).toContain('Cancel (n)')
   })
 })

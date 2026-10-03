@@ -4,12 +4,17 @@ import {
   Option,
   type PlatformError,
   Queue,
+  Ref,
   Terminal,
 } from 'effect'
 
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type KeyInput, terminalKeyInput } from '../interaction/interaction.js'
-import { pressTerminalKey, terminalFooterOf } from '../interaction/terminal.js'
+import { terminalFooterOf } from '../interaction/terminal.js'
+import {
+  noTerminalFocus,
+  pressTerminalKeyAt,
+} from '../interaction/terminalFocus.js'
 import { paintScreen } from './program.js'
 
 const clearScreen = '\u001b[2J\u001b[H'
@@ -47,7 +52,11 @@ const isInterrupt = (input: Terminal.UserInput): boolean =>
  * quits, and so does `q` when neither an Action nor the menu takes it.
  * The terminal window's title follows the screen and names the Host the
  * Program was started on, `Session | TUI`. It paints the screen and the
- * menu when open, not the list of every Action that `show` prints.
+ * menu when open, not the list of every Action that `show` prints. The
+ * arrows and Tab move a highlight across the buttons, Enter presses it,
+ * and an Action's key acts on the highlighted row, so `r` with Counter 2's
+ * `+` highlighted resets Counter 2. A dialog's buttons show their keys:
+ * `[ Delete (y) ] [ Cancel (n) ]`.
  *
  * @example
  * ```typescript
@@ -74,10 +83,11 @@ export const runProgramTui = <Model, Message>(
         Effect.runSync(Queue.offer(repaints, undefined))
       })
       yield* Effect.addFinalizer(() => Effect.sync(stopWatching))
+      const focus = yield* Ref.make(noTerminalFocus)
 
-      const paint = Effect.suspend(() =>
+      const paint = Effect.flatMap(Ref.get(focus), currentFocus =>
         terminal.display(
-          `${windowTitleSequence(bound)}${clearScreen}${name}  ${paintScreen(bound)}\n\n${terminalFooterOf(bound.menuKeys())}\n`,
+          `${windowTitleSequence(bound)}${clearScreen}${name}  ${paintScreen(bound, currentFocus)}\n\n${terminalFooterOf(bound.menuKeys())}\n`,
         ),
       )
 
@@ -89,10 +99,19 @@ export const runProgramTui = <Model, Message>(
           if (isInterrupt(event)) {
             return Effect.void
           }
-          if (pressTerminalKey(bound, keyInputOfTerminal(event)) === 'Quit') {
-            return Effect.void
-          }
-          return paint.pipe(Effect.andThen(Effect.suspend(() => readKeys)))
+          return Effect.flatMap(Ref.get(focus), currentFocus => {
+            const pressed = pressTerminalKeyAt(
+              bound,
+              keyInputOfTerminal(event),
+              currentFocus,
+            )
+            return pressed.outcome === 'Quit'
+              ? Effect.void
+              : Ref.set(focus, pressed.focus).pipe(
+                  Effect.andThen(paint),
+                  Effect.andThen(Effect.suspend(() => readKeys)),
+                )
+          })
         }),
       )
 

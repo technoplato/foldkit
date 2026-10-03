@@ -43,6 +43,7 @@ export type ButtonNode = Readonly<{
   readonly because?: string
   readonly variant?: 'Primary' | 'Ghost' | 'Destructive'
   readonly disabled?: boolean
+  readonly focused?: boolean
 }>
 
 /** A Model-bound text field. */

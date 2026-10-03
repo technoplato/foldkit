@@ -56,7 +56,7 @@ const addChildren = (
  * Maps a Program screen tree to an OpenTUI renderable tree. A Button
  * becomes a bordered box hinted with its Catalog key; a mouse press reports
  * the node so the Client presses its `action`. A disabled Button paints dim
- * with its sentence.
+ * with its sentence, and the highlighted one gets a heavy, colored border.
  */
 export const paintOpenTui = (
   ctx: RenderContext,
@@ -71,6 +71,9 @@ export const paintOpenTui = (
         const isPressable = button.disabled !== true
         const box = new BoxRenderable(ctx, {
           border: true,
+          ...(button.focused === true
+            ? { borderStyle: 'heavy', borderColor: matchColor }
+            : {}),
           paddingLeft: buttonPaddingX,
           paddingRight: buttonPaddingX,
           ...(isPressable

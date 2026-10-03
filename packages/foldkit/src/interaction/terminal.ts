@@ -285,19 +285,21 @@ const quitKey = 'q'
 
 const quitHint = `[${quitKey}] quit`
 
+const focusHint = '[↑↓←→] move  [↵] press'
+
 /**
- * The footer every terminal paints under the screen: how to open the
- * action menu, then how to quit.
+ * The footer every terminal paints under the screen: how to move the
+ * highlight and press it, how to open the action menu, then how to quit.
  *
  * @example
  * ```typescript
- * terminalFooterOf(bound.menuKeys()) // '[?] actions  [q] quit'
+ * terminalFooterOf(bound.menuKeys()) // '[↑↓←→] move  [↵] press  [?] actions  [q] quit'
  * ```
  */
 export const terminalFooterOf = (menuKeys: ReadonlyArray<KeyInput>): string =>
   Option.match(menuHintOf(menuKeys), {
-    onNone: () => quitHint,
-    onSome: menuHint => `${menuHint}  ${quitHint}`,
+    onNone: () => `${focusHint}  ${quitHint}`,
+    onSome: menuHint => `${focusHint}  ${menuHint}  ${quitHint}`,
   })
 
 const isQuitKey = (input: KeyInput): boolean =>

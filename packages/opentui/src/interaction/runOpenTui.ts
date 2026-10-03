@@ -30,8 +30,10 @@ export type RunOpenTuiOptions = Readonly<{
  * Program's interaction. While the Program is Starting or Failed it paints
  * the Program's own description. A Program with a URI paints its
  * navigation frame, and Escape goes back because the Program reads it as
- * Back. The terminal title names the screen and the Host, `Session |
- * OpenTUI`.
+ * Back. The arrows and Tab move a highlight across the buttons, Enter
+ * presses it, and an Action's key acts on the highlighted row; a dialog's
+ * buttons show their keys. The terminal title names the screen and the
+ * Host, `Session | OpenTUI`.
  *
  * @example
  * ```typescript
@@ -46,6 +48,7 @@ export const runOpenTui = <Model, Message>(
 ): Promise<void> =>
   new Promise(resolve => {
     let maybePainted: Option.Option<Renderable> = Option.none()
+    let focus: Interaction.TerminalFocus = Interaction.noTerminalFocus
     const stopLaunching = Option.match(
       Option.fromNullishOr(options.launchUri),
       {
@@ -79,7 +82,11 @@ export const runOpenTui = <Model, Message>(
             paintOptions,
           ),
         onSome: frame =>
-          paintOpenTuiNavigationFrame(renderer, frame, paintOptions),
+          paintOpenTuiNavigationFrame(
+            renderer,
+            Interaction.terminalFrameOf(frame, focus),
+            paintOptions,
+          ),
       })
 
     const paint = (): void => {
@@ -119,10 +126,14 @@ export const runOpenTui = <Model, Message>(
         isControl: key.ctrl,
         isShift: key.shift,
       })
-      if (Interaction.pressTerminalKey(bound, input) === 'Quit') {
+      const pressed = Interaction.pressTerminalKeyAt(bound, input, focus)
+      focus = pressed.focus
+      if (pressed.outcome === 'Quit') {
         stopWatching()
         stopLaunching()
         resolve()
+      } else {
+        paint()
       }
     })
   })
