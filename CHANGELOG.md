@@ -4,6 +4,51 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 4:45:51 p.m. EDT — `232b9d580734` feat(multiple-counters): sync every app through Instant, built from the single Counter
+
+- **Implementation commit:** `232b9d5807348279f955a3a1abae42d474f017b2`
+- **Change:** Sync every app through Instant, built from the single Counter
+- **Details:**
+  - Every Multiple Counters app syncs through the one Instant project from its first run, with no Memory or file tapes; the counting moves are the single Counter's Actions lifted over the list; tags are now `Add`, `Increment`, `Decrement`, `Reset`, `Open`, `Delete`, `ConfirmDelete`, `CancelDelete`, so the CLI reads `counters decrement 2`.
+- **Files:**
+  - `examples/multiple-counters/core/src/message.ts` — The Counter's Catalog lifted over the list.
+  - `examples/multiple-counters/core/src/live.ts` — Instant with the app's own program log.
+  - `examples/multiple-counters/README.md` — The lift, Instant setup, and run commands.
+- **User context (verbatim):**
+  > everything should be live. No more file, no more in-memory only. Everything goes to instant from the get-go.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 4:42:44 p.m. EDT — `801ef09c21e3` feat(foldkit): reuse a child Catalog per row, and keep the keyboard in a dialog
+
+- **Implementation commit:** `801ef09c21e32e3d82e834f57bad96e8ac460e81`
+- **Change:** Reuse a child Catalog per row, and keep the keyboard in a dialog
+- **Details:**
+  - `Catalog.lift` turns each child Action into one choosing Action over a list's rows; presented screens focus their first button and step Tab and the arrows through their buttons; overlay buttons show their keys; the CLI refuses a bare choosing command with the full command to try.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — `Catalog.lift`.
+  - `packages/foldkit/src/interaction/interaction.ts` — `presentedFocusMoveOf`.
+  - `packages/react/src/navigation/navigation.tsx` — Keyboard focus in presented screens.
+  - `packages/svelte/src/interaction/presentedFocus.ts` — The same for Svelte.
+  - `packages/foldkit/src/cli/program.ts` — Full-command refusals and `open` routing.
+- **User context (verbatim):**
+  > I should be able to interact with everything via the keyboard, and I'm not able to interact with this right now.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 4:42:36 p.m. EDT — `f395e901a69c` feat(instant): give every app its own versioned rows in the one Instant project
+
+- **Implementation commit:** `f395e901a69cf63342d6ed3c8d4eb7045fcd3271`
+- **Change:** Give every app its own versioned rows in the one Instant project
+- **Details:**
+  - The `programMessage` entity holds one row per Message with app, Program version, tag, and payload; `programLogEnvelope` checks each row both ways; `Instant({ programLog })` uses it; admin subscriptions keep `programMessage` rows so Node hosts see live writes.
+- **Files:**
+  - `packages/instant/src/programLog/programLog.ts` — The envelope Schema and queries.
+  - `packages/instant/src/programLog/core.ts` — The browser transport.
+  - `packages/instant/src/programLog/admin.ts` — The Node transport.
+  - `packages/instant/src/snapshotLog/admin.ts` — Keep `programMessage` rows in pushes.
+- **User context (verbatim):**
+  > Let's look at our schema and figure out how we can continue to evolve the schema so that we basically just publish versioned messages on an application domain basis.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 3:17:14 p.m. EDT — `5557fcbd2f04` feat(foldkit): let an Action ask which value it acts on, nested in the menu
 
 - **Implementation commit:** `5557fcbd2f0429599b7742178b11afae53aaee65`
