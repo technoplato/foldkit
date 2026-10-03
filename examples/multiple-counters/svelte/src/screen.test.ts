@@ -15,6 +15,7 @@ describe('the Multiple Counters on @foldkit/svelte', () => {
   it('paints the delete question as a Dialog over the counter page', async () => {
     const handle = startCountersOn(
       Runtime.Memory({ processor: 'svelte-test' }),
+      undefined,
       Processor.Host.Svelte(),
     )
     handles.push(handle)
@@ -27,11 +28,11 @@ describe('the Multiple Counters on @foldkit/svelte', () => {
         }
       })
     })
-    counters.bound.press('OpenCounter:1')
-    counters.bound.press('DeleteCounter')
+    counters.bound.press('Open:1')
+    counters.bound.press('Delete')
     const { body } = render(NavigationFrame, { props: { program: counters } })
     expect(body).toContain('data-style="Dialog"')
     expect(body).toContain('Delete Counter 1?')
-    expect(body).toContain('data-action="ConfirmDeleteCounter"')
+    expect(body).toContain('data-action="ConfirmDelete"')
   })
 })

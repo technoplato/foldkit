@@ -13,8 +13,8 @@
  *   counters tail                print every Message as it lands
  *   counters help                usage derived from the Program
  *
- * The counters live in a file every terminal on this machine shares;
- * `COUNTERS_TAPE_PATH` names it and `COUNTERS_TAPE=memory` keeps one run.
+ * The counters live on the one Instant project, shared with every other
+ * window; run it through `with-counter-v01-env` for the admin token.
  */
 import { Effect } from 'effect'
 import { Interaction, Processor } from 'foldkit'
@@ -24,7 +24,6 @@ import {
   MessageWire,
   bindCounters,
   countersEngine,
-  countersTapeOf,
   newProcessorInstance,
   startCounters,
 } from 'multiple-counters-core-example'
@@ -36,7 +35,6 @@ const readyTimeoutMs = 10_000
 const config = {
   host: Processor.Host.Cli(),
   instance: newProcessorInstance(),
-  tape: countersTapeOf(process.env),
 }
 
 const request = parseProgramArgv(process.argv.slice(2))

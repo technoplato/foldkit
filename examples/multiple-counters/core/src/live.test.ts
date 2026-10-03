@@ -31,6 +31,7 @@ const startOn = async (
 ) => {
   const handle = startCountersOn(
     Runtime.Memory({ processor: Processor.Host.print(host), store }),
+    undefined,
     host,
   )
   started.push(handle)
@@ -62,8 +63,8 @@ describe('Multiple Counters on one tape', () => {
     const store = Runtime.makeMemoryStore()
     const phone = await startOn(store, Processor.Host.ExpoIos())
     const laptop = await startOn(store, Processor.Host.React())
-    phone.press('AddCounter')
-    phone.press('IncrementCounter:2')
+    phone.press('Add')
+    phone.press('Increment:2')
     await eventually(
       () => countsOf(laptop),
       [
@@ -82,10 +83,10 @@ describe('Multiple Counters on one tape', () => {
       const model = laptop.readModel()
       return model._tag === 'Ready' ? model.session.mode : 'Starting'
     }, 'SharedDomain')
-    laptop.press('OpenCounter:1')
+    laptop.press('Open:1')
     expect(uriOf(laptop)).toBe('/counters/1')
-    phone.press('DeleteCounter:1')
-    phone.press('ConfirmDeleteCounter')
+    phone.press('Delete:1')
+    phone.press('ConfirmDelete')
     await eventually(() => uriOf(laptop), '/counters')
     expect(countsOf(laptop)).toEqual([])
   })

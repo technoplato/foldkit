@@ -9,7 +9,7 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "counters-opentui": "bun src/entry.ts",
+    "counters-opentui": "../../counter/scripts/with-counter-v01-env bun src/entry.ts",
     "prebuild": "pnpm --filter @foldkit/opentui build && pnpm --filter multiple-counters-core-example build",
     "pretypecheck": "pnpm --filter @foldkit/opentui build && pnpm --filter multiple-counters-core-example build",
     "start": "pnpm run build && pnpm run counters-opentui",

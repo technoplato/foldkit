@@ -1,3 +1,4 @@
+import { counterScreen } from 'counter-core-example'
 import { Array, Option, pipe } from 'effect'
 import { Catalog } from 'foldkit'
 import {
@@ -9,16 +10,7 @@ import {
 } from 'foldkit/renderers'
 
 import { type CounterId, counterName } from './counterId.js'
-import {
-  AddCounter,
-  CancelDeleteCounter,
-  ConfirmDeleteCounter,
-  DecrementCounter,
-  DeleteCounter,
-  IncrementCounter,
-  ResetCounter,
-  catalog,
-} from './message.js'
+import { Add, CancelDelete, ConfirmDelete, Delete, catalog } from './message.js'
 import { type CounterRow, type Model, counterOf } from './model.js'
 
 // VIEW
@@ -35,17 +27,16 @@ const forCounter = (
 ): ReadonlyArray<Catalog.Entry> =>
   Catalog.entriesFor(Catalog.entries(catalog, model), counterId.toString())
 
-const countText = (row: CounterRow, isDisplay: boolean): UiNode =>
+const countText = (row: CounterRow): UiNode =>
   Text(row.counter.count.toString(), {
     label: `${counterName(row.counterId)} count ${row.counter.count.toString()}`,
-    ...(isDisplay ? { emphasis: 'Display' } : {}),
   })
 
 const counterLine = (model: Model, row: CounterRow): UiNode =>
   Row(
     {},
     Text(counterName(row.counterId)),
-    countText(row, false),
+    countText(row),
     ...actionButtons(forCounter(model, row.counterId)),
   )
 
@@ -73,50 +64,36 @@ export const listScreen = (model: Model): UiNode =>
     Row(
       {},
       ...actionButtons(
-        entriesTagged(Catalog.entries(catalog, model), [AddCounter.tag]),
+        entriesTagged(Catalog.entries(catalog, model), [Add.tag]),
       ),
     ),
   )
 
 /**
- * One counter's page: its name, its count large, the counting buttons,
- * then Delete. Its keys are the single Counter's, `+`, `-`, and `r`,
- * because the page's counter is every Action's preferred choice.
+ * One counter's page: its name, then the single Counter's own screen, the
+ * same count and `+`, `-`, and Reset the Counter paints, then Delete. The
+ * Counter's buttons press `Increment`, `Decrement`, and `Reset`, which the
+ * lifted Actions take for the counter on screen.
  *
  * @example
  * ```typescript
- * detailScreen(model, row) // Column: Text('Counter 3'), Text('5'), [+] [-] [Reset], [Delete]
+ * detailScreen(model, row) // Column: Text('Counter 3'), counterScreen({ count: 5 }), [Delete]
  * ```
  */
-export const detailScreen = (model: Model, row: CounterRow): UiNode => {
-  const entries = forCounter(model, row.counterId)
-  const choiceTagsOf = (tags: ReadonlyArray<string>): ReadonlyArray<string> =>
-    Array.map(tags, tag => Catalog.choiceTagOf(tag, row.counterId.toString()))
-  return Column(
+export const detailScreen = (model: Model, row: CounterRow): UiNode =>
+  Column(
     {},
     Text(counterName(row.counterId), { dim: true }),
-    countText(row, true),
+    counterScreen(row.counter),
     Row(
       {},
       ...actionButtons(
-        entriesTagged(
-          entries,
-          choiceTagsOf([
-            IncrementCounter.tag,
-            DecrementCounter.tag,
-            ResetCounter.tag,
-          ]),
-        ),
-      ),
-    ),
-    Row(
-      {},
-      ...actionButtons(
-        entriesTagged(entries, choiceTagsOf([DeleteCounter.tag])),
+        entriesTagged(forCounter(model, row.counterId), [
+          Catalog.choiceTagOf(Delete.tag, row.counterId.toString()),
+        ]),
       ),
     ),
   )
-}
 
 /**
  * The page for a counter that is not in the list, because another device
@@ -159,8 +136,8 @@ export const confirmScreen = (model: Model, counterId: CounterId): UiNode =>
       {},
       ...actionButtons(
         entriesTagged(Catalog.entries(catalog, model), [
-          ConfirmDeleteCounter.tag,
-          CancelDeleteCounter.tag,
+          ConfirmDelete.tag,
+          CancelDelete.tag,
         ]),
       ),
     ),

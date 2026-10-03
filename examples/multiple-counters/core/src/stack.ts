@@ -1,7 +1,7 @@
 import { Array, Option } from 'effect'
 
 import type { CounterId } from './counterId.js'
-import { isConfirmDelete, isCounterDetail } from './destination.js'
+import { isCounterDetail, isDeleteQuestion } from './destination.js'
 
 // STACK
 
@@ -23,7 +23,7 @@ type HasStack = Readonly<{
  */
 export const confirmingOf = (model: HasStack): Option.Option<CounterId> =>
   Option.flatMap(model.navigation.maybeModal, modal =>
-    isConfirmDelete(modal.destination)
+    isDeleteQuestion(modal.destination)
       ? Option.some(modal.destination.counterId)
       : Option.none(),
   )

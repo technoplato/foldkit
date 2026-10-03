@@ -1,7 +1,4 @@
 import {
-  Decrement,
-  Increment,
-  Reset,
   update as counterUpdate,
   init as initCounter,
 } from 'counter-core-example'
@@ -11,13 +8,13 @@ import type * as Command from 'foldkit/command'
 
 import { CounterId } from './counterId.js'
 import {
-  ConfirmDelete,
   CounterDetail,
+  DeleteQuestion,
   type Destination,
-  isConfirmDelete,
+  isDeleteQuestion,
   namesCounter,
 } from './destination.js'
-import type { Message } from './message.js'
+import { type Message, counterActions } from './message.js'
 import { type CounterRow, type Model, counterOf } from './model.js'
 import { navigation } from './navigation.js'
 
@@ -76,7 +73,7 @@ const askedToDelete = (model: Model, counterId: CounterId): Model =>
         Navigation.pushed(
           model.navigation,
           Navigation.presented<Destination>(
-            ConfirmDelete({ counterId }),
+            DeleteQuestion({ counterId }),
             Navigation.Dialog(),
           ),
         ),
@@ -98,7 +95,7 @@ const deletedCounter = (model: Model, counterId: CounterId): Model => ({
 const closedQuestion = (model: Model): Model =>
   withStack(
     model,
-    Navigation.withoutDestinations(model.navigation, isConfirmDelete),
+    Navigation.withoutDestinations(model.navigation, isDeleteQuestion),
   )
 
 const withCounter = (
@@ -122,9 +119,17 @@ const countedBy = (
     counter: counterUpdate(row.counter, counterMessage)[0],
   }))
 
+const counted = (model: Model, message: Readonly<{ _tag: string }>): Model =>
+  Option.match(counterActions.childOf(message), {
+    onNone: () => model,
+    onSome: ({ id, message: counterMessage }) =>
+      countedBy(model, id, counterMessage),
+  })
+
 /**
- * Applies one Multiple Counters Message. Counting hands the single
- * Counter's own Message to the Counter's own update for that one counter.
+ * Applies one Multiple Counters Message. Counting reads the lifted
+ * Message back as the single Counter's own and hands it to the Counter's
+ * own update for that one counter.
  * An Action for a counter that no longer exists changes nothing, since
  * another device may have deleted it first.
  */
@@ -132,26 +137,14 @@ export const update = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     withUpdateReturn,
     M.tagsExhaustive({
-      AddCounter: () => [addedCounter(model), []],
-      IncrementCounter: ({ counterId }) => [
-        countedBy(model, counterId, Increment()),
-        [],
-      ],
-      DecrementCounter: ({ counterId }) => [
-        countedBy(model, counterId, Decrement()),
-        [],
-      ],
-      ResetCounter: ({ counterId }) => [
-        countedBy(model, counterId, Reset()),
-        [],
-      ],
-      OpenCounter: ({ counterId }) => [openedCounter(model, counterId), []],
-      DeleteCounter: ({ counterId }) => [askedToDelete(model, counterId), []],
-      ConfirmDeleteCounter: ({ counterId }) => [
-        deletedCounter(model, counterId),
-        [],
-      ],
-      CancelDeleteCounter: () => [closedQuestion(model), []],
+      Add: () => [addedCounter(model), []],
+      Increment: increment => [counted(model, increment), []],
+      Decrement: decrement => [counted(model, decrement), []],
+      Reset: reset => [counted(model, reset), []],
+      Open: ({ counterId }) => [openedCounter(model, counterId), []],
+      Delete: ({ counterId }) => [askedToDelete(model, counterId), []],
+      ConfirmDelete: ({ counterId }) => [deletedCounter(model, counterId), []],
+      CancelDelete: () => [closedQuestion(model), []],
       OpenedUri: fact => [Navigation.foldMessage(navigation, model, fact), []],
       NavigatedBack: fact => [
         Navigation.foldMessage(navigation, model, fact),

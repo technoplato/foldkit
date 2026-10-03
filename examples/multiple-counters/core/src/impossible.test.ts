@@ -3,29 +3,29 @@ import { Navigation } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import { CounterId } from './counterId.js'
-import { ConfirmDelete, CounterList, type Destination } from './destination.js'
-import { ConfirmDeleteCounter, IncrementCounter } from './message.js'
+import { CounterList, DeleteQuestion, type Destination } from './destination.js'
+import { ConfirmDelete, Increment } from './message.js'
 import { CounterRow } from './model.js'
 
 const three = CounterId.make(3)
 
-const confirmThree = ConfirmDelete({ counterId: three })
+const confirmThree = DeleteQuestion({ counterId: three })
 
 describe('states the types rule out', () => {
   it('does not compile any of them', () => {
     const rejected: ReadonlyArray<() => unknown> = [
       () =>
         // @ts-expect-error a count is not a counter's identity
-        IncrementCounter({ counterId: 5 }),
+        Increment({ counterId: 5 }),
       () =>
         // @ts-expect-error counting must name the counter it counts
-        IncrementCounter(),
+        Increment(),
       () =>
         // @ts-expect-error the delete question must name its counter
-        ConfirmDelete(),
+        DeleteQuestion(),
       () =>
         // @ts-expect-error confirming must name the counter it deletes
-        ConfirmDeleteCounter(),
+        ConfirmDelete(),
       () =>
         // @ts-expect-error a counter in the list always has a count
         CounterRow.make({ counterId: three }),

@@ -3,15 +3,14 @@
  * The Multiple Counters as a live terminal UI. The generic Foldkit TUI
  * paints the Program and routes keys: `a` adds a counter, `?` opens the
  * action menu, a counter's page counts with `+` and `-`, `d` asks before
- * deleting, `y` and `n` answer, and `q` quits. It reads the same file
- * tape as the `counters` CLI.
+ * deleting, `y` and `n` answer, and `q` quits. It shares the one Instant
+ * project's log with every other window, live.
  */
 import { Effect } from 'effect'
 import { Processor } from 'foldkit'
 import { runProgramTui } from 'foldkit/cli'
 import {
   bindCounters,
-  countersTapeOf,
   newProcessorInstance,
   startCounters,
 } from 'multiple-counters-core-example'
@@ -22,7 +21,6 @@ const bound = bindCounters(
   startCounters({
     host: Processor.Host.Tui(),
     instance: newProcessorInstance(),
-    tape: countersTapeOf(process.env),
   }),
 )
 

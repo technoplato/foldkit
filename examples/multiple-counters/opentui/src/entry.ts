@@ -4,14 +4,13 @@
  *
  *   bun src/entry.ts
  *
- * It reads the same file tape as the `counters` CLI and TUI, so a counter
- * added there is here at the next start. Click a button or press its key,
- * `?` opens the action menu, and Escape goes back one screen.
+ * It shares the one Instant project's log with every other window, live.
+ * Click a button or press its key, `?` opens the action menu, and Escape
+ * goes back one screen.
  */
 import { Processor } from 'foldkit'
 import {
   bindCounters,
-  countersTapeOf,
   newProcessorInstance,
   startCounters,
 } from 'multiple-counters-core-example'
@@ -23,7 +22,6 @@ const bound = bindCounters(
   startCounters({
     host: Processor.Host.OpenTui(),
     instance: newProcessorInstance(),
-    tape: countersTapeOf(process.env),
   }),
 )
 const renderer = await createCliRenderer({ exitOnCtrlC: true })

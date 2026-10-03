@@ -1,9 +1,4 @@
-import {
-  type Model as CounterModel,
-  Decrement,
-  Increment,
-  Reset,
-} from 'counter-core-example'
+import { catalog as counterCatalog } from 'counter-core-example'
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog, Navigation } from 'foldkit'
 
@@ -43,64 +38,48 @@ const whichCounter = (
   nothingToChoose: 'there are no counters yet',
 })
 
-const asTheCounterAllows =
-  (
-    counterAction: Readonly<{
-      enabled: (model: CounterModel) => Catalog.Availability
-    }>,
-  ) =>
-  (_model: Model, row: CounterRow): Catalog.Availability =>
-    counterAction.enabled(row.counter)
-
 const anyCounter = (): Catalog.Availability => Catalog.Enabled()
 
 /** Adds a counter at the end of the list, starting at 0. `a` presses it. */
-export const AddCounter = Catalog.action('AddCounter', {
+export const Add = Catalog.action('Add', {
   what: 'Adds a counter at the end of the list, starting at 0',
   why: 'The person wants another count',
   enabled: unlessConfirming,
-  meta: { label: 'Add counter', keys: ['a'] },
+  meta: { label: 'Add counter', keys: ['a'], title: 'Add counter' },
 })
 
 /**
- * Raises one counter by one. It is the single Counter's Increment, with
- * its words and keys, asked of one counter: the menu offers it once and
- * then asks which counter, and on a counter's page `+` counts that one.
+ * The single Counter's own Actions, `Increment`, `Decrement`, and `Reset`,
+ * lifted over the list: each keeps its tag, words, keys, and rule, and asks
+ * which counter second. `+` on Counter 3's page counts Counter 3, and Reset
+ * is offered for each counter not already at 0.
  */
-export const IncrementCounter = Catalog.action('IncrementCounter', {
-  fields: { counterId: CounterId },
-  choose: whichCounter(asTheCounterAllows(Increment), shownOf),
-  what: Increment.what,
-  why: Increment.why,
+export const counterActions = Catalog.lift(counterCatalog, {
+  field: 'counterId',
+  Id: CounterId,
+  token: CounterIdSegment,
+  prompt: 'Which counter?',
+  rowsOf: (model: Model) =>
+    Array.map(model.counters, row => ({
+      id: row.counterId,
+      title: counterName(row.counterId),
+      detail: `count ${row.counter.count.toString()}`,
+      model: row.counter,
+    })),
+  preferredOf: shownOf,
   enabled: unlessConfirming,
-  meta: Increment.meta,
-})
-
-/** Lowers one counter by one, the single Counter's Decrement. */
-export const DecrementCounter = Catalog.action('DecrementCounter', {
-  fields: { counterId: CounterId },
-  choose: whichCounter(asTheCounterAllows(Decrement), shownOf),
-  what: Decrement.what,
-  why: Decrement.why,
-  enabled: unlessConfirming,
-  meta: Decrement.meta,
+  nothingToChoose: 'there are no counters yet',
 })
 
 /**
- * Sets one counter back to 0, the single Counter's Reset, offered for each
- * counter that is not already at 0.
+ * Raises, lowers, and resets one counter: the single Counter's Increment,
+ * Decrement, and Reset, lifted, so `Decrement({ counterId: 2 })` reaches
+ * the Counter's own update as `Decrement()` for Counter 2.
  */
-export const ResetCounter = Catalog.action('ResetCounter', {
-  fields: { counterId: CounterId },
-  choose: whichCounter(asTheCounterAllows(Reset), shownOf),
-  what: Reset.what,
-  why: Reset.why,
-  enabled: unlessConfirming,
-  meta: Reset.meta,
-})
+export const [Increment, Decrement, Reset] = counterActions.actions
 
 /** Opens one counter on its own page. */
-export const OpenCounter = Catalog.action('OpenCounter', {
+export const Open = Catalog.action('Open', {
   fields: { counterId: CounterId },
   choose: whichCounter((model, row) =>
     Option.contains(shownOf(model), row.counterId)
@@ -110,17 +89,17 @@ export const OpenCounter = Catalog.action('OpenCounter', {
   what: 'Opens the counter on its own page',
   why: 'The person wants to focus on one count',
   enabled: unlessConfirming,
-  meta: { label: 'Open', keys: [] },
+  meta: { label: 'Open', keys: [], title: 'Open counter' },
 })
 
 /** Asks whether to delete one counter. `d` presses it on its page. */
-export const DeleteCounter = Catalog.action('DeleteCounter', {
+export const Delete = Catalog.action('Delete', {
   fields: { counterId: CounterId },
   choose: whichCounter(anyCounter, shownOf),
   what: 'Asks before deleting the counter',
   why: 'The person no longer needs this count',
   enabled: unlessConfirming,
-  meta: { label: 'Delete', keys: ['d'] },
+  meta: { label: 'Delete', keys: ['d'], title: 'Delete counter' },
 })
 
 /**
@@ -128,7 +107,7 @@ export const DeleteCounter = Catalog.action('DeleteCounter', {
  * choice is that counter, so no surface can delete a counter nobody was
  * asked about. `y` presses it.
  */
-export const ConfirmDeleteCounter = Catalog.action('ConfirmDeleteCounter', {
+export const ConfirmDelete = Catalog.action('ConfirmDelete', {
   fields: { counterId: CounterId },
   choose: {
     field: 'counterId',
@@ -152,7 +131,7 @@ export const ConfirmDeleteCounter = Catalog.action('ConfirmDeleteCounter', {
 })
 
 /** Closes the delete question and keeps the counter. `n` presses it. */
-export const CancelDeleteCounter = Catalog.action('CancelDeleteCounter', {
+export const CancelDelete = Catalog.action('CancelDelete', {
   what: 'Closes the question and keeps the counter',
   why: 'The person changed their mind',
   enabled: onlyWhileConfirming,
@@ -161,18 +140,18 @@ export const CancelDeleteCounter = Catalog.action('CancelDeleteCounter', {
 
 /**
  * Every Multiple Counters Action in the order surfaces list them. The
- * action menu shows each once; the five that act on one counter ask which
- * counter next.
+ * action menu shows each once; the ones that act on one counter ask which
+ * counter next. The CLI reads them as `counters decrement 2`.
  */
 export const catalog = Catalog.make([
-  AddCounter,
-  IncrementCounter,
-  DecrementCounter,
-  ResetCounter,
-  OpenCounter,
-  DeleteCounter,
-  ConfirmDeleteCounter,
-  CancelDeleteCounter,
+  Add,
+  Increment,
+  Decrement,
+  Reset,
+  Open,
+  Delete,
+  ConfirmDelete,
+  CancelDelete,
 ])
 
 /**

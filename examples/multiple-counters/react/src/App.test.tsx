@@ -25,6 +25,7 @@ afterEach(async () => {
 const renderApp = async () => {
   const handle = startCountersOn(
     Runtime.Memory({ processor: 'react-test' }),
+    undefined,
     Processor.Host.React(),
   )
   handles.push(handle)
@@ -62,7 +63,7 @@ describe('React Multiple Counters', () => {
     })
     fireEvent.keyDown(document, { key: '+' })
     await waitFor(() => {
-      expect(screen.getByLabelText('Counter 1 count 1')).toBeDefined()
+      expect(screen.getByLabelText('count 1')).toBeDefined()
     })
     expect(document.title).toBe('Counter 1 | React')
   })
@@ -93,4 +94,23 @@ describe('React Multiple Counters', () => {
     })
     expect(screen.getByText('Counter 1')).toBeDefined()
   })
+
+  it('gives the delete question the keyboard, on Delete first', async () => {
+    await renderApp()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => {
+      expect(document.activeElement?.textContent).toBe('Delete')
+    })
+    fireEvent.keyDown(dialog, { key: 'Tab' })
+    expect(document.activeElement?.textContent).toBe('Cancel')
+    fireEvent.keyDown(dialog, { key: 'ArrowRight' })
+    expect(document.activeElement?.textContent).toBe('Delete')
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement?.textContent).toBe('Cancel')
+    expect(
+      screen.getByRole('button', { name: 'Cancel' }).getAttribute('data-keys'),
+    ).toBe('n')
+  })
 })
+

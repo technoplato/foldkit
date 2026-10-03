@@ -21,9 +21,9 @@ export type CounterDetail = typeof CounterDetail.Type
  * names the counter it asks about, so answering it can only delete that
  * one.
  */
-export const ConfirmDelete = ts('ConfirmDelete', { counterId: CounterId })
+export const DeleteQuestion = ts('DeleteQuestion', { counterId: CounterId })
 /** The question "Delete Counter 3?". */
-export type ConfirmDelete = typeof ConfirmDelete.Type
+export type DeleteQuestion = typeof DeleteQuestion.Type
 
 /**
  * Every place the Multiple Counters can show, and the URI no route
@@ -32,7 +32,7 @@ export type ConfirmDelete = typeof ConfirmDelete.Type
 export const Destination = S.Union([
   CounterList,
   CounterDetail,
-  ConfirmDelete,
+  DeleteQuestion,
   Navigation.NotFound,
 ])
 /** Every place the Multiple Counters can show. */
@@ -45,7 +45,7 @@ export const isCounterList = S.is(CounterList)
 export const isCounterDetail = S.is(CounterDetail)
 
 /** True for the delete question. */
-export const isConfirmDelete = S.is(ConfirmDelete)
+export const isDeleteQuestion = S.is(DeleteQuestion)
 
 /**
  * True for a page or question about counter `counterId`. Deleting a counter
@@ -61,5 +61,5 @@ export const namesCounter = (
   destination: unknown,
   counterId: CounterId,
 ): boolean =>
-  (isCounterDetail(destination) || isConfirmDelete(destination)) &&
+  (isCounterDetail(destination) || isDeleteQuestion(destination)) &&
   destination.counterId === counterId

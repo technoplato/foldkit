@@ -3,9 +3,9 @@ import { Navigation, Route } from 'foldkit'
 
 import { CounterIdSegment, counterName } from './counterId.js'
 import {
-  ConfirmDelete,
   CounterDetail,
   CounterList,
+  DeleteQuestion,
   Destination,
   isCounterDetail,
   isCounterList,
@@ -37,7 +37,7 @@ export const declared = Navigation.screens({
       isAllowedAbove: beneath => Array.every(beneath, isCounterList),
     }),
     Navigation.presentScreen(
-      ConfirmDelete,
+      DeleteQuestion,
       pipe(Route.literal('delete'), Route.slash(counterIdSegment)),
       Navigation.Dialog(),
       {
@@ -66,7 +66,7 @@ const viewOf = (
         }),
       ),
     )
-  } else if (destination._tag === 'ConfirmDelete') {
+  } else if (destination._tag === 'DeleteQuestion') {
     return Option.some(
       Navigation.screenView(confirmScreen(model, destination.counterId)),
     )
@@ -91,7 +91,7 @@ export const navigation = Navigation.composeNavigation<
   Model,
   unknown,
   Destination,
-  CounterList | CounterDetail | ConfirmDelete
+  CounterList | CounterDetail | DeleteQuestion
 >({
   child: declared,
   hold: 'Owns',
