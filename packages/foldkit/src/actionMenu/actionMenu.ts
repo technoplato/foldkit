@@ -57,6 +57,7 @@ import {
   topEntry,
 } from '../navigation/structure.js'
 import { backMessages, foldMessage } from '../navigation/transition.js'
+import { liftEffects } from '../program/liftEffects.js'
 import type {
   MessageOf,
   ModelOf,
@@ -1353,6 +1354,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     update,
     interaction,
     navigation,
+    ...liftEffects(child, childOf),
     synchronization: {
       messageCategory: message =>
         isMessage(message) ||

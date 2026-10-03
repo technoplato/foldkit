@@ -1,4 +1,4 @@
-import { Effect, Exit, Option, Scope } from 'effect'
+import { Effect, Exit, type Layer, Option, Scope } from 'effect'
 
 import type { ProgramHandle } from '../interaction/bind.js'
 import type { Host } from '../processor/host.js'
@@ -37,7 +37,9 @@ const causeOf = (error: unknown): string => {
  * never invents a count.
  *
  * Call `stop` when the Client goes away; it closes the runtime's Scope.
- * Pass the `host` it runs on, so a bound window is titled by it.
+ * Pass the `host` it runs on, so a bound window is titled by it, and the
+ * `resources` its Commands and Subscriptions use, such as a browser audio
+ * output Layer.
  *
  * @example
  * ```typescript
@@ -49,10 +51,11 @@ const causeOf = (error: unknown): string => {
  * handle.subscribe(() => paint(handle.readModel()))
  * ```
  */
-export const startHandle = <Child extends SyncChild>(
+export const startHandle = <Child extends SyncChild, Resources = never>(
   config: Readonly<{
     program: SyncProgram<Child>
     sync: SyncEngine
+    resources?: Layer.Layer<Resources>
     policy?: SessionPolicy
     localSnapshot?: LocalSnapshotStore
     host?: Host
@@ -81,6 +84,9 @@ export const startHandle = <Child extends SyncChild>(
     start({
       program,
       sync: config.sync,
+      ...(config.resources === undefined
+        ? {}
+        : { resources: config.resources }),
       ...(config.policy === undefined ? {} : { policy: config.policy }),
       ...(config.localSnapshot === undefined
         ? {}

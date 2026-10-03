@@ -13,6 +13,7 @@ import {
 import { maybeTitleOf } from '../navigation/carrier.js'
 import { focusModel } from '../navigation/declaration.js'
 import { ts } from '../schema/index.js'
+import { liftEffects } from './liftEffects.js'
 import type {
   MessageOf,
   ModelOf,
@@ -558,6 +559,8 @@ export const sync = <Child extends SyncChild>(config: {
           withChild: (_model, childModel) => toReady(childModel),
         })
 
+  const startingChild = child.init()[0] as ChildModel
+
   const program = make({
     id: config.id ?? `sync:${child.id}`,
     version: config.version ?? child.version,
@@ -573,6 +576,11 @@ export const sync = <Child extends SyncChild>(config: {
       ? {}
       : { interaction: liftInteraction(childInteraction) }),
     ...(navigation === undefined ? {} : { navigation }),
+    ...liftEffects(child, (model: Model) =>
+      model._tag === 'Ready'
+        ? (stripReady(model) as ChildModel)
+        : startingChild,
+    ),
   })
 
   return Object.assign(program, {

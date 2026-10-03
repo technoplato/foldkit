@@ -37,6 +37,7 @@ import {
 } from '../navigation/structure.js'
 import { backMessages, foldMessage, settled } from '../navigation/transition.js'
 import { type Host, labelOf } from '../processor/host.js'
+import { liftEffects } from '../program/liftEffects.js'
 import type {
   MessageOf,
   ModelOf,
@@ -777,6 +778,7 @@ export const compose = <Child extends SessionChild>(config: {
     catalog,
     interaction,
     navigation,
+    ...liftEffects(child, childOf),
     synchronization: {
       messageCategory: message => {
         if (isModeMessage(message)) {
