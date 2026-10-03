@@ -462,6 +462,7 @@ const MenuRowView = ({
       aria-disabled={row.entry.availability._tag === 'Disabled'}
       data-focused={row.isFocused}
       data-nested={row.isNested}
+      data-first-unavailable={row.isFirstUnavailable}
       className="fk-action-menu-row"
       onClick={() => {
         bound.chooseFromMenu(row.entry.tag)

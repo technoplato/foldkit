@@ -335,8 +335,11 @@ export const hintLineOf = (hints: ReadonlyArray<MenuHint>): string =>
  * what a screen reader says for the row, `Reset, Sets the count to 0,
  * unavailable: count is already 0`. `keys` is the shortcut shown beside
  * the row, `['r']` for Reset. `isNested` marks a row that opens a list of
- * choices instead of running, such as Decrement counter. `isHighlighted` marks
- * the row Enter sends; `isFocused` marks the row that has the keyboard.
+ * choices instead of running, such as Decrement counter. Unavailable rows
+ * come after the available ones, and `isFirstUnavailable` marks the first
+ * of them when any row above is available, so a painter draws a hairline
+ * between the two groups. `isHighlighted` marks the row Enter sends;
+ * `isFocused` marks the row that has the keyboard.
  */
 export type MenuRow = Readonly<{
   entry: Entry
@@ -345,6 +348,7 @@ export type MenuRow = Readonly<{
   spokenLabel: string
   keys: ReadonlyArray<string>
   isNested: boolean
+  isFirstUnavailable: boolean
   isHighlighted: boolean
   isFocused: boolean
 }>

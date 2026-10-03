@@ -134,6 +134,21 @@ export const menuStylesheet = `
   cursor: not-allowed;
 }
 
+:where(.fk-action-menu-row[data-first-unavailable='true']) {
+  position: relative;
+  margin-top: 0.75rem;
+}
+
+:where(.fk-action-menu-row[data-first-unavailable='true'])::before {
+  content: '';
+  position: absolute;
+  top: -0.375rem;
+  right: 0.75rem;
+  left: 0.75rem;
+  height: 1px;
+  background: rgb(229 231 235);
+}
+
 :where(.fk-action-menu-row[data-nested='true'])::after {
   content: '›';
   flex: none;

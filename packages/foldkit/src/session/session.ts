@@ -1,14 +1,12 @@
 import { Array, Data, Match as M, Option, Predicate, Schema as S } from 'effect'
 
+import { isActionMenu } from '../actionMenu/actionMenu.js'
 import * as Catalog from '../catalog/catalog.js'
 import type { AnyCatalog, CatalogOf } from '../catalog/catalog.js'
 import { mapMessages } from '../command/index.js'
 import {
-  type KeyInput,
   type ProgramInteraction,
   fromCatalog,
-  isChord,
-  normalizeKey,
 } from '../interaction/interaction.js'
 import {
   type DestinationOf,
@@ -21,6 +19,7 @@ import {
   schemaMembersOf,
 } from '../navigation/compose.js'
 import {
+  type EntryView,
   type NotFound,
   pushRoute,
   screenView,
@@ -162,12 +161,35 @@ export const CloseSessionSettings = Catalog.action('CloseSessionSettings', {
   meta: { label: 'Close', keys: [] },
 })
 
+const isAboveRoot = (model: NavigationModel): boolean =>
+  Array.some(
+    entriesOf(model.navigation),
+    entry => !isActionMenu(entry.destination),
+  )
+
+/**
+ * A person went back to the screen beneath the one on top: a page closes,
+ * or a dialog over it does. Escape presses it, and the top page shows it
+ * as a Back button, so every host can go back, a terminal included: on
+ * `/counters/3`, Back lands on `/counters`.
+ */
+export const GoBack = Catalog.action('GoBack', {
+  what: 'Returns to the screen beneath this one',
+  why: 'The person is done with this screen',
+  enabled: (model: NavigationModel) =>
+    isAboveRoot(model)
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'this is the first screen' }),
+  meta: { label: 'Back', keys: ['Escape'], title: 'Back' },
+})
+
 /** Every session Message. */
 export const Message = S.Union([
   MirrorNavigation,
   KeepNavigationLocal,
   OpenSessionSettings,
   CloseSessionSettings,
+  GoBack,
 ])
 /** A session Message. */
 export type Message = typeof Message.Type
@@ -233,11 +255,14 @@ const modeSentence = (mode: SessionMode): string =>
 const openerCatalog = Catalog.make([OpenSessionSettings])
 
 const sessionActionsCatalog = Catalog.make([
+  GoBack,
   MirrorNavigation,
   KeepNavigationLocal,
   OpenSessionSettings,
   CloseSessionSettings,
 ])
+
+const backCatalog = Catalog.make([GoBack])
 
 const settingsCatalog = Catalog.make([
   MirrorNavigation,
@@ -373,6 +398,7 @@ export type SessionCatalogOf<Child extends SessionChild> = Catalog.Catalog<
     typeof KeepNavigationLocal,
     typeof OpenSessionSettings,
     typeof CloseSessionSettings,
+    typeof GoBack,
   ] &
     Array.NonEmptyReadonlyArray<Catalog.AnyAction>
 >
@@ -392,9 +418,6 @@ const structFieldsOf = (schema: unknown): S.Struct.Fields =>
     ? (schema.fields as S.Struct.Fields)
     : {}
 
-const isBackKey = (input: KeyInput): boolean =>
-  !isChord(input) && normalizeKey(input.key) === 'Escape'
-
 /**
  * Wraps a Program with a Catalog and navigation in session state every
  * Processor folds from the log, and in the navigation stack its devices
@@ -406,8 +429,9 @@ const isBackKey = (input: KeyInput): boolean =>
  *
  * The stack starts at the child's root and prints under its slug. Session
  * adds the settings page at `/session`, a `Session settings` button under
- * the child's screen, a NotFound fallback for any other path, and Escape
- * as Back. Its Actions have keys, `s` to open the settings and `m` and
+ * the child's screen, a NotFound fallback for any other path, and a Back
+ * Action, `GoBack`, that Escape presses and the top page shows as a
+ * button. Its Actions have keys, `s` to open the settings and `m` and
  * `l` to change the mode, so a terminal reaches them without a mouse. The
  * child's own interaction stays in charge of its Actions, so a Program
  * whose buttons carry their row, such as `Increment:counter-2`, keeps
@@ -479,6 +503,7 @@ export const compose = <Child extends SessionChild>(config: {
     KeepNavigationLocal,
     OpenSessionSettings,
     CloseSessionSettings,
+    GoBack,
   ]) as unknown as SessionCatalogOf<Child>
 
   const initialSession = SessionState.make({
@@ -516,7 +541,7 @@ export const compose = <Child extends SessionChild>(config: {
     },
   )
 
-  const navigation = composeNavigation<
+  const composedNavigation = composeNavigation<
     AppModel,
     ChildModel,
     AppDestination,
@@ -535,6 +560,38 @@ export const compose = <Child extends SessionChild>(config: {
         : Option.none(),
     adoptsLaunch: model => model.session.mode !== 'Mirror',
   })
+
+  const isSameDestination = S.toEquivalence(
+    Destination as unknown as S.Codec<AppDestination>,
+  )
+
+  const isTopPage = (model: AppModel, destination: AppDestination): boolean =>
+    !isSessionSettings(destination) &&
+    Option.exists(Array.last(model.navigation.pages), page =>
+      isSameDestination(page, destination),
+    )
+
+  const withBackButton = (model: AppModel, view: EntryView): EntryView =>
+    view._tag === 'Screen'
+      ? screenView(
+          Column(
+            {},
+            Row({}, ...actionButtons(Catalog.entries(backCatalog, model))),
+            view.node,
+          ),
+        )
+      : view
+
+  const composedViewOf =
+    composedNavigation.viewOf ?? ((): Option.Option<EntryView> => Option.none())
+
+  const navigation: typeof composedNavigation = {
+    ...composedNavigation,
+    viewOf: (model, destination) =>
+      Option.map(composedViewOf(model, destination), view =>
+        isTopPage(model, destination) ? withBackButton(model, view) : view,
+      ),
+  }
 
   const openedSettings = (model: AppModel): AppModel =>
     isSettingsOpen(model)
@@ -573,8 +630,15 @@ export const compose = <Child extends SessionChild>(config: {
     }
   }
 
+  const wentBack = (model: AppModel): AppModel =>
+    Array.reduce(backMessages(navigation, model), model, (current, back) =>
+      foldMessage(navigation, current, back),
+    )
+
   const updateSession = (model: AppModel, message: Message): AppModel => {
-    if (message._tag === 'MirrorNavigation') {
+    if (message._tag === 'GoBack') {
+      return wentBack(model)
+    } else if (message._tag === 'MirrorNavigation') {
       return mirrored(model, message)
     } else if (isModeMessage(message)) {
       return withMode(model, message)
@@ -662,12 +726,7 @@ export const compose = <Child extends SessionChild>(config: {
       Array.match(
         asAppMessages(childInteraction.pressKey(childOf(model), input)),
         {
-          onEmpty: () =>
-            Array.match(settingsInteraction.pressKey(model, input), {
-              onEmpty: () =>
-                isBackKey(input) ? backMessages(navigation, model) : [],
-              onNonEmpty: messages => messages,
-            }),
+          onEmpty: () => settingsInteraction.pressKey(model, input),
           onNonEmpty: messages => messages,
         },
       ),

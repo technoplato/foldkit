@@ -118,7 +118,8 @@ export const ActionMenu = ts('ActionMenu', {
 /** The presented action menu. */
 export type ActionMenu = typeof ActionMenu.Type
 
-const isActionMenu = S.is(ActionMenu)
+/** True for the presented action menu. */
+export const isActionMenu = S.is(ActionMenu)
 
 const asMenu = (destination: unknown): Option.Option<ActionMenu> =>
   isActionMenu(destination) ? Option.some(destination) : Option.none()
@@ -324,23 +325,40 @@ const matchedEntryOf = (entry: Entry, match: Match): MatchedEntry => ({
   description: runsOf(entry.what, match.descriptionPositions),
 })
 
+const unavailableLast = Order.mapInput(
+  Order.Boolean,
+  (ranked: RankedEntry) => !isEnabled(ranked.entry.availability),
+)
+
 /**
- * The rows a query keeps, with the matched letters marked. An empty query
- * keeps every row in Catalog order. Otherwise rows rank by how they match,
- * then by Catalog order: a title, tag, or label prefix first, then a
- * substring of the title or label, then the query's letters in order
- * through the title, then a substring of `what`. `re` puts Reset first and
- * marks `Re`; `rs` puts Reset first and marks `R` and `s`, above a row
- * whose `what` happens to contain `first`.
+ * The rows a query keeps, with the matched letters marked, available rows
+ * first. An empty query keeps each group in Catalog order. Otherwise rows
+ * rank by how they match, then by Catalog order: a title, tag, or label
+ * prefix first, then a substring of the title or label, then the query's
+ * letters in order through the title, then a substring of `what`. `re`
+ * puts Reset first and marks `Re`; `rs` puts Reset first and marks `R`
+ * and `s`, above a row whose `what` happens to contain `first`. A Reset
+ * that is unavailable at 0 sorts below every available row either way.
  */
 export const matchedEntries = (
   catalogEntries: ReadonlyArray<Entry>,
   query: string,
 ): ReadonlyArray<MatchedEntry> => {
   const needle = query.trim().toLowerCase()
+  const byCatalogOrder = Order.mapInput(
+    Order.Number,
+    (ranked: RankedEntry) => ranked.index,
+  )
   if (needle === '') {
-    return Array.map(catalogEntries, entry =>
-      matchedEntryOf(entry, unmarked(PrefixMatch)),
+    return pipe(
+      catalogEntries,
+      Array.map((entry, index) => ({
+        entry,
+        match: unmarked(PrefixMatch),
+        index,
+      })),
+      Array.sort(Order.combine(unavailableLast, byCatalogOrder)),
+      Array.map(ranked => matchedEntryOf(ranked.entry, ranked.match)),
     )
   }
   return pipe(
@@ -352,13 +370,14 @@ export const matchedEntries = (
       }),
     ),
     Array.sort(
-      Order.combine(
+      Order.combineAll([
+        unavailableLast,
         Order.mapInput(
           Order.Number,
           (ranked: RankedEntry) => ranked.match.rank,
         ),
-        Order.mapInput(Order.Number, (ranked: RankedEntry) => ranked.index),
-      ),
+        byCatalogOrder,
+      ]),
     ),
     Array.map(ranked => matchedEntryOf(ranked.entry, ranked.match)),
   )
@@ -606,8 +625,18 @@ const spokenLabelOf = (entry: Entry): string =>
     }),
   )
 
+const firstUnavailableTagOf = (
+  matched: ReadonlyArray<MatchedEntry>,
+): Option.Option<string> =>
+  Array.some(matched, ({ entry }) => isEnabled(entry.availability))
+    ? Option.map(
+        Array.findFirst(matched, ({ entry }) => !isEnabled(entry.availability)),
+        ({ entry }) => entry.tag,
+      )
+    : Option.none()
+
 const rowOf =
-  (focus: Focus) =>
+  (focus: Focus, maybeFirstUnavailableTag: Option.Option<string>) =>
   (matched: MatchedEntry): MenuRow => ({
     entry: matched.entry,
     title: matched.title,
@@ -615,6 +644,10 @@ const rowOf =
     spokenLabel: spokenLabelOf(matched.entry),
     keys: Array.take(matched.entry.keys, 1),
     isNested: Option.isSome(matched.entry.maybeChoices),
+    isFirstUnavailable: Option.contains(
+      maybeFirstUnavailableTag,
+      matched.entry.tag,
+    ),
     isHighlighted: Option.contains(highlightedTag(focus), matched.entry.tag),
     isFocused: focus._tag === 'OnAction' && focus.tag === matched.entry.tag,
   })
@@ -640,12 +673,13 @@ export const menuViewOf = (
   const maybeChoosingEntry = Option.flatMap(menu.maybeChoosing, tag =>
     Array.findFirst(catalogEntries, entry => entry.tag === tag),
   )
+  const matched = matchedEntries(
+    stepEntriesOf(catalogEntries, menu.maybeChoosing),
+    menu.query,
+  )
   const rows = Array.map(
-    matchedEntries(
-      stepEntriesOf(catalogEntries, menu.maybeChoosing),
-      menu.query,
-    ),
-    rowOf(menu.focus),
+    matched,
+    rowOf(menu.focus, firstUnavailableTagOf(matched)),
   )
   const isChoosing = Option.isSome(menu.maybeChoosing)
   return {

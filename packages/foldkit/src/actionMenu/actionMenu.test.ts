@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import * as Catalog from '../catalog/catalog.js'
 import { type KeyInput, keyInput } from '../interaction/interaction.js'
+import { terminalLineText, terminalMenuLines } from '../interaction/terminal.js'
 import * as Declaration from '../navigation/declaration.js'
 import { Dialog, entriesOf, stackAtRoot } from '../navigation/structure.js'
 import { make } from '../program/program.js'
@@ -198,6 +199,43 @@ describe('filtering', () => {
         ActionMenu.OnFilter({ maybeHighlighted: Option.some('Reset') }),
       ),
     )
+  })
+
+  it('lists unavailable rows last, under a hairline', () => {
+    const resetFirst = Catalog.make([Reset, Increment, Decrement])
+    const rowsAt = (query: string) =>
+      ActionMenu.menuViewOf(
+        Catalog.entries(resetFirst, { count: 0 }),
+        ActionMenu.ActionMenu({
+          query,
+          focus: ActionMenu.OnFilter({ maybeHighlighted: Option.none() }),
+          maybeChoosing: Option.none(),
+        }),
+        Dialog(),
+      ).rows.map(row => [row.entry.tag, row.isFirstUnavailable])
+    expect(rowsAt('')).toEqual([
+      ['Increment', false],
+      ['Decrement', false],
+      ['Reset', true],
+    ])
+    expect(rowsAt('re')).toEqual([
+      ['Increment', false],
+      ['Decrement', false],
+      ['Reset', true],
+    ])
+    expect(rowsAt('reset')).toEqual([['Reset', false]])
+    expect(
+      terminalMenuLines(
+        ActionMenu.menuViewOf(
+          Catalog.entries(resetFirst, { count: 0 }),
+          ActionMenu.opened([]),
+          Dialog(),
+        ),
+        40,
+      )
+        .map(terminalLineText)
+        .filter(line => line.includes('─')),
+    ).toEqual([`  ${'─'.repeat(36)}`])
   })
 
   it('deletes with Backspace', () => {

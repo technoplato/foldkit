@@ -161,7 +161,14 @@ describe('a composed App', () => {
     expect(bound.viewAt('/counter/nope')).toEqual(
       Option.some(
         Declaration.screenView(
-          notFoundScreen(Declaration.NotFound({ segments: ['nope'] })),
+          Column(
+            {},
+            Row(
+              {},
+              Button({ label: 'Back', action: 'GoBack', keys: ['Escape'] }),
+            ),
+            notFoundScreen(Declaration.NotFound({ segments: ['nope'] })),
+          ),
         ),
       ),
     )

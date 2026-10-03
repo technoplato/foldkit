@@ -109,6 +109,7 @@
             class="fk-action-menu-row"
             data-focused={row.isFocused}
             data-nested={row.isNested}
+            data-first-unavailable={row.isFirstUnavailable}
             id={rowIdOf(row.entry.tag)}
             onclick={() => program.bound.chooseFromMenu(row.entry.tag)}
             onkeydown={() => undefined}

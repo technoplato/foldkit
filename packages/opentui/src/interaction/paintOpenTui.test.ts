@@ -162,7 +162,7 @@ const bindRouted = () => {
 }
 
 describe('paintOpenTuiNavigationFrame', () => {
-  it('paints where it is, the page beneath, and the menu over it', async () => {
+  it('paints where it is, the page beneath, and the menu over it, unavailable rows under a hairline', async () => {
     const bound = bindRouted()
     bound.openUri('/counter/session/menu?menu.q=re', Navigation.Link())
     const { renderer, renderOnce, captureCharFrame } =
@@ -183,6 +183,7 @@ describe('paintOpenTuiNavigationFrame', () => {
     renderer.destroy()
     expect(frame).toContain('/counter/session/menu?menu.q=re')
     expect(frame).toContain('Actions')
-    expect(frame).toContain('> Reset')
+    expect(frame).toContain('> Increment')
+    expect(frame).toMatch(/─{8,}[\s\S]*Reset +r +Sets the count to 0/)
   })
 })

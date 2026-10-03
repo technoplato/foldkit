@@ -153,6 +153,8 @@ const rowMark = (row: MenuRow): string => (row.isHighlighted ? '> ' : '  ')
 
 const nestedMark = ' ›'
 
+const hairline = '─'
+
 const keysTextOf = (row: MenuRow): string => Array.join(row.keys, ' ')
 
 const isDisabledRow = (row: MenuRow): boolean =>
@@ -260,7 +262,14 @@ export const terminalMenuLines = (
     onEmpty: () => [lineOf([plain(indent), quiet(`(${menu.summary})`)])],
     onNonEmpty: nonEmpty => {
       const columns = menuColumnsOf(nonEmpty)
-      return Array.flatMap(nonEmpty, row => rowLines(row, columns, width))
+      const divider = lineOf([
+        plain(indent),
+        quiet(hairline.repeat(Math.max(0, width - indent.length * 2))),
+      ])
+      return Array.flatMap(nonEmpty, row => [
+        ...(row.isFirstUnavailable ? [divider] : []),
+        ...rowLines(row, columns, width),
+      ])
     },
   })
   return [

@@ -1,4 +1,5 @@
 import {
+  Array,
   Duration,
   Effect,
   Equal,
@@ -11,18 +12,20 @@ import { describe, expect, it } from 'vitest'
 
 import * as ActionMenu from '../actionMenu/actionMenu.js'
 import * as Catalog from '../catalog/catalog.js'
-import { fromCatalog } from '../interaction/interaction.js'
+import { fromCatalog, keyInput } from '../interaction/interaction.js'
 import { NotFound } from '../navigation/declaration.js'
 import * as Declaration from '../navigation/declaration.js'
 import { NavigationStack, stackAtRoot } from '../navigation/structure.js'
 import * as Processor from '../processor/public.js'
 import { compose as composeProgram } from '../program/compose.js'
 import { make } from '../program/program.js'
+import { Button, Column, Row, Text } from '../renderers/elements.js'
 import * as Route from '../route/parser.js'
 import { start } from '../runtime/start.js'
 import { Memory, makeMemoryStore } from '../runtime/syncEngine.js'
 import { ts } from '../schema/index.js'
 import {
+  GoBack,
   KeepNavigationLocal,
   MirrorNavigation,
   SessionSettings,
@@ -43,6 +46,9 @@ const catalog = Catalog.make([Increment])
 type CounterMessage = typeof catalog.Message.Type
 
 const Counter = ts('Counter')
+const Detail = ts('Detail')
+type Detail = typeof Detail.Type
+type Counter = typeof Counter.Type
 
 const CounterProgram = make({
   id: 'session-counter',
@@ -283,11 +289,77 @@ describe('Session.compose', () => {
     ).toEqual(['OpenSessionSettings'])
     expect(interaction.entries(model).map(entry => entry.tag)).toEqual([
       'Increment',
+      'GoBack',
       'MirrorNavigation',
       'KeepNavigationLocal',
       'OpenSessionSettings',
       'CloseSessionSettings',
     ])
+  })
+
+  it('goes back with a Back Action that Escape presses and the top page shows', () => {
+    const PagedProgram = make({
+      ...CounterProgram,
+      id: 'session-paged-counter',
+      navigation: {
+        ...Declaration.screens({
+          root: Declaration.rootScreen(Counter, Route.here),
+          screens: [Declaration.pushScreen(Detail, Route.literal('detail'))],
+        }),
+        viewOf: (_model: CounterModel, destination: Detail | Counter) =>
+          destination._tag === 'Detail'
+            ? Option.some(Declaration.screenView(Text('Detail')))
+            : Option.none(),
+      },
+    })
+    const PagedApp = ActionMenu.compose({ of: compose({ of: PagedProgram }) })
+    const interaction = Option.getOrThrow(
+      Option.fromNullishOr(PagedApp.interaction),
+    )
+    const navigation = Option.getOrThrow(
+      Option.fromNullishOr(PagedApp.navigation),
+    )
+    const backOf = (model: typeof PagedApp.Model.Type) =>
+      Option.map(
+        Array.findFirst(
+          interaction.entries(model),
+          entry => entry.tag === 'GoBack',
+        ),
+        entry => entry.availability,
+      )
+    const [atRoot] = PagedApp.init()
+    expect(backOf(atRoot)).toEqual(
+      Option.some(Catalog.Disabled({ because: 'this is the first screen' })),
+    )
+    const [withMenu] = PagedApp.update(atRoot, ActionMenu.OpenedActionMenu())
+    expect(backOf(withMenu)).toEqual(
+      Option.some(Catalog.Disabled({ because: 'this is the first screen' })),
+    )
+    const onDetail = {
+      ...atRoot,
+      navigation: { ...atRoot.navigation, pages: [Detail()] },
+    }
+    expect(backOf(onDetail)).toEqual(Option.some(Catalog.Enabled()))
+    expect(interaction.pressKey(onDetail, keyInput('Escape'))).toEqual([
+      GoBack(),
+    ])
+    expect(PagedApp.update(onDetail, GoBack())[0].navigation).toEqual(
+      atRoot.navigation,
+    )
+    expect(navigation.viewOf?.(onDetail, Detail())).toEqual(
+      Option.some(
+        Declaration.screenView(
+          Column(
+            {},
+            Row(
+              {},
+              Button({ label: 'Back', action: 'GoBack', keys: ['Escape'] }),
+            ),
+            Text('Detail'),
+          ),
+        ),
+      ),
+    )
   })
 
   it('lists each companion app with its copyable start command', () => {

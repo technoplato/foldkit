@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   type StyleProp,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -112,55 +113,67 @@ const MenuRow = ({
 }>): ReactElement => {
   const isDisabled = row.entry.availability._tag === 'Disabled'
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={row.spokenLabel}
-      accessibilityState={{
-        disabled: isDisabled,
-        selected: row.isHighlighted,
-      }}
-      disabled={isDisabled}
-      onPress={() => {
-        onChoose(row.entry.tag)
-      }}
-      style={{
-        alignItems: 'center',
-        backgroundColor: rowBackground(row),
-        borderLeftColor: row.isFocused ? accent : 'transparent',
-        borderLeftWidth: 3,
-        borderRadius: 8,
-        flexDirection: 'row',
-        gap: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-      }}
-    >
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text
+    <Fragment>
+      {row.isFirstUnavailable ? (
+        <View
           style={{
-            color: isDisabled ? '#9ca3af' : '#111827',
-            fontSize: 15,
-            fontWeight: '600',
+            backgroundColor: '#e5e7eb',
+            height: StyleSheet.hairlineWidth,
+            marginHorizontal: 12,
+            marginVertical: 6,
           }}
-        >
-          <MatchedText runs={row.title} />
-        </Text>
-        <Text
-          numberOfLines={1}
-          style={{ color: isDisabled ? '#9ca3af' : '#6b7280', fontSize: 13 }}
-        >
-          <MatchedText runs={row.description} />
-        </Text>
-        {row.entry.availability._tag === 'Disabled' ? (
-          <Text style={{ color: '#b45309', fontSize: 12 }}>
-            {row.entry.availability.because}
+        />
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={row.spokenLabel}
+        accessibilityState={{
+          disabled: isDisabled,
+          selected: row.isHighlighted,
+        }}
+        disabled={isDisabled}
+        onPress={() => {
+          onChoose(row.entry.tag)
+        }}
+        style={{
+          alignItems: 'center',
+          backgroundColor: rowBackground(row),
+          borderLeftColor: row.isFocused ? accent : 'transparent',
+          borderLeftWidth: 3,
+          borderRadius: 8,
+          flexDirection: 'row',
+          gap: 12,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+        }}
+      >
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text
+            style={{
+              color: isDisabled ? '#9ca3af' : '#111827',
+              fontSize: 15,
+              fontWeight: '600',
+            }}
+          >
+            <MatchedText runs={row.title} />
           </Text>
-        ) : null}
-      </View>
-      {Array.map(row.keys, key => (
-        <KeyCap key={key} label={key} />
-      ))}
-    </Pressable>
+          <Text
+            numberOfLines={1}
+            style={{ color: isDisabled ? '#9ca3af' : '#6b7280', fontSize: 13 }}
+          >
+            <MatchedText runs={row.description} />
+          </Text>
+          {row.entry.availability._tag === 'Disabled' ? (
+            <Text style={{ color: '#b45309', fontSize: 12 }}>
+              {row.entry.availability.because}
+            </Text>
+          ) : null}
+        </View>
+        {Array.map(row.keys, key => (
+          <KeyCap key={key} label={key} />
+        ))}
+      </Pressable>
+    </Fragment>
   )
 }
 
