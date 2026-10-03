@@ -3,6 +3,7 @@ import { Array, Effect, Match as M, Option, pipe } from 'effect'
 import {
   type Availability,
   type Entry,
+  type EntryChoice,
   choiceTagOf,
   commandOf,
   isEnabled,
@@ -81,24 +82,51 @@ const choiceLines = (entry: Entry, column: number): ReadonlyArray<string> =>
         ...(Array.isReadonlyArrayEmpty(offered)
           ? []
           : underColumn(column, `Choose one of: ${Array.join(offered, ', ')}`)),
-        ...Array.flatMap(choices, choice =>
-          M.value(choice.availability).pipe(
-            M.withReturnType<ReadonlyArray<string>>(),
-            M.tagsExhaustive({
-              Enabled: () => [],
-              Disabled: ({ because }) =>
-                isEnabled(entry.availability)
-                  ? underColumn(
-                      column,
-                      `Unavailable for ${choice.token}: ${because}`,
-                    )
-                  : [],
-            }),
-          ),
-        ),
+        ...(isEnabled(entry.availability)
+          ? Array.flatMap(unavailableGroupsOf(choices), ({ because, tokens }) =>
+              underColumn(
+                column,
+                `Unavailable for ${Array.join(tokens, ', ')}: ${because}`,
+              ),
+            )
+          : []),
       ]
     },
   })
+
+type UnavailableGroup = Readonly<{
+  because: string
+  tokens: ReadonlyArray<string>
+}>
+
+const unavailableGroupsOf = (
+  choices: ReadonlyArray<EntryChoice>,
+): ReadonlyArray<UnavailableGroup> => {
+  const unavailable = Array.getSomes(
+    Array.map(choices, choice =>
+      M.value(choice.availability).pipe(
+        M.withReturnType<
+          Option.Option<Readonly<{ because: string; token: string }>>
+        >(),
+        M.tagsExhaustive({
+          Enabled: () => Option.none(),
+          Disabled: ({ because }) =>
+            Option.some({ because, token: choice.token }),
+        }),
+      ),
+    ),
+  )
+  return Array.map(
+    Array.dedupe(Array.map(unavailable, ({ because }) => because)),
+    because => ({
+      because,
+      tokens: Array.map(
+        Array.filter(unavailable, choice => choice.because === because),
+        choice => choice.token,
+      ),
+    }),
+  )
+}
 
 const exampleWordsOf = (entry: Entry): Option.Option<string> =>
   Option.match(entry.maybeChoices, {
@@ -222,6 +250,30 @@ const statusLine = <Model, Message>(
   )
 
 /**
+ * A Program's screen as text, without its Actions: the status, where it
+ * is, and what it shows, the part `show` and `watch` share.
+ *
+ * @example
+ * ```typescript
+ * paintScreen(bound) // 'ready\nat /counters\nCounters\nCounter 1 3 [ + ] [ - ] ...'
+ * ```
+ */
+export const paintScreen = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+): string =>
+  Option.match(frameOf(bound), {
+    onNone: () => [
+      statusLine(bound),
+      ...rootLines(bound),
+      ...Option.match(bound.menu(), {
+        onNone: () => [],
+        onSome: menuLines,
+      }),
+    ],
+    onSome: frame => [statusLine(bound), ...frameLines(frame)],
+  }).join('\n')
+
+/**
  * Paints a bound Program as terminal text that fits 80 columns: status,
  * where it is, its screens, then every Action with its CLI word, keys,
  * description, and why it is unavailable. With the Program's CLI `name`,
@@ -323,6 +375,11 @@ const controlsOf = <Model, Message>(
     },
     { usage: 'back', what: 'Go back one screen', example: 'back' },
     { usage: 'where', what: 'Print the current URI', example: 'where' },
+    {
+      usage: 'watch',
+      what: 'Repaint the screen as it changes, on every device',
+      example: 'watch',
+    },
     {
       usage: 'tail',
       what: 'Print every event as it lands, from every device',

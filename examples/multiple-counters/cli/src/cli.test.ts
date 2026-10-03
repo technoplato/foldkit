@@ -1,5 +1,6 @@
+import { Effect, Fiber } from 'effect'
 import { Interaction, Processor, Runtime } from 'foldkit'
-import { runProgramCommand } from 'foldkit/cli'
+import { runProgramCommand, runProgramWatch } from 'foldkit/cli'
 import {
   type BoundCounters,
   bindCounters,
@@ -38,6 +39,40 @@ describe('counters CLI', () => {
     expect(counted.stdout).toMatch(/^ {2}increment <counter-id> +Increments/m)
     expect(counted.stdout).toMatch(/^ +Choose one of: 1, 2$/m)
     expect(counted.stdout).toMatch(/^ +\$ counters increment 1$/m)
+  })
+
+  it('names every counter that shares a reason in one line', async () => {
+    const bound = await openCounters()
+    run(bound, 'add')
+    run(bound, 'add')
+    const counted = run(bound, 'increment', '2')
+    expect(counted.stdout).toMatch(/^ +Choose one of: 2$/m)
+    expect(counted.stdout).toMatch(/^ +Unavailable for 1, 3: count is/m)
+  })
+
+  it('watches the list and repaints when a count changes', async () => {
+    const bound = await openCounters()
+    const painted: Array<string> = []
+    const watching = Effect.runFork(
+      Effect.scoped(
+        runProgramWatch(
+          bound,
+          text => {
+            painted.push(text)
+          },
+          { isTerminal: false },
+        ),
+      ),
+    )
+    await Effect.runPromise(Effect.yieldNow)
+    bound.press('Increment:1')
+    await Effect.runPromise(Fiber.interrupt(watching))
+    const [before, after, ...rest] = painted
+    expect(rest).toEqual([])
+    expect(before).toMatch(/^Counter 1 0 /m)
+    expect(after).toMatch(/^Counter 1 1 /m)
+    expect(after).not.toContain('Actions')
+    expect(after).toContain('Watching every device. Ctrl-C stops.')
   })
 
   it('asks which counter with a full command to run', async () => {

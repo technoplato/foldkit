@@ -29,12 +29,14 @@ export type { CliDaemonPaintedResult, CliDaemonSurface } from './index.js'
 
 export {
   paintProgram,
+  paintScreen,
   programCliSurface,
   programUsage,
   runProgramCommand,
 } from './program.js'
 
 export { keyInputOfTerminal, runProgramTui } from './tui.js'
+export { type WatchOptions, paintWatch, runProgramWatch } from './watch.js'
 export { localSnapshotFile, localSnapshotPath } from './localSnapshotFile.js'
 export { formatTailRow, runProgramTail } from './tail.js'
 export { columnRow, terminalWidth, underColumn, wrapWords } from './layout.js'

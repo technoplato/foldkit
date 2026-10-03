@@ -5,11 +5,13 @@
  * or route:
  *
  *   counters                     paint the list and every Action
- *   counters add-counter         add a counter
+ *   counters add                 add a counter
  *   counters increment 2         count Counter 2 up
- *   counters open-counter 2      open Counter 2's page
- *   counters delete-counter 2    ask before deleting Counter 2
- *   counters confirm-delete-counter
+ *   counters open 2              open Counter 2's page
+ *   counters delete 2            ask before deleting Counter 2
+ *   counters confirm-delete 2    delete it
+ *   counters back                go back one screen
+ *   counters watch               repaint the list as it changes
  *   counters tail                print every Message as it lands
  *   counters help                usage derived from the Program
  *
@@ -18,7 +20,7 @@
  */
 import { Effect } from 'effect'
 import { Interaction, Processor } from 'foldkit'
-import { runProgramCommand, runProgramTail } from 'foldkit/cli'
+import { runProgramCommand, runProgramTail, runProgramWatch } from 'foldkit/cli'
 import { parseProgramArgv, writeCliViewResult } from 'foldkit/cli/view'
 import {
   MessageWire,
@@ -50,6 +52,21 @@ if (request._tag === 'Tail') {
       ),
     ),
   )
+} else if (request._tag === 'Watch') {
+  const handle = startCounters(config)
+  const bound = bindCounters(handle)
+  await Interaction.whenSettled(bound, readyTimeoutMs)
+  await Effect.runPromise(
+    Effect.scoped(
+      runProgramWatch(
+        bound,
+        painted => {
+          process.stdout.write(painted)
+        },
+        { isTerminal: process.stdout.isTTY === true },
+      ),
+    ),
+  ).finally(handle.stop)
 } else {
   const handle = startCounters(config)
   const bound = bindCounters(handle)

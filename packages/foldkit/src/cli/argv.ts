@@ -9,6 +9,7 @@
  * parseProgramArgv(['key', 'k', '--meta'])
  * // { _tag: 'Do', token: 'key k', flags: { meta: '1' } }
  * parseProgramArgv(['tail']) // { _tag: 'Tail', flags: {} }
+ * parseProgramArgv(['watch']) // { _tag: 'Watch', flags: {} }
  * ```
  */
 export type ProgramArgv =
@@ -18,6 +19,10 @@ export type ProgramArgv =
     }>
   | Readonly<{
       _tag: 'Tail'
+      flags: Readonly<Record<string, string>>
+    }>
+  | Readonly<{
+      _tag: 'Watch'
       flags: Readonly<Record<string, string>>
     }>
   | Readonly<{
@@ -56,6 +61,8 @@ export const parseProgramArgv = (argv: ReadonlyArray<string>): ProgramArgv => {
     return { _tag: 'Show', flags }
   } else if (token === 'tail') {
     return { _tag: 'Tail', flags }
+  } else if (token === 'watch') {
+    return { _tag: 'Watch', flags }
   } else {
     return { _tag: 'Do', token, flags }
   }

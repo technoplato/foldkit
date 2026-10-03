@@ -12,6 +12,7 @@ describe('parseProgramArgv', () => {
       flags: {},
     })
     expect(parseProgramArgv(['tail'])).toEqual({ _tag: 'Tail', flags: {} })
+    expect(parseProgramArgv(['watch'])).toEqual({ _tag: 'Watch', flags: {} })
   })
 
   it('reads modifier flags beside the words', () => {

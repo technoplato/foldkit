@@ -11,6 +11,7 @@
  *   counter menu choose reset
  *   counter key k --meta    press any key
  *   counter tail            print every event as it lands
+ *   counter watch           repaint the count as it changes
  *   counter help            usage derived from the Catalog
  *
  * This file must not import Effect, Instant, or the Program, so the view
@@ -38,6 +39,9 @@ const tape = counterCliTape()
 if (request._tag === 'Tail') {
   const { runTail } = await import('./tail.js')
   await runTail()
+} else if (request._tag === 'Watch') {
+  const { runWatch } = await import('./watch.js')
+  await runWatch(tape)
 } else if (tape._tag === 'Instant') {
   try {
     writeCliViewResult(
