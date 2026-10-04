@@ -116,6 +116,7 @@ const followLinkOf =
 
 type LayerShape = Readonly<{
   key: string
+  identity: string
   maybeStyle: Option.Option<Navigation.PresentationStyle>
   kind: Navigation.EntryView['_tag']
 }>
@@ -128,6 +129,7 @@ type FrameShape = Readonly<{
 
 const shapeOf = (layer: Navigation.FrameLayer): LayerShape => ({
   key: layer.key,
+  identity: layer.identity,
   maybeStyle: layer.maybeStyle,
   kind: layer.view._tag,
 })
@@ -355,13 +357,13 @@ export const NavigationFrame = ({
     onSome: frame => (
       <div className="fk-frame" data-uri={frame.uri}>
         <ScreenView
-          key={frame.base.key}
+          key={frame.base.identity}
           entryKey={frame.base.key}
           classNames={resolvedClassNames}
         />
         {Array.map(frame.overlays, layer => (
           <OverlayView
-            key={layer.key}
+            key={layer.identity}
             layer={layer}
             classNames={resolvedClassNames}
           />
