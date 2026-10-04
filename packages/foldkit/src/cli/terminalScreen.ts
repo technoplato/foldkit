@@ -16,6 +16,7 @@ import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
 import { layoutTree } from '../renderers/layout.js'
 import { paintAscii } from '../renderers/paint.js'
 import type { LayoutBox, UiNode } from '../renderers/types.js'
+import type { RenderReport } from '../telemetry/recorder.js'
 import { paintScreen } from './program.js'
 
 // MODEL
@@ -49,6 +50,33 @@ export type TerminalPaint = Readonly<{
   lines: ReadonlyArray<string>
   view: TerminalView
 }>
+
+/**
+ * Why a terminal host painted a frame: `mount` for a view's first frame,
+ * `update` after a Model change, `key` after a key, and `refresh` when a
+ * remote view asked for its frame again, as `books tui` does twice a
+ * second.
+ */
+export type TerminalPaintPhase = 'mount' | 'update' | 'key' | 'refresh'
+
+/**
+ * Where a terminal host reports each frame it paints: how long laying it
+ * out and painting it took, and its phase, such as
+ * `{ painter: 'Terminal', durationMs: 2.6, phase: 'key' }`. Pass
+ * telemetry's `recordRendered` to keep every paint with the session.
+ *
+ * @example
+ * ```typescript
+ * const telemetry = Telemetry.attach(handle, { app: 'books', sink: fileSink() })
+ * runProgramTui(bound, 'books', { onPainted: telemetry.recordRendered })
+ * ```
+ */
+export type TerminalPaintReporting = Readonly<{
+  onPainted?: (report: RenderReport) => void
+}>
+
+/** The painter a terminal host reports its frames as. */
+export const terminalPainter = 'Terminal'
 
 const minimumRows = 8
 
@@ -432,4 +460,29 @@ export const paintTerminal = <Model, Message>(
     onNone: () => ({ lines: startingLines(bound, name, view, fitted), view }),
     onSome: frame => paintedFrame(bound, name, view, frame, fitted),
   })
+}
+
+/**
+ * {@link paintTerminal}, then tells `reporting.onPainted` how long the
+ * paint took and why it happened, such as
+ * `{ painter: 'Terminal', durationMs: 2.6, phase: 'key' }`.
+ */
+export const paintTerminalReported = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  name: string,
+  view: TerminalView,
+  size: TerminalSize,
+  phase: TerminalPaintPhase,
+  reporting: TerminalPaintReporting,
+): TerminalPaint => {
+  const startedAt = performance.now()
+  const painted = paintTerminal(bound, name, view, size)
+  if (reporting.onPainted !== undefined) {
+    reporting.onPainted({
+      painter: terminalPainter,
+      durationMs: performance.now() - startedAt,
+      phase,
+    })
+  }
+  return painted
 }

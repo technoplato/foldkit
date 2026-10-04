@@ -2,9 +2,20 @@ import { Array, Effect, Option, Queue, Terminal } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { Link } from '../navigation/message.js'
+import type { RenderReport } from '../telemetry/recorder.js'
 import { bindCounter } from '../test/apps/catalogCounter.js'
 import { Ticked, bindChapters } from '../test/apps/chapterContents.js'
 import { runProgramTui } from './tui.js'
+
+const eventually = async (isDone: () => boolean): Promise<void> => {
+  const startedAt = Date.now()
+  while (!isDone()) {
+    if (Date.now() - startedAt > 4_000) {
+      throw new Error('never happened')
+    }
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+}
 
 const keyEvent = (
   name: string,
@@ -136,5 +147,40 @@ describe('runProgramTui', () => {
     )
     expect(bound.readModel()).toMatchObject({ ticks: burst })
     expect(frames.length).toBeLessThan(5)
+  })
+
+  it('tells onPainted how long each frame took and what caused it', async () => {
+    const bound = bindChapters()
+    const reports: Array<RenderReport> = []
+    const keys = Effect.runSync(Queue.unbounded<Terminal.UserInput, never>())
+    const terminal = Terminal.make({
+      columns: Effect.succeed(80),
+      rows: Effect.succeed(24),
+      readInput: Effect.succeed(keys),
+      readLine: Effect.succeed(''),
+      display: () => Effect.void,
+    })
+    const phases = () => Array.map(reports, report => report.phase)
+    const running = Effect.runPromise(
+      runProgramTui(bound, 'chapters', {
+        onPainted: report => {
+          reports.push(report)
+        },
+      }).pipe(Effect.provideService(Terminal.Terminal, terminal)),
+    )
+    await eventually(() => Array.contains(phases(), 'mount'))
+    bound.send(Ticked())
+    await eventually(() => Array.contains(phases(), 'update'))
+    Queue.offerUnsafe(keys, keyEvent('n'))
+    await eventually(() => Array.contains(phases(), 'key'))
+    Queue.offerUnsafe(keys, keyEvent('q'))
+    await running
+    expect(Array.take(phases(), 3)).toEqual(['mount', 'update', 'key'])
+    expect(
+      Array.every(
+        reports,
+        report => report.painter === 'Terminal' && report.durationMs >= 0,
+      ),
+    ).toBe(true)
   })
 })

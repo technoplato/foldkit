@@ -10,10 +10,12 @@ import type {
   CliDaemonSurface,
 } from './protocol.js'
 import {
+  type TerminalPaintPhase,
+  type TerminalPaintReporting,
   type TerminalSize,
   type TerminalView,
   initialTerminalView,
-  paintTerminal,
+  paintTerminalReported,
 } from './terminalScreen.js'
 
 // TERMINAL VIEW
@@ -67,11 +69,15 @@ export type ProgramTerminalView = Readonly<{
  * `pressKey` routes the key the view read, `{ name: 'down' }` or
  * `{ sequence: 'p' }`, through the Program's interaction the way an
  * in-process TUI does, then paints, and says what came of it in
- * `flags.outcome`, `Quit` after a `q` nothing else took.
+ * `flags.outcome`, `Quit` after a `q` nothing else took. `onPainted` hears
+ * how long each frame took to paint and why: `mount` for a view's first
+ * frame, `refresh` when it asks again, and `key` after a key.
  *
  * @example
  * ```typescript
- * const terminal = makeProgramTerminalView(bound, 'books')
+ * const terminal = makeProgramTerminalView(bound, 'books', {
+ *   onPainted: telemetry.recordRendered,
+ * })
  * yield* terminal.pressKey({ view: 'tui', rows: '24', columns: '80', name: 'down' })
  * // { stdout: '…24 lines…', exitCode: 0, flags: { outcome: 'Handled' } }
  * ```
@@ -79,18 +85,20 @@ export type ProgramTerminalView = Readonly<{
 export const makeProgramTerminalView = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
+  reporting: TerminalPaintReporting = {},
 ): ProgramTerminalView => {
   const views = Effect.runSync(Ref.make<ReadonlyArray<KeptView>>([]))
   const viewIdOf = (flags: CliDaemonFlags): string => flags['viewId'] ?? ''
-  const viewOf = (flags: CliDaemonFlags) =>
+  const keptOf = (flags: CliDaemonFlags) =>
     Effect.map(Ref.get(views), kept =>
-      Option.getOrElse(
-        Option.map(
-          Array.findFirst(kept, entry => entry.viewId === viewIdOf(flags)),
-          entry => entry.view,
-        ),
-        () => initialTerminalView,
+      Option.map(
+        Array.findFirst(kept, entry => entry.viewId === viewIdOf(flags)),
+        entry => entry.view,
       ),
+    )
+  const viewOf = (flags: CliDaemonFlags) =>
+    Effect.map(keptOf(flags), maybeKept =>
+      Option.getOrElse(maybeKept, () => initialTerminalView),
     )
   const keep = (flags: CliDaemonFlags, next: TerminalView) =>
     Ref.update(views, kept =>
@@ -102,17 +110,23 @@ export const makeProgramTerminalView = <Model, Message>(
         viewsKept,
       ),
     )
-  const paint = (flags: CliDaemonFlags) =>
+  const paintAs = (flags: CliDaemonFlags, phase: TerminalPaintPhase) =>
     Effect.gen(function* () {
-      const painted = paintTerminal(
+      const painted = paintTerminalReported(
         bound,
         name,
         yield* viewOf(flags),
         sizeOf(flags),
+        phase,
+        reporting,
       )
       yield* keep(flags, painted.view)
       return { stdout: Array.join(painted.lines, '\n'), exitCode: 0 }
     })
+  const paint = (flags: CliDaemonFlags) =>
+    Effect.flatMap(keptOf(flags), maybeKept =>
+      paintAs(flags, Option.isSome(maybeKept) ? 'refresh' : 'mount'),
+    )
   const pressKey = (flags: CliDaemonFlags) =>
     Effect.gen(function* () {
       const current = yield* viewOf(flags)
@@ -128,7 +142,7 @@ export const makeProgramTerminalView = <Model, Message>(
         current.focus,
       )
       yield* keep(flags, { ...current, focus: pressed.focus })
-      const painted = yield* paint(flags)
+      const painted = yield* paintAs(flags, 'key')
       return { ...painted, flags: { outcome: pressed.outcome } }
     })
   return { paint, pressKey }
@@ -146,13 +160,15 @@ const wordsOf = (token: string): ReadonlyArray<string> =>
  * A CLI daemon surface for any bound Program. `show` paints; `do` runs the
  * words the view sent. A request from a terminal UI view paints the
  * Program to fit that terminal and presses the key it read, so
- * `runCliTuiView` shows the daemon's Program live.
+ * `runCliTuiView` shows the daemon's Program live, and `onPainted` hears
+ * how long each of those frames took to paint.
  */
 export const programCliSurface = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
+  reporting: TerminalPaintReporting = {},
 ): CliDaemonSurface<Model, Message> => {
-  const terminal = makeProgramTerminalView(bound, name)
+  const terminal = makeProgramTerminalView(bound, name, reporting)
   return {
     read: () => Effect.sync(() => bound.readModel()),
     run: message =>

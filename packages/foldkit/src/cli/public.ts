@@ -45,11 +45,14 @@ export {
 export { keyInputOfTerminal, runProgramTui } from './tui.js'
 export {
   type TerminalPaint,
+  type TerminalPaintPhase,
+  type TerminalPaintReporting,
   type TerminalScroll,
   type TerminalSize,
   type TerminalView,
   initialTerminalView,
   paintTerminal,
+  terminalPainter,
 } from './terminalScreen.js'
 export { type WatchOptions, paintWatch, runProgramWatch } from './watch.js'
 export { localSnapshotFile, localSnapshotPath } from './localSnapshotFile.js'

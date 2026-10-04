@@ -1,16 +1,17 @@
 /// <reference types="node" />
-import { Deferred, Effect, Fiber, Option } from 'effect'
+import { Array, Deferred, Effect, Fiber, Option } from 'effect'
 import { existsSync } from 'node:fs'
 import { PassThrough, Writable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 
 import { Link } from '../navigation/message.js'
+import type { RenderReport } from '../telemetry/recorder.js'
 import { ChapterApp, bindChapters } from '../test/apps/chapterContents.js'
 import { isCliDaemonListening } from './client.js'
 import { listenCliDaemon, startCliDaemonServer } from './listen.js'
 import { cliDaemonPidPath, cliDaemonSocketPath } from './paths.js'
 import { CliDaemonError, type CliDaemonSurface } from './protocol.js'
-import { programCliSurface } from './surface.js'
+import { makeProgramTerminalView, programCliSurface } from './surface.js'
 import { askCliView, isCliViewListening, runCliTuiView } from './view.js'
 
 const size = { view: 'tui', rows: '24', columns: '80' }
@@ -82,6 +83,31 @@ describe('programCliSurface for a terminal UI view', () => {
       press('key', { ...size, name: 'q', sequence: 'q' }),
     )
     expect(quit.flags).toEqual({ outcome: 'Quit' })
+  })
+
+  it('tells onPainted about each frame a view gets, and why', () => {
+    const reports: Array<RenderReport> = []
+    const terminal = makeProgramTerminalView(bindChapters(), 'chapters', {
+      onPainted: report => {
+        reports.push(report)
+      },
+    })
+    const first = { ...size, viewId: 'first' }
+    Effect.runSync(terminal.paint(first))
+    Effect.runSync(terminal.paint(first))
+    Effect.runSync(
+      terminal.pressKey({ ...first, name: 'down', sequence: '\u001b[B' }),
+    )
+    Effect.runSync(terminal.paint({ ...size, viewId: 'second' }))
+    expect(
+      Array.map(reports, ({ painter, phase }) => `${painter} ${phase ?? ''}`),
+    ).toEqual([
+      'Terminal mount',
+      'Terminal refresh',
+      'Terminal key',
+      'Terminal mount',
+    ])
+    expect(Array.every(reports, ({ durationMs }) => durationMs >= 0)).toBe(true)
   })
 })
 

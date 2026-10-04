@@ -12,10 +12,12 @@ import type { BoundInteraction } from '../interaction/bind.js'
 import { type KeyInput, terminalKeyInput } from '../interaction/interaction.js'
 import { pressTerminalKeyAt } from '../interaction/terminalFocus.js'
 import {
+  type TerminalPaintPhase,
+  type TerminalPaintReporting,
   type TerminalSize,
   type TerminalView,
   initialTerminalView,
-  paintTerminal,
+  paintTerminalReported,
 } from './terminalScreen.js'
 
 const enterScreen = '\u001b[?1049h\u001b[?25l'
@@ -75,19 +77,21 @@ const sizeOf = (terminal: Terminal.Terminal) =>
  * Action's key acts on the highlighted row, so `r` with Counter 2's `+`
  * highlighted resets Counter 2. A dialog's buttons show their keys:
  * `[ Delete (y) ] [ Cancel (n) ]`. It returns when the person quits; the
- * host then stops the Program and exits.
+ * host then stops the Program and exits. `onPainted` hears how long each
+ * frame took to paint and why, such as after a key.
  *
  * @example
  * ```typescript
- * runProgramTui(bindCounter(handle), 'counter').pipe(
- *   Effect.provide(NodeServices.layer),
- *   NodeRuntime.runMain,
- * )
+ * const telemetry = Telemetry.attach(handle, { app: 'counter', sink: fileSink() })
+ * runProgramTui(bindCounter(handle), 'counter', {
+ *   onPainted: telemetry.recordRendered,
+ * }).pipe(Effect.provide(NodeServices.layer), NodeRuntime.runMain)
  * ```
  */
 export const runProgramTui = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
+  reporting: TerminalPaintReporting = {},
 ): Effect.Effect<
   void,
   Cause.Done | PlatformError.PlatformError,
@@ -109,19 +113,27 @@ export const runProgramTui = <Model, Message>(
         Effect.ignore(terminal.display(leaveScreen)),
       )
 
-      const paint = Effect.gen(function* () {
-        const size = yield* sizeOf(terminal)
-        const painted = paintTerminal(bound, name, yield* Ref.get(view), size)
-        yield* Ref.set(view, painted.view)
-        const frame = `${windowTitleSequence(bound)}${clearScreen}${painted.lines.join('\n')}`
-        const maybeLast = yield* Ref.get(maybeLastFrame)
-        if (!Option.contains(maybeLast, frame)) {
-          yield* Ref.set(maybeLastFrame, Option.some(frame))
-          yield* terminal.display(
-            Option.isNone(maybeLast) ? `${enterScreen}${frame}` : frame,
+      const paint = (phase: TerminalPaintPhase) =>
+        Effect.gen(function* () {
+          const size = yield* sizeOf(terminal)
+          const painted = paintTerminalReported(
+            bound,
+            name,
+            yield* Ref.get(view),
+            size,
+            phase,
+            reporting,
           )
-        }
-      })
+          yield* Ref.set(view, painted.view)
+          const frame = `${windowTitleSequence(bound)}${clearScreen}${painted.lines.join('\n')}`
+          const maybeLast = yield* Ref.get(maybeLastFrame)
+          if (!Option.contains(maybeLast, frame)) {
+            yield* Ref.set(maybeLastFrame, Option.some(frame))
+            yield* terminal.display(
+              Option.isNone(maybeLast) ? `${enterScreen}${frame}` : frame,
+            )
+          }
+        })
 
       const readKeys: Effect.Effect<
         void,
@@ -140,7 +152,7 @@ export const runProgramTui = <Model, Message>(
             return pressed.outcome === 'Quit'
               ? Effect.void
               : Ref.set(view, { ...current, focus: pressed.focus }).pipe(
-                  Effect.andThen(paint),
+                  Effect.andThen(paint('key')),
                   Effect.andThen(Effect.suspend(() => readKeys)),
                 )
           })
@@ -148,11 +160,11 @@ export const runProgramTui = <Model, Message>(
       )
 
       const repaintLoop = Queue.take(repaints).pipe(
-        Effect.andThen(paint),
+        Effect.andThen(paint('update')),
         Effect.forever,
       )
 
-      yield* paint
+      yield* paint('mount')
       yield* Effect.raceFirst(readKeys, repaintLoop)
     }),
   )
