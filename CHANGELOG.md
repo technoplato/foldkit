@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 10:58:34 p.m. EDT — `b0bf2f234711` fix(books): pause and say why when a title's audio will not play
+
+- **Implementation commit:** `b0bf2f234711eb4920a481604470d628b89b0ded`
+- **Change:** Pause and say why when a title's audio will not play
+- **Details:**
+  - The browser player reports a failed download, an undecodable file, or a refusal to play without a press. The player stops as Unplayable with the reason, saves the place it reached, and Play tries again. Before this, a file that failed left the player showing Pause with no sound.
+- **Files:**
+  - `examples/books/core/src/audio.browser.ts` — Reports the failure.
+  - `examples/books/core/src/model.ts` — The Unplayable transport.
+  - `examples/books/core/src/update.ts` — Stops and saves the place.
+  - `examples/books/core/src/screen.ts` — The player says why.
+- **User context (verbatim):**
+  > I want an audible clone with my actual books with Progress
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 10:30:44 p.m. EDT — `3e8902fc87cc` fix(books): play only titles whose audio is in the library
 
 - **Implementation commit:** `3e8902fc87cc2d88295f22fd6e8af1e97ec01151`
