@@ -4,6 +4,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 10:14:49 p.m. EDT — `7be211179ba7` feat(books): show each title's cover from Instant storage
+
+- **Implementation commit:** `7be211179ba70cdf2ab0012791dc8bfc0ab264ad`
+- **Change:** Show each title's cover from Instant storage
+- **Details:**
+  - The library rows, title page, and player show the cover linked from the book to its file in storage; the dev seed uploads made-up covers under the member path.
+- **Files:**
+  - `examples/books/core/src/screen.ts` — Covers on three screens.
+  - `examples/books/core/scripts/seedDev.mjs` — Made-up covers in storage.
+- **User context (verbatim):**
+  > the cover image should come from InstantDB
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 10:14:49 p.m. EDT — `055d4a945a12` feat(foldkit): let a Text show a picture, with its words as alt text
+
+- **Implementation commit:** `055d4a945a121492f80793f025e7ae8ea928db94`
+- **Change:** Let a Text show a picture, with its words as alt text
+- **Details:**
+  - Text takes an image with source and size; React, Svelte, the HTML renderer, and React Native paint it, and terminals show the words.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — TextImage.
+  - `packages/react/src/paintReact/paintReact.tsx` — The React picture.
+  - `packages/svelte/src/interaction/PaintTree.svelte` — The Svelte picture.
+- **User context (verbatim):**
+  > the cover image should come from InstantDB
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 9:35:59 p.m. EDT — `99e079887be8` feat(books): read and save the library in Instant, and play it in React
 
 - **Implementation commit:** `99e079887be818c1279344e01c84c5551fdd9ee3`
