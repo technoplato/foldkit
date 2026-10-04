@@ -4,7 +4,7 @@ import { m } from 'foldkit/message'
 
 import {
   Milliseconds,
-  MillisecondsSegment,
+  PlaceToken,
   Speed,
   SpeedToken,
   WordId,
@@ -83,7 +83,8 @@ const passageTitleOf = (passage: Passage): string =>
 
 /**
  * Moves to any place in the recording, as a seek bar does: `SeekTo:723000`
- * moves to 12:03. It offers the passage starts in a menu, and takes any
+ * moves to 12:03, and a person can type the place, `seek-to 1h00m00s` or
+ * `seek-to 12:03`. It offers the passage starts in a menu, and takes any
  * place from the start to the end.
  */
 export const SeekTo = Catalog.action('SeekTo', {
@@ -91,7 +92,7 @@ export const SeekTo = Catalog.action('SeekTo', {
   choose: {
     field: 'placeMs',
     prompt: 'Where to?',
-    token: MillisecondsSegment,
+    token: PlaceToken,
     choicesOf: (model: Model) =>
       Array.map(passagesOf(model), passage => ({
         value: passage.startMs,

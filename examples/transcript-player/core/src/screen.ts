@@ -230,6 +230,41 @@ export const seekScopeOf = (
         ),
       ]
 
+const spokenWordsBefore = 4
+
+const spokenWordsAfter = 8
+
+/**
+ * The words being spoken now as one short line, the word sounding in
+ * brackets with a few on either side, for a surface with no room for the
+ * transcript, such as a terminal's few lines after `books pause`. None
+ * while no word near the place is known.
+ *
+ * @example
+ * ```typescript
+ * spokenLineOf(player) // Some('Evocation Earth, 114 [million] years ago, one morning just after')
+ * ```
+ */
+export const spokenLineOf = (model: Model): Option.Option<string> =>
+  Option.flatMap(currentWordOf(model), current => {
+    const words = Array.flatMap(passagesOf(model), passage => passage.words)
+    return Option.map(
+      Array.findFirstIndex(words, word => word.wordId === current.wordId),
+      index =>
+        Array.join(
+          Array.map(
+            Array.take(
+              Array.drop(words, Math.max(0, index - spokenWordsBefore)),
+              Math.min(index, spokenWordsBefore) + 1 + spokenWordsAfter,
+            ),
+            word =>
+              word.wordId === current.wordId ? `[${word.text}]` : word.text,
+          ),
+          ' ',
+        ),
+    )
+  })
+
 /** Why the audio would not play, while it would not. */
 export const problemOf = (model: Model): ReadonlyArray<UiNode> =>
   model.transport._tag === 'Unplayable'

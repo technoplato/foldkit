@@ -145,6 +145,45 @@ export const PlaceSegment = S.String.pipe(
   ),
 )
 
+const millisecondsPattern = /^\d+$/u
+
+const placeOfToken = (input: string): Option.Option<number> =>
+  millisecondsPattern.test(input)
+    ? Option.some(Number(input))
+    : placeOfSegment(input)
+
+/**
+ * A place as one word in a press tag or a CLI command: milliseconds, as a
+ * seek bar presses it, `SeekTo:723000`, or a place a person types, in
+ * hours, minutes, and seconds, `1h00m00s`, or as a clock, `12:03`. It
+ * prints milliseconds, so the press tags a screen writes keep their shape.
+ *
+ * @example
+ * ```typescript
+ * S.decodeUnknownSync(PlaceToken)('723000') // 723000
+ * S.decodeUnknownSync(PlaceToken)('1h00m00s') // 3600000
+ * S.encodeSync(PlaceToken)(Milliseconds.make(723_000)) // '723000'
+ * ```
+ */
+export const PlaceToken = S.String.pipe(
+  S.decodeTo(
+    Milliseconds,
+    SchemaTransformation.transformOrFail({
+      decode: input =>
+        Option.match(placeOfToken(input), {
+          onNone: () =>
+            Effect.fail(
+              new SchemaIssue.InvalidValue(Option.some(input), {
+                description: `Expected a place such as 1h00m00s, 12:03, or 723000, got ${JSON.stringify(input)}`,
+              }),
+            ),
+          onSome: placeMs => Effect.succeed(placeMs),
+        }),
+      encode: placeMs => Effect.succeed(placeMs.toString()),
+    }),
+  ),
+)
+
 const segmentOfPlace = (placeMs: number): string => {
   const totalSeconds = Math.floor(placeMs / millisecondsPerClockSecond)
   const seconds = totalSeconds % secondsPerClockMinute
