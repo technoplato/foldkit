@@ -10,7 +10,10 @@
  * opens the action menu, and Escape goes back one screen. Run it through
  * `scripts/with-books-access`. It is a player of its own in this
  * process, so it stops when it closes; `books tui` shows the player that
- * keeps playing in the background instead.
+ * keeps playing in the background instead. Its telemetry, every Message,
+ * Command, and frame, goes to
+ * `~/Library/Logs/foldkit/telemetry/books-opentui.ndjson`; read it with
+ * `foldkit telemetry books-opentui`.
  */
 import {
   bindBooks,
@@ -22,7 +25,8 @@ import {
   startBooks,
 } from 'books-core-example'
 import { Option } from 'effect'
-import { Processor } from 'foldkit'
+import { Processor, Telemetry } from 'foldkit'
+import { fileSink } from 'foldkit/telemetry/node'
 
 import { runOpenTui } from '@foldkit/opentui/interaction'
 import { createCliRenderer } from '@opentui/core'
@@ -38,15 +42,15 @@ if (Option.isNone(maybeSignedIn)) {
   process.exit(1)
 }
 
-const bound = bindBooks(
-  startBooks(maybeSignedIn.value, {
-    host: Processor.Host.OpenTui(),
-    instance: newProcessorInstance(),
-  }),
-)
+const handle = startBooks(maybeSignedIn.value, {
+  host: Processor.Host.OpenTui(),
+  instance: newProcessorInstance(),
+})
+const telemetry = Telemetry.attach(handle, { app: 'books', sink: fileSink() })
+const bound = bindBooks(handle)
 const renderer = await createCliRenderer({ exitOnCtrlC: true })
 
-await runOpenTui(bound, renderer)
+await runOpenTui(bound, renderer, { onPainted: telemetry.recordRendered })
 
 await bound.stop()
 renderer.destroy()

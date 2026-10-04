@@ -8,7 +8,10 @@
  * the end of the title, or ten minutes with nothing in the player ends
  * it, after its place saves through the same Messages the web saves with.
  * It keeps its own screen and player even while the session mirrors
- * navigation, so a browser never moves it.
+ * navigation, so a browser never moves it. Its telemetry, every Message,
+ * Command, and terminal frame, goes to
+ * `~/Library/Logs/foldkit/telemetry/books-cli.ndjson`; read it with
+ * `foldkit telemetry books-cli`.
  */
 import {
   SyncedBooks,
@@ -18,8 +21,9 @@ import {
   whenLibraryOpened,
 } from 'books-core-example'
 import { Duration, Effect } from 'effect'
-import { Interaction, Processor } from 'foldkit'
+import { Interaction, Processor, Telemetry } from 'foldkit'
 import { listenCliDaemon } from 'foldkit/cli'
+import { fileSink } from 'foldkit/telemetry/node'
 
 import { NodeRuntime } from '@effect/platform-node'
 
@@ -60,6 +64,7 @@ const serve = Effect.gen(function* () {
     instance: newProcessorInstance(),
     library: writes.wrap,
   })
+  const telemetry = Telemetry.attach(handle, { app: 'books', sink: fileSink() })
   yield* Effect.addFinalizer(() =>
     Effect.promise(() =>
       Promise.race([
@@ -76,7 +81,9 @@ const serve = Effect.gen(function* () {
       () => whenLibraryOpened(handle, readyTimeoutMs),
     ),
   )
-  const player = makeBooksPlayer(bound, writes)
+  const player = makeBooksPlayer(bound, writes, {
+    onPainted: telemetry.recordRendered,
+  })
   return yield* listenCliDaemon({
     socketPath,
     Model: SyncedBooks.Model,

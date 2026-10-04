@@ -16,7 +16,7 @@ import {
   whenLibraryOpened,
 } from 'books-core-example'
 import { Array, Duration, Effect, Fiber, Layer, Option, Stream } from 'effect'
-import { Interaction, Processor, Runtime } from 'foldkit'
+import { Interaction, Processor, Runtime, Telemetry } from 'foldkit'
 import {
   cliDaemonSocketPath,
   isCliDaemonListening,
@@ -79,6 +79,7 @@ const openBooks = async (
     shelf?: Shelf
     audio?: Layer.Layer<AudioOutput>
     transcripts?: typeof noTranscripts
+    telemetry?: Telemetry.TelemetrySinkLayer
   }> = {},
 ): Promise<Opened> => {
   const store = await Effect.runPromise(
@@ -101,12 +102,19 @@ const openBooks = async (
     host: Processor.Host.Cli(),
   })
   started.push(handle)
+  const reporting = Option.match(Option.fromNullishOr(options.telemetry), {
+    onNone: () => ({}),
+    onSome: sink => ({
+      onPainted: Telemetry.attach(handle, { app: 'books', sink })
+        .recordRendered,
+    }),
+  })
   const bound = bindBooks(handle)
   await Interaction.whenSettled(bound, 2_000)
   await whenLibraryOpened(handle, 2_000)
   return {
     bound,
-    player: makeBooksPlayer(bound, tracked),
+    player: makeBooksPlayer(bound, tracked, reporting),
     writes: store.writes,
   }
 }
@@ -378,5 +386,54 @@ describe('the Books player daemon', () => {
       Option.getOrThrow(Option.fromNullishOr(player.surface.show))(tui),
     )
     expect(frame.stdout.split('\n')).toHaveLength(30)
+  })
+
+  it('records each TUI key it answers, the Message it took, and each frame, in telemetry', async () => {
+    const memory = Telemetry.makeMemorySink()
+    const { bound, player } = await openBooks({
+      shelf: longShelf,
+      audio: tickingAudio(20),
+      transcripts: longTranscript,
+      telemetry: memory.layer,
+    })
+    await run(player, 'listen a-new-earth')
+    await eventually(() => placeOf(bound) > 5_000)
+    const recordedBefore = memory.events().length
+    const tui = { view: 'tui', rows: '30', columns: '100', viewId: 'telemetry' }
+    const keys = [
+      { name: 'c', sequence: 'c' },
+      ...Array.makeBy(5, () => ({ name: 'down', sequence: '\u001b[B' })),
+      { name: 'escape', sequence: '\u001b', meta: '1' },
+      { name: 'p', sequence: 'p' },
+    ]
+    await Effect.runPromise(
+      Effect.forEach(keys, key => doOf(player)('key', { ...tui, ...key })),
+    )
+    await eventually(() => !isSounding(bound))
+    const recorded = Array.drop(memory.events(), recordedBefore)
+    const pressed = Array.filter(
+      recorded,
+      (event): event is Telemetry.Transition =>
+        event._tag === 'Transition' && event.source._tag === 'Host',
+    )
+    expect(Array.map(pressed, ({ message }) => message)).toEqual([
+      'ShowContents',
+      'GoBack',
+      'Pause',
+    ])
+    expect(
+      Array.every(
+        pressed,
+        ({ updateDurationMs }) => updateDurationMs !== undefined,
+      ),
+    ).toBe(true)
+    const keyPaints = Array.filter(
+      recorded,
+      event =>
+        event._tag === 'Rendered' &&
+        event.painter === 'Terminal' &&
+        event.phase === 'key',
+    )
+    expect(keyPaints).toHaveLength(keys.length)
   })
 })

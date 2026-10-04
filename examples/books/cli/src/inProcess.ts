@@ -7,8 +7,9 @@ import {
   whenLibraryOpened,
 } from 'books-core-example'
 import { Effect } from 'effect'
-import { Interaction, Processor } from 'foldkit'
+import { Interaction, Processor, Telemetry } from 'foldkit'
 import { runProgramTail, runProgramWatch } from 'foldkit/cli'
+import { fileSink } from 'foldkit/telemetry/node'
 
 import { signedInOrExit } from './signIn.js'
 
@@ -39,11 +40,13 @@ export const runTail = async (): Promise<void> => {
 
 /**
  * `books watch`: repaints the library as it changes on any device, until
- * Ctrl-C. It plays nothing; the player is `books listen`.
+ * Ctrl-C. It plays nothing; the player is `books listen`. Its telemetry
+ * goes to `books-cli.ndjson`, beside the player's.
  */
 export const runWatch = async (): Promise<void> => {
   const signedIn = await signedInOrExit()
   const handle = startBooks(signedIn, configOf())
+  Telemetry.attach(handle, { app: 'books', sink: fileSink() })
   const bound = bindBooks(handle)
   await Interaction.whenSettled(bound, readyTimeoutMs)
   await whenLibraryOpened(handle, readyTimeoutMs)

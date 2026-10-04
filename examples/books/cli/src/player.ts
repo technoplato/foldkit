@@ -16,6 +16,7 @@ import {
   type CliDaemonPaintedResult,
   type CliDaemonSurface,
   type HostCommand,
+  type TerminalPaintReporting,
   isTerminalViewRequest,
   makeProgramTerminalView,
   paintCommands,
@@ -209,20 +210,25 @@ export type BooksPlayer = Readonly<{
  * `books help` print the brief, `books actions` every command, and
  * `books stop` pauses, waits for the place to save, says so, and ends the
  * player. A terminal UI view gets the player's screen, fitted to its
- * terminal, and its keys go through the same Program.
+ * terminal, and its keys go through the same Program. `onPainted` hears
+ * how long each of those frames took to paint, such as telemetry's
+ * `recordRendered`.
  *
  * @example
  * ```typescript
- * const player = makeBooksPlayer(bound, trackLibraryWrites())
+ * const player = makeBooksPlayer(bound, trackLibraryWrites(), {
+ *   onPainted: telemetry.recordRendered,
+ * })
  * yield* listenCliDaemon({ socketPath, Model, Message, surface: player.surface, until: player.stopped })
  * ```
  */
 export const makeBooksPlayer = (
   bound: BoundBooks,
   writes: LibraryWrites,
+  reporting: TerminalPaintReporting = {},
 ): BooksPlayer => {
   const programSurface = programCliSurface(bound, booksCommandName)
-  const terminal = makeProgramTerminalView(bound, booksCommandName)
+  const terminal = makeProgramTerminalView(bound, booksCommandName, reporting)
   const stopped = Effect.runSync(Deferred.make<void>())
   const brief = (): CliDaemonPaintedResult => ({
     stdout: paintBrief(bound),
