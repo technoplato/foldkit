@@ -1,5 +1,15 @@
 import { Array, Match as M, pipe } from 'effect'
-import { type ButtonNode, type UiNode, buttonsOf } from 'foldkit/renderers'
+import {
+  type ButtonNode,
+  type ListItem,
+  type TranscriptNode,
+  type TranscriptPassage,
+  type TranscriptWord,
+  type UiNode,
+  buttonsOf,
+  progressLineOf,
+  seekLineOf,
+} from 'foldkit/renderers'
 import { songbookScreen } from 'songbook-core-example'
 
 /** One argv command derived from a screen Button token. */
@@ -24,6 +34,9 @@ export type PaintCliOptions = Readonly<{
 
 const minimumRowGap = 1
 const usageColumnGap = 3
+const lineWidth = 60
+const itemSeparator = '  '
+const passageLabelWidth = 8
 
 const blankRows = (rows: number): ReadonlyArray<string> => {
   if (rows <= 0) {
@@ -38,6 +51,33 @@ const buttonText = (button: ButtonNode): string => {
   }
   return `[${button.token}]`
 }
+
+const itemLine = (item: ListItem): string =>
+  Array.join(
+    [
+      `  ${item.title}`,
+      ...Array.match(item.lines ?? [], {
+        onEmpty: () => [],
+        onNonEmpty: lines => [Array.join(lines, ' · ')],
+      }),
+      ...Array.map(item.trailing ?? [], buttonText),
+    ],
+    itemSeparator,
+  )
+
+const wordText = (word: TranscriptWord): string =>
+  word.isCurrent === true ? `[${word.text}]` : word.text
+
+const passageLine = (passage: TranscriptPassage): string => {
+  const words = pipe(passage.words, Array.map(wordText), Array.join(' '))
+  return `${passage.label.padEnd(passageLabelWidth)}${words}`
+}
+
+const transcriptLines = (transcript: TranscriptNode): ReadonlyArray<string> =>
+  Array.match(transcript.passages, {
+    onEmpty: () => [transcript.emptyText],
+    onNonEmpty: passages => Array.map(passages, passageLine),
+  })
 
 const paintLines = (node: UiNode): ReadonlyArray<string> =>
   M.value(node).pipe(
@@ -60,6 +100,10 @@ const paintLines = (node: UiNode): ReadonlyArray<string> =>
           stackLines(box.children, 0),
           Array.map(line => `${' '.repeat(box.padding)}${line}`),
         ),
+      Progress: progress => [progressLineOf(progress, lineWidth)],
+      List: list => Array.map(list.items, itemLine),
+      Seek: seek => [seekLineOf(seek, lineWidth)],
+      Transcript: transcript => transcriptLines(transcript),
       DeviceShell: shell => [
         deviceLine(shell.device, shell.title),
         ...stackLines(shell.children, 0),

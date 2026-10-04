@@ -1,17 +1,39 @@
 import { Array, Match as M, Option } from 'effect'
-import { type UiNode } from 'foldkit/renderers'
+import {
+  type ListItem,
+  type TranscriptPassage,
+  type UiNode,
+  progressLineOf,
+  seekLineOf,
+} from 'foldkit/renderers'
 
 import {
   BoxRenderable,
   type RenderContext,
   type Renderable,
+  StyledText,
   TextRenderable,
+  bg,
   bold,
   dim,
+  fg,
+  stringToStyledText,
   t,
 } from '@opentui/core'
 
 const buttonPaddingX = 1
+
+const barWidth = 60
+
+const passageLabelWidth = 8
+
+const matchColor = '#a5b4fc'
+
+const focusColor = '#1d4ed8'
+
+const currentWordColor = '#9a3412'
+
+const currentWordBackground = '#fed7aa'
 
 /** Wires Button tokens to taps and key hints. */
 export type PaintOpenTuiOptions = Readonly<{
@@ -56,6 +78,91 @@ const addChildren = (
     parent.add(paintOpenTui(ctx, child, options))
   }
   return parent
+}
+
+const paintItem = (
+  ctx: RenderContext,
+  item: ListItem,
+  options: PaintOpenTuiOptions,
+): Renderable => {
+  const action = item.action
+  const row = new BoxRenderable(ctx, {
+    flexDirection: 'row',
+    columnGap: 2,
+    ...(item.focused === true ? { backgroundColor: focusColor } : {}),
+  })
+  const title = new BoxRenderable(ctx, {
+    ...(action === undefined
+      ? {}
+      : {
+          onMouseDown: () => {
+            options.onTap(action)
+          },
+        }),
+  })
+  title.add(
+    new TextRenderable(ctx, {
+      content:
+        item.isCurrent === true
+          ? t`${bold(fg(matchColor)(`• ${item.title}`))}`
+          : t`${bold(`  ${item.title}`)}`,
+    }),
+  )
+  row.add(title)
+  Array.match(item.lines ?? [], {
+    onEmpty: () => undefined,
+    onNonEmpty: lines => {
+      row.add(
+        new TextRenderable(ctx, {
+          content: t`${dim(Array.join(lines, ' · '))}`,
+        }),
+      )
+    },
+  })
+  return addChildren(ctx, row, item.trailing ?? [], options)
+}
+
+const paintPassage = (
+  ctx: RenderContext,
+  passage: TranscriptPassage,
+  options: PaintOpenTuiOptions,
+): Renderable => {
+  const row = new BoxRenderable(ctx, { flexDirection: 'row' })
+  const labelAction = passage.labelAction
+  const label = new BoxRenderable(ctx, {
+    width: passageLabelWidth,
+    ...(labelAction === undefined
+      ? {}
+      : {
+          onMouseDown: () => {
+            options.onTap(labelAction)
+          },
+        }),
+  })
+  label.add(
+    new TextRenderable(ctx, {
+      content:
+        passage.isCurrent === true
+          ? t`${bold(`›${passage.label}`)}`
+          : t`${dim(` ${passage.label}`)}`,
+    }),
+  )
+  row.add(label)
+  const chunks = Array.flatMap(passage.words, (word, index) => [
+    ...(index === 0 ? [] : stringToStyledText(' ').chunks),
+    ...(word.isCurrent === true
+      ? [bg(currentWordBackground)(fg(currentWordColor)(bold(word.text)))]
+      : stringToStyledText(word.text).chunks),
+  ])
+  row.add(
+    new TextRenderable(ctx, {
+      content: new StyledText([...chunks]),
+      wrapMode: 'word',
+      flexGrow: 1,
+      flexShrink: 1,
+    }),
+  )
+  return row
 }
 
 /**
@@ -140,6 +247,40 @@ export const paintOpenTui = (
           box.children,
           options,
         ),
+      Progress: progress =>
+        new TextRenderable(ctx, {
+          content: t`${dim(progressLineOf(progress, barWidth))}`,
+        }),
+      List: list => {
+        const column = new BoxRenderable(ctx, { flexDirection: 'column' })
+        Array.forEach(list.items, item => {
+          column.add(paintItem(ctx, item, options))
+        })
+        return column
+      },
+      Seek: seek =>
+        new TextRenderable(ctx, { content: seekLineOf(seek, barWidth) }),
+      Transcript: transcript => {
+        const column = new BoxRenderable(ctx, {
+          flexDirection: 'column',
+          rowGap: 1,
+        })
+        Array.match(transcript.passages, {
+          onEmpty: () => {
+            column.add(
+              new TextRenderable(ctx, {
+                content: t`${dim(transcript.emptyText)}`,
+              }),
+            )
+          },
+          onNonEmpty: passages => {
+            Array.forEach(passages, passage => {
+              column.add(paintPassage(ctx, passage, options))
+            })
+          },
+        })
+        return column
+      },
       DeviceShell: shell =>
         addChildren(
           ctx,
