@@ -3,8 +3,8 @@ import {
   newProcessorInstance,
   startBooks,
 } from 'books-core-example/browser'
-import { Processor } from 'foldkit'
-import { StrictMode } from 'react'
+import { Processor, Telemetry } from 'foldkit'
+import { Profiler, type ProfilerOnRenderCallback, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { ProgramProvider } from '@foldkit/react/interaction'
@@ -24,6 +24,19 @@ const handle = startBooks({
   instance: newProcessorInstance(),
 })
 
+const telemetry = Telemetry.attach(handle, {
+  app: 'books',
+  sink: Telemetry.browserSink(),
+})
+
+const recordCommit: ProfilerOnRenderCallback = (_id, phase, actualDuration) => {
+  telemetry.recordRendered({
+    painter: 'React',
+    durationMs: actualDuration,
+    phase,
+  })
+}
+
 const hot = import.meta.hot
 if (hot !== undefined) {
   hot.dispose(() => {
@@ -38,8 +51,10 @@ if (rootElement === null) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ProgramProvider bound={bindBooks(handle)}>
-      <App />
-    </ProgramProvider>
+    <Profiler id="books" onRender={recordCommit}>
+      <ProgramProvider bound={bindBooks(handle)}>
+        <App />
+      </ProgramProvider>
+    </Profiler>
   </StrictMode>,
 )

@@ -9,7 +9,10 @@ import {
 import { readAloudEndpoint } from 'read-aloud-core-example/endpoint'
 import { defineConfig } from 'vite'
 
-import { hostedIdentity } from '@foldkit/instant/hosted-identity/vite'
+import {
+  foldkitTelemetry,
+  hostedIdentity,
+} from '@foldkit/instant/hosted-identity/vite'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
@@ -39,6 +42,7 @@ export default defineConfig({
     tailwindcss(),
     react(),
     hostedIdentity({ publicRoutes: linkPreviews }),
+    foldkitTelemetry(),
     readAloudEndpoint(),
   ],
   resolve: {
