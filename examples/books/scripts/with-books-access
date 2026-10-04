@@ -1,0 +1,21 @@
+#!/bin/sh
+# Runs a terminal Books as your Cloudflare Access login, on the Instant app
+# the env file names. Only the app id comes from that file, so a terminal
+# never holds the admin token. The Access token is the one cloudflared keeps
+# for the reader; on this machine, the local reader mints without one.
+ENV_FILE="${BOOKS_ENV_FILE:-$HOME/.config/knophy-host/books/books.env}"
+if [ -z "${BOOKS_INSTANT_APP_ID:-}" ] && [ -f "$ENV_FILE" ]; then
+  BOOKS_INSTANT_APP_ID="$(sed -n 's/^INSTANT_APP_ID=//p' "$ENV_FILE" | head -n 1 | tr -d "\"'")"
+fi
+export BOOKS_INSTANT_APP_ID
+export FOLDKIT_HOSTED_IDENTITY_ORIGIN="${FOLDKIT_HOSTED_IDENTITY_ORIGIN:-https://books.knophy.com}"
+case "$FOLDKIT_HOSTED_IDENTITY_ORIGIN" in
+  http://localhost* | http://127.0.0.1*) ;;
+  *)
+    if [ -z "${CF_AUTHORIZATION:-}" ] && command -v cloudflared >/dev/null 2>&1; then
+      CF_AUTHORIZATION="$(cloudflared access token -app="$FOLDKIT_HOSTED_IDENTITY_ORIGIN" 2>/dev/null || true)"
+      export CF_AUTHORIZATION
+    fi
+    ;;
+esac
+exec "$@"

@@ -3,15 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/index.node.js",
+  "module": "./dist/index.node.js",
+  "types": "./dist/index.node.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/index.node.d.ts",
       "browser": "./dist/index.browser.js",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": "./dist/index.node.js",
+      "default": "./dist/index.node.js"
     },
     "./browser": {
       "types": "./dist/index.browser.d.ts",

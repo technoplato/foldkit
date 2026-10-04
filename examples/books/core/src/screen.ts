@@ -266,7 +266,7 @@ const titleItemOf = (model: Model, title: Title): ListItem => ({
  */
 export const libraryScreen = (model: Model): UiNode =>
   Column(
-    { gap: 20 },
+    { gap: 1 },
     Text('Library', { emphasis: 'Headline' }),
     ...problemLines(model),
     ...pipe(model.library, library => {
@@ -341,7 +341,7 @@ const narratorLines = (title: Title): ReadonlyArray<UiNode> =>
  */
 export const titleScreen = (model: Model, title: Title): UiNode =>
   Column(
-    { gap: 16 },
+    { gap: 1 },
     ...coverOf(title, pageCoverWidth),
     Text(title.name, { emphasis: 'Headline' }),
     Text(byline(title)),
@@ -354,7 +354,7 @@ export const titleScreen = (model: Model, title: Title): UiNode =>
     Text(progressText(model, title), { dim: true }),
     ...problemLines(model),
     Row(
-      { gap: 12 },
+      { gap: 1 },
       ...playOrPauseOf(model, title, 'Primary'),
       ...buttonsOf(model, [ShowContents], 'Ghost'),
     ),
@@ -387,7 +387,7 @@ export const playerScreen = (model: Model): UiNode =>
         Option.match(loadedFor(model, title), {
           onNone: () =>
             Column(
-              { gap: 16 },
+              { gap: 1 },
               ...coverOf(title, playerCoverWidth),
               Text(title.name, { emphasis: 'Headline' }),
               Text(chapterAt(title, placeFor(model, title)).name, {
@@ -403,7 +403,7 @@ export const playerScreen = (model: Model): UiNode =>
             ),
           onSome: loaded =>
             Column(
-              { gap: 14 },
+              { gap: 1 },
               List({
                 label: 'Now playing',
                 items: [
@@ -424,7 +424,7 @@ export const playerScreen = (model: Model): UiNode =>
               ...TranscriptPlayer.problemOf(loaded.player),
               ...problemLines(model),
               Row(
-                { gap: 12 },
+                { gap: 1 },
                 ...buttonsOf(
                   model,
                   [ShowContents, ShowSpeeds, AddBookmark],
@@ -449,7 +449,7 @@ export const chapterScreen = (
   maybeUri: Option.Option<string>,
 ): UiNode =>
   Column(
-    { gap: 16 },
+    { gap: 1 },
     Text(title.name, { dim: true }),
     Text(chapter.name, { emphasis: 'Headline' }),
     Text(
@@ -505,7 +505,7 @@ export const contentsScreen = (model: Model): UiNode =>
       onNone: () => Column({}, Text('No title is open.', { dim: true })),
       onSome: title =>
         Column(
-          { gap: 12 },
+          { gap: 1 },
           Text('Contents', {
             emphasis: 'Headline',
             label: `${title.name} contents`,
@@ -523,10 +523,10 @@ export const contentsScreen = (model: Model): UiNode =>
 /** The speeds, each a button; the one playing now is greyed out. */
 export const speedScreen = (model: Model): UiNode =>
   Column(
-    { gap: 16 },
+    { gap: 1 },
     Text('Speed', { emphasis: 'Headline' }),
     Row(
-      { gap: 8 },
+      { gap: 1 },
       ...withVariant(
         actionButtons(
           Array.flatMap(
@@ -556,12 +556,12 @@ export const deleteBookmarkScreen = (
       ),
     onSome: bookmark =>
       Column(
-        { gap: 16 },
+        { gap: 1 },
         Text(`Delete the bookmark at ${clockOf(bookmark.atMs)}?`, {
           emphasis: 'Headline',
         }),
         Row(
-          { gap: 12 },
+          { gap: 1 },
           ...choiceButtonsOf(
             model,
             bookmarkId,

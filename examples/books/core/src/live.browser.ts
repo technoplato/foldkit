@@ -13,6 +13,7 @@ import { makeInstantLibraryStore } from './instantLibrary.js'
 import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
 import { BooksProgram } from './program.js'
+import { type BooksHandle } from './startConfig.js'
 import { SyncedBooks } from './synced.js'
 
 /** How a browser Books Processor starts: its Instant app, host, and instance. */
@@ -21,15 +22,6 @@ export type StartBooksConfig = Readonly<{
   host: Processor.Host.Host
   instance: string
 }>
-
-/** A live synced Books any Client can read, watch, and send to. */
-export type BooksHandle = Runtime.SyncedHandle<typeof SyncedBooks.of>
-
-const instanceLength = 8
-
-/** Mints a short per-run Processor instance, such as `4f2a9c1e`. */
-export const newProcessorInstance = (): string =>
-  globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, instanceLength)
 
 /**
  * Starts Books in a browser on the Instant app that holds the library.
