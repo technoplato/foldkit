@@ -351,6 +351,18 @@ describe('non-web Access credentials', () => {
       shouldFetch: true,
     })
   })
+
+  it('fetches a mint on this machine without a token, as local development', () => {
+    expect(
+      resolveHostedIdentityRequest({ sessionOrigin: 'http://localhost:5200' }),
+    ).toMatchObject({
+      sessionUrl: `http://localhost:5200${hostedIdentitySessionPath}`,
+      shouldFetch: true,
+    })
+    expect(
+      resolveHostedIdentityRequest({ sessionOrigin: 'http://localhost.evil' }),
+    ).toMatchObject({ shouldFetch: false })
+  })
 })
 
 describe('ensureHostedInstantSession', () => {

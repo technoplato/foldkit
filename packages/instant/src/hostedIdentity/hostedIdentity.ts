@@ -242,6 +242,20 @@ const firstNonEmpty = (
 const isAbsoluteHttpUrl = (url: string): boolean =>
   url.startsWith('https://') || url.startsWith('http://')
 
+const loopbackHostnames = ['localhost', '127.0.0.1', '[::1]']
+
+const isLoopbackHttpUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url)
+    return (
+      parsed.protocol === 'http:' &&
+      Array.contains(loopbackHostnames, parsed.hostname)
+    )
+  } catch {
+    return false
+  }
+}
+
 const emailFromJwt = (token: string): Option.Option<string> => {
   const parts = token.split('.')
   const maybePayloadSegment = Array.get(parts, 1)
@@ -422,7 +436,12 @@ const resolvedSessionUrl = (
   }
 }
 
-/** Resolves mint URL, Access headers, and whether a non-web Client should fetch. */
+/**
+ * Resolves mint URL, Access headers, and whether a non-web Client should
+ * fetch: with an Access token, a relative path, or a mint on this machine
+ * over plain HTTP, `http://localhost:5200`, which mints for local
+ * development. An absolute remote origin without a token is not asked.
+ */
 export const resolveHostedIdentityRequest = (
   options: HostedIdentityClientOptions = {},
 ): Readonly<{
@@ -443,7 +462,8 @@ export const resolveHostedIdentityRequest = (
       accessToken,
       headers: { accept: 'application/json' },
       sessionUrl,
-      shouldFetch: !isAbsoluteHttpUrl(sessionUrl),
+      shouldFetch:
+        !isAbsoluteHttpUrl(sessionUrl) || isLoopbackHttpUrl(sessionUrl),
     }
   } else {
     return {
