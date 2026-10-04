@@ -125,6 +125,28 @@ describe('Read Aloud in Books', () => {
     expect(uriOf(bound)).toEqual(Option.some('/books'))
   })
 
+  it('keeps a book one page while its pages turn, so its viewer turns instead of loading again', () => {
+    const { bound, send } = bindApp()
+    send(readingsTo(1, 2, 3, 4))
+    bound.openUri('/books/read-aloud/9780063342705/page/4', Navigation.Link())
+    send(readingsTo(1, 2, 3, 4, 5))
+    bound.press('NextPage')
+    expect(uriOf(bound)).toEqual(
+      Option.some('/books/read-aloud/9780063342705/page/6'),
+    )
+    expect(
+      Option.map(bound.navigation(), plan =>
+        Array.map(plan.entries, entry => entry.identity),
+      ),
+    ).toEqual(
+      Option.some([
+        '/books',
+        '/books/read-aloud',
+        '/books/read-aloud/9780063342705/page/1',
+      ]),
+    )
+  })
+
   it('shares a page the way a moment is shared, and says the link went out', () => {
     const { bound, send, written } = bindApp()
     send(readingsTo(1, 2, 3, 4))

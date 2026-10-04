@@ -58,8 +58,10 @@ export const nameOfSlug = (slug: TitleSlug): string =>
  *   in, above it.
  * - `/books/read-aloud` is the picture books read aloud, above the
  *   library, and `/books/read-aloud/9780063342705/page/4` one of them at
- *   page 4, above that. They come before a title's page, so `read-aloud`
- *   never reads as a title's name tag.
+ *   page 4, above that. A book stays one page while its pages turn, so
+ *   its Google viewer turns instead of loading the book again. They come
+ *   before a title's page, so `read-aloud` never reads as a title's name
+ *   tag.
  * - `/books/the-lantern-keeper` is a title's page, only above the library.
  * - `/books/the-lantern-keeper/listen/12:03` is that title's player at
  *   12:03, only above its page: a link to that moment, kept up to date as
@@ -86,6 +88,7 @@ export const declared = Navigation.screens({
     Navigation.pushScreen(ReadAloud.ReadAloudPage, ReadAloud.pageRoute, {
       title: ReadAloud.pageTitleOf,
       isAllowedAbove: ReadAloud.isAboveShelf,
+      identityOf: ReadAloud.pageIdentityOf,
     }),
     Navigation.pushScreen(ReadAloud.ReadAloudBook, ReadAloud.bookRoute, {
       title: () => 'Read aloud',
