@@ -353,7 +353,12 @@ describe('Session.compose', () => {
             {},
             Row(
               {},
-              Button({ label: 'Back', action: 'GoBack', keys: ['Escape'] }),
+              Button({
+                label: 'Back',
+                action: 'GoBack',
+                keys: ['Escape'],
+                variant: 'Ghost',
+              }),
             ),
             Text('Detail'),
           ),

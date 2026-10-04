@@ -167,7 +167,12 @@ describe('a composed App', () => {
             {},
             Row(
               {},
-              Button({ label: 'Back', action: 'GoBack', keys: ['Escape'] }),
+              Button({
+                label: 'Back',
+                action: 'GoBack',
+                keys: ['Escape'],
+                variant: 'Ghost',
+              }),
             ),
             notFoundScreen(Declaration.NotFound({ segments: ['nope'] })),
           ),
@@ -194,6 +199,7 @@ describe('a composed App', () => {
                 label: 'Session settings',
                 action: 'OpenSessionSettings',
                 keys: ['s'],
+                variant: 'Ghost',
               }),
             ),
           ),

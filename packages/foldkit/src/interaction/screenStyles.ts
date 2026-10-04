@@ -127,9 +127,14 @@ export const screenStylesheet = `
   gap: ${px(screenLook.columnGap)};
 }
 
+:where(.fk-column > .fk-column) {
+  align-self: stretch;
+}
+
 :where(.fk-row) {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
   gap: ${px(screenLook.rowGap)};
 }
@@ -398,11 +403,17 @@ export const screenStylesheet = `
 
 :where(.fk-transcript) {
   box-sizing: border-box;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
   width: min(100%, ${px(screenLook.listWidth)});
+  max-height: min(58vh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 0;
   text-align: left;
+  mask-image: linear-gradient(transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 
 :where(.fk-transcript-empty) {
@@ -425,6 +436,7 @@ export const screenStylesheet = `
 }
 
 :where(.fk-passage-label) {
+  align-self: start;
   padding-top: 5px;
   border: 0;
   background: none;

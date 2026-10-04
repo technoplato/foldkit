@@ -48,6 +48,7 @@ import type {
 } from '../program/program.js'
 import { make } from '../program/program.js'
 import { Column, Row, Text, actionButtons } from '../renderers/elements.js'
+import type { ButtonNode } from '../renderers/types.js'
 import type { UiNode } from '../renderers/types.js'
 import * as Route from '../route/parser.js'
 import { ts } from '../schema/index.js'
@@ -56,6 +57,14 @@ import {
   SessionPolicy,
   SharedDomain,
 } from '../synchronization/synchronization.js'
+
+const ghostButtonsOf = (
+  catalogEntries: ReadonlyArray<Catalog.Entry>,
+): ReadonlyArray<ButtonNode> =>
+  Array.map(actionButtons(catalogEntries), button => ({
+    ...button,
+    variant: 'Ghost',
+  }))
 
 // MODEL
 
@@ -593,7 +602,7 @@ export const compose = <Child extends SessionChild>(config: {
       ? screenView(
           Column(
             {},
-            Row({}, ...actionButtons(Catalog.entries(backCatalog, model))),
+            Row({}, ...ghostButtonsOf(Catalog.entries(backCatalog, model))),
             view.node,
           ),
         )
@@ -820,7 +829,7 @@ export const compose = <Child extends SessionChild>(config: {
             Column(
               {},
               childScreen(childOf(model), context),
-              Row({}, ...actionButtons(Catalog.entries(openerCatalog, model))),
+              Row({}, ...ghostButtonsOf(Catalog.entries(openerCatalog, model))),
             ),
         }),
   })
