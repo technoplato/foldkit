@@ -7,11 +7,11 @@ import type { InstantAuthUser } from '../auth/observe.js'
 import {
   AccessIdentity,
   HostedInstantSession,
-  accessIdentityFromHeaders,
   accessIdentityFromToken,
   accessRequestHeaders,
   accessTokenFromCallbackUrl,
   accessTokenFromEnv,
+  accessTokenFromHeaders,
   bootHostedInstantIdentity,
   ensureHostedInstantSession,
   hostedIdentityGetAuthTimeoutMs,
@@ -20,6 +20,7 @@ import {
   hostedIdentityOriginFromEnv,
   hostedIdentitySessionPath,
   hostedIdentitySessionUrl,
+  isLocalDevelopmentRequest,
   isLoopbackRemoteAddress,
   knophyAccessStartUrl,
   knophyWhoamiOrigin,
@@ -38,67 +39,45 @@ const jwtFor = (payload: Readonly<Record<string, unknown>>): string =>
 const memberEmail = 'owner@example.invalid'
 const refreshToken = 'instant-refresh-token'
 
-describe('accessIdentityFromHeaders', () => {
-  it('prefers the Cloudflare email header', () => {
+const verifiedAs =
+  (email: string, accepted: string) =>
+  (token: string): Promise<Option.Option<AccessIdentity>> =>
+    Promise.resolve(
+      token === accepted
+        ? Option.some(AccessIdentity.make({ email }))
+        : Option.none(),
+    )
+
+const signedToken = jwtFor({ email: memberEmail })
+
+describe('accessTokenFromHeaders', () => {
+  it('reads the login from the assertion, the cookie, Bearer, and CF-Access-Token', () => {
     expect(
-      accessIdentityFromHeaders({
+      accessTokenFromHeaders({ 'cf-access-jwt-assertion': signedToken }),
+    ).toBe(signedToken)
+    expect(
+      accessTokenFromHeaders({
+        cookie: `theme=dark; CF_Authorization=${signedToken}`,
+      }),
+    ).toBe(signedToken)
+    expect(
+      accessTokenFromHeaders({ authorization: `Bearer ${signedToken}` }),
+    ).toBe(signedToken)
+    expect(accessTokenFromHeaders({ 'cf-access-token': signedToken })).toBe(
+      signedToken,
+    )
+  })
+
+  it('never takes the plain email header, which any request can send', () => {
+    expect(
+      accessTokenFromHeaders({
         'cf-access-authenticated-user-email': memberEmail,
-        'cf-access-jwt-assertion': jwtFor({ email: 'other@example.com' }),
       }),
-    ).toEqual(Option.some(AccessIdentity.make({ email: memberEmail })))
-  })
-
-  it('reads email from the injected Access assertion', () => {
-    expect(
-      accessIdentityFromHeaders({
-        'cf-access-jwt-assertion': jwtFor({
-          email: memberEmail,
-          exp: Math.floor(Date.now() / 1000) + 60,
-        }),
-      }),
-    ).toEqual(Option.some(AccessIdentity.make({ email: memberEmail })))
-  })
-
-  it('reads email from the Access cookie', () => {
-    expect(
-      accessIdentityFromHeaders({
-        cookie: `theme=dark; CF_Authorization=${jwtFor({ email: memberEmail })}`,
-      }),
-    ).toEqual(Option.some(AccessIdentity.make({ email: memberEmail })))
-  })
-
-  it('reads email from Bearer and CF-Access-Token', () => {
-    expect(
-      accessIdentityFromHeaders({
-        authorization: `Bearer ${jwtFor({ email: memberEmail })}`,
-      }),
-    ).toEqual(Option.some(AccessIdentity.make({ email: memberEmail })))
-    expect(
-      accessIdentityFromHeaders({
-        'cf-access-token': jwtFor({ email: memberEmail }),
-      }),
-    ).toEqual(Option.some(AccessIdentity.make({ email: memberEmail })))
-  })
-
-  it('rejects expired, malformed, and missing identity', () => {
-    expect(
-      accessIdentityFromHeaders({
-        'cf-access-jwt-assertion': jwtFor({
-          email: memberEmail,
-          exp: Math.floor(Date.now() / 1000) - 10,
-        }),
-      }),
-    ).toEqual(Option.none())
-    expect(
-      accessIdentityFromHeaders({
-        'cf-access-jwt-assertion': 'not-a-jwt',
-      }),
-    ).toEqual(Option.none())
-    expect(accessIdentityFromHeaders({})).toEqual(Option.none())
+    ).toBe('')
   })
 })
 
-describe('loopback Instant mint', () => {
+describe('local development requests', () => {
   it('recognizes loopback TCP remotes', () => {
     expect(isLoopbackRemoteAddress(undefined)).toBe(false)
     expect(isLoopbackRemoteAddress('10.0.0.2')).toBe(false)
@@ -107,7 +86,46 @@ describe('loopback Instant mint', () => {
     expect(isLoopbackRemoteAddress('::ffff:127.0.0.1')).toBe(true)
   })
 
-  it('uses the default loopback email unless env overrides', () => {
+  it('is local only on this machine, to localhost, with no proxy headers', () => {
+    expect(
+      isLocalDevelopmentRequest({
+        remoteAddress: '127.0.0.1',
+        headers: { host: 'localhost:5183' },
+      }),
+    ).toBe(true)
+    expect(
+      isLocalDevelopmentRequest({
+        remoteAddress: '::1',
+        headers: { host: '[::1]:5183' },
+      }),
+    ).toBe(true)
+    expect(
+      isLocalDevelopmentRequest({
+        remoteAddress: '127.0.0.1',
+        headers: { host: 'books.pisspoursoftware.xyz' },
+      }),
+    ).toBe(false)
+    expect(
+      isLocalDevelopmentRequest({
+        remoteAddress: '127.0.0.1',
+        headers: { host: 'localhost:5183', 'cf-ray': '8c1f' },
+      }),
+    ).toBe(false)
+    expect(
+      isLocalDevelopmentRequest({
+        remoteAddress: '127.0.0.1',
+        headers: { host: 'localhost:5183', 'x-forwarded-for': '203.0.113.9' },
+      }),
+    ).toBe(false)
+    expect(
+      isLocalDevelopmentRequest({
+        remoteAddress: '10.0.0.2',
+        headers: { host: 'localhost:5183' },
+      }),
+    ).toBe(false)
+  })
+
+  it('uses the default local email unless env overrides', () => {
     expect(loopbackMintEmail({})).toBe(hostedIdentityLoopbackEmail)
     expect(
       loopbackMintEmail({
@@ -122,21 +140,23 @@ describe('mintHostedInstantSession', () => {
     expect(
       await mintHostedInstantSession({
         createToken: () => Promise.resolve(refreshToken),
-        headers: { 'cf-access-authenticated-user-email': memberEmail },
+        verifyAccessToken: verifiedAs(memberEmail, signedToken),
+        headers: { 'cf-access-jwt-assertion': signedToken },
         method: 'GET',
         url: '/api/me',
       }),
     ).toBeUndefined()
   })
 
-  it('mints an Instant token for the Access email', async () => {
+  it('mints an Instant token for a verified Access login', async () => {
     const emails: Array<string> = []
     const result = await mintHostedInstantSession({
       createToken: email => {
         emails.push(email)
         return Promise.resolve(refreshToken)
       },
-      headers: { 'cf-access-authenticated-user-email': memberEmail },
+      verifyAccessToken: verifiedAs(memberEmail, signedToken),
+      headers: { 'cf-access-jwt-assertion': signedToken },
       method: 'GET',
       url: `${hostedIdentitySessionPath}?unused=1`,
     })
@@ -150,14 +170,34 @@ describe('mintHostedInstantSession', () => {
     })
   })
 
-  it('mints the loopback fallback email when Access identity is absent', async () => {
+  it('refuses a forged login and a bare email header', async () => {
+    const forged = jwtFor({ email: 'owner@example.invalid', exp: 9e9 })
+    const refuse = (headers: Readonly<Record<string, string>>) =>
+      mintHostedInstantSession({
+        createToken: () => Promise.resolve(refreshToken),
+        verifyAccessToken: verifiedAs(memberEmail, signedToken),
+        headers,
+        method: 'GET',
+        url: hostedIdentitySessionPath,
+      })
+    expect(await refuse({ 'cf-access-jwt-assertion': forged })).toEqual({
+      body: { error: 'MissingAccessIdentity' },
+      status: 401,
+    })
+    expect(
+      await refuse({ 'cf-access-authenticated-user-email': memberEmail }),
+    ).toEqual({ body: { error: 'MissingAccessIdentity' }, status: 401 })
+  })
+
+  it('mints the local development email only when the caller passes it', async () => {
     const emails: Array<string> = []
     const result = await mintHostedInstantSession({
       createToken: email => {
         emails.push(email)
         return Promise.resolve(refreshToken)
       },
-      fallbackEmail: hostedIdentityLoopbackEmail,
+      verifyAccessToken: verifiedAs(memberEmail, signedToken),
+      localDevelopmentEmail: hostedIdentityLoopbackEmail,
       headers: {},
       method: 'GET',
       url: hostedIdentitySessionPath,
@@ -172,43 +212,42 @@ describe('mintHostedInstantSession', () => {
     })
   })
 
-  it('prefers Access identity over the loopback fallback email', async () => {
+  it('prefers a verified login over the local development email', async () => {
     const emails: Array<string> = []
     await mintHostedInstantSession({
       createToken: email => {
         emails.push(email)
         return Promise.resolve(refreshToken)
       },
-      fallbackEmail: hostedIdentityLoopbackEmail,
-      headers: { 'cf-access-authenticated-user-email': memberEmail },
+      verifyAccessToken: verifiedAs(memberEmail, signedToken),
+      localDevelopmentEmail: hostedIdentityLoopbackEmail,
+      headers: { 'cf-access-jwt-assertion': signedToken },
       method: 'GET',
       url: hostedIdentitySessionPath,
     })
     expect(emails).toEqual([memberEmail])
   })
 
-  it('fails closed without Access identity or when minting throws', async () => {
+  it('fails closed when verifying or minting throws, without leaking why', async () => {
     expect(
       await mintHostedInstantSession({
         createToken: () => Promise.resolve(refreshToken),
-        headers: {},
+        verifyAccessToken: () => Promise.reject(new Error('certs down')),
+        headers: { 'cf-access-jwt-assertion': signedToken },
         method: 'GET',
         url: hostedIdentitySessionPath,
       }),
     ).toEqual({ body: { error: 'MissingAccessIdentity' }, status: 401 })
-    expect(
-      await mintHostedInstantSession({
-        createToken: () => Promise.reject(new Error('admin down')),
-        headers: { 'cf-access-authenticated-user-email': memberEmail },
-        method: 'GET',
-        url: hostedIdentitySessionPath,
-      }),
-    ).toEqual({ body: { error: 'MintUnavailable' }, status: 503 })
     const unavailable = await mintHostedInstantSession({
       createToken: () => Promise.reject(new Error('admin down')),
-      headers: { 'cf-access-authenticated-user-email': memberEmail },
+      verifyAccessToken: verifiedAs(memberEmail, signedToken),
+      headers: { 'cf-access-jwt-assertion': signedToken },
       method: 'GET',
       url: hostedIdentitySessionPath,
+    })
+    expect(unavailable).toEqual({
+      body: { error: 'MintUnavailable' },
+      status: 503,
     })
     expect(JSON.stringify(unavailable)).not.toContain('admin down')
   })

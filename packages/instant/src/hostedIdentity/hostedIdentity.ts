@@ -31,13 +31,29 @@ export const hostedIdentityOriginEnvNames = [
 /** Default wait for Instant getAuth before fail-open. IndexedDB can hang. */
 export const hostedIdentityGetAuthTimeoutMs = 2_000
 
-/** Instant member minted on loopback when Access identity is absent. */
+/**
+ * Instant member minted for local development: a request made on this
+ * machine to `localhost` with no Access login and no proxy in between.
+ * Nothing that came through Cloudflare ever gets it.
+ */
 export const hostedIdentityLoopbackEmail = 'loopback@knophy.com'
 
-/** Env name that overrides the loopback Instant mint email. */
+/** Env name that overrides the local development Instant mint email. */
 export const hostedIdentityLoopbackEmailEnvNames = [
   'FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL',
 ] as const
+
+/** The Cloudflare Access team that signs every Knophy login. */
+export const knophyAccessTeamDomain = 'chimaeramedia.cloudflareaccess.com'
+
+/** Env names that name another Access team, such as `team.cloudflareaccess.com`. */
+export const accessTeamDomainEnvNames = ['CF_ACCESS_TEAM_DOMAIN'] as const
+
+/**
+ * Env names that list, comma separated, the Access application audience
+ * tags a login must carry. Empty accepts any application of the team.
+ */
+export const accessAudienceEnvNames = ['CF_ACCESS_AUD'] as const
 
 /** True when a TCP remote address is this machine. */
 export const isLoopbackRemoteAddress = (
@@ -52,7 +68,55 @@ export const isLoopbackRemoteAddress = (
   return address.endsWith('127.0.0.1') && address.includes('ffff')
 }
 
-/** Instant email minted for loopback preview when Access is missing. */
+const localHostnames: ReadonlySet<string> = new Set([
+  'localhost',
+  '127.0.0.1',
+  '[::1]',
+])
+
+const proxyHeaderNames = [
+  'cf-ray',
+  'cf-connecting-ip',
+  'cf-access-jwt-assertion',
+  'x-forwarded-for',
+  'x-forwarded-host',
+  'forwarded',
+] as const
+
+const hostnameOf = (host: string): string =>
+  host.startsWith('[')
+    ? Option.match(Str.indexOf(']')(host), {
+        onNone: () => host,
+        onSome: end => host.slice(0, end + 1),
+      })
+    : Option.getOrElse(Array.head(host.split(':')), () => '')
+
+/**
+ * True only for local development: the request came from this machine,
+ * to `localhost`, `127.0.0.1`, or `[::1]`, and carries no header a tunnel
+ * or proxy adds. A visitor through cloudflared arrives from loopback too,
+ * but asks for `books.pisspoursoftware.xyz` and carries `cf-ray`, so it is
+ * never local.
+ *
+ * @example
+ * ```typescript
+ * isLocalDevelopmentRequest({ remoteAddress: '127.0.0.1', headers: { host: 'localhost:5183' } }) // true
+ * isLocalDevelopmentRequest({ remoteAddress: '127.0.0.1', headers: { host: 'books.knophy.com', 'cf-ray': '8c…' } }) // false
+ * ```
+ */
+export const isLocalDevelopmentRequest = (
+  input: Readonly<{
+    remoteAddress: string | undefined
+    headers: Readonly<Record<string, string>>
+  }>,
+): boolean =>
+  isLoopbackRemoteAddress(input.remoteAddress) &&
+  localHostnames.has(
+    hostnameOf(headerValue(input.headers, 'host')).toLowerCase(),
+  ) &&
+  Array.every(proxyHeaderNames, name => headerValue(input.headers, name) === '')
+
+/** Instant email minted for local development when Access is missing. */
 export const loopbackMintEmail = (
   env: Readonly<Record<string, string | undefined>> = processEnv(undefined),
 ): string => {
@@ -226,7 +290,13 @@ const cookieValue = (cookieHeader: string, name: string): string => {
   return ''
 }
 
-const accessTokenFromHeaders = (
+/**
+ * The Access login a request carries, unverified: the assertion header
+ * Cloudflare adds, the `CF_Authorization` cookie, a Bearer token, or
+ * `cf-access-token`. Empty when there is none. Verify it before trusting
+ * the email inside.
+ */
+export const accessTokenFromHeaders = (
   headers: Readonly<Record<string, string>>,
 ): string => {
   const assertion = headerValue(headers, 'cf-access-jwt-assertion').trim()
@@ -247,30 +317,11 @@ const accessTokenFromHeaders = (
   return headerValue(headers, 'cf-access-token').trim()
 }
 
-/** Reads Access email from Cloudflare identity headers or the Access JWT. */
-export const accessIdentityFromHeaders = (
-  headers: Readonly<Record<string, string>>,
-): Option.Option<AccessIdentity> => {
-  const fromHeader = headerValue(
-    headers,
-    'cf-access-authenticated-user-email',
-  ).trim()
-  if (isUsableEmail(fromHeader)) {
-    return Option.some(AccessIdentity.make({ email: fromHeader }))
-  }
-  const token = accessTokenFromHeaders(headers)
-  if (token === '') {
-    return Option.none()
-  }
-  const maybeEmail = emailFromJwt(token)
-  if (Option.isNone(maybeEmail)) {
-    return Option.none()
-  } else {
-    return Option.some(AccessIdentity.make({ email: maybeEmail.value }))
-  }
-}
-
-/** Reads Access email from a Client-held Access JWT. Never stores the JWT. */
+/**
+ * Reads Access email from a Client-held Access JWT, unverified, so a
+ * Client can show who it will sign in as. The origin verifies the same
+ * token before minting. Never stores the JWT.
+ */
 export const accessIdentityFromToken = (
   token: string,
 ): Option.Option<AccessIdentity> =>
@@ -419,14 +470,24 @@ const isMemberUser = (user: InstantAuthUser): boolean => {
 }
 
 /**
- * Mints an Instant refresh token for the Access email on the session path.
- * Loopback preview may pass fallbackEmail when Access identity is absent.
- * Returns undefined when the request is not the hosted-identity session route.
+ * Mints an Instant refresh token for the Access email on the session path,
+ * only after `verifyAccessToken` checks the login's signature, issuer,
+ * expiry, and audience. A request without a verified login gets 401,
+ * unless the caller found it local and passes `localDevelopmentEmail`.
+ * Returns undefined when the request is not the hosted-identity session
+ * route.
+ *
+ * @example
+ * ```typescript
+ * await mintHostedInstantSession({ createToken, verifyAccessToken: verifier.verify, headers, method: 'GET', url })
+ * // { status: 200, body: { email: 'owner@example.com', token } }, or { status: 401, body: { error: 'MissingAccessIdentity' } }
+ * ```
  */
 export const mintHostedInstantSession = async (
   input: Readonly<{
     createToken: (email: string) => Promise<string>
-    fallbackEmail?: string
+    verifyAccessToken: (token: string) => Promise<Option.Option<AccessIdentity>>
+    localDevelopmentEmail?: string
     headers: Readonly<Record<string, string>>
     method: string
     url: string
@@ -442,24 +503,29 @@ export const mintHostedInstantSession = async (
   if (method !== 'GET' && method !== 'HEAD') {
     return { body: { error: 'MethodNotAllowed' }, status: 405 }
   }
-  const maybeIdentity = accessIdentityFromHeaders(input.headers)
-  const fallbackEmail = input.fallbackEmail?.trim() ?? ''
+  const token = accessTokenFromHeaders(input.headers)
+  const maybeIdentity =
+    token === ''
+      ? Option.none<AccessIdentity>()
+      : await input.verifyAccessToken(token).catch(() => Option.none())
+  const localDevelopmentEmail = input.localDevelopmentEmail?.trim() ?? ''
   const email = Option.match(maybeIdentity, {
-    onNone: () => (isUsableEmail(fallbackEmail) ? fallbackEmail : ''),
+    onNone: () =>
+      isUsableEmail(localDevelopmentEmail) ? localDevelopmentEmail : '',
     onSome: identity => identity.email,
   })
   if (email === '') {
     return { body: { error: 'MissingAccessIdentity' }, status: 401 }
   }
   try {
-    const token = await input.createToken(email)
-    if (token === '') {
+    const instantToken = await input.createToken(email)
+    if (instantToken === '') {
       return { body: { error: 'MintUnavailable' }, status: 503 }
     }
     return {
       body: HostedInstantSession.make({
         email,
-        token,
+        token: instantToken,
       }),
       status: 200,
     }

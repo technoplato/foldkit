@@ -1,0 +1,5 @@
+---
+'@foldkit/instant': minor
+---
+
+The hosted-identity mint checks every Cloudflare Access login before it trusts the email: the RS256 signature against the team's published keys (`https://<team>/cdn-cgi/access/certs`, cached for an hour, refetched at most once a minute for a rotated key), the issuer, the expiry, and, when `CF_ACCESS_AUD` or `hostedIdentity({ audiences })` lists them, the Access application. A forged or expired login, or a bare `Cf-Access-Authenticated-User-Email` header, now gets 401. The local development email (`loopback@knophy.com`) is minted only for a request made on this machine to `localhost` with no tunnel or proxy headers, so a visitor arriving through cloudflared or an Access bypass never gets it. New: `makeAccessVerifier`, `accessTokenFromHeaders`, `isLocalDevelopmentRequest`, `knophyAccessTeamDomain`; `mintHostedInstantSession` takes `verifyAccessToken` and `localDevelopmentEmail` instead of `fallbackEmail`; `accessIdentityFromHeaders` is removed. `hostedIdentity()` keeps working unchanged in every Vite config.

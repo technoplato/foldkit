@@ -3,10 +3,14 @@ import type { Plugin } from 'vite'
 
 import { init } from '@instantdb/admin'
 
+import { makeAccessVerifier } from './accessVerifier.js'
 import {
+  accessAudienceEnvNames,
+  accessTeamDomainEnvNames,
   hostedIdentityResponseHeaders,
   hostedIdentitySessionPath,
-  isLoopbackRemoteAddress,
+  isLocalDevelopmentRequest,
+  knophyAccessTeamDomain,
   loopbackMintEmail,
   mintHostedInstantSession,
 } from './hostedIdentity.js'
@@ -46,12 +50,46 @@ const envValue = (name: string): string => {
   }
 }
 
+const firstEnvValue = (names: ReadonlyArray<string>): string =>
+  names
+    .map(envValue)
+    .find(value => value.trim() !== '')
+    ?.trim() ?? ''
+
+/** Which Access team signs the logins an origin accepts, and for which apps. */
+export type HostedIdentityOptions = Readonly<{
+  teamDomain?: string
+  audiences?: ReadonlyArray<string>
+}>
+
 /**
  * Serves `/__foldkit/hosted-identity/session` in Vite dev and preview.
  * Reads `INSTANT_APP_ADMIN_TOKEN` from the origin process. Never prefixes it
- * `VITE_`.
+ * `VITE_`. Mints only for an Access login whose signature checks out
+ * against the team's keys: `teamDomain`, else `CF_ACCESS_TEAM_DOMAIN`,
+ * else the Knophy team. `audiences`, else `CF_ACCESS_AUD` (comma
+ * separated), limits it to those Access applications. A request made on
+ * this machine to `localhost`, with no proxy in between, gets the local
+ * development email instead.
+ *
+ * @example
+ * ```typescript
+ * plugins: [foldkit(), hostedIdentity()]
+ * plugins: [foldkit(), hostedIdentity({ audiences: ['3f2a…'] })]
+ * ```
  */
-export const hostedIdentity = (): Plugin => {
+export const hostedIdentity = (options: HostedIdentityOptions = {}): Plugin => {
+  const teamDomain =
+    options.teamDomain ??
+    (firstEnvValue(accessTeamDomainEnvNames) || knophyAccessTeamDomain)
+  const audiences =
+    options.audiences ??
+    firstEnvValue(accessAudienceEnvNames)
+      .split(',')
+      .map(audience => audience.trim())
+      .filter(audience => audience !== '')
+  const verifier = makeAccessVerifier({ teamDomain, audiences })
+
   const createToken = async (email: string): Promise<string> => {
     const adminToken = envValue('INSTANT_APP_ADMIN_TOKEN')
     const appIdFromEnv = envValue('INSTANT_APP_ID')
@@ -74,13 +112,16 @@ export const hostedIdentity = (): Plugin => {
       next()
       return
     }
-    const fallbackEmail = isLoopbackRemoteAddress(request.socket.remoteAddress)
-      ? loopbackMintEmail()
-      : ''
+    const headers = headerRecord(request.headers)
+    const isLocal = isLocalDevelopmentRequest({
+      remoteAddress: request.socket.remoteAddress,
+      headers,
+    })
     void mintHostedInstantSession({
       createToken,
-      fallbackEmail,
-      headers: headerRecord(request.headers),
+      verifyAccessToken: verifier.verify,
+      ...(isLocal ? { localDevelopmentEmail: loopbackMintEmail() } : {}),
+      headers,
       method: request.method ?? 'GET',
       url: request.url,
     }).then(result => {

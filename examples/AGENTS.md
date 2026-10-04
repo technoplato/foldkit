@@ -83,10 +83,16 @@ Intended hosted flow:
 1. Cloudflare Access Google login yields a JWT whose claims include `email`.
 2. The Client presents that JWT as the headers above. Browsers send the cookie
    automatically on same-origin fetches.
-3. A trusted origin behind Caddy reads `Cf-Access-Jwt-Assertion` or
-   `Cf-Access-Authenticated-User-Email`, takes `email`, and calls Instant Admin
-   `createToken({ email })` at `/__foldkit/hosted-identity/session`. The admin
-   token never leaves the origin.
+3. A trusted origin behind Caddy reads the Access login (`Cf-Access-Jwt-Assertion`,
+   the `CF_Authorization` cookie, `Authorization: Bearer`, or `cf-access-token`)
+   and verifies it before trusting the email: the RS256 signature against
+   `https://chimaeramedia.cloudflareaccess.com/cdn-cgi/access/certs`, the
+   issuer, the expiry, and, when `CF_ACCESS_AUD` lists audience tags, the
+   Access application. Only then does it call Instant Admin
+   `createToken({ email })` at `/__foldkit/hosted-identity/session`. The bare
+   `Cf-Access-Authenticated-User-Email` header is never trusted, because any
+   request can send it. The admin token never leaves the origin.
+   `CF_ACCESS_TEAM_DOMAIN` names another team.
 4. The Client calls Instant `signInWithToken` with the minted refresh token.
    Instant `$users` is that Access email. No magic code, no Instant Google
    OAuth, no guest row for hosted knophy identity.
@@ -98,8 +104,12 @@ Access claims. It does not mint Instant tokens for other apps.
 Status: Access headers, the Expo credential Client, Foldkit hosted-identity
 minting, and Instant `signInWithToken` are wired. Hosted Instant examples
 acquire Access identity in the Client resources Layer before subscriptions
-start. Local preview without Access still allows guest sign-in where that
-Client already had it (books). `@foldkit/instant` Auth includes
+start. Local development without Access mints `loopback@knophy.com` only for a
+request made on this machine to `localhost`, `127.0.0.1`, or `[::1]` with no
+tunnel or proxy headers (`cf-ray`, `cf-connecting-ip`, `x-forwarded-for`,
+`x-forwarded-host`, `forwarded`), so nothing that came through cloudflared or
+an Access bypass gets it. Local preview without Access still allows guest
+sign-in where that Client already had it (books). `@foldkit/instant` Auth includes
 `signInWithToken`. The origin keeps `INSTANT_APP_ADMIN_TOKEN` for minting and
 never prefixes it `VITE_`.
 
