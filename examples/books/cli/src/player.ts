@@ -44,6 +44,8 @@ const hostCommandsOf = (isLoaded: boolean): ReadonlyArray<HostCommand> => [
   { command: 'login', what: 'Signs in to Cloudflare Access' },
 ]
 
+const briefWidth = 200
+
 const statusOf = (bound: BoundBooks): string => {
   const status = bound.status()
   return status._tag === 'Ready' ? 'Ready' : status.description
@@ -67,8 +69,9 @@ export const paintBrief = (bound: BoundBooks): string =>
     onSome: model =>
       Array.join(
         [
-          ...Array.map(renderScreen(briefScreen(model)).split('\n'), line =>
-            line.trimEnd(),
+          ...Array.map(
+            renderScreen(briefScreen(model), briefWidth).split('\n'),
+            line => line.trimEnd(),
           ),
           '',
           ...paintCommands(

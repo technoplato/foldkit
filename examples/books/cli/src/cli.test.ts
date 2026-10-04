@@ -1,6 +1,7 @@
 import {
   type BoundBooks,
   ChapterNumber,
+  InProgress,
   LibraryStore,
   MediaId,
   Milliseconds,
@@ -173,6 +174,49 @@ const longShelf: Shelf = {
   ],
 }
 
+const hourMs = 60 * minuteMs
+
+const resumedDurationMs = 9 * hourMs + 13 * minuteMs + secondMs
+
+const resumedPlaceMs = hourMs + 42 * minuteMs + 15 * secondMs
+
+const resumedShelf: Shelf = {
+  titles: [
+    {
+      slug: longTitleSlug,
+      mediaId: MediaId.make('a-new-earth'),
+      name: 'A New Earth',
+      authors: ['A Made-Up Author'],
+      narrators: ['A Made-Up Reader'],
+      durationMs: Milliseconds.make(resumedDurationMs),
+      chapters: [
+        {
+          chapterNumber: ChapterNumber.make(1),
+          name: 'Chapter 1: A made-up part',
+          startMs: Milliseconds.make(0),
+          endMs: Milliseconds.make(hourMs),
+        },
+        {
+          chapterNumber: ChapterNumber.make(2),
+          name: 'Chapter 2: A long made-up part about waiting for the bus',
+          startMs: Milliseconds.make(hourMs),
+          endMs: Milliseconds.make(resumedDurationMs),
+        },
+      ],
+      maybeCoverUrl: Option.none(),
+      maybeAudioUrl: Option.some('https://audio.invalid/a-new-earth.mp3'),
+    },
+  ],
+  progress: [
+    InProgress({
+      slug: longTitleSlug,
+      placeMs: Milliseconds.make(resumedPlaceMs),
+      savedAtMs: 0,
+    }),
+  ],
+  bookmarks: [],
+}
+
 const longTranscript = transcriptsInMemory(
   new Map([
     [
@@ -217,6 +261,14 @@ describe('books CLI', () => {
       '  books actions  Lists every command',
       '  books login    Signs in to Cloudflare Access',
     ])
+  })
+
+  it('prints a line wider than the terminal whole, for the terminal to wrap', async () => {
+    const { player } = await openBooks({ shelf: resumedShelf })
+    const idle = await run(player, 'help')
+    expect(idle.stdout.split('\n')).toContain(
+      'Continue A New Earth: Chapter 2: A long made-up part about waiting for the bus · 1:42:15 of 9:13:01 · 7h 31m left',
+    )
   })
 
   it('plays a title from a command and the next command acts on that playback', async () => {
