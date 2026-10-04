@@ -4,6 +4,34 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 9:35:59 p.m. EDT — `99e079887be8` feat(books): read and save the library in Instant, and play it in React
+
+- **Implementation commit:** `99e079887be818c1279344e01c84c5551fdd9ee3`
+- **Change:** Read and save the library in Instant, and play it in React
+- **Details:**
+  - Books reads titles, chapters, covers, audio, progress, and bookmarks from the shared library schema in one bounded query decoded by Effect Schema, saves each change as one member-owned transaction, writes its program log as the member, and runs in the generic React window with the hosted-identity mint and an Audio element.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — The Instant library store.
+  - `examples/books/core/src/live.browser.ts` — The browser start.
+  - `examples/books/core/src/audio.browser.ts` — The browser audio output.
+  - `examples/books/react/src/App.tsx` — The generic React window.
+- **User context (verbatim):**
+  > Again, I want an audible clone with my actual books with Progress and carry the login over with an authentication port adapter from Cloudflare
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 9:15:56 p.m. EDT — `b025cca4c8c8` feat(instant): let a program log run on any Instant app, owned by its member
+
+- **Implementation commit:** `b025cca4c8c8dbf0d5d19d8e9b21238e2d1b17be`
+- **Change:** Let a program log run on any Instant app, owned by its member
+- **Details:**
+  - makeInstantCoreProgramLogTransport takes any Instant core client and, with owner SignedInUser, stamps each row with the member id, failing instead of writing an ownerless row.
+- **Files:**
+  - `packages/instant/src/programLog/core.ts` — Any client, owner-stamped rows.
+  - `packages/instant/src/programLog/core.test.ts` — Owned and open writes.
+- **User context (verbatim):**
+  > whoever's got Cloudflare access, that's their identity in this um in this network on instant db
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 9:11:35 p.m. EDT — `a9ac4ac3e605` feat(books): start Books over as an audiobook player on the counters architecture
 
 - **Implementation commit:** `a9ac4ac3e60549504fa64c4a259d3c7aab196951`
