@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 8:22:21 p.m. EDT — `75e066403974` fix(instant): verify Cloudflare Access logins before minting Instant sessions
+
+- **Implementation commit:** `75e066403974dcb8e995f006ad18990687b6e523`
+- **Change:** Verify Cloudflare Access logins before minting Instant sessions
+- **Details:**
+  - The mint checks each Access login's RS256 signature against the team's published keys, its issuer, expiry, and optional audience, and ignores the bare email header; the loopback identity is limited to local development requests with no proxy headers.
+- **Files:**
+  - `packages/instant/src/hostedIdentity/accessVerifier.ts` — The Access login verifier.
+  - `packages/instant/src/hostedIdentity/hostedIdentity.ts` — Verified minting and local-only development email.
+  - `packages/instant/src/hostedIdentity/vite.ts` — The plugin verifies with the team's keys.
+- **User context (verbatim):**
+  > Can you fix the security warning? I have no idea what you're talking about.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 8:01:26 p.m. EDT — `f303b07b74ae` feat(foldkit): pick action menu rows by number, and leave browser chords alone
 
 - **Implementation commit:** `f303b07b74aee1d5605137f4239e65738547b270`
