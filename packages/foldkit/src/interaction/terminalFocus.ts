@@ -9,6 +9,7 @@ import {
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
 import { Link } from '../navigation/message.js'
+import { isModalStyle } from '../navigation/structure.js'
 import { buttonsOf } from '../renderers/query.js'
 import type { ButtonNode, UiNode } from '../renderers/types.js'
 import type { BoundInteraction } from './bind.js'
@@ -133,6 +134,35 @@ const keyboardLayerOf = (frame: Frame): FrameLayer =>
 const isPresented = (layer: FrameLayer): boolean =>
   Option.isSome(layer.maybeStyle)
 
+const isModal = (layer: FrameLayer): boolean =>
+  Option.exists(layer.maybeStyle, isModalStyle)
+
+const isFollowingNode = (node: UiNode): boolean =>
+  M.value(node).pipe(
+    M.withReturnType<boolean>(),
+    M.tagsExhaustive({
+      Text: () => false,
+      TextInput: () => false,
+      Spacer: () => false,
+      Button: () => false,
+      Progress: () => false,
+      List: () => false,
+      Seek: () => false,
+      Transcript: transcript =>
+        Array.some(transcript.passages, passage => passage.isCurrent === true),
+      Row: row => Array.some(row.children, isFollowingNode),
+      Column: column => Array.some(column.children, isFollowingNode),
+      Box: box => Array.some(box.children, isFollowingNode),
+      DeviceShell: shell => Array.some(shell.children, isFollowingNode),
+    }),
+  )
+
+const isFollowingAlong = (view: EntryView): boolean =>
+  view._tag === 'Screen' && isFollowingNode(view.node)
+
+const highlightsAtOnce = (layer: FrameLayer): boolean =>
+  isModal(layer) || (isPresented(layer) && !isFollowingAlong(layer.view))
+
 const isInGrid = (grid: FocusGrid, tag: string): boolean =>
   Array.some(grid, row => Array.contains(row, tag))
 
@@ -159,8 +189,11 @@ const nearCurrentOf = (rows: ReadonlyArray<GridRow>): Option.Option<string> =>
  * the one kept for that screen while it is still there. A dialog or sheet
  * highlights a row until a key moves it, so Enter answers it at once: the
  * current row, or the first after it that presses, such as the chapter
- * playing in a book's contents, else its first button. A page highlights
- * nothing until the first arrow.
+ * playing in a book's contents, else its first button. A page pushed
+ * above another highlights its first button at once too, unless it
+ * follows something that moves, such as a player's words being spoken:
+ * that page, like the root, highlights nothing until the first arrow, so
+ * a terminal keeps the words in view instead of the Back button.
  *
  * @example
  * ```typescript
@@ -179,7 +212,7 @@ export const focusedTagOf = (
   const maybeKept = Option.filter(Record.get(focus, layer.identity), tag =>
     isInGrid(grid, tag),
   )
-  return isPresented(layer)
+  return highlightsAtOnce(layer)
     ? Option.orElse(maybeKept, () => nearCurrentOf(rows))
     : maybeKept
 }

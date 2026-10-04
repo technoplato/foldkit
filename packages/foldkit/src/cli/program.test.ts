@@ -133,6 +133,21 @@ describe('paintCommands', () => {
       '  counter tui        Opens the count in this terminal',
     ])
   })
+
+  it('puts what a long command does on the next line, under the column', () => {
+    expect(
+      paintCommands(
+        bindCounter(),
+        'counter',
+        ['Increment'],
+        [{ command: 'listen-to-twenty-one-lessons', what: 'Plays it' }],
+      ),
+    ).toEqual([
+      '  counter increment             Increments the count by one',
+      '  counter listen-to-twenty-one-lessons',
+      '                                Plays it',
+    ])
+  })
 })
 
 describe('programCliSurface', () => {

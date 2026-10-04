@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { type ChildProcess, spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { type Socket, connect } from 'node:net'
 import { createInterface, emitKeypressEvents } from 'node:readline'
@@ -399,6 +400,8 @@ const tuiRefreshMs = 500
 
 const escapeCodeTimeoutMs = 50
 
+const viewIdLength = 8
+
 const fallbackRows = 24
 
 const fallbackColumns = 80
@@ -451,8 +454,10 @@ export const runCliTuiView = async (
       escapeCodeTimeout: escapeCodeTimeoutMs,
     })
     emitKeypressEvents(input, keyboard)
+    const viewId = randomUUID().slice(0, viewIdLength)
     const sizeFlags = (): Readonly<Record<string, string>> => ({
       view: 'tui',
+      viewId,
       rows: String(output.rows ?? fallbackRows),
       columns: String(output.columns ?? fallbackColumns),
     })

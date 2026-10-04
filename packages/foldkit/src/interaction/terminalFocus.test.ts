@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 
 import { screenView } from '../navigation/declaration.js'
 import type { Frame } from '../navigation/frame.js'
-import { Sheet } from '../navigation/structure.js'
-import { Button, Column, List, Row } from '../renderers/elements.js'
+import { Push, Sheet } from '../navigation/structure.js'
+import { Button, Column, List, Row, Transcript } from '../renderers/elements.js'
 import { keyInput, terminalKeyInput } from './interaction.js'
 import { focusedTagOf, noTerminalFocus } from './terminalFocus.js'
 
@@ -91,6 +91,41 @@ describe('focusedTagOf', () => {
     )
     expect(focusedTagOf(playerAt('12m04s'), focus)).toEqual(
       Option.some('Pause'),
+    )
+  })
+
+  it('leaves a pushed page that follows the words unhighlighted until an arrow', () => {
+    const pushedPlayer = (isSpeaking: boolean): Frame => ({
+      ...playerAt('12m03s'),
+      base: {
+        ...playerAt('12m03s').base,
+        maybeStyle: Option.some(Push()),
+        view: screenView(
+          Column(
+            {},
+            Button({ label: 'Back', action: 'GoBack' }),
+            Transcript({
+              label: 'Transcript',
+              action: 'SeekToWord',
+              emptyText: 'Loading the words…',
+              passages: [
+                {
+                  key: 'w0',
+                  label: '12:00',
+                  isCurrent: isSpeaking,
+                  words: [{ token: 'w0', text: 'Now', isCurrent: isSpeaking }],
+                },
+              ],
+            }),
+          ),
+        ),
+      },
+    })
+    expect(focusedTagOf(pushedPlayer(true), noTerminalFocus)).toEqual(
+      Option.none(),
+    )
+    expect(focusedTagOf(pushedPlayer(false), noTerminalFocus)).toEqual(
+      Option.some('GoBack'),
     )
   })
 

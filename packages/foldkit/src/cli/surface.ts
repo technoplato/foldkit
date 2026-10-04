@@ -44,10 +44,15 @@ const sizeOf = (flags: CliDaemonFlags): TerminalSize => ({
 export const isTerminalViewRequest = (flags: CliDaemonFlags): boolean =>
   flags['view'] === 'tui'
 
+const viewsKept = 8
+
+type KeptView = Readonly<{ viewId: string; view: TerminalView }>
+
 /**
- * What a daemon keeps for the terminal UI that shows its Program: the
- * highlight and the scroll, so each key and each refresh paints the next
- * frame from where the last one left off.
+ * What a daemon keeps for each terminal UI that shows its Program, by the
+ * `viewId` the view sends: the highlight and the scroll, so each key and
+ * each refresh paints the next frame from where the last one left off,
+ * and a new `books tui` starts fresh.
  */
 export type ProgramTerminalView = Readonly<{
   paint: (flags: CliDaemonFlags) => Effect.Effect<CliDaemonPaintedResult, never>
@@ -75,21 +80,42 @@ export const makeProgramTerminalView = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   name: string,
 ): ProgramTerminalView => {
-  const view = Effect.runSync(Ref.make<TerminalView>(initialTerminalView))
+  const views = Effect.runSync(Ref.make<ReadonlyArray<KeptView>>([]))
+  const viewIdOf = (flags: CliDaemonFlags): string => flags['viewId'] ?? ''
+  const viewOf = (flags: CliDaemonFlags) =>
+    Effect.map(Ref.get(views), kept =>
+      Option.getOrElse(
+        Option.map(
+          Array.findFirst(kept, entry => entry.viewId === viewIdOf(flags)),
+          entry => entry.view,
+        ),
+        () => initialTerminalView,
+      ),
+    )
+  const keep = (flags: CliDaemonFlags, next: TerminalView) =>
+    Ref.update(views, kept =>
+      Array.takeRight(
+        [
+          ...Array.filter(kept, entry => entry.viewId !== viewIdOf(flags)),
+          { viewId: viewIdOf(flags), view: next },
+        ],
+        viewsKept,
+      ),
+    )
   const paint = (flags: CliDaemonFlags) =>
     Effect.gen(function* () {
       const painted = paintTerminal(
         bound,
         name,
-        yield* Ref.get(view),
+        yield* viewOf(flags),
         sizeOf(flags),
       )
-      yield* Ref.set(view, painted.view)
+      yield* keep(flags, painted.view)
       return { stdout: Array.join(painted.lines, '\n'), exitCode: 0 }
     })
   const pressKey = (flags: CliDaemonFlags) =>
     Effect.gen(function* () {
-      const current = yield* Ref.get(view)
+      const current = yield* viewOf(flags)
       const pressed = pressTerminalKeyAt(
         bound,
         terminalKeyInput({
@@ -101,7 +127,7 @@ export const makeProgramTerminalView = <Model, Message>(
         }),
         current.focus,
       )
-      yield* Ref.set(view, { ...current, focus: pressed.focus })
+      yield* keep(flags, { ...current, focus: pressed.focus })
       const painted = yield* paint(flags)
       return { ...painted, flags: { outcome: pressed.outcome } }
     })
