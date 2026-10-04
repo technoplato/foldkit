@@ -4,6 +4,119 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 9:36:46 a.m. EDT — `9f6da8afd7db` fix(foldkit): follow a launch link to a page while navigation is mirrored
+
+- **Implementation commit:** `9f6da8afd7dbefc9c1033c19dd871b65298a8dbd`
+- **Change:** Follow a launch link to a page while navigation is mirrored
+- **Details:**
+  - A launch at the home joins the shared stack; a launch to a page moves it there, so shared links open what they name.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — isBeyondHome.
+  - `packages/foldkit/src/navigation/transition.ts` — The URI reaches the rule.
+- **User context (verbatim):**
+  > I want the where I am in the book to constantly update with the words. So I could copy the link at any time.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:38 a.m. EDT — `dd88f3d23dd6` feat(books): keep the player's address on the moment, share it, and play chapters on the player
+
+- **Implementation commit:** `dd88f3d23dd6fc9a13147ddf4203d4466b12a194`
+- **Change:** Keep the player's address on the moment, share it, and play chapters on the player
+- **Details:**
+  - The address names the second being heard; links open there paused without saving; Share sends it; bookmarks are links; chapters play on the player and close the contents; the chapter page is gone.
+- **Files:**
+  - `examples/books/core/src/update.ts` — The address both ways.
+  - `examples/books/core/src/share.ts` — Link sharing.
+  - `examples/books/core/src/subscriptions.ts` — The address cue.
+- **User context (verbatim):**
+  > I want the where I am in the book to constantly update with the words. So I could copy the link at any time.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:37 a.m. EDT — `154d948e7a71` feat(transcript-player): give recordings sections and places a link segment
+
+- **Implementation commit:** `154d948e7a71160efd51ed8cb70283ccfd70ceb7`
+- **Change:** Give recordings sections and places a link segment
+- **Details:**
+  - Media carries sections; paragraphs break at each and are headed by its title; PlaceSegment prints 12m03s and reads clocks.
+- **Files:**
+  - `examples/transcript-player/core/src/ids.ts` — PlaceSegment.
+  - `examples/transcript-player/core/src/screen.ts` — Headed paragraphs.
+- **User context (verbatim):**
+  > Also, we probably want to label chapter headers.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:36 a.m. EDT — `877a512fa852` feat(opentui): open link rows and paint transcript headings
+
+- **Implementation commit:** `877a512fa852118b0fd0fab45b9e13974d6ad499`
+- **Change:** Open link rows and paint transcript headings
+- **Details:**
+  - OpenTUI opens link rows on a click and paints headings.
+- **Files:**
+  - `packages/opentui/src/interaction/runOpenTui.ts` — Opening links.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:35 a.m. EDT — `02eab975f45b` feat(react-native): paint link rows and transcript headings
+
+- **Implementation commit:** `02eab975f45b2f9cd734b7d02e25414244fe987a`
+- **Change:** Paint link rows and transcript headings
+- **Details:**
+  - React Native opens link rows and shows headings.
+- **Files:**
+  - `packages/react-native/src/interaction/screen.tsx` — Link rows.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:33 a.m. EDT — `7277903d8ed6` feat(svelte): paint link rows and transcript headings
+
+- **Implementation commit:** `7277903d8ed61112508a25dd08f444470e7e2226`
+- **Change:** Paint link rows and transcript headings
+- **Details:**
+  - Svelte paints link rows as anchors and headings above their passage.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — Link rows.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:31 a.m. EDT — `962b0f2ec347` feat(react): paint link rows and transcript headings
+
+- **Implementation commit:** `962b0f2ec347019ca42b18222cddd5ddb1b590b0`
+- **Change:** Paint link rows and transcript headings
+- **Details:**
+  - React paints link rows as anchors and headings above their passage.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — ItemPress.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:29 a.m. EDT — `6fd2f721f16e` feat(foldkit): let list rows be links and transcript passages carry headings
+
+- **Implementation commit:** `6fd2f721f16ef3479f10ce62ce50a662feff6d18`
+- **Change:** Let list rows be links and transcript passages carry headings
+- **Details:**
+  - A list row with `href` is a link every Client paints as one; a transcript passage can carry a `heading`.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — href and heading.
+  - `packages/foldkit/src/interaction/terminalFocus.ts` — Enter opens a link row.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link. I just want to be able to click and hold and share that link to the bookmark.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 9:18:28 a.m. EDT — `9aebe8e1cb80` fix(foldkit): keep the action menu's search at 16px so iPhone does not zoom
+
+- **Implementation commit:** `9aebe8e1cb80c25276323ac4d445282a5ab1252b`
+- **Change:** Keep the action menu's search at 16px so iPhone does not zoom
+- **Details:**
+  - The search field stays at least 16px, so iPhone Safari no longer zooms the page when it takes focus.
+- **Files:**
+  - `packages/foldkit/src/interaction/menuStyles.ts` — The 16px floor.
+- **User context (verbatim):**
+  > The actions are very cool. Um, but when I click it, it zooms in weird on the on the mobile website.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 3:10:09 a.m. EDT — `d033d80bb33e` test(books): run the books CLI's commands on a made-up library
 
 - **Implementation commit:** `d033d80bb33e03ce4a847f3d47337df78de7d31d`
