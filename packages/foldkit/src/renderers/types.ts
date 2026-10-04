@@ -1,4 +1,5 @@
 import type { Device } from './device.js'
+import type { IconName } from './icons.js'
 
 /** A pressable control id used when a host maps a hit to a cause. */
 export type HotspotAction = Readonly<{
@@ -44,9 +45,18 @@ export type TextNode = Readonly<{
 }>
 
 /**
+ * How a Button looks. `Primary` is the one main act, `Ghost` a quiet one,
+ * `Destructive` one that removes something, `Tab` one of a set of places,
+ * such as Library and Profile, the current one marked with `isCurrent`.
+ */
+export type ButtonVariant = 'Primary' | 'Ghost' | 'Destructive' | 'Tab'
+
+/**
  * A pressable control. The label is product data. `action` is the Catalog
  * tag a press sends; `keys` are the keys its Action declares, `['+', '=']`
  * for Increment; `because` is the sentence a disabled control shows.
+ * `icon` draws beside the label, or instead of it with `isIconOnly`, the
+ * label then left for screen readers. `isCurrent` marks the current tab.
  */
 export type ButtonNode = Readonly<{
   readonly _tag: 'Button'
@@ -55,7 +65,10 @@ export type ButtonNode = Readonly<{
   readonly action?: string
   readonly keys?: ReadonlyArray<string>
   readonly because?: string
-  readonly variant?: 'Primary' | 'Ghost' | 'Destructive'
+  readonly variant?: ButtonVariant
+  readonly icon?: IconName
+  readonly isIconOnly?: boolean
+  readonly isCurrent?: boolean
   readonly disabled?: boolean
   readonly focused?: boolean
 }>
@@ -90,22 +103,29 @@ export type ColumnNode = Readonly<{
   readonly children: ReadonlyArray<UiNode>
 }>
 
-/** A padded box. */
+/**
+ * A padded box. `isDock` pins it to the bottom of the screen, such as a
+ * now-playing bar above the tabs: graphical painters keep it in view over
+ * the page and leave room for it, and a terminal draws it last.
+ */
 export type BoxNode = Readonly<{
   readonly _tag: 'Box'
   readonly padding: number
+  readonly isDock?: boolean
   readonly children: ReadonlyArray<UiNode>
 }>
 
 /**
- * A place on a timeline a person moves, a seek bar: `value` of `max` in
- * the Program's own unit, moved in `step`s. Moving it presses `action`
+ * A place on a timeline a person moves, a seek bar: `value` between `min`
+ * and `max` in the Program's own unit, moved in `step`s. `min` defaults to
+ * 0; a chapter's bar starts at the chapter's start. Moving it presses `action`
  * with the new value as its choice, `SeekTo:723000`. `valueText` is how
  * the place reads, `12:03 of 9:13:01`, for a screen reader and a terminal.
  */
 export type SeekNode = Readonly<{
   readonly _tag: 'Seek'
   readonly value: number
+  readonly min?: number
   readonly max: number
   readonly step: number
   readonly action: string

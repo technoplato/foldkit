@@ -1,9 +1,11 @@
 import { Array, Match as M } from 'effect'
 
 import type { Entry } from '../catalog/catalog.js'
+import type { IconName } from './icons.js'
 import type {
   BoxNode,
   ButtonNode,
+  ButtonVariant,
   ColumnNode,
   ListItem,
   ListNode,
@@ -59,7 +61,10 @@ export const Button = (props: {
   readonly action?: string
   readonly keys?: ReadonlyArray<string>
   readonly because?: string
-  readonly variant?: 'Primary' | 'Ghost' | 'Destructive'
+  readonly variant?: ButtonVariant
+  readonly icon?: IconName
+  readonly isIconOnly?: boolean
+  readonly isCurrent?: boolean
   readonly disabled?: boolean
 }): ButtonNode => ({
   _tag: 'Button',
@@ -71,6 +76,9 @@ export const Button = (props: {
     : { keys: props.keys }),
   ...(props.because === undefined ? {} : { because: props.because }),
   ...(props.variant === undefined ? {} : { variant: props.variant }),
+  ...(props.icon === undefined ? {} : { icon: props.icon }),
+  ...(props.isIconOnly === undefined ? {} : { isIconOnly: props.isIconOnly }),
+  ...(props.isCurrent === undefined ? {} : { isCurrent: props.isCurrent }),
   ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
 })
 
@@ -152,13 +160,26 @@ export const Column = (
 
 /** A padded box. */
 export const Box = (
-  props: Readonly<{ padding?: number }> = {},
+  props: Readonly<{ padding?: number; isDock?: boolean }> = {},
   ...children: ReadonlyArray<UiNode>
 ): BoxNode => ({
   _tag: 'Box',
   padding: props.padding ?? 0,
+  ...(props.isDock === undefined ? {} : { isDock: props.isDock }),
   children,
 })
+
+/**
+ * A bar pinned to the bottom of the screen, such as a now-playing bar
+ * above the tabs.
+ *
+ * @example
+ * ```typescript
+ * Dock(nowPlaying, Row({}, ...tabs))
+ * ```
+ */
+export const Dock = (...children: ReadonlyArray<UiNode>): BoxNode =>
+  Box({ isDock: true }, ...children)
 
 /**
  * A seek bar over a timeline. `step` defaults to 1.
@@ -171,6 +192,7 @@ export const Box = (
 export const Seek = (
   props: Readonly<{
     value: number
+    min?: number
     max: number
     step?: number
     action: string
@@ -181,6 +203,7 @@ export const Seek = (
 ): SeekNode => ({
   _tag: 'Seek',
   value: props.value,
+  ...(props.min === undefined ? {} : { min: props.min }),
   max: props.max,
   step: props.step ?? 1,
   action: props.action,

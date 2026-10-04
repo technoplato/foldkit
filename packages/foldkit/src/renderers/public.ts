@@ -2,6 +2,7 @@ export {
   Box,
   Button,
   Column,
+  Dock,
   List,
   Progress,
   Row,
@@ -13,6 +14,8 @@ export {
   actionButtons,
 } from './elements.js'
 export { Host } from './host.js'
+export { IconName, iconDrawings, iconGlyphs } from './icons.js'
+export type { IconDrawing } from './icons.js'
 export { progressLineOf, seekLineOf } from './layout.js'
 export { padOf } from './pad.js'
 export type {
@@ -28,6 +31,7 @@ export type {
   AsciiHotspot,
   BoxNode,
   ButtonNode,
+  ButtonVariant,
   ColumnNode,
   DeviceShellNode,
   HotspotAction,

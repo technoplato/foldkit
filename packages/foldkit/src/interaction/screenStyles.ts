@@ -229,8 +229,10 @@ export const screenStylesheet = `
   cursor: pointer;
 }
 
-:where(.fk-button:hover) {
-  background: ${screenLook.buttonHoverColor};
+@media (hover: hover) {
+  :where(.fk-button:hover) {
+    background: ${screenLook.buttonHoverColor};
+  }
 }
 
 :where(.fk-button:focus-visible) {
@@ -247,14 +249,125 @@ export const screenStylesheet = `
   border-radius: 999px;
 }
 
+:where(.fk-button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+:where(.fk-icon) {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+
+:where(.fk-icon-figure) {
+  font: 700 7.5px/1 system-ui, sans-serif;
+}
+
+:where(.fk-button[data-icon-only]) {
+  min-width: 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+:where(.fk-button[data-icon-only][data-variant='Primary']) {
+  width: 56px;
+  height: 56px;
+}
+
+:where(.fk-button[data-icon-only][data-variant='Primary'] .fk-icon) {
+  width: 28px;
+  height: 28px;
+}
+
+:where(.fk-button[data-icon-only][data-variant='Ghost']) {
+  border-color: transparent;
+}
+
+:where(.fk-visually-hidden) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+:where(.fk-button[data-variant='Tab']) {
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  height: 52px;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: ${screenLook.dimColor};
+  font-size: 11px;
+  font-weight: 600;
+}
+
+:where(.fk-button[data-variant='Tab'][data-current]) {
+  color: ${screenLook.textColor};
+}
+
+:where(.fk-dock) {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 0 env(safe-area-inset-bottom);
+  border-top: 1px solid ${screenLook.trackColor};
+  background: rgb(255 255 255 / 0.94);
+  backdrop-filter: blur(18px);
+}
+
+:where(.fk-dock > *) {
+  width: min(100%, ${px(screenLook.listWidth)});
+  margin: 0 auto;
+}
+
+:where(.fk-dock .fk-row) {
+  flex-wrap: nowrap;
+  gap: 0;
+}
+
+:where(.fk-dock .fk-list) {
+  width: min(100%, ${px(screenLook.listWidth)});
+}
+
+:where(.fk-dock .fk-item) {
+  padding: 0 8px;
+  border-bottom: 1px solid ${screenLook.trackColor};
+}
+
+:where(.fk-dock .fk-item-image) {
+  width: 44px;
+  height: 44px;
+}
+
+:where(.fk-dock-space) {
+  flex: none;
+  width: 100%;
+}
+
 :where(.fk-button[data-variant='Ghost']) {
   border: 1px solid ${screenLook.ghostBorderColor};
   background: transparent;
   color: ${screenLook.textColor};
 }
 
-:where(.fk-button[data-variant='Ghost']:hover) {
-  background: ${screenLook.rowHoverColor};
+@media (hover: hover) {
+  :where(.fk-button[data-variant='Ghost']:hover) {
+    background: ${screenLook.rowHoverColor};
+  }
 }
 
 :where(.fk-button[data-variant='Ghost']:disabled) {
@@ -326,8 +439,10 @@ export const screenStylesheet = `
   cursor: pointer;
 }
 
-:where(.fk-item-press:hover) {
-  background: ${screenLook.rowHoverColor};
+@media (hover: hover) {
+  :where(.fk-item-press:hover) {
+    background: ${screenLook.rowHoverColor};
+  }
 }
 
 :where(.fk-item-press:focus-visible) {
@@ -387,8 +502,8 @@ export const screenStylesheet = `
 
 :where(.fk-item > .fk-button) {
   flex: none;
-  height: 36px;
-  min-width: 0;
+  height: 44px;
+  min-width: 44px;
   padding: 0 14px;
 }
 
@@ -478,8 +593,10 @@ export const screenStylesheet = `
   transition: background-color 0.15s;
 }
 
-:where(.fk-word:hover) {
-  background: ${screenLook.trackColor};
+@media (hover: hover) {
+  :where(.fk-word:hover) {
+    background: ${screenLook.trackColor};
+  }
 }
 
 :where(.fk-word[data-current]) {

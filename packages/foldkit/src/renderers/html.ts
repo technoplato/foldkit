@@ -13,6 +13,7 @@ import { screenStylesheet } from '../interaction/screenStyles.js'
 import type { EntryView } from '../navigation/declaration.js'
 import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
+import { iconGlyphs } from './icons.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
 import type { UiNode } from './types.js'
 
@@ -81,6 +82,26 @@ export const paintHtml = <Message>(
             button.variant === undefined
               ? []
               : [h.DataAttribute('variant', button.variant)]
+          const iconOnly =
+            button.isIconOnly === true
+              ? [
+                  h.DataAttribute('icon-only', 'true'),
+                  h.AriaLabel(button.label),
+                ]
+              : []
+          const current =
+            button.isCurrent === true
+              ? [h.DataAttribute('current', 'true')]
+              : []
+          const glyph =
+            button.icon === undefined
+              ? []
+              : [
+                  h.span(
+                    [h.Class('fk-icon'), h.AriaHidden(true)],
+                    [iconGlyphs[button.icon]],
+                  ),
+                ]
           return h.button(
             [
               h.Type('button'),
@@ -90,8 +111,10 @@ export const paintHtml = <Message>(
               ...because,
               ...keys,
               ...variant,
+              ...iconOnly,
+              ...current,
             ],
-            [button.label],
+            [...glyph, ...(button.isIconOnly === true ? [] : [button.label])],
           )
         },
         TextInput: input => {
@@ -121,7 +144,11 @@ export const paintHtml = <Message>(
         Row: row => h.div([h.Class('fk-row')], Array.map(row.children, paint)),
         Column: column =>
           h.div([h.Class('fk-column')], Array.map(column.children, paint)),
-        Box: box => h.div([h.Class('fk-box')], Array.map(box.children, paint)),
+        Box: box =>
+          h.div(
+            [h.Class(box.isDock === true ? 'fk-dock' : 'fk-box')],
+            Array.map(box.children, paint),
+          ),
         Progress: progress =>
           h.progress(
             [
@@ -207,7 +234,7 @@ export const paintHtml = <Message>(
           return h.input([
             h.Type('range'),
             h.Class('fk-seek'),
-            h.Min('0'),
+            h.Min((seek.min ?? 0).toString()),
             h.Max(seek.max.toString()),
             h.Step(seek.step.toString()),
             h.Value(seek.value.toString()),

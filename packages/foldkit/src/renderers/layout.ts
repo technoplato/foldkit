@@ -2,7 +2,9 @@ import { Array, Match as M, Option } from 'effect'
 
 import type { Device } from './device.js'
 import { Column, Row, Text } from './elements.js'
+import { iconGlyphs } from './icons.js'
 import type {
+  ButtonNode,
   HotspotAction,
   LayoutBox,
   ListItem,
@@ -67,10 +69,27 @@ const fit = (content: string, width: number): string => {
   return content.padEnd(width, ' ')
 }
 
-const buttonGlyph = (
-  button: Readonly<{ label: string; focused?: boolean }>,
-): string =>
-  button.focused === true ? `[>${button.label}<]` : `[ ${button.label} ]`
+const buttonText = (button: ButtonNode): string => {
+  const glyph = button.icon === undefined ? undefined : iconGlyphs[button.icon]
+  if (glyph === undefined) {
+    return button.label
+  } else if (button.isIconOnly === true) {
+    return glyph
+  } else {
+    return `${glyph} ${button.label}`
+  }
+}
+
+const buttonGlyph = (button: ButtonNode): string => {
+  const text = buttonText(button)
+  if (button.focused === true) {
+    return `[>${text}<]`
+  } else if (button.isCurrent === true) {
+    return `[*${text}*]`
+  } else {
+    return `[ ${text} ]`
+  }
+}
 
 const seekBarWidth = 40
 
@@ -94,7 +113,10 @@ export const seekLineOf = (seek: SeekNode, availableW: number): string => {
     0,
     Math.min(seekBarWidth, availableW - seek.valueText.length - 1),
   )
-  const fraction = seek.max > 0 ? Math.min(1, seek.value / seek.max) : 0
+  const min = seek.min ?? 0
+  const span = seek.max - min
+  const fraction =
+    span > 0 ? Math.min(1, Math.max(0, (seek.value - min) / span)) : 0
   const filled = Math.min(
     Math.max(0, barWidth - 1),
     Math.round(fraction * (barWidth - 1)),
@@ -329,7 +351,13 @@ const layoutNode = (
       },
       Box: box => {
         const inner = layoutNode(
-          Column({ gap: 0 }, ...box.children),
+          Column(
+            { gap: 0 },
+            ...(box.isDock === true
+              ? [Text('─'.repeat(Math.max(0, availableW)), { dim: true })]
+              : []),
+            ...box.children,
+          ),
           x + box.padding,
           y + box.padding,
           Math.max(0, availableW - box.padding * 2),
