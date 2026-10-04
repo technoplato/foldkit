@@ -115,13 +115,39 @@ const choiceButtonsOf = (
     variant,
   )
 
-const isOffered = (model: Model, tag: string): boolean =>
-  Option.isSome(Catalog.messageFor(catalog, model, tag))
+const isOffered = (
+  entries: ReadonlyArray<Catalog.Entry>,
+  tag: string,
+): boolean =>
+  Option.match(Catalog.parseChoiceTag(tag), {
+    onNone: () =>
+      Array.some(
+        entries,
+        entry =>
+          entry.tag === tag &&
+          entry.isPayloadFree &&
+          Catalog.isEnabled(entry.availability),
+      ),
+    onSome: choice =>
+      Array.some(
+        entries,
+        entry =>
+          entry.tag === choice.tag &&
+          Option.exists(entry.maybeChoices, choices =>
+            Array.some(
+              choices.choices,
+              offered =>
+                offered.token === choice.token &&
+                Catalog.isEnabled(offered.availability),
+            ),
+          ),
+      ),
+  })
 
 const offeredActionOf = (
-  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
   tag: string,
-): Pick<ListItem, 'action'> => (isOffered(model, tag) ? { action: tag } : {})
+): Pick<ListItem, 'action'> => (isOffered(entries, tag) ? { action: tag } : {})
 
 const byline = (title: Title): string => Array.join(title.authors, ', ')
 
@@ -258,28 +284,31 @@ const tabsOf = (model: Model, current: Tab): UiNode =>
 const nowPlayingOf = (model: Model): ReadonlyArray<UiNode> =>
   Option.match(loadedTitleOf(model), {
     onNone: () => [],
-    onSome: ({ title, loaded }) => [
-      List({
-        label: 'Now playing',
-        items: [
-          {
-            key: `now-${title.slug}`,
-            title: title.name,
-            lines: [
-              `${chapterAt(title, placeOf(loaded)).name} · ${TranscriptPlayer.leftWordsOf(title.durationMs - placeOf(loaded))}`,
-            ],
-            ...imageOf(title),
-            progress: { value: placeOf(loaded), max: title.durationMs },
-            ...offeredActionOf(model, OpenPlayer.tag),
-            isCurrent: true,
-            trailing: TranscriptPlayer.miniTransportOf(
-              loaded.player,
-              entriesOf(model),
-            ),
-          },
-        ],
-      }),
-    ],
+    onSome: ({ title, loaded }) => {
+      const entries = entriesOf(model)
+      return [
+        List({
+          label: 'Now playing',
+          items: [
+            {
+              key: `now-${title.slug}`,
+              title: title.name,
+              lines: [
+                `${chapterAt(title, placeOf(loaded)).name} · ${TranscriptPlayer.leftWordsOf(title.durationMs - placeOf(loaded))}`,
+              ],
+              ...imageOf(title),
+              progress: { value: placeOf(loaded), max: title.durationMs },
+              ...offeredActionOf(entries, OpenPlayer.tag),
+              isCurrent: true,
+              trailing: TranscriptPlayer.miniTransportOf(
+                loaded.player,
+                entries,
+              ),
+            },
+          ],
+        }),
+      ]
+    },
   })
 
 /**
@@ -360,7 +389,7 @@ const readAloudSectionOf = (model: Model): ReadonlyArray<UiNode> =>
           {
             ...ReadAloud.bookRowOf(model, book),
             key: 'read-aloud',
-            ...offeredActionOf(model, ShowReadAloud.tag),
+            ...offeredActionOf(entriesOf(model), ShowReadAloud.tag),
           },
         ],
       }),
@@ -597,7 +626,7 @@ const collapsedControlsOf = (
         ],
         ...imageOf(title),
         progress: { value: placeOf(loaded), max: title.durationMs },
-        ...offeredActionOf(model, ExpandControls.tag),
+        ...offeredActionOf(entriesOf(model), ExpandControls.tag),
         trailing: [
           ...TranscriptPlayer.miniTransportOf(loaded.player, entriesOf(model)),
           ...withIcon(
@@ -698,8 +727,8 @@ export const playerScreen = (model: Model): UiNode =>
   )
 
 const chapterItemOf = (
-  model: Model,
-  title: Title,
+  entries: ReadonlyArray<Catalog.Entry>,
+  maybePlayingNumber: Option.Option<number>,
   chapter: Chapter,
 ): ListItem => {
   const token = chapter.chapterNumber.toString()
@@ -709,13 +738,8 @@ const chapterItemOf = (
     lines: [
       `${clockOf(chapter.startMs)} · ${clockOf(Milliseconds.make(chapter.endMs - chapter.startMs))}`,
     ],
-    ...offeredActionOf(model, `${JumpToChapter.tag}:${token}`),
-    isCurrent: Option.exists(
-      loadedFor(model, title),
-      loaded =>
-        chapterAt(title, placeOf(loaded)).chapterNumber ===
-        chapter.chapterNumber,
-    ),
+    ...offeredActionOf(entries, `${JumpToChapter.tag}:${token}`),
+    isCurrent: Option.contains(maybePlayingNumber, chapter.chapterNumber),
   }
 }
 
@@ -728,8 +752,13 @@ export const contentsScreen = (model: Model): UiNode =>
     Option.flatMap(shownTitleOf(model), slug => titleOf(model, slug)),
     {
       onNone: () => Column({}, Text('No title is open.', { dim: true })),
-      onSome: title =>
-        Column(
+      onSome: title => {
+        const entries = entriesOf(model)
+        const maybePlayingNumber = Option.map(
+          loadedFor(model, title),
+          loaded => chapterAt(title, placeOf(loaded)).chapterNumber,
+        )
+        return Column(
           { gap: 1 },
           Text('Contents', {
             emphasis: 'Headline',
@@ -738,10 +767,11 @@ export const contentsScreen = (model: Model): UiNode =>
           List({
             label: 'Chapters',
             items: Array.map(title.chapters, chapter =>
-              chapterItemOf(model, title, chapter),
+              chapterItemOf(entries, maybePlayingNumber, chapter),
             ),
           }),
-        ),
+        )
+      },
     },
   )
 

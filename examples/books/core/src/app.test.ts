@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
-import { OpenedPlace, ReceivedShelf } from './message.js'
+import { Open, OpenedPlace, ReceivedShelf, ShowContents } from './message.js'
 import { sampleShelf } from './sample.js'
 import { addressCueOfModel } from './subscriptions.js'
 
@@ -199,6 +199,18 @@ describe('Books', () => {
         ),
       ),
     ).toEqual(Option.some(['Screen', 'Screen', 'Screen', 'NotFound']))
+  })
+
+  it('folds contents another device opened over a page this one never opened back to the library', () => {
+    const navigation = Option.getOrThrow(Option.fromNullishOr(App.navigation))
+    const folded = Array.reduce(
+      [Open({ slug: lanternKeeper }), ShowContents()],
+      App.init()[0],
+      (model, message) => App.update(model, message)[0],
+    )
+    expect(Navigation.printStack(navigation, folded.navigation)).toEqual(
+      Option.some('/books'),
+    )
   })
 
   it('asks before deleting a bookmark, and nothing else runs meanwhile', () => {

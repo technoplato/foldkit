@@ -1,4 +1,4 @@
-import { Layer, Option } from 'effect'
+import { type Context, Effect, Layer, Option } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
 import { localSnapshotFile, localSnapshotPath } from 'foldkit/cli'
 import { dirname, join } from 'node:path'
@@ -64,11 +64,11 @@ export const booksConnectionFromEnv = (
 
 /** Why a terminal Books could not open, when there is no connection. */
 export const noConnectionSentence =
-  'Books does not know which Instant app holds your library. Run it through scripts/with-books-access, or set BOOKS_INSTANT_APP_ID.'
+  'Books does not know which Instant app holds your library. Run it as `books`, which reads the app from ~/.config/knophy-host/books/books.env, or set BOOKS_INSTANT_APP_ID.'
 
 /** Why a terminal Books could not sign in. */
 export const notSignedInSentence =
-  'Books could not sign you in. Run `pnpm --filter books-cli-example login` to sign in to Cloudflare Access, then try again.'
+  'Books could not sign you in. Run `books login` to sign in to Cloudflare Access, then try again.'
 
 /** A terminal Books signed in as the Access member, on its Instant app. */
 export type SignedInBooks = Readonly<{
@@ -134,6 +134,20 @@ export const booksEngine = (
     ),
   })
 
+/** The library store's reads and writes, as a host may wrap them. */
+export type LibraryStoreService = Context.Service.Shape<typeof LibraryStore>
+
+/**
+ * How a terminal starts Books: the Host it runs on, its instance, and,
+ * for a host that must know when the library has saved, such as a player
+ * that exits after `books stop`, a wrapper around the library store.
+ */
+export type StartBooksConfig = Readonly<{
+  host: Processor.Host.Host
+  instance: string
+  library?: (store: LibraryStoreService) => LibraryStoreService
+}>
+
 /**
  * Starts Books in a terminal as the signed-in member: the shelf and the
  * words from Instant, the audio through ffplay, the books read aloud from
@@ -147,13 +161,19 @@ export const booksEngine = (
  */
 export const startBooks = (
   signedIn: SignedInBooks,
-  config: Readonly<{ host: Processor.Host.Host; instance: string }>,
+  config: StartBooksConfig,
 ): BooksHandle =>
   Runtime.startHandle({
     program: SyncedBooks,
     sync: booksEngine(signedIn, config),
     resources: Layer.mergeAll(
-      Layer.effect(LibraryStore, makeInstantLibraryStore(signedIn.database)),
+      Layer.effect(
+        LibraryStore,
+        Effect.map(
+          makeInstantLibraryStore(signedIn.database),
+          config.library ?? (store => store),
+        ),
+      ),
       ffplayAudioOutput,
       instantTranscriptSource(signedIn.database),
       terminalLinkSharing(publicOriginOf(signedIn.sessionOrigin)),
