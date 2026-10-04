@@ -4,6 +4,67 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 12:22:49 p.m. EDT — `31862a7d0387` fix(books): stop the player rebuilding every second as its link moves
+
+- **Implementation commit:** `31862a7d0387c4391f192cc39081c18939b7de1f`
+- **Change:** Stop the player rebuilding every second as its link moves
+- **Details:**
+  - The player's identity resets its place; 10 rebuilds in 10 s before, none after.
+- **Files:**
+  - `examples/books/core/src/navigation.ts` — identityOf on the player.
+- **User context (verbatim):**
+  > Anyway, for the book, every time the, uh, word, the highlighted word moves, the whole page jumps around and it's very stuttery and it reloads everything.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:22:49 p.m. EDT — `e649de4f01fd` fix(svelte): keep an overlay's DOM while its address moves
+
+- **Implementation commit:** `e649de4f01fde0b09755df808f239c40608d63b7`
+- **Change:** Keep an overlay's DOM while its address moves
+- **Details:**
+  - Svelte overlays are keyed by identity.
+- **Files:**
+  - `packages/svelte/src/interaction/NavigationFrame.svelte` — Overlay keys.
+- **User context (verbatim):**
+  > Anyway, for the book, every time the, uh, word, the highlighted word moves, the whole page jumps around and it's very stuttery and it reloads everything.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:22:49 p.m. EDT — `d5f0516db268` fix(react): keep a page's DOM while its address follows a moving place
+
+- **Implementation commit:** `d5f0516db268e614820d04619bdadbdab6e78d4d`
+- **Change:** Keep a page's DOM while its address follows a moving place
+- **Details:**
+  - The React frame keys layers by identity.
+- **Files:**
+  - `packages/react/src/navigation/navigation.tsx` — Layer keys.
+- **User context (verbatim):**
+  > Anyway, for the book, every time the, uh, word, the highlighted word moves, the whole page jumps around and it's very stuttery and it reloads everything.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:22:48 p.m. EDT — `9eb5ddd184f2` feat(foldkit): keep a screen's identity while a passing field moves it
+
+- **Implementation commit:** `9eb5ddd184f21de05054782bb5acd4a0caa8f7bf`
+- **Change:** Keep a screen's identity while a passing field moves it
+- **Details:**
+  - identityOf resets passing fields; carrier entries and frame layers carry an identity printed from them.
+- **Files:**
+  - `packages/foldkit/src/navigation/carrier.ts` — identity per entry.
+  - `packages/foldkit/src/navigation/declaration.ts` — identityOf on routes and screens.
+- **User context (verbatim):**
+  > Anyway, for the book, every time the, uh, word, the highlighted word moves, the whole page jumps around and it's very stuttery and it reloads everything.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:22:47 p.m. EDT — `8359628e6f71` fix(foldkit): show the current row's accent over the plain title style
+
+- **Implementation commit:** `8359628e6f714050e12f49f3e71e8afab2546e4c`
+- **Change:** Show the current row's accent over the plain title style
+- **Details:**
+  - The current-row title rule now comes after the plain title rules.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — Rule order.
+- **User context (verbatim):**
+  > you need to look at how these things look before you tell me they're ready
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 11:24:17 a.m. EDT — `bb5fddfe2274` feat(books): preview title and moment links for anyone they are sent to
 
 - **Implementation commit:** `bb5fddfe22741bf5f535c929593bdf178cb454f8`
