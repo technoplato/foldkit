@@ -82,8 +82,8 @@ const uriOf = (bound: ReturnType<typeof bindBooks>): string =>
     () => 'no plan',
   )
 
-const loadedSlugOf = (handle: ReturnType<typeof Runtime.startHandle>) => {
-  const model = handle.readModel()
+const loadedSlugOf = (bound: ReturnType<typeof bindBooks>) => {
+  const model = bound.readModel()
   return model._tag === 'Ready' && model.listening._tag === 'Loaded'
     ? Option.some(model.listening.slug)
     : Option.none()
@@ -116,8 +116,8 @@ describe('live Books', () => {
     )
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(uriOf(terminal.bound)).toBe('/books/small-hours/listen/0s')
-    expect(loadedSlugOf(terminal.handle)).toEqual(Option.some('small-hours'))
-    expect(loadedSlugOf(browser.handle)).toEqual(Option.none())
+    expect(loadedSlugOf(terminal.bound)).toEqual(Option.some('small-hours'))
+    expect(loadedSlugOf(browser.bound)).toEqual(Option.none())
     await browser.handle.stop()
     await terminal.handle.stop()
   })
