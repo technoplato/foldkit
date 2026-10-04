@@ -145,9 +145,9 @@ const originFailureOf = (operation: WordsOriginOperation): string =>
     M.withReturnType<string>(),
     M.when(
       'CheckAccess',
-      () => 'words.knophy.com could not check your account.',
+      () => 'words.pisspoursoftware.xyz could not check your account.',
     ),
-    M.when('MintSession', () => 'words.knophy.com could not sign you in.'),
+    M.when('MintSession', () => 'words.pisspoursoftware.xyz could not sign you in.'),
     M.when(
       'MintTranscriptionToken',
       () => 'Live transcription could not start.',
@@ -158,10 +158,10 @@ const originFailureOf = (operation: WordsOriginOperation): string =>
 const reasonForError = (operation: WordsOriginOperation, name: string) =>
   M.value(name).pipe(
     M.withReturnType<string>(),
-    M.when('MintUnavailable', () => 'words.knophy.com could not reach Scribe.'),
+    M.when('MintUnavailable', () => 'words.pisspoursoftware.xyz could not reach Scribe.'),
     M.when(
       'CheckUnavailable',
-      () => 'words.knophy.com could not reach Scribe.',
+      () => 'words.pisspoursoftware.xyz could not reach Scribe.',
     ),
     M.when(
       'ConnectIPhoneFirst',
@@ -175,7 +175,7 @@ const reasonForError = (operation: WordsOriginOperation, name: string) =>
     M.when(
       'TranscriptionUnavailable',
       () =>
-        'Live transcription is not set up on words.knophy.com (no speech service key).',
+        'Live transcription is not set up on words.pisspoursoftware.xyz (no speech service key).',
     ),
     M.orElse(() => originFailureOf(operation)),
   )
@@ -205,7 +205,7 @@ export const decodeAccessResponse = (
           new WordsOriginError({
             operation: 'CheckAccess',
             reason:
-              'words.knophy.com answered the access check in a new shape.',
+              'words.pisspoursoftware.xyz answered the access check in a new shape.',
           }),
         ),
       onSome: response => {
@@ -248,7 +248,7 @@ export const decodeSessionResponse = (
         Effect.fail(
           new WordsOriginError({
             operation: 'MintSession',
-            reason: 'words.knophy.com answered the sign-in in a new shape.',
+            reason: 'words.pisspoursoftware.xyz answered the sign-in in a new shape.',
           }),
         ),
       onSome: Effect.succeed,
@@ -270,7 +270,7 @@ export const decodeTranscriptionTokenResponse = (
           new WordsOriginError({
             operation: 'MintTranscriptionToken',
             reason:
-              'words.knophy.com answered the transcription token request in a new shape.',
+              'words.pisspoursoftware.xyz answered the transcription token request in a new shape.',
           }),
         ),
       onSome: Effect.succeed,

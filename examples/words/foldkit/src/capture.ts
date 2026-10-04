@@ -115,7 +115,7 @@ const levelOf = (rms: number): number => {
 const microphoneFailureReason = (cause: unknown): string => {
   const name = cause instanceof DOMException ? cause.name : ''
   if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return 'The browser did not allow the microphone. Allow it for words.knophy.com, then choose Try Again.'
+    return 'The browser did not allow the microphone. Allow it for words.pisspoursoftware.xyz, then choose Try Again.'
   } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
     return 'No microphone was found. Connect one, then choose Try Again.'
   } else if (name === 'NotReadableError' || name === 'AbortError') {

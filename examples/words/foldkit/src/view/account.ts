@@ -57,7 +57,7 @@ const statusOf = (model: Model): Status =>
       CheckingAccount: () => ({
         tone: 'Neutral',
         text: 'Checking',
-        detail: 'Asking words.knophy.com who Cloudflare Access says you are.',
+        detail: 'Asking words.pisspoursoftware.xyz who Cloudflare Access says you are.',
       }),
       ConnectingAccount: () => ({
         tone: 'Neutral',
@@ -158,7 +158,7 @@ const accessGroup = (access: AccessIdentity): ReadonlyArray<Html> => [
       'Sign-in method',
       [
         access.source === 'CloudflareAccess'
-          ? 'Google, through Cloudflare Access for every knophy.com site'
+          ? 'Google, through Cloudflare Access for every pisspoursoftware.xyz site'
           : 'The loopback preview email on this Mac',
       ],
       Option.some(rowIcon('Globe', 'bg-[#007aff]')),
@@ -170,7 +170,7 @@ const accessGroup = (access: AccessIdentity): ReadonlyArray<Html> => [
     ),
   ]),
   groupFootnote([
-    'words.knophy.com uses the Google login in front of every knophy.com site, and signs you in to Scribe with that email. There is no second password.',
+    'words.pisspoursoftware.xyz uses the Google login in front of every pisspoursoftware.xyz site, and signs you in to Scribe with that email. There is no second password.',
   ]),
 ]
 
@@ -330,7 +330,7 @@ type SharingStatus = Readonly<{
 const sharingStatusOf = (model: Model): SharingStatus =>
   Option.match(Account.Model.maybeSharingOf(model.account), {
     onNone: () => ({
-      detail: 'Checking with words.knophy.com.',
+      detail: 'Checking with words.pisspoursoftware.xyz.',
       iconName: 'Clock',
       colorClass: 'bg-[#8e8e93]',
     }),
@@ -372,7 +372,7 @@ const sharingGroup = (model: Model): ReadonlyArray<Html> => {
       groupRow(
         'Anyone with the link',
         [
-          'Share creates a secret link to the sections you picked. Anyone signed in to Scribe who has it can read them. On words.knophy.com, links still sit behind the Google login.',
+          'Share creates a secret link to the sections you picked. Anyone signed in to Scribe who has it can read them. On words.pisspoursoftware.xyz, links still sit behind the Google login.',
         ],
         Option.some(rowIcon('Link', 'bg-[#34c759]')),
       ),
@@ -395,7 +395,7 @@ const signOutNoteOf = (model: Model): string => {
   if (Capture.Model.isHoldingUnsavedAudio(model.capture)) {
     return 'Stop the recording in progress and let it save first. Signing out now would lose its audio.'
   } else if (isEndingGoogleLogin) {
-    return 'Signs out of Scribe in this browser and ends the Google login for knophy.com, so the next visit asks Google again.'
+    return 'Signs out of Scribe in this browser and ends the Google login for pisspoursoftware.xyz, so the next visit asks Google again.'
   } else {
     return 'Signs out of Scribe in this browser.'
   }

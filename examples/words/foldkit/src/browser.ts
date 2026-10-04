@@ -71,7 +71,7 @@ const requestOrigin = <A>(
     catch: () =>
       new WordsOriginError({
         operation,
-        reason: 'words.knophy.com did not answer within 5 seconds.',
+        reason: 'words.pisspoursoftware.xyz did not answer within 5 seconds.',
       }),
   }).pipe(Effect.flatMap(({ status, body }) => decode(status, body)))
 
