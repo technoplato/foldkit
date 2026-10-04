@@ -516,6 +516,33 @@ describe('Telemetry.attach', () => {
     )
   })
 
+  it('records a terminal whose process has a window that is no page, as Instant in Node makes', async () => {
+    vi.stubGlobal('window', {})
+    try {
+      const memory = makeMemorySink()
+      const handle = startHandle({
+        program: SyncedLibrary,
+        sync: Memory({ processor: 'cli-instant' }),
+        host: Host.Cli(),
+      })
+      attach(handle, { app: 'telemetry-test', sink: memory.layer })
+      await vi.waitFor(() => {
+        expect(handle.readModel()._tag).toBe('Ready')
+      })
+      await handle.stop()
+
+      expect(Array.map(memory.events(), event => event._tag)).toEqual(
+        expect.arrayContaining([
+          'SessionStarted',
+          'Transition',
+          'SessionStopped',
+        ]),
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('writes a terminal handle to its file, flushed by the time the handle stops', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'foldkit-telemetry-cli-'))
     try {

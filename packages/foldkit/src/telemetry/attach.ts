@@ -117,13 +117,20 @@ type SessionConfig = Readonly<{
   redactKeys: ReadonlyArray<string>
 }>
 
+// NOTE: A Node process can have a `window` that is no page, such as the
+// empty object @foldkit/instant's Node client defines so @instantdb/core
+// runs in a terminal, so a page is a `window` that takes listeners.
+const isInPage = (): boolean =>
+  typeof window !== 'undefined' &&
+  Predicate.isFunction(Reflect.get(window, 'addEventListener'))
+
 /**
  * Calls `onPageEnded` when the page this runs in is going away for good,
  * and not when it is only being kept in the back-forward cache, which can
  * bring it back. Does nothing outside a browser.
  */
 const watchPageEnding = (onPageEnded: () => void): (() => void) => {
-  if (typeof window === 'undefined') {
+  if (!isInPage()) {
     return Function.constVoid
   }
   const onPageHide = (event: PageTransitionEvent): void => {
