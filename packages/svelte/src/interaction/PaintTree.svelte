@@ -5,6 +5,8 @@
   import CopyButton from './CopyButton.svelte'
   import { type PaintClassNames, classFor, keyFor } from './paint.js'
   import PaintTree from './PaintTree.svelte'
+  import SeekBar from './SeekBar.svelte'
+  import TranscriptView from './TranscriptView.svelte'
 
   type Props = Readonly<{
     node: UiNode
@@ -46,7 +48,7 @@
         width={node.image.width}
       />
     </div>
-  {:else if node.image !== undefined}
+  {:else if node.image !== undefined && href !== undefined}
     <div class={classFor(classNames, 'Text', 'fk-text')}>
       <a
         class="fk-text-link"
@@ -97,6 +99,7 @@
     class={classFor(classNames, 'Button', 'fk-button')}
     data-action={node.action}
     data-keys={node.keys?.join(' ')}
+    data-variant={node.variant}
     disabled={node.disabled === true}
     onclick={() => {
       onPress(node)
@@ -141,6 +144,66 @@
       <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
     {/each}
   </div>
+{:else if node._tag === 'Progress'}
+  <progress
+    aria-label={node.label}
+    class={classFor(classNames, 'Progress', 'fk-progress')}
+    max={node.max}
+    value={node.value}
+  ></progress>
+{:else if node._tag === 'List'}
+  <ul aria-label={node.label} class={classFor(classNames, 'List', 'fk-list')}>
+    {#each node.items as item (item.key)}
+      {@const action = item.action}
+      <li class="fk-item" data-current={item.isCurrent === true ? true : undefined}>
+        <button
+          class="fk-item-press"
+          disabled={action === undefined}
+          onclick={() => {
+            if (action !== undefined) {
+              onPress({ _tag: 'Button', label: item.title, action })
+            }
+          }}
+          type="button"
+        >
+          {#if item.image !== undefined}
+            <img
+              alt={item.image.alt}
+              class="fk-item-image"
+              height={item.image.height}
+              loading="lazy"
+              src={item.image.src}
+              width={item.image.width}
+            />
+          {/if}
+          <span class="fk-item-body">
+            <span class="fk-item-title">{item.title}</span>
+            {#each item.lines ?? [] as line, index (index)}
+              <span class="fk-item-line">{line}</span>
+            {/each}
+            {#if item.progress !== undefined}
+              <progress
+                class="fk-progress"
+                max={item.progress.max}
+                value={item.progress.value}
+              ></progress>
+            {/if}
+          </span>
+        </button>
+        {#each item.trailing ?? [] as child, index (keyFor(child, index))}
+          <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
+        {/each}
+      </li>
+    {/each}
+  </ul>
+{:else if node._tag === 'Seek'}
+  <SeekBar className={classFor(classNames, 'Seek', 'fk-seek')} {onPress} seek={node} />
+{:else if node._tag === 'Transcript'}
+  <TranscriptView
+    className={classFor(classNames, 'Transcript', 'fk-transcript')}
+    {onPress}
+    transcript={node}
+  />
 {:else}
   <div
     class={classFor(
