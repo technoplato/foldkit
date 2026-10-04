@@ -6,14 +6,27 @@ import { MediaId, Milliseconds, Speed, WordId } from './ids.js'
 // MODEL
 
 /**
- * The recording the player holds: its id, how long it runs, and where its
- * audio is. A recording with no audio file yet has no URL, and the player
- * will not play it.
+ * One named stretch of a recording, such as an audiobook's chapter: its
+ * title and where it starts and ends.
+ */
+export const Section = S.Struct({
+  title: S.String,
+  startMs: Milliseconds,
+  endMs: Milliseconds,
+})
+/** One named stretch of a recording. */
+export type Section = typeof Section.Type
+
+/**
+ * The recording the player holds: its id, how long it runs, where its
+ * audio is, and its sections in order, such as chapters. A recording with
+ * no audio file yet has no URL, and the player will not play it.
  */
 export const Media = S.Struct({
   mediaId: MediaId,
   durationMs: Milliseconds,
   maybeAudioUrl: S.Option(S.String),
+  sections: S.Array(Section),
 })
 /** The recording the player holds. */
 export type Media = typeof Media.Type
@@ -149,6 +162,13 @@ export const wordAt = (
 /** The word sounding now, while the words near the place are here. */
 export const currentWordOf = (model: Model): Option.Option<Word> =>
   wordAt(passagesOf(model), model.placeMs)
+
+/** The section a place falls in: the last one starting at or before it. */
+export const sectionAt = (
+  media: Media,
+  placeMs: Milliseconds,
+): Option.Option<Section> =>
+  Array.findLast(media.sections, section => section.startMs <= placeMs)
 
 /** The word with this id, among the words near the place. */
 export const wordOf = (model: Model, wordId: WordId): Option.Option<Word> =>

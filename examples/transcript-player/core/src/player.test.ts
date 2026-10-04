@@ -51,6 +51,18 @@ const loaded = (placeMs = 0): Model =>
         mediaId,
         durationMs: Milliseconds.make(10 * minuteMs),
         maybeAudioUrl: Option.some('https://audio.invalid/evocation.mp3'),
+        sections: [
+          {
+            title: 'Evocation',
+            startMs: Milliseconds.make(18_700),
+            endMs: Milliseconds.make(24_000),
+          },
+          {
+            title: 'The Purpose',
+            startMs: Milliseconds.make(24_000),
+            endMs: Milliseconds.make(10 * minuteMs),
+          },
+        ],
       },
       { placeMs: Milliseconds.make(placeMs) },
     ),
@@ -139,6 +151,8 @@ describe('the Transcript Player', () => {
       60,
     )
     expect(painted).toContain('[million]')
+    expect(painted).toContain('EVOCATION')
+    expect(painted).toContain('THE PURPOSE')
     expect(painted).toContain('›0:19')
     expect(painted).toContain(' 0:24   ago, one morning just after')
     const transcript = transcriptOf(atMillion)

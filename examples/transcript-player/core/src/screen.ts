@@ -24,6 +24,7 @@ import {
 import {
   type Model,
   type Passage,
+  type Section,
   type Word,
   currentWordOf,
   isSounding,
@@ -122,7 +123,18 @@ const paragraphWords = 70
 
 const sentenceEnd = /[.!?…]["”’')\]]*$/u
 
+const startsSection = (
+  sections: ReadonlyArray<Section>,
+  afterMs: number,
+  atMs: number,
+): Option.Option<Section> =>
+  Array.findFirst(
+    sections,
+    section => section.startMs > afterMs && section.startMs <= atMs,
+  )
+
 const endsParagraph = (
+  sections: ReadonlyArray<Section>,
   word: Word,
   maybeNext: Option.Option<Word>,
   count: number,
@@ -131,14 +143,10 @@ const endsParagraph = (
     onNone: () => true,
     onSome: next =>
       next.startMs - word.endMs >= paragraphPauseMs ||
+      Option.isSome(startsSection(sections, word.startMs, next.startMs)) ||
       (count >= paragraphWords && sentenceEnd.test(word.text)),
   })
 
-/**
- * A passage's words in paragraphs, so a five-minute passage reads as
- * prose: a paragraph ends at a pause of a second and a half, or at the
- * end of a sentence once it has 70 words.
- */
 type Paragraphs = Readonly<{
   done: ReadonlyArray<Array.NonEmptyReadonlyArray<Word>>
   open: ReadonlyArray<Word>
@@ -146,15 +154,28 @@ type Paragraphs = Readonly<{
 
 const noParagraphs: Paragraphs = { done: [], open: [] }
 
+/**
+ * A passage's words in paragraphs, so a five-minute passage reads as
+ * prose: a paragraph ends at a pause of a second and a half, where a
+ * section starts, or at the end of a sentence once it has 70 words.
+ */
 const paragraphsOf = (
+  sections: ReadonlyArray<Section>,
   words: ReadonlyArray<Word>,
 ): ReadonlyArray<Array.NonEmptyReadonlyArray<Word>> =>
   Array.reduce(words, noParagraphs, (state, word, index): Paragraphs => {
     const open = Array.append(state.open, word)
-    return endsParagraph(word, Array.get(words, index + 1), open.length)
+    return endsParagraph(
+      sections,
+      word,
+      Array.get(words, index + 1),
+      open.length,
+    )
       ? { done: Array.append(state.done, open), open: [] }
       : { done: state.done, open }
   }).done
+
+const headingLookbackMs = 5000
 
 const emptyTextOf = (model: Model): string => {
   if (model.transcript._tag === 'TranscriptLoading') {
@@ -178,6 +199,7 @@ const emptyTextOf = (model: Model): string => {
  * ```
  */
 export const transcriptOf = (model: Model): UiNode => {
+  const sections = model.media.sections
   const maybeCurrentWordId = Option.map(
     currentWordOf(model),
     word => word.wordId,
@@ -185,10 +207,16 @@ export const transcriptOf = (model: Model): UiNode => {
   const paragraphOf = (
     words: Array.NonEmptyReadonlyArray<Word>,
     endMs: Milliseconds,
+    afterMs: number,
   ): TranscriptPassage => {
     const first = Array.headNonEmpty(words)
+    const maybeHeading = startsSection(sections, afterMs, first.startMs)
     return {
       key: first.wordId,
+      ...Option.match(maybeHeading, {
+        onNone: () => ({}),
+        onSome: section => ({ heading: section.title }),
+      }),
       label: clockOf(first.startMs),
       labelAction: `${SeekTo.tag}:${first.startMs.toString()}`,
       isCurrent: first.startMs <= model.placeMs && model.placeMs < endMs,
@@ -199,21 +227,31 @@ export const transcriptOf = (model: Model): UiNode => {
       })),
     }
   }
-  const paragraphs = Array.flatMap(shownPassagesOf(model), passage => {
-    const groups = paragraphsOf(passage.words)
-    return Array.map(groups, (words, index) =>
-      paragraphOf(
-        words,
-        Option.getOrElse(
-          Option.map(
-            Array.get(groups, index + 1),
-            next => Array.headNonEmpty(next).startMs,
-          ),
-          () => passage.endMs,
+  const groups = Array.flatMap(shownPassagesOf(model), passage =>
+    Array.map(paragraphsOf(sections, passage.words), words => ({
+      words,
+      passageEndMs: passage.endMs,
+    })),
+  )
+  const paragraphs = Array.map(groups, ({ words, passageEndMs }, index) =>
+    paragraphOf(
+      words,
+      Option.getOrElse(
+        Option.map(
+          Array.get(groups, index + 1),
+          next => Array.headNonEmpty(next.words).startMs,
         ),
+        () => passageEndMs,
       ),
-    )
-  })
+      Option.getOrElse(
+        Option.map(
+          Array.get(groups, index - 1),
+          previous => Array.lastNonEmpty(previous.words).startMs,
+        ),
+        () => Array.headNonEmpty(words).startMs - headingLookbackMs,
+      ),
+    ),
+  )
   return Transcript({
     label: 'Transcript',
     action: SeekToWord.tag,

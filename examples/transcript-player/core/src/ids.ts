@@ -1,4 +1,10 @@
-import { Schema as S } from 'effect'
+import {
+  Effect,
+  Option,
+  Schema as S,
+  SchemaIssue,
+  SchemaTransformation,
+} from 'effect'
 
 // IDS
 
@@ -71,4 +77,85 @@ export const clockOf = (place: Milliseconds): string => {
   return hours > 0
     ? `${hours.toString()}:${twoDigits(minutes)}:${twoDigits(seconds)}`
     : `${minutes.toString()}:${twoDigits(seconds)}`
+}
+
+const clockPattern = /^(?:(\d+):)?(\d{1,2}):(\d{2})$/u
+
+const unitsPattern = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/u
+
+const millisecondsPerClockSecond = 1000
+
+const secondsPerClockMinute = 60
+
+const secondsPerClockHour = 3600
+
+const placeOfParts = (
+  hours: string,
+  minutes: string,
+  seconds: string,
+): number =>
+  (Number(hours) * secondsPerClockHour +
+    Number(minutes) * secondsPerClockMinute +
+    Number(seconds)) *
+  millisecondsPerClockSecond
+
+const placeOfSegment = (input: string): Option.Option<number> => {
+  const clock = clockPattern.exec(input)
+  const units = unitsPattern.exec(input)
+  if (clock !== null) {
+    const [, hours = '0', minutes = '0', seconds = '0'] = clock
+    return Option.some(placeOfParts(hours, minutes, seconds))
+  } else if (units !== null && input !== '') {
+    const [, hours = '0', minutes = '0', seconds = '0'] = units
+    return Option.some(placeOfParts(hours, minutes, seconds))
+  } else {
+    return Option.none()
+  }
+}
+
+/**
+ * A place as one URI segment or CLI word, in hours, minutes, and seconds:
+ * `4h54m06s` is 4 hours 54 minutes 6 seconds in, `12m03s` is 12 minutes 3
+ * seconds, `7s` is 7 seconds. It reads a clock too, `4:54:06`. It keeps
+ * whole seconds, so a link names the second someone was listening to.
+ *
+ * @example
+ * ```typescript
+ * S.decodeUnknownSync(PlaceSegment)('4h54m06s') // 17646000
+ * S.decodeUnknownSync(PlaceSegment)('12:03') // 723000
+ * S.encodeSync(PlaceSegment)(Milliseconds.make(723_400)) // '12m03s'
+ * ```
+ */
+export const PlaceSegment = S.String.pipe(
+  S.decodeTo(
+    Milliseconds,
+    SchemaTransformation.transformOrFail({
+      decode: input =>
+        Option.match(placeOfSegment(input), {
+          onNone: () =>
+            Effect.fail(
+              new SchemaIssue.InvalidValue(Option.some(input), {
+                description: `Expected a place such as 12m03s or 4h54m06s, got ${JSON.stringify(input)}`,
+              }),
+            ),
+          onSome: placeMs => Effect.succeed(placeMs),
+        }),
+      encode: placeMs => Effect.succeed(segmentOfPlace(placeMs)),
+    }),
+  ),
+)
+
+const segmentOfPlace = (placeMs: number): string => {
+  const totalSeconds = Math.floor(placeMs / millisecondsPerClockSecond)
+  const seconds = totalSeconds % secondsPerClockMinute
+  const totalMinutes = Math.floor(totalSeconds / secondsPerClockMinute)
+  const minutes = totalMinutes % secondsPerClockMinute
+  const hours = Math.floor(totalMinutes / secondsPerClockMinute)
+  if (hours > 0) {
+    return `${hours.toString()}h${twoDigits(minutes)}m${twoDigits(seconds)}s`
+  } else if (minutes > 0) {
+    return `${minutes.toString()}m${twoDigits(seconds)}s`
+  } else {
+    return `${seconds.toString()}s`
+  }
 }
