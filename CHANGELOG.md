@@ -4,6 +4,82 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 3:10:09 a.m. EDT — `d033d80bb33e` test(books): run the books CLI's commands on a made-up library
+
+- **Implementation commit:** `d033d80bb33e03ce4a847f3d47337df78de7d31d`
+- **Change:** Run the books CLI's commands on a made-up library
+- **Details:**
+  - The CLI lists the library and every Action, plays a title, and seeks by command.
+- **Files:**
+  - `examples/books/cli/src/cli.test.ts` — The CLI test.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:10:06 a.m. EDT — `2a6d7be2a71c` fix(foldkit): let a CLI command carry an open value
+
+- **Implementation commit:** `2a6d7be2a71cedd42b5e24fd77ed82fd2a066bf4`
+- **Change:** Let a CLI command carry an open value
+- **Details:**
+  - `books seek-to 723000` presses `SeekTo:723000`; the Action's `accepts` rule decides.
+- **Files:**
+  - `packages/foldkit/src/cli/program.ts` — openCommandFor.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:03:17 a.m. EDT — `009cd528e89b` feat(books): add the books CLI, TUI, and OpenTUI
+
+- **Implementation commit:** `009cd528e89b04be41946b85e831bce1c5908c4c`
+- **Change:** Add the books CLI, TUI, and OpenTUI
+- **Details:**
+  - `books`, `books-tui`, and `books-opentui`, all from the Program with no title, Action, or route in the hosts.
+- **Files:**
+  - `examples/books/cli/src/entry.ts` — The CLI.
+  - `examples/books/cli/src/tui.ts` — The TUI.
+  - `examples/books/opentui/src/entry.ts` — OpenTUI.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:03:17 a.m. EDT — `ccc668ee287f` feat(books): start Books in a terminal as the Access member
+
+- **Implementation commit:** `ccc668ee287f242912b014a4b55b20591635c88c`
+- **Change:** Start Books in a terminal as the Access member
+- **Details:**
+  - A terminal signs in through the reader's mint with cloudflared's Access token, or the local reader's mint, keeps its Instant session in a file, plays through ffplay, and reads the words from Instant; only the app id comes from the env file.
+- **Files:**
+  - `examples/books/core/src/live.ts` — The terminal start.
+  - `examples/books/scripts/with-books-access` — The wrapper.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:03:17 a.m. EDT — `1ecbb629f109` test(transcript-player): cover the ffplay output with a silent stand-in, and space screens for terminals
+
+- **Implementation commit:** `1ecbb629f109bb43c9f1dc076f3074f54e2bb8bf`
+- **Change:** Cover the ffplay output with a silent stand-in, and space screens for terminals
+- **Details:**
+  - A stand-in ffplay prints its clock lines, so the test checks seconds, the end, and both failures without sound; screen gaps are one row, since terminals read them as rows.
+- **Files:**
+  - `examples/transcript-player/core/src/audio.node.test.ts` — The ffplay test.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 3:03:16 a.m. EDT — `8fb01906f853` feat(instant): sign Node Clients in through a local mint and run Instant core in Node
+
+- **Implementation commit:** `8fb01906f85376f31f5361103eaacc534b6b3d0e`
+- **Change:** Sign Node Clients in through a local mint and run Instant core in Node
+- **Details:**
+  - `makeNodeInstantDatabase` opens Instant core in Node with a file-backed session, turning on its client, which starts only where `window` exists; a loopback mint is asked without an Access token.
+- **Files:**
+  - `packages/instant/src/nodeDatabase/nodeDatabase.ts` — The Node database.
+  - `packages/instant/src/hostedIdentity/hostedIdentity.ts` — The loopback mint rule.
+- **User context (verbatim):**
+  > go ahead and get cooking on the the terminal version. Both TLI TUI and CLI.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 2:48:09 a.m. EDT — `9b3f0ac99351` feat(books): play through the Transcript Player, with the words to read along
 
 - **Implementation commit:** `9b3f0ac993514b48f47bd1f4592f76eb26ca0c1f`
