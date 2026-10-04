@@ -27,6 +27,7 @@ import {
 import {
   askedBookmarkOf,
   isAsking,
+  isOnOtherPlayer,
   isOnPlayer,
   shownTitleOf,
   titlePageSlugOf,
@@ -46,6 +47,8 @@ const whenLoaded = (model: Model): Catalog.Availability => {
     return Catalog.Disabled({ because: answerFirst })
   } else if (model.listening._tag === 'Idle') {
     return Catalog.Disabled({ because: 'nothing is in the player' })
+  } else if (isOnOtherPlayer(model)) {
+    return Catalog.Disabled({ because: 'this title is not in the player' })
   } else {
     return Catalog.Enabled()
   }
@@ -195,7 +198,7 @@ export const OpenPlayer = Catalog.action('OpenPlayer', {
   enabled: (model: Model) => {
     if (isAsking(model)) {
       return Catalog.Disabled({ because: answerFirst })
-    } else if (isOnPlayer(model)) {
+    } else if (isOnPlayer(model) && !isOnOtherPlayer(model)) {
       return Catalog.Disabled({ because: 'the player is open' })
     } else if (model.listening._tag === 'Idle') {
       return Catalog.Disabled({ because: 'nothing is in the player' })

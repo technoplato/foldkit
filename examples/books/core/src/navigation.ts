@@ -57,8 +57,8 @@ export const nameOfSlug = (slug: TitleSlug): string =>
  *
  * - `/books` is the library, the root.
  * - `/books/the-lantern-keeper` is a title's page, only above the library.
- * - `/books/listen` or `/books/the-lantern-keeper/listen` is the player,
- *   above the library or a title's page.
+ * - `/books/the-lantern-keeper/listen` is that title's player, only
+ *   above its page.
  * - `/books/the-lantern-keeper/chapter/3` is a chapter's page, above its
  *   title's page: a link to that section.
  * - `…/contents` and `…/speed` are Sheets; `…/delete-bookmark/<id>` is a
@@ -77,8 +77,7 @@ export const declared = Navigation.screens({
     Navigation.pushScreen(PlayerPage, Route.literal('listen'), {
       title: () => 'Now playing',
       isAllowedAbove: beneath =>
-        isTopOf(isLibraryPage, isTitlePage)(beneath) &&
-        !Array.some(beneath, isPlayerPage),
+        isTopOf(isTitlePage)(beneath) && !Array.some(beneath, isPlayerPage),
     }),
     Navigation.pushScreen(
       ChapterPage,

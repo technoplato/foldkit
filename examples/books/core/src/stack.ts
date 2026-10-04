@@ -43,17 +43,27 @@ export const isOnPlayer = (model: HasStack): boolean =>
   Option.exists(topPageOf(model), isPlayerPage)
 
 /**
- * The title the screen is about: the loaded one on the player, else the
- * title whose page is open. It is the one `p` plays, the contents list,
- * and a chapter jump reads. None on the library.
+ * The title the screen is about: the one whose page is open, under any
+ * chapter page or player. It is the one `p` plays, the contents list, and
+ * a chapter jump reads. None on the library.
  *
  * @example
  * ```typescript
  * shownTitleOf(model) // Some('the-lantern-keeper') on `/books/the-lantern-keeper/chapter/3`
  * ```
  */
-export const shownTitleOf = (model: HasPlayer): Option.Option<TitleSlug> =>
-  isOnPlayer(model) ? loadedSlugOf(model) : titlePageSlugOf(model)
+export const shownTitleOf = (model: HasStack): Option.Option<TitleSlug> =>
+  titlePageSlugOf(model)
+
+/**
+ * True while the open player is for another title than the one this
+ * device has loaded, or nothing is loaded: the player offers to play it.
+ */
+export const isOnOtherPlayer = (model: HasPlayer): boolean =>
+  isOnPlayer(model) &&
+  !Option.exists(titlePageSlugOf(model), slug =>
+    Option.contains(loadedSlugOf(model), slug),
+  )
 
 /** The chapter whose page is on top. */
 export const shownChapterOf = (model: HasStack): Option.Option<ChapterNumber> =>

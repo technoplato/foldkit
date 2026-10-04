@@ -20,8 +20,9 @@ export const TitlePage = ts('TitlePage', { slug: TitleSlug })
 export type TitlePage = typeof TitlePage.Type
 
 /**
- * The player, showing whatever this device has loaded: `/books/listen`
- * above the library, or `/books/the-lantern-keeper/listen` above a title.
+ * The player for the title beneath, so its address names the book:
+ * `/books/the-lantern-keeper/listen`. It plays the title when this device
+ * has it loaded, and offers to play it from the listener's place when not.
  */
 export const PlayerPage = ts('PlayerPage')
 /** The player. */

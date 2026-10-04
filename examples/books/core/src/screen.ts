@@ -45,6 +45,7 @@ import {
   continueOf,
   loadedTitleOf,
   progressOf,
+  resumePlaceOf,
   titleOf,
   titlesOf,
 } from './model.js'
@@ -266,46 +267,63 @@ const progressBar = (place: Milliseconds, duration: Milliseconds): string => {
  * ```
  */
 export const playerScreen = (model: Model): UiNode =>
-  Option.match(loadedTitleOf(model), {
-    onNone: () =>
-      Column(
-        {},
-        Text('Now playing', { emphasis: 'Display' }),
-        Text('Nothing is playing. Pick a title in your library.', {
-          dim: true,
-        }),
-      ),
-    onSome: ({ title, loaded }) =>
-      Column(
-        {},
-        ...coverOf(title, pageCoverWidth),
-        Text(title.name, { emphasis: 'Display' }),
-        Text(chapterAt(title, loaded.placeMs).name),
-        Text(`${clockOf(loaded.placeMs)} / ${clockOf(title.durationMs)}`, {
-          mono: true,
-          label: `${clockOf(loaded.placeMs)} of ${clockOf(title.durationMs)}`,
-        }),
-        Text(progressBar(loaded.placeMs, title.durationMs), {
-          mono: true,
-          dim: true,
-        }),
-        ...problemLines(model),
-        ...unplayableLines(loaded.transport),
-        Row(
+  Option.match(
+    Option.flatMap(shownTitleOf(model), slug => titleOf(model, slug)),
+    {
+      onNone: () =>
+        Column(
           {},
-          ...buttonsOf(model, [SkipBack]),
-          ...(loaded.transport._tag === 'Playing'
-            ? buttonsOf(model, [Pause])
-            : choiceButtonsOf(model, title.slug, [Play])),
-          ...buttonsOf(model, [SkipForward]),
+          Text('Now playing', { emphasis: 'Display' }),
+          Text('This title is not in your library.', { dim: true }),
         ),
-        Row(
+      onSome: title => {
+        const maybeLoaded = Option.filter(
+          Option.map(loadedTitleOf(model), ({ loaded }) => loaded),
+          loaded => loaded.slug === title.slug,
+        )
+        const placeMs = Option.match(maybeLoaded, {
+          onNone: () => resumePlaceOf(model, title.slug),
+          onSome: loaded => loaded.placeMs,
+        })
+        const isSounding = Option.exists(
+          maybeLoaded,
+          loaded => loaded.transport._tag === 'Playing',
+        )
+        return Column(
           {},
-          ...buttonsOf(model, [ShowContents, ShowSpeeds, AddBookmark]),
-          Text(`${model.speed.toString()}×`, { dim: true }),
-        ),
-      ),
-  })
+          ...coverOf(title, pageCoverWidth),
+          Text(title.name, { emphasis: 'Display' }),
+          Text(chapterAt(title, placeMs).name),
+          Text(`${clockOf(placeMs)} / ${clockOf(title.durationMs)}`, {
+            mono: true,
+            label: `${clockOf(placeMs)} of ${clockOf(title.durationMs)}`,
+          }),
+          Text(progressBar(placeMs, title.durationMs), {
+            mono: true,
+            dim: true,
+          }),
+          ...problemLines(model),
+          ...Option.match(maybeLoaded, {
+            onNone: () => [],
+            onSome: loaded => unplayableLines(loaded.transport),
+          }),
+          Row(
+            {},
+            ...buttonsOf(model, [SkipBack]),
+            ...(isSounding
+              ? buttonsOf(model, [Pause])
+              : choiceButtonsOf(model, title.slug, [Play])),
+            ...buttonsOf(model, [SkipForward]),
+          ),
+          Row(
+            {},
+            ...buttonsOf(model, [ShowContents, ShowSpeeds, AddBookmark]),
+            Text(`${model.speed.toString()}×`, { dim: true }),
+          ),
+        )
+      },
+    },
+  )
 
 /**
  * One chapter's page, the link to that section: the title, the chapter,

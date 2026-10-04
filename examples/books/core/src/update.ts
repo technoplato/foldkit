@@ -138,7 +138,7 @@ const openedTitle = (model: Model, slug: TitleSlug): Model =>
  * is open, else right above the library. Already there, nothing moves.
  */
 const openedPlayer = (model: Model, slug: TitleSlug): Model => {
-  if (isOnPlayer(model)) {
+  if (isOnPlayer(model) && Option.contains(titlePageSlugOf(model), slug)) {
     return model
   } else if (Option.contains(titlePageSlugOf(model), slug)) {
     return pushedPage(
@@ -150,7 +150,10 @@ const openedPlayer = (model: Model, slug: TitleSlug): Model => {
     )
   } else {
     return pushedPage(
-      withStack(model, { ...model.navigation, pages: [] }),
+      withStack(model, {
+        ...model.navigation,
+        pages: [TitlePage({ slug })],
+      }),
       PlayerPage(),
     )
   }
