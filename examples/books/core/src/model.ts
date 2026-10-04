@@ -100,8 +100,13 @@ export const Paused = ts('Paused')
  * clock restarts from the new place.
  */
 export const Playing = ts('Playing', { cue: S.Int })
+/**
+ * The player tried to sound the title and its audio would not play, and
+ * why, safe to show. Play tries again.
+ */
+export const Unplayable = ts('Unplayable', { reason: S.String })
 /** Whether the player is sounding. */
-export const Transport = S.Union([Paused, Playing])
+export const Transport = S.Union([Paused, Playing, Unplayable])
 /** Whether the player is sounding. */
 export type Transport = typeof Transport.Type
 

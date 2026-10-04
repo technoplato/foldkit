@@ -40,6 +40,8 @@ import {
   Playing,
   ShelfReady,
   ShelfUnavailable,
+  type Transport,
+  Unplayable,
   bookmarkOf,
   chapterOf,
   loadedTitleOf,
@@ -195,7 +197,7 @@ const saveOf = (
   WriteLibrary({ write: SavePlace({ slug, placeMs }) }),
 ]
 
-const paused = (model: Model): UpdateReturn =>
+const stoppedAs = (model: Model, transport: Transport): UpdateReturn =>
   M.value(model.listening).pipe(
     withUpdateReturn,
     M.tagsExhaustive({
@@ -205,7 +207,7 @@ const paused = (model: Model): UpdateReturn =>
           ...model,
           listening: Loaded({
             ...loaded,
-            transport: Paused(),
+            transport,
             savedPlaceMs: loaded.placeMs,
           }),
         },
@@ -215,6 +217,12 @@ const paused = (model: Model): UpdateReturn =>
       ],
     }),
   )
+
+const failedPlayAudio = (model: Model, reason: string): UpdateReturn =>
+  model.listening._tag === 'Loaded' &&
+  model.listening.transport._tag === 'Playing'
+    ? stoppedAs(model, Unplayable({ reason }))
+    : [model, []]
 
 const movedTo = (model: Model, placeMs: Milliseconds): Model =>
   M.value(model.listening).pipe(
@@ -372,7 +380,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     M.tagsExhaustive({
       Open: ({ slug }) => [openedTitle(model, slug), []],
       Play: ({ slug }) => [played(model, slug), []],
-      Pause: () => paused(model),
+      Pause: () => stoppedAs(model, Paused()),
       SkipBack: () => [skipped(model, -skipMs), []],
       SkipForward: () => [skipped(model, skipMs), []],
       OpenPlayer: () => [
@@ -419,6 +427,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       ],
       ReachedPlace: ({ placeMs }) => reachedPlace(model, placeMs),
       ReachedEnd: () => reachedEnd(model),
+      FailedPlayAudio: ({ reason }) => failedPlayAudio(model, reason),
       CompletedWriteLibrary: () => [
         { ...model, maybeProblem: Option.none() },
         [],

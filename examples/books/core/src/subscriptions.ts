@@ -1,10 +1,11 @@
-import { Effect, Option, Schema as S, Stream } from 'effect'
+import { Effect, Match as M, Option, Schema as S, Stream } from 'effect'
 import { Subscription } from 'foldkit'
 
-import { AudioOutput, Track } from './audio.js'
+import { type AudioEvent, AudioOutput, Track } from './audio.js'
 import { Speed } from './ids.js'
 import { LibraryStore } from './library.js'
 import {
+  FailedPlayAudio,
   FailedReadShelf,
   type Message,
   ReachedEnd,
@@ -33,6 +34,16 @@ export const trackOf = (model: Model): Option.Option<Track> =>
           }),
         )
       : Option.none(),
+  )
+
+const messageOfAudioEvent = (event: AudioEvent): Message =>
+  M.value(event).pipe(
+    M.withReturnType<Message>(),
+    M.tagsExhaustive({
+      Advanced: ({ placeMs }) => ReachedPlace({ placeMs }),
+      Ended: () => ReachedEnd(),
+      Failed: ({ reason }) => FailedPlayAudio({ reason }),
+    }),
   )
 
 const isSameCue = Option.makeEquivalence<Track>(
@@ -83,13 +94,7 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
                   const output = yield* AudioOutput
                   return output
                     .sound(track, () => readDependencies().speed)
-                    .pipe(
-                      Stream.map(event =>
-                        event._tag === 'Advanced'
-                          ? ReachedPlace({ placeMs: event.placeMs })
-                          : ReachedEnd(),
-                      ),
-                    )
+                    .pipe(Stream.map(messageOfAudioEvent))
                 }),
               ),
           }),

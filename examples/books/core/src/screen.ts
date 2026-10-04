@@ -38,6 +38,7 @@ import {
   type Chapter,
   type Model,
   type Title,
+  type Transport,
   bookmarkOf,
   bookmarksOf,
   chapterAt,
@@ -106,6 +107,11 @@ const problemLines = (model: Model): ReadonlyArray<UiNode> =>
       Text(`Your last change was not saved: ${problem}`, { dim: true }),
     ],
   })
+
+const unplayableLines = (transport: Transport): ReadonlyArray<UiNode> =>
+  transport._tag === 'Unplayable'
+    ? [Text(`The audio would not play: ${transport.reason}`, { dim: true })]
+    : []
 
 const progressText = (model: Model, title: Title): string =>
   Option.match(progressOf(model, title.slug), {
@@ -284,6 +290,7 @@ export const playerScreen = (model: Model): UiNode =>
           dim: true,
         }),
         ...problemLines(model),
+        ...unplayableLines(loaded.transport),
         Row(
           {},
           ...buttonsOf(model, [SkipBack]),

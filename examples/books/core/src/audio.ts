@@ -27,6 +27,7 @@ export type Track = typeof Track.Type
 export type AudioEvent = Data.TaggedEnum<{
   Advanced: { readonly placeMs: Milliseconds }
   Ended: {}
+  Failed: { readonly reason: string }
 }>
 /** Builds the AudioEvent variants. */
 export const AudioEvent = Data.taggedEnum<AudioEvent>()

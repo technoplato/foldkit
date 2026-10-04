@@ -4,7 +4,12 @@ import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
-import { ReachedEnd, ReachedPlace, ReceivedShelf } from './message.js'
+import {
+  FailedPlayAudio,
+  ReachedEnd,
+  ReachedPlace,
+  ReceivedShelf,
+} from './message.js'
 import { sampleShelf } from './sample.js'
 
 type Written = Readonly<{ name: string; args: string }>
@@ -190,6 +195,30 @@ describe('Books', () => {
     expect(bound.readModel().listening._tag).toBe('Idle')
     expect(uriOf(bound)).toEqual(Option.some('/books/the-lantern-keeper'))
     expect(written).toEqual([])
+  })
+
+  it('stops and says why when the audio will not play, and Play tries again', () => {
+    const { bound, send, written } = bindApp()
+    bound.press(`Play:${lanternKeeper}`)
+    send(ReachedPlace({ placeMs: Milliseconds.make(12_000) }))
+    send(FailedPlayAudio({ reason: 'the audio file stopped downloading' }))
+    const transportOf = () => {
+      const { listening } = bound.readModel()
+      return listening._tag === 'Loaded' ? listening.transport._tag : 'Idle'
+    }
+    expect(transportOf()).toBe('Unplayable')
+    expect(availabilityOf(bound, 'Pause')).toEqual(Option.some('Disabled'))
+    expect(written).toEqual([
+      {
+        name: 'WriteLibrary',
+        args: JSON.stringify({
+          write: { _tag: 'SavePlace', slug: lanternKeeper, placeMs: 12_000 },
+        }),
+      },
+    ])
+    bound.pressKey(Interaction.keyInput('p'))
+    expect(transportOf()).toBe('Playing')
+    expect(placeOf(bound)).toBe(12_000)
   })
 
   it('sets the speed from its sheet on the player', () => {

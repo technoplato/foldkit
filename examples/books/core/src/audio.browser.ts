@@ -1,4 +1,4 @@
-import { Effect, Layer, Option, Queue, Stream } from 'effect'
+import { Effect, Layer, Match as M, Option, Queue, Stream } from 'effect'
 
 import {
   type AudioEvent,
@@ -12,6 +12,24 @@ import { Milliseconds, type Speed } from './ids.js'
 // AUDIO
 
 const millisecondsPerSecond = 1000
+
+const reasonOfMediaError = (maybeError: MediaError | null): string =>
+  M.value(maybeError?.code).pipe(
+    M.when(
+      MediaError.MEDIA_ERR_NETWORK,
+      () => 'the audio file stopped downloading',
+    ),
+    M.when(
+      MediaError.MEDIA_ERR_DECODE,
+      () => 'the audio file could not be decoded',
+    ),
+    M.when(
+      MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED,
+      () =>
+        'the audio file could not be reached, or this browser cannot play it',
+    ),
+    M.orElse(() => 'the audio stopped loading'),
+  )
 
 const audioSound = (
   url: string,
@@ -44,13 +62,30 @@ const audioSound = (
           Queue.offerUnsafe(queue, AudioEvents.Ended())
           Queue.endUnsafe(queue)
         }
+        const failed = (reason: string): void => {
+          Queue.offerUnsafe(queue, AudioEvents.Failed({ reason }))
+          Queue.endUnsafe(queue)
+        }
+        const onError = (): void => failed(reasonOfMediaError(audio.error))
         audio.addEventListener('timeupdate', onTime)
         audio.addEventListener('ended', onEnded)
-        void audio.play().catch(() => undefined)
-        return { audio, onTime, onEnded }
+        audio.addEventListener('error', onError)
+        // NOTE: play() also rejects when the track changes mid-load
+        // (AbortError) and when the file fails (the error event reports
+        // that), so only a refusal to play without a press is its own failure.
+        void audio.play().catch((error: unknown) => {
+          if (
+            error instanceof DOMException &&
+            error.name === 'NotAllowedError'
+          ) {
+            failed('the browser wants a press of Play first')
+          }
+        })
+        return { audio, onTime, onEnded, onError }
       }),
-      ({ audio, onTime, onEnded }) =>
+      ({ audio, onTime, onEnded, onError }) =>
         Effect.sync(() => {
+          audio.removeEventListener('error', onError)
           audio.pause()
           audio.removeEventListener('timeupdate', onTime)
           audio.removeEventListener('ended', onEnded)

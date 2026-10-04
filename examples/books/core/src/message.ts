@@ -400,6 +400,8 @@ export const FailedReadShelf = m('FailedReadShelf', { reason: S.String })
 export const ReachedPlace = m('ReachedPlace', { placeMs: Milliseconds })
 /** The player reached the end of the title. */
 export const ReachedEnd = m('ReachedEnd')
+/** The player's audio would not play, and why, safe to show. */
+export const FailedPlayAudio = m('FailedPlayAudio', { reason: S.String })
 /** The library store saved a place, a finish, or a bookmark change. */
 export const CompletedWriteLibrary = m('CompletedWriteLibrary')
 /** The library store refused a write, and why, safe to show. */
@@ -418,6 +420,7 @@ export const Message = S.Union([
   FailedReadShelf,
   ReachedPlace,
   ReachedEnd,
+  FailedPlayAudio,
   CompletedWriteLibrary,
   FailedWriteLibrary,
   Navigation.OpenedUri,

@@ -35,6 +35,7 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       FailedReadShelf: () => 'Domain',
       ReachedPlace: () => 'Navigation',
       ReachedEnd: () => 'Navigation',
+      FailedPlayAudio: () => 'Navigation',
       CompletedWriteLibrary: () => 'Domain',
       FailedWriteLibrary: () => 'Domain',
       OpenedUri: () => 'Navigation',
