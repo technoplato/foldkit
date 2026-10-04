@@ -1,6 +1,8 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
+import { type IconName, iconDrawings } from 'foldkit/renderers'
 import type {
+  BoxNode,
   ButtonNode,
   ListItem,
   SeekNode,
@@ -52,6 +54,80 @@ const CopyButton = ({ text }: Readonly<{ text: string }>): ReactElement => {
   )
 }
 
+/** One icon from the shared set, drawn in the text color. */
+const Icon = ({ name }: Readonly<{ name: IconName }>): ReactElement => {
+  const drawing = iconDrawings[name]
+  return (
+    <svg
+      className="fk-icon"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {Array.map(drawing.strokes, (path, index) => (
+        <path key={`stroke-${index.toString()}`} d={path} />
+      ))}
+      {Array.map(drawing.fills, (path, index) => (
+        <path
+          key={`fill-${index.toString()}`}
+          d={path}
+          fill="currentColor"
+          stroke="none"
+        />
+      ))}
+      {drawing.figure === undefined ? null : (
+        <text
+          className="fk-icon-figure"
+          x="12"
+          y="14.5"
+          textAnchor="middle"
+          fill="currentColor"
+          stroke="none"
+        >
+          {drawing.figure}
+        </text>
+      )}
+    </svg>
+  )
+}
+
+/**
+ * A box pinned to the bottom of the screen. It leaves a space of its own
+ * height at the end of the page, so nothing is hidden under it.
+ */
+const DockBox = ({
+  className,
+  children,
+}: Readonly<{ className: string; children: ReactNode }>): ReactElement => {
+  const ref = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState(0)
+  useEffect(() => {
+    const dock = ref.current
+    if (dock === null) {
+      return undefined
+    }
+    const observer = new ResizeObserver(() => {
+      setHeight(dock.getBoundingClientRect().height)
+    })
+    observer.observe(dock)
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+  return (
+    <>
+      <div className="fk-dock-space" style={{ height }} />
+      <div ref={ref} className={className}>
+        {children}
+      </div>
+    </>
+  )
+}
+
 const pressOf = (action: string, label: string): ButtonNode => ({
   _tag: 'Button',
   label,
@@ -95,7 +171,7 @@ const SeekBar = ({
       ref={ref}
       type="range"
       className={className}
-      min={0}
+      min={seek.min ?? 0}
       max={seek.max}
       step={seek.step}
       value={Option.getOrElse(maybeDragged, () => seek.value)}
@@ -378,6 +454,16 @@ export const paintTree = (
     Array.map(children, (child, index) => (
       <Fragment key={keyFor(child, index)}>{paint(child)}</Fragment>
     ))
+  const paintBox = (box: BoxNode): ReactElement =>
+    box.isDock === true ? (
+      <DockBox className={classFor('Box', 'fk-dock')}>
+        {paintChildren(box.children)}
+      </DockBox>
+    ) : (
+      <div className={classFor('Box', 'fk-box')}>
+        {paintChildren(box.children)}
+      </div>
+    )
   const paint = (current: UiNode): ReactElement =>
     M.value(current).pipe(
       M.withReturnType<ReactElement>(),
@@ -444,6 +530,10 @@ export const paintTree = (
             title={button.because}
             data-action={button.action}
             data-variant={button.variant}
+            data-icon-only={button.isIconOnly === true ? true : undefined}
+            data-current={button.isCurrent === true ? true : undefined}
+            aria-current={button.isCurrent === true ? 'page' : undefined}
+            aria-label={button.isIconOnly === true ? button.label : undefined}
             data-keys={button.keys?.join(' ')}
             aria-keyshortcuts={button.keys?.join(' ')}
             onClick={
@@ -454,7 +544,8 @@ export const paintTree = (
                   }
             }
           >
-            {button.label}
+            {button.icon === undefined ? null : <Icon name={button.icon} />}
+            {button.isIconOnly === true ? null : button.label}
           </button>
         ),
         TextInput: input => {
@@ -485,11 +576,7 @@ export const paintTree = (
             {paintChildren(column.children)}
           </div>
         ),
-        Box: box => (
-          <div className={classFor('Box', 'fk-box')}>
-            {paintChildren(box.children)}
-          </div>
-        ),
+        Box: box => paintBox(box),
         Progress: progress => (
           <progress
             className={classFor('Progress', 'fk-progress')}
