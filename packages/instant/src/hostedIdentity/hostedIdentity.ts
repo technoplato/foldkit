@@ -282,7 +282,16 @@ const emailFromJwt = (token: string): Option.Option<string> => {
   }
 }
 
-const cookieValue = (cookieHeader: string, name: string): string => {
+/**
+ * One cookie's value from a `cookie` header, decoded, or empty when the
+ * header has no such cookie.
+ *
+ * @example
+ * ```typescript
+ * cookieValue('theme=dark; CF_Authorization=eyJ…', 'CF_Authorization') // 'eyJ…'
+ * ```
+ */
+export const cookieValue = (cookieHeader: string, name: string): string => {
   for (const part of cookieHeader.split(';')) {
     const trimmed = part.trim()
     const maybeSeparator = Str.indexOf('=')(trimmed)
