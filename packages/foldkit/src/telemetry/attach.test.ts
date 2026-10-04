@@ -16,7 +16,7 @@ import { expect, vi } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
 
-import { programCliSurface } from '../cli/program.js'
+import { programCliSurface } from '../cli/surface.js'
 import * as Command from '../command/index.js'
 import { bind } from '../interaction/bind.js'
 import { Host } from '../processor/public.js'

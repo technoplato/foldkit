@@ -10,6 +10,7 @@ import {
   CliDaemonFailed,
   type CliDaemonFlags,
   CliDaemonPainted,
+  type CliDaemonPaintedResult,
   CliDaemonShow,
   type CliDaemonSurface,
 } from './protocol.js'
@@ -60,6 +61,14 @@ const writeLine = (socket: Socket, line: string): Promise<void> =>
       }
       resolve()
     })
+  })
+
+const paintedOf = (painted: CliDaemonPaintedResult): CliDaemonPainted =>
+  CliDaemonPainted({
+    stdout: painted.stdout,
+    exitCode: painted.exitCode,
+    ...(painted.stderr === undefined ? {} : { stderr: painted.stderr }),
+    ...(painted.flags === undefined ? {} : { flags: painted.flags }),
   })
 
 const decodeRunMessage = <Message>(
@@ -144,12 +153,7 @@ const handleConnection = <Model, Message>(
           )
         }
         const flags: CliDaemonFlags = show.flags ?? {}
-        const painted = yield* surface.show(flags)
-        return CliDaemonPainted({
-          stdout: painted.stdout,
-          exitCode: painted.exitCode,
-          ...(painted.stderr === undefined ? {} : { stderr: painted.stderr }),
-        })
+        return paintedOf(yield* surface.show(flags))
       }
       if (parsed['_tag'] === 'Do') {
         const request = yield* Effect.try({
@@ -170,12 +174,7 @@ const handleConnection = <Model, Message>(
           )
         }
         const flags: CliDaemonFlags = request.flags ?? {}
-        const painted = yield* surface.do(request.token, flags)
-        return CliDaemonPainted({
-          stdout: painted.stdout,
-          exitCode: painted.exitCode,
-          ...(painted.stderr === undefined ? {} : { stderr: painted.stderr }),
-        })
+        return paintedOf(yield* surface.do(request.token, flags))
       }
       return yield* Effect.fail(
         new CliDaemonError({
@@ -269,13 +268,26 @@ export const startCliDaemonServer = <Model, Message>(options: {
   ).pipe(Effect.as(undefined))
 }
 
-/** Serves the daemon until interrupted. */
+/**
+ * Serves the daemon until `until` completes, or until interrupted when
+ * there is none, then closes the socket and removes its files. A player
+ * passes the moment it is done, such as `books stop` or the end of the
+ * title, so the process can exit.
+ *
+ * @example
+ * ```typescript
+ * yield* listenCliDaemon({ socketPath, Model, Message, surface, until: Deferred.await(stopped) })
+ * ```
+ */
 export const listenCliDaemon = <Model, Message>(options: {
   readonly socketPath: string
   readonly Model: ProgramSchema<Model>
   readonly Message: ProgramSchema<Message>
   readonly surface: CliDaemonSurface<Model, Message>
-}): Effect.Effect<never, CliDaemonError> =>
+  readonly until?: Effect.Effect<void>
+}): Effect.Effect<void, CliDaemonError> =>
   Effect.scoped(
-    startCliDaemonServer(options).pipe(Effect.andThen(Effect.never)),
+    startCliDaemonServer(options).pipe(
+      Effect.andThen(options.until ?? Effect.never),
+    ),
   )

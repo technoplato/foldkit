@@ -5,11 +5,12 @@ import { bindCounter } from '../test/apps/catalogCounter.js'
 import { bindApp, uriOf } from '../test/apps/navigableCounter.js'
 import { terminalWidth } from './layout.js'
 import {
+  paintCommands,
   paintProgram,
-  programCliSurface,
   programUsage,
   runProgramCommand,
 } from './program.js'
+import { programCliSurface } from './surface.js'
 
 const countOf = (bound: ReturnType<typeof bindCounter>): number =>
   bound.readModel().count
@@ -115,6 +116,22 @@ describe('runProgramCommand', () => {
     expect(
       help.stdout.split('\n').every(line => line.length <= terminalWidth),
     ).toBe(true)
+  })
+})
+
+describe('paintCommands', () => {
+  it('lists the presses that run now, then the host commands, one per line', () => {
+    expect(
+      paintCommands(
+        bindCounter(),
+        'counter',
+        ['Increment', 'Reset', 'Explode'],
+        [{ command: 'tui', what: 'Opens the count in this terminal' }],
+      ),
+    ).toEqual([
+      '  counter increment  Increments the count by one',
+      '  counter tui        Opens the count in this terminal',
+    ])
   })
 })
 

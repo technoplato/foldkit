@@ -1,4 +1,4 @@
-import { Array, Effect, Match as M, Option, pipe } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 
 import {
   type Availability,
@@ -7,6 +7,7 @@ import {
   choiceTagOf,
   commandOf,
   isEnabled,
+  parseChoiceTag,
 } from '../catalog/catalog.js'
 import type { BoundInteraction } from '../interaction/bind.js'
 import { type MenuView, keyInput } from '../interaction/interaction.js'
@@ -23,11 +24,7 @@ import { Cli } from '../navigation/message.js'
 import { renderScreen } from '../renderers/render.js'
 import type { UiNode } from '../renderers/types.js'
 import { columnRow, underColumn } from './layout.js'
-import type {
-  CliDaemonFlags,
-  CliDaemonPaintedResult,
-  CliDaemonSurface,
-} from './protocol.js'
+import type { CliDaemonFlags, CliDaemonPaintedResult } from './protocol.js'
 
 // PAINT
 
@@ -437,6 +434,93 @@ export const programUsage = <Model, Message>(
   ].join('\n')
 }
 
+/** A command a host offers beside the Program's own, such as `books tui`. */
+export type HostCommand = Readonly<{ command: string; what: string }>
+
+const choiceLineOf = (
+  entry: Entry,
+  tag: string,
+  token: string,
+): Option.Option<HostCommand> =>
+  Option.flatMap(entry.maybeChoices, choices =>
+    Option.match(
+      Array.findFirst(choices.choices, choice => choice.token === token),
+      {
+        onNone: () =>
+          choices.isOpen && isEnabled(entry.availability)
+            ? Option.some({ command: commandOf(tag), what: entry.what })
+            : Option.none(),
+        onSome: choice =>
+          isEnabled(choice.availability)
+            ? Option.some({ command: commandOf(tag), what: choice.title })
+            : Option.none(),
+      },
+    ),
+  )
+
+const pressableLineOf = (
+  entries: ReadonlyArray<Entry>,
+  tag: string,
+): Option.Option<HostCommand> =>
+  Option.match(parseChoiceTag(tag), {
+    onNone: () =>
+      Option.flatMap(
+        Array.findFirst(entries, entry => entry.tag === tag),
+        entry =>
+          isEnabled(entry.availability) && Option.isNone(entry.maybeChoices)
+            ? Option.some({ command: commandOf(tag), what: entry.what })
+            : Option.none(),
+      ),
+    onSome: choice =>
+      Option.flatMap(
+        Array.findFirst(entries, entry => entry.tag === choice.tag),
+        entry => choiceLineOf(entry, tag, choice.token),
+      ),
+  })
+
+/**
+ * The commands a person can copy for this moment, one per line with what
+ * each does: the Program's presses that are enabled now, in the order
+ * given, then the host's own commands. A press that is disabled or needs
+ * a choice it was not given is left out, so every line runs as written.
+ *
+ * @example
+ * ```typescript
+ * paintCommands(bound, 'books', ['Pause', 'Play', 'Listen:12-rules-for-life'], [
+ *   { command: 'tui', what: 'Opens the player in this terminal' },
+ * ])
+ * // ['  books pause                      Pauses where it is',
+ * //  '  books listen 12-rules-for-life   12 Rules for Life',
+ * //  '  books tui                        Opens the player in this terminal']
+ * ```
+ */
+export const paintCommands = <Model, Message>(
+  bound: BoundInteraction<Model, Message>,
+  name: string,
+  tags: ReadonlyArray<string>,
+  hostCommands: ReadonlyArray<HostCommand> = [],
+): ReadonlyArray<string> => {
+  const entries = bound.entries()
+  const lines = Array.dedupeWith(
+    [
+      ...Array.getSomes(Array.map(tags, tag => pressableLineOf(entries, tag))),
+      ...hostCommands,
+    ],
+    (self, that) => self.command === that.command,
+  )
+  const commandWidth = widestOf(
+    Array.map(lines, line => `${name} ${line.command}`),
+    minimumCommandWidth,
+  )
+  return Array.flatMap(lines, line =>
+    columnRow(
+      [indent, `${name} ${line.command}`],
+      [indentWidth, commandWidth],
+      line.what,
+    ),
+  )
+}
+
 // RUN
 
 const painted = (
@@ -670,29 +754,3 @@ export const runProgramCommand = <Model, Message>(
     return pressCommand(bound, name, words.join(' '), tag => bound.press(tag))
   }
 }
-
-const wordsOf = (token: string): ReadonlyArray<string> =>
-  pipe(
-    token.split(' '),
-    Array.filter(word => word !== ''),
-  )
-
-/**
- * A CLI daemon surface for any bound Program. `show` paints; `do` runs the
- * words the view sent.
- */
-export const programCliSurface = <Model, Message>(
-  bound: BoundInteraction<Model, Message>,
-  name: string,
-): CliDaemonSurface<Model, Message> => ({
-  read: () => Effect.sync(() => bound.readModel()),
-  run: message =>
-    Effect.sync(() => {
-      const previous = bound.readModel()
-      bound.send(message)
-      return { model: bound.readModel(), previous }
-    }),
-  show: () => Effect.sync(() => painted(paintProgram(bound, name))),
-  do: (token, flags) =>
-    Effect.sync(() => runProgramCommand(bound, name, wordsOf(token), flags)),
-})

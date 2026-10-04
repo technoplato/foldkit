@@ -28,12 +28,19 @@ export {
 export type { CliDaemonPaintedResult, CliDaemonSurface } from './index.js'
 
 export {
+  type HostCommand,
+  paintCommands,
   paintProgram,
   paintScreen,
-  programCliSurface,
   programUsage,
   runProgramCommand,
 } from './program.js'
+export {
+  type ProgramTerminalView,
+  isTerminalViewRequest,
+  makeProgramTerminalView,
+  programCliSurface,
+} from './surface.js'
 
 export { keyInputOfTerminal, runProgramTui } from './tui.js'
 export {

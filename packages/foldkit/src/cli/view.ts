@@ -2,6 +2,7 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { type Socket, connect } from 'node:net'
+import { createInterface, emitKeypressEvents } from 'node:readline'
 
 import {
   cliDaemonLockPath,
@@ -33,11 +34,15 @@ export type CliViewRequest =
       readonly flags?: Readonly<Record<string, string>>
     }>
 
-/** Painted stdout the daemon returns for Show or Do. */
+/**
+ * Painted stdout the daemon returns for Show or Do, and what came of it,
+ * such as `{ outcome: 'Quit' }` after a terminal UI's `q`.
+ */
 export type CliViewPainted = Readonly<{
   stdout: string
   exitCode: number
   stderr: string
+  flags?: Readonly<Record<string, string>>
 }>
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -220,12 +225,39 @@ const askPainted = async (
     throw new Error('CLI daemon Painted exitCode must be a number.')
   }
   const stderr = typeof parsed['stderr'] === 'string' ? parsed['stderr'] : ''
+  const flags = parsed['flags']
   return {
     stdout: parsed['stdout'],
     exitCode: parsed['exitCode'],
     stderr,
+    ...(isRecord(flags) ? { flags: stringsOf(flags) } : {}),
   }
 }
+
+const stringsOf = (
+  record: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, string>> =>
+  Object.entries(record).reduce<Readonly<Record<string, string>>>(
+    (strings, [key, value]) =>
+      typeof value === 'string' ? { ...strings, [key]: value } : strings,
+    {},
+  )
+
+/**
+ * Sends Show or Do to a daemon that is already listening, without starting
+ * one, so a command such as `books stop` never starts a player to stop it.
+ *
+ * @example
+ * ```typescript
+ * if (await isCliViewListening(socketPath)) {
+ *   writeCliViewResult(await askCliView(socketPath, { _tag: 'Do', token: 'stop' }))
+ * }
+ * ```
+ */
+export const askCliView = (
+  socketPath: string,
+  request: CliViewRequest,
+): Promise<CliViewPainted> => askPainted(socketPath, request)
 
 const formatMs = (durationMs: number): string =>
   durationMs.toFixed(1).padStart(8)
@@ -317,4 +349,192 @@ export const runCliView = async (
   const askMs = Date.now() - askStarted
   printCliViewTrace(process, { ensureMs, askMs })
   return painted
+}
+
+// TERMINAL UI
+
+/** How a terminal UI view ended: the person quit, or the daemon went away. */
+export type CliTuiViewEnd =
+  | Readonly<{ _tag: 'Quit' }>
+  | Readonly<{ _tag: 'Lost'; reason: string }>
+
+/** The keyboard a terminal UI view reads: a terminal's stdin. */
+export type CliTuiInput = NodeJS.ReadableStream &
+  Readonly<{
+    isTTY?: boolean
+    setRawMode?: (mode: boolean) => unknown
+  }>
+
+/** The screen a terminal UI view paints: a terminal's stdout. */
+export type CliTuiOutput = NodeJS.WritableStream &
+  Readonly<{
+    rows?: number
+    columns?: number
+  }>
+
+export type RunCliTuiViewOptions = Readonly<{
+  socketPath: string
+  spawn: () => ChildProcess
+  refreshMs?: number
+  timeoutMs?: number
+  input?: CliTuiInput
+  output?: CliTuiOutput
+}>
+
+type KeypressKey = Readonly<{
+  name?: string
+  sequence?: string
+  ctrl?: boolean
+  meta?: boolean
+  shift?: boolean
+}>
+
+const enterScreen = '\u001b[?1049h\u001b[?25l'
+
+const leaveScreen = '\u001b[?25h\u001b[?1049l'
+
+const clearScreen = '\u001b[H\u001b[2J'
+
+const tuiRefreshMs = 500
+
+const escapeCodeTimeoutMs = 50
+
+const fallbackRows = 24
+
+const fallbackColumns = 80
+
+const flagOf = (isHeld: boolean | undefined): string => (isHeld ? '1' : '0')
+
+const lostReasonOf = (cause: unknown): string =>
+  cause instanceof Error && cause.message !== ''
+    ? cause.message
+    : daemonUnreachable
+
+/**
+ * Runs a terminal UI for a Program its daemon holds, so the UI is a view
+ * and the Program keeps running when it closes, such as a player that goes
+ * on playing in the background after `q`. It paints the daemon's frame on
+ * the terminal's own screen, restored on quit, sends each key to the
+ * daemon, which routes it through the Program's interaction and answers
+ * with the next frame, and asks for a fresh frame twice a second and when
+ * the terminal resizes, so the words being spoken move along. Ctrl-C
+ * quits, and so does a key the daemon answers with `{ outcome: 'Quit' }`.
+ * This module must not import Effect, Instant, or a Program.
+ *
+ * @example
+ * ```typescript
+ * const end = await runCliTuiView({ socketPath, spawn: () => spawnCliViewDaemon({ scriptPath }) })
+ * // { _tag: 'Quit' } after `q`; the daemon still plays
+ * ```
+ */
+export const runCliTuiView = async (
+  options: RunCliTuiViewOptions,
+): Promise<CliTuiViewEnd> => {
+  await ensureCliViewDaemon({
+    socketPath: options.socketPath,
+    spawn: options.spawn,
+    ...(options.timeoutMs === undefined
+      ? {}
+      : { timeoutMs: options.timeoutMs }),
+  })
+  const input: CliTuiInput = options.input ?? process.stdin
+  const output: CliTuiOutput = options.output ?? process.stdout
+  return new Promise(resolve => {
+    const state = {
+      lastFrame: '',
+      pending: Promise.resolve(),
+      isPolling: false,
+      isDone: false,
+    }
+    const keyboard = createInterface({
+      input,
+      escapeCodeTimeout: escapeCodeTimeoutMs,
+    })
+    emitKeypressEvents(input, keyboard)
+    const sizeFlags = (): Readonly<Record<string, string>> => ({
+      view: 'tui',
+      rows: String(output.rows ?? fallbackRows),
+      columns: String(output.columns ?? fallbackColumns),
+    })
+    const finish = (end: CliTuiViewEnd): void => {
+      if (state.isDone) {
+        return
+      }
+      state.isDone = true
+      clearInterval(refresh)
+      input.off('keypress', onKeypress)
+      output.off('resize', onResize)
+      input.setRawMode?.(false)
+      keyboard.close()
+      input.pause()
+      output.write(leaveScreen)
+      resolve(end)
+    }
+    const draw = (painted: CliViewPainted): void => {
+      if (state.isDone) {
+        return
+      }
+      if (painted.stdout !== state.lastFrame) {
+        state.lastFrame = painted.stdout
+        output.write(`${clearScreen}${painted.stdout}`)
+      }
+      if (painted.flags?.['outcome'] === 'Quit') {
+        finish({ _tag: 'Quit' })
+      }
+    }
+    const ask = (request: CliViewRequest): Promise<void> => {
+      const asked = state.pending.then(async () => {
+        if (state.isDone) {
+          return
+        }
+        try {
+          draw(await askPainted(options.socketPath, request))
+        } catch (cause) {
+          finish({ _tag: 'Lost', reason: lostReasonOf(cause) })
+        }
+      })
+      state.pending = asked
+      return asked
+    }
+    const poll = (): void => {
+      if (state.isPolling || state.isDone) {
+        return
+      }
+      state.isPolling = true
+      void ask({ _tag: 'Show', flags: sizeFlags() }).finally(() => {
+        state.isPolling = false
+      })
+    }
+    const onKeypress = (
+      sequence: string | undefined,
+      key: KeypressKey | undefined,
+    ): void => {
+      if (key?.ctrl === true && key.name === 'c') {
+        finish({ _tag: 'Quit' })
+        return
+      }
+      void ask({
+        _tag: 'Do',
+        token: 'key',
+        flags: {
+          ...sizeFlags(),
+          name: key?.name ?? '',
+          sequence: key?.sequence ?? sequence ?? '',
+          meta: flagOf(key?.meta),
+          ctrl: flagOf(key?.ctrl),
+          shift: flagOf(key?.shift),
+        },
+      })
+    }
+    const onResize = (): void => {
+      void ask({ _tag: 'Show', flags: sizeFlags() })
+    }
+    input.setRawMode?.(true)
+    input.on('keypress', onKeypress)
+    output.on('resize', onResize)
+    input.resume()
+    output.write(enterScreen)
+    const refresh = setInterval(poll, options.refreshMs ?? tuiRefreshMs)
+    void ask({ _tag: 'Show', flags: sizeFlags() })
+  })
 }

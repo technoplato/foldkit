@@ -57,11 +57,16 @@ export const CliDaemonFailed = ts('Failed', {
 /** Daemon could not read, run, or paint. */
 export type CliDaemonFailed = typeof CliDaemonFailed.Type
 
-/** Painted stdout from Show or Do. Paint stays in the daemon. */
+/**
+ * Painted stdout from Show or Do. Paint stays in the daemon. `flags` tells
+ * the view what came of it, such as `{ outcome: 'Quit' }` after a terminal
+ * UI's `q`.
+ */
 export const CliDaemonPainted = ts('Painted', {
   stdout: S.String,
   exitCode: S.Number,
   stderr: S.optionalKey(S.String),
+  flags: S.optionalKey(CliDaemonFlags),
 })
 /** Painted stdout from Show or Do. */
 export type CliDaemonPainted = typeof CliDaemonPainted.Type
@@ -80,6 +85,7 @@ export type CliDaemonPaintedResult = Readonly<{
   stdout: string
   exitCode: number
   stderr?: string
+  flags?: CliDaemonFlags
 }>
 
 /** The live Processor the daemon holds. */
