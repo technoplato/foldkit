@@ -153,6 +153,7 @@ export const screenStylesheet = `
   color: ${screenLook.textColor};
   font-size: ${px(screenLook.bodySize)};
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 :where(.fk-text[data-emphasis='Display']) {
