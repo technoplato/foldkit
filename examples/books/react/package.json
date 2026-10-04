@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && vite build",
-    "dev": "../scripts/with-books-dev-env vite --port 5183 --strictPort",
+    "dev": "../scripts/with-books-env vite --port 5183 --strictPort",
     "prebuild": "pnpm --filter @foldkit/react build && pnpm --filter books-core-example build",
     "predev": "pnpm --filter @foldkit/react build && pnpm --filter books-core-example build",
     "start": "pnpm run dev",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:live": "../scripts/with-books-env sh -c \"tsc --noEmit && vite build\"",
+    "serve:live": "../scripts/with-books-env vite preview --host 127.0.0.1 --port 5200 --strictPort"
   },
   "dependencies": {
     "@foldkit/instant": "workspace:*",

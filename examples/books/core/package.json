@@ -24,7 +24,7 @@
     "clean": "rimraf dist",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "seed:dev": "pnpm run build && ../scripts/with-books-dev-env node scripts/seedDev.mjs"
+    "seed:dev": "pnpm run build && ../scripts/with-books-env node scripts/seedDev.mjs"
   },
   "dependencies": {
     "effect": "4.0.0-beta.97",

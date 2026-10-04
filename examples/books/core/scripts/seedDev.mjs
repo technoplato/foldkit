@@ -11,8 +11,15 @@ const adminToken = process.env.INSTANT_APP_ADMIN_TOKEN ?? ''
 const email = process.env.BOOKS_DEV_EMAIL ?? 'loopback@knophy.com'
 const chunkSize = 40
 
+const devAppPrefix = 'bd40c50a'
+
 if (appId === '' || adminToken === '') {
-  throw new Error('Run through scripts/with-books-dev-env.')
+  throw new Error('Run through scripts/with-books-env.')
+}
+if (!appId.startsWith(devAppPrefix)) {
+  throw new Error(
+    'The dev seed only writes the throwaway dev app, never production.',
+  )
 }
 
 const uuidOf = name => {

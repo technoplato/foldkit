@@ -1,6 +1,7 @@
 #!/bin/sh
-# Runs a command against the throwaway books dev app (bd40c50a), never production.
-ENV_FILE="${BOOKS_DEV_ENV_FILE:-$HOME/.config/scribe-private/bd40c50a-dev.env}"
+# Runs a command against the Instant app the env file names: the throwaway
+# dev app by default, or production when BOOKS_ENV_FILE points at its file.
+ENV_FILE="${BOOKS_ENV_FILE:-$HOME/.config/scribe-private/bd40c50a-dev.env}"
 if [ ! -f "$ENV_FILE" ]; then
   echo "Missing $ENV_FILE" >&2
   exit 1
@@ -9,6 +10,7 @@ set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
 set +a
+unset INSTANT_CLI_AUTH_TOKEN
 export INSTANT_APP_ADMIN_TOKEN="${INSTANT_APP_ADMIN_TOKEN:-$INSTANT_ADMIN_TOKEN}"
 export VITE_INSTANT_APP_ID="${VITE_INSTANT_APP_ID:-$INSTANT_APP_ID}"
 exec "$@"

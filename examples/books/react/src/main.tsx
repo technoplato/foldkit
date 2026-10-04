@@ -14,7 +14,7 @@ import { App } from './App.js'
 const appId = import.meta.env.VITE_INSTANT_APP_ID ?? ''
 if (appId === '') {
   throw new Error(
-    'Books needs VITE_INSTANT_APP_ID; run it through with-books-dev-env.',
+    'Books needs VITE_INSTANT_APP_ID; run it through scripts/with-books-env.',
   )
 }
 

@@ -28,6 +28,6 @@ export default defineConfig({
     host: '127.0.0.1',
     port,
     strictPort: true,
-    allowedHosts: ['books.pisspoursoftware.xyz'],
+    allowedHosts: ['books.knophy.com', 'books.pisspoursoftware.xyz'],
   },
 })
