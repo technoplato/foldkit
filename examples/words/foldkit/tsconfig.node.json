@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noPropertyAccessFromIndexSignature": false
+  },
+  "include": [
+    "vite.config.ts",
+    "vitePlugins.ts",
+    "vitePlugins.test.ts",
+    "vitest.config.ts"
+  ]
+}

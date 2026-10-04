@@ -12,6 +12,11 @@ import type {
 
 import { init } from '@instantdb/admin'
 
+import {
+  type AccessVerifier,
+  makeAccessVerifier,
+} from '../../../packages/instant/src/hostedIdentity/accessVerifier'
+
 const associationPath = '/.well-known/apple-app-site-association'
 const accessIdentityPath = '/__words/access'
 const hostedIdentitySessionPath = '/__foldkit/hosted-identity/session'
@@ -20,6 +25,7 @@ const transcriptionTokenPath = '/__words/transcription-token'
 const MILLISECONDS_PER_SECOND = 1_000
 const HTTP_OK = 200
 const HTTP_UNAUTHORIZED = 401
+const HTTP_NOT_FOUND = 404
 const HTTP_METHOD_NOT_ALLOWED = 405
 const HTTP_CONFLICT = 409
 const HTTP_UNAVAILABLE = 503
@@ -42,6 +48,30 @@ const accountCreationEnvName = 'WORDS_CREATE_SCRIBE_ACCOUNT_FROM_ACCESS'
  * until Michael approves the push, so the web never writes missing fields.
  */
 const sharingSchemaEnvName = 'WORDS_SHARING_SCHEMA'
+
+/** The Cloudflare Access team whose signed logins words.knophy.com accepts. */
+const accessTeamDomainEnvName = 'CF_ACCESS_TEAM_DOMAIN'
+const defaultAccessTeamDomain = 'chimaeramedia.cloudflareaccess.com'
+
+/**
+ * The Access application audience tags (AUD) a login must carry, comma
+ * separated, like `9784de87…`. Empty accepts any application of the team.
+ */
+const accessAudienceEnvName = 'CF_ACCESS_AUD'
+
+const accessAudiences = (): ReadonlyArray<string> =>
+  (process.env[accessAudienceEnvName] ?? '')
+    .split(',')
+    .map(audience => audience.trim())
+    .filter(audience => audience !== '')
+
+const makeEnvAccessVerifier = (): AccessVerifier =>
+  makeAccessVerifier({
+    teamDomain:
+      (process.env[accessTeamDomainEnvName] ?? '').trim() ||
+      defaultAccessTeamDomain,
+    audiences: accessAudiences(),
+  })
 
 const AccessClaims = S.Struct({
   email: S.optionalKey(S.String),
@@ -90,44 +120,63 @@ const hostnameOf = (request: IncomingMessage): string =>
 const isLocalPreviewRequest = (request: IncomingMessage): boolean =>
   isLoopbackSocket(request) && loopbackHostnames.includes(hostnameOf(request))
 
-const assertionClaimsOf = (request: IncomingMessage) => {
-  const assertion = request.headers['cf-access-jwt-assertion']
-  if (typeof assertion !== 'string') {
-    return Option.none()
-  } else {
-    const payload = assertion.split('.')[1] ?? ''
-    return decodeAccessClaims(
-      Buffer.from(payload, 'base64url').toString('utf8'),
+const expiresAtMsOf = (assertion: string): Option.Option<number> =>
+  Option.flatMap(
+    decodeAccessClaims(
+      Buffer.from(assertion.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ),
+    claims =>
+      Option.map(
+        Option.fromNullishOr(claims.exp),
+        expiresAt => expiresAt * MILLISECONDS_PER_SECOND,
+      ),
+  )
+
+const VERIFICATION_LOG_INTERVAL_MS = 60_000
+
+const verificationLog = { hasVerified: false, lastRejectionLogAtMs: 0 }
+
+/**
+ * Logs the first verified Access login after start, and rejected ones at most
+ * once a minute, without the email, so a deploy can be checked from the log.
+ */
+const noteVerification = (isVerified: boolean): void => {
+  const nowMs = Date.now()
+  if (isVerified && !verificationLog.hasVerified) {
+    verificationLog.hasVerified = true
+    console.log('words: verified a Cloudflare Access login')
+  } else if (
+    !isVerified &&
+    nowMs - verificationLog.lastRejectionLogAtMs >= VERIFICATION_LOG_INTERVAL_MS
+  ) {
+    verificationLog.lastRejectionLogAtMs = nowMs
+    console.log(
+      'words: rejected a Cloudflare Access login (signature, issuer, expiry or audience)',
     )
   }
 }
 
-const cloudflareIdentityOf = (
+/**
+ * The identity in the `Cf-Access-Jwt-Assertion` Cloudflare Access signs, once
+ * its signature, issuer, expiry and audience check out. The bare
+ * `Cf-Access-Authenticated-User-Email` header is never trusted: anything that
+ * reaches the origin without passing Access can send it.
+ */
+const cloudflareIdentityOf = async (
   request: IncomingMessage,
-): Option.Option<RequestIdentity> => {
-  const maybeClaims = assertionClaimsOf(request)
-  const header = request.headers['cf-access-authenticated-user-email']
-  const headerEmail =
-    typeof header === 'string' && header.includes('@') ? header.trim() : ''
-  const claimEmail = Option.match(maybeClaims, {
-    onNone: () => '',
-    onSome: claims => (claims.email ?? '').trim(),
-  })
-  const email = headerEmail === '' ? claimEmail : headerEmail
-  if (email === '' || !email.includes('@')) {
+  verifier: AccessVerifier,
+): Promise<Option.Option<RequestIdentity>> => {
+  const assertion = request.headers['cf-access-jwt-assertion']
+  if (typeof assertion !== 'string' || assertion.trim() === '') {
     return Option.none()
-  } else {
-    return Option.some({
-      email,
-      source: 'CloudflareAccess',
-      maybeExpiresAtMs: Option.flatMap(maybeClaims, claims =>
-        Option.map(
-          Option.fromNullishOr(claims.exp),
-          expiresAt => expiresAt * MILLISECONDS_PER_SECOND,
-        ),
-      ),
-    })
   }
+  const maybeVerified = await verifier.verify(assertion)
+  noteVerification(Option.isSome(maybeVerified))
+  return Option.map(maybeVerified, ({ email }) => ({
+    email,
+    source: 'CloudflareAccess',
+    maybeExpiresAtMs: expiresAtMsOf(assertion),
+  }))
 }
 
 const loopbackIdentityOf = (
@@ -148,14 +197,15 @@ const loopbackIdentityOf = (
 }
 
 /**
- * Who the request comes from: the identity Cloudflare Access injects on
+ * Who the request comes from: the identity Cloudflare Access signs on
  * words.knophy.com, or, for a preview opened on this Mac at 127.0.0.1, the
  * configured loopback email.
  */
-const requestIdentityOf = (
+const requestIdentityOf = async (
   request: IncomingMessage,
-): Option.Option<RequestIdentity> =>
-  Option.orElse(cloudflareIdentityOf(request), () =>
+  verifier: AccessVerifier,
+): Promise<Option.Option<RequestIdentity>> =>
+  Option.orElse(await cloudflareIdentityOf(request, verifier), () =>
     loopbackIdentityOf(request),
   )
 
@@ -231,8 +281,9 @@ const answerAccess = async (
   request: IncomingMessage,
   response: ServerResponse,
   admin: AdminAccess,
+  verifier: AccessVerifier,
 ): Promise<void> => {
-  const maybeIdentity = requestIdentityOf(request)
+  const maybeIdentity = await requestIdentityOf(request, verifier)
   const maybeDatabase = admin.database()
   if (Option.isNone(maybeIdentity)) {
     writeJson(response, HTTP_UNAUTHORIZED, { error: 'MissingAccessIdentity' })
@@ -249,8 +300,9 @@ const answerSession = async (
   request: IncomingMessage,
   response: ServerResponse,
   admin: AdminAccess,
+  verifier: AccessVerifier,
 ): Promise<void> => {
-  const maybeIdentity = requestIdentityOf(request)
+  const maybeIdentity = await requestIdentityOf(request, verifier)
   const maybeDatabase = admin.database()
   if (Option.isNone(maybeIdentity)) {
     writeJson(response, HTTP_UNAUTHORIZED, { error: 'MissingAccessIdentity' })
@@ -285,11 +337,12 @@ const deepgramKey = (): string =>
 const answerTranscriptionToken = async (
   request: IncomingMessage,
   response: ServerResponse,
+  verifier: AccessVerifier,
 ): Promise<void> => {
   const key = deepgramKey()
   if (request.method !== 'POST') {
     writeJson(response, HTTP_METHOD_NOT_ALLOWED, { error: 'MethodNotAllowed' })
-  } else if (Option.isNone(requestIdentityOf(request))) {
+  } else if (Option.isNone(await requestIdentityOf(request, verifier))) {
     writeJson(response, HTTP_UNAUTHORIZED, { error: 'MissingAccessIdentity' })
   } else if (key === '') {
     writeJson(response, HTTP_UNAVAILABLE, { error: 'TranscriptionUnavailable' })
@@ -340,20 +393,38 @@ const unavailableOnFailure =
     }
   }
 
-const makeIdentityMiddleware = (): Middleware => {
-  const admin = makeAdminAccess()
+/**
+ * Cloudflare Access lets `/.well-known/apple-app-site-association` and every
+ * path under it through without login. Only the file itself is served there;
+ * anything longer, like `…/apple-app-site-association/..%2F..%2Findex.html`,
+ * is refused, so a path the origin decodes differently than Access cannot
+ * reach the app without login.
+ */
+const isUnderAssociationBypass = (requestPath: string): boolean =>
+  requestPath.startsWith(associationPath) && requestPath !== associationPath
+
+/**
+ * The identity endpoints. `verifier` checks Cloudflare Access logins; the
+ * preview builds one from `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`.
+ */
+export const makeIdentityMiddleware = (
+  verifier: AccessVerifier = makeEnvAccessVerifier(),
+  admin: AdminAccess = makeAdminAccess(),
+): Middleware => {
   return (request, response, next) => {
     const requestPath = pathOf(request)
-    if (requestPath === accessIdentityPath) {
-      void answerAccess(request, response, admin).catch(
+    if (isUnderAssociationBypass(requestPath)) {
+      writeJson(response, HTTP_NOT_FOUND, { error: 'NotFound' })
+    } else if (requestPath === accessIdentityPath) {
+      void answerAccess(request, response, admin, verifier).catch(
         unavailableOnFailure('CheckUnavailable')(response),
       )
     } else if (requestPath === hostedIdentitySessionPath) {
-      void answerSession(request, response, admin).catch(
+      void answerSession(request, response, admin, verifier).catch(
         unavailableOnFailure('MintUnavailable')(response),
       )
     } else if (requestPath === transcriptionTokenPath) {
-      void answerTranscriptionToken(request, response).catch(
+      void answerTranscriptionToken(request, response, verifier).catch(
         unavailableOnFailure('TranscriptionUnavailable')(response),
       )
     } else {
@@ -406,13 +477,15 @@ export const appleAppSiteAssociation = (): Plugin => {
  * - `POST /__words/transcription-token` mints a 30 second Deepgram token that
  *   opens one live transcription stream; the API key never leaves the origin.
  *
- * A request opened on this Mac at 127.0.0.1 without Access headers counts as
+ * Identity comes only from a `Cf-Access-Jwt-Assertion` whose signature,
+ * issuer, expiry and audience (`CF_ACCESS_AUD`) check out. A request opened on
+ * this Mac at 127.0.0.1 without Access headers counts as
  * `FOLDKIT_HOSTED_IDENTITY_LOOPBACK_EMAIL`.
  */
 export const wordsHostedIdentity = (): Plugin => {
   const announce = () =>
     console.log(
-      `words: creating Scribe accounts from Cloudflare Access is ${isAccountCreationEnabled() ? 'ON' : 'OFF'}; sharing is ${sharingMode()}; live transcription is ${deepgramKey() === '' ? 'not configured' : 'Deepgram'}`,
+      `words: creating Scribe accounts from Cloudflare Access is ${isAccountCreationEnabled() ? 'ON' : 'OFF'}; sharing is ${sharingMode()}; live transcription is ${deepgramKey() === '' ? 'not configured' : 'Deepgram'}; Access logins are verified (${accessAudiences().length} audience${accessAudiences().length === 1 ? '' : 's'} required)`,
     )
   return {
     name: 'words-hosted-identity',

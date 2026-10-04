@@ -27,7 +27,7 @@
     "dev": "./scripts/with-scribe-instant-env vite --port 5231",
     "preview": "./scripts/with-scribe-instant-env vite preview --host 127.0.0.1 --port 5232 --strictPort",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit",
     "prebuild": "pnpm --filter words-core-example build",
     "predev": "pnpm --filter words-core-example build",
     "pretest": "pnpm --filter words-core-example build",
