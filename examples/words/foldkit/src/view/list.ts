@@ -927,7 +927,7 @@ const bodyOf = (model: Model, config: ViewConfig): ReadonlyArray<Html> =>
         noticeCard(
           'Shield',
           'Open Scribe through Cloudflare Access',
-          'This page did not receive a Cloudflare Access login. Open https://words.knophy.com and sign in with Google.',
+          'This page did not receive a Cloudflare Access login. Open https://words.pisspoursoftware.xyz and sign in with Google.',
           [],
         ),
       ],

@@ -90,7 +90,7 @@ const statusOf = (model: Model): Status =>
         tone: 'Neutral',
         text: 'Not signed in',
         detail:
-          'No Cloudflare Access login reached words.knophy.com. Open https://words.knophy.com to sign in with Google.',
+          'No Cloudflare Access login reached words.pisspoursoftware.xyz. Open https://words.pisspoursoftware.xyz to sign in with Google.',
       }),
       FailedAccountCheck: ({ reason }) => ({
         tone: 'Caution',
