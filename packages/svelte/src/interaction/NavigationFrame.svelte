@@ -52,7 +52,7 @@
       onPress={press}
     />
   {/if}
-  {#each frame.overlays as layer (layer.key)}
+  {#each frame.overlays as layer (layer.identity)}
     {#if layer.view._tag === 'Screen'}
       <!-- svelte-ignore a11y_interactive_supports_focus, a11y_click_events_have_key_events -->
       <div
