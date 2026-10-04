@@ -462,27 +462,52 @@ type Command = Readonly<{
   availability: Availability
 }>
 
+const openCommandFor = (
+  catalogEntries: ReadonlyArray<Entry>,
+  command: string,
+): Option.Option<Command> => {
+  const [word = '', ...rest] = command.split(' ')
+  const token = rest.join(' ')
+  return Option.map(
+    Array.findFirst(
+      catalogEntries,
+      entry =>
+        token !== '' &&
+        commandOf(entry.tag) === word &&
+        Option.exists(entry.maybeChoices, choices => choices.isOpen),
+    ),
+    entry => ({
+      entry,
+      tag: choiceTagOf(entry.tag, token),
+      availability: entry.availability,
+    }),
+  )
+}
+
 const commandFor = <Model, Message>(
   bound: BoundInteraction<Model, Message>,
   command: string,
 ): Option.Option<Command> =>
-  Array.findFirst(
-    Array.flatMap(
-      bound.entries(),
-      (entry): ReadonlyArray<Command> => [
-        { entry, tag: entry.tag, availability: entry.availability },
-        ...Option.match(entry.maybeChoices, {
-          onNone: () => [],
-          onSome: ({ choices }) =>
-            Array.map(choices, choice => ({
-              entry,
-              tag: choiceTagOf(entry.tag, choice.token),
-              availability: choice.availability,
-            })),
-        }),
-      ],
+  Option.orElse(
+    Array.findFirst(
+      Array.flatMap(
+        bound.entries(),
+        (entry): ReadonlyArray<Command> => [
+          { entry, tag: entry.tag, availability: entry.availability },
+          ...Option.match(entry.maybeChoices, {
+            onNone: () => [],
+            onSome: ({ choices }) =>
+              Array.map(choices, choice => ({
+                entry,
+                tag: choiceTagOf(entry.tag, choice.token),
+                availability: choice.availability,
+              })),
+          }),
+        ],
+      ),
+      candidate => commandOf(candidate.tag) === command,
     ),
-    candidate => commandOf(candidate.tag) === command,
+    () => openCommandFor(bound.entries(), command),
   )
 
 const pressCommand = <Model, Message>(
