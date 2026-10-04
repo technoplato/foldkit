@@ -4,6 +4,33 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 11:24:17 a.m. EDT — `bb5fddfe2274` feat(books): preview title and moment links for anyone they are sent to
+
+- **Implementation commit:** `bb5fddfe22741bf5f535c929593bdf178cb454f8`
+- **Change:** Preview title and moment links for anyone they are sent to
+- **Details:**
+  - Title and moment links answer anonymous visitors with the title, authors, the moment's time, and the cover; every other path stays private.
+- **Files:**
+  - `examples/books/core/src/linkPreview.ts` — booksLinkOf and previewLineOf.
+  - `examples/books/core/src/linkPreviews.node.ts` — booksLinkPreviews and instantTitlesLoader.
+  - `examples/books/react/vite.config.ts` — Wires the previews into hostedIdentity.
+- **User context (verbatim):**
+  > And obviously, we want to show Rich previews that are clickable to books.pissportsoftware.xyz.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 11:24:16 a.m. EDT — `33e9ae8234eb` feat(instant): answer anonymous visitors only from declared public routes
+
+- **Implementation commit:** `33e9ae8234eb25e76ab540a1a6737075a40803d8`
+- **Change:** Answer anonymous visitors only from declared public routes
+- **Details:**
+  - hostedIdentity takes publicRoutes: verified logins reach the app, everyone else gets only declared public answers or 404; sign-in keeps the checked login in the origin's cookie; linkPreviewAnswer builds Open Graph pages.
+- **Files:**
+  - `packages/instant/src/hostedIdentity/publicRoutes.ts` — The gate, plain paths, sign-in, and link preview pages.
+  - `packages/instant/src/hostedIdentity/vite.ts` — publicRoutes option.
+- **User context (verbatim):**
+  > So, yeah, we need to make that, uh, we need to have a shared mechanism on all of our subdomains for making certain routes public.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 10:52:47 a.m. EDT — `0e21e6c24aeb` feat(books): continue listening home, tabs, and an expanding mini player
 
 - **Implementation commit:** `0e21e6c24aeb17d3bf8c87399531752e11a7eda4`
