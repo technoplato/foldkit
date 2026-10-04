@@ -4,6 +4,21 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 12:01:51 a.m. EDT — `68f4670bf0bf` feat(words): print shared links on words.pisspoursoftware.xyz
+
+- **Implementation commit:** `68f4670bf0bfca0548a55567482706433d3c005c`
+- **Change:** Web Scribe prints shared links on words.pisspoursoftware.xyz (Scribe #493).
+- **Details:**
+  - scribeLinkOrigin moves to the new host; ScribeLinkHost still reads both hosts. Deploy after Scribe 87 is on Michael's iPhone.
+  - Verified: words core vitest 208/208, plugin tests 5/5, core, web and node tsc pass.
+- **Files:**
+  - `examples/words/core/src/link.ts` — scribeLinkOrigin on the new host; host list order
+  - `examples/words/core/src/link.test.ts` — printed links on the new host
+  - `examples/words/core/src/update.test.ts` — copied and shared links on the new host
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
 ## October 3rd, 2026 at 8:43:08 p.m. EDT — `fc21bb66c254` fix(words): verify Cloudflare Access logins before minting Scribe sessions
 
 - **Implementation commit:** `fc21bb66c2544437df18288965ffc8e58ed2edb1`
