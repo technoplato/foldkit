@@ -1,8 +1,9 @@
 import { Array, Option } from 'effect'
-import type { Catalog } from 'foldkit'
+import { Catalog } from 'foldkit'
 import {
   type ButtonNode,
   Column,
+  type IconName,
   Row,
   Seek,
   Text,
@@ -14,10 +15,13 @@ import {
 
 import { Milliseconds, clockOf } from './ids.js'
 import {
+  NextSection,
   Pause,
   Play,
+  PreviousSection,
   SeekTo,
   SeekToWord,
+  SetSeekScope,
   SkipBack,
   SkipForward,
 } from './message.js'
@@ -29,6 +33,7 @@ import {
   currentWordOf,
   isSounding,
   passagesOf,
+  sectionAt,
 } from './model.js'
 
 // VIEW
@@ -49,34 +54,131 @@ const buttonOf = (
     button => ({ ...button, ...(variant === undefined ? {} : { variant }) }),
   )
 
+const millisecondsPerMinute = 60_000
+
+const minutesPerHour = 60
+
 /**
- * The seek bar over the whole recording. Moving it presses
- * `SeekTo:<place>`.
+ * How long is left as a person says it: `7h 34m left`, `12m left`.
+ *
+ * @example
+ * ```typescript
+ * leftWordsOf(Milliseconds.make(27_240_000)) // '7h 34m left'
+ * ```
+ */
+export const leftWordsOf = (ms: number): string => {
+  const totalMinutes = Math.max(0, Math.round(ms / millisecondsPerMinute))
+  const hours = Math.floor(totalMinutes / minutesPerHour)
+  const minutes = totalMinutes % minutesPerHour
+  return hours > 0
+    ? `${hours.toString()}h ${minutes.toString()}m left`
+    : `${minutes.toString()}m left`
+}
+
+const spannedSectionOf = (model: Model): Option.Option<Section> =>
+  model.seekScope === 'Section'
+    ? sectionAt(model.media, model.placeMs)
+    : Option.none()
+
+/**
+ * The seek bar over this section, such as the chapter being heard, or the
+ * whole recording, as the player's scope says. Moving it presses
+ * `SeekTo:<place>`, a place in the whole recording either way.
  */
 export const seekBarOf = (model: Model): UiNode =>
-  Seek({
-    value: model.placeMs,
-    max: model.media.durationMs,
-    step: 1000,
-    action: SeekTo.tag,
-    label: 'Place in the recording',
-    valueText: `${clockOf(model.placeMs)} of ${clockOf(model.media.durationMs)}`,
+  Option.match(spannedSectionOf(model), {
+    onNone: () =>
+      Seek({
+        value: model.placeMs,
+        max: model.media.durationMs,
+        step: 1000,
+        action: SeekTo.tag,
+        label: 'Place in the recording',
+        valueText: `${clockOf(model.placeMs)} of ${clockOf(model.media.durationMs)}`,
+      }),
+    onSome: section =>
+      Seek({
+        value: model.placeMs,
+        min: section.startMs,
+        max: section.endMs,
+        step: 1000,
+        action: SeekTo.tag,
+        label: `Place in ${section.title}`,
+        valueText: `${clockOf(Milliseconds.make(model.placeMs - section.startMs))} of ${clockOf(Milliseconds.make(section.endMs - section.startMs))} in ${section.title}`,
+      }),
   })
 
-/** Where the player is, and how long is left: `12:03` and `−9:01:00`. */
+/**
+ * Where the player is under the bar: in a chapter, how far into it, how
+ * long the whole recording has left, and how long the chapter has left,
+ * `3:13`, `7h 34m left`, `−1:30`; over the whole recording, the place and
+ * what is left.
+ */
 export const timesOf = (model: Model): UiNode =>
-  Row(
-    { gap: 1 },
-    Text(clockOf(model.placeMs), { mono: true, dim: true }),
-    Text(
-      `−${clockOf(Milliseconds.make(model.media.durationMs - model.placeMs))}`,
-      { mono: true, dim: true, label: 'time left' },
-    ),
-  )
+  Option.match(spannedSectionOf(model), {
+    onNone: () =>
+      Row(
+        { gap: 1 },
+        Text(clockOf(model.placeMs), { mono: true, dim: true }),
+        Text(
+          `−${clockOf(Milliseconds.make(model.media.durationMs - model.placeMs))}`,
+          { mono: true, dim: true, label: 'time left' },
+        ),
+      ),
+    onSome: section =>
+      Row(
+        { gap: 1 },
+        Text(clockOf(Milliseconds.make(model.placeMs - section.startMs)), {
+          mono: true,
+          dim: true,
+          label: 'time into the chapter',
+        }),
+        Text(leftWordsOf(model.media.durationMs - model.placeMs), {
+          dim: true,
+        }),
+        Text(
+          `−${clockOf(Milliseconds.make(Math.max(0, section.endMs - model.placeMs)))}`,
+          { mono: true, dim: true, label: 'time left in the chapter' },
+        ),
+      ),
+  })
+
+const ghost: ButtonNode['variant'] = 'Ghost'
+
+const iconButtonOf = (
+  entries: ReadonlyArray<Catalog.Entry>,
+  action: AnyAction,
+  icon: IconName,
+  variant: ButtonNode['variant'],
+): ReadonlyArray<ButtonNode> =>
+  Array.map(buttonOf(entries, action, variant), button => ({
+    ...button,
+    icon,
+    isIconOnly: true,
+  }))
+
+/** Play or Pause, as the player is, as one round icon. */
+export const playPauseOf = (
+  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
+): ReadonlyArray<ButtonNode> =>
+  isSounding(model)
+    ? iconButtonOf(entries, Pause, 'Pause', 'Primary')
+    : iconButtonOf(entries, Play, 'Play', 'Primary')
+
+/** Back 30 seconds and Play or Pause, for a bar that has little room. */
+export const miniTransportOf = (
+  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
+): ReadonlyArray<ButtonNode> => [
+  ...iconButtonOf(entries, SkipBack, 'Back30', 'Ghost'),
+  ...playPauseOf(model, entries),
+]
 
 /**
- * Back 30 seconds, Play or Pause, and forward 30 seconds, from the entries
- * the Program that holds the player offers, so its own rules hold.
+ * The transport as icons: the chapter before, back 30 seconds, Play or
+ * Pause, forward 30 seconds, and the next chapter, from the entries the
+ * Program that holds the player offers, so its own rules hold.
  */
 export const transportOf = (
   model: Model,
@@ -84,10 +186,49 @@ export const transportOf = (
 ): UiNode =>
   Row(
     { gap: 1 },
-    ...buttonOf(entries, SkipBack, 'Ghost'),
-    ...buttonOf(entries, isSounding(model) ? Pause : Play, 'Primary'),
-    ...buttonOf(entries, SkipForward, 'Ghost'),
+    ...(Array.isReadonlyArrayEmpty(model.media.sections)
+      ? []
+      : iconButtonOf(entries, PreviousSection, 'PreviousChapter', 'Ghost')),
+    ...iconButtonOf(entries, SkipBack, 'Back30', 'Ghost'),
+    ...playPauseOf(model, entries),
+    ...iconButtonOf(entries, SkipForward, 'Forward30', 'Ghost'),
+    ...(Array.isReadonlyArrayEmpty(model.media.sections)
+      ? []
+      : iconButtonOf(entries, NextSection, 'NextChapter', 'Ghost')),
   )
+
+/**
+ * Whether the bar spans this chapter or the whole book, as two buttons,
+ * the current one marked. None for a recording without sections.
+ */
+export const seekScopeOf = (
+  model: Model,
+  entries: ReadonlyArray<Catalog.Entry>,
+): ReadonlyArray<UiNode> =>
+  Array.isReadonlyArrayEmpty(model.media.sections)
+    ? []
+    : [
+        Row(
+          { gap: 1 },
+          ...Array.map(
+            actionButtons(
+              Array.flatMap(
+                Array.filter(entries, entry => entry.tag === SetSeekScope.tag),
+                Catalog.choicesAsEntries,
+              ),
+            ),
+            button => ({
+              ...button,
+              variant: ghost,
+              isCurrent: Option.exists(
+                Catalog.parseChoiceTag(button.action ?? ''),
+                choice => choice.token === model.seekScope,
+              ),
+              disabled: false,
+            }),
+          ),
+        ),
+      ]
 
 /** Why the audio would not play, while it would not. */
 export const problemOf = (model: Model): ReadonlyArray<UiNode> =>

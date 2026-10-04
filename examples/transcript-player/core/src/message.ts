@@ -13,9 +13,12 @@ import {
 import {
   type Model,
   Passage,
+  SeekScope,
   hasAudio,
   isSounding,
+  nextSectionOf,
   passagesOf,
+  previousSectionOf,
   wordOf,
 } from './model.js'
 
@@ -133,6 +136,51 @@ export const SeekToWord = Catalog.action('SeekToWord', {
   meta: { label: 'Play from here', keys: [], title: 'Play from word' },
 })
 
+/** Goes to the start of this chapter, or the one before it. */
+export const PreviousSection = Catalog.action('PreviousSection', {
+  what: 'Goes to the start of this chapter, or the one before',
+  why: 'The person wants to hear the chapter again, or the last one',
+  enabled: (model: Model) =>
+    Option.isSome(previousSectionOf(model))
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'there is no chapter before' }),
+  meta: { label: 'Previous chapter', keys: [',', '<'] },
+})
+
+/** Goes to the start of the next chapter. */
+export const NextSection = Catalog.action('NextSection', {
+  what: 'Goes to the start of the next chapter',
+  why: 'The person wants to skip to what comes next',
+  enabled: (model: Model) =>
+    Option.isSome(nextSectionOf(model))
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'this is the last chapter' }),
+  meta: { label: 'Next chapter', keys: ['.', '>'] },
+})
+
+/** Makes the seek bar span this chapter or the whole recording. */
+export const SetSeekScope = Catalog.action('SetSeekScope', {
+  fields: { scope: SeekScope },
+  choose: {
+    field: 'scope',
+    prompt: 'What should the bar span?',
+    token: SeekScope,
+    choicesOf: (model: Model) =>
+      Array.map(SeekScope.literals, scope => ({
+        value: scope,
+        title: scope === 'Section' ? 'Chapter' : 'Whole book',
+        availability:
+          scope === model.seekScope
+            ? Catalog.Disabled({ because: 'the bar spans it now' })
+            : Catalog.Enabled(),
+      })),
+    nothingToChoose: 'there is nothing to span',
+  },
+  what: 'Makes the seek bar span this chapter or the whole recording',
+  why: 'The person wants fine control in a chapter, or to move far',
+  meta: { label: 'Bar spans', keys: [], title: 'Set what the bar spans' },
+})
+
 /** Plays at one speed. */
 export const SetSpeed = Catalog.action('SetSpeed', {
   fields: { speed: Speed },
@@ -162,8 +210,11 @@ export const catalog = Catalog.make([
   Pause,
   SkipBack,
   SkipForward,
+  PreviousSection,
+  NextSection,
   SeekTo,
   SeekToWord,
+  SetSeekScope,
   SetSpeed,
 ])
 

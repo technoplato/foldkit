@@ -13,6 +13,8 @@ import {
   Unplayable,
   hasAudio,
   isSounding,
+  nextSectionOf,
+  previousSectionOf,
   wordOf,
 } from './model.js'
 import {
@@ -127,6 +129,21 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       SkipForward: () => movedTo(model, clamped(model, model.placeMs + skipMs)),
       SeekTo: ({ placeMs }) => movedTo(model, clamped(model, placeMs)),
       SeekToWord: ({ wordId }) => playedFromWord(model, wordId),
+      PreviousSection: () =>
+        Option.match(previousSectionOf(model), {
+          onNone: () => unchanged(model),
+          onSome: section => movedTo(model, section.startMs),
+        }),
+      NextSection: () =>
+        Option.match(nextSectionOf(model), {
+          onNone: () => unchanged(model),
+          onSome: section => movedTo(model, section.startMs),
+        }),
+      SetSeekScope: ({ scope }) => [
+        { ...model, seekScope: scope },
+        [],
+        Option.none(),
+      ],
       SetSpeed: ({ speed }) => [{ ...model, speed }, [], Option.none()],
       ReachedPlace: ({ placeMs }) => reachedPlace(model, placeMs),
       ReachedEnd: () => reachedEnd(model),

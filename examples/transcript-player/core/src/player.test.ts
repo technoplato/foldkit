@@ -14,7 +14,7 @@ import {
 } from './message.js'
 import { type Model, type Passage, init } from './model.js'
 import type { OutMessage } from './outMessage.js'
-import { playerScreen, transcriptOf } from './screen.js'
+import { playerScreen, seekBarOf, transcriptOf } from './screen.js'
 import { transcriptDependenciesOf, transcriptStream } from './subscriptions.js'
 import { transcriptsInMemory } from './transcript.js'
 import { update } from './update.js'
@@ -161,6 +161,26 @@ describe('the Transcript Player', () => {
         ? Array.map(transcript.passages, passage => passage.isCurrent)
         : [],
     ).toEqual([true, false])
+  })
+
+  it('goes to the chapter start, then the one before, and on to the next', () => {
+    const intoPurpose = loaded(30_000)
+    expect(pressed(intoPurpose, 'PreviousSection').placeMs).toBe(24_000)
+    expect(pressed(loaded(25_000), 'PreviousSection').placeMs).toBe(18_700)
+    expect(pressed(loaded(19_000), 'NextSection').placeMs).toBe(24_000)
+    expect(Catalog.messageFor(catalog, loaded(30_000), 'NextSection')).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('spans the chapter on the seek bar until set to the whole recording', () => {
+    const inEvocation = loaded(20_000)
+    expect(inEvocation.seekScope).toBe('Section')
+    expect(renderScreen(seekBarOf(inEvocation), 60)).toContain(
+      '0:01 of 0:05 in Evocation',
+    )
+    const whole = pressed(inEvocation, 'SetSeekScope:Recording')
+    expect(renderScreen(seekBarOf(whole), 60)).toContain('0:20 of 10:00')
   })
 
   it('reads the words around its window from the source', async () => {

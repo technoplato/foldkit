@@ -91,8 +91,16 @@ export const Transport = S.Union([Paused, Playing, Unplayable])
 export type Transport = typeof Transport.Type
 
 /**
+ * What the seek bar spans: the section being heard, such as this chapter,
+ * or the whole recording.
+ */
+export const SeekScope = S.Literals(['Section', 'Recording'])
+/** What the seek bar spans. */
+export type SeekScope = typeof SeekScope.Type
+
+/**
  * The Transcript Player: one recording, where it is, whether it sounds,
- * how fast, and the words near the place.
+ * how fast, what the seek bar spans, and the words near the place.
  */
 export const Model = S.Struct({
   media: Media,
@@ -100,6 +108,7 @@ export const Model = S.Struct({
   transport: Transport,
   nextCue: S.Int,
   speed: Speed,
+  seekScope: SeekScope,
   transcript: Transcript,
 })
 /** The Transcript Player. */
@@ -116,13 +125,20 @@ export type Model = typeof Model.Type
  */
 export const init = (
   media: Media,
-  options: Readonly<{ placeMs?: Milliseconds; speed?: Speed }> = {},
+  options: Readonly<{
+    placeMs?: Milliseconds
+    speed?: Speed
+    seekScope?: SeekScope
+  }> = {},
 ): Model => ({
   media,
   placeMs: options.placeMs ?? Milliseconds.make(0),
   transport: Paused(),
   nextCue: 0,
   speed: options.speed ?? 1,
+  seekScope:
+    options.seekScope ??
+    (Array.isReadonlyArrayEmpty(media.sections) ? 'Recording' : 'Section'),
   transcript: TranscriptLoading(),
 })
 
@@ -169,6 +185,33 @@ export const sectionAt = (
   placeMs: Milliseconds,
 ): Option.Option<Section> =>
   Array.findLast(media.sections, section => section.startMs <= placeMs)
+
+/**
+ * The section to go back to: this one's start, once more than a few
+ * seconds into it, else the one before.
+ */
+export const previousSectionOf = (model: Model): Option.Option<Section> => {
+  const maybeCurrent = sectionAt(model.media, model.placeMs)
+  const isWellInto = Option.exists(
+    maybeCurrent,
+    section => model.placeMs - section.startMs > restartSectionMs,
+  )
+  return isWellInto
+    ? maybeCurrent
+    : Array.findLast(
+        model.media.sections,
+        section => section.startMs < model.placeMs - restartSectionMs,
+      )
+}
+
+/** The section after the one being heard. */
+export const nextSectionOf = (model: Model): Option.Option<Section> =>
+  Array.findFirst(
+    model.media.sections,
+    section => section.startMs > model.placeMs,
+  )
+
+const restartSectionMs = 3000
 
 /** The word with this id, among the words near the place. */
 export const wordOf = (model: Model, wordId: WordId): Option.Option<Word> =>
