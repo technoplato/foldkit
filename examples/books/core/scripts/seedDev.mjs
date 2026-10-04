@@ -122,7 +122,10 @@ const coverSvgOf = (name, color) =>
 for (const [position, title] of sampleTitles.entries()) {
   const key = `${member.id}/${title.slug}`
   const path = `library/${member.id}/covers/${title.slug}.svg`
-  const bytes = coverSvgOf(title.name, coverPalette[position % coverPalette.length])
+  const bytes = coverSvgOf(
+    title.name,
+    coverPalette[position % coverPalette.length],
+  )
   const uploaded = await database.storage.uploadFile(path, bytes, {
     contentType: 'image/svg+xml',
   })
