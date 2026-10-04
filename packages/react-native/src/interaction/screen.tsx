@@ -1,6 +1,11 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
-import type { ButtonNode, TextNode, UiNode } from 'foldkit/renderers'
+import type {
+  ButtonNode,
+  ProgressNode,
+  TextNode,
+  UiNode,
+} from 'foldkit/renderers'
 import { Fragment, type ReactElement, useMemo } from 'react'
 import {
   Image,
@@ -34,6 +39,10 @@ export type PaintStyles = Readonly<{
   Row?: ViewStyle
   Column?: ViewStyle
   Box?: ViewStyle
+  Progress?: ViewStyle
+  List?: ViewStyle
+  Seek?: ViewStyle
+  Transcript?: ViewStyle
   DeviceShell?: ViewStyle
 }>
 
@@ -141,9 +150,86 @@ const rowStyle: ViewStyle = {
 
 const columnStyle: ViewStyle = { alignItems: 'center', gap: look.columnGap }
 
+const headlineTextStyle: TextStyle = {
+  fontSize: look.headlineSize,
+  fontWeight: '700',
+}
+
+const trackStyle: ViewStyle = {
+  alignSelf: 'stretch',
+  backgroundColor: look.trackColor,
+  borderRadius: 999,
+  height: 4,
+  overflow: 'hidden',
+}
+
+const fillStyleOf = (value: number, max: number): ViewStyle => ({
+  backgroundColor: look.accentColor,
+  height: 4,
+  width: `${(max > 0 ? Math.min(1, Math.max(0, value / max)) : 0) * 100}%`,
+})
+
+const listStyle: ViewStyle = { alignSelf: 'stretch' }
+
+const itemStyle: ViewStyle = {
+  alignItems: 'center',
+  borderBottomColor: look.trackColor,
+  borderBottomWidth: 1,
+  flexDirection: 'row',
+  gap: look.rowGap,
+  paddingVertical: 10,
+}
+
+const itemTitleStyle: TextStyle = {
+  color: look.textColor,
+  fontSize: look.bodySize,
+  fontWeight: '600',
+}
+
+const itemLineStyle: TextStyle = { color: look.dimColor, fontSize: 14 }
+
+const passageStyle: ViewStyle = {
+  alignSelf: 'stretch',
+  borderRadius: 14,
+  flexDirection: 'row',
+  gap: 8,
+  padding: 8,
+}
+
+const passageLabelStyle: TextStyle = {
+  color: look.dimColor,
+  fontFamily: monoFamily,
+  fontSize: 12,
+  paddingTop: 5,
+  width: 48,
+}
+
+const passageWordsStyle: TextStyle = {
+  color: look.textColor,
+  flex: 1,
+  fontSize: look.readingSize,
+  lineHeight: look.readingSize * 1.6,
+}
+
+const currentWordStyle: TextStyle = {
+  backgroundColor: look.accentSoftColor,
+  color: '#9a3412',
+}
+
+const Bar = ({
+  progress,
+}: Readonly<{
+  progress: Pick<ProgressNode, 'value' | 'max'>
+}>): ReactElement => (
+  <View style={trackStyle}>
+    <View style={fillStyleOf(progress.value, progress.max)} />
+  </View>
+)
+
 const styleOfText = (text: TextNode): ReadonlyArray<TextStyle> => [
   textStyle,
   ...(text.emphasis === 'Display' ? [displayTextStyle] : []),
+  ...(text.emphasis === 'Headline' ? [headlineTextStyle] : []),
   ...(text.dim === true ? [dimTextStyle] : []),
   ...(text.mono === true ? [monoTextStyle] : []),
 ]
@@ -284,6 +370,146 @@ export const paintTree = (
         Box: box => (
           <View style={[{ padding: box.padding }, styles.Box]}>
             {paintChildren(box.children)}
+          </View>
+        ),
+        Progress: progress => (
+          <View
+            accessibilityLabel={progress.label}
+            accessibilityRole="progressbar"
+            style={[listStyle, styles.Progress]}
+          >
+            <Bar progress={progress} />
+          </View>
+        ),
+        List: list => (
+          <View
+            accessibilityLabel={list.label}
+            style={[listStyle, styles.List]}
+          >
+            {Array.map(list.items, item => {
+              const action = item.action
+              return (
+                <View key={item.key} style={itemStyle}>
+                  <Pressable
+                    accessibilityLabel={item.title}
+                    accessibilityRole="button"
+                    disabled={action === undefined}
+                    onPress={() => {
+                      if (action !== undefined) {
+                        handlers.onPress({
+                          _tag: 'Button',
+                          label: item.title,
+                          action,
+                        })
+                      }
+                    }}
+                    style={{
+                      alignItems: 'center',
+                      flex: 1,
+                      flexDirection: 'row',
+                      gap: 14,
+                    }}
+                  >
+                    {item.image === undefined ? null : (
+                      <Image
+                        accessibilityLabel={item.image.alt}
+                        source={{ uri: item.image.src }}
+                        style={{
+                          borderRadius: 6,
+                          height: look.itemImageSize,
+                          width: look.itemImageSize,
+                        }}
+                      />
+                    )}
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          itemTitleStyle,
+                          item.isCurrent === true
+                            ? { color: look.accentColor }
+                            : undefined,
+                        ]}
+                      >
+                        {item.title}
+                      </Text>
+                      {Array.map(item.lines ?? [], (line, index) => (
+                        <Text
+                          key={index}
+                          numberOfLines={1}
+                          style={itemLineStyle}
+                        >
+                          {line}
+                        </Text>
+                      ))}
+                      {item.progress === undefined ? null : (
+                        <Bar progress={item.progress} />
+                      )}
+                    </View>
+                  </Pressable>
+                  {paintChildren(item.trailing ?? [])}
+                </View>
+              )
+            })}
+          </View>
+        ),
+        Seek: seek => (
+          <View
+            accessibilityLabel={seek.label}
+            accessibilityValue={{ text: seek.valueText }}
+            style={[listStyle, { gap: 6 }, styles.Seek]}
+          >
+            <Bar progress={{ value: seek.value, max: seek.max }} />
+            <Text style={[textStyle, dimTextStyle]}>{seek.valueText}</Text>
+          </View>
+        ),
+        Transcript: transcript => (
+          <View
+            accessibilityLabel={transcript.label}
+            style={[listStyle, styles.Transcript]}
+          >
+            {Array.match(transcript.passages, {
+              onEmpty: () => (
+                <Text style={[textStyle, dimTextStyle]}>
+                  {transcript.emptyText}
+                </Text>
+              ),
+              onNonEmpty: passages =>
+                Array.map(passages, passage => (
+                  <View
+                    key={passage.key}
+                    style={[
+                      passageStyle,
+                      passage.isCurrent === true
+                        ? { backgroundColor: look.rowHoverColor }
+                        : undefined,
+                    ]}
+                  >
+                    <Text style={passageLabelStyle}>{passage.label}</Text>
+                    <Text style={passageWordsStyle}>
+                      {Array.map(passage.words, word => (
+                        <Text
+                          key={word.token}
+                          onPress={() => {
+                            handlers.onPress({
+                              _tag: 'Button',
+                              label: word.text,
+                              action: `${transcript.action}:${word.token}`,
+                            })
+                          }}
+                          style={
+                            word.isCurrent === true
+                              ? currentWordStyle
+                              : undefined
+                          }
+                        >
+                          {`${word.text} `}
+                        </Text>
+                      ))}
+                    </Text>
+                  </View>
+                )),
+            })}
           </View>
         ),
         DeviceShell: shell => (
