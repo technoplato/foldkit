@@ -58,6 +58,25 @@ describe('paintReact', () => {
     expect(link.getAttribute('href')).toBe(href)
   })
 
+  it('paints a Text image as a picture with its words as alt text', () => {
+    const cover = {
+      src: 'https://files.example/cover.jpg',
+      width: 120,
+      height: 180,
+    }
+    render(
+      paintReact(
+        Text('The Lantern Keeper cover', { image: cover, href: '/books/x' }),
+        vi.fn(),
+      ),
+    )
+    const picture = screen.getByRole('img', {
+      name: 'The Lantern Keeper cover',
+    })
+    expect(picture.getAttribute('src')).toBe(cover.src)
+    expect(picture.closest('a')?.getAttribute('href')).toBe('/books/x')
+  })
+
   it('paints a TextInput and sends token plus value', () => {
     const sendToken = vi.fn()
     render(

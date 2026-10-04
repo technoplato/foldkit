@@ -8,6 +8,7 @@ import type {
   RowNode,
   SpacerNode,
   TextEmphasis,
+  TextImage,
   TextInputNode,
   TextNode,
   UiNode,
@@ -37,6 +38,7 @@ export const Text = (
     emphasis?: TextEmphasis
     copyable?: boolean
     width?: number
+    image?: TextImage
   }> = {},
 ): TextNode => ({
   _tag: 'Text',

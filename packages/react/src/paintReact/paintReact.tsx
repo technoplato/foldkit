@@ -94,6 +94,19 @@ export const paintTree = (
               ? {}
               : { 'data-emphasis': text.emphasis }),
           }
+          const inner =
+            text.image === undefined ? (
+              text.content
+            ) : (
+              <img
+                className="fk-image"
+                src={text.image.src}
+                alt={text.content}
+                width={text.image.width}
+                height={text.image.height}
+                loading="lazy"
+              />
+            )
           if (text.copyable === true) {
             return (
               <div {...attributes} data-copyable>
@@ -102,7 +115,7 @@ export const paintTree = (
               </div>
             )
           } else if (href === undefined) {
-            return <div {...attributes}>{text.content}</div>
+            return <div {...attributes}>{inner}</div>
           }
           return (
             <div {...attributes}>
@@ -119,7 +132,7 @@ export const paintTree = (
                   }
                 }}
               >
-                {text.content}
+                {inner}
               </a>
             </div>
           )

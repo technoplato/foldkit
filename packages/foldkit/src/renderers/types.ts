@@ -17,9 +17,21 @@ export type HotspotAction = Readonly<{
  */
 export type TextEmphasis = 'Display'
 
+/**
+ * A picture a Text shows in place of its words, where a painter can show
+ * pictures: a cover from storage, in pixels on the web and points on a
+ * phone. The words stay its alt text, and a terminal shows them instead.
+ */
+export type TextImage = Readonly<{
+  readonly src: string
+  readonly width: number
+  readonly height: number
+}>
+
 export type TextNode = Readonly<{
   readonly _tag: 'Text'
   readonly content: string
+  readonly image?: TextImage
   readonly href?: string
   readonly label?: string
   readonly mono?: boolean

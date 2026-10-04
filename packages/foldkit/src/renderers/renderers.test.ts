@@ -97,6 +97,23 @@ describe('paintHtml', () => {
     expect(JSON.stringify(vnode)).toContain('fk-text-link')
   })
 
+  it('paints a Text image as an img with its words as alt text', () => {
+    const vnode = paintHtml(
+      Text('A cover', {
+        image: {
+          src: 'https://files.example/cover.jpg',
+          width: 120,
+          height: 180,
+        },
+      }),
+      token => token,
+    )
+    const painted = JSON.stringify(vnode)
+    expect(painted).toContain('"sel":"img"')
+    expect(painted).toContain('https://files.example/cover.jpg')
+    expect(painted).toContain('A cover')
+  })
+
   it('paints a TextInput as an input bound to its token', () => {
     const vnode = paintHtml(
       TextInput({

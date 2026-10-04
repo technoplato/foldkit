@@ -30,6 +30,7 @@ export type {
   RowNode,
   SpacerNode,
   TextEmphasis,
+  TextImage,
   TextInputNode,
   TextNode,
   UiNode,

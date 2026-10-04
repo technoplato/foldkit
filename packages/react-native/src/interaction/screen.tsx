@@ -3,6 +3,7 @@ import { Interaction, Navigation } from 'foldkit'
 import type { ButtonNode, TextNode, UiNode } from 'foldkit/renderers'
 import { Fragment, type ReactElement, useMemo } from 'react'
 import {
+  Image,
   Linking,
   Platform,
   Pressable,
@@ -182,6 +183,38 @@ export const paintTree = (
       M.tagsExhaustive({
         Text: text => {
           const href = text.href
+          const image = text.image
+          if (image !== undefined) {
+            const picture = (
+              <Image
+                accessibilityLabel={text.content}
+                source={{ uri: image.src }}
+                style={{
+                  alignSelf: 'center',
+                  borderRadius: 6,
+                  height: image.height,
+                  width: image.width,
+                }}
+              />
+            )
+            return href === undefined ? (
+              picture
+            ) : (
+              <Pressable
+                accessibilityLabel={text.content}
+                accessibilityRole="link"
+                onPress={() => {
+                  if (handlers.onLink === undefined) {
+                    void Linking.openURL(href)
+                  } else {
+                    handlers.onLink(href)
+                  }
+                }}
+              >
+                {picture}
+              </Pressable>
+            )
+          }
           if (href === undefined) {
             return (
               <Text

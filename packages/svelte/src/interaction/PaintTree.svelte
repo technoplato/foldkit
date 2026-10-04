@@ -35,6 +35,35 @@
       <span class="fk-copyable-text">{node.content}</span>
       <CopyButton text={node.content} />
     </div>
+  {:else if node.image !== undefined && href === undefined}
+    <div class={classFor(classNames, 'Text', 'fk-text')}>
+      <img
+        alt={node.content}
+        class="fk-image"
+        height={node.image.height}
+        loading="lazy"
+        src={node.image.src}
+        width={node.image.width}
+      />
+    </div>
+  {:else if node.image !== undefined}
+    <div class={classFor(classNames, 'Text', 'fk-text')}>
+      <a
+        class="fk-text-link"
+        {href}
+        onclick={event => {
+          followLink(event, href)
+        }}
+        ><img
+          alt={node.content}
+          class="fk-image"
+          height={node.image.height}
+          loading="lazy"
+          src={node.image.src}
+          width={node.image.width}
+        /></a
+      >
+    </div>
   {:else if href === undefined}
     <div
       aria-label={node.label}

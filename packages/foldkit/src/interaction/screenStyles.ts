@@ -240,6 +240,16 @@ export const screenStylesheet = `
   background: ${screenLook.panelColor};
 }
 
+:where(.fk-image) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 6px;
+  object-fit: cover;
+  box-shadow: 0 6px 18px -8px rgb(15 23 42 / 0.45);
+}
+
 :where(.fk-overlay .fk-button[data-keys])::after {
   content: attr(data-keys);
   margin-left: 8px;

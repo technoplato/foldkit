@@ -42,15 +42,25 @@ export const paintHtml = <Message>(
               ? [h.DataAttribute('copyable', 'true')]
               : []),
           ]
+          const inner =
+            text.image === undefined
+              ? text.content
+              : h.img([
+                  h.Class('fk-image'),
+                  h.Src(text.image.src),
+                  h.Alt(text.content),
+                  h.Width(text.image.width.toString()),
+                  h.Height(text.image.height.toString()),
+                ])
           if (text.copyable === true) {
             return h.div(attributes, [
               h.span([h.Class('fk-copyable-text')], [text.content]),
             ])
           } else if (text.href === undefined) {
-            return h.div(attributes, [text.content])
+            return h.div(attributes, [inner])
           }
           return h.div(attributes, [
-            h.a([h.Href(text.href), h.Class('fk-text-link')], [text.content]),
+            h.a([h.Href(text.href), h.Class('fk-text-link')], [inner]),
           ])
         },
         Button: button => {
