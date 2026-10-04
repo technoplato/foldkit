@@ -178,8 +178,13 @@ const placeToPlayOf = (model: Model, slug: TitleSlug): Milliseconds =>
     ? model.listening.placeMs
     : resumePlaceOf(model, slug)
 
+const hasAudio = (model: Model, slug: TitleSlug): boolean =>
+  Option.exists(titleOf(model, slug), title =>
+    Option.isSome(title.maybeAudioUrl),
+  )
+
 const played = (model: Model, slug: TitleSlug): Model =>
-  Option.isSome(titleOf(model, slug))
+  hasAudio(model, slug)
     ? openedPlayer(playingAt(model, slug, placeToPlayOf(model, slug)), slug)
     : model
 
@@ -251,7 +256,7 @@ const jumpedToChapter = (model: Model, chapterNumber: ChapterNumber): Model =>
           chapter,
         })),
       ),
-    ),
+    ).pipe(Option.filter(({ slug }) => hasAudio(model, slug))),
     {
       onNone: () => model,
       onSome: ({ slug, chapter }) =>
@@ -271,14 +276,19 @@ const openedChapter = (model: Model, chapterNumber: ChapterNumber): Model =>
     : model
 
 const playedBookmark = (model: Model, bookmarkId: BookmarkId): Model =>
-  Option.match(bookmarkOf(model, bookmarkId), {
-    onNone: () => model,
-    onSome: bookmark =>
-      openedPlayer(
-        playingAt(model, bookmark.slug, bookmark.atMs),
-        bookmark.slug,
-      ),
-  })
+  Option.match(
+    Option.filter(bookmarkOf(model, bookmarkId), bookmark =>
+      hasAudio(model, bookmark.slug),
+    ),
+    {
+      onNone: () => model,
+      onSome: bookmark =>
+        openedPlayer(
+          playingAt(model, bookmark.slug, bookmark.atMs),
+          bookmark.slug,
+        ),
+    },
+  )
 
 const askedToDelete = (model: Model, bookmarkId: BookmarkId): Model =>
   Option.isSome(bookmarkOf(model, bookmarkId))

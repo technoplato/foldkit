@@ -46,7 +46,7 @@ const titleOf = (
   ),
   chapters: chaptersOf(fields.chapterNames, fields.minutesEach),
   maybeCoverUrl: Option.none(),
-  maybeAudioUrl: Option.none(),
+  maybeAudioUrl: Option.some(`https://audio.invalid/${fields.slug}.m4a`),
 })
 
 /**

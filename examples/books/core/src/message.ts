@@ -53,6 +53,13 @@ const whenLoaded = (model: Model): Catalog.Availability => {
 
 const authorsOf = (title: Title): string => Array.join(title.authors, ', ')
 
+const noAudio = 'its audio is not in the library yet'
+
+const audioOf = (title: Title): Catalog.Availability =>
+  Option.isSome(title.maybeAudioUrl)
+    ? Catalog.Enabled()
+    : Catalog.Disabled({ because: noAudio })
+
 const whichTitle = (
   availabilityOf: (model: Model, title: Title) => Catalog.Availability,
   preferredOf?: (model: Model) => Option.Option<TitleSlug>,
@@ -101,17 +108,20 @@ const whichChapter = (
 
 const whichBookmark = (
   prompt: string,
+  availabilityOf: (title: Title) => Catalog.Availability = () =>
+    Catalog.Enabled(),
 ): Catalog.Choose<Model, 'bookmarkId', BookmarkId> => ({
   field: 'bookmarkId',
   prompt,
   token: BookmarkId,
   choicesOf: model =>
-    Option.match(shownTitleOf(model), {
+    Option.match(shownTitle(model), {
       onNone: () => [],
-      onSome: slug =>
-        Array.map(bookmarksOf(model, slug), bookmark => ({
+      onSome: title =>
+        Array.map(bookmarksOf(model, title.slug), bookmark => ({
           value: bookmark.bookmarkId,
           title: clockOf(bookmark.atMs),
+          availability: availabilityOf(title),
         })),
     }),
   nothingToChoose: 'this title has no bookmarks',
@@ -141,7 +151,7 @@ export const Play = Catalog.action('Play', {
     (model, title) =>
       isPlaying(model, title.slug)
         ? Catalog.Disabled({ because: 'it is playing' })
-        : Catalog.Enabled(),
+        : audioOf(title),
     shownTitleOf,
   ),
   what: 'Plays the title from where the listener stopped',
@@ -213,16 +223,22 @@ export const ShowContents = Catalog.action('ShowContents', {
  */
 export const JumpToChapter = Catalog.action('JumpToChapter', {
   fields: { chapterNumber: ChapterNumber },
-  choose: whichChapter(shownTitle, (model, title, chapterNumber) =>
-    Option.exists(
-      loadedTitleOf(model),
-      ({ title: loaded, loaded: player }) =>
-        loaded.slug === title.slug &&
-        chapterAt(loaded, player.placeMs).chapterNumber === chapterNumber,
-    )
-      ? Catalog.Disabled({ because: 'it is playing now' })
-      : Catalog.Enabled(),
-  ),
+  choose: whichChapter(shownTitle, (model, title, chapterNumber) => {
+    if (Option.isNone(title.maybeAudioUrl)) {
+      return Catalog.Disabled({ because: noAudio })
+    } else if (
+      Option.exists(
+        loadedTitleOf(model),
+        ({ title: loaded, loaded: player }) =>
+          loaded.slug === title.slug &&
+          chapterAt(loaded, player.placeMs).chapterNumber === chapterNumber,
+      )
+    ) {
+      return Catalog.Disabled({ because: 'it is playing now' })
+    } else {
+      return Catalog.Enabled()
+    }
+  }),
   what: 'Plays the title from the start of the chapter',
   why: 'The person wants to listen to that part',
   enabled: unlessAsking,
@@ -292,7 +308,7 @@ export const AddBookmark = Catalog.action('AddBookmark', {
 /** Plays the title on screen from one of its bookmarks. */
 export const PlayBookmark = Catalog.action('PlayBookmark', {
   fields: { bookmarkId: BookmarkId },
-  choose: whichBookmark('Which bookmark?'),
+  choose: whichBookmark('Which bookmark?', audioOf),
   what: 'Plays the title from the bookmark',
   why: 'The person wants to go back to that place',
   enabled: unlessAsking,

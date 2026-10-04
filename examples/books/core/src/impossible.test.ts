@@ -36,7 +36,7 @@ describe('states Books rules out by type', () => {
         SetSpeed({ speed: 3 }),
       () =>
         // @ts-expect-error playing must say which cue it plays
-        Playing({}),
+        Playing({ placeMs: Milliseconds.make(0) }),
       () =>
         // @ts-expect-error a loaded title always has a place
         Loaded({

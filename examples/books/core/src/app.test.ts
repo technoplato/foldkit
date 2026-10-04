@@ -3,11 +3,11 @@ import { Catalog, Interaction, Navigation } from 'foldkit'
 import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
-import { Milliseconds, TitleSlug } from './ids.js'
+import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 import { ReachedEnd, ReachedPlace, ReceivedShelf } from './message.js'
 import { sampleShelf } from './sample.js'
 
-type Written = Readonly<{ name: string; args: unknown }>
+type Written = Readonly<{ name: string; args: string }>
 
 const bindApp = () => {
   let model: AppModel = App.update(
@@ -22,7 +22,7 @@ const bindApp = () => {
       const [next, commands] = App.update(model, message)
       model = next
       Array.forEach(commands, command => {
-        written.push({ name: command.name, args: command.args })
+        written.push({ name: command.name, args: JSON.stringify(command.args) })
       })
     },
     stop: () => Promise.resolve(),
@@ -78,23 +78,16 @@ describe('Books', () => {
     send(ReachedPlace({ placeMs: Milliseconds.make(40_000) }))
     bound.press('Pause')
     send(ReachedEnd())
-    expect(
-      Array.map(written, ({ args }) =>
-        JSON.stringify((args as { write: unknown }).write),
+    expect(Array.map(written, ({ args }) => args)).toEqual(
+      Array.map(
+        [
+          { _tag: 'SavePlace', slug: lanternKeeper, placeMs: 31_000 },
+          { _tag: 'SavePlace', slug: lanternKeeper, placeMs: 40_000 },
+          { _tag: 'FinishTitle', slug: lanternKeeper },
+        ],
+        write => JSON.stringify({ write }),
       ),
-    ).toEqual([
-      JSON.stringify({
-        _tag: 'SavePlace',
-        slug: lanternKeeper,
-        placeMs: 31_000,
-      }),
-      JSON.stringify({
-        _tag: 'SavePlace',
-        slug: lanternKeeper,
-        placeMs: 40_000,
-      }),
-      JSON.stringify({ _tag: 'FinishTitle', slug: lanternKeeper }),
-    ])
+    )
   })
 
   it('skips 30 seconds and never past either end', () => {
@@ -157,7 +150,7 @@ describe('Books', () => {
           ...sampleShelf,
           bookmarks: [
             {
-              bookmarkId: 'bookmark-1' as never,
+              bookmarkId: BookmarkId.make('bookmark-1'),
               slug: lanternKeeper,
               atMs: Milliseconds.make(723_000),
               createdAtMs: 0,
@@ -175,6 +168,28 @@ describe('Books', () => {
     bound.pressKey(Interaction.keyInput('y'))
     expect(uriOf(bound)).toEqual(Option.some('/books/the-lantern-keeper'))
     expect(Array.map(written, ({ name }) => name)).toEqual(['WriteLibrary'])
+  })
+
+  it('will not play a title whose audio is not in the library yet', () => {
+    const { bound, send, written } = bindApp()
+    send(
+      ReceivedShelf({
+        shelf: {
+          ...sampleShelf,
+          titles: Array.map(sampleShelf.titles, title => ({
+            ...title,
+            maybeAudioUrl: Option.none(),
+          })),
+        },
+      }),
+    )
+    bound.press(`Open:${lanternKeeper}`)
+    expect(availabilityOf(bound, 'Play')).toEqual(Option.some('Disabled'))
+    bound.pressKey(Interaction.keyInput('p'))
+    bound.press('JumpToChapter:2')
+    expect(bound.readModel().listening._tag).toBe('Idle')
+    expect(uriOf(bound)).toEqual(Option.some('/books/the-lantern-keeper'))
+    expect(written).toEqual([])
   })
 
   it('sets the speed from its sheet on the player', () => {
