@@ -261,13 +261,13 @@ describe('expoRouterStack', () => {
     expect(container.layoutKeys()).toEqual(['/counter', '/counter/session'])
   })
 
-  it('joins the shared screen instead while navigation is mirrored', async () => {
+  it('opens a deep launch link even while navigation is mirrored', async () => {
     const bound = bindApp()
     const container = makeContainer(deepLinkLayout)
     runOn(bound, container)
     await settle(5)
-    expect(uriOf(bound)).toBe('/counter')
-    expect(container.layoutKeys()).toEqual(['/counter'])
+    expect(uriOf(bound)).toBe('/counter/session')
+    expect(container.layoutKeys()).toEqual(['/counter', '/counter/session'])
   })
 
   it('reports a swipe back as going back to the entry beneath', async () => {
