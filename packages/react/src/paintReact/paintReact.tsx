@@ -7,7 +7,9 @@ import {
   type ItemCheck,
   type ListItem,
   type SeekNode,
+  type TextEmbed,
   type TextInputNode,
+  type TextNode,
   type TranscriptNode,
   type TranscriptPassage,
   type UiNode,
@@ -20,7 +22,9 @@ import {
   Fragment,
   type ReactElement,
   type ReactNode,
+  createContext,
   memo,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -28,6 +32,59 @@ import {
 
 /** Extra class per node kind, appended after the fk-* base class. */
 export type PaintClassNames = Partial<Record<UiNode['_tag'], string>>
+
+/**
+ * What a host's embed draws from: its embed, and the Text it stands in
+ * for, whose words and link are what to show when the view cannot load.
+ */
+export type EmbedProps = Readonly<{
+  embed: TextEmbed
+  text: TextNode
+}>
+
+/**
+ * The live views a host draws, by embed kind, such as a Google Books
+ * preview for `GoogleBooksPreview`. A Text whose embed has no view here
+ * paints as its words.
+ */
+export type EmbedPainters = Readonly<
+  Record<string, (props: EmbedProps) => ReactElement>
+>
+
+const noEmbedPainters: EmbedPainters = {}
+
+const EmbedPaintersContext = createContext<EmbedPainters>(noEmbedPainters)
+
+/**
+ * Gives every tree painted inside the host's embeds, so a Text with an
+ * embed of a registered kind shows that live view.
+ *
+ * @example
+ * ```tsx
+ * <EmbedPaintersProvider value={{ GoogleBooksPreview }}>
+ *   <NavigationFrame />
+ * </EmbedPaintersProvider>
+ * ```
+ */
+export const EmbedPaintersProvider = EmbedPaintersContext.Provider
+
+const EmbedView = ({
+  embed,
+  text,
+  children,
+}: Readonly<{
+  embed: TextEmbed
+  text: TextNode
+  children: ReactElement
+}>): ReactElement => {
+  const painters = useContext(EmbedPaintersContext)
+  const Painter = painters[embed.kind]
+  return Painter === undefined ? (
+    children
+  ) : (
+    <Painter embed={embed} text={text} />
+  )
+}
 
 const copiedResetMs = 1500
 
@@ -571,6 +628,8 @@ export type PaintHandlers = Readonly<{
  * Paints a Program screen tree as React elements. A Button press reports
  * the whole node, so a Client can send its Catalog `action` or its legacy
  * `token`. A disabled Button carries its `because` sentence as the title.
+ * A Text with an embed paints the host's view of that kind from
+ * {@link EmbedPaintersProvider}, kept across repaints, or else its words.
  */
 export const paintTree = (
   node: UiNode,
@@ -587,6 +646,9 @@ export const paintTree = (
     }
     if (child._tag === 'Button' && child.token !== undefined) {
       return `button-${child.token}`
+    }
+    if (child._tag === 'Text' && child.embed !== undefined) {
+      return `embed-${child.embed.kind}`
     }
     return `${child._tag}-${index}`
   }
@@ -606,64 +668,72 @@ export const paintTree = (
         {paintChildren(box.children)}
       </div>
     )
+  const paintText = (text: TextNode): ReactElement => {
+    const href = text.href
+    const attributes = {
+      className: classFor('Text', 'fk-text'),
+      ...(text.label === undefined ? {} : { 'aria-label': text.label }),
+      ...(text.dim === true ? { 'data-dim': true } : {}),
+      ...(text.mono === true ? { 'data-mono': true } : {}),
+      ...(text.emphasis === undefined
+        ? {}
+        : { 'data-emphasis': text.emphasis }),
+    }
+    const inner =
+      text.image === undefined ? (
+        text.content
+      ) : (
+        <img
+          className="fk-image"
+          src={text.image.src}
+          alt={text.content}
+          width={text.image.width}
+          height={text.image.height}
+          loading="lazy"
+        />
+      )
+    if (text.copyable === true) {
+      return (
+        <div {...attributes} data-copyable>
+          <span className="fk-copyable-text">{text.content}</span>
+          <CopyButton text={text.content} />
+        </div>
+      )
+    } else if (href === undefined) {
+      return <div {...attributes}>{inner}</div>
+    }
+    return (
+      <div {...attributes}>
+        <a
+          className="fk-text-link"
+          href={href}
+          onClick={event => {
+            if (
+              Navigation.isPlainClick(event) &&
+              handlers.onLink !== undefined &&
+              handlers.onLink(href)
+            ) {
+              event.preventDefault()
+            }
+          }}
+        >
+          {inner}
+        </a>
+      </div>
+    )
+  }
   const paint = (current: UiNode): ReactElement =>
     M.value(current).pipe(
       M.withReturnType<ReactElement>(),
       M.tagsExhaustive({
-        Text: text => {
-          const href = text.href
-          const attributes = {
-            className: classFor('Text', 'fk-text'),
-            ...(text.label === undefined ? {} : { 'aria-label': text.label }),
-            ...(text.dim === true ? { 'data-dim': true } : {}),
-            ...(text.mono === true ? { 'data-mono': true } : {}),
-            ...(text.emphasis === undefined
-              ? {}
-              : { 'data-emphasis': text.emphasis }),
-          }
-          const inner =
-            text.image === undefined ? (
-              text.content
-            ) : (
-              <img
-                className="fk-image"
-                src={text.image.src}
-                alt={text.content}
-                width={text.image.width}
-                height={text.image.height}
-                loading="lazy"
-              />
-            )
-          if (text.copyable === true) {
-            return (
-              <div {...attributes} data-copyable>
-                <span className="fk-copyable-text">{text.content}</span>
-                <CopyButton text={text.content} />
-              </div>
-            )
-          } else if (href === undefined) {
-            return <div {...attributes}>{inner}</div>
-          }
-          return (
-            <div {...attributes}>
-              <a
-                className="fk-text-link"
-                href={href}
-                onClick={event => {
-                  if (
-                    Navigation.isPlainClick(event) &&
-                    handlers.onLink !== undefined &&
-                    handlers.onLink(href)
-                  ) {
-                    event.preventDefault()
-                  }
-                }}
-              >
-                {inner}
-              </a>
-            </div>
-          )
-        },
+        Text: text =>
+          text.embed === undefined ? (
+            paintText(text)
+          ) : (
+            <EmbedView embed={text.embed} text={text}>
+              {paintText(text)}
+            </EmbedView>
+          ),
         Button: button => (
           <button
             type="button"

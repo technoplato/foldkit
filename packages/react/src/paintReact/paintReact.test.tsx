@@ -1,13 +1,33 @@
 import { Button, Column, List, Row, Text, TextInput } from 'foldkit/renderers'
+import { useEffect } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
-import { paintReact, paintTree } from './paintReact.js'
+import {
+  EmbedPaintersProvider,
+  type EmbedProps,
+  paintReact,
+  paintTree,
+} from './paintReact.js'
 
 afterEach(() => {
   cleanup()
 })
+
+const preview = Text('Page 3 in Google Books', {
+  href: 'https://books.google.com/books?id=l2WMBAAAQBAJ&pg=PA3',
+  embed: {
+    kind: 'GoogleBooksPreview',
+    params: { volume: 'ISBN:9780544553729', page: '3' },
+    width: 640,
+    height: 560,
+  },
+})
+
+const PreviewStandIn = ({ embed, text }: EmbedProps) => (
+  <figure aria-label={text.content}>{embed.params['page']}</figure>
+)
 
 describe('paintReact', () => {
   it('paints Text and Button nodes from a screen tree', () => {
@@ -75,6 +95,60 @@ describe('paintReact', () => {
     })
     expect(picture.getAttribute('src')).toBe(cover.src)
     expect(picture.closest('a')?.getAttribute('href')).toBe('/books/x')
+  })
+
+  it('paints a Text embed with the view the host gives for its kind', () => {
+    render(
+      <EmbedPaintersProvider value={{ GoogleBooksPreview: PreviewStandIn }}>
+        {paintReact(Column({}, Text('Page 3'), preview), vi.fn())}
+      </EmbedPaintersProvider>,
+    )
+    const view = screen.getByRole('figure', { name: 'Page 3 in Google Books' })
+    expect(view.textContent).toBe('3')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('paints a Text embed with no view for its kind as its words and link', () => {
+    render(paintReact(preview, vi.fn()))
+    const link = screen.getByRole('link', { name: 'Page 3 in Google Books' })
+    expect(link.getAttribute('href')).toBe(
+      'https://books.google.com/books?id=l2WMBAAAQBAJ&pg=PA3',
+    )
+  })
+
+  it('keeps a Text embed mounted when lines before it come and go', () => {
+    const mounts = vi.fn()
+    const CountingView = ({ embed }: EmbedProps) => {
+      useEffect(() => {
+        mounts()
+      }, [])
+      return <figure>{embed.params['page']}</figure>
+    }
+    const treeWith = (lines: ReadonlyArray<string>, page: string) =>
+      Column(
+        {},
+        ...lines.map(line => Text(line)),
+        Text('Preview', {
+          embed: {
+            kind: 'Counting',
+            params: { page },
+            width: 640,
+            height: 560,
+          },
+        }),
+      )
+    const { rerender } = render(
+      <EmbedPaintersProvider value={{ Counting: CountingView }}>
+        {paintReact(treeWith([], '3'), vi.fn())}
+      </EmbedPaintersProvider>,
+    )
+    rerender(
+      <EmbedPaintersProvider value={{ Counting: CountingView }}>
+        {paintReact(treeWith(['Scribe heard page 4'], '4'), vi.fn())}
+      </EmbedPaintersProvider>,
+    )
+    expect(screen.getByRole('figure').textContent).toBe('4')
+    expect(mounts).toHaveBeenCalledTimes(1)
   })
 
   it('paints a TextInput and sends token plus value', () => {
