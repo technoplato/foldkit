@@ -2,6 +2,7 @@ import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
 import type {
   ButtonNode,
+  ListItem,
   SeekNode,
   TranscriptNode,
   TranscriptPassage,
@@ -10,6 +11,7 @@ import type {
 import {
   Fragment,
   type ReactElement,
+  type ReactNode,
   memo,
   useEffect,
   useRef,
@@ -131,6 +133,9 @@ const PassageView = memo(
         className="fk-passage"
         data-current={passage.isCurrent === true ? true : undefined}
       >
+        {passage.heading === undefined ? null : (
+          <h3 className="fk-passage-heading">{passage.heading}</h3>
+        )}
         {labelAction === undefined ? (
           <span className="fk-passage-label">{passage.label}</span>
         ) : (
@@ -164,6 +169,7 @@ const PassageView = memo(
   },
   (before, after) =>
     before.passage.key === after.passage.key &&
+    before.passage.heading === after.passage.heading &&
     before.passage.isCurrent === after.passage.isCurrent &&
     before.passage.words.length === after.passage.words.length &&
     currentTokenOf(before.passage) === currentTokenOf(after.passage) &&
@@ -272,6 +278,62 @@ const TranscriptView = ({
       })}
     </section>
   )
+}
+
+/**
+ * The pressable part of a list row: a link when the row has `href`, so a
+ * person can open, copy, or share it like any link, else a button that
+ * presses the row's action.
+ */
+const ItemPress = ({
+  item,
+  onPress,
+  onLink,
+  children,
+}: Readonly<{
+  item: ListItem
+  onPress: (button: ButtonNode) => void
+  onLink: ((href: string) => boolean) | undefined
+  children: ReactNode
+}>): ReactElement => {
+  const href = item.href
+  const action = item.action
+  if (href !== undefined) {
+    return (
+      <a
+        className="fk-item-press"
+        href={href}
+        onClick={event => {
+          if (
+            Navigation.isPlainClick(event) &&
+            onLink !== undefined &&
+            onLink(href)
+          ) {
+            event.preventDefault()
+          }
+        }}
+      >
+        {children}
+      </a>
+    )
+  } else {
+    return (
+      <button
+        type="button"
+        className="fk-item-press"
+        disabled={action === undefined}
+        onClick={
+          action === undefined
+            ? undefined
+            : () => {
+                onPress(pressOf(action, item.title))
+              }
+        }
+      >
+        {children}
+      </button>
+    )
+  }
 }
 
 /**
@@ -439,24 +501,16 @@ export const paintTree = (
         List: list => (
           <ul className={classFor('List', 'fk-list')} aria-label={list.label}>
             {Array.map(list.items, item => {
-              const action = item.action
               return (
                 <li
                   key={item.key}
                   className="fk-item"
                   data-current={item.isCurrent === true ? true : undefined}
                 >
-                  <button
-                    type="button"
-                    className="fk-item-press"
-                    disabled={action === undefined}
-                    onClick={
-                      action === undefined
-                        ? undefined
-                        : () => {
-                            handlers.onPress(pressOf(action, item.title))
-                          }
-                    }
+                  <ItemPress
+                    item={item}
+                    onPress={handlers.onPress}
+                    onLink={handlers.onLink}
                   >
                     {item.image === undefined ? null : (
                       <img
@@ -483,7 +537,7 @@ export const paintTree = (
                         />
                       )}
                     </span>
-                  </button>
+                  </ItemPress>
                   {paintChildren(item.trailing ?? [])}
                 </li>
               )
