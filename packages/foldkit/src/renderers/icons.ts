@@ -20,6 +20,7 @@ export const IconName = S.Literals([
   'Expand',
   'Collapse',
   'Close',
+  'Back',
   'Library',
   'Profile',
   'Settings',
@@ -96,6 +97,7 @@ export const iconDrawings: Readonly<Record<IconName, IconDrawing>> = {
   Expand: stroked('M6 15l6-6 6 6'),
   Collapse: stroked('M6 9l6 6 6-6'),
   Close: stroked('M18 6L6 18', 'M6 6l12 12'),
+  Back: stroked('M15 18l-6-6 6-6'),
   Library: stroked('M5 4v16', 'M10 4v16', 'M14.5 5.5l4.5 14'),
   Profile: stroked(
     'M19 20v-1.5a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4V20',
@@ -137,6 +139,7 @@ export const iconGlyphs: Readonly<Record<IconName, string>> = {
   Expand: '▴',
   Collapse: '▾',
   Close: '✕',
+  Back: '‹',
   Library: '▤',
   Profile: '◉',
   Settings: '⚙',

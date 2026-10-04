@@ -172,6 +172,7 @@ describe('a composed App', () => {
                 action: 'GoBack',
                 keys: ['Escape'],
                 variant: 'Ghost',
+                icon: 'Back',
               }),
             ),
             notFoundScreen(Declaration.NotFound({ segments: ['nope'] })),

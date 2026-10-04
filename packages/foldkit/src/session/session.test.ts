@@ -358,12 +358,45 @@ describe('Session.compose', () => {
                 action: 'GoBack',
                 keys: ['Escape'],
                 variant: 'Ghost',
+                icon: 'Back',
               }),
             ),
             Text('Detail'),
           ),
         ),
       ),
+    )
+  })
+
+  it('shows no Back button on a page a tab bar reaches', () => {
+    const TabbedProgram = make({
+      ...CounterProgram,
+      id: 'session-tabbed-counter',
+      navigation: {
+        ...Declaration.screens({
+          root: Declaration.rootScreen(Counter, Route.here),
+          screens: [Declaration.pushScreen(Detail, Route.literal('detail'))],
+        }),
+        viewOf: (_model: CounterModel, destination: Detail | Counter) =>
+          destination._tag === 'Detail'
+            ? Option.some(Declaration.screenView(Text('Detail')))
+            : Option.none(),
+      },
+    })
+    const TabbedApp = compose({
+      of: TabbedProgram,
+      isTab: destination => destination._tag === 'Detail',
+    })
+    const navigation = Option.getOrThrow(
+      Option.fromNullishOr(TabbedApp.navigation),
+    )
+    const [atRoot] = TabbedApp.init()
+    const onDetail = {
+      ...atRoot,
+      navigation: { ...atRoot.navigation, pages: [Detail()] },
+    }
+    expect(navigation.viewOf?.(onDetail, Detail())).toEqual(
+      Option.some(Declaration.screenView(Text('Detail'))),
     )
   })
 

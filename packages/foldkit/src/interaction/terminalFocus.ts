@@ -7,8 +7,8 @@ import {
   parseChoiceTag,
 } from '../catalog/catalog.js'
 import type { EntryView } from '../navigation/declaration.js'
-import { Link } from '../navigation/message.js'
 import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
+import { Link } from '../navigation/message.js'
 import { buttonsOf } from '../renderers/query.js'
 import type { ButtonNode, UiNode } from '../renderers/types.js'
 import type { BoundInteraction } from './bind.js'

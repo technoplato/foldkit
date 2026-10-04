@@ -87,6 +87,14 @@ const ghostButtonsOf = (
     variant: 'Ghost',
   }))
 
+const backButtonsOf = (
+  catalogEntries: ReadonlyArray<Catalog.Entry>,
+): ReadonlyArray<ButtonNode> =>
+  Array.map(
+    ghostButtonsOf(catalogEntries),
+    (button): ButtonNode => ({ ...button, icon: 'Back' }),
+  )
+
 // MODEL
 
 /**
@@ -484,9 +492,12 @@ const structFieldsOf = (schema: unknown): S.Struct.Fields =>
  * `l` to change the mode, so a terminal reaches them without a mouse. The
  * child's own interaction stays in charge of its Actions, so a Program
  * whose buttons carry their row, such as `Increment:counter-2`, keeps
- * them; the session's Actions follow. While navigation is mirrored, a launch URI
- * does not move the stack: a newcomer joins the shared screen. Compose it
- * inside `ActionMenu.compose` so the session Actions appear in the menu.
+ * them; the session's Actions follow. While navigation is mirrored, a launch
+ * at the home does not move the stack: a newcomer joins the shared screen.
+ * A launch at a deeper address, such as `/books/a-new-earth/listen/1h00m00s`,
+ * opens it. `isTab` names the pages a tab bar reaches, such as a Profile
+ * page: they show no Back button, since the tab bar is the way out. Compose
+ * it inside `ActionMenu.compose` so the session Actions appear in the menu.
  *
  * @example
  * ```typescript
@@ -499,6 +510,7 @@ export const compose = <Child extends SessionChild>(config: {
   of: Child
   initialMode?: SessionMode
   companions?: ReadonlyArray<Companion>
+  isTab?: (destination: SessionDestinationOf<Child>) => boolean
   id?: string
   version?: number
 }): SessionProgram<Child> => {
@@ -614,6 +626,8 @@ export const compose = <Child extends SessionChild>(config: {
 
   const isSameDestination = S.toEquivalence(composedNavigation.Destination)
 
+  const isTab = config.isTab ?? ((): boolean => false)
+
   const isTopPage = (model: AppModel, destination: AppDestination): boolean =>
     Option.exists(Array.last(model.navigation.pages), page =>
       isSameDestination(page, destination),
@@ -624,7 +638,7 @@ export const compose = <Child extends SessionChild>(config: {
       ? screenView(
           Column(
             {},
-            Row({}, ...ghostButtonsOf(Catalog.entries(backCatalog, model))),
+            Row({}, ...backButtonsOf(Catalog.entries(backCatalog, model))),
             view.node,
           ),
         )
@@ -637,7 +651,9 @@ export const compose = <Child extends SessionChild>(config: {
     ...composedNavigation,
     viewOf: (model, destination) =>
       Option.map(composedViewOf(model, destination), view =>
-        isTopPage(model, destination) ? withBackButton(model, view) : view,
+        isTopPage(model, destination) && !isTab(destination)
+          ? withBackButton(model, view)
+          : view,
       ),
   }
 
