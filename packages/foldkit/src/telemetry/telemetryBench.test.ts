@@ -162,20 +162,40 @@ const summarize = (
   return microsPerMessage
 }
 
-const measure = async (
-  variant: Variant,
+const warmupRounds = 3
+
+const measuredRounds = 21
+
+/**
+ * Measures every variant in rounds, one sample of each per round, so a
+ * machine that slows down or speeds up mid-run moves every variant alike
+ * instead of only the one being measured at the time.
+ */
+const measureInterleaved = async (
+  variants: ReadonlyArray<Variant>,
   messageCount: number,
-): Promise<number> => {
-  const warmupRuns = 3
-  const measuredRuns = 15
-  for (let index = 0; index < warmupRuns; index++) {
-    await runOnce(variant, messageCount)
+): Promise<ReadonlyArray<number>> => {
+  for (let round = 0; round < warmupRounds; round++) {
+    for (const variant of variants) {
+      await runOnce(variant, messageCount)
+    }
   }
-  const samples: Array<number> = []
-  for (let index = 0; index < measuredRuns; index++) {
-    samples.push(await runOnce(variant, messageCount))
+  const samples = Array.map(variants, (): Array<number> => [])
+  for (let round = 0; round < measuredRounds; round++) {
+    for (const [index, variant] of variants.entries()) {
+      const elapsed = await runOnce(variant, messageCount)
+      Option.map(Array.get(samples, index), variantSamples => {
+        variantSamples.push(elapsed)
+      })
+    }
   }
-  return summarize(variant.label, messageCount, samples)
+  return Array.map(variants, (variant, index) =>
+    summarize(
+      variant.label,
+      messageCount,
+      Option.getOrElse(Array.get(samples, index), () => []),
+    ),
+  )
 }
 
 const noObservers = () => Effect.succeed([])
@@ -206,62 +226,54 @@ describe.skipIf(!isBenchEnabled)('telemetry overhead', () => {
             sink: fileSink({ directory }),
           }),
         ])
-      const off = await measure(
-        {
-          label: 'Messages, telemetry off',
-          observers: noObservers,
-          isWithCommands: false,
-        },
-        messageCount,
-      )
-      const onMemory = await measure(
-        {
-          label: 'Messages, telemetry on, memory sink',
-          observers: memoryTelemetry,
-          isWithCommands: false,
-        },
-        messageCount,
-      )
-      const onFile = await measure(
-        {
-          label: 'Messages, telemetry on, file sink',
-          observers: fileTelemetry,
-          isWithCommands: false,
-        },
-        messageCount,
-      )
-      const commandsOff = await measure(
-        {
-          label: 'Messages with a Command, telemetry off',
-          observers: noObservers,
-          isWithCommands: true,
-        },
-        messageCount,
-      )
-      const commandsOn = await measure(
-        {
-          label: 'Messages with a Command, telemetry on, file sink',
-          observers: fileTelemetry,
-          isWithCommands: true,
-        },
-        messageCount,
-      )
-      const offWithShutdown = await measure(
-        {
-          label: 'Messages, telemetry off, through shutdown',
-          observers: noObservers,
-          isWithCommands: false,
-          isIncludingShutdown: true,
-        },
-        messageCount,
-      )
-      const onFileWithShutdown = await measure(
-        {
-          label: 'Messages, telemetry on, file sink, through the last write',
-          observers: fileTelemetry,
-          isWithCommands: false,
-          isIncludingShutdown: true,
-        },
+      const [
+        off = 0,
+        onMemory = 0,
+        onFile = 0,
+        commandsOff = 0,
+        commandsOn = 0,
+        offWithShutdown = 0,
+        onFileWithShutdown = 0,
+      ] = await measureInterleaved(
+        [
+          {
+            label: 'Messages, telemetry off',
+            observers: noObservers,
+            isWithCommands: false,
+          },
+          {
+            label: 'Messages, telemetry on, memory sink',
+            observers: memoryTelemetry,
+            isWithCommands: false,
+          },
+          {
+            label: 'Messages, telemetry on, file sink',
+            observers: fileTelemetry,
+            isWithCommands: false,
+          },
+          {
+            label: 'Messages with a Command, telemetry off',
+            observers: noObservers,
+            isWithCommands: true,
+          },
+          {
+            label: 'Messages with a Command, telemetry on, file sink',
+            observers: fileTelemetry,
+            isWithCommands: true,
+          },
+          {
+            label: 'Messages, telemetry off, through shutdown',
+            observers: noObservers,
+            isWithCommands: false,
+            isIncludingShutdown: true,
+          },
+          {
+            label: 'Messages, telemetry on, file sink, through the last write',
+            observers: fileTelemetry,
+            isWithCommands: false,
+            isIncludingShutdown: true,
+          },
+        ],
         messageCount,
       )
       console.log(
