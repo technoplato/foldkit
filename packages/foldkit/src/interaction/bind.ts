@@ -25,6 +25,7 @@ import {
   type ProgramInteraction,
   Ready,
   type Status,
+  isBrowserOwnedChord,
   menuOpenerOf,
 } from './interaction.js'
 
@@ -230,6 +231,7 @@ export const bind = <Model, Message>(
     press: tag =>
       sendAll(whenInteractive((inner, model) => inner.press(model, tag), [])),
     pressKey: input =>
+      !isBrowserOwnedChord(input) &&
       sendAll(
         whenInteractive((inner, model) => inner.pressKey(model, input), []),
       ),

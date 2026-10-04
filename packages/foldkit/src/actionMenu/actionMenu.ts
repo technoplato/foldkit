@@ -637,7 +637,11 @@ const firstUnavailableTagOf = (
     : Option.none()
 
 const rowOf =
-  (focus: Focus, maybeFirstUnavailableTag: Option.Option<string>) =>
+  (
+    focus: Focus,
+    maybeFirstUnavailableTag: Option.Option<string>,
+    pickTags: ReadonlyArray<string>,
+  ) =>
   (matched: MatchedEntry): MenuRow => ({
     entry: matched.entry,
     title: matched.title,
@@ -648,6 +652,10 @@ const rowOf =
     isFirstUnavailable: Option.contains(
       maybeFirstUnavailableTag,
       matched.entry.tag,
+    ),
+    maybePick: Option.map(
+      Array.findFirstIndex(pickTags, tag => tag === matched.entry.tag),
+      index => index + 1,
     ),
     isHighlighted: Option.contains(highlightedTag(focus), matched.entry.tag),
     isFocused: focus._tag === 'OnAction' && focus.tag === matched.entry.tag,
@@ -678,9 +686,13 @@ export const menuViewOf = (
     stepEntriesOf(catalogEntries, menu.maybeChoosing),
     menu.query,
   )
+  const pickTags = Array.map(
+    availableEntriesOf(Array.map(matched, ({ entry }) => entry)),
+    entry => entry.tag,
+  )
   const rows = Array.map(
     matched,
-    rowOf(menu.focus, firstUnavailableTagOf(matched)),
+    rowOf(menu.focus, firstUnavailableTagOf(matched), pickTags),
   )
   const isChoosing = Option.isSome(menu.maybeChoosing)
   return {
@@ -845,20 +857,22 @@ const isToggleChord = (input: KeyInput): boolean =>
 const isOpenChord = (input: KeyInput): boolean =>
   Array.some(menuKeys, declared => isKey(declared, input))
 
-const choiceChordEntryOf = (
-  catalogEntries: ReadonlyArray<Entry>,
-  input: KeyInput,
-): Option.Option<Entry> =>
-  isChord(input) && !isToggleChord(input)
-    ? Array.findFirst(
-        catalogEntries,
-        entry =>
-          isEnabled(entry.availability) &&
-          Option.exists(entry.maybeChoices, choices =>
-            Array.contains(choices.keys, normalizeKey(input.key)),
-          ),
-      )
+const pickLimit = 9
+
+const pickOf = (input: KeyInput): Option.Option<number> => {
+  const key = normalizeKey(input.key)
+  return isChord(input) && /^[1-9]$/.test(key)
+    ? Option.some(Number(key))
     : Option.none()
+}
+
+const availableEntriesOf = (
+  entries: ReadonlyArray<Entry>,
+): ReadonlyArray<Entry> =>
+  Array.take(
+    Array.filter(entries, entry => isEnabled(entry.availability)),
+    pickLimit,
+  )
 
 const isPrintable = (key: string, input: KeyInput): boolean =>
   key.length === 1 && !isChord(input)
@@ -868,9 +882,10 @@ const isPrintable = (key: string, input: KeyInput): boolean =>
  * global action menu. The menu is a presented destination on a navigation
  * stack whose root is the child's root, so synchronization modes decide
  * whether it mirrors across devices. The composed Model stays flat: the
- * child's fields plus `navigation`. Command or Control with an Action's
- * key opens the menu straight at that Action's choices when it asks
- * which: `⌘-` on the counters list opens "Decrement › Which counter?".
+ * child's fields plus `navigation`. While it is open, Command (Control off
+ * a Mac) with 1 to 9 runs the row with that number, counting the rows that
+ * can run: `⌘K`, then `⌘3` asks "Decrement › Which counter?", then `⌘2`
+ * decrements Counter 2.
  *
  * @example
  * ```typescript
@@ -878,8 +893,8 @@ const isPrintable = (key: string, input: KeyInput): boolean =>
  * // App.Model: { count, navigation }
  * // App.interaction.pressKey(model, keyInput('k', { isMeta: true }))
  * //   → [OpenedActionMenu()]
- * // App.interaction.pressKey(model, keyInput('-', { isMeta: true }))
- * //   → [OpenedActionMenu(), OpenedActionMenuChoices({ tag: 'Decrement' })] for a choosing Decrement
+ * // with the menu open, App.interaction.pressKey(model, keyInput('3', { isMeta: true }))
+ * //   → [OpenedActionMenuChoices({ tag: 'Decrement' })] when Decrement is the third row that can run
  * ```
  */
 export const compose = <Child extends ActionMenuChild>(config: {
@@ -1266,20 +1281,22 @@ export const compose = <Child extends ActionMenuChild>(config: {
       },
     )
 
-  const choicesOpenedFor = (
+  const pickedTagOf = (
     model: AppModel,
-    tag: string,
-  ): ReadonlyArray<AppMessage> => {
-    if (isOpen(model)) {
-      return [OpenedActionMenuChoices({ tag })]
-    } else if (Option.isNone(model.navigation.maybeModal)) {
-      return [OpenedActionMenu(), OpenedActionMenuChoices({ tag })]
-    } else {
-      return []
-    }
-  }
+    menu: ActionMenu,
+    input: KeyInput,
+  ): Option.Option<string> =>
+    Option.flatMap(pickOf(input), pick =>
+      Option.map(
+        Array.get(
+          availableEntriesOf(visibleOf(model, menu.query, menu.maybeChoosing)),
+          pick - 1,
+        ),
+        entry => entry.tag,
+      ),
+    )
 
-  const keyWithMenu = (
+  const pressKey = (
     model: AppModel,
     input: KeyInput,
   ): ReadonlyArray<AppMessage> => {
@@ -1288,24 +1305,19 @@ export const compose = <Child extends ActionMenuChild>(config: {
       onNone: () =>
         isOpenChord(input) ? [OpenedActionMenu()] : closedKey(model, input),
       onSome: menu =>
-        M.value(menu.focus).pipe(
-          M.withReturnType<ReadonlyArray<AppMessage>>(),
-          M.tagsExhaustive({
-            OnFilter: focus => filterKey(model, menu, focus, key, input),
-            OnAction: focus => listKey(model, focus, key, input),
-          }),
-        ),
+        Option.match(pickedTagOf(model, menu, input), {
+          onSome: tag => choose(model, tag),
+          onNone: () =>
+            M.value(menu.focus).pipe(
+              M.withReturnType<ReadonlyArray<AppMessage>>(),
+              M.tagsExhaustive({
+                OnFilter: focus => filterKey(model, menu, focus, key, input),
+                OnAction: focus => listKey(model, focus, key, input),
+              }),
+            ),
+        }),
     })
   }
-
-  const pressKey = (
-    model: AppModel,
-    input: KeyInput,
-  ): ReadonlyArray<AppMessage> =>
-    Option.match(choiceChordEntryOf(entriesOf(model), input), {
-      onNone: () => keyWithMenu(model, input),
-      onSome: entry => choicesOpenedFor(model, entry.tag),
-    })
 
   const viewOfMenu = (
     model: AppModel,

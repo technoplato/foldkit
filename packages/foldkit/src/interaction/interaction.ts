@@ -223,6 +223,80 @@ export const shortcutOf = (key: KeyInput, platform: KeyPlatform): string => {
   }
 }
 
+/**
+ * How a menu row's number reads on a platform: `⌘3` on a Mac, `Ctrl+3`
+ * elsewhere, and None on a touch screen.
+ *
+ * @example
+ * ```typescript
+ * pickShortcutOf(3, 'Mac') // Some('⌘3')
+ * pickShortcutOf(3, 'Touch') // None
+ * ```
+ */
+export const pickShortcutOf = (
+  pick: number,
+  platform: KeyPlatform,
+): Option.Option<string> =>
+  M.value(platform).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.when('Mac', () =>
+      Option.some(shortcutOf(keyInput(String(pick), { isMeta: true }), 'Mac')),
+    ),
+    M.when('Other', () =>
+      Option.some(
+        shortcutOf(keyInput(String(pick), { isControl: true }), 'Other'),
+      ),
+    ),
+    M.when('Touch', () => Option.none()),
+    M.exhaustive,
+  )
+
+const browserOwnedChordKeys: ReadonlySet<string> = new Set([
+  '+',
+  '=',
+  '-',
+  '_',
+  '0',
+  'a',
+  'c',
+  'd',
+  'f',
+  'h',
+  'l',
+  'n',
+  'p',
+  'q',
+  'r',
+  's',
+  't',
+  'v',
+  'w',
+  'x',
+  'y',
+  'z',
+  '[',
+  ']',
+  ',',
+])
+
+/**
+ * True for a chord the browser already owns: zoom (`⌘+`, `⌘-`, `⌘0`),
+ * reload, tabs and windows, the address bar, find, print, save,
+ * bookmarks, history, editing, and back and forward. A Program never
+ * takes one, so `⌘-` always zooms out. `⌘1` to `⌘9` switch tabs too; only
+ * the open action menu takes them, to pick a row.
+ *
+ * @example
+ * ```typescript
+ * isBrowserOwnedChord(keyInput('-', { isMeta: true })) // true
+ * isBrowserOwnedChord(keyInput('k', { isMeta: true })) // false
+ * isBrowserOwnedChord(keyInput('r')) // false
+ * ```
+ */
+export const isBrowserOwnedChord = (input: KeyInput): boolean =>
+  isChord(input) &&
+  browserOwnedChordKeys.has(normalizeKey(input.key).toLowerCase())
+
 const preferredShortcut = (
   keys: ReadonlyArray<KeyInput>,
   platform: KeyPlatform,
@@ -338,8 +412,9 @@ export const hintLineOf = (hints: ReadonlyArray<MenuHint>): string =>
  * choices instead of running, such as Decrement counter. Unavailable rows
  * come after the available ones, and `isFirstUnavailable` marks the first
  * of them when any row above is available, so a painter draws a hairline
- * between the two groups. `isHighlighted` marks the row Enter sends;
- * `isFocused` marks the row that has the keyboard.
+ * between the two groups. `maybePick` numbers the first nine rows that
+ * can run, so `⌘3` runs the third. `isHighlighted` marks the row Enter
+ * sends; `isFocused` marks the row that has the keyboard.
  */
 export type MenuRow = Readonly<{
   entry: Entry
@@ -349,6 +424,7 @@ export type MenuRow = Readonly<{
   keys: ReadonlyArray<string>
   isNested: boolean
   isFirstUnavailable: boolean
+  maybePick: Option.Option<number>
   isHighlighted: boolean
   isFocused: boolean
 }>

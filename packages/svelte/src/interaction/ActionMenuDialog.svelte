@@ -17,6 +17,16 @@
 
   const rowIdOf = (tag: string): string => `fk-action-menu-${tag}`
 
+  const platform: Interaction.KeyPlatform =
+    typeof navigator === 'undefined'
+      ? 'Other'
+      : Interaction.keyPlatformOf(navigator)
+
+  const pickShortcutOf = (row: Interaction.MenuRow): Option.Option<string> =>
+    Option.flatMap(row.maybePick, pick =>
+      Interaction.pickShortcutOf(pick, platform),
+    )
+
   const listId = 'fk-action-menu-list'
 
   const stylesheet = `<style id="foldkit-action-menu">${Interaction.menuStylesheet}</style>`
@@ -132,6 +142,11 @@
             {#if Array.isReadonlyArrayNonEmpty(row.keys)}
               <span aria-hidden="true" class="fk-action-menu-keys"
                 >{@render keyCaps(row.keys)}</span
+              >
+            {/if}
+            {#if Option.isSome(pickShortcutOf(row))}
+              <kbd aria-hidden="true" class="fk-action-menu-pick"
+                >{Option.getOrElse(pickShortcutOf(row), () => '')}</kbd
               >
             {/if}
           </li>

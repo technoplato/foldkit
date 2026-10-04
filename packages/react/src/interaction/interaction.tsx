@@ -486,6 +486,19 @@ const MenuRowView = ({
           <KeyCaps keys={row.keys} />
         </span>
       ) : null}
+      {Option.match(
+        Option.flatMap(row.maybePick, pick =>
+          Interaction.pickShortcutOf(pick, browserKeyPlatform()),
+        ),
+        {
+          onNone: () => null,
+          onSome: shortcut => (
+            <kbd className="fk-action-menu-pick" aria-hidden="true">
+              {shortcut}
+            </kbd>
+          ),
+        },
+      )}
     </li>
   )
 }

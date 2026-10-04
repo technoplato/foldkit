@@ -151,13 +151,13 @@ Imagine a vending machine. You don't get a separate button for "cola from row 1"
 
 Each lifted move works that way, and so do `Open` and `Delete`. Here is what one move gives every window:
 
-| Where                             | What you see                                                                                                 |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Action menu                       | one row, `Decrement ›`; choose it and the menu asks "Which counter?", `/counters/menu?menu.choose=Decrement` |
-| A counter's row in the list       | a `-` button that presses `Decrement:3`                                                                      |
-| A counter's page                  | `-` on the keyboard, because that counter is the preferred choice                                            |
-| Anywhere, with ⌘ (Ctrl off a Mac) | `⌘-` opens the menu at "Which counter?" for Decrement                                                        |
-| CLI                               | `counters decrement 3`                                                                                       |
+| Where                                  | What you see                                                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Action menu                            | one row, `Decrement ›`; choose it and the menu asks "Which counter?", `/counters/menu?menu.choose=Decrement` |
+| A counter's row in the list            | a `-` button that presses `Decrement:3`                                                                      |
+| A counter's page                       | `-` on the keyboard, because that counter is the preferred choice                                            |
+| The open menu, with ⌘ (Ctrl off a Mac) | `⌘K`, then `⌘3` picks the third row, Decrement, then `⌘2` picks Counter 2; `⌘-` stays the browser's zoom     |
+| CLI                                    | `counters decrement 3`                                                                                       |
 
 Leave the number off and the CLI shows you the whole command:
 

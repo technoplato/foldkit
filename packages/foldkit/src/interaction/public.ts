@@ -29,6 +29,8 @@ export {
   KeyPlatform,
   menuOpenerOf,
   shortcutOf,
+  pickShortcutOf,
+  isBrowserOwnedChord,
   terminalKeyInput,
   terminalFooterOf,
   terminalLineText,

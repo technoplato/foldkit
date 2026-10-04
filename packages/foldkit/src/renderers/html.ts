@@ -1,7 +1,13 @@
 import { Array, Match as M, Option } from 'effect'
 
 import { type Html, html } from '../html/index.js'
-import type { MenuView, TextRun } from '../interaction/interaction.js'
+import {
+  type KeyPlatform,
+  type MenuView,
+  type TextRun,
+  keyPlatformOf,
+  pickShortcutOf,
+} from '../interaction/interaction.js'
 import { menuStylesheet } from '../interaction/menuStyles.js'
 import { screenStylesheet } from '../interaction/screenStyles.js'
 import type { EntryView } from '../navigation/declaration.js'
@@ -232,6 +238,8 @@ export const paintMenuHtml = <Message>(
         ? h.mark([h.Class('fk-action-menu-match')], [run.text])
         : run.text,
     )
+  const platform: KeyPlatform =
+    typeof navigator === 'undefined' ? 'Other' : keyPlatformOf(navigator)
   const keys = (keyLabels: ReadonlyArray<string>): ReadonlyArray<Html> =>
     Array.map(keyLabels, key => h.kbd([h.Class('fk-action-menu-key')], [key]))
   const activeDescendant = Option.match(
@@ -283,6 +291,18 @@ export const paintMenuHtml = <Message>(
             ),
           ],
         }),
+        ...Array.fromOption(
+          Option.map(
+            Option.flatMap(row.maybePick, pick =>
+              pickShortcutOf(pick, platform),
+            ),
+            shortcut =>
+              h.kbd(
+                [h.Class('fk-action-menu-pick'), h.AriaHidden(true)],
+                [shortcut],
+              ),
+          ),
+        ),
       ],
     ),
   )

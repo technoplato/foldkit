@@ -134,3 +134,44 @@ describe('hintLineOf', () => {
     ).toBe('[↑↓] move  [esc] close')
   })
 })
+
+describe('isBrowserOwnedChord', () => {
+  it('leaves zoom, reload, and tabs to the browser, and takes ⌘K', () => {
+    expect(
+      Interaction.isBrowserOwnedChord(
+        Interaction.keyInput('-', { isMeta: true }),
+      ),
+    ).toBe(true)
+    expect(
+      Interaction.isBrowserOwnedChord(
+        Interaction.keyInput('=', { isMeta: true }),
+      ),
+    ).toBe(true)
+    expect(
+      Interaction.isBrowserOwnedChord(
+        Interaction.keyInput('R', { isControl: true }),
+      ),
+    ).toBe(true)
+    expect(
+      Interaction.isBrowserOwnedChord(
+        Interaction.keyInput('k', { isMeta: true }),
+      ),
+    ).toBe(false)
+    expect(
+      Interaction.isBrowserOwnedChord(
+        Interaction.keyInput('3', { isMeta: true }),
+      ),
+    ).toBe(false)
+    expect(Interaction.isBrowserOwnedChord(Interaction.keyInput('-'))).toBe(
+      false,
+    )
+  })
+
+  it('reads a row number as each platform writes it', () => {
+    expect(Interaction.pickShortcutOf(3, 'Mac')).toEqual(Option.some('⌘3'))
+    expect(Interaction.pickShortcutOf(3, 'Other')).toEqual(
+      Option.some('Ctrl+3'),
+    )
+    expect(Interaction.pickShortcutOf(3, 'Touch')).toEqual(Option.none())
+  })
+})

@@ -238,6 +238,27 @@ describe('filtering', () => {
     ).toEqual([`  ${'─'.repeat(36)}`])
   })
 
+  it('numbers the rows that can run and runs one on Command and its number', () => {
+    const atZero = openMenu(initial(0))
+    expect(
+      Option.map(interaction.menu(atZero), menu =>
+        menu.rows.map(row => [row.entry.tag, row.maybePick]),
+      ),
+    ).toEqual(
+      Option.some([
+        ['Increment', Option.some(1)],
+        ['Decrement', Option.some(2)],
+        ['Reset', Option.none()],
+      ]),
+    )
+    const chosen = press(atZero, keyInput('2', { isMeta: true }))
+    expect(chosen.count).toBe(-1)
+    expect(ActionMenu.menuOf(chosen.navigation)).toEqual(Option.none())
+    expect(
+      press(atZero, keyInput('3', { isControl: true })).navigation,
+    ).toEqual(atZero.navigation)
+  })
+
   it('deletes with Backspace', () => {
     const model = press(
       press(openMenu(initial()), keyInput('d')),

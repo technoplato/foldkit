@@ -199,6 +199,18 @@ export const menuStylesheet = `
   gap: 0.25rem;
 }
 
+:where(.fk-action-menu-pick) {
+  flex: none;
+  min-width: 1.75rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.375rem;
+  color: rgb(107 114 128);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-align: right;
+}
+
 :where(.fk-action-menu-key) {
   box-sizing: border-box;
   min-width: 1.5rem;

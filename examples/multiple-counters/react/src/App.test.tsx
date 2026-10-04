@@ -55,17 +55,17 @@ describe('React Multiple Counters', () => {
     expect(screen.getByLabelText('Counter 1 count 0')).toBeDefined()
   })
 
-  it('asks which counter on Command and an Action key, instead of zooming', async () => {
+  it('leaves Command-minus to the browser and picks menu rows by number', async () => {
     await renderApp()
-    const wasNotPrevented = fireEvent.keyDown(document, {
-      key: '-',
-      metaKey: true,
+    expect(fireEvent.keyDown(document, { key: '-', metaKey: true })).toBe(true)
+    expect(fireEvent.keyDown(document, { key: 'k', metaKey: true })).toBe(false)
+    await waitFor(() => {
+      expect(screen.getByText(/^(⌘3|Ctrl\+3)$/)).toBeDefined()
     })
-    expect(wasNotPrevented).toBe(false)
+    expect(fireEvent.keyDown(document, { key: '3', metaKey: true })).toBe(false)
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Which counter?')).toBeDefined()
     })
-    expect(window.location.pathname).toBe('/counters/menu')
   })
 
   it('opens a counter page in the address bar and counts with its keys', async () => {

@@ -360,9 +360,9 @@ export type Entry<Tag extends string = string> = Readonly<{
 /**
  * What a choosing entry offers: the field it fills, the question, each
  * choice with its own availability, the choice a bare press takes, and the
- * keys the Action declares. A bare key takes the preferred choice; the
- * same key with Command or Control asks which, so on the list `⌘R` opens
- * "Reset › Which counter?".
+ * keys the Action declares. A bare key takes the preferred choice, and a
+ * terminal acts with it on the highlighted row: `r` on Counter 2's row
+ * resets Counter 2.
  *
  * @example
  * ```typescript

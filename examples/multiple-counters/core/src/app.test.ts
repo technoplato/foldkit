@@ -262,21 +262,40 @@ describe('the action menu', () => {
     expect(Option.isNone(bound.menu())).toBe(true)
   })
 
-  it('asks which counter on Command with an Action key, from anywhere', () => {
+  it('picks a row by its number on Command, then a counter the same way', () => {
     const bound = bindApp()
     bound.press('Add')
     expect(bound.pressKey(Interaction.keyInput('-', { isMeta: true }))).toBe(
-      true,
-    )
-    expect(uriOf(bound)).toBe('/counters/menu?menu.choose=Decrement')
-    bound.pressKey(Interaction.keyInput('d', { isControl: true }))
-    expect(uriOf(bound)).toBe('/counters/menu?menu.choose=Delete')
-    bound.chooseFromMenu('Delete:2')
-    expect(uriOf(bound)).toBe('/counters/delete/2')
-    expect(bound.pressKey(Interaction.keyInput('-', { isMeta: true }))).toBe(
       false,
     )
-    expect(uriOf(bound)).toBe('/counters/delete/2')
+    bound.openMenu()
+    expect(
+      Option.map(bound.menu(), menu =>
+        Array.getSomes(
+          Array.map(menu.rows, row =>
+            Option.map(row.maybePick, pick => `${pick} ${row.entry.tag}`),
+          ),
+        ),
+      ),
+    ).toEqual(
+      Option.some([
+        '1 Add',
+        '2 Increment',
+        '3 Decrement',
+        '4 Open',
+        '5 Delete',
+        '6 KeepNavigationLocal',
+        '7 OpenSessionSettings',
+      ]),
+    )
+    bound.pressKey(Interaction.keyInput('3', { isMeta: true }))
+    expect(uriOf(bound)).toBe('/counters/menu?menu.choose=Decrement')
+    bound.pressKey(Interaction.keyInput('2', { isControl: true }))
+    expect(countsOf(bound)).toEqual([
+      [1, 0],
+      [2, -1],
+    ])
+    expect(Option.isNone(bound.menu())).toBe(true)
   })
 
   it('goes back from the choices on Escape, and closes on the next', () => {
