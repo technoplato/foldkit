@@ -4,6 +4,20 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 4:30:42 a.m. EDT — `dcd297cd7c2e` fix(words): name words.pisspoursoftware.xyz in the sign-in help texts
+
+- **Implementation commit:** `dcd297cd7c2e8e125844b3e73d70ff8b0373ef96`
+- **Change:** The sign-in help texts name words.pisspoursoftware.xyz (Scribe #493).
+- **Details:**
+  - Shown only when no Cloudflare Access login reaches the page; they pointed at https://words.knophy.com, which redirects since Phase 2.
+  - Verified: web tsc, plugin tests 5/5, words core 208/208.
+- **Files:**
+  - `examples/words/foldkit/src/view/account.ts` — sign-in help text on the account page
+  - `examples/words/foldkit/src/view/list.ts` — sign-in help text on the list
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
 ## October 4th, 2026 at 12:01:51 a.m. EDT — `68f4670bf0bf` feat(words): print shared links on words.pisspoursoftware.xyz
 
 - **Implementation commit:** `68f4670bf0bfca0548a55567482706433d3c005c`
