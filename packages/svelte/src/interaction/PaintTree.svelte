@@ -21,6 +21,30 @@
 
   let dockHeight = $state(0)
 
+  const scrollWhenCurrent = (row: HTMLElement, isCurrent: boolean) => {
+    if (isCurrent) {
+      row.scrollIntoView({ block: 'center' })
+    }
+    return {
+      update: (isRowCurrent: boolean): void => {
+        if (isRowCurrent) {
+          row.scrollIntoView({ block: 'nearest' })
+        }
+      },
+    }
+  }
+
+  $effect(() => {
+    if (typeof document === 'undefined' || dockHeight === 0) {
+      return undefined
+    }
+    const root = document.documentElement
+    root.style.setProperty('--fk-dock-height', `${dockHeight.toString()}px`)
+    return () => {
+      root.style.removeProperty('--fk-dock-height')
+    }
+  })
+
   const followLink = (event: MouseEvent, href: string): void => {
     if (Navigation.isPlainClick(event) && onLink !== undefined && onLink(href)) {
       event.preventDefault()
@@ -151,7 +175,6 @@
     {/each}
   </div>
 {:else if node._tag === 'Box' && node.isDock === true}
-  <div class="fk-dock-space" style:height={`${dockHeight.toString()}px`}></div>
   <div bind:clientHeight={dockHeight} class={classFor(classNames, 'Box', 'fk-dock')}>
     {#each node.children as child, index (keyFor(child, index))}
       <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
@@ -174,7 +197,11 @@
   <ul aria-label={node.label} class={classFor(classNames, 'List', 'fk-list')}>
     {#each node.items as item (item.key)}
       {@const action = item.action}
-      <li class="fk-item" data-current={item.isCurrent === true ? true : undefined}>
+      <li
+        class="fk-item"
+        data-current={item.isCurrent === true ? true : undefined}
+        use:scrollWhenCurrent={item.isCurrent === true}
+      >
         {#snippet itemContent()}
           {#if item.image !== undefined}
             <img
