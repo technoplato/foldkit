@@ -70,7 +70,7 @@ const isAdoptedLaunch = <Model, Destination>(
   message._tag !== 'OpenedUri' ||
   message.via._tag !== 'Launch' ||
   navigation.adoptsLaunch === undefined ||
-  navigation.adoptsLaunch(model)
+  navigation.adoptsLaunch(model, message.uri)
 
 /**
  * Folds one carrier fact into a stack. `OpenedUri` adopts the parsed URI,

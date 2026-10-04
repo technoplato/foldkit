@@ -213,7 +213,7 @@ export const composeNavigation = <
     destination: AppDestination,
   ) => Option.Option<EntryView>
   settleEntry?: (model: AppModel, destination: AppDestination) => AppDestination
-  adoptsLaunch?: (model: AppModel) => boolean
+  adoptsLaunch?: (model: AppModel, uri: string) => boolean
 }): StackedNavigation<AppModel, AppDestination> => {
   const { child, childOf } = config
   const isChildDestination = S.is(child.Destination)
@@ -293,8 +293,9 @@ export const composeNavigation = <
     ...(childHistoryOf === undefined
       ? {}
       : { historyOf: (model: AppModel) => childHistoryOf(childOf(model)) }),
-    adoptsLaunch: model =>
-      (config.adoptsLaunch === undefined || config.adoptsLaunch(model)) &&
-      (child.adoptsLaunch === undefined || child.adoptsLaunch(childOf(model))),
+    adoptsLaunch: (model, uri) =>
+      (config.adoptsLaunch === undefined || config.adoptsLaunch(model, uri)) &&
+      (child.adoptsLaunch === undefined ||
+        child.adoptsLaunch(childOf(model), uri)),
   }
 }

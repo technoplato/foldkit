@@ -289,7 +289,8 @@ export const NavigationTypeId = '~foldkit/navigation'
  * - `historyOf` replaces instead of recording while following someone.
  * - `adoptsLaunch` is false while a launch URI should not move the stack,
  *   such as while navigation is mirrored and the newcomer joins the
- *   shared stack.
+ *   shared stack. It reads the launch URI too, so a link to somewhere in
+ *   particular can still be followed.
  *
  * @example
  * ```typescript
@@ -310,7 +311,7 @@ export type ProgramNavigation<Model, Destination> = Readonly<{
   viewOf?: (model: Model, destination: Destination) => Option.Option<EntryView>
   settleEntry?: (model: Model, destination: Destination) => Destination
   historyOf?: (model: Model) => HistoryMode
-  adoptsLaunch?: (model: Model) => boolean
+  adoptsLaunch?: (model: Model, uri: string) => boolean
 }>
 
 /**
@@ -405,10 +406,10 @@ export const focusModel = <Model, ChildModel, Destination>(
     ...(adoptsLaunch === undefined
       ? {}
       : {
-          adoptsLaunch: (model: Model) =>
+          adoptsLaunch: (model: Model, uri: string) =>
             Option.match(focus.childOf(model), {
               onNone: () => true,
-              onSome: adoptsLaunch,
+              onSome: child => adoptsLaunch(child, uri),
             }),
         }),
   }

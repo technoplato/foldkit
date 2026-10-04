@@ -1,4 +1,12 @@
-import { Array, Data, Match as M, Option, Predicate, Schema as S } from 'effect'
+import {
+  Array,
+  Data,
+  Match as M,
+  Option,
+  Predicate,
+  Schema as S,
+  String,
+} from 'effect'
 
 import { isActionMenu } from '../actionMenu/actionMenu.js'
 import * as Catalog from '../catalog/catalog.js'
@@ -57,6 +65,19 @@ import {
   SessionPolicy,
   SharedDomain,
 } from '../synchronization/synchronization.js'
+
+/**
+ * True for a launch that names a page beyond the Program's home, such as
+ * `/books/a-new-earth/listen/12m03s`, not `/books`. While navigation is
+ * mirrored, a newcomer at the home joins the shared stack, but a link to
+ * somewhere in particular moves the shared stack there, so a link someone
+ * sends still opens what it names, on every mirrored device.
+ */
+const isBeyondHome = (uri: string): boolean =>
+  Array.filter(
+    String.split(Array.headNonEmpty(String.split(uri, '?')), '/'),
+    String.isNonEmpty,
+  ).length > 1
 
 const ghostButtonsOf = (
   catalogEntries: ReadonlyArray<Catalog.Entry>,
@@ -587,7 +608,8 @@ export const compose = <Child extends SessionChild>(config: {
       isSessionSettings(destination)
         ? Option.some(screenView(sessionScreen(model, config.companions)))
         : Option.none(),
-    adoptsLaunch: model => model.session.mode !== 'Mirror',
+    adoptsLaunch: (model, uri) =>
+      model.session.mode !== 'Mirror' || isBeyondHome(uri),
   })
 
   const isSameDestination = S.toEquivalence(composedNavigation.Destination)
