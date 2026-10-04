@@ -4,6 +4,120 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 12:34:44 p.m. EDT — `8d69860df056` test(react-native): expect a deep launch link to open while mirrored
+
+- **Implementation commit:** `8d69860df056766c030abe051e1ea718194de647`
+- **Change:** Expect a deep launch link to open while mirrored
+- **Details:**
+  - The Expo Router test follows the launch rule: a mirrored session opens a deep link to a page.
+- **Files:**
+  - `packages/react-native/src/expoRouter/routerStack.test.ts` — Updated expectation.
+- **User context (verbatim):**
+  > I want deep linking to work.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:19:08 p.m. EDT — `f840d7a60263` docs(reminders): describe Reminders on the V3 rows, its addresses, and its hosts
+
+- **Implementation commit:** `f840d7a602635fc391623218da135abd8b28fd29`
+- **Change:** Describe Reminders on the V3 rows, its addresses, and its hosts
+- **Details:**
+  - The README maps the V3 entities to the Program, lists every address, and says how to run the fixture, the live app on a dev Instant app with the V3 schema, and the terminal hosts.
+- **Files:**
+  - `examples/reminders/README.md` — Rewritten for the V3 example.
+- **User context (verbatim):**
+  > It's probably got a pretty decent schema, but we actually want to embed that inscribe.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:19:08 p.m. EDT — `93d81001ff2a` feat(reminders): add the CLI, TUI, and OpenTUI
+
+- **Implementation commit:** `93d81001ff2adf2f9890b72bb1da9e2c6be262dc`
+- **Change:** Add the CLI, TUI, and OpenTUI
+- **Details:**
+  - The terminal hosts run the same Program through the generic Foldkit surfaces. --at opens an address first so a one-shot command acts on that page, reminders --at /reminders/lists/<id> add-reminder Buy milk; the TUI and OpenTUI tick with x, flag with f, and copy a link with c. Each signs in as the Access member and names no app by default.
+- **Files:**
+  - `examples/reminders/cli/src/entry.ts` — One-shot commands, watch, tail, and --at.
+  - `examples/reminders/cli/src/tui.ts` — The TUI.
+  - `examples/reminders/opentui/src/entry.ts` — OpenTUI.
+  - `examples/reminders/scripts/with-reminders-access` — Reads only the app id.
+- **User context (verbatim):**
+  > And again, follow the canonical example encounters, and now I imagine books is pretty good.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:19:08 p.m. EDT — `e9c559662c7c` feat(reminders): add the React host, with a fixture and screenshots of every screen
+
+- **Implementation commit:** `e9c559662c7c3ef90966bc25c750d414ae5b3564`
+- **Change:** Add the React host, with a fixture and screenshots of every screen
+- **Details:**
+  - The React window paints every page, Sheet, and question on Instant only, in an iOS-style grouped look: smart lists as cards, lists as cards with inset separators, tags as chips, values on one line, color swatches, and the current choice checked. A fixture runs the same App on the made-up board in memory, and the screenshot script checks the interactions at 1280 and 390 wide.
+- **Files:**
+  - `examples/reminders/react/src/App.tsx` — The window.
+  - `examples/reminders/react/src/styles.css` — The look.
+  - `examples/reminders/react/fixture/main.tsx` — The in-memory review fixture.
+  - `examples/reminders/react/scripts/screenshots.mjs` — Screens and interaction checks.
+- **User context (verbatim):**
+  > Um, because it needs to look good.
+  > not just a static list of buttons.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:18:56 p.m. EDT — `99b191f390d4` feat(reminders): link every row to its page, add Lists and Profile tabs, and share any page
+
+- **Implementation commit:** `99b191f390d440eb30e8e22a7b15c4d50c706014`
+- **Change:** Link every row to its page, add Lists and Profile tabs, and share any page
+- **Details:**
+  - Every row is a link to the page it opens at the address the address bar shows there, and a reminder's Due, Priority, and List rows link to their Sheets; a terminal presses the same rows' Actions. Home and the profile share a dock with the Lists and Profile tabs, the profile with no Back. SharePage, c, shares the page on screen through the share sheet or the clipboard and says Link copied until the screen changes. Due dates read as dates and mark the one set; Move to offers only lists the person may change.
+- **Files:**
+  - `examples/reminders/core/src/links.ts` — Paths printed through the routes for rows and Sheets.
+  - `examples/reminders/core/src/routes.ts` — The screens, moved out so links never import the views.
+  - `examples/reminders/core/src/screen.ts` — Link rows, the dock, and compact detail rows.
+  - `examples/reminders/core/src/share.ts` — LinkSharing, as in Books.
+  - `examples/reminders/core/src/message.ts` — ShowLists, ShowProfile, SharePage, ShowMoveOptions.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:18:36 p.m. EDT — `ef4471b9ba7e` fix(foldkit): keep link rows plain
+
+- **Implementation commit:** `ef4471b9ba7ee0f087bd8325a9273019c01a3d72`
+- **Change:** Keep link rows plain
+- **Details:**
+  - A list row that is a link, such as a bookmark's moment or a reminder, no longer underlines its title and lines on the web.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — text-decoration on .fk-item-press.
+- **User context (verbatim):**
+  > I definitely want that to be a clickable link, um, and a shareable link.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:18:36 p.m. EDT — `663228da08c1` feat(reminders): rebuild Reminders on the Reminders V3 schema
+
+- **Implementation commit:** `663228da08c1e1f07b94d522727eb4e2ac0cbae3`
+- **Change:** Rebuild Reminders on the Reminders V3 schema
+- **Details:**
+  - The core is a Program in the shape of Books on Reminders V3's own rows: remindersLists, reminders, tags, v3_shares, and v3_share_memberships on $users, written the way the Swift Messages write them, with the schema and rules mirrored and pinned by a contract test beside the owner-scoped programMessage log. Home, smart lists, lists, tags, search, a page per reminder, and Sheets for due dates, priorities, moving, ordering, list details, and sharing, each at its own address and closing on a choice.
+- **Files:**
+  - `examples/reminders/core/src/instantSchema.ts` — Reminders V3 entities and links, plus programMessage.
+  - `examples/reminders/core/src/instantPerms.ts` — Reminders V3 rules, plus an owner-only programMessage.
+  - `examples/reminders/core/src/instantStore.ts` — Reads the board and writes each change as V3 does.
+  - `examples/reminders/core/src/message.ts` — The Catalog Actions.
+  - `examples/reminders/core/src/update.ts` — WriteReminders and the stack rules.
+- **User context (verbatim):**
+  > Whatever example is in FoldKit right now, bring it towards Reminders V3, because I think Reminders V3 is going to be more mature, but if there's anything interesting in the example, keep it and merge the two.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 12:18:35 p.m. EDT — `a89010723f55` feat(foldkit): let a field press an Action and a list row carry a check
+
+- **Implementation commit:** `a89010723f5593c6a3ec71e86bf30d5fd1f9bf95`
+- **Change:** Let a field press an Action and a list row carry a check
+- **Details:**
+  - A TextInput with an action presses it with the trimmed text as the choice, AddReminder:Buy milk; a field that edits also submits when a person leaves it and presses its clearAction when emptied. A ListItem check is a box at the row's start, such as a reminder's completion circle, that presses its own Action. React, Svelte, React Native, the HTML painter, the terminal, and OpenTUI draw both.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — TextInput action, clearAction, and label; ItemCheck on ListItem.
+  - `packages/foldkit/src/renderers/textInput.ts` — submittedTagOf, the one rule for what a submission presses.
+  - `packages/react/src/paintReact/paintReact.tsx` — TextField and CheckButton.
+  - `packages/foldkit/src/interaction/screenStyles.ts` — The field and round check look.
+- **User context (verbatim):**
+  > You know, we need lists and we need, uh, scrolling and we need, uh, things, you know, all the things we need for a reminder's application, you know what they are.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 12:22:49 p.m. EDT — `31862a7d0387` fix(books): stop the player rebuilding every second as its link moves
 
 - **Implementation commit:** `31862a7d0387c4391f192cc39081c18939b7de1f`
