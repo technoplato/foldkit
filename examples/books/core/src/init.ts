@@ -1,13 +1,25 @@
-import type * as Command from 'foldkit/command'
+import { Option } from 'effect'
+import { Navigation } from 'foldkit'
+import type { Command } from 'foldkit'
 
-import { type Message } from './message.js'
-import { type Model, initialModel } from './model.js'
+import { type Destination, LibraryPage } from './destination.js'
+import type { Message } from './message.js'
+import { Idle, type Model, ShelfLoading } from './model.js'
 
+// INIT
+
+/** Starts on the library, waiting for the shelf, with nothing loaded. */
 export const init = (): readonly [
   Model,
   ReadonlyArray<Command.Command<Message>>,
-] => [initialModel, []]
-
-export const restore = (
-  model: Model,
-): readonly [Model, ReadonlyArray<Command.Command<Message>>] => [model, []]
+] => [
+  {
+    library: ShelfLoading(),
+    listening: Idle(),
+    speed: 1,
+    nextCue: 1,
+    maybeProblem: Option.none(),
+    navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
+  },
+  [],
+]

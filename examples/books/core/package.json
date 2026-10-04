@@ -21,9 +21,11 @@
   },
   "dependencies": {
     "effect": "4.0.0-beta.97",
-    "foldkit": "workspace:*"
+    "foldkit": "workspace:*",
+    "@foldkit/instant": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^25.9.3",
     "prettier": "^3.8.4",
     "rimraf": "^6.1.3",
     "typescript": "^6.0.3",
