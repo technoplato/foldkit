@@ -4,6 +4,254 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 6:44:27 p.m. EDT — `3495e37e55a4` test(books): type the live test's player helper so the core typechecks
+
+- **Implementation commit:** `3495e37e55a4d497a69126299ea60a56f0202c62`
+- **Change:** Type the live test's player helper so the Books core typechecks
+- **Details:**
+  - loadedSlugOf read the Model from ReturnType<typeof Runtime.startHandle>, whose Model is an index signature, so tsc failed on model.listening; it reads the bound Books instead.
+- **Files:**
+  - `examples/books/core/src/live.test.ts` — Reads the typed bound Books.
+- **User context (verbatim):**
+  > The command one gets overtaken by Safari to go to the first tab.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `bfd770ac6307` fix(foldkit): record telemetry in a terminal that syncs through Instant
+
+- **Implementation commit:** `bfd770ac630728af5af3086c8cb4dc3e13e07e13`
+- **Change:** Record telemetry in a terminal that syncs through Instant
+- **Details:**
+  - The real Books player wrote no telemetry: @foldkit/instant's Node client defines window as an empty object, and Telemetry.attach called its missing addEventListener, so the observer failed for the whole session.
+  - attach now watches for the page going away only where window takes listeners.
+- **Files:**
+  - `packages/foldkit/src/telemetry/attach.ts` — A page is a window that takes listeners.
+  - `packages/foldkit/src/telemetry/attach.test.ts` — A CLI handle under window = {} records its session.
+  - `.changeset/telemetry-node-window.md` — Release note.
+- **User context (verbatim):**
+  > in the TUI no buttons are responsive
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `e4e2da684adb` feat(books): record each terminal player's telemetry
+
+- **Implementation commit:** `e4e2da684adbec4f51e2912846bbf99dfb4533bf`
+- **Change:** Record each terminal player's telemetry
+- **Details:**
+  - The player daemon, books watch, and Books on OpenTUI attach telemetry on the line after startBooks; the daemon and watch write books-cli.ndjson and OpenTUI books-opentui.ndjson.
+  - The daemon and OpenTUI report every frame they paint, so foldkit telemetry books-cli shows each books tui key's update and render time.
+  - The daemon still needs role: 'daemon' once telemetry has it.
+- **Files:**
+  - `examples/books/cli/src/daemon.ts` — Attaches telemetry and reports paints.
+  - `examples/books/cli/src/inProcess.ts` — books watch attaches telemetry.
+  - `examples/books/cli/src/player.ts` — makeBooksPlayer takes onPainted.
+  - `examples/books/cli/src/cli.test.ts` — Key Messages and frames read back from telemetry.
+  - `examples/books/opentui/src/entry.ts` — Attaches telemetry and reports paints.
+- **User context (verbatim):**
+  > in the TUI no buttons are responsive
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `b2c82fa23b93` feat(opentui): report how long each frame takes to build
+
+- **Implementation commit:** `b2c82fa23b932578df4d4df18c1bf312a3d55144`
+- **Change:** Report how long each OpenTUI frame takes to build
+- **Details:**
+  - runOpenTui takes onPainted and reports painter OpenTUI with each frame's build time and phase: mount, update, or key.
+- **Files:**
+  - `packages/opentui/src/interaction/runOpenTui.ts` — onPainted and paint phases.
+  - `packages/opentui/src/interaction/runOpenTui.test.ts` — A key press reports mount, key, and update.
+  - `.changeset/opentui-paint-reports.md` — Release note.
+- **User context (verbatim):**
+  > in the TUI no buttons are responsive
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `aa1da7f30401` feat(foldkit): report how long each terminal frame takes to paint
+
+- **Implementation commit:** `aa1da7f30401efbbadb91c25edecb53432205db8`
+- **Change:** Report how long each terminal frame takes to paint
+- **Details:**
+  - runProgramTui, makeProgramTerminalView, and programCliSurface take onPainted and call it after every frame with painter Terminal, its duration, and its phase: mount, update, key, or refresh.
+  - Passing a telemetry attachment's recordRendered puts terminal render durations in the session's file.
+- **Files:**
+  - `packages/foldkit/src/cli/terminalScreen.ts` — TerminalPaintReporting and paintTerminalReported.
+  - `packages/foldkit/src/cli/tui.ts` — Reports mount, update, and key paints.
+  - `packages/foldkit/src/cli/surface.ts` — Reports mount, refresh, and key paints per view.
+  - `packages/foldkit/src/cli/index.ts` — Exports the reporting types.
+  - `packages/foldkit/src/cli/public.ts` — Exports the reporting types.
+  - `packages/foldkit/src/cli/tui.test.ts` — Phases in order with durations.
+  - `packages/foldkit/src/cli/surface.test.ts` — Mount, refresh, key, and a second view.
+  - `.changeset/terminal-paint-reports.md` — Release note.
+- **User context (verbatim):**
+  > I got this to play back very briefly in the [TUI] but it froze. Um, and I can't press anything.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `effa39cf4bda` fix(books): print a brief line longer than the terminal in full
+
+- **Implementation commit:** `effa39cf4bda8eb6da6b2fbf2f0554274b692146`
+- **Change:** Print a brief line longer than the terminal in full
+- **Details:**
+  - The brief was painted 80 columns wide, which cut the Continue line to 7h 31m l; it is now painted wide enough for its longest line and the terminal wraps it.
+- **Files:**
+  - `examples/books/cli/src/player.ts` — Paints the brief wide.
+  - `examples/books/cli/src/cli.test.ts` — A Continue line longer than 80 columns prints whole.
+- **User context (verbatim):**
+  > Maybe we don't show the whole list of commands and just show the state.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:27 p.m. EDT — `2df8aa645911` fix(foldkit): keep a CLI daemon answering after a client checks it
+
+- **Implementation commit:** `2df8aa645911036f1b9b033cbef2bbc9d2cb2797`
+- **Change:** Keep a CLI daemon answering after a client checks it
+- **Details:**
+  - A client checks that a daemon listens by connecting and closing at once; if that check arrived while the daemon answered an earlier command, its read started too late, never ended, and every later command hung.
+  - The daemon now reads each request as soon as its connection arrives and answers them in order.
+- **Files:**
+  - `packages/foldkit/src/cli/listen.ts` — Reads each request when its connection arrives.
+  - `packages/foldkit/src/cli/surface.test.ts` — A check during a slow command, then another command.
+  - `.changeset/cli-daemon-answers-after-probe.md` — Release note.
+- **User context (verbatim):**
+  > in the TUI no buttons are responsive
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `9cac7a92140b` feat(books): play in the background from short books commands
+
+- **Implementation commit:** `9cac7a92140b58e627b45f18dfccb89c530fc0aa`
+- **Change:** Play in the background from short books commands
+- **Details:**
+  - scripts/install-books-command puts a books launcher on PATH that picks http://127.0.0.1:5200 when it answers, else the hosted reader with the cloudflared token; books login runs cloudflared.
+  - The first command starts a detached player daemon holding the Program and ffplay; every command acts on it and prints the brief; it saves through the same Messages as the web and ends after books stop, SIGTERM, the end of the title, or ten idle minutes.
+  - books tui is a live view of that player, so q closes it and the title plays on.
+- **Files:**
+  - `examples/books/scripts/install-books-command` — Installs the launcher.
+  - `examples/books/scripts/books` — The launcher.
+  - `examples/books/cli/src/daemon.ts` — The player daemon.
+  - `examples/books/cli/src/player.ts` — Player surface, brief, writes, stop.
+  - `examples/books/cli/src/view.ts` — Commands reach the player.
+  - `examples/books/cli/src/entry.ts` — The books command.
+  - `examples/books/cli/src/tui.ts` — books-tui runs the live view.
+  - `examples/books/cli/src/cli.test.ts` — Commands, daemon, and TUI latency tests.
+- **User context (verbatim):**
+  > Can we just make this books login and books C L I and Books T U I and if I go books help or just books can you um Print out the actual things I can run that I can just copy and paste.
+  > for the CLI version, we need background playback, obviously.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `aa936c5162be` fix(books): keep terminals on their own player and say what plays
+
+- **Implementation commit:** `aa936c5162be4e194a9f98b2b9835f8b11bc5d89`
+- **Change:** Keep terminals on their own player and say what plays
+- **Details:**
+  - App keeps the CLI, TUI, and OpenTUI Hosts' navigation their own, so a browser never moves a terminal and books listen plays what it names.
+  - briefScreen and suggestedPressesOf give the brief and the presses that matter now.
+  - startBooks takes a library store wrapper so a player can wait for its place to save; sign-in sentences point at books and books login.
+  - Contents computes Catalog entries once: 18 ms instead of 96 ms for 114 chapters.
+- **Files:**
+  - `examples/books/core/src/app.ts` — terminalHosts keep their own navigation.
+  - `examples/books/core/src/brief.ts` — briefScreen and suggestedPressesOf.
+  - `examples/books/core/src/live.ts` — Library wrapper and sentences.
+  - `examples/books/core/src/screen.ts` — Entries computed once for contents.
+  - `examples/books/core/src/live.test.ts` — Browser and terminal under Mirror.
+  - `examples/books/core/src/app.test.ts` — A folded ShowContents stays on /books.
+- **User context (verbatim):**
+  > The command one gets overtaken by Safari to go to the first tab.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `832d0e377e80` feat(transcript-player): seek to a typed place and quote the words
+
+- **Implementation commit:** `832d0e377e80357fd6429e021ff2fc8599ddc3f6`
+- **Change:** Seek to a typed place and quote the words being spoken
+- **Details:**
+  - PlaceToken reads 723000, 1h00m00s, or 12:03 and prints milliseconds; SeekTo uses it, so books seek-to 1h00m00s works and SeekTo:723000 tags keep their shape.
+  - spokenLineOf gives the words around the one sounding as one short line.
+- **Files:**
+  - `examples/transcript-player/core/src/ids.ts` — PlaceToken.
+  - `examples/transcript-player/core/src/message.ts` — SeekTo takes a typed place.
+  - `examples/transcript-player/core/src/screen.ts` — spokenLineOf.
+  - `examples/transcript-player/core/src/player.test.ts` — Typed places and the spoken line.
+- **User context (verbatim):**
+  > audio did work, but only through the TUI, I couldn't get the thing to actually play in the terminal
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `2c3f5eacaebd` fix(foldkit): keep a player's words in view and each TUI view its own
+
+- **Implementation commit:** `2c3f5eacaebde7cfc0c7f2bc8515af5ed5a8e0fd`
+- **Change:** Keep a player's words in view and each TUI view its own
+- **Details:**
+  - A pushed page that follows a Transcript's current passage highlights nothing until the first arrow, so the player shows the words instead of its Back button.
+  - The daemon keeps highlight and scroll per viewId, so each books tui starts fresh.
+  - paintCommands caps its column at 30 and drops a choice's title when it only repeats the command.
+- **Files:**
+  - `packages/foldkit/src/interaction/terminalFocus.ts` — Following pages do not highlight at once.
+  - `packages/foldkit/src/cli/surface.ts` — Per-view terminal state.
+  - `packages/foldkit/src/cli/view.ts` — Sends a viewId.
+  - `packages/foldkit/src/cli/program.ts` — Command column and redundant titles.
+  - `.changeset/terminal-player-follows-words.md` — Release note.
+- **User context (verbatim):**
+  > Maybe we don't show the whole list of commands and just show the state.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `1ff2b5ef27a7` feat(foldkit): run a terminal UI from a CLI daemon and stop on cue
+
+- **Implementation commit:** `1ff2b5ef27a70b8848f433d1b9fbe290ef50764a`
+- **Change:** Run a terminal UI from a CLI daemon and stop on cue
+- **Details:**
+  - runCliTuiView paints the daemon's frame on the terminal's own screen, sends keys, refreshes twice a second, and leaves the Program running after q.
+  - programCliSurface serves those requests through makeProgramTerminalView; Painted replies carry flags such as outcome Quit.
+  - listenCliDaemon takes until; askCliView asks a listening daemon without starting one; paintCommands prints the commands to copy for this moment.
+  - programCliSurface moved to its own module, so the telemetry test imports it from there.
+- **Files:**
+  - `packages/foldkit/src/cli/view.ts` — runCliTuiView and askCliView.
+  - `packages/foldkit/src/cli/surface.ts` — programCliSurface with the terminal view.
+  - `packages/foldkit/src/cli/listen.ts` — until, and Painted flags.
+  - `packages/foldkit/src/cli/protocol.ts` — Painted flags.
+  - `packages/foldkit/src/cli/program.ts` — paintCommands.
+  - `packages/foldkit/src/telemetry/attach.test.ts` — Imports programCliSurface from its new module.
+  - `.changeset/cli-daemon-terminal-view.md` — Release note.
+- **User context (verbatim):**
+  > for the CLI version, we need background playback, obviously.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `bcd287b9799a` feat(foldkit): let terminals keep their own navigation under Mirror
+
+- **Implementation commit:** `bcd287b9799a472c5600180b6b781a03e099bde0`
+- **Change:** Let terminals keep their own navigation under Mirror
+- **Details:**
+  - Session.compose takes ownNavigationHosts; through ProgramSynchronization.keepsOwnNavigation a Processor whose from names one of them applies only its own Navigation Messages, and no other Processor applies them.
+  - Session trims the stack after every child update to what navigation allows, with Navigation.allowedStackOf, so a folded ShowContents over a page this device never opened can no longer leave /books/contents.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — ownNavigationHosts and the allowed-stack guard.
+  - `packages/foldkit/src/runtime/start.ts` — Audience check honors keepsOwnNavigation.
+  - `packages/foldkit/src/program/program.ts` — ProgramSynchronization.keepsOwnNavigation.
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Passes keepsOwnNavigation through.
+  - `packages/foldkit/src/navigation/uri.ts` — allowedStackOf.
+  - `packages/foldkit/src/runtime/syncModes.test.ts` — Browser and terminal Processors under Mirror.
+  - `.changeset/terminals-keep-own-navigation.md` — Release note.
+- **User context (verbatim):**
+  > The command one gets overtaken by Safari to go to the first tab.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 6:44:26 p.m. EDT — `99b9eb305b44` feat(foldkit): fit terminal UIs to the terminal and keep keys working
+
+- **Implementation commit:** `99b9eb305b444b9f315f00989e76883b2e8877e6`
+- **Change:** Fit terminal UIs to the terminal and keep keys working
+- **Details:**
+  - Escape from Node's readline arrives with Meta held; terminalKeyInput now reads it as plain Escape, so a TUI can close Contents and go back.
+  - Terminal focus is kept by a layer's identity, so a player whose address moves every second keeps its highlight; a Sheet opens on its current row or the next that presses.
+  - paintTerminal paints exactly the terminal's rows: a header, a body scrolled to the highlight or to what is current, more-lines markers, then the docks and key hints.
+  - runProgramTui keeps one repaint pending, skips identical frames, and uses the alternate screen; paintAscii is about 12 times faster (2.6 ms for 650 lines).
+- **Files:**
+  - `packages/foldkit/src/interaction/interaction.ts` — terminalKeyInput reads Escape as plain Escape.
+  - `packages/foldkit/src/interaction/terminalFocus.ts` — Focus by identity; sheets open near the current row.
+  - `packages/foldkit/src/cli/terminalScreen.ts` — New viewport painter, paintTerminal.
+  - `packages/foldkit/src/cli/tui.ts` — Paints with paintTerminal; coalesced repaints.
+  - `packages/foldkit/src/renderers/layout.ts` — Marks current rows; linear transcript wrapping.
+  - `packages/foldkit/src/renderers/paint.ts` — Composes rows from runs instead of a HashMap.
+  - `packages/foldkit/src/renderers/types.ts` — LayoutBox.isCurrent.
+  - `packages/foldkit/src/test/apps/chapterContents.ts` — 114-chapter test Program.
+  - `.changeset/responsive-terminal-screens.md` — Release note.
+- **User context (verbatim):**
+  > I got this to play back very briefly in the [TUI] but it froze. Um, and I can't press anything.
+  > in the TUI no buttons are responsive
+  > And we need to make this a little bit easier to scroll.
+- **SpecStory:** unavailable — Claude Code subagent session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 5:57:16 p.m. EDT — `ed824dbbd910` test(foldkit): measure telemetry overhead in interleaved rounds
 
 - **Implementation commit:** `ed824dbbd9105e93f6a5117c0bf805f7706b6784`
