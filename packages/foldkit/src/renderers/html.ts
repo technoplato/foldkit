@@ -15,6 +15,7 @@ import { type Frame, type FrameLayer, styleTagOf } from '../navigation/frame.js'
 import type { Device } from './device.js'
 import { iconGlyphs } from './icons.js'
 import { type MobilePad, type PadAction, padOf } from './pad.js'
+import { submittedTagOf } from './textInput.js'
 import type { UiNode } from './types.js'
 
 /**
@@ -126,6 +127,13 @@ export const paintHtml = <Message>(
             }
             throw new Error(`unknown screen token: ${nextToken}`)
           }
+          const submittedMessage = (value: string): Message =>
+            Option.getOrThrowWith(
+              Option.flatMap(submittedTagOf(input, value), tag =>
+                Option.fromNullishOr(toMessage(tag)),
+              ),
+              () => new Error(`nothing to submit: ${input.action ?? ''}`),
+            )
           const attrs = [
             h.Type('text'),
             h.Class('fk-text-input'),
@@ -133,10 +141,14 @@ export const paintHtml = <Message>(
             ...(input.placeholder === undefined
               ? []
               : [h.Placeholder(input.placeholder)]),
+            ...(input.label === undefined ? [] : [h.AriaLabel(input.label)]),
             ...(input.focused === true ? [h.Autofocus(true)] : []),
             ...(token === undefined
               ? []
               : [h.OnInput(value => messageFromToken(`${token}${value}`))]),
+            ...(input.action === undefined
+              ? []
+              : [h.EnterKeyHint('done'), h.OnChange(submittedMessage)]),
           ]
           return h.input(attrs)
         },
@@ -184,6 +196,28 @@ export const paintHtml = <Message>(
                     : []),
                 ],
                 [
+                  ...Array.map(Array.fromNullishOr(item.check), check => {
+                    const checkMessage =
+                      check.action === undefined
+                        ? undefined
+                        : toMessage(check.action)
+                    return h.button(
+                      [
+                        h.Type('button'),
+                        h.Class('fk-item-check'),
+                        h.Role('checkbox'),
+                        h.AriaChecked(check.isChecked),
+                        h.AriaLabel(check.label),
+                        ...(check.isChecked
+                          ? [h.DataAttribute('checked', 'true')]
+                          : []),
+                        ...(checkMessage === undefined
+                          ? [h.Disabled(true)]
+                          : [h.OnClick(checkMessage)]),
+                      ],
+                      [],
+                    )
+                  }),
                   press(pressAttributes, [
                     ...(item.image === undefined
                       ? []

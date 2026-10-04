@@ -9,8 +9,10 @@ import {
 } from 'foldkit'
 import {
   Column,
+  List,
   Row,
   Text,
+  TextInput,
   type UiNode,
   actionButtons,
 } from 'foldkit/renderers'
@@ -19,6 +21,7 @@ import { render } from 'svelte/server'
 import { describe, expect, it } from 'vitest'
 
 import ActionMenuDialog from './ActionMenuDialog.svelte'
+import PaintTree from './PaintTree.svelte'
 import Screen from './Screen.svelte'
 import { reactive } from './reactive.js'
 
@@ -145,5 +148,44 @@ describe('ActionMenuDialog', () => {
     expect(body).toContain('role="combobox"')
     expect(body).toContain('Increments the count by one')
     expect(body).toContain('count is already 0')
+  })
+})
+
+describe('row checks and fields that press', () => {
+  it('paints a row check as a checkbox before the row, and a field in its form', () => {
+    const { body } = render(PaintTree, {
+      props: {
+        node: Column(
+          {},
+          TextInput({
+            value: '',
+            placeholder: 'New reminder',
+            action: 'AddReminder',
+            label: 'New reminder in Groceries',
+          }),
+          List({
+            label: 'Groceries',
+            items: [
+              {
+                key: 'r1',
+                title: 'Oat milk',
+                check: {
+                  isChecked: false,
+                  label: 'Mark Oat milk done',
+                  action: 'Complete:r1',
+                },
+                action: 'OpenReminder:r1',
+              },
+            ],
+          }),
+        ),
+        onPress: () => {},
+      },
+    })
+    expect(body).toContain('class="fk-text-form"')
+    expect(body).toContain('aria-label="New reminder in Groceries"')
+    expect(body).toContain('role="checkbox"')
+    expect(body).toContain('aria-checked="false"')
+    expect(body).toContain('aria-label="Mark Oat milk done"')
   })
 })

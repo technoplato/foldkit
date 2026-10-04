@@ -9,12 +9,20 @@ import {
   Route,
   Session,
 } from 'foldkit'
-import { Column, Row, Text, actionButtons } from 'foldkit/renderers'
+import {
+  Column,
+  List,
+  Row,
+  Text,
+  TextInput,
+  actionButtons,
+} from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
 
 import { createTestRenderer } from '@opentui/core/testing'
 
 import {
+  paintOpenTui,
   paintOpenTuiFrame,
   paintOpenTuiNavigationFrame,
 } from './paintOpenTui.js'
@@ -185,5 +193,53 @@ describe('paintOpenTuiNavigationFrame', () => {
     expect(frame).toContain('Actions')
     expect(frame).toContain('> Increment')
     expect(frame).toMatch(/─{8,}[\s\S]*Reset +r +Sets the count to 0/)
+  })
+})
+
+describe('row checks and fields that press', () => {
+  it('paints a box before each reminder, ticked when done, and a bracketed field', async () => {
+    const { renderer, renderOnce, captureCharFrame } =
+      await createTestRenderer(testScreenSize)
+    renderer.root.add(
+      paintOpenTui(
+        renderer,
+        Column(
+          {},
+          TextInput({
+            value: '',
+            placeholder: 'New reminder',
+            action: 'AddReminder',
+          }),
+          List({
+            label: 'Groceries',
+            items: [
+              {
+                key: 'r1',
+                title: 'Oat milk',
+                check: {
+                  isChecked: false,
+                  label: 'Mark Oat milk done',
+                  action: 'Complete:r1',
+                },
+              },
+              {
+                key: 'r2',
+                title: 'Olive oil',
+                check: { isChecked: true, label: 'Mark Olive oil not done' },
+              },
+            ],
+          }),
+        ),
+        { onPress: () => {} },
+      ),
+    )
+    await renderOnce()
+    const frame = captureCharFrame()
+    renderer.destroy()
+    expect(frame).toContain('[ New reminder ]')
+    expect(frame).toContain('[ ]')
+    expect(frame).toContain('Oat milk')
+    expect(frame).toContain('[x]')
+    expect(frame).toContain('Olive oil')
   })
 })

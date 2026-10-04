@@ -52,6 +52,10 @@ export type ScreenLook = Readonly<{
   ghostBorderColor: string
   destructiveColor: string
   readingSize: number
+  fieldHeight: number
+  fieldColor: string
+  checkSize: number
+  checkBorderColor: string
 }>
 
 /** The look every graphical painter maps; see {@link ScreenLook}. */
@@ -96,6 +100,10 @@ export const screenLook: ScreenLook = {
   ghostBorderColor: '#d1d5db',
   destructiveColor: '#b91c1c',
   readingSize: 19,
+  fieldHeight: 44,
+  fieldColor: '#f9fafb',
+  checkSize: 24,
+  checkBorderColor: '#c7c7cc',
 }
 
 const px = (value: number): string => `${value.toString()}px`
@@ -108,9 +116,11 @@ const px = (value: number): string => `${value.toString()}px`
  * monospace face, buttons with their hover, disabled, and focus states,
  * the Program's Starting or Failed description, phone chrome, a screen
  * presented over the page by its style, such as a Dialog's centered panel
- * over a dimmed page, copyable commands with their copy button, and the
- * action menu opener. Every selector sits in `:where()`, so an app's own
- * rule wins without `!important`.
+ * over a dimmed page, copyable commands with their copy button, the
+ * action menu opener, text fields at 16px or more so iPhone Safari does
+ * not zoom into them, and a list row's round check, filled once ticked,
+ * with the row's title dimmed. Every selector sits in `:where()`, so an
+ * app's own rule wins without `!important`.
  *
  * @example
  * ```tsx
@@ -819,5 +829,81 @@ export const screenStylesheet = `
     padding-top: 0;
     text-align: left;
   }
+}
+
+:where(.fk-text-form) {
+  display: contents;
+}
+
+:where(.fk-text-input) {
+  box-sizing: border-box;
+  width: min(100%, ${px(screenLook.listWidth)});
+  height: ${px(screenLook.fieldHeight)};
+  padding: 0 14px;
+  border: 1px solid ${screenLook.ghostBorderColor};
+  border-radius: 12px;
+  background: ${screenLook.fieldColor};
+  color: ${screenLook.textColor};
+  font-family: inherit;
+  font-size: max(${px(screenLook.bodySize)}, 1rem);
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+:where(.fk-text-input::placeholder) {
+  color: ${screenLook.dimColor};
+}
+
+:where(.fk-text-input:hover) {
+  border-color: ${screenLook.dimColor};
+}
+
+:where(.fk-text-input:focus) {
+  border-color: ${screenLook.accentColor};
+  outline: none;
+  background: ${screenLook.panelColor};
+  box-shadow: 0 0 0 3px ${screenLook.accentSoftColor};
+}
+
+:where(.fk-item-check) {
+  flex: none;
+  box-sizing: border-box;
+  width: ${px(screenLook.checkSize)};
+  height: ${px(screenLook.checkSize)};
+  margin: 0 0 0 8px;
+  padding: 0;
+  border: 2px solid ${screenLook.checkBorderColor};
+  border-radius: 999px;
+  background: transparent center / 14px no-repeat;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+:where(.fk-item-check:hover) {
+  border-color: ${screenLook.accentColor};
+}
+
+:where(.fk-item-check:active) {
+  transform: scale(0.92);
+}
+
+:where(.fk-item-check:focus-visible) {
+  outline: 2px solid ${screenLook.focusColor};
+  outline-offset: 2px;
+}
+
+:where(.fk-item-check[data-checked]) {
+  border-color: ${screenLook.accentColor};
+  background-color: ${screenLook.accentColor};
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.4l2.6 2.6L11 4.3' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+:where(.fk-item-check:disabled) {
+  cursor: default;
+  opacity: 0.45;
+}
+
+:where(.fk-item:has(.fk-item-check[data-checked]) .fk-item-title) {
+  color: ${screenLook.dimColor};
+  font-weight: 500;
 }
 `

@@ -1,14 +1,20 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
-import { type IconName, iconDrawings } from 'foldkit/renderers'
-import type {
-  BoxNode,
-  ButtonNode,
-  ListItem,
-  SeekNode,
-  TranscriptNode,
-  TranscriptPassage,
-  UiNode,
+import {
+  type BoxNode,
+  type ButtonNode,
+  type IconName,
+  type ItemCheck,
+  type ListItem,
+  type SeekNode,
+  type TextInputNode,
+  type TranscriptNode,
+  type TranscriptPassage,
+  type UiNode,
+  iconDrawings,
+  isClearedOnSubmit,
+  isSubmittedOnLeave,
+  submittedTagOf,
 } from 'foldkit/renderers'
 import {
   Fragment,
@@ -184,6 +190,105 @@ const SeekBar = ({
       onChange={event => {
         setMaybeDragged(Option.some(Number(event.currentTarget.value)))
       }}
+    />
+  )
+}
+
+/**
+ * A text field that presses its Action when it is submitted: on Enter,
+ * and for a field that edits, such as a title, when a person leaves it
+ * after a change. It holds what is typed until then, as the seek bar holds
+ * a drag, so typing never sends a Message per keystroke, and a field that
+ * adds, such as `New reminder`, empties for the next entry.
+ */
+const TextField = ({
+  input,
+  className,
+  onPress,
+}: Readonly<{
+  input: TextInputNode
+  className: string
+  onPress: (button: ButtonNode) => void
+}>): ReactElement => {
+  const [draft, setDraft] = useState(input.value)
+  const lastSubmitted = useRef<Option.Option<string>>(Option.none())
+  useEffect(() => {
+    setDraft(input.value)
+  }, [input.value])
+  const submit = (): void => {
+    if (Option.contains(lastSubmitted.current, draft)) {
+      return
+    }
+    const maybeTag = submittedTagOf(input, draft)
+    if (Option.isSome(maybeTag)) {
+      lastSubmitted.current = Option.some(draft)
+      onPress(
+        pressOf(maybeTag.value, input.label ?? input.placeholder ?? draft),
+      )
+    }
+    if (isClearedOnSubmit(input)) {
+      lastSubmitted.current = Option.none()
+      setDraft('')
+    }
+  }
+  return (
+    <form
+      className="fk-text-form"
+      onSubmit={event => {
+        event.preventDefault()
+        submit()
+      }}
+    >
+      <input
+        type="text"
+        className={className}
+        value={draft}
+        placeholder={input.placeholder}
+        aria-label={input.label}
+        autoFocus={input.focused === true}
+        enterKeyHint="done"
+        onChange={event => {
+          lastSubmitted.current = Option.none()
+          setDraft(event.currentTarget.value)
+        }}
+        onBlur={() => {
+          if (isSubmittedOnLeave(input)) {
+            submit()
+          }
+        }}
+      />
+    </form>
+  )
+}
+
+/**
+ * The round box at the start of a list row a person ticks, such as a
+ * reminder's completion circle: a checkbox that presses its Action.
+ */
+const CheckButton = ({
+  check,
+  onPress,
+}: Readonly<{
+  check: ItemCheck
+  onPress: (button: ButtonNode) => void
+}>): ReactElement => {
+  const action = check.action
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={check.isChecked}
+      aria-label={check.label}
+      className="fk-item-check"
+      data-checked={check.isChecked ? true : undefined}
+      disabled={action === undefined}
+      onClick={
+        action === undefined
+          ? undefined
+          : () => {
+              onPress(pressOf(action, check.label))
+            }
+      }
     />
   )
 }
@@ -587,20 +692,31 @@ export const paintTree = (
         ),
         TextInput: input => {
           const token = input.token
-          return (
-            <input
-              type="text"
-              className={classFor('TextInput', 'fk-text-input')}
-              value={input.value}
-              placeholder={input.placeholder}
-              autoFocus={input.focused === true}
-              onChange={event => {
-                if (token !== undefined && handlers.onInput !== undefined) {
-                  handlers.onInput(token, event.currentTarget.value)
-                }
-              }}
-            />
-          )
+          if (input.action !== undefined || input.clearAction !== undefined) {
+            return (
+              <TextField
+                input={input}
+                className={classFor('TextInput', 'fk-text-input')}
+                onPress={handlers.onPress}
+              />
+            )
+          } else {
+            return (
+              <input
+                type="text"
+                className={classFor('TextInput', 'fk-text-input')}
+                value={input.value}
+                placeholder={input.placeholder}
+                aria-label={input.label}
+                autoFocus={input.focused === true}
+                onChange={event => {
+                  if (token !== undefined && handlers.onInput !== undefined) {
+                    handlers.onInput(token, event.currentTarget.value)
+                  }
+                }}
+              />
+            )
+          }
         },
         Spacer: () => <div className={classFor('Spacer', 'fk-spacer')} />,
         Row: row => (
@@ -627,6 +743,12 @@ export const paintTree = (
             {Array.map(list.items, item => {
               return (
                 <ListRow key={item.key} item={item}>
+                  {item.check === undefined ? null : (
+                    <CheckButton
+                      check={item.check}
+                      onPress={handlers.onPress}
+                    />
+                  )}
                   <ItemPress
                     item={item}
                     onPress={handlers.onPress}

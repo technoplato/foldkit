@@ -25,6 +25,11 @@ export type {
   PressableKey,
 } from './pad.js'
 export { buttonsOf, inputsOf, textsOf } from './query.js'
+export {
+  isClearedOnSubmit,
+  isSubmittedOnLeave,
+  submittedTagOf,
+} from './textInput.js'
 export { renderAscii, renderScreen } from './render.js'
 export type {
   AsciiFrame,
@@ -35,6 +40,7 @@ export type {
   ColumnNode,
   DeviceShellNode,
   HotspotAction,
+  ItemCheck,
   ItemImage,
   LayoutBox,
   ListItem,

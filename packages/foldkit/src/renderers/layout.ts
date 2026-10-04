@@ -6,6 +6,7 @@ import { iconGlyphs } from './icons.js'
 import type {
   ButtonNode,
   HotspotAction,
+  ItemCheck,
   LayoutBox,
   ListItem,
   ProgressNode,
@@ -155,6 +156,11 @@ export const progressLineOf = (
   return `${'█'.repeat(filled)}${'░'.repeat(barWidth - filled)} ${progress.label}`.trimStart()
 }
 
+const checkGlyph = (check: ItemCheck): string =>
+  `${check.focused === true ? '›' : ' '}[${check.isChecked ? 'x' : ' '}]`
+
+const checkGap = 1
+
 const itemTitleGlyph = (item: ListItem): string => {
   if (item.focused === true) {
     return `› ${item.title}`
@@ -264,7 +270,8 @@ const layoutNode = (
         const width = Math.min(input.width ?? availableW, availableW)
         const body =
           input.value.length > 0 ? input.value : (input.placeholder ?? '')
-        const shown = input.focused === true ? `${body}▌` : body
+        const typed = input.focused === true ? `${body}▌` : body
+        const shown = input.action === undefined ? typed : `[ ${typed} ]`
         const action: HotspotAction | undefined =
           input.token === undefined
             ? undefined
@@ -277,7 +284,7 @@ const layoutNode = (
           h: 1,
           kind: 'TextInput',
           text: fit(shown, width),
-          label: 'input',
+          label: input.label ?? 'input',
           ...(action === undefined ? {} : { action }),
           children: [],
         }
@@ -390,11 +397,35 @@ const layoutNode = (
       },
       List: list => {
         const rows = Array.map(list.items, (item, index) => {
+          const checkBoxes: ReadonlyArray<LayoutBox> =
+            item.check === undefined
+              ? []
+              : [
+                  {
+                    id: ids.next('check'),
+                    x,
+                    y: y + index,
+                    w: checkGlyph(item.check).length,
+                    h: 1,
+                    kind: 'Button',
+                    text: checkGlyph(item.check),
+                    label: item.check.label,
+                    ...(item.check.action === undefined
+                      ? {}
+                      : { action: { _tag: 'custom', id: item.check.action } }),
+                    children: [],
+                  },
+                ]
+          const titleX = Array.match(checkBoxes, {
+            onEmpty: () => x,
+            onNonEmpty: ([checkBox]) => checkBox.x + checkBox.w + checkGap,
+          })
+          const titleAvailableW = Math.max(0, availableW - (titleX - x))
           const title = itemTitleGlyph(item)
-          const titleW = measureText(title, availableW)
+          const titleW = measureText(title, titleAvailableW)
           const titleBox: LayoutBox = {
             id: ids.next('item'),
-            x,
+            x: titleX,
             y: y + index,
             w: titleW,
             h: 1,
@@ -419,12 +450,12 @@ const layoutNode = (
               ...(detail === '' ? [] : [Text(detail, { dim: true })]),
               ...(item.trailing ?? []),
             ),
-            x + titleW + 2,
+            titleX + titleW + 2,
             y + index,
-            Math.max(0, availableW - titleW - 2),
+            Math.max(0, titleAvailableW - titleW - 2),
             ids,
           )
-          return { titleBox, rest }
+          return { checkBoxes, titleBox, rest }
         })
         return {
           id: ids.next('list'),
@@ -434,7 +465,8 @@ const layoutNode = (
           h: rows.length,
           kind: 'List',
           label: list.label,
-          children: Array.flatMap(rows, ({ titleBox, rest }) => [
+          children: Array.flatMap(rows, ({ checkBoxes, titleBox, rest }) => [
+            ...checkBoxes,
             titleBox,
             rest,
           ]),

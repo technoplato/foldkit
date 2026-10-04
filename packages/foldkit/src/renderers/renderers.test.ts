@@ -5,6 +5,7 @@ import { wrapDevice } from './devices/devices.js'
 import {
   Button,
   Column,
+  List,
   Row,
   Seek,
   Text,
@@ -79,6 +80,74 @@ describe('atoms', () => {
         id: 'increment',
       })
     }
+  })
+})
+
+describe('row checks and fields that press', () => {
+  const reminders = List({
+    label: 'Groceries',
+    items: [
+      {
+        key: 'r1',
+        title: 'Oat milk',
+        check: {
+          isChecked: false,
+          label: 'Mark Oat milk done',
+          action: 'Complete:r1',
+        },
+        action: 'OpenReminder:r1',
+      },
+      {
+        key: 'r2',
+        title: 'Olive oil',
+        check: { isChecked: true, label: 'Mark Olive oil not done' },
+      },
+    ],
+  })
+
+  it('paints a row check as its own pressable box before the title', () => {
+    const frame = renderAscii(reminders)
+    expect(frame.lines.join('\n')).toContain(' [ ] ')
+    expect(frame.lines.join('\n')).toContain(' [x] ')
+    expect(Array.map(frame.hotspots, hotspot => hotspot.action.id)).toEqual([
+      'Complete:r1',
+      'OpenReminder:r1',
+    ])
+  })
+
+  it('paints a field that presses as a bracketed field with its label', () => {
+    const screen = renderScreen(
+      TextInput({
+        value: '',
+        placeholder: 'New reminder',
+        action: 'AddReminder',
+        label: 'New reminder in Groceries',
+      }),
+    )
+    expect(screen).toContain('[ New reminder ]')
+  })
+
+  it('paints a row check in HTML as a checkbox that presses its action', () => {
+    const painted = JSON.stringify(paintHtml(reminders, tag => tag))
+    expect(painted).toContain('fk-item-check')
+    expect(painted).toContain('"role":"checkbox"')
+    expect(painted).toContain('Mark Oat milk done')
+  })
+
+  it('paints a field that presses in HTML with its label', () => {
+    const painted = JSON.stringify(
+      paintHtml(
+        TextInput({
+          value: '',
+          placeholder: 'New reminder',
+          action: 'AddReminder',
+          label: 'New reminder in Groceries',
+        }),
+        tag => tag,
+      ),
+    )
+    expect(painted).toContain('New reminder in Groceries')
+    expect(painted).toContain('fk-text-input')
   })
 })
 

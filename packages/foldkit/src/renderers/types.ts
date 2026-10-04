@@ -73,7 +73,18 @@ export type ButtonNode = Readonly<{
   readonly focused?: boolean
 }>
 
-/** A Model-bound text field. */
+/**
+ * A text field showing `value`, the text the Model holds. With `action`,
+ * submitting the field presses `action` with the trimmed text as its
+ * choice: typing `Buy milk` and pressing Enter in a field whose action is
+ * `AddReminder` presses `AddReminder:Buy milk`. A field that adds, empty
+ * and with no `clearAction`, submits on Enter and then clears for the next
+ * entry. A field that edits, showing a value such as a title or having a
+ * `clearAction` such as `ClearNotes`, also submits when a person leaves it
+ * after a change, and submitting it empty presses `clearAction`. `label`
+ * names the field for a screen reader, `New reminder in Groceries`.
+ * `token` is the older binding that sends every keystroke.
+ */
 export type TextInputNode = Readonly<{
   readonly _tag: 'TextInput'
   readonly value: string
@@ -81,6 +92,9 @@ export type TextInputNode = Readonly<{
   readonly focused?: boolean
   readonly width?: number
   readonly token?: string
+  readonly action?: string
+  readonly clearAction?: string
+  readonly label?: string
 }>
 
 /** Fixed blank rows. */
@@ -193,17 +207,33 @@ export type ProgressNode = Readonly<{
 export type ItemImage = TextImage & Readonly<{ readonly alt: string }>
 
 /**
- * One row of a List: a picture, a title, the lines under it, how far
- * along it is, the press the whole row sends, and buttons at its end.
- * `key` is the row's stable identity, such as the book's slug. `href`
- * makes the row a link instead, such as a bookmark's moment, so a person
- * can open it, copy it, or share it the way a platform shares any link.
+ * A box at the start of a list row a person ticks, such as a reminder's
+ * completion circle. Pressing it presses `action`, `Complete:7e1f04c2-…`;
+ * `isChecked` shows it ticked; `label` is what a screen reader announces,
+ * `Complete Buy milk`. Without `action` it only shows. `focused` marks it
+ * highlighted in a terminal.
+ */
+export type ItemCheck = Readonly<{
+  readonly isChecked: boolean
+  readonly label: string
+  readonly action?: string
+  readonly focused?: boolean
+}>
+
+/**
+ * One row of a List: a box to tick, a picture, a title, the lines under
+ * it, how far along it is, the press the whole row sends, and buttons at
+ * its end. `key` is the row's stable identity, such as the book's slug.
+ * `href` makes the row a link instead, such as a bookmark's moment, so a
+ * person can open it, copy it, or share it the way a platform shares any
+ * link.
  */
 export type ListItem = Readonly<{
   readonly key: string
   readonly href?: string
   readonly title: string
   readonly lines?: ReadonlyArray<string>
+  readonly check?: ItemCheck
   readonly image?: ItemImage
   readonly progress?: Readonly<{ readonly value: number; readonly max: number }>
   readonly action?: string

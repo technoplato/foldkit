@@ -2,7 +2,9 @@ import { Array, Match as M, Option } from 'effect'
 import { Interaction, type Navigation } from 'foldkit'
 import {
   type ButtonNode,
+  type ItemCheck,
   type ListItem,
+  type TextInputNode,
   type TextNode,
   type TranscriptPassage,
   type UiNode,
@@ -75,6 +77,43 @@ const pressOf = (action: string, label: string): ButtonNode => ({
   action,
 })
 
+const checkContentOf = (check: ItemCheck): StyledText => {
+  const box = check.isChecked ? '[x]' : '[ ]'
+  return check.focused === true
+    ? t`${bold(fg(matchColor)(box))}`
+    : stringToStyledText(box)
+}
+
+const paintCheck = (
+  ctx: RenderContext,
+  check: ItemCheck,
+  options: PaintOpenTuiOptions,
+): Renderable => {
+  const checkAction = check.action
+  const box = new BoxRenderable(ctx, {
+    ...(checkAction === undefined
+      ? {}
+      : {
+          onMouseDown: () => {
+            options.onPress(pressOf(checkAction, check.label))
+          },
+        }),
+  })
+  box.add(new TextRenderable(ctx, { content: checkContentOf(check) }))
+  return box
+}
+
+const inputContentOf = (input: TextInputNode): StyledText => {
+  const shown = input.value.length > 0 ? input.value : (input.placeholder ?? '')
+  if (input.action === undefined) {
+    return stringToStyledText(input.value)
+  } else if (input.value.length > 0) {
+    return t`[ ${shown} ]`
+  } else {
+    return t`[ ${dim(shown)} ]`
+  }
+}
+
 const paintItem = (
   ctx: RenderContext,
   item: ListItem,
@@ -86,6 +125,9 @@ const paintItem = (
     columnGap: 2,
     ...(item.focused === true ? { backgroundColor: focusColor } : {}),
   })
+  if (item.check !== undefined) {
+    row.add(paintCheck(ctx, item.check, options))
+  }
   const title = new BoxRenderable(ctx, {
     ...(action === undefined
       ? {}
@@ -232,7 +274,8 @@ export const paintOpenTui = (
         )
         return box
       },
-      TextInput: input => new TextRenderable(ctx, { content: input.value }),
+      TextInput: input =>
+        new TextRenderable(ctx, { content: inputContentOf(input) }),
       Spacer: spacer => new BoxRenderable(ctx, { height: spacer.rows }),
       Row: row =>
         addChildren(

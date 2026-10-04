@@ -114,13 +114,26 @@ export const actionButtons = (
     ),
   )
 
-/** A Model-bound text field. */
+/**
+ * A text field. With `action`, submitting it presses the Action with the
+ * text as its choice.
+ *
+ * @example
+ * ```typescript
+ * TextInput({ value: '', placeholder: 'New reminder', action: 'AddReminder', label: 'New reminder in Groceries' })
+ * // Enter after typing `Buy milk` presses `AddReminder:Buy milk`
+ * TextInput({ value: notes, placeholder: 'Notes', action: 'SetNotes', clearAction: 'ClearNotes' })
+ * ```
+ */
 export const TextInput = (props: {
   readonly value: string
   readonly placeholder?: string
   readonly focused?: boolean
   readonly width?: number
   readonly token?: string
+  readonly action?: string
+  readonly clearAction?: string
+  readonly label?: string
 }): TextInputNode => ({
   _tag: 'TextInput',
   value: props.value,
@@ -130,6 +143,11 @@ export const TextInput = (props: {
   ...(props.focused === undefined ? {} : { focused: props.focused }),
   ...(props.width === undefined ? {} : { width: props.width }),
   ...(props.token === undefined ? {} : { token: props.token }),
+  ...(props.action === undefined ? {} : { action: props.action }),
+  ...(props.clearAction === undefined
+    ? {}
+    : { clearAction: props.clearAction }),
+  ...(props.label === undefined ? {} : { label: props.label }),
 })
 
 /** Fixed blank rows. */

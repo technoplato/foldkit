@@ -1,16 +1,29 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
-import { iconGlyphs } from 'foldkit/renderers'
-import type {
-  ButtonNode,
-  ProgressNode,
-  TextNode,
-  UiNode,
+import {
+  type ButtonNode,
+  type ItemCheck,
+  type ProgressNode,
+  type TextInputNode,
+  type TextNode,
+  type UiNode,
+  iconGlyphs,
+  isClearedOnSubmit,
+  isSubmittedOnLeave,
+  submittedTagOf,
 } from 'foldkit/renderers'
-import { Fragment, type ReactElement, useMemo } from 'react'
+import {
+  Fragment,
+  type ReactElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   Image,
   Linking,
+  TextInput as NativeTextInput,
   Platform,
   Pressable,
   Text,
@@ -188,6 +201,131 @@ const itemTitleStyle: TextStyle = {
 }
 
 const itemLineStyle: TextStyle = { color: look.dimColor, fontSize: 14 }
+
+const fieldStyle: TextStyle = {
+  alignSelf: 'stretch',
+  backgroundColor: look.fieldColor,
+  borderColor: look.ghostBorderColor,
+  borderRadius: 12,
+  borderWidth: 1,
+  color: look.textColor,
+  fontSize: look.bodySize,
+  height: look.fieldHeight,
+  paddingHorizontal: 14,
+}
+
+const checkStyle: ViewStyle = {
+  borderColor: look.checkBorderColor,
+  borderRadius: look.checkSize / 2,
+  borderWidth: 2,
+  height: look.checkSize,
+  marginLeft: 8,
+  width: look.checkSize,
+}
+
+const checkedStyle: ViewStyle = {
+  alignItems: 'center',
+  backgroundColor: look.accentColor,
+  borderColor: look.accentColor,
+  justifyContent: 'center',
+}
+
+const checkMarkStyle: TextStyle = {
+  color: look.panelColor,
+  fontSize: 13,
+  fontWeight: '700',
+}
+
+/**
+ * A text field that presses its Action when it is submitted: on the
+ * keyboard's return key, and for a field that edits, such as a title,
+ * when editing ends after a change. It holds what is typed until then.
+ */
+const TextField = ({
+  input,
+  style,
+  onPress,
+}: Readonly<{
+  input: TextInputNode
+  style: TextStyle | undefined
+  onPress: (button: ButtonNode) => void
+}>): ReactElement => {
+  const [draft, setDraft] = useState(input.value)
+  const lastSubmitted = useRef<Option.Option<string>>(Option.none())
+  useEffect(() => {
+    setDraft(input.value)
+  }, [input.value])
+  const submit = (): void => {
+    if (Option.contains(lastSubmitted.current, draft)) {
+      return
+    }
+    const maybeTag = submittedTagOf(input, draft)
+    if (Option.isSome(maybeTag)) {
+      lastSubmitted.current = Option.some(draft)
+      onPress({
+        _tag: 'Button',
+        label: input.label ?? input.placeholder ?? draft,
+        action: maybeTag.value,
+      })
+    }
+    if (isClearedOnSubmit(input)) {
+      lastSubmitted.current = Option.none()
+      setDraft('')
+    }
+  }
+  return (
+    <NativeTextInput
+      accessibilityLabel={input.label}
+      autoFocus={input.focused === true}
+      onChangeText={text => {
+        lastSubmitted.current = Option.none()
+        setDraft(text)
+      }}
+      onEndEditing={() => {
+        if (isSubmittedOnLeave(input)) {
+          submit()
+        }
+      }}
+      onSubmitEditing={submit}
+      placeholder={input.placeholder}
+      placeholderTextColor={look.dimColor}
+      returnKeyType="done"
+      style={[fieldStyle, style]}
+      value={draft}
+    />
+  )
+}
+
+/** The round box at the start of a list row a person ticks. */
+const CheckBox = ({
+  check,
+  onPress,
+}: Readonly<{
+  check: ItemCheck
+  onPress: (button: ButtonNode) => void
+}>): ReactElement => {
+  const action = check.action
+  return (
+    <Pressable
+      accessibilityLabel={check.label}
+      accessibilityRole="checkbox"
+      accessibilityState={{
+        checked: check.isChecked,
+        disabled: action === undefined,
+      }}
+      disabled={action === undefined}
+      hitSlop={10}
+      onPress={() => {
+        if (action !== undefined) {
+          onPress({ _tag: 'Button', label: check.label, action })
+        }
+      }}
+      style={[checkStyle, check.isChecked ? checkedStyle : undefined]}
+    >
+      {check.isChecked ? <Text style={checkMarkStyle}>✓</Text> : null}
+    </Pressable>
+  )
+}
 
 const passageStyle: ViewStyle = {
   alignSelf: 'stretch',
@@ -373,9 +511,16 @@ export const paintTree = (
             </Pressable>
           )
         },
-        TextInput: input => (
-          <Text style={[textStyle, styles.TextInput]}>{input.value}</Text>
-        ),
+        TextInput: input =>
+          input.action === undefined && input.clearAction === undefined ? (
+            <Text style={[textStyle, styles.TextInput]}>{input.value}</Text>
+          ) : (
+            <TextField
+              input={input}
+              style={styles.TextInput}
+              onPress={handlers.onPress}
+            />
+          ),
         Spacer: () => <View style={styles.Spacer} />,
         Row: row => (
           <View style={[rowStyle, styles.Row]}>
@@ -411,6 +556,9 @@ export const paintTree = (
               const href = item.href
               return (
                 <View key={item.key} style={itemStyle}>
+                  {item.check === undefined ? null : (
+                    <CheckBox check={item.check} onPress={handlers.onPress} />
+                  )}
                   <Pressable
                     accessibilityLabel={item.title}
                     accessibilityRole={href === undefined ? 'button' : 'link'}
@@ -455,6 +603,9 @@ export const paintTree = (
                           itemTitleStyle,
                           item.isCurrent === true
                             ? { color: look.accentColor }
+                            : undefined,
+                          item.check?.isChecked === true
+                            ? { color: look.dimColor, fontWeight: '500' }
                             : undefined,
                         ]}
                       >

@@ -93,6 +93,7 @@ const gridOfNode = (node: UiNode): FocusGrid =>
       List: list =>
         Array.filter(
           Array.map(list.items, item => [
+            ...Array.fromNullishOr(item.check?.action),
             ...Array.fromNullishOr(item.action ?? item.href),
             ...Array.getSomes(Array.map(item.trailing ?? [], pressableTagOf)),
           ]),
@@ -351,6 +352,10 @@ const decorated = (
             tag => Option.contains(maybeFocused, tag),
           )
             ? { focused: true }
+            : {}),
+          ...(item.check?.action !== undefined &&
+          Option.contains(maybeFocused, item.check.action)
+            ? { check: { ...item.check, focused: true } }
             : {}),
           ...(item.trailing === undefined
             ? {}

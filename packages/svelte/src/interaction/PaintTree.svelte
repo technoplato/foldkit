@@ -7,6 +7,7 @@
   import { type PaintClassNames, classFor, keyFor } from './paint.js'
   import PaintTree from './PaintTree.svelte'
   import SeekBar from './SeekBar.svelte'
+  import TextField from './TextField.svelte'
   import TranscriptView from './TranscriptView.svelte'
 
   type Props = Readonly<{
@@ -145,10 +146,17 @@
       {node.label}
     {/if}
   </button>
+{:else if node._tag === 'TextInput' && (node.action !== undefined || node.clearAction !== undefined)}
+  <TextField
+    className={classFor(classNames, 'TextInput', 'fk-text-input')}
+    input={node}
+    {onPress}
+  />
 {:else if node._tag === 'TextInput'}
   {@const token = node.token}
   <!-- svelte-ignore a11y_autofocus -->
   <input
+    aria-label={node.label}
     autofocus={node.focused === true}
     class={classFor(classNames, 'TextInput', 'fk-text-input')}
     oninput={event => {
@@ -202,6 +210,24 @@
         data-current={item.isCurrent === true ? true : undefined}
         use:scrollWhenCurrent={item.isCurrent === true}
       >
+        {#if item.check !== undefined}
+          {@const check = item.check}
+          {@const checkAction = check.action}
+          <button
+            aria-checked={check.isChecked}
+            aria-label={check.label}
+            class="fk-item-check"
+            data-checked={check.isChecked ? true : undefined}
+            disabled={checkAction === undefined}
+            onclick={() => {
+              if (checkAction !== undefined) {
+                onPress({ _tag: 'Button', label: check.label, action: checkAction })
+              }
+            }}
+            role="checkbox"
+            type="button"
+          ></button>
+        {/if}
         {#snippet itemContent()}
           {#if item.image !== undefined}
             <img
