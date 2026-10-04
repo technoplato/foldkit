@@ -7,6 +7,7 @@ import {
   Stream,
   SubscriptionRef,
 } from 'effect'
+import * as ReadAloud from 'read-aloud-core-example'
 
 import {
   BookmarkId,
@@ -185,3 +186,17 @@ export const makeTestLibraryStore = (
       changes: Stream.drop(SubscriptionRef.changes(current), 1),
     }
   })
+
+/**
+ * No books read aloud and no previews, for tests of Books that do not
+ * read aloud: Read Aloud's empty sources as one Layer.
+ *
+ * @example
+ * ```typescript
+ * Runtime.startHandle({ program: SyncedBooks, sync, resources: Layer.mergeAll(store.layer, virtualAudioOutput, noTranscripts, noReadAloud) })
+ * ```
+ */
+export const noReadAloud = Layer.mergeAll(
+  ReadAloud.noReadings,
+  ReadAloud.noPreviews,
+)

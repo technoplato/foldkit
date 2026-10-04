@@ -1,6 +1,7 @@
 import { Array, Match as M, Option, Order, Schema as S, pipe } from 'effect'
 import { Navigation } from 'foldkit'
 import { ts } from 'foldkit/schema'
+import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import { Destination } from './destination.js'
@@ -125,9 +126,10 @@ export type PlayerControls = typeof PlayerControls.Type
 
 /**
  * The Books Model: the shared shelf, this device's player and speed, the
- * last write the library store refused, and the navigation stack. The
- * shelf comes from the library store and the player counts on this
- * device, so neither is folded from the log.
+ * last write the library store refused, the picture books read aloud and
+ * the previews checked for them, and the navigation stack. The shelf comes
+ * from the library store, the readings from the reading source, and the
+ * player counts on this device, so none of them is folded from the log.
  */
 export const Model = S.Struct({
   library: Library,
@@ -137,10 +139,16 @@ export const Model = S.Struct({
   maybeNotice: S.Option(S.String),
   controls: PlayerControls,
   maybeMember: S.Option(S.String),
+  readings: ReadAloud.ReadingsState,
+  previewChecks: S.Array(ReadAloud.PreviewCheck),
   navigation: Navigation.NavigationStack(Destination),
 })
-/** A Books Model value. */
-export type Model = typeof Model.Type
+/**
+ * A Books Model value. An interface rather than an alias, so every type
+ * that names it, such as each Action's, prints `Model` in Books' typings
+ * instead of the whole Model again.
+ */
+export interface Model extends S.Schema.Type<typeof Model> {}
 
 // READ
 

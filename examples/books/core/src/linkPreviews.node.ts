@@ -1,4 +1,5 @@
 import { Array, Match as M, Option } from 'effect'
+import * as ReadAloud from 'read-aloud-core-example'
 
 import {
   type PublicAnswer,
@@ -20,17 +21,21 @@ import type { Title } from './model.js'
 
 /**
  * Where Books link previews come from: the public origin links name, such
- * as `https://books.pisspoursoftware.xyz`, the owner's titles, and a way
- * to fetch a cover from storage.
+ * as `https://books.pisspoursoftware.xyz`, the owner's titles, a way to
+ * fetch a cover from storage, and the picture books the owner read aloud,
+ * such as `readAloudBooksLoader` over Scribe's logs on this laptop.
  */
 export type BooksLinkPreviewConfig = Readonly<{
   origin: string
   loadTitles: () => Promise<ReadonlyArray<Title>>
   fetchCover: (url: string) => Promise<Response>
+  loadReadAloudBooks: () => Promise<ReadonlyArray<ReadAloud.Book>>
   nowMs?: () => number
 }>
 
 const titlesFreshMs = 5 * 60 * 1000
+
+const readAloudBooksFreshMs = 60 * 1000
 
 const coverFreshMs = 24 * 60 * 60 * 1000
 
@@ -56,6 +61,20 @@ const previewOf = (
     openPath: signInPathFor(path),
   })
 
+const readAloudPreviewOf = (
+  config: BooksLinkPreviewConfig,
+  metadata: ReadAloud.ReadAloudLinkMetadata,
+  path: string,
+): PublicAnswer =>
+  linkPreviewAnswer({
+    siteName: 'Books',
+    title: metadata.title,
+    description: `${metadata.pageLabel}, by ${metadata.author}`,
+    maybeImageUrl: Option.some(metadata.coverUrl),
+    url: `${config.origin}${path}`,
+    openPath: signInPathFor(path),
+  })
+
 const imageTypeOf = (response: Response): string => {
   const type = response.headers.get('content-type') ?? ''
   return type.startsWith('image/') ? type : 'image/jpeg'
@@ -64,13 +83,16 @@ const imageTypeOf = (response: Response): string => {
 /**
  * The public routes of Books: a preview page for a title or a moment in
  * it, with its name, authors, the moment's time, and its cover, and the
- * cover itself. Nothing else about the library, its progress, bookmarks,
- * or words. Titles are read again after five minutes and covers after a
- * day.
+ * cover itself; and for a picture book read aloud, or one of its pages,
+ * its title, "Page 4 of 14, by Alice Schertle", and its Open Library
+ * cover. Nothing else about the library, its progress, bookmarks, or
+ * words, and nothing about what was read when. Titles are read again
+ * after five minutes, the books read aloud after a minute, and covers
+ * after a day. The books read aloud, `/books/read-aloud`, have no preview.
  *
  * @example
  * ```typescript
- * hostedIdentity({ publicRoutes: booksLinkPreviews({ origin, loadTitles, fetchCover: fetch }) })
+ * hostedIdentity({ publicRoutes: booksLinkPreviews({ origin, loadTitles, fetchCover: fetch, loadReadAloudBooks }) })
  * // '/books/a-new-earth' → a page titled "A New Earth" with "by Eckhart Tolle" and its cover; '/books/profile' → 404
  * ```
  */
@@ -79,6 +101,9 @@ export const booksLinkPreviews = (
 ): PublicRoutes => {
   const nowMs = config.nowMs ?? Date.now
   let maybeTitles: Option.Option<Cached<ReadonlyArray<Title>>> = Option.none()
+  let maybeReadAloudBooks: Option.Option<
+    Cached<ReadonlyArray<ReadAloud.Book>>
+  > = Option.none()
   const covers = new Map<string, Cached<PublicAnswer>>()
 
   const isFresh = (cached: Cached<unknown>, freshMs: number): boolean =>
@@ -96,6 +121,29 @@ export const booksLinkPreviews = (
       return titles
     }
   }
+
+  const readAloudBooksNow = async (): Promise<
+    ReadonlyArray<ReadAloud.Book>
+  > => {
+    const maybeFresh = Option.filter(maybeReadAloudBooks, cached =>
+      isFresh(cached, readAloudBooksFreshMs),
+    )
+    if (Option.isSome(maybeFresh)) {
+      return maybeFresh.value.value
+    } else {
+      const books = await config.loadReadAloudBooks()
+      maybeReadAloudBooks = Option.some({ value: books, savedAtMs: nowMs() })
+      return books
+    }
+  }
+
+  const readAloudAnswerOf = async (
+    path: string,
+  ): Promise<Option.Option<PublicAnswer>> =>
+    Option.map(
+      ReadAloud.readAloudLinkMetadataOf(await readAloudBooksNow(), path),
+      metadata => readAloudPreviewOf(config, metadata, path),
+    )
 
   const coverOf = async (
     title: Title,
@@ -131,6 +179,9 @@ export const booksLinkPreviews = (
   }
 
   return async ({ path }) => {
+    if (ReadAloud.isReadAloudPath(path)) {
+      return readAloudAnswerOf(path)
+    }
     const maybeLink = booksLinkOf(path)
     if (Option.isNone(maybeLink)) {
       return Option.none()

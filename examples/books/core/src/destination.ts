@@ -1,6 +1,7 @@
 import { Schema as S } from 'effect'
 import { Navigation } from 'foldkit'
 import { ts } from 'foldkit/schema'
+import * as ReadAloud from 'read-aloud-core-example'
 
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 
@@ -71,7 +72,8 @@ export type DeleteBookmarkQuestion = typeof DeleteBookmarkQuestion.Type
 
 /**
  * Every place Books can show, and the URI no route matched. A stack holds
- * only these.
+ * only these. Read Aloud's places sit above the library:
+ * `/books/read-aloud` and `/books/read-aloud/9780063342705/page/4`.
  */
 export const Destination = S.Union([
   LibraryPage,
@@ -82,6 +84,9 @@ export const Destination = S.Union([
   ContentsSheet,
   SpeedSheet,
   DeleteBookmarkQuestion,
+  ReadAloud.ReadAloudShelf,
+  ReadAloud.ReadAloudPage,
+  ReadAloud.ReadAloudBook,
   Navigation.NotFound,
 ])
 /** Every place Books can show. */
@@ -106,3 +111,5 @@ export const isContentsSheet = S.is(ContentsSheet)
 export const isSpeedSheet = S.is(SpeedSheet)
 /** True for the delete-bookmark question. */
 export const isDeleteBookmarkQuestion = S.is(DeleteBookmarkQuestion)
+/** True for any of Read Aloud's places: the shelf, a book, or a page. */
+export const isReadAloudPlace = S.is(ReadAloud.ReadAloudPlace)

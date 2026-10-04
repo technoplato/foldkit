@@ -13,6 +13,7 @@ import {
   type UiNode,
   actionButtons,
 } from 'foldkit/renderers'
+import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
@@ -40,6 +41,7 @@ import {
   ShowContents,
   ShowLibrary,
   ShowProfile,
+  ShowReadAloud,
   ShowSpeeds,
   catalog,
 } from './message.js'
@@ -337,15 +339,69 @@ const titleItemOf = (model: Model, title: Title): ListItem => ({
 })
 
 /**
+ * The picture book to show on the library's Read aloud row: the one being
+ * read aloud now, else the one read most recently. None before any book
+ * has been read aloud.
+ */
+const readAloudBookOf = (model: Model): Option.Option<ReadAloud.Book> =>
+  Option.orElse(
+    Option.map(ReadAloud.liveTurnOf(model), ({ book }) => book),
+    () => Array.head(ReadAloud.booksOf(model)),
+  )
+
+const readAloudSectionOf = (model: Model): ReadonlyArray<UiNode> =>
+  Option.match(readAloudBookOf(model), {
+    onNone: () => [],
+    onSome: book => [
+      Text('Read aloud', { dim: true }),
+      List({
+        label: 'Read aloud',
+        items: [
+          {
+            ...ReadAloud.bookRowOf(model, book),
+            key: 'read-aloud',
+            ...offeredActionOf(model, ShowReadAloud.tag),
+          },
+        ],
+      }),
+    ],
+  })
+
+/**
+ * A Read Aloud screen inside Books: the shelf, a book on its way, or a
+ * page, from Read Aloud with Books' own entries, so a page offers Share
+ * the way a moment does, then what the last share said, and the dock with
+ * what is playing and the Library and Profile tabs. None for any other
+ * place.
+ *
+ * @example
+ * ```typescript
+ * readAloudScreen(model, ReadAloud.ReadAloudPage({ book, page: 4 }))
+ * // Some(Column: the page, Link copied, Dock(now playing, Library | Profile))
+ * ```
+ */
+export const readAloudScreen = (
+  model: Model,
+  destination: unknown,
+): Option.Option<UiNode> =>
+  Option.map(
+    ReadAloud.readAloudScreenOf(model, destination, entriesOf(model)),
+    node =>
+      Column({ gap: 1 }, node, ...noticeLines(model), dockOf(model, 'Neither')),
+  )
+
+/**
  * The library, the home: up to three books to continue, the one playing
- * first, then every other book with who wrote it and how far along it is.
- * Pressing a row opens the book; its round button plays it. What is
- * playing and the tabs stay pinned at the bottom.
+ * first, the picture book being read aloud, or the last one read, then
+ * every other book with who wrote it and how far along it is. Pressing a
+ * row opens the book; its round button plays it; the Read aloud row opens
+ * the books read aloud. What is playing and the tabs stay pinned at the
+ * bottom.
  *
  * @example
  * ```typescript
  * libraryScreen(model)
- * // Column: Library, Continue listening, Your books, Dock(now playing, Library | Profile)
+ * // Column: Library, Continue listening, Read aloud, Your books, Dock(now playing, Library | Profile)
  * ```
  */
 export const libraryScreen = (model: Model): UiNode =>
@@ -355,9 +411,15 @@ export const libraryScreen = (model: Model): UiNode =>
     ...problemLines(model),
     ...pipe(model.library, library => {
       if (library._tag === 'ShelfLoading') {
-        return [Text('Opening your library…', { dim: true })]
+        return [
+          Text('Opening your library…', { dim: true }),
+          ...readAloudSectionOf(model),
+        ]
       } else if (library._tag === 'ShelfUnavailable') {
-        return [Text(`Your library could not be opened: ${library.reason}`)]
+        return [
+          Text(`Your library could not be opened: ${library.reason}`),
+          ...readAloudSectionOf(model),
+        ]
       } else {
         const continuing = continueTitlesOf(model)
         const others = Array.filter(
@@ -375,6 +437,7 @@ export const libraryScreen = (model: Model): UiNode =>
               }),
             ],
           }),
+          ...readAloudSectionOf(model),
           ...Array.match(others, {
             onEmpty: () => [],
             onNonEmpty: titles => [

@@ -1,5 +1,9 @@
 import { Layer } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
+import {
+  endpointReadingSource,
+  scriptPreviewSource,
+} from 'read-aloud-core-example/browser'
 import { htmlAudioOutput } from 'transcript-player-core-example/browser'
 
 import {
@@ -29,6 +33,8 @@ export type StartBooksConfig = Readonly<{
  * The resources sign in as the Cloudflare Access member first, then read
  * the shelf, write progress and bookmarks as that member, play through
  * the browser's audio, and read each title's words as it plays. The program log keeps only this member's rows.
+ * The books read aloud come from the origin's dev endpoint over Scribe's
+ * logs, and their previews from Google Books.
  *
  * @example
  * ```typescript
@@ -51,6 +57,8 @@ export const startBooks = (config: StartBooksConfig): BooksHandle => {
       htmlAudioOutput,
       instantTranscriptSource(database),
       browserLinkSharing,
+      endpointReadingSource(),
+      scriptPreviewSource,
     ),
     database,
   )

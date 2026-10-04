@@ -1,7 +1,12 @@
 import { Array, Option } from 'effect'
+import * as ReadAloud from 'read-aloud-core-example'
 import { describe, expect, it } from 'vitest'
 
-import { linkPreviewAnswer } from '@foldkit/instant'
+import {
+  type PublicAnswer,
+  type PublicRoutes,
+  linkPreviewAnswer,
+} from '@foldkit/instant'
 
 import { TitleSlug } from './ids.js'
 import { booksLinkPreviews } from './linkPreviews.node.js'
@@ -30,21 +35,54 @@ const titles = (): ReadonlyArray<Title> => [
   ),
 ]
 
-const previewsWith = () => {
+const feelingHappy: ReadAloud.Book = {
+  bookId: ReadAloud.BookId.make('thing-feeling-happy'),
+  key: ReadAloud.BookKey.make('9780063342705'),
+  maybeIsbn13: Option.some(ReadAloud.Isbn13.make('9780063342705')),
+  title: 'Little Blue Truck Feeling Happy',
+  authors: ['Alice Schertle'],
+  publishers: ['HarperCollins Publishers'],
+  maybePublishYear: Option.some('2024'),
+  maybePageCount: Option.some(ReadAloud.PageNumber.make(14)),
+  maybeCoverUrl: Option.some(
+    'https://covers.openlibrary.org/b/id/15154333-M.jpg',
+  ),
+  links: [],
+}
+
+const readAloudTitle = (): Title => ({
+  ...lantern(),
+  slug: TitleSlug.make('read-aloud'),
+})
+
+const previewsWith = (
+  extraTitles: ReadonlyArray<Title> = [],
+): Readonly<{
+  answer: (path: string) => ReturnType<PublicRoutes>
+  loads: ReadonlyArray<number>
+  readAloudLoads: ReadonlyArray<number>
+  fetched: ReadonlyArray<string>
+  advanceMs: (ms: number) => void
+}> => {
   const loads: Array<number> = []
+  const readAloudLoads: Array<number> = []
   const fetched: Array<string> = []
   let nowMs = 0
   const routes = booksLinkPreviews({
     origin,
     loadTitles: async () => {
       loads.push(nowMs)
-      return titles()
+      return [...titles(), ...extraTitles]
     },
     fetchCover: async url => {
       fetched.push(url)
       return new Response(new Uint8Array([1, 2, 3]), {
         headers: { 'content-type': 'image/png' },
       })
+    },
+    loadReadAloudBooks: async () => {
+      readAloudLoads.push(nowMs)
+      return [feelingHappy]
     },
     nowMs: () => nowMs,
   })
@@ -53,8 +91,14 @@ const previewsWith = () => {
   const advanceMs = (ms: number) => {
     nowMs += ms
   }
-  return { answer, loads, fetched, advanceMs }
+  return { answer, loads, readAloudLoads, fetched, advanceMs }
 }
+
+const bodyOf = (maybeAnswer: Option.Option<PublicAnswer>): string =>
+  Option.match(maybeAnswer, {
+    onNone: () => '',
+    onSome: preview => String(preview.body),
+  })
 
 describe('booksLinkPreviews', () => {
   it('previews a title with its name, author, and cover', async () => {
@@ -115,5 +159,52 @@ describe('booksLinkPreviews', () => {
     advanceMs(5 * 60_000)
     await answer('/books/small-hours')
     expect(loads).toEqual([0, 360_000])
+  })
+
+  it('previews a page of a book read aloud with its title, the page, the author, and the Open Library cover', async () => {
+    const { answer } = previewsWith()
+    expect(await answer('/books/read-aloud/9780063342705/page/4')).toEqual(
+      Option.some(
+        linkPreviewAnswer({
+          siteName: 'Books',
+          title: 'Little Blue Truck Feeling Happy',
+          description: 'Page 4 of 14, by Alice Schertle',
+          maybeImageUrl: Option.some(
+            'https://covers.openlibrary.org/b/id/15154333-L.jpg',
+          ),
+          url: `${origin}/books/read-aloud/9780063342705/page/4`,
+          openPath:
+            '/__foldkit/sign-in?next=%2Fbooks%2Fread-aloud%2F9780063342705%2Fpage%2F4',
+        }),
+      ),
+    )
+  })
+
+  it('previews a book read aloud with no page by its length', async () => {
+    const { answer } = previewsWith()
+    expect(bodyOf(await answer('/books/read-aloud/9780063342705'))).toContain(
+      'content="14 pages, by Alice Schertle"',
+    )
+  })
+
+  it('answers nothing for the books read aloud, a page past the end, or a book never read aloud', async () => {
+    const { answer } = previewsWith([readAloudTitle()])
+    expect(await answer('/books/read-aloud')).toEqual(Option.none())
+    expect(await answer('/books/read-aloud/9780063342705/page/15')).toEqual(
+      Option.none(),
+    )
+    expect(await answer('/books/read-aloud/9780152056612/page/3')).toEqual(
+      Option.none(),
+    )
+  })
+
+  it('reads the books read aloud again only after a minute', async () => {
+    const { answer, readAloudLoads, advanceMs } = previewsWith()
+    await answer('/books/read-aloud/9780063342705/page/4')
+    advanceMs(30_000)
+    await answer('/books/read-aloud/9780063342705/page/5')
+    advanceMs(31_000)
+    await answer('/books/read-aloud/9780063342705/page/6')
+    expect(readAloudLoads).toEqual([0, 61_000])
   })
 })

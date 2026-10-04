@@ -8,7 +8,7 @@ import {
 import { describe, expect, it } from 'vitest'
 
 import { Milliseconds } from './ids.js'
-import { makeTestLibraryStore, sampleShelf } from './sample.js'
+import { makeTestLibraryStore, noReadAloud, sampleShelf } from './sample.js'
 import { makeTestLinkSharing } from './share.js'
 import { SyncedBooks, bindBooks } from './synced.js'
 
@@ -50,6 +50,7 @@ const startBooks = async () => {
       quickAudio,
       noTranscripts,
       sharing.layer,
+      noReadAloud,
     ),
   })
   return { store, handle, bound: bindBooks(handle) }

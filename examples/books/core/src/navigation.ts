@@ -1,5 +1,6 @@
 import { Array, Option, String, pipe } from 'effect'
 import { Navigation, Route } from 'foldkit'
+import * as ReadAloud from 'read-aloud-core-example'
 import { PlaceSegment } from 'transcript-player-core-example'
 
 import {
@@ -25,6 +26,7 @@ import {
   missingTitleScreen,
   playerScreen,
   profileScreen,
+  readAloudScreen,
   speedScreen,
   titleScreen,
 } from './screen.js'
@@ -54,6 +56,10 @@ export const nameOfSlug = (slug: TitleSlug): string =>
  *
  * - `/books` is the library, the root, and `/books/profile` who is signed
  *   in, above it.
+ * - `/books/read-aloud` is the picture books read aloud, above the
+ *   library, and `/books/read-aloud/9780063342705/page/4` one of them at
+ *   page 4, above that. They come before a title's page, so `read-aloud`
+ *   never reads as a title's name tag.
  * - `/books/the-lantern-keeper` is a title's page, only above the library.
  * - `/books/the-lantern-keeper/listen/12:03` is that title's player at
  *   12:03, only above its page: a link to that moment, kept up to date as
@@ -72,6 +78,18 @@ export const declared = Navigation.screens({
     Navigation.pushScreen(ProfilePage, Route.literal('profile'), {
       title: () => 'Profile',
       isAllowedAbove: beneath => Array.every(beneath, isLibraryPage),
+    }),
+    Navigation.pushScreen(ReadAloud.ReadAloudShelf, ReadAloud.shelfRoute, {
+      title: () => 'Read aloud',
+      isAllowedAbove: beneath => Array.every(beneath, isLibraryPage),
+    }),
+    Navigation.pushScreen(ReadAloud.ReadAloudPage, ReadAloud.pageRoute, {
+      title: ReadAloud.pageTitleOf,
+      isAllowedAbove: ReadAloud.isAboveShelf,
+    }),
+    Navigation.pushScreen(ReadAloud.ReadAloudBook, ReadAloud.bookRoute, {
+      title: () => 'Read aloud',
+      isAllowedAbove: ReadAloud.isAboveShelf,
     }),
     Navigation.pushScreen(TitlePage, slugSegment, {
       title: ({ slug }) => nameOfSlug(slug),
@@ -151,7 +169,10 @@ const viewOf = (
       ),
     )
   } else {
-    return Option.none()
+    return Option.map(
+      readAloudScreen(model, destination),
+      Navigation.screenView,
+    )
   }
 }
 
@@ -159,7 +180,8 @@ const viewOf = (
  * The navigation Books holds in its own Model: the screens above, a
  * NotFound page for any other path, and the stack in the `navigation`
  * field. The library paints from the Program's `screen`, which Session
- * wraps with its Session settings button.
+ * wraps with its Session settings button. A link to a book read aloud
+ * with no page settles to the page it opens at.
  *
  * @example
  * ```typescript
@@ -178,6 +200,7 @@ export const navigation = Navigation.composeNavigation<
   | ContentsSheet
   | SpeedSheet
   | DeleteBookmarkQuestion
+  | ReadAloud.ReadAloudPlace
 >({
   child: declared,
   hold: 'Owns',
@@ -187,4 +210,5 @@ export const navigation = Navigation.composeNavigation<
   embedNotFound: notFound => notFound,
   routes: [],
   viewOf,
+  settleEntry: ReadAloud.settledEntryOf,
 })

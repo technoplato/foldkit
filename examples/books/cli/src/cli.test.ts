@@ -4,6 +4,7 @@ import {
   bindBooks,
   makeTestLibraryStore,
   makeTestLinkSharing,
+  noReadAloud,
   sampleShelf,
   whenLibraryOpened,
 } from 'books-core-example'
@@ -33,6 +34,7 @@ const openBooks = async (): Promise<BoundBooks> => {
       virtualAudioOutput,
       noTranscripts,
       sharing.layer,
+      noReadAloud,
     ),
     host: Processor.Host.Cli(),
   })

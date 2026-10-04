@@ -27,6 +27,17 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       CollapseControls: () => 'Navigation',
       ShowLibrary: () => 'Navigation',
       ShowProfile: () => 'Navigation',
+      ShowReadAloud: () => 'Navigation',
+      OpenBook: () => 'Navigation',
+      PreviousPage: () => 'Navigation',
+      NextPage: () => 'Navigation',
+      TurnToPage: () => 'Navigation',
+      FollowReading: () => 'Navigation',
+      SharePage: () => 'Navigation',
+      ReceivedReadings: () => 'Domain',
+      FailedReadReadings: () => 'Domain',
+      ReceivedPreview: () => 'Navigation',
+      FailedCheckPreview: () => 'Navigation',
       SeekToWord: () => 'Navigation',
       SkipForward: () => 'Navigation',
       Open: () => 'Navigation',
@@ -61,11 +72,13 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
 
 /**
  * The Books Program: a library of audiobooks, a page per title and per
- * chapter, and a player. The shelf comes from the library store and every
+ * chapter, and a player, with Read Aloud's picture books at
+ * `/books/read-aloud`. The shelf comes from the library store and every
  * change to it goes back there as a Command, so every device reads the
  * same progress and bookmarks. The player counts on this device; playing,
- * pausing, and moving around are Navigation, which the session mirrors or
- * keeps local. It knows nothing about React, terminals, or Instant.
+ * pausing, turning a picture book's page, and moving around are
+ * Navigation, which the session mirrors or keeps local. It knows nothing
+ * about React, terminals, Scribe's files, or Instant.
  */
 export const BooksProgram = Program.make({
   id: 'books',
@@ -85,6 +98,8 @@ export const BooksProgram = Program.make({
       ...refolded,
       library: current.library,
       listening: current.listening,
+      readings: current.readings,
+      previewChecks: current.previewChecks,
     }),
   },
 })

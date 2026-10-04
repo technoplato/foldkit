@@ -1,5 +1,6 @@
 import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
 import { Command, Navigation } from 'foldkit'
+import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
@@ -465,6 +466,30 @@ const sharedPlace = (model: Model): UpdateReturn =>
     ],
   })
 
+const updatedReadAloud = ReadAloud.updateReadAloud<Model, Destination>({
+  stack: Navigation.fieldLens<Model, Destination>(),
+  place: place => place,
+})
+
+const readAloudUpdated = (
+  model: Model,
+  message: ReadAloud.ReadAloudMessage,
+): UpdateReturn => [updatedReadAloud(model, message), []]
+
+/**
+ * Shares a link to the page of the book read aloud on screen, the way a
+ * moment is shared: `/books/read-aloud/9780063342705/page/4`, with the
+ * book's title and the page.
+ */
+const sharedReadAloudPage = (model: Model): UpdateReturn =>
+  Option.match(ReadAloud.pageLinkOf(model), {
+    onNone: () => [model, []],
+    onSome: link => [
+      { ...model, maybeNotice: Option.none() },
+      [ShareLink({ path: link.path, title: link.title })],
+    ],
+  })
+
 const noticeOf = (how: SharedHow): Option.Option<string> =>
   M.value(how).pipe(
     M.withReturnType<Option.Option<string>>(),
@@ -515,6 +540,24 @@ const updated = (model: Model, message: Message): UpdateReturn =>
         }),
         [],
       ],
+      ShowReadAloud: () => [
+        withStack(model, {
+          ...model.navigation,
+          pages: [ReadAloud.ReadAloudShelf()],
+          maybeModal: Option.none(),
+        }),
+        [],
+      ],
+      OpenBook: message => readAloudUpdated(model, message),
+      PreviousPage: message => readAloudUpdated(model, message),
+      NextPage: message => readAloudUpdated(model, message),
+      TurnToPage: message => readAloudUpdated(model, message),
+      FollowReading: message => readAloudUpdated(model, message),
+      SharePage: () => sharedReadAloudPage(model),
+      ReceivedReadings: message => readAloudUpdated(model, message),
+      FailedReadReadings: message => readAloudUpdated(model, message),
+      ReceivedPreview: message => readAloudUpdated(model, message),
+      FailedCheckPreview: message => readAloudUpdated(model, message),
       ReceivedMember: ({ maybeEmail }) => [
         { ...model, maybeMember: maybeEmail },
         [],
@@ -622,6 +665,8 @@ const openedPlace = (
  * keeps a copy that disagrees with it. A title or bookmark another device
  * removed first changes nothing. The player keeps its address on the
  * second it is playing, so the address is always a link to this moment.
+ * Read Aloud's Messages go to Read Aloud on Books' own stack, so a page
+ * Scribe hears turns the page on screen.
  */
 export const update = (model: Model, message: Message): UpdateReturn => {
   const [next, commands] = updated(model, message)

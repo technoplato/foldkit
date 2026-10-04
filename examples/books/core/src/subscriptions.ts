@@ -1,5 +1,6 @@
 import { Effect, Option, Schema as S, Stream } from 'effect'
 import { Subscription } from 'foldkit'
+import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import { Milliseconds, TitleSlug } from './ids.js'
@@ -49,7 +50,10 @@ export const addressCueOfModel = (
  * is not at, and the loaded player's audio and words, built from
  * the Transcript Player's own entries. A new place or title restarts the
  * audio; a new speed does not, the clock reads it every step. The words
- * are read again only when the place crosses into another window.
+ * are read again only when the place crosses into another window. The
+ * books read aloud come from the reading source for as long as the
+ * Program runs, so the library's Read aloud row and an open page follow
+ * the reader, and each book read aloud is asked once for a preview.
  */
 export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
   entry => ({
@@ -111,5 +115,21 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
         TranscriptPlayer.transcriptDependenciesOf(loadedPlayerOf(model)),
       dependenciesToStream: TranscriptPlayer.transcriptStream,
     }),
+    readings: entry(
+      {},
+      {
+        modelToDependencies: () => ({}),
+        dependenciesToStream: ReadAloud.readingsStream,
+      },
+    ),
+    readAloudPreview: entry(
+      { maybeIsbn13: S.Option(ReadAloud.Isbn13) },
+      {
+        modelToDependencies: model => ({
+          maybeIsbn13: ReadAloud.uncheckedIsbnOf(model),
+        }),
+        dependenciesToStream: ReadAloud.previewStream,
+      },
+    ),
   }),
 )

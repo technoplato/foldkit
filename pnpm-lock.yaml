@@ -685,6 +685,9 @@ importers:
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      read-aloud-core-example:
+        specifier: workspace:*
+        version: link:../../read-aloud/core
       transcript-player-core-example:
         specifier: workspace:*
         version: link:../../transcript-player/core
@@ -762,6 +765,12 @@ importers:
       react-dom:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
+      read-aloud-core-example:
+        specifier: workspace:*
+        version: link:../../read-aloud/core
+      read-aloud-react-bindings-example:
+        specifier: workspace:*
+        version: link:../../read-aloud/react-bindings
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.3.1

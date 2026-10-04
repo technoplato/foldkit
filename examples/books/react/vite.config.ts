@@ -2,6 +2,11 @@ import {
   booksLinkPreviews,
   instantTitlesLoader,
 } from 'books-core-example/link-previews'
+import {
+  readAloudBooksLoader,
+  thingsDirectoryFromEnv,
+} from 'read-aloud-core-example'
+import { readAloudEndpoint } from 'read-aloud-core-example/endpoint'
 import { defineConfig } from 'vite'
 
 import { hostedIdentity } from '@foldkit/instant/hosted-identity/vite'
@@ -26,6 +31,7 @@ const linkPreviews = booksLinkPreviews({
       ? instantTitlesLoader({ appId, adminToken, ownerEmail: previewEmail })
       : async () => [],
   fetchCover: url => fetch(url),
+  loadReadAloudBooks: readAloudBooksLoader(thingsDirectoryFromEnv()),
 })
 
 export default defineConfig({
@@ -33,12 +39,18 @@ export default defineConfig({
     tailwindcss(),
     react(),
     hostedIdentity({ publicRoutes: linkPreviews }),
+    readAloudEndpoint(),
   ],
   resolve: {
     alias: instantBrowserAlias,
   },
   optimizeDeps: {
-    exclude: ['@foldkit/instant', 'books-core-example'],
+    exclude: [
+      '@foldkit/instant',
+      'books-core-example',
+      'read-aloud-core-example',
+      'read-aloud-react-bindings-example',
+    ],
   },
   server: {
     host: '127.0.0.1',

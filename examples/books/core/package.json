@@ -37,6 +37,7 @@
     "@foldkit/instant": "workspace:*",
     "@instantdb/core": "1.0.65",
     "@instantdb/admin": "1.0.65",
+    "read-aloud-core-example": "workspace:*",
     "transcript-player-core-example": "workspace:*"
   },
   "devDependencies": {

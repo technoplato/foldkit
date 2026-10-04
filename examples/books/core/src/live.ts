@@ -2,6 +2,11 @@ import { Layer, Option } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
 import { localSnapshotFile, localSnapshotPath } from 'foldkit/cli'
 import { dirname, join } from 'node:path'
+import {
+  fetchPreviewSource,
+  localReadingSource,
+  thingsDirectoryFromEnv,
+} from 'read-aloud-core-example'
 import { ffplayAudioOutput } from 'transcript-player-core-example'
 
 import {
@@ -131,8 +136,9 @@ export const booksEngine = (
 
 /**
  * Starts Books in a terminal as the signed-in member: the shelf and the
- * words from Instant, the audio through ffplay, and this machine's fold of
- * the log in a file, so the next run paints at once.
+ * words from Instant, the audio through ffplay, the books read aloud from
+ * Scribe's logs on this machine, and this machine's fold of the log in a
+ * file, so the next run paints at once.
  *
  * @example
  * ```typescript
@@ -151,6 +157,8 @@ export const startBooks = (
       ffplayAudioOutput,
       instantTranscriptSource(signedIn.database),
       terminalLinkSharing(publicOriginOf(signedIn.sessionOrigin)),
+      localReadingSource(thingsDirectoryFromEnv()),
+      fetchPreviewSource,
     ),
     localSnapshot: localSnapshotFile(
       join(stateDirectoryOf(signedIn.appId), 'snapshot.json'),

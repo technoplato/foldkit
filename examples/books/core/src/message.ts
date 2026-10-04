@@ -1,6 +1,7 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog, Navigation } from 'foldkit'
 import { m } from 'foldkit/message'
+import * as ReadAloud from 'read-aloud-core-example'
 import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
@@ -309,6 +310,17 @@ export const ShowProfile = Catalog.action('ShowProfile', {
   meta: { label: 'Profile', keys: [], title: 'Show the profile' },
 })
 
+/**
+ * Shows the picture books read aloud, the one being read now first, at
+ * `/books/read-aloud`. The Read aloud row on the library presses it.
+ */
+export const ShowReadAloud = Catalog.action('ShowReadAloud', {
+  what: 'Shows the picture books read aloud',
+  why: 'The person wants to follow along in a book being read aloud',
+  enabled: unlessAsking,
+  meta: { label: 'Read aloud', keys: [], title: 'Show the books read aloud' },
+})
+
 /** Marks the place in the player. `b` presses it. */
 export const AddBookmark = Catalog.action('AddBookmark', {
   what: 'Marks the place in the player',
@@ -383,7 +395,8 @@ export const CancelDeleteBookmark = Catalog.action('CancelDeleteBookmark', {
  * Every Books Action in the order surfaces list them. The action menu
  * shows each once; the ones that act on a title, chapter, speed, or
  * bookmark ask which next. The CLI reads them as `books play
- * the-lantern-keeper`.
+ * the-lantern-keeper`. Read Aloud's own Actions come last, with Share for
+ * a page, so `books turn-to-page 7` turns the book on screen.
  */
 export const catalog = Catalog.make([
   Listen,
@@ -400,6 +413,7 @@ export const catalog = Catalog.make([
   CollapseControls,
   ShowLibrary,
   ShowProfile,
+  ShowReadAloud,
   Open,
   OpenPlayer,
   ShowContents,
@@ -412,6 +426,8 @@ export const catalog = Catalog.make([
   DeleteBookmark,
   ConfirmDeleteBookmark,
   CancelDeleteBookmark,
+  ...ReadAloud.catalog.actions,
+  ReadAloud.SharePage,
 ])
 
 /** The library store sent the shelf. */
@@ -444,14 +460,18 @@ export const FailedWriteLibrary = m('FailedWriteLibrary', {
 
 /**
  * Every Message Books accepts: the Catalog's Actions, the facts the
- * library store and the player report, and the carrier facts its stack
- * folds.
+ * library store, the player, and Read Aloud's sources report, and the
+ * carrier facts its stack folds.
  */
 export const Message = S.Union([
   ...catalog.Message.members,
   ReceivedShelf,
   FailedReadShelf,
   ReceivedMember,
+  ReadAloud.ReceivedReadings,
+  ReadAloud.FailedReadReadings,
+  ReadAloud.ReceivedPreview,
+  ReadAloud.FailedCheckPreview,
   OpenedPlace,
   SharedLink,
   FailedShareLink,
