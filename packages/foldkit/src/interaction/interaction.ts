@@ -7,6 +7,7 @@ import {
   type ModelOf,
   entries,
   findByKey,
+  isEnabled,
   messageFor,
 } from '../catalog/catalog.js'
 import { type PresentationStyle } from '../navigation/structure.js'
@@ -483,24 +484,33 @@ export type ProgramInteraction<Model, Message> = Readonly<{
 
 /**
  * The entry whose keys include a key press, for a Program whose entries
- * change with its Model, such as a list whose shown row owns `+`. A chord
- * owns no entry.
+ * change with its Model, such as a list whose shown row owns `+`. Two
+ * Actions may share a key when only one is offered at a time, such as
+ * Play and Pause on `p`: the offered one takes it. A chord owns no entry.
  *
  * @example
  * ```typescript
  * keyedEntryOf(entries(model), keyInput('+')) // Some(Increment entry)
+ * keyedEntryOf(entries(playing), keyInput('p')) // Some(Pause entry)
  * keyedEntryOf(entries(model), keyInput('k', { isMeta: true })) // None
  * ```
  */
 export const keyedEntryOf = (
   catalogEntries: ReadonlyArray<Entry>,
   input: KeyInput,
-): Option.Option<Entry> =>
-  isChord(input)
-    ? Option.none()
-    : Array.findFirst(catalogEntries, entry =>
-        Array.contains(entry.keys, normalizeKey(input.key)),
-      )
+): Option.Option<Entry> => {
+  if (isChord(input)) {
+    return Option.none()
+  } else {
+    const keyed = Array.filter(catalogEntries, entry =>
+      Array.contains(entry.keys, normalizeKey(input.key)),
+    )
+    return Option.orElse(
+      Array.findFirst(keyed, entry => isEnabled(entry.availability)),
+      () => Array.head(keyed),
+    )
+  }
+}
 
 /**
  * How a key moves the keyboard between the buttons of a screen presented

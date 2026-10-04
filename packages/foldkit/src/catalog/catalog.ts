@@ -85,7 +85,10 @@ export type Choice<Value> = Readonly<{
  * word. `token` prints a value as one word, `3`, for press tags, CLI
  * commands, and URIs. `preferredOf` is the value a bare press or key takes,
  * such as the counter whose page is open. `nothingToChoose` is the sentence
- * when there are no choices.
+ * when there are no choices. `accepts` makes the choice open: a value no
+ * choice lists is still taken when its token decodes and `accepts` allows
+ * it, such as any place in a book for a seek bar, while `choicesOf` lists
+ * the ones worth offering, the chapter starts.
  *
  * @example
  * ```typescript
@@ -105,6 +108,7 @@ export type Choose<Model, Field extends string, Value> = Readonly<{
   token: S.Codec<Value, string>
   choicesOf: (model: Model) => ReadonlyArray<Choice<Value>>
   preferredOf?: (model: Model) => Option.Option<Value>
+  accepts?: (model: Model, value: Value) => Availability
   nothingToChoose: string
 }>
 
@@ -124,6 +128,8 @@ export type ChooseDeclaration<Model> = Readonly<{
   choicesOf: (model: Model) => ReadonlyArray<EntryChoice>
   preferredOf: (model: Model) => Option.Option<string>
   valueOf: (token: string) => Option.Option<unknown>
+  isOpen: boolean
+  acceptsOf: (model: Model, token: string) => Option.Option<Availability>
 }>
 
 /** The declaration an Action carries beside its Message constructor. */
@@ -247,6 +253,13 @@ const chooseOf = <Model, Value>(
         printToken,
       ),
     valueOf: S.decodeUnknownOption(choose.token),
+    isOpen: choose.accepts !== undefined,
+    acceptsOf: (model, token) =>
+      Option.flatMap(Option.fromNullishOr(choose.accepts), accepts =>
+        Option.map(S.decodeUnknownOption(choose.token)(token), value =>
+          accepts(model, value),
+        ),
+      ),
   }
 }
 
@@ -362,7 +375,8 @@ export type Entry<Tag extends string = string> = Readonly<{
  * choice with its own availability, the choice a bare press takes, and the
  * keys the Action declares. A bare key takes the preferred choice, and a
  * terminal acts with it on the highlighted row: `r` on Counter 2's row
- * resets Counter 2.
+ * resets Counter 2. `isOpen` says the Action also takes values the choices
+ * do not list, such as any place on a seek bar.
  *
  * @example
  * ```typescript
@@ -379,6 +393,7 @@ export type EntryChoices = Readonly<{
   choices: ReadonlyArray<EntryChoice>
   maybePreferred: Option.Option<string>
   keys: ReadonlyArray<string>
+  isOpen: boolean
 }>
 
 const summarized = (
@@ -408,9 +423,10 @@ const choicesEntryOf = <Model>(
     Array.some(choices, choice => choice.token === token),
   )
   return {
-    availability: isEnabled(actionAvailability)
-      ? summarized(choices, choose.nothingToChoose)
-      : actionAvailability,
+    availability:
+      isEnabled(actionAvailability) && !choose.isOpen
+        ? summarized(choices, choose.nothingToChoose)
+        : actionAvailability,
     keys: Option.isSome(maybePreferred) ? declaration.meta.keys : [],
     maybeChoices: Option.some({
       field: choose.field,
@@ -418,6 +434,7 @@ const choicesEntryOf = <Model>(
       choices,
       maybePreferred,
       keys: declaration.meta.keys,
+      isOpen: choose.isOpen,
     }),
   }
 }
@@ -548,7 +565,10 @@ const choiceMessageFor = <C extends AnyCatalog>(
             choice => choice.token === token && isEnabled(choice.availability),
           ),
       )
-      return isOffered
+      const isAccepted =
+        isEnabled(declaration.enabled(model)) &&
+        Option.exists(choose.acceptsOf(model, token), isEnabled)
+      return isOffered || isAccepted
         ? Option.map(choose.valueOf(token), value =>
             declaration.make({ [choose.field]: value }),
           )
@@ -864,6 +884,119 @@ export const lift = <
       IdSchema,
       Model
     >,
+    childOf,
+  }
+}
+
+// WITHIN
+
+/**
+ * How a child Catalog is offered by a parent that holds at most one of
+ * the child: where the child's Model is, the sentence while there is none,
+ * and when the parent offers the child's Actions at all.
+ */
+export type WithinConfig<Model, ChildModel> = Readonly<{
+  childOf: (model: Model) => Option.Option<ChildModel>
+  nothing: string
+  enabled?: (model: Model) => Availability
+}>
+
+/** One child Action offered by its parent: the same tag and fields. */
+export type WithinAction<Child extends AnyAction, Model> =
+  Child extends Action<infer Tag, infer Fields, unknown>
+    ? Action<Tag, Fields, Model>
+    : never
+
+/** Every Action of a child Catalog, offered by its parent. */
+export type WithinActions<
+  Actions extends Array.NonEmptyReadonlyArray<AnyAction>,
+  Model,
+> = {
+  readonly [K in keyof Actions]: WithinAction<Actions[K], Model>
+}
+
+/**
+ * A child Program's Catalog offered by a parent that holds at most one of
+ * the child, such as the player inside a library. Each Action keeps its
+ * tag, fields, words, keys, and choices, and reads the child's Model for
+ * its rule, so `SeekToWord:w42` means the same in both. While there is no
+ * child, every Action says `nothing`. `childOf` reads a parent Message
+ * back as the child's own, for the child's update.
+ *
+ * @example
+ * ```typescript
+ * const playerActions = Catalog.within(TranscriptPlayer.catalog, {
+ *   childOf: model => loadedPlayerOf(model),
+ *   nothing: 'nothing is in the player',
+ * })
+ * playerActions.actions // [Play, Pause, SeekTo, ...], reading the loaded player
+ * playerActions.childOf(SeekTo({ placeMs: 60_000 })) // Some(SeekTo({ placeMs: 60_000 }))
+ * ```
+ */
+const schemaOf = (
+  declaration: AnyAction,
+): S.TaggedStruct<string, S.Struct.Fields> =>
+  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+  declaration as unknown as S.TaggedStruct<string, S.Struct.Fields>
+
+export const within = <
+  const Actions extends Array.NonEmptyReadonlyArray<AnyAction>,
+  Model,
+>(
+  child: Catalog<Actions>,
+  config: WithinConfig<Model, ModelOf<Catalog<Actions>>>,
+): Readonly<{
+  actions: WithinActions<Actions, Model>
+  childOf: (
+    message: Readonly<{ _tag: string }>,
+  ) => Option.Option<MessageOf<Catalog<Actions>>>
+}> => {
+  const parentEnabled = config.enabled ?? alwaysEnabled
+  const withChild =
+    <A>(
+      onChild: (childModel: ModelOf<Catalog<Actions>>) => A,
+      onNone: () => A,
+    ) =>
+    (model: Model): A =>
+      Option.match(config.childOf(model), { onNone, onSome: onChild })
+  const offerOne = (declaration: AnyAction): AnyAction =>
+    callableWith(schemaOf(declaration), {
+      tag: declaration.tag,
+      what: declaration.what,
+      why: declaration.why,
+      meta: declaration.meta,
+      isPayloadFree: declaration.isPayloadFree,
+      enabled: (model: Model) => {
+        const availability = parentEnabled(model)
+        return isEnabled(availability)
+          ? withChild(declaration.enabled, () =>
+              Disabled({ because: config.nothing }),
+            )(model)
+          : availability
+      },
+      maybeChoose: Option.map(declaration.maybeChoose, choose => ({
+        ...choose,
+        nothingToChoose: config.nothing,
+        choicesOf: withChild(choose.choicesOf, () => []),
+        preferredOf: withChild(choose.preferredOf, () => Option.none()),
+        acceptsOf: (model: Model, token: string) =>
+          withChild(
+            childModel => choose.acceptsOf(childModel, token),
+            () => Option.none(),
+          )(model),
+      })),
+    })
+  const actions = Array.map(child.actions, offerOne)
+  const childOf = (
+    message: Readonly<{ _tag: string }>,
+  ): Option.Option<MessageOf<Catalog<Actions>>> =>
+    Array.some(child.actions, declaration => declaration.tag === message._tag)
+      ? /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+        Option.some(message as MessageOf<Catalog<Actions>>)
+      : Option.none()
+  return {
+    /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
+    actions: actions as unknown as WithinActions<Actions, Model>,
     childOf,
   }
 }
