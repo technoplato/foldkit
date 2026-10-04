@@ -46,7 +46,12 @@ export class AudioOutput extends Context.Service<
 
 const stepMs = 1000
 
-const advanced = (
+/**
+ * Counts a track a second at a time at the speed, without sound: what a
+ * terminal plays, and what the browser plays for a title with no audio
+ * file yet.
+ */
+export const countedSound = (
   track: Track,
   readSpeed: () => Speed,
 ): Stream.Stream<AudioEvent> =>
@@ -77,7 +82,7 @@ const advanced = (
  * through it, so its player moves like the browser's.
  */
 export const virtualAudioOutput = Layer.succeed(AudioOutput, {
-  sound: advanced,
+  sound: countedSound,
 })
 
 /** True when a track names an audio file to play. */

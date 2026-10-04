@@ -7,11 +7,17 @@ import { App } from './app.js'
 const [initialModel] = App.init()
 
 /**
- * The snapshot row a program log keeps beside its rows. Books boot by
- * folding the log over the initial Model, and the shelf comes from the
- * library store, so the row carries nothing the Model needs.
+ * The snapshot row a program log keeps beside its rows, in the shape every
+ * log engine checks: `{ id, value, asOf, at }`. Books boot by folding the
+ * log over the initial Model, and the shelf comes from the library store,
+ * so the row carries nothing the Model needs.
  */
-export const BooksRow = S.Struct({ id: S.String })
+export const BooksRow = S.Struct({
+  id: S.String,
+  value: S.Number,
+  asOf: S.String,
+  at: S.Number,
+})
 /** The snapshot row a program log keeps beside its rows. */
 export type BooksRow = typeof BooksRow.Type
 
@@ -25,7 +31,7 @@ export const BooksProjection = BooksRow.pipe(
           S.encodeUnknownEffect(App.Model)(initialModel),
           error => error.issue,
         ),
-      encode: () => Effect.succeed({ id: 'books' }),
+      encode: () => Effect.succeed({ id: 'books', value: 0, asOf: '', at: 0 }),
     }),
   ),
 )

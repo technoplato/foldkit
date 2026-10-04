@@ -1,0 +1,14 @@
+#!/bin/sh
+# Runs a command against the throwaway books dev app (bd40c50a), never production.
+ENV_FILE="${BOOKS_DEV_ENV_FILE:-$HOME/.config/scribe-private/bd40c50a-dev.env}"
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Missing $ENV_FILE" >&2
+  exit 1
+fi
+set -a
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+set +a
+export INSTANT_APP_ADMIN_TOKEN="${INSTANT_APP_ADMIN_TOKEN:-$INSTANT_ADMIN_TOKEN}"
+export VITE_INSTANT_APP_ID="${VITE_INSTANT_APP_ID:-$INSTANT_APP_ID}"
+exec "$@"
