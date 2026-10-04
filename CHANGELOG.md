@@ -4,6 +4,64 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 5:57:16 p.m. EDT — `ed824dbbd910` test(foldkit): measure telemetry overhead in interleaved rounds
+
+- **Implementation commit:** `ed824dbbd9105e93f6a5117c0bf805f7706b6784`
+- **Change:** Measure telemetry overhead in interleaved rounds
+- **Details:**
+  - The benchmark samples every variant once per round so machine drift spreads across all of them.
+- **Files:**
+  - `packages/foldkit/src/telemetry/telemetryBench.test.ts` — Interleaved rounds.
+- **User context (verbatim):**
+  > Keep overhead negligible. Measure dispatch with telemetry on and off
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 5:57:16 p.m. EDT — `d966a24f1605` feat(books): write the React host's telemetry to books-react.ndjson
+
+- **Implementation commit:** `d966a24f1605b29333e6902de5ccb18c44447c58`
+- **Change:** Write the React host's telemetry to books-react.ndjson
+- **Details:**
+  - Books attaches telemetry to its handle with the browser sink, serves the endpoint, and reports React commits as paints.
+- **Files:**
+  - `examples/books/react/src/main.tsx` — Telemetry.attach and the Profiler.
+  - `examples/books/react/vite.config.ts` — foldkitTelemetry().
+- **User context (verbatim):**
+  > so a local run writes ~/Library/Logs/foldkit/telemetry/books-react.ndjson
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 5:57:15 p.m. EDT — `cbf4a9284b17` feat(instant): serve browser telemetry to the local file sink
+
+- **Implementation commit:** `cbf4a9284b1783d464ec3aa70623ca2c10970c18`
+- **Change:** Serve browser telemetry to the local file sink
+- **Details:**
+  - foldkitTelemetry() serves `POST /__foldkit/telemetry` in Vite dev and preview and appends each batch to the app and host's file.
+  - It answers only local development and verified Access logins through guardHostedRequest; anyone else gets 404.
+- **Files:**
+  - `packages/instant/src/hostedIdentity/telemetryEndpoint.ts` — How the endpoint answers.
+  - `packages/instant/src/hostedIdentity/vite.ts` — foldkitTelemetry and makeTelemetryMiddleware.
+- **User context (verbatim):**
+  > Browser hosts can't write files.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 5:57:15 p.m. EDT — `57af0217d953` feat(foldkit): record a running Program's telemetry to a local file
+
+- **Implementation commit:** `57af0217d9535b86789396082ecb0f011e8da4f7`
+- **Change:** Record a running Program's telemetry to a local file
+- **Details:**
+  - Telemetry.attach and Telemetry.observer record transitions, Command spans, diagnostics, crashes, paints, and session start and stop as NDJSON.
+  - The Node file sink rotates at 10 MB, keeps three rotated files, caps the folder at 200 MB, and scrubs environment values; foldkit telemetry summarizes a file.
+  - The runtime adds programId, programVersion, installCommandTracer, pre-boot observers, and updateDurationMs; startHandle adds observeRuntime.
+- **Files:**
+  - `packages/foldkit/src/telemetry/recorder.ts` — Turns runtime facts into events.
+  - `packages/foldkit/src/telemetry/fileSink.ts` — Capped, rotating file sink.
+  - `packages/foldkit/src/telemetry/summary.ts` — The reader's analytics.
+  - `packages/foldkit/src/runtime/programRuntime.ts` — Observers, Command tracer, update duration.
+  - `packages/foldkit/src/runtime/handle.ts` — observeRuntime.
+- **User context (verbatim):**
+  > I want higher-order telemetry, analytics, performance.
+  > make sure that all of our actions, state transitions, etc., are logged with a controlled resource. And we can just print that to a file locally here.
+- **SpecStory:** unavailable — agent session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 3:45:34 p.m. EDT — `6dd72492f150` fix(books): sign terminals in and share links on books.pisspoursoftware.xyz
 
 - **Implementation commit:** `6dd72492f150661f9562ccc3c0f1aad0ded228e5`
