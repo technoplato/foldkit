@@ -1,7 +1,20 @@
-import { Array, Match as M } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 import { Interaction, Navigation } from 'foldkit'
-import type { ButtonNode, UiNode } from 'foldkit/renderers'
-import { Fragment, type ReactElement, useEffect, useState } from 'react'
+import type {
+  ButtonNode,
+  SeekNode,
+  TranscriptNode,
+  TranscriptPassage,
+  UiNode,
+} from 'foldkit/renderers'
+import {
+  Fragment,
+  type ReactElement,
+  memo,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 
 /** Extra class per node kind, appended after the fk-* base class. */
 export type PaintClassNames = Partial<Record<UiNode['_tag'], string>>
@@ -34,6 +47,206 @@ const CopyButton = ({ text }: Readonly<{ text: string }>): ReactElement => {
     >
       {Interaction.copyButtonLabelOf(isCopied)}
     </button>
+  )
+}
+
+const pressOf = (action: string, label: string): ButtonNode => ({
+  _tag: 'Button',
+  label,
+  action,
+})
+
+/**
+ * A seek bar. It follows the Program's place until a person grabs it,
+ * shows where they drag, and presses `SeekTo:<value>` once, when they let
+ * go, so dragging never restarts the audio at every step.
+ */
+const SeekBar = ({
+  seek,
+  className,
+  onPress,
+}: Readonly<{
+  seek: SeekNode
+  className: string
+  onPress: (button: ButtonNode) => void
+}>): ReactElement => {
+  const ref = useRef<HTMLInputElement>(null)
+  const [maybeDragged, setMaybeDragged] = useState<Option.Option<number>>(
+    Option.none(),
+  )
+  useEffect(() => {
+    const input = ref.current
+    if (input === null) {
+      return undefined
+    }
+    const commit = (): void => {
+      setMaybeDragged(Option.none())
+      onPress(pressOf(`${seek.action}:${input.value}`, seek.label))
+    }
+    input.addEventListener('change', commit)
+    return () => {
+      input.removeEventListener('change', commit)
+    }
+  }, [seek.action, seek.label, onPress])
+  return (
+    <input
+      ref={ref}
+      type="range"
+      className={className}
+      min={0}
+      max={seek.max}
+      step={seek.step}
+      value={Option.getOrElse(maybeDragged, () => seek.value)}
+      disabled={seek.disabled === true}
+      aria-label={seek.label}
+      aria-valuetext={seek.valueText}
+      onChange={event => {
+        setMaybeDragged(Option.some(Number(event.currentTarget.value)))
+      }}
+    />
+  )
+}
+
+const currentTokenOf = (passage: TranscriptPassage): string | undefined =>
+  Option.getOrUndefined(
+    Option.map(
+      Array.findFirst(passage.words, word => word.isCurrent === true),
+      word => word.token,
+    ),
+  )
+
+const PassageView = memo(
+  ({
+    passage,
+    action,
+    onPress,
+  }: Readonly<{
+    passage: TranscriptPassage
+    action: string
+    onPress: (button: ButtonNode) => void
+  }>): ReactElement => {
+    const labelAction = passage.labelAction
+    return (
+      <article
+        className="fk-passage"
+        data-current={passage.isCurrent === true ? true : undefined}
+      >
+        {labelAction === undefined ? (
+          <span className="fk-passage-label">{passage.label}</span>
+        ) : (
+          <button
+            type="button"
+            className="fk-passage-label"
+            onClick={() => {
+              onPress(pressOf(labelAction, passage.label))
+            }}
+          >
+            {passage.label}
+          </button>
+        )}
+        <p className="fk-passage-words">
+          {Array.map(passage.words, word => (
+            <span
+              key={word.token}
+              className="fk-word"
+              data-token={word.token}
+              data-current={word.isCurrent === true ? true : undefined}
+              onClick={() => {
+                onPress(pressOf(`${action}:${word.token}`, word.text))
+              }}
+            >
+              {`${word.text} `}
+            </span>
+          ))}
+        </p>
+      </article>
+    )
+  },
+  (before, after) =>
+    before.passage.key === after.passage.key &&
+    before.passage.isCurrent === after.passage.isCurrent &&
+    before.passage.words.length === after.passage.words.length &&
+    currentTokenOf(before.passage) === currentTokenOf(after.passage) &&
+    before.action === after.action &&
+    before.onPress === after.onPress,
+)
+
+const userScrollQuietMs = 4000
+
+/**
+ * Words to read along with. It keeps the word sounding in the middle of
+ * the window as it moves, and lets a person scroll away to read ahead: it
+ * follows again a few seconds after they stop.
+ */
+const TranscriptView = ({
+  transcript,
+  className,
+  onPress,
+}: Readonly<{
+  transcript: TranscriptNode
+  className: string
+  onPress: (button: ButtonNode) => void
+}>): ReactElement => {
+  const ref = useRef<HTMLElement>(null)
+  const lastUserScrollAtMs = useRef(0)
+  const maybeCurrentToken = Array.findFirst(
+    Array.flatMap(transcript.passages, passage =>
+      Array.fromNullishOr(currentTokenOf(passage)),
+    ),
+    () => true,
+  )
+  useEffect(() => {
+    const noteUserScroll = (): void => {
+      lastUserScrollAtMs.current = Date.now()
+    }
+    window.addEventListener('wheel', noteUserScroll, { passive: true })
+    window.addEventListener('touchmove', noteUserScroll, { passive: true })
+    return () => {
+      window.removeEventListener('wheel', noteUserScroll)
+      window.removeEventListener('touchmove', noteUserScroll)
+    }
+  }, [])
+  const currentToken = Option.getOrUndefined(maybeCurrentToken)
+  useEffect(() => {
+    const root = ref.current
+    if (
+      root === null ||
+      currentToken === undefined ||
+      Date.now() - lastUserScrollAtMs.current < userScrollQuietMs
+    ) {
+      return
+    }
+    const word = root.querySelector(
+      `[data-token="${CSS.escape(currentToken)}"]`,
+    )
+    if (word === null) {
+      return
+    }
+    const bounds = word.getBoundingClientRect()
+    const isNearMiddle =
+      bounds.top > window.innerHeight * 0.25 &&
+      bounds.bottom < window.innerHeight * 0.75
+    if (!isNearMiddle) {
+      word.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }
+  }, [currentToken])
+  return (
+    <section ref={ref} className={className} aria-label={transcript.label}>
+      {Array.match(transcript.passages, {
+        onEmpty: () => (
+          <p className="fk-transcript-empty">{transcript.emptyText}</p>
+        ),
+        onNonEmpty: passages =>
+          Array.map(passages, passage => (
+            <PassageView
+              key={passage.key}
+              passage={passage}
+              action={transcript.action}
+              onPress={onPress}
+            />
+          )),
+      })}
+    </section>
   )
 }
 
@@ -144,6 +357,7 @@ export const paintTree = (
             disabled={button.disabled === true}
             title={button.because}
             data-action={button.action}
+            data-variant={button.variant}
             data-keys={button.keys?.join(' ')}
             aria-keyshortcuts={button.keys?.join(' ')}
             onClick={
@@ -189,6 +403,82 @@ export const paintTree = (
           <div className={classFor('Box', 'fk-box')}>
             {paintChildren(box.children)}
           </div>
+        ),
+        Progress: progress => (
+          <progress
+            className={classFor('Progress', 'fk-progress')}
+            max={progress.max}
+            value={progress.value}
+            aria-label={progress.label}
+          />
+        ),
+        List: list => (
+          <ul className={classFor('List', 'fk-list')} aria-label={list.label}>
+            {Array.map(list.items, item => {
+              const action = item.action
+              return (
+                <li
+                  key={item.key}
+                  className="fk-item"
+                  data-current={item.isCurrent === true ? true : undefined}
+                >
+                  <button
+                    type="button"
+                    className="fk-item-press"
+                    disabled={action === undefined}
+                    onClick={
+                      action === undefined
+                        ? undefined
+                        : () => {
+                            handlers.onPress(pressOf(action, item.title))
+                          }
+                    }
+                  >
+                    {item.image === undefined ? null : (
+                      <img
+                        className="fk-item-image"
+                        src={item.image.src}
+                        alt={item.image.alt}
+                        width={item.image.width}
+                        height={item.image.height}
+                        loading="lazy"
+                      />
+                    )}
+                    <span className="fk-item-body">
+                      <span className="fk-item-title">{item.title}</span>
+                      {Array.map(item.lines ?? [], (line, index) => (
+                        <span key={index} className="fk-item-line">
+                          {line}
+                        </span>
+                      ))}
+                      {item.progress === undefined ? null : (
+                        <progress
+                          className="fk-progress"
+                          max={item.progress.max}
+                          value={item.progress.value}
+                        />
+                      )}
+                    </span>
+                  </button>
+                  {paintChildren(item.trailing ?? [])}
+                </li>
+              )
+            })}
+          </ul>
+        ),
+        Seek: seek => (
+          <SeekBar
+            seek={seek}
+            className={classFor('Seek', 'fk-seek')}
+            onPress={handlers.onPress}
+          />
+        ),
+        Transcript: transcript => (
+          <TranscriptView
+            transcript={transcript}
+            className={classFor('Transcript', 'fk-transcript')}
+            onPress={handlers.onPress}
+          />
         ),
         DeviceShell: shell => (
           <div
