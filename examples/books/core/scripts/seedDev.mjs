@@ -49,10 +49,10 @@ for (const title of sampleTitles) {
       ...owned,
       title: title.name,
       identifiersJSON: '{}',
-      bindingKind: 'Audiobook',
-      publishedKind: 'Unknown',
-      explicitKind: 'Clean',
-      matchKind: 'None',
+      bindingKind: 'audiobook',
+      publishedKind: 'unknown',
+      explicitKind: 'unknown',
+      matchKind: 'none',
       language: 'en',
       createdAtMs: nowMs,
       updatedAtMs: nowMs,
@@ -60,11 +60,11 @@ for (const title of sampleTitles) {
     database.tx.libraryRenditions[renditionId]
       .update({
         ...owned,
-        bodyKind: 'Audio',
-        originKind: 'Seed',
+        bodyKind: 'audio',
+        originKind: 'seed',
         language: 'en',
         durationMs: title.durationMs,
-        volumeKind: 'Single',
+        volumeKind: 'single',
         createdAtMs: nowMs,
         updatedAtMs: nowMs,
       })
@@ -72,8 +72,8 @@ for (const title of sampleTitles) {
     database.tx.libraryItems[itemId]
       .update({
         ...owned,
-        preferredKind: 'Audio',
-        presenceKind: 'Present',
+        preferredKind: 'audio',
+        presenceKind: 'stored',
         addedAtMs: nowMs,
       })
       .link({ book: bookId, shelf: shelfId, preferredAudio: renditionId }),
@@ -105,7 +105,7 @@ for (const title of sampleTitles) {
           title: chapter.name,
           startMs: chapter.startMs,
           endMs: chapter.endMs,
-          bindingKind: 'Chapter',
+          bindingKind: 'audiobook',
         })
         .link({ book: bookId }),
     )
@@ -137,8 +137,8 @@ for (const [position, title] of sampleTitles.entries()) {
         name: `${title.slug}.svg`,
         path,
         size: bytes.length,
-        presenceKind: 'Present',
-        bodyKind: 'Cover',
+        presenceKind: 'stored',
+        bodyKind: 'image',
         addedAtMs: nowMs,
         updatedAtMs: nowMs,
       })

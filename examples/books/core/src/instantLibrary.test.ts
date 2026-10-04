@@ -36,6 +36,26 @@ const chapters = [
 ]
 
 describe('decodeLibrary', () => {
+  it('reads a finished title in either vocabulary', () => {
+    const finishedAs = (finishedKind: string) =>
+      decodeLibrary({
+        libraryItems: [itemRow('item-1', 'Small Hours', 1, chapters)],
+        libraryProgress: [
+          {
+            id: 'p-1',
+            relativeMs: 0,
+            finishedKind,
+            startedAtMs: 1,
+            updatedAtMs: 2,
+            item: [{ id: 'item-1' }],
+          },
+        ],
+      }).shelf.progress.map(progress => progress._tag)
+    expect(finishedAs('finished')).toEqual(['Finished'])
+    expect(finishedAs('Finished')).toEqual(['Finished'])
+    expect(finishedAs('unfinished')).toEqual(['InProgress'])
+  })
+
   it('reads titles with chapters in order, their covers and audio, and unique name tags', () => {
     const { shelf } = decodeLibrary({
       libraryItems: [
@@ -70,7 +90,7 @@ describe('decodeLibrary', () => {
         {
           id: 'p-old',
           relativeMs: 10_000,
-          finishedKind: 'Listening',
+          finishedKind: 'unfinished',
           startedAtMs: 1,
           updatedAtMs: 5,
           item: [{ id: 'item-1' }],
@@ -78,7 +98,7 @@ describe('decodeLibrary', () => {
         {
           id: 'p-new',
           relativeMs: 90_000,
-          finishedKind: 'Listening',
+          finishedKind: 'unfinished',
           startedAtMs: 1,
           updatedAtMs: 9,
           item: [{ id: 'item-1' }],

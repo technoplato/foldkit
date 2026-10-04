@@ -127,6 +127,7 @@ const continueLines = (model: Model): ReadonlyArray<UiNode> =>
         Text('Continue listening', { dim: true }),
         Row(
           {},
+          ...coverOf(title, rowCoverWidth),
           Text(title.name),
           Text(
             `${chapterAt(title, progress.placeMs).name}, ${clockOf(progress.placeMs)}`,

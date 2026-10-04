@@ -219,7 +219,12 @@ const titleOfItem = (
     )
   })
 
-const finishedKind = 'Finished'
+const finishedKind = 'finished'
+
+const unfinishedKind = 'unfinished'
+
+const isFinishedKind = (kind: string): boolean =>
+  kind.toLowerCase() === finishedKind
 
 /**
  * The shelf one library query gives: every title with chapters, the
@@ -282,7 +287,7 @@ export const decodeLibrary = (data: unknown): Decoded => {
   const progress: ReadonlyArray<Progress> = Array.map(
     newestProgress,
     ({ row, slug }) =>
-      row.finishedKind === finishedKind
+      isFinishedKind(row.finishedKind)
         ? Finished({ slug, savedAtMs: row.updatedAtMs })
         : InProgress({
             slug,
@@ -391,7 +396,7 @@ const progressStep = (
       .update({
         ownerUserID: owner,
         formatVersion: 1,
-        hiddenKind: 'Visible',
+        hiddenKind: 'visible',
         startedAtMs,
         updatedAtMs: nowMs,
         ...fields,
@@ -454,7 +459,7 @@ export const makeInstantLibraryStore = (database: ProgramLogDatabase) =>
                 Effect.map(
                   progressStep(database, owner, entry, {
                     relativeMs: placeMs,
-                    finishedKind: 'Listening',
+                    finishedKind: unfinishedKind,
                   }),
                   Array.of,
                 ),
@@ -477,7 +482,7 @@ export const makeInstantLibraryStore = (database: ProgramLogDatabase) =>
                     .update({
                       ownerUserID: owner,
                       formatVersion: 1,
-                      markKind: 'Place',
+                      markKind: 'place',
                       relativeMs: atMs,
                       createdAtMs: Date.now(),
                     })
