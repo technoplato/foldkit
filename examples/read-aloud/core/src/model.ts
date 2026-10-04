@@ -17,7 +17,7 @@ import {
 /**
  * One place to find a book, most open first: its Open Library page, a
  * library near you, a shop. `isVerified` is false where the site would not
- * answer a check, so a page can mark the link unverified.
+ * answer a check, and a page shows only the verified ones.
  */
 export const BookLink = S.Struct({
   label: S.String,
@@ -178,6 +178,24 @@ export const bookOfKey = (
   key: BookKey,
 ): Option.Option<Book> =>
   Array.findFirst(booksOf(model), book => book.key === key)
+
+const isIsbn13 = S.is(Isbn13)
+
+/**
+ * How a book reads by the word its address names it with: its title once
+ * the readings hold it, else `ISBN 9780063342705`, or the word itself for
+ * a book named by its Scribe id.
+ *
+ * @example
+ * ```typescript
+ * nameOfBookKey(model, BookKey.make('9780063342705')) // 'Little Blue Truck Feeling Happy', or 'ISBN 9780063342705' before the readings arrive
+ * ```
+ */
+export const nameOfBookKey = (model: HasReadings, key: BookKey): string =>
+  Option.match(bookOfKey(model, key), {
+    onNone: () => (isIsbn13(key) ? `ISBN ${key}` : key),
+    onSome: book => book.title,
+  })
 
 const byTurnedAtDescending = Order.mapInput(
   Order.flip(Order.Number),

@@ -133,6 +133,9 @@ export const previewsInMemory = (
       ),
   })
 
+/** A source that finds no preview for any book: what tests of a holder use. */
+export const noPreviews = previewsInMemory(new Map())
+
 const fetchCallback = 'readAloudPreview'
 
 const callbackPrefix = `${fetchCallback}(`

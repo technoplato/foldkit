@@ -1,7 +1,11 @@
 import { Array, Option } from 'effect'
-import { Navigation } from 'foldkit'
-import { Interaction } from 'foldkit'
-import { type TextNode, type UiNode, textsOf } from 'foldkit/renderers'
+import { Interaction, Navigation } from 'foldkit'
+import {
+  type TextNode,
+  type UiNode,
+  buttonsOf,
+  textsOf,
+} from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
@@ -298,24 +302,33 @@ describe('Read Aloud', () => {
     expect(Option.map(embedOf(bound), text => text.href)).toEqual(
       Option.some('https://books.google.com/books?id=l2WMBAAAQBAJ&pg=PA4'),
     )
-    expect(wordsOf(bound)).toContain(
-      `/books/read-aloud/${christmas.key}/page/4`,
-    )
+    expect(uriOf(bound)).toEqual(pagePath(christmas, 4))
   })
 
-  it('says clearly that a book has no preview, and shows its details and where to find it', () => {
+  it('shows no Share button on its own, where nothing can share a link', () => {
+    const { bound, receive } = bindApp()
+    receive(pagesOneToFour)
+    bound.press(`OpenBook:${feelingHappy.key}`)
+    expect(
+      Array.filter(
+        buttonsOf(screenOf(bound)),
+        button => button.label === 'Share',
+      ),
+    ).toEqual([])
+  })
+
+  it('says clearly that a book has no preview, and shows its details and only the links that check out', () => {
     const { bound, receive, send } = bindApp()
     receive(pagesOneToFour)
     bound.press(`OpenBook:${feelingHappy.key}`)
     send(ReceivedPreview({ isbn13: feelingHappyIsbn, preview: NoPreview() }))
     expect(embedOf(bound)).toEqual(Option.none())
     expect(wordsOf(bound)).toEqual(
-      expect.arrayContaining([
-        'No preview available',
-        'Open Library',
-        'Bookshop.org (unverified)',
-      ]),
+      expect.arrayContaining(['No preview available', 'Open Library']),
     )
+    expect(
+      Array.filter(wordsOf(bound), words => words.startsWith('Bookshop')),
+    ).toEqual([])
   })
 
   it('opens a link to a book it has no reading of, by its ISBN, and still looks for a preview', () => {

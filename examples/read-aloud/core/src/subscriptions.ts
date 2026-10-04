@@ -6,6 +6,7 @@ import {
   FailedCheckPreview,
   FailedReadReadings,
   type Message,
+  type ReadAloudMessage,
   ReceivedPreview,
   ReceivedReadings,
 } from './message.js'
@@ -39,10 +40,11 @@ export const uncheckedIsbnOf = (model: ReadAloudView): Option.Option<Isbn13> =>
 
 /**
  * The readings stream, as Read Aloud's facts: every update the reading
- * source sends, and why it stopped, if it does.
+ * source sends, and why it stopped, if it does. A holder such as Books
+ * listens to it in its own Subscriptions.
  */
 export const readingsStream = (): Stream.Stream<
-  Message,
+  ReadAloudMessage,
   never,
   ReadingSource
 > =>
@@ -58,11 +60,15 @@ export const readingsStream = (): Stream.Stream<
     }),
   )
 
-/** The answer for one book's preview, as Read Aloud's facts. */
+/**
+ * The answer for one book's preview, as Read Aloud's facts, for the ISBN
+ * `uncheckedIsbnOf` names. A holder listens to it in its own
+ * Subscriptions, keyed by that ISBN.
+ */
 export const previewStream = ({
   maybeIsbn13,
 }: Readonly<{ maybeIsbn13: Option.Option<Isbn13> }>): Stream.Stream<
-  Message,
+  ReadAloudMessage,
   never,
   PreviewSource
 > =>

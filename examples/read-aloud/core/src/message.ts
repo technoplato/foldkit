@@ -151,8 +151,26 @@ export const FollowReading = Catalog.action('FollowReading', {
 })
 
 /**
- * Every Read Aloud Action in the order surfaces list them. The action menu
- * shows each once; OpenBook and TurnToPage ask which book or page next.
+ * Shares a link to the page on screen, the way the Program that holds Read
+ * Aloud shares links: Books sends it through its share sheet or the
+ * clipboard, like a moment in a title. Read Aloud declares it but does not
+ * handle it, so only a holder that can share offers it, and its screens
+ * show the button only where the holder's entries have it.
+ */
+export const SharePage = Catalog.action('SharePage', {
+  what: 'Shares a link to this page of the book',
+  why: 'The person wants someone to see this page, or to come back to it',
+  enabled: (model: ReadAloudView) =>
+    Option.isSome(shownPageOf(model))
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: noBookOpen }),
+  meta: { label: 'Share', keys: [], title: 'Share this page' },
+})
+
+/**
+ * Every Read Aloud Action every holder handles, in the order surfaces list
+ * them. The action menu shows each once; OpenBook and TurnToPage ask which
+ * book or page next. A holder that can share adds SharePage.
  */
 export const catalog = Catalog.make([
   OpenBook,

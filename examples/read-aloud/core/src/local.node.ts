@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import type { Readings } from './model.js'
+import type { Book, Readings } from './model.js'
 import { ReadingSource, ReadingSourceError, ReadingsJson } from './reading.js'
 import {
   readingsOfRows,
@@ -33,6 +33,20 @@ export const recognitionsFileName = 'recognitions.jsonl'
 /** Where Scribe keeps its logs on this laptop: `~/Scribe/things`. */
 export const defaultThingsDirectory = (): string =>
   join(homedir(), 'Scribe', 'things')
+
+/**
+ * Where Read Aloud reads Scribe's logs on this machine:
+ * `READ_ALOUD_THINGS_DIR` when it names a folder, such as a folder of
+ * made-up rows for trying it, else `~/Scribe/things`.
+ *
+ * @example
+ * ```typescript
+ * thingsDirectoryFromEnv({ READ_ALOUD_THINGS_DIR: '/tmp/read-aloud-demo' }) // '/tmp/read-aloud-demo'
+ * ```
+ */
+export const thingsDirectoryFromEnv = (
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string => env['READ_ALOUD_THINGS_DIR']?.trim() || defaultThingsDirectory()
 
 const isMissingFile = (error: unknown): boolean =>
   Predicate.hasProperty(error, 'code') && error.code === 'ENOENT'
@@ -73,6 +87,22 @@ export const readingsOfDirectory = (
         recognitionRowsOf(rowsOfLines(recognitions)),
       ),
   )
+
+/**
+ * Reads the books in Scribe's logs in `directory` each time it is called:
+ * what a server's link previews use to name a book read aloud. Only book
+ * information comes back, never a page turn.
+ *
+ * @example
+ * ```typescript
+ * booksLinkPreviews({ origin, loadTitles, fetchCover, loadReadAloudBooks: readAloudBooksLoader(thingsDirectoryFromEnv()) })
+ * ```
+ */
+export const readAloudBooksLoader =
+  (directory: string) => (): Promise<ReadonlyArray<Book>> =>
+    Effect.runPromise(
+      Effect.map(readingsOfDirectory(directory), readings => readings.books),
+    )
 
 const settleMs = 40
 

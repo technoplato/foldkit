@@ -67,3 +67,6 @@ export const readingsInMemory = (
   readings: Readings,
 ): Layer.Layer<ReadingSource> =>
   Layer.succeed(ReadingSource, { readings: Stream.make(readings) })
+
+/** A source with no books read aloud: what tests of a holder use. */
+export const noReadings = readingsInMemory({ books: [], turns: [] })

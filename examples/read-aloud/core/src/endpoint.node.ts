@@ -9,7 +9,7 @@ import {
   makeAccessVerifier,
 } from '@foldkit/instant'
 
-import { defaultThingsDirectory, watchedReadings } from './local.node.js'
+import { thingsDirectoryFromEnv, watchedReadings } from './local.node.js'
 import {
   ReadingsFailureJson,
   ReadingsJson,
@@ -64,19 +64,19 @@ const encodeFailure = S.encodeSync(ReadingsFailureJson)
  * information and page turns only, never what was heard. It answers a
  * request made on this machine to `localhost`, or one carrying a
  * Cloudflare Access login whose signature checks out; anything else gets
- * 401.
+ * 401. Its path is outside `/books`, so Cloudflare Access still guards it
+ * where Access lets anyone reach `/books` for link previews. List it after
+ * `hostedIdentity`, so the origin's gate answers first.
  *
  * @example
  * ```typescript
- * plugins: [react(), hostedIdentity(), readAloudEndpoint()]
+ * plugins: [react(), hostedIdentity({ publicRoutes }), readAloudEndpoint()]
  * ```
  */
 export const readAloudEndpoint = (
   options: ReadAloudEndpointOptions = {},
 ): Plugin => {
-  const directory =
-    options.directory ??
-    (envValue('READ_ALOUD_THINGS_DIR') || defaultThingsDirectory())
+  const directory = options.directory ?? thingsDirectoryFromEnv()
   const verifier = makeAccessVerifier({
     teamDomain:
       options.teamDomain ??

@@ -9,6 +9,8 @@ import {
   isReadAloudShelf,
 } from './destination.js'
 import { BookKey, type PageNumber, PageNumberSegment } from './ids.js'
+import { type ReadAloudView, nameOfBookKey } from './model.js'
+import { shownPageOf } from './stack.js'
 
 // ROUTES
 
@@ -87,4 +89,35 @@ export const pagePathOf = (
         Navigation.Push(),
       ),
     ]),
+  )
+
+/**
+ * The address of the books read aloud, the shelf: `/books/read-aloud`.
+ *
+ * @example
+ * ```typescript
+ * shelfPathOf() // Some('/books/read-aloud')
+ * ```
+ */
+export const shelfPathOf = (): Option.Option<string> =>
+  Navigation.defaultUri(declared)
+
+/**
+ * The link to share for the page on screen: its address, and the words to
+ * send with it. None while no page is open.
+ *
+ * @example
+ * ```typescript
+ * pageLinkOf(model)
+ * // Some({ path: '/books/read-aloud/9780063342705/page/4', title: 'Little Blue Truck Feeling Happy, page 4' })
+ * ```
+ */
+export const pageLinkOf = (
+  model: ReadAloudView,
+): Option.Option<Readonly<{ path: string; title: string }>> =>
+  Option.flatMap(shownPageOf(model), ({ book, page }) =>
+    Option.map(pagePathOf(book, page), path => ({
+      path,
+      title: `${nameOfBookKey(model, book)}, page ${page.toString()}`,
+    })),
   )

@@ -1,6 +1,6 @@
 import { Array, Option } from 'effect'
-import { Navigation } from 'foldkit'
-import { textsOf } from 'foldkit/renderers'
+import { Catalog, Navigation } from 'foldkit'
+import { buttonsOf, textsOf } from 'foldkit/renderers'
 import { ts } from 'foldkit/schema'
 import { describe, expect, it } from 'vitest'
 
@@ -17,7 +17,13 @@ import {
   ReadingId,
   TurnId,
 } from './ids.js'
-import { NextPage, OpenBook, ReceivedReadings } from './message.js'
+import {
+  NextPage,
+  OpenBook,
+  ReceivedReadings,
+  SharePage,
+  catalog,
+} from './message.js'
 import {
   type Book,
   type PageTurn,
@@ -25,8 +31,11 @@ import {
   ReadingsLoading,
   type ReadingsState,
 } from './model.js'
-import { readAloudViewOf } from './navigation.js'
+import { readAloudScreenOf } from './navigation.js'
+import { pageLinkOf } from './routes.js'
 import { updateReadAloud } from './update.js'
+
+const hostCatalog = Catalog.make([...catalog.actions, SharePage])
 
 const HostLibrary = ts('HostLibrary')
 
@@ -136,10 +145,13 @@ describe('Read Aloud held by another Program', () => {
       }),
     )
     const words = (place: ReadAloudPlace) =>
-      Option.map(readAloudViewOf(received, place), view =>
-        view._tag === 'Screen'
-          ? Array.map(textsOf(view.node), text => text.content)
-          : [],
+      Option.map(
+        readAloudScreenOf(
+          received,
+          place,
+          Catalog.entries(hostCatalog, received),
+        ),
+        node => Array.map(textsOf(node), text => text.content),
       )
     expect(words(ReadAloudShelf())).toEqual(
       Option.some(
@@ -148,6 +160,41 @@ describe('Read Aloud held by another Program', () => {
           'Reading now: Little Blue Truck Feeling Happy, page 4 of 14.',
         ]),
       ),
+    )
+  })
+
+  it('offers Share only where the host shares, and names the link to share', () => {
+    const opened = updateHost(
+      updateHost(
+        hostAtLibrary,
+        ReceivedReadings({
+          readings: { books: [book], turns: [turnAt(4, 4_000)] },
+        }),
+      ),
+      OpenBook({ book: book.key }),
+    )
+    const shareLabelsWith = (entries: ReadonlyArray<Catalog.Entry>) =>
+      Option.map(
+        Option.flatMap(Array.last(opened.navigation.pages), page =>
+          readAloudScreenOf(opened, page, entries),
+        ),
+        node =>
+          Array.filter(
+            Array.map(buttonsOf(node), button => button.label),
+            label => label === 'Share',
+          ),
+      )
+    expect(shareLabelsWith(Catalog.entries(hostCatalog, opened))).toEqual(
+      Option.some(['Share']),
+    )
+    expect(shareLabelsWith(Catalog.entries(catalog, opened))).toEqual(
+      Option.some([]),
+    )
+    expect(pageLinkOf(opened)).toEqual(
+      Option.some({
+        path: '/books/read-aloud/9780063342705/page/4',
+        title: 'Little Blue Truck Feeling Happy, page 4',
+      }),
     )
   })
 })

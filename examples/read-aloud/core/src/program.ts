@@ -4,8 +4,7 @@ import { Program } from 'foldkit'
 import { init } from './init.js'
 import { Message, catalog } from './message.js'
 import { Model } from './model.js'
-import { navigation } from './navigation.js'
-import { shelfScreen } from './screen.js'
+import { navigation, programShelfScreen } from './navigation.js'
 import { subscriptions } from './subscriptions.js'
 import { update } from './update.js'
 
@@ -48,7 +47,7 @@ export const ReadAloudProgram = Program.make({
   catalog,
   navigation,
   subscriptions,
-  screen: shelfScreen,
+  screen: programShelfScreen,
   synchronization: {
     messageCategory: categoryOf,
     projectDomain: model => ({ readings: model.readings }),
