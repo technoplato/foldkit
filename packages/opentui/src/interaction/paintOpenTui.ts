@@ -6,6 +6,7 @@ import {
   type TextNode,
   type TranscriptPassage,
   type UiNode,
+  iconGlyphs,
   progressLineOf,
   seekLineOf,
 } from 'foldkit/renderers'
@@ -35,6 +36,17 @@ const textContentOf = (text: TextNode): StyledText => {
     return t`${bold(text.content)}`
   } else {
     return stringToStyledText(text.content)
+  }
+}
+
+const buttonLabelOf = (button: ButtonNode): string => {
+  const glyph = button.icon === undefined ? undefined : iconGlyphs[button.icon]
+  if (glyph === undefined) {
+    return button.label
+  } else if (button.isIconOnly === true) {
+    return glyph
+  } else {
+    return `${glyph} ${button.label}`
   }
 }
 
@@ -212,7 +224,7 @@ export const paintOpenTui = (
               }
             : {}),
         })
-        const label = button.label
+        const label = buttonLabelOf(button)
         box.add(
           new TextRenderable(ctx, {
             content: isPressable ? t`${bold(label)}` : t`${dim(label)}`,
