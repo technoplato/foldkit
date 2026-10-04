@@ -25,7 +25,7 @@ const copyText = (text: string): Promise<void> =>
  *
  * @example
  * ```typescript
- * terminalLinkSharing('https://books.knophy.com')
+ * terminalLinkSharing('https://books.pisspoursoftware.xyz')
  * ```
  */
 export const terminalLinkSharing = (origin: string) =>

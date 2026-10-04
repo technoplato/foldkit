@@ -12,7 +12,7 @@
     "clean": "rimraf dist",
     "books": "../scripts/with-books-access node dist/entry.js",
     "books-tui": "../scripts/with-books-access node dist/tui.js",
-    "login": "cloudflared access login https://books.knophy.com",
+    "login": "cloudflared access login https://books.pisspoursoftware.xyz",
     "prebuild": "pnpm --filter books-core-example build",
     "pretypecheck": "pnpm --filter books-core-example build",
     "pretest": "pnpm --filter books-core-example build",

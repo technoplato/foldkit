@@ -28,7 +28,7 @@ import { SyncedBooks } from './synced.js'
 // START
 
 /** The mint a terminal signs in through by default: the hosted reader. */
-export const defaultBooksOrigin = 'https://books.knophy.com'
+export const defaultBooksOrigin = 'https://books.pisspoursoftware.xyz'
 
 /**
  * Where a terminal Books finds the library and its sign-in: the Instant

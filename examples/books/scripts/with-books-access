@@ -8,7 +8,7 @@ if [ -z "${BOOKS_INSTANT_APP_ID:-}" ] && [ -f "$ENV_FILE" ]; then
   BOOKS_INSTANT_APP_ID="$(sed -n 's/^INSTANT_APP_ID=//p' "$ENV_FILE" | head -n 1 | tr -d "\"'")"
 fi
 export BOOKS_INSTANT_APP_ID
-export FOLDKIT_HOSTED_IDENTITY_ORIGIN="${FOLDKIT_HOSTED_IDENTITY_ORIGIN:-https://books.knophy.com}"
+export FOLDKIT_HOSTED_IDENTITY_ORIGIN="${FOLDKIT_HOSTED_IDENTITY_ORIGIN:-https://books.pisspoursoftware.xyz}"
 case "$FOLDKIT_HOSTED_IDENTITY_ORIGIN" in
   http://localhost* | http://127.0.0.1*) ;;
   *)
