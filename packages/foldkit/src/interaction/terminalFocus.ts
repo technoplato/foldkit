@@ -86,6 +86,17 @@ const gridOfNode = (node: UiNode): FocusGrid =>
         }),
       Column: column => Array.flatMap(column.children, gridOfNode),
       Box: box => Array.flatMap(box.children, gridOfNode),
+      Progress: () => [],
+      List: list =>
+        Array.filter(
+          Array.map(list.items, item => [
+            ...Array.fromNullishOr(item.action),
+            ...Array.getSomes(Array.map(item.trailing ?? [], pressableTagOf)),
+          ]),
+          Array.isReadonlyArrayNonEmpty,
+        ),
+      Seek: () => [],
+      Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, gridOfNode),
     }),
   )
@@ -282,6 +293,19 @@ const keysLabelOf = (button: ButtonNode): string =>
     onNonEmpty: keys => `${button.label} (${Array.join(keys, ' ')})`,
   })
 
+const decoratedButton = (
+  button: ButtonNode,
+  maybeFocused: Option.Option<string>,
+  isShowingKeys: boolean,
+): ButtonNode => ({
+  ...button,
+  label: isShowingKeys ? keysLabelOf(button) : button.label,
+  ...(button.action !== undefined &&
+  Option.contains(maybeFocused, button.action)
+    ? { focused: true }
+    : {}),
+})
+
 const decorated = (
   node: UiNode,
   maybeFocused: Option.Option<string>,
@@ -293,14 +317,7 @@ const decorated = (
       Text: text => text,
       TextInput: input => input,
       Spacer: spacer => spacer,
-      Button: button => ({
-        ...button,
-        label: isShowingKeys ? keysLabelOf(button) : button.label,
-        ...(button.action !== undefined &&
-        Option.contains(maybeFocused, button.action)
-          ? { focused: true }
-          : {}),
-      }),
+      Button: button => decoratedButton(button, maybeFocused, isShowingKeys),
       Row: row => ({
         ...row,
         children: Array.map(row.children, child =>
@@ -319,6 +336,26 @@ const decorated = (
           decorated(child, maybeFocused, isShowingKeys),
         ),
       }),
+      Progress: progress => progress,
+      List: list => ({
+        ...list,
+        items: Array.map(list.items, item => ({
+          ...item,
+          ...(item.action !== undefined &&
+          Option.contains(maybeFocused, item.action)
+            ? { focused: true }
+            : {}),
+          ...(item.trailing === undefined
+            ? {}
+            : {
+                trailing: Array.map(item.trailing, button =>
+                  decoratedButton(button, maybeFocused, isShowingKeys),
+                ),
+              }),
+        })),
+      }),
+      Seek: seek => seek,
+      Transcript: transcript => transcript,
       DeviceShell: shell => ({
         ...shell,
         children: Array.map(shell.children, child =>

@@ -5,12 +5,18 @@ import type {
   BoxNode,
   ButtonNode,
   ColumnNode,
+  ListItem,
+  ListNode,
+  ProgressNode,
   RowNode,
+  SeekNode,
   SpacerNode,
   TextEmphasis,
   TextImage,
   TextInputNode,
   TextNode,
+  TranscriptNode,
+  TranscriptPassage,
   UiNode,
 } from './types.js'
 
@@ -152,4 +158,97 @@ export const Box = (
   _tag: 'Box',
   padding: props.padding ?? 0,
   children,
+})
+
+/**
+ * A seek bar over a timeline. `step` defaults to 1.
+ *
+ * @example
+ * ```typescript
+ * Seek({ value: 723_000, max: 33_181_000, step: 1000, action: 'SeekTo', label: 'Place in the book', valueText: '12:03 of 9:13:01' })
+ * ```
+ */
+export const Seek = (
+  props: Readonly<{
+    value: number
+    max: number
+    step?: number
+    action: string
+    label: string
+    valueText: string
+    disabled?: boolean
+  }>,
+): SeekNode => ({
+  _tag: 'Seek',
+  value: props.value,
+  max: props.max,
+  step: props.step ?? 1,
+  action: props.action,
+  label: props.label,
+  valueText: props.valueText,
+  ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
+})
+
+/**
+ * Words to read along with, in passages, each word pressable.
+ *
+ * @example
+ * ```typescript
+ * Transcript({
+ *   label: 'Transcript',
+ *   action: 'SeekToWord',
+ *   emptyText: 'No transcript yet',
+ *   passages: [{ key: 's1', label: '0:19', words: [{ token: 'w0', text: 'Evocation', isCurrent: true }] }],
+ * })
+ * ```
+ */
+export const Transcript = (
+  props: Readonly<{
+    label: string
+    action: string
+    emptyText: string
+    passages: ReadonlyArray<TranscriptPassage>
+  }>,
+): TranscriptNode => ({
+  _tag: 'Transcript',
+  label: props.label,
+  action: props.action,
+  emptyText: props.emptyText,
+  passages: props.passages,
+})
+
+/**
+ * How far along something is.
+ *
+ * @example
+ * ```typescript
+ * Progress({ value: 2_400_000, max: 33_181_000, label: '8 hours 33 minutes left' })
+ * ```
+ */
+export const Progress = (
+  props: Readonly<{ value: number; max: number; label: string }>,
+): ProgressNode => ({
+  _tag: 'Progress',
+  value: props.value,
+  max: props.max,
+  label: props.label,
+})
+
+/**
+ * Rows a person picks from, each pressable as a whole.
+ *
+ * @example
+ * ```typescript
+ * List({
+ *   label: 'Your books',
+ *   items: [{ key: 'a-new-earth', title: 'A New Earth', lines: ['Eckhart Tolle', '9:09:44 left'], action: 'Open:a-new-earth' }],
+ * })
+ * ```
+ */
+export const List = (
+  props: Readonly<{ label: string; items: ReadonlyArray<ListItem> }>,
+): ListNode => ({
+  _tag: 'List',
+  label: props.label,
+  items: props.items,
 })

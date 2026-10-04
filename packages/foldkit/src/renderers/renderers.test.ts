@@ -2,7 +2,15 @@ import { Array, Option, Schema as S } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { wrapDevice } from './devices/devices.js'
-import { Button, Column, Row, Text, TextInput } from './elements.js'
+import {
+  Button,
+  Column,
+  Row,
+  Seek,
+  Text,
+  TextInput,
+  Transcript,
+} from './elements.js'
 import { Host } from './host.js'
 import { paintHtml, paintMobile, paintStatusHtml } from './html.js'
 import { padOf } from './pad.js'
@@ -233,5 +241,62 @@ describe('text emphasis and status', () => {
     const painted = JSON.stringify(paintStatusHtml('Starting Counter…'))
     expect(painted).toContain('fk-status')
     expect(painted).toContain('Starting Counter…')
+  })
+})
+
+describe('a seek bar and a transcript in a terminal', () => {
+  it('draws the place on the bar with how it reads', () => {
+    expect(
+      renderScreen(
+        Seek({
+          value: 30,
+          max: 60,
+          action: 'SeekTo',
+          label: 'Place',
+          valueText: '0:30 of 1:00',
+        }),
+        30,
+      ),
+    ).toBe('━━━━━━━━●──────── 0:30 of 1:00')
+  })
+
+  it('wraps each passage under its time and brackets the word sounding', () => {
+    const painted = renderScreen(
+      Transcript({
+        label: 'Transcript',
+        action: 'SeekToWord',
+        emptyText: 'No transcript yet',
+        passages: [
+          {
+            key: 's1',
+            label: '0:19',
+            isCurrent: true,
+            words: Array.map(
+              ['Evocation', 'Earth,', '114', 'million', 'years', 'ago'],
+              (text, index) => ({
+                token: `w${index.toString()}`,
+                text,
+                isCurrent: index === 2,
+              }),
+            ),
+          },
+        ],
+      }),
+      30,
+    )
+    expect(painted.split('\n')).toEqual([
+      '›0:19   Evocation Earth, [114]',
+      '        million years ago     ',
+    ])
+    expect(
+      renderScreen(
+        Transcript({
+          label: 'Transcript',
+          action: 'SeekToWord',
+          emptyText: 'No transcript yet',
+          passages: [],
+        }),
+      ),
+    ).toBe('No transcript yet')
   })
 })

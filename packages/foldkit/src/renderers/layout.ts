@@ -1,8 +1,17 @@
 import { Array, Match as M } from 'effect'
 
 import type { Device } from './device.js'
-import { Column } from './elements.js'
-import type { HotspotAction, LayoutBox, UiNode } from './types.js'
+import { Column, Row, Text } from './elements.js'
+import type {
+  HotspotAction,
+  LayoutBox,
+  ListItem,
+  ProgressNode,
+  SeekNode,
+  TranscriptNode,
+  TranscriptPassage,
+  UiNode,
+} from './types.js'
 
 const WATCH_INNER = 16
 const PHONE_INNER = 22
@@ -62,6 +71,122 @@ const buttonGlyph = (
   button: Readonly<{ label: string; focused?: boolean }>,
 ): string =>
   button.focused === true ? `[>${button.label}<]` : `[ ${button.label} ]`
+
+const seekBarWidth = 40
+
+const seekFilled = '━'
+
+const seekRest = '─'
+
+const seekMarker = '●'
+
+/**
+ * A seek bar as one terminal line that fits `availableW`: the bar, the
+ * marker at the place, and how the place reads.
+ *
+ * @example
+ * ```typescript
+ * seekLineOf(seek, 30) // '━━━━━━━━●──────── 0:30 of 1:00'
+ * ```
+ */
+export const seekLineOf = (seek: SeekNode, availableW: number): string => {
+  const barWidth = Math.max(
+    0,
+    Math.min(seekBarWidth, availableW - seek.valueText.length - 1),
+  )
+  const fraction = seek.max > 0 ? Math.min(1, seek.value / seek.max) : 0
+  const filled = Math.min(
+    Math.max(0, barWidth - 1),
+    Math.round(fraction * (barWidth - 1)),
+  )
+  const bar =
+    barWidth === 0
+      ? ''
+      : `${seekFilled.repeat(filled)}${seekMarker}${seekRest.repeat(Math.max(0, barWidth - filled - 1))}`
+  return `${bar} ${seek.valueText}`.trimStart()
+}
+
+const progressBarWidth = 20
+
+/**
+ * A progress bar as one terminal line that fits `availableW`, then its
+ * label.
+ *
+ * @example
+ * ```typescript
+ * progressLineOf(progress, 40) // '█████░░░░░░░░░░░░░░░ 9:09:44 left'
+ * ```
+ */
+export const progressLineOf = (
+  progress: ProgressNode,
+  availableW: number,
+): string => {
+  const barWidth = Math.max(
+    0,
+    Math.min(progressBarWidth, availableW - progress.label.length - 1),
+  )
+  const fraction =
+    progress.max > 0
+      ? Math.min(1, Math.max(0, progress.value / progress.max))
+      : 0
+  const filled = Math.round(fraction * barWidth)
+  return `${'█'.repeat(filled)}${'░'.repeat(barWidth - filled)} ${progress.label}`.trimStart()
+}
+
+const itemTitleGlyph = (item: ListItem): string => {
+  if (item.focused === true) {
+    return `› ${item.title}`
+  } else if (item.isCurrent === true) {
+    return `• ${item.title}`
+  } else {
+    return `  ${item.title}`
+  }
+}
+
+const passageLabelWidth = 8
+
+const wordGlyph = (word: Readonly<{ text: string; isCurrent?: boolean }>) =>
+  word.isCurrent === true ? `[${word.text}]` : word.text
+
+const wrappedWords = (
+  words: ReadonlyArray<string>,
+  width: number,
+): ReadonlyArray<string> =>
+  Array.reduce(words, Array.empty<string>(), (lines, word) =>
+    Array.match(lines, {
+      onEmpty: () => [word],
+      onNonEmpty: nonEmpty => {
+        const last = Array.lastNonEmpty(nonEmpty)
+        return `${last} ${word}`.length <= width
+          ? [...Array.initNonEmpty(nonEmpty), `${last} ${word}`]
+          : [...nonEmpty, word]
+      },
+    }),
+  )
+
+const passageLines = (
+  passage: TranscriptPassage,
+  availableW: number,
+): ReadonlyArray<string> => {
+  const marker = passage.isCurrent === true ? '›' : ' '
+  const label = `${marker}${passage.label}`.padEnd(passageLabelWidth, ' ')
+  const textWidth = Math.max(1, availableW - passageLabelWidth)
+  return Array.map(
+    wrappedWords(Array.map(passage.words, wordGlyph), textWidth),
+    (line, index) =>
+      `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line}`,
+  )
+}
+
+const transcriptLines = (
+  transcript: TranscriptNode,
+  availableW: number,
+): ReadonlyArray<string> =>
+  Array.match(transcript.passages, {
+    onEmpty: () => [transcript.emptyText],
+    onNonEmpty: passages =>
+      Array.flatMap(passages, passage => passageLines(passage, availableW)),
+  })
 
 const layoutNode = (
   node: UiNode,
@@ -213,6 +338,105 @@ const layoutNode = (
           h: inner.h + box.padding * 2,
           kind: 'Box',
           children: [inner],
+        }
+      },
+      Progress: progress => {
+        const line = progressLineOf(progress, availableW)
+        const w = measureText(line, availableW)
+        return {
+          id: ids.next('progress'),
+          x,
+          y,
+          w,
+          h: 1,
+          kind: 'Progress',
+          text: fit(line, w),
+          label: progress.label,
+          children: [],
+        }
+      },
+      List: list => {
+        const rows = Array.map(list.items, (item, index) => {
+          const title = itemTitleGlyph(item)
+          const titleW = measureText(title, availableW)
+          const titleBox: LayoutBox = {
+            id: ids.next('item'),
+            x,
+            y: y + index,
+            w: titleW,
+            h: 1,
+            kind: 'Button',
+            text: fit(title, titleW),
+            label: item.title,
+            ...(item.action === undefined
+              ? {}
+              : { action: { _tag: 'custom', id: item.action } }),
+            children: [],
+          }
+          const detail = Array.join(item.lines ?? [], ' · ')
+          const rest = layoutNode(
+            Row(
+              { gap: 2 },
+              ...(detail === '' ? [] : [Text(detail, { dim: true })]),
+              ...(item.trailing ?? []),
+            ),
+            x + titleW + 2,
+            y + index,
+            Math.max(0, availableW - titleW - 2),
+            ids,
+          )
+          return { titleBox, rest }
+        })
+        return {
+          id: ids.next('list'),
+          x,
+          y,
+          w: availableW,
+          h: rows.length,
+          kind: 'List',
+          label: list.label,
+          children: Array.flatMap(rows, ({ titleBox, rest }) => [
+            titleBox,
+            rest,
+          ]),
+        }
+      },
+      Seek: seek => {
+        const line = seekLineOf(seek, availableW)
+        const w = measureText(line, availableW)
+        return {
+          id: ids.next('seek'),
+          x,
+          y,
+          w,
+          h: 1,
+          kind: 'Seek',
+          text: fit(line, w),
+          label: seek.label,
+          children: [],
+        }
+      },
+      Transcript: transcript => {
+        const lines = transcriptLines(transcript, availableW)
+        const children = Array.map(lines, (line, index) => ({
+          id: ids.next('text'),
+          x,
+          y: y + index,
+          w: measureText(line, availableW),
+          h: 1,
+          kind: 'Text' as const,
+          text: fit(line, measureText(line, availableW)),
+          children: [],
+        }))
+        return {
+          id: ids.next('transcript'),
+          x,
+          y,
+          w: Array.reduce(children, 0, (max, child) => Math.max(max, child.w)),
+          h: lines.length,
+          kind: 'Transcript',
+          label: transcript.label,
+          children,
         }
       },
       DeviceShell: shell => {

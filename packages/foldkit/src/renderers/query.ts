@@ -14,6 +14,10 @@ export const textsOf = (node: UiNode): ReadonlyArray<TextNode> =>
       Row: row => Array.flatMap(row.children, textsOf),
       Column: column => Array.flatMap(column.children, textsOf),
       Box: box => Array.flatMap(box.children, textsOf),
+      Progress: () => [],
+      List: () => [],
+      Seek: () => [],
+      Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, textsOf),
     }),
   )
@@ -30,6 +34,10 @@ export const buttonsOf = (node: UiNode): ReadonlyArray<ButtonNode> =>
       Row: row => Array.flatMap(row.children, buttonsOf),
       Column: column => Array.flatMap(column.children, buttonsOf),
       Box: box => Array.flatMap(box.children, buttonsOf),
+      Progress: () => [],
+      List: list => Array.flatMap(list.items, item => item.trailing ?? []),
+      Seek: () => [],
+      Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, buttonsOf),
     }),
   )
@@ -46,6 +54,10 @@ export const inputsOf = (node: UiNode): ReadonlyArray<TextInputNode> =>
       Row: row => Array.flatMap(row.children, inputsOf),
       Column: column => Array.flatMap(column.children, inputsOf),
       Box: box => Array.flatMap(box.children, inputsOf),
+      Progress: () => [],
+      List: () => [],
+      Seek: () => [],
+      Transcript: () => [],
       DeviceShell: shell => Array.flatMap(shell.children, inputsOf),
     }),
   )

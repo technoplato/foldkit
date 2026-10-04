@@ -77,6 +77,10 @@ export const paintHtml = <Message>(
             button.keys === undefined
               ? []
               : [h.DataAttribute('keys', button.keys.join(' '))]
+          const variant =
+            button.variant === undefined
+              ? []
+              : [h.DataAttribute('variant', button.variant)]
           return h.button(
             [
               h.Type('button'),
@@ -85,6 +89,7 @@ export const paintHtml = <Message>(
               ...disabled,
               ...because,
               ...keys,
+              ...variant,
             ],
             [button.label],
           )
@@ -117,6 +122,143 @@ export const paintHtml = <Message>(
         Column: column =>
           h.div([h.Class('fk-column')], Array.map(column.children, paint)),
         Box: box => h.div([h.Class('fk-box')], Array.map(box.children, paint)),
+        Progress: progress =>
+          h.progress(
+            [
+              h.Class('fk-progress'),
+              h.Max(progress.max.toString()),
+              h.Value(progress.value.toString()),
+              h.AriaLabel(progress.label),
+            ],
+            [],
+          ),
+        List: list =>
+          h.ul(
+            [h.Class('fk-list'), h.AriaLabel(list.label)],
+            Array.map(list.items, item => {
+              const message =
+                item.action === undefined ? undefined : toMessage(item.action)
+              return h.li(
+                [
+                  h.Class('fk-item'),
+                  ...(item.isCurrent === true
+                    ? [h.DataAttribute('current', 'true')]
+                    : []),
+                ],
+                [
+                  h.button(
+                    [
+                      h.Type('button'),
+                      h.Class('fk-item-press'),
+                      ...(message === undefined
+                        ? [h.Disabled(true)]
+                        : [h.OnClick(message)]),
+                    ],
+                    [
+                      ...(item.image === undefined
+                        ? []
+                        : [
+                            h.img([
+                              h.Class('fk-item-image'),
+                              h.Src(item.image.src),
+                              h.Alt(item.image.alt),
+                              h.Width(item.image.width.toString()),
+                              h.Height(item.image.height.toString()),
+                            ]),
+                          ]),
+                      h.span(
+                        [h.Class('fk-item-body')],
+                        [
+                          h.span([h.Class('fk-item-title')], [item.title]),
+                          ...Array.map(item.lines ?? [], line =>
+                            h.span([h.Class('fk-item-line')], [line]),
+                          ),
+                          ...(item.progress === undefined
+                            ? []
+                            : [
+                                h.progress(
+                                  [
+                                    h.Class('fk-progress'),
+                                    h.Max(item.progress.max.toString()),
+                                    h.Value(item.progress.value.toString()),
+                                  ],
+                                  [],
+                                ),
+                              ]),
+                        ],
+                      ),
+                    ],
+                  ),
+                  ...Array.map(item.trailing ?? [], paint),
+                ],
+              )
+            }),
+          ),
+        Seek: seek => {
+          const messageAt = (value: string): Message => {
+            const message = toMessage(`${seek.action}:${value}`)
+            if (message !== undefined) {
+              return message
+            }
+            throw new Error(`unknown seek: ${seek.action}:${value}`)
+          }
+          return h.input([
+            h.Type('range'),
+            h.Class('fk-seek'),
+            h.Min('0'),
+            h.Max(seek.max.toString()),
+            h.Step(seek.step.toString()),
+            h.Value(seek.value.toString()),
+            h.AriaLabel(seek.label),
+            h.AriaValuetext(seek.valueText),
+            ...(seek.disabled === true
+              ? [h.Disabled(true)]
+              : [h.OnChange(messageAt)]),
+          ])
+        },
+        Transcript: transcript =>
+          h.section(
+            [h.Class('fk-transcript'), h.AriaLabel(transcript.label)],
+            Array.match(transcript.passages, {
+              onEmpty: () => [
+                h.p([h.Class('fk-transcript-empty')], [transcript.emptyText]),
+              ],
+              onNonEmpty: passages =>
+                Array.map(passages, passage =>
+                  h.article(
+                    [
+                      h.Class('fk-passage'),
+                      ...(passage.isCurrent === true
+                        ? [h.DataAttribute('current', 'true')]
+                        : []),
+                    ],
+                    [
+                      h.span([h.Class('fk-passage-label')], [passage.label]),
+                      h.p(
+                        [h.Class('fk-passage-words')],
+                        Array.map(passage.words, word => {
+                          const message = toMessage(
+                            `${transcript.action}:${word.token}`,
+                          )
+                          return h.span(
+                            [
+                              h.Class('fk-word'),
+                              ...(word.isCurrent === true
+                                ? [h.DataAttribute('current', 'true')]
+                                : []),
+                              ...(message === undefined
+                                ? []
+                                : [h.OnClick(message)]),
+                            ],
+                            [`${word.text} `],
+                          )
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+            }),
+          ),
         DeviceShell: shell =>
           h.div(
             [h.Class(`fk-device fk-device-${shell.device}`)],

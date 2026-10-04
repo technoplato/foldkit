@@ -12,10 +12,12 @@ export type HotspotAction = Readonly<{
  * such as `count 3` for `3`.
  */
 /**
- * How much a text run stands out. `Display` is the screen's headline, such
- * as the count: large on graphical painters, bold in a terminal.
+ * How much a text run stands out. `Display` is the screen's one big
+ * figure, such as the count: large on graphical painters, bold in a
+ * terminal. `Headline` titles a screen or a section, such as `Library`
+ * or a book's name: larger and bold, but sized for words.
  */
-export type TextEmphasis = 'Display'
+export type TextEmphasis = 'Display' | 'Headline'
 
 /**
  * A picture a Text shows in place of its words, where a painter can show
@@ -95,6 +97,106 @@ export type BoxNode = Readonly<{
   readonly children: ReadonlyArray<UiNode>
 }>
 
+/**
+ * A place on a timeline a person moves, a seek bar: `value` of `max` in
+ * the Program's own unit, moved in `step`s. Moving it presses `action`
+ * with the new value as its choice, `SeekTo:723000`. `valueText` is how
+ * the place reads, `12:03 of 9:13:01`, for a screen reader and a terminal.
+ */
+export type SeekNode = Readonly<{
+  readonly _tag: 'Seek'
+  readonly value: number
+  readonly max: number
+  readonly step: number
+  readonly action: string
+  readonly label: string
+  readonly valueText: string
+  readonly disabled?: boolean
+}>
+
+/**
+ * One word of a Transcript: its text, the token a press sends, and
+ * whether it is the one sounding now.
+ */
+export type TranscriptWord = Readonly<{
+  readonly token: string
+  readonly text: string
+  readonly isCurrent?: boolean
+}>
+
+/**
+ * One passage of a Transcript, a paragraph that starts at `label`, such as
+ * `12:03`. Pressing the label presses `labelAction` when it has one, such
+ * as `SeekTo:723000`. `isCurrent` marks the passage sounding now.
+ */
+export type TranscriptPassage = Readonly<{
+  readonly key: string
+  readonly label: string
+  readonly labelAction?: string
+  readonly isCurrent?: boolean
+  readonly words: ReadonlyArray<TranscriptWord>
+}>
+
+/**
+ * Words on a timeline that a person reads along with: passages of words,
+ * the one sounding marked current. Pressing a word presses `action` with
+ * the word's token, `SeekToWord:w4012`. Graphical painters keep the
+ * current word in view; a terminal brackets it, `[word]`. `emptyText` is
+ * what shows while there are no passages.
+ */
+export type TranscriptNode = Readonly<{
+  readonly _tag: 'Transcript'
+  readonly label: string
+  readonly action: string
+  readonly passages: ReadonlyArray<TranscriptPassage>
+  readonly emptyText: string
+}>
+
+/**
+ * How far along something is: `value` of `max`, such as the minutes heard
+ * of a book. `label` is what a screen reader announces, `2 hours left`.
+ */
+export type ProgressNode = Readonly<{
+  readonly _tag: 'Progress'
+  readonly value: number
+  readonly max: number
+  readonly label: string
+}>
+
+/**
+ * A picture at the start of a list row, such as a book's cover, with the
+ * words it stands for.
+ */
+export type ItemImage = TextImage & Readonly<{ readonly alt: string }>
+
+/**
+ * One row of a List: a picture, a title, the lines under it, how far
+ * along it is, the press the whole row sends, and buttons at its end.
+ * `key` is the row's stable identity, such as the book's slug.
+ */
+export type ListItem = Readonly<{
+  readonly key: string
+  readonly title: string
+  readonly lines?: ReadonlyArray<string>
+  readonly image?: ItemImage
+  readonly progress?: Readonly<{ readonly value: number; readonly max: number }>
+  readonly action?: string
+  readonly isCurrent?: boolean
+  readonly focused?: boolean
+  readonly trailing?: ReadonlyArray<ButtonNode>
+}>
+
+/**
+ * Rows a person picks from, such as the books in a library or a book's
+ * chapters: full width, one under another, each row pressable as a whole.
+ * `label` names the list for a screen reader and heads it in a terminal.
+ */
+export type ListNode = Readonly<{
+  readonly _tag: 'List'
+  readonly label: string
+  readonly items: ReadonlyArray<ListItem>
+}>
+
 /** Device chrome around a product tree. The shell does not own product buttons. */
 export type DeviceShellNode = Readonly<{
   readonly _tag: 'DeviceShell'
@@ -113,6 +215,10 @@ export type UiNode =
   | RowNode
   | ColumnNode
   | BoxNode
+  | ProgressNode
+  | ListNode
+  | SeekNode
+  | TranscriptNode
   | DeviceShellNode
 
 /** A laid-out character box. */

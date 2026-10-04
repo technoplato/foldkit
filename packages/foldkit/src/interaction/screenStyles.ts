@@ -41,6 +41,17 @@ export type ScreenLook = Readonly<{
   panelWidth: number
   codeColor: string
   codeSize: number
+  headlineSize: number
+  headlineWeight: number
+  accentColor: string
+  accentSoftColor: string
+  trackColor: string
+  rowHoverColor: string
+  listWidth: number
+  itemImageSize: number
+  ghostBorderColor: string
+  destructiveColor: string
+  readingSize: number
 }>
 
 /** The look every graphical painter maps; see {@link ScreenLook}. */
@@ -74,6 +85,17 @@ export const screenLook: ScreenLook = {
   panelWidth: 448,
   codeColor: '#f3f4f6',
   codeSize: 13,
+  headlineSize: 30,
+  headlineWeight: 700,
+  accentColor: '#ea580c',
+  accentSoftColor: '#ffedd5',
+  trackColor: '#e5e7eb',
+  rowHoverColor: '#f3f4f6',
+  listWidth: 680,
+  itemImageSize: 56,
+  ghostBorderColor: '#d1d5db',
+  destructiveColor: '#b91c1c',
+  readingSize: 19,
 }
 
 const px = (value: number): string => `${value.toString()}px`
@@ -123,6 +145,14 @@ export const screenStylesheet = `
   font-weight: ${screenLook.displayWeight.toString()};
   font-variant-numeric: tabular-nums;
   line-height: 1;
+}
+
+:where(.fk-text[data-emphasis='Headline']) {
+  font-size: ${px(screenLook.headlineSize)};
+  font-weight: ${screenLook.headlineWeight.toString()};
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-align: center;
 }
 
 :where(.fk-text[data-dim]) {
@@ -208,6 +238,234 @@ export const screenStylesheet = `
   cursor: not-allowed;
 }
 
+:where(.fk-button[data-variant]) {
+  border-radius: 999px;
+}
+
+:where(.fk-button[data-variant='Ghost']) {
+  border: 1px solid ${screenLook.ghostBorderColor};
+  background: transparent;
+  color: ${screenLook.textColor};
+}
+
+:where(.fk-button[data-variant='Ghost']:hover) {
+  background: ${screenLook.rowHoverColor};
+}
+
+:where(.fk-button[data-variant='Ghost']:disabled) {
+  border-color: ${screenLook.trackColor};
+  background: transparent;
+  color: ${screenLook.buttonDisabledColor};
+}
+
+:where(.fk-button[data-variant='Destructive']) {
+  background: ${screenLook.destructiveColor};
+}
+
+:where(.fk-progress) {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: ${screenLook.trackColor};
+  overflow: hidden;
+}
+
+:where(.fk-progress)::-webkit-progress-bar {
+  background: ${screenLook.trackColor};
+}
+
+:where(.fk-progress)::-webkit-progress-value {
+  background: ${screenLook.accentColor};
+}
+
+:where(.fk-progress)::-moz-progress-bar {
+  background: ${screenLook.accentColor};
+}
+
+:where(.fk-list) {
+  box-sizing: border-box;
+  width: min(100%, ${px(screenLook.listWidth)});
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+:where(.fk-item) {
+  display: flex;
+  align-items: center;
+  gap: ${px(screenLook.rowGap)};
+  border-bottom: 1px solid ${screenLook.trackColor};
+}
+
+:where(.fk-item:last-child) {
+  border-bottom: 0;
+}
+
+:where(.fk-item-press) {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+:where(.fk-item-press:hover) {
+  background: ${screenLook.rowHoverColor};
+}
+
+:where(.fk-item-press:focus-visible) {
+  outline: 2px solid ${screenLook.focusColor};
+  outline-offset: -2px;
+}
+
+:where(.fk-item-press:disabled) {
+  cursor: default;
+}
+
+:where(.fk-item-press:disabled:hover) {
+  background: transparent;
+}
+
+:where(.fk-item[data-current] .fk-item-title) {
+  color: ${screenLook.accentColor};
+}
+
+:where(.fk-item-image) {
+  flex: none;
+  width: ${px(screenLook.itemImageSize)};
+  height: ${px(screenLook.itemImageSize)};
+  border-radius: 6px;
+  object-fit: cover;
+  box-shadow: 0 2px 8px -2px rgb(15 23 42 / 0.35);
+}
+
+:where(.fk-item-body) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+:where(.fk-item-title) {
+  overflow: hidden;
+  color: ${screenLook.textColor};
+  font-size: ${px(screenLook.bodySize)};
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fk-item-line) {
+  overflow: hidden;
+  color: ${screenLook.dimColor};
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fk-item-body .fk-progress) {
+  margin-top: 6px;
+}
+
+:where(.fk-item > .fk-button) {
+  flex: none;
+  height: 36px;
+  min-width: 0;
+  padding: 0 14px;
+}
+
+:where(.fk-seek) {
+  box-sizing: border-box;
+  width: min(100%, ${px(screenLook.listWidth)});
+  height: 24px;
+  margin: 0;
+  accent-color: ${screenLook.accentColor};
+  cursor: pointer;
+}
+
+:where(.fk-transcript) {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(100%, ${px(screenLook.listWidth)});
+  text-align: left;
+}
+
+:where(.fk-transcript-empty) {
+  margin: 0;
+  color: ${screenLook.dimColor};
+  text-align: center;
+}
+
+:where(.fk-passage) {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  transition: background-color 0.2s;
+}
+
+:where(.fk-passage[data-current]) {
+  background: ${screenLook.rowHoverColor};
+}
+
+:where(.fk-passage-label) {
+  padding-top: 5px;
+  border: 0;
+  background: none;
+  color: ${screenLook.dimColor};
+  font-family: ${screenLook.monoFamily};
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+:where(button.fk-passage-label) {
+  cursor: pointer;
+}
+
+:where(button.fk-passage-label:hover) {
+  color: ${screenLook.textColor};
+}
+
+:where(.fk-passage-words) {
+  margin: 0;
+  color: ${screenLook.textColor};
+  font-size: ${px(screenLook.readingSize)};
+  line-height: 1.7;
+}
+
+:where(.fk-word) {
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+:where(.fk-word:hover) {
+  background: ${screenLook.trackColor};
+}
+
+:where(.fk-word[data-current]) {
+  background: ${screenLook.accentSoftColor};
+  box-shadow: 0 0 0 2px ${screenLook.accentSoftColor};
+  color: #9a3412;
+}
+
 :where(.fk-device-phone) {
   box-sizing: border-box;
   width: min(100%, ${px(screenLook.deviceWidth)});
@@ -264,6 +522,8 @@ export const screenStylesheet = `
 :where(.fk-overlay > *) {
   box-sizing: border-box;
   width: min(100%, ${px(screenLook.panelWidth)});
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   padding: ${px(screenLook.columnGap)};
   border-radius: ${px(screenLook.panelRadius)};
   background: ${screenLook.panelColor};
