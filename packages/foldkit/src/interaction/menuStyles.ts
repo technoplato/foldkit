@@ -4,7 +4,9 @@
  * names those painters emit: a dimmed backdrop, a centered panel, a
  * search field, rows with their key hints, matched letters, and a footer
  * of the keys that work right now. Every selector sits in `:where()`, so
- * an app's own rule for the same class wins without `!important`.
+ * an app's own rule for the same class wins without `!important`, except
+ * the search field's size: it stays at least 16px, because iPhone Safari
+ * zooms the page into any smaller field that takes focus.
  *
  * @example
  * ```tsx
@@ -85,9 +87,12 @@ export const menuStylesheet = `
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 1rem;
   line-height: 1.5rem;
   outline: none;
+}
+
+.fk-action-menu-filter {
+  font-size: max(16px, 1rem);
 }
 
 :where(.fk-action-menu-filter)::placeholder {
