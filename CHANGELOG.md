@@ -4,6 +4,25 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 8:43:08 p.m. EDT — `fc21bb66c254` fix(words): verify Cloudflare Access logins before minting Scribe sessions
+
+- **Implementation commit:** `fc21bb66c2544437df18288965ffc8e58ed2edb1`
+- **Change:** Verify Cloudflare Access logins before the words origin mints Scribe sessions, and refuse paths under the universal-links bypass.
+- **Details:**
+  - The origin trusted the unsigned Cf-Access-Jwt-Assertion payload and a bare Cf-Access-Authenticated-User-Email header; it now verifies RS256, issuer, expiry and CF_ACCESS_AUD with the @foldkit/instant Access verifier and ignores the bare header.
+  - Access bypasses /.well-known/apple-app-site-association and every path under it; an encoded-slash path reached the app shell without login. The origin now answers 404 for anything under that prefix but the file.
+  - Verified: vitePlugins.test.ts 5/5 (each check fails when its guard is removed), words core 208/208, both tsc configs pass.
+- **Files:**
+  - `examples/words/foldkit/vitePlugins.ts` — verified identity, bypass-prefix guard, verification log lines
+  - `examples/words/foldkit/vitePlugins.test.ts` — signed, forged, unsigned, wrong-audience, wrong-issuer, expired logins; bypass paths; loopback preview
+  - `examples/words/foldkit/vitest.config.ts` — node test environment for the plugin test
+  - `examples/words/foldkit/tsconfig.json` — app code only
+  - `examples/words/foldkit/tsconfig.node.json` — Node-side files, dot access on index signatures as packages/instant allows
+  - `examples/words/foldkit/package.json` — typecheck runs both configs
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
 ## October 3rd, 2026 at 8:22:21 p.m. EDT — `75e066403974` fix(instant): verify Cloudflare Access logins before minting Instant sessions
 
 - **Implementation commit:** `75e066403974dcb8e995f006ad18990687b6e523`
