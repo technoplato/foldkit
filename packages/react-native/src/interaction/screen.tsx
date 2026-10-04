@@ -196,6 +196,14 @@ const passageStyle: ViewStyle = {
   padding: 8,
 }
 
+const passageHeadingStyle: TextStyle = {
+  color: look.textColor,
+  fontSize: 13,
+  fontWeight: '700',
+  letterSpacing: 0.8,
+  width: '100%',
+}
+
 const passageLabelStyle: TextStyle = {
   color: look.dimColor,
   fontFamily: monoFamily,
@@ -388,14 +396,21 @@ export const paintTree = (
           >
             {Array.map(list.items, item => {
               const action = item.action
+              const href = item.href
               return (
                 <View key={item.key} style={itemStyle}>
                   <Pressable
                     accessibilityLabel={item.title}
-                    accessibilityRole="button"
-                    disabled={action === undefined}
+                    accessibilityRole={href === undefined ? 'button' : 'link'}
+                    disabled={action === undefined && href === undefined}
                     onPress={() => {
-                      if (action !== undefined) {
+                      if (href !== undefined) {
+                        if (handlers.onLink === undefined) {
+                          void Linking.openURL(href)
+                        } else {
+                          handlers.onLink(href)
+                        }
+                      } else if (action !== undefined) {
                         handlers.onPress({
                           _tag: 'Button',
                           label: item.title,
@@ -485,6 +500,11 @@ export const paintTree = (
                         : undefined,
                     ]}
                   >
+                    {passage.heading === undefined ? null : (
+                      <Text style={passageHeadingStyle}>
+                        {passage.heading.toUpperCase()}
+                      </Text>
+                    )}
                     <Text style={passageLabelStyle}>{passage.label}</Text>
                     <Text style={passageWordsStyle}>
                       {Array.map(passage.words, word => (
