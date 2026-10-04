@@ -598,7 +598,7 @@ describe('copying links', () => {
     )
     expect(commands.map(command => command.args)).toEqual([
       {
-        text: `https://words.knophy.com/recording/${recordingID}/section/${sectionB.id}?t=19`,
+        text: `https://words.pisspoursoftware.xyz/recording/${recordingID}/section/${sectionB.id}?t=19`,
         notice: {
           text: 'Copied link to this moment',
           isFailure: false,
@@ -613,7 +613,7 @@ describe('copying links', () => {
     const [, commands] = update(at, ClickedCopyMomentLink())
     expect(commands.map(command => command.args)).toEqual([
       {
-        text: `https://words.knophy.com/playback/${recordingID}?t=1`,
+        text: `https://words.pisspoursoftware.xyz/playback/${recordingID}?t=1`,
         notice: {
           text: 'Copied link to this moment',
           isFailure: false,
@@ -634,7 +634,7 @@ describe('copying links', () => {
       {
         name: 'ShareRecordingLink',
         args: {
-          url: `https://words.knophy.com/recording/${recordingID}`,
+          url: `https://words.pisspoursoftware.xyz/recording/${recordingID}`,
           title: 'Recording 018',
         },
       },
@@ -646,7 +646,7 @@ describe('copying links', () => {
     const [, commands] = update(at, ClickedCopyMomentLink())
     expect(commands.map(command => command.args)).toEqual([
       {
-        text: `https://words.knophy.com/recording/${recordingID}/section/${sectionB.id}?t=41`,
+        text: `https://words.pisspoursoftware.xyz/recording/${recordingID}/section/${sectionB.id}?t=41`,
         notice: {
           text: 'Copied link to this moment',
           isFailure: false,

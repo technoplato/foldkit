@@ -165,7 +165,7 @@ describe('scribeRouteToShareUrl', () => {
     const link = scribeRouteToShareUrl(route)
 
     expect(link).toBe(
-      `https://words.knophy.com/recording/${recordingID}/section/${sectionID}?t=4`,
+      `https://words.pisspoursoftware.xyz/recording/${recordingID}/section/${sectionID}?t=4`,
     )
     expect(scribeRouteFromLink(link)).toEqual(Option.some(route))
   })
@@ -177,7 +177,7 @@ describe('scribeRouteToShareUrl', () => {
     const link = scribeRouteToShareUrl(route)
 
     expect(
-      link.startsWith('https://words.knophy.com/recordings/search?q='),
+      link.startsWith('https://words.pisspoursoftware.xyz/recordings/search?q='),
     ).toBe(true)
     expect(scribeRouteFromLink(link)).toEqual(Option.some(route))
     expect(scribeRouteToPath(SearchRecordingsRoute({ q: Option.none() }))).toBe(
@@ -200,7 +200,7 @@ describe('scribeRouteToShareUrl', () => {
   it('prints the account link that opens the Account screen on the iPhone and the account page on the web', () => {
     const link = scribeRouteToShareUrl(AccountRoute())
 
-    expect(link).toBe('https://words.knophy.com/account')
+    expect(link).toBe('https://words.pisspoursoftware.xyz/account')
     expect(scribeRouteFromLink(link)).toEqual(Option.some(AccountRoute()))
     expect(scribeRouteToAppUrl(AccountRoute(), 'scribe-shared-dev')).toBe(
       'scribe-shared-dev://account',

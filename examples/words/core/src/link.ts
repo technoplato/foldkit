@@ -18,8 +18,11 @@ import {
 } from 'foldkit/route'
 import { type Url, fromString } from 'foldkit/url'
 
-/** The origin of every shared Scribe link, on the web and on the iPhone. */
-export const scribeLinkOrigin = 'https://words.knophy.com'
+/**
+ * The origin of every shared Scribe link, on the web and on the iPhone. Links shared
+ * before the domain move carry `https://words.knophy.com` and still open.
+ */
+export const scribeLinkOrigin = 'https://words.pisspoursoftware.xyz'
 
 /**
  * The web hosts whose shared links web Scribe opens: the origin's host, and its
@@ -27,8 +30,8 @@ export const scribeLinkOrigin = 'https://words.knophy.com'
  * opens the same place, like `https://words.pisspoursoftware.xyz/account`.
  */
 export const ScribeLinkHost = S.Literals([
-  'words.knophy.com',
   'words.pisspoursoftware.xyz',
+  'words.knophy.com',
 ])
 /**
  * The web hosts whose shared links web Scribe opens: the origin's host, and its
