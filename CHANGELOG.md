@@ -4,6 +4,22 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 4:34:12 a.m. EDT — `fbac11a07b68` fix(words): name words.pisspoursoftware.xyz in the remaining user-facing texts
+
+- **Implementation commit:** `fbac11a07b68d8f92a4cc2907fa4edd2eb1ac842`
+- **Change:** The remaining user-facing texts name words.pisspoursoftware.xyz (Scribe #493).
+- **Details:**
+  - 16 strings: the origin's error and status texts, the microphone and slow-answer notices, and the account page's sign-in, sharing and sign-out copy; 'every knophy.com site' reads 'every pisspoursoftware.xyz site'.
+  - Verified: words core 208/208, plugin 5/5, core, web and node tsc pass.
+- **Files:**
+  - `examples/words/core/src/origin.ts` — error and status texts name the new host
+  - `examples/words/foldkit/src/browser.ts` — slow-answer notice
+  - `examples/words/foldkit/src/capture.ts` — microphone notice
+  - `examples/words/foldkit/src/view/account.ts` — sign-in, sharing and sign-out copy
+- **User context (verbatim):**
+  > let's move all of our subdomains to the PISSP O U R software.
+- **SpecStory:** unavailable — no SpecStory URI was captured for this session (Claude Code subagent launched by the main session).
+
 ## October 4th, 2026 at 4:30:42 a.m. EDT — `dcd297cd7c2e` fix(words): name words.pisspoursoftware.xyz in the sign-in help texts
 
 - **Implementation commit:** `dcd297cd7c2e8e125844b3e73d70ff8b0373ef96`
