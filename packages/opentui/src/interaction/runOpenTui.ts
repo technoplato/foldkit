@@ -60,8 +60,11 @@ export const runOpenTui = <Model, Message>(
 
     const paintOptions: PaintOpenTuiOptions & PaintOpenTuiMenuOptions = {
       onPress: button => {
-        if (button.action !== undefined) {
-          bound.press(button.action)
+        const action = button.action
+        if (action !== undefined && action.startsWith('/')) {
+          bound.openUri(action, Navigation.Link())
+        } else if (action !== undefined) {
+          bound.press(action)
         }
       },
       onChoose: tag => {

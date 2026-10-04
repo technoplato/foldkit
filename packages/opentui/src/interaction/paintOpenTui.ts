@@ -68,7 +68,7 @@ const paintItem = (
   item: ListItem,
   options: PaintOpenTuiOptions,
 ): Renderable => {
-  const action = item.action
+  const action = item.action ?? item.href
   const row = new BoxRenderable(ctx, {
     flexDirection: 'row',
     columnGap: 2,
@@ -112,6 +112,28 @@ const paintPassage = (
 ): Renderable => {
   const row = new BoxRenderable(ctx, { flexDirection: 'row' })
   const labelAction = passage.labelAction
+  if (passage.heading !== undefined) {
+    const column = new BoxRenderable(ctx, { flexDirection: 'column' })
+    column.add(
+      new TextRenderable(ctx, {
+        content: t`${bold(passage.heading.toUpperCase())}`,
+      }),
+    )
+    column.add(row)
+    fillPassageRow(ctx, row, passage, labelAction, options)
+    return column
+  }
+  fillPassageRow(ctx, row, passage, labelAction, options)
+  return row
+}
+
+const fillPassageRow = (
+  ctx: RenderContext,
+  row: BoxRenderable,
+  passage: TranscriptPassage,
+  labelAction: string | undefined,
+  options: PaintOpenTuiOptions,
+): void => {
   const label = new BoxRenderable(ctx, {
     width: passageLabelWidth,
     ...(labelAction === undefined
@@ -144,7 +166,6 @@ const paintPassage = (
     flexShrink: 1,
   })
   row.add(words)
-  return row
 }
 
 const addChildren = (
