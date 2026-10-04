@@ -18,8 +18,8 @@ import {
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null
 
-const readLine = (socket: Socket): Promise<string> =>
-  new Promise((resolve, reject) => {
+const readRequestLine = (socket: Socket): Promise<string> =>
+  new Promise(resolve => {
     let buffer = ''
     const onData = (chunk: Buffer): void => {
       buffer = `${buffer}${chunk.toString('utf8')}`
@@ -32,15 +32,11 @@ const readLine = (socket: Socket): Promise<string> =>
     }
     const onClose = (): void => {
       cleanup()
-      if (buffer === '') {
-        resolve('')
-        return
-      }
       resolve(buffer.replace(/\r$/, ''))
     }
-    const onError = (cause: Error): void => {
+    const onError = (): void => {
       cleanup()
-      reject(cause)
+      resolve('')
     }
     const cleanup = (): void => {
       socket.off('data', onData)
@@ -78,18 +74,12 @@ const decodeRunMessage = <Message>(
 
 const handleConnection = <Model, Message>(
   socket: Socket,
-  _Model: ProgramSchema<Model>,
+  requestLine: Promise<string>,
   Message: ProgramSchema<Message>,
   surface: CliDaemonSurface<Model, Message>,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const line = yield* Effect.tryPromise({
-      try: () => readLine(socket),
-      catch: cause =>
-        new CliDaemonError({
-          message: cause instanceof Error ? cause.message : 'Read failed.',
-        }),
-    })
+    const line = yield* Effect.promise(() => requestLine)
     if (line === '') {
       socket.end()
       return
@@ -244,12 +234,18 @@ export const startCliDaemonServer = <Model, Message>(options: {
   let exclusive: Promise<void> = Promise.resolve()
   return Effect.acquireRelease(
     listenServer(options.socketPath, socket => {
+      // NOTE: Each request is read from the moment its connection arrives,
+      // and only answering waits its turn. A connection that closes while
+      // an earlier one is answered, such as a client checking that the
+      // daemon listens, has already closed by its turn, so a read started
+      // then would never end and every later command would wait forever.
+      const requestLine = readRequestLine(socket)
       exclusive = exclusive
         .then(() =>
           Effect.runPromise(
             handleConnection(
               socket,
-              options.Model,
+              requestLine,
               options.Message,
               options.surface,
             ),

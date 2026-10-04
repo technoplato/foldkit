@@ -9,10 +9,15 @@ import { ChapterApp, bindChapters } from '../test/apps/chapterContents.js'
 import { isCliDaemonListening } from './client.js'
 import { listenCliDaemon, startCliDaemonServer } from './listen.js'
 import { cliDaemonPidPath, cliDaemonSocketPath } from './paths.js'
+import { CliDaemonError, type CliDaemonSurface } from './protocol.js'
 import { programCliSurface } from './surface.js'
-import { runCliTuiView } from './view.js'
+import { askCliView, isCliViewListening, runCliTuiView } from './view.js'
 
 const size = { view: 'tui', rows: '24', columns: '80' }
+
+const closeSettleMs = 100
+
+const answerTimeoutMs = 2_000
 
 const uriOf = (bound: ReturnType<typeof bindChapters>): string =>
   Option.match(bound.navigation(), {
@@ -105,6 +110,56 @@ describe('a daemon a terminal UI view talks to', () => {
         expect(existsSync(cliDaemonPidPath(socketPath))).toBe(false)
       }),
     )
+  })
+
+  it('keeps answering after a connection closes while another is answered', async () => {
+    const socketPath = socketPathFor('closed-early')
+    const entered = Effect.runSync(Deferred.make<void>())
+    const released = Effect.runSync(Deferred.make<void>())
+    const stopped = Effect.runSync(Deferred.make<void>())
+    const answered = (stdout: string) => ({ stdout, exitCode: 0 })
+    const unused = () =>
+      Effect.fail(new CliDaemonError({ message: 'Not used here.' }))
+    const surface: CliDaemonSurface<
+      typeof ChapterApp.Model.Type,
+      typeof ChapterApp.Message.Type
+    > = {
+      read: unused,
+      run: unused,
+      show: () => Effect.succeed(answered('shown')),
+      do: token =>
+        token === 'slow'
+          ? Deferred.succeed(entered, undefined).pipe(
+              Effect.andThen(Deferred.await(released)),
+              Effect.as(answered('slow done')),
+            )
+          : Effect.succeed(answered(token)),
+    }
+    const serving = Effect.runFork(
+      listenCliDaemon({
+        socketPath,
+        Model: ChapterApp.Model,
+        Message: ChapterApp.Message,
+        surface,
+        until: Deferred.await(stopped),
+      }),
+    )
+    await eventually(() => existsSync(cliDaemonPidPath(socketPath)))
+    const slow = askCliView(socketPath, { _tag: 'Do', token: 'slow' })
+    await Effect.runPromise(Deferred.await(entered))
+    expect(await isCliViewListening(socketPath)).toBe(true)
+    await new Promise(resolve => setTimeout(resolve, closeSettleMs))
+    await Effect.runPromise(Deferred.succeed(released, undefined))
+    expect((await slow).stdout).toBe('slow done')
+    const shown = await Promise.race([
+      askCliView(socketPath, { _tag: 'Show' }),
+      new Promise(resolve => {
+        setTimeout(() => resolve('no answer'), answerTimeoutMs)
+      }),
+    ])
+    expect(shown).toMatchObject({ stdout: 'shown' })
+    await Effect.runPromise(Deferred.succeed(stopped, undefined))
+    await Effect.runPromise(Fiber.join(serving))
   })
 
   it('runs a remote terminal UI that keeps up with keys and quits on q', async () => {
