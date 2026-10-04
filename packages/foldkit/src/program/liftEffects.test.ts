@@ -4,6 +4,7 @@ import {
   Layer,
   Match as M,
   Option,
+  Record,
   Schema as S,
   SchemaTransformation,
   Stream,
@@ -95,6 +96,10 @@ const ClockProgram = make({
   synchronization: {
     messageCategory: () => 'Domain',
     projectDomain: model => model,
+    keepOnRefold: (current, refolded) => ({
+      ...refolded,
+      ticked: current.ticked,
+    }),
   },
 })
 
@@ -168,6 +173,28 @@ describe('liftEffects', () => {
   it('keeps a child Subscription inside Session, ActionMenu, and sync', () => {
     expect(Object.keys(App.subscriptions ?? {})).toEqual(['ticks'])
     expect(Object.keys(Synced.subscriptions ?? {})).toEqual(['ticks'])
+  })
+
+  it('runs nothing until sync is Ready', () => {
+    const [starting] = Synced.init()
+    const ticks = Option.getOrThrow(
+      Option.flatMap(Option.fromNullishOr(Synced.subscriptions), all =>
+        Record.get(all, 'ticks'),
+      ),
+    )
+    expect(ticks.modelToDependencies(starting)).toEqual({
+      maybeDependencies: Option.none(),
+    })
+  })
+
+  it('keeps what the child keeps when sync refolds its log', () => {
+    const [atStart] = App.init()
+    const ready = Synced.Ready({ ...atStart, ticked: 3 })
+    const [refolded] = Synced.update(
+      ready,
+      Synced.LogRefolded({ model: { ...atStart, ticked: 0 } }),
+    )
+    expect(refolded._tag === 'Ready' ? refolded.ticked : -1).toBe(3)
   })
 
   it('runs it with the resources the handle provides', async () => {

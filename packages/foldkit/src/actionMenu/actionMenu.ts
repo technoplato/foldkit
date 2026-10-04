@@ -1356,6 +1356,18 @@ export const compose = <Child extends ActionMenuChild>(config: {
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
   const childScreen = child.screen
 
+  const keptOnRefold = (
+    maybeKeep:
+      | ((current: ChildModel, refolded: ChildModel) => ChildModel)
+      | undefined,
+  ) =>
+    maybeKeep === undefined
+      ? {}
+      : {
+          keepOnRefold: (current: AppModel, refolded: AppModel): AppModel =>
+            withChild(refolded, maybeKeep(childOf(current), childOf(refolded))),
+        }
+
   const program = make({
     id: config.id ?? `actionMenu:${child.id}`,
     version: config.version ?? child.version,
@@ -1366,7 +1378,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
     update,
     interaction,
     navigation,
-    ...liftEffects(child, childOf),
+    ...liftEffects(child, (model: AppModel) => Option.some(childOf(model))),
     synchronization: {
       messageCategory: message =>
         isMessage(message) ||
@@ -1384,6 +1396,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
             sessionPolicyOf: (model: AppModel) =>
               childSessionPolicyOf(childOf(model)),
           }),
+      ...keptOnRefold(childSynchronization?.keepOnRefold),
     },
     ...(child.catalog === undefined ? {} : { catalog: child.catalog }),
     ...(childScreen === undefined

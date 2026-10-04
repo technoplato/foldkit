@@ -69,6 +69,18 @@ export type ProgramSynchronization<Model, Message> = Readonly<{
    * position, and a Message's audience follows the policy in force there.
    */
   sessionPolicyOf?: (model: Model) => SessionPolicy
+  /**
+   * What a Program keeps when sync refolds its log: the part of the Model
+   * that never came from the log, such as a library read from its own
+   * tables or the place a player reached second by second. `refolded` is
+   * the Model the log folds to; the result replaces it.
+   *
+   * @example
+   * ```typescript
+   * keepOnRefold: (current, refolded) => ({ ...refolded, library: current.library })
+   * ```
+   */
+  keepOnRefold?: (current: Model, refolded: Model) => Model
 }>
 
 /**

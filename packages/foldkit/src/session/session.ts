@@ -765,6 +765,7 @@ export const compose = <Child extends SessionChild>(config: {
   }
 
   const childSynchronization = child.synchronization
+  const childKeepOnRefold = childSynchronization?.keepOnRefold
   const childScreen = child.screen
 
   const program = make({
@@ -778,7 +779,7 @@ export const compose = <Child extends SessionChild>(config: {
     catalog,
     interaction,
     navigation,
-    ...liftEffects(child, childOf),
+    ...liftEffects(child, (model: AppModel) => Option.some(childOf(model))),
     synchronization: {
       messageCategory: message => {
         if (isModeMessage(message)) {
@@ -799,6 +800,15 @@ export const compose = <Child extends SessionChild>(config: {
           ? childOf(model)
           : childSynchronization.projectDomain(childOf(model)),
       sessionPolicyOf: model => policyOf(model.session),
+      ...(childKeepOnRefold === undefined
+        ? {}
+        : {
+            keepOnRefold: (current: AppModel, refolded: AppModel): AppModel =>
+              withChild(
+                refolded,
+                childKeepOnRefold(childOf(current), childOf(refolded)),
+              ),
+          }),
     },
     ...(childScreen === undefined
       ? {}
