@@ -4,6 +4,209 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 2:48:09 a.m. EDT — `9b3f0ac99351` feat(books): play through the Transcript Player, with the words to read along
+
+- **Implementation commit:** `9b3f0ac993514b48f47bd1f4592f76eb26ca0c1f`
+- **Change:** Play through the Transcript Player, with the words to read along
+- **Details:**
+  - Books holds one Transcript Player for the loaded title, offers its Actions with Catalog.within, saves the place from its reports, reads each title's words from its rendition's librarySegments, and redraws the library, title page, contents, and player.
+- **Files:**
+  - `examples/books/core/src/update.ts` — The player in Books.
+  - `examples/books/core/src/instantTranscript.ts` — Words from Instant.
+  - `examples/books/core/src/screen.ts` — The redesign.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `b02894762dc5` feat(transcript-player): read each passage as paragraphs with their own times
+
+- **Implementation commit:** `b02894762dc5fddca5ed9e41418ed56daf57d451`
+- **Change:** Read each passage as paragraphs with their own times
+- **Details:**
+  - A paragraph ends at a pause of a second and a half, or at a sentence end once it has 70 words, and its time moves the player there.
+- **Files:**
+  - `examples/transcript-player/core/src/screen.ts` — paragraphsOf.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `6365f7cc7f4c` fix(svelte): follow the sounding word inside the transcript's scroll area
+
+- **Implementation commit:** `6365f7cc7f4cde64697a5e2ac96dd9999b528781`
+- **Change:** Follow the sounding word inside the transcript's scroll area
+- **Details:**
+  - Svelte centers the sounding word inside the transcript's scroll area.
+- **Files:**
+  - `packages/svelte/src/interaction/TranscriptView.svelte` — The follow effect.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `48b734b0452e` fix(react): follow the sounding word inside the transcript's scroll area
+
+- **Implementation commit:** `48b734b0452ebead0ba86e9225c09b10b0a9ae8a`
+- **Change:** Follow the sounding word inside the transcript's scroll area
+- **Details:**
+  - React centers the sounding word inside the transcript's scroll area, so the controls stay on screen.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — followWord.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `13bd73b71bf3` style(foldkit): quiet Session chrome and keep the transcript in its own scroll area
+
+- **Implementation commit:** `13bd73b71bf35ce625b4c062fa10507cd3c39a01`
+- **Change:** Quiet Session chrome and keep the transcript in its own scroll area
+- **Details:**
+  - Session's Back and settings buttons are Ghost pills, nested columns fill their parent, rows center, and the transcript scrolls in its own area.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — Ghost chrome.
+  - `packages/foldkit/src/interaction/screenStyles.ts` — Layout.
+- **User context (verbatim):**
+  > you also need to look at this, it just doesn't look good. But I know it's complicated, so I'm not judging you here, but uh, we need to actually make it useful
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:48:08 a.m. EDT — `88064f86777e` fix(foldkit): type offered child Actions from their struct and give shared keys to the offered one
+
+- **Implementation commit:** `88064f86777eaf05a36573af4a73082d176002ee`
+- **Change:** Type offered child Actions from their struct and give shared keys to the offered one
+- **Details:**
+  - `Catalog.within` Actions keep the child's Message type, and a shared key reaches the Action whose preferred choice is offered.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — WithinAction.
+  - `packages/foldkit/src/interaction/interaction.ts` — Key resolution.
+- **User context (verbatim):**
+  > I really want the actual transcription word by word shown in a nice formatted way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:31 a.m. EDT — `9af5953b21d8` feat(transcript-player): add a shareable player for any audio with a transcript
+
+- **Implementation commit:** `9af5953b21d88687e648c9bee777ee3c87a94355`
+- **Change:** Add a shareable player for any audio with a transcript
+- **Details:**
+  - A core Program for one recording: play, pause, skip, seek, play from a word, and speed, with words read window by window from a TranscriptSource, browser and ffplay audio, and OutMessages for the Program holding it.
+- **Files:**
+  - `examples/transcript-player/core/src/update.ts` — The player's update.
+  - `examples/transcript-player/core/src/screen.ts` — Its seek bar, transport, and transcript.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:19 a.m. EDT — `da1109fa0a01` refactor: paint the new screen nodes in the example terminals and phones
+
+- **Implementation commit:** `da1109fa0a016552ab8d6623014f88fd921e1d7c`
+- **Change:** Paint the new screen nodes in the example terminals and phones
+- **Details:**
+  - Every example painter that matches each screen node handles List, Progress, Seek, and Transcript.
+- **Files:**
+  - `examples/gate/cli/src/paintCli.ts` — One of 26 example painters.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:18 a.m. EDT — `b8974073cf3a` feat(opentui): paint lists, progress, seek bars, and transcripts
+
+- **Implementation commit:** `b8974073cf3a9e9a3fcc399c8653ff91c2bea7aa`
+- **Change:** Paint lists, progress, seek bars, and transcripts
+- **Details:**
+  - OpenTUI paints the four nodes, with the current word highlighted.
+- **Files:**
+  - `packages/opentui/src/interaction/paintOpenTui.ts` — The OpenTUI painter.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:17 a.m. EDT — `d0f2b19471c9` feat(react-native): paint lists, progress, seek bars, and transcripts
+
+- **Implementation commit:** `d0f2b19471c9deb56df57ed2803dc9c436807012`
+- **Change:** Paint lists, progress, seek bars, and transcripts
+- **Details:**
+  - React Native paints the four nodes.
+- **Files:**
+  - `packages/react-native/src/interaction/screen.tsx` — The phone painter.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:14 a.m. EDT — `79d59437d560` feat(svelte): paint lists, progress, seek bars, and transcripts
+
+- **Implementation commit:** `79d59437d5606f632cf6f81fc215122bff4ea332`
+- **Change:** Paint lists, progress, seek bars, and transcripts
+- **Details:**
+  - Svelte paints the four nodes with a seek bar and transcript component.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — The Svelte painter.
+  - `packages/svelte/src/interaction/TranscriptView.svelte` — The transcript.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:12 a.m. EDT — `eedc4c009c0f` feat(react): paint lists, progress, seek bars, and transcripts
+
+- **Implementation commit:** `eedc4c009c0f8db7d525fae9ae88afef20e72ff8`
+- **Change:** Paint lists, progress, seek bars, and transcripts
+- **Details:**
+  - React paints the four nodes; the seek bar presses once on release, and the transcript keeps the sounding word in view.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — The React painter.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:11 a.m. EDT — `11dc56e3937c` feat(foldkit): add list, progress, seek bar, and transcript screen nodes
+
+- **Implementation commit:** `11dc56e3937cb3b07ce31dcec5f17264e8991ced`
+- **Change:** Add list, progress, seek bar, and transcript screen nodes
+- **Details:**
+  - New List, Progress, Seek, and Transcript nodes, a Headline emphasis, painted button variants, terminal layouts, and web styles.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — The nodes.
+  - `packages/foldkit/src/renderers/layout.ts` — Terminal lines.
+  - `packages/foldkit/src/interaction/screenStyles.ts` — The web look.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 2:16:10 a.m. EDT — `de3f6cdec0b5` feat(foldkit): let Actions take open values and offer a single child's Actions
+
+- **Implementation commit:** `de3f6cdec0b5134bf3ec362de9faf54231bb1086`
+- **Change:** Let Actions take open values and offer a single child's Actions
+- **Details:**
+  - A Choose with `accepts` takes any value its rule allows, such as any place on a seek bar; `Catalog.within` offers a child Program's Actions from a parent holding at most one child; two Actions may share a key when only one is offered.
+- **Files:**
+  - `packages/foldkit/src/catalog/catalog.ts` — Open choices and within.
+  - `packages/foldkit/src/interaction/interaction.ts` — Shared keys.
+- **User context (verbatim):**
+  > this functionality should be developed as a core program that's shareable for any audio with a transcription. So we can seek around both visually with words and temporally with time seeking. So this should be built in a shareable way.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:43:41 a.m. EDT — `54ee6c5fe332` feat(books): name the book in the player's address
+
+- **Implementation commit:** `54ee6c5fe332d841908b93c01d3db0bde1df924c`
+- **Change:** Name the book in the player's address
+- **Details:**
+  - The player sits only above its title's page, so its address is `/books/<slug>/listen`; a shared player link opens on that book, ready to play from the listener's place.
+- **Files:**
+  - `examples/books/core/src/navigation.ts` — The player's screen rule.
+  - `examples/books/core/src/update.ts` — Opening the player above its title.
+- **User context (verbatim):**
+  > books/slash/listen doesn't have any ID IDs in the URL. Um so how Um yeah, the books the books IDs should be in the URL somewhere.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:43:41 a.m. EDT — `04ff46eea7a5` fix(react): close a presented screen on a click on its backdrop
+
+- **Implementation commit:** `04ff46eea7a58e708751dd792da0b809c98bff82`
+- **Change:** Close a presented screen on a click on its backdrop
+- **Details:**
+  - A click on the dimmed backdrop around a Sheet or Dialog goes back one entry, the same as Escape, in React and Svelte; a click inside the panel does nothing to it.
+- **Files:**
+  - `packages/react/src/navigation/navigation.tsx` — The React backdrop.
+  - `packages/svelte/src/interaction/NavigationFrame.svelte` — The Svelte backdrop.
+- **User context (verbatim):**
+  > if I click outside of a modal, it doesn't dismiss
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 10:58:34 p.m. EDT — `b0bf2f234711` fix(books): pause and say why when a title's audio will not play
 
 - **Implementation commit:** `b0bf2f234711eb4920a481604470d628b89b0ded`
