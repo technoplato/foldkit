@@ -527,6 +527,18 @@ export type ScreenDestination<Destination extends TaggedDestination> =
 export type Screen<Destination> = Readonly<{
   Destination: ProgramSchema<Destination>
   route: DestinationRoute<Destination>
+  isAllowedAbove: (beneath: Array.NonEmptyReadonlyArray<unknown>) => boolean
+}>
+
+/**
+ * How a screen titles itself and where it may sit. `isAllowedAbove` reads
+ * every screen beneath, root first, of any kind the declaration lists:
+ * a player that sits only on the library or a title's page refuses
+ * `/books/the-lantern-keeper/chapter/2/listen`.
+ */
+export type ScreenOptions<Destination> = Readonly<{
+  isAllowedAbove?: (beneath: Array.NonEmptyReadonlyArray<unknown>) => boolean
+  title?: (destination: Destination) => string
 }>
 
 /** The screen every stack starts from: a Destination with no fields. */
@@ -559,6 +571,7 @@ export const rootScreen = <Destination extends TaggedDestination>(
 ): RootScreen<Destination> => ({
   Destination: destination,
   root: destination(),
+  isAllowedAbove: () => false,
   route: rootRoute(
     Route.caseOf(
       parser,
@@ -582,10 +595,11 @@ export const rootScreen = <Destination extends TaggedDestination>(
 export const pushScreen = <Destination extends TaggedDestination>(
   destination: ScreenDestination<Destination>,
   parser: Route.Biparser<Omit<Destination, '_tag'>>,
-  options?: RouteOptions<Destination>,
+  options?: ScreenOptions<Destination>,
 ): Screen<Destination> => ({
   Destination: destination,
   route: pushRoute(Route.caseOf(parser, fieldsCase(destination)), options),
+  isAllowedAbove: options?.isAllowedAbove ?? anywhere,
 })
 
 /**
@@ -601,7 +615,7 @@ export const presentScreen = <Destination extends TaggedDestination>(
   destination: ScreenDestination<Destination>,
   parser: Route.Biparser<Omit<Destination, '_tag'>>,
   style: PresentationStyle,
-  options?: RouteOptions<Destination>,
+  options?: ScreenOptions<Destination>,
 ): Screen<Destination> => ({
   Destination: destination,
   route: presentRoute(
@@ -609,6 +623,7 @@ export const presentScreen = <Destination extends TaggedDestination>(
     style,
     options,
   ),
+  isAllowedAbove: options?.isAllowedAbove ?? anywhere,
 })
 
 /** The Destination a list of screens declares. */
@@ -663,12 +678,13 @@ export const screens = <
         config.root.route,
         narrowTo(config.root.Destination),
       ),
-      ...Array.map(others, screen =>
-        liftRoute<DestinationOfScreens<Others>, Destination>(
+      ...Array.map(others, screen => ({
+        ...liftRoute<DestinationOfScreens<Others>, Destination>(
           screen.route,
           narrowTo(screen.Destination),
         ),
-      ),
+        isAllowedAbove: screen.isAllowedAbove,
+      })),
     ],
   })
 }

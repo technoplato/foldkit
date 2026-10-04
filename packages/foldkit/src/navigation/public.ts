@@ -145,6 +145,7 @@ export type {
   PathParser,
   DestinationRoute,
   RouteOptions,
+  ScreenOptions,
   StackLens,
   ProgramNavigation,
   StackedNavigation,

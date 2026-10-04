@@ -60,6 +60,7 @@ export {
 export type {
   DestinationRoute,
   RouteOptions,
+  ScreenOptions,
   StackLens,
   ProgramNavigation,
   StackedNavigation,
