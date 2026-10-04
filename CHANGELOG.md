@@ -4,6 +4,47 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 9:11:35 p.m. EDT — `a9ac4ac3e605` feat(books): start Books over as an audiobook player on the counters architecture
+
+- **Implementation commit:** `a9ac4ac3e60549504fa64c4a259d3c7aab196951`
+- **Change:** Start Books over as an audiobook player on the counters architecture
+- **Details:**
+  - The old Books hosts, separate Instant app, and committed audio excerpts are removed; the new core is one Program with Catalog Actions, a navigation stack of library, title, player, and chapter pages with Contents and Speed sheets and a delete-bookmark Dialog, a LibraryStore service for the shelf and writes, and an AudioOutput service for the player clock.
+- **Files:**
+  - `examples/books/core/src/message.ts` — Every Books Action.
+  - `examples/books/core/src/navigation.ts` — The screens and routes, deep links to chapters included.
+  - `examples/books/core/src/update.ts` — The update and its WriteLibrary Command.
+  - `examples/books/core/src/subscriptions.ts` — The shelf feed and the player clock.
+- **User context (verbatim):**
+  > I want an audible clone with my actual books with Progress
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 9:11:16 p.m. EDT — `5bab318224d0` fix(foldkit): let a screen's rule read every kind of screen beneath it
+
+- **Implementation commit:** `5bab318224d0c3964826a62a26c58673c4b4258c`
+- **Change:** Let a screen's rule read every kind of screen beneath it
+- **Details:**
+  - Navigation.screens narrowed each rule to screens of its own kind, so a player allowed only above the library or a title page allowed itself anywhere; each screen now receives every screen beneath it.
+- **Files:**
+  - `packages/foldkit/src/navigation/declaration.ts` — Screen rules read every screen beneath.
+  - `packages/foldkit/src/navigation/screens.test.ts` — A rule that reads another kind beneath.
+- **User context (verbatim):**
+  > follow our navigational precedent set and counters here
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 8:46:09 p.m. EDT — `7acdcfbfeec6` feat(foldkit): keep a synced Program's outside state across refolds
+
+- **Implementation commit:** `7acdcfbfeec6d9bfad6491cb49e7eacf7ba31aae`
+- **Change:** Keep a synced Program's outside state across refolds
+- **Details:**
+  - synchronization.keepOnRefold carries state that never came from the log, such as a library and a player position, across a refold; a child's Subscriptions and ManagedResources under compose.sync wait for Ready.
+- **Files:**
+  - `packages/foldkit/src/program/sync.ts` — keepOnRefold on LogRefolded.
+  - `packages/foldkit/src/program/liftEffects.ts` — Effects wait for Ready.
+- **User context (verbatim):**
+  > port audible into the books example and follow our navigational precedent set and counters here
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 8:22:21 p.m. EDT — `75e066403974` fix(instant): verify Cloudflare Access logins before minting Instant sessions
 
 - **Implementation commit:** `75e066403974dcb8e995f006ad18990687b6e523`
