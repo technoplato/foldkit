@@ -96,7 +96,9 @@ for (const title of sampleTitles) {
   }
   for (const chapter of title.chapters) {
     steps.push(
-      database.tx.libraryChapters[uuidOf(`${key}/chapter/${chapter.chapterNumber}`)]
+      database.tx.libraryChapters[
+        uuidOf(`${key}/chapter/${chapter.chapterNumber}`)
+      ]
         .update({
           ...owned,
           index: chapter.chapterNumber - 1,

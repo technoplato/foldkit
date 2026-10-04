@@ -1,4 +1,8 @@
-import { bindBooks, newProcessorInstance, startBooks } from 'books-core-example/browser'
+import {
+  bindBooks,
+  newProcessorInstance,
+  startBooks,
+} from 'books-core-example/browser'
 import { Processor } from 'foldkit'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -9,7 +13,9 @@ import { App } from './App.js'
 
 const appId = import.meta.env.VITE_INSTANT_APP_ID ?? ''
 if (appId === '') {
-  throw new Error('Books needs VITE_INSTANT_APP_ID; run it through with-books-dev-env.')
+  throw new Error(
+    'Books needs VITE_INSTANT_APP_ID; run it through with-books-dev-env.',
+  )
 }
 
 const handle = startBooks({
