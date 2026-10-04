@@ -1,3 +1,7 @@
+import {
+  booksLinkPreviews,
+  instantTitlesLoader,
+} from 'books-core-example/link-previews'
 import { defineConfig } from 'vite'
 
 import { hostedIdentity } from '@foldkit/instant/hosted-identity/vite'
@@ -8,8 +12,28 @@ import { instantBrowserAlias } from '../../vite.aliases'
 
 const port = 5183
 
+const envValue = (name: string): string => process.env[name]?.trim() ?? ''
+
+const previewEmail = envValue('BOOKS_PUBLIC_PREVIEW_EMAIL')
+const appId = envValue('INSTANT_APP_ID') || envValue('VITE_INSTANT_APP_ID')
+const adminToken = envValue('INSTANT_APP_ADMIN_TOKEN')
+
+const linkPreviews = booksLinkPreviews({
+  origin:
+    envValue('BOOKS_PUBLIC_ORIGIN') || 'https://books.pisspoursoftware.xyz',
+  loadTitles:
+    previewEmail !== '' && appId !== '' && adminToken !== ''
+      ? instantTitlesLoader({ appId, adminToken, ownerEmail: previewEmail })
+      : async () => [],
+  fetchCover: url => fetch(url),
+})
+
 export default defineConfig({
-  plugins: [tailwindcss(), react(), hostedIdentity()],
+  plugins: [
+    tailwindcss(),
+    react(),
+    hostedIdentity({ publicRoutes: linkPreviews }),
+  ],
   resolve: {
     alias: instantBrowserAlias,
   },

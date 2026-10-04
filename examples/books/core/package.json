@@ -17,6 +17,11 @@
       "types": "./dist/index.browser.d.ts",
       "import": "./dist/index.browser.js",
       "default": "./dist/index.browser.js"
+    },
+    "./link-previews": {
+      "types": "./dist/linkPreviews.node.d.ts",
+      "import": "./dist/linkPreviews.node.js",
+      "default": "./dist/linkPreviews.node.js"
     }
   },
   "scripts": {
