@@ -27,7 +27,7 @@
   class={className}
   disabled={seek.disabled === true}
   max={seek.max}
-  min={0}
+  min={seek.min ?? 0}
   onchange={commit}
   oninput={event => {
     dragged = Number(event.currentTarget.value)

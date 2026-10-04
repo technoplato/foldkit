@@ -3,6 +3,7 @@
   import type { ButtonNode, UiNode } from 'foldkit/renderers'
 
   import CopyButton from './CopyButton.svelte'
+  import Icon from './Icon.svelte'
   import { type PaintClassNames, classFor, keyFor } from './paint.js'
   import PaintTree from './PaintTree.svelte'
   import SeekBar from './SeekBar.svelte'
@@ -17,6 +18,8 @@
   }>
 
   const { node, onPress, onInput, onLink, classNames = {} }: Props = $props()
+
+  let dockHeight = $state(0)
 
   const followLink = (event: MouseEvent, href: string): void => {
     if (Navigation.isPlainClick(event) && onLink !== undefined && onLink(href)) {
@@ -98,6 +101,10 @@
     aria-keyshortcuts={node.keys?.join(' ')}
     class={classFor(classNames, 'Button', 'fk-button')}
     data-action={node.action}
+    aria-current={node.isCurrent === true ? 'page' : undefined}
+    aria-label={node.isIconOnly === true ? node.label : undefined}
+    data-current={node.isCurrent === true ? true : undefined}
+    data-icon-only={node.isIconOnly === true ? true : undefined}
     data-keys={node.keys?.join(' ')}
     data-variant={node.variant}
     disabled={node.disabled === true}
@@ -107,7 +114,12 @@
     title={node.because}
     type="button"
   >
-    {node.label}
+    {#if node.icon !== undefined}
+      <Icon name={node.icon} />
+    {/if}
+    {#if node.isIconOnly !== true}
+      {node.label}
+    {/if}
   </button>
 {:else if node._tag === 'TextInput'}
   {@const token = node.token}
@@ -134,6 +146,13 @@
   </div>
 {:else if node._tag === 'Column'}
   <div class={classFor(classNames, 'Column', 'fk-column')}>
+    {#each node.children as child, index (keyFor(child, index))}
+      <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
+    {/each}
+  </div>
+{:else if node._tag === 'Box' && node.isDock === true}
+  <div class="fk-dock-space" style:height={`${dockHeight.toString()}px`}></div>
+  <div bind:clientHeight={dockHeight} class={classFor(classNames, 'Box', 'fk-dock')}>
     {#each node.children as child, index (keyFor(child, index))}
       <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
     {/each}
