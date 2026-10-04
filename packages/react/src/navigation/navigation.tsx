@@ -186,6 +186,17 @@ const enabledButtonsOf = (
     root.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
   )
 
+const openingButtonOf = (
+  buttons: ReadonlyArray<HTMLButtonElement>,
+): Option.Option<HTMLButtonElement> =>
+  Option.orElse(
+    Array.findFirst(
+      buttons,
+      button => button.closest('[data-current]') !== null,
+    ),
+    () => Array.head(buttons),
+  )
+
 const steppedIndex = (
   maybeCurrent: Option.Option<number>,
   move: 'Next' | 'Previous',
@@ -199,9 +210,10 @@ const steppedIndex = (
 
 /**
  * A screen presented over the page, such as "Delete Counter 3?". It takes
- * the keyboard when it opens, on its first button, and keeps it: Tab and
- * the arrows move between its buttons as `Interaction.presentedFocusMoveOf`
- * decides, Enter presses, and Escape goes back through the Program. A
+ * the keyboard when it opens, on its current row's button or else its
+ * first, without scrolling, and keeps it: Tab and the arrows move between
+ * its buttons as `Interaction.presentedFocusMoveOf` decides, Enter
+ * presses, and Escape goes back through the Program. A
  * click on the dimmed backdrop around it goes back one entry too, so the
  * sheet or question closes as if dismissed.
  */
@@ -217,8 +229,8 @@ const PresentedScreen = ({
   useEffect(() => {
     const root = ref.current
     if (root !== null) {
-      Option.map(Array.head(enabledButtonsOf(root)), button => {
-        button.focus()
+      Option.map(openingButtonOf(enabledButtonsOf(root)), button => {
+        button.focus({ preventScroll: true })
       })
     }
   }, [])

@@ -95,36 +95,39 @@ const Icon = ({ name }: Readonly<{ name: IconName }>): ReactElement => {
   )
 }
 
+const dockHeightProperty = '--fk-dock-height'
+
 /**
- * A box pinned to the bottom of the screen. It leaves a space of its own
- * height at the end of the page, so nothing is hidden under it.
+ * A box pinned to the bottom of the screen. It keeps the page's bottom
+ * padding at its own height, so nothing on the page is hidden under it.
  */
 const DockBox = ({
   className,
   children,
 }: Readonly<{ className: string; children: ReactNode }>): ReactElement => {
   const ref = useRef<HTMLDivElement>(null)
-  const [height, setHeight] = useState(0)
   useEffect(() => {
     const dock = ref.current
     if (dock === null) {
       return undefined
     }
+    const root = document.documentElement
     const observer = new ResizeObserver(() => {
-      setHeight(dock.getBoundingClientRect().height)
+      root.style.setProperty(
+        dockHeightProperty,
+        `${dock.getBoundingClientRect().height.toString()}px`,
+      )
     })
     observer.observe(dock)
     return () => {
       observer.disconnect()
+      root.style.removeProperty(dockHeightProperty)
     }
   }, [])
   return (
-    <>
-      <div className="fk-dock-space" style={{ height }} />
-      <div ref={ref} className={className}>
-        {children}
-      </div>
-    </>
+    <div ref={ref} className={className}>
+      {children}
+    </div>
   )
 }
 
@@ -353,6 +356,40 @@ const TranscriptView = ({
           )),
       })}
     </section>
+  )
+}
+
+/**
+ * One list row. A current row scrolls to the middle of its list when the
+ * list first paints, so a long chapter list opens on the chapter playing,
+ * and into view when it becomes current later.
+ */
+const ListRow = ({
+  item,
+  children,
+}: Readonly<{
+  item: ListItem
+  children: ReactNode
+}>): ReactElement => {
+  const ref = useRef<HTMLLIElement>(null)
+  const hasPainted = useRef(false)
+  const isCurrent = item.isCurrent === true
+  useEffect(() => {
+    if (isCurrent) {
+      ref.current?.scrollIntoView({
+        block: hasPainted.current ? 'nearest' : 'center',
+      })
+    }
+    hasPainted.current = true
+  }, [isCurrent])
+  return (
+    <li
+      ref={ref}
+      className="fk-item"
+      data-current={isCurrent ? true : undefined}
+    >
+      {children}
+    </li>
   )
 }
 
@@ -589,11 +626,7 @@ export const paintTree = (
           <ul className={classFor('List', 'fk-list')} aria-label={list.label}>
             {Array.map(list.items, item => {
               return (
-                <li
-                  key={item.key}
-                  className="fk-item"
-                  data-current={item.isCurrent === true ? true : undefined}
-                >
+                <ListRow key={item.key} item={item}>
                   <ItemPress
                     item={item}
                     onPress={handlers.onPress}
@@ -626,7 +659,7 @@ export const paintTree = (
                     </span>
                   </ItemPress>
                   {paintChildren(item.trailing ?? [])}
-                </li>
+                </ListRow>
               )
             })}
           </ul>
