@@ -4,6 +4,19 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 3:45:34 p.m. EDT — `6dd72492f150` fix(books): sign terminals in and share links on books.pisspoursoftware.xyz
+
+- **Implementation commit:** `6dd72492f150661f9562ccc3c0f1aad0ded228e5`
+- **Change:** Sign terminals in and share links on books.pisspoursoftware.xyz
+- **Details:**
+  - login, with-books-access, and defaultBooksOrigin now use the main address.
+- **Files:**
+  - `examples/books/scripts/with-books-access` — Default origin.
+  - `examples/books/core/src/live.ts` — defaultBooksOrigin.
+- **User context (verbatim):**
+  > and can i use books from tui/cli yet?
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 1:11:11 p.m. EDT — `f6e0a966f36c` fix(foldkit): keep screen text from leaving one word on its last line
 
 - **Implementation commit:** `f6e0a966f36c5fb470ffc82c5700735c21c59728`
