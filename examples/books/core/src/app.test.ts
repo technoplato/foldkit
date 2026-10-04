@@ -118,21 +118,21 @@ describe('Books', () => {
     expect(written).toEqual([])
   })
 
-  it('saves the place on pause, every 30 seconds, and the finish', () => {
+  it('saves the place on pause, every 10 seconds, and the finish', () => {
     const { bound, written, send } = bindApp()
     bound.press(`Listen:${lanternKeeper}`)
-    send(ReachedPlace({ placeMs: Milliseconds.make(10_000) }))
+    send(ReachedPlace({ placeMs: Milliseconds.make(5_000) }))
     expect(written).toEqual([])
-    send(ReachedPlace({ placeMs: Milliseconds.make(31_000) }))
-    send(ReachedPlace({ placeMs: Milliseconds.make(40_000) }))
+    send(ReachedPlace({ placeMs: Milliseconds.make(11_000) }))
+    send(ReachedPlace({ placeMs: Milliseconds.make(15_000) }))
     bound.press('Pause')
     bound.press('Play')
     send(ReachedEnd())
     expect(Array.map(written, ({ args }) => args)).toEqual(
       Array.map(
         [
-          { _tag: 'SavePlace', slug: lanternKeeper, placeMs: 31_000 },
-          { _tag: 'SavePlace', slug: lanternKeeper, placeMs: 40_000 },
+          { _tag: 'SavePlace', slug: lanternKeeper, placeMs: 11_000 },
+          { _tag: 'SavePlace', slug: lanternKeeper, placeMs: 15_000 },
           { _tag: 'FinishTitle', slug: lanternKeeper },
         ],
         write => JSON.stringify({ write }),

@@ -9,10 +9,12 @@ import {
   LibraryPage,
   ListenPage,
   PlayerPage,
+  ProfilePage,
   SpeedSheet,
   TitlePage,
   isLibraryPage,
   isPlayerScreen,
+  isProfilePage,
   isTitlePage,
 } from './destination.js'
 import { BookmarkId, TitleSlug } from './ids.js'
@@ -22,6 +24,7 @@ import {
   deleteBookmarkScreen,
   missingTitleScreen,
   playerScreen,
+  profileScreen,
   speedScreen,
   titleScreen,
 } from './screen.js'
@@ -49,7 +52,8 @@ export const nameOfSlug = (slug: TitleSlug): string =>
 /**
  * Books' screens, each with its route, title, and where it may sit:
  *
- * - `/books` is the library, the root.
+ * - `/books` is the library, the root, and `/books/profile` who is signed
+ *   in, above it.
  * - `/books/the-lantern-keeper` is a title's page, only above the library.
  * - `/books/the-lantern-keeper/listen/12:03` is that title's player at
  *   12:03, only above its page: a link to that moment, kept up to date as
@@ -64,6 +68,10 @@ export const declared = Navigation.screens({
     title: () => 'Library',
   }),
   screens: [
+    Navigation.pushScreen(ProfilePage, Route.literal('profile'), {
+      title: () => 'Profile',
+      isAllowedAbove: beneath => Array.every(beneath, isLibraryPage),
+    }),
     Navigation.pushScreen(TitlePage, slugSegment, {
       title: ({ slug }) => nameOfSlug(slug),
       isAllowedAbove: beneath => Array.every(beneath, isLibraryPage),
@@ -126,6 +134,8 @@ const viewOf = (
     return Option.some(
       Navigation.screenView(titlePageView(model, destination.slug)),
     )
+  } else if (isProfilePage(destination)) {
+    return Option.some(Navigation.screenView(profileScreen(model)))
   } else if (isPlayerScreen(destination)) {
     return Option.some(Navigation.screenView(playerScreen(model)))
   } else if (destination._tag === 'ContentsSheet') {
@@ -159,6 +169,7 @@ export const navigation = Navigation.composeNavigation<
   unknown,
   Destination,
   | LibraryPage
+  | ProfilePage
   | TitlePage
   | PlayerPage
   | ListenPage

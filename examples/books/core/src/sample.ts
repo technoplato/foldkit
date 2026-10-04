@@ -138,6 +138,9 @@ const appliedWrite = (
     }),
   )
 
+/** The made-up member a test library store says is signed in. */
+export const sampleMemberEmail = 'listener@example.invalid'
+
 /**
  * A library store held in memory, for tests only: it starts from `shelf`,
  * applies each write to it, sends every new shelf, and records the writes
@@ -158,6 +161,7 @@ export const makeTestLibraryStore = (
     const writes = yield* SubscriptionRef.make<ReadonlyArray<LibraryWrite>>([])
     const layer = Layer.succeed(LibraryStore, {
       shelf: SubscriptionRef.changes(current),
+      member: Stream.make(Option.some(sampleMemberEmail)),
       write: write =>
         Effect.gen(function* () {
           const written = yield* SubscriptionRef.get(writes)

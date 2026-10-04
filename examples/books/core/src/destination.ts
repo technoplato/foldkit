@@ -12,6 +12,14 @@ export const LibraryPage = ts('LibraryPage')
 export type LibraryPage = typeof LibraryPage.Type
 
 /**
+ * Who is signed in, and how their library stands, above the library:
+ * `/books/profile`.
+ */
+export const ProfilePage = ts('ProfilePage')
+/** Who is signed in. */
+export type ProfilePage = typeof ProfilePage.Type
+
+/**
  * One title's page, pushed above the library:
  * `/books/the-lantern-keeper`.
  */
@@ -67,6 +75,7 @@ export type DeleteBookmarkQuestion = typeof DeleteBookmarkQuestion.Type
  */
 export const Destination = S.Union([
   LibraryPage,
+  ProfilePage,
   TitlePage,
   PlayerPage,
   ListenPage,
@@ -80,6 +89,8 @@ export type Destination = typeof Destination.Type
 
 /** True for the library. */
 export const isLibraryPage = S.is(LibraryPage)
+/** True for the profile. */
+export const isProfilePage = S.is(ProfilePage)
 /** True for a title's page. */
 export const isTitlePage = S.is(TitlePage)
 /** True for the player at a place. */

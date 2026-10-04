@@ -1,4 +1,4 @@
-import { Context, Data, Effect, Schema as S, Stream } from 'effect'
+import { Context, Data, Effect, Option, Schema as S, Stream } from 'effect'
 import { ts } from 'foldkit/schema'
 
 import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
@@ -38,13 +38,15 @@ export class LibraryStoreError extends Data.TaggedError('LibraryStoreError')<{
 
 /**
  * Where the listener's library lives: the shelf, sent again whenever it
- * changes on any device, and the writes that change it. The live store
- * reads and writes the library tables in Instant; tests use one in memory.
+ * changes on any device, who is signed in, and the writes that change the
+ * shelf. The live store reads and writes the library tables in Instant;
+ * tests use one in memory.
  */
 export class LibraryStore extends Context.Service<
   LibraryStore,
   Readonly<{
     shelf: Stream.Stream<Shelf, LibraryStoreError>
+    member: Stream.Stream<Option.Option<string>>
     write: (write: LibraryWrite) => Effect.Effect<void, LibraryStoreError>
   }>
 >()('books/LibraryStore') {}

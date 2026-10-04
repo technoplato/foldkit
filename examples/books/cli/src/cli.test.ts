@@ -63,6 +63,6 @@ describe('books CLI', () => {
     expect(painted.stdout).toMatch(
       /^at \/books\/the-lantern-keeper\/listen\/12m03s$/m,
     )
-    expect(painted.stdout).toMatch(/12:03 of /)
+    expect(painted.stdout).toMatch(/The Tide +1h 8m left/)
   })
 })

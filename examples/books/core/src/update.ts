@@ -7,6 +7,7 @@ import {
   DeleteBookmarkQuestion,
   type Destination,
   PlayerPage,
+  ProfilePage,
   SpeedSheet,
   TitlePage,
   isContentsSheet,
@@ -119,7 +120,7 @@ type UpdateReturn = readonly [
 
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
 
-const saveEveryMs = 30_000
+const saveEveryMs = 10_000
 
 const withStack = (
   model: Model,
@@ -435,7 +436,12 @@ const bookmarkedPlace = (model: Model): UpdateReturn =>
     M.tagsExhaustive({
       Idle: () => [model, []],
       Loaded: loaded => [
-        model,
+        {
+          ...model,
+          maybeNotice: Option.some(
+            `Bookmark added at ${clockOf(placeOf(loaded))}`,
+          ),
+        },
         [
           WriteLibrary({
             write: AddBookmarkAt({ slug: loaded.slug, atMs: placeOf(loaded) }),
@@ -488,6 +494,31 @@ const updated = (model: Model, message: Message): UpdateReturn =>
       SkipForward: message => playerUpdated(model, message),
       SeekTo: message => playerUpdated(model, message),
       SeekToWord: message => playerUpdated(model, message),
+      PreviousSection: message => playerUpdated(model, message),
+      NextSection: message => playerUpdated(model, message),
+      SetSeekScope: message => playerUpdated(model, message),
+      ExpandControls: () => [{ ...model, controls: 'Expanded' }, []],
+      CollapseControls: () => [{ ...model, controls: 'Collapsed' }, []],
+      ShowLibrary: () => [
+        withStack(model, {
+          ...model.navigation,
+          pages: [],
+          maybeModal: Option.none(),
+        }),
+        [],
+      ],
+      ShowProfile: () => [
+        withStack(model, {
+          ...model.navigation,
+          pages: [ProfilePage()],
+          maybeModal: Option.none(),
+        }),
+        [],
+      ],
+      ReceivedMember: ({ maybeEmail }) => [
+        { ...model, maybeMember: maybeEmail },
+        [],
+      ],
       OpenPlayer: () => [
         model.listening._tag === 'Loaded'
           ? openedPlayer(model, model.listening.slug)

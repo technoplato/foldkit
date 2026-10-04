@@ -23,7 +23,7 @@ export const App = (): ReactElement => {
   useBrowserHistory()
   useDocumentTitle()
   return (
-    <main className="min-h-screen bg-white flex items-center justify-center p-6">
+    <main className="min-h-screen bg-white flex justify-center px-4 pt-4 pb-6">
       <section className="w-full max-w-2xl text-center space-y-6">
         <WhenReady>
           <NavigationFrame />

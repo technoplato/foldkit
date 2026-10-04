@@ -184,8 +184,11 @@ export const [
   Pause,
   SkipBack,
   SkipForward,
+  PreviousSection,
+  NextSection,
   SeekTo,
   SeekToWord,
+  SetSeekScope,
   SetSpeed,
 ] = playerActions.actions
 
@@ -266,6 +269,44 @@ export const SharePlace = Catalog.action('SharePlace', {
   why: 'The person wants someone to hear this part, or to come back to it',
   enabled: whenLoaded,
   meta: { label: 'Share', keys: ['l'], title: 'Share this moment' },
+})
+
+/** Shows every control of the player under the words. */
+export const ExpandControls = Catalog.action('ExpandControls', {
+  what: 'Shows every control of the player',
+  why: 'The person wants the chapter bar, chapters, speed, or sharing',
+  enabled: (model: Model) =>
+    model.controls === 'Collapsed' && isOnPlayer(model)
+      ? whenLoaded(model)
+      : Catalog.Disabled({ because: 'the controls are open' }),
+  meta: { label: 'More controls', keys: ['e'], title: 'Show every control' },
+})
+
+/** Folds the player's controls back into the compact bar. */
+export const CollapseControls = Catalog.action('CollapseControls', {
+  what: 'Folds the player back into the compact bar',
+  why: 'The person wants more room for the words',
+  enabled: (model: Model) =>
+    model.controls === 'Expanded' && isOnPlayer(model)
+      ? Catalog.Enabled()
+      : Catalog.Disabled({ because: 'the controls are folded' }),
+  meta: { label: 'Fewer controls', keys: ['e'], title: 'Fold the controls' },
+})
+
+/** Goes to the library, the home. */
+export const ShowLibrary = Catalog.action('ShowLibrary', {
+  what: 'Goes to the library',
+  why: 'The person wants to pick a book',
+  enabled: unlessAsking,
+  meta: { label: 'Library', keys: [], title: 'Go to the library' },
+})
+
+/** Shows who is signed in, and how the library stands. */
+export const ShowProfile = Catalog.action('ShowProfile', {
+  what: 'Shows who is signed in',
+  why: 'The person wants to know which account this is',
+  enabled: unlessAsking,
+  meta: { label: 'Profile', keys: [], title: 'Show the profile' },
 })
 
 /** Marks the place in the player. `b` presses it. */
@@ -350,8 +391,15 @@ export const catalog = Catalog.make([
   Pause,
   SkipBack,
   SkipForward,
+  PreviousSection,
+  NextSection,
   SeekTo,
   SeekToWord,
+  SetSeekScope,
+  ExpandControls,
+  CollapseControls,
+  ShowLibrary,
+  ShowProfile,
   Open,
   OpenPlayer,
   ShowContents,
@@ -368,6 +416,10 @@ export const catalog = Catalog.make([
 
 /** The library store sent the shelf. */
 export const ReceivedShelf = m('ReceivedShelf', { shelf: Shelf })
+/** The library store said who is signed in, or that no one is. */
+export const ReceivedMember = m('ReceivedMember', {
+  maybeEmail: S.Option(S.String),
+})
 /** The library store could not be read, and why, safe to show. */
 export const FailedReadShelf = m('FailedReadShelf', { reason: S.String })
 /**
@@ -399,6 +451,7 @@ export const Message = S.Union([
   ...catalog.Message.members,
   ReceivedShelf,
   FailedReadShelf,
+  ReceivedMember,
   OpenedPlace,
   SharedLink,
   FailedShareLink,

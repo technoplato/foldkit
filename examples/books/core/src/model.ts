@@ -116,6 +116,14 @@ export const Listening = S.Union([Idle, Loaded])
 export type Listening = typeof Listening.Type
 
 /**
+ * How much of the player's controls show: the compact bar under the
+ * words, or every control.
+ */
+export const PlayerControls = S.Literals(['Collapsed', 'Expanded'])
+/** How much of the player's controls show. */
+export type PlayerControls = typeof PlayerControls.Type
+
+/**
  * The Books Model: the shared shelf, this device's player and speed, the
  * last write the library store refused, and the navigation stack. The
  * shelf comes from the library store and the player counts on this
@@ -127,6 +135,8 @@ export const Model = S.Struct({
   speed: Speed,
   maybeProblem: S.Option(S.String),
   maybeNotice: S.Option(S.String),
+  controls: PlayerControls,
+  maybeMember: S.Option(S.String),
   navigation: Navigation.NavigationStack(Destination),
 })
 /** A Books Model value. */

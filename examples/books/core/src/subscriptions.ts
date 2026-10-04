@@ -8,6 +8,7 @@ import {
   FailedReadShelf,
   type Message,
   OpenedPlace,
+  ReceivedMember,
   ReceivedShelf,
 } from './message.js'
 import {
@@ -76,6 +77,21 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
       keepAliveEquivalence: TranscriptPlayer.isSameClock,
       dependenciesToStream: TranscriptPlayer.clockStream,
     }),
+    member: entry(
+      {},
+      {
+        modelToDependencies: () => ({}),
+        dependenciesToStream: () =>
+          Stream.unwrap(
+            Effect.gen(function* () {
+              const store = yield* LibraryStore
+              return Stream.map(store.member, maybeEmail =>
+                ReceivedMember({ maybeEmail }),
+              )
+            }),
+          ),
+      },
+    ),
     addressCue: entry(
       {
         maybeCue: S.Option(S.Struct({ slug: TitleSlug, atMs: Milliseconds })),

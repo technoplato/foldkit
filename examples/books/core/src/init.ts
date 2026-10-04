@@ -19,6 +19,8 @@ export const init = (): readonly [
     speed: 1,
     maybeProblem: Option.none(),
     maybeNotice: Option.none(),
+    controls: 'Collapsed',
+    maybeMember: Option.none(),
     navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
   },
   [],

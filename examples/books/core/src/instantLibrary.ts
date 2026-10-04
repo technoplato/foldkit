@@ -518,6 +518,19 @@ export const makeInstantLibraryStore = (database: ProgramLogDatabase) =>
           yield* transacted(database, steps)
         })
 
-      return LibraryStore.of({ shelf, write })
+      const member = Stream.callback<Option.Option<string>>(queue =>
+        Effect.acquireRelease(
+          Effect.sync(() =>
+            database.subscribeAuth(auth => {
+              Queue.offerUnsafe(
+                queue,
+                Option.fromNullishOr(auth.user?.email ?? undefined),
+              )
+            }),
+          ),
+          unsubscribe => Effect.sync(unsubscribe),
+        ),
+      )
+      return LibraryStore.of({ shelf, member, write })
     },
   )

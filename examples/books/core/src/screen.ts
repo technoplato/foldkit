@@ -1,8 +1,10 @@
-import { Array, Option, pipe } from 'effect'
+import { Array, Option, Order, pipe } from 'effect'
 import { Catalog } from 'foldkit'
 import {
   type ButtonNode,
   Column,
+  Dock,
+  type IconName,
   List,
   type ListItem,
   Progress,
@@ -23,8 +25,10 @@ import { placePathOf } from './links.js'
 import {
   AddBookmark,
   CancelDeleteBookmark,
+  CollapseControls,
   ConfirmDeleteBookmark,
   DeleteBookmark,
+  ExpandControls,
   JumpToChapter,
   Listen,
   Open,
@@ -34,6 +38,8 @@ import {
   SetSpeed,
   SharePlace,
   ShowContents,
+  ShowLibrary,
+  ShowProfile,
   ShowSpeeds,
   catalog,
 } from './message.js'
@@ -42,14 +48,15 @@ import {
   type Loaded,
   type Model,
   type Title,
+  type Progress as TitleProgress,
   bookmarkOf,
   bookmarksOf,
   chapterAt,
-  continueOf,
   loadedTitleOf,
   placeOf,
   progressOf,
   resumePlaceOf,
+  shelfOf,
   titleOf,
   titlesOf,
 } from './model.js'
@@ -154,18 +161,6 @@ const problemLines = (model: Model): ReadonlyArray<UiNode> =>
     ],
   })
 
-const leftOf = (title: Title, placeMs: Milliseconds): string =>
-  `${clockOf(Milliseconds.make(Math.max(0, title.durationMs - placeMs)))} left`
-
-const progressText = (model: Model, title: Title): string =>
-  Option.match(progressOf(model, title.slug), {
-    onNone: () => `${clockOf(title.durationMs)}, not started`,
-    onSome: progress =>
-      progress._tag === 'Finished'
-        ? 'Finished'
-        : leftOf(title, progress.placeMs),
-  })
-
 const loadedFor = (model: Model, title: Title): Option.Option<Loaded> =>
   Option.filter(
     Option.map(loadedTitleOf(model), ({ loaded }) => loaded),
@@ -178,68 +173,158 @@ const placeFor = (model: Model, title: Title): Milliseconds =>
     onSome: placeOf,
   })
 
+const isStarted = (model: Model, title: Title): boolean =>
+  Option.isSome(loadedFor(model, title)) ||
+  Option.exists(
+    progressOf(model, title.slug),
+    progress => progress._tag === 'InProgress',
+  )
+
+const progressText = (model: Model, title: Title): string => {
+  const isFinished = Option.exists(
+    progressOf(model, title.slug),
+    progress => progress._tag === 'Finished',
+  )
+  if (isFinished && Option.isNone(loadedFor(model, title))) {
+    return 'Finished'
+  } else if (isStarted(model, title)) {
+    return TranscriptPlayer.leftWordsOf(
+      title.durationMs - placeFor(model, title),
+    )
+  } else {
+    return `${TranscriptPlayer.leftWordsOf(title.durationMs).replace(' left', '')}, not started`
+  }
+}
+
 const progressBarOf = (
   model: Model,
   title: Title,
 ): Pick<ListItem, 'progress'> =>
-  Option.match(progressOf(model, title.slug), {
-    onNone: () => ({}),
-    onSome: progress => ({
-      progress: {
-        value:
-          progress._tag === 'Finished'
-            ? title.durationMs
-            : placeFor(model, title),
-        max: title.durationMs,
-      },
-    }),
-  })
+  isStarted(model, title)
+    ? {
+        progress: { value: placeFor(model, title), max: title.durationMs },
+      }
+    : {}
+
+const withIcon = (
+  buttons: ReadonlyArray<ButtonNode>,
+  icon: IconName,
+  isIconOnly: boolean,
+): ReadonlyArray<ButtonNode> =>
+  Array.map(buttons, button => ({ ...button, icon, isIconOnly }))
 
 const playOrPauseOf = (
   model: Model,
   title: Title,
   variant: Variant,
+  isIconOnly: boolean,
 ): ReadonlyArray<ButtonNode> =>
   Option.match(loadedFor(model, title), {
-    onNone: () => choiceButtonsOf(model, title.slug, [Listen], variant),
-    onSome: loaded =>
-      buttonsOf(
-        model,
-        [TranscriptPlayer.isSounding(loaded.player) ? Pause : Play],
-        variant,
+    onNone: () =>
+      withIcon(
+        choiceButtonsOf(model, title.slug, [Listen], variant),
+        'Play',
+        isIconOnly,
       ),
+    onSome: loaded =>
+      TranscriptPlayer.isSounding(loaded.player)
+        ? withIcon(buttonsOf(model, [Pause], variant), 'Pause', isIconOnly)
+        : withIcon(buttonsOf(model, [Play], variant), 'Play', isIconOnly),
   })
 
-const continueActionOf = (
-  model: Model,
-  title: Title,
-): Pick<ListItem, 'action'> =>
-  Option.isSome(loadedFor(model, title))
-    ? offeredActionOf(model, OpenPlayer.tag)
-    : offeredActionOf(model, `${Listen.tag}:${title.slug}`)
+type Tab = 'Library' | 'Profile' | 'Neither'
+
+const tabs: ReadonlyArray<
+  Readonly<{ action: AnyAction; icon: IconName; tab: Tab }>
+> = [
+  { action: ShowLibrary, icon: 'Library', tab: 'Library' },
+  { action: ShowProfile, icon: 'Profile', tab: 'Profile' },
+]
+
+const tabsOf = (model: Model, current: Tab): UiNode =>
+  Row(
+    {},
+    ...Array.flatMap(tabs, ({ action, icon, tab }) =>
+      Array.map(buttonsOf(model, [action], 'Tab'), button => ({
+        ...button,
+        icon,
+        isCurrent: tab === current,
+      })),
+    ),
+  )
+
+const nowPlayingOf = (model: Model): ReadonlyArray<UiNode> =>
+  Option.match(loadedTitleOf(model), {
+    onNone: () => [],
+    onSome: ({ title, loaded }) => [
+      List({
+        label: 'Now playing',
+        items: [
+          {
+            key: `now-${title.slug}`,
+            title: title.name,
+            lines: [
+              `${chapterAt(title, placeOf(loaded)).name} · ${TranscriptPlayer.leftWordsOf(title.durationMs - placeOf(loaded))}`,
+            ],
+            ...imageOf(title),
+            progress: { value: placeOf(loaded), max: title.durationMs },
+            ...offeredActionOf(model, OpenPlayer.tag),
+            isCurrent: true,
+            trailing: TranscriptPlayer.miniTransportOf(
+              loaded.player,
+              entriesOf(model),
+            ),
+          },
+        ],
+      }),
+    ],
+  })
+
+/**
+ * The bar pinned under the library and the profile: what is playing, a
+ * press away from its player, then the Library and Profile tabs.
+ */
+const dockOf = (model: Model, current: Tab): UiNode =>
+  Dock(...nowPlayingOf(model), tabsOf(model, current))
+
+const inProgressLimit = 3
+
+const bySavedAtDescending = Order.mapInput(
+  Order.flip(Order.Number),
+  (progress: TitleProgress) => progress.savedAtMs,
+)
+
+const continueTitlesOf = (model: Model): ReadonlyArray<Title> => {
+  const loaded = Option.toArray(
+    Option.map(loadedTitleOf(model), ({ title }) => title),
+  )
+  const saved = pipe(
+    Option.match(shelfOf(model), {
+      onNone: () => [],
+      onSome: shelf => shelf.progress,
+    }),
+    Array.sort(bySavedAtDescending),
+    Array.dedupeWith((self, that) => self.slug === that.slug),
+    Array.filter(progress => progress._tag === 'InProgress'),
+    Array.map(progress => titleOf(model, progress.slug)),
+    Array.getSomes,
+    Array.filter(
+      title => !Array.some(loaded, current => current.slug === title.slug),
+    ),
+  )
+  return Array.take([...loaded, ...saved], inProgressLimit)
+}
 
 const continueItemOf = (model: Model, title: Title): ListItem => ({
   key: `continue-${title.slug}`,
   title: title.name,
-  lines: [
-    chapterAt(title, placeFor(model, title)).name,
-    leftOf(title, placeFor(model, title)),
-  ],
+  lines: [byline(title), progressText(model, title)],
   ...imageOf(title),
-  progress: { value: placeFor(model, title), max: title.durationMs },
-  ...continueActionOf(model, title),
+  ...progressBarOf(model, title),
+  action: `${Open.tag}:${title.slug}`,
   isCurrent: Option.isSome(loadedFor(model, title)),
-  trailing: playOrPauseOf(model, title, 'Primary'),
+  trailing: playOrPauseOf(model, title, 'Ghost', true),
 })
-
-const continueOfModel = (model: Model): Option.Option<Title> =>
-  Option.orElse(
-    Option.map(loadedTitleOf(model), ({ title }) => title),
-    () =>
-      Option.flatMap(continueOf(model), progress =>
-        titleOf(model, progress.slug),
-      ),
-  )
 
 const titleItemOf = (model: Model, title: Title): ListItem => ({
   key: title.slug,
@@ -248,19 +333,19 @@ const titleItemOf = (model: Model, title: Title): ListItem => ({
   ...imageOf(title),
   ...progressBarOf(model, title),
   action: `${Open.tag}:${title.slug}`,
-  isCurrent: Option.isSome(loadedFor(model, title)),
-  trailing: playOrPauseOf(model, title, 'Ghost'),
+  trailing: playOrPauseOf(model, title, 'Ghost', true),
 })
 
 /**
- * The library: the title to continue, or the one in the player, then
- * every title with who wrote it, how far the listener is, and Play.
- * Pressing a row opens the title.
+ * The library, the home: up to three books to continue, the one playing
+ * first, then every other book with who wrote it and how far along it is.
+ * Pressing a row opens the book; its round button plays it. What is
+ * playing and the tabs stay pinned at the bottom.
  *
  * @example
  * ```typescript
  * libraryScreen(model)
- * // Column: Library, List('Continue listening'), List('Your books')
+ * // Column: Library, Continue listening, Your books, Dock(now playing, Library | Profile)
  * ```
  */
 export const libraryScreen = (model: Model): UiNode =>
@@ -274,26 +359,92 @@ export const libraryScreen = (model: Model): UiNode =>
       } else if (library._tag === 'ShelfUnavailable') {
         return [Text(`Your library could not be opened: ${library.reason}`)]
       } else {
-        return Array.match(titlesOf(model), {
-          onEmpty: () => [Text('Your library is empty.', { dim: true })],
-          onNonEmpty: titles => [
-            ...Array.fromOption(
-              Option.map(continueOfModel(model), title =>
-                List({
-                  label: 'Continue listening',
-                  items: [continueItemOf(model, title)],
-                }),
-              ),
-            ),
-            List({
-              label: 'Your books',
-              items: Array.map(titles, title => titleItemOf(model, title)),
-            }),
-          ],
-        })
+        const continuing = continueTitlesOf(model)
+        const others = Array.filter(
+          titlesOf(model),
+          title => !Array.some(continuing, kept => kept.slug === title.slug),
+        )
+        return [
+          ...Array.match(continuing, {
+            onEmpty: () => [],
+            onNonEmpty: titles => [
+              Text('Continue listening', { dim: true }),
+              List({
+                label: 'Continue listening',
+                items: Array.map(titles, title => continueItemOf(model, title)),
+              }),
+            ],
+          }),
+          ...Array.match(others, {
+            onEmpty: () => [],
+            onNonEmpty: titles => [
+              Text('Your books', { dim: true }),
+              List({
+                label: 'Your books',
+                items: Array.map(titles, title => titleItemOf(model, title)),
+              }),
+            ],
+          }),
+        ]
       }
     }),
+    dockOf(model, 'Library'),
   )
+
+/**
+ * Who is signed in, through Cloudflare Access, and how the library stands:
+ * how many books, how many started and finished.
+ *
+ * @example
+ * ```typescript
+ * profileScreen(model)
+ * // Column: Profile, Account (you@example.com), Listening (5 books), Dock(Library | Profile)
+ * ```
+ */
+export const profileScreen = (model: Model): UiNode => {
+  const titles = titlesOf(model)
+  const finished = Array.filter(titles, title =>
+    Option.exists(
+      progressOf(model, title.slug),
+      progress => progress._tag === 'Finished',
+    ),
+  ).length
+  const started = Array.filter(titles, title => isStarted(model, title)).length
+  return Column(
+    { gap: 1 },
+    Text('Profile', { emphasis: 'Headline' }),
+    ...Option.match(model.maybeMember, {
+      onNone: () => [Text('Signing in…', { dim: true })],
+      onSome: email => [
+        Text('Account', { dim: true }),
+        List({
+          label: 'Account',
+          items: [
+            {
+              key: 'member',
+              title: email,
+              lines: ['Signed in with Cloudflare Access'],
+            },
+          ],
+        }),
+      ],
+    }),
+    Text('Listening', { dim: true }),
+    List({
+      label: 'Listening',
+      items: [
+        {
+          key: 'counts',
+          title: `${titles.length.toString()} books`,
+          lines: [
+            `${started.toString()} in progress · ${finished.toString()} finished`,
+          ],
+        },
+      ],
+    }),
+    dockOf(model, 'Profile'),
+  )
+}
 
 const bookmarkItemOf = (
   model: Model,
@@ -335,8 +486,9 @@ const narratorLines = (title: Title): ReadonlyArray<UiNode> =>
   })
 
 /**
- * One title's page: its cover, who wrote and reads it, how far the
- * listener is, Play and Contents, and its bookmarks.
+ * One book's page: its cover, who wrote and reads it, how far the
+ * listener is, Play and Contents, and its bookmarks, each a link to its
+ * moment. What is playing stays pinned at the bottom.
  */
 export const titleScreen = (model: Model, title: Title): UiNode =>
   Column(
@@ -353,23 +505,87 @@ export const titleScreen = (model: Model, title: Title): UiNode =>
     Text(progressText(model, title), { dim: true }),
     ...problemLines(model),
     Row(
-      { gap: 1 },
-      ...playOrPauseOf(model, title, 'Primary'),
-      ...buttonsOf(model, [ShowContents], 'Ghost'),
+      {},
+      ...playOrPauseOf(model, title, 'Primary', false),
+      ...withIcon(buttonsOf(model, [ShowContents], 'Ghost'), 'Chapters', false),
     ),
     ...bookmarkLists(model, title),
+    dockOf(model, 'Neither'),
+  )
+
+const noticeLines = (model: Model): ReadonlyArray<UiNode> =>
+  Array.fromOption(
+    Option.map(model.maybeNotice, notice => Text(notice, { dim: true })),
+  )
+
+const collapsedControlsOf = (
+  model: Model,
+  title: Title,
+  loaded: Loaded,
+): UiNode =>
+  List({
+    label: 'Player',
+    items: [
+      {
+        key: `controls-${title.slug}`,
+        title: chapterAt(title, placeOf(loaded)).name,
+        lines: [
+          TranscriptPlayer.leftWordsOf(title.durationMs - placeOf(loaded)),
+        ],
+        ...imageOf(title),
+        progress: { value: placeOf(loaded), max: title.durationMs },
+        ...offeredActionOf(model, ExpandControls.tag),
+        trailing: [
+          ...TranscriptPlayer.miniTransportOf(loaded.player, entriesOf(model)),
+          ...withIcon(
+            buttonsOf(model, [ExpandControls], 'Ghost'),
+            'Expand',
+            true,
+          ),
+        ],
+      },
+    ],
+  })
+
+const expandedControlsOf = (model: Model, loaded: Loaded): UiNode =>
+  Column(
+    { gap: 1 },
+    Row(
+      {},
+      ...withIcon(
+        buttonsOf(model, [CollapseControls], 'Ghost'),
+        'Collapse',
+        true,
+      ),
+    ),
+    TranscriptPlayer.seekBarOf(loaded.player),
+    TranscriptPlayer.timesOf(loaded.player),
+    ...TranscriptPlayer.seekScopeOf(loaded.player, entriesOf(model)),
+    TranscriptPlayer.transportOf(loaded.player, entriesOf(model)),
+    Row(
+      {},
+      ...withIcon(buttonsOf(model, [ShowContents], 'Ghost'), 'Chapters', false),
+      ...Array.map(
+        withIcon(buttonsOf(model, [ShowSpeeds], 'Ghost'), 'Speed', false),
+        button => ({ ...button, label: `${model.speed.toString()}×` }),
+      ),
+      ...withIcon(buttonsOf(model, [AddBookmark], 'Ghost'), 'Bookmark', false),
+      ...withIcon(buttonsOf(model, [SharePlace], 'Ghost'), 'Share', false),
+    ),
   )
 
 /**
- * The player for the title its address names. With that title in this
- * device's player: the cover, the chapter, the seek bar and times, the
- * transport, Contents, Speed, and Bookmark, and the words to read along
- * with. Otherwise it offers to play the title from the listener's place.
+ * The player for the book its address names, read and listen: the words
+ * fill the screen, the one sounding marked, and the controls sit pinned
+ * under them, folded into a bar with back 30 seconds and Play until
+ * opened for the chapter bar, chapters, speed, bookmarks, and sharing.
+ * Without that book in the player, it offers to play it from the
+ * listener's place.
  *
  * @example
  * ```typescript
  * playerScreen(model)
- * // Column: cover, A New Earth, Evocation, Seek, 3:18 −9:09:43, [−30s] [Pause] [+30s], Transcript
+ * // Column: Transcript, Dock(Chapter 3: Liberty · 10h 1m left [↺30] [▶] [▴])
  * ```
  */
 export const playerScreen = (model: Model): UiNode =>
@@ -398,45 +614,21 @@ export const playerScreen = (model: Model): UiNode =>
                 label: progressText(model, title),
               }),
               Text(progressText(model, title), { dim: true }),
-              Row({}, ...playOrPauseOf(model, title, 'Primary')),
+              Row({}, ...playOrPauseOf(model, title, 'Primary', false)),
             ),
           onSome: loaded =>
             Column(
               { gap: 1 },
-              List({
-                label: 'Now playing',
-                items: [
-                  {
-                    key: title.slug,
-                    title: title.name,
-                    lines: [
-                      byline(title),
-                      chapterAt(title, placeOf(loaded)).name,
-                    ],
-                    ...imageOf(title),
-                  },
-                ],
-              }),
-              TranscriptPlayer.seekBarOf(loaded.player),
-              TranscriptPlayer.timesOf(loaded.player),
-              TranscriptPlayer.transportOf(loaded.player, entriesOf(model)),
-              ...TranscriptPlayer.problemOf(loaded.player),
-              ...problemLines(model),
-              ...Array.fromOption(
-                Option.map(model.maybeNotice, notice =>
-                  Text(notice, { dim: true }),
-                ),
-              ),
-              Row(
-                { gap: 1 },
-                ...buttonsOf(
-                  model,
-                  [ShowContents, ShowSpeeds, AddBookmark, SharePlace],
-                  'Ghost',
-                ),
-                Text(`${model.speed.toString()}×`, { dim: true }),
-              ),
+              Text(title.name, { dim: true }),
               TranscriptPlayer.transcriptOf(loaded.player),
+              Dock(
+                ...TranscriptPlayer.problemOf(loaded.player),
+                ...problemLines(model),
+                ...noticeLines(model),
+                model.controls === 'Expanded'
+                  ? expandedControlsOf(model, loaded)
+                  : collapsedControlsOf(model, title, loaded),
+              ),
             ),
         }),
     },
@@ -490,21 +682,33 @@ export const contentsScreen = (model: Model): UiNode =>
     },
   )
 
-/** The speeds, each a button; the one playing now is greyed out. */
+/** The speeds, each a button; the one playing now is marked current. */
 export const speedScreen = (model: Model): UiNode =>
   Column(
     { gap: 1 },
     Text('Speed', { emphasis: 'Headline' }),
     Row(
       { gap: 1 },
-      ...withVariant(
-        actionButtons(
-          Array.flatMap(
-            Array.filter(entriesOf(model), entry => entry.tag === SetSpeed.tag),
-            Catalog.choicesAsEntries,
+      ...Array.map(
+        withVariant(
+          actionButtons(
+            Array.flatMap(
+              Array.filter(
+                entriesOf(model),
+                entry => entry.tag === SetSpeed.tag,
+              ),
+              Catalog.choicesAsEntries,
+            ),
           ),
+          'Ghost',
         ),
-        'Ghost',
+        button => ({
+          ...button,
+          isCurrent: Option.exists(
+            Catalog.parseChoiceTag(button.action ?? ''),
+            choice => choice.token === model.speed.toString(),
+          ),
+        }),
       ),
     ),
   )
