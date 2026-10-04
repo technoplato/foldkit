@@ -4,6 +4,133 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 10:52:47 a.m. EDT — `0e21e6c24aeb` feat(books): continue listening home, tabs, and an expanding mini player
+
+- **Implementation commit:** `0e21e6c24aeb17d3bf8c87399531752e11a7eda4`
+- **Change:** Continue listening home, tabs, and an expanding mini player
+- **Details:**
+  - The home leads with books to continue; tabs and the now-playing bar sit in a dock; Profile shows who is signed in; the player's controls fold into a bar that expands.
+- **Files:**
+  - `examples/books/core/src/screen.ts` — Library, Profile, dock, and player controls.
+  - `examples/books/core/src/message.ts` — ExpandControls, CollapseControls, ShowLibrary, ShowProfile, ReceivedMember.
+- **User context (verbatim):**
+  > So I can, by default, it's kind of collapsed and I get this like, this information down here.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `9f6ea61857e6` feat(svelte): open sheets on their current row and size the page to the dock
+
+- **Implementation commit:** `9f6ea61857e6629d4140f800c8c869ed30c9299e`
+- **Change:** Open sheets on their current row and size the page to the dock
+- **Details:**
+  - The Svelte painter matches React: current rows scroll into view and sheets focus them without scrolling.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — scrollWhenCurrent.
+  - `packages/svelte/src/interaction/presentedFocus.ts` — Opening focus.
+- **User context (verbatim):**
+  > and if I click outside of a modal, it doesn't dismiss
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `8b2a5ed98ad1` feat(react): open sheets on their current row and size the page to the dock
+
+- **Implementation commit:** `8b2a5ed98ad1a0c2c54ed373c73650a573e56c7e`
+- **Change:** Open sheets on their current row and size the page to the dock
+- **Details:**
+  - A current list row scrolls to the middle on first paint; a presented screen focuses its current row without scrolling.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — ListRow.
+  - `packages/react/src/navigation/navigation.tsx` — Opening focus.
+- **User context (verbatim):**
+  > and if I click outside of a modal, it doesn't dismiss
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `8ae47708c4d3` feat(foldkit): drop Back on tab pages and let sheets close on a tap
+
+- **Implementation commit:** `8ae47708c4d3b07d4d9bd169bff324894891dccf`
+- **Change:** Drop Back on tab pages and let sheets close on a tap
+- **Details:**
+  - Session.compose takes isTab; Back shows a chevron at the top left; sheets leave a strip to tap and open on their current row; Ghost rows with a current button paint as segmented controls; dock rows stack labeled icons and spread text.
+- **Files:**
+  - `packages/foldkit/src/session/session.ts` — isTab and the Back icon.
+  - `packages/foldkit/src/interaction/screenStyles.ts` — Sheet, dock, segmented, and list heading styles.
+- **User context (verbatim):**
+  > But I really just need library and profile.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `7cfb40f9bab6` feat(transcript-player): scrub a chapter or the whole recording
+
+- **Implementation commit:** `7cfb40f9bab6e90083d83666a5f46c57cfb7c14a`
+- **Change:** Scrub a chapter or the whole recording
+- **Details:**
+  - The seek bar spans the section being heard by default; Previous and Next chapter step between sections; the transport is icons.
+- **Files:**
+  - `examples/transcript-player/core/src/screen.ts` — seekBarOf, timesOf, seekScopeOf, transportOf.
+  - `examples/transcript-player/core/src/message.ts` — SetSeekScope, PreviousSection, NextSection.
+- **User context (verbatim):**
+  > Um, but it would be nice to be able to change whether I'm navigating between a chapter or the entire book uh, and the drag bar and stuff like that.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `0e5d73d24cd4` feat(opentui): paint icon glyphs on buttons
+
+- **Implementation commit:** `0e5d73d24cd4387063ffa86badc0290926e6dd27`
+- **Change:** Paint icon glyphs on buttons in OpenTUI
+- **Details:**
+  - OpenTUI labels buttons with the terminal glyphs.
+- **Files:**
+  - `packages/opentui/src/interaction/paintOpenTui.ts` — buttonLabelOf.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `745221be9694` feat(react-native): paint icon glyphs on buttons
+
+- **Implementation commit:** `745221be96942ff2c8712a7c9395edac783eedfb`
+- **Change:** Paint icon glyphs on buttons in React Native
+- **Details:**
+  - React Native labels buttons with the terminal glyphs.
+- **Files:**
+  - `packages/react-native/src/interaction/screen.tsx` — labelOfButton.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:46 a.m. EDT — `3e444d52799f` feat(svelte): paint icons, tabs, the dock, and chapter seek bars
+
+- **Implementation commit:** `3e444d52799f7787a8376ece744040ac54cae750`
+- **Change:** Paint icons, tabs, the dock, and chapter seek bars in Svelte
+- **Details:**
+  - Svelte draws the same icons, tabs, dock, and seek bars as React.
+- **Files:**
+  - `packages/svelte/src/interaction/PaintTree.svelte` — Tabs, dock, and icons.
+  - `packages/svelte/src/interaction/Icon.svelte` — Icon drawing.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:45 a.m. EDT — `eb38a02a67f7` feat(react): paint icons, tabs, the dock, and chapter seek bars
+
+- **Implementation commit:** `eb38a02a67f7b3a52d5ea0fd233bc290984b5a62`
+- **Change:** Paint icons, tabs, the dock, and chapter seek bars in React
+- **Details:**
+  - React draws icon SVGs, tab buttons, the fixed dock, and seek bars with a min.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — Icon, DockBox, and Button attributes.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 10:52:45 a.m. EDT — `0a1c31c46ec7` feat(foldkit): add icons, tabs, a bottom dock, and chapter seek bars to screens
+
+- **Implementation commit:** `0a1c31c46ec78f852681c7ad334966471a7edd82`
+- **Change:** Add icons, tabs, a bottom dock, and chapter seek bars to screens
+- **Details:**
+  - Buttons take a shared icon set, a Tab variant marks places, Dock pins children to the bottom, and Seek can start at a min.
+- **Files:**
+  - `packages/foldkit/src/renderers/icons.ts` — Icon drawings and glyphs.
+  - `packages/foldkit/src/renderers/types.ts` — icon, isIconOnly, isCurrent, isDock, min.
+- **User context (verbatim):**
+  > Um, and then add, you know, icons.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 9:36:46 a.m. EDT — `9f6da8afd7db` fix(foldkit): follow a launch link to a page while navigation is mirrored
 
 - **Implementation commit:** `9f6da8afd7dbefc9c1033c19dd871b65298a8dbd`
