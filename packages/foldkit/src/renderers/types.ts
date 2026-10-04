@@ -294,7 +294,11 @@ export type UiNode =
   | TranscriptNode
   | DeviceShellNode
 
-/** A laid-out character box. */
+/**
+ * A laid-out character box. `isCurrent` marks what a person is following
+ * on its row, such as the chapter playing in a list or the transcript line
+ * with the word sounding now, so a terminal can keep it in view.
+ */
 export type LayoutBox = Readonly<{
   readonly id: string
   readonly x: number
@@ -308,6 +312,7 @@ export type LayoutBox = Readonly<{
   readonly text?: string
   readonly action?: HotspotAction
   readonly label?: string
+  readonly isCurrent?: boolean
   readonly children: ReadonlyArray<LayoutBox>
 }>
 

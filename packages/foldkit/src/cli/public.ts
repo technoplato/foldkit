@@ -36,6 +36,14 @@ export {
 } from './program.js'
 
 export { keyInputOfTerminal, runProgramTui } from './tui.js'
+export {
+  type TerminalPaint,
+  type TerminalScroll,
+  type TerminalSize,
+  type TerminalView,
+  initialTerminalView,
+  paintTerminal,
+} from './terminalScreen.js'
 export { type WatchOptions, paintWatch, runProgramWatch } from './watch.js'
 export { localSnapshotFile, localSnapshotPath } from './localSnapshotFile.js'
 export { formatTailRow, runProgramTail } from './tail.js'

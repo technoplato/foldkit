@@ -13,6 +13,7 @@ import type {
   SeekNode,
   TranscriptNode,
   TranscriptPassage,
+  TranscriptWord,
   UiNode,
 } from './types.js'
 
@@ -173,50 +174,74 @@ const itemTitleGlyph = (item: ListItem): string => {
 
 const passageLabelWidth = 8
 
-const wordGlyph = (word: Readonly<{ text: string; isCurrent?: boolean }>) =>
+const wordGlyph = (word: TranscriptWord): string =>
   word.isCurrent === true ? `[${word.text}]` : word.text
 
+type TranscriptLine = Readonly<{ text: string; isCurrent: boolean }>
+
+const plainLine = (text: string): TranscriptLine => ({ text, isCurrent: false })
+
+type Wrapped = Readonly<{
+  lines: ReadonlyArray<TranscriptLine>
+  maybeOpen: Option.Option<TranscriptLine>
+}>
+
+const nothingWrapped: Wrapped = { lines: [], maybeOpen: Option.none() }
+
 const wrappedWords = (
-  words: ReadonlyArray<string>,
+  words: ReadonlyArray<TranscriptWord>,
   width: number,
-): ReadonlyArray<string> =>
-  Array.reduce(words, Array.empty<string>(), (lines, word) =>
-    Array.match(lines, {
-      onEmpty: () => [word],
-      onNonEmpty: nonEmpty => {
-        const last = Array.lastNonEmpty(nonEmpty)
-        return `${last} ${word}`.length <= width
-          ? [...Array.initNonEmpty(nonEmpty), `${last} ${word}`]
-          : [...nonEmpty, word]
-      },
-    }),
-  )
+): ReadonlyArray<TranscriptLine> => {
+  const wrapped = Array.reduce(words, nothingWrapped, (state, word) => {
+    const glyph = wordGlyph(word)
+    const isCurrent = word.isCurrent === true
+    return Option.match(state.maybeOpen, {
+      onNone: () => ({
+        lines: state.lines,
+        maybeOpen: Option.some({ text: glyph, isCurrent }),
+      }),
+      onSome: open =>
+        open.text.length + 1 + glyph.length <= width
+          ? {
+              lines: state.lines,
+              maybeOpen: Option.some({
+                text: `${open.text} ${glyph}`,
+                isCurrent: open.isCurrent || isCurrent,
+              }),
+            }
+          : {
+              lines: Array.append(state.lines, open),
+              maybeOpen: Option.some({ text: glyph, isCurrent }),
+            },
+    })
+  })
+  return [...wrapped.lines, ...Option.toArray(wrapped.maybeOpen)]
+}
 
 const passageLines = (
   passage: TranscriptPassage,
   availableW: number,
-): ReadonlyArray<string> => {
+): ReadonlyArray<TranscriptLine> => {
   const marker = passage.isCurrent === true ? '›' : ' '
   const label = `${marker}${passage.label}`.padEnd(passageLabelWidth, ' ')
   const textWidth = Math.max(1, availableW - passageLabelWidth)
   return [
     ...(passage.heading === undefined
       ? []
-      : ['', passage.heading.toUpperCase()]),
-    ...Array.map(
-      wrappedWords(Array.map(passage.words, wordGlyph), textWidth),
-      (line, index) =>
-        `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line}`,
-    ),
+      : [plainLine(''), plainLine(passage.heading.toUpperCase())]),
+    ...Array.map(wrappedWords(passage.words, textWidth), (line, index) => ({
+      text: `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line.text}`,
+      isCurrent: line.isCurrent,
+    })),
   ]
 }
 
 const transcriptLines = (
   transcript: TranscriptNode,
   availableW: number,
-): ReadonlyArray<string> =>
+): ReadonlyArray<TranscriptLine> =>
   Array.match(transcript.passages, {
-    onEmpty: () => [transcript.emptyText],
+    onEmpty: () => [plainLine(transcript.emptyText)],
     onNonEmpty: passages =>
       Array.flatMap(passages, passage => passageLines(passage, availableW)),
   })
@@ -432,6 +457,7 @@ const layoutNode = (
             kind: 'Button',
             text: fit(title, titleW),
             label: item.title,
+            ...(item.isCurrent === true ? { isCurrent: true } : {}),
             ...Option.match(
               Option.orElse(Option.fromNullishOr(item.action), () =>
                 Option.fromNullishOr(item.href),
@@ -493,10 +519,11 @@ const layoutNode = (
           id: ids.next('text'),
           x,
           y: y + index,
-          w: measureText(line, availableW),
+          w: measureText(line.text, availableW),
           h: 1,
           kind: 'Text' as const,
-          text: fit(line, measureText(line, availableW)),
+          text: fit(line.text, measureText(line.text, availableW)),
+          ...(line.isCurrent ? { isCurrent: true } : {}),
           children: [],
         }))
         return {

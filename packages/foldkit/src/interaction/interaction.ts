@@ -89,11 +89,15 @@ const deleteCharacter = '\u007f'
 const isPrintableCharacter = (text: string): boolean =>
   text.length === 1 && text >= ' ' && text !== deleteCharacter
 
+const escapeKey = 'Escape'
+
 /**
  * A key press as a terminal reports it: the character it typed when it
  * typed a printable one, else its key name. So Shift-J reads `J`, which
  * jumps to the last menu row, while Ctrl-K reads `k` with Control held
- * and an arrow reads `ArrowUp`.
+ * and an arrow reads `ArrowUp`. A terminal sends Meta as a leading
+ * Escape, so Node's readline reports the Escape key itself with Meta
+ * held; Escape always reads as plain Escape, the key that goes back.
  *
  * @example
  * ```typescript
@@ -101,6 +105,8 @@ const isPrintableCharacter = (text: string): boolean =>
  * // { key: 'J', isShift: true, ... }
  * terminalKeyInput({ sequence: '\u000b', name: 'k', isMeta: false, isControl: true, isShift: false })
  * // { key: 'k', isControl: true, ... }
+ * terminalKeyInput({ sequence: '\u001b', name: 'escape', isMeta: true, isControl: false, isShift: false })
+ * // { key: 'Escape', isMeta: false, ... }
  * ```
  */
 export const terminalKeyInput = (
@@ -115,8 +121,9 @@ export const terminalKeyInput = (
   const isTyped =
     isPrintableCharacter(key.sequence) && !key.isControl && !key.isMeta
   const name = key.name === '' ? key.sequence : key.name
-  return keyInput(normalizeKey(isTyped ? key.sequence : name), {
-    isMeta: key.isMeta,
+  const pressed = normalizeKey(isTyped ? key.sequence : name)
+  return keyInput(pressed, {
+    isMeta: key.isMeta && pressed !== escapeKey,
     isControl: key.isControl,
     isShift: key.isShift,
   })
