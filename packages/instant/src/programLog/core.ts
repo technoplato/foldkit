@@ -1,8 +1,9 @@
-import { Cause, Effect, Queue, Stream } from 'effect'
+import { Cause, Effect, Option, Queue, Stream } from 'effect'
+
+import type { InstantCoreDatabase, InstantSchemaDef } from '@instantdb/core'
 
 import { decodeProgramStoreTransactionOutcome } from '../instantProgramStore/index.js'
 import {
-  type InstantSnapshotLogDatabase,
   SnapshotLogError,
   type SnapshotLogQueryData,
   type SnapshotLogState,
@@ -18,8 +19,26 @@ import {
   programMessageFieldsOf,
 } from './programLog.js'
 
+/**
+ * Any Instant core client a program log can read and write: the shared
+ * project's own, or one opened on another app's schema, such as a
+ * universal schema whose `programMessage` rows also carry an owner.
+ */
+export type ProgramLogDatabase = InstantCoreDatabase<
+  InstantSchemaDef<any, any, any>,
+  boolean
+>
+
+/**
+ * Whose rows a program log writes. `Anyone` writes the shared project's
+ * open rows; `SignedInUser` stamps each row with the signed-in member's
+ * id as `ownerUserID`, for an app whose rules let each person read and
+ * write only their own rows.
+ */
+export type ProgramLogOwner = 'Anyone' | 'SignedInUser'
+
 const observe = (
-  database: InstantSnapshotLogDatabase,
+  database: ProgramLogDatabase,
   query:
     | ReturnType<typeof programLogQuery>
     | ReturnType<typeof programLogRecentQuery>,
@@ -57,22 +76,42 @@ const observe = (
     ),
   )
 
+const ownerFieldsOf = async (
+  database: ProgramLogDatabase,
+  owner: ProgramLogOwner,
+): Promise<Readonly<{ ownerUserID?: string }>> => {
+  if (owner === 'Anyone') {
+    return {}
+  }
+  const maybeUser = Option.fromNullishOr(await database.getAuth())
+  return Option.match(maybeUser, {
+    onNone: () => {
+      throw new Error('A program log owned by its member needs a sign-in.')
+    },
+    onSome: user => ({ ownerUserID: user.id }),
+  })
+}
+
 /**
- * One app's log on the shared Instant project, for browser and native
+ * One app's log on an Instant project, for browser and native
  * Processors. It reads, follows, and writes only the rows that app wrote,
  * through the app's envelope, so two apps on one project never see each
- * other's Messages.
+ * other's Messages. With `owner: 'SignedInUser'`, each row also names the
+ * member who wrote it.
  *
  * @example
  * ```typescript
  * makeInstantCoreProgramLogTransport(database, 'multiple-counters')
+ * makeInstantCoreProgramLogTransport(database, 'books', { owner: 'SignedInUser' })
  * ```
  */
 export const makeInstantCoreProgramLogTransport = (
-  database: InstantSnapshotLogDatabase,
+  database: ProgramLogDatabase,
   app: string,
+  options: Readonly<{ owner?: ProgramLogOwner }> = {},
 ): SnapshotLogTransport => {
   const decode = decodeProgramLogState(app)
+  const owner = options.owner ?? 'Anyone'
   return {
     read: () =>
       Effect.tryPromise({
@@ -95,14 +134,18 @@ export const makeInstantCoreProgramLogTransport = (
     subscribeRecent: observe(database, programLogRecentQuery(app), decode),
     write: write =>
       Effect.tryPromise({
-        try: () => {
-          const entity = database.tx.programMessage[write.message.id]
+        try: async () => {
+          const entity = database.tx['programMessage']?.[write.message.id]
           if (entity === undefined) {
             throw new Error('Expected a program log transaction entity.')
           }
+          const ownerFields = await ownerFieldsOf(database, owner)
           return database
             .transact([
-              entity.update(programMessageFieldsOf(app, write.message)),
+              entity.update({
+                ...programMessageFieldsOf(app, write.message),
+                ...ownerFields,
+              }),
             ])
             .then(decodeProgramStoreTransactionOutcome)
         },
