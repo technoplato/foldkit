@@ -1,0 +1,446 @@
+:root {
+  color-scheme: light;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  --reminders-background: #f2f2f7;
+  --reminders-card: #ffffff;
+  --reminders-accent: #007aff;
+  --reminders-separator: #e5e5ea;
+  --reminders-dim: #8a8a8e;
+  --reminders-red: #ff3b30;
+}
+
+body {
+  margin: 0;
+  background: var(--reminders-background);
+}
+
+.reminders-app {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 12px 16px 32px;
+}
+
+.reminders-page {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: min(100%, 680px);
+  min-width: 0;
+}
+
+.reminders-page > .fk-frame {
+  min-width: 0;
+}
+
+.reminders-page > .fk-action-menu-opener {
+  align-self: center;
+}
+
+/* SCREENS */
+
+.reminders-page .fk-column {
+  gap: 14px;
+}
+
+.reminders-page .fk-text[data-dim] {
+  color: var(--reminders-dim);
+  font-size: 15px;
+}
+
+.reminders-page .fk-text[data-emphasis='Headline'] {
+  align-self: stretch;
+  padding: 0 4px;
+  font-size: 32px;
+  text-align: left;
+}
+
+.reminders-page .fk-column > .fk-text[data-dim]:has(+ .fk-list) {
+  margin: 6px 0 -6px;
+  padding: 0 4px;
+  color: #000000;
+  font-size: 20px;
+}
+
+.reminders-page
+  .fk-column
+  > .fk-text[data-emphasis='Headline']
+  + .fk-text[data-dim] {
+  align-self: stretch;
+  margin: -10px 0 0;
+  padding: 0 4px;
+  color: var(--reminders-dim);
+  font-size: 15px;
+  font-weight: 400;
+  text-align: left;
+}
+
+/* LISTS */
+
+.reminders-page .fk-list {
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--reminders-card);
+}
+
+.reminders-page .fk-item {
+  position: relative;
+  gap: 0;
+  border-bottom: 0;
+}
+
+.reminders-page .fk-item + .fk-item::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 14px;
+  border-top: 1px solid var(--reminders-separator);
+  content: '';
+}
+
+.reminders-page .fk-item:has(> .fk-item-check)::before {
+  left: 50px;
+}
+
+.reminders-page .fk-item:has(.fk-item-image)::before {
+  left: 56px;
+}
+
+.reminders-page .fk-item-press {
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 14px;
+  border-radius: 0;
+  text-decoration: none;
+}
+
+.reminders-page .fk-item-check + .fk-item-press {
+  padding-left: 12px;
+}
+
+.reminders-page .fk-item-check {
+  margin-left: 14px;
+}
+
+.reminders-page .fk-item-image {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.reminders-page .fk-item-title {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.reminders-page .fk-item-line {
+  color: var(--reminders-dim);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.reminders-page .fk-item > .fk-button {
+  flex: none;
+  height: 32px;
+  margin-right: 10px;
+  padding: 0 12px;
+  border: 0;
+  background: var(--reminders-background);
+  color: var(--reminders-accent);
+  font-size: 14px;
+}
+
+.reminders-page .fk-item > .fk-button + .fk-button {
+  margin-left: -4px;
+}
+
+.reminders-page .fk-item > .fk-button[data-icon-only] {
+  width: 32px;
+  padding: 0;
+}
+
+.reminders-page .fk-item > .fk-button[data-icon-only] .fk-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.reminders-page .fk-item-check:hover {
+  border-color: var(--reminders-accent);
+}
+
+.reminders-page .fk-item-check[data-checked] {
+  border-color: var(--reminders-accent);
+  background-color: var(--reminders-accent);
+}
+
+/* CHOICES */
+
+.reminders-page .fk-item[data-current] .fk-item-title {
+  color: var(--reminders-accent);
+}
+
+.reminders-page .fk-item[data-current] .fk-item-press::after {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  background: center / contain no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.5 8.5l3.5 3.5 7.5-8' fill='none' stroke='%23007aff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  content: '';
+}
+
+/* SMART */
+
+.reminders-page .fk-list[aria-label='Smart lists'] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+}
+
+.reminders-page .fk-list[aria-label='Smart lists'] .fk-item {
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--reminders-card);
+}
+
+.reminders-page .fk-list[aria-label='Smart lists'] .fk-item::before {
+  display: none;
+}
+
+.reminders-page .fk-list[aria-label='Smart lists'] .fk-item-press {
+  min-height: 58px;
+  padding: 10px 12px;
+}
+
+.reminders-page .fk-list[aria-label='Smart lists'] .fk-item-title {
+  font-weight: 600;
+}
+
+/* TAGS */
+
+.reminders-page .fk-list[aria-label='Tags'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+}
+
+.reminders-page .fk-list[aria-label='Tags'] .fk-item {
+  border-radius: 999px;
+  background: var(--reminders-card);
+}
+
+.reminders-page .fk-list[aria-label='Tags'] .fk-item::before {
+  display: none;
+}
+
+.reminders-page .fk-list[aria-label='Tags'] .fk-item-press {
+  min-height: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+}
+
+.reminders-page .fk-list[aria-label='Tags'] .fk-item-body {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.reminders-page .fk-list[aria-label='Tags'] .fk-item-title {
+  color: var(--reminders-accent);
+  font-size: 15px;
+}
+
+.reminders-page
+  .fk-list[aria-label='Tags']
+  .fk-item:has(> .fk-button)
+  .fk-item-press {
+  padding-right: 4px;
+}
+
+.reminders-page .fk-list[aria-label='Tags'] .fk-item > .fk-button {
+  width: 26px;
+  height: 26px;
+  margin: 0 6px 0 0;
+  background: transparent;
+  color: var(--reminders-dim);
+}
+
+/* VALUES */
+
+.reminders-page
+  :is(
+    .fk-list[aria-label='Details'],
+    .fk-list[aria-label='Your reminders'],
+    .fk-list[aria-label='Priorities'],
+    .fk-list[aria-label='Due dates']
+  )
+  .fk-item-body {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reminders-page
+  :is(
+    .fk-list[aria-label='Details'],
+    .fk-list[aria-label='Your reminders'],
+    .fk-list[aria-label='Priorities'],
+    .fk-list[aria-label='Due dates']
+  )
+  .fk-item-line {
+  flex: none;
+  max-width: 60%;
+  font-size: 15px;
+  text-align: right;
+}
+
+/* COLORS */
+
+.reminders-page .fk-list[aria-label='Colors'] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 6px;
+  padding: 10px;
+}
+
+.reminders-page .fk-list[aria-label='Colors'] .fk-item {
+  justify-content: center;
+}
+
+.reminders-page .fk-list[aria-label='Colors'] .fk-item::before,
+.reminders-page .fk-list[aria-label='Colors'] .fk-item-press::after {
+  display: none;
+}
+
+.reminders-page .fk-list[aria-label='Colors'] .fk-item-press {
+  flex: none;
+  justify-content: center;
+  min-height: 0;
+  padding: 4px;
+  border-radius: 999px;
+}
+
+.reminders-page .fk-list[aria-label='Colors'] .fk-item-body {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.reminders-page .fk-list[aria-label='Colors'] .fk-item-image {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+}
+
+.reminders-page
+  .fk-list[aria-label='Colors']
+  .fk-item[data-current]
+  .fk-item-image {
+  outline: 3px solid #c7c7cc;
+  outline-offset: 2px;
+}
+
+/* FIELDS */
+
+.reminders-page .fk-text-input {
+  width: 100%;
+  border-color: transparent;
+  background: var(--reminders-card);
+}
+
+.reminders-page .fk-text-input:hover {
+  border-color: var(--reminders-separator);
+}
+
+.reminders-page .fk-text-input:focus {
+  border-color: var(--reminders-accent);
+  box-shadow: 0 0 0 3px rgb(0 122 255 / 0.18);
+}
+
+.reminders-page .fk-text-input[aria-label='Title'] {
+  height: 52px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+/* CONTROLS */
+
+.reminders-page
+  .fk-frame
+  > .fk-column
+  .fk-row
+  > .fk-button:is([data-variant='Ghost'], [data-variant='Destructive']):not(
+    [data-action='GoBack']
+  ) {
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  background: var(--reminders-card);
+  color: var(--reminders-accent);
+  font-size: 15px;
+}
+
+.reminders-page
+  .fk-frame
+  > .fk-column
+  .fk-row
+  > .fk-button[data-variant='Destructive']:not([data-action='GoBack']) {
+  color: var(--reminders-red);
+}
+
+.reminders-page .fk-row > .fk-button .fk-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.reminders-page .fk-button[data-action='GoBack'] {
+  color: var(--reminders-accent);
+  font-size: 16px;
+}
+
+/* SHEETS */
+
+.reminders-page .fk-overlay > * {
+  background: var(--reminders-background);
+}
+
+.reminders-page .fk-overlay .fk-text[data-emphasis='Headline'] {
+  align-self: center;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.reminders-page
+  .fk-overlay
+  .fk-text[data-emphasis='Headline']
+  + .fk-text[data-dim] {
+  align-self: center;
+  margin-top: -8px;
+  text-align: center;
+}
+
+.reminders-page .fk-overlay .fk-row > .fk-button[data-variant='Ghost'] {
+  border: 0;
+  background: var(--reminders-card);
+  color: var(--reminders-accent);
+}
+
+.reminders-page .fk-dock .fk-button[data-variant='Tab'][data-current] {
+  color: var(--reminders-accent);
+}
