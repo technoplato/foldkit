@@ -1,6 +1,14 @@
 import { Array, Match as M, Option } from 'effect'
 import { Interaction, type Navigation } from 'foldkit'
-import { type ButtonNode, type TextNode, type UiNode } from 'foldkit/renderers'
+import {
+  type ButtonNode,
+  type ListItem,
+  type TextNode,
+  type TranscriptPassage,
+  type UiNode,
+  progressLineOf,
+  seekLineOf,
+} from 'foldkit/renderers'
 
 import {
   BoxRenderable,
@@ -9,6 +17,7 @@ import {
   StyledText,
   type TextChunk,
   TextRenderable,
+  bg,
   bold,
   dim,
   fg,
@@ -22,7 +31,7 @@ const buttonPaddingX = 1
 const textContentOf = (text: TextNode): StyledText => {
   if (text.dim === true) {
     return t`${dim(text.content)}`
-  } else if (text.emphasis === 'Display') {
+  } else if (text.emphasis === 'Display' || text.emphasis === 'Headline') {
     return t`${bold(text.content)}`
   } else {
     return stringToStyledText(text.content)
@@ -39,6 +48,104 @@ export type PaintOpenTuiMenuOptions = Readonly<{
   onChoose: (tag: string) => void
   onDismiss: () => void
 }>
+
+const barWidth = 60
+
+const passageLabelWidth = 8
+
+const currentWordColor = '#9a3412'
+
+const currentWordBackground = '#fed7aa'
+
+const pressOf = (action: string, label: string): ButtonNode => ({
+  _tag: 'Button',
+  label,
+  action,
+})
+
+const paintItem = (
+  ctx: RenderContext,
+  item: ListItem,
+  options: PaintOpenTuiOptions,
+): Renderable => {
+  const action = item.action
+  const row = new BoxRenderable(ctx, {
+    flexDirection: 'row',
+    columnGap: 2,
+    ...(item.focused === true ? { backgroundColor: focusColor } : {}),
+  })
+  const title = new BoxRenderable(ctx, {
+    ...(action === undefined
+      ? {}
+      : {
+          onMouseDown: () => {
+            options.onPress(pressOf(action, item.title))
+          },
+        }),
+  })
+  title.add(
+    new TextRenderable(ctx, {
+      content:
+        item.isCurrent === true
+          ? t`${bold(fg(matchColor)(`• ${item.title}`))}`
+          : t`${bold(`  ${item.title}`)}`,
+    }),
+  )
+  row.add(title)
+  Array.match(item.lines ?? [], {
+    onEmpty: () => undefined,
+    onNonEmpty: lines => {
+      row.add(
+        new TextRenderable(ctx, {
+          content: t`${dim(Array.join(lines, ' · '))}`,
+        }),
+      )
+    },
+  })
+  return addChildren(ctx, row, item.trailing ?? [], options)
+}
+
+const paintPassage = (
+  ctx: RenderContext,
+  passage: TranscriptPassage,
+  options: PaintOpenTuiOptions,
+): Renderable => {
+  const row = new BoxRenderable(ctx, { flexDirection: 'row' })
+  const labelAction = passage.labelAction
+  const label = new BoxRenderable(ctx, {
+    width: passageLabelWidth,
+    ...(labelAction === undefined
+      ? {}
+      : {
+          onMouseDown: () => {
+            options.onPress(pressOf(labelAction, passage.label))
+          },
+        }),
+  })
+  label.add(
+    new TextRenderable(ctx, {
+      content:
+        passage.isCurrent === true
+          ? t`${bold(`›${passage.label}`)}`
+          : t`${dim(` ${passage.label}`)}`,
+    }),
+  )
+  row.add(label)
+  const chunks = Array.flatMap(passage.words, (word, index) => [
+    ...(index === 0 ? [] : stringToStyledText(' ').chunks),
+    ...(word.isCurrent === true
+      ? [bg(currentWordBackground)(fg(currentWordColor)(bold(word.text)))]
+      : stringToStyledText(word.text).chunks),
+  ])
+  const words = new TextRenderable(ctx, {
+    content: new StyledText([...chunks]),
+    wrapMode: 'word',
+    flexGrow: 1,
+    flexShrink: 1,
+  })
+  row.add(words)
+  return row
+}
 
 const addChildren = (
   ctx: RenderContext,
@@ -121,6 +228,40 @@ export const paintOpenTui = (
           box.children,
           options,
         ),
+      Progress: progress =>
+        new TextRenderable(ctx, {
+          content: t`${dim(progressLineOf(progress, barWidth))}`,
+        }),
+      List: list => {
+        const column = new BoxRenderable(ctx, { flexDirection: 'column' })
+        Array.forEach(list.items, item => {
+          column.add(paintItem(ctx, item, options))
+        })
+        return column
+      },
+      Seek: seek =>
+        new TextRenderable(ctx, { content: seekLineOf(seek, barWidth) }),
+      Transcript: transcript => {
+        const column = new BoxRenderable(ctx, {
+          flexDirection: 'column',
+          rowGap: 1,
+        })
+        Array.match(transcript.passages, {
+          onEmpty: () => {
+            column.add(
+              new TextRenderable(ctx, {
+                content: t`${dim(transcript.emptyText)}`,
+              }),
+            )
+          },
+          onNonEmpty: passages => {
+            Array.forEach(passages, passage => {
+              column.add(paintPassage(ctx, passage, options))
+            })
+          },
+        })
+        return column
+      },
       DeviceShell: shell =>
         addChildren(
           ctx,
