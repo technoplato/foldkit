@@ -30,7 +30,11 @@ export {
   type StartedProgram,
   type SyncStartProgram,
 } from './start.js'
-export { startHandle, type SyncedHandle } from './handle.js'
+export {
+  startHandle,
+  type ObserveRuntime,
+  type SyncedHandle,
+} from './handle.js'
 export * as LocalSnapshot from './localSnapshot.js'
 export type { LocalSnapshotStore } from './localSnapshot.js'
 export {

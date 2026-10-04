@@ -69,7 +69,14 @@ export type CommandRecord = Readonly<{
   args?: Record<string, unknown>
 }>
 
-/** One ordered Message transaction in a Program journal. */
+/**
+ * One ordered Message transaction in a Program journal.
+ *
+ * `updateDurationMs` is how long update took for this Message on the live
+ * runtime, in milliseconds from a monotonic clock, such as `0.04`. A
+ * transition restored from a replay tape has none, because update did not
+ * run live for it.
+ */
 export type Transition<Model, Message> = Readonly<{
   sequence: number
   message: Message
@@ -79,6 +86,7 @@ export type Transition<Model, Message> = Readonly<{
   isOperationSettled: boolean
   commands: ReadonlyArray<CommandRecord>
   timestamp: number
+  updateDurationMs?: number
   isModelChanged: boolean
   diff: DiffResult
   model: Model
@@ -102,6 +110,7 @@ export type RecordTransitionInput<Model, Message> = Readonly<{
   isOperationSettled: boolean
   commands: ReadonlyArray<CommandRecord>
   timestamp?: number
+  updateDurationMs?: number
   model: Model
 }>
 
@@ -377,6 +386,9 @@ export const makeProgramJournal = <
       isOperationSettled: input.isOperationSettled,
       commands: Array.map(input.commands, toCommandRecord),
       timestamp: input.timestamp ?? now(),
+      ...(input.updateDurationMs === undefined
+        ? {}
+        : { updateDurationMs: input.updateDurationMs }),
       isModelChanged: latestModel !== input.model,
       diff: computeDiff(latestModel, input.model),
       model: input.model,

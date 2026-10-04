@@ -77,6 +77,8 @@ export type {
   ProgramRuntimeConfig,
   ProgramRuntimeJournal,
   ProgramRuntimeJournalConfig,
+  ProgramRuntimeObservation,
+  ProgramRuntimeObserver,
   ProgramRuntimeTimeline,
   ProgramRuntimeReplay,
   ProgramRuntimeScheduling,

@@ -14,6 +14,7 @@ import {
   Schema,
   Scope,
   Stream,
+  type Tracer,
   pipe,
 } from 'effect'
 
@@ -35,6 +36,7 @@ import {
   state as makeStateRoute,
 } from '../program/route.js'
 import type { Subscriptions } from '../subscription/subscription.js'
+import { traceCommand } from './commandTracing.js'
 import {
   InitializationCommandCause,
   MessageCommandCause,
@@ -164,6 +166,12 @@ export type ProgramRuntimeConfig<
   scheduling?: ProgramRuntimeScheduling
   /** Intercepts manifested Commands for capability-driven shared execution. */
   commandScheduler?: ProgramRuntimeCommandScheduler<Message>
+  /**
+   * Observers connected before the runtime boots, so they see its first
+   * transition, its first Subscription diagnostic, and its first Command
+   * span. See {@link ProgramRuntimeObserver}.
+   */
+  observers?: ReadonlyArray<ProgramRuntimeObserver<Model, Message>>
 }>
 
 /** Options for sending a Message into the Program runtime. */
@@ -229,6 +237,10 @@ export type ProgramRuntime<
 > = Readonly<{
   /** Identifies this handle as a live, effect-executing runtime. */
   mode: 'Live'
+  /** The running Program's stable id, such as `'books'`. */
+  programId: string
+  /** The running Program's schema version, such as `1`. */
+  programVersion: number
   /** Returns the current immutable Model synchronously. */
   readModel: () => Model
   /**
@@ -269,6 +281,23 @@ export type ProgramRuntime<
   ) => () => void
   /** Streams terminal runtime failures for fire-and-forget clients. */
   failures: Stream.Stream<RuntimeFailure<Message>>
+  /**
+   * Routes every Command span started from now on through one more Effect
+   * Tracer, beside the tracer already in context, and returns the function
+   * that removes it. The tracer sees only Command spans, named for the
+   * Command with its args as attributes, such as `FetchWeather` with
+   * `{ zipCode: '90210' }`, and never the spans a Command's own Effect
+   * opens. A Command already running keeps the tracers it started with.
+   *
+   * @example
+   * ```typescript
+   * const uninstall = runtime.installCommandTracer(
+   *   Tracer.make({ span: options => new Tracer.NativeSpan(options) }),
+   * )
+   * uninstall()
+   * ```
+   */
+  installCommandTracer: (tracer: Tracer.Tracer) => () => void
   /** Typed inbound and outbound handles for the Program's Ports. */
   ports: PortHandles<P>
   /** Completes after the local finite Command chain returned by init. */
@@ -276,6 +305,55 @@ export type ProgramRuntime<
   /** Stops Commands and Subscriptions and releases the shared resources Layer. */
   shutdown: Effect.Effect<void>
 }>
+
+/**
+ * The read-only part of a running Program that an observer gets: its id
+ * and version, every transition, every Subscription and ManagedResource
+ * diagnostic, every terminal failure, and its Command spans through
+ * `installCommandTracer`. It cannot send a Message or read the Model
+ * outside a transition, so watching a Program never changes it.
+ */
+export type ProgramRuntimeObservation<Model, Message> = Pick<
+  ProgramRuntime<Model, Message>,
+  | 'programId'
+  | 'programVersion'
+  | 'journal'
+  | 'readDiagnostics'
+  | 'observeDiagnostics'
+  | 'diagnostics'
+  | 'readFailures'
+  | 'observeFailures'
+  | 'failures'
+  | 'installCommandTracer'
+>
+
+/**
+ * Connects to a Program runtime before it boots, in a Scope the runtime
+ * closes when it shuts down. The runtime closes that Scope after its
+ * Commands, Subscriptions, and ManagedResources have stopped, so an
+ * observer sees their last diagnostics, such as `StoppedSubscription`,
+ * and its finalizers can flush before `shutdown` completes. An observer
+ * that dies is reported and dropped; it never stops the Program.
+ *
+ * @example
+ * ```typescript
+ * const countTransitions: ProgramRuntimeObserver<Model, Message> = observation =>
+ *   Effect.acquireRelease(
+ *     Effect.sync(() => observation.journal.observe(transition => {
+ *       console.log(transition.sequence, transition.message._tag)
+ *     })),
+ *     stopObserving => Effect.sync(stopObserving),
+ *   )
+ *
+ * yield* makeProgramRuntime({ program, resources, observers: [countTransitions] })
+ * ```
+ */
+export type ProgramRuntimeObserver<Model, Message> = (
+  observation: ProgramRuntimeObservation<Model, Message>,
+) => Effect.Effect<void, never, Scope.Scope>
+
+const monotonicNow: () => number =
+  typeof performance === 'undefined' ? Date.now : () => performance.now()
 
 type ResolvedStart<Model, Message, Resources> = Readonly<{
   model: Model
@@ -461,6 +539,9 @@ export const makeProgramRuntime = <
     const failureListeners = new Set<
       (failure: RuntimeFailure<Message>) => void
     >()
+    const commandTracerRegistrations = new Set<
+      Readonly<{ tracer: Tracer.Tracer }>
+    >()
     const interruptRegistry = __makeInterruptRegistry()
     const portRuntime = makePortRuntime(config.program.ports)
     const now = config.journal?.now ?? Date.now
@@ -484,6 +565,11 @@ export const makeProgramRuntime = <
     const stopPublishingJournal = journal.observe(transition => {
       PubSub.publishUnsafe(journalPubSub, transition)
     })
+    const journalCapability: ProgramRuntimeJournal<Model, Message> = {
+      read: journal.read,
+      observe: journal.observe,
+      transitions: Stream.fromPubSub(journalPubSub),
+    }
     let recordedRuntimeEvents: ReadonlyArray<RecordedProgramRuntimeEvent> =
       Option.match(start.maybeReplayTape, {
         onNone: () => [],
@@ -744,10 +830,12 @@ export const makeProgramRuntime = <
 
         Effect.runForkWith(runtimeContext)(
           Effect.forkIn(runtimeScope)(
-            command.effect.pipe(
-              Effect.withSpan(command.name, {
-                attributes: command.args ?? {},
-              }),
+            traceCommand(
+              command.effect,
+              command.name,
+              command.args ?? {},
+              installedCommandTracers(),
+            ).pipe(
               provideResources,
               Effect.exit,
               Effect.flatMap(exit =>
@@ -815,10 +903,12 @@ export const makeProgramRuntime = <
         }
         Effect.runForkWith(runtimeContext)(
           Effect.forkIn(runtimeScope)(
-            commandScheduler.schedule(scheduledCommand).pipe(
-              Effect.withSpan(`${command.name}.schedule`, {
-                attributes: command.args ?? {},
-              }),
+            traceCommand(
+              commandScheduler.schedule(scheduledCommand),
+              `${command.name}.schedule`,
+              command.args ?? {},
+              installedCommandTracers(),
+            ).pipe(
               Effect.catchCause(cause =>
                 Effect.sync(() =>
                   crash(
@@ -842,10 +932,12 @@ export const makeProgramRuntime = <
     }: QueuedMessage<Message>): void => {
       try {
         const currentModel = liveModel
+        const updateStartedAt = monotonicNow()
         const [nextModel, commands] = config.program.update(
           currentModel,
           message,
         )
+        const updateDurationMs = monotonicNow() - updateStartedAt
         const localCommands =
           config.commandScheduler === undefined
             ? commands
@@ -874,6 +966,7 @@ export const makeProgramRuntime = <
             : {}),
           isOperationSettled,
           commands: Array.map(commands, toCommandRecord),
+          updateDurationMs,
           model: nextModel,
         })
 
@@ -1034,6 +1127,31 @@ export const makeProgramRuntime = <
       }
     }
 
+    const installCommandTracer = (tracer: Tracer.Tracer): (() => void) => {
+      if (isRuntimeDisposed) {
+        return Function.constVoid
+      }
+      const registration = { tracer }
+      commandTracerRegistrations.add(registration)
+      return () => {
+        commandTracerRegistrations.delete(registration)
+      }
+    }
+
+    function installedCommandTracers(): ReadonlyArray<Tracer.Tracer> {
+      if (commandTracerRegistrations.size === 0) {
+        return []
+      } else {
+        return Array.map(
+          Array.fromIterable(commandTracerRegistrations),
+          ({ tracer }) => tracer,
+        )
+      }
+    }
+
+    const diagnosticsStream = Stream.fromPubSub(diagnosticsPubSub)
+    const failuresStream = Stream.fromPubSub(failuresPubSub)
+
     const run = (
       message: Message,
       options?: SendOptions,
@@ -1174,6 +1292,42 @@ export const makeProgramRuntime = <
           ),
         )
       })
+
+    const observation: ProgramRuntimeObservation<Model, Message> = {
+      programId: config.program.id,
+      programVersion: config.program.version,
+      journal: journalCapability,
+      readDiagnostics: () => diagnostics,
+      observeDiagnostics,
+      diagnostics: diagnosticsStream,
+      readFailures: () => failures,
+      observeFailures,
+      failures: failuresStream,
+      installCommandTracer,
+    }
+
+    if (
+      config.observers !== undefined &&
+      Array.isReadonlyArrayNonEmpty(config.observers)
+    ) {
+      const observerScope = yield* Scope.fork(runtimeScope)
+      yield* Effect.forEach(
+        config.observers,
+        observer =>
+          observer(observation).pipe(
+            Scope.provide(observerScope),
+            Effect.catchCause(cause =>
+              Effect.sync(() => {
+                console.error(
+                  '[foldkit] A Program runtime observer failed:',
+                  Cause.pretty(cause),
+                )
+              }),
+            ),
+          ),
+        { discard: true },
+      )
+    }
 
     if (config.program.subscriptions !== undefined) {
       yield* pipe(
@@ -1408,6 +1562,7 @@ export const makeProgramRuntime = <
             diagnosticListeners.clear()
             failureListeners.clear()
             runtimeEventListeners.clear()
+            commandTracerRegistrations.clear()
             stopPublishingJournal()
             journal.shutdown()
           }),
@@ -1422,13 +1577,11 @@ export const makeProgramRuntime = <
 
     return {
       mode: 'Live',
+      programId: config.program.id,
+      programVersion: config.program.version,
       readModel,
       project,
-      journal: {
-        read: journal.read,
-        observe: journal.observe,
-        transitions: Stream.fromPubSub(journalPubSub),
-      },
+      journal: journalCapability,
       timeline: {
         read: readRuntimeEvents,
         record: recordRuntimeEvent,
@@ -1479,10 +1632,11 @@ export const makeProgramRuntime = <
       observeModel,
       readDiagnostics: () => diagnostics,
       observeDiagnostics,
-      diagnostics: Stream.fromPubSub(diagnosticsPubSub),
+      diagnostics: diagnosticsStream,
       readFailures: () => failures,
       observeFailures,
-      failures: Stream.fromPubSub(failuresPubSub),
+      failures: failuresStream,
+      installCommandTracer,
       ports: portRuntime.handles,
       initialization,
       shutdown,

@@ -242,6 +242,16 @@
       "import": "./dist/synchronization/public.js",
       "default": "./dist/synchronization/public.js"
     },
+    "./telemetry": {
+      "types": "./dist/telemetry/public.d.ts",
+      "import": "./dist/telemetry/public.js",
+      "default": "./dist/telemetry/public.js"
+    },
+    "./telemetry/node": {
+      "types": "./dist/telemetry/node.d.ts",
+      "import": "./dist/telemetry/node.js",
+      "default": "./dist/telemetry/node.js"
+    },
     "./test": {
       "types": "./dist/test/public.d.ts",
       "import": "./dist/test/public.js",
@@ -272,6 +282,9 @@
       "import": "./dist/devTools/host.js",
       "default": "./dist/devTools/host.js"
     }
+  },
+  "bin": {
+    "foldkit": "./dist/bin/foldkit.js"
   },
   "sideEffects": false,
   "files": [

@@ -31,7 +31,10 @@ import {
 } from '../synchronization/synchronization.js'
 import * as LocalSnapshot from './localSnapshot.js'
 import type { LocalSnapshotStore } from './localSnapshot.js'
-import type { ProgramRuntime } from './programRuntime.js'
+import type {
+  ProgramRuntime,
+  ProgramRuntimeObserver,
+} from './programRuntime.js'
 import {
   type ProgramRuntimeStartError,
   makeProgramRuntime,
@@ -78,6 +81,10 @@ export type SyncStartProgram<
  * `localSnapshot` keeps this device's fold of the log, so a reload paints
  * at once and folds only the rows written since. Every Processor on a
  * device may share one store, such as two tabs sharing `localStorage`.
+ *
+ * `observers` connect to the runtime before it boots, such as a telemetry
+ * observer that writes every transition to a file. See
+ * {@link ProgramRuntimeObserver}.
  */
 export type StartConfig<
   Model,
@@ -91,6 +98,7 @@ export type StartConfig<
   policy?: SessionPolicy
   clock?: () => number
   localSnapshot?: LocalSnapshotStore
+  observers?: ReadonlyArray<ProgramRuntimeObserver<Model, Message>>
 }>
 
 /** A live synced runtime. `lastWrite` is the last Instant write result. */
@@ -365,6 +373,9 @@ export function start<
     const runtime = yield* makeProgramRuntime({
       program,
       resources: (config.resources ?? Layer.empty) as Layer.Layer<Resources>,
+      ...(config.observers === undefined
+        ? {}
+        : { observers: config.observers }),
     })
     yield* runtime.initialization
 
