@@ -5,6 +5,7 @@
 ---
 
 Tab pages, sheets, and docked player controls read better on a phone:
+
 - `Session.compose` takes `isTab`, the pages a tab bar reaches, such as a Profile page. They show no Back button, since the tab bar is the way out.
 - The Back button shows a chevron, the new `Back` icon, and sits at the top left.
 - A sheet leaves a strip of the page above it, so a tap outside closes it, and it opens on its current row: a chapter list opens with the chapter playing in the middle and the keyboard on it.
