@@ -903,8 +903,8 @@ export type WithinConfig<Model, ChildModel> = Readonly<{
 
 /** One child Action offered by its parent: the same tag and fields. */
 export type WithinAction<Child extends AnyAction, Model> =
-  Child extends Action<infer Tag, infer Fields, unknown>
-    ? Action<Tag, Fields, Model>
+  Child extends S.Struct<infer AllFields extends S.Struct.Fields>
+    ? Action<Child['tag'], Omit<AllFields, '_tag'>, Model>
     : never
 
 /** Every Action of a child Catalog, offered by its parent. */

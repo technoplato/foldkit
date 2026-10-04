@@ -6,7 +6,6 @@ import {
   type MessageOf,
   type ModelOf,
   entries,
-  findByKey,
   isEnabled,
   messageFor,
 } from '../catalog/catalog.js'
@@ -482,11 +481,25 @@ export type ProgramInteraction<Model, Message> = Readonly<{
   chooseFromMenu: (model: Model, tag: string) => ReadonlyArray<Message>
 }>
 
+const isKeyOffered = (entry: Entry): boolean =>
+  Option.match(entry.maybeChoices, {
+    onNone: () => isEnabled(entry.availability),
+    onSome: choices =>
+      Option.exists(choices.maybePreferred, token =>
+        Array.some(
+          choices.choices,
+          choice => choice.token === token && isEnabled(choice.availability),
+        ),
+      ),
+  })
+
 /**
  * The entry whose keys include a key press, for a Program whose entries
  * change with its Model, such as a list whose shown row owns `+`. Two
  * Actions may share a key when only one is offered at a time, such as
- * Play and Pause on `p`: the offered one takes it. A chord owns no entry.
+ * Play and Pause on `p`: the offered one takes it, and a choosing Action
+ * counts as offered only while its preferred choice is. A chord owns no
+ * entry.
  *
  * @example
  * ```typescript
@@ -505,9 +518,8 @@ export const keyedEntryOf = (
     const keyed = Array.filter(catalogEntries, entry =>
       Array.contains(entry.keys, normalizeKey(input.key)),
     )
-    return Option.orElse(
-      Array.findFirst(keyed, entry => isEnabled(entry.availability)),
-      () => Array.head(keyed),
+    return Option.orElse(Array.findFirst(keyed, isKeyOffered), () =>
+      Array.head(keyed),
     )
   }
 }
@@ -570,18 +582,12 @@ export const fromCatalog = <C extends AnyCatalog>(
   status: () => Ready(),
   entries: model => entries(catalog, model),
   press: (model, tag) => Array.fromOption(messageFor(catalog, model, tag)),
-  pressKey: (model, input) => {
-    if (isChord(input)) {
-      return []
-    }
-    return pipe(
-      findByKey(catalog, normalizeKey(input.key)),
-      Option.flatMap(declaration =>
-        messageFor(catalog, model, declaration.tag),
-      ),
+  pressKey: (model, input) =>
+    pipe(
+      keyedEntryOf(entries(catalog, model), input),
+      Option.flatMap(entry => messageFor(catalog, model, entry.tag)),
       Array.fromOption,
-    )
-  },
+    ),
   menu: () => Option.none(),
   openMenu: noMessages,
   dismissMenu: noMessages,
