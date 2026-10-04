@@ -17,7 +17,7 @@ import {
   isProfilePage,
   isTitlePage,
 } from './destination.js'
-import { BookmarkId, TitleSlug } from './ids.js'
+import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 import { type Model, titleOf } from './model.js'
 import {
   contentsScreen,
@@ -57,8 +57,9 @@ export const nameOfSlug = (slug: TitleSlug): string =>
  * - `/books/the-lantern-keeper` is a title's page, only above the library.
  * - `/books/the-lantern-keeper/listen/12:03` is that title's player at
  *   12:03, only above its page: a link to that moment, kept up to date as
- *   it plays. `/books/the-lantern-keeper/listen` opens it at the listener's
- *   place.
+ *   it plays. It stays one page while its place moves, so the words,
+ *   their scroll, and the cover are never rebuilt.
+ *   `/books/the-lantern-keeper/listen` opens it at the listener's place.
  * - `…/contents` and `…/speed` are Sheets; `…/delete-bookmark/<id>` is a
  *   Dialog.
  */
@@ -83,6 +84,7 @@ export const declared = Navigation.screens({
         title: () => 'Now playing',
         isAllowedAbove: beneath =>
           isTopOf(isTitlePage)(beneath) && !Array.some(beneath, isPlayerScreen),
+        identityOf: () => PlayerPage({ atMs: Milliseconds.make(0) }),
       },
     ),
     Navigation.pushScreen(ListenPage, Route.literal('listen'), {
