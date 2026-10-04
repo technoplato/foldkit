@@ -4,6 +4,34 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 8:01:26 p.m. EDT — `f303b07b74ae` feat(foldkit): pick action menu rows by number, and leave browser chords alone
+
+- **Implementation commit:** `f303b07b74aee1d5605137f4239e65738547b270`
+- **Change:** Pick action menu rows by number, and leave browser chords alone
+- **Details:**
+  - The open menu numbers its first nine rows that can run and Command or Control with the number runs one, as in Raycast; a bound Program refuses every chord the browser owns (zoom, reload, tabs, find, editing); Command with an Action's key is gone.
+- **Files:**
+  - `packages/foldkit/src/actionMenu/actionMenu.ts` — Numbered picks.
+  - `packages/foldkit/src/interaction/interaction.ts` — `pickShortcutOf`, `isBrowserOwnedChord`.
+  - `packages/foldkit/src/interaction/bind.ts` — Refuse browser-owned chords.
+- **User context (verbatim):**
+  > Let's prohibit meta combinations where they're already owned by the browser itself, Command Minus and Command Plus, for example. I think I want numbers instead. I think that's more canonical, kind of like Raycast.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 7:54:04 p.m. EDT — `ac051f83190e` feat(foldkit): move a highlight through terminal screens and act on its row
+
+- **Implementation commit:** `ac051f83190e37ea271a5728a45d155f9aca3ccf`
+- **Change:** Move a highlight through terminal screens and act on its row
+- **Details:**
+  - The TUI and OpenTUI move a highlight with the arrows and Tab, press it with Enter, and run an Action's key on the highlighted row; dialogs take the keyboard and label their buttons with their keys.
+- **Files:**
+  - `packages/foldkit/src/interaction/terminalFocus.ts` — The focus grid, presses, and painting.
+  - `packages/foldkit/src/cli/tui.ts` — The text TUI holds the focus.
+  - `packages/opentui/src/interaction/runOpenTui.ts` — OpenTUI holds the focus.
+- **User context (verbatim):**
+  > I also want to be able to navigate around and hit enter to open counters and select add counter session settings and then navigate through the plus minus reset open and delete while allowing me to press keyboard shortcuts such as RO or D or whatever they are defined as to perform the operations on the row that I have highlighted in the TUIs.
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 6:46:56 p.m. EDT — `c0ffe5754c82` fix(foldkit): keep a child's Subscriptions through Session, ActionMenu, and sync
 
 - **Implementation commit:** `c0ffe5754c82405ed5eb5de3e3e7dd423cd07836`
