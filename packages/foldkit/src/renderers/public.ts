@@ -49,6 +49,7 @@ export type {
   RowNode,
   SeekNode,
   SpacerNode,
+  TextEmbed,
   TextEmphasis,
   TextImage,
   TextInputNode,

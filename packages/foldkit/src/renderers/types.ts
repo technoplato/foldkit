@@ -31,10 +31,27 @@ export type TextImage = Readonly<{
   readonly height: number
 }>
 
+/**
+ * A live view from another site a Text shows in place of its words, where
+ * the host draws views of its `kind`, such as a book's preview from Google
+ * Books: `{ kind: 'GoogleBooksPreview', params: { volume: 'ISBN:9780544553729', page: '3' } }`.
+ * `params` are the words that view reads, and `width` and `height` its
+ * size in pixels, as wide as it may grow. A painter without a view of that
+ * kind, such as a terminal, shows the words instead, as a link to `href`
+ * when the Text has one.
+ */
+export type TextEmbed = Readonly<{
+  readonly kind: string
+  readonly params: Readonly<Record<string, string>>
+  readonly width: number
+  readonly height: number
+}>
+
 export type TextNode = Readonly<{
   readonly _tag: 'Text'
   readonly content: string
   readonly image?: TextImage
+  readonly embed?: TextEmbed
   readonly href?: string
   readonly label?: string
   readonly mono?: boolean

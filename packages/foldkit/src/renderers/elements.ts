@@ -13,6 +13,7 @@ import type {
   RowNode,
   SeekNode,
   SpacerNode,
+  TextEmbed,
   TextEmphasis,
   TextImage,
   TextInputNode,
@@ -28,12 +29,17 @@ import type {
  * `emphasis: 'Display'` marks the screen's headline, such as the count.
  * `copyable` marks text a person copies whole, such as a command: the web
  * selects it in one click and offers a copy button, and React Native makes
- * it selectable.
+ * it selectable. `embed` shows a live view from another site in place of
+ * the words, where the host draws one, such as a book's preview.
  *
  * @example
  * ```typescript
  * Text('3', { label: 'count 3', emphasis: 'Display' })
  * Text('pnpm --filter counter-tui-example start', { mono: true, copyable: true })
+ * Text('Page 3 in Google Books', {
+ *   href: 'https://books.google.com/books?id=l2WMBAAAQBAJ&pg=PA3',
+ *   embed: { kind: 'GoogleBooksPreview', params: { volume: 'ISBN:9780544553729', page: '3' }, width: 640, height: 560 },
+ * })
  * ```
  */
 export const Text = (
@@ -47,6 +53,7 @@ export const Text = (
     copyable?: boolean
     width?: number
     image?: TextImage
+    embed?: TextEmbed
   }> = {},
 ): TextNode => ({
   _tag: 'Text',
