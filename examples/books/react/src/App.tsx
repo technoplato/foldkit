@@ -24,7 +24,7 @@ export const App = (): ReactElement => {
   useDocumentTitle()
   return (
     <main className="min-h-screen bg-white flex items-center justify-center p-6">
-      <section className="w-full max-w-xl text-center space-y-6">
+      <section className="w-full max-w-2xl text-center space-y-6">
         <WhenReady>
           <NavigationFrame />
           <ActionMenuButton />

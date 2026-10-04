@@ -8,7 +8,13 @@ import {
   SubscriptionRef,
 } from 'effect'
 
-import { BookmarkId, ChapterNumber, Milliseconds, TitleSlug } from './ids.js'
+import {
+  BookmarkId,
+  ChapterNumber,
+  MediaId,
+  Milliseconds,
+  TitleSlug,
+} from './ids.js'
 import { LibraryStore, type LibraryWrite } from './library.js'
 import { Finished, InProgress, type Shelf, type Title } from './model.js'
 
@@ -38,6 +44,7 @@ const titleOf = (
   }>,
 ): Title => ({
   slug: TitleSlug.make(fields.slug),
+  mediaId: MediaId.make(fields.slug),
   name: fields.name,
   authors: fields.authors,
   narrators: fields.narrators,
@@ -139,7 +146,7 @@ const appliedWrite = (
  * @example
  * ```typescript
  * const store = yield* makeTestLibraryStore(sampleShelf)
- * Runtime.startHandle({ program: SyncedBooks, sync, resources: Layer.merge(store.layer, virtualAudioOutput) })
+ * Runtime.startHandle({ program: SyncedBooks, sync, resources: Layer.mergeAll(store.layer, virtualAudioOutput, noTranscripts) })
  * ```
  */
 export const makeTestLibraryStore = (

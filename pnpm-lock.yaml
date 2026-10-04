@@ -651,6 +651,9 @@ importers:
       foldkit:
         specifier: workspace:*
         version: link:../../../packages/foldkit
+      transcript-player-core-example:
+        specifier: workspace:*
+        version: link:../../transcript-player/core
     devDependencies:
       '@types/node':
         specifier: ^25.9.3

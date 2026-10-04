@@ -1,15 +1,15 @@
 import { Array, Option } from 'effect'
 import { Catalog, Interaction, Navigation } from 'foldkit'
-import { describe, expect, it } from 'vitest'
-
-import { App, type AppMessage, type AppModel } from './app.js'
-import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 import {
   FailedPlayAudio,
   ReachedEnd,
   ReachedPlace,
-  ReceivedShelf,
-} from './message.js'
+} from 'transcript-player-core-example'
+import { describe, expect, it } from 'vitest'
+
+import { App, type AppMessage, type AppModel } from './app.js'
+import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
+import { ReceivedShelf } from './message.js'
 import { sampleShelf } from './sample.js'
 
 type Written = Readonly<{ name: string; args: string }>
@@ -43,7 +43,7 @@ const uriOf = (bound: ReturnType<typeof bindApp>['bound']) =>
 
 const placeOf = (bound: ReturnType<typeof bindApp>['bound']) => {
   const model = bound.readModel()
-  return model.listening._tag === 'Loaded' ? model.listening.placeMs : -1
+  return model.listening._tag === 'Loaded' ? model.listening.player.placeMs : -1
 }
 
 const availabilityOf = (
@@ -58,7 +58,7 @@ const availabilityOf = (
 describe('Books', () => {
   it('plays a title from the library and shows the player', () => {
     const { bound } = bindApp()
-    bound.press(`Play:${lanternKeeper}`)
+    bound.press(`Listen:${lanternKeeper}`)
     expect(uriOf(bound)).toEqual(
       Option.some('/books/the-lantern-keeper/listen'),
     )
@@ -78,12 +78,13 @@ describe('Books', () => {
 
   it('saves the place on pause, every 30 seconds, and the finish', () => {
     const { bound, written, send } = bindApp()
-    bound.press(`Play:${lanternKeeper}`)
+    bound.press(`Listen:${lanternKeeper}`)
     send(ReachedPlace({ placeMs: Milliseconds.make(10_000) }))
     expect(written).toEqual([])
     send(ReachedPlace({ placeMs: Milliseconds.make(31_000) }))
     send(ReachedPlace({ placeMs: Milliseconds.make(40_000) }))
     bound.press('Pause')
+    bound.press('Play')
     send(ReachedEnd())
     expect(Array.map(written, ({ args }) => args)).toEqual(
       Array.map(
@@ -99,7 +100,7 @@ describe('Books', () => {
 
   it('skips 30 seconds and never past either end', () => {
     const { bound } = bindApp()
-    bound.press(`Play:${lanternKeeper}`)
+    bound.press(`Listen:${lanternKeeper}`)
     bound.pressKey(Interaction.keyInput('['))
     expect(placeOf(bound)).toBe(0)
     bound.pressKey(Interaction.keyInput(']'))
@@ -192,7 +193,7 @@ describe('Books', () => {
     expect(uriOf(bound)).toEqual(
       Option.some('/books/the-lantern-keeper/delete-bookmark/bookmark-1'),
     )
-    expect(availabilityOf(bound, 'Play')).toEqual(Option.some('Disabled'))
+    expect(availabilityOf(bound, 'Listen')).toEqual(Option.some('Disabled'))
     bound.pressKey(Interaction.keyInput('y'))
     expect(uriOf(bound)).toEqual(Option.some('/books/the-lantern-keeper'))
     expect(Array.map(written, ({ name }) => name)).toEqual(['WriteLibrary'])
@@ -212,7 +213,7 @@ describe('Books', () => {
       }),
     )
     bound.press(`Open:${lanternKeeper}`)
-    expect(availabilityOf(bound, 'Play')).toEqual(Option.some('Disabled'))
+    expect(availabilityOf(bound, 'Listen')).toEqual(Option.some('Disabled'))
     bound.pressKey(Interaction.keyInput('p'))
     bound.press('JumpToChapter:2')
     expect(bound.readModel().listening._tag).toBe('Idle')
@@ -222,12 +223,14 @@ describe('Books', () => {
 
   it('stops and says why when the audio will not play, and Play tries again', () => {
     const { bound, send, written } = bindApp()
-    bound.press(`Play:${lanternKeeper}`)
+    bound.press(`Listen:${lanternKeeper}`)
     send(ReachedPlace({ placeMs: Milliseconds.make(12_000) }))
     send(FailedPlayAudio({ reason: 'the audio file stopped downloading' }))
     const transportOf = () => {
       const { listening } = bound.readModel()
-      return listening._tag === 'Loaded' ? listening.transport._tag : 'Idle'
+      return listening._tag === 'Loaded'
+        ? listening.player.transport._tag
+        : 'Idle'
     }
     expect(transportOf()).toBe('Unplayable')
     expect(availabilityOf(bound, 'Pause')).toEqual(Option.some('Disabled'))
@@ -246,7 +249,7 @@ describe('Books', () => {
 
   it('sets the speed from its sheet on the player', () => {
     const { bound } = bindApp()
-    bound.press(`Play:${lanternKeeper}`)
+    bound.press(`Listen:${lanternKeeper}`)
     bound.pressKey(Interaction.keyInput('x'))
     expect(uriOf(bound)).toEqual(
       Option.some('/books/the-lantern-keeper/listen/speed'),

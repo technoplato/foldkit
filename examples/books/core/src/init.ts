@@ -17,7 +17,6 @@ export const init = (): readonly [
     library: ShelfLoading(),
     listening: Idle(),
     speed: 1,
-    nextCue: 1,
     maybeProblem: Option.none(),
     navigation: Navigation.stackAtRoot<Destination>(LibraryPage()),
   },

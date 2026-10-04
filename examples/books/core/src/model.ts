@@ -1,11 +1,13 @@
 import { Array, Match as M, Option, Order, Schema as S, pipe } from 'effect'
 import { Navigation } from 'foldkit'
 import { ts } from 'foldkit/schema'
+import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import { Destination } from './destination.js'
 import {
   BookmarkId,
   ChapterNumber,
+  MediaId,
   Milliseconds,
   Speed,
   TitleSlug,
@@ -26,10 +28,11 @@ export type Chapter = typeof Chapter.Type
 /**
  * One audiobook in the library: who wrote and reads it, how long it runs,
  * its chapters in order, and where its cover and audio are, when they are
- * stored.
+ * stored. `mediaId` names its audio for the transcript, the rendition id.
  */
 export const Title = S.Struct({
   slug: TitleSlug,
+  mediaId: MediaId,
   name: S.String,
   authors: S.Array(S.String),
   narrators: S.Array(S.String),
@@ -93,34 +96,17 @@ export const Library = S.Union([ShelfLoading, ShelfReady, ShelfUnavailable])
 /** Where the shelf stands. */
 export type Library = typeof Library.Type
 
-/** The player is stopped where it is. */
-export const Paused = ts('Paused')
-/**
- * The player is sounding. `cue` changes whenever the place jumps, so the
- * clock restarts from the new place.
- */
-export const Playing = ts('Playing', { cue: S.Int })
-/**
- * The player tried to sound the title and its audio would not play, and
- * why, safe to show. Play tries again.
- */
-export const Unplayable = ts('Unplayable', { reason: S.String })
-/** Whether the player is sounding. */
-export const Transport = S.Union([Paused, Playing, Unplayable])
-/** Whether the player is sounding. */
-export type Transport = typeof Transport.Type
-
 /** Nothing is loaded in this device's player. */
 export const Idle = ts('Idle')
 /**
- * One title in this device's player: where it is, whether it is sounding,
- * and the last place it saved, so it saves again every 30 seconds.
+ * One title in this device's player: the Transcript Player holding its
+ * audio and words, and the last place saved, so it saves again every 30
+ * seconds of listening.
  */
 export const Loaded = ts('Loaded', {
   slug: TitleSlug,
-  placeMs: Milliseconds,
-  transport: Transport,
   savedPlaceMs: Milliseconds,
+  player: TranscriptPlayer.Model,
 })
 /** One title in this device's player. */
 export type Loaded = typeof Loaded.Type
@@ -139,7 +125,6 @@ export const Model = S.Struct({
   library: Library,
   listening: Listening,
   speed: Speed,
-  nextCue: S.Int,
   maybeProblem: S.Option(S.String),
   navigation: Navigation.NavigationStack(Destination),
 })
@@ -299,4 +284,25 @@ export const isPlaying = (
 ): boolean =>
   model.listening._tag === 'Loaded' &&
   model.listening.slug === slug &&
-  model.listening.transport._tag === 'Playing'
+  TranscriptPlayer.isSounding(model.listening.player)
+
+/** The player loaded on this device, while one is. */
+export const loadedPlayerOf = (
+  model: Readonly<{ listening: Listening }>,
+): Option.Option<TranscriptPlayer.Model> =>
+  model.listening._tag === 'Loaded'
+    ? Option.some(model.listening.player)
+    : Option.none()
+
+/** Where the loaded title is now. */
+export const placeOf = (loaded: Loaded): Milliseconds => loaded.player.placeMs
+
+/**
+ * A title as the Transcript Player holds it: its audio's id, length, and
+ * file.
+ */
+export const mediaOf = (title: Title): TranscriptPlayer.Media => ({
+  mediaId: title.mediaId,
+  durationMs: title.durationMs,
+  maybeAudioUrl: title.maybeAudioUrl,
+})

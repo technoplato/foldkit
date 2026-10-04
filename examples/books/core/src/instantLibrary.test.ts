@@ -2,6 +2,7 @@ import { Array, Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
 import { decodeLibrary } from './instantLibrary.js'
+import { decodeSegments } from './instantTranscript.js'
 
 const itemRow = (
   itemId: string,
@@ -24,6 +25,7 @@ const itemRow = (
   ],
   preferredAudio: [
     {
+      id: 'rendition-1',
       durationMs: 2_400_000,
       files: [{ blob: [{ url: 'https://files.example/a.m4b' }] }],
     },
@@ -138,5 +140,50 @@ describe('decodeLibrary', () => {
           Option.map(entry.maybeProgress, progress => progress.progressId),
       ),
     ).toEqual(Option.some(Option.some('p-new')))
+  })
+})
+
+describe('decodeSegments', () => {
+  it('reads each segment as a passage, its words with their ids or made ones', () => {
+    const passages = decodeSegments({
+      librarySegments: [
+        {
+          id: 'segment-1',
+          relativeStartMs: 18_700,
+          relativeEndMs: 484_000,
+          wordsJSON: JSON.stringify([
+            {
+              id: 'w0',
+              kind: 'word',
+              text: ' Evocation',
+              relativeStartMs: 19_300,
+              relativeEndMs: 20_100,
+            },
+            { text: 'Earth,', relativeStartMs: 22_000, relativeEndMs: 22_600 },
+            { text: '   ', relativeStartMs: 22_600, relativeEndMs: 22_700 },
+          ]),
+        },
+        { id: 'broken', relativeStartMs: 0, relativeEndMs: 1, wordsJSON: '{' },
+      ],
+    })
+    expect(
+      Array.map(passages, passage => [
+        passage.passageId,
+        Array.map(passage.words, word => [
+          word.wordId,
+          word.text,
+          word.startMs,
+        ]),
+      ]),
+    ).toEqual([
+      [
+        'segment-1',
+        [
+          ['w0', 'Evocation', 19_300],
+          ['segment-1.1', 'Earth,', 22_000],
+        ],
+      ],
+      ['broken', []],
+    ])
   })
 })

@@ -1,5 +1,6 @@
 import { Option } from 'effect'
 import { Navigation } from 'foldkit'
+import { Playing } from 'transcript-player-core-example'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -12,10 +13,10 @@ import { BookmarkId, Milliseconds, TitleSlug } from './ids.js'
 import {
   ConfirmDeleteBookmark,
   JumpToChapter,
-  Play,
+  Listen,
   SetSpeed,
 } from './message.js'
-import { Loaded, Paused, Playing } from './model.js'
+import { Loaded } from './model.js'
 
 const slug = TitleSlug.make('the-lantern-keeper')
 const question = DeleteBookmarkQuestion({
@@ -27,7 +28,7 @@ describe('states Books rules out by type', () => {
     const attempts = [
       () =>
         // @ts-expect-error a plain string is not a title's name tag
-        Play({ slug: 'the-lantern-keeper' }),
+        Listen({ slug: 'the-lantern-keeper' }),
       () =>
         // @ts-expect-error a plain number is not a chapter
         JumpToChapter({ chapterNumber: 3 }),
@@ -38,10 +39,9 @@ describe('states Books rules out by type', () => {
         // @ts-expect-error playing must say which cue it plays
         Playing({ placeMs: Milliseconds.make(0) }),
       () =>
-        // @ts-expect-error a loaded title always has a place
+        // @ts-expect-error a loaded title always holds its player
         Loaded({
           slug,
-          transport: Paused(),
           savedPlaceMs: Milliseconds.make(0),
         }),
       () =>

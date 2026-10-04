@@ -1,8 +1,12 @@
 import { Array, Effect, Layer, Option, Stream } from 'effect'
 import { Interaction, Runtime } from 'foldkit'
+import {
+  AudioEvent,
+  AudioOutput,
+  noTranscripts,
+} from 'transcript-player-core-example'
 import { describe, expect, it } from 'vitest'
 
-import { AudioEvent, AudioOutput } from './audio.js'
 import { Milliseconds } from './ids.js'
 import { makeTestLibraryStore, sampleShelf } from './sample.js'
 import { SyncedBooks, bindBooks } from './synced.js'
@@ -39,7 +43,7 @@ const startBooks = async () => {
   const handle = Runtime.startHandle({
     program: SyncedBooks,
     sync: Runtime.Memory({ processor: 'books-test' }),
-    resources: Layer.merge(store.layer, quickAudio),
+    resources: Layer.mergeAll(store.layer, quickAudio, noTranscripts),
   })
   return { store, handle, bound: bindBooks(handle) }
 }
@@ -51,16 +55,17 @@ describe('live Books', () => {
     await eventually(() =>
       Array.some(
         bound.entries(),
-        entry => entry.tag === 'Play' && entry.availability._tag === 'Enabled',
+        entry =>
+          entry.tag === 'Listen' && entry.availability._tag === 'Enabled',
       ),
     )
-    bound.press('Play:the-lantern-keeper')
+    bound.press('Listen:the-lantern-keeper')
     await eventually(() => {
       const model = handle.readModel()
       return (
         model._tag === 'Ready' &&
         model.listening._tag === 'Loaded' &&
-        model.listening.placeMs === 35_000
+        model.listening.player.placeMs === 35_000
       )
     })
     const writes = await Effect.runPromise(store.writes)

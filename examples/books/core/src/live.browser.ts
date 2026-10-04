@@ -1,5 +1,6 @@
 import { Layer } from 'effect'
 import { type Processor, Runtime } from 'foldkit'
+import { htmlAudioOutput } from 'transcript-player-core-example/browser'
 
 import {
   Instant,
@@ -8,8 +9,8 @@ import {
 } from '@foldkit/instant/browser'
 import { init } from '@instantdb/core'
 
-import { htmlAudioOutput } from './audio.browser.js'
 import { makeInstantLibraryStore } from './instantLibrary.js'
+import { instantTranscriptSource } from './instantTranscript.js'
 import { LibraryStore } from './library.js'
 import { BooksProgram } from './program.js'
 import { SyncedBooks } from './synced.js'
@@ -33,8 +34,8 @@ export const newProcessorInstance = (): string =>
 /**
  * Starts Books in a browser on the Instant app that holds the library.
  * The resources sign in as the Cloudflare Access member first, then read
- * the shelf, write progress and bookmarks as that member, and play through
- * the browser's audio. The program log keeps only this member's rows.
+ * the shelf, write progress and bookmarks as that member, play through
+ * the browser's audio, and read each title's words as it plays. The program log keeps only this member's rows.
  *
  * @example
  * ```typescript
@@ -52,9 +53,10 @@ export const startBooks = (config: StartBooksConfig): BooksHandle => {
     }),
   })
   const resources = withHostedIdentity(
-    Layer.merge(
+    Layer.mergeAll(
       Layer.effect(LibraryStore, makeInstantLibraryStore(database)),
       htmlAudioOutput,
+      instantTranscriptSource(database),
     ),
     database,
   )

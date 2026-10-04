@@ -16,7 +16,13 @@ import {
 import type { ProgramLogDatabase } from '@foldkit/instant/browser'
 import { id } from '@instantdb/core'
 
-import { BookmarkId, ChapterNumber, Milliseconds, TitleSlug } from './ids.js'
+import {
+  BookmarkId,
+  ChapterNumber,
+  MediaId,
+  Milliseconds,
+  TitleSlug,
+} from './ids.js'
 import {
   LibraryStore,
   LibraryStoreError,
@@ -59,6 +65,7 @@ const BookRow = S.Struct({
   cover: LinkOf(CoverRow),
 })
 const RenditionRow = S.Struct({
+  id: S.String,
   durationMs: S.optionalKey(S.Number),
   files: LinkOf(FileRow),
 })
@@ -199,6 +206,12 @@ const titleOfItem = (
       maybeChapters,
       Option.map(nonEmptyChapters => ({
         slug,
+        mediaId: MediaId.make(
+          Option.getOrElse(
+            Option.map(maybeRendition, rendition => rendition.id),
+            () => slug,
+          ),
+        ),
         name: book.title,
         authors: Array.map(linkedOf(book.authors), author => author.name),
         narrators: Array.map(

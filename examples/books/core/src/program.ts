@@ -15,9 +15,12 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
   M.value(message).pipe(
     M.withReturnType<'Domain' | 'Navigation'>(),
     M.tagsExhaustive({
+      Listen: () => 'Navigation',
       Play: () => 'Navigation',
       Pause: () => 'Navigation',
       SkipBack: () => 'Navigation',
+      SeekTo: () => 'Navigation',
+      SeekToWord: () => 'Navigation',
       SkipForward: () => 'Navigation',
       Open: () => 'Navigation',
       OpenPlayer: () => 'Navigation',
@@ -36,6 +39,8 @@ const categoryOf = (message: Message): 'Domain' | 'Navigation' =>
       ReachedPlace: () => 'Navigation',
       ReachedEnd: () => 'Navigation',
       FailedPlayAudio: () => 'Navigation',
+      ReceivedPassages: () => 'Navigation',
+      FailedLoadTranscript: () => 'Navigation',
       CompletedWriteLibrary: () => 'Domain',
       FailedWriteLibrary: () => 'Domain',
       OpenedUri: () => 'Navigation',
@@ -69,7 +74,6 @@ export const BooksProgram = Program.make({
       ...refolded,
       library: current.library,
       listening: current.listening,
-      nextCue: current.nextCue,
     }),
   },
 })

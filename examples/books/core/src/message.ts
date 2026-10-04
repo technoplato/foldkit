@@ -1,14 +1,12 @@
 import { Array, Option, Schema as S } from 'effect'
 import { Catalog, Navigation } from 'foldkit'
 import { m } from 'foldkit/message'
+import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
   BookmarkId,
   ChapterNumber,
   ChapterNumberSegment,
-  Milliseconds,
-  Speed,
-  SpeedToken,
   TitleSlug,
   clockOf,
 } from './ids.js'
@@ -19,8 +17,9 @@ import {
   bookmarkOf,
   bookmarksOf,
   chapterAt,
-  isPlaying,
+  loadedPlayerOf,
   loadedTitleOf,
+  placeOf,
   titleOf,
   titlesOf,
 } from './model.js'
@@ -29,6 +28,7 @@ import {
   isAsking,
   isOnOtherPlayer,
   isOnPlayer,
+  loadedSlugOf,
   shownTitleOf,
   titlePageSlugOf,
 } from './stack.js'
@@ -145,15 +145,16 @@ export const Open = Catalog.action('Open', {
 })
 
 /**
- * Plays one title from where the listener stopped, and shows the player.
- * `p` plays the title on screen.
+ * Plays one title from where the listener stopped, and shows its player.
+ * `p` plays the title on screen. While the title is in the player, the
+ * player's own Play and Pause take `p`.
  */
-export const Play = Catalog.action('Play', {
+export const Listen = Catalog.action('Listen', {
   fields: { slug: TitleSlug },
   choose: whichTitle(
     (model, title) =>
-      isPlaying(model, title.slug)
-        ? Catalog.Disabled({ because: 'it is playing' })
+      Option.contains(loadedSlugOf(model), title.slug)
+        ? Catalog.Disabled({ because: 'it is in the player' })
         : audioOf(title),
     shownTitleOf,
   ),
@@ -163,33 +164,28 @@ export const Play = Catalog.action('Play', {
   meta: { label: 'Play', keys: ['p'], title: 'Play title' },
 })
 
-/** Pauses this device's player where it is, and saves the place. */
-export const Pause = Catalog.action('Pause', {
-  what: 'Pauses the player and saves the place',
-  why: 'The person wants to stop listening for now',
-  enabled: (model: Model) =>
-    model.listening._tag === 'Loaded' &&
-    model.listening.transport._tag === 'Playing'
-      ? Catalog.Enabled()
-      : Catalog.Disabled({ because: 'nothing is playing' }),
-  meta: { label: 'Pause', keys: ['k'] },
+/**
+ * The Transcript Player's own Actions, offered for the title in this
+ * device's player: Play and Pause on `p`, skips on `[` and `]`, a seek to
+ * any place, playing from a word, and the speed. They keep the player's
+ * tags, so `SeekToWord:w4012` means the same in Books and on its own.
+ */
+export const playerActions = Catalog.within(TranscriptPlayer.catalog, {
+  childOf: loadedPlayerOf,
+  nothing: 'nothing is in the player',
+  enabled: unlessAsking,
 })
 
-/** Goes back 30 seconds. `[` presses it. */
-export const SkipBack = Catalog.action('SkipBack', {
-  what: 'Goes back 30 seconds',
-  why: 'The person missed something',
-  enabled: whenLoaded,
-  meta: { label: '−30s', keys: ['['], title: 'Skip back' },
-})
-
-/** Goes forward 30 seconds. `]` presses it. */
-export const SkipForward = Catalog.action('SkipForward', {
-  what: 'Goes forward 30 seconds',
-  why: 'The person wants to skip ahead',
-  enabled: whenLoaded,
-  meta: { label: '+30s', keys: [']'], title: 'Skip forward' },
-})
+/** The player's Actions, each reading the loaded player. */
+export const [
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  SeekTo,
+  SeekToWord,
+  SetSpeed,
+] = playerActions.actions
 
 /** Shows the player, whatever this device has loaded. */
 export const OpenPlayer = Catalog.action('OpenPlayer', {
@@ -234,7 +230,7 @@ export const JumpToChapter = Catalog.action('JumpToChapter', {
         loadedTitleOf(model),
         ({ title: loaded, loaded: player }) =>
           loaded.slug === title.slug &&
-          chapterAt(loaded, player.placeMs).chapterNumber === chapterNumber,
+          chapterAt(loaded, placeOf(player)).chapterNumber === chapterNumber,
       )
     ) {
       return Catalog.Disabled({ because: 'it is playing now' })
@@ -274,30 +270,6 @@ export const ShowSpeeds = Catalog.action('ShowSpeeds', {
       ? unlessAsking(model)
       : Catalog.Disabled({ because: 'the player is not open' }),
   meta: { label: 'Speed', keys: ['x'] },
-})
-
-/** Plays at one speed on this device, and closes the speeds. */
-export const SetSpeed = Catalog.action('SetSpeed', {
-  fields: { speed: Speed },
-  choose: {
-    field: 'speed',
-    prompt: 'Which speed?',
-    token: SpeedToken,
-    choicesOf: (model: Model) =>
-      Array.map(Speed.literals, speed => ({
-        value: speed,
-        title: `${speed.toString()}×`,
-        availability:
-          speed === model.speed
-            ? Catalog.Disabled({ because: 'it is the speed now' })
-            : Catalog.Enabled(),
-      })),
-    nothingToChoose: 'there are no speeds',
-  },
-  what: 'Plays at the chosen speed',
-  why: 'The person wants it faster or slower',
-  enabled: unlessAsking,
-  meta: { label: 'Speed', keys: [], title: 'Set speed' },
 })
 
 /** Marks the place in the player. `b` presses it. */
@@ -377,10 +349,13 @@ export const CancelDeleteBookmark = Catalog.action('CancelDeleteBookmark', {
  * the-lantern-keeper`.
  */
 export const catalog = Catalog.make([
+  Listen,
   Play,
   Pause,
   SkipBack,
   SkipForward,
+  SeekTo,
+  SeekToWord,
   Open,
   OpenPlayer,
   ShowContents,
@@ -399,12 +374,6 @@ export const catalog = Catalog.make([
 export const ReceivedShelf = m('ReceivedShelf', { shelf: Shelf })
 /** The library store could not be read, and why, safe to show. */
 export const FailedReadShelf = m('FailedReadShelf', { reason: S.String })
-/** The player's clock reached a place. */
-export const ReachedPlace = m('ReachedPlace', { placeMs: Milliseconds })
-/** The player reached the end of the title. */
-export const ReachedEnd = m('ReachedEnd')
-/** The player's audio would not play, and why, safe to show. */
-export const FailedPlayAudio = m('FailedPlayAudio', { reason: S.String })
 /** The library store saved a place, a finish, or a bookmark change. */
 export const CompletedWriteLibrary = m('CompletedWriteLibrary')
 /** The library store refused a write, and why, safe to show. */
@@ -421,9 +390,11 @@ export const Message = S.Union([
   ...catalog.Message.members,
   ReceivedShelf,
   FailedReadShelf,
-  ReachedPlace,
-  ReachedEnd,
-  FailedPlayAudio,
+  TranscriptPlayer.ReachedPlace,
+  TranscriptPlayer.ReachedEnd,
+  TranscriptPlayer.FailedPlayAudio,
+  TranscriptPlayer.ReceivedPassages,
+  TranscriptPlayer.FailedLoadTranscript,
   CompletedWriteLibrary,
   FailedWriteLibrary,
   Navigation.OpenedUri,

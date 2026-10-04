@@ -1,60 +1,20 @@
-import { Effect, Match as M, Option, Schema as S, Stream } from 'effect'
+import { Effect, Stream } from 'effect'
 import { Subscription } from 'foldkit'
+import * as TranscriptPlayer from 'transcript-player-core-example'
 
-import { type AudioEvent, AudioOutput, Track } from './audio.js'
-import { Speed } from './ids.js'
 import { LibraryStore } from './library.js'
-import {
-  FailedPlayAudio,
-  FailedReadShelf,
-  type Message,
-  ReachedEnd,
-  ReachedPlace,
-  ReceivedShelf,
-} from './message.js'
-import { type Model, loadedTitleOf } from './model.js'
+import { FailedReadShelf, type Message, ReceivedShelf } from './message.js'
+import { type Model, loadedPlayerOf } from './model.js'
 import type { BooksServices } from './services.js'
 
 // SUBSCRIPTION
 
 /**
- * The track this device should be sounding: the loaded title from its
- * place, while it plays. None while paused or idle, so the clock stops.
- */
-export const trackOf = (model: Model): Option.Option<Track> =>
-  Option.flatMap(loadedTitleOf(model), ({ title, loaded }) =>
-    loaded.transport._tag === 'Playing'
-      ? Option.some(
-          Track.make({
-            slug: title.slug,
-            cue: loaded.transport.cue,
-            fromMs: loaded.placeMs,
-            durationMs: title.durationMs,
-            maybeAudioUrl: title.maybeAudioUrl,
-          }),
-        )
-      : Option.none(),
-  )
-
-const messageOfAudioEvent = (event: AudioEvent): Message =>
-  M.value(event).pipe(
-    M.withReturnType<Message>(),
-    M.tagsExhaustive({
-      Advanced: ({ placeMs }) => ReachedPlace({ placeMs }),
-      Ended: () => ReachedEnd(),
-      Failed: ({ reason }) => FailedPlayAudio({ reason }),
-    }),
-  )
-
-const isSameCue = Option.makeEquivalence<Track>(
-  (self, that) => self.slug === that.slug && self.cue === that.cue,
-)
-
-/**
  * What Books listens to: the shelf from the library store for as long as
- * the Program runs, and the player's clock while a track plays. A new
- * place or title restarts the clock; a new speed does not, the clock reads
- * it every step.
+ * the Program runs, and the loaded player's audio and words, built from
+ * the Transcript Player's own entries. A new place or title restarts the
+ * audio; a new speed does not, the clock reads it every step. The words
+ * are read again only when the place crosses into another window.
  */
 export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
   entry => ({
@@ -76,29 +36,16 @@ export const subscriptions = Subscription.make<Model, Message, BooksServices>()(
           ),
       },
     ),
-    clock: entry(
-      { maybeTrack: S.Option(Track), speed: Speed },
-      {
-        modelToDependencies: model => ({
-          maybeTrack: trackOf(model),
-          speed: model.speed,
-        }),
-        keepAliveEquivalence: (self, that) =>
-          isSameCue(self.maybeTrack, that.maybeTrack),
-        dependenciesToStream: ({ maybeTrack }, readDependencies) =>
-          Option.match(maybeTrack, {
-            onNone: () => Stream.empty,
-            onSome: track =>
-              Stream.unwrap(
-                Effect.gen(function* () {
-                  const output = yield* AudioOutput
-                  return output
-                    .sound(track, () => readDependencies().speed)
-                    .pipe(Stream.map(messageOfAudioEvent))
-                }),
-              ),
-          }),
-      },
-    ),
+    clock: entry(TranscriptPlayer.ClockDependencies.fields, {
+      modelToDependencies: model =>
+        TranscriptPlayer.clockDependenciesOf(loadedPlayerOf(model)),
+      keepAliveEquivalence: TranscriptPlayer.isSameClock,
+      dependenciesToStream: TranscriptPlayer.clockStream,
+    }),
+    transcript: entry(TranscriptPlayer.TranscriptDependencies.fields, {
+      modelToDependencies: model =>
+        TranscriptPlayer.transcriptDependenciesOf(loadedPlayerOf(model)),
+      dependenciesToStream: TranscriptPlayer.transcriptStream,
+    }),
   }),
 )

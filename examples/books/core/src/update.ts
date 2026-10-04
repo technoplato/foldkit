@@ -1,5 +1,6 @@
 import { Array, Effect, Match as M, Option } from 'effect'
 import { Command, Navigation } from 'foldkit'
+import * as TranscriptPlayer from 'transcript-player-core-example'
 
 import {
   ChapterPage,
@@ -17,7 +18,8 @@ import {
 import {
   type BookmarkId,
   type ChapterNumber,
-  Milliseconds,
+  type Milliseconds,
+  type Speed,
   type TitleSlug,
 } from './ids.js'
 import {
@@ -36,21 +38,24 @@ import {
 import {
   Loaded,
   type Model,
-  Paused,
-  Playing,
   ShelfReady,
   ShelfUnavailable,
-  type Transport,
-  Unplayable,
+  type Title,
   bookmarkOf,
   chapterOf,
-  loadedTitleOf,
+  mediaOf,
+  placeOf,
   resumePlaceOf,
   titleOf,
 } from './model.js'
 import { navigation } from './navigation.js'
 import type { BooksServices } from './services.js'
-import { isOnPlayer, shownTitleOf, titlePageSlugOf } from './stack.js'
+import {
+  isOnPlayer,
+  loadedSlugOf,
+  shownTitleOf,
+  titlePageSlugOf,
+} from './stack.js'
 
 // COMMAND
 
@@ -84,8 +89,6 @@ type UpdateReturn = readonly [
 ]
 
 const withUpdateReturn = M.withReturnType<UpdateReturn>()
-
-const skipMs = 30_000
 
 const saveEveryMs = 30_000
 
@@ -159,106 +162,159 @@ const openedPlayer = (model: Model, slug: TitleSlug): Model => {
   }
 }
 
-const nextCueOf = (model: Model): Model => ({
-  ...model,
-  nextCue: model.nextCue + 1,
-})
+type Commands = UpdateReturn[1]
 
-const playingAt = (
-  model: Model,
-  slug: TitleSlug,
-  placeMs: Milliseconds,
-): Model => ({
-  ...nextCueOf(model),
-  listening: Loaded({
-    slug,
-    placeMs,
-    transport: Playing({ cue: model.nextCue }),
-    savedPlaceMs: placeMs,
-  }),
-})
-
-const placeToPlayOf = (model: Model, slug: TitleSlug): Milliseconds =>
-  model.listening._tag === 'Loaded' && model.listening.slug === slug
-    ? model.listening.placeMs
-    : resumePlaceOf(model, slug)
-
-const hasAudio = (model: Model, slug: TitleSlug): boolean =>
-  Option.exists(titleOf(model, slug), title =>
-    Option.isSome(title.maybeAudioUrl),
-  )
-
-const played = (model: Model, slug: TitleSlug): Model =>
-  hasAudio(model, slug)
-    ? openedPlayer(playingAt(model, slug, placeToPlayOf(model, slug)), slug)
-    : model
-
-const saveOf = (
-  slug: TitleSlug,
-  placeMs: Milliseconds,
-): ReadonlyArray<Command.Command<Message, never, BooksServices>> => [
+const saveOf = (slug: TitleSlug, placeMs: Milliseconds): Commands => [
   WriteLibrary({ write: SavePlace({ slug, placeMs }) }),
 ]
 
-const stoppedAs = (model: Model, transport: Transport): UpdateReturn =>
+const withLoaded = (model: Model, loaded: Loaded): Model => ({
+  ...model,
+  listening: loaded,
+})
+
+const savedAt = (
+  model: Model,
+  loaded: Loaded,
+  placeMs: Milliseconds,
+): UpdateReturn =>
+  placeMs === loaded.savedPlaceMs
+    ? [withLoaded(model, loaded), []]
+    : [
+        withLoaded(model, Loaded({ ...loaded, savedPlaceMs: placeMs })),
+        saveOf(loaded.slug, placeMs),
+      ]
+
+/**
+ * Acts on what the player reports: a save every 30 seconds of listening,
+ * a save where it stopped or was moved while paused, and the finish.
+ */
+const heldOut = (
+  model: Model,
+  loaded: Loaded,
+  maybeOutMessage: Option.Option<TranscriptPlayer.OutMessage>,
+): UpdateReturn =>
+  Option.match(maybeOutMessage, {
+    onNone: () => [withLoaded(model, loaded), []],
+    onSome: M.type<TranscriptPlayer.OutMessage>().pipe(
+      withUpdateReturn,
+      M.tagsExhaustive({
+        Advanced: ({ placeMs }) =>
+          placeMs - loaded.savedPlaceMs >= saveEveryMs
+            ? savedAt(model, loaded, placeMs)
+            : [withLoaded(model, loaded), []],
+        Stopped: ({ placeMs }) => savedAt(model, loaded, placeMs),
+        Moved: ({ placeMs }) =>
+          TranscriptPlayer.isSounding(loaded.player)
+            ? [withLoaded(model, loaded), []]
+            : savedAt(model, loaded, placeMs),
+        Finished: () => [
+          withLoaded(
+            model,
+            Loaded({ ...loaded, savedPlaceMs: placeOf(loaded) }),
+          ),
+          [WriteLibrary({ write: FinishTitle({ slug: loaded.slug }) })],
+        ],
+      }),
+    ),
+  })
+
+/** Hands one player Message to the loaded player, then acts on its report. */
+const playerUpdated = (
+  model: Model,
+  message: TranscriptPlayer.Message,
+): UpdateReturn =>
   M.value(model.listening).pipe(
     withUpdateReturn,
     M.tagsExhaustive({
       Idle: () => [model, []],
-      Loaded: loaded => [
-        {
-          ...model,
-          listening: Loaded({
-            ...loaded,
-            transport,
-            savedPlaceMs: loaded.placeMs,
-          }),
-        },
-        loaded.placeMs === loaded.savedPlaceMs
-          ? []
-          : saveOf(loaded.slug, loaded.placeMs),
-      ],
+      Loaded: loaded => {
+        const [player, commands, maybeOutMessage] = TranscriptPlayer.update(
+          loaded.player,
+          message,
+        )
+        const [next, saves] = heldOut(
+          model,
+          Loaded({ ...loaded, player }),
+          maybeOutMessage,
+        )
+        return [next, [...commands, ...saves]]
+      },
     }),
   )
 
-const failedPlayAudio = (model: Model, reason: string): UpdateReturn =>
+const savedBeforeSwitch = (model: Model): Commands =>
   model.listening._tag === 'Loaded' &&
-  model.listening.transport._tag === 'Playing'
-    ? stoppedAs(model, Unplayable({ reason }))
-    : [model, []]
+  placeOf(model.listening) !== model.listening.savedPlaceMs
+    ? saveOf(model.listening.slug, placeOf(model.listening))
+    : []
 
-const movedTo = (model: Model, placeMs: Milliseconds): Model =>
-  M.value(model.listening).pipe(
-    M.withReturnType<Model>(),
-    M.tagsExhaustive({
-      Idle: () => model,
-      Loaded: loaded => ({
-        ...nextCueOf(model),
-        listening: Loaded({
-          ...loaded,
+const loadedWith = (model: Model, title: Title): Model => {
+  if (Option.contains(loadedSlugOf(model), title.slug)) {
+    return model
+  } else {
+    const placeMs = resumePlaceOf(model, title.slug)
+    return withLoaded(
+      model,
+      Loaded({
+        slug: title.slug,
+        savedPlaceMs: placeMs,
+        player: TranscriptPlayer.init(mediaOf(title), {
           placeMs,
-          transport:
-            loaded.transport._tag === 'Playing'
-              ? Playing({ cue: model.nextCue })
-              : Paused(),
+          speed: model.speed,
         }),
       }),
-    }),
+    )
+  }
+}
+
+type Showing = 'ShowsPlayer' | 'StaysHere'
+
+/**
+ * Plays a title in the player, from `maybePlaceMs` or else where the
+ * listener is: another title loaded first saves its place and gives way.
+ * `ShowsPlayer` opens the title's player too.
+ */
+const listened = (
+  model: Model,
+  slug: TitleSlug,
+  maybePlaceMs: Option.Option<Milliseconds>,
+  showing: Showing,
+): UpdateReturn =>
+  Option.match(
+    Option.filter(titleOf(model, slug), title =>
+      Option.isSome(title.maybeAudioUrl),
+    ),
+    {
+      onNone: () => [model, []],
+      onSome: title => {
+        const switchSaves = Option.contains(loadedSlugOf(model), slug)
+          ? []
+          : savedBeforeSwitch(model)
+        const [sought, seekSaves] = Option.match(maybePlaceMs, {
+          onNone: (): UpdateReturn => [loadedWith(model, title), []],
+          onSome: placeMs =>
+            playerUpdated(
+              loadedWith(model, title),
+              TranscriptPlayer.SeekTo({ placeMs }),
+            ),
+        })
+        const [played, playCommands] = playerUpdated(
+          sought,
+          TranscriptPlayer.Play(),
+        )
+        return [
+          showing === 'ShowsPlayer' ? openedPlayer(played, slug) : played,
+          [...switchSaves, ...seekSaves, ...playCommands],
+        ]
+      },
+    },
   )
 
-const skipped = (model: Model, byMs: number): Model =>
-  Option.match(loadedTitleOf(model), {
-    onNone: () => model,
-    onSome: ({ title, loaded }) =>
-      movedTo(
-        model,
-        Milliseconds.make(
-          Math.min(title.durationMs, Math.max(0, loaded.placeMs + byMs)),
-        ),
-      ),
-  })
-
-const jumpedToChapter = (model: Model, chapterNumber: ChapterNumber): Model =>
+const jumpedToChapter = (
+  model: Model,
+  chapterNumber: ChapterNumber,
+): UpdateReturn =>
   Option.match(
     Option.flatMap(shownTitleOf(model), slug =>
       Option.flatMap(titleOf(model, slug), title =>
@@ -267,11 +323,18 @@ const jumpedToChapter = (model: Model, chapterNumber: ChapterNumber): Model =>
           chapter,
         })),
       ),
-    ).pipe(Option.filter(({ slug }) => hasAudio(model, slug))),
+    ),
     {
-      onNone: () => model,
-      onSome: ({ slug, chapter }) =>
-        withoutModal(playingAt(model, slug, chapter.startMs), isContentsSheet),
+      onNone: () => [model, []],
+      onSome: ({ slug, chapter }) => {
+        const [next, commands] = listened(
+          model,
+          slug,
+          Option.some(chapter.startMs),
+          'StaysHere',
+        )
+        return [withoutModal(next, isContentsSheet), commands]
+      },
     },
   )
 
@@ -286,20 +349,12 @@ const openedChapter = (model: Model, chapterNumber: ChapterNumber): Model =>
       )
     : model
 
-const playedBookmark = (model: Model, bookmarkId: BookmarkId): Model =>
-  Option.match(
-    Option.filter(bookmarkOf(model, bookmarkId), bookmark =>
-      hasAudio(model, bookmark.slug),
-    ),
-    {
-      onNone: () => model,
-      onSome: bookmark =>
-        openedPlayer(
-          playingAt(model, bookmark.slug, bookmark.atMs),
-          bookmark.slug,
-        ),
-    },
-  )
+const playedBookmark = (model: Model, bookmarkId: BookmarkId): UpdateReturn =>
+  Option.match(bookmarkOf(model, bookmarkId), {
+    onNone: () => [model, []],
+    onSome: bookmark =>
+      listened(model, bookmark.slug, Option.some(bookmark.atMs), 'ShowsPlayer'),
+  })
 
 const askedToDelete = (model: Model, bookmarkId: BookmarkId): Model =>
   Option.isSome(bookmarkOf(model, bookmarkId))
@@ -315,45 +370,6 @@ const askedToDelete = (model: Model, bookmarkId: BookmarkId): Model =>
       )
     : model
 
-const reachedPlace = (model: Model, placeMs: Milliseconds): UpdateReturn =>
-  M.value(model.listening).pipe(
-    withUpdateReturn,
-    M.tagsExhaustive({
-      Idle: () => [model, []],
-      Loaded: loaded => {
-        const isDue = placeMs - loaded.savedPlaceMs >= saveEveryMs
-        return [
-          {
-            ...model,
-            listening: Loaded({
-              ...loaded,
-              placeMs,
-              savedPlaceMs: isDue ? placeMs : loaded.savedPlaceMs,
-            }),
-          },
-          isDue ? saveOf(loaded.slug, placeMs) : [],
-        ]
-      },
-    }),
-  )
-
-const reachedEnd = (model: Model): UpdateReturn =>
-  Option.match(loadedTitleOf(model), {
-    onNone: () => [model, []],
-    onSome: ({ title, loaded }) => [
-      {
-        ...model,
-        listening: Loaded({
-          ...loaded,
-          placeMs: title.durationMs,
-          transport: Paused(),
-          savedPlaceMs: title.durationMs,
-        }),
-      },
-      [WriteLibrary({ write: FinishTitle({ slug: title.slug }) })],
-    ],
-  })
-
 const bookmarkedPlace = (model: Model): UpdateReturn =>
   M.value(model.listening).pipe(
     withUpdateReturn,
@@ -363,12 +379,20 @@ const bookmarkedPlace = (model: Model): UpdateReturn =>
         model,
         [
           WriteLibrary({
-            write: AddBookmarkAt({ slug: loaded.slug, atMs: loaded.placeMs }),
+            write: AddBookmarkAt({ slug: loaded.slug, atMs: placeOf(loaded) }),
           }),
         ],
       ],
     }),
   )
+
+const spedTo = (model: Model, speed: Speed): UpdateReturn => {
+  const [next, commands] = playerUpdated(
+    { ...model, speed },
+    TranscriptPlayer.SetSpeed({ speed }),
+  )
+  return [withoutModal(next, isSpeedSheet), commands]
+}
 
 /**
  * Applies one Books Message. Navigation moves the stack and the player;
@@ -382,10 +406,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     withUpdateReturn,
     M.tagsExhaustive({
       Open: ({ slug }) => [openedTitle(model, slug), []],
-      Play: ({ slug }) => [played(model, slug), []],
-      Pause: () => stoppedAs(model, Paused()),
-      SkipBack: () => [skipped(model, -skipMs), []],
-      SkipForward: () => [skipped(model, skipMs), []],
+      Listen: ({ slug }) => listened(model, slug, Option.none(), 'ShowsPlayer'),
+      Play: message => playerUpdated(model, message),
+      Pause: message => playerUpdated(model, message),
+      SkipBack: message => playerUpdated(model, message),
+      SkipForward: message => playerUpdated(model, message),
+      SeekTo: message => playerUpdated(model, message),
+      SeekToWord: message => playerUpdated(model, message),
       OpenPlayer: () => [
         model.listening._tag === 'Loaded'
           ? openedPlayer(model, model.listening.slug)
@@ -393,21 +420,16 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         [],
       ],
       ShowContents: () => [presentedSheet(model, ContentsSheet()), []],
-      JumpToChapter: ({ chapterNumber }) => [
+      JumpToChapter: ({ chapterNumber }) =>
         jumpedToChapter(model, chapterNumber),
-        [],
-      ],
       OpenChapter: ({ chapterNumber }) => [
         openedChapter(model, chapterNumber),
         [],
       ],
       ShowSpeeds: () => [presentedSheet(model, SpeedSheet()), []],
-      SetSpeed: ({ speed }) => [
-        withoutModal({ ...model, speed }, isSpeedSheet),
-        [],
-      ],
+      SetSpeed: ({ speed }) => spedTo(model, speed),
       AddBookmark: () => bookmarkedPlace(model),
-      PlayBookmark: ({ bookmarkId }) => [playedBookmark(model, bookmarkId), []],
+      PlayBookmark: ({ bookmarkId }) => playedBookmark(model, bookmarkId),
       DeleteBookmark: ({ bookmarkId }) => [
         askedToDelete(model, bookmarkId),
         [],
@@ -428,9 +450,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         { ...model, library: ShelfUnavailable({ reason }) },
         [],
       ],
-      ReachedPlace: ({ placeMs }) => reachedPlace(model, placeMs),
-      ReachedEnd: () => reachedEnd(model),
-      FailedPlayAudio: ({ reason }) => failedPlayAudio(model, reason),
+      ReachedPlace: message => playerUpdated(model, message),
+      ReachedEnd: message => playerUpdated(model, message),
+      FailedPlayAudio: message => playerUpdated(model, message),
+      ReceivedPassages: message => playerUpdated(model, message),
+      FailedLoadTranscript: message => playerUpdated(model, message),
       CompletedWriteLibrary: () => [
         { ...model, maybeProblem: Option.none() },
         [],
