@@ -45,15 +45,28 @@
     ) {
       return
     }
-    const word = root.querySelector(`[data-token="${CSS.escape(token)}"]`)
+    const word = root.querySelector<HTMLElement>(
+      `[data-token="${CSS.escape(token)}"]`,
+    )
     if (word === null) {
       return
     }
+    const isScrollArea = root.scrollHeight > root.clientHeight
+    const view = isScrollArea
+      ? root.getBoundingClientRect()
+      : { top: 0, height: window.innerHeight }
     const bounds = word.getBoundingClientRect()
     const isNearMiddle =
-      bounds.top > window.innerHeight * 0.25 &&
-      bounds.bottom < window.innerHeight * 0.75
-    if (!isNearMiddle) {
+      bounds.top > view.top + view.height * 0.25 &&
+      bounds.bottom < view.top + view.height * 0.75
+    if (isNearMiddle) {
+      return
+    } else if (isScrollArea) {
+      root.scrollTo({
+        top: root.scrollTop + (bounds.top - view.top) - root.clientHeight / 2,
+        behavior: 'smooth',
+      })
+    } else {
       word.scrollIntoView({ block: 'center', behavior: 'smooth' })
     }
   })
