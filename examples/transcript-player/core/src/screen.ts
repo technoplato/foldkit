@@ -65,7 +65,7 @@ export const seekBarOf = (model: Model): UiNode =>
 /** Where the player is, and how long is left: `12:03` and `−9:01:00`. */
 export const timesOf = (model: Model): UiNode =>
   Row(
-    { gap: 24 },
+    { gap: 1 },
     Text(clockOf(model.placeMs), { mono: true, dim: true }),
     Text(
       `−${clockOf(Milliseconds.make(model.media.durationMs - model.placeMs))}`,
@@ -82,7 +82,7 @@ export const transportOf = (
   entries: ReadonlyArray<Catalog.Entry>,
 ): UiNode =>
   Row(
-    { gap: 12 },
+    { gap: 1 },
     ...buttonOf(entries, SkipBack, 'Ghost'),
     ...buttonOf(entries, isSounding(model) ? Pause : Play, 'Primary'),
     ...buttonOf(entries, SkipForward, 'Ghost'),
@@ -231,7 +231,7 @@ export const playerScreen = (
   entries: ReadonlyArray<Catalog.Entry>,
 ): UiNode =>
   Column(
-    { gap: 20 },
+    { gap: 1 },
     seekBarOf(model),
     timesOf(model),
     transportOf(model, entries),
