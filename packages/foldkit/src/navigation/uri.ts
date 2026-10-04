@@ -427,6 +427,59 @@ const withoutSlug = <Model, Destination>(
 
 const maximumUriSegments = 32
 
+const entryRouteOf = <Model, Destination>(
+  navigation: ProgramNavigation<Model, Destination>,
+  destination: Destination,
+): Option.Option<DestinationRoute<Destination>> =>
+  Array.findFirst(
+    routesOf(navigation),
+    route =>
+      route.placement !== 'Root' &&
+      Option.isSome(route.routeCase.casePath.extract(destination)),
+  )
+
+/**
+ * The deepest part of a stack its declaration allows: each entry while
+ * its route allows it above the entries beneath, and none after the first
+ * it refuses, the rule a parse follows. A stack an update built from a
+ * Message folded somewhere else, such as a `ShowContents` another device
+ * pressed on a book's page, applied here over the library, keeps only what
+ * may stand: `[Library, Sheet Contents]` becomes `[Library]`. A
+ * Destination no route here names, such as the action menu an outer
+ * combinator adds, stays.
+ *
+ * @example
+ * ```typescript
+ * allowedStackOf(navigation, stackWithEntries(Library(), [presented(Contents(), Sheet())]))
+ * // { root: Library, pages: [], maybeModal: None }
+ * ```
+ */
+export const allowedStackOf = <Model, Destination>(
+  navigation: ProgramNavigation<Model, Destination>,
+  stack: NavigationStack<Destination>,
+): NavigationStack<Destination> => {
+  const entries = entriesOf(stack)
+  const allowedCount = Option.getOrElse(
+    Array.findFirstIndex(entries, (entry, index) =>
+      Option.exists(
+        entryRouteOf(navigation, entry.destination),
+        route =>
+          !route.isAllowedAbove([
+            stack.root,
+            ...Array.map(
+              Array.take(entries, index),
+              above => above.destination,
+            ),
+          ]),
+      ),
+    ),
+    () => entries.length,
+  )
+  return allowedCount === entries.length
+    ? stack
+    : stackFrom(stack.root, Array.take(entries, allowedCount))
+}
+
 /**
  * Parses a URI into a stack. Total: a strict parse with backtracking
  * first, then a lenient one whose unmatched tail becomes NotFound, then a

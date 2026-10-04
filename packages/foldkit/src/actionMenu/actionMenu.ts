@@ -1354,6 +1354,7 @@ export const compose = <Child extends ActionMenuChild>(config: {
 
   const childSynchronization = child.synchronization
   const childSessionPolicyOf = childSynchronization?.sessionPolicyOf
+  const childKeepsOwnNavigation = childSynchronization?.keepsOwnNavigation
   const childScreen = child.screen
 
   const keptOnRefold = (
@@ -1396,6 +1397,9 @@ export const compose = <Child extends ActionMenuChild>(config: {
             sessionPolicyOf: (model: AppModel) =>
               childSessionPolicyOf(childOf(model)),
           }),
+      ...(childKeepsOwnNavigation === undefined
+        ? {}
+        : { keepsOwnNavigation: childKeepsOwnNavigation }),
       ...keptOnRefold(childSynchronization?.keepOnRefold),
     },
     ...(child.catalog === undefined ? {} : { catalog: child.catalog }),

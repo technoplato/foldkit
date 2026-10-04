@@ -44,7 +44,8 @@ import {
   truncated,
 } from '../navigation/structure.js'
 import { backMessages, foldMessage, settled } from '../navigation/transition.js'
-import { type Host, labelOf } from '../processor/host.js'
+import { allowedStackOf } from '../navigation/uri.js'
+import { type Host, hostOfFrom, labelOf } from '../processor/host.js'
 import { liftEffects } from '../program/liftEffects.js'
 import type {
   MessageOf,
@@ -496,14 +497,23 @@ const structFieldsOf = (schema: unknown): S.Struct.Fields =>
  * at the home does not move the stack: a newcomer joins the shared screen.
  * A launch at a deeper address, such as `/books/a-new-earth/listen/1h00m00s`,
  * opens it. `isTab` names the pages a tab bar reaches, such as a Profile
- * page: they show no Back button, since the tab bar is the way out. Compose
- * it inside `ActionMenu.compose` so the session Actions appear in the menu.
+ * page: they show no Back button, since the tab bar is the way out.
+ * `ownNavigationHosts` names the Hosts whose Processors keep their own
+ * navigation even while the session mirrors it, such as a terminal that
+ * plays in the background: a browser's move never lands on it, and its
+ * own moves stay on it. Whatever folds a child Message, the stack keeps
+ * only what the navigation allows, so a `ShowContents` another device
+ * pressed on a book's page can never leave the contents over the library
+ * here. Compose it inside `ActionMenu.compose` so the session Actions
+ * appear in the menu.
  *
  * @example
  * ```typescript
  * const App = ActionMenu.compose({ of: Session.compose({ of: CounterProgram }) })
  * // App.Model: { count, session: { mode: 'Mirror', generation: 0 }, navigation }
  * // OpenSessionSettings presents `/counter/session` as a Sheet
+ * Session.compose({ of: BooksProgram, ownNavigationHosts: [Processor.Host.Cli()] })
+ * // a `cli-4f2a9c1e` Processor keeps its screen and player under Mirror
  * ```
  */
 export const compose = <Child extends SessionChild>(config: {
@@ -511,6 +521,7 @@ export const compose = <Child extends SessionChild>(config: {
   initialMode?: SessionMode
   companions?: ReadonlyArray<Companion>
   isTab?: (destination: SessionDestinationOf<Child>) => boolean
+  ownNavigationHosts?: ReadonlyArray<Host>
   id?: string
   version?: number
 }): SessionProgram<Child> => {
@@ -746,6 +757,13 @@ export const compose = <Child extends SessionChild>(config: {
     return [withChild(model, childModel), commands as ReadonlyArray<AppCommand>]
   }
 
+  const allowed = (model: AppModel): AppModel => {
+    const nextNavigation = allowedStackOf(navigation, model.navigation)
+    return nextNavigation === model.navigation
+      ? model
+      : { ...model, navigation: nextNavigation }
+  }
+
   const update = (
     model: AppModel,
     message: AppMessage,
@@ -761,7 +779,7 @@ export const compose = <Child extends SessionChild>(config: {
       message as ChildMessage,
     )
     return [
-      withChild(model, childModel),
+      allowed(withChild(model, childModel)),
       mapMessages(commands, commandMessage => commandMessage as AppMessage),
     ]
   }
@@ -814,6 +832,12 @@ export const compose = <Child extends SessionChild>(config: {
   const childSynchronization = child.synchronization
   const childKeepOnRefold = childSynchronization?.keepOnRefold
   const childScreen = child.screen
+  const ownNavigationHosts = config.ownNavigationHosts ?? []
+
+  const keepsOwnNavigation = (processorId: string): boolean =>
+    Option.exists(hostOfFrom(processorId), host =>
+      Array.some(ownNavigationHosts, own => own._tag === host._tag),
+    )
 
   const program = make({
     id: config.id ?? `session:${child.id}`,
@@ -847,6 +871,7 @@ export const compose = <Child extends SessionChild>(config: {
           ? childOf(model)
           : childSynchronization.projectDomain(childOf(model)),
       sessionPolicyOf: model => policyOf(model.session),
+      keepsOwnNavigation,
       ...(childKeepOnRefold === undefined
         ? {}
         : {

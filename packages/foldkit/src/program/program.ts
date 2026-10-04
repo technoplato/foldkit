@@ -70,6 +70,14 @@ export type ProgramSynchronization<Model, Message> = Readonly<{
    */
   sessionPolicyOf?: (model: Model) => SessionPolicy
   /**
+   * The Processors that keep their own navigation whatever the session's
+   * mode, by the `from` they write, such as `cli-4f2a9c1e` for a terminal
+   * that plays in the background: Navigation Messages they write apply
+   * only to them, and they apply no one else's. Every Processor reads the
+   * same `from`, so every Processor folds the same rows the same way.
+   */
+  keepsOwnNavigation?: (processorId: string) => boolean
+  /**
    * What a Program keeps when sync refolds its log: the part of the Model
    * that never came from the log, such as a library read from its own
    * tables or the place a player reached second by second. `refolded` is

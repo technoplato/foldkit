@@ -316,17 +316,24 @@ export function start<
         ? 'Domain'
         : childSynchronization.messageCategory(message)
 
+    const keepsOwnNavigation =
+      childSynchronization?.keepsOwnNavigation ?? ((): boolean => false)
+
     const appliesTo = (
       policy: SessionPolicy,
       message: unknown,
       originatingProcessor: string,
       processor: string,
     ): boolean => {
-      const decision = resolveAudience(
-        policy,
-        categoryOf(message),
-        originatingProcessor,
-      )
+      const category = categoryOf(message)
+      if (
+        category === 'Navigation' &&
+        (keepsOwnNavigation(originatingProcessor) ||
+          keepsOwnNavigation(processor))
+      ) {
+        return originatingProcessor === processor
+      }
+      const decision = resolveAudience(policy, category, originatingProcessor)
       return (
         decision._tag !== 'ReadOnlyFollowerRejected' &&
         includesProcessor(decision, processor)

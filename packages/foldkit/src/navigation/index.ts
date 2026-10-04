@@ -83,6 +83,7 @@ export {
   printStates,
   printStack,
   parseStack,
+  allowedStackOf,
   canonicalUri,
   defaultUri,
   ownsUri,
