@@ -457,10 +457,6 @@ export const screenStylesheet = `
   background: transparent;
 }
 
-:where(.fk-item[data-current] .fk-item-title) {
-  color: ${screenLook.accentColor};
-}
-
 :where(.fk-item-image) {
   flex: none;
   width: ${px(screenLook.itemImageSize)};
@@ -801,6 +797,10 @@ export const screenStylesheet = `
 
 :where(.fk-dock .fk-item-title) {
   -webkit-line-clamp: 1;
+}
+
+:where(.fk-item[data-current] .fk-item-title) {
+  color: ${screenLook.accentColor};
 }
 
 :where(.fk-transcript) {
