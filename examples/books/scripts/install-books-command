@@ -1,0 +1,39 @@
+#!/bin/sh
+# Puts `books` on your PATH: a launcher in ~/.local/bin, or in
+# BOOKS_BIN_DIR, that runs terminal Books from this checkout. It builds
+# terminal Books first; BOOKS_SKIP_BUILD=1 skips that.
+#
+#   examples/books/scripts/install-books-command
+#   books
+set -eu
+
+here="$(cd "$(dirname "$0")" && pwd -P)"
+repo="$(cd "$here/../../.." && pwd -P)"
+bin_dir="${BOOKS_BIN_DIR:-$HOME/.local/bin}"
+target="$bin_dir/books"
+
+if [ "${BOOKS_SKIP_BUILD:-}" != "1" ]; then
+  echo "Building terminal Books in ${repo}…"
+  (cd "$repo" && pnpm_config_verify_deps_before_run=false pnpm --filter 'books-cli-example...' run build)
+fi
+
+mkdir -p "$bin_dir"
+cat > "$target" <<EOF
+#!/bin/sh
+# Terminal Books from $repo.
+# Reinstall with $here/install-books-command
+exec "$here/books" "\$@"
+EOF
+chmod +x "$target"
+echo "Installed $target"
+
+case "$repo" in
+  */.claude/worktrees/*)
+    echo "Note: $repo is a temporary worktree. Run this from your main checkout to keep books working after it goes."
+    ;;
+esac
+
+case ":$PATH:" in
+  *":$bin_dir:"*) echo "Try: books" ;;
+  *) echo "Add $bin_dir to your PATH, then try: books" ;;
+esac

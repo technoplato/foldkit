@@ -8,7 +8,9 @@
  * plays through ffplay, and shows the words as they play. Click a row or
  * a button, or press its key: `p` plays and pauses, `[` and `]` skip, `?`
  * opens the action menu, and Escape goes back one screen. Run it through
- * `scripts/with-books-access`.
+ * `scripts/with-books-access`. It is a player of its own in this
+ * process, so it stops when it closes; `books tui` shows the player that
+ * keeps playing in the background instead.
  */
 import {
   bindBooks,

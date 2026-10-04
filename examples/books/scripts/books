@@ -1,0 +1,38 @@
+#!/bin/sh
+# Terminal Books: `books`, `books listen a-new-earth`, `books pause`,
+# `books tui`. It picks where to sign in, opens your library, and runs
+# the command against this machine's player.
+#
+# - The reader on this machine, http://127.0.0.1:5200, signs you in
+#   without a login when it answers. Otherwise the hosted reader does,
+#   with your Cloudflare Access login, which `books login` makes.
+# - The library is the Instant app ~/.config/knophy-host/books/books.env
+#   names. Only its app id is read, never a token.
+# - FOLDKIT_HOSTED_IDENTITY_ORIGIN and BOOKS_INSTANT_APP_ID, when set,
+#   choose instead, such as the dev reader and dev app for testing.
+set -eu
+
+here="$(cd "$(dirname "$0")" && pwd -P)"
+cli="$here/../cli/dist/entry.js"
+hosted_origin="https://books.pisspoursoftware.xyz"
+local_origin="http://127.0.0.1:5200"
+
+if [ "${1:-}" = "login" ]; then
+  exec cloudflared access login "$hosted_origin"
+fi
+
+if [ ! -f "$cli" ]; then
+  echo "Terminal Books is not built yet. Run $here/install-books-command" >&2
+  exit 1
+fi
+
+if [ -z "${FOLDKIT_HOSTED_IDENTITY_ORIGIN:-}" ]; then
+  if curl --silent --fail --output /dev/null --max-time 1 "$local_origin/books"; then
+    FOLDKIT_HOSTED_IDENTITY_ORIGIN="$local_origin"
+  else
+    FOLDKIT_HOSTED_IDENTITY_ORIGIN="$hosted_origin"
+  fi
+  export FOLDKIT_HOSTED_IDENTITY_ORIGIN
+fi
+
+exec "$here/with-books-access" node "$cli" "$@"

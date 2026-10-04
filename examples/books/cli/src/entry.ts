@@ -1,86 +1,55 @@
 #!/usr/bin/env node
 /**
- * The Books CLI. Every command comes from the Program through the generic
- * Foldkit CLI surface, so this file names no title, Action, or route:
+ * The `books` command. Every command goes to this machine's player, which
+ * keeps playing after the command returns, and prints what it is doing
+ * and what to run next:
  *
- *   books                         paint the library and every Action
- *   books open a-new-earth        open a title's page
- *   books listen a-new-earth      play a title from your place
- *   books seek-to 723000          move the player to 12:03
- *   books watch                   repaint as the library changes
- *   books tail                    print every Message as it lands
- *   books help                    usage derived from the Program
+ *   books                          what is playing, and commands to copy
+ *   books help                     the same
+ *   books listen a-new-earth       play a title from your place
+ *   books pause                    pause; `books play` plays again
+ *   books skip-forward             30 seconds on; `books skip-back` back
+ *   books seek-to 1h00m00s         go to a place
+ *   books tui                      the player, live, in this terminal
+ *   books stop                     pause, save your place, end the player
+ *   books actions                  every command
+ *   books login                    sign in to Cloudflare Access
+ *   books watch                    repaint the library as it changes
+ *   books tail                     print every Message as it lands
  *
- * It signs in as your Cloudflare Access login through the reader's mint;
- * run it through `scripts/with-books-access`.
+ * Run it as `books`, the launcher `scripts/install-books-command` puts on
+ * your PATH: it picks where to sign in and which library to open. This
+ * file must not import Effect, Instant, or the Program, so a command
+ * starts fast.
  */
-import {
-  MessageWire,
-  bindBooks,
-  booksEngine,
-  newProcessorInstance,
-  startBooks,
-  whenLibraryOpened,
-} from 'books-core-example'
-import { Effect } from 'effect'
-import { Interaction, Processor } from 'foldkit'
-import { runProgramCommand, runProgramTail, runProgramWatch } from 'foldkit/cli'
-import { parseProgramArgv, writeCliViewResult } from 'foldkit/cli/view'
+import { parseProgramArgv } from 'foldkit/cli/view'
+import { spawnSync } from 'node:child_process'
 
-import { signedInOrExit } from './signIn.js'
+import { askPlayer, showPlayerTui, stopPlayer } from './view.js'
 
-const name = 'books'
-
-const readyTimeoutMs = 15_000
-
-const config = {
-  host: Processor.Host.Cli(),
-  instance: newProcessorInstance(),
-}
+const hostedOrigin = 'https://books.pisspoursoftware.xyz'
 
 const request = parseProgramArgv(process.argv.slice(2))
 
-const signedIn = await signedInOrExit()
+const [head = ''] = request._tag === 'Do' ? request.token.split(' ') : []
 
 if (request._tag === 'Tail') {
-  await Effect.runPromise(
-    Effect.scoped(
-      Effect.andThen(
-        runProgramTail(booksEngine(signedIn, config), MessageWire, line => {
-          process.stdout.write(`${line}\n`)
-        }),
-        Effect.never,
-      ),
-    ),
-  )
+  const { runTail } = await import('./inProcess.js')
+  await runTail()
 } else if (request._tag === 'Watch') {
-  const handle = startBooks(signedIn, config)
-  const bound = bindBooks(handle)
-  await Interaction.whenSettled(bound, readyTimeoutMs)
-  await whenLibraryOpened(handle, readyTimeoutMs)
-  await Effect.runPromise(
-    Effect.scoped(
-      runProgramWatch(
-        bound,
-        painted => {
-          process.stdout.write(painted)
-        },
-        { isTerminal: process.stdout.isTTY === true },
-      ),
-    ),
-  ).finally(handle.stop)
+  const { runWatch } = await import('./inProcess.js')
+  await runWatch()
+} else if (request._tag === 'Show') {
+  await askPlayer({ _tag: 'Do', token: 'help', flags: request.flags })
+} else if (head === 'login') {
+  const login = spawnSync('cloudflared', ['access', 'login', hostedOrigin], {
+    stdio: 'inherit',
+  })
+  process.exitCode = login.status ?? 1
+} else if (head === 'stop') {
+  await stopPlayer()
+} else if (head === 'tui') {
+  await showPlayerTui()
 } else {
-  const handle = startBooks(signedIn, config)
-  const bound = bindBooks(handle)
-  await Interaction.whenSettled(bound, readyTimeoutMs)
-  await whenLibraryOpened(handle, readyTimeoutMs)
-  const painted = runProgramCommand(
-    bound,
-    name,
-    request._tag === 'Show' ? [] : request.token.split(' '),
-    request.flags,
-  )
-  await handle.stop()
-  writeCliViewResult({ stderr: '', ...painted })
-  process.exit(0)
+  await askPlayer(request)
 }

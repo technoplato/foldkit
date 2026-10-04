@@ -10,9 +10,10 @@
   "scripts": {
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
-    "books": "../scripts/with-books-access node dist/entry.js",
-    "books-tui": "../scripts/with-books-access node dist/tui.js",
-    "login": "cloudflared access login https://books.pisspoursoftware.xyz",
+    "books": "../scripts/books",
+    "books-tui": "../scripts/books tui",
+    "install-command": "../scripts/install-books-command",
+    "login": "../scripts/books login",
     "prebuild": "pnpm --filter books-core-example build",
     "pretypecheck": "pnpm --filter books-core-example build",
     "pretest": "pnpm --filter books-core-example build",
