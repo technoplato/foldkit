@@ -4,6 +4,49 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 3rd, 2026 at 10:30:44 p.m. EDT — `3e8902fc87cc` fix(books): play only titles whose audio is in the library
+
+- **Implementation commit:** `3e8902fc87cc2d88295f22fd6e8af1e97ec01151`
+- **Change:** Play only titles whose audio is in the library
+- **Details:**
+  - Play, a chapter jump, and a bookmark are unavailable with the sentence "its audio is not in the library yet" while a title has no audio file, so the reader never counts silently and saves a made-up place over a real one.
+- **Files:**
+  - `examples/books/core/src/message.ts` — The three Actions check for audio.
+  - `examples/books/core/src/update.ts` — The handlers refuse too.
+  - `examples/books/core/src/app.test.ts` — A title without audio never plays.
+- **User context (verbatim):**
+  > I want an audible clone with my actual books with Progress
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 10:25:43 p.m. EDT — `39e23b1bdc1b` feat(books): build and serve the reader for whichever Instant app is named
+
+- **Implementation commit:** `39e23b1bdc1b3c37846d5876510eac8d9cf8cda6`
+- **Change:** Build and serve the reader for whichever Instant app is named
+- **Details:**
+  - One wrapper reads the env file it is pointed at, so the same scripts build the dev reader and the production one; `serve:live` previews on 127.0.0.1:5200 for both books hosts, and the dev seed refuses any app but the throwaway one.
+- **Files:**
+  - `examples/books/scripts/with-books-env` — Reads the named env file.
+  - `examples/books/react/package.json` — `build:live` and `serve:live`.
+  - `examples/books/react/vite.config.ts` — Both hosts allowed.
+  - `examples/books/core/scripts/seedDev.mjs` — The seed guard.
+- **User context (verbatim):**
+  > And put books on pisspoorsoftware.com. P-I-S-S, P-O-U-R, software, or.x-Y-Z is the domain
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 3rd, 2026 at 10:18:33 p.m. EDT — `9352626c0dbe` fix(books): write the library's lowercase kinds and read either case
+
+- **Implementation commit:** `9352626c0dbe5d761711196c5fc9d43e5fb5f304`
+- **Change:** Write the library's lowercase kinds and read either case
+- **Details:**
+  - Progress and bookmark rows use the kinds the imported library already uses, and a finished title reads as finished in either case.
+- **Files:**
+  - `examples/books/core/src/instantLibrary.ts` — Lowercase kinds.
+  - `examples/books/core/src/instantLibrary.test.ts` — Either case decodes.
+  - `examples/books/core/scripts/seedDev.mjs` — The seed matches.
+- **User context (verbatim):**
+  > Booksport user real, yes, your library, keep the audible import
+- **SpecStory:** unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 3rd, 2026 at 10:14:49 p.m. EDT — `7be211179ba7` feat(books): show each title's cover from Instant storage
 
 - **Implementation commit:** `7be211179ba70cdf2ab0012791dc8bfc0ab264ad`
