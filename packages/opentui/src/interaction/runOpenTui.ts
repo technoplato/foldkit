@@ -1,5 +1,5 @@
 import { Match as M, Option } from 'effect'
-import { Interaction, Navigation } from 'foldkit'
+import { Interaction, Navigation, type Telemetry } from 'foldkit'
 import { terminalKeyInput } from 'foldkit/interaction'
 
 import {
@@ -19,10 +19,23 @@ import {
 
 const paintedTreeIndex = 0
 
-/** Where an OpenTUI run starts. `launchUri` opens once the Program is Ready. */
+/** The painter an OpenTUI run reports its frames as. */
+export const openTuiPainter = 'OpenTUI'
+
+/**
+ * Where an OpenTUI run starts, and where it reports its paints.
+ * `launchUri` opens once the Program is Ready. `onPainted` hears how long
+ * each frame took to build and why: `mount` for the first, `update` after
+ * a Model change, and `key` after a key, such as
+ * `{ painter: 'OpenTUI', durationMs: 3.4, phase: 'key' }`. Pass
+ * telemetry's `recordRendered` to keep every paint with the session.
+ */
 export type RunOpenTuiOptions = Readonly<{
   launchUri?: string
+  onPainted?: (report: Telemetry.RenderReport) => void
 }>
+
+type PaintPhase = 'mount' | 'update' | 'key'
 
 /**
  * Runs any bound Program on an OpenTUI renderer until `q`. It repaints on
@@ -38,7 +51,11 @@ export type RunOpenTuiOptions = Readonly<{
  * @example
  * ```typescript
  * const renderer = await createCliRenderer({ exitOnCtrlC: true })
- * await runOpenTui(bindCounter(handle), renderer, { launchUri: '/counter/session' })
+ * const telemetry = Telemetry.attach(handle, { app: 'counter', sink: fileSink() })
+ * await runOpenTui(bindCounter(handle), renderer, {
+ *   launchUri: '/counter/session',
+ *   onPainted: telemetry.recordRendered,
+ * })
  * ```
  */
 export const runOpenTui = <Model, Message>(
@@ -92,7 +109,8 @@ export const runOpenTui = <Model, Message>(
           ),
       })
 
-    const paint = (): void => {
+    const paint = (phase: PaintPhase): void => {
+      const startedAt = performance.now()
       renderer.setTerminalTitle(bound.windowTitle())
       const next = M.value(bound.status()).pipe(
         M.withReturnType<Renderable>(),
@@ -111,6 +129,13 @@ export const runOpenTui = <Model, Message>(
       maybePainted = Option.some(next)
       renderer.root.add(next, paintedTreeIndex)
       renderer.requestRender()
+      if (options.onPainted !== undefined) {
+        options.onPainted({
+          painter: openTuiPainter,
+          durationMs: performance.now() - startedAt,
+          phase,
+        })
+      }
     }
 
     renderer.root.add(
@@ -118,8 +143,10 @@ export const runOpenTui = <Model, Message>(
         content: t`${dim(Interaction.terminalFooterOf(bound.menuKeys()))}`,
       }),
     )
-    paint()
-    const stopWatching = bound.subscribe(paint)
+    paint('mount')
+    const stopWatching = bound.subscribe(() => {
+      paint('update')
+    })
 
     renderer.keyInput.on('keypress', key => {
       const input = terminalKeyInput({
@@ -136,7 +163,7 @@ export const runOpenTui = <Model, Message>(
         stopLaunching()
         resolve()
       } else {
-        paint()
+        paint('key')
       }
     })
   })
