@@ -127,6 +127,23 @@ const shortWeekdayOf = (day: LocalDay): string =>
   nameAt(weekdayNames, weekdayOf(day)).slice(0, 3)
 
 /**
+ * A day as its date, the year only when it is not this year's:
+ * `Sun, Oct 4`, or `Sat, Jan 2, 2027`.
+ *
+ * @example
+ * ```typescript
+ * dateLabel(LocalDay.make('2026-10-10'), LocalDay.make('2026-10-04')) // 'Sat, Oct 10'
+ * ```
+ */
+export const dateLabel = (day: LocalDay, today: LocalDay): string => {
+  const { year, month, day: date } = partsOf(day)
+  const monthAndDate = `${shortWeekdayOf(day)}, ${nameAt(monthNames, month - 1)} ${date.toString()}`
+  return partsOf(today).year === year
+    ? monthAndDate
+    : `${monthAndDate}, ${year.toString()}`
+}
+
+/**
  * A day as a person reads it next to today: `Today`, `Tomorrow`,
  * `Yesterday`, the weekday within the coming week, and the date otherwise.
  *
@@ -139,8 +156,6 @@ const shortWeekdayOf = (day: LocalDay): string =>
  */
 export const dayLabel = (day: LocalDay, today: LocalDay): string => {
   const distance = daysBetween(today, day)
-  const { year, month, day: date } = partsOf(day)
-  const isSameYear = partsOf(today).year === year
   if (distance === 0) {
     return 'Today'
   } else if (distance === 1) {
@@ -149,10 +164,8 @@ export const dayLabel = (day: LocalDay, today: LocalDay): string => {
     return 'Yesterday'
   } else if (distance > 1 && distance < daysInWeek) {
     return nameAt(weekdayNames, weekdayOf(day))
-  } else if (isSameYear) {
-    return `${shortWeekdayOf(day)}, ${nameAt(monthNames, month - 1)} ${date.toString()}`
   } else {
-    return `${shortWeekdayOf(day)}, ${nameAt(monthNames, month - 1)} ${date.toString()}, ${year.toString()}`
+    return dateLabel(day, today)
   }
 }
 

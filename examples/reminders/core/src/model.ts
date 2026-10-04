@@ -46,8 +46,10 @@ export type CompletedVisibility = typeof CompletedVisibility.Type
 /**
  * The Reminders Model: the board from the store, today on this device's
  * calendar, how this device orders lists and whether it shows done
- * reminders, the last write the store refused, and the navigation stack.
- * The board and today come from outside the log, so a refold keeps them.
+ * reminders, the last write the store refused, a short notice such as
+ * `Link copied` that lasts until the screen changes, and the navigation
+ * stack. The board and today come from outside the log, so a refold keeps
+ * them.
  */
 export const Model = S.Struct({
   board: BoardState,
@@ -55,6 +57,7 @@ export const Model = S.Struct({
   ordering: Ordering,
   completed: CompletedVisibility,
   maybeProblem: S.Option(S.String),
+  maybeNotice: S.Option(S.String),
   navigation: Navigation.NavigationStack(Destination),
 })
 /** A Reminders Model value. */

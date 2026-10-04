@@ -166,6 +166,21 @@ export const listTileOf = (title: string, color: ListColor): ItemImage =>
 export const tagTileOf = (title: string): ItemImage =>
   tileOf('#5e6b7d', hashGlyph, `#${title} icon`)
 
+const exclamationGlyph = `<g ${stroke}><path d="M28 15v15"/></g><circle cx="28" cy="39" r="2.6" fill="#fff"/>`
+
+/** The tile beside a reminder's due date: a calendar on red. */
+export const dueTile: ItemImage = tileOf('#ff3b30', calendarGlyph(''), 'Due')
+
+/** The tile beside a reminder's priority: an exclamation mark on orange-red. */
+export const priorityTile: ItemImage = tileOf(
+  '#ff453a',
+  exclamationGlyph,
+  'Priority',
+)
+
+/** The tile beside a reminder's flag: a flag on orange. */
+export const flagTile: ItemImage = tileOf('#ff9500', flagGlyph, 'Flag')
+
 const initialsOf = (name: string): string =>
   pipe(
     String.split(name.trim(), /\s+/),

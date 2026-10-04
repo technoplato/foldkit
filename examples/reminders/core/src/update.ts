@@ -1,4 +1,4 @@
-import { Array, Effect, Match as M, Option } from 'effect'
+import { Array, Effect, Match as M, Option, Schema as S } from 'effect'
 import { Command, Navigation } from 'foldkit'
 
 import {
@@ -30,6 +30,8 @@ import {
   isListPage,
   isReminderListing,
   isReminderPage,
+  isSearchPage,
+  isSmartListPage,
   isTagPage,
 } from './destination.js'
 import type {
@@ -40,11 +42,13 @@ import type {
   ReminderTitle,
   ShareId,
 } from './ids.js'
+import { shownPathOf } from './links.js'
 import {
   CompletedWriteReminders,
+  FailedShareLink,
   FailedWriteReminders,
   type Message,
-  type PriorityChoice,
+  SharedLink,
   addingListOf,
   newListColorOf,
   shownList,
@@ -54,7 +58,7 @@ import {
   BoardReady,
   BoardSignedOut,
   BoardUnavailable,
-  type Model,
+  Model,
   boardOf,
   listOf,
   listsOf,
@@ -63,6 +67,7 @@ import {
 } from './model.js'
 import { navigation } from './navigation.js'
 import type { RemindersServices } from './services.js'
+import { LinkSharing, type SharedHow } from './share.js'
 import { shownSmartListOf, shownTagOf } from './stack.js'
 import {
   InsertList,
@@ -89,6 +94,7 @@ import {
   UpdateReminderNotes,
   UpdateReminderTitle,
 } from './store.js'
+import type { PriorityChoice } from './words.js'
 
 // COMMAND
 
@@ -110,6 +116,28 @@ export const WriteReminders = Command.define(
   }).pipe(
     Effect.catch(error =>
       Effect.succeed(FailedWriteReminders({ reason: error.reason })),
+    ),
+  ),
+)
+
+/**
+ * Shares a link to a page through the host's link sharing. A refusal
+ * becomes FailedShareLink with its reason, so a blocked clipboard never
+ * crashes the app.
+ */
+export const ShareLink = Command.define(
+  'ShareLink',
+  { path: S.String, title: S.String },
+  SharedLink,
+  FailedShareLink,
+)(({ path, title }) =>
+  Effect.gen(function* () {
+    const sharing = yield* LinkSharing
+    const how = yield* sharing.share({ path, title })
+    return SharedLink({ how })
+  }).pipe(
+    Effect.catch(error =>
+      Effect.succeed(FailedShareLink({ reason: error.reason })),
     ),
   ),
 )
@@ -352,14 +380,59 @@ const isSharedWithEmail = (
     ),
   )
 
-/**
- * Applies one Reminders Message. Navigation moves the stack; a change to
- * the reminders goes to the store as a Command, and the board comes back
- * from the store on every device and from the Swift app, so the Model
- * never keeps a copy that disagrees with it. A reminder or list another
- * device removed first changes nothing.
- */
-export const update = (model: Model, message: Message): UpdateReturn =>
+const pageTitleOf = (
+  model: Model,
+  page: Destination,
+): Option.Option<string> => {
+  if (isReminderPage(page)) {
+    return Option.map(
+      reminderOf(model, page.reminderId),
+      reminder => reminder.title,
+    )
+  } else if (isListPage(page)) {
+    return Option.map(listOf(model, page.listId), list => list.title)
+  } else if (isSmartListPage(page)) {
+    return Option.some(page.smartList)
+  } else if (isTagPage(page)) {
+    return Option.some(`#${page.tagTitle}`)
+  } else if (isSearchPage(page)) {
+    return Option.some(`Search: ${page.query}`)
+  } else {
+    return Option.none()
+  }
+}
+
+const sharedPage = (model: Model): UpdateReturn =>
+  Option.match(shownPathOf(model), {
+    onNone: () => unchanged(model),
+    onSome: path => [
+      { ...model, maybeNotice: Option.none() },
+      [
+        ShareLink({
+          path,
+          title: Option.getOrElse(
+            Option.flatMap(Array.last(model.navigation.pages), page =>
+              pageTitleOf(model, page),
+            ),
+            () => 'Reminders',
+          ),
+        }),
+      ],
+    ],
+  })
+
+const noticeOf = (how: SharedHow): Option.Option<string> =>
+  M.value(how).pipe(
+    M.withReturnType<Option.Option<string>>(),
+    M.when('Copied', () => Option.some('Link copied')),
+    M.when('Shared', () => Option.some('Link shared')),
+    M.when('Cancelled', () => Option.none()),
+    M.exhaustive,
+  )
+
+const isSameStack = S.toEquivalence(Model.fields.navigation)
+
+const updated = (model: Model, message: Message): UpdateReturn =>
   M.value(message).pipe(
     withUpdateReturn,
     M.tagsExhaustive({
@@ -438,7 +511,7 @@ export const update = (model: Model, message: Message): UpdateReturn =>
             }),
           ),
         ),
-      ShowLists: () => unchanged(presentedSheet(model, MoveSheet())),
+      ShowMoveOptions: () => unchanged(presentedSheet(model, MoveSheet())),
       MoveReminder: ({ listId }) =>
         onShownReminder(model, reminder =>
           writing(
@@ -503,7 +576,9 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         unchanged(withPages(model, [TagPage({ tagTitle })])),
       Search: ({ query }) =>
         unchanged(withPages(model, [SearchPage({ query })])),
-      OpenProfile: () => unchanged(withPages(model, [ProfilePage()])),
+      ShowLists: () => unchanged(withPages(model, [])),
+      ShowProfile: () => unchanged(withPages(model, [ProfilePage()])),
+      SharePage: () => sharedPage(model),
       AddList: ({ title }) =>
         writing(
           model,
@@ -641,9 +716,31 @@ export const update = (model: Model, message: Message): UpdateReturn =>
         unchanged({ ...model, maybeProblem: Option.none() }),
       FailedWriteReminders: ({ reason }) =>
         unchanged({ ...model, maybeProblem: Option.some(reason) }),
+      SharedLink: ({ how }) =>
+        unchanged({ ...model, maybeNotice: noticeOf(how) }),
+      FailedShareLink: ({ reason }) =>
+        unchanged({
+          ...model,
+          maybeNotice: Option.some(`Could not share: ${reason}`),
+        }),
       OpenedUri: fact =>
         unchanged(Navigation.foldMessage(navigation, model, fact)),
       NavigatedBack: fact =>
         unchanged(Navigation.foldMessage(navigation, model, fact)),
     }),
   )
+
+/**
+ * Applies one Reminders Message. Navigation moves the stack; a change to
+ * the reminders goes to the store as a Command, and the board comes back
+ * from the store on every device and from the Swift app, so the Model
+ * never keeps a copy that disagrees with it. A reminder or list another
+ * device removed first changes nothing. A notice such as `Link copied`
+ * lasts until the screen changes.
+ */
+export const update = (model: Model, message: Message): UpdateReturn => {
+  const [next, commands] = updated(model, message)
+  return isSameStack(next.navigation, model.navigation)
+    ? [next, commands]
+    : [{ ...next, maybeNotice: Option.none() }, commands]
+}

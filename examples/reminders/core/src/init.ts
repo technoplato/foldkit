@@ -22,6 +22,7 @@ export const init = (): readonly [
     ordering: 'Manual',
     completed: 'Hidden',
     maybeProblem: Option.none(),
+    maybeNotice: Option.none(),
     navigation: Navigation.stackAtRoot<Destination>(HomePage()),
   },
   [],

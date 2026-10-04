@@ -30,7 +30,7 @@ export const TagPage = ts('TagPage', { tagTitle: TagTitle })
 /** One tag's reminders. */
 export type TagPage = typeof TagPage.Type
 
-/** What a search found, above home: `/reminders/search?search.q=milk`. */
+/** What a search found, above home: `/reminders/search?search.query=milk`. */
 export const SearchPage = ts('SearchPage', { query: SearchQuery })
 /** What a search found. */
 export type SearchPage = typeof SearchPage.Type
@@ -98,10 +98,10 @@ export const ClearCompletedQuestion = ts('ClearCompletedQuestion', {
 export type ClearCompletedQuestion = typeof ClearCompletedQuestion.Type
 
 /**
- * Every place Reminders can show, and the URI no route matched. A stack
- * holds only these.
+ * Every place Reminders can show and a link can name, from home to the
+ * clear-completed question.
  */
-export const Destination = S.Union([
+export const Place = S.Union([
   HomePage,
   SmartListPage,
   ListPage,
@@ -117,8 +117,18 @@ export const Destination = S.Union([
   MoveSheet,
   DeleteListQuestion,
   ClearCompletedQuestion,
-  Navigation.NotFound,
 ])
+/** Every place Reminders can show and a link can name. */
+export type Place = typeof Place.Type
+
+/** True for a place a link can name, false for a URI no route matched. */
+export const isPlace = S.is(Place)
+
+/**
+ * Every place Reminders can show, and the URI no route matched. A stack
+ * holds only these.
+ */
+export const Destination = S.Union([...Place.members, Navigation.NotFound])
 /** Every place Reminders can show. */
 export type Destination = typeof Destination.Type
 

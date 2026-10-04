@@ -1,8 +1,10 @@
 import { Array, Match as M, Option, Schema as S, String, pipe } from 'effect'
-import { Catalog } from 'foldkit'
+import { Catalog, Navigation } from 'foldkit'
 import {
   type ButtonNode,
   Column,
+  Dock,
+  type IconName,
   type ItemCheck,
   List,
   type ListItem,
@@ -41,18 +43,39 @@ import {
 } from './board.js'
 import {
   type LocalDay,
+  addDays,
+  dateLabel,
   dayLabel,
   dueLabel,
   dueTokenOf,
   quickDueDates,
+  timeLabel,
 } from './calendar.js'
+import {
+  DueDateSheet,
+  ListPage,
+  MoveSheet,
+  type Place,
+  PrioritySheet,
+  SearchPage,
+  SmartListPage,
+  TagPage,
+} from './destination.js'
 import type { ListId, ReminderId, SearchQuery, TagTitle } from './ids.js'
 import {
+  pathOfPages,
+  pathOfPresented,
+  placesOf,
+  reminderPathAbove,
+} from './links.js'
+import {
+  dueTile,
+  flagTile,
   listTileOf,
   palette,
   personTileOf,
+  priorityTile,
   smartListTileOf,
-  tagTileOf,
 } from './look.js'
 import {
   AddList,
@@ -75,13 +98,9 @@ import {
   HideCompleted,
   MoveReminder,
   OpenList,
-  OpenProfile,
   OpenReminder,
   OpenSmartList,
   OpenTag,
-  OrderingWord,
-  PriorityChoice,
-  PriorityWord,
   RecolorList,
   RenameList,
   RenameReminder,
@@ -90,20 +109,23 @@ import {
   SetDue,
   SetNotes,
   SetPriority,
+  SharePage,
   ShareWith,
   ShowCompleted,
   ShowDueDates,
   ShowListDetails,
   ShowLists,
+  ShowMoveOptions,
   ShowPriorities,
+  ShowProfile,
   ShowSharing,
   ShowSortOptions,
-  SmartListWord,
   SortBy,
   StartSharing,
   StopSharingWith,
   Unflag,
   Untag,
+  addingListOf,
   catalog,
   orderingTitleOf,
   priorityTitleOf,
@@ -112,7 +134,13 @@ import {
   shownReminder,
   smartCountOf,
 } from './message.js'
-import { type Model, boardOf } from './model.js'
+import { type Model, boardOf, canWrite, writableListsOf } from './model.js'
+import {
+  OrderingWord,
+  PriorityChoice,
+  PriorityWord,
+  SmartListWord,
+} from './words.js'
 
 // VIEW
 
@@ -130,6 +158,12 @@ const withVariant = (
   Array.map(buttons, button =>
     variant === undefined ? button : { ...button, variant },
   )
+
+const withIcon = (
+  buttons: ReadonlyArray<ButtonNode>,
+  icon: IconName,
+): ReadonlyArray<ButtonNode> =>
+  Array.map(buttons, button => ({ ...button, icon }))
 
 const isEnabledAction = (model: Model, action: AnyAction): boolean =>
   Array.some(
@@ -199,6 +233,24 @@ const offeredActionOf = (
   tag: string,
 ): Pick<ListItem, 'action'> => (isOffered(model, tag) ? { action: tag } : {})
 
+const hrefOf = (maybePath: Option.Option<string>): Pick<ListItem, 'href'> =>
+  Option.match(maybePath, {
+    onNone: () => ({}),
+    onSome: href => ({ href }),
+  })
+
+/**
+ * A row that opens a place while its Action is offered: a link to the
+ * place's address where a painter shows links, so a person can open it in
+ * a new tab, copy it, or share it, and the Action in a terminal.
+ */
+const placeRowOf = (
+  model: Model,
+  tag: string,
+  maybePath: Option.Option<string>,
+): Pick<ListItem, 'action' | 'href'> =>
+  isOffered(model, tag) ? { action: tag, ...hrefOf(maybePath) } : {}
+
 const counted = (count: number, one: string, many: string): string =>
   `${count.toString()} ${count === 1 ? one : many}`
 
@@ -213,6 +265,12 @@ const problemLines = (model: Model): ReadonlyArray<UiNode> =>
     ],
   })
 
+const noticeLines = (model: Model): ReadonlyArray<UiNode> =>
+  Option.match(model.maybeNotice, {
+    onNone: () => [],
+    onSome: notice => [Text(notice, { dim: true })],
+  })
+
 const headingOf = (title: string): UiNode =>
   Text(title, { emphasis: 'Headline' })
 
@@ -222,6 +280,47 @@ const missingNodes = (title: string, detail: string): ReadonlyArray<UiNode> => [
   Text(title),
   Text(detail, { dim: true }),
 ]
+
+const controlsOf = (
+  buttons: ReadonlyArray<ButtonNode>,
+): ReadonlyArray<UiNode> =>
+  Array.match(buttons, {
+    onEmpty: () => [],
+    onNonEmpty: present => [Row({ gap: 1 }, ...present)],
+  })
+
+const shareButtonsOf = (model: Model): ReadonlyArray<ButtonNode> =>
+  withIcon(offeredButtonsOf(model, [SharePage], 'Ghost'), 'Share')
+
+const sortButtonsOf = (model: Model): ReadonlyArray<ButtonNode> =>
+  withIcon(offeredButtonsOf(model, [ShowSortOptions], 'Ghost'), 'Settings')
+
+// TABS
+
+type Tab = 'Lists' | 'Profile'
+
+const tabs: ReadonlyArray<
+  Readonly<{ action: AnyAction; icon: IconName; tab: Tab }>
+> = [
+  { action: ShowLists, icon: 'Chapters', tab: 'Lists' },
+  { action: ShowProfile, icon: 'Profile', tab: 'Profile' },
+]
+
+const tabsOf = (model: Model, current: Tab): UiNode =>
+  Row(
+    {},
+    ...Array.flatMap(tabs, ({ action, icon, tab }) =>
+      Array.map(buttonsOf(model, [action], 'Tab'), button => ({
+        ...button,
+        icon,
+        isCurrent: tab === current,
+      })),
+    ),
+  )
+
+/** The bar pinned under home and the profile: the Lists and Profile tabs. */
+const dockOf = (model: Model, current: Tab): UiNode =>
+  Dock(tabsOf(model, current))
 
 // ROWS
 
@@ -295,6 +394,7 @@ const reminderItemOf = (
   board: Board,
   reminder: Reminder,
   context: RowContext,
+  listing: Place,
 ): ListItem => ({
   key: reminder.reminderId,
   title: `${priorityMarks(reminder)}${reminder.title}`,
@@ -303,9 +403,10 @@ const reminderItemOf = (
     notesLineOf(reminder),
   ]),
   check: checkOf(model, reminder),
-  ...offeredActionOf(
+  ...placeRowOf(
     model,
     Catalog.choiceTagOf(OpenReminder.tag, reminder.reminderId),
+    reminderPathAbove(listing, reminder),
   ),
 })
 
@@ -315,13 +416,60 @@ const remindersListOf = (
   label: string,
   reminders: ReadonlyArray<Reminder>,
   context: RowContext,
+  listing: Place,
 ): UiNode =>
   List({
     label,
     items: Array.map(reminders, reminder =>
-      reminderItemOf(model, board, reminder, context),
+      reminderItemOf(model, board, reminder, context, listing),
     ),
   })
+
+const isAddable = (model: Model): boolean =>
+  Option.exists(addingListOf(model), list => canWrite(model, list.listId))
+
+const addFieldOf = (
+  model: Model,
+  placeholder: string,
+  label: string,
+): ReadonlyArray<UiNode> =>
+  isAddable(model)
+    ? [TextInput({ value: '', placeholder, action: AddReminder.tag, label })]
+    : []
+
+/**
+ * The done reminders of a listing: while they are hidden, a button that
+ * says how many there are and shows them; while they show, the count as
+ * a heading, the reminders ticked, and Hide completed and Clear.
+ */
+const completedNodesOf = (
+  model: Model,
+  board: Board,
+  label: string,
+  done: ReadonlyArray<Reminder>,
+  context: RowContext,
+  listing: Place,
+): ReadonlyArray<UiNode> => {
+  const count = counted(done.length, 'completed', 'completed')
+  if (Array.isReadonlyArrayEmpty(done)) {
+    return []
+  } else if (model.completed === 'Hidden') {
+    return controlsOf(
+      Array.map(offeredButtonsOf(model, [ShowCompleted], 'Ghost'), button => ({
+        ...button,
+        label: `Show ${count}`,
+      })),
+    )
+  } else {
+    return [
+      sectionOf(count),
+      remindersListOf(model, board, label, done, context, listing),
+      ...controlsOf(
+        offeredButtonsOf(model, [HideCompleted, ClearCompleted], 'Ghost'),
+      ),
+    ]
+  }
+}
 
 // HOME
 
@@ -353,12 +501,13 @@ const smartItemOf = (model: Model, smartList: SmartList): ListItem => ({
   title: smartList,
   lines: [smartSentence(model, smartList)],
   image: smartListTileOf(smartList, model.maybeToday),
-  ...offeredActionOf(
+  ...placeRowOf(
     model,
     Catalog.choiceTagOf(
       OpenSmartList.tag,
       S.encodeSync(SmartListWord)(smartList),
     ),
+    pathOfPages([SmartListPage({ smartList })]),
   ),
 })
 
@@ -414,32 +563,23 @@ const listItemOf = (
     ),
   ],
   image: listTileOf(list.title, list.color),
-  ...offeredActionOf(model, Catalog.choiceTagOf(OpenList.tag, list.listId)),
+  ...placeRowOf(
+    model,
+    Catalog.choiceTagOf(OpenList.tag, list.listId),
+    pathOfPages([ListPage({ listId: list.listId })]),
+  ),
 })
 
 const tagItemOf = (model: Model, board: Board, tag: Tag): ListItem => ({
   key: tag.tagId,
   title: `#${tag.title}`,
   lines: [toDoOf(openOf(remindersTagged(board, tag)).length)],
-  image: tagTileOf(tag.title),
-  ...offeredActionOf(model, Catalog.choiceTagOf(OpenTag.tag, tag.title)),
+  ...placeRowOf(
+    model,
+    Catalog.choiceTagOf(OpenTag.tag, tag.title),
+    pathOfPages([TagPage({ tagTitle: tag.title })]),
+  ),
 })
-
-const profileItemOf = (model: Model, board: Board): ListItem => {
-  const name = identityTitleOf(board.member)
-  return {
-    key: board.member.memberId,
-    title: name,
-    lines: [
-      Option.getOrElse(
-        Option.filter(board.member.maybeEmail, email => email !== name),
-        () => 'Signed in',
-      ),
-    ],
-    image: personTileOf(name),
-    ...offeredActionOf(model, OpenProfile.tag),
-  }
-}
 
 const boardOrStatus = (
   model: Model,
@@ -463,15 +603,24 @@ const boardOrStatus = (
     }),
   )
 
+const searchFieldOf = (query: string): UiNode =>
+  TextInput({
+    value: query,
+    placeholder: 'Search reminders or #tags',
+    action: Search.tag,
+    label: 'Search reminders',
+  })
+
 /**
- * Home: search, the smart lists with what each holds, every list with how
- * much is left and who it is shared with, a field to add a list, the tags,
- * and who is signed in. Pressing a row opens it.
+ * Home, the Lists tab: search, the smart lists with what each holds, every
+ * list with how much is left and who it is shared with, a field to add a
+ * list, and the tags. Each row is a link to its page; the tabs stay pinned
+ * at the bottom.
  *
  * @example
  * ```typescript
  * homeScreen(model)
- * // Column: Reminders, [Search], List(Today…Completed), My Lists, List(Groceries…), [New list], Tags, List(#errands…), List(Ada Quill)
+ * // Column: Reminders, [Search], List(Today…Completed), My Lists, List(Groceries…), [New list], Tags, List(#chores…), Dock(Lists | Profile)
  * ```
  */
 export const homeScreen = (model: Model): UiNode =>
@@ -479,12 +628,7 @@ export const homeScreen = (model: Model): UiNode =>
     { gap: 1 },
     headingOf('Reminders'),
     ...boardOrStatus(model, board => [
-      TextInput({
-        value: '',
-        placeholder: 'Search reminders or #tags',
-        action: Search.tag,
-        label: 'Search reminders',
-      }),
+      searchFieldOf(''),
       ...problemLines(model),
       List({
         label: 'Smart lists',
@@ -520,44 +664,18 @@ export const homeScreen = (model: Model): UiNode =>
           }),
         ],
       }),
-      List({ label: 'Signed in', items: [profileItemOf(model, board)] }),
     ]),
+    dockOf(model, 'Lists'),
   )
 
 // LIST
-
-const addFieldOf = (
-  model: Model,
-  placeholder: string,
-  label: string,
-): ReadonlyArray<UiNode> =>
-  isEnabledAction(model, AddReminder)
-    ? [TextInput({ value: '', placeholder, action: AddReminder.tag, label })]
-    : []
-
-const completedSectionOf = (
-  model: Model,
-  board: Board,
-  label: string,
-  done: ReadonlyArray<Reminder>,
-  context: RowContext,
-): ReadonlyArray<UiNode> =>
-  model.completed === 'Shown' && Array.isReadonlyArrayNonEmpty(done)
-    ? [
-        Row(
-          { gap: 1 },
-          sectionOf(counted(done.length, 'completed', 'completed')),
-          ...offeredButtonsOf(model, [ClearCompleted], 'Ghost'),
-        ),
-        remindersListOf(model, board, label, done, context),
-      ]
-    : []
 
 const listNodes = (
   model: Model,
   board: Board,
   list: ReminderList,
 ): ReadonlyArray<UiNode> => {
+  const listing = ListPage({ listId: list.listId })
   const reminders = remindersInList(board, list.listId)
   const open = sortedBy(openOf(reminders), model.ordering)
   const done = sortedBy(completedOf(reminders), model.ordering)
@@ -587,25 +705,31 @@ const listNodes = (
           `${list.title} reminders`,
           rows,
           'InList',
+          listing,
         ),
       ],
     }),
-    ...completedSectionOf(model, board, `${list.title} done`, done, 'InList'),
-    Row(
-      { gap: 1 },
-      ...offeredButtonsOf(
-        model,
-        [ShowCompleted, HideCompleted, ShowSortOptions, ShowListDetails],
-        'Ghost',
-      ),
+    ...completedNodesOf(
+      model,
+      board,
+      `${list.title} done`,
+      done,
+      'InList',
+      listing,
     ),
+    ...controlsOf([
+      ...sortButtonsOf(model),
+      ...withIcon(offeredButtonsOf(model, [ShowListDetails], 'Ghost'), 'More'),
+      ...shareButtonsOf(model),
+    ]),
+    ...noticeLines(model),
   ]
 }
 
 /**
  * One list's page: its name, who it is shared with, a field to add a
- * reminder, its open reminders in this device's order, the done ones when
- * shown, and Show completed, Sort, and List info.
+ * reminder, its open reminders in this device's order, its done ones a
+ * press away, and Sort, List info, and Share.
  */
 export const listPageScreen = (model: Model, listId: ListId): UiNode =>
   Column(
@@ -646,6 +770,7 @@ const scheduledSections = (
   board: Board,
   reminders: ReadonlyArray<Reminder>,
   today: LocalDay,
+  listing: Place,
 ): ReadonlyArray<UiNode> =>
   Array.match(sortedBy(reminders, 'DueDate'), {
     onEmpty: () => [],
@@ -659,7 +784,7 @@ const scheduledSections = (
           const heading = dayGroupOf(Array.headNonEmpty(group), today)
           return [
             sectionOf(heading),
-            remindersListOf(model, board, heading, group, 'Across'),
+            remindersListOf(model, board, heading, group, 'Across', listing),
           ]
         }),
       ),
@@ -679,20 +804,22 @@ const smartRowsOf = (
   board: Board,
   smartList: SmartList,
   rows: Array.NonEmptyReadonlyArray<Reminder>,
-): ReadonlyArray<UiNode> =>
-  smartList === 'Scheduled'
+): ReadonlyArray<UiNode> => {
+  const listing = SmartListPage({ smartList })
+  return smartList === 'Scheduled'
     ? Option.match(model.maybeToday, {
         onNone: () => [
-          remindersListOf(model, board, smartList, rows, 'Across'),
+          remindersListOf(model, board, smartList, rows, 'Across', listing),
         ],
-        onSome: today => scheduledSections(model, board, rows, today),
+        onSome: today => scheduledSections(model, board, rows, today, listing),
       })
-    : [remindersListOf(model, board, smartList, rows, 'Across')]
+    : [remindersListOf(model, board, smartList, rows, 'Across', listing)]
+}
 
 /**
  * One smart list's page: what it holds across every list, Scheduled
- * grouped by day with the overdue first, and a field to add one where it
- * makes sense: due today on Today, flagged on Flagged.
+ * grouped by day with the overdue first, a field to add one where it
+ * makes sense, due today on Today and flagged on Flagged, and Share.
  */
 export const smartListScreen = (model: Model, smartList: SmartList): UiNode =>
   Column(
@@ -716,7 +843,8 @@ export const smartListScreen = (model: Model, smartList: SmartList): UiNode =>
           onNonEmpty: rows => smartRowsOf(model, board, smartList, rows),
         },
       ),
-      Row({ gap: 1 }, ...offeredButtonsOf(model, [ShowSortOptions], 'Ghost')),
+      ...controlsOf([...sortButtonsOf(model), ...shareButtonsOf(model)]),
+      ...noticeLines(model),
     ]),
   )
 
@@ -727,6 +855,7 @@ const tagNodes = (
   board: Board,
   tag: Tag,
 ): ReadonlyArray<UiNode> => {
+  const listing = TagPage({ tagTitle: tag.title })
   const tagged = remindersTagged(board, tag)
   const open = sortedBy(openOf(tagged), model.ordering)
   const done = sortedBy(completedOf(tagged), model.ordering)
@@ -736,23 +865,30 @@ const tagNodes = (
     ...Array.match(open, {
       onEmpty: () => [Text('Nothing left to do with this tag.', { dim: true })],
       onNonEmpty: rows => [
-        remindersListOf(model, board, `#${tag.title}`, rows, 'Across'),
+        remindersListOf(model, board, `#${tag.title}`, rows, 'Across', listing),
       ],
     }),
-    ...completedSectionOf(model, board, `#${tag.title} done`, done, 'Across'),
-    Row(
-      { gap: 1 },
-      ...offeredButtonsOf(
-        model,
-        [ShowCompleted, HideCompleted, ShowSortOptions],
-        'Ghost',
-      ),
-      ...offeredButtonsOf(model, [DeleteTag], 'Destructive'),
+    ...completedNodesOf(
+      model,
+      board,
+      `#${tag.title} done`,
+      done,
+      'Across',
+      listing,
     ),
+    ...controlsOf([
+      ...sortButtonsOf(model),
+      ...shareButtonsOf(model),
+      ...offeredButtonsOf(model, [DeleteTag], 'Destructive'),
+    ]),
+    ...noticeLines(model),
   ]
 }
 
-/** One tag's page: every reminder with the tag, open first, and Delete tag. */
+/**
+ * One tag's page: every reminder with the tag, open first, and Sort,
+ * Share, and Delete tag.
+ */
 export const tagPageScreen = (model: Model, tagTitle: TagTitle): UiNode =>
   Column(
     { gap: 1 },
@@ -773,18 +909,13 @@ export const tagPageScreen = (model: Model, tagTitle: TagTitle): UiNode =>
 
 /**
  * What a search found: the field with the words, then every match, the
- * best first, each with the words that show why it matched.
+ * best first, each with the words that show why it matched, and Share.
  */
 export const searchScreen = (model: Model, query: SearchQuery): UiNode =>
   Column(
     { gap: 1 },
     headingOf('Search'),
-    TextInput({
-      value: query,
-      placeholder: 'Search reminders or #tags',
-      action: Search.tag,
-      label: 'Search reminders',
-    }),
+    searchFieldOf(query),
     ...boardOrStatus(model, board =>
       Array.match(searchResultsOf(board, query), {
         onEmpty: () => [Text(`Nothing matches “${query}”.`, { dim: true })],
@@ -793,13 +924,21 @@ export const searchScreen = (model: Model, query: SearchQuery): UiNode =>
           List({
             label: 'Search results',
             items: Array.map(found, ({ reminder, match }) => {
-              const item = reminderItemOf(model, board, reminder, 'Across')
+              const item = reminderItemOf(
+                model,
+                board,
+                reminder,
+                'Across',
+                SearchPage({ query }),
+              )
               return {
                 ...item,
                 lines: Array.dedupe([match.summary, ...(item.lines ?? [])]),
               }
             }),
           }),
+          ...controlsOf(shareButtonsOf(model)),
+          ...noticeLines(model),
         ],
       }),
     ),
@@ -810,18 +949,23 @@ export const searchScreen = (model: Model, query: SearchQuery): UiNode =>
 const priorityTextOf = (reminder: Reminder): string =>
   Option.getOrElse(reminder.maybePriority, () => 'None')
 
-const detailItemOf = (
+/**
+ * A detail row that opens its Sheet while its Action is offered: a link to
+ * the Sheet's address over this page, `…/reminder/7e1f04c2-…/due`, where a
+ * painter shows links, and the Action in a terminal.
+ */
+const sheetRowOf = (
   model: Model,
-  key: string,
-  title: string,
-  value: string,
   tag: string,
-): ListItem => ({
-  key,
-  title,
-  lines: [value],
-  ...offeredActionOf(model, tag),
-})
+  sheet: Place,
+): Pick<ListItem, 'action' | 'href'> =>
+  placeRowOf(
+    model,
+    tag,
+    Option.flatMap(placesOf(model.navigation.pages), pages =>
+      pathOfPresented(pages, sheet, Navigation.Sheet()),
+    ),
+  )
 
 const editableFieldsOf = (reminder: Reminder): ReadonlyArray<UiNode> => [
   TextInput({
@@ -838,29 +982,99 @@ const editableFieldsOf = (reminder: Reminder): ReadonlyArray<UiNode> => [
   }),
 ]
 
-const readOnlyFieldsOf = (reminder: Reminder): ReadonlyArray<UiNode> => [
+const readOnlyFieldsOf = (
+  board: Board,
+  reminder: Reminder,
+): ReadonlyArray<UiNode> => [
   headingOf(reminder.title),
+  ...Array.map(
+    Option.toArray(
+      Option.flatMap(listIn(board, reminder.listId), list =>
+        sharingLineOf(board, list),
+      ),
+    ),
+    line => Text(line, { dim: true }),
+  ),
   ...Array.map(Option.toArray(notesLineOf(reminder)), notes => Text(notes)),
 ]
 
-const tagRowsOf = (
+const detailsOf = (model: Model, board: Board, reminder: Reminder): UiNode => {
+  const maybeList = listIn(board, reminder.listId)
+  const flagTag = Catalog.choiceTagOf(
+    reminder.isFlagged ? Unflag.tag : Flag.tag,
+    reminder.reminderId,
+  )
+  return List({
+    label: 'Details',
+    items: [
+      {
+        key: 'completed',
+        title: 'Completed',
+        check: checkOf(model, reminder),
+      },
+      {
+        key: 'due',
+        title: 'Due',
+        lines: [Option.getOrElse(dueTextOf(model, reminder), () => 'None')],
+        image: dueTile,
+        ...sheetRowOf(model, ShowDueDates.tag, DueDateSheet()),
+      },
+      {
+        key: 'priority',
+        title: 'Priority',
+        lines: [priorityTextOf(reminder)],
+        image: priorityTile,
+        ...sheetRowOf(model, ShowPriorities.tag, PrioritySheet()),
+      },
+      {
+        key: 'list',
+        title: 'List',
+        lines: Option.toArray(Option.map(maybeList, list => list.title)),
+        ...Option.match(maybeList, {
+          onNone: () => ({}),
+          onSome: list => ({ image: listTileOf(list.title, list.color) }),
+        }),
+        ...sheetRowOf(model, ShowMoveOptions.tag, MoveSheet()),
+      },
+      {
+        key: 'flag',
+        title: 'Flagged',
+        lines: [reminder.isFlagged ? 'On' : 'Off'],
+        image: flagTile,
+        ...offeredActionOf(model, flagTag),
+      },
+    ],
+  })
+}
+
+const tagChipsOf = (
   model: Model,
   board: Board,
   reminder: Reminder,
 ): ReadonlyArray<UiNode> =>
   Array.match(tagsOf(board, reminder), {
-    onEmpty: () => [Text('No tags', { dim: true })],
+    onEmpty: () => [],
     onNonEmpty: tags => [
+      sectionOf('Tags'),
       List({
         label: 'Tags',
         items: Array.map(tags, tag => ({
           key: tag.tagId,
           title: `#${tag.title}`,
-          ...offeredActionOf(
+          ...placeRowOf(
             model,
             Catalog.choiceTagOf(OpenTag.tag, tag.title),
+            pathOfPages([TagPage({ tagTitle: tag.title })]),
           ),
-          trailing: choiceButtonsOf(model, tag.title, [Untag], 'Ghost'),
+          trailing: Array.map(
+            choiceButtonsOf(model, tag.title, [Untag], 'Ghost'),
+            (button): ButtonNode => ({
+              ...button,
+              label: `Remove #${tag.title}`,
+              icon: 'Close',
+              isIconOnly: true,
+            }),
+          ),
         })),
       }),
     ],
@@ -870,56 +1084,15 @@ const reminderNodes = (
   model: Model,
   board: Board,
   reminder: Reminder,
-  maybeLink: Option.Option<string>,
 ): ReadonlyArray<UiNode> => {
-  const listTitle = Option.getOrElse(
-    Option.map(listIn(board, reminder.listId), list => list.title),
-    () => '',
-  )
   const isWritable = isEnabledAction(model, RenameReminder)
-  const flagTag = Catalog.choiceTagOf(
-    reminder.isFlagged ? Unflag.tag : Flag.tag,
-    reminder.reminderId,
-  )
   return [
-    Text(listTitle, { dim: true }),
-    ...(isWritable ? editableFieldsOf(reminder) : readOnlyFieldsOf(reminder)),
+    ...(isWritable
+      ? editableFieldsOf(reminder)
+      : readOnlyFieldsOf(board, reminder)),
     ...problemLines(model),
-    List({
-      label: 'Details',
-      items: [
-        {
-          key: 'completed',
-          title: 'Completed',
-          lines: [reminder.isCompleted ? 'Done' : 'Not yet'],
-          check: checkOf(model, reminder),
-        },
-        detailItemOf(
-          model,
-          'due',
-          'Due',
-          Option.getOrElse(dueTextOf(model, reminder), () => 'None'),
-          ShowDueDates.tag,
-        ),
-        detailItemOf(
-          model,
-          'priority',
-          'Priority',
-          priorityTextOf(reminder),
-          ShowPriorities.tag,
-        ),
-        detailItemOf(model, 'list', 'List', listTitle, ShowLists.tag),
-        detailItemOf(
-          model,
-          'flag',
-          'Flagged',
-          reminder.isFlagged ? 'On' : 'Off',
-          flagTag,
-        ),
-      ],
-    }),
-    sectionOf('Tags'),
-    ...tagRowsOf(model, board, reminder),
+    detailsOf(model, board, reminder),
+    ...tagChipsOf(model, board, reminder),
     ...(isWritable
       ? [
           TextInput({
@@ -930,31 +1103,28 @@ const reminderNodes = (
           }),
         ]
       : []),
-    Row(
-      { gap: 1 },
+    ...controlsOf([
+      ...shareButtonsOf(model),
       ...choiceButtonsOf(
         model,
         reminder.reminderId,
         [DeleteReminder],
         'Destructive',
       ),
-    ),
-    ...Array.map(Option.toArray(maybeLink), link =>
-      Text(link, { mono: true, copyable: true }),
-    ),
+    ]),
+    ...noticeLines(model),
   ]
 }
 
 /**
- * One reminder's page: its list, its title and notes to edit, its done
- * box, due date, priority, list, and flag as rows that open their
- * choices, its tags, Delete, and `maybeLink`, the address to share it at,
- * `/reminders/lists/2b7c1a0e-…/reminder/7e1f04c2-…`.
+ * One reminder's page: its title and notes to edit, its done box, and its
+ * due date, priority, list, and flag as rows, each a link to the Sheet
+ * that changes it, such as `…/reminder/7e1f04c2-…/due`; then its tags,
+ * Share, and Delete.
  */
 export const reminderPageScreen = (
   model: Model,
   reminderId: ReminderId,
-  linkOf: (reminder: Reminder) => Option.Option<string>,
 ): UiNode =>
   Column(
     { gap: 1 },
@@ -965,8 +1135,7 @@ export const reminderPageScreen = (
             'This reminder is gone',
             'It may have been deleted on another device. Go back to its list.',
           ),
-        onSome: reminder =>
-          reminderNodes(model, board, reminder, linkOf(reminder)),
+        onSome: reminder => reminderNodes(model, board, reminder),
       }),
     ),
   )
@@ -974,8 +1143,14 @@ export const reminderPageScreen = (
 // PROFILE
 
 /**
- * Who is signed in: their name and email, and how many lists they own and
- * were shared, and how many reminders are left and done.
+ * Who is signed in, the Profile tab: their name and email, how many lists
+ * they own and were shared, and how many reminders are left and done.
+ *
+ * @example
+ * ```typescript
+ * profileScreen(model)
+ * // Column: Profile, List(Ada Quill, ada@example.com), Your reminders, List(Lists you own 3…), Dock(Lists | Profile)
+ * ```
  */
 export const profileScreen = (model: Model): UiNode =>
   Column(
@@ -1000,6 +1175,7 @@ export const profileScreen = (model: Model): UiNode =>
             },
           ],
         }),
+        sectionOf('Your reminders'),
         List({
           label: 'Your reminders',
           items: [
@@ -1026,11 +1202,12 @@ export const profileScreen = (model: Model): UiNode =>
           ],
         }),
         Text(
-          'Your lists and reminders are the rows Reminders V3 reads, so the Swift app shows the same ones.',
+          'These are the same lists and reminders the Reminders V3 app shows.',
           { dim: true },
         ),
       ]
     }),
+    dockOf(model, 'Profile'),
   )
 
 // SHEETS
@@ -1058,7 +1235,12 @@ const choiceItemsOf = (
     ...offeredActionOf(model, Catalog.choiceTagOf(actionTag, row.token)),
   }))
 
-/** The due dates to choose from: quick days, any day typed, and No date. */
+const exampleDayOffset = 8
+
+/**
+ * The due dates to choose from, each with its date, the one set now
+ * marked: quick days, any day typed, and No date.
+ */
 export const dueDateScreen = (model: Model): UiNode =>
   Column(
     { gap: 1 },
@@ -1079,7 +1261,7 @@ export const dueDateScreen = (model: Model): UiNode =>
                 key: name,
                 token: dueTokenOf(due),
                 title: name,
-                lines: [dueLabel(due, today)],
+                lines: [`${dateLabel(due.day, today)}, ${timeLabel(due.time)}`],
                 isCurrent: Option.exists(
                   reminder.maybeDue,
                   current =>
@@ -1090,11 +1272,12 @@ export const dueDateScreen = (model: Model): UiNode =>
           }),
           TextInput({
             value: '',
-            placeholder: 'Another day: 2026-10-12, or 2026-10-12 14:30',
+            placeholder: `Another day, like ${addDays(today, exampleDayOffset)}`,
             action: SetDue.tag,
-            label: 'Another due date',
+            label:
+              'Another due date, a day such as 2026-10-12 or a day and time such as 2026-10-12 14:30',
           }),
-          Row({ gap: 1 }, ...offeredButtonsOf(model, [ClearDue], 'Ghost')),
+          ...controlsOf(offeredButtonsOf(model, [ClearDue], 'Ghost')),
         ],
       },
     ),
@@ -1139,35 +1322,33 @@ export const priorityScreen = (model: Model): UiNode =>
     }),
   )
 
-/** The lists a reminder can move to; its own list is marked. */
+/**
+ * The lists a reminder can move to, the ones the person may change; its
+ * own list is marked.
+ */
 export const moveScreen = (model: Model): UiNode =>
   Column(
     { gap: 1 },
     headingOf('Move to'),
-    ...Option.match(
-      Option.flatMap(boardOf(model), board =>
-        Option.map(shownReminder(model), reminder => ({ board, reminder })),
-      ),
-      {
-        onNone: () => [Text('No reminder is open.', { dim: true })],
-        onSome: ({ board, reminder }) => [
-          List({
-            label: 'Lists',
-            items: choiceItemsOf(
-              model,
-              MoveReminder.tag,
-              Array.map(listsInOrder(board), list => ({
-                key: list.listId,
-                token: list.listId,
-                title: list.title,
-                image: listTileOf(list.title, list.color),
-                isCurrent: list.listId === reminder.listId,
-              })),
-            ),
-          }),
-        ],
-      },
-    ),
+    ...Option.match(shownReminder(model), {
+      onNone: () => [Text('No reminder is open.', { dim: true })],
+      onSome: reminder => [
+        List({
+          label: 'Lists',
+          items: choiceItemsOf(
+            model,
+            MoveReminder.tag,
+            Array.map(writableListsOf(model), list => ({
+              key: list.listId,
+              token: list.listId,
+              title: list.title,
+              image: listTileOf(list.title, list.color),
+              isCurrent: list.listId === reminder.listId,
+            })),
+          ),
+        }),
+      ],
+    }),
   )
 
 const orderings: ReadonlyArray<Ordering> = [
@@ -1230,11 +1411,10 @@ export const listDetailsScreen = (model: Model): UiNode =>
             })),
           ),
         }),
-        Row(
-          { gap: 1 },
+        ...controlsOf([
           ...offeredButtonsOf(model, [ShowSharing], 'Ghost'),
           ...offeredButtonsOf(model, [DeleteList], 'Destructive'),
-        ),
+        ]),
       ],
     }),
   )
@@ -1253,19 +1433,35 @@ const peopleNodes = (model: Model): ReadonlyArray<UiNode> =>
             lines: [
               Array.join(
                 [
-                  ...Option.toArray(person.member.maybeEmail),
                   person.role === 'Writer' ? 'Can edit' : 'Can view',
+                  ...Option.toArray(person.member.maybeEmail),
                 ],
                 ' · ',
               ),
             ],
             image: personTileOf(name),
-            trailing: choiceButtonsOf(
-              model,
-              person.member.memberId,
-              [AllowEditing, AllowViewingOnly, StopSharingWith],
-              'Ghost',
-            ),
+            trailing: [
+              ...choiceButtonsOf(
+                model,
+                person.member.memberId,
+                [AllowEditing, AllowViewingOnly],
+                'Ghost',
+              ),
+              ...Array.map(
+                choiceButtonsOf(
+                  model,
+                  person.member.memberId,
+                  [StopSharingWith],
+                  'Ghost',
+                ),
+                (button): ButtonNode => ({
+                  ...button,
+                  label: `Stop sharing with ${name}`,
+                  icon: 'Close',
+                  isIconOnly: true,
+                }),
+              ),
+            ],
           }
         }),
       }),
@@ -1282,7 +1478,7 @@ const ownerSharingNodes = (
         `Share ${list.title} by email, and choose for each person whether they can edit it or only view it.`,
         { dim: true },
       ),
-      Row({ gap: 1 }, ...offeredButtonsOf(model, [StartSharing], 'Primary')),
+      ...controlsOf(offeredButtonsOf(model, [StartSharing], 'Primary')),
     ],
     onSome: () => [
       ...peopleNodes(model),
@@ -1344,7 +1540,7 @@ export const deleteListScreen = (model: Model, listId: ListId): UiNode =>
       {
         onNone: () => [
           Text('That list is gone.'),
-          Row({ gap: 1 }, ...buttonsOf(model, [CancelDeleteList], 'Ghost')),
+          ...controlsOf(buttonsOf(model, [CancelDeleteList], 'Ghost')),
         ],
         onSome: ({ board, list }) => [
           headingOf(`Delete ${list.title}?`),
@@ -1352,8 +1548,7 @@ export const deleteListScreen = (model: Model, listId: ListId): UiNode =>
             `Its ${counted(remindersInList(board, list.listId).length, 'reminder goes', 'reminders go')} with it, on every device.`,
             { dim: true },
           ),
-          Row(
-            { gap: 1 },
+          ...controlsOf([
             ...choiceButtonsOf(
               model,
               list.listId,
@@ -1361,7 +1556,7 @@ export const deleteListScreen = (model: Model, listId: ListId): UiNode =>
               'Destructive',
             ),
             ...buttonsOf(model, [CancelDeleteList], 'Ghost'),
-          ),
+          ]),
         ],
       },
     ),
@@ -1378,15 +1573,14 @@ export const clearCompletedScreen = (model: Model, listId: ListId): UiNode =>
       {
         onNone: () => [
           Text('That list is gone.'),
-          Row({ gap: 1 }, ...buttonsOf(model, [CancelClearCompleted], 'Ghost')),
+          ...controlsOf(buttonsOf(model, [CancelClearCompleted], 'Ghost')),
         ],
         onSome: ({ board, list }) => [
           headingOf(
             `Delete ${counted(completedOf(remindersInList(board, list.listId)).length, 'completed reminder', 'completed reminders')}?`,
           ),
           Text(`They leave ${list.title} on every device.`, { dim: true }),
-          Row(
-            { gap: 1 },
+          ...controlsOf([
             ...choiceButtonsOf(
               model,
               list.listId,
@@ -1394,7 +1588,7 @@ export const clearCompletedScreen = (model: Model, listId: ListId): UiNode =>
               'Destructive',
             ),
             ...buttonsOf(model, [CancelClearCompleted], 'Ghost'),
-          ),
+          ]),
         ],
       },
     ),

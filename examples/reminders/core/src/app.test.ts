@@ -1,10 +1,11 @@
 import { Array, Option } from 'effect'
 import { Catalog, Interaction, Navigation } from 'foldkit'
+import type { ListItem, UiNode } from 'foldkit/renderers'
 import { describe, expect, it } from 'vitest'
 
 import { App, type AppMessage, type AppModel } from './app.js'
 import { LocalDay } from './calendar.js'
-import { ReachedDay, ReceivedBoard } from './message.js'
+import { ReachedDay, ReceivedBoard, SharedLink } from './message.js'
 import { sampleBoard, sampleListIds } from './sample.js'
 
 type Written = Readonly<{ name: string; write: unknown }>
@@ -72,6 +73,41 @@ const screenText = (bound: Bound) =>
 const writesOf = (written: ReadonlyArray<Written>) =>
   Array.map(written, ({ write }) => write)
 
+const itemsIn = (node: UiNode): ReadonlyArray<ListItem> => {
+  if (node._tag === 'List') {
+    return node.items
+  } else if (
+    node._tag === 'Column' ||
+    node._tag === 'Row' ||
+    node._tag === 'Box' ||
+    node._tag === 'DeviceShell'
+  ) {
+    return Array.flatMap(node.children, itemsIn)
+  } else {
+    return []
+  }
+}
+
+const sheetItemsOf = (bound: Bound): ReadonlyArray<ListItem> =>
+  Option.match(
+    Option.flatMap(Navigation.frameOf(bound), frame =>
+      Array.last(frame.overlays),
+    ),
+    {
+      onNone: () => [],
+      onSome: layer =>
+        layer.view._tag === 'Screen' ? itemsIn(layer.view.node) : [],
+    },
+  )
+
+const hrefsOf = (bound: Bound): ReadonlyArray<string> =>
+  Array.getSomes(
+    Array.map(
+      Array.fromIterable(screenText(bound).matchAll(/"href":"([^"]+)"/g)),
+      match => Array.get(match, 1),
+    ),
+  )
+
 describe('Reminders', () => {
   it('shows the smart lists with what each holds, and opens a list from its row', () => {
     const { bound } = bindApp()
@@ -135,9 +171,73 @@ describe('Reminders', () => {
         isCompleted: true,
       },
     ])
-    expect(screenText(bound)).toContain(
-      `/reminders/lists/${groceries}/reminder/${oatMilk}`,
+  })
+
+  it('makes every row a link to its page, and every detail a link to its Sheet', () => {
+    const { bound } = bindApp()
+    const hrefs = () => hrefsOf(bound)
+    expect(hrefs()).toEqual(
+      expect.arrayContaining([
+        '/reminders/today',
+        `/reminders/lists/${groceries}`,
+        '/reminders/tags/chores',
+      ]),
     )
+    bound.press('OpenSmartList:today')
+    expect(hrefs()).toContain(`/reminders/today/reminder/${oatMilk}`)
+    bound.press(`OpenReminder:${oatMilk}`)
+    expect(hrefs()).toEqual(
+      expect.arrayContaining([
+        `/reminders/today/reminder/${oatMilk}/due`,
+        `/reminders/today/reminder/${oatMilk}/priority`,
+        `/reminders/today/reminder/${oatMilk}/move`,
+        '/reminders/tags/errands',
+      ]),
+    )
+  })
+
+  it('shares a reminder at its own list’s address, wherever it was opened, and says so until the screen changes', () => {
+    const { bound, written, send } = bindApp()
+    bound.press('OpenSmartList:today')
+    bound.press(`OpenReminder:${oatMilk}`)
+    expect(bound.pressKey(Interaction.keyInput('c'))).toBe(true)
+    expect(written).toEqual([
+      {
+        name: 'ShareLink',
+        write: {
+          path: `/reminders/lists/${groceries}/reminder/${oatMilk}`,
+          title: 'Oat milk',
+        },
+      },
+    ])
+    send(SharedLink({ how: 'Copied' }))
+    expect(screenText(bound)).toContain('Link copied')
+    bound.pressKey(Interaction.keyInput('d'))
+    expect(screenText(bound)).not.toContain('Link copied')
+  })
+
+  it('goes between the Lists and Profile tabs, the Profile tab with no Back', () => {
+    const { bound } = bindApp()
+    expect(screenText(bound)).toContain('"isCurrent":true')
+    bound.press('ShowProfile')
+    expect(uriOf(bound)).toEqual(Option.some('/reminders/profile'))
+    expect(screenText(bound)).toContain('ada@example.com')
+    expect(screenText(bound)).not.toContain('"action":"GoBack"')
+    bound.press('ShowLists')
+    expect(uriOf(bound)).toEqual(Option.some('/reminders'))
+  })
+
+  it('moves a reminder only to lists the person may change, its own marked', () => {
+    const { bound } = bindApp()
+    bound.press(`OpenReminder:${oatMilk}`)
+    bound.press('ShowMoveOptions')
+    expect(
+      Array.map(sheetItemsOf(bound), item => [item.title, item.isCurrent]),
+    ).toEqual([
+      ['Groceries', true],
+      ['Home', false],
+      ['Work', false],
+    ])
   })
 
   it('opens a shared link to a reminder, and its keys act on it', () => {
@@ -191,7 +291,7 @@ describe('Reminders', () => {
     bound.press(`OpenReminder:${oatMilk}`)
     bound.pressKey(Interaction.keyInput('p'))
     bound.press('SetPriority:high')
-    bound.press('ShowLists')
+    bound.press('ShowMoveOptions')
     bound.press(`MoveReminder:${sampleListIds.home}`)
     expect(uriOf(bound)).toEqual(
       Option.some(`/reminders/lists/${sampleListIds.home}/reminder/${oatMilk}`),

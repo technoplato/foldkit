@@ -1,12 +1,4 @@
-import {
-  Array,
-  Effect,
-  Option,
-  Schema as S,
-  SchemaIssue,
-  SchemaTransformation,
-  String,
-} from 'effect'
+import { Array, Option, Schema as S, String } from 'effect'
 import { Catalog, Navigation } from 'foldkit'
 import { m } from 'foldkit/message'
 
@@ -38,7 +30,7 @@ import {
   dueLabel,
   quickDueDates,
 } from './calendar.js'
-import { isListPage, isProfilePage, isTagPage } from './destination.js'
+import { isListPage, isTagPage } from './destination.js'
 import {
   EmailAddress,
   ListId,
@@ -51,6 +43,7 @@ import {
   TagTitle,
   TagTitleFromText,
 } from './ids.js'
+import { shownPathOf } from './links.js'
 import { ColorName, palette } from './look.js'
 import {
   type Model,
@@ -60,6 +53,7 @@ import {
   reminderOf,
   writableListsOf,
 } from './model.js'
+import { SharedHow } from './share.js'
 import {
   askedListOf,
   clearingListOf,
@@ -70,84 +64,12 @@ import {
   shownTagOf,
   topPageOf,
 } from './stack.js'
-
-// TOKENS
-
-const wordCodec = <Value extends string>(
-  target: S.Codec<Value, Value>,
-  pairs: Array.NonEmptyReadonlyArray<readonly [string, Value]>,
-): S.Codec<Value, string> =>
-  S.String.pipe(
-    S.decodeTo(
-      target,
-      SchemaTransformation.transformOrFail({
-        decode: (word: string) =>
-          Option.match(
-            Array.findFirst(
-              pairs,
-              ([candidate]) => candidate === word.trim().toLowerCase(),
-            ),
-            {
-              onNone: () =>
-                Effect.fail(
-                  new SchemaIssue.InvalidValue(Option.some(word), {
-                    message: `Expected one of ${Array.join(
-                      Array.map(pairs, ([candidate]) => candidate),
-                      ', ',
-                    )}`,
-                  }),
-                ),
-              onSome: ([, value]) => Effect.succeed(value),
-            },
-          ),
-        encode: (value: Value) =>
-          Effect.succeed(
-            Option.getOrElse(
-              Option.map(
-                Array.findFirst(pairs, ([, candidate]) => candidate === value),
-                ([word]) => word,
-              ),
-              () => value,
-            ),
-          ),
-      }),
-    ),
-  )
-
-/** A smart list as one lowercase word, `today` in `/reminders/today`. */
-export const SmartListWord = wordCodec(SmartList, [
-  ['today', 'Today'],
-  ['scheduled', 'Scheduled'],
-  ['all', 'All'],
-  ['flagged', 'Flagged'],
-  ['completed', 'Completed'],
-])
-
-/** How a reminder's priority can be set, `NoPriority` clearing it. */
-export const PriorityChoice = S.Literals([
-  'NoPriority',
-  'Low',
-  'Medium',
-  'High',
-])
-/** How a reminder's priority can be set. */
-export type PriorityChoice = typeof PriorityChoice.Type
-
-/** A priority as one word, `high` in `reminders set-priority high`. */
-export const PriorityWord = wordCodec(PriorityChoice, [
-  ['none', 'NoPriority'],
-  ['low', 'Low'],
-  ['medium', 'Medium'],
-  ['high', 'High'],
-])
-
-/** An order as one word, `due-date` in `reminders sort-by due-date`. */
-export const OrderingWord = wordCodec(Ordering, [
-  ['manual', 'Manual'],
-  ['due-date', 'DueDate'],
-  ['priority', 'Priority'],
-  ['title', 'Title'],
-])
+import {
+  OrderingWord,
+  PriorityChoice,
+  PriorityWord,
+  SmartListWord,
+} from './words.js'
 
 // RULES
 
@@ -427,15 +349,39 @@ export const OpenReminder = Catalog.action('OpenReminder', {
   meta: { label: 'Open', keys: [], title: 'Open reminder' },
 })
 
-/** Shows who is signed in. */
-export const OpenProfile = Catalog.action('OpenProfile', {
+/**
+ * Goes to every list, home: the Lists tab. Pressed on home, it stays
+ * there.
+ */
+export const ShowLists = Catalog.action('ShowLists', {
+  what: 'Goes to the smart lists, every list, and the tags',
+  why: 'The person wants another list',
+  enabled: unlessAsking,
+  meta: { label: 'Lists', keys: [], title: 'Go to your lists' },
+})
+
+/** Shows who is signed in and how their reminders stand: the Profile tab. */
+export const ShowProfile = Catalog.action('ShowProfile', {
   what: 'Shows who is signed in',
   why: 'The person wants to know which account they are using',
+  enabled: unlessAsking,
+  meta: { label: 'Profile', keys: [], title: 'Show the profile' },
+})
+
+/**
+ * Shares a link to the page on screen: a reminder at its own list's
+ * address, `/reminders/lists/2b7c1a0e-…/reminder/7e1f04c2-…`, any other
+ * page at the one the address bar shows. The share sheet on a phone, the
+ * clipboard elsewhere. `c` presses it.
+ */
+export const SharePage = Catalog.action('SharePage', {
+  what: 'Shares a link to the page on screen',
+  why: 'The person wants to send it, or to open it on another device',
   enabled: (model: Model) =>
-    Option.exists(topPageOf(model), isProfilePage)
-      ? Catalog.Disabled({ because: 'it is open' })
-      : unlessAsking(model),
-  meta: { label: 'Profile', keys: [], title: 'Open profile' },
+    Option.isSome(shownPathOf(model))
+      ? unlessAsking(model)
+      : Catalog.Disabled({ because: 'open a list or a reminder to share it' }),
+  meta: { label: 'Share', keys: ['c'], title: 'Share a link to this page' },
 })
 
 // LISTS
@@ -811,7 +757,7 @@ export const SetPriority = Catalog.action('SetPriority', {
 })
 
 /** Shows the lists the open reminder can move to. */
-export const ShowLists = Catalog.action('ShowLists', {
+export const ShowMoveOptions = Catalog.action('ShowMoveOptions', {
   what: 'Shows the lists the open reminder can move to',
   why: 'The person filed it in the wrong list',
   enabled: onWritableReminder,
@@ -1200,7 +1146,7 @@ export const AllowViewingOnly = Catalog.action('AllowViewingOnly', {
   what: 'Lets them only view the list',
   why: 'The person wants the list to stay as they keep it',
   enabled: onSharedOwnedList,
-  meta: { label: 'View only', keys: [], title: 'Allow viewing only' },
+  meta: { label: 'Make view only', keys: [], title: 'Allow viewing only' },
 })
 
 /** Stops sharing the open list with one person. */
@@ -1235,7 +1181,7 @@ export const catalog = Catalog.make([
   ClearDue,
   ShowPriorities,
   SetPriority,
-  ShowLists,
+  ShowMoveOptions,
   MoveReminder,
   AddTag,
   Untag,
@@ -1244,7 +1190,9 @@ export const catalog = Catalog.make([
   OpenList,
   OpenTag,
   Search,
-  OpenProfile,
+  ShowLists,
+  ShowProfile,
+  SharePage,
   AddList,
   ShowListDetails,
   RenameList,
@@ -1284,10 +1232,15 @@ export const CompletedWriteReminders = m('CompletedWriteReminders')
 export const FailedWriteReminders = m('FailedWriteReminders', {
   reason: S.String,
 })
+/** The link to a page went out, through a share sheet or a clipboard. */
+export const SharedLink = m('SharedLink', { how: SharedHow })
+/** The link to a page could not go out, and why, safe to show. */
+export const FailedShareLink = m('FailedShareLink', { reason: S.String })
 
 /**
  * Every Message Reminders accepts: the Catalog's Actions, the facts the
- * store and the clock report, and the carrier facts its stack folds.
+ * store, the clock, and link sharing report, and the carrier facts its
+ * stack folds.
  */
 export const Message = S.Union([
   ...catalog.Message.members,
@@ -1297,6 +1250,8 @@ export const Message = S.Union([
   ReachedDay,
   CompletedWriteReminders,
   FailedWriteReminders,
+  SharedLink,
+  FailedShareLink,
   Navigation.OpenedUri,
   Navigation.NavigatedBack,
 ])

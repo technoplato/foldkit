@@ -10,6 +10,7 @@ import { init } from '@instantdb/core'
 
 import { makeInstantRemindersStore } from './instantStore.js'
 import { RemindersProgram } from './program.js'
+import { browserLinkSharing } from './share.browser.js'
 import type { RemindersHandle } from './startConfig.js'
 import { RemindersStore } from './store.js'
 import { SyncedReminders } from './synced.js'
@@ -24,8 +25,9 @@ export type StartRemindersConfig = Readonly<{
 /**
  * Starts Reminders in a browser on the Instant app that holds the
  * Reminders V3 lists. The resources sign in as the Cloudflare Access
- * member first, then read the board and write each change as that member.
- * The program log keeps only this member's rows.
+ * member first, then read the board and write each change as that member,
+ * and share links through the share sheet or the clipboard. The program
+ * log keeps only this member's rows.
  *
  * @example
  * ```typescript
@@ -47,7 +49,10 @@ export const startReminders = (
     ),
   })
   const resources = withHostedIdentity(
-    Layer.effect(RemindersStore, makeInstantRemindersStore(database)),
+    Layer.mergeAll(
+      Layer.effect(RemindersStore, makeInstantRemindersStore(database)),
+      browserLinkSharing,
+    ),
     database,
   )
   return Runtime.startHandle({

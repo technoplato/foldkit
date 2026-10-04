@@ -13,6 +13,7 @@ import {
 
 import { makeInstantRemindersStore } from './instantStore.js'
 import { RemindersProgram } from './program.js'
+import { terminalLinkSharing } from './share.node.js'
 import type { RemindersHandle } from './startConfig.js'
 import { RemindersStore } from './store.js'
 import { SyncedReminders } from './synced.js'
@@ -65,8 +66,15 @@ export const notSignedInSentence =
 export type SignedInReminders = Readonly<{
   appId: string
   email: string
+  sessionOrigin: string
   database: ProgramLogDatabase
 }>
+
+const isLoopbackOrigin = (origin: string): boolean =>
+  origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')
+
+const publicOriginOf = (sessionOrigin: string): string =>
+  isLoopbackOrigin(sessionOrigin) ? defaultRemindersOrigin : sessionOrigin
 
 const stateDirectoryOf = (appId: string): string =>
   join(dirname(localSnapshotPath('foldkit-reminders')), 'reminders', appId)
@@ -96,6 +104,7 @@ export const signInToReminders = async (
     Option.map(Option.fromNullishOr(signedIn.email), email => ({
       appId: connection.appId,
       email,
+      sessionOrigin: connection.sessionOrigin,
       database,
     })),
   )
@@ -119,8 +128,9 @@ export const remindersEngine = (
 
 /**
  * Starts Reminders in a terminal as the signed-in member: the board from
- * Instant, and this machine's fold of the log in a file, so the next run
- * paints at once.
+ * Instant, links copied to this machine's clipboard on the web Reminders'
+ * public address, and this machine's fold of the log in a file, so the
+ * next run paints at once.
  *
  * @example
  * ```typescript
@@ -134,9 +144,12 @@ export const startReminders = (
   Runtime.startHandle({
     program: SyncedReminders,
     sync: remindersEngine(signedIn, config),
-    resources: Layer.effect(
-      RemindersStore,
-      makeInstantRemindersStore(signedIn.database),
+    resources: Layer.mergeAll(
+      Layer.effect(
+        RemindersStore,
+        makeInstantRemindersStore(signedIn.database),
+      ),
+      terminalLinkSharing(publicOriginOf(signedIn.sessionOrigin)),
     ),
     localSnapshot: localSnapshotFile(
       join(stateDirectoryOf(signedIn.appId), 'snapshot.json'),
