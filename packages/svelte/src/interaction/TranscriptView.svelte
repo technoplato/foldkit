@@ -82,6 +82,9 @@
         class="fk-passage"
         data-current={passage.isCurrent === true ? true : undefined}
       >
+        {#if passage.heading !== undefined}
+          <h3 class="fk-passage-heading">{passage.heading}</h3>
+        {/if}
         {#if labelAction === undefined}
           <span class="fk-passage-label">{passage.label}</span>
         {:else}

@@ -156,16 +156,7 @@
     {#each node.items as item (item.key)}
       {@const action = item.action}
       <li class="fk-item" data-current={item.isCurrent === true ? true : undefined}>
-        <button
-          class="fk-item-press"
-          disabled={action === undefined}
-          onclick={() => {
-            if (action !== undefined) {
-              onPress({ _tag: 'Button', label: item.title, action })
-            }
-          }}
-          type="button"
-        >
+        {#snippet itemContent()}
           {#if item.image !== undefined}
             <img
               alt={item.image.alt}
@@ -189,7 +180,30 @@
               ></progress>
             {/if}
           </span>
-        </button>
+        {/snippet}
+        {#if item.href !== undefined}
+          {@const href = item.href}
+          <a
+            class="fk-item-press"
+            {href}
+            onclick={event => {
+              followLink(event, href)
+            }}>{@render itemContent()}</a
+          >
+        {:else}
+          <button
+            class="fk-item-press"
+            disabled={action === undefined}
+            onclick={() => {
+              if (action !== undefined) {
+                onPress({ _tag: 'Button', label: item.title, action })
+              }
+            }}
+            type="button"
+          >
+            {@render itemContent()}
+          </button>
+        {/if}
         {#each item.trailing ?? [] as child, index (keyFor(child, index))}
           <PaintTree {classNames} {onInput} {onLink} {onPress} node={child} />
         {/each}
