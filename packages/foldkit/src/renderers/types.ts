@@ -128,9 +128,12 @@ export type TranscriptWord = Readonly<{
  * One passage of a Transcript, a paragraph that starts at `label`, such as
  * `12:03`. Pressing the label presses `labelAction` when it has one, such
  * as `SeekTo:723000`. `isCurrent` marks the passage sounding now.
+ * `heading` titles the section the passage opens, such as `Chapter 8:
+ * Religion`.
  */
 export type TranscriptPassage = Readonly<{
   readonly key: string
+  readonly heading?: string
   readonly label: string
   readonly labelAction?: string
   readonly isCurrent?: boolean
@@ -172,10 +175,13 @@ export type ItemImage = TextImage & Readonly<{ readonly alt: string }>
 /**
  * One row of a List: a picture, a title, the lines under it, how far
  * along it is, the press the whole row sends, and buttons at its end.
- * `key` is the row's stable identity, such as the book's slug.
+ * `key` is the row's stable identity, such as the book's slug. `href`
+ * makes the row a link instead, such as a bookmark's moment, so a person
+ * can open it, copy it, or share it the way a platform shares any link.
  */
 export type ListItem = Readonly<{
   readonly key: string
+  readonly href?: string
   readonly title: string
   readonly lines?: ReadonlyArray<string>
   readonly image?: ItemImage

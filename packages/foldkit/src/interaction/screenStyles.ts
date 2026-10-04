@@ -435,6 +435,16 @@ export const screenStylesheet = `
   background: ${screenLook.rowHoverColor};
 }
 
+:where(.fk-passage-heading) {
+  grid-column: 1 / -1;
+  margin: 12px 0 2px;
+  color: ${screenLook.textColor};
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 :where(.fk-passage-label) {
   align-self: start;
   padding-top: 5px;

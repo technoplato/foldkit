@@ -1,4 +1,4 @@
-import { Array, Match as M } from 'effect'
+import { Array, Match as M, Option } from 'effect'
 
 import type { Device } from './device.js'
 import { Column, Row, Text } from './elements.js'
@@ -171,11 +171,16 @@ const passageLines = (
   const marker = passage.isCurrent === true ? '›' : ' '
   const label = `${marker}${passage.label}`.padEnd(passageLabelWidth, ' ')
   const textWidth = Math.max(1, availableW - passageLabelWidth)
-  return Array.map(
-    wrappedWords(Array.map(passage.words, wordGlyph), textWidth),
-    (line, index) =>
-      `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line}`,
-  )
+  return [
+    ...(passage.heading === undefined
+      ? []
+      : ['', passage.heading.toUpperCase()]),
+    ...Array.map(
+      wrappedWords(Array.map(passage.words, wordGlyph), textWidth),
+      (line, index) =>
+        `${index === 0 ? label : ' '.repeat(passageLabelWidth)}${line}`,
+    ),
+  ]
 }
 
 const transcriptLines = (
@@ -368,9 +373,15 @@ const layoutNode = (
             kind: 'Button',
             text: fit(title, titleW),
             label: item.title,
-            ...(item.action === undefined
-              ? {}
-              : { action: { _tag: 'custom', id: item.action } }),
+            ...Option.match(
+              Option.orElse(Option.fromNullishOr(item.action), () =>
+                Option.fromNullishOr(item.href),
+              ),
+              {
+                onNone: () => ({}),
+                onSome: id => ({ action: { _tag: 'custom' as const, id } }),
+              },
+            ),
             children: [],
           }
           const detail = Array.join(item.lines ?? [], ' · ')

@@ -138,6 +138,17 @@ export const paintHtml = <Message>(
             Array.map(list.items, item => {
               const message =
                 item.action === undefined ? undefined : toMessage(item.action)
+              const pressAttributes =
+                item.href === undefined
+                  ? [
+                      h.Type('button'),
+                      h.Class('fk-item-press'),
+                      ...(message === undefined
+                        ? [h.Disabled(true)]
+                        : [h.OnClick(message)]),
+                    ]
+                  : [h.Class('fk-item-press'), h.Href(item.href)]
+              const press = item.href === undefined ? h.button : h.a
               return h.li(
                 [
                   h.Class('fk-item'),
@@ -146,49 +157,40 @@ export const paintHtml = <Message>(
                     : []),
                 ],
                 [
-                  h.button(
-                    [
-                      h.Type('button'),
-                      h.Class('fk-item-press'),
-                      ...(message === undefined
-                        ? [h.Disabled(true)]
-                        : [h.OnClick(message)]),
-                    ],
-                    [
-                      ...(item.image === undefined
-                        ? []
-                        : [
-                            h.img([
-                              h.Class('fk-item-image'),
-                              h.Src(item.image.src),
-                              h.Alt(item.image.alt),
-                              h.Width(item.image.width.toString()),
-                              h.Height(item.image.height.toString()),
-                            ]),
+                  press(pressAttributes, [
+                    ...(item.image === undefined
+                      ? []
+                      : [
+                          h.img([
+                            h.Class('fk-item-image'),
+                            h.Src(item.image.src),
+                            h.Alt(item.image.alt),
+                            h.Width(item.image.width.toString()),
+                            h.Height(item.image.height.toString()),
                           ]),
-                      h.span(
-                        [h.Class('fk-item-body')],
-                        [
-                          h.span([h.Class('fk-item-title')], [item.title]),
-                          ...Array.map(item.lines ?? [], line =>
-                            h.span([h.Class('fk-item-line')], [line]),
-                          ),
-                          ...(item.progress === undefined
-                            ? []
-                            : [
-                                h.progress(
-                                  [
-                                    h.Class('fk-progress'),
-                                    h.Max(item.progress.max.toString()),
-                                    h.Value(item.progress.value.toString()),
-                                  ],
-                                  [],
-                                ),
-                              ]),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ]),
+                    h.span(
+                      [h.Class('fk-item-body')],
+                      [
+                        h.span([h.Class('fk-item-title')], [item.title]),
+                        ...Array.map(item.lines ?? [], line =>
+                          h.span([h.Class('fk-item-line')], [line]),
+                        ),
+                        ...(item.progress === undefined
+                          ? []
+                          : [
+                              h.progress(
+                                [
+                                  h.Class('fk-progress'),
+                                  h.Max(item.progress.max.toString()),
+                                  h.Value(item.progress.value.toString()),
+                                ],
+                                [],
+                              ),
+                            ]),
+                      ],
+                    ),
+                  ]),
                   ...Array.map(item.trailing ?? [], paint),
                 ],
               )
@@ -233,6 +235,14 @@ export const paintHtml = <Message>(
                         : []),
                     ],
                     [
+                      ...(passage.heading === undefined
+                        ? []
+                        : [
+                            h.h3(
+                              [h.Class('fk-passage-heading')],
+                              [passage.heading],
+                            ),
+                          ]),
                       h.span([h.Class('fk-passage-label')], [passage.label]),
                       h.p(
                         [h.Class('fk-passage-words')],

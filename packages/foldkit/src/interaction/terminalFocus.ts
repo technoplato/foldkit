@@ -7,6 +7,7 @@ import {
   parseChoiceTag,
 } from '../catalog/catalog.js'
 import type { EntryView } from '../navigation/declaration.js'
+import { Link } from '../navigation/message.js'
 import { type Frame, type FrameLayer, frameOf } from '../navigation/frame.js'
 import { buttonsOf } from '../renderers/query.js'
 import type { ButtonNode, UiNode } from '../renderers/types.js'
@@ -67,6 +68,8 @@ export const focusMoveOf = (input: KeyInput): Option.Option<FocusMove> => {
 
 // GRID
 
+const isLinkTag = (tag: string): boolean => tag.startsWith('/')
+
 const pressableTagOf = (button: ButtonNode): Option.Option<string> =>
   button.disabled === true ? Option.none() : Option.fromNullishOr(button.action)
 
@@ -90,7 +93,7 @@ const gridOfNode = (node: UiNode): FocusGrid =>
       List: list =>
         Array.filter(
           Array.map(list.items, item => [
-            ...Array.fromNullishOr(item.action),
+            ...Array.fromNullishOr(item.action ?? item.href),
             ...Array.getSomes(Array.map(item.trailing ?? [], pressableTagOf)),
           ]),
           Array.isReadonlyArrayNonEmpty,
@@ -279,7 +282,9 @@ export const pressTerminalKeyAt = <Model, Message>(
       return Option.match(maybePressed, {
         onNone: passedOn,
         onSome: tag =>
-          bound.press(tag) ? { outcome: 'Handled', focus } : passedOn(),
+          (isLinkTag(tag) ? bound.openUri(tag, Link()) : bound.press(tag))
+            ? { outcome: 'Handled', focus }
+            : passedOn(),
       })
     },
   })
@@ -341,8 +346,10 @@ const decorated = (
         ...list,
         items: Array.map(list.items, item => ({
           ...item,
-          ...(item.action !== undefined &&
-          Option.contains(maybeFocused, item.action)
+          ...(Option.exists(
+            Option.fromNullishOr(item.action ?? item.href),
+            tag => Option.contains(maybeFocused, tag),
+          )
             ? { focused: true }
             : {}),
           ...(item.trailing === undefined
