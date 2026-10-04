@@ -4,6 +4,104 @@ Newest entries appear first. Implementation commits and intent are recorded sepa
 
 <!-- change-log:entries -->
 
+## October 4th, 2026 at 1:11:11 p.m. EDT — `f6e0a966f36c` fix(foldkit): keep screen text from leaving one word on its last line
+
+- **Implementation commit:** `f6e0a966f36c5fb470ffc82c5700735c21c59728`
+- **Change:** Keep screen text from leaving one word on its last line
+- **Details:**
+  - Screen text uses text-wrap: pretty.
+- **Files:**
+  - `packages/foldkit/src/interaction/screenStyles.ts` — .fk-text.
+- **User context (verbatim):**
+  > you need to look at how these things look before you tell me they're ready
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:11 p.m. EDT — `0cc2e90c0e0a` fix(books): keep a book read aloud one page while its pages turn
+
+- **Implementation commit:** `0cc2e90c0e0aeace2cc1514743c286de06ab2eae`
+- **Change:** Keep a book read aloud one page while its pages turn
+- **Details:**
+  - Books declares the same identity for its Read Aloud page screen.
+- **Files:**
+  - `examples/books/core/src/navigation.ts` — identityOf on the page.
+- **User context (verbatim):**
+  > Um, you're going to deduce Switch page with the deep link.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:11 p.m. EDT — `abef28e031b0` fix(read-aloud): keep a book one page while its pages turn
+
+- **Implementation commit:** `abef28e031b0fef994575cd9316270a4072c663f`
+- **Change:** Keep a book one page while its pages turn
+- **Details:**
+  - pageIdentityOf resets the page, so the screen and the Google viewer stay mounted across turns.
+- **Files:**
+  - `examples/read-aloud/core/src/routes.ts` — pageIdentityOf.
+- **User context (verbatim):**
+  > Um, you're going to deduce Switch page with the deep link.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:11 p.m. EDT — `5b6cca743c96` feat(books): follow picture books read aloud at /books/read-aloud
+
+- **Implementation commit:** `5b6cca743c96465f3c502d439fde82f70bd5c924`
+- **Change:** Follow picture books read aloud at /books/read-aloud
+- **Details:**
+  - Books mounts Read Aloud with a library row, Dock and tabs, and page link previews on the public routes.
+- **Files:**
+  - `examples/books/core/src/navigation.ts` — Read Aloud screens.
+  - `examples/books/core/src/linkPreviews.node.ts` — Read Aloud page previews.
+- **User context (verbatim):**
+  > Um, you're going to deduce Switch page with the deep link.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:11 p.m. EDT — `0a612f81b94b` feat(read-aloud): let another Program hold it, share pages, preview links
+
+- **Implementation commit:** `0a612f81b94b2844cbbbfe1e98c8df713cd2eaf4`
+- **Change:** Let another Program hold Read Aloud, share its pages, and preview their links
+- **Details:**
+  - Read Aloud mounts inside a host stack, shares a page link, and readAloudLinkMetadataOf gives the public metadata for a page.
+- **Files:**
+  - `examples/read-aloud/core/src/linkPreview.ts` — readAloudLinkMetadataOf.
+- **User context (verbatim):**
+  > And obviously, we want to show Rich previews that are clickable to books.pissportsoftware.xyz.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:10 p.m. EDT — `b7fe5b98c8f9` feat(read-aloud): follow a picture book read aloud, page by page
+
+- **Implementation commit:** `b7fe5b98c8f9e31c95df0ae103cdf636b4095f64`
+- **Change:** Follow a picture book read aloud, page by page
+- **Details:**
+  - Read Aloud reads Scribe's page turns from local files, shows book details and the Google Books preview at the page, and gives each page a link.
+- **Files:**
+  - `examples/read-aloud/core/src/update.ts` — Following the reading.
+  - `examples/read-aloud/react-bindings/src/googleBooksPreview.tsx` — The Google Books viewer.
+- **User context (verbatim):**
+  > Okay, so, Quad, we want to, on books, start, uh, pissport software.xyz, have previews of these embedded as we read through the pages.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:10 p.m. EDT — `70bbf6850d9f` feat(react): paint a Text's embed with the view its host gives
+
+- **Implementation commit:** `70bbf6850d9fde32e7b8480723a2642463fbf196`
+- **Change:** Paint a Text's embed with the view its host gives
+- **Details:**
+  - EmbedPaintersProvider maps embed kinds to React views; the view stays mounted across repaints.
+- **Files:**
+  - `packages/react/src/paintReact/paintReact.tsx` — Embed painting.
+- **User context (verbatim):**
+  > Okay, so, Quad, we want to, on books, start, uh, pissport software.xyz, have previews of these embedded as we read through the pages.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
+## October 4th, 2026 at 1:11:10 p.m. EDT — `c57e8a6bc56b` feat(foldkit): let a Text show a live embed where the host draws one
+
+- **Implementation commit:** `c57e8a6bc56b81672745143e9bb2e5ded42814f5`
+- **Change:** Let a Text show a live embed where the host draws one
+- **Details:**
+  - Text takes an optional embed (kind, params, size); painters without a view for it show the words, as a link where they can.
+- **Files:**
+  - `packages/foldkit/src/renderers/types.ts` — TextEmbed.
+- **User context (verbatim):**
+  > Okay, so, Quad, we want to, on books, start, uh, pissport software.xyz, have previews of these embedded as we read through the pages.
+- **SpecStory:** unavailable — unavailable — Claude Code session; no SpecStory URI was captured.
+
 ## October 4th, 2026 at 12:34:44 p.m. EDT — `8d69860df056` test(react-native): expect a deep launch link to open while mirrored
 
 - **Implementation commit:** `8d69860df056766c030abe051e1ea718194de647`
