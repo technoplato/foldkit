@@ -201,7 +201,9 @@ const steppedIndex = (
  * A screen presented over the page, such as "Delete Counter 3?". It takes
  * the keyboard when it opens, on its first button, and keeps it: Tab and
  * the arrows move between its buttons as `Interaction.presentedFocusMoveOf`
- * decides, Enter presses, and Escape goes back through the Program.
+ * decides, Enter presses, and Escape goes back through the Program. A
+ * click on the dimmed backdrop around it goes back one entry too, so the
+ * sheet or question closes as if dismissed.
  */
 const PresentedScreen = ({
   layer,
@@ -210,6 +212,7 @@ const PresentedScreen = ({
   layer: LayerShape
   classNames: PaintClassNames
 }>): ReactElement => {
+  const bound = useBound()
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const root = ref.current
@@ -227,6 +230,11 @@ const PresentedScreen = ({
       className="fk-overlay"
       data-style={Navigation.styleTagOf(layer)}
       data-key={layer.key}
+      onClick={event => {
+        if (event.target === event.currentTarget) {
+          Navigation.backOneEntry(bound)
+        }
+      }}
       onKeyDown={event => {
         const root = ref.current
         const maybeMove = Interaction.presentedFocusMoveOf(

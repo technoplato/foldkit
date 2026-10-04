@@ -23,6 +23,12 @@
     }
   }
 
+  const dismissOnBackdrop = (event: MouseEvent): void => {
+    if (event.target === event.currentTarget) {
+      Navigation.backOneEntry(program.bound)
+    }
+  }
+
   const followLink = (href: string): boolean =>
     typeof window !== 'undefined' &&
     Navigation.followLink(window, program.bound, href, 'ProgramOnly', 'Push')
@@ -53,6 +59,7 @@
         class="fk-overlay"
         data-key={layer.key}
         data-style={Navigation.styleTagOf(layer)}
+        onclick={dismissOnBackdrop}
         role="dialog"
         use:presentedFocus
       >
