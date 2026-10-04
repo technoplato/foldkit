@@ -173,6 +173,36 @@ const PassageView = memo(
 
 const userScrollQuietMs = 4000
 
+const middleBandStart = 0.25
+
+const middleBandEnd = 0.75
+
+/**
+ * Keeps a word near the middle of the transcript: inside the transcript's
+ * own scroll area when it has one, so the controls above stay put, else
+ * in the window.
+ */
+const followWord = (root: HTMLElement, word: HTMLElement): void => {
+  const isScrollArea = root.scrollHeight > root.clientHeight
+  const view = isScrollArea
+    ? root.getBoundingClientRect()
+    : { top: 0, height: window.innerHeight }
+  const bounds = word.getBoundingClientRect()
+  const isNearMiddle =
+    bounds.top > view.top + view.height * middleBandStart &&
+    bounds.bottom < view.top + view.height * middleBandEnd
+  if (isNearMiddle) {
+    return
+  } else if (isScrollArea) {
+    root.scrollTo({
+      top: root.scrollTop + (bounds.top - view.top) - root.clientHeight / 2,
+      behavior: 'smooth',
+    })
+  } else {
+    word.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }
+}
+
 /**
  * Words to read along with. It keeps the word sounding in the middle of
  * the window as it moves, and lets a person scroll away to read ahead: it
@@ -216,19 +246,13 @@ const TranscriptView = ({
     ) {
       return
     }
-    const word = root.querySelector(
+    const word = root.querySelector<HTMLElement>(
       `[data-token="${CSS.escape(currentToken)}"]`,
     )
     if (word === null) {
       return
     }
-    const bounds = word.getBoundingClientRect()
-    const isNearMiddle =
-      bounds.top > window.innerHeight * 0.25 &&
-      bounds.bottom < window.innerHeight * 0.75
-    if (!isNearMiddle) {
-      word.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    }
+    followWord(root, word)
   }, [currentToken])
   return (
     <section ref={ref} className={className} aria-label={transcript.label}>
